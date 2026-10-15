@@ -142,7 +142,6 @@ describe('ConnectorRunService', () => {
           requestedEnd: '2026-09-15',
           segmentIndex: 1,
           segmentsTotal: 14,
-          consecutiveFailures: 0,
         },
       };
       expect(dataMartRunRepository.save).toHaveBeenCalledTimes(1);
@@ -256,7 +255,6 @@ describe('ConnectorRunService', () => {
       requestedEnd: '2026-03-03',
       segmentIndex: 1,
       segmentsTotal: 2,
-      consecutiveFailures: 0,
       ...overrides,
     });
 

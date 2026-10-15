@@ -9,7 +9,6 @@ const META: BackfillChainMeta = {
   requestedEnd: '2025-06-30',
   segmentIndex: 3,
   segmentsTotal: 18,
-  consecutiveFailures: 0,
 };
 const WINDOW = { startDate: '2024-03-03', endDate: '2024-04-02' };
 const AT = '2026-01-01T00:00:00.000Z';
@@ -68,12 +67,5 @@ describe('buildSegmentMarker', () => {
       chainEnd: 'finished',
     });
     expect(finished.tags).toMatchObject({ chainContinues: false, chainEnd: 'finished' });
-
-    const stopped = buildSegmentMarker({ ...META, consecutiveFailures: 2 }, WINDOW, 'failed', AT, {
-      chainContinues: false,
-      chainEnd: 'stopped',
-    });
-    expect(stopped.tags).toMatchObject({ chainEnd: 'stopped' });
-    expect(stopped.message).toContain('stopped after 3 consecutive failed segments');
   });
 });

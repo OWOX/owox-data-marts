@@ -1,6 +1,5 @@
 import {
   BackfillChainMeta,
-  MAX_CONSECUTIVE_BACKFILL_FAILURES,
   backfillSegmentWindow,
   clampBackfillWindow,
   countBackfillDays,
@@ -184,7 +183,6 @@ describe('manual-backfill-range', () => {
         requestedEnd: '2025-06-30',
         segmentIndex: 1,
         segmentsTotal: 18,
-        consecutiveFailures: 0,
       });
     });
 
@@ -212,16 +210,16 @@ describe('manual-backfill-range', () => {
     describe('nextBackfillChainStep', () => {
       const meta: BackfillChainMeta = planBackfillChain(payload, 'chain-1')!.meta;
 
-      it('continues a completed segment with the next window and resets the failure streak', () => {
+      it('continues a completed segment with the next window', () => {
         const step = nextBackfillChainStep(
-          { ...meta, segmentIndex: 2, consecutiveFailures: 2 },
+          { ...meta, segmentIndex: 2 },
           { segmentSucceeded: true, anyProgressAdvanced: true },
           31
         );
 
         expect(step).toEqual({
           action: 'continue',
-          meta: { ...meta, segmentIndex: 3, consecutiveFailures: 0 },
+          meta: { ...meta, segmentIndex: 3 },
           window: { startDate: '2024-03-03', endDate: '2024-04-02' },
         });
       });
@@ -233,20 +231,66 @@ describe('manual-backfill-range', () => {
           31
         );
 
-        expect(step).toMatchObject({
-          action: 'continue',
-          meta: { segmentIndex: 2, consecutiveFailures: 1 },
-        });
+        expect(step).toMatchObject({ action: 'continue', meta: { segmentIndex: 2 } });
       });
 
-      it(`stops after ${MAX_CONSECUTIVE_BACKFILL_FAILURES} consecutive failed segments`, () => {
-        const step = nextBackfillChainStep(
-          { ...meta, segmentIndex: 3, consecutiveFailures: MAX_CONSECUTIVE_BACKFILL_FAILURES - 1 },
+      it('continues after repeated failures, to the last segment', () => {
+        let step = nextBackfillChainStep(
+          meta,
           { segmentSucceeded: false, anyProgressAdvanced: true },
           31
         );
+        for (let index = 2; index < meta.segmentsTotal; index++) {
+          expect(step).toMatchObject({ action: 'continue', meta: { segmentIndex: index } });
+          step = nextBackfillChainStep(
+            (step as Extract<typeof step, { action: 'continue' }>).meta,
+            { segmentSucceeded: false, anyProgressAdvanced: false },
+            31
+          );
+        }
 
-        expect(step).toEqual({ action: 'end', chainEnd: 'stopped' });
+        expect(step).toMatchObject({ action: 'continue', meta: { segmentIndex: 18 } });
+        expect(
+          nextBackfillChainStep(
+            (step as Extract<typeof step, { action: 'continue' }>).meta,
+            { segmentSucceeded: false, anyProgressAdvanced: false },
+            31
+          )
+        ).toEqual({ action: 'end', chainEnd: 'finished' });
+      });
+
+      it('walks a year Jan→Dec one segment per terminal step, with no gap or overlap', () => {
+        const year = planBackfillChain(
+          { runType: 'MANUAL_BACKFILL', data: { StartDate: '2026-01-01', EndDate: '2026-12-31' } },
+          'chain-year'
+        )!;
+        const requested = { startDate: '2026-01-01', endDate: '2026-12-31' };
+        const windows = [backfillSegmentWindow(requested, 1, 31)];
+        let meta = year.meta;
+
+        // Alternate failed/completed: the walk must not depend on how a segment ended.
+        for (let step = 1; ; step++) {
+          const next = nextBackfillChainStep(
+            meta,
+            { segmentSucceeded: step % 2 === 0, anyProgressAdvanced: true },
+            31
+          );
+          if (next.action === 'end') break;
+          expect(next.meta.segmentIndex).toBe(meta.segmentIndex + 1);
+          windows.push(next.window);
+          meta = next.meta;
+        }
+
+        expect(windows).toHaveLength(12);
+        expect(windows[0].startDate).toBe('2026-01-01');
+        expect(windows.at(-1)?.endDate).toBe('2026-12-31');
+        expect(windows.every(w => countBackfillDays(w) <= 31)).toBe(true);
+        expect(windows.reduce((days, w) => days + countBackfillDays(w), 0)).toBe(365);
+        windows.slice(1).forEach((window, index) => {
+          expect(
+            countBackfillDays({ startDate: windows[index].endDate, endDate: window.startDate })
+          ).toBe(2);
+        });
       });
 
       it('finishes on the last segment', () => {

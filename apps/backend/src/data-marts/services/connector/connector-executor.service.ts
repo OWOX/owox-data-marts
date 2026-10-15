@@ -334,9 +334,9 @@ export class ConnectorExecutorService {
       // Where the chain goes after this segment. Decided only for a segment that ended on
       // its own: a cancelled run was stopped on purpose, a shut-down one is resumed by the
       // sweep as the same run, and a restricted project cannot start the next segment.
-      // A failed segment keeps the chain going (failure isolation) until the consecutive-
-      // failure limit; whether this run recorded any date checkpoint tells a dateless
-      // (catalog or full-refresh) connector apart, which loads the whole source in one run.
+      // A failed segment never ends the chain (failure isolation); whether this run recorded
+      // any date checkpoint tells a dateless (catalog or full-refresh) connector apart, which
+      // loads the whole source in one run.
       const anyDateProgress = configurationResults.some(
         result => result.backfillLoadedThrough !== undefined
       );

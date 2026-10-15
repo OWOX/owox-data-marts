@@ -146,6 +146,23 @@ describe('ConnectorRunForm backfill period', () => {
     });
   });
 
+  it('blocks an end date in the future, so no run count is quoted for days it cannot load', async () => {
+    // The input carries max=today, but the form is noValidate, so a typed day gets this far.
+    const onSubmit = await openBackfill();
+    const future = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+
+    setPeriod('2026-01-01', future);
+
+    await waitFor(() => {
+      expect(runButton()).toBeDisabled();
+    });
+    await act(async () => {
+      fireEvent.click(runButton());
+    });
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
   it('marks the notice as a status region so it is not announced assertively', async () => {
     await openBackfill();
 
@@ -156,5 +173,89 @@ describe('ConnectorRunForm backfill period', () => {
     await openBackfill();
 
     expect(dateInput('Start Date')).toHaveAttribute('max', todayIso);
+  });
+});
+
+describe('ConnectorRunForm backfill confirmation', () => {
+  const clickRun = () =>
+    act(async () => {
+      fireEvent.click(runButton());
+    });
+  const dialog = () => screen.queryByRole('dialog');
+
+  it('submits a one-segment period straight through, without asking', async () => {
+    const onSubmit = await openBackfill();
+    setPeriod('2026-07-01', '2026-07-31');
+    await waitFor(() => {
+      expect(runButton()).toBeEnabled();
+    });
+
+    await clickRun();
+
+    expect(dialog()).not.toBeInTheDocument();
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ StartDate: '2026-07-01', EndDate: '2026-07-31' }),
+      })
+    );
+  });
+
+  it('asks how many runs a multi-segment period costs before submitting', async () => {
+    const onSubmit = await openBackfill();
+    setPeriod('2026-01-01', '2026-03-31');
+    await waitFor(() => {
+      expect(runButton()).toBeEnabled();
+    });
+
+    await clickRun();
+
+    expect(onSubmit).not.toHaveBeenCalled();
+    expect(await screen.findByText('Start a backfill of 3 runs?')).toBeInTheDocument();
+    expect(dialog()).toHaveTextContent('This backfill covers 90 days.');
+    expect(screen.getByRole('button', { name: 'Start 3 runs' })).toBeInTheDocument();
+  });
+
+  it('submits the same payload once when the user confirms', async () => {
+    const onSubmit = await openBackfill();
+    setPeriod('2026-01-01', '2026-03-31');
+    await waitFor(() => {
+      expect(runButton()).toBeEnabled();
+    });
+    await clickRun();
+
+    await act(async () => {
+      fireEvent.click(await screen.findByRole('button', { name: 'Start 3 runs' }));
+    });
+
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ StartDate: '2026-01-01', EndDate: '2026-03-31' }),
+      })
+    );
+    await waitFor(() => {
+      expect(dialog()).not.toBeInTheDocument();
+    });
+  });
+
+  it('keeps the form and its dates when the user keeps editing', async () => {
+    const onSubmit = await openBackfill();
+    setPeriod('2026-01-01', '2026-03-31');
+    await waitFor(() => {
+      expect(runButton()).toBeEnabled();
+    });
+    await clickRun();
+
+    await act(async () => {
+      fireEvent.click(await screen.findByRole('button', { name: 'Keep editing' }));
+    });
+
+    expect(onSubmit).not.toHaveBeenCalled();
+    await waitFor(() => {
+      expect(dialog()).not.toBeInTheDocument();
+    });
+    expect(dateInput('Start Date')).toHaveValue('2026-01-01');
+    expect(dateInput('End Date')).toHaveValue('2026-03-31');
   });
 });

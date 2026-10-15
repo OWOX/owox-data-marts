@@ -111,7 +111,6 @@ describe('CancelDataMartRunService', () => {
       requestedEnd: '2026-03-03',
       segmentIndex: 1,
       segmentsTotal: 2,
-      consecutiveFailures: 0,
     });
     const chainRun = (id: string, chainId = 'chain-1') => ({
       id,

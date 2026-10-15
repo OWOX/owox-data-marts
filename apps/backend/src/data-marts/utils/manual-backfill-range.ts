@@ -195,9 +195,6 @@ export function withBackfillWindow(
 /** Key under `DataMartRun.additionalParams` identifying one segment run of a backfill chain. */
 export const BACKFILL_CHAIN_KEY = 'backfill';
 
-/** Consecutive failed segments after which a backfill chain stops instead of continuing. */
-export const MAX_CONSECUTIVE_BACKFILL_FAILURES = 3;
-
 const backfillChainMetaSchema = z.object({
   /** Groups every segment run of one user-requested backfill. */
   id: z.string().min(1),
@@ -206,10 +203,6 @@ const backfillChainMetaSchema = z.object({
   /** 1-based position of this run's segment within the requested period. */
   segmentIndex: z.number().int().min(1),
   segmentsTotal: z.number().int().min(1),
-  /** Failed segments immediately before this one; resets on every completed segment. */
-  consecutiveFailures: z.number().int().min(0),
-  /** Set when the chain deliberately ended on this run, so the repair sweep leaves it alone. */
-  chainEnd: z.enum(['finished', 'stopped']).optional(),
 });
 
 export type BackfillChainMeta = z.infer<typeof backfillChainMetaSchema>;
@@ -252,7 +245,6 @@ export function planBackfillChain(
       requestedEnd: requested.endDate,
       segmentIndex: 1,
       segmentsTotal,
-      consecutiveFailures: 0,
     },
   };
 }
@@ -279,7 +271,7 @@ export type BackfillChainStep =
       readonly meta: BackfillChainMeta;
       readonly window: BackfillDateRange;
     }
-  | { readonly action: 'end'; readonly chainEnd: 'finished' | 'stopped' };
+  | { readonly action: 'end'; readonly chainEnd: 'finished' };
 
 /**
  * What the chain does after one segment run ended on its own (not cancelled, restricted,
@@ -288,8 +280,8 @@ export type BackfillChainStep =
  * A completed segment that advanced no checkpoint ends the chain as finished: the connector
  * ignored the window (a catalog or full-refresh node loads the whole source regardless of
  * dates), or every remaining day lies beyond the node's end lag — either way later segments
- * would load nothing more. A failed segment keeps the chain going (failure isolation) until
- * `MAX_CONSECUTIVE_BACKFILL_FAILURES` segments fail in a row.
+ * would load nothing more. A failed segment never ends the chain (failure isolation): every
+ * segment of the requested period runs, however many fail.
  */
 export function nextBackfillChainStep(
   meta: BackfillChainMeta,
@@ -301,16 +293,11 @@ export function nextBackfillChainStep(
     return { action: 'end', chainEnd: 'finished' };
   }
 
-  const consecutiveFailures = outcome.segmentSucceeded ? 0 : meta.consecutiveFailures + 1;
-  if (consecutiveFailures >= MAX_CONSECUTIVE_BACKFILL_FAILURES) {
-    return { action: 'end', chainEnd: 'stopped' };
-  }
-
   const nextIndex = meta.segmentIndex + 1;
   const requested = { startDate: meta.requestedStart, endDate: meta.requestedEnd };
   return {
     action: 'continue',
-    meta: { ...meta, segmentIndex: nextIndex, consecutiveFailures },
+    meta: { ...meta, segmentIndex: nextIndex },
     window: backfillSegmentWindow(requested, nextIndex, maxDays),
   };
 }

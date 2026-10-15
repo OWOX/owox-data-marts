@@ -144,11 +144,11 @@ Every entry names its backfill period and segment, for example "segment 3 of 18"
 
 Each completed segment counts as one run for your consumption.
 The form states the number of runs before you start.
+A period over 31 days asks you to confirm how many runs it costs before it starts.
 A segment that fails, is cancelled, or is interrupted does not count.
 
-A failed segment does not stop the backfill; the next segment still runs.
+A failed segment never stops the rest of the backfill, so OWOX attempts the whole period.
 The failed entry shows the last day it loaded, so you can backfill the gap later.
-After three failed segments in a row, the backfill stops.
 If a restart delays a segment, OWOX queues it again within 15 minutes.
 
 You can cancel a backfill at any time by cancelling its active run.

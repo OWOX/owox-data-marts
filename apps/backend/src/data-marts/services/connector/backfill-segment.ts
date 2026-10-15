@@ -13,7 +13,7 @@ export interface SegmentMarkerOutcome {
   /** Whether the next segment was queued; absent on the `started` marker. */
   readonly chainContinues?: boolean;
   /** Why the chain deliberately ended on this run; set only when it did. */
-  readonly chainEnd?: 'finished' | 'stopped';
+  readonly chainEnd?: 'finished';
 }
 
 /**
@@ -45,9 +45,6 @@ export function buildSegmentMarker(
         ? `Backfill ${period}: ${position} failed; days through ${outcome.loadedThrough} were loaded`
         : `Backfill ${period}: ${position} failed; no days of this segment were loaded`;
       break;
-  }
-  if (outcome.chainEnd === 'stopped') {
-    message = `${message}. The backfill stopped after ${meta.consecutiveFailures + 1} consecutive failed segments`;
   }
 
   return {

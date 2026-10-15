@@ -2190,7 +2190,6 @@ describe('ConnectorExecutorService', () => {
       requestedEnd: '2026-03-03',
       segmentIndex: 1,
       segmentsTotal: 2,
-      consecutiveFailures: 0,
       ...overrides,
     });
 
@@ -2286,6 +2285,45 @@ describe('ConnectorExecutorService', () => {
       });
     });
 
+    it('creates the next segment only after the previous one is terminal', async () => {
+      const ctx = createService();
+
+      await execute(ctx, chainRun(), ['2026-01-31']);
+
+      const updateMock = ctx.dataMartRunRepository.update as jest.Mock;
+      const terminalIndex = updateMock.mock.calls.findIndex(
+        ([, update]) => update.status === DataMartRunStatus.SUCCESS
+      );
+      expect(terminalIndex).toBeGreaterThanOrEqual(0);
+      // The status write is guarded: it only lands while the run is still PENDING/RUNNING.
+      expect(updateMock.mock.calls[terminalIndex][0]).toMatchObject({ id: 'run-1' });
+
+      const terminalOrder = updateMock.mock.invocationCallOrder[terminalIndex];
+      const saveOrder = (ctx.dataMartRunRepository.save as jest.Mock).mock.invocationCallOrder[0];
+      const triggerOrder = (ctx.connectorRunTriggerService.createTrigger as jest.Mock).mock
+        .invocationCallOrder[0];
+      expect(terminalOrder).toBeLessThan(saveOrder);
+      expect(saveOrder).toBeLessThan(triggerOrder);
+    });
+
+    it('starts the next segment the day after the previous one ends', async () => {
+      const ctx = createService();
+
+      await execute(ctx, chainRun(), ['2026-01-31']);
+
+      const queuedStart = (
+        savedRuns(ctx)[0].additionalParams as ReturnType<typeof chainRun>['additionalParams'] & {
+          payload: { data: { StartDate: string } };
+        }
+      ).payload.data.StartDate;
+      const dayAfterPrevious = new Date(
+        Date.parse(`${SEGMENT_1.endDate}T00:00:00.000Z`) + 86_400_000
+      )
+        .toISOString()
+        .slice(0, 10);
+      expect(queuedStart).toBe(dayAfterPrevious);
+    });
+
     it('bills each completed segment by its own run id and publishes its outcome event', async () => {
       const ctx = createService();
 
@@ -2362,7 +2400,7 @@ describe('ConnectorExecutorService', () => {
       expect(savedRuns(ctx)).toEqual([
         expect.objectContaining({
           additionalParams: expect.objectContaining({
-            backfill: chainMeta({ segmentIndex: 2, consecutiveFailures: 1 }),
+            backfill: chainMeta({ segmentIndex: 2 }),
           }),
         }),
       ]);
@@ -2383,19 +2421,24 @@ describe('ConnectorExecutorService', () => {
       );
     });
 
-    it('stops the chain after three consecutive failed segments', async () => {
+    it('continues the chain after several failed segments in a row', async () => {
       const ctx = createService();
-      const meta = chainMeta({ segmentsTotal: 5, consecutiveFailures: 2 });
+      const meta = chainMeta({ segmentIndex: 4, segmentsTotal: 5 });
 
       await execute(ctx, chainRun(meta), [], { succeed: false });
 
       expect(writtenStatuses(ctx)).toContain(DataMartRunStatus.FAILED);
-      expect(ctx.dataMartRunRepository.save).not.toHaveBeenCalled();
-      expect(ctx.connectorRunTriggerService.createTrigger).not.toHaveBeenCalled();
+      expect(savedRuns(ctx)).toEqual([
+        expect.objectContaining({
+          additionalParams: expect.objectContaining({
+            backfill: chainMeta({ segmentIndex: 5, segmentsTotal: 5 }),
+          }),
+        }),
+      ]);
+      expect(ctx.connectorRunTriggerService.createTrigger).toHaveBeenCalledTimes(1);
       expect(persistedLogs(ctx)).toContainEqual(
         expect.objectContaining({
-          tags: expect.objectContaining({ chainEnd: 'stopped', chainContinues: false }),
-          message: expect.stringContaining('stopped after 3 consecutive failed segments'),
+          tags: expect.objectContaining({ phase: 'failed', chainContinues: true }),
         })
       );
     });

@@ -175,12 +175,5 @@ describe('backfill segments', () => {
     expect(describeBackfillStatus(finished, false)).toBe(
       'Backfill 2024-01-01 – 2025-06-30 · segment 18 of 18 completed · backfill complete'
     );
-
-    const stopped = aggregateLoadStatus([
-      segmentMarker(5, 'failed', { chainContinues: false, chainEnd: 'stopped' }),
-    ])!.backfill!;
-    expect(describeBackfillStatus(stopped, false)).toBe(
-      'Backfill 2024-01-01 – 2025-06-30 · segment 5 of 18 failed · backfill stopped'
-    );
   });
 });

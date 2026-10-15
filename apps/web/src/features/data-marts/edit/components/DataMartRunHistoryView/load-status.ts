@@ -14,7 +14,7 @@ export interface BackfillStatus {
   segmentEnd: string;
   phase: 'started' | 'completed' | 'failed';
   loadedThrough: string | null;
-  chainEnd: 'finished' | 'stopped' | null;
+  chainEnd: 'finished' | null;
 }
 
 export interface LoadStatus {
@@ -44,7 +44,6 @@ export function describeBackfillStatus(backfill: BackfillStatus, isRunning: bool
       ? [`loaded through ${backfill.loadedThrough}`]
       : []),
     ...(backfill.chainEnd === 'finished' ? ['backfill complete'] : []),
-    ...(backfill.chainEnd === 'stopped' ? ['backfill stopped'] : []),
   ].join(' · ');
 }
 
@@ -84,7 +83,7 @@ function readBackfillStatus(entries: LogEntry[]): BackfillStatus | undefined {
       segmentEnd: asText(meta.segmentEnd) ?? '',
       phase,
       loadedThrough: asText(meta.loadedThrough),
-      chainEnd: chainEnd === 'finished' || chainEnd === 'stopped' ? chainEnd : null,
+      chainEnd: chainEnd === 'finished' ? chainEnd : null,
     };
   }
 
