@@ -1,0 +1,244 @@
+import { Injectable } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { FindOptionsSelect, In, IsNull, LessThan, MoreThan, Repository } from 'typeorm';
+import { Transactional } from 'typeorm-transactional';
+import { isPluginOwnedErrorCode, PLUGIN_ACTION_LIMITS } from '../constants/plugin-action-limits';
+import { PluginActionExecution } from '../entities/plugin-action-execution.entity';
+import { PluginInstallation } from '../entities/plugin-installation.entity';
+import {
+  PluginActionExecutionStatus,
+  type PluginActionTrigger,
+} from '../enums/plugin-action-execution-status.enum';
+import { InstallationInactiveError, TooManyExecutionsError } from '../errors/plugin-action.errors';
+
+export interface InsertRunningExecutionInput {
+  pluginId: string;
+  pluginVersionId: string;
+  installationId: string;
+  projectId: string;
+  userId: string;
+  action: string;
+  input: unknown;
+  role: string;
+  timeoutSeconds: number;
+  tokenHash: string;
+  trigger: PluginActionTrigger;
+  scheduleId: string | null;
+}
+
+/** What an execution token stands for; the guard reads it on every Worker request. */
+const TOKEN_OWNER_COLUMNS = {
+  id: true,
+  pluginId: true,
+  installationId: true,
+  projectId: true,
+  userId: true,
+  role: true,
+} as const satisfies FindOptionsSelect<PluginActionExecution>;
+export type ExecutionTokenOwner = Pick<PluginActionExecution, keyof typeof TOKEN_OWNER_COLUMNS>;
+
+/** What a view of an execution reads; `input` is left out, only the Worker's context returns it. */
+const SUMMARY_COLUMNS = {
+  id: true,
+  installationId: true,
+  action: true,
+  status: true,
+  trigger: true,
+  startedAt: true,
+  deadlineAt: true,
+  finishedAt: true,
+  errorCode: true,
+  errorMessage: true,
+  result: true,
+} as const satisfies FindOptionsSelect<PluginActionExecution>;
+export type PluginActionExecutionSummary = Pick<
+  PluginActionExecution,
+  keyof typeof SUMMARY_COLUMNS
+>;
+
+export type FinishExecutionInput =
+  | { status: PluginActionExecutionStatus.SUCCEEDED; result: unknown }
+  | { status: PluginActionExecutionStatus.FAILED; errorCode: string; errorMessage: string }
+  | { status: PluginActionExecutionStatus.TIMED_OUT; errorMessage: string };
+
+/** Every write to plugin_action_execution. Status changes are compare-and-set from RUNNING. */
+@Injectable()
+export class PluginActionExecutionService {
+  constructor(
+    @InjectRepository(PluginActionExecution)
+    private readonly executions: Repository<PluginActionExecution>,
+    @InjectRepository(PluginInstallation)
+    private readonly installations: Repository<PluginInstallation>
+  ) {}
+
+  @Transactional()
+  async insertRunning(request: InsertRunningExecutionInput): Promise<PluginActionExecution> {
+    // Must run first: it serializes starts, and an earlier read would pin a stale snapshot.
+    const lock = await this.installations
+      .createQueryBuilder()
+      .update(PluginInstallation)
+      .set({ modifiedAt: () => 'modifiedAt' })
+      .where('id = :id', { id: request.installationId })
+      .andWhere('uninstalledAt IS NULL')
+      .execute();
+    if (lock.affected !== 1) {
+      throw new InstallationInactiveError();
+    }
+
+    const now = Date.now();
+    // A row past its deadline belongs to a dead replica until the sweep ends it; it holds no slot.
+    const running = await this.executions.countBy({
+      installationId: request.installationId,
+      status: PluginActionExecutionStatus.RUNNING,
+      deadlineAt: MoreThan(new Date(now)),
+    });
+    if (running >= PLUGIN_ACTION_LIMITS.maxRunningPerInstallation) {
+      throw new TooManyExecutionsError();
+    }
+
+    // Whole seconds, so MySQL datetime(0) cannot move the deadline the timer uses; the deadline rounds up, so
+    // the action never gets less than its declared timeout.
+    const startedAt = new Date(Math.floor(now / 1000) * 1000);
+    return this.executions.save(
+      this.executions.create({
+        pluginId: request.pluginId,
+        pluginVersionId: request.pluginVersionId,
+        installationId: request.installationId,
+        projectId: request.projectId,
+        userId: request.userId,
+        action: request.action,
+        input: request.input,
+        trigger: request.trigger,
+        scheduleId: request.scheduleId,
+        status: PluginActionExecutionStatus.RUNNING,
+        role: request.role,
+        tokenHash: request.tokenHash,
+        startedAt,
+        deadlineAt: new Date(Math.ceil((now + request.timeoutSeconds * 1000) / 1000) * 1000),
+        finishedAt: null,
+        errorCode: null,
+        errorMessage: null,
+        result: null,
+      })
+    );
+  }
+
+  findById(id: string): Promise<PluginActionExecutionSummary | null> {
+    return this.executions.findOne({ select: SUMMARY_COLUMNS, where: { id } });
+  }
+
+  findWithInput(id: string): Promise<PluginActionExecution | null> {
+    return this.executions.findOneBy({ id });
+  }
+
+  async findStatus(id: string): Promise<PluginActionExecutionStatus | null> {
+    const row = await this.executions.findOne({
+      select: { id: true, status: true },
+      where: { id },
+    });
+    return row?.status ?? null;
+  }
+
+  findRunningByTokenHash(tokenHash: string, now: Date): Promise<ExecutionTokenOwner | null> {
+    return this.executions.findOne({
+      select: TOKEN_OWNER_COLUMNS,
+      where: { tokenHash, status: PluginActionExecutionStatus.RUNNING, deadlineAt: MoreThan(now) },
+    });
+  }
+
+  async finish(id: string, outcome: FinishExecutionInput): Promise<boolean> {
+    const { affected } = await this.executions.update(
+      { id, status: PluginActionExecutionStatus.RUNNING },
+      {
+        status: outcome.status,
+        finishedAt: new Date(),
+        errorCode: outcome.status === PluginActionExecutionStatus.FAILED ? outcome.errorCode : null,
+        errorMessage: 'errorMessage' in outcome ? outcome.errorMessage : null,
+        // TypeORM's update typing turns an `unknown` column into `{}`, which refuses any value.
+        result: (outcome.status === PluginActionExecutionStatus.SUCCEEDED
+          ? outcome.result
+          : null) as never,
+      }
+    );
+    return affected === 1;
+  }
+
+  async cancel(id: string, installationId: string): Promise<boolean> {
+    const { affected } = await this.executions.update(
+      { id, installationId, status: PluginActionExecutionStatus.RUNNING },
+      {
+        status: PluginActionExecutionStatus.CANCELLED,
+        finishedAt: new Date(),
+        errorMessage: 'The execution was cancelled',
+      }
+    );
+    return affected === 1;
+  }
+
+  /** RUNNING rows whose dispatching replica died before the deadline it would have enforced. */
+  async timeOutOrphans(deadlineBefore: Date): Promise<number> {
+    const { affected } = await this.executions.update(
+      { status: PluginActionExecutionStatus.RUNNING, deadlineAt: LessThan(deadlineBefore) },
+      {
+        status: PluginActionExecutionStatus.TIMED_OUT,
+        finishedAt: new Date(),
+        errorMessage: 'The execution outlived its replica',
+      }
+    );
+    return affected ?? 0;
+  }
+
+  /** Clears `input`, `result` and a plugin-authored `errorMessage` once per row, in batches. */
+  clearPayloads(finishedBefore: Date, signal?: AbortSignal): Promise<number> {
+    return inBatches(signal, async () => {
+      const rows = await this.executions.find({
+        select: { id: true, errorCode: true },
+        where: { payloadsClearedAt: IsNull(), finishedAt: LessThan(finishedBefore) },
+        take: PLUGIN_ACTION_LIMITS.sweepBatchSize,
+      });
+      if (rows.length === 0) return 0;
+      // Plugin text may echo the input; OWOX's own messages stay with the row.
+      const pluginAuthored = rows.filter(row => isPluginOwnedErrorCode(row.errorCode));
+      if (pluginAuthored.length > 0) {
+        await this.executions.update(
+          { id: In(pluginAuthored.map(row => row.id)) },
+          { errorMessage: null }
+        );
+      }
+      // Marked last, so a batch that fails half way is picked up again by the next run.
+      await this.executions.update(
+        { id: In(rows.map(row => row.id)) },
+        { input: () => 'NULL', result: () => 'NULL', payloadsClearedAt: new Date() }
+      );
+      return rows.length;
+    });
+  }
+
+  deleteFinished(finishedBefore: Date, signal?: AbortSignal): Promise<number> {
+    return inBatches(signal, async () => {
+      const rows = await this.executions.find({
+        select: { id: true },
+        where: { finishedAt: LessThan(finishedBefore) },
+        take: PLUGIN_ACTION_LIMITS.sweepBatchSize,
+      });
+      if (rows.length > 0) {
+        await this.executions.delete({ id: In(rows.map(row => row.id)) });
+      }
+      return rows.length;
+    });
+  }
+}
+
+/** Repeats `batch` until a short batch or an abort; batches select ids first, `UPDATE … LIMIT` is not portable. */
+async function inBatches(
+  signal: AbortSignal | undefined,
+  batch: () => Promise<number>
+): Promise<number> {
+  let total = 0;
+  while (!signal?.aborted) {
+    const handled = await batch();
+    total += handled;
+    if (handled < PLUGIN_ACTION_LIMITS.sweepBatchSize) break;
+  }
+  return total;
+}

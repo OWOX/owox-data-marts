@@ -225,6 +225,7 @@ export class SyncPluginReleasesService {
           deliveryUrl: manifest.delivery.url,
           collections: manifest.collections,
           credentialRequirements,
+          backend: manifest.backend ?? null,
           releasePublishedAt: release.publishedAt,
         },
         syncLeaseId

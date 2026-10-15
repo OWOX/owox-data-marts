@@ -1,6 +1,9 @@
+import { castError } from '@owox/internal-helpers';
 import { z } from 'zod';
 import { BUILTIN_CREDENTIAL_DEFINITION_IDS } from '../../data-marts/credentials/services/builtin-credential-definitions';
+import { PLUGIN_ACTION_LIMITS } from '../constants/plugin-action-limits';
 import { ReleaseRejectionCode } from '../enums/release-rejection-code.enum';
+import { assertBoundedSchema } from './action-input-schema.util';
 
 export const PluginCollectionEntityTypeSchema = z.enum([
   'data-mart',
@@ -52,6 +55,34 @@ export const PluginCredentialRequirementSchema = z.union([
 ]);
 
 export type PluginCredentialRequirement = z.infer<typeof PluginCredentialRequirementSchema>;
+
+export const PLUGIN_ACTION_NAME_PATTERN = /^[a-z][a-z0-9-]{0,63}$/;
+
+/** `url` is absolute https or relative to `delivery.url`; the manifest schema checks which. */
+export const PluginBackendSchema = z.object({
+  url: z.string().min(1).max(2048),
+  actions: z
+    .record(
+      z
+        .string()
+        .regex(
+          PLUGIN_ACTION_NAME_PATTERN,
+          'action names are lower-case letters, digits and hyphens, start with a letter, and have at most 64 characters'
+        ),
+      z.object({
+        timeoutSeconds: z.number().int().min(1).max(300).default(30),
+        input: z.record(z.unknown()).optional(),
+      })
+    )
+    .refine(actions => Object.keys(actions).length >= 1, 'declare at least one action')
+    .refine(
+      actions => Object.keys(actions).length <= PLUGIN_ACTION_LIMITS.maxActions,
+      `at most ${PLUGIN_ACTION_LIMITS.maxActions} actions`
+    ),
+});
+
+export type PluginBackendDeclaration = z.infer<typeof PluginBackendSchema>;
+export type PluginBackendActionDeclaration = PluginBackendDeclaration['actions'][string];
 
 const ENTITY_ACTIONS: Record<
   z.infer<typeof PluginCollectionEntityTypeSchema>,
@@ -107,6 +138,7 @@ export const PluginManifestSchema = z
     }),
     collections: z.array(PluginCollectionDeclarationSchema).max(50).default([]),
     credentials: z.array(PluginCredentialRequirementSchema).max(50).default([]),
+    backend: PluginBackendSchema.optional(),
   })
   .superRefine((manifest, context) => {
     const names = new Set<string>();
@@ -183,6 +215,17 @@ export const PluginManifestSchema = z
         });
       }
     }
+
+    if (manifest.backend) {
+      const problem = findBackendUrlProblem(manifest.backend.url, manifest.delivery.url);
+      if (problem) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['backend', 'url'],
+          message: problem,
+        });
+      }
+    }
   });
 
 export type PluginManifest = z.infer<typeof PluginManifestSchema>;
@@ -193,6 +236,57 @@ export type ManifestParseResult =
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function parseUrl(value: string, base?: string): URL | null {
+  try {
+    return new URL(value, base);
+  } catch {
+    return null;
+  }
+}
+
+/** `//host/x` and `\\host` look relative but leave the delivery origin, so the origin is compared. */
+function findBackendUrlProblem(url: string, deliveryUrl: string): string | null {
+  const absolute = /^[a-z][a-z0-9+.-]*:/i.test(url);
+  if (absolute && !(url.startsWith('https://') && parseUrl(url))) {
+    return 'an absolute URL must use https';
+  }
+  const delivery = parseUrl(deliveryUrl);
+  // An unparsable delivery.url carries its own issue.
+  if (!delivery) return null;
+  const resolved = parseUrl(url, deliveryUrl);
+  if (!absolute && resolved?.origin !== delivery.origin) {
+    return 'a relative URL must stay on the delivery.url origin';
+  }
+  // fetch refuses a URL with credentials, so every dispatch would fail.
+  return resolved?.username || resolved?.password
+    ? 'the URL must not contain a user name or password'
+    : null;
+}
+
+/** Each declared input schema, with the manifest path a refusal names. */
+export function listActionInputSchemas(
+  backend: PluginBackendDeclaration | null | undefined
+): { readonly path: string; readonly schema: Record<string, unknown> }[] {
+  return Object.entries(backend?.actions ?? {}).flatMap(([name, action]) =>
+    action.input ? [{ path: `backend.actions.${name}.input`, schema: action.input }] : []
+  );
+}
+
+/** A publisher's schema runs on every invocation, so it must stay small; the pool compiles it later. */
+function findUnsupportedActionInput(backend: PluginBackendDeclaration | undefined): string | null {
+  for (const { path, schema } of listActionInputSchemas(backend)) {
+    try {
+      if (Buffer.byteLength(JSON.stringify(schema)) > PLUGIN_ACTION_LIMITS.maxInputSchemaBytes) {
+        return `${path}: exceeds ${PLUGIN_ACTION_LIMITS.maxInputSchemaBytes / 1024} KiB`;
+      }
+      assertBoundedSchema(schema);
+    } catch (error) {
+      return `${path}: ${castError(error).message}`;
+    }
+  }
+  return null;
 }
 
 /**
@@ -250,6 +344,15 @@ export function parsePluginManifest(rawFileContent: string | null): ManifestPars
     };
   }
 
+  const unsupportedInput = findUnsupportedActionInput(result.data.backend);
+  if (unsupportedInput) {
+    return {
+      ok: false,
+      code: ReleaseRejectionCode.ACTION_INPUT_UNSUPPORTED,
+      detail: unsupportedInput,
+    };
+  }
+
   return { ok: true, manifest: result.data };
 }
 
@@ -283,4 +386,19 @@ export function findIncompatibleCollectionChange(
   }
 
   return null;
+}
+
+/** The only place a backend URL is resolved: it is stored as declared, so a relative one follows delivery.url. */
+export function resolveBackendUrl(backend: PluginBackendDeclaration, deliveryUrl: string): string {
+  return new URL(backend.url, deliveryUrl).toString();
+}
+
+/** A release may add actions and change their url, timeout and input, but not remove one: schedules refer to actions by name. */
+export function findIncompatibleActionChange(
+  current: PluginBackendDeclaration | null | undefined,
+  candidate: PluginBackendDeclaration | null | undefined
+): string | null {
+  const next = candidate?.actions ?? {};
+  const removed = Object.keys(current?.actions ?? {}).find(name => !Object.hasOwn(next, name));
+  return removed === undefined ? null : `Action "${removed}" cannot be removed`;
 }

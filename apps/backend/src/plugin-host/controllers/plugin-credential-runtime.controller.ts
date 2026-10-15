@@ -9,6 +9,7 @@ import {
   Post,
   Req,
   Res,
+  UseFilters,
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { ApiOkResponse, ApiProduces, ApiTags } from '@nestjs/swagger';
@@ -30,13 +31,17 @@ import {
   type CredentialAiModelKey,
 } from '../../data-marts/credentials/dto/credential-ai-api.dto';
 import type { StoredCredentialRequirement } from '../../data-marts/credentials/credential.types';
+import { ExecutionTokenNotAllowedError } from '../errors/plugin-action.errors';
+import { PluginHostExceptionFilter } from '../filters/plugin-host-exception.filter';
 import { PluginService } from '../services/plugin.service';
 import { PluginVersionService } from '../services/plugin-version.service';
+import { requestAbortSignal } from '../utils/request-abort-signal.util';
 
 @ApiTags('Plugin Credentials')
 @Controller('plugins/runtime/credentials')
 @Auth(Role.viewer(Strategy.PARSE))
 @RequirePluginAuth()
+@UseFilters(PluginHostExceptionFilter)
 export class PluginCredentialRuntimeController {
   constructor(
     private readonly plugins: PluginService,
@@ -179,6 +184,11 @@ export class PluginCredentialRuntimeController {
     context: AuthorizationContext,
     capability?: 'fetch' | CredentialAiModelKey
   ) {
+    if (context.executionId && capability !== 'fetch') {
+      throw new ExecutionTokenNotAllowedError(
+        'AI Credentials are not available in a backend action'
+      );
+    }
     if (!context.installationId || !context.pluginId) {
       throw new ForbiddenException('A plugin installation is required');
     }
@@ -238,25 +248,6 @@ function assertDeclaredAiModel(
   if (normalized.definitionId !== null || !normalized.models.includes(model)) {
     throw new NotFoundException(`AI model ${model} is not declared by this plugin`);
   }
-}
-
-function requestAbortSignal(request: Request): {
-  readonly signal: AbortSignal;
-  dispose(): void;
-} {
-  const controller = new AbortController();
-  const abort = () => controller.abort();
-  request.once('aborted', abort);
-  request.res?.once('close', abort);
-  request.res?.once('error', abort);
-  return {
-    signal: controller.signal,
-    dispose: () => {
-      request.off('aborted', abort);
-      request.res?.off('close', abort);
-      request.res?.off('error', abort);
-    },
-  };
 }
 
 function waitForDrain(response: Response, signal: AbortSignal): Promise<void> {

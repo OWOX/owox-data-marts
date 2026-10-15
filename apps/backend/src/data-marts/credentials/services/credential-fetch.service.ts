@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { assertPublicHttpUrl } from '../../../common/helpers/safe-url.helper';
 import { withGuardedDispatcher } from '../../../common/helpers/guarded-dispatcher';
+import { readBoundedBody } from '../../../common/helpers/read-bounded-body.helper';
 import type {
   CredentialFetchRequestApiDto,
   CredentialFetchResponseApiDto,
@@ -55,12 +56,17 @@ export class CredentialFetchService {
     limits: CredentialFetchLimits = {}
   ): Promise<CredentialFetchResponseApiDto> {
     const response = await this.runRaw(binding, input, limits);
+    const body = await readBoundedBody(
+      response,
+      limits.maxResponseBodyBytes ?? MAX_RESPONSE_BODY_BYTES
+    );
+    if (body === null) {
+      throw new BadRequestException('Credential response body is too large');
+    }
     return {
       status: response.status,
       headers: pickResponseHeaders(response.headers),
-      bodyBase64: (
-        await readBoundedBody(response, limits.maxResponseBodyBytes ?? MAX_RESPONSE_BODY_BYTES)
-      ).toString('base64'),
+      bodyBase64: body.toString('base64'),
     };
   }
 
@@ -238,33 +244,6 @@ function decodeBody(encoded: string | null | undefined): Buffer {
     throw new BadRequestException('Credential request body is not valid base64');
   }
   return body;
-}
-
-async function readBoundedBody(response: Response, maxBytes: number): Promise<Buffer> {
-  const declaredLength = Number(response.headers.get('content-length'));
-  if (Number.isFinite(declaredLength) && declaredLength > maxBytes) {
-    await response.body?.cancel();
-    throw new BadRequestException('Credential response body is too large');
-  }
-  if (!response.body) return Buffer.alloc(0);
-
-  const reader = response.body.getReader();
-  const chunks: Uint8Array[] = [];
-  let total = 0;
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    total += value.byteLength;
-    if (total > maxBytes) {
-      await reader.cancel();
-      throw new BadRequestException('Credential response body is too large');
-    }
-    chunks.push(value);
-  }
-  return Buffer.concat(
-    chunks.map(chunk => Buffer.from(chunk)),
-    total
-  );
 }
 
 function pickResponseHeaders(headers: Headers): Record<string, string> {

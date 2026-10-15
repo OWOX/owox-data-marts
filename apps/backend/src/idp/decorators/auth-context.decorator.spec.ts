@@ -45,6 +45,22 @@ describe('getAuthorizationContext', () => {
     expect(getAuthorizationContext(request).viewOnly).toBe(true);
   });
 
+  it('propagates the execution id of a backend action', () => {
+    const request = {
+      idpContext: {
+        projectId: 'project-1',
+        userId: 'user-1',
+        roles: ['editor'],
+        authFlow: 'plugin',
+        pluginId: 'plugin-1',
+        installationId: 'installation-1',
+        executionId: 'execution-1',
+      },
+    } as AuthenticatedRequest;
+
+    expect(getAuthorizationContext(request).executionId).toBe('execution-1');
+  });
+
   it('throws when the request has no IDP context', () => {
     expect(() => getAuthorizationContext({} as AuthenticatedRequest)).toThrow(BadRequestException);
   });

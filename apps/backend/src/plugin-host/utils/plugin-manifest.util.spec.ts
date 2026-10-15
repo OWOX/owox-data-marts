@@ -1,5 +1,12 @@
+import { PLUGIN_ACTION_LIMITS } from '../constants/plugin-action-limits';
 import { ReleaseRejectionCode } from '../enums/release-rejection-code.enum';
-import { findIncompatibleCollectionChange, parsePluginManifest } from './plugin-manifest.util';
+import {
+  findIncompatibleActionChange,
+  findIncompatibleCollectionChange,
+  parsePluginManifest,
+  type PluginBackendDeclaration,
+  resolveBackendUrl,
+} from './plugin-manifest.util';
 
 const validManifest = {
   name: 'Example Plugin',
@@ -216,5 +223,227 @@ describe('findIncompatibleCollectionChange', () => {
     expect(
       findIncompatibleCollectionChange([dashboards], [{ ...dashboards, entityBinding: undefined }])
     ).toContain('cannot change entity binding');
+  });
+});
+
+const BACKEND_URL = 'https://acme-docs.acme.workers.dev/owox';
+const DOCUMENT_INPUT = {
+  type: 'object',
+  required: ['documentId'],
+  properties: { documentId: { type: 'string' } },
+};
+const backend = (actions: Record<string, unknown>, url: string = BACKEND_URL) => ({
+  url,
+  actions,
+});
+const manyActions = (count: number) =>
+  Object.fromEntries(Array.from({ length: count }, (_, index) => [`action-${index}`, {}]));
+const withInput = (input: unknown) => raw({ backend: backend({ 'update-document': { input } }) });
+
+describe('parsePluginManifest: backend', () => {
+  it('accepts the backend block from the specification and defaults the timeout', () => {
+    expect(
+      parsePluginManifest(
+        raw({
+          backend: backend({
+            'update-document': { timeoutSeconds: 60, input: DOCUMENT_INPUT },
+            'list-documents': {},
+          }),
+        })
+      )
+    ).toMatchObject({
+      ok: true,
+      manifest: {
+        backend: {
+          url: BACKEND_URL,
+          actions: {
+            'update-document': { timeoutSeconds: 60, input: DOCUMENT_INPUT },
+            'list-documents': { timeoutSeconds: 30 },
+          },
+        },
+      },
+    });
+  });
+
+  it('leaves backend undefined when plugin.json declares none', () => {
+    const result = parsePluginManifest(raw());
+
+    expect(result.ok).toBe(true);
+    expect(result.ok && result.manifest.backend).toBeUndefined();
+  });
+
+  it('accepts 50 actions and a 64-character name', () => {
+    expect(
+      parsePluginManifest(raw({ backend: backend(manyActions(PLUGIN_ACTION_LIMITS.maxActions)) }))
+        .ok
+    ).toBe(true);
+    expect(parsePluginManifest(raw({ backend: backend({ [`a${'b'.repeat(63)}`]: {} }) })).ok).toBe(
+      true
+    );
+  });
+
+  it.each([
+    ['an empty url', backend({ run: {} }, '')],
+    ['no url', { actions: { run: {} } }],
+    ['no actions', { url: BACKEND_URL }],
+    ['an empty action map', backend({})],
+    ['51 actions', backend(manyActions(51))],
+    ['an upper-case name', backend({ Run: {} })],
+    ['a name starting with a digit', backend({ '1run': {} })],
+    ['an underscore in a name', backend({ run_now: {} })],
+    ['a 65-character name', backend({ [`a${'b'.repeat(64)}`]: {} })],
+    ['timeoutSeconds 0', backend({ run: { timeoutSeconds: 0 } })],
+    ['timeoutSeconds 301', backend({ run: { timeoutSeconds: 301 } })],
+    ['a fractional timeoutSeconds', backend({ run: { timeoutSeconds: 1.5 } })],
+    ['timeoutSeconds as a string', backend({ run: { timeoutSeconds: '30' } })],
+    ['an array input schema', backend({ run: { input: [] } })],
+    ['a boolean input schema', backend({ run: { input: true } })],
+  ])('rejects a backend with %s as a schema error', (_label, value) => {
+    expect(parsePluginManifest(raw({ backend: value }))).toMatchObject({
+      ok: false,
+      code: ReleaseRejectionCode.MANIFEST_SCHEMA,
+    });
+  });
+
+  describe('backend.url', () => {
+    const DELIVERY = { type: 'remote', url: 'https://a.workers.dev/app/' };
+    const withUrl = (url: string) =>
+      parsePluginManifest(raw({ delivery: DELIVERY, backend: backend({ run: {} }, url) }));
+
+    it.each(['/owox', 'owox', './owox', '../owox', 'https://b.example/owox'])(
+      'accepts %s and stores it as declared',
+      url => {
+        expect(withUrl(url)).toMatchObject({ ok: true, manifest: { backend: { url } } });
+      }
+    );
+
+    it.each([
+      ['plain http', 'http://a.workers.dev/owox'],
+      ['a protocol-relative reference to another host', '//evil.example/owox'],
+      ['a backslash reference to another host', '\\\\evil.example'],
+      ['a slash-backslash reference to another host', '/\\evil.example'],
+      ['a non-http scheme', 'javascript:alert(1)'],
+      ['a user name and password', 'https://u:p@b.example/owox'],
+      ['a user name', 'https://u@b.example/owox'],
+      ['a user name on the delivery host', '//u:p@a.workers.dev/owox'],
+    ])('rejects %s', (_label, url) => {
+      expect(withUrl(url)).toMatchObject({
+        ok: false,
+        code: ReleaseRejectionCode.MANIFEST_SCHEMA,
+        detail: expect.stringContaining('backend.url: '),
+      });
+    });
+
+    // Every dispatch would fail: fetch refuses a URL with credentials in it.
+    it('rejects a relative url that inherits a user name from delivery.url', () => {
+      expect(
+        parsePluginManifest(
+          raw({
+            delivery: { type: 'remote', url: 'https://u:p@a.workers.dev/app/' },
+            backend: backend({ run: {} }, '/owox'),
+          })
+        )
+      ).toMatchObject({
+        ok: false,
+        code: ReleaseRejectionCode.MANIFEST_SCHEMA,
+        detail: expect.stringContaining(
+          'backend.url: the URL must not contain a user name or password'
+        ),
+      });
+    });
+  });
+
+  // Refusals that need an ajv compile are in release-candidate-rules.service.spec.ts.
+  it.each([
+    ['a remote $ref', { $ref: 'https://example.com/schema.json' }],
+    ['$async', { $async: true, type: 'string' }],
+  ])('rejects an input schema with %s', (_label, input) => {
+    expect(parsePluginManifest(withInput(input))).toMatchObject({
+      ok: false,
+      code: ReleaseRejectionCode.ACTION_INPUT_UNSUPPORTED,
+      detail: expect.stringMatching(/^backend\.actions\.update-document\.input: /),
+    });
+  });
+
+  it('rejects an input schema nested too deep to measure without throwing', () => {
+    const depth = 20_000;
+    const input = '{"a":'.repeat(depth) + '1' + '}'.repeat(depth);
+    const manifest = `{"name":"Example Plugin","description":"d","delivery":{"type":"remote","url":"https://plugin.example.com"},"backend":{"url":"/owox","actions":{"update-document":{"input":${input}}}}}`;
+
+    expect(parsePluginManifest(manifest)).toMatchObject({
+      ok: false,
+      code: ReleaseRejectionCode.ACTION_INPUT_UNSUPPORTED,
+      detail: expect.stringMatching(/^backend\.actions\.update-document\.input: /),
+    });
+  });
+
+  it('rejects an input schema over 32 KiB', () => {
+    const properties = Object.fromEntries(
+      Array.from({ length: 2000 }, (_, index) => [
+        `field${index}`,
+        { type: 'string', description: 'x'.repeat(10) },
+      ])
+    );
+
+    expect(parsePluginManifest(withInput({ type: 'object', properties }))).toMatchObject({
+      ok: false,
+      code: ReleaseRejectionCode.ACTION_INPUT_UNSUPPORTED,
+      detail: 'backend.actions.update-document.input: exceeds 32 KiB',
+    });
+  });
+});
+
+describe('resolveBackendUrl', () => {
+  const actions = { run: { timeoutSeconds: 30 } };
+
+  it.each([
+    ['/owox', 'https://a.workers.dev/owox'],
+    ['owox', 'https://a.workers.dev/app/owox'],
+    ['https://b.example/owox', 'https://b.example/owox'],
+  ])('resolves %s against the delivery URL', (url, expected) => {
+    expect(resolveBackendUrl({ url, actions }, 'https://a.workers.dev/app/')).toBe(expected);
+  });
+});
+
+describe('findIncompatibleActionChange', () => {
+  const current: PluginBackendDeclaration = {
+    url: BACKEND_URL,
+    actions: {
+      'update-document': { timeoutSeconds: 60, input: DOCUMENT_INPUT },
+      'list-documents': { timeoutSeconds: 30 },
+    },
+  };
+
+  it('allows added actions and a changed url, timeout or input', () => {
+    expect(
+      findIncompatibleActionChange(current, {
+        url: '/owox',
+        actions: {
+          'update-document': { timeoutSeconds: 120 },
+          'list-documents': { timeoutSeconds: 30, input: { type: 'object' } },
+          'delete-document': { timeoutSeconds: 30 },
+        },
+      })
+    ).toBeNull();
+  });
+
+  it('rejects a removed action', () => {
+    expect(
+      findIncompatibleActionChange(current, {
+        url: BACKEND_URL,
+        actions: { 'update-document': { timeoutSeconds: 60 } },
+      })
+    ).toBe('Action "list-documents" cannot be removed');
+  });
+
+  it('treats a dropped backend block as removing every action', () => {
+    expect(findIncompatibleActionChange(current, undefined)).toBe(
+      'Action "update-document" cannot be removed'
+    );
+  });
+
+  it('accepts anything over a baseline without a backend', () => {
+    expect(findIncompatibleActionChange(null, current)).toBeNull();
+    expect(findIncompatibleActionChange(undefined, undefined)).toBeNull();
   });
 });

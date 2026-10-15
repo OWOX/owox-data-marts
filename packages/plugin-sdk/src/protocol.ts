@@ -59,6 +59,8 @@ export interface PluginHostContext {
   readonly route?: string;
   /** Exact/logical handles that are both declared and configured for this installation. */
   readonly credentialHandles?: readonly PluginCredentialHandleDescriptor[];
+  /** Set by a host that brokers backend actions; an older host omits it. */
+  readonly actions?: true;
 }
 
 export type PluginCredentialHandleDescriptor =
@@ -88,6 +90,8 @@ export type PluginRequest =
       body?: unknown;
       accept?: string;
       stream?: false;
+      /** Asks the host to cancel the execution this start creates when the plugin closes. */
+      cancelOnClose?: true;
     }
   | {
       id: string;
@@ -196,6 +200,8 @@ export interface PluginErrorPayload {
   status?: number;
   message: string;
   details?: unknown;
+  /** The API's own `code` for an HTTP error, e.g. `INVALID_INPUT`; `code` stays the transport's. */
+  apiCode?: string;
 }
 
 export type PluginResponse =

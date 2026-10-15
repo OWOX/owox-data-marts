@@ -10,6 +10,17 @@ import { isValidPluginRoute } from './pluginRoute';
 /** Supplied by the runtime authorization track. There is deliberately no default. */
 export type FetchRuntimeToken = () => Promise<{ runtimeToken: string; expiresIn: number }>;
 
+/** A mint the API refused with a body worth reporting to the plugin; any other failure stays opaque. */
+export class RuntimeTokenRefused extends Error {
+  constructor(
+    readonly status: number,
+    readonly body: unknown
+  ) {
+    super('The runtime token was refused');
+    this.name = 'RuntimeTokenRefused';
+  }
+}
+
 export interface PluginHostBridgeOptions {
   iframe: HTMLIFrameElement;
   /** Assigned by the bridge, never by the markup -- see the note on ordering below. */
@@ -57,6 +68,15 @@ const REFRESH_MARGIN_MS = 60_000;
 const FORWARDED_RESPONSE_HEADERS = ['content-type', 'x-owox-run-id'];
 
 const HOST_ONLY_KINDS = new Set(['openExternal', 'navigate', 'route', 'copyLink']);
+const EXECUTION_START_PATH = /^\/api\/plugins\/runtime\/actions\/[^/?#]+\/executions$/;
+const EXECUTION_PATH = /^\/api\/plugins\/runtime\/executions\/([^/?#]+)$/;
+/** Locked to OWOX and the SDK by `test/contracts/plugin-action-contract.mjs`. */
+export const FINAL_EXECUTION_STATUSES: ReadonlySet<string> = new Set([
+  'SUCCEEDED',
+  'FAILED',
+  'CANCELLED',
+  'TIMED_OUT',
+]);
 
 export interface PluginHostBridge {
   dispose(): void;
@@ -81,6 +101,10 @@ export function createPluginHostBridge(options: PluginHostBridgeOptions): Plugin
   let nonce: string | undefined;
   let greeted = false;
   const requestControllers = new Map<string, AbortController>();
+  /** Executions an `invoke` started, by the start's request id; the host cancels them on close. */
+  const cancelOnClose = new Map<string, string>();
+  /** The token copy a start still on the wire at dispose cancels with; held while one may be. */
+  let closingToken: { token: string; expiresAt: number } | undefined;
   /**
    * Cancels requests already on the wire when the channel goes down.
    *
@@ -93,12 +117,85 @@ export function createPluginHostBridge(options: PluginHostBridgeOptions): Plugin
 
   async function currentToken(force = false): Promise<string> {
     if (force || !runtimeToken || Date.now() >= tokenExpiresAt - REFRESH_MARGIN_MS) {
-      const minted = await options.fetchRuntimeToken();
+      const minted = await options.fetchRuntimeToken().catch((caught: unknown) => {
+        // A refused mint is answered like a refused API call, so a suspension reads as SUSPENDED.
+        throw caught instanceof RuntimeTokenRefused
+          ? new PluginTransportRefusal(toErrorPayload(caught.status, caught.body))
+          : caught;
+      });
       runtimeToken = minted.runtimeToken;
       tokenExpiresAt = Date.now() + minted.expiresIn * 1000;
     }
 
     return runtimeToken;
+  }
+
+  // Gated on path and status as well as the SDK's mark, so a mark alone cannot aim a cancel.
+  function trackCancelOnClose(
+    request: Extract<PluginRequest, { kind: 'api' }>,
+    response: PluginResponse,
+    abandoned: boolean
+  ): void {
+    if (!response.ok || !('body' in response) || !isRecord(response.body)) {
+      return;
+    }
+    const { body } = response;
+    if (isInvokeStart(request) && response.status === 202 && typeof body.id === 'string') {
+      if (disposed) {
+        // The plugin closed: nothing is left to poll or cancel this execution.
+        cancelExecution(body.id, closingToken?.token, closingToken?.expiresAt ?? 0);
+        return;
+      }
+      cancelOnClose.set(body.id, request.id);
+      if (abandoned) void cancelTracked(body.id);
+      return;
+    }
+    const polled = request.method === 'GET' ? EXECUTION_PATH.exec(request.path) : null;
+    if (polled && typeof body.status === 'string' && FINAL_EXECUTION_STATUSES.has(body.status)) {
+      cancelOnClose.delete(polled[1]);
+    }
+  }
+
+  function cancelExecution(id: string, token: string | undefined, expiresAt: number): void {
+    // Minting is async and would outlive the closure, so an expired token sends nothing.
+    if (!token || Date.now() >= expiresAt) {
+      return;
+    }
+    void fetch(
+      new URL(
+        `/api/plugins/runtime/executions/${encodeURIComponent(id)}/cancel`,
+        apiOrigin
+      ).toString(),
+      {
+        method: 'POST',
+        keepalive: true,
+        redirect: 'error',
+        headers: { 'x-owox-authorization': `Bearer ${token}` },
+      }
+    ).catch(() => undefined);
+  }
+
+  // The SDK gave up, so it never learns the id; claimed before the mint, so a flood mints once.
+  async function cancelTracked(id: string): Promise<void> {
+    const requestId = cancelOnClose.get(id);
+    if (requestId === undefined) {
+      return;
+    }
+    cancelOnClose.delete(id);
+    const token = await currentToken().catch(() => undefined);
+    if (token !== undefined) {
+      cancelExecution(id, token, tokenExpiresAt);
+    } else if (!disposed) {
+      // A failed mint leaves it for the close; after dispose nothing is left to send it.
+      cancelOnClose.set(id, requestId);
+    }
+  }
+
+  function cancelInvokedExecutions(): void {
+    for (const id of cancelOnClose.keys()) {
+      cancelExecution(id, runtimeToken, tokenExpiresAt);
+    }
+    cancelOnClose.clear();
   }
 
   /**
@@ -151,18 +248,22 @@ export function createPluginHostBridge(options: PluginHostBridgeOptions): Plugin
     retryOnUnauthorized = true
   ): Promise<PluginResponse> {
     const url = resolvePath(request);
+    const token = await currentToken();
+    // An invoke's start is not aborted once it has left, so it must not leave after the abort.
+    signal.throwIfAborted();
 
     // Deliberately bare fetch, not the app's shared axios client: that one attaches the
     // *member* token and drives the global refresh-and-logout flow, so a plugin-triggered
     // 401 would sign the real user out with full member authority already on the wire.
     const response = await fetch(url.toString(), {
       method: request.method,
-      signal,
+      // The server may hold the execution already; aborting would lose the id it answers with.
+      signal: isInvokeStart(request) ? undefined : signal,
       // A redirect target has not passed resolvePath. Refuse it instead of letting fetch
       // carry the runtime bearer header to an attacker-controlled Location.
       redirect: 'error',
       headers: {
-        'x-owox-authorization': `Bearer ${await currentToken()}`,
+        'x-owox-authorization': `Bearer ${token}`,
         ...(serializedBody !== undefined ? { 'content-type': 'application/json' } : {}),
         ...('accept' in request && request.accept ? { accept: request.accept } : {}),
       },
@@ -323,6 +424,9 @@ export function createPluginHostBridge(options: PluginHostBridgeOptions): Plugin
     if (isRecord(candidate) && candidate.kind === 'cancel') {
       if (typeof candidate.targetId === 'string') {
         requestControllers.get(candidate.targetId)?.abort();
+        for (const [executionId, requestId] of cancelOnClose) {
+          if (requestId === candidate.targetId) void cancelTracked(executionId);
+        }
       }
       return;
     }
@@ -391,12 +495,14 @@ export function createPluginHostBridge(options: PluginHostBridgeOptions): Plugin
       // failing only after a credential has been minted.
       const serializedBody = serializeJsonBody(request);
       const response = await forward(request, serializedBody, signal);
+      trackCancelOnClose(request, response, signal.aborted);
       await replyAndHoldStream(response, signal);
     } catch (caught) {
       reply({ id, ok: false, error: asErrorPayload(caught) });
     } finally {
       if (requestController) requestControllers.delete(id);
       inFlight -= 1;
+      if (inFlight === 0) closingToken = undefined;
     }
   }
 
@@ -430,6 +536,10 @@ export function createPluginHostBridge(options: PluginHostBridgeOptions): Plugin
     // carrying it.
     teardown.abort();
     requestControllers.clear();
+    cancelInvokedExecutions();
+    if (inFlight > 0 && runtimeToken) {
+      closingToken = { token: runtimeToken, expiresAt: tokenExpiresAt };
+    }
     // The token dies with the closure.
     runtimeToken = undefined;
   }
@@ -478,6 +588,15 @@ export function createPluginHostBridge(options: PluginHostBridgeOptions): Plugin
   return { dispose: shutdown };
 }
 
+/** The one request the host must see answered: it cancels the execution the start creates. */
+function isInvokeStart(request: Extract<PluginRequest, { kind: 'api' }>): boolean {
+  return (
+    request.method === 'POST' &&
+    request.cancelOnClose === true &&
+    EXECUTION_START_PATH.test(request.path)
+  );
+}
+
 function pickHeaders(response: Response): Record<string, string> {
   const headers: Record<string, string> = {};
   for (const name of FORWARDED_RESPONSE_HEADERS) {
@@ -495,7 +614,7 @@ async function readError(response: Response): Promise<PluginErrorPayload> {
 }
 
 function toErrorPayload(status: number, body: unknown): PluginErrorPayload {
-  const parsed = body as { code?: string; message?: string; errorDetails?: unknown } | undefined;
+  const parsed = body as { code?: unknown; message?: string; errorDetails?: unknown } | undefined;
 
   return {
     // Suspension is distinct: the plugin is not broken and the member's installation is
@@ -504,6 +623,7 @@ function toErrorPayload(status: number, body: unknown): PluginErrorPayload {
     status,
     message: parsed?.message ?? `Request failed with ${String(status)}`,
     details: parsed?.errorDetails,
+    ...(typeof parsed?.code === 'string' ? { apiCode: parsed.code } : {}),
   };
 }
 

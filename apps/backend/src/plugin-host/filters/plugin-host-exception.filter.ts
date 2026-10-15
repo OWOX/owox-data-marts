@@ -1,4 +1,4 @@
-import { ArgumentsHost, Catch, ExceptionFilter, HttpStatus, Logger } from '@nestjs/common';
+import { ArgumentsHost, Catch, ExceptionFilter, Logger } from '@nestjs/common';
 import { Response } from 'express';
 import { PluginHostError } from '../errors/plugin-host.errors';
 
@@ -33,8 +33,8 @@ export class PluginHostExceptionFilter implements ExceptionFilter {
       );
     }
 
-    response.status(HttpStatus.BAD_REQUEST).json({
-      statusCode: HttpStatus.BAD_REQUEST,
+    response.status(exception.httpStatus).json({
+      statusCode: exception.httpStatus,
       timestamp: new Date().toISOString(),
       path: request.url,
       // The code stays either way, so clients keep a stable branch point without

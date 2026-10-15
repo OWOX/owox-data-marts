@@ -95,6 +95,7 @@
     "@owox/connectors": "*",
     "@owox/idp-protocol": "*",
     "@owox/internal-helpers": "*",
+    "ajv": "^8.20.0",
     "better-sqlite3": "^12.2.0",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.2",

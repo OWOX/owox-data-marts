@@ -67,4 +67,10 @@ export class PluginGalleryEntryApiDto {
   credentialRequirements: Array<
     string | { id: string; definitionId?: string; optional: boolean; models?: readonly string[] }
   >;
+
+  @ApiPropertyOptional({
+    description:
+      'Origin of the server the current version runs backend actions on. Omitted when it declares none.',
+  })
+  backendOrigin?: string;
 }

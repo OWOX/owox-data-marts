@@ -51,6 +51,7 @@ redirecting paths are refused.
 | `ctx.owox`                                 | OWOX API client. The SDK owns its transport; you cannot replace it.                            |
 | `ctx.credentials`                          | Declared, installation-bound Credential handles. No raw secrets.                               |
 | `ctx.collections(name)`                    | Host-stored JSON documents declared by the plugin.                                             |
+| `ctx.actions`                              | Runs your backend's actions through OWOX; `undefined` on a host without backend actions.       |
 | `ctx.ui.openExternal(url)`                 | Ask the host to open an external https URL in a new tab.                                       |
 | `ctx.ui.navigate(path)`                    | Ask the host to go to a page inside OWOX, in place of your frame.                              |
 | `ctx.route`                                | The plugin's own route, e.g. `/dashboards/42`; `undefined` on a host without page links.       |
@@ -213,7 +214,7 @@ For an entity-bound collection, pass `parentId` on every `put`. It cannot be cha
 update. A collection without `entityBinding` takes no `parentId`. OWOX reads `entityBinding` from
 the current version's `plugin.json`, not from your working copy; a `put` that does not match it
 rejects with `payload.code` `HTTP_ERROR`, `status` 400, and a message naming the collection and the
-current version (API codes `PLUGIN_COLLECTION_PARENT_ID_REQUIRED` and
+current version (`payload.apiCode` `PLUGIN_COLLECTION_PARENT_ID_REQUIRED` or
 `PLUGIN_COLLECTION_NOT_ENTITY_BOUND`). Adding `entityBinding` to an existing collection is a
 breaking change and leaves its saved documents unreachable; to bind existing data, declare a new
 collection and copy the documents into it. `get` returns `null` when the document is absent or inaccessible, and `list` returns only
@@ -226,3 +227,120 @@ Collections survive plugin uninstall, suspension and recoverable deletion. They 
 deployment-wide document, collection and project limits. Store JSON application state only:
 collections are not a credential store and must never contain passwords, API keys, access tokens
 or other secrets.
+
+## Backend actions
+
+A plugin can declare actions that run on its own backend built with `@owox/plugin-sdk/server`,
+such as a Cloudflare Worker or a Cloud Run service. OWOX checks each call, then calls the backend,
+which acts with the access of the member who installed the plugin until the action's
+`timeoutSeconds` run out. `backend.url` may be relative: it resolves against `delivery.url`, so one
+Worker can serve the page and the actions.
+
+```json
+{
+  "backend": {
+    "url": "/owox",
+    "actions": {
+      "update-document": {
+        "timeoutSeconds": 60,
+        "input": {
+          "type": "object",
+          "required": ["documentId"],
+          "properties": { "documentId": { "type": "string" } }
+        }
+      }
+    }
+  }
+}
+```
+
+`input` is a JSON Schema 2020-12. The release check refuses one with `pattern`,
+`patternProperties`, `format`, `uniqueItems`, `$async` or a recursive or non-local `$ref`, one that
+expands to more than 2,000 nodes, and input schemas that together take longer than 2 seconds, or
+more memory than allowed, to compile (`ACTION_INPUT_UNSUPPORTED`).
+
+```ts
+if (ctx.actions) {
+  const result = await ctx.actions.invoke('update-document', { documentId }, { signal });
+}
+```
+
+- `invoke` waits for the result. Aborting `signal`, or leaving the plugin page, cancels the
+  execution. Closing or reloading the tab cancels nothing, and the execution can run until
+  `timeoutSeconds`.
+- `start` returns `{ id }` at once, and the execution keeps running after the plugin closes. Read
+  it later with `get(id)` or `wait(id)`, and stop it with `cancel(id)`.
+- A failure rejects with an error whose `name` is `PluginActionError`. Its `code` is one of:
+  - a refusal, such as `ACTION_NOT_DECLARED`, `INVALID_INPUT`, `INPUT_TOO_LARGE` or
+    `TOO_MANY_EXECUTIONS`;
+  - the code your backend failed with;
+  - `TIMED_OUT` or `CANCELLED`.
+
+  `executionId` is set once the execution exists. For `INVALID_INPUT`, `errors` lists the fields
+  that failed as `{ instancePath, message }`. Refusals map to `PluginActionError` for `start` and
+  `invoke` only: a refusal from `get`, `wait` or `cancel`, such as `EXECUTION_NOT_FOUND`, stays a
+  `PluginTransportError` that carries `apiCode`. A transport failure stays a
+  `PluginTransportError`.
+
+- At most 5 executions of an installation run at once, and too many inputs being validated at once
+  also answer `TOO_MANY_EXECUTIONS`. While an `invoke` or `wait` is waiting, it holds one of the 32
+  request slots for up to 20 seconds per poll.
+- Input is refused with `INVALID_INPUT` when it is nested deeper than 100 levels or its validation
+  exceeds its budget.
+- OWOX clears an execution's `input`, `result` and the `errorMessage` of a failure your backend
+  reported with its own code 24 hours after it finishes.
+- `ctx.actions` is `undefined` on a host without backend actions.
+
+## `@owox/plugin-sdk/server`
+
+A plugin's backend is built with `createBackend`. It uses only the Fetch API, so the same module
+runs as a Cloudflare Worker or, on Node, behind `@hono/node-server`.
+
+```ts
+import { createBackend } from '@owox/plugin-sdk/server';
+
+export default createBackend({
+  actions: {
+    'update-document': async (input, ctx) => {
+      const dataMarts = await ctx.owox.dataMarts.list();
+      return { count: dataMarts.length };
+    },
+  },
+});
+```
+
+For each request, `createBackend`:
+
+1. refuses a `host` that is not an origin. With `hosts`, a list of exact origins without
+   wildcards, it also refuses a host outside that list. Without `hosts` any OWOX Data Marts
+   deployment may call the backend, Cloud or self-managed. Everything the handler reaches through
+   `ctx` goes back to that same host, so a forged host gains nothing from OWOX Data Marts. Set
+   `hosts` when a handler also uses the backend's own secrets or storage;
+2. reads the execution from that host with the token OWOX sent. A request whose token the named
+   host does not accept gets `401`, and no handler runs;
+3. runs the handler for the execution's action.
+
+The handler's `ctx` provides:
+
+- `owox`: the API client, acting with the access of the member who installed the plugin;
+- `credentials`: exact Credential handles, used through
+  `exactCredential(ctx.credentials, name).asFetch()`. The secret stays in OWOX;
+- `collections(name)`;
+- `execution`: ids, `trigger`, `deadlineAt` and `pluginVersion`;
+- `signal`, which aborts at the action's deadline. When OWOX drops the call, Cloudflare Workers
+  cancels the whole invocation: the handler stops, code after an `await` does not run, and
+  `request.signal` never fires. Do not rely on cleanup after an `await`. On Node with
+  `@hono/node-server`, the handler keeps running and `signal` aborts.
+
+Return any JSON value of at most 1 MiB, nested at most 100 levels; any other result fails with
+`BACKEND_INVALID_RESPONSE`. To fail with your own code, throw an error whose `code` matches
+`^[A-Z][A-Z0-9_]{0,63}$`, for example `DOCUMENT_LOCKED`. Any other error ends the execution with
+`ACTION_FAILED`. Codes that start with `BACKEND_`, and the codes OWOX sets itself, are reserved. AI
+Credential handles are not available in a backend.
+
+Deploy the backend, for example with `npx wrangler deploy` or to Cloud Run as the
+[authoring guide](https://docs.owox.com/docs/plugins/authoring-guide/) shows, and set
+`backend.url`: a relative path such as `/owox` when a Worker also serves the page, because OWOX
+resolves it against `delivery.url`, or an absolute `https://` URL when the backend is on another
+origin. Within a compatibility line a release cannot add a backend or move its origin
+(`BACKEND_ORIGIN_CHANGED`).

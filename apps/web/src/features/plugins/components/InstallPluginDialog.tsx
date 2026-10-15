@@ -1,5 +1,5 @@
 import { ExternalAnchor } from '@owox/ui/components/common/external-anchor';
-import { Blocks, KeyRound, Plus, RotateCcw, Share2, ShieldAlert } from 'lucide-react';
+import { Blocks, KeyRound, Plus, RotateCcw, Server, Share2, ShieldAlert } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import {
   CredentialConfigSheet,
@@ -211,6 +211,12 @@ export function InstallPluginDialog({
               </DialogFact>
             )}
             <DialogFact icon={KeyRound}>Acts with your access to OWOX Data Marts.</DialogFact>
+            {plugin.backendOrigin && (
+              <DialogFact icon={Server}>
+                Runs code on <span className='break-words'>{plugin.backendOrigin}</span> with your
+                access, including when the plugin is closed.
+              </DialogFact>
+            )}
             <DialogFact icon={Share2}>
               Anything it reads can leave OWOX and reach the plugin publisher.
             </DialogFact>

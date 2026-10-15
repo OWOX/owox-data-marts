@@ -5,6 +5,7 @@ import { PluginSuspendedError } from '../errors/plugin-host.errors';
 import { PluginInstallationService } from '../services/plugin-installation.service';
 import { PluginVersionService } from '../services/plugin-version.service';
 import { PluginService } from '../services/plugin.service';
+import { toCredentialHandles } from '../utils/credential-handles.util';
 import {
   CREDENTIAL_CONSUMER_BINDING_FACADE,
   type CredentialConsumerBindingFacade,
@@ -70,15 +71,7 @@ export class GetPluginInstallationEntryService {
       displayName: version.displayName,
       pluginId: plugin.id,
       versionId: version.id,
-      credentialHandles: readyRequirements.map(requirement =>
-        requirement.definitionId === null
-          ? {
-              name: requirement.key,
-              kind: 'ai' as const,
-              models: requirement.models as Array<'fast' | 'reasoning' | 'embedding'>,
-            }
-          : { name: requirement.key, kind: 'exact' as const }
-      ),
+      credentialHandles: toCredentialHandles(readyRequirements),
     };
   }
 }

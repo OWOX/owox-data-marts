@@ -1,0 +1,97 @@
+import {
+  Column,
+  CreateDateColumn,
+  Entity,
+  Index,
+  PrimaryGeneratedColumn,
+  type ValueTransformer,
+} from 'typeorm';
+import {
+  PluginActionExecutionStatus,
+  type PluginActionTrigger,
+} from '../enums/plugin-action-execution-status.enum';
+
+/** Stored as JSON text: TypeORM parses a MySQL `json` value again, so the string "12345" came back as 12345. */
+const JSON_TEXT: ValueTransformer = {
+  to: (value: unknown) => (value === undefined || value === null ? value : JSON.stringify(value)),
+  // SQLite's `json` column has numeric affinity, so a number comes back as a number.
+  from: (text: string | number | null | undefined) =>
+    text === null || text === undefined ? null : JSON.parse(String(text)),
+};
+
+/** One call of a plugin backend action. No foreign keys: the record outlives the rows it names. */
+@Entity('plugin_action_execution')
+@Index('UQ_plugin_action_execution_token', ['tokenHash'], { unique: true })
+@Index('idx_plugin_action_execution_running', ['installationId', 'status'])
+@Index('idx_plugin_action_execution_deadline', ['status', 'deadlineAt'])
+@Index('idx_plugin_action_execution_schedule', ['scheduleId', 'status'])
+@Index('idx_plugin_action_execution_finished', ['finishedAt'])
+@Index('idx_plugin_action_execution_payloads', ['payloadsClearedAt', 'finishedAt'])
+export class PluginActionExecution {
+  @PrimaryGeneratedColumn('uuid')
+  id: string;
+
+  @Column({ type: 'varchar', length: 36 })
+  pluginId: string;
+
+  @Column({ type: 'varchar', length: 36 })
+  pluginVersionId: string;
+
+  @Column({ type: 'varchar', length: 36 })
+  installationId: string;
+
+  @Column({ type: 'varchar', length: 255 })
+  projectId: string;
+
+  /** The installation owner, whose authority the execution carries. */
+  @Column({ type: 'varchar', length: 255 })
+  userId: string;
+
+  @Column({ type: 'varchar', length: 64 })
+  action: string;
+
+  @Column({ type: 'text', nullable: true, transformer: JSON_TEXT })
+  input: unknown;
+
+  @Column({ type: 'varchar', length: 16 })
+  trigger: PluginActionTrigger;
+
+  @Column({ type: 'varchar', length: 36, nullable: true })
+  scheduleId: string | null;
+
+  @Column({ type: 'varchar', length: 16 })
+  status: PluginActionExecutionStatus;
+
+  /** The owner's role at start; the execution token carries this one, not a live read. */
+  @Column({ type: 'varchar', length: 16 })
+  role: string;
+
+  /** SHA-256 hex of the execution token. The token itself is never stored. */
+  @Column({ type: 'varchar', length: 64, nullable: true })
+  tokenHash: string | null;
+
+  @Column({ type: 'datetime', nullable: true })
+  deadlineAt: Date | null;
+
+  @CreateDateColumn()
+  createdAt: Date;
+
+  @Column({ type: 'datetime', nullable: true })
+  startedAt: Date | null;
+
+  @Column({ type: 'datetime', nullable: true })
+  finishedAt: Date | null;
+
+  @Column({ type: 'varchar', length: 64, nullable: true })
+  errorCode: string | null;
+
+  @Column({ type: 'varchar', length: 1000, nullable: true })
+  errorMessage: string | null;
+
+  @Column({ type: 'text', nullable: true, transformer: JSON_TEXT })
+  result: unknown;
+
+  /** When the sweep cleared `input`, `result` and a plugin-authored `errorMessage`. */
+  @Column({ type: 'datetime', nullable: true })
+  payloadsClearedAt: Date | null;
+}

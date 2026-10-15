@@ -16,6 +16,7 @@ import { PluginPublicationService } from '../services/plugin-publication.service
 import { PluginVersionService } from '../services/plugin-version.service';
 import { PluginService } from '../services/plugin.service';
 import { PublicationAuthorizationService } from '../services/publication-authorization.service';
+import { ActionInputValidatorService } from '../services/action-input-validator.service';
 import { ReleaseCandidateRulesService } from '../services/release-candidate-rules.service';
 import { RemoteUrlValidatorService } from '../services/remote-url-validator.service';
 import { CheckPluginReleaseService } from './check-plugin-release.service';
@@ -159,6 +160,7 @@ function setup(
       githubApi,
       validator,
       versionService,
+      new ActionInputValidatorService(),
       new ExternalCredentialDefinitionSyncService(credentialGithub as never, registry as never)
     ),
     config

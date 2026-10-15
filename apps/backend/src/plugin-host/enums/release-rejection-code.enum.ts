@@ -25,6 +25,12 @@ export enum ReleaseRejectionCode {
    * version bump is how a publisher ships such a change deliberately.
    */
   COLLECTIONS_INCOMPATIBLE = 'COLLECTIONS_INCOMPATIBLE',
+  /** An input schema does not compile within the budget, exceeds 32 KiB or 2,000 inlined subschemas, or uses a refused keyword or $ref. */
+  ACTION_INPUT_UNSUPPORTED = 'ACTION_INPUT_UNSUPPORTED',
+  /** A minor or patch release removes an action that an earlier release in its line declared. */
+  ACTIONS_INCOMPATIBLE = 'ACTIONS_INCOMPATIBLE',
+  /** A release adds a backend to its compatibility line or moves the line's backend origin. */
+  BACKEND_ORIGIN_CHANGED = 'BACKEND_ORIGIN_CHANGED',
   DELIVERY_UNSUPPORTED = 'DELIVERY_UNSUPPORTED',
   URL_NOT_HTTPS = 'URL_NOT_HTTPS',
   URL_PRIVATE_NETWORK = 'URL_PRIVATE_NETWORK',
@@ -56,6 +62,9 @@ const REJECTION_IS_PUBLISHER_ACTIONABLE = {
   [ReleaseRejectionCode.MANIFEST_INVALID_JSON]: true,
   [ReleaseRejectionCode.MANIFEST_SCHEMA]: true,
   [ReleaseRejectionCode.COLLECTIONS_INCOMPATIBLE]: true,
+  [ReleaseRejectionCode.ACTION_INPUT_UNSUPPORTED]: true,
+  [ReleaseRejectionCode.ACTIONS_INCOMPATIBLE]: true,
+  [ReleaseRejectionCode.BACKEND_ORIGIN_CHANGED]: true,
   [ReleaseRejectionCode.DELIVERY_UNSUPPORTED]: true,
   [ReleaseRejectionCode.URL_NOT_HTTPS]: true,
   [ReleaseRejectionCode.URL_PRIVATE_NETWORK]: true,

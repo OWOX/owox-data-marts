@@ -7,7 +7,8 @@
     "src/credentials.ts",
     "src/credentials.test.ts",
     "src/protocol.ts",
-    "src/protocol.test.ts"
+    "src/protocol.test.ts",
+    "src/actions.test.ts"
   ],
   "exclude": []
 }

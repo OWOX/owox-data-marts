@@ -12,6 +12,7 @@ import {
 import { GithubApiService } from '../services/github-api.service';
 import { PluginService } from '../services/plugin.service';
 import { PluginVersionService } from '../services/plugin-version.service';
+import { ActionInputValidatorService } from '../services/action-input-validator.service';
 import { ReleaseCandidateRulesService } from '../services/release-candidate-rules.service';
 import { RemoteUrlValidatorService } from '../services/remote-url-validator.service';
 import { ExternalCredentialRequirementError } from '../services/external-credential-definition-sync.service';
@@ -54,6 +55,7 @@ function setup(externalCredentialDefinitions?: { resolveRequirements: jest.Mock 
 
   const validator = {
     validate: jest.fn().mockResolvedValue({ ok: true, finalUrl: 'https://plugin.example.com' }),
+    checkPublicHttps: jest.fn().mockResolvedValue({ ok: true }),
   } as unknown as jest.Mocked<RemoteUrlValidatorService>;
 
   const pluginService = {
@@ -86,6 +88,7 @@ function setup(externalCredentialDefinitions?: { resolveRequirements: jest.Mock 
       githubApi,
       validator,
       versionService,
+      new ActionInputValidatorService(),
       externalCredentialDefinitions as never
     ),
     pluginService,
@@ -468,10 +471,32 @@ describe('SyncPluginReleasesService', () => {
           displayName: 'Example Plugin',
           deliveryUrl: 'https://plugin.example.com',
           collections: [],
+          backend: null,
         }),
         'lease-1'
       );
       expect(result.report.acceptedSemvers).toEqual(['1.0.0']);
+    });
+
+    it('records the backend declaration as declared', async () => {
+      const s = setup();
+      s.githubApi.listReleases.mockResolvedValue([release('v1.0.0')]);
+      s.githubApi.getFileAtCommit.mockResolvedValue(
+        JSON.stringify({
+          ...JSON.parse(MANIFEST),
+          backend: { url: '/owox', actions: { 'update-document': {} } },
+        })
+      );
+
+      await run(s);
+
+      expect(s.validator.checkPublicHttps).toHaveBeenCalledWith('https://plugin.example.com/owox');
+      expect(s.versionService.insertVersionForLease).toHaveBeenCalledWith(
+        expect.objectContaining({
+          backend: { url: '/owox', actions: { 'update-document': { timeoutSeconds: 30 } } },
+        }),
+        'lease-1'
+      );
     });
 
     // The reported case: a patch release binds an already-released collection to an entity.

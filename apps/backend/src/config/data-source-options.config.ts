@@ -10,6 +10,9 @@ export enum DbType {
   mysql = 'mysql',
 }
 
+/** Tables whose bound values hold plugin action input, results or token hashes. */
+const REDACTED_PARAMETER_TABLES = ['plugin_action_execution'];
+
 /**
  * Custom DataSource logger that implements the Logger interface
  * and uses the logger service from @nestjs/common for logging
@@ -31,8 +34,13 @@ export class CustomDataSourceLogger implements Logger {
     return false;
   }
 
-  logQuery(query: string, parameters?: unknown[]) {
+  private loggableParameters(query: string, parameters?: unknown[]): unknown[] | undefined {
+    return REDACTED_PARAMETER_TABLES.some(table => query.includes(table)) ? undefined : parameters;
+  }
+
+  logQuery(query: string, queryParameters?: unknown[]) {
     if (this.checkLoggingOptions('query')) {
+      const parameters = this.loggableParameters(query, queryParameters);
       const message =
         this.logQueryParameters && parameters?.length
           ? `${query} -- Parameters: ${JSON.stringify(parameters)}`
@@ -40,14 +48,16 @@ export class CustomDataSourceLogger implements Logger {
       this.logger.log(message);
     }
   }
-  logQueryError(error: string | Error, query: string, parameters?: unknown[]) {
+  logQueryError(error: string | Error, query: string, queryParameters?: unknown[]) {
     if (this.checkLoggingOptions('error')) {
+      const parameters = this.loggableParameters(query, queryParameters);
       const errorMessage = `[QUERY ERROR] ${query}${this.logQueryParameters && parameters?.length ? ` -- Parameters: ${JSON.stringify(parameters)}` : ''}`;
       this.logger.error(errorMessage, String(error));
     }
   }
-  logQuerySlow(time: number, query: string, parameters?: unknown[]) {
+  logQuerySlow(time: number, query: string, queryParameters?: unknown[]) {
     if (this.checkLoggingOptions('warn')) {
+      const parameters = this.loggableParameters(query, queryParameters);
       const message = `[SLOW QUERY] (${time}ms): ${query}${this.logQueryParameters && parameters?.length ? ` -- Parameters: ${JSON.stringify(parameters)}` : ''}`;
       this.logger.warn(message);
     }

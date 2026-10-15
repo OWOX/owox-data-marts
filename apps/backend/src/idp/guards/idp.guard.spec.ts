@@ -8,6 +8,7 @@ import {
   ViewOnlyModeError,
 } from '@owox/idp-protocol';
 import { ClsService } from 'nestjs-cls';
+import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
 import { IdpProviderService } from '../services/idp-provider.service';
 import { IdpProjectionsService } from '../services/idp-projections.service';
 import { Role, Strategy, type RoleConfig } from '../types';
@@ -17,6 +18,12 @@ import { REQUIRE_PLUGIN_AUTH_METADATA } from '../decorators/require-plugin-auth.
 import { VIEW_ONLY_SAFE_METADATA } from '../decorators/view-only-safe.decorator';
 import type { PluginRuntimeAuthorizerPort } from '../ports/plugin-runtime-authorizer.port';
 import { AuthenticatedRequest, AUTH_CONTEXT, IdpGuard } from './idp.guard';
+
+const SUSPENDED = new BusinessViolationException(
+  'This plugin is temporarily unavailable',
+  { pluginId: 'plugin-1' },
+  'PLUGIN_SUSPENDED'
+);
 
 describe('IdpGuard', () => {
   let roleConfig: RoleConfig;
@@ -65,6 +72,7 @@ describe('IdpGuard', () => {
 
     pluginRuntimeAuthorizer = {
       assertActiveInstallation: jest.fn(),
+      resolveExecutionToken: jest.fn(),
     };
     moduleRef = {
       get: jest.fn(() => pluginRuntimeAuthorizer),
@@ -332,6 +340,36 @@ describe('IdpGuard', () => {
       await expect(guard.canActivate(context())).rejects.toThrow('Plugin runtime access denied');
     });
 
+    it('passes on a coded refusal of the installation, such as a suspension', async () => {
+      roleConfig = Role.viewer(Strategy.INTROSPECT);
+      idpProvider.introspectToken.mockResolvedValue(
+        payload(['viewer'], {
+          authFlow: 'plugin',
+          pluginId: 'plugin-1',
+          installationId: 'installation-1',
+        })
+      );
+      pluginRuntimeAuthorizer.assertActiveInstallation.mockRejectedValue(SUSPENDED);
+
+      await expect(guard.canActivate(context())).rejects.toBe(SUSPENDED);
+    });
+
+    it('answers another coded refusal of the authorizer as an authentication failure', async () => {
+      roleConfig = Role.viewer(Strategy.INTROSPECT);
+      idpProvider.introspectToken.mockResolvedValue(
+        payload(['viewer'], {
+          authFlow: 'plugin',
+          pluginId: 'plugin-1',
+          installationId: 'installation-1',
+        })
+      );
+      pluginRuntimeAuthorizer.assertActiveInstallation.mockRejectedValue(
+        new BusinessViolationException('Something else', {}, 'SOMETHING_ELSE')
+      );
+
+      await expect(guard.canActivate(context())).rejects.toBeInstanceOf(AuthenticationError);
+    });
+
     it('fails closed when the runtime authorizer is unavailable', async () => {
       roleConfig = Role.viewer(Strategy.INTROSPECT);
       idpProvider.introspectToken.mockResolvedValue(
@@ -390,6 +428,145 @@ describe('IdpGuard', () => {
       );
       expect(pluginRuntimeAuthorizer.assertActiveInstallation).not.toHaveBeenCalled();
     });
+  });
+
+  describe('execution token', () => {
+    const identity = {
+      executionId: 'execution-1',
+      pluginId: 'plugin-1',
+      installationId: 'installation-1',
+      projectId: 'project-1',
+      userId: 'user-1',
+      role: 'editor' as const,
+    };
+
+    beforeEach(() => {
+      request.headers = { 'x-owox-execution-token': 'execution-token' };
+      pluginRuntimeAuthorizer.resolveExecutionToken.mockResolvedValue(identity);
+      // A guard that fell back to the IDP would let every request below through as admin.
+      idpProvider.parseToken.mockResolvedValue(payload(['admin']));
+      idpProvider.introspectToken.mockResolvedValue(payload(['admin']));
+    });
+
+    it.each([Strategy.PARSE, Strategy.INTROSPECT])(
+      'authenticates a backend action without the IDP on %s routes',
+      async strategy => {
+        roleConfig = Role.viewer(strategy);
+
+        await expect(guard.canActivate(context())).resolves.toBe(true);
+
+        expect(pluginRuntimeAuthorizer.resolveExecutionToken).toHaveBeenCalledWith(
+          'execution-token'
+        );
+        expect(idpProvider.parseToken).not.toHaveBeenCalled();
+        expect(idpProvider.introspectToken).not.toHaveBeenCalled();
+        expect(pluginRuntimeAuthorizer.assertActiveInstallation).toHaveBeenCalledWith({
+          pluginId: 'plugin-1',
+          installationId: 'installation-1',
+          projectId: 'project-1',
+          userId: 'user-1',
+        });
+        expect(request.idpContext).toEqual({
+          userId: 'user-1',
+          projectId: 'project-1',
+          roles: ['editor'],
+          authFlow: 'plugin',
+          pluginId: 'plugin-1',
+          installationId: 'installation-1',
+          executionId: 'execution-1',
+        });
+        expect(clsService.set).toHaveBeenCalledWith(AUTH_CONTEXT, {
+          userId: 'user-1',
+          projectId: 'project-1',
+          roles: ['editor'],
+          authFlow: 'plugin',
+          apiKeyId: undefined,
+          pluginId: 'plugin-1',
+          installationId: 'installation-1',
+          viewOnly: undefined,
+          executionId: 'execution-1',
+        });
+      }
+    );
+
+    it('keeps the role stored when the execution started', async () => {
+      roleConfig = Role.editor(Strategy.INTROSPECT);
+      await expect(guard.canActivate(context())).resolves.toBe(true);
+
+      pluginRuntimeAuthorizer.resolveExecutionToken.mockResolvedValue({
+        ...identity,
+        role: 'viewer',
+      });
+      await expect(guard.canActivate(context())).rejects.toThrow(
+        'Access denied. Required role: Data Owner'
+      );
+    });
+
+    it.each([
+      [
+        'with a member token as well',
+        {
+          'x-owox-execution-token': 'execution-token',
+          'x-owox-authorization': 'Bearer access-token',
+        },
+      ],
+      ['twice', { 'x-owox-execution-token': ['execution-token', 'execution-token'] }],
+    ])('refuses an execution header sent %s, before resolving it', async (_label, headers) => {
+      request.headers = headers;
+
+      await expect(guard.canActivate(context())).rejects.toBeInstanceOf(AuthenticationError);
+      expect(pluginRuntimeAuthorizer.resolveExecutionToken).not.toHaveBeenCalled();
+      expect(idpProvider.parseToken).not.toHaveBeenCalled();
+    });
+
+    it('refuses a token that matches no running execution', async () => {
+      pluginRuntimeAuthorizer.resolveExecutionToken.mockResolvedValue(null);
+
+      await expect(guard.canActivate(context())).rejects.toBeInstanceOf(AuthenticationError);
+      expect(pluginRuntimeAuthorizer.assertActiveInstallation).not.toHaveBeenCalled();
+    });
+
+    it('refuses the token once the installation is no longer usable', async () => {
+      pluginRuntimeAuthorizer.assertActiveInstallation.mockRejectedValue(
+        new AuthorizationError('Plugin runtime access denied')
+      );
+
+      await expect(guard.canActivate(context())).rejects.toThrow('Plugin runtime access denied');
+    });
+
+    it('passes on a coded refusal of the installation, such as a suspension', async () => {
+      pluginRuntimeAuthorizer.assertActiveInstallation.mockRejectedValue(SUSPENDED);
+
+      await expect(guard.canActivate(context())).rejects.toBe(SUSPENDED);
+    });
+
+    it('refuses the token on routes that reject plugin auth', async () => {
+      rejectPluginAuth = true;
+
+      await expect(guard.canActivate(context())).rejects.toThrow(
+        'Plugin runtime authentication is not allowed for this endpoint'
+      );
+      expect(pluginRuntimeAuthorizer.assertActiveInstallation).not.toHaveBeenCalled();
+    });
+
+    it('does not read the header on optional routes', async () => {
+      roleConfig = Role.none();
+
+      await expect(guard.canActivate(context())).resolves.toBe(true);
+      expect(pluginRuntimeAuthorizer.resolveExecutionToken).not.toHaveBeenCalled();
+    });
+  });
+
+  it('never takes an executionId from an IDP token', async () => {
+    idpProvider.parseToken.mockResolvedValue(payload(['viewer'], { executionId: 'forged' }));
+
+    await expect(guard.canActivate(context())).resolves.toBe(true);
+
+    expect(request.idpContext.executionId).toBeUndefined();
+    expect(clsService.set).toHaveBeenCalledWith(
+      AUTH_CONTEXT,
+      expect.objectContaining({ executionId: undefined })
+    );
   });
 
   describe('view-only restrictions', () => {

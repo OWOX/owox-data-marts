@@ -48,6 +48,17 @@ export class RemoteUrlValidatorService {
     }
   }
 
+  /** For a URL OWOX calls rather than frames: the per-hop guard alone, with no probe. */
+  async checkPublicHttps(
+    rawUrl: string
+  ): Promise<
+    | { readonly ok: true }
+    | { readonly ok: false; readonly code: ReleaseRejectionCode; readonly detail: string }
+  > {
+    const guarded = await this.guard(rawUrl);
+    return guarded.ok ? { ok: true } : guarded;
+  }
+
   private async run(rawUrl: string): Promise<RemoteUrlCheckResult> {
     const walked = await this.walk(rawUrl, ReleaseRejectionCode.URL_UNREACHABLE);
     if (!walked.ok) {

@@ -95,6 +95,54 @@ describe('PluginPresentationMapper', () => {
       expect(view.displayName).toBe('OWOX');
       expect(view.displayName).not.toBe('example-plugin');
     });
+
+    describe('backend origin', () => {
+      const backend = (url: string): PluginVersion['backend'] => ({
+        url,
+        actions: { sync: { timeoutSeconds: 30 } },
+      });
+
+      it('names only the origin of an absolute backend URL', () => {
+        const view = memberView(
+          plugin(),
+          version({ backend: backend('https://acme.workers.dev/owox?region=eu') })
+        );
+
+        expect(view.backendOrigin).toBe('https://acme.workers.dev');
+      });
+
+      // A relative URL is served next to the plugin, so its origin is the delivery origin.
+      it('resolves a relative backend URL against the delivery URL', () => {
+        const view = memberView(
+          plugin(),
+          version({ deliveryUrl: 'https://a.workers.dev/app/', backend: backend('/owox') })
+        );
+
+        expect(view.backendOrigin).toBe('https://a.workers.dev');
+      });
+
+      it('carries no backend origin when the version declares no backend', () => {
+        expect(Object.keys(memberView(plugin(), version({ backend: null })))).not.toContain(
+          'backendOrigin'
+        );
+        expect(Object.keys(memberView(plugin({ currentVersionId: null }), null))).not.toContain(
+          'backendOrigin'
+        );
+      });
+    });
+  });
+
+  describe('gallery response', () => {
+    it('carries the backend origin from the DTO and omits it when absent', () => {
+      const withOrigin = mapper.toGalleryEntryResponse({
+        ...memberView(),
+        backendOrigin: 'https://acme.workers.dev',
+      });
+      expect(withOrigin.backendOrigin).toBe('https://acme.workers.dev');
+      expect(Object.keys(mapper.toGalleryEntryResponse(memberView()))).not.toContain(
+        'backendOrigin'
+      );
+    });
   });
 
   // Publisher diagnostics reach a publisher through the diagnostics block on a

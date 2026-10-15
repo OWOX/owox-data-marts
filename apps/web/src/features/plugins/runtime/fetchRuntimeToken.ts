@@ -1,5 +1,6 @@
 import { pluginsService } from '../services/plugins.service';
-import type { FetchRuntimeToken } from './pluginHostBridge';
+import { RuntimeTokenRefused, type FetchRuntimeToken } from './pluginHostBridge';
+import { extractApiError } from '../../../app/api/extract-api-error.util';
 
 /**
  * Mints a runtime token for one installation.
@@ -17,4 +18,13 @@ import type { FetchRuntimeToken } from './pluginHostBridge';
 export const fetchRuntimeToken =
   (installationId: string): FetchRuntimeToken =>
   () =>
-    pluginsService.getRuntimeToken(installationId);
+    pluginsService.getRuntimeToken(installationId).catch((caught: unknown) => {
+      // Only a suspension is reported; other mint failures stay opaque to the plugin.
+      if (extractApiError(caught).code === 'PLUGIN_SUSPENDED') {
+        throw new RuntimeTokenRefused(
+          (caught as { response: { status: number } }).response.status,
+          extractApiError(caught)
+        );
+      }
+      throw caught;
+    });

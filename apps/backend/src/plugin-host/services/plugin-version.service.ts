@@ -6,7 +6,10 @@ import { isUniqueConstraintViolation } from '../../common/typeorm/query-error.ut
 import { PluginVersion } from '../entities/plugin-version.entity';
 import { Plugin } from '../entities/plugin.entity';
 import { PluginVersionConflictError } from '../errors/plugin-host.errors';
-import type { PluginCollectionDeclaration } from '../utils/plugin-manifest.util';
+import type {
+  PluginBackendDeclaration,
+  PluginCollectionDeclaration,
+} from '../utils/plugin-manifest.util';
 import type { StoredCredentialRequirement } from '../../data-marts/credentials/credential.types';
 
 export interface InsertPluginVersionInput {
@@ -20,6 +23,7 @@ export interface InsertPluginVersionInput {
   readonly deliveryUrl: string;
   readonly collections: readonly PluginCollectionDeclaration[];
   readonly credentialRequirements: readonly StoredCredentialRequirement[];
+  readonly backend: PluginBackendDeclaration | null;
   readonly releasePublishedAt: Date | null;
 }
 

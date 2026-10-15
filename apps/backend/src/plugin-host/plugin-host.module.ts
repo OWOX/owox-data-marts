@@ -6,6 +6,7 @@ import { DataMartsModule } from '../data-marts/data-marts.module';
 import { PLUGIN_COLLECTIONS_DATA_SOURCE } from '../config/plugin-collections-data-source-options.config';
 import { PLUGIN_RUNTIME_AUTHORIZER } from '../idp/ports/plugin-runtime-authorizer.port';
 import { PluginHostConfigService } from './config/plugin-host.config';
+import { PluginActionExecution } from './entities/plugin-action-execution.entity';
 import { PluginAuditEvent } from './entities/plugin-audit-event.entity';
 import { PluginInstallation } from './entities/plugin-installation.entity';
 import { PluginPublicationProject } from './entities/plugin-publication-project.entity';
@@ -19,12 +20,17 @@ import { PluginInstallationsController } from './controllers/plugin-installation
 import { PluginReleaseCheckController } from './controllers/plugin-release-check.controller';
 import { PluginPublicationsController } from './controllers/plugin-publications.controller';
 import { PluginCredentialRuntimeController } from './controllers/plugin-credential-runtime.controller';
+import { PluginActionRuntimeController } from './controllers/plugin-action-runtime.controller';
 import { CredentialDefinitionsGithubController } from './controllers/credential-definitions-github.controller';
 import { GithubApiService } from './services/github-api.service';
 import { ExternalCredentialDefinitionSyncService } from './services/external-credential-definition-sync.service';
 import { GithubAuthService } from './services/github-auth.service';
 import { PLUGIN_INSTALLATION_LOOKUP } from './facades/plugin-installation-lookup.facade';
 import { PluginInstallationLookupFacade } from './facades/plugin-installation-lookup.facade.impl';
+import { ActionInputValidatorService } from './services/action-input-validator.service';
+import { PluginActionDispatcherService } from './services/plugin-action-dispatcher.service';
+import { PluginActionExecutionService } from './services/plugin-action-execution.service';
+import { PluginActionStarterService } from './services/plugin-action-starter.service';
 import { PluginAuditService } from './services/plugin-audit.service';
 import { PluginInstallationService } from './services/plugin-installation.service';
 import { PluginCredentialBindingReconciliationService } from './services/plugin-credential-binding-reconciliation.service';
@@ -47,6 +53,10 @@ import { UninstallPluginService } from './use-cases/uninstall-plugin.service';
 import { UpdatePluginService } from './use-cases/update-plugin.service';
 import { CheckPluginReleaseService } from './use-cases/check-plugin-release.service';
 import { IssuePluginRuntimeTokenService } from './use-cases/issue-plugin-runtime-token.service';
+import { StartPluginActionExecutionService } from './use-cases/start-plugin-action-execution.service';
+import { CancelPluginActionExecutionService } from './use-cases/cancel-plugin-action-execution.service';
+import { GetCurrentPluginActionExecutionService } from './use-cases/get-current-plugin-action-execution.service';
+import { GetPluginActionExecutionService } from './use-cases/get-plugin-action-execution.service';
 import { GetPluginGalleryService } from './use-cases/get-plugin-gallery.service';
 import { ListPublicationsService } from './use-cases/list-publications.service';
 import { PublishPluginService } from './use-cases/publish-plugin.service';
@@ -54,6 +64,7 @@ import { ResumePluginService } from './use-cases/resume-plugin.service';
 import { RunPluginUpdateCheckService } from './use-cases/run-plugin-update-check.service';
 import { PluginUpdateCheckProcessor } from './system-triggers/plugin-update-check.processor';
 import { CredentialDefinitionUpdateCheckProcessor } from './system-triggers/credential-definition-update-check.processor';
+import { PluginActionExecutionSweepProcessor } from './system-triggers/plugin-action-execution-sweep.processor';
 import { SuspendPluginService } from './use-cases/suspend-plugin.service';
 import { SyncPluginReleasesService } from './use-cases/sync-plugin-releases.service';
 import { UnpublishPluginService } from './use-cases/unpublish-plugin.service';
@@ -88,6 +99,7 @@ import { PutPluginCollectionDocumentService } from './collections/use-cases/put-
       PluginPublicationProject,
       PluginInstallation,
       PluginAuditEvent,
+      PluginActionExecution,
     ]),
     TypeOrmModule.forFeature(
       [PluginCollectionDocument, PluginCollectionUsage, PluginCollectionAuditEvent],
@@ -108,6 +120,7 @@ import { PutPluginCollectionDocumentService } from './collections/use-cases/put-
     PluginCollectionsController,
     CredentialDefinitionsGithubController,
     PluginCredentialRuntimeController,
+    PluginActionRuntimeController,
     PluginPublicationsController,
     PluginAdminController,
     PluginReleaseCheckController,
@@ -149,11 +162,20 @@ import { PutPluginCollectionDocumentService } from './collections/use-cases/put-
     SuspendPluginService,
     ResumePluginService,
     PluginInstallationService,
+    PluginActionExecutionService,
+    PluginActionDispatcherService,
+    ActionInputValidatorService,
+    PluginActionStarterService,
+    StartPluginActionExecutionService,
+    GetPluginActionExecutionService,
+    CancelPluginActionExecutionService,
+    GetCurrentPluginActionExecutionService,
     PluginCredentialBindingReconciliationService,
     PluginUpdateScheduleService,
     RunPluginUpdateCheckService,
     PluginUpdateCheckProcessor,
     CredentialDefinitionUpdateCheckProcessor,
+    PluginActionExecutionSweepProcessor,
     InstallPluginService,
     UninstallPluginService,
     ListInstallationsService,

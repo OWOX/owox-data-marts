@@ -204,4 +204,31 @@ describe('RemoteUrlValidatorService', () => {
       });
     });
   });
+
+  describe('checkPublicHttps', () => {
+    it('accepts a public https url without contacting it', async () => {
+      await expect(
+        service().checkPublicHttps('https://acme-docs.acme.workers.dev/owox')
+      ).resolves.toEqual({ ok: true });
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ['a private address', 'https://10.0.0.1/owox', ReleaseRejectionCode.URL_PRIVATE_NETWORK],
+      ['localhost', 'https://localhost/owox', ReleaseRejectionCode.URL_PRIVATE_NETWORK],
+      ['plain http', 'http://acme.example/owox', ReleaseRejectionCode.URL_NOT_HTTPS],
+    ])('refuses %s without contacting it', async (_label, url, code) => {
+      await expect(service().checkPublicHttps(url)).resolves.toMatchObject({ ok: false, code });
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it('refuses a hostname that does not resolve', async () => {
+      resolve4.mockRejectedValue(new Error('ENOTFOUND'));
+      resolve6.mockRejectedValue(new Error('ENOTFOUND'));
+
+      await expect(
+        service().checkPublicHttps('https://gone.acme.example/owox')
+      ).resolves.toMatchObject({ ok: false, code: ReleaseRejectionCode.URL_UNREACHABLE });
+    });
+  });
 });

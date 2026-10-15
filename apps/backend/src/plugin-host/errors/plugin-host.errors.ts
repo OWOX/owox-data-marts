@@ -1,3 +1,4 @@
+import { HttpStatus } from '@nestjs/common';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
 
 /**
@@ -10,6 +11,8 @@ import { BusinessViolationException } from '../../common/exceptions/business-vio
  */
 export abstract class PluginHostError extends BusinessViolationException {
   abstract readonly memberVisible: boolean;
+  /** Only PluginHostExceptionFilter answers with it; the global BaseExceptionFilter always answers 400. */
+  readonly httpStatus: HttpStatus = HttpStatus.BAD_REQUEST;
 
   protected constructor(code: string, message: string, errorDetails?: Record<string, unknown>) {
     super(message, errorDetails, code);

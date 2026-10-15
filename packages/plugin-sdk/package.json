@@ -61,6 +61,10 @@
     "./protocol": {
       "import": "./dist/protocol.js",
       "types": "./dist/protocol.d.ts"
+    },
+    "./server": {
+      "import": "./dist/server/index.js",
+      "types": "./dist/server/index.d.ts"
     }
   },
   "main": "./dist/index.js",

@@ -1,5 +1,8 @@
 import { Column, CreateDateColumn, Entity, Index, PrimaryGeneratedColumn } from 'typeorm';
-import type { PluginCollectionDeclaration } from '../utils/plugin-manifest.util';
+import type {
+  PluginBackendDeclaration,
+  PluginCollectionDeclaration,
+} from '../utils/plugin-manifest.util';
 import type { StoredCredentialRequirement } from '../../data-marts/credentials/credential.types';
 
 /**
@@ -63,6 +66,10 @@ export class PluginVersion {
   /** Immutable Credential requirements from plugin.json. */
   @Column({ type: 'json', nullable: true })
   credentialRequirements: StoredCredentialRequirement[] | null;
+
+  /** Immutable backend action declaration from plugin.json, `url` as declared; null when none. */
+  @Column({ type: 'json', nullable: true })
+  backend: PluginBackendDeclaration | null;
 
   @Column({ type: 'datetime', nullable: true })
   releasePublishedAt: Date | null;

@@ -20,7 +20,18 @@ import { FindPluginByRepositoryCommand } from '../dto/domain/find-plugin-by-repo
 import { GetPluginDetailsCommand } from '../dto/domain/get-plugin-details.command';
 import { GetPluginGalleryCommand } from '../dto/domain/get-plugin-gallery.command';
 import { GetPluginInstallationEntryCommand } from '../dto/domain/get-plugin-installation-entry.command';
+import { resolveBackendUrl } from '../utils/plugin-manifest.util';
 import { InstallPluginCommand } from '../dto/domain/install-plugin.command';
+import type {
+  PluginActionExecutionView,
+  PluginActionWorkerContext,
+  StartedPluginActionExecution,
+} from '../dto/domain/plugin-action-execution.dto';
+import {
+  PluginActionExecutionApiDto,
+  PluginActionWorkerContextApiDto,
+  StartedPluginActionExecutionApiDto,
+} from '../dto/presentation/plugin-action-api.dto';
 import { ListInstallationsCommand } from '../dto/domain/list-installations.command';
 import { ListPublicationsCommand } from '../dto/domain/list-publications.command';
 import {
@@ -233,6 +244,9 @@ export class PluginPresentationMapper {
       addedAt: plugin.createdAt.toISOString(),
       nextCheckAt: plugin.nextUpdateCheckAt?.toISOString() ?? null,
       credentialRequirements: version?.credentialRequirements ?? [],
+      ...(version?.backend
+        ? { backendOrigin: new URL(resolveBackendUrl(version.backend, version.deliveryUrl)).origin }
+        : {}),
     };
   }
 
@@ -266,6 +280,7 @@ export class PluginPresentationMapper {
       credentialRequirements: dto.credentialRequirements.map(requirement =>
         typeof requirement === 'string' ? requirement : { ...requirement }
       ),
+      ...(dto.backendOrigin ? { backendOrigin: dto.backendOrigin } : {}),
     };
   }
 
@@ -370,6 +385,42 @@ export class PluginPresentationMapper {
       pluginId: dto.pluginId,
       suspended: dto.suspended,
       note: dto.note,
+    };
+  }
+
+  toStartedActionExecutionResponse(
+    dto: StartedPluginActionExecution
+  ): StartedPluginActionExecutionApiDto {
+    return { id: dto.id, status: dto.status };
+  }
+
+  toActionExecutionResponse(dto: PluginActionExecutionView): PluginActionExecutionApiDto {
+    return {
+      id: dto.id,
+      action: dto.action,
+      status: dto.status,
+      trigger: dto.trigger,
+      startedAt: dto.startedAt,
+      deadlineAt: dto.deadlineAt,
+      finishedAt: dto.finishedAt,
+      result: dto.result,
+      error: dto.error ? { code: dto.error.code, message: dto.error.message } : null,
+    };
+  }
+
+  toActionWorkerContextResponse(dto: PluginActionWorkerContext): PluginActionWorkerContextApiDto {
+    return {
+      executionId: dto.executionId,
+      action: dto.action,
+      input: dto.input,
+      trigger: dto.trigger,
+      scheduleId: dto.scheduleId,
+      deadlineAt: dto.deadlineAt,
+      pluginVersion: dto.pluginVersion,
+      installationId: dto.installationId,
+      projectId: dto.projectId,
+      userId: dto.userId,
+      credentialHandles: dto.credentialHandles.map(handle => ({ ...handle })),
     };
   }
 

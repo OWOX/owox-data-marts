@@ -160,6 +160,7 @@ export function PluginRuntime({
         userId,
         theme: document.documentElement.classList.contains('dark') ? 'dark' : 'light',
         credentialHandles: data.credentialHandles,
+        actions: true,
         // A rebuilt bridge resumes where the address bar already points.
         route: lastRouteRef.current,
       },

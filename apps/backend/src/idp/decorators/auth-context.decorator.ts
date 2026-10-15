@@ -37,6 +37,7 @@ export function getAuthorizationContext(request: AuthenticatedRequest): Authoriz
       pluginId: request.idpContext.pluginId,
       installationId: request.idpContext.installationId,
       viewOnly: request.idpContext.viewOnly,
+      executionId: request.idpContext.executionId,
     };
   }
 

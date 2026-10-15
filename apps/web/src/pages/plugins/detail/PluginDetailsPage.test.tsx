@@ -557,6 +557,23 @@ describe('PluginDetailsPage', () => {
     expect(screen.queryByText('Release issues')).toBeNull();
   });
 
+  it('says where a plugin with a backend runs its code', () => {
+    plugin = entry({ backendOrigin: 'https://acme.workers.dev' });
+    renderPage();
+
+    expect(
+      screen.getByText(
+        'Runs code on https://acme.workers.dev with your access, including when the plugin is closed.'
+      )
+    ).toBeTruthy();
+  });
+
+  it('says nothing about a backend the plugin does not have', () => {
+    renderPage();
+
+    expect(screen.queryByText(/Runs code on/)).toBeNull();
+  });
+
   describe('install on open', () => {
     const renderOpen = () =>
       render(

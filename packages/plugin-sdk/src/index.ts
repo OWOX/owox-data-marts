@@ -1,5 +1,12 @@
 import { OWOXApiClient } from '@owox/api-client';
+import { createPluginActions, type PluginActions } from './actions.js';
 import { createPluginCollection, type PluginCollection } from './collections.js';
+export type {
+  PluginActionError,
+  PluginActionExecution,
+  PluginActionStatus,
+  PluginActions,
+} from './actions.js';
 import {
   createIframeRequester,
   createIframeTransport,
@@ -57,7 +64,7 @@ export interface PluginUi {
   copyLink(path?: string): Promise<void>;
 }
 
-export interface PluginContext extends PluginHostContext {
+export interface PluginContext extends Omit<PluginHostContext, 'actions'> {
   /** The route the host opened this plugin at; undefined on a host without page links. */
   readonly route: string | undefined;
 
@@ -79,6 +86,8 @@ export interface PluginContext extends PluginHostContext {
    * documents are not suitable for credentials, tokens or other secrets.
    */
   collections<T>(name: string): PluginCollection<T>;
+  /** Actions of this plugin's backend, run through OWOX; undefined on a host without backend actions. */
+  readonly actions: PluginActions | undefined;
 
   /**
    * Things the sandbox forbids you, which the host will do on your behalf if it agrees.
@@ -206,6 +215,7 @@ function bind(
     owox,
     credentials: createPluginCredentials(requester, init.context.credentialHandles ?? []),
     collections: <T>(name: string) => createPluginCollection<T>(owox, name),
+    actions: init.context.actions ? createPluginActions(requester) : undefined,
     ui: {
       openExternal: (url: string) => {
         port.postMessage({ id: crypto.randomUUID(), kind: 'openExternal', url });

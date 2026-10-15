@@ -92,6 +92,8 @@ describe('PluginGalleryController OpenAPI', () => {
       // something already scheduled.
       'nextCheckAt',
       'credentialRequirements',
+      // The origin only, never the URL: enough for a member to see where code runs.
+      'backendOrigin',
     ]);
   });
 

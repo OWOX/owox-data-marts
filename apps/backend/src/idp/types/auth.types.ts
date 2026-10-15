@@ -20,4 +20,6 @@ export interface AuthorizationContext {
    * Used by web/analytics and other clients that need session restrictions.
    */
   viewOnly?: boolean;
+  /** Set only when a plugin backend calls with its execution token. */
+  executionId?: string;
 }

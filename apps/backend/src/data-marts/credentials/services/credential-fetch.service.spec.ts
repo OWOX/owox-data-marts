@@ -145,4 +145,18 @@ describe('CredentialFetchService', () => {
       body: undefined,
     });
   });
+
+  it('answers a 400 when the response body is larger than the limit', async () => {
+    const service = new CredentialFetchService();
+    // runRaw already bounds the stream; this feeds run() an unbounded body to pin its own check.
+    jest.spyOn(service, 'runRaw').mockResolvedValue(new Response('0123456789', { status: 200 }));
+
+    await expect(
+      service.run(
+        binding,
+        { url: 'https://api.github.com/big', method: 'GET' },
+        { maxResponseBodyBytes: 4 }
+      )
+    ).rejects.toThrow(new BadRequestException('Credential response body is too large'));
+  });
 });

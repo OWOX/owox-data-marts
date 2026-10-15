@@ -52,6 +52,8 @@ export interface PluginGalleryEntry {
     | string
     | { id: string; definitionId?: string; optional: boolean; models?: readonly string[] }
   )[];
+  /** Origin of the server the current version runs backend actions on; absent without one. */
+  backendOrigin?: string;
 }
 
 export interface InstalledPlugin extends PluginGalleryEntry {

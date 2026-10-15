@@ -5,11 +5,16 @@ import { PluginVersion } from '../entities/plugin-version.entity';
 import { ReleaseRejectionCode } from '../enums/release-rejection-code.enum';
 import { GithubRepoRef } from '../utils/github-repo-locator.util';
 import {
+  findIncompatibleActionChange,
   findIncompatibleCollectionChange,
+  listActionInputSchemas,
+  ManifestParseResult,
   parsePluginManifest,
   PluginManifest,
+  resolveBackendUrl,
 } from '../utils/plugin-manifest.util';
 import { compareSemver, majorOf, sameCompatibilityLine } from '../utils/semver.util';
+import { ActionInputValidatorService } from './action-input-validator.service';
 import {
   ExternalCredentialDefinitionSyncService,
   ExternalCredentialRequirementError,
@@ -53,6 +58,7 @@ export class ReleaseCandidateRulesService {
     private readonly githubApi: GithubApiService,
     private readonly remoteUrlValidator: RemoteUrlValidatorService,
     private readonly versionService: PluginVersionService,
+    private readonly inputValidator: ActionInputValidatorService,
     @Optional()
     private readonly externalCredentialDefinitions?: ExternalCredentialDefinitionSyncService
   ) {}
@@ -66,9 +72,16 @@ export class ReleaseCandidateRulesService {
     const baseline = await this.findBaseline(candidate);
     const collections = baseline && this.checkCollections(baseline, manifest);
     if (collections) return { ok: false, ...collections };
+    const actions = baseline && this.checkActions(baseline, manifest);
+    if (actions) return { ok: false, ...actions };
+    const backendOrigin = baseline && this.checkBackendOrigin(baseline, manifest);
+    if (backendOrigin) return { ok: false, ...backendOrigin };
 
     const delivery = await this.remoteUrlValidator.validate(manifest.delivery.url);
     if (!delivery.ok) return delivery;
+
+    const backendUrl = await this.checkBackendUrl(manifest);
+    if (backendUrl) return { ok: false, ...backendUrl };
 
     const credentials = await this.resolveCredentialRequirements(manifest, 'resolve');
     if (!credentials.ok) return credentials;
@@ -93,9 +106,16 @@ export class ReleaseCandidateRulesService {
 
     const collections = baseline && this.checkCollections(baseline, manifest);
     if (collections) issues.push(collections);
+    const actions = baseline && this.checkActions(baseline, manifest);
+    if (actions) issues.push(actions);
+    const backendOrigin = baseline && this.checkBackendOrigin(baseline, manifest);
+    if (backendOrigin) issues.push(backendOrigin);
 
     const delivery = await this.remoteUrlValidator.validate(manifest.delivery.url);
     if (!delivery.ok) issues.push({ code: delivery.code, detail: delivery.detail });
+
+    const backendUrl = await this.checkBackendUrl(manifest);
+    if (backendUrl) issues.push(backendUrl);
 
     const credentials = await this.resolveCredentialRequirements(manifest, 'preview');
     if (!credentials.ok) issues.push({ code: credentials.code, detail: credentials.detail });
@@ -107,8 +127,18 @@ export class ReleaseCandidateRulesService {
     };
   }
 
-  private async fetchManifest({ ref, commitSha }: ReleaseCandidate) {
-    return parsePluginManifest(await this.githubApi.getFileAtCommit(ref, 'plugin.json', commitSha));
+  // The input schemas compile in the validation pool: a large manifest would block this replica for seconds.
+  private async fetchManifest({ ref, commitSha }: ReleaseCandidate): Promise<ManifestParseResult> {
+    const parsed = parsePluginManifest(
+      await this.githubApi.getFileAtCommit(ref, 'plugin.json', commitSha)
+    );
+    if (!parsed.ok) return parsed;
+    const refusal = await this.inputValidator.compile(
+      listActionInputSchemas(parsed.manifest.backend)
+    );
+    return refusal
+      ? { ok: false, code: ReleaseRejectionCode.ACTION_INPUT_UNSUPPORTED, detail: refusal }
+      : parsed;
   }
 
   // Only the candidate's own line binds it: opening a new line is a declared breaking change.
@@ -132,17 +162,60 @@ export class ReleaseCandidateRulesService {
       baseline.collections ?? [],
       manifest.collections
     );
-    if (!incompatibility) return null;
+    return incompatibility
+      ? this.lineIssue(ReleaseRejectionCode.COLLECTIONS_INCOMPATIBLE, incompatibility, baseline)
+      : null;
+  }
 
+  private checkActions(
+    baseline: PluginVersion,
+    manifest: PluginManifest
+  ): ReleaseCandidateIssue | null {
+    const incompatibility = findIncompatibleActionChange(baseline.backend, manifest.backend);
+    return incompatibility
+      ? this.lineIssue(ReleaseRejectionCode.ACTIONS_INCOMPATIBLE, incompatibility, baseline)
+      : null;
+  }
+
+  /** No backend added or moved within a line; a new line may, and once current every installation runs it. */
+  private checkBackendOrigin(
+    baseline: PluginVersion,
+    manifest: PluginManifest
+  ): ReleaseCandidateIssue | null {
+    // A dropped backend is already refused, as removed actions.
+    if (!manifest.backend) return null;
+    const origin = new URL(resolveBackendUrl(manifest.backend, manifest.delivery.url)).origin;
+    const baselineOrigin =
+      baseline.backend && new URL(resolveBackendUrl(baseline.backend, baseline.deliveryUrl)).origin;
+    if (origin === baselineOrigin) return null;
+    const change = baselineOrigin
+      ? `The backend cannot move from ${baselineOrigin} to ${origin}`
+      : `A backend on ${origin} cannot be added`;
+    return this.lineIssue(ReleaseRejectionCode.BACKEND_ORIGIN_CHANGED, change, baseline);
+  }
+
+  private lineIssue(
+    code: ReleaseRejectionCode,
+    incompatibility: string,
+    baseline: PluginVersion
+  ): ReleaseCandidateIssue {
     // The baseline shares the candidate's line, so it shares its major too.
     const escape =
       majorOf(baseline.semver) === 0
         ? 'bump the minor version to ship this breaking change while below 1.0.0'
         : 'publish a new major version to ship this breaking change';
     return {
-      code: ReleaseRejectionCode.COLLECTIONS_INCOMPATIBLE,
+      code,
       detail: `${incompatibility} within the ${baseline.semver} compatibility line; ${escape}`,
     };
+  }
+
+  private async checkBackendUrl(manifest: PluginManifest): Promise<ReleaseCandidateIssue | null> {
+    if (!manifest.backend) return null;
+    const checked = await this.remoteUrlValidator.checkPublicHttps(
+      resolveBackendUrl(manifest.backend, manifest.delivery.url)
+    );
+    return checked.ok ? null : { code: checked.code, detail: `backend.url: ${checked.detail}` };
   }
 
   private async resolveCredentialRequirements(

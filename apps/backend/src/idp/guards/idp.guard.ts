@@ -8,6 +8,7 @@ import {
   Role as RoleType,
   ViewOnlyModeError,
 } from '@owox/idp-protocol';
+import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
 import { IdpProjectionsService } from '../services/idp-projections.service';
 import { Strategy } from '../types';
 import type { RoleConfig } from '../types';
@@ -42,12 +43,17 @@ export interface AuthenticatedRequest extends Request {
     installationId?: string;
     /** True when the session is in view-only mode. */
     viewOnly?: boolean;
+    /** Set only by a plugin backend's execution token. */
+    executionId?: string;
   };
 }
 
 export const AUTH_CONTEXT = 'AuthContext';
 
 const STATE_CHANGING_METHODS = ['POST', 'PUT', 'PATCH', 'DELETE'];
+
+/** `executionId` comes only from an execution token, never from an IDP claim. */
+type GuardPayload = Payload & { executionId?: string };
 
 @Injectable()
 export class IdpGuard implements CanActivate {
@@ -121,6 +127,7 @@ export class IdpGuard implements CanActivate {
         pluginId: tokenPayload.pluginId,
         installationId: tokenPayload.installationId,
         viewOnly,
+        executionId: tokenPayload.executionId,
       };
 
       this.cls.set(AUTH_CONTEXT, {
@@ -132,6 +139,7 @@ export class IdpGuard implements CanActivate {
         pluginId: tokenPayload.pluginId,
         installationId: tokenPayload.installationId,
         viewOnly,
+        executionId: tokenPayload.executionId,
       });
 
       // Strategy.PARSE reads viewOnly only from the locally verified JWT. If
@@ -142,8 +150,12 @@ export class IdpGuard implements CanActivate {
         void this.idpProjectionsService.updateProjectionsFromIdpPayload(tokenPayload);
       }
     } catch (error) {
-      // AuthorizationError covers ViewOnlyModeError (subclass) and role/API-key denials.
-      if (error instanceof UnauthorizedException || error instanceof AuthorizationError) {
+      // A suspended plugin reaches the client as itself, so the plugin can tell it apart.
+      if (
+        error instanceof UnauthorizedException ||
+        error instanceof AuthorizationError ||
+        (error instanceof BusinessViolationException && error.code === 'PLUGIN_SUSPENDED')
+      ) {
         throw error;
       }
       throw new AuthenticationError('Authentication failed');
@@ -159,7 +171,12 @@ export class IdpGuard implements CanActivate {
   private async authenticateUser(
     request: AuthenticatedRequest,
     strategy: Strategy
-  ): Promise<Payload> {
+  ): Promise<GuardPayload> {
+    const executionToken = request.headers['x-owox-execution-token'];
+    if (executionToken !== undefined) {
+      return this.authenticateExecution(request, executionToken);
+    }
+
     const idpProvider = this.idpProviderService.getProvider(request);
     const token = (request.headers['x-owox-authorization'] as string | undefined) ?? '';
 
@@ -172,7 +189,32 @@ export class IdpGuard implements CanActivate {
       throw new AuthenticationError('Invalid authorization');
     }
 
-    return tokenPayload;
+    return { ...tokenPayload, executionId: undefined };
+  }
+
+  /** The IDP is not consulted on any strategy: the role is the one stored at execution start. */
+  private async authenticateExecution(
+    request: AuthenticatedRequest,
+    executionToken: string | string[]
+  ): Promise<GuardPayload> {
+    if (Array.isArray(executionToken) || request.headers['x-owox-authorization'] !== undefined) {
+      throw new AuthenticationError('Send one authorization header');
+    }
+
+    const identity = await this.runtimeAuthorizer().resolveExecutionToken(executionToken);
+    if (!identity) {
+      throw new AuthenticationError('Invalid execution token');
+    }
+
+    return {
+      userId: identity.userId,
+      projectId: identity.projectId,
+      roles: [identity.role],
+      authFlow: 'plugin',
+      pluginId: identity.pluginId,
+      installationId: identity.installationId,
+      executionId: identity.executionId,
+    };
   }
 
   /**
@@ -261,6 +303,15 @@ export class IdpGuard implements CanActivate {
       throw new AuthorizationError('Invalid plugin runtime identity');
     }
 
+    await this.runtimeAuthorizer().assertActiveInstallation({
+      pluginId: tokenPayload.pluginId,
+      installationId: tokenPayload.installationId,
+      projectId: tokenPayload.projectId,
+      userId: tokenPayload.userId,
+    });
+  }
+
+  private runtimeAuthorizer(): PluginRuntimeAuthorizerPort {
     let authorizer: PluginRuntimeAuthorizerPort;
     try {
       authorizer = this.moduleRef.get<PluginRuntimeAuthorizerPort>(PLUGIN_RUNTIME_AUTHORIZER, {
@@ -274,12 +325,7 @@ export class IdpGuard implements CanActivate {
       throw new AuthorizationError('Plugin runtime authorization is unavailable');
     }
 
-    await authorizer.assertActiveInstallation({
-      pluginId: tokenPayload.pluginId,
-      installationId: tokenPayload.installationId,
-      projectId: tokenPayload.projectId,
-      userId: tokenPayload.userId,
-    });
+    return authorizer;
   }
 
   private isNonEmptyString(value: unknown): value is string {

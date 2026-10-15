@@ -43,6 +43,10 @@ Keep reusable controls in `src/components/ui/`. Vite's default build output is `
 Pages publishes that directory. Keep `plugin.json` at the repository root: OWOX Data Marts reads
 it from the GitHub Release commit rather than from the deployed page.
 
+A plugin whose page and actions are served by one Worker has `wrangler.toml` and `worker/` in place
+of `.github/workflows/deploy-pages.yml`, and its `delivery.url` is the Worker's URL. See
+[Deploy the page and the Worker together](#deploy-the-page-and-the-worker-together).
+
 ## Understand the plugin runtime
 
 An OWOX Data Marts plugin is a small web application hosted outside OWOX Data Marts. OWOX opens
@@ -55,12 +59,17 @@ These constraints follow from the plugin sandbox. No OWOX Data Marts setting rel
 
 **The page runs in an opaque origin.** It has no cookies, `localStorage`, `sessionStorage`,
 `IndexedDB`, or service workers. Keep short-lived state in memory. For state that must persist, use
-[host-managed plugin collections](#persist-plugin-state-as-json-with-collections), or use your own
-backend when collections do not fit the use case.
+[host-managed plugin collections](#persist-plugin-state-as-json-with-collections). For work that
+must not run in the browser, use [backend actions](#run-code-on-your-backend-with-actions).
 
-**Calls to your backend arrive with `Origin: null`.** The backend must answer
-`Access-Control-Allow-Origin: *`, and it cannot authenticate requests with cookies. Pass an
-identifier explicitly if the backend needs to know who is calling.
+**Forms do not submit.** The frame is sandboxed without `allow-forms`, so the browser blocks every
+form submission before a `submit` event fires. Handle a button's `click` instead of a form's
+`submit`.
+
+**Calls from the page to your own server arrive with `Origin: null`.** Such a server must answer
+`Access-Control-Allow-Origin: *`, and it cannot authenticate requests with cookies.
+[Backend actions](#run-code-on-your-backend-with-actions) avoid this: OWOX Data Marts calls your
+backend server-to-server and tells it who is calling.
 
 **Your assets are cross-origin to your page.** An opaque origin matches nothing, including the
 host that served the page, so anything fetched in CORS mode needs `Access-Control-Allow-Origin: *`
@@ -109,6 +118,7 @@ Marts frame or if no host answers within 10 seconds.
 | `ctx.owox`                                 | Authenticated [OWOX Data Marts API client](../api/api-client.md), supplied by [`@owox/plugin-sdk`](https://www.npmjs.com/package/@owox/plugin-sdk). Use the API client documentation to discover available methods. Do not install `@owox/api-client` or provide an API key inside a plugin; the SDK owns its transport, which cannot be replaced or inspected. |
 | `ctx.credentials`                          | Project-owned Credential handles declared by the current plugin version and selected for this installation. Raw secrets never enter the plugin frame.                                                                                                                                                                                                           |
 | `ctx.collections(name)`                    | Provides a host-managed JSON collection declared by the current plugin version.                                                                                                                                                                                                                                                                                 |
+| `ctx.actions`                              | Runs the actions your backend declares in `plugin.json`; see [backend actions](#run-code-on-your-backend-with-actions). `undefined` on a host without them.                                                                                                                                                                                                     |
 | `ctx.ui.openExternal(url)`                 | Asks the host to open an external HTTPS address in a new tab.                                                                                                                                                                                                                                                                                                   |
 | `ctx.ui.navigate(path)`                    | Asks the host to navigate to a page inside OWOX Data Marts—for example, `/ui/${ctx.projectId}/data-marts/${id}`—in place of the plugin frame. Resolutions off the app's origin are refused.                                                                                                                                                                     |
 | `ctx.route`                                | The plugin's own route the member opened, e.g. `/dashboards/42`; `undefined` on a host without page links.                                                                                                                                                                                                                                                      |
@@ -119,7 +129,9 @@ Marts frame or if no host answers within 10 seconds.
 
 See the [API client method reference](../api/api-client.md) and [Support Matrix](../api/coverage.md)
 for currently supported calls. Requests time out after 30 seconds. Streamed reads do not, because
-data traversals can run for minutes. At most 32 requests may be in flight at once.
+data traversals can run for minutes. `ctx.actions.invoke` and `ctx.actions.wait` are not limited
+either: they poll for up to 20 seconds at a time until the action ends. At most 32 requests may be
+in flight at once.
 
 ### Low-level API escape hatch
 
@@ -143,6 +155,12 @@ A failed `ctx.owox`, collection, or credential call rejects with a `PluginTransp
 | `NETWORK_ERROR`  | The host could not complete the request.                                                                                     |
 | `TIMEOUT`        | The host did not answer within 30 seconds, or 120 seconds for an AI Credential call.                                         |
 | `PROTOCOL_ERROR` | The request could not be exchanged: the handshake was not complete, a response was malformed, or 32 requests were in flight. |
+
+For `HTTP_ERROR`, `apiCode` holds the API's own error code when it sends one, for example
+`PLUGIN_COLLECTION_NOT_ENTITY_BOUND`, and `details.errors` holds field errors. Backend actions
+reject with a `PluginActionError` instead; an `INVALID_INPUT` from `ctx.actions.start` or
+`ctx.actions.invoke` reaches the page that way, with `errors`. See
+[Handle action errors](#handle-action-errors).
 
 An exact Credential's `asFetch()` rejects only when the host fails the request. A provider's own
 error, such as 401, 403, 429, or 500, resolves with a `Response` whose `ok` is `false`: check
@@ -409,7 +427,9 @@ or transferring a repository does not create another plugin; two repositories wi
 contents are two different plugins.
 
 There is no separate API-key or permissions list in `plugin.json`. The plugin can call only the
-SDK-supported APIs, acting with the permissions of the member who installed it.
+SDK-supported APIs, acting with the permissions of the member who installed it. A `backend` block
+adds one line to the install dialog: the plugin runs code on the backend's origin with the
+member's access, including when the plugin is closed.
 
 ## Persist plugin state as JSON with collections
 
@@ -545,6 +565,251 @@ schema validation or automatic migration; the plugin owns compatibility of its J
 authorization-denial audit records never include document bodies. They use rolling 90-day
 retention and are additionally capped at 50,000 rows per plugin/project and 500,000 rows per
 project, with the oldest records removed first.
+
+## Run code on your backend with actions
+
+A plugin can declare actions that run on its own backend, for example a
+[Cloudflare Worker](https://developers.cloudflare.com/workers/) or a
+[Cloud Run](https://cloud.google.com/run/docs) service. The plugin page starts an action with
+`ctx.actions`. OWOX Data Marts checks the input against the action's JSON Schema, calls the
+backend, and gives it an execution token. The token acts with the installing member's access and
+works only while that action runs. Credential secrets stay in OWOX Data Marts; the backend uses
+exact Credentials through `ctx.credentials`. AI Credential handles are not available in a backend.
+
+The [SDK README](../../packages/plugin-sdk/README.md) describes the same API in its "Backend
+actions" and "`@owox/plugin-sdk/server`" sections.
+
+Use an action for work that should not run in the page: calls that need a Credential's secret
+header, jobs longer than one request, and work that must finish after the member closes the
+plugin.
+
+The backend calls back the deployment's `PUBLIC_ORIGIN`. OWOX Data Marts Cloud is public; a
+self-managed deployment can use actions only when the backend can reach its `PUBLIC_ORIGIN`.
+
+### Declare actions
+
+```json
+{
+  "name": "Acme Docs",
+  "description": "Updates Acme documents from Data Mart data",
+  "delivery": { "type": "remote", "url": "https://acme-docs.acme.workers.dev/" },
+  "backend": {
+    "url": "/owox",
+    "actions": {
+      "update-document": {
+        "timeoutSeconds": 60,
+        "input": {
+          "type": "object",
+          "required": ["documentId"],
+          "properties": { "documentId": { "type": "string" } }
+        }
+      }
+    }
+  }
+}
+```
+
+- `backend.url` is resolved against `delivery.url` the way a link is, so `/owox` above means
+  `https://acme-docs.acme.workers.dev/owox`. A relative URL must stay on the delivery origin. An
+  absolute `https://` URL is also accepted, for example when the page is on GitHub Pages and the
+  backend is a separate Worker or a Cloud Run service. The resolved URL must be public HTTPS.
+- Up to 50 actions. Names match `^[a-z][a-z0-9-]{0,63}$`.
+- `timeoutSeconds` is 1 to 300, 30 by default.
+- `input` is an optional [JSON Schema 2020-12](https://json-schema.org/draft/2020-12) of at most
+  32 KiB. It must compile in Ajv strict mode: `properties` needs `"type": "object"`, every name in
+  `required` must be defined in `properties`, and unknown keywords such as `x-ui` are refused.
+  Only a local, non-recursive `$ref` works, and it may not have `#` after its first character.
+  `pattern`, `patternProperties`, `format` and `uniqueItems` are not allowed, because a regular
+  expression or a pairwise comparison from a schema could stall the server that validates it.
+  `$async`, `$dynamicRef` and `$recursiveRef` are not supported. A schema that expands to more than
+  2,000 nodes with every `$ref` inlined is refused; each `enum` entry and each name in
+  `dependentRequired` or `dependencies` counts as a node. The release check rejects such a schema
+  with `ACTION_INPUT_UNSUPPORTED`. It does the same when the input schemas of a release together
+  take longer than 2 seconds, or more memory than allowed, to compile.
+- Within a compatibility line a release may add actions and change `url` on the same origin,
+  `timeoutSeconds` and `input`, but not remove an action; that release is rejected with
+  `ACTIONS_INCOMPATIBLE`. It cannot add a backend or move its origin either
+  (`BACKEND_ORIGIN_CHANGED`). A new compatibility line can, and once its release is current,
+  every installation runs it. Members see the origin on the plugin's page.
+
+### Call an action from the page
+
+Wait for the result:
+
+```ts
+const ctx = await connect();
+const result = await ctx.actions?.invoke('update-document', { documentId });
+```
+
+`invoke` cancels the action when you abort its `signal` or when the member leaves the plugin page.
+If the member closes or reloads the tab instead, nothing is cancelled and the execution can run
+until `timeoutSeconds`. `invoke` gives the page no execution ID while the action runs. When the
+page needs it then, for example to read it again after the plugin is reopened, use `start` and
+then `wait` or `get`. To let an action finish after the member leaves, start it and read it later:
+
+```ts
+if (ctx.actions) {
+  const { id } = await ctx.actions.start('update-document', { documentId });
+  // later, even after a reload
+  const execution = await ctx.actions.get(id);
+  const result = await ctx.actions.wait(id);
+  await ctx.actions.cancel(id);
+}
+```
+
+OWOX clears an execution's `input` and `result` 24 hours after it finishes, so a later `get`
+returns `result: null`. It clears the `errorMessage` of a failure your backend reported with its
+own code at the same time.
+
+Input nested deeper than 100 levels is refused with `INVALID_INPUT`. So is input whose validation
+exceeds its time and memory budget, with the message "Input validation exceeded its budget".
+
+At most 5 actions run at once per installation. Each waiting `invoke` or `wait` holds one of the
+32 request slots of the page while it polls.
+
+### Handle action errors
+
+A failed action rejects with a `PluginActionError`. Find it by `error.name` and read `code` and
+`message`. It also carries `errors` for `INVALID_INPUT`, as `{instancePath, message}`, and
+`executionId` when the action had started:
+
+| `code`                          | Meaning                                                                       |
+| ------------------------------- | ----------------------------------------------------------------------------- |
+| `ACTION_NOT_DECLARED`           | The current version does not declare this action.                             |
+| `INPUT_TOO_LARGE`               | The input is over 256 KiB.                                                    |
+| `INVALID_INPUT`                 | The input fails the schema, nests over 100 levels or exceeds its budget.      |
+| `TOO_MANY_EXECUTIONS`           | The installation runs 5 actions, or too many inputs are being validated.      |
+| `TIMED_OUT`                     | The action did not finish within `timeoutSeconds`.                            |
+| `CANCELLED`                     | The action was cancelled.                                                     |
+| `BACKEND_UNREACHABLE`           | OWOX Data Marts could not connect to the backend.                             |
+| `BACKEND_INVALID_RESPONSE`      | The answer was not a valid result or error, or the result cannot be stored.   |
+| `ACTION_FAILED`                 | The handler threw an error with no valid `code`, or one with a reserved code. |
+| `INSTALLATION_INACTIVE`         | Rare: the plugin was uninstalled while the action started.                    |
+| `UNAUTHORIZED`                  | The backend did not accept the execution token or the request.                |
+| `HOST_NOT_ALLOWED`              | The calling host is not in the backend's `hosts`.                             |
+| `ACTION_NOT_IMPLEMENTED`        | The backend declares no handler for this action.                              |
+| `EXECUTION_CONTEXT_UNAVAILABLE` | The backend could not read the execution from OWOX Data Marts.                |
+| any other                       | An OWOX refusal of the request, or the code your backend returned.            |
+
+A start from a plugin that is no longer installed is refused with `AUTHORIZATION_ERROR`. Refusals
+become a `PluginActionError` only for `start` and `invoke`; a refusal from `get`, `wait` or
+`cancel`, such as `EXECUTION_NOT_FOUND`, stays a `PluginTransportError` that carries `apiCode`.
+
+Transport failures still reject with `PluginTransportError`; for a suspended plugin its
+`payload.code` is `SUSPENDED`.
+
+### Write the backend
+
+```ts
+import { createBackend } from '@owox/plugin-sdk/server';
+
+export default createBackend({
+  actions: {
+    'update-document': async (input, ctx) => {
+      const { documentId } = input as { documentId: string };
+      const dataMarts = await ctx.owox.dataMarts.list();
+      return { documentId, dataMarts: dataMarts.length };
+    },
+  },
+});
+```
+
+- Any OWOX Data Marts deployment may call the backend, Cloud or self-managed. Everything the
+  handler reaches through `ctx` goes back to the deployment that called. If a handler also uses
+  the backend's own secrets or storage, list the deployments allowed to call it:
+  `hosts: ['https://app.owox.com']`. A request naming another host is then refused before anything
+  runs.
+- Before a handler runs, `createBackend` asks the named host for the execution. A request whose
+  token that host does not accept gets 401 and runs nothing.
+- The handler gets the validated `input` and `ctx`: `ctx.owox`, `ctx.credentials`,
+  `ctx.collections(name)`, `ctx.execution` (`executionId`, `action`, `input`, `trigger`,
+  `scheduleId`, `deadlineAt`, `pluginVersion`, `installationId`, `projectId` and `userId`) and
+  `ctx.signal`, which aborts at the deadline. When OWOX drops the call, for example on cancel or
+  on its own timeout, Cloudflare Workers cancels the whole invocation: the handler stops, code
+  after an `await` does not run, and `request.signal` never fires. Do not rely on cleanup after an
+  `await`. On Node with `@hono/node-server`, the handler keeps running and `ctx.signal` aborts.
+- Return JSON of at most 1 MiB, nested at most 100 levels. A result outside these limits fails
+  the execution with `BACKEND_INVALID_RESPONSE`. To fail with your own code, throw an error with
+  a `code` such as `DOCUMENT_LOCKED`; codes match `^[A-Z][A-Z0-9_]{0,63}$`. Any other error, such
+  as a plain `throw new Error()`, ends the execution with `ACTION_FAILED`. Codes that start with
+  `BACKEND_`, and the codes OWOX Data Marts sets itself, are reserved.
+- Never log the `x-owox-execution-token` header.
+
+### Deploy the page and the Worker together
+
+One Worker can serve the built page and the actions. With Vite `base: '/'`:
+
+```toml
+# wrangler.toml
+name = "acme-docs"
+main = "worker/index.ts"
+compatibility_date = "2026-10-01"
+
+[assets]
+directory = "./dist"
+```
+
+Workers Static Assets sends no `Access-Control-Allow-Origin`, and the page runs in an opaque
+origin, so without it the browser blocks the module script. Add `public/_headers`, which Vite
+copies to `dist`:
+
+```text
+/*
+  Access-Control-Allow-Origin: *
+```
+
+```bash
+npm run build
+npx wrangler deploy
+```
+
+Requests for files in `dist` get the files; every other request reaches the Worker, whatever its
+path. `backend.url` only tells OWOX where to POST, and a stray POST still fails token verification.
+Use the Worker's URL as `delivery.url`, then create a release as usual.
+
+### Deploy the backend to Cloud Run
+
+On Node, the same `createBackend` module runs behind
+[`@hono/node-server`](https://github.com/honojs/node-server). Keep the page on GitHub Pages and put
+the backend in its own directory, such as `server/`, with this `package.json`:
+
+```json
+{
+  "type": "module",
+  "scripts": { "start": "node server.js" },
+  "engines": { "node": ">=22.22.0" }
+}
+```
+
+```js
+// server/server.js
+import { serve } from '@hono/node-server';
+import { createBackend } from '@owox/plugin-sdk/server';
+
+const backend = createBackend({
+  actions: {
+    'update-document': async (input, ctx) => {
+      const dataMarts = await ctx.owox.dataMarts.list();
+      return { documentId: input.documentId, dataMarts: dataMarts.length };
+    },
+  },
+});
+
+serve({ fetch: backend.fetch, port: Number(process.env.PORT) || 8080 });
+```
+
+```bash
+cd server
+npm install @owox/plugin-sdk @hono/node-server
+gcloud run deploy acme-docs-backend --source . --region europe-west1 --allow-unauthenticated
+```
+
+- `--allow-unauthenticated` is required: OWOX Data Marts sends no Google identity token, and
+  `createBackend` checks every call with OWOX Data Marts instead.
+- Set `backend.url` to the service URL the command prints, for example
+  `https://acme-docs-backend-123456789012.europe-west1.run.app/`. A new deploy of the same service
+  keeps that URL.
+- Cloud Run's default request timeout, 300 seconds, covers the largest `timeoutSeconds`.
 
 ## Deploy with GitHub Pages
 
@@ -804,6 +1069,7 @@ The check runs the release rules against a branch, tag, or commit:
 - the manifest;
 - collection compatibility with the highest recorded version in the candidate's compatibility line;
 - the delivery URL;
+- backend actions: action compatibility, the backend origin and the backend URL;
 - Credential definitions.
 
 It lists every failed rule it can evaluate, with release sync's rejection codes. It records
@@ -841,6 +1107,11 @@ If the plugin cannot be published or opens as a blank page, verify that:
 - the GitHub Release is published, is not a prerelease, and has an eligible version tag;
 - scripts, fonts, and fetched assets are served with `Access-Control-Allow-Origin: *`;
 - the entry page is not blocked by `X-Frame-Options` or `frame-ancestors`;
+- an action's `input` schema stays within the size limits, uses no `pattern`,
+  `patternProperties`, `format`, `uniqueItems`, `$async` or non-local, recursive `$ref`, and
+  compiles in Ajv strict mode as JSON Schema 2020-12 (`ACTION_INPUT_UNSUPPORTED`);
+- a release keeps every action of its compatibility line (`ACTIONS_INCOMPATIBLE`) and adds no
+  backend and moves no backend origin within it (`BACKEND_ORIGIN_CHANGED`);
 - the OWOX Data Marts GitHub App can read the repository when it is private;
 - the plugin catches errors and shows a useful message instead of a blank screen.
 
@@ -852,7 +1123,8 @@ again on the current version.
 
 Before sharing the plugin with a project, confirm that:
 
-- the repository contains `AGENTS.md`, source files, `plugin.json`, and the Pages workflow;
+- the repository contains `AGENTS.md`, source files, `plugin.json`, and the Pages workflow, or
+  `wrangler.toml` and `worker/` when one Worker serves the page and the actions;
 - build, lint, type checking, and tests pass;
 - the installed personal test in OWOX Data Marts covers narrow and wide layouts, light and dark
   themes, and understandable loading, empty, error, and success states;
@@ -861,6 +1133,8 @@ Before sharing the plugin with a project, confirm that:
 - the production release points to the intended commit and has an eligible version tag;
 - the plugin has been published to **Only me**, installed, and tested with the installing member's
   real access, including every `ctx.owox` call it uses;
+- every backend action has been run from the installed plugin, including a failure, and the
+  page shows its `PluginActionError` usefully;
 - the plugin description matches what the plugin actually does;
 - project-wide publication happens only after the personal installation passes.
 

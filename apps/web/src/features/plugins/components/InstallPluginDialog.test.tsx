@@ -158,6 +158,36 @@ describe('InstallPluginDialog', () => {
     );
   });
 
+  it('says where a plugin with a backend runs its code', () => {
+    render(
+      <InstallPluginDialog
+        plugin={plugin({ backendOrigin: 'https://acme.workers.dev' })}
+        open
+        onOpenChange={vi.fn()}
+        onConfirm={vi.fn()}
+        isInstalling={false}
+      />
+    );
+
+    expect(screen.getByTestId('install-data-notice')).toHaveTextContent(
+      'Runs code on https://acme.workers.dev with your access, including when the plugin is closed.'
+    );
+  });
+
+  it('says nothing about a backend the plugin does not have', () => {
+    render(
+      <InstallPluginDialog
+        plugin={plugin()}
+        open
+        onOpenChange={vi.fn()}
+        onConfirm={vi.fn()}
+        isInstalling={false}
+      />
+    );
+
+    expect(screen.getByTestId('install-data-notice')).not.toHaveTextContent('Runs code on');
+  });
+
   it('uses configuration copy when only installed Credential bindings are changing', () => {
     credentialState.definitions = [definition({ id: 'github', displayName: 'GitHub' })];
 

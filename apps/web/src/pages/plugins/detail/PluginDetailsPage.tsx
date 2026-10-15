@@ -350,6 +350,12 @@ export default function PluginDetailsPage({
               <p className='max-w-prose text-sm'>
                 {plugin.description || 'This plugin has no description.'}
               </p>
+              {plugin.backendOrigin && (
+                <p className='text-muted-foreground mt-2 max-w-prose text-sm'>
+                  Runs code on {plugin.backendOrigin} with your access, including when the plugin is
+                  closed.
+                </p>
+              )}
             </CollapsibleCardContent>
             <CollapsibleCardFooter></CollapsibleCardFooter>
           </CollapsibleCard>

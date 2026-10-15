@@ -54,4 +54,6 @@ export interface PluginGalleryEntryDto {
    */
   readonly nextCheckAt: string | null;
   readonly credentialRequirements: readonly StoredCredentialRequirement[];
+  /** Origin only: the full backend URL is a publisher detail, like the delivery URL. */
+  readonly backendOrigin?: string;
 }

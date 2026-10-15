@@ -251,7 +251,10 @@ describe('connect', () => {
 
     const pending = connect();
     await vi.advanceTimersByTimeAsync(0);
-    deliverFromParent(parent, hostInit(), [channel.port2]);
+    const init = hostInit();
+    deliverFromParent(parent, { ...init, context: { ...init.context, actions: true } }, [
+      channel.port2,
+    ]);
     const context = await pending;
 
     const keys = Object.keys(context);
@@ -261,7 +264,14 @@ describe('connect', () => {
     // The ambient fields are the ones that travel as plain data in the handshake, so they
     // are the ones a credential could ride along in. `owox` is excluded deliberately: it
     // holds the transport, which is the object this whole design keeps out of reach.
-    const { owox: _owox, signal: _signal, ui: _ui, ...ambient } = context;
+    expect(Object.keys(context.actions ?? {}).sort()).toEqual([
+      'cancel',
+      'get',
+      'invoke',
+      'start',
+      'wait',
+    ]);
+    const { owox: _owox, signal: _signal, ui: _ui, actions: _actions, ...ambient } = context;
     expect(JSON.stringify(ambient)).not.toContain('token');
   });
 
@@ -287,6 +297,34 @@ describe('connect', () => {
     const context = await pending;
 
     expect(context.route).toBeUndefined();
+  });
+
+  it('offers backend actions when the host advertises them', async () => {
+    const parent = pretendToBeFramed();
+    const channel = new MessageChannel();
+    const pending = connect();
+    await vi.advanceTimersByTimeAsync(0);
+    const init = hostInit();
+    deliverFromParent(parent, { ...init, context: { ...init.context, actions: true } }, [
+      channel.port2,
+    ]);
+
+    const context = await pending;
+
+    expect(typeof context.actions?.invoke).toBe('function');
+  });
+
+  // A host without backend actions sends no capability, and that absence is how a plugin can tell.
+  it('leaves actions undefined when the host sends no capability', async () => {
+    const parent = pretendToBeFramed();
+    const channel = new MessageChannel();
+    const pending = connect();
+    await vi.advanceTimersByTimeAsync(0);
+    deliverFromParent(parent, hostInit(), [channel.port2]);
+
+    const context = await pending;
+
+    expect(context.actions).toBeUndefined();
   });
 
   it('reports its route to the host without waiting for an answer', async () => {

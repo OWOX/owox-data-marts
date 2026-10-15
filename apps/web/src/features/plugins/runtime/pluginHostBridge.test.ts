@@ -1,11 +1,17 @@
 import type { PluginRequest, PluginRequestInput, PluginResponse } from './protocol';
 import { PLUGIN_PROTOCOL_VERSION } from './protocol';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createPluginHostBridge, type PluginHostBridge } from './pluginHostBridge';
+import {
+  FINAL_EXECUTION_STATUSES,
+  RuntimeTokenRefused,
+  createPluginHostBridge,
+  type PluginHostBridge,
+} from './pluginHostBridge';
 import {
   acceptedAuthenticatedApiPaths,
   rejectedAuthenticatedApiPaths,
 } from '../../../../../../test/contracts/authenticated-api-path-contract.mjs';
+import { pluginActionFinalStatuses } from '../../../../../../test/contracts/plugin-action-contract.mjs';
 
 const RUNTIME_TOKEN = 'runtime-token-that-must-not-leak';
 const API_ORIGIN = 'https://app.owox.test';
@@ -464,6 +470,34 @@ describe('plugin host bridge', () => {
       expect(h.fetchMock.mock.calls[0][1]).toMatchObject({ redirect: 'error' });
     });
 
+    it('answers SUSPENDED when the token mint is refused for a suspended plugin', async () => {
+      const h = await harness(async () => new Response('{}'));
+      h.fetchRuntimeToken.mockRejectedValueOnce(
+        new RuntimeTokenRefused(400, { code: 'PLUGIN_SUSPENDED', message: 'Plugin is suspended' })
+      );
+
+      const response = await h.send({ kind: 'api', method: 'GET', path: '/api/data-marts' });
+
+      expect(response).toMatchObject({
+        ok: false,
+        error: {
+          code: 'SUSPENDED',
+          status: 400,
+          message: 'Plugin is suspended',
+          apiCode: 'PLUGIN_SUSPENDED',
+        },
+      });
+    });
+
+    it('keeps NETWORK_ERROR when the token mint fails for any other reason', async () => {
+      const h = await harness(async () => new Response('{}'));
+      h.fetchRuntimeToken.mockRejectedValueOnce(new Error('offline'));
+
+      const response = await h.send({ kind: 'api', method: 'GET', path: '/api/data-marts' });
+
+      expect(response).toMatchObject({ ok: false, error: { code: 'NETWORK_ERROR' } });
+    });
+
     it('does not echo credentials from an unexpected network error to the plugin', async () => {
       const h = await harness(async () => {
         throw new Error(`request failed with Bearer ${RUNTIME_TOKEN}`);
@@ -666,6 +700,424 @@ describe('plugin host bridge', () => {
       // An unmount already knows the plugin is gone; telling it would re-render a page
       // that is on its way out.
       expect(h.onBroken).not.toHaveBeenCalled();
+    });
+
+    describe('executions started by invoke', () => {
+      const START_PATH = '/api/plugins/runtime/actions/sync/executions';
+      const CANCEL_URL = `${API_ORIGIN}/api/plugins/runtime/executions/e1/cancel`;
+
+      /** A backend that starts execution e1 and reports `pollStatus` when asked about it. */
+      const backend =
+        (pollStatus = 'RUNNING', startStatus = 202) =>
+        async (url: string, init: RequestInit) => {
+          if (url.endsWith('/cancel')) return Response.json({ id: 'e1', status: 'CANCELLED' });
+          if (init.method === 'POST') {
+            return Response.json({ id: 'e1', status: 'RUNNING' }, { status: startStatus });
+          }
+          return Response.json({ id: 'e1', status: pollStatus });
+        };
+
+      const cancelCalls = (h: Harness) =>
+        h.fetchMock.mock.calls.filter(([url]) => String(url).endsWith('/cancel'));
+
+      it('cancels them when the host unmounts, with a request that outlives the page', async () => {
+        const h = await harness(backend());
+
+        await h.send({
+          kind: 'api',
+          method: 'POST',
+          path: START_PATH,
+          body: { input: null },
+          cancelOnClose: true,
+        });
+        h.bridge.dispose();
+
+        const calls = cancelCalls(h);
+        expect(calls).toHaveLength(1);
+        expect(calls[0][0]).toBe(CANCEL_URL);
+        const init = calls[0][1] as RequestInit;
+        expect(init).toMatchObject({ method: 'POST', keepalive: true, redirect: 'error' });
+        expect(init.headers).toEqual({ 'x-owox-authorization': `Bearer ${RUNTIME_TOKEN}` });
+        // The teardown signal is already aborted; a cancel tied to it would never leave.
+        expect(init.signal).toBeUndefined();
+      });
+
+      it('leaves an execution from start running', async () => {
+        const h = await harness(backend());
+
+        await h.send({ kind: 'api', method: 'POST', path: START_PATH, body: { input: null } });
+        h.bridge.dispose();
+
+        expect(cancelCalls(h)).toHaveLength(0);
+      });
+
+      it.each([
+        ['a path that is not a start', `${START_PATH}/more`, 202],
+        ['a start that was not accepted', START_PATH, 200],
+      ])('does not track %s', async (_case, path, startStatus) => {
+        const h = await harness(backend('RUNNING', startStatus));
+
+        await h.send({
+          kind: 'api',
+          method: 'POST',
+          path,
+          body: { input: null },
+          cancelOnClose: true,
+        });
+        h.bridge.dispose();
+
+        expect(cancelCalls(h)).toHaveLength(0);
+      });
+
+      // OWOX and the SDK keep their own copies; each suite compares its copy with the oracle.
+      it('treats the same statuses as final as OWOX and the SDK', () => {
+        expect([...FINAL_EXECUTION_STATUSES].sort()).toEqual([...pluginActionFinalStatuses].sort());
+      });
+
+      it('forgets an execution once a poll reports it finished', async () => {
+        const h = await harness(backend('SUCCEEDED'));
+
+        await h.send({
+          kind: 'api',
+          method: 'POST',
+          path: START_PATH,
+          body: { input: null },
+          cancelOnClose: true,
+        });
+        await h.send({
+          kind: 'api',
+          method: 'GET',
+          path: '/api/plugins/runtime/executions/e1',
+          query: [['waitSeconds', '20']],
+        });
+        h.bridge.dispose();
+
+        expect(cancelCalls(h)).toHaveLength(0);
+      });
+
+      it('keeps an execution a poll reports still running', async () => {
+        const h = await harness(backend('RUNNING'));
+
+        await h.send({
+          kind: 'api',
+          method: 'POST',
+          path: START_PATH,
+          body: { input: null },
+          cancelOnClose: true,
+        });
+        await h.send({ kind: 'api', method: 'GET', path: '/api/plugins/runtime/executions/e1' });
+        h.bridge.dispose();
+
+        expect(cancelCalls(h)).toHaveLength(1);
+      });
+
+      // Minting is async and would outlive the closure; the execution ends at its deadline.
+      it('sends no cancel once the token has expired', async () => {
+        const h = await harness(backend());
+
+        await h.send({
+          kind: 'api',
+          method: 'POST',
+          path: START_PATH,
+          body: { input: null },
+          cancelOnClose: true,
+        });
+        const now = vi.spyOn(Date, 'now').mockReturnValue(Date.now() + 901_000);
+        try {
+          h.bridge.dispose();
+        } finally {
+          now.mockRestore();
+        }
+
+        expect(cancelCalls(h)).toHaveLength(0);
+        expect(h.fetchRuntimeToken).toHaveBeenCalledTimes(1);
+      });
+
+      describe('a start that answers after the plugin let go of it', () => {
+        const invokeStart = (id: string) => ({
+          id,
+          kind: 'api' as const,
+          method: 'POST' as const,
+          path: START_PATH,
+          body: { input: null },
+          cancelOnClose: true as const,
+        });
+
+        /** The server answers the start when told to; like the browser's, it rejects on abort. */
+        const pendingStart = () => {
+          let accept: (() => void) | undefined;
+          const fetchImpl = (url: string, init: RequestInit) => {
+            if (url.endsWith('/cancel')) {
+              return Promise.resolve(Response.json({ id: 'e1', status: 'CANCELLED' }));
+            }
+            return new Promise<Response>((resolve, reject) => {
+              init.signal?.addEventListener('abort', () => {
+                reject(new DOMException('The request was aborted', 'AbortError'));
+              });
+              accept = () => {
+                resolve(Response.json({ id: 'e1', status: 'RUNNING' }, { status: 202 }));
+              };
+            });
+          };
+          return {
+            fetchImpl,
+            accept: () => {
+              accept?.();
+            },
+          };
+        };
+
+        const startOnTheWire = async () => {
+          const start = pendingStart();
+          const h = await harness(start.fetchImpl);
+          h.raw(invokeStart('start-1'));
+          await vi.waitFor(() => {
+            expect(h.fetchMock).toHaveBeenCalledTimes(1);
+          });
+          return { h, accept: start.accept };
+        };
+
+        it('cancels it with the kept token once the host has unmounted', async () => {
+          const { h, accept } = await startOnTheWire();
+
+          h.bridge.dispose();
+          accept();
+
+          await vi.waitFor(() => {
+            expect(cancelCalls(h)).toHaveLength(1);
+          });
+          const [url, init] = cancelCalls(h)[0] as [string, RequestInit];
+          expect(url).toBe(CANCEL_URL);
+          expect(init).toMatchObject({ method: 'POST', keepalive: true, redirect: 'error' });
+          expect(init.headers).toEqual({ 'x-owox-authorization': `Bearer ${RUNTIME_TOKEN}` });
+        });
+
+        it('cancels it once the SDK has given up on the start', async () => {
+          const { h, accept } = await startOnTheWire();
+
+          h.raw({ id: 'cancel-1', kind: 'cancel', targetId: 'start-1' });
+          await flush();
+          accept();
+
+          await vi.waitFor(() => {
+            expect(cancelCalls(h)).toHaveLength(1);
+          });
+          expect(cancelCalls(h)[0][0]).toBe(CANCEL_URL);
+          // Cancelled, not tracked as well: the unmount has nothing left to cancel.
+          h.bridge.dispose();
+          expect(cancelCalls(h)).toHaveLength(1);
+        });
+
+        it('sends no cancel once the kept token has expired', async () => {
+          const { h, accept } = await startOnTheWire();
+
+          h.bridge.dispose();
+          const now = vi.spyOn(Date, 'now').mockReturnValue(Date.now() + 901_000);
+          try {
+            accept();
+            await flush();
+            await flush();
+          } finally {
+            now.mockRestore();
+          }
+
+          expect(cancelCalls(h)).toHaveLength(0);
+        });
+
+        it('cancels a tracked start at once when the SDK gives up after its answer', async () => {
+          const h = await harness(backend());
+
+          await h.send(invokeStart('start-1'));
+          h.raw({ id: 'cancel-1', kind: 'cancel', targetId: 'start-1' });
+
+          await vi.waitFor(() => {
+            expect(cancelCalls(h)).toHaveLength(1);
+          });
+          expect(cancelCalls(h)[0][0]).toBe(CANCEL_URL);
+          // Untracked once cancelled: the unmount sends no second one.
+          h.bridge.dispose();
+          expect(cancelCalls(h)).toHaveLength(1);
+        });
+
+        it('mints a fresh token when the live one expired before the start answered', async () => {
+          const { h, accept } = await startOnTheWire();
+          h.fetchRuntimeToken.mockResolvedValueOnce({
+            runtimeToken: 'fresh-token',
+            expiresIn: 900,
+          });
+
+          h.raw({ id: 'cancel-1', kind: 'cancel', targetId: 'start-1' });
+          await flush();
+          const now = vi.spyOn(Date, 'now').mockReturnValue(Date.now() + 901_000);
+          try {
+            accept();
+            await flush();
+            await flush();
+          } finally {
+            now.mockRestore();
+          }
+
+          expect(cancelCalls(h)).toHaveLength(1);
+          const init = cancelCalls(h)[0][1] as RequestInit;
+          expect(init.headers).toEqual({ 'x-owox-authorization': 'Bearer fresh-token' });
+        });
+
+        it('leaves the execution for the unmount when that mint fails', async () => {
+          const { h, accept } = await startOnTheWire();
+          h.fetchRuntimeToken.mockRejectedValueOnce(new Error('offline'));
+
+          h.raw({ id: 'cancel-1', kind: 'cancel', targetId: 'start-1' });
+          await flush();
+          const now = vi.spyOn(Date, 'now').mockReturnValue(Date.now() + 901_000);
+          try {
+            accept();
+            await flush();
+            await flush();
+          } finally {
+            now.mockRestore();
+          }
+          expect(cancelCalls(h)).toHaveLength(0);
+
+          h.bridge.dispose();
+          expect(cancelCalls(h)).toHaveLength(1);
+        });
+
+        describe('a cancel for a tracked start that has to mint', () => {
+          interface Minted {
+            runtimeToken: string;
+            expiresIn: number;
+          }
+          const FRESH: Minted = { runtimeToken: 'fresh-token', expiresIn: 900 };
+
+          // A tracked start whose live token has expired; every later mint waits for the test.
+          const trackedStart = async () => {
+            const h = await harness(backend());
+            await h.send(invokeStart('start-1'));
+            let mint!: { resolve: (minted: Minted) => void; reject: (reason: Error) => void };
+            h.fetchRuntimeToken.mockReturnValue(
+              new Promise<Minted>((resolve, reject) => {
+                mint = { resolve, reject };
+              })
+            );
+            const now = vi.spyOn(Date, 'now').mockReturnValue(Date.now() + 901_000);
+            const cancel = (id: string) => {
+              h.raw({ id, kind: 'cancel', targetId: 'start-1' });
+            };
+            // Port delivery is ordered, so this answer means every earlier message was handled.
+            const handled = () => h.send({ kind: 'copyLink' });
+            return { h, mint, now, cancel, handled };
+          };
+
+          it('mints once for a flood of cancels', async () => {
+            const { h, mint, now, cancel, handled } = await trackedStart();
+            try {
+              for (let index = 0; index < 200; index += 1) cancel(`cancel-${String(index)}`);
+              await handled();
+              expect(h.fetchRuntimeToken).toHaveBeenCalledTimes(2);
+
+              mint.resolve(FRESH);
+              await flush();
+              expect(cancelCalls(h)).toHaveLength(1);
+            } finally {
+              now.mockRestore();
+            }
+          });
+
+          it('puts the execution back when the mint fails, so the unmount cancels it', async () => {
+            const { h, mint, now, cancel, handled } = await trackedStart();
+            try {
+              cancel('cancel-1');
+              await handled();
+              mint.reject(new Error('offline'));
+              await flush();
+              expect(cancelCalls(h)).toHaveLength(0);
+            } finally {
+              now.mockRestore();
+            }
+
+            h.bridge.dispose();
+            expect(cancelCalls(h)).toHaveLength(1);
+          });
+
+          it('sends one cancel when the host unmounts during a mint that succeeds', async () => {
+            const { h, mint, now, cancel, handled } = await trackedStart();
+            try {
+              cancel('cancel-1');
+              await handled();
+              h.bridge.dispose();
+              mint.resolve(FRESH);
+              await flush();
+
+              expect(cancelCalls(h)).toHaveLength(1);
+              const init = cancelCalls(h)[0][1] as RequestInit;
+              expect(init.headers).toEqual({ 'x-owox-authorization': 'Bearer fresh-token' });
+            } finally {
+              now.mockRestore();
+            }
+          });
+
+          it('sends nothing when the host unmounts during a mint that fails', async () => {
+            const { h, mint, now, cancel, handled } = await trackedStart();
+            try {
+              cancel('cancel-1');
+              await handled();
+              h.bridge.dispose();
+              mint.reject(new Error('offline'));
+              await flush();
+
+              expect(cancelCalls(h)).toHaveLength(0);
+            } finally {
+              now.mockRestore();
+            }
+          });
+        });
+
+        it.each([
+          [
+            'the host unmounted',
+            (h: Harness) => {
+              h.bridge.dispose();
+            },
+          ],
+          [
+            'the SDK gave up',
+            (h: Harness) => {
+              h.raw({ id: 'cancel-1', kind: 'cancel', targetId: 'start-1' });
+            },
+          ],
+        ])('never sends a start that had not left when %s', async (_case, letGo) => {
+          const h = await harness(backend());
+          let mint: ((minted: { runtimeToken: string; expiresIn: number }) => void) | undefined;
+          h.fetchRuntimeToken.mockReturnValueOnce(
+            new Promise(resolve => {
+              mint = resolve;
+            })
+          );
+
+          h.raw(invokeStart('start-1'));
+          await flush();
+          letGo(h);
+          await flush();
+          mint?.({ runtimeToken: RUNTIME_TOKEN, expiresIn: 900 });
+          await flush();
+
+          expect(h.fetchMock).not.toHaveBeenCalled();
+          h.bridge.dispose();
+        });
+
+        it('still aborts a start without the mark when the host unmounts', async () => {
+          const { seen, fetchImpl } = hangingFetch();
+          const h = await harness(fetchImpl);
+
+          h.tell({ kind: 'api', method: 'POST', path: START_PATH, body: { input: null } });
+          await vi.waitFor(() => {
+            expect(seen.signal).toBeDefined();
+          });
+          h.bridge.dispose();
+
+          expect(seen.signal?.aborted).toBe(true);
+        });
+      });
     });
 
     it('aborts the backend Credential request when the SDK cancels its correlation id', async () => {
@@ -1262,6 +1714,100 @@ describe('plugin host bridge', () => {
       const response = await h.send({ kind: 'api', method: 'GET', path: '/api/x' });
 
       expect(response).toMatchObject({ ok: false, error: { code: 'HTTP_ERROR', status: 500 } });
+    });
+
+    it('passes the API code and its refusal details on beside the transport code', async () => {
+      const errors = [{ instancePath: '/documentId', message: 'must be string' }];
+      const h = await harness(async () =>
+        Response.json(
+          {
+            code: 'INVALID_INPUT',
+            message: 'Input does not match the action schema',
+            errorDetails: { errors },
+            // Not part of the payload: refusal details travel only in `details`.
+            errors,
+          },
+          { status: 400 }
+        )
+      );
+
+      const response = await h.send({
+        kind: 'api',
+        method: 'POST',
+        path: '/api/plugins/runtime/actions/sync/executions',
+        body: { input: {} },
+      });
+
+      expect(response).toMatchObject({ ok: false });
+      expect(response.ok ? undefined : response.error).toEqual({
+        code: 'HTTP_ERROR',
+        status: 400,
+        message: 'Input does not match the action schema',
+        details: { errors },
+        apiCode: 'INVALID_INPUT',
+      });
+    });
+
+    it('keeps SUSPENDED as the transport code and still names the API code', async () => {
+      const h = await harness(async () =>
+        Response.json({ code: 'PLUGIN_SUSPENDED', message: 'unavailable' }, { status: 400 })
+      );
+
+      const response = await h.send({ kind: 'api', method: 'GET', path: '/api/data-marts' });
+
+      expect(response).toMatchObject({
+        ok: false,
+        error: { code: 'SUSPENDED', apiCode: 'PLUGIN_SUSPENDED' },
+      });
+    });
+
+    it('passes the API code of a Credential failure', async () => {
+      const h = await harness(async () =>
+        Response.json(
+          { code: 'CREDENTIAL_REJECTED', message: 'The provider refused the key' },
+          { status: 403 }
+        )
+      );
+
+      const response = await h.send({
+        kind: 'credentialFetch',
+        version: 1,
+        handle: 'github',
+        url: 'https://api.github.com/user',
+        method: 'GET',
+      });
+
+      expect(response).toMatchObject({
+        ok: false,
+        error: { code: 'HTTP_ERROR', status: 403, apiCode: 'CREDENTIAL_REJECTED' },
+      });
+    });
+
+    it('passes the API code of a failed stream', async () => {
+      const h = await harness(async () =>
+        Response.json({ code: 'RUN_LIMIT', message: 'Too many runs' }, { status: 409 })
+      );
+
+      const response = await h.send({
+        kind: 'api',
+        method: 'GET',
+        path: '/api/data-marts.ndjson',
+        stream: true,
+      });
+
+      expect(response).toMatchObject({
+        ok: false,
+        error: { code: 'HTTP_ERROR', status: 409, apiCode: 'RUN_LIMIT' },
+      });
+    });
+
+    it('adds no API code when the body has none', async () => {
+      const h = await harness(async () => Response.json({ code: 42 }, { status: 500 }));
+
+      const response = await h.send({ kind: 'api', method: 'GET', path: '/api/x' });
+
+      expect(response.ok).toBe(false);
+      expect(response.ok ? undefined : response.error).not.toHaveProperty('apiCode');
     });
   });
 });

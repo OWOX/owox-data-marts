@@ -1,6 +1,7 @@
 import { INestApplication } from '@nestjs/common';
 import { getDataSourceToken, getRepositoryToken } from '@nestjs/typeorm';
 import { createTestApp } from '@owox/test-utils';
+import { PluginActionExecution } from 'src/plugin-host/entities/plugin-action-execution.entity';
 import { PluginAuditEvent } from 'src/plugin-host/entities/plugin-audit-event.entity';
 import { PluginInstallation } from 'src/plugin-host/entities/plugin-installation.entity';
 import { PluginPublicationProject } from 'src/plugin-host/entities/plugin-publication-project.entity';
@@ -106,6 +107,19 @@ describe('Plugin host schema (e2e)', () => {
     expect(await collections.createQueryRunner().hasTable('plugin_collection_document')).toBe(true);
   });
 
+  it('keeps action executions on the main data source', async () => {
+    await expect(
+      repo(PluginActionExecution).find({ where: { installationId: 'none' } })
+    ).resolves.toEqual([]);
+
+    const main = app.get(DataSource);
+    const collections = app.get<DataSource>(getDataSourceToken(PLUGIN_COLLECTIONS_DATA_SOURCE));
+    expect(main.hasMetadata(PluginActionExecution)).toBe(true);
+    expect(collections.hasMetadata(PluginActionExecution)).toBe(false);
+    expect(await main.createQueryRunner().hasTable('plugin_action_execution')).toBe(true);
+    expect(await collections.createQueryRunner().hasTable('plugin_action_execution')).toBe(false);
+  });
+
   it('enforces one plugin per github repository', async () => {
     const plugins = repo(Plugin);
     const base = {
@@ -148,12 +162,16 @@ describe('Plugin host schema (e2e)', () => {
       deliveryUrl: 'https://plugin.example.com',
       collections: [],
       credentialRequirements: [],
+      backend: { url: '/owox', actions: { run: { timeoutSeconds: 30 } } },
       releasePublishedAt: null,
     };
 
     await expect(versions.insertVersionForLease(input, 'stale-worker')).resolves.toBeNull();
     await expect(versions.insertVersionForLease(input, claim.leaseId)).resolves.toMatchObject({
       semver: '1.0.0',
+    });
+    await expect(repo(PluginVersion).findOneBy({ pluginId: plugin.id })).resolves.toMatchObject({
+      backend: input.backend,
     });
   });
 
