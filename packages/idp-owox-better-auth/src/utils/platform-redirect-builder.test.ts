@@ -10,6 +10,26 @@ import {
 } from './platform-redirect-builder.js';
 
 describe('platform-redirect-builder', () => {
+  it('preserves MCP integration on both legs of the Platform round trip', () => {
+    const params = {
+      source: SOURCE.APP,
+      integration: 'claude' as const,
+      appRedirectTo: '/oauth/authorize?client_id=one',
+    };
+    const entry = buildPlatformEntryUrl({ authUrl: 'https://platform.test/signin', params });
+    const callback = buildPlatformRedirectUrl({
+      baseUrl: 'https://platform.test/signin',
+      code: 'code',
+      state: 'state',
+      params,
+    });
+    for (const url of [entry, callback!]) {
+      expect(url.searchParams.get('integration')).toBe('claude');
+      expect(url.searchParams.get('source')).toBe('app');
+      expect(url.searchParams.get('app-redirect-to')).toBe(params.appRedirectTo);
+    }
+  });
+
   it('builds url with provided base and params', () => {
     const url = buildPlatformRedirectUrl({
       baseUrl: 'https://platform.test/ui/p/signin',

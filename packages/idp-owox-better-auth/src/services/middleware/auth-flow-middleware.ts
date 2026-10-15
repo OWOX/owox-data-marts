@@ -34,13 +34,13 @@ export class AuthFlowMiddleware {
       const authFlowParams = extractAuthFlowParams(req);
       await this.store.saveAuthState(state, codeVerifier, expiresAt, authFlowParams);
 
-      const { redirectTo, appRedirectTo, projectId, extraParams } = authFlowParams;
+      const { redirectTo, appRedirectTo, integration, projectId, extraParams } = authFlowParams;
       persistAuthFlowParams(req, res, authFlowParams);
 
       const platformUrl = buildPlatformEntryUrl({
         authUrl: this.idpOwoxConfig.idpConfig.platformSignInUrl,
         defaultSource: SOURCE.APP,
-        params: { redirectTo, appRedirectTo, projectId, extraParams },
+        params: { redirectTo, appRedirectTo, integration, projectId, extraParams },
         allowedRedirectOrigins: this.idpOwoxConfig.idpConfig.allowedRedirectOrigins,
       });
       platformUrl.searchParams.set('state', state);

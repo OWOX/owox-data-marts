@@ -14,6 +14,7 @@ const AUTH_PARAMS = new Set([
   'state',
   'code',
   'source',
+  'integration',
   'app-redirect-to',
   'appRedirectTo',
   'redirect',
@@ -70,6 +71,11 @@ export const AuthFlowParamsSchema = z.object({
   appRedirectTo: optionalStringParam,
   projectRedirectUserId: optionalStringParam,
   source: optionalStringParam,
+  integration: z.preprocess(
+    value =>
+      ['claude', 'chatgpt', 'owox-data-marts'].includes(value as string) ? value : undefined,
+    z.enum(['claude', 'chatgpt', 'owox-data-marts']).optional()
+  ),
   clientId: optionalStringParam,
   codeChallenge: optionalStringParam,
   projectId: optionalProjectIdParam,
@@ -357,8 +363,19 @@ export function extractAuthFlowParams(req: Request): AuthFlowParams {
   const projectId = normalizeProjectId(
     typeof req.query?.projectId === 'string' ? req.query.projectId : undefined
   );
+  const integration = AuthFlowParamsSchema.parse({
+    integration: req.query.integration,
+  }).integration;
+  const sameContinuation = resolvedAppRedirectTo === cookieParams.appRedirectTo;
+  const mcpIntegration = resolvedAppRedirectTo?.startsWith('/oauth/authorize?')
+    ? (integration ??
+      (sameContinuation && !Object.hasOwn(req.query, 'integration')
+        ? cookieParams.integration
+        : undefined))
+    : undefined;
   return {
     redirectTo: redirectTo || cookieParams.redirectTo,
+    integration: mcpIntegration,
     appRedirectTo: resolvedAppRedirectTo,
     projectRedirectUserId,
     source: source || cookieParams.source,

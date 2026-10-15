@@ -21,6 +21,7 @@ import {
 import type { AuthorizationContext } from '../../index';
 import { IdpProviderService } from '../../services/idp-provider.service';
 import { OAuthClientRegistry } from '../oauth-client.registry';
+import { getMcpClientIntegration } from '../mcp-client-integration';
 import { OAuthIdpPort, OAUTH_IDP_PORT } from '../oauth-idp.port';
 import { OAuthProjectSelectionService } from '../oauth-project-selection.service';
 import { OAuthProjectMemberResolver } from '../oauth-project-member.resolver';
@@ -87,7 +88,12 @@ export class OAuthAuthorizationController {
     const authorizationRequest = validated.request;
     const resourceContext = validated.resourceContext;
     const provider = this.idpProviderService.getProvider(request);
-    const authorization = await this.resolveAuthorizationContext(provider, request, response);
+    const authorization = await this.resolveAuthorizationContext(
+      provider,
+      request,
+      response,
+      getMcpClientIntegration(authorizationRequest.redirectUri)
+    );
     if (!authorization) {
       return;
     }
@@ -261,7 +267,8 @@ export class OAuthAuthorizationController {
   private async resolveAuthorizationContext(
     provider: ReturnType<IdpProviderService['getProvider']>,
     request: Request,
-    response: Response
+    response: Response,
+    integration: string
   ): Promise<{ context: AuthorizationContext; accessToken: string } | null> {
     const accessToken = this.getHeaderValue(request, 'x-owox-authorization');
 
@@ -274,7 +281,7 @@ export class OAuthAuthorizationController {
 
     const refreshToken = this.getCookieValue(request, 'refreshToken');
     if (!refreshToken) {
-      this.redirectToSignIn(request, response);
+      this.redirectToSignIn(request, response, integration);
       return null;
     }
 
@@ -284,13 +291,13 @@ export class OAuthAuthorizationController {
 
       const payload = await provider.parseToken(auth.accessToken);
       if (!payload) {
-        this.redirectToSignIn(request, response);
+        this.redirectToSignIn(request, response, integration);
         return null;
       }
 
       return { context: this.toAuthorizationContext(payload), accessToken: auth.accessToken };
     } catch {
-      this.redirectToSignIn(request, response);
+      this.redirectToSignIn(request, response, integration);
       return null;
     }
   }
@@ -342,13 +349,14 @@ export class OAuthAuthorizationController {
     });
   }
 
-  private redirectToSignIn(request: Request, response: Response): void {
+  private redirectToSignIn(request: Request, response: Response, integration: string): void {
     const currentUrl = request.originalUrl || request.url;
     const host = request.get('host') ?? 'localhost';
     const signInUrl = new URL('/auth/sign-in', `${request.protocol}://${host}`);
     signInUrl.searchParams.set('redirect', currentUrl);
     signInUrl.searchParams.set('redirect-to', currentUrl);
     signInUrl.searchParams.set('app-redirect-to', currentUrl);
+    signInUrl.searchParams.set('integration', integration);
     this.logger.log('Redirecting OAuth authorize request to sign-in', {
       clientId: this.extractClientId(currentUrl, request, host),
       host,
