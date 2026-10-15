@@ -3,9 +3,9 @@ import type { McpAuthContext } from '../auth/mcp-auth-context';
 
 export const MCP_SCHEMA_REFRESH_TTL_MS = 5 * 60_000;
 export const MCP_SCHEMA_REFRESH_MAX_ENTRIES = 10_000;
-// Temporary recovery for clients caching strict schemas. Set false in a later release to disable
-// all recovery notifications in one place; the permanent tolerant output schemas stay enabled.
-export const MCP_SCHEMA_REFRESH_ENABLED = true;
+// Temporary recovery for clients caching strict schemas is disabled after the recovery window.
+// The permanent tolerant output schemas stay enabled.
+export const MCP_SCHEMA_REFRESH_ENABLED = false;
 
 /** Pod-local cooldown shared by the factory's otherwise per-request SDK server instances. */
 export class McpSchemaRefresh {

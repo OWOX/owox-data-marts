@@ -37,6 +37,12 @@ describe('McpSdkServerFactory', () => {
   afterEach(() => jest.restoreAllMocks());
 
   const loadFactory = async () => {
+    const refreshModule = await import('./mcp-schema-refresh');
+    jest.replaceProperty(
+      refreshModule as { MCP_SCHEMA_REFRESH_ENABLED: boolean },
+      'MCP_SCHEMA_REFRESH_ENABLED',
+      true
+    );
     const module = await import('./mcp-sdk-server.factory');
     return module.McpSdkServerFactory;
   };
