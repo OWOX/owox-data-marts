@@ -1,6 +1,6 @@
 # MCP acquisition sources
 
-OWOX Cloud records the MCP client that initiated signup using the existing user and project `integration` fields. This identifies a client, not whether the user discovered OWOX in a marketplace or configured a connector manually.
+OWOX Cloud records recognized MCP clients using the existing user and project `integration` fields. This identifies a client, not whether the user discovered OWOX in a marketplace or configured a connector manually.
 
 ## Attribution contract
 
@@ -15,11 +15,11 @@ Analytics adds these values to the existing integration dictionaries:
 | `claude`  | 7                             | 6                        | Claude          |
 | `chatgpt` | 8                             | 7                        | ChatGPT         |
 
-Recognized MCP sources are applied to newly created users only. Existing users retain their source, even when it is empty. Project provisioning records the current integration only for a new project; joining or selecting an existing project does not change its creation source. Existing extension values retain their meanings and numeric codes. No historical backfill is included.
+User attribution follows the existing first-known-integration rule. A recognized integration fills an empty source for either a new or an existing user; later sign-ins preserve a recorded source. For an existing account, this records its first known integration rather than proving the original signup source. Project provisioning records the current integration only for a new project; joining or selecting an existing project does not change its creation source. Existing extension values retain their meanings and numeric codes. No historical backfill is included.
 
 ## Deployment order
 
-1. Deploy Analytics dictionaries, access-grant mapping, creation-only attribution and the additive `actor.integration` identity-response field.
+1. Deploy Analytics dictionaries, access-grant mapping and the additive `actor.integration` identity-response field.
 2. Prepare the reporting mappings described below.
 3. Deploy Platform support for the optional integration and signup property. Older ODM callers continue to use `owox-data-marts`.
 4. Deploy ODM, which begins sending recognized MCP integrations. IB already forwards the integration string and needs no deployment for this contract.
@@ -63,7 +63,7 @@ Back up each current definition before applying its exact diff. Also check cohor
 
 ## PostHog
 
-Analytics returns the persisted `actor.integration` in the identity response. Platform attaches that value as `eventParameters.creationSource` on the existing `sign_up` event, after user identification. Repeated sign-in does not introduce another signup event or overwrite the stored source.
+Analytics returns the persisted `actor.integration` in the identity response. Platform attaches that value as `eventParameters.creationSource` on the existing `sign_up` event, after user identification. The existing signup-event condition is unchanged: filling an existing user's empty integration does not by itself emit another signup event. Later sign-ins preserve a recorded source.
 
 The deployed GTM PostHog tag must forward `eventParameters.creationSource`. Use the same reporting dimension and labels as the existing browser-extension report; keep extension sources in the same breakdown. Merely pushing this property into dataLayer does not prove that GTM delivers it to PostHog.
 
