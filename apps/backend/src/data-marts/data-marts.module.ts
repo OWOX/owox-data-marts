@@ -483,6 +483,7 @@ import { ValidateCredentialService } from './credentials/use-cases/validate-cred
 import { CREDENTIAL_CONSUMER_BINDING_FACADE } from './credentials/facades/credential-consumer-binding.facade';
 import { CredentialConsumerBindingFacadeImpl } from './credentials/facades/credential-consumer-binding.facade.impl';
 import { CredentialFetchService } from './credentials/services/credential-fetch.service';
+import { GoogleServiceAccountTokenService } from './credentials/services/google-service-account-token.service';
 import { CredentialAiService } from './credentials/services/credential-ai.service';
 import { CredentialValidationProbeService } from './credentials/services/credential-validation-probe.service';
 import { CredentialExternalDefinitionRegistryService } from './credentials/services/credential-external-definition-registry.service';
@@ -993,6 +994,7 @@ import { ConsentCredentialDefinitionService } from './credentials/use-cases/cons
     DeleteCredentialService,
     ValidateCredentialService,
     CredentialFetchService,
+    GoogleServiceAccountTokenService,
     CredentialAiService,
     CredentialValidationProbeService,
     CredentialExternalDefinitionRegistryService,

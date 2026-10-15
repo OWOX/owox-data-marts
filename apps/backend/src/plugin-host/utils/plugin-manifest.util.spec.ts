@@ -81,6 +81,42 @@ describe('parsePluginManifest', () => {
     expect(() => parsePluginManifest('\u0000\uFFFF')).not.toThrow();
   });
 
+  const DOCS = 'https://www.googleapis.com/auth/documents';
+
+  it('accepts a Google Service Account requirement with scopes', () => {
+    expect(
+      parsePluginManifest(raw({ credentials: [{ id: 'google-service-account', scopes: [DOCS] }] }))
+    ).toMatchObject({
+      ok: true,
+      manifest: {
+        credentials: [{ id: 'google-service-account', optional: false, scopes: [DOCS] }],
+      },
+    });
+  });
+
+  it.each([
+    ['google-service-account', 'google-service-account requires scopes'],
+    [{ id: 'google-service-account' }, 'google-service-account requires scopes'],
+    [{ id: 'github', scopes: ['repo'] }, 'scopes are supported only for google-service-account'],
+    [{ id: '@acme/crm', scopes: ['read'] }, 'scopes are supported only for google-service-account'],
+    [{ id: 'google-service-account', scopes: [DOCS, DOCS] }, 'scopes must be unique'],
+  ])('rejects %j with "%s"', (requirement, message) => {
+    expect(parsePluginManifest(raw({ credentials: [requirement] }))).toMatchObject({
+      ok: false,
+      code: ReleaseRejectionCode.MANIFEST_SCHEMA,
+      detail: expect.stringContaining(message),
+    });
+  });
+
+  it.each([[[]], [['has space']], [[`https://x/${'a'.repeat(200)}`]]])(
+    'rejects malformed scopes %j',
+    scopes => {
+      expect(
+        parsePluginManifest(raw({ credentials: [{ id: 'google-service-account', scopes }] }))
+      ).toMatchObject({ ok: false, code: ReleaseRejectionCode.MANIFEST_SCHEMA });
+    }
+  );
+
   it('accepts exact, logical AI, and optional Credential requirements', () => {
     expect(
       parsePluginManifest(

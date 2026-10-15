@@ -3,7 +3,12 @@ jest.mock('typeorm-transactional', () => ({
     descriptor,
 }));
 
-import { BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
 import { CredentialConsumerBindingFacadeImpl } from './credential-consumer-binding.facade.impl';
 import { normalizeCredentialRequirement } from '../credential.types';
 
@@ -78,8 +83,135 @@ describe('CredentialConsumerBindingFacadeImpl', () => {
       definitionId: null,
       optional: false,
       models: ['fast'],
+      scopes: [],
     });
   });
+  it('normalizes scopes sorted and unique, and empty for every other requirement', () => {
+    expect(
+      normalizeCredentialRequirement({
+        id: 'google-service-account',
+        optional: false,
+        scopes: ['https://b', 'https://a', 'https://b'],
+      }).scopes
+    ).toEqual(['https://a', 'https://b']);
+    expect(normalizeCredentialRequirement('github').scopes).toEqual([]);
+  });
+
+  it('keeps a binding saved before scopes existed active, with the same revision', async () => {
+    const state = setup();
+    const legacy = {
+      id: 'legacy',
+      requirementKey: 'github',
+      // A snapshot written before this change has no scopes key at all.
+      requirementSnapshot: { key: 'github', definitionId: 'github', optional: false, models: [] },
+      requirementRevision: 'legacy-revision',
+      active: true,
+    };
+    state.bindings.find.mockResolvedValue([legacy]);
+
+    await state.facade.reconcileBindings({
+      consumerType: 'plugin-installation',
+      consumerIds: ['installation-1'],
+      requirements: ['github'],
+    });
+    expect(state.bindings.update).not.toHaveBeenCalled();
+
+    const fresh = setup();
+    await fresh.facade.replaceBindings(request);
+    expect(fresh.bindings.save).toHaveBeenCalledWith([
+      expect.objectContaining({
+        // sha256 of {"key":"github","definitionId":"github","optional":false,"models":[]}
+        requirementRevision: '33c6dfa7ead1cfe69341c183498e53a42a0dc4983bf16b2e578a94c7b6852fd0',
+      }),
+    ]);
+  });
+
+  it('deactivates a binding when a release changes its scopes, not when it reorders them', async () => {
+    const DOCS = 'https://www.googleapis.com/auth/documents';
+    const SHEETS = 'https://www.googleapis.com/auth/spreadsheets';
+    const google = (scopes: string[]) => ({
+      id: 'google-service-account',
+      optional: false,
+      scopes,
+    });
+    const state = setup();
+    const binding = {
+      id: 'google',
+      requirementKey: 'google-service-account',
+      requirementSnapshot: normalizeCredentialRequirement(google([SHEETS, DOCS])),
+      requirementRevision: 'google-revision',
+      active: true,
+    };
+    state.bindings.find.mockResolvedValue([binding]);
+
+    await state.facade.reconcileBindings({
+      consumerType: 'plugin-installation',
+      consumerIds: ['installation-1'],
+      requirements: [google([DOCS, SHEETS])],
+    });
+    expect(state.bindings.update).not.toHaveBeenCalled();
+
+    await state.facade.reconcileBindings({
+      consumerType: 'plugin-installation',
+      consumerIds: ['installation-1'],
+      requirements: [google([DOCS])],
+    });
+    expect(state.bindings.update).toHaveBeenCalledWith(
+      expect.objectContaining({ active: true, requirementRevision: 'google-revision' }),
+      { active: false }
+    );
+  });
+
+  describe('Google scopes at runtime', () => {
+    const DOCS = 'https://www.googleapis.com/auth/documents';
+    const SHEETS = 'https://www.googleapis.com/auth/spreadsheets';
+    const google = (scopes: string[]) => ({ id: 'google-service-account', scopes });
+    const resolveRequest = (scopes: string[]) => ({
+      projectId: 'project-1',
+      userId: 'member-1',
+      roles: ['viewer'],
+      consumerType: 'plugin-installation' as const,
+      consumerId: 'installation-1',
+      requirement: google(scopes),
+    });
+    function googleState(snapshotScopes: string[]) {
+      const state = setup();
+      state.credentials.findOneBy.mockResolvedValue({
+        ...credential,
+        definitionId: 'google-service-account',
+      });
+      state.bindings.findOneBy.mockResolvedValue({
+        credentialId: 'credential-1',
+        requirementKey: 'google-service-account',
+        requirementSnapshot: normalizeCredentialRequirement(google(snapshotScopes)),
+        active: true,
+      });
+      return state;
+    }
+
+    it('refuses a binding whose snapshot predates a scope the release now needs', async () => {
+      const state = googleState([DOCS]);
+
+      await expect(
+        state.facade.resolveBinding(resolveRequest([DOCS, SHEETS]))
+      ).rejects.toBeInstanceOf(NotFoundException);
+      await expect(
+        state.facade.assertConsumerReady({
+          ...resolveRequest([]),
+          requirements: [google([DOCS, SHEETS])],
+        })
+      ).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it('resolves a matching snapshot with the requirement scopes', async () => {
+      const state = googleState([SHEETS, DOCS]);
+
+      const resolved = await state.facade.resolveBinding(resolveRequest([DOCS, SHEETS]));
+
+      expect(resolved.requirement.scopes).toEqual([DOCS, SHEETS]);
+    });
+  });
+
   it('validates all requirements before saving an active project-owned binding', async () => {
     const state = setup();
 

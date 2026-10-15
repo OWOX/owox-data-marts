@@ -1,6 +1,7 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Button } from '@owox/ui/components/button';
 import { ExternalAnchor } from '@owox/ui/components/common/external-anchor';
+import { FieldWithActions } from '@owox/ui/components/common/field-with-actions';
 import {
   AppForm,
   Form,
@@ -14,6 +15,7 @@ import {
   FormMessage,
   FormSection,
 } from '@owox/ui/components/form';
+import { FileDropTextarea } from '@owox/ui/components/file-drop-textarea';
 import { Input } from '@owox/ui/components/input';
 import {
   Select,
@@ -26,6 +28,7 @@ import { Switch } from '@owox/ui/components/switch';
 import { Loader2 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
+import toast from 'react-hot-toast';
 import { z } from 'zod';
 import { ContextPicker } from '../../../contexts/components/ContextPicker/ContextPicker';
 import { OwnersSection } from '../../../../shared/components/OwnersSection/OwnersSection';
@@ -393,30 +396,42 @@ export function CredentialForm({
           {(credential ?? selectedDefinition) && (
             <FormSection title='Authentication' name='credential-authentication'>
               {credential ? (
-                <FormItem>
-                  <div className='flex items-center justify-between gap-4'>
-                    <div className='flex flex-col gap-1'>
-                      <FormLabel>Secret</FormLabel>
-                      <span className='text-muted-foreground text-sm'>Configured</span>
-                      {documentationUrl && (
-                        <ExternalAnchor href={documentationUrl} className='w-fit text-sm'>
-                          How to get this key
-                        </ExternalAnchor>
+                <>
+                  <FormItem>
+                    <div className='flex items-center justify-between gap-4'>
+                      <div className='flex flex-col gap-1'>
+                        <FormLabel>Secret</FormLabel>
+                        <span className='text-muted-foreground text-sm'>Configured</span>
+                        {documentationUrl && (
+                          <ExternalAnchor href={documentationUrl} className='w-fit text-sm'>
+                            How to get this key
+                          </ExternalAnchor>
+                        )}
+                      </div>
+                      {onRequestReplaceSecret && (
+                        <Button
+                          type='button'
+                          variant='outline'
+                          onClick={() => {
+                            onRequestReplaceSecret(credential);
+                          }}
+                        >
+                          Replace secret
+                        </Button>
                       )}
                     </div>
-                    {onRequestReplaceSecret && (
-                      <Button
-                        type='button'
-                        variant='outline'
-                        onClick={() => {
-                          onRequestReplaceSecret(credential);
-                        }}
-                      >
-                        Replace secret
-                      </Button>
-                    )}
-                  </div>
-                </FormItem>
+                  </FormItem>
+                  {credential.publicMetadata && (
+                    <FormItem>
+                      <FormLabel>Service account</FormLabel>
+                      <FieldWithActions
+                        value={credential.publicMetadata.clientEmail}
+                        actions={[{ type: 'copy', tooltip: 'Copy service account email' }]}
+                      />
+                      <FormDescription>Share documents with this address as Editor</FormDescription>
+                    </FormItem>
+                  )}
+                </>
               ) : (
                 <FormField
                   control={form.control}
@@ -425,12 +440,33 @@ export function CredentialForm({
                     <FormItem>
                       <FormLabel>{selectedDefinition?.secretLabel ?? 'Secret'}</FormLabel>
                       <FormControl>
-                        <Input
-                          {...field}
-                          type='password'
-                          autoComplete='new-password'
-                          maxLength={32_768}
-                        />
+                        {selectedDefinition?.auth?.type === 'google-service-account' ? (
+                          <FileDropTextarea
+                            {...field}
+                            className='min-h-[150px] font-mono'
+                            rows={8}
+                            spellCheck={false}
+                            autoComplete='off'
+                            maxLength={32_768}
+                            placeholder='Paste the service account JSON key or drop the file'
+                            onFileRead={content => {
+                              form.setValue('secret', content, {
+                                shouldDirty: true,
+                                shouldValidate: true,
+                              });
+                            }}
+                            onFileReject={message => {
+                              toast.error(message);
+                            }}
+                          />
+                        ) : (
+                          <Input
+                            {...field}
+                            type='password'
+                            autoComplete='new-password'
+                            maxLength={32_768}
+                          />
+                        )}
                       </FormControl>
                       {documentationUrl && (
                         <FormDescription>

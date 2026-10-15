@@ -38,6 +38,7 @@ const binding = (adapter: 'openai' | 'anthropic' = 'openai'): ResolvedCredential
     definitionId: null,
     optional: false,
     models: ['fast', 'reasoning', 'embedding'],
+    scopes: [],
   },
   secret: { value: 'real-secret-that-must-not-leak' },
   definition: {

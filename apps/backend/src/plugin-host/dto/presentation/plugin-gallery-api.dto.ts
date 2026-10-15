@@ -65,7 +65,14 @@ export class PluginGalleryEntryApiDto {
     description: 'Credentials that must be selected before installation.',
   })
   credentialRequirements: Array<
-    string | { id: string; definitionId?: string; optional: boolean; models?: readonly string[] }
+    | string
+    | {
+        id: string;
+        definitionId?: string;
+        optional: boolean;
+        models?: readonly string[];
+        scopes?: readonly string[];
+      }
   >;
 
   @ApiPropertyOptional({

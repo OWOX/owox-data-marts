@@ -3,6 +3,7 @@ import type { CredentialSecret, CredentialValidationResult } from '../credential
 import type { ResolvedCredentialDefinition } from '../dto/credential-api.dto';
 import type { ResolvedCredentialBinding } from '../facades/credential-consumer-binding.facade';
 import { CredentialFetchService } from './credential-fetch.service';
+import { GoogleServiceAccountTokenService } from './google-service-account-token.service';
 
 const PROBE_TIMEOUT_MS = 10_000;
 const PROBE_MAX_RESPONSE_BODY_BYTES = 64 * 1024;
@@ -10,12 +11,18 @@ const DEFAULT_REJECTED_STATUSES = new Set([400, 401, 403]);
 
 @Injectable()
 export class CredentialValidationProbeService {
-  constructor(private readonly credentialFetch: CredentialFetchService) {}
+  constructor(
+    private readonly credentialFetch: CredentialFetchService,
+    private readonly googleTokens: GoogleServiceAccountTokenService
+  ) {}
 
   async run(
     definition: ResolvedCredentialDefinition,
     secret: CredentialSecret
   ): Promise<CredentialValidationResult> {
+    if (definition.contract.auth.type === 'google-service-account') {
+      return this.googleTokens.verify(secret);
+    }
     const validatedAt = new Date();
     const probe = definition.contract.validation;
     if (!probe) {
@@ -33,6 +40,7 @@ export class CredentialValidationProbeService {
         definitionId: definition.contract.id,
         optional: false,
         models: [],
+        scopes: [],
       },
       secret,
       definition: definition.contract,

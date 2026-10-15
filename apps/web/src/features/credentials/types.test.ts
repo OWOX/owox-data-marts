@@ -86,3 +86,16 @@ describe('Credential installation eligibility', () => {
     );
   });
 });
+
+describe('normalizePluginCredentialRequirement scopes', () => {
+  it('sorts and de-duplicates declared scopes and leaves them empty otherwise', () => {
+    expect(
+      normalizePluginCredentialRequirement({
+        id: 'google-service-account',
+        optional: false,
+        scopes: ['https://b', 'https://a', 'https://b'],
+      }).scopes
+    ).toEqual(['https://a', 'https://b']);
+    expect(normalizePluginCredentialRequirement('github').scopes).toEqual([]);
+  });
+});

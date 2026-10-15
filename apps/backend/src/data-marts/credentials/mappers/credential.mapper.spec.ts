@@ -123,4 +123,71 @@ describe('CredentialMapper', () => {
       validatedAt,
     });
   });
+
+  it('exposes the authentication type of a definition but nothing else of it', () => {
+    const dto = mapCredentialDefinitionToApiDto({
+      definitionId: 'google-service-account',
+      source: 'builtin',
+      compatibilityLine: null,
+      contract: {
+        id: 'google-service-account',
+        displayName: 'Google Service Account',
+        description: '',
+        origins: ['https://*.googleapis.com'],
+        auth: { type: 'google-service-account', label: 'Service account key (JSON)' },
+      },
+    });
+
+    expect(dto.auth).toEqual({ type: 'google-service-account' });
+    expect(dto.secretLabel).toBe('Service account key (JSON)');
+  });
+
+  it('returns the public metadata of a key and still no secret', async () => {
+    const mapper = new CredentialMapper({
+      fetchUserProjectionsList: jest.fn().mockResolvedValue([]),
+    } as unknown as UserProjectionsFetcherService);
+    const publicMetadata = {
+      clientEmail: 'docs-writer@acme-docs.iam.gserviceaccount.com',
+      projectId: 'acme-docs',
+      privateKeyId: 'key-1',
+    };
+    const credential = {
+      id: 'credential-1',
+      projectId: 'project-1',
+      title: 'Docs writer',
+      secret: { value: 'stored-key-json' },
+      publicMetadata,
+      enabled: true,
+      availableForUse: true,
+      availableForMaintenance: false,
+      aiModelMappings: null,
+      owners: [],
+      contexts: [],
+      createdAt: new Date('2026-10-15T00:00:00Z'),
+      modifiedAt: new Date('2026-10-15T00:00:00Z'),
+    } as unknown as Credential;
+
+    const response = mapper.toApiResponse(
+      await mapper.toDto(
+        credential,
+        {
+          definitionId: 'google-service-account',
+          source: 'builtin',
+          compatibilityLine: null,
+          contract: {
+            id: 'google-service-account',
+            displayName: 'Google Service Account',
+            description: '',
+            origins: ['https://*.googleapis.com'],
+            auth: { type: 'google-service-account', label: 'Service account key (JSON)' },
+          },
+        },
+        [],
+        null
+      )
+    );
+
+    expect(response.publicMetadata).toEqual(publicMetadata);
+    expect(JSON.stringify(response)).not.toContain('stored-key-json');
+  });
 });

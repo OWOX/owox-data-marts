@@ -6,12 +6,16 @@ import type { AuthorizationContext } from '../../../idp';
 import { IdpProjectionsFacade } from '../../../idp/facades/idp-projections.facade';
 import { ContextService } from '../../services/context/context.service';
 import { syncOwners } from '../../utils/sync-owners';
-import type { CreateCredentialApiDto } from '../dto/credential-api.dto';
+import type {
+  CreateCredentialApiDto,
+  ResolvedCredentialDefinition,
+} from '../dto/credential-api.dto';
 import type { CredentialDto } from '../dto/credential.dto';
 import { CredentialContext } from '../entities/credential-context.entity';
 import { CredentialOwner } from '../entities/credential-owner.entity';
 import { CredentialDefinitionService } from '../services/credential-definition.service';
 import { CredentialService } from '../services/credential.service';
+import { parseGoogleServiceAccountKey } from '../services/google-service-account-key';
 import { CredentialViewService } from '../services/credential-view.service';
 import { CredentialValidationProbeService } from '../services/credential-validation-probe.service';
 import {
@@ -20,6 +24,8 @@ import {
   type CredentialAiModelMappingModes,
   type CredentialAiModelMappings,
   type CredentialDefinitionContract,
+  type CredentialPublicMetadata,
+  type CredentialValidationResult,
 } from '../credential.types';
 
 @Injectable()
@@ -37,7 +43,6 @@ export class CreateCredentialService {
     private readonly credentialContexts: Repository<CredentialContext>
   ) {}
 
-  @Transactional()
   async run(context: AuthorizationContext, input: CreateCredentialApiDto): Promise<CredentialDto> {
     const definition = await this.definitions.get(input.definitionId);
     const aiConfiguration = normalizeAiConfiguration(
@@ -45,11 +50,27 @@ export class CreateCredentialService {
       input.aiModelMappingModes,
       definition.contract.ai
     );
+    const publicMetadata =
+      definition.contract.auth.type === 'google-service-account'
+        ? parseGoogleServiceAccountKey(input.secret.value).metadata
+        : null;
+    // Outside the transaction: the provider check can take seconds and must not hold a connection.
     const validation = await this.validationProbe.run(definition, { value: input.secret.value });
     if (validation.state === 'rejected') {
       throw new BadRequestException(validation.message);
     }
+    return this.persist(context, input, definition, aiConfiguration, publicMetadata, validation);
+  }
 
+  @Transactional()
+  private async persist(
+    context: AuthorizationContext,
+    input: CreateCredentialApiDto,
+    definition: ResolvedCredentialDefinition,
+    aiConfiguration: ReturnType<typeof normalizeAiConfiguration>,
+    publicMetadata: CredentialPublicMetadata | null,
+    validation: CredentialValidationResult
+  ): Promise<CredentialDto> {
     const credential = await this.credentials.save(
       this.credentials.create({
         projectId: context.projectId,
@@ -67,6 +88,7 @@ export class CreateCredentialService {
         validationState: validation.state,
         validationMessage: validation.message,
         validatedAt: validation.validatedAt,
+        publicMetadata,
         createdById: context.userId,
       })
     );

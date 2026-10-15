@@ -229,8 +229,9 @@ plugin itself:
 }
 ```
 
-`github`, `openai`, `anthropic`, `gemini`, and `openrouter` are built-in exact definitions. An
-object may set `optional: true`; otherwise installation requires an explicit Credential selection.
+`github`, `openai`, `anthropic`, `gemini`, `openrouter`, and `google-service-account` are built-in
+exact definitions. An object may set `optional: true`; otherwise installation requires an explicit
+Credential selection.
 The logical `ai` requirement may declare one or more unique capabilities from `fast`, `reasoning`,
 and `embedding`. It can be satisfied by any selected Credential whose definition implements the AI
 contract and provides the requested mappings; the logical requirement does not select a provider.
@@ -273,6 +274,49 @@ the logical capability, not the provider secret. The common `"ai"` requirement d
 Additional named models are available only when declared. Logical AI never exposes `asFetch()`;
 declare an exact provider if the plugin needs provider-specific APIs. Optional or unusable handles
 are absent from the context, so check a handle before using it.
+
+#### Call Google APIs with a service account
+
+A `google-service-account` requirement must declare the OAuth scopes the plugin needs:
+
+```json
+{
+  "credentials": [
+    {
+      "id": "google-service-account",
+      "scopes": ["https://www.googleapis.com/auth/documents"]
+    }
+  ]
+}
+```
+
+OWOX mints an access token for exactly these scopes and adds it to requests to
+`https://*.googleapis.com`. A release that changes the scopes asks members to configure the
+Credential again. Use `@googleapis/docs` and `@googleapis/sheets` rather than the full
+`googleapis` package, and give the client the handle's fetch with no `auth`:
+
+```ts
+import { docs_v1 } from '@googleapis/docs';
+import { exactCredential } from '@owox/plugin-sdk/server';
+
+const google = exactCredential(ctx.credentials, 'google-service-account');
+if (!google) throw new Error('Google access is not configured');
+
+const docs = new docs_v1.Docs({ fetchImplementation: google.asFetch() });
+await docs.documents.batchUpdate({
+  documentId,
+  requestBody: { requests: [{ insertText: { location: { index: 1 }, text: 'Hello' } }] },
+});
+```
+
+A request body is capped at 1 MiB and a response at 5 MiB, so read a long document in parts. The
+Docs API allows 60 write requests per minute per project for one service account.
+
+When Google refuses the stored key, the request fails with `CREDENTIAL_REJECTED` (403) and the
+Credential is marked as rejected until a member replaces the key or checks it again; the
+Credentials page's Validation filter lists such Credentials. When Google issues no access token for
+the declared scopes, the request fails with `CREDENTIAL_SCOPE_INVALID` (400); fix the scopes in
+`plugin.json`.
 
 ## Read Data Mart data
 

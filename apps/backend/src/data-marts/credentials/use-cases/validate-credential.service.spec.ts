@@ -2,25 +2,25 @@ import type { AuthorizationContext } from '../../../idp';
 import { ValidateCredentialService } from './validate-credential.service';
 
 describe('ValidateCredentialService', () => {
-  it('persists the probe result before rebuilding the Credential view', async () => {
-    const credential = {
-      id: 'credential-1',
-      projectId: 'project-1',
-      secret: { value: 'provider-secret' },
-      validationState: 'unknown',
-      validationMessage: null,
-      validatedAt: null,
-    };
-    const validation = {
-      state: 'verified',
-      message: 'accepted',
-      validatedAt: new Date('2026-09-01T12:00:00.000Z'),
-    } as const;
+  const validation = {
+    state: 'verified',
+    message: 'accepted',
+    validatedAt: new Date('2026-09-01T12:00:00.000Z'),
+  } as const;
+  const context = {
+    projectId: 'project-1',
+    userId: 'member-1',
+    roles: ['editor'],
+  } as AuthorizationContext;
+
+  function setup(fresh: unknown) {
+    const checked = { id: 'credential-1', secret: { value: 'provider-secret' }, enabled: true };
     const credentials = {
-      getByIdAndProjectId: jest.fn().mockResolvedValue(credential),
-      save: jest.fn().mockResolvedValue(credential),
+      getByIdAndProjectId: jest.fn().mockResolvedValueOnce(checked).mockResolvedValue(fresh),
+      writeValidation: jest.fn().mockResolvedValue(undefined),
+      save: jest.fn(),
     };
-    const view = { build: jest.fn().mockResolvedValue({ id: credential.id }) };
+    const view = { build: jest.fn().mockResolvedValue({ id: 'credential-1' }) };
     const service = new ValidateCredentialService(
       credentials as never,
       { getForCredential: jest.fn().mockResolvedValue({}) } as never,
@@ -28,20 +28,22 @@ describe('ValidateCredentialService', () => {
       view as never,
       { run: jest.fn().mockResolvedValue(validation) } as never
     );
+    return { service, credentials, view, checked };
+  }
 
-    await service.run('credential-1', {
-      projectId: 'project-1',
-      userId: 'member-1',
-      roles: ['editor'],
-    } as AuthorizationContext);
+  it('writes only the validation columns for the checked key and views a fresh read', async () => {
+    const fresh = { id: 'credential-1', secret: { value: 'provider-secret' }, enabled: false };
+    const { service, credentials, view, checked } = setup(fresh);
 
-    expect(credentials.save).toHaveBeenCalledWith(
-      expect.objectContaining({
-        validationState: 'verified',
-        validationMessage: 'accepted',
-        validatedAt: validation.validatedAt,
-      })
+    await service.run('credential-1', context);
+
+    expect(credentials.writeValidation).toHaveBeenCalledWith(
+      'credential-1',
+      checked.secret,
+      validation
     );
-    expect(view.build).toHaveBeenCalledWith(credential);
+    expect(credentials.save).not.toHaveBeenCalled();
+    expect(view.build).toHaveBeenCalledWith(fresh);
+    expect(checked.enabled).toBe(true);
   });
 });

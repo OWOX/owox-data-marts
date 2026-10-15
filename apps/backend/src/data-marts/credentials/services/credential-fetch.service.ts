@@ -4,6 +4,7 @@ import {
   ForbiddenException,
   HttpException,
   Injectable,
+  Logger,
 } from '@nestjs/common';
 import { assertPublicHttpUrl } from '../../../common/helpers/safe-url.helper';
 import { withGuardedDispatcher } from '../../../common/helpers/guarded-dispatcher';
@@ -12,7 +13,13 @@ import type {
   CredentialFetchRequestApiDto,
   CredentialFetchResponseApiDto,
 } from '../dto/credential-fetch-api.dto';
+import type { CredentialDefinitionContract } from '../credential.types';
 import type { ResolvedCredentialBinding } from '../facades/credential-consumer-binding.facade';
+import { CredentialService } from './credential.service';
+import {
+  GoogleServiceAccountTokenService,
+  GoogleTokenError,
+} from './google-service-account-token.service';
 
 const MAX_REQUEST_BODY_BYTES = 1024 * 1024;
 const MAX_RESPONSE_BODY_BYTES = 5 * 1024 * 1024;
@@ -50,6 +57,13 @@ export interface CredentialFetchLimits {
 
 @Injectable()
 export class CredentialFetchService {
+  private readonly logger = new Logger(CredentialFetchService.name);
+
+  constructor(
+    private readonly googleTokens: GoogleServiceAccountTokenService,
+    private readonly credentials: CredentialService
+  ) {}
+
   async run(
     binding: ResolvedCredentialBinding,
     input: CredentialFetchRequestApiDto,
@@ -79,28 +93,58 @@ export class CredentialFetchService {
     input: CredentialFetchRequestApiDto,
     limits: CredentialFetchLimits = {}
   ): Promise<Response> {
-    let currentUrl = await this.assertAllowedUrl(input.url, binding.definition.origins);
-    let currentMethod = input.method.toUpperCase();
+    const url = await this.assertAllowedUrl(input.url, binding.definition);
+    const method = input.method.toUpperCase();
     if (
-      currentMethod.length === 0 ||
-      currentMethod.length > 32 ||
-      !HTTP_TOKEN_PATTERN.test(currentMethod) ||
-      FORBIDDEN_FETCH_METHODS.has(currentMethod)
+      method.length === 0 ||
+      method.length > 32 ||
+      !HTTP_TOKEN_PATTERN.test(method) ||
+      FORBIDDEN_FETCH_METHODS.has(method)
     ) {
       throw new BadRequestException('Credential request method is not Fetch-compatible');
     }
-    let body = decodeBody(input.bodyBase64);
+    const body = decodeBody(input.bodyBase64);
     if (body.byteLength > MAX_REQUEST_BODY_BYTES) {
       throw new BadRequestException('Credential request body is too large');
     }
-    if ((currentMethod === 'GET' || currentMethod === 'HEAD') && body.byteLength > 0) {
-      throw new BadRequestException(`${currentMethod} requests cannot carry a body`);
+    if ((method === 'GET' || method === 'HEAD') && body.byteLength > 0) {
+      throw new BadRequestException(`${method} requests cannot carry a body`);
     }
 
     const timeoutSignal = AbortSignal.timeout(limits.timeoutMs ?? TIMEOUT_MS);
     const signal = limits.signal ? AbortSignal.any([timeoutSignal, limits.signal]) : timeoutSignal;
+    let googleToken: string | undefined;
+    const send = async () => {
+      const { header, token } = await this.authorization(binding, signal);
+      googleToken = token;
+      return this.send(binding, input.headers, url, method, body, header, signal, limits);
+    };
+
+    const response = await send();
+    if (binding.definition.auth.type !== 'google-service-account' || response.status !== 401) {
+      return response;
+    }
+    // Google can revoke a token before it expires; the cached client would keep sending it.
+    void response.body?.cancel().catch(() => undefined);
+    if (googleToken) this.googleTokens.drop(googleTokenRequest(binding), googleToken);
+    return send();
+  }
+
+  private async send(
+    binding: ResolvedCredentialBinding,
+    supplied: Readonly<Record<string, string>> | undefined,
+    startUrl: string,
+    startMethod: string,
+    startBody: Buffer,
+    authorization: readonly [string, string],
+    signal: AbortSignal,
+    limits: CredentialFetchLimits
+  ): Promise<Response> {
+    let currentUrl = startUrl;
+    let currentMethod = startMethod;
+    let body = startBody;
     for (let hop = 0; hop <= MAX_REDIRECTS; hop += 1) {
-      const headers = this.buildRequestHeaders(binding, input.headers);
+      const headers = this.buildRequestHeaders(supplied, authorization);
       let response: Response;
       try {
         response = await fetch(
@@ -131,7 +175,7 @@ export class CredentialFetchService {
         }
         currentUrl = await this.assertAllowedUrl(
           new URL(location, currentUrl).toString(),
-          binding.definition.origins
+          binding.definition
         );
         if (
           response.status === 303 ||
@@ -149,26 +193,74 @@ export class CredentialFetchService {
     throw new ForbiddenException('Credential request exceeded the redirect limit');
   }
 
-  private async assertAllowedUrl(rawUrl: string, origins: readonly string[]): Promise<string> {
+  private async authorization(
+    binding: ResolvedCredentialBinding,
+    signal: AbortSignal
+  ): Promise<{ readonly header: readonly [string, string]; readonly token?: string }> {
+    const { auth } = binding.definition;
+    if (auth.type === 'header') {
+      return { header: [auth.headerName, `${auth.prefix ?? ''}${binding.secret.value}`] };
+    }
+    if (binding.requirement.scopes.length === 0) {
+      throw new BadRequestException({
+        code: 'CREDENTIAL_SCOPE_INVALID',
+        message: 'Google issued no access token for the scopes this plugin declares',
+      });
+    }
+    try {
+      const token = await this.googleTokens.getAccessToken({
+        ...googleTokenRequest(binding),
+        signal,
+      });
+      return { header: ['authorization', `Bearer ${token}`], token };
+    } catch (error) {
+      if (!(error instanceof GoogleTokenError)) throw error;
+      if (error.failure === 'rejected') {
+        // Informational state: a failed write must not replace the refusal the plugin gets.
+        await this.credentials
+          .markRejected(binding.credentialId, binding.secret, error.message)
+          .catch(() =>
+            this.logger.warn(
+              `Could not record the rejected key of Credential ${binding.credentialId}`
+            )
+          );
+        throw new ForbiddenException({
+          code: 'CREDENTIAL_REJECTED',
+          message: `Google rejected the service account key: ${error.message}`,
+        });
+      }
+      if (error.failure === 'scope') {
+        throw new BadRequestException({
+          code: 'CREDENTIAL_SCOPE_INVALID',
+          message: 'Google issued no access token for the scopes this plugin declares',
+        });
+      }
+      throw new BadGatewayException('Credential request could not be completed');
+    }
+  }
+
+  private async assertAllowedUrl(
+    rawUrl: string,
+    definition: CredentialDefinitionContract
+  ): Promise<string> {
     let url: URL;
     try {
       url = await assertPublicHttpUrl(rawUrl, { allowedProtocols: ['https:'] });
     } catch {
       throw new ForbiddenException('Credential request URL is not allowed');
     }
-    const allowedOrigins = new Set(origins.map(origin => new URL(origin).origin));
-    if (!allowedOrigins.has(url.origin)) {
+    if (!definition.origins.some(origin => originAllows(origin, url, definition.auth.type))) {
       throw new ForbiddenException('Credential request origin is not declared by the definition');
     }
     return url.toString();
   }
 
   private buildRequestHeaders(
-    binding: ResolvedCredentialBinding,
-    supplied: Readonly<Record<string, string>> | undefined
+    supplied: Readonly<Record<string, string>> | undefined,
+    [authName, authValue]: readonly [string, string]
   ): Headers {
     const headers = new Headers();
-    const secretHeader = binding.definition.auth.headerName.toLowerCase();
+    const secretHeader = authName.toLowerCase();
     const entries = Object.entries(supplied ?? {});
     if (entries.length > 100) {
       throw new BadRequestException('Credential request contains too many headers');
@@ -188,18 +280,41 @@ export class CredentialFetchService {
       }
       headers.set(name, value);
     }
-    headers.set(
-      binding.definition.auth.headerName,
-      `${binding.definition.auth.prefix ?? ''}${binding.secret.value}`
-    );
+    headers.set(authName, authValue);
     return headers;
   }
+}
+
+function googleTokenRequest(binding: ResolvedCredentialBinding) {
+  return {
+    credentialId: binding.credentialId,
+    secret: binding.secret,
+    scopes: binding.requirement.scopes,
+  };
+}
+
+/** `https://*.<domain>` is a host-suffix wildcard only for Google Service Account; otherwise a literal origin. */
+function originAllows(
+  origin: string,
+  url: URL,
+  authType: CredentialDefinitionContract['auth']['type']
+): boolean {
+  const declared = new URL(origin);
+  if (authType === 'google-service-account' && declared.hostname.startsWith('*.')) {
+    // slice(1) keeps the leading dot, so neither the bare domain nor evilgoogleapis.com matches.
+    return (
+      url.protocol === 'https:' &&
+      url.port === '' &&
+      url.hostname.endsWith(declared.hostname.slice(1))
+    );
+  }
+  return declared.origin === url.origin;
 }
 
 function boundResponseBody(response: Response, maxBytes: number): Response {
   const declaredLength = Number(response.headers.get('content-length'));
   if (Number.isFinite(declaredLength) && declaredLength > maxBytes) {
-    void response.body?.cancel();
+    void response.body?.cancel().catch(() => undefined);
     throw new BadRequestException('Credential response body is too large');
   }
   if (!response.body) return response;

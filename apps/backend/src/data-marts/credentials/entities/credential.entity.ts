@@ -12,6 +12,7 @@ import type {
   CredentialAiModelMappingModes,
   CredentialAiModelMappingSources,
   CredentialDefinitionSource,
+  CredentialPublicMetadata,
   CredentialSecret,
   CredentialValidationState,
 } from '../credential.types';
@@ -43,6 +44,10 @@ export class Credential {
   /** Write-only at the API boundary. Kept in the main DB like Destination credentials. */
   @Column({ type: 'json' })
   secret: CredentialSecret;
+
+  /** Read from the key on save; null for header Credentials. */
+  @Column({ type: 'json', nullable: true })
+  publicMetadata: CredentialPublicMetadata | null;
 
   @Column({ type: 'json', nullable: true })
   aiModelMappings: CredentialAiModelMappings | null;

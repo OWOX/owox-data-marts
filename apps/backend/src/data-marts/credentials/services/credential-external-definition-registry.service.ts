@@ -263,7 +263,8 @@ function isCompatibleWithinLine(
   return (
     previous.id === next.id &&
     sameSet(previous.origins, next.origins) &&
-    previous.auth.type === next.auth.type &&
+    previous.auth.type === 'header' &&
+    next.auth.type === 'header' &&
     previous.auth.headerName.toLowerCase() === next.auth.headerName.toLowerCase() &&
     (previous.auth.prefix ?? '') === (next.auth.prefix ?? '') &&
     (!previous.ai || Boolean(next.ai)) &&

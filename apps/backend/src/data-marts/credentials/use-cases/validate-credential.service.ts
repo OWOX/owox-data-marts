@@ -34,10 +34,8 @@ export class ValidateCredentialService {
 
     const definition = await this.definitions.getForCredential(credential);
     const validation = await this.validationProbe.run(definition, credential.secret);
-    credential.validationState = validation.state;
-    credential.validationMessage = validation.message;
-    credential.validatedAt = validation.validatedAt;
-    await this.credentials.save(credential);
-    return this.view.build(credential);
+    // Column-only and key-checked: a disable or key replacement during the probe must survive.
+    await this.credentials.writeValidation(id, credential.secret, validation);
+    return this.view.build(await this.credentials.getByIdAndProjectId(id, context.projectId));
   }
 }

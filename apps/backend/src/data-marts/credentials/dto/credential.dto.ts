@@ -3,6 +3,7 @@ import type { ContextSummary } from '../../utils/extract-context-summaries';
 import type {
   CredentialAiModelMappingModes,
   CredentialAiModelMappings,
+  CredentialPublicMetadata,
   CredentialValidationState,
 } from '../credential.types';
 import type {
@@ -25,6 +26,7 @@ export interface CredentialDto {
   readonly lastUsedAt: Date | null;
   readonly aiModelMappings: CredentialAiModelMappings | null;
   readonly aiModelMappingModes: CredentialAiModelMappingModes | null;
+  readonly publicMetadata: CredentialPublicMetadata | null;
   readonly ownerUsers: UserProjectionDto[];
   readonly contexts: ContextSummary[];
   readonly usedBy: CredentialConsumerReferenceApiDto[];

@@ -326,12 +326,17 @@ function sameRequirement(
   left: NormalizedCredentialRequirement,
   right: NormalizedCredentialRequirement
 ): boolean {
+  // Snapshots saved before scopes existed have no scopes key.
+  const leftScopes = left.scopes ?? [];
+  const rightScopes = right.scopes ?? [];
   return (
     left.key === right.key &&
     left.definitionId === right.definitionId &&
     left.optional === right.optional &&
     left.models.length === right.models.length &&
-    left.models.every((model, index) => model === right.models[index])
+    left.models.every((model, index) => model === right.models[index]) &&
+    leftScopes.length === rightScopes.length &&
+    leftScopes.every((scope, index) => scope === rightScopes[index])
   );
 }
 
@@ -343,6 +348,8 @@ function requirementRevision(requirement: NormalizedCredentialRequirement): stri
         definitionId: requirement.definitionId,
         optional: requirement.optional,
         models: requirement.models,
+        // Added only when present, so every revision saved before scopes existed stays the same.
+        ...(requirement.scopes?.length ? { scopes: requirement.scopes } : {}),
       })
     )
     .digest('hex');

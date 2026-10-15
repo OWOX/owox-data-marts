@@ -1,5 +1,13 @@
+jest.mock('typeorm-transactional', () => ({
+  Transactional: () => (_target: unknown, _key: string, descriptor: PropertyDescriptor) =>
+    descriptor,
+}));
+jest.mock('../../utils/sync-owners', () => ({ syncOwners: jest.fn() }));
+
 import { BadRequestException } from '@nestjs/common';
-import { normalizeAiConfiguration } from './create-credential.service';
+import type { AuthorizationContext } from '../../../idp';
+import { serviceAccountKey } from '../../../../test/fixtures/google-service-account-key';
+import { CreateCredentialService, normalizeAiConfiguration } from './create-credential.service';
 
 describe('normalizeAiConfiguration', () => {
   const ai = {
@@ -113,5 +121,96 @@ describe('normalizeAiConfiguration', () => {
       modes: { fast: 'override', reasoning: 'override' },
       sources: { fast: 'catalog', reasoning: 'manual' },
     });
+  });
+});
+
+const context = {
+  projectId: 'project-1',
+  userId: 'member-1',
+  roles: ['editor'],
+} as AuthorizationContext;
+
+const googleDefinition = {
+  definitionId: 'google-service-account',
+  source: 'builtin',
+  compatibilityLine: null,
+  contract: {
+    id: 'google-service-account',
+    displayName: 'Google Service Account',
+    description: '',
+    origins: ['https://*.googleapis.com'],
+    auth: { type: 'google-service-account', label: 'Service account key (JSON)' },
+  },
+};
+
+function setupCreate(state = 'verified', message = 'Google issued a token for this key') {
+  const credentials = {
+    create: jest.fn((value: object) => ({ id: 'credential-1', ...value })),
+    save: jest.fn((value: object) => Promise.resolve(value)),
+    getByIdAndProjectId: jest.fn().mockResolvedValue({ id: 'credential-1' }),
+  };
+  const validationProbe = {
+    run: jest.fn().mockResolvedValue({ state, message, validatedAt: new Date() }),
+  };
+  const service = new CreateCredentialService(
+    credentials as never,
+    { get: jest.fn().mockResolvedValue(googleDefinition) } as never,
+    { build: jest.fn().mockResolvedValue({ id: 'credential-1' }) } as never,
+    validationProbe as never,
+    { validateContextIds: jest.fn() } as never,
+    {} as never,
+    { create: jest.fn() } as never,
+    { create: jest.fn(), save: jest.fn() } as never
+  );
+  const persist = jest.spyOn(
+    service as unknown as { persist: (...args: unknown[]) => Promise<unknown> },
+    'persist'
+  );
+  return { service, credentials, validationProbe, persist };
+}
+
+describe('CreateCredentialService with a Google service account key', () => {
+  const input = (value: string) => ({
+    title: 'Docs writer',
+    definitionId: 'google-service-account',
+    secret: { value },
+  });
+
+  it('asks Google before the write transaction and saves the public metadata', async () => {
+    const state = setupCreate();
+
+    await state.service.run(context, input(serviceAccountKey()));
+
+    expect(state.validationProbe.run.mock.invocationCallOrder[0]).toBeLessThan(
+      state.persist.mock.invocationCallOrder[0]
+    );
+    expect(state.credentials.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        publicMetadata: {
+          clientEmail: 'docs-writer@acme-docs.iam.gserviceaccount.com',
+          projectId: 'acme-docs',
+          privateKeyId: 'key-1',
+        },
+      })
+    );
+  });
+
+  it('saves nothing when Google rejects the key', async () => {
+    const state = setupCreate('rejected', 'invalid_grant: Invalid JWT Signature.');
+
+    await expect(state.service.run(context, input(serviceAccountKey()))).rejects.toThrow(
+      new BadRequestException('invalid_grant: Invalid JWT Signature.')
+    );
+    expect(state.persist).not.toHaveBeenCalled();
+    expect(state.credentials.save).not.toHaveBeenCalled();
+  });
+
+  it('refuses a value that is not a key before asking Google', async () => {
+    const state = setupCreate();
+
+    await expect(state.service.run(context, input('{"type":'))).rejects.toThrow(
+      new BadRequestException('The key is not valid JSON')
+    );
+    expect(state.validationProbe.run).not.toHaveBeenCalled();
   });
 });

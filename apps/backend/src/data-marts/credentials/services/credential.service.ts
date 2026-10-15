@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { IsNull, Not, Repository } from 'typeorm';
 import { CredentialConsumerBinding } from '../entities/credential-consumer-binding.entity';
+import type { CredentialSecret, CredentialValidationResult } from '../credential.types';
 import { Credential } from '../entities/credential.entity';
 
 @Injectable()
@@ -86,6 +87,44 @@ export class CredentialService {
 
   async softDelete(id: string, projectId: string): Promise<void> {
     await this.credentials.softDelete({ id, projectId });
+  }
+
+  /** Writes a validation result only if the stored key is still the one that was checked. */
+  async writeValidation(
+    id: string,
+    checkedSecret: CredentialSecret,
+    result: CredentialValidationResult
+  ): Promise<void> {
+    if (!(await this.storedState(id, checkedSecret))) return;
+    await this.credentials.update(
+      { id },
+      {
+        validationState: result.state,
+        validationMessage: result.message.slice(0, 2000),
+        validatedAt: result.validatedAt,
+      }
+    );
+  }
+
+  /** Records that the provider refused the stored secret, once per refused key and message. */
+  async markRejected(id: string, rejectedSecret: CredentialSecret, message: string): Promise<void> {
+    const stored = await this.storedState(id, rejectedSecret);
+    const cut = message.slice(0, 2000);
+    if (!stored || (stored.validationState === 'rejected' && stored.validationMessage === cut)) {
+      return;
+    }
+    await this.credentials.update(
+      { id },
+      { validationState: 'rejected', validationMessage: cut, validatedAt: new Date() }
+    );
+  }
+
+  private async storedState(id: string, secret: CredentialSecret): Promise<Credential | null> {
+    const stored = await this.credentials.findOne({
+      where: { id },
+      select: { id: true, secret: true, validationState: true, validationMessage: true },
+    });
+    return stored?.secret.value === secret.value ? stored : null;
   }
 
   /** Best-effort and throttled: runtime success must never depend on usage telemetry. */

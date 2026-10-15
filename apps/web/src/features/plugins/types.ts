@@ -50,7 +50,13 @@ export interface PluginGalleryEntry {
   /** Immutable requirements declared by the current plugin version. */
   credentialRequirements?: (
     | string
-    | { id: string; definitionId?: string; optional: boolean; models?: readonly string[] }
+    | {
+        id: string;
+        definitionId?: string;
+        optional: boolean;
+        models?: readonly string[];
+        scopes?: readonly string[];
+      }
   )[];
   /** Origin of the server the current version runs backend actions on; absent without one. */
   backendOrigin?: string;

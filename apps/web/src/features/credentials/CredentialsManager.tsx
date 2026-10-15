@@ -8,6 +8,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@owox/ui/components/dialog';
+import { FileDropTextarea } from '@owox/ui/components/file-drop-textarea';
 import { Input } from '@owox/ui/components/input';
 import { Label } from '@owox/ui/components/label';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
@@ -224,15 +225,34 @@ function ReplaceSecretDialog({
           <CredentialUsedByList credential={credential} />
         )}
         <Field label='New secret'>
-          <Input
-            type='password'
-            autoComplete='new-password'
-            value={secret}
-            onChange={event => {
-              setSecret(event.target.value);
-            }}
-            maxLength={32_768}
-          />
+          {credential?.definition.auth?.type === 'google-service-account' ? (
+            <FileDropTextarea
+              className='min-h-[150px] font-mono'
+              rows={8}
+              spellCheck={false}
+              autoComplete='off'
+              maxLength={32_768}
+              value={secret}
+              placeholder='Paste the service account JSON key or drop the file'
+              onChange={event => {
+                setSecret(event.target.value);
+              }}
+              onFileRead={setSecret}
+              onFileReject={message => {
+                toast.error(message);
+              }}
+            />
+          ) : (
+            <Input
+              type='password'
+              autoComplete='new-password'
+              value={secret}
+              onChange={event => {
+                setSecret(event.target.value);
+              }}
+              maxLength={32_768}
+            />
+          )}
           {documentationUrl && (
             <ExternalAnchor href={documentationUrl} className='w-fit text-sm'>
               How to get this key

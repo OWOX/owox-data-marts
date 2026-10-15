@@ -23,9 +23,38 @@ const definition: ResolvedCredentialDefinition = {
 
 describe('CredentialValidationProbeService', () => {
   const fetch = { run: jest.fn() } as unknown as CredentialFetchService;
-  const service = new CredentialValidationProbeService(fetch);
+  const googleTokens = { verify: jest.fn() };
+  const service = new CredentialValidationProbeService(fetch, googleTokens as never);
 
   beforeEach(() => jest.clearAllMocks());
+
+  it('asks Google for a token instead of running a fetch probe for a service account key', async () => {
+    googleTokens.verify.mockResolvedValue({
+      state: 'verified',
+      message: 'Google issued a token for this key',
+      validatedAt: new Date(),
+    });
+
+    await expect(
+      service.run(
+        {
+          definitionId: 'google-service-account',
+          source: 'builtin',
+          compatibilityLine: null,
+          contract: {
+            id: 'google-service-account',
+            displayName: 'Google Service Account',
+            description: '',
+            origins: ['https://*.googleapis.com'],
+            auth: { type: 'google-service-account', label: 'Service account key (JSON)' },
+          },
+        },
+        { value: 'key-json' }
+      )
+    ).resolves.toMatchObject({ state: 'verified' });
+    expect(googleTokens.verify).toHaveBeenCalledWith({ value: 'key-json' });
+    expect(fetch.run).not.toHaveBeenCalled();
+  });
 
   it('returns verified for an accepted fixed probe without exposing the secret', async () => {
     jest.mocked(fetch.run).mockResolvedValue({ status: 200, headers: {}, bodyBase64: '' });

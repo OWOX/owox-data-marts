@@ -22,6 +22,15 @@ export interface CredentialDefinition {
     recommended?: Partial<Record<'fast' | 'reasoning' | 'embedding', string>>;
   } | null;
   compatibilityLine: string | null;
+  /** Optional while a newer web build can still talk to an older backend during rollout. */
+  auth?: { type: 'header' | 'google-service-account' };
+}
+
+/** Non-secret facts from a stored Google service account key. */
+export interface CredentialPublicMetadata {
+  clientEmail: string;
+  projectId: string;
+  privateKeyId: string;
 }
 
 export interface CredentialConsumerReference {
@@ -50,6 +59,8 @@ export interface Credential {
   ownerUsers: UserProjectionDto[];
   contexts: { id: string; name: string }[];
   usedBy: CredentialConsumerReference[];
+  /** Optional for the same rolling-deploy reason as CredentialDefinition.auth. */
+  publicMetadata?: CredentialPublicMetadata | null;
   createdAt: string;
   modifiedAt: string;
 }
@@ -80,13 +91,20 @@ export interface UpdateCredentialRequest {
 
 export type PluginCredentialRequirement =
   | string
-  | { id: string; definitionId?: string; optional: boolean; models?: readonly string[] };
+  | {
+      id: string;
+      definitionId?: string;
+      optional: boolean;
+      models?: readonly string[];
+      scopes?: readonly string[];
+    };
 
 export interface NormalizedPluginCredentialRequirement {
   key: string;
   definitionId: string | null;
   optional: boolean;
   models: string[];
+  scopes: string[];
 }
 
 export function normalizePluginCredentialRequirement(
@@ -94,9 +112,9 @@ export function normalizePluginCredentialRequirement(
 ): NormalizedPluginCredentialRequirement {
   if (typeof requirement === 'string') {
     if (requirement === 'ai') {
-      return { key: 'ai', definitionId: null, optional: false, models: ['fast'] };
+      return { key: 'ai', definitionId: null, optional: false, models: ['fast'], scopes: [] };
     }
-    return { key: requirement, definitionId: requirement, optional: false, models: [] };
+    return { key: requirement, definitionId: requirement, optional: false, models: [], scopes: [] };
   }
   return {
     key: requirement.id,
@@ -105,6 +123,7 @@ export function normalizePluginCredentialRequirement(
     models: [
       ...(requirement.id === 'ai' ? (requirement.models ?? ['fast']) : (requirement.models ?? [])),
     ].sort(),
+    scopes: [...new Set(requirement.scopes ?? [])].sort(),
   };
 }
 

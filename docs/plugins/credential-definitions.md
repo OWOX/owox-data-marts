@@ -50,6 +50,20 @@ to the write-only secret field. It must be a parseable absolute HTTPS URL withou
 or password. OWOX normalizes and exposes this metadata to the management UI, but the backend never
 fetches the documentation URL.
 
+## Built-in Google Service Account
+
+The built-in `google-service-account` definition stores a Google Cloud service account JSON key.
+OWOX Data Marts signs a token request with the key, exchanges it at
+`https://oauth2.googleapis.com/token`, and adds the access token to each proxied request. A plugin
+never receives the key or the token.
+
+Its origin is `https://*.googleapis.com`: any HTTPS host under `googleapis.com` on the default
+port, such as `docs.googleapis.com` or `sheets.googleapis.com`, but not `googleapis.com` itself.
+A requirement must declare the OAuth scopes it needs; see
+[Use project Credentials](authoring-guide.md#use-project-credentials). An external definition
+cannot use this authentication type, and a wildcard origin in an external definition matches no
+host.
+
 ## Optional AI contract
 
 An AI-capable definition selects one trusted Host adapter and supplies model metadata:

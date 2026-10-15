@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createBackend, type BackendActionHandler } from './index.js';
+import { createBackend, exactCredential, type BackendActionHandler } from './index.js';
 
 const HOST = 'https://app.owox.test';
 const TOKEN = 'execution-token';
@@ -133,6 +133,47 @@ describe('createBackend', () => {
     const [url, init] = fetchMock.mock.calls[1]!;
     expect(String(url)).toBe('https://app.owox.test/api/data-marts');
     expect(new Headers(init?.headers).get('x-owox-execution-token')).toBe(TOKEN);
+  });
+
+  it('sends a gaxios-style asFetch call to OWOX as plain JSON without authorization', async () => {
+    fetchMock
+      .mockResolvedValueOnce(
+        jsonResponse(200, context({ credentialHandles: [{ name: 'google', kind: 'exact' }] }))
+      )
+      .mockResolvedValueOnce(
+        jsonResponse(200, { status: 200, headers: {}, bodyBase64: btoa('{}') })
+      );
+
+    await backend({
+      count: async (_input, ctx) => {
+        const google = exactCredential(ctx.credentials, 'google');
+        // gaxios passes a URL and its own config keys in init.
+        const response = await google!.asFetch()(
+          new URL('https://docs.googleapis.com/v1/documents/d1:batchUpdate'),
+          {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: '{"requests":[]}',
+            responseType: 'json',
+            retry: true,
+            retryConfig: { retry: 3 },
+          } as RequestInit
+        );
+        return response.status;
+      },
+    }).fetch(actionRequest());
+
+    const [url, init] = fetchMock.mock.calls[1]!;
+    expect(String(url)).toBe('https://app.owox.test/api/plugins/runtime/credentials/google/fetch');
+    const sent = JSON.parse(String(init?.body)) as Record<string, unknown>;
+    expect(Object.keys(sent).sort()).toEqual(['bodyBase64', 'headers', 'method', 'url']);
+    expect(sent).toMatchObject({
+      url: 'https://docs.googleapis.com/v1/documents/d1:batchUpdate',
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+    });
+    expect(sent.headers).not.toHaveProperty('authorization');
+    expect(atob(String(sent.bodyBase64))).toBe('{"requests":[]}');
   });
 
   it('answers a null result for a handler that returns nothing', async () => {

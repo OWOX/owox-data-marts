@@ -102,6 +102,7 @@
     "compression": "^1.8.2",
     "cross-spawn": "^7.0.6",
     "env-paths": "^3.0.0",
+    "google-auth-library": "^10.9.1",
     "googleapis": "^150.0.1",
     "handlebars": "^4.7.10",
     "hono": "^4.11.4",

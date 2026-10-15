@@ -32,4 +32,18 @@ describe('built-in Credential definitions', () => {
       },
     });
   });
+
+  it('declares Google Service Account with the googleapis.com wildcard origin and no probe', () => {
+    const definition = BUILTIN_CREDENTIAL_DEFINITIONS.find(
+      item => item.id === 'google-service-account'
+    );
+
+    expect(definition).toMatchObject({
+      displayName: 'Google Service Account',
+      auth: { type: 'google-service-account', label: 'Service account key (JSON)' },
+      origins: ['https://*.googleapis.com'],
+    });
+    expect(definition?.validation).toBeUndefined();
+    expect(new URL(definition!.documentationUrl!).hostname).toBe('docs.cloud.google.com');
+  });
 });

@@ -16,6 +16,7 @@ import type {
   CredentialAiModelMappingModes,
   CredentialDefinitionContract,
   CredentialDefinitionSource,
+  CredentialPublicMetadata,
   CredentialValidationState,
 } from '../credential.types';
 import type { UserProjectionDto } from '../../../idp/dto/domain/user-projection.dto';
@@ -165,6 +166,11 @@ export class CredentialDefinitionApiDto {
   @ApiPropertyOptional({ nullable: true, format: 'uri' })
   documentationUrl: string | null;
   @ApiProperty() secretLabel: string;
+  @ApiProperty({
+    type: 'object',
+    properties: { type: { type: 'string', enum: ['header', 'google-service-account'] } },
+  })
+  auth: { type: CredentialDefinitionContract['auth']['type'] };
   @ApiProperty({ type: [String] }) origins: string[];
   @ApiProperty() supportsAi: boolean;
   @ApiPropertyOptional({ type: 'object', nullable: true, additionalProperties: true })
@@ -207,6 +213,16 @@ export class CredentialResponseApiDto {
     nullable: true,
   })
   aiModelMappingModes: CredentialAiModelMappingModes | null;
+  @ApiPropertyOptional({
+    type: 'object',
+    nullable: true,
+    properties: {
+      clientEmail: { type: 'string' },
+      projectId: { type: 'string' },
+      privateKeyId: { type: 'string' },
+    },
+  })
+  publicMetadata: CredentialPublicMetadata | null;
   @ApiProperty({ type: [Object] }) ownerUsers: UserProjectionDto[];
   @ApiProperty({ type: [Object] }) contexts: ContextSummary[];
   @ApiProperty({ type: [Object] }) usedBy: CredentialConsumerReferenceApiDto[];

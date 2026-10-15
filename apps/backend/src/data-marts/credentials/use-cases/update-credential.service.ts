@@ -7,14 +7,18 @@ import { IdpProjectionsFacade } from '../../../idp/facades/idp-projections.facad
 import { AccessDecisionService, Action, EntityType } from '../../services/access-decision';
 import { ContextAccessService } from '../../services/context/context-access.service';
 import { syncOwners } from '../../utils/sync-owners';
-import type { UpdateCredentialApiDto } from '../dto/credential-api.dto';
+import type {
+  ResolvedCredentialDefinition,
+  UpdateCredentialApiDto,
+} from '../dto/credential-api.dto';
 import type { CredentialDto } from '../dto/credential.dto';
 import { CredentialOwner } from '../entities/credential-owner.entity';
 import { CredentialDefinitionService } from '../services/credential-definition.service';
 import { CredentialService } from '../services/credential.service';
+import { parseGoogleServiceAccountKey } from '../services/google-service-account-key';
 import { CredentialViewService } from '../services/credential-view.service';
 import { CredentialValidationProbeService } from '../services/credential-validation-probe.service';
-import type { CredentialValidationResult } from '../credential.types';
+import type { CredentialPublicMetadata, CredentialValidationResult } from '../credential.types';
 import { normalizeAiConfiguration } from './create-credential.service';
 
 @Injectable()
@@ -31,7 +35,6 @@ export class UpdateCredentialService {
     private readonly owners: Repository<CredentialOwner>
   ) {}
 
-  @Transactional()
   async run(
     id: string,
     context: AuthorizationContext,
@@ -57,14 +60,42 @@ export class UpdateCredentialService {
       ? await this.definitions.getForCredential(credential)
       : await this.definitions.getForView(credential);
     let validation: CredentialValidationResult | undefined;
-
-    if (input.title !== undefined) credential.title = input.title.trim();
+    let publicMetadata = credential.publicMetadata;
     if (input.secret !== undefined) {
+      if (definition.contract.auth.type === 'google-service-account') {
+        publicMetadata = parseGoogleServiceAccountKey(input.secret.value).metadata;
+        const savedEmail =
+          credential.publicMetadata?.clientEmail ?? storedClientEmail(credential.secret.value);
+        if (savedEmail && publicMetadata.clientEmail.toLowerCase() !== savedEmail.toLowerCase()) {
+          throw new BadRequestException(
+            `The replacement key must belong to ${savedEmail}. Create another Credential for a different service account.`
+          );
+        }
+      }
+      // Outside the transaction: the provider check can take seconds and must not hold a connection.
       validation = await this.validationProbe.run(definition, { value: input.secret.value });
       if (validation.state === 'rejected') {
         throw new BadRequestException(validation.message);
       }
+    }
+    return this.apply(id, context, input, definition, validation, publicMetadata);
+  }
+
+  @Transactional()
+  private async apply(
+    id: string,
+    context: AuthorizationContext,
+    input: UpdateCredentialApiDto,
+    definition: ResolvedCredentialDefinition,
+    validation: CredentialValidationResult | undefined,
+    publicMetadata: CredentialPublicMetadata | null
+  ): Promise<CredentialDto> {
+    // Fresh read: the provider check took seconds and another request may have saved meanwhile.
+    const credential = await this.credentials.getByIdAndProjectId(id, context.projectId);
+    if (input.title !== undefined) credential.title = input.title.trim();
+    if (input.secret !== undefined && validation) {
       credential.secret = { value: input.secret.value };
+      credential.publicMetadata = publicMetadata;
       credential.validationState = validation.state;
       credential.validationMessage = validation.message;
       credential.validatedAt = validation.validatedAt;
@@ -136,5 +167,14 @@ export class UpdateCredentialService {
     ) {
       throw new ForbiddenException(`You do not have ${action} access to this Credential`);
     }
+  }
+}
+
+/** Rows saved without public metadata still carry the key, which names its account. */
+function storedClientEmail(secretValue: string): string | undefined {
+  try {
+    return parseGoogleServiceAccountKey(secretValue).metadata.clientEmail;
+  } catch {
+    return undefined;
   }
 }

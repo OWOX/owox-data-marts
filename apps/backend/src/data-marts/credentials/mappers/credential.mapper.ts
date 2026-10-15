@@ -25,6 +25,7 @@ export function mapCredentialDefinitionToApiDto(
     description: definition.contract.description,
     documentationUrl: definition.contract.documentationUrl ?? null,
     secretLabel: definition.contract.auth.label,
+    auth: { type: definition.contract.auth.type },
     origins: [...definition.contract.origins],
     supportsAi: definition.contract.ai !== undefined,
     ai: definition.contract.ai ?? null,
@@ -65,6 +66,7 @@ export class CredentialMapper {
         definition.contract.ai?.recommended
       ),
       aiModelMappingModes: credential.aiModelMappingModes,
+      publicMetadata: credential.publicMetadata ?? null,
       ownerUsers: resolveOwnerUsers(credential.ownerIds, users),
       contexts: extractContextSummaries(credential.contexts),
       usedBy: bindings.map(binding => ({

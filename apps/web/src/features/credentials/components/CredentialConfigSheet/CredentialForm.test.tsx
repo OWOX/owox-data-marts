@@ -52,6 +52,20 @@ const githubDefinition: CredentialDefinition = {
   compatibilityLine: null,
 };
 
+const googleDefinition: CredentialDefinition = {
+  id: 'google-service-account',
+  source: 'builtin',
+  displayName: 'Google Service Account',
+  description: 'Google Cloud service account JSON key',
+  documentationUrl: 'https://docs.cloud.google.com/iam/docs/keys-create-delete',
+  secretLabel: 'Service account key (JSON)',
+  origins: ['https://*.googleapis.com'],
+  supportsAi: false,
+  ai: null,
+  compatibilityLine: null,
+  auth: { type: 'google-service-account' },
+};
+
 const githubCredential: Credential = {
   id: 'credential-1',
   projectId: 'project-1',
@@ -248,5 +262,37 @@ describe('CredentialForm', () => {
     await waitFor(() => {
       expect(onSubmit).toHaveBeenCalledWith({ title: 'Renamed Credential' });
     });
+  });
+
+  it('takes a Google service account key in a JSON textarea', () => {
+    renderForm({ definitions: [googleDefinition] });
+
+    const field = screen.getByPlaceholderText(
+      'Paste the service account JSON key or drop the file'
+    );
+    expect(field.tagName).toBe('TEXTAREA');
+    expect(field).toHaveAttribute('spellcheck', 'false');
+    expect(screen.getByText('Service account key (JSON)')).toBeInTheDocument();
+  });
+
+  it('shows the service account address of a saved key with a copy action', () => {
+    renderForm({
+      definitions: [googleDefinition],
+      credential: {
+        ...githubCredential,
+        title: 'Docs writer',
+        definition: googleDefinition,
+        publicMetadata: {
+          clientEmail: 'docs-writer@acme-docs.iam.gserviceaccount.com',
+          projectId: 'acme-docs',
+          privateKeyId: 'key-1',
+        },
+      },
+    });
+
+    expect(screen.getByText('Service account')).toBeInTheDocument();
+    expect(screen.getByText('docs-writer@acme-docs.iam.gserviceaccount.com')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Copy service account email' })).toBeInTheDocument();
+    expect(screen.getByText('Share documents with this address as Editor')).toBeInTheDocument();
   });
 });

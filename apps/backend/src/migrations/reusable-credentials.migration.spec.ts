@@ -4,6 +4,7 @@ import { CreateReusableCredentialTables1787788800000 } from './1787788800000-cre
 import { AddPluginVersionCredentialRequirements1787788800001 } from './1787788800001-add-plugin-version-credential-requirements';
 import { AddCredentialAiModelMappingSources1787788800002 } from './1787788800002-add-credential-ai-model-mapping-sources';
 import { AddCredentialValidationState1787788800003 } from './1787788800003-add-credential-validation-state';
+import { AddCredentialPublicMetadata1791000000000 } from './1791000000000-add-credential-public-metadata';
 
 describe('Reusable Credentials migrations', () => {
   let dataSource: DataSource;
@@ -98,6 +99,22 @@ describe('Reusable Credentials migrations', () => {
     await core.down(runner);
     expect(await runner.hasColumn('plugin_version', 'credentialRequirements')).toBe(false);
     expect(await runner.hasTable('credential')).toBe(false);
+    await runner.release();
+  });
+
+  it('adds the nullable publicMetadata column once and removes it on down', async () => {
+    const runner = dataSource.createQueryRunner();
+    await new CreateReusableCredentialTables1787788800000().up(runner);
+    const migration = new AddCredentialPublicMetadata1791000000000();
+
+    await migration.up(runner);
+    await migration.up(runner);
+    const column = (await runner.getTable('credential'))?.findColumnByName('publicMetadata');
+    expect(column?.isNullable).toBe(true);
+
+    await migration.down(runner);
+    expect(await runner.hasColumn('credential', 'publicMetadata')).toBe(false);
+    await migration.down(runner);
     await runner.release();
   });
 });

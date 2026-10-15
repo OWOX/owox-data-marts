@@ -72,7 +72,13 @@ vi.mock('../../credentials', () => ({
   normalizePluginCredentialRequirement: (
     requirement:
       | string
-      | { id: string; definitionId?: string; optional: boolean; models?: readonly string[] }
+      | {
+          id: string;
+          definitionId?: string;
+          optional: boolean;
+          models?: readonly string[];
+          scopes?: readonly string[];
+        }
   ) =>
     typeof requirement === 'string'
       ? {
@@ -80,6 +86,7 @@ vi.mock('../../credentials', () => ({
           definitionId: requirement === 'ai' ? null : requirement,
           optional: false,
           models: requirement === 'ai' ? ['fast'] : [],
+          scopes: [],
         }
       : {
           key: requirement.id,
@@ -87,6 +94,7 @@ vi.mock('../../credentials', () => ({
             requirement.definitionId ?? (requirement.id === 'ai' ? null : requirement.id),
           optional: requirement.optional,
           models: requirement.models ?? (requirement.id === 'ai' ? ['fast'] : []),
+          scopes: [...(requirement.scopes ?? [])],
         },
   isCredentialEligible: (
     credential: {
@@ -341,6 +349,37 @@ describe('InstallPluginDialog', () => {
     expect(screen.queryByText('github_api')).not.toBeInTheDocument();
   });
 
+  it('lists the scopes a Google Service Account requirement declares', () => {
+    credentialState.definitions = [
+      definition({ id: 'google-service-account', displayName: 'Google Service Account' }),
+    ];
+
+    render(
+      <InstallPluginDialog
+        plugin={plugin({
+          credentialRequirements: [
+            {
+              id: 'google-service-account',
+              optional: false,
+              scopes: [
+                'https://www.googleapis.com/auth/documents',
+                'https://www.googleapis.com/auth/spreadsheets',
+              ],
+            },
+          ],
+        })}
+        open
+        onOpenChange={vi.fn()}
+        onConfirm={vi.fn()}
+        isInstalling={false}
+      />
+    );
+
+    expect(screen.getByText('Scopes:')).toBeInTheDocument();
+    expect(screen.getByText('https://www.googleapis.com/auth/documents')).toBeInTheDocument();
+    expect(screen.getByText('https://www.googleapis.com/auth/spreadsheets')).toBeInTheDocument();
+  });
+
   it('shows AI as a human label and lists the allowed AI providers', () => {
     credentialState.definitions = [
       definition({ id: 'openai', displayName: 'OpenAI', supportsAi: true }),
@@ -487,6 +526,7 @@ describe('InstallPluginDialog', () => {
       definitionId: 'github',
       optional: false,
       models: [],
+      scopes: [],
     });
   });
 

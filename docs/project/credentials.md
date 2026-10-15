@@ -32,6 +32,28 @@ Credential list also shows aggregate last use. A Credential with active bindings
 disable it to stop use immediately, or first remove or replace the consumer bindings. Replacing a
 secret keeps the bindings and consumers use the new value on their next request.
 
+## Google Service Account
+
+A Google Service Account Credential lets a plugin call Google APIs, such as Google Docs and Google
+Sheets, as a service account:
+
+1. In Google Cloud, create a service account and a JSON key for it; see
+   [Create and delete service account keys](https://docs.cloud.google.com/iam/docs/keys-create-delete).
+   Organizations created on or after May 3, 2024 block key creation by default with
+   `iam.managed.disableServiceAccountKeyCreation`; an organization admin has to allow it.
+2. Enable the API the plugin uses, such as the Google Docs API or the Google Sheets API, in the
+   project the key belongs to.
+3. Create a Credential with the **Google Service Account** provider and paste the key or drop the
+   JSON file. OWOX Data Marts asks Google for a token before saving and refuses a key Google
+   rejects. A new key can take about a minute to start working.
+4. Share each document or spreadsheet the plugin should change with the service account address
+   shown on the Credential, as Editor.
+
+Use a dedicated service account with no project roles: a plugin reaches whatever the account can
+reach within the scopes it declares. A replacement key must belong to the same service account;
+create another Credential for a different one. Access tokens Google already issued stay valid for
+up to an hour after a key is disabled or deleted; disable the service account to revoke them.
+
 ## AI mappings
 
 An AI-capable Credential maps logical `fast`, `reasoning`, and `embedding` capabilities to provider

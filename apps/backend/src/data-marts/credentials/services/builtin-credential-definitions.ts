@@ -129,6 +129,14 @@ export const BUILTIN_CREDENTIAL_DEFINITIONS: readonly CredentialDefinitionContra
       },
     },
   },
+  {
+    id: 'google-service-account',
+    displayName: 'Google Service Account',
+    description: 'Google Cloud service account JSON key',
+    documentationUrl: 'https://docs.cloud.google.com/iam/docs/keys-create-delete',
+    auth: { type: 'google-service-account', label: 'Service account key (JSON)' },
+    origins: ['https://*.googleapis.com'],
+  },
 ] as const;
 
 export const BUILTIN_CREDENTIAL_DEFINITION_IDS: ReadonlySet<string> = new Set(

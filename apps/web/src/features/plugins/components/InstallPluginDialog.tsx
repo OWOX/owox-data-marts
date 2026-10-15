@@ -283,6 +283,16 @@ export function InstallPluginDialog({
                       )}
                     </span>
                     <span className='text-muted-foreground text-xs'>{presentation.providers}</span>
+                    {requirement.scopes.length > 0 && (
+                      <div className='text-muted-foreground flex flex-col text-xs'>
+                        <span>Scopes:</span>
+                        {requirement.scopes.map(scope => (
+                          <span key={scope} className='break-all'>
+                            {scope}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                     <Combobox
                       value={selected === null ? DO_NOT_GRANT_VALUE : (selected ?? '')}
                       options={credentialOptions}

@@ -51,6 +51,7 @@ export const PluginCredentialRequirementSchema = z.union([
     id: z.string().trim().min(1).max(255),
     optional: z.boolean().default(false),
     models: z.array(z.string().trim().min(1).max(255)).max(20).optional(),
+    scopes: z.array(z.string().min(1).max(200).regex(/^\S+$/)).min(1).max(20).optional(),
   }),
 ]);
 
@@ -212,6 +213,28 @@ export const PluginManifestSchema = z
           code: z.ZodIssueCode.custom,
           path: ['credentials', index, 'models'],
           message: 'models are supported only for the logical ai requirement',
+        });
+      }
+      const scopes = typeof requirement === 'string' ? undefined : requirement.scopes;
+      if (key === 'google-service-account' && !scopes) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['credentials', index],
+          message: 'google-service-account requires scopes',
+        });
+      }
+      if (key !== 'google-service-account' && scopes) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['credentials', index, 'scopes'],
+          message: 'scopes are supported only for google-service-account',
+        });
+      }
+      if (scopes && new Set(scopes).size !== scopes.length) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['credentials', index, 'scopes'],
+          message: 'scopes must be unique',
         });
       }
     }

@@ -44,17 +44,28 @@ export const CredentialDocumentationUrlSchema = z
   }, 'documentationUrl must be an absolute HTTPS URL without embedded credentials')
   .transform(value => new URL(value).href);
 
+const CredentialHeaderAuthSchema = z.object({
+  type: z.literal('header'),
+  label: z.string().trim().min(1).max(255),
+  headerName: z.string().trim().min(1).max(255),
+  prefix: z.string().max(64).optional(),
+});
+
+/** OWOX signs a token request with the stored key and adds the access token itself. */
+const CredentialGoogleServiceAccountAuthSchema = z.object({
+  type: z.literal('google-service-account'),
+  label: z.string().trim().min(1).max(255),
+});
+
 export const CredentialDefinitionContractSchema = z.object({
   id: z.string().trim().min(1).max(255),
   displayName: z.string().trim().min(1).max(255),
   description: z.string().trim().max(2000).default(''),
   documentationUrl: CredentialDocumentationUrlSchema.optional(),
-  auth: z.object({
-    type: z.literal('header'),
-    label: z.string().trim().min(1).max(255),
-    headerName: z.string().trim().min(1).max(255),
-    prefix: z.string().max(64).optional(),
-  }),
+  auth: z.discriminatedUnion('type', [
+    CredentialHeaderAuthSchema,
+    CredentialGoogleServiceAccountAuthSchema,
+  ]),
   origins: z.array(z.string().url().startsWith('https://')).min(1).max(20),
   validation: z
     .object({
@@ -100,6 +111,7 @@ export const CredentialRequirementSchema = z.union([
     id: z.string().trim().min(1).max(255),
     optional: z.boolean().default(false),
     models: z.array(z.string().trim().min(1).max(255)).max(20).optional(),
+    scopes: z.array(z.string().min(1).max(200).regex(/^\S+$/)).min(1).max(20).optional(),
   }),
 ]);
 
@@ -122,6 +134,8 @@ export interface NormalizedCredentialRequirement {
   readonly definitionId: string | null;
   readonly optional: boolean;
   readonly models: readonly string[];
+  /** OAuth scopes OWOX requests a token for; empty for every requirement but Google Service Account. */
+  readonly scopes: readonly string[];
 }
 
 export function normalizeCredentialRequirement(
@@ -134,6 +148,7 @@ export function normalizeCredentialRequirement(
         definitionId: null,
         optional: false,
         models: ['fast'],
+        scopes: [],
       };
     }
     return {
@@ -141,6 +156,7 @@ export function normalizeCredentialRequirement(
       definitionId: requirement,
       optional: false,
       models: [],
+      scopes: [],
     };
   }
 
@@ -156,11 +172,19 @@ export function normalizeCredentialRequirement(
     models: [
       ...(requirement.id === 'ai' ? (requirement.models ?? ['fast']) : (requirement.models ?? [])),
     ].sort(),
+    scopes: 'definitionId' in requirement ? [] : [...new Set(requirement.scopes ?? [])].sort(),
   };
 }
 
 export interface CredentialSecret {
   readonly value: string;
+}
+
+/** Non-secret facts read from a stored key, shown so a member knows which account to share files with. */
+export interface CredentialPublicMetadata {
+  readonly clientEmail: string;
+  readonly projectId: string;
+  readonly privateKeyId: string;
 }
 
 export type CredentialAiModelMappings = Record<string, string>;
