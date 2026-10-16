@@ -168,17 +168,64 @@ describe('urlFetchJsonWithRetry', () => {
 
     const thrown = await fetchJson(source).catch(e => e);
 
-    expect(thrown.message).toContain(`(${body.length} bytes)`);
+    expect(thrown.message).toContain(`(${body.length} chars)`);
     expect(thrown.message).not.toContain('TOKENVALUE');
     expect(thrown.message).not.toContain('paging');
   });
 
+  // V8's "Unexpected token" family quotes ~10 characters of the body around the fault
+  // (and a short body in full), unlike the positional families that quote nothing.
+  it('keeps the body out of an Unexpected-token message', async () => {
+    const body =
+      '{"paging":{"next":"https://graph.example.test/n?access_token=TOKENVALUE"},"x":Z"y"}';
+    const source = makeSource([body], { retry: false });
+
+    const thrown = await fetchJson(source).catch(e => e);
+
+    expect(thrown.message).toContain("Unexpected token 'Z'");
+    expect(thrown.message).not.toContain('TOKENVALUE');
+    expect(thrown.message).not.toContain('LUE"');
+    expect(thrown.message).not.toContain('paging');
+    expect(thrown.message).not.toContain('is not valid JSON');
+  });
+
+  it('names the endpoint when the body read keeps failing', async () => {
+    const cutStream = () => ({
+      ok: true,
+      status: 200,
+      statusText: 'OK',
+      text: async () => {
+        throw new TypeError('terminated');
+      },
+    });
+    const source = makeSource([cutStream, cutStream, cutStream]);
+
+    const thrown = await fetchJson(source).catch(e => e);
+
+    expect(thrown.message).toContain('Failed reading response body from');
+    expect(thrown.message).toContain('/v26.0/act_1/ads');
+    expect(thrown.message).toContain('terminated');
+    expect(source.calls).toHaveLength(3);
+  });
+
   it('leaves urlFetchWithRetry returning an unread response', async () => {
-    const source = makeSource(['{"data":[]}']);
+    let reads = 0;
+    const source = makeSource([
+      () => ({
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        text: async () => {
+          if (++reads > 1) throw new Error('body already read');
+          return '{"data":[]}';
+        },
+      }),
+    ]);
 
     const response = await proto.urlFetchWithRetry.call(source.self, 'https://example.test');
 
     expect(response.ok).toBe(true);
+    expect(reads).toBe(0);
     await expect(response.text()).resolves.toBe('{"data":[]}');
   });
 });

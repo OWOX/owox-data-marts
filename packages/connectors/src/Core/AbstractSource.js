@@ -291,6 +291,9 @@ export class AbstractSource {
    * Only for JSON endpoints — the body is consumed, so there is no Response left to
    * read again. Non-JSON responses (CSV, binary) must keep using `urlFetchWithRetry`.
    *
+   * Use only for idempotent requests (GET): an unparseable 200 is re-requested, so a
+   * POST passed here would be replayed.
+   *
    * @param {string} url
    * @param {object} [options] - fetch options; `redirect` is set per the rule above.
    * @param {(nextUrl: string) => (void | Promise<void>)} [validate] - per-hop SSRF validator.
@@ -460,7 +463,13 @@ export class AbstractSource {
         // (undici's "terminated" on a cut stream) or a corrupted body therefore
         // falls into the catch below and is retried like any other transport
         // failure, instead of throwing past the caller's retry budget.
-        const bodyText = await response.text();
+        let bodyText;
+        try {
+          bodyText = await response.text();
+        } catch (readError) {
+          readError.message = `Failed reading response body from ${this._redactUrl(currentUrl)}: ${readError.message}`;
+          throw readError;
+        }
         try {
           return JSON.parse(bodyText);
         } catch (parseError) {
@@ -472,9 +481,20 @@ export class AbstractSource {
           // `paging.next`, which carries the access token, and AbstractContext's
           // redactSecrets() only replaces a secret it matches IN FULL -- so a tail
           // clipped mid-token would put the fragment into persisted run logs.
+          //
+          // V8 itself can quote the body: the "Unexpected token" family embeds a
+          // ~10-character excerpt
+          // ("Unexpected token 'Z', ..."LUE"},"x":Z"y"}" is not valid JSON") and quotes a
+          // short body in full; the positional families quote nothing. Keep the kind,
+          // drop the excerpt. The single offending character stays: it is the "HTML
+          // error page, not JSON" tell and cannot constitute a credential.
+          const kind = parseError.message.endsWith(' is not valid JSON')
+            ? parseError.message.replace(/,[\s\S]*$/, '')
+            : parseError.message;
+          // `length` counts UTF-16 code units, the same unit as V8's `position`.
           parseError.message =
             `Malformed JSON response from ${this._redactUrl(currentUrl)} ` +
-            `(${bodyText.length} bytes): ${parseError.message}`;
+            `(${bodyText.length} chars): ${kind}`;
           throw parseError;
         }
       } catch (error) {
