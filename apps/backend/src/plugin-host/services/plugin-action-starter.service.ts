@@ -28,7 +28,6 @@ export interface PluginActionStart {
   /** The role the backend acts with, stored on the execution. */
   readonly role: string;
   readonly trigger: PluginActionTrigger;
-  readonly scheduleId: string | null;
 }
 
 /** Validation, insert and dispatch for every way an action starts; callers resolve who starts it. */
@@ -80,7 +79,6 @@ export class PluginActionStarterService {
       timeoutSeconds: declaration.timeoutSeconds,
       tokenHash,
       trigger: request.trigger,
-      scheduleId: request.scheduleId,
     });
 
     // Not awaited: dispatch never rejects and records every outcome on the row itself.

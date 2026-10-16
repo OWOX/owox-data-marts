@@ -24,8 +24,7 @@ export interface PluginActionExecutionContext {
   readonly executionId: string;
   readonly action: string;
   readonly input: unknown;
-  readonly trigger: 'frontend' | 'schedule';
-  readonly scheduleId: string | null;
+  readonly trigger: 'frontend';
   readonly deadlineAt: string;
   readonly pluginVersion: string;
   readonly installationId: string;

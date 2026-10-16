@@ -30,7 +30,6 @@ export interface PluginActionWorkerContext {
   readonly action: string;
   readonly input: unknown;
   readonly trigger: PluginActionTrigger;
-  readonly scheduleId: string | null;
   readonly deadlineAt: Date;
   /** The release the execution started on. */
   readonly pluginVersion: string;

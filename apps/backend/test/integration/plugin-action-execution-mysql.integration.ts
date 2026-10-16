@@ -7,8 +7,6 @@ import {
   StorageDriver,
 } from 'typeorm-transactional';
 import { CreatePluginActionExecution1790900000001 } from 'src/migrations/1790900000001-create-plugin-action-execution';
-import { AddPluginActionExecutionPayloadsClearedAt1790900000002 } from 'src/migrations/1790900000002-add-plugin-action-execution-payloads-cleared-at';
-import { StorePluginActionPayloadsAsText1790900000003 } from 'src/migrations/1790900000003-store-plugin-action-payloads-as-text';
 import { PluginActionExecution } from 'src/plugin-host/entities/plugin-action-execution.entity';
 import { PluginInstallation } from 'src/plugin-host/entities/plugin-installation.entity';
 import { PluginActionExecutionStatus } from 'src/plugin-host/enums/plugin-action-execution-status.enum';
@@ -61,11 +59,7 @@ describeIfAvailable('Plugin action execution storage (integration, MySQL)', () =
       password: MYSQL_PASSWORD!,
       database: MYSQL_DATABASE,
       entities: [PluginActionExecution, PluginInstallation],
-      migrations: [
-        CreatePluginActionExecution1790900000001,
-        AddPluginActionExecutionPayloadsClearedAt1790900000002,
-        StorePluginActionPayloadsAsText1790900000003,
-      ],
+      migrations: [CreatePluginActionExecution1790900000001],
       migrationsTransactionMode: 'none',
       synchronize: false,
       logging: false,
@@ -140,17 +134,12 @@ describeIfAvailable('Plugin action execution storage (integration, MySQL)', () =
       timeoutSeconds,
       tokenHash: createExecutionToken().tokenHash,
       trigger: 'frontend',
-      scheduleId: null,
     };
   }
 
-  it('creates the table through all three migrations', async () => {
+  it('creates the table through its migration', async () => {
     const applied: { name: string }[] = await dataSource.query('SELECT name FROM migrations');
-    expect(applied.map(row => row.name)).toEqual([
-      'CreatePluginActionExecution1790900000001',
-      'AddPluginActionExecutionPayloadsClearedAt1790900000002',
-      'StorePluginActionPayloadsAsText1790900000003',
-    ]);
+    expect(applied.map(row => row.name)).toEqual(['CreatePluginActionExecution1790900000001']);
     const index: { COLUMN_NAME: string }[] = await dataSource.query(
       `SELECT COLUMN_NAME FROM information_schema.STATISTICS
        WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'plugin_action_execution'
@@ -163,28 +152,6 @@ describeIfAvailable('Plugin action execution storage (integration, MySQL)', () =
       input: 'mediumtext',
       result: 'mediumtext',
     });
-  });
-
-  it('moves the payload columns back to json and clears them on the way down, then up again', async () => {
-    const saved = await service.insertRunning(running(await installation()));
-    const migration = new StorePluginActionPayloadsAsText1790900000003();
-    const runner = dataSource.createQueryRunner();
-    try {
-      await migration.down(runner);
-      await expect(payloadColumnTypes()).resolves.toEqual({ input: 'json', result: 'json' });
-      await expect(
-        dataSource.query('SELECT input FROM plugin_action_execution WHERE id = ?', [saved.id])
-      ).resolves.toEqual([{ input: null }]);
-
-      await migration.up(runner);
-      await migration.up(runner);
-      await expect(payloadColumnTypes()).resolves.toEqual({
-        input: 'mediumtext',
-        result: 'mediumtext',
-      });
-    } finally {
-      await runner.release();
-    }
   });
 
   it('lets exactly five of seven concurrent starts win', async () => {

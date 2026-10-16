@@ -12,7 +12,6 @@ function context(overrides: Record<string, unknown> = {}) {
     action: 'count',
     input: { documentId: 'd1' },
     trigger: 'frontend',
-    scheduleId: null,
     deadlineAt: new Date(Date.now() + 60_000).toISOString(),
     pluginVersion: '1.2.0',
     installationId: 'i1',

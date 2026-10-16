@@ -19,7 +19,7 @@ export interface PluginActionExecution {
   readonly id: string;
   readonly action: string;
   readonly status: PluginActionStatus;
-  readonly trigger: 'frontend' | 'schedule';
+  readonly trigger: 'frontend';
   readonly startedAt: string | null;
   readonly deadlineAt: string | null;
   readonly finishedAt: string | null;

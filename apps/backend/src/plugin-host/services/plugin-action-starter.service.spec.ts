@@ -61,7 +61,6 @@ function setup(backend: PluginBackendDeclaration | null = BACKEND) {
       input,
       role: 'editor',
       trigger: 'frontend',
-      scheduleId: null,
       ...overrides,
     });
   return { start, executions, dispatcher };
@@ -74,11 +73,7 @@ describe('PluginActionStarterService', () => {
     const { start, executions, dispatcher } = setup();
 
     await expect(
-      start(
-        'update-document',
-        { documentId: 'd1' },
-        { role: 'viewer', trigger: 'schedule', scheduleId: 'schedule-1' }
-      )
+      start('update-document', { documentId: 'd1' }, { role: 'viewer' })
     ).resolves.toEqual({ id: 'execution-1', status: PluginActionExecutionStatus.RUNNING });
 
     expect(executions.insertRunning).toHaveBeenCalledWith({
@@ -92,8 +87,7 @@ describe('PluginActionStarterService', () => {
       role: 'viewer',
       timeoutSeconds: 60,
       tokenHash: expect.stringMatching(/^[0-9a-f]{64}$/),
-      trigger: 'schedule',
-      scheduleId: 'schedule-1',
+      trigger: 'frontend',
     });
     const [execution, backendUrl, token, timeoutSeconds] = dispatcher.dispatch.mock.calls[0];
     expect(execution).toMatchObject({ id: 'execution-1' });

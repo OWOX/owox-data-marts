@@ -6,7 +6,7 @@ export enum PluginActionExecutionStatus {
   TIMED_OUT = 'TIMED_OUT',
 }
 
-export type PluginActionTrigger = 'frontend' | 'schedule';
+export type PluginActionTrigger = 'frontend';
 
 const FINAL_STATUSES: ReadonlySet<string> = new Set([
   PluginActionExecutionStatus.SUCCEEDED,

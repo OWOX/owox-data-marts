@@ -77,7 +77,6 @@ describe('Plugin action execution storage (e2e)', () => {
       timeoutSeconds: 60,
       tokenHash: createExecutionToken().tokenHash,
       trigger: 'frontend',
-      scheduleId: null,
       ...overrides,
     };
   }
@@ -95,7 +94,6 @@ describe('Plugin action execution storage (e2e)', () => {
       input: { documentId: 'd1' },
       role: 'editor',
       trigger: 'frontend',
-      scheduleId: null,
       finishedAt: null,
       errorCode: null,
       result: null,
@@ -307,6 +305,7 @@ describe('Plugin action execution storage (e2e)', () => {
     await expect(executions.findOneByOrFail({ id: fresh.id })).resolves.toMatchObject({
       input: { documentId: 'd1' },
       payloadsClearedAt: null,
+      payloadBytes: 0,
     });
     await expect(executions.findOneByOrFail({ id: yesterday.id })).resolves.toMatchObject({
       status: PluginActionExecutionStatus.SUCCEEDED,

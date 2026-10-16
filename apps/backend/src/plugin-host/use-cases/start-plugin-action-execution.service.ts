@@ -47,7 +47,6 @@ export class StartPluginActionExecutionService {
       input: command.input,
       role,
       trigger: 'frontend',
-      scheduleId: null,
     });
   }
 }

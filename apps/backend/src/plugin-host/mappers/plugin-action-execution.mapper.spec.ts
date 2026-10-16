@@ -17,7 +17,6 @@ function execution(overrides: Partial<PluginActionExecution> = {}): PluginAction
     action: 'update-document',
     input: { documentId: 'd1' },
     trigger: 'frontend',
-    scheduleId: null,
     status: PluginActionExecutionStatus.RUNNING,
     role: 'editor',
     tokenHash: 'a'.repeat(64),
@@ -29,6 +28,7 @@ function execution(overrides: Partial<PluginActionExecution> = {}): PluginAction
     errorMessage: null,
     result: null,
     payloadsClearedAt: null,
+    payloadBytes: 0,
     ...overrides,
   };
 }

@@ -25,7 +25,6 @@ const REQUEST: InsertRunningExecutionInput = {
   timeoutSeconds: 60,
   tokenHash: 'a'.repeat(64),
   trigger: 'frontend',
-  scheduleId: null,
 };
 
 function setup(options: { locked?: number; running?: number } = {}) {
@@ -294,7 +293,7 @@ describe('PluginActionExecutionService', () => {
       s.executions.find.mockResolvedValueOnce([
         { id: 'plugin', errorCode: 'DOC_LOCKED' },
         { id: 'backend', errorCode: 'BACKEND_UNREACHABLE' },
-        { id: 'reserved', errorCode: 'OWNER_NOT_MEMBER' },
+        { id: 'reserved', errorCode: 'PLUGIN_SUSPENDED' },
         { id: 'none', errorCode: null },
       ]);
 

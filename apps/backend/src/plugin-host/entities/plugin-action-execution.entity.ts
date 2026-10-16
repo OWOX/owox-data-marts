@@ -24,7 +24,7 @@ const JSON_TEXT: ValueTransformer = {
 @Index('UQ_plugin_action_execution_token', ['tokenHash'], { unique: true })
 @Index('idx_plugin_action_execution_running', ['installationId', 'status'])
 @Index('idx_plugin_action_execution_deadline', ['status', 'deadlineAt'])
-@Index('idx_plugin_action_execution_schedule', ['scheduleId', 'status'])
+@Index('idx_plugin_action_execution_starts', ['installationId', 'startedAt'])
 @Index('idx_plugin_action_execution_finished', ['finishedAt'])
 @Index('idx_plugin_action_execution_payloads', ['payloadsClearedAt', 'finishedAt'])
 export class PluginActionExecution {
@@ -50,14 +50,16 @@ export class PluginActionExecution {
   @Column({ type: 'varchar', length: 64 })
   action: string;
 
+  /**
+   * Declared `text`, but on MySQL the real column is `mediumtext` (16 MB), created by the migration.
+   * Declaring `mediumtext` here crashes TypeORM's SQLite driver, and with `synchronize: false` the
+   * declared type is metadata-only.
+   */
   @Column({ type: 'text', nullable: true, transformer: JSON_TEXT })
   input: unknown;
 
   @Column({ type: 'varchar', length: 16 })
   trigger: PluginActionTrigger;
-
-  @Column({ type: 'varchar', length: 36, nullable: true })
-  scheduleId: string | null;
 
   @Column({ type: 'varchar', length: 16 })
   status: PluginActionExecutionStatus;
@@ -88,10 +90,19 @@ export class PluginActionExecution {
   @Column({ type: 'varchar', length: 1000, nullable: true })
   errorMessage: string | null;
 
+  /**
+   * Declared `text`, but on MySQL the real column is `mediumtext` (16 MB), created by the migration.
+   * Declaring `mediumtext` here crashes TypeORM's SQLite driver, and with `synchronize: false` the
+   * declared type is metadata-only.
+   */
   @Column({ type: 'text', nullable: true, transformer: JSON_TEXT })
   result: unknown;
 
   /** When the sweep cleared `input`, `result` and a plugin-authored `errorMessage`. */
   @Column({ type: 'datetime', nullable: true })
   payloadsClearedAt: Date | null;
+
+  /** Bytes of `input` and `result` not yet cleared; the sweep resets it to 0. */
+  @Column({ type: 'int', default: 0 })
+  payloadBytes: number;
 }

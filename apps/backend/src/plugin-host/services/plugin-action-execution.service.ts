@@ -23,7 +23,6 @@ export interface InsertRunningExecutionInput {
   timeoutSeconds: number;
   tokenHash: string;
   trigger: PluginActionTrigger;
-  scheduleId: string | null;
 }
 
 /** What an execution token stands for; the guard reads it on every Worker request. */
@@ -109,7 +108,6 @@ export class PluginActionExecutionService {
         action: request.action,
         input: request.input,
         trigger: request.trigger,
-        scheduleId: request.scheduleId,
         status: PluginActionExecutionStatus.RUNNING,
         role: request.role,
         tokenHash: request.tokenHash,

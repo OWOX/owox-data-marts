@@ -414,7 +414,6 @@ export class PluginPresentationMapper {
       action: dto.action,
       input: dto.input,
       trigger: dto.trigger,
-      scheduleId: dto.scheduleId,
       deadlineAt: dto.deadlineAt,
       pluginVersion: dto.pluginVersion,
       installationId: dto.installationId,

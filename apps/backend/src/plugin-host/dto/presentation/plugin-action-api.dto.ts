@@ -62,7 +62,7 @@ export class PluginActionExecutionApiDto {
   @ApiProperty({ enum: PluginActionExecutionStatus })
   status: PluginActionExecutionStatus;
 
-  @ApiProperty({ enum: ['frontend', 'schedule'] })
+  @ApiProperty({ enum: ['frontend'] })
   trigger: PluginActionTrigger;
 
   @ApiProperty({ type: Date, nullable: true }) startedAt: Date | null;
@@ -87,10 +87,9 @@ export class PluginActionWorkerContextApiDto {
   @ApiProperty({ description: 'The input the execution was started with.' })
   input: unknown;
 
-  @ApiProperty({ enum: ['frontend', 'schedule'] })
+  @ApiProperty({ enum: ['frontend'] })
   trigger: PluginActionTrigger;
 
-  @ApiProperty({ type: String, nullable: true }) scheduleId: string | null;
   @ApiProperty() deadlineAt: Date;
 
   @ApiProperty({ description: 'Semver of the release the execution started on.' })

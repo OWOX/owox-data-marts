@@ -39,9 +39,10 @@ describe('CreatePluginActionExecution migration', () => {
         'pluginId',
         'pluginVersionId',
         'projectId',
+        'payloadBytes',
+        'payloadsClearedAt',
         'result',
         'role',
-        'scheduleId',
         'startedAt',
         'status',
         'tokenHash',
@@ -55,12 +56,22 @@ describe('CreatePluginActionExecution migration', () => {
         'idx_plugin_action_execution_deadline',
         'idx_plugin_action_execution_finished',
         'idx_plugin_action_execution_running',
-        'idx_plugin_action_execution_schedule',
+        'idx_plugin_action_execution_payloads',
+        'idx_plugin_action_execution_starts',
       ].sort()
     );
     expect(
       table?.indices.find(index => index.name === 'UQ_plugin_action_execution_token')?.isUnique
     ).toBe(true);
+    expect(
+      table?.indices.find(index => index.name === 'idx_plugin_action_execution_starts')?.columnNames
+    ).toEqual(['installationId', 'startedAt']);
+    expect(table?.findColumnByName('payloadsClearedAt')?.isNullable).toBe(true);
+    const bytes = table?.findColumnByName('payloadBytes');
+    expect(bytes?.isNullable).toBe(false);
+    expect(String(bytes?.default)).toBe('0');
+    expect(table?.findColumnByName('input')?.type).toBe('text');
+    expect(table?.findColumnByName('result')?.type).toBe('text');
     expect(table?.foreignKeys).toEqual([]);
     await runner.release();
   });

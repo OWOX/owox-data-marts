@@ -7,7 +7,6 @@ export const pluginActionReservedErrorCodes = [
   'CANCELLED',
   'ACTION_NOT_DECLARED',
   'INVALID_INPUT',
-  'OWNER_NOT_MEMBER',
   'INSTALLATION_INACTIVE',
   'PLUGIN_SUSPENDED',
 ];

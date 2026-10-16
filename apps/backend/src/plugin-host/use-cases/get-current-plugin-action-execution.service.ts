@@ -66,7 +66,6 @@ export class GetCurrentPluginActionExecutionService {
       action: execution.action,
       input: execution.input,
       trigger: execution.trigger,
-      scheduleId: execution.scheduleId,
       deadlineAt: execution.deadlineAt,
       pluginVersion: started.semver,
       installationId: execution.installationId,

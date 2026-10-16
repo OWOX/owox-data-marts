@@ -723,7 +723,7 @@ export default createBackend({
   token that host does not accept gets 401 and runs nothing.
 - The handler gets the validated `input` and `ctx`: `ctx.owox`, `ctx.credentials`,
   `ctx.collections(name)`, `ctx.execution` (`executionId`, `action`, `input`, `trigger`,
-  `scheduleId`, `deadlineAt`, `pluginVersion`, `installationId`, `projectId` and `userId`) and
+  `deadlineAt`, `pluginVersion`, `installationId`, `projectId` and `userId`) and
   `ctx.signal`, which aborts at the deadline. When OWOX drops the call, for example on cancel or
   on its own timeout, Cloudflare Workers cancels the whole invocation: the handler stops, code
   after an `await` does not run, and `request.signal` never fires. Do not rely on cleanup after an

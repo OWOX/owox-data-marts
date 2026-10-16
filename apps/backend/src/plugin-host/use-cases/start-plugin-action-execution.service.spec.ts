@@ -46,7 +46,6 @@ describe('StartPluginActionExecutionService', () => {
       input,
       role: 'editor',
       trigger: 'frontend',
-      scheduleId: null,
     });
   });
 

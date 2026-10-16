@@ -66,7 +66,6 @@ function setup(credentialRequirements: string[]) {
         action: 'run',
         input: null,
         trigger: 'frontend',
-        scheduleId: null,
         deadlineAt: new Date('2026-10-14T12:01:00.000Z'),
       }),
     } as never,
