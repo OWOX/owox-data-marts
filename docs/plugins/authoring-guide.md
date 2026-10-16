@@ -573,8 +573,10 @@ A plugin can declare actions that run on its own backend, for example a
 [Cloud Run](https://cloud.google.com/run/docs) service. The plugin page starts an action with
 `ctx.actions`. OWOX Data Marts checks the input against the action's JSON Schema, calls the
 backend, and gives it an execution token. The token acts with the installing member's access and
-works only while that action runs. Credential secrets stay in OWOX Data Marts; the backend uses
-exact Credentials through `ctx.credentials`. AI Credential handles are not available in a backend.
+works only while that action runs. It keeps the role the member had when the action started until
+the action ends, at most `timeoutSeconds`, even if the member leaves the project or gets another
+role meanwhile; the installation is checked on every request. Credential secrets stay in OWOX Data
+Marts; the backend uses exact Credentials through `ctx.credentials`. AI Credential handles are not available in a backend.
 
 The [SDK README](../../packages/plugin-sdk/README.md) describes the same API in its "Backend
 actions" and "`@owox/plugin-sdk/server`" sections.
@@ -664,8 +666,10 @@ own code at the same time.
 Input nested deeper than 100 levels is refused with `INVALID_INPUT`. So is input whose validation
 exceeds its time and memory budget, with the message "Input validation exceeded its budget".
 
-At most 5 actions run at once per installation. Each waiting `invoke` or `wait` holds one of the
-32 request slots of the page while it polls.
+At most 5 actions run at once per installation. An installation can also start at most 60
+actions per minute and 5,000 per 24 hours, and keep at most 100 MiB of inputs and results that
+OWOX has not cleared yet. Every start counts, whatever its outcome. Each waiting `invoke` or `wait`
+holds one of the 32 request slots of the page while it polls.
 
 ### Handle action errors
 
@@ -678,7 +682,7 @@ A failed action rejects with a `PluginActionError`. Find it by `error.name` and 
 | `ACTION_NOT_DECLARED`           | The current version does not declare this action.                             |
 | `INPUT_TOO_LARGE`               | The input is over 256 KiB.                                                    |
 | `INVALID_INPUT`                 | The input fails the schema, nests over 100 levels or exceeds its budget.      |
-| `TOO_MANY_EXECUTIONS`           | The installation runs 5 actions, or too many inputs are being validated.      |
+| `TOO_MANY_EXECUTIONS`           | The installation hit a run, start or storage limit, or too many validations.  |
 | `TIMED_OUT`                     | The action did not finish within `timeoutSeconds`.                            |
 | `CANCELLED`                     | The action was cancelled.                                                     |
 | `BACKEND_UNREACHABLE`           | OWOX Data Marts could not connect to the backend.                             |

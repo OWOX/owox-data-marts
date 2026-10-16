@@ -282,8 +282,10 @@ if (ctx.actions) {
   `PluginTransportError` that carries `apiCode`. A transport failure stays a
   `PluginTransportError`.
 
-- At most 5 executions of an installation run at once, and too many inputs being validated at once
-  also answer `TOO_MANY_EXECUTIONS`. While an `invoke` or `wait` is waiting, it holds one of the 32
+- At most 5 executions of an installation run at once. An installation also starts at most 60 per
+  minute and 5,000 per 24 hours and keeps at most 100 MiB of uncleared inputs and results; every
+  start counts, whatever its outcome. These limits, and too many inputs being validated at once,
+  answer `TOO_MANY_EXECUTIONS`. While an `invoke` or `wait` is waiting, it holds one of the 32
   request slots for up to 20 seconds per poll.
 - Input is refused with `INVALID_INPUT` when it is nested deeper than 100 levels or its validation
   exceeds its budget.
