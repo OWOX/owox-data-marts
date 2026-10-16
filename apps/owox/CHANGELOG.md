@@ -1,5 +1,136 @@
 # owox
 
+## 0.39.0
+
+### Minor Changes
+
+- 9e9168f: **See who published a plugin in Plugin history**
+
+  Installation history is now **Plugin history**, one list, newest first, of what happened to the plugins you can reach in a project: your own installs, removals and restores, every publication for the project with the member who made it, your personal publications, Verified listing changes, version updates and suspensions. **All**, **Installations** and **Publications** filter the list, and **Restore** stays within reach for every plugin you removed.
+
+  ![Plugin history with the All, Installations and Publications filters, a Restore button on a removed plugin, and install and publish entries below it](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/b464bd05-c894-41ea-616a-0e9f2f8ffb00/w=800)
+  - Installations stay personal: other members do not see yours.
+  - Open it from **Plugins** → **⋮** → **Plugin history**. The API is `GET /api/plugins/history`.
+
+  The video opens Plugin history from **Plugins**, filters the list, and restores a removed plugin:
+
+  <https://customer-4geatlj66rtkaxtz.cloudflarestream.com/8a183ccd6832e4ec4344934667e7a10a/iframe>
+
+  See [Plugin history](../../docs/plugins/authoring-guide.md#plugin-history).
+
+  <!-- markdownlint-disable-file MD041 MD036 -->
+
+- 57ddb22: **Install a plugin as you publish it**
+
+  **Publish & Install** in the **Publish a plugin** sheet lists the plugin, asks you to confirm the installation, and opens the plugin, so it is in your menu right away. Previously a published plugin was missing from your menu until you found it in the Gallery and installed it.
+  - **Publish only**, in the button's menu, lists the plugin without installing it.
+  - **Publish & Install** on a plugin you already have opens it.
+
+  The video publishes and installs a plugin, publishes it again when it is already installed, and lists a second one with **Publish only**:
+
+  <https://customer-4geatlj66rtkaxtz.cloudflarestream.com/2dc07f561711c8cdeb524eec06e811f8/iframe>
+
+  See [Publish in OWOX Data Marts](../../docs/plugins/authoring-guide.md#publish-in-owox-data-marts).
+
+  <!-- markdownlint-disable-file MD041 MD036 -->
+
+- 0cd64e4: **Facebook Ads imports now retry a corrupted response instead of failing**
+
+  A long Facebook Ads import could fail near the end with a message like `Unexpected non-whitespace character after JSON at position 88743`. Facebook had answered one request with a damaged response body, and the connector gave up on it immediately, even though **Max Fetch Retries** was set.
+
+  Those damaged responses now count as retriable. The connector re-requests the page, waits between attempts as it does for any network problem, and finishes the import. A page only fails the run after every attempt in your retry budget returns a damaged body, and the error then names the endpoint that sent it.
+  - Nothing to change in your connector setup. **Max Fetch Retries** and **Initial Retry Delay (ms)** already cover this case.
+  - Re-run any import that failed with a JSON parsing error.
+
+  <!-- markdownlint-disable-file MD041 MD036 -->
+
+- 3d82afb: **Tell your AI assistant which Data Mart field to use**
+
+  Project, Context, and Data Mart descriptions can now link to a specific output-schema field, including calculated fields, rather than naming a metric in plain text. Type `@`, select a published Data Mart by title and icon, and search its fields by alias or technical name. The link gives your AI assistant an exact field reference to verify against the schema.
+
+  The video shows a business description linked to a metric, navigation to that field, and the editor in all three description locations:
+
+  <https://customer-4geatlj66rtkaxtz.cloudflarestream.com/d025ebc604f5407675985ffbc31579f9/iframe>
+  - Opening a field link expands **Output Schema** and any parent records, scrolls to the exact field, and highlights it. If the field was renamed or removed, the link still opens the Data Mart normally. Saved labels and technical names remain as inserted.
+  - Escape returns from fields to the Data Mart list, then closes the picker while preserving the description draft. You can continue typing literal `@` text after dismissal; Tab also closes the picker when focus leaves it.
+  - Description editors show Data Mart icons in Preview, more space above the first line, and a single Markdown label. Links do not change context assignments or access permissions.
+
+  See [Business descriptions and Data Mart links](../../docs/project/contexts.md#business-descriptions-and-data-mart-links).
+
+  <!-- markdownlint-disable-file MD041 MD036 -->
+
+- 43e82de: **Check a plugin release before you create it**
+
+  `owox-ctl plugins check OWNER/PLUGIN_NAME --ref <branch, tag, or commit SHA>` runs the release rules a GitHub Release from that commit would face: manifest, collection compatibility, delivery URL, and Credential definitions. It lists every failed rule it can evaluate, with release sync's rejection codes, and exits with code 1 when there are issues. The API is `POST /api/plugins/check`.
+  - Nothing is recorded: no version, no change to the current version, no sync report. The check does not delay **Check and Update** or the daily check.
+  - Without `--version`, the candidate is the next version in the current line: the next patch below `1.0.0`, the next minor from `1.0.0`. Without `--version`, a plugin with no current version gets no collection compatibility check.
+  - Only deployment publishers and members who manage a publication of the plugin can run it. Checks are rate-limited.
+
+  See [Update or roll back](../../docs/plugins/authoring-guide.md#update-or-roll-back).
+
+  <!-- markdownlint-disable-file MD041 MD036 -->
+
+- 73e1410: **Clear errors when a plugin's `parentId` does not match the collection's `entityBinding`**
+
+  Previously, a plugin's collection `put` whose `parentId` did not match the collection's `entityBinding` could fail with 403 and a message about the member's permissions. It now fails with status 400 and a message naming the collection and the plugin's current version: OWOX reads `entityBinding` from that version's `plugin.json`, not from the author's working copy.
+  - `parentId` sent to a collection without `entityBinding`: API code `PLUGIN_COLLECTION_NOT_ENTITY_BOUND`.
+  - `parentId` missing on a collection with `entityBinding`: API code `PLUGIN_COLLECTION_PARENT_ID_REQUIRED`.
+
+  A plugin receives both as `HTTP_ERROR` with `status` 400 and the message. See [Bind collection documents to OWOX entities](../../docs/plugins/authoring-guide.md#bind-collection-documents-to-owox-entities).
+
+  <!-- markdownlint-disable-file MD041 MD036 -->
+
+- b81425c: **Enable the Save button when the Create destination form opens pre-filled**
+
+  Previously the Save button on the Create destination form stayed disabled until you edited at least one field, even when the form opened with valid pre-filled values. Now a valid pre-filled create form saves right away. In edit mode, Save still stays disabled until you change something.
+
+  <!-- markdownlint-disable-file MD041 MD036 -->
+
+- 7622312: **Plugins can run actions on their own backend**
+
+  A plugin can declare actions in a `backend` block of `plugin.json` and run them on its own backend, such as a Cloudflare Worker or a Cloud Run service. The page calls `ctx.actions.invoke(name, input)` and waits for the result, or `ctx.actions.start` to let the action finish after the plugin closes. OWOX Data Marts validates the input against the action's JSON Schema, calls the backend, and gives it an execution token with the installing member's access that works only while the action runs. Credential secrets stay in OWOX Data Marts.
+
+  The video starts a check in an example plugin, leaves the plugin while the check runs on the plugin's backend, and comes back to the saved result:
+
+  <https://customer-4geatlj66rtkaxtz.cloudflarestream.com/00412c470de9b7ffd22792fc24036175/iframe>
+  - `@owox/plugin-sdk/server` provides `createBackend`. It checks the execution token with the calling host before a handler runs.
+  - `createBackend` runs only executions of its own plugin, named by its GitHub repository id. Without `hosts` it calls back only public HTTPS hosts, and on Node `@owox/plugin-sdk/server/node` also refuses names that resolve to private addresses.
+  - The release check rejects an input schema with `pattern`, `patternProperties`, `format`, `uniqueItems`, `$async` or a recursive or non-local `$ref` (`ACTION_INPUT_UNSUPPORTED`).
+  - Within a compatibility line, a release cannot remove an action (`ACTIONS_INCOMPATIBLE`), add a backend or move its origin (`BACKEND_ORIGIN_CHANGED`).
+  - Input and results nested deeper than 100 levels are refused (`INVALID_INPUT`, `BACKEND_INVALID_RESPONSE`). OWOX clears the input, result and a plugin-authored error message 24 hours after an execution finishes.
+  - At most 5 actions run at once per installation, each for up to 300 seconds; an installation also starts at most 60 per minute and 5,000 per 24 hours, and new starts are refused once 100 MiB of uncleared inputs and results are stored.
+  - The install dialog names the origin the plugin runs code on.
+
+  See [Run code on your backend with actions](../../docs/plugins/authoring-guide.md#run-code-on-your-backend-with-actions).
+
+  <!-- markdownlint-disable-file MD041 MD036 -->
+
+- 584a3de: **Plugins can call Google APIs with a service account**
+
+  A new built-in **Google Service Account** Credential stores a service account JSON key. A plugin that declares `google-service-account` with OAuth scopes in `plugin.json` calls Google APIs, such as Google Docs and Google Sheets, through the Credential: OWOX Data Marts mints the access token and adds it to each request, so neither the plugin page nor its backend sees the key or the token.
+
+  The video saves a service account key, installs a plugin that asks for Google Docs and Google Sheets scopes, and has the plugin add a ROAS check to the end of a Google Doc and as a row of a Google Sheet:
+
+  <https://customer-4geatlj66rtkaxtz.cloudflarestream.com/71f0bce74f0da5c394433b2bc2fda673/iframe>
+  - The Credential form takes the key as pasted JSON or a dropped file and shows the service account address to share documents with.
+  - A key Google rejects is refused on save, and a replacement key must belong to the same service account.
+  - The install dialog lists the scopes a plugin asks for.
+  - When Google refuses a stored key during a request, the plugin gets `CREDENTIAL_REJECTED` and the Credential is marked as rejected, and the Credentials page's Validation filter lists it.
+  - Once a project saves a Google Service Account Credential, an earlier version cannot list that project's Credentials, so roll back only after deleting such Credentials.
+
+  See [Use project Credentials](../../docs/plugins/authoring-guide.md#use-project-credentials).
+
+  <!-- markdownlint-disable-file MD041 MD036 -->
+
+### Patch Changes
+
+- @owox/internal-helpers@0.39.0
+- @owox/idp-protocol@0.39.0
+- @owox/idp-better-auth@0.39.0
+- @owox/idp-owox-better-auth@0.39.0
+- @owox/backend@0.39.0
+- @owox/web@0.39.0
+
 ## 0.38.0
 
 ### Minor Changes 0.38.0
@@ -132,7 +263,7 @@ was not found.` — and the same report could fail with a different message ever
 
   Other errors from Google Sheets now name the step that failed and Google's reason.
 
-  <!-- markdownlint-disable-file MD041 MD036 -->
+    <!-- markdownlint-disable-file MD041 MD036 -->
 
 - ad99842: **Plugin SDK: links to a plugin's own pages**
 
