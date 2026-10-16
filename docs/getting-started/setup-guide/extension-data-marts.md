@@ -11,7 +11,7 @@ You already use the [OWOX Reports Google Sheets Extension](https://workspace.goo
 
 > 💡 OWOX Data Marts detects your existing Extension Data Marts and automatically
 > creates a **system storage** named after your GCP project ID. The storage type is “Google BigQuery (used in OWOX extension)”.
-> This system storage cannot be added, edited, or deleted manually.
+> This system storage cannot be added or deleted manually.
 
 Take your Data Marts to the next level by completing these quick steps 👇
 
@@ -57,7 +57,7 @@ Once published, each Data Mart is live: its output schema is visible and it can 
 
 > ☝️ Extension and web Data Marts are bidirectionally linked. Deleting a Data Mart
 > in the web app also removes it from the extension. New Data Marts created in the
-> web app do not sync back to the extension.
+> web app do not appear in OWOX Reports; the new OWOX extension for Google Sheets shows them.
 
 ## Manage Data Marts in the List
 

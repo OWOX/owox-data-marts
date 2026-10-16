@@ -4,7 +4,7 @@
 
 This storage connects your existing Data Marts from the extension to the OWOX Data Marts web interface. It allows you to complete a one-time setup, publish your Data Marts, and manage them using additional capabilities available in OWOX Data Marts.
 
-> ☝️ You cannot manually add or delete this storage.
+> ☝️ You cannot manually add or delete this storage. You can edit its location and access settings.
 
 ## Finish Setting Up the Storage
 
@@ -29,7 +29,7 @@ You will see the following fields:
 
 A separate system storage is created for each GCP project used with the OWOX extension. These fields are locked to ensure stable integration between the extension and OWOX Data Marts.
 
-If you need to work with a different GCP project, create a new storage.
+To work with another GCP project, add a regular [Google BigQuery](google-bigquery.md) storage.
 
 ### Step 2. Set the Location
 
@@ -37,7 +37,7 @@ By default, **Auto-detect location** is selected. We recommend keeping this sett
 
 ### Step 3. Add a Service Account
 
-To enable access to your BigQuery project, you must provide a Service Account JSON key.
+To enable access to your BigQuery project, choose **Service Account JSON** or **Connect with Google** under **Authentication Method**. The steps below cover the Service Account JSON key.
 
 #### Required roles
 
@@ -83,11 +83,10 @@ It connects your existing extension Data Marts to OWOX Data Marts.
 
 ### Can I create new Data Marts using this storage?
 
-No.
+Yes, with two limits:
 
-The **Google BigQuery (used in OWOX extension)** storage is available only for Data Marts created in the extension.
-
-When creating new Data Marts in OWOX Data Marts, this storage cannot be selected.
+- A Data Mart on this storage is defined by a SQL query; other definition types are not available.
+- Its title cannot contain emoji.
 
 ### If I delete a Data Mart in OWOX Data Marts, will it also be deleted in the extension?
 
@@ -101,13 +100,13 @@ You can use batch actions to manage and delete multiple extension Data Marts at 
 
 No.
 
-New Data Marts created in OWOX Data Marts are not synced back to the extension.
+New Data Marts created in OWOX Data Marts do not appear in OWOX Reports (Google Sheets extension). The new OWOX extension for Google Sheets shows them.
 
 ### Can I edit or delete this storage?
 
-No.
+You can edit it, but you cannot delete it.
 
-This is a system storage created automatically to maintain compatibility with OWOX Reports (Google Sheets extension). It cannot be manually added, edited, or deleted.
+This is a system storage created automatically to maintain compatibility with OWOX Reports (Google Sheets extension). You can change its location and access settings. The Title and Project ID are fixed, and the storage cannot be manually added or deleted.
 
 ### Why are the Title and Project ID fields fixed?
 
@@ -118,7 +117,7 @@ A separate system storage is created for each GCP project used with the extensio
 
 This ensures stable integration between the extension and OWOX Data Marts.
 
-If you need storage for another GCP project, contact support.
+To work with another GCP project, add a regular [Google BigQuery](google-bigquery.md) storage.
 
 ### Can I use this storage without the extension?
 
