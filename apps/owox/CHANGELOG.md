@@ -2,7 +2,7 @@
 
 ## 0.39.0
 
-### Minor Changes
+### Minor Changes 0.39.0
 
 - 9e9168f: **See who published a plugin in Plugin history**
 
@@ -122,7 +122,7 @@
 
   <!-- markdownlint-disable-file MD041 MD036 -->
 
-### Patch Changes
+### Patch Changes 0.39.0
 
 - @owox/internal-helpers@0.39.0
 - @owox/idp-protocol@0.39.0
