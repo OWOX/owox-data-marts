@@ -80,6 +80,16 @@ export class PluginActionExecutionApiDto {
   error: PluginActionExecutionErrorApiDto | null;
 }
 
+export class PluginActionWorkerPluginApiDto {
+  @ApiProperty() id: string;
+
+  @ApiProperty({
+    description:
+      'The GitHub repository id of the plugin, the same on every deployment and after a rename or transfer.',
+  })
+  repositoryId: string;
+}
+
 export class PluginActionWorkerContextApiDto {
   @ApiProperty() executionId: string;
   @ApiProperty() action: string;
@@ -91,6 +101,9 @@ export class PluginActionWorkerContextApiDto {
   trigger: PluginActionTrigger;
 
   @ApiProperty() deadlineAt: Date;
+
+  @ApiProperty({ type: PluginActionWorkerPluginApiDto })
+  plugin: PluginActionWorkerPluginApiDto;
 
   @ApiProperty({ description: 'Semver of the release the execution started on.' })
   pluginVersion: string;

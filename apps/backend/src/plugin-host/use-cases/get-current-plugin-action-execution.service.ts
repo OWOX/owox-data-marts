@@ -45,7 +45,7 @@ export class GetCurrentPluginActionExecutionService {
       current?.id === execution.pluginVersionId
         ? current
         : await this.versions.findById(execution.pluginVersionId);
-    if (!current || !started) {
+    if (!plugin || !current || !started) {
       throw new ExecutionNotFoundError();
     }
 
@@ -67,6 +67,7 @@ export class GetCurrentPluginActionExecutionService {
       input: execution.input,
       trigger: execution.trigger,
       deadlineAt: execution.deadlineAt,
+      plugin: { id: plugin.id, repositoryId: plugin.githubRepoId },
       pluginVersion: started.semver,
       installationId: execution.installationId,
       projectId: execution.projectId,

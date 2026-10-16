@@ -31,6 +31,8 @@ export interface PluginActionWorkerContext {
   readonly input: unknown;
   readonly trigger: PluginActionTrigger;
   readonly deadlineAt: Date;
+  /** The plugin the execution belongs to. */
+  readonly plugin: { readonly id: string; readonly repositoryId: string };
   /** The release the execution started on. */
   readonly pluginVersion: string;
   readonly installationId: string;

@@ -42,7 +42,9 @@ const VERSIONS = new Map([
 function setup() {
   const executions = { findWithInput: jest.fn().mockResolvedValue(EXECUTION) };
   const plugins = {
-    findById: jest.fn().mockResolvedValue({ id: 'plugin-1', currentVersionId: 'version-2' }),
+    findById: jest
+      .fn()
+      .mockResolvedValue({ id: 'plugin-1', githubRepoId: '123456', currentVersionId: 'version-2' }),
   };
   const versions = { findById: jest.fn(async (id: string) => VERSIONS.get(id) ?? null) };
   const credentialBindings = {
@@ -78,6 +80,7 @@ describe('GetCurrentPluginActionExecutionService', () => {
       input: { page: 1 },
       trigger: 'frontend',
       deadlineAt: DEADLINE_AT,
+      plugin: { id: 'plugin-1', repositoryId: '123456' },
       pluginVersion: '1.0.0',
       installationId: 'installation-1',
       projectId: 'project-1',

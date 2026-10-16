@@ -48,6 +48,7 @@ const BACKEND: PluginBackendDeclaration = {
 
 interface InstalledPlugin {
   readonly pluginId: string;
+  readonly repositoryId: string;
   readonly versionId: string;
   readonly installationId: string;
   readonly runtimeToken: string;
@@ -105,6 +106,7 @@ describe('Plugin backend actions (e2e)', () => {
       .expect(200);
     return {
       pluginId: plugin.id,
+      repositoryId: githubRepoId,
       versionId: version.id,
       installationId: installation.id,
       runtimeToken: minted.body.runtimeToken,
@@ -567,6 +569,7 @@ describe('Plugin backend actions (e2e)', () => {
         input: { page: 1 },
         trigger: 'frontend',
         deadlineAt: deadlineAt.toISOString(),
+        plugin: { id: primary.pluginId, repositoryId: primary.repositoryId },
         pluginVersion: '1.0.0',
         installationId: primary.installationId,
         projectId: '0',
