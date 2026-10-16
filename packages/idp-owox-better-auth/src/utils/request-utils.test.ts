@@ -61,10 +61,62 @@ describe('request-utils', () => {
     expect(extractAuthFlowParams(req).integration).toBeUndefined();
   });
 
+  it.each([
+    ['/auth/sign-in', 'old-platform-state'],
+    ['/auth/sign-up', 'old-platform-state'],
+    ['/auth/sign-in', undefined],
+    ['/auth/sign-up', undefined],
+  ])('drops abandoned MCP attribution on %s with previous state %s', (path, previousState) => {
+    const params = {
+      appRedirectTo: '/oauth/authorize?client_id=old',
+      integration: 'claude' as const,
+    };
+    const cookies = [`idp-owox-params=${encodeURIComponent(JSON.stringify(params))}`];
+    if (previousState) cookies.push(`idp-owox-state=${previousState}`);
+    const req = {
+      path,
+      query: { state: 'new-platform-state' },
+      headers: { cookie: cookies.join('; ') },
+    } as unknown as Request;
+
+    expect(extractAuthFlowParams(req).integration).toBeUndefined();
+  });
+
+  it.each([
+    ['/auth/sign-up', 'current-platform-state'],
+    ['/auth/better-auth/callback/google', 'google-oauth-state'],
+  ])('keeps attribution within the current MCP flow on %s', (path, state) => {
+    const params = {
+      appRedirectTo: '/oauth/authorize?client_id=current',
+      integration: 'chatgpt' as const,
+    };
+    const req = {
+      path,
+      query: { state },
+      headers: {
+        cookie: `idp-owox-state=current-platform-state; idp-owox-params=${encodeURIComponent(JSON.stringify(params))}`,
+      },
+    } as unknown as Request;
+
+    expect(extractAuthFlowParams(req).integration).toBe('chatgpt');
+  });
+
   it.each(['claude', 'chatgpt'])('takes current MCP source %s over a stale cookie', integration => {
     const req = {
-      query: { integration, 'app-redirect-to': '/oauth/authorize?client_id=current' },
-      headers: {},
+      path: '/auth/sign-up',
+      query: {
+        state: 'new-platform-state',
+        integration,
+        'app-redirect-to': '/oauth/authorize?client_id=current',
+      },
+      headers: {
+        cookie: `idp-owox-state=old-platform-state; idp-owox-params=${encodeURIComponent(
+          JSON.stringify({
+            appRedirectTo: '/oauth/authorize?client_id=old',
+            integration: 'owox-data-marts',
+          })
+        )}`,
+      },
     } as unknown as Request;
     expect(extractAuthFlowParams(req).integration).toBe(integration);
   });
