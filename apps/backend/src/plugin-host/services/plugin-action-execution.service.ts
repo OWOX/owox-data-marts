@@ -25,6 +25,15 @@ export interface InsertRunningExecutionInput {
   trigger: PluginActionTrigger;
 }
 
+const HOUR_MS = 60 * 60 * 1000;
+const MINUTE_MS = 60 * 1000;
+const DAY_MS = 24 * HOUR_MS;
+
+/** UTF-8 bytes of what the column transformer stores for `value`. */
+function byteLength(value: unknown): number {
+  return Buffer.byteLength(JSON.stringify(value) ?? '');
+}
+
 /** What an execution token stands for; the guard reads it on every Worker request. */
 const TOKEN_OWNER_COLUMNS = {
   id: true,
@@ -94,6 +103,7 @@ export class PluginActionExecutionService {
     if (running >= PLUGIN_ACTION_LIMITS.maxRunningPerInstallation) {
       throw new TooManyExecutionsError();
     }
+    await this.assertWithinStartLimits(request.installationId, now);
 
     // Whole seconds, so MySQL datetime(0) cannot move the deadline the timer uses; the deadline rounds up, so
     // the action never gets less than its declared timeout.
@@ -117,8 +127,53 @@ export class PluginActionExecutionService {
         errorCode: null,
         errorMessage: null,
         result: null,
+        payloadBytes: byteLength(request.input),
       })
     );
+  }
+
+  /**
+   * Every row counts as a start whatever its status, so a start-then-cancel loop meets the limits too.
+   * All three numbers come from one range scan of idx_plugin_action_execution_starts: the byte sum reads
+   * 48 h of rows, twice the payload retention, so a sweep that lags a little still counts; the sweep
+   * resets payloadBytes to 0 when it clears a row. SUM comes back as a string on MySQL.
+   */
+  private async assertWithinStartLimits(installationId: string, now: number): Promise<void> {
+    const raw = await this.executions
+      .createQueryBuilder('e')
+      .select('SUM(CASE WHEN e.startedAt > :minuteAgo THEN 1 ELSE 0 END)', 'perMinute')
+      .addSelect('SUM(CASE WHEN e.startedAt > :dayAgo THEN 1 ELSE 0 END)', 'perDay')
+      .addSelect('SUM(e.payloadBytes)', 'bytes')
+      .where('e.installationId = :installationId', { installationId })
+      .andWhere('e.startedAt > :bytesSince')
+      .setParameters({
+        minuteAgo: new Date(now - MINUTE_MS),
+        dayAgo: new Date(now - DAY_MS),
+        bytesSince: new Date(now - 2 * PLUGIN_ACTION_LIMITS.payloadRetentionHours * HOUR_MS),
+      })
+      .getRawOne<{
+        perMinute: string | number | null;
+        perDay: string | number | null;
+        bytes: string | number | null;
+      }>();
+    const perMinute = Number(raw?.perMinute ?? 0);
+    const perDay = Number(raw?.perDay ?? 0);
+    const bytes = Number(raw?.bytes ?? 0);
+    if (perMinute >= PLUGIN_ACTION_LIMITS.maxStartsPerInstallationPerMinute) {
+      throw new TooManyExecutionsError(
+        `${PLUGIN_ACTION_LIMITS.maxStartsPerInstallationPerMinute} starts per minute reached`
+      );
+    }
+    if (perDay >= PLUGIN_ACTION_LIMITS.maxStartsPerInstallationPerDay) {
+      throw new TooManyExecutionsError(
+        `${PLUGIN_ACTION_LIMITS.maxStartsPerInstallationPerDay} starts per day reached`
+      );
+    }
+    if (bytes >= PLUGIN_ACTION_LIMITS.maxPayloadBytesPerInstallation) {
+      throw new TooManyExecutionsError(
+        `${PLUGIN_ACTION_LIMITS.maxPayloadBytesPerInstallation / (1024 * 1024)} MB of stored payloads reached`
+      );
+    }
   }
 
   findById(id: string): Promise<PluginActionExecutionSummary | null> {
@@ -156,6 +211,9 @@ export class PluginActionExecutionService {
         result: (outcome.status === PluginActionExecutionStatus.SUCCEEDED
           ? outcome.result
           : null) as never,
+        ...(outcome.status === PluginActionExecutionStatus.SUCCEEDED && {
+          payloadBytes: () => `payloadBytes + ${byteLength(outcome.result)}`,
+        }),
       }
     );
     return affected === 1;
@@ -206,7 +264,12 @@ export class PluginActionExecutionService {
       // Marked last, so a batch that fails half way is picked up again by the next run.
       await this.executions.update(
         { id: In(rows.map(row => row.id)) },
-        { input: () => 'NULL', result: () => 'NULL', payloadsClearedAt: new Date() }
+        {
+          input: () => 'NULL',
+          result: () => 'NULL',
+          payloadsClearedAt: new Date(),
+          payloadBytes: 0,
+        }
       );
       return rows.length;
     });

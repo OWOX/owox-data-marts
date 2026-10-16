@@ -175,6 +175,31 @@ describeIfAvailable('Plugin action execution storage (integration, MySQL)', () =
     ).toBe(5);
   });
 
+  it('refuses the 61st start within a minute, whatever the status of the earlier ones', async () => {
+    const installationId = await installation();
+    for (let started = 0; started < 59; started += 1) {
+      const row = await service.insertRunning(running(installationId));
+      await service.cancel(row.id, installationId);
+    }
+
+    await expect(service.insertRunning(running(installationId))).resolves.toBeDefined();
+    await expect(service.insertRunning(running(installationId))).rejects.toThrow(
+      '60 starts per minute reached'
+    );
+  });
+
+  it('refuses a start once stored payloads reach 100 MB', async () => {
+    const installationId = await installation();
+    const saved = await service.insertRunning(running(installationId));
+    await dataSource
+      .getRepository(PluginActionExecution)
+      .update(saved.id, { payloadBytes: 100 * 1024 * 1024 });
+
+    await expect(service.insertRunning(running(installationId))).rejects.toThrow(
+      '100 MB of stored payloads reached'
+    );
+  });
+
   it('stores a whole-second start and a deadline at least the timeout away', async () => {
     const installationId = await installation();
 

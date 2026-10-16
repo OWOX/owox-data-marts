@@ -162,6 +162,39 @@ describe('Plugin action execution storage (e2e)', () => {
     ).toBe(5);
   });
 
+  it('refuses starts past the per-minute limit, even when each earlier one was cancelled', async () => {
+    const target = await installation();
+    for (let i = 0; i < 60; i += 1) {
+      const row = await service.insertRunning(running(target));
+      await service.cancel(row.id, target.id);
+    }
+
+    await expect(service.insertRunning(running(target))).rejects.toThrow(
+      '60 starts per minute reached'
+    );
+    await executions.update(
+      { installationId: target.id },
+      { startedAt: new Date(Date.now() - 2 * 60_000) }
+    );
+    await expect(service.insertRunning(running(target))).resolves.toBeDefined();
+  });
+
+  it('counts payloadBytes only within 48 hours of the start', async () => {
+    const target = await installation();
+    const saved = await service.insertRunning(running(target));
+    await service.finish(saved.id, { status: PluginActionExecutionStatus.SUCCEEDED, result: 'é' });
+    expect((await executions.findOneByOrFail({ id: saved.id })).payloadBytes).toBe(
+      Buffer.byteLength('{"documentId":"d1"}') + 4
+    );
+
+    await executions.update(saved.id, { payloadBytes: 100 * 1024 * 1024 });
+    await expect(service.insertRunning(running(target))).rejects.toThrow(
+      '100 MB of stored payloads reached'
+    );
+    await executions.update(saved.id, { startedAt: new Date(Date.now() - 49 * HOUR) });
+    await expect(service.insertRunning(running(target))).resolves.toBeDefined();
+  });
+
   it('refuses an uninstalled installation and writes no row', async () => {
     const target = await installation({ uninstalled: true });
 
@@ -293,6 +326,7 @@ describe('Plugin action execution storage (e2e)', () => {
       errorCode: 'BACKEND_UNREACHABLE',
       errorMessage: 'May echo the input',
       input: null,
+      payloadBytes: 0,
     });
 
     await expect(executions.findOneByOrFail({ id: orphan.id })).resolves.toMatchObject({
@@ -305,7 +339,7 @@ describe('Plugin action execution storage (e2e)', () => {
     await expect(executions.findOneByOrFail({ id: fresh.id })).resolves.toMatchObject({
       input: { documentId: 'd1' },
       payloadsClearedAt: null,
-      payloadBytes: 0,
+      payloadBytes: 19,
     });
     await expect(executions.findOneByOrFail({ id: yesterday.id })).resolves.toMatchObject({
       status: PluginActionExecutionStatus.SUCCEEDED,

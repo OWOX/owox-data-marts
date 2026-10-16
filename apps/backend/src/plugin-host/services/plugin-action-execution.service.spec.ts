@@ -27,7 +27,13 @@ const REQUEST: InsertRunningExecutionInput = {
   trigger: 'frontend',
 };
 
-function setup(options: { locked?: number; running?: number } = {}) {
+type Totals = {
+  perMinute: string | number | null;
+  perDay: string | number | null;
+  bytes: string | number | null;
+};
+
+function setup(options: { locked?: number; running?: number; totals?: Totals } = {}) {
   const calls: string[] = [];
   const lockQuery = {
     update: jest.fn().mockReturnThis(),
@@ -40,7 +46,19 @@ function setup(options: { locked?: number; running?: number } = {}) {
     }),
   };
   const installations = { createQueryBuilder: jest.fn(() => lockQuery) };
+  const totalsQuery = {
+    select: jest.fn().mockReturnThis(),
+    addSelect: jest.fn().mockReturnThis(),
+    where: jest.fn().mockReturnThis(),
+    andWhere: jest.fn().mockReturnThis(),
+    setParameters: jest.fn().mockReturnThis(),
+    getRawOne: jest.fn(async () => {
+      calls.push('totals');
+      return options.totals ?? { perMinute: '0', perDay: '0', bytes: null };
+    }),
+  };
   const executions = {
+    createQueryBuilder: jest.fn(() => totalsQuery),
     countBy: jest.fn(async () => {
       calls.push('count');
       return options.running ?? 0;
@@ -56,7 +74,7 @@ function setup(options: { locked?: number; running?: number } = {}) {
     delete: jest.fn().mockResolvedValue({ affected: 0 }),
   };
   const service = new PluginActionExecutionService(executions as never, installations as never);
-  return { service, calls, lockQuery, executions };
+  return { service, calls, lockQuery, executions, totalsQuery };
 }
 
 describe('PluginActionExecutionService', () => {
@@ -69,7 +87,7 @@ describe('PluginActionExecutionService', () => {
 
       await s.service.insertRunning(REQUEST);
 
-      expect(s.calls).toEqual(['lock', 'count', 'insert']);
+      expect(s.calls).toEqual(['lock', 'count', 'totals', 'insert']);
       expect(s.lockQuery.set).toHaveBeenCalledWith({ modifiedAt: expect.any(Function) });
       expect(s.lockQuery.set.mock.calls[0][0].modifiedAt()).toBe('modifiedAt');
       expect(s.lockQuery.where).toHaveBeenCalledWith('id = :id', { id: 'i1' });
@@ -90,6 +108,53 @@ describe('PluginActionExecutionService', () => {
 
       await expect(s.service.insertRunning(REQUEST)).rejects.toBeInstanceOf(TooManyExecutionsError);
       expect(s.calls).toEqual(['lock', 'count']);
+    });
+
+    it.each([
+      ['per minute', { perMinute: '60', perDay: '60', bytes: '0' }, '60 starts per minute reached'],
+      ['per day', { perMinute: 3, perDay: '5000', bytes: '0' }, '5000 starts per day reached'],
+      [
+        'in stored bytes',
+        { perMinute: 0, perDay: 0, bytes: String(100 * 1024 * 1024) },
+        '100 MB of stored payloads reached',
+      ],
+    ])(
+      'refuses a start over the limit %s, naming it and leaving the input out',
+      async (_n, totals, message) => {
+        const s = setup({ totals });
+
+        const refusal = await s.service.insertRunning(REQUEST).catch((error: unknown) => error);
+
+        expect(refusal).toBeInstanceOf(TooManyExecutionsError);
+        expect((refusal as Error).message).toBe(message);
+        expect(s.calls).toEqual(['lock', 'count', 'totals']);
+      }
+    );
+
+    it('admits a start one below every limit, bounding the sums by startedAt', async () => {
+      const s = setup({
+        totals: { perMinute: '59', perDay: '4999', bytes: String(100 * 1024 * 1024 - 1) },
+      });
+
+      await s.service.insertRunning(REQUEST);
+
+      expect(s.calls).toEqual(['lock', 'count', 'totals', 'insert']);
+      expect(s.totalsQuery.andWhere).toHaveBeenCalledWith('e.startedAt > :bytesSince');
+      expect(s.totalsQuery.setParameters).toHaveBeenCalledWith({
+        minuteAgo: new Date(NOW.getTime() - 60_000),
+        dayAgo: new Date(NOW.getTime() - 24 * 3_600_000),
+        bytesSince: new Date(NOW.getTime() - 48 * 3_600_000),
+      });
+    });
+
+    it('stores the UTF-8 byte length of the input as payloadBytes', async () => {
+      const s = setup();
+
+      await s.service.insertRunning({ ...REQUEST, input: { t: 'é😀' } });
+
+      expect(s.executions.create).toHaveBeenCalledWith(
+        expect.objectContaining({ payloadBytes: Buffer.byteLength('{"t":"é😀"}') })
+      );
     });
 
     it('counts only RUNNING rows whose deadline is still ahead', async () => {
@@ -160,6 +225,15 @@ describe('PluginActionExecutionService', () => {
         result: null,
       }
     );
+  });
+
+  it('adds the byte length of a result to payloadBytes when the execution succeeds', async () => {
+    const s = setup();
+
+    await s.service.finish('e1', { status: PluginActionExecutionStatus.SUCCEEDED, result: 'é' });
+
+    const values = s.executions.update.mock.calls[0][1];
+    expect(values.payloadBytes()).toBe('payloadBytes + 4');
   });
 
   it('reports a lost compare-and-set as false', async () => {
@@ -259,6 +333,7 @@ describe('PluginActionExecutionService', () => {
         input: expect.any(Function),
         result: expect.any(Function),
         payloadsClearedAt: NOW,
+        payloadBytes: 0,
       });
       expect(values.input()).toBe('NULL');
       expect(values.result()).toBe('NULL');
