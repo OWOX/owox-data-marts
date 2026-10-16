@@ -1,7 +1,9 @@
+import { ProtocolRoute } from '@owox/idp-protocol';
 import { type Request, type Response } from 'express';
 import ms from 'ms';
 import { z } from 'zod';
 import {
+  AUTH_BASE_PATH,
   BETTER_AUTH_CSRF_COOKIE,
   BETTER_AUTH_SESSION_COOKIE,
   BETTER_AUTH_STATE_COOKIE,
@@ -14,6 +16,7 @@ const AUTH_PARAMS = new Set([
   'state',
   'code',
   'source',
+  'integration',
   'app-redirect-to',
   'appRedirectTo',
   'redirect',
@@ -70,6 +73,11 @@ export const AuthFlowParamsSchema = z.object({
   appRedirectTo: optionalStringParam,
   projectRedirectUserId: optionalStringParam,
   source: optionalStringParam,
+  integration: z.preprocess(
+    value =>
+      ['claude', 'chatgpt', 'owox-data-marts'].includes(value as string) ? value : undefined,
+    z.enum(['claude', 'chatgpt', 'owox-data-marts']).optional()
+  ),
   clientId: optionalStringParam,
   codeChallenge: optionalStringParam,
   projectId: optionalProjectIdParam,
@@ -357,8 +365,25 @@ export function extractAuthFlowParams(req: Request): AuthFlowParams {
   const projectId = normalizeProjectId(
     typeof req.query?.projectId === 'string' ? req.query.projectId : undefined
   );
+  const integration = AuthFlowParamsSchema.parse({
+    integration: req.query.integration,
+  }).integration;
+  const sameContinuation = resolvedAppRedirectTo === cookieParams.appRedirectTo;
+  // A new Platform state starts a new attempt. Social callbacks use a separate provider state.
+  const isAuthEntry =
+    req.path === `${AUTH_BASE_PATH}${ProtocolRoute.SIGN_IN}` ||
+    req.path === `${AUTH_BASE_PATH}${ProtocolRoute.SIGN_UP}`;
+  const queryState = typeof req.query.state === 'string' ? req.query.state : undefined;
+  const hasNewAuthState = isAuthEntry && queryState && queryState !== extractStateFromCookie(req);
+  const mcpIntegration = resolvedAppRedirectTo?.startsWith('/oauth/authorize?')
+    ? (integration ??
+      (sameContinuation && !hasNewAuthState && !Object.hasOwn(req.query, 'integration')
+        ? cookieParams.integration
+        : undefined))
+    : undefined;
   return {
     redirectTo: redirectTo || cookieParams.redirectTo,
+    integration: mcpIntegration,
     appRedirectTo: resolvedAppRedirectTo,
     projectRedirectUserId,
     source: source || cookieParams.source,

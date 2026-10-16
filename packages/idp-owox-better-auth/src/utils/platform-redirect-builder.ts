@@ -45,6 +45,7 @@ function applyAuthFlowParams(
 ): void {
   const source = params?.source || options.defaultSource;
   if (source) url.searchParams.set('source', source);
+  if (params?.integration) url.searchParams.set('integration', params.integration);
   const redirectTo = sanitizeRedirectParam(params?.redirectTo, options.allowedRedirectOrigins);
   if (redirectTo) url.searchParams.set('redirect-to', redirectTo);
   const appRedirectTo = sanitizeRedirectParam(

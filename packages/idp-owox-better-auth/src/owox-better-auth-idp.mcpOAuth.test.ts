@@ -193,6 +193,7 @@ describe('OwoxBetterAuthIdp MCP OAuth methods', () => {
     const request = {
       headers: { cookie: '' },
       query: {
+        integration: 'claude',
         redirect: '/oauth/authorize?response_type=code&client_id=mcp-client&state=client-state',
         'app-redirect-to':
           '/oauth/authorize?response_type=code&client_id=mcp-client&state=client-state',
@@ -215,6 +216,7 @@ describe('OwoxBetterAuthIdp MCP OAuth methods', () => {
       expect.stringContaining('https://platform.test/auth/sign-in')
     );
     expect(response.redirect).toHaveBeenCalledWith(expect.stringContaining('source=app'));
+    expect(response.redirect).toHaveBeenCalledWith(expect.stringContaining('integration=claude'));
     expect(response.redirect).toHaveBeenCalledWith(
       expect.stringContaining('app-redirect-to=%2Foauth%2Fauthorize')
     );

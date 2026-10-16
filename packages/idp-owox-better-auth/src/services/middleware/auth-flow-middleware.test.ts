@@ -53,6 +53,8 @@ describe('AuthFlowMiddleware', () => {
       headers: { cookie: '' },
       query: {
         redirect: redirectTo,
+        'app-redirect-to': redirectTo,
+        integration: 'claude',
       },
     } as unknown as Request;
     const response = {
@@ -70,6 +72,7 @@ describe('AuthFlowMiddleware', () => {
       expect.any(Date),
       expect.objectContaining({
         redirectTo,
+        integration: 'claude',
       })
     );
     expect(response.cookie).toHaveBeenCalledWith(
@@ -84,5 +87,6 @@ describe('AuthFlowMiddleware', () => {
     expect(response.redirect).toHaveBeenCalledWith(
       expect.stringContaining('https://platform.test/auth/sign-in')
     );
+    expect(response.redirect).toHaveBeenCalledWith(expect.stringContaining('integration=claude'));
   });
 });

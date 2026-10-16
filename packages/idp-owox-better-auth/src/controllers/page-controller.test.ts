@@ -1,5 +1,8 @@
 import { describe, expect, it, jest } from '@jest/globals';
 import type { Request, Response } from 'express';
+import { SOURCE } from '../core/constants.js';
+import { buildPlatformRedirectUrl } from '../utils/platform-redirect-builder.js';
+import { extractAuthFlowParams } from '../utils/request-utils.js';
 import { PageController } from './page-controller.js';
 
 function createResponse(): Response & { body?: string } {
@@ -40,6 +43,52 @@ function lastParamsCookieValue(res: Response): Record<string, unknown> | undefin
 
 describe('PageController.signInPage / signUpPage', () => {
   const providers = { google: true, microsoft: true, email: true };
+
+  it.each(['claude', 'chatgpt'])(
+    'does not attribute ordinary registration to an abandoned %s MCP sign-in',
+    async integration => {
+      const controller = new PageController(providers);
+      const mcpRequest = {
+        ...createRequest({
+          state: 'abandoned-platform-state',
+          integration,
+          'app-redirect-to': '/oauth/authorize?client_id=abandoned',
+        }),
+        path: '/auth/sign-in',
+      } as Request;
+      const mcpResponse = createResponse();
+      await controller.signInPage(mcpRequest, mcpResponse);
+      const abandonedParams = lastParamsCookieValue(mcpResponse)!;
+      expect(abandonedParams.integration).toBe(integration);
+
+      const signupRequest = {
+        ...createRequest(
+          { state: 'ordinary-signup-state', source: SOURCE.PLATFORM },
+          `idp-owox-state=abandoned-platform-state; ${paramsCookieHeader(abandonedParams)}`
+        ),
+        path: '/auth/sign-up',
+      } as Request;
+      const signupResponse = createResponse();
+      await controller.signUpPage(signupRequest, signupResponse);
+      const signupParams = lastParamsCookieValue(signupResponse)!;
+      expect(signupParams.integration).toBeUndefined();
+
+      const callbackRequest = {
+        ...createRequest(
+          { state: 'google-oauth-state' },
+          `idp-owox-state=ordinary-signup-state; ${paramsCookieHeader(signupParams)}`
+        ),
+        path: '/auth/better-auth/callback/google',
+      } as Request;
+      const callbackUrl = buildPlatformRedirectUrl({
+        baseUrl: 'https://platform.test/ui/p/signin',
+        code: 'signup-code',
+        state: 'ordinary-signup-state',
+        params: extractAuthFlowParams(callbackRequest),
+      });
+      expect(callbackUrl?.searchParams.has('integration')).toBe(false);
+    }
+  );
 
   it('renders with hasState=false and no auto-submit on a plain, state-less page load', async () => {
     const controller = new PageController(providers);

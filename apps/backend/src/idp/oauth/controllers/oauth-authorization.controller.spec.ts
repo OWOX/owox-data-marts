@@ -139,6 +139,25 @@ describe('OAuthAuthorizationController', () => {
     };
   }
 
+  it.each([
+    ['https://claude.ai/api/mcp/auth_callback', 'claude'],
+    ['https://chatgpt.com/connector/oauth/callback', 'chatgpt'],
+    ['http://127.0.0.1:63888/callback', 'owox-data-marts'],
+  ])(
+    'carries validated client attribution through sign-in: %s',
+    async (redirectUri, integration) => {
+      const { controller } = createController({
+        request: { ...authorizationRequest, redirectUri },
+        resourceContext: sharedResourceContext,
+      });
+      const response = createResponse();
+      await controller.authorize({}, createRequest(), response as unknown as Response);
+      const url = new URL(response.redirect.mock.calls[0][0] as string, 'http://localhost');
+      expect(url.searchParams.get('integration')).toBe(integration);
+      expect(url.searchParams.get('app-redirect-to')).toContain('/oauth/authorize?');
+    }
+  );
+
   it('redirects unauthenticated browser requests to sign-in with OAuth continuation', async () => {
     const loggerSpy = jest.spyOn(Logger.prototype, 'log').mockImplementation();
     const { controller, validator, oauthIdp } = createController();
