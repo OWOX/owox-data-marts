@@ -6,6 +6,10 @@
 
 A plugin can declare actions in a `backend` block of `plugin.json` and run them on its own backend, such as a Cloudflare Worker or a Cloud Run service. The page calls `ctx.actions.invoke(name, input)` and waits for the result, or `ctx.actions.start` to let the action finish after the plugin closes. OWOX Data Marts validates the input against the action's JSON Schema, calls the backend, and gives it an execution token with the installing member's access that works only while the action runs. Credential secrets stay in OWOX Data Marts.
 
+The video starts a check in an example plugin, leaves the plugin while the check runs on the plugin's backend, and comes back to the saved result:
+
+<https://customer-4geatlj66rtkaxtz.cloudflarestream.com/00412c470de9b7ffd22792fc24036175/iframe>
+
 - `@owox/plugin-sdk/server` provides `createBackend`. It checks the execution token with the calling host before a handler runs.
 - `createBackend` runs only executions of its own plugin, named by its GitHub repository id. Without `hosts` it calls back only public HTTPS hosts, and on Node `@owox/plugin-sdk/server/node` also refuses names that resolve to private addresses.
 - The release check rejects an input schema with `pattern`, `patternProperties`, `format`, `uniqueItems`, `$async` or a recursive or non-local `$ref` (`ACTION_INPUT_UNSUPPORTED`).
