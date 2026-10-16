@@ -36,6 +36,7 @@ const validator = new ActionInputValidatorService();
 
 function setup(backend: PluginBackendDeclaration | null = BACKEND) {
   const executions = {
+    assertWithinStartLimits: jest.fn().mockResolvedValue(undefined),
     insertRunning: jest.fn(async (input: InsertRunningExecutionInput) => ({
       id: 'execution-1',
       ...input,
@@ -84,6 +85,7 @@ describe('PluginActionStarterService', () => {
       userId: 'user-1',
       action: 'update-document',
       input: { documentId: 'd1' },
+      inputBytes: Buffer.byteLength('{"documentId":"d1"}'),
       role: 'viewer',
       timeoutSeconds: 60,
       tokenHash: expect.stringMatching(/^[0-9a-f]{64}$/),
@@ -97,6 +99,25 @@ describe('PluginActionStarterService', () => {
     expect(executions.insertRunning.mock.invocationCallOrder[0]).toBeLessThan(
       dispatcher.dispatch.mock.invocationCallOrder[0]
     );
+  });
+
+  it('refuses a start over a limit before the validator runs, and never inserts', async () => {
+    const { start, executions, dispatcher } = setup();
+    executions.assertWithinStartLimits.mockRejectedValue(new TooManyExecutionsError());
+    const validate = jest.spyOn(validator, 'validate');
+
+    await expect(start('update-document', { documentId: 'd1' })).rejects.toBeInstanceOf(
+      TooManyExecutionsError
+    );
+
+    expect(executions.assertWithinStartLimits).toHaveBeenCalledWith(
+      'installation-1',
+      expect.any(Number)
+    );
+    expect(validate).not.toHaveBeenCalled();
+    expect(executions.insertRunning).not.toHaveBeenCalled();
+    expect(dispatcher.dispatch).not.toHaveBeenCalled();
+    validate.mockRestore();
   });
 
   it.each(['delete-document', 'constructor', '__proto__'])('%s is not declared', async action => {
@@ -117,7 +138,7 @@ describe('PluginActionStarterService', () => {
 
     await expect(start('list-documents')).resolves.toMatchObject({ id: 'execution-1' });
     expect(executions.insertRunning).toHaveBeenCalledWith(
-      expect.objectContaining({ input: null, timeoutSeconds: 30 })
+      expect.objectContaining({ input: null, inputBytes: 0, timeoutSeconds: 30 })
     );
   });
 

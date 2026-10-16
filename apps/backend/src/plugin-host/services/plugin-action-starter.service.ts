@@ -30,7 +30,7 @@ export interface PluginActionStart {
   readonly trigger: PluginActionTrigger;
 }
 
-/** Validation, insert and dispatch for every way an action starts; callers resolve who starts it. */
+/** Validation, insert and dispatch of an action start; callers resolve who starts it. */
 @Injectable()
 export class PluginActionStarterService {
   constructor(
@@ -54,9 +54,13 @@ export class PluginActionStarterService {
     if (shapeProblem) {
       throw new ActionInputInvalidError([{ instancePath: '', message: shapeProblem }]);
     }
-    if (Buffer.byteLength(JSON.stringify(input)) > PLUGIN_ACTION_LIMITS.maxInputBytes) {
+    // A null input is stored as NULL, 0 bytes.
+    const inputBytes = input === null ? 0 : Buffer.byteLength(JSON.stringify(input));
+    if (inputBytes > PLUGIN_ACTION_LIMITS.maxInputBytes) {
       throw new ActionInputTooLargeError();
     }
+    // Unlocked and early, so a refused start never uses a validation worker; insertRunning decides under its lock.
+    await this.executions.assertWithinStartLimits(installation.id, Date.now());
     if (declaration.input) {
       const errors = await this.validator.validate(version.id, action, declaration.input, input);
       if (errors.length > 0) {
@@ -75,6 +79,7 @@ export class PluginActionStarterService {
       userId: installation.userId,
       action,
       input,
+      inputBytes,
       role: request.role,
       timeoutSeconds: declaration.timeoutSeconds,
       tokenHash,

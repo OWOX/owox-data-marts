@@ -666,10 +666,10 @@ own code at the same time.
 Input nested deeper than 100 levels is refused with `INVALID_INPUT`. So is input whose validation
 exceeds its time and memory budget, with the message "Input validation exceeded its budget".
 
-At most 5 actions run at once per installation. An installation can also start at most 60
-actions per minute and 5,000 per 24 hours, and keep at most 100 MiB of inputs and results that
-OWOX has not cleared yet. Every start counts, whatever its outcome. Each waiting `invoke` or `wait`
-holds one of the 32 request slots of the page while it polls.
+At most 5 actions run at once per installation. An installation can also start at most 60 actions
+per minute and 5,000 per 24 hours, and OWOX refuses new starts once 100 MiB of inputs and results it
+has not cleared yet are stored. Every execution that starts counts, even a cancelled or failed one.
+Each waiting `invoke` or `wait` holds one of the 32 request slots of the page while it polls.
 
 ### Handle action errors
 

@@ -65,7 +65,7 @@ export class CreatePluginActionExecution1790900000001 implements MigrationInterf
       }),
       new TableIndex({
         name: 'idx_plugin_action_execution_starts',
-        columnNames: ['installationId', 'startedAt'],
+        columnNames: ['installationId', 'startedAt', 'payloadBytes'],
       }),
       new TableIndex({
         name: 'idx_plugin_action_execution_finished',

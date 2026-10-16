@@ -73,6 +73,7 @@ describe('Plugin action execution storage (e2e)', () => {
       userId: target.userId,
       action: 'update-document',
       input: { documentId: 'd1' },
+      inputBytes: Buffer.byteLength('{"documentId":"d1"}'),
       role: 'editor',
       timeoutSeconds: 60,
       tokenHash: createExecutionToken().tokenHash,
@@ -189,7 +190,7 @@ describe('Plugin action execution storage (e2e)', () => {
 
     await executions.update(saved.id, { payloadBytes: 100 * 1024 * 1024 });
     await expect(service.insertRunning(running(target))).rejects.toThrow(
-      '100 MB of stored payloads reached'
+      '100 MiB of stored payloads reached'
     );
     await executions.update(saved.id, { startedAt: new Date(Date.now() - 49 * HOUR) });
     await expect(service.insertRunning(running(target))).resolves.toBeDefined();

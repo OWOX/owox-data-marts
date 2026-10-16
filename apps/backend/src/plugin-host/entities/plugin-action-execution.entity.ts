@@ -24,7 +24,7 @@ const JSON_TEXT: ValueTransformer = {
 @Index('UQ_plugin_action_execution_token', ['tokenHash'], { unique: true })
 @Index('idx_plugin_action_execution_running', ['installationId', 'status'])
 @Index('idx_plugin_action_execution_deadline', ['status', 'deadlineAt'])
-@Index('idx_plugin_action_execution_starts', ['installationId', 'startedAt'])
+@Index('idx_plugin_action_execution_starts', ['installationId', 'startedAt', 'payloadBytes'])
 @Index('idx_plugin_action_execution_finished', ['finishedAt'])
 @Index('idx_plugin_action_execution_payloads', ['payloadsClearedAt', 'finishedAt'])
 export class PluginActionExecution {

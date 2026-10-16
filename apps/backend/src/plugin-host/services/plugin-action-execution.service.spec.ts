@@ -21,6 +21,7 @@ const REQUEST: InsertRunningExecutionInput = {
   userId: 'user-1',
   action: 'update-document',
   input: { documentId: 'd1' },
+  inputBytes: Buffer.byteLength('{"documentId":"d1"}'),
   role: 'editor',
   timeoutSeconds: 60,
   tokenHash: 'a'.repeat(64),
@@ -116,7 +117,7 @@ describe('PluginActionExecutionService', () => {
       [
         'in stored bytes',
         { perMinute: 0, perDay: 0, bytes: String(100 * 1024 * 1024) },
-        '100 MB of stored payloads reached',
+        '100 MiB of stored payloads reached',
       ],
     ])(
       'refuses a start over the limit %s, naming it and leaving the input out',
@@ -150,7 +151,11 @@ describe('PluginActionExecutionService', () => {
     it('stores the UTF-8 byte length of the input as payloadBytes', async () => {
       const s = setup();
 
-      await s.service.insertRunning({ ...REQUEST, input: { t: 'é😀' } });
+      await s.service.insertRunning({
+        ...REQUEST,
+        input: { t: 'é😀' },
+        inputBytes: Buffer.byteLength('{"t":"é😀"}'),
+      });
 
       expect(s.executions.create).toHaveBeenCalledWith(
         expect.objectContaining({ payloadBytes: Buffer.byteLength('{"t":"é😀"}') })

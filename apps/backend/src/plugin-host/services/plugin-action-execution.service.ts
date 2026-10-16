@@ -19,6 +19,8 @@ export interface InsertRunningExecutionInput {
   userId: string;
   action: string;
   input: unknown;
+  /** UTF-8 bytes of the stored input, measured once by the caller; 0 when it stores NULL. */
+  inputBytes: number;
   role: string;
   timeoutSeconds: number;
   tokenHash: string;
@@ -29,9 +31,9 @@ const HOUR_MS = 60 * 60 * 1000;
 const MINUTE_MS = 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;
 
-/** UTF-8 bytes of what the column transformer stores for `value`. */
+/** UTF-8 bytes of what the column transformer stores for `value`; null and undefined store NULL, 0 bytes. */
 function byteLength(value: unknown): number {
-  return Buffer.byteLength(JSON.stringify(value) ?? '');
+  return value === null || value === undefined ? 0 : Buffer.byteLength(JSON.stringify(value) ?? '');
 }
 
 /** What an execution token stands for; the guard reads it on every Worker request. */
@@ -127,7 +129,7 @@ export class PluginActionExecutionService {
         errorCode: null,
         errorMessage: null,
         result: null,
-        payloadBytes: byteLength(request.input),
+        payloadBytes: request.inputBytes,
       })
     );
   }
@@ -138,7 +140,7 @@ export class PluginActionExecutionService {
    * 48 h of rows, twice the payload retention, so a sweep that lags a little still counts; the sweep
    * resets payloadBytes to 0 when it clears a row. SUM comes back as a string on MySQL.
    */
-  private async assertWithinStartLimits(installationId: string, now: number): Promise<void> {
+  async assertWithinStartLimits(installationId: string, now: number): Promise<void> {
     const raw = await this.executions
       .createQueryBuilder('e')
       .select('SUM(CASE WHEN e.startedAt > :minuteAgo THEN 1 ELSE 0 END)', 'perMinute')
@@ -171,7 +173,7 @@ export class PluginActionExecutionService {
     }
     if (bytes >= PLUGIN_ACTION_LIMITS.maxPayloadBytesPerInstallation) {
       throw new TooManyExecutionsError(
-        `${PLUGIN_ACTION_LIMITS.maxPayloadBytesPerInstallation / (1024 * 1024)} MB of stored payloads reached`
+        `${PLUGIN_ACTION_LIMITS.maxPayloadBytesPerInstallation / (1024 * 1024)} MiB of stored payloads reached`
       );
     }
   }

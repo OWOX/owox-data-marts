@@ -233,7 +233,9 @@ or other secrets.
 A plugin can declare actions that run on its own backend built with `@owox/plugin-sdk/server`,
 such as a Cloudflare Worker or a Cloud Run service. OWOX checks each call, then calls the backend,
 which acts with the access of the member who installed the plugin until the action's
-`timeoutSeconds` run out. `backend.url` may be relative: it resolves against `delivery.url`, so one
+`timeoutSeconds` run out. It keeps the role the member had when the action started, even if the
+member leaves the project or gets another role meanwhile; the installation is checked on every
+request. `backend.url` may be relative: it resolves against `delivery.url`, so one
 Worker can serve the page and the actions.
 
 ```json
@@ -283,10 +285,10 @@ if (ctx.actions) {
   `PluginTransportError`.
 
 - At most 5 executions of an installation run at once. An installation also starts at most 60 per
-  minute and 5,000 per 24 hours and keeps at most 100 MiB of uncleared inputs and results; every
-  start counts, whatever its outcome. These limits, and too many inputs being validated at once,
-  answer `TOO_MANY_EXECUTIONS`. While an `invoke` or `wait` is waiting, it holds one of the 32
-  request slots for up to 20 seconds per poll.
+  minute and 5,000 per 24 hours; new starts are refused once 100 MiB of uncleared inputs and results
+  are stored. Every execution that starts counts, even a cancelled or failed one. These limits, and
+  too many inputs being validated at once, answer `TOO_MANY_EXECUTIONS`. While an `invoke` or `wait`
+  is waiting, it holds one of the 32 request slots for up to 20 seconds per poll.
 - Input is refused with `INVALID_INPUT` when it is nested deeper than 100 levels or its validation
   exceeds its budget.
 - OWOX clears an execution's `input`, `result` and the `errorMessage` of a failure your backend

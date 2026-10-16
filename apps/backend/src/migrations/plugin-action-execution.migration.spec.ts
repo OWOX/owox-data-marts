@@ -65,7 +65,7 @@ describe('CreatePluginActionExecution migration', () => {
     ).toBe(true);
     expect(
       table?.indices.find(index => index.name === 'idx_plugin_action_execution_starts')?.columnNames
-    ).toEqual(['installationId', 'startedAt']);
+    ).toEqual(['installationId', 'startedAt', 'payloadBytes']);
     expect(table?.findColumnByName('payloadsClearedAt')?.isNullable).toBe(true);
     const bytes = table?.findColumnByName('payloadBytes');
     expect(bytes?.isNullable).toBe(false);

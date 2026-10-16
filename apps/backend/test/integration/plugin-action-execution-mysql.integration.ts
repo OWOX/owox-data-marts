@@ -130,6 +130,7 @@ describeIfAvailable('Plugin action execution storage (integration, MySQL)', () =
       userId: 'user-1',
       action: 'update-document',
       input: { documentId: 'd1' },
+      inputBytes: Buffer.byteLength('{"documentId":"d1"}'),
       role: 'editor',
       timeoutSeconds,
       tokenHash: createExecutionToken().tokenHash,
@@ -188,7 +189,7 @@ describeIfAvailable('Plugin action execution storage (integration, MySQL)', () =
     );
   });
 
-  it('refuses a start once stored payloads reach 100 MB', async () => {
+  it('refuses a start once stored payloads reach 100 MiB', async () => {
     const installationId = await installation();
     const saved = await service.insertRunning(running(installationId));
     await dataSource
@@ -196,7 +197,7 @@ describeIfAvailable('Plugin action execution storage (integration, MySQL)', () =
       .update(saved.id, { payloadBytes: 100 * 1024 * 1024 });
 
     await expect(service.insertRunning(running(installationId))).rejects.toThrow(
-      '100 MB of stored payloads reached'
+      '100 MiB of stored payloads reached'
     );
   });
 
