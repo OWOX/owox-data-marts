@@ -25,8 +25,9 @@ export const RUN_CONFIG_TYPE = Object.freeze({
 });
 
 // Upper bound on the inclusive date range a single MANUAL_BACKFILL run may cover.
-// 31 so that any full calendar month fits in one run. The backend rejects a longer
-// range before a run is created; this is re-checked here as a last line of defense.
+// 31 so that any full calendar month fits in one run. The backend splits a longer
+// backfill into segment runs of at most this many days; this is re-checked here as a
+// last line of defense.
 export const MAX_MANUAL_BACKFILL_DAYS = 31;
 
 export const CONFIG_ATTRIBUTES = Object.freeze({

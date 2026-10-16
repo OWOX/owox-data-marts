@@ -114,7 +114,7 @@ Choose **Backfill (custom period)** to import a specific date range.
 2. Select **End Date**.
 3. Click **Run**.
 
-The import includes both the start date and the end date. One backfill run covers at most 31 days, so a full calendar month fits in one run. The form shows how many days your period covers and rejects a longer one before the run starts. To reload a longer history, run several backfills with consecutive periods. Start each run after the previous one finishes.
+The import includes both the start date and the end date. The form shows how many days your period covers. A period longer than 31 days runs automatically as consecutive segments of up to 31 days. A segment counts as one run once any of its accounts loads data.
 
 Both dates are required. The date picker does not offer future dates. The **End Date** must be on or after the **Start Date**.
 

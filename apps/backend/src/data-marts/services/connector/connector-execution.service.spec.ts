@@ -10,6 +10,7 @@ describe('ConnectorExecutionService (facade)', () => {
       run: jest.fn().mockResolvedValue('run-1'),
       executeExistingRun: jest.fn().mockResolvedValue(undefined),
       executeInterruptedRuns: jest.fn().mockResolvedValue(undefined),
+      repairBackfillChains: jest.fn().mockResolvedValue(undefined),
       getDataMartConnectorRunsByStatus: jest.fn().mockResolvedValue([]),
     } as unknown as ConnectorRunService;
 
@@ -44,6 +45,14 @@ describe('ConnectorExecutionService (facade)', () => {
     await service.executeInterruptedRuns();
 
     expect(connectorRunService.executeInterruptedRuns).toHaveBeenCalled();
+  });
+
+  it('delegates repairBackfillChains to ConnectorRunService', async () => {
+    const { service, connectorRunService } = createService();
+
+    await service.repairBackfillChains();
+
+    expect(connectorRunService.repairBackfillChains).toHaveBeenCalled();
   });
 
   it('delegates getDataMartConnectorRunsByStatus to ConnectorRunService', async () => {

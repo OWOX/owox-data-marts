@@ -20,6 +20,17 @@ import {
   isCancellableDataMartRunStatus,
   isStandardReportRunType,
 } from '../utils/data-mart-run-cancellation';
+import { BackfillChainMeta, readBackfillChainMeta } from '../utils/manual-backfill-range';
+
+/**
+ * How many times the cancel follows a backfill chain that advances underneath it. A finished
+ * segment atomically queues the next run, so the row the user cancelled may be terminal by the
+ * time the cancel lands; the fresh active run is then the one to stop. Segments run for
+ * minutes, so one hand-over per attempt is already unlikely.
+ */
+const MAX_CHAIN_CANCEL_ATTEMPTS = 3;
+
+const NO_LONGER_ACTIVE_MESSAGE = 'Cannot cancel data mart run because it is no longer active';
 
 @Injectable()
 export class CancelDataMartRunService {
@@ -50,7 +61,24 @@ export class CancelDataMartRunService {
       }
     }
 
+    // A backfill chain is resolved outside any transaction (see cancelChainRun); every other
+    // run is cancelled in one.
+    const chainMeta = await this.findChainMeta(command);
+    if (chainMeta) {
+      await this.cancelChainRun(command, chainMeta);
+      return;
+    }
+
     await this.cancelRunState(command);
+  }
+
+  /** The clicked run's chain metadata, or undefined when it is not a connector chain segment. */
+  private async findChainMeta(
+    command: CancelDataMartRunCommand
+  ): Promise<BackfillChainMeta | undefined> {
+    const run = await this.dataMartRunService.getByIdAndDataMartId(command.runId, command.id);
+    if (run?.type !== DataMartRunType.CONNECTOR) return undefined;
+    return readBackfillChainMeta(run.additionalParams);
   }
 
   @Transactional()
@@ -103,8 +131,63 @@ export class CancelDataMartRunService {
   private async markActiveRunAsCancelled(run: DataMartRun): Promise<void> {
     const wasCancelled = await this.dataMartRunService.markAsCancelled(run);
     if (!wasCancelled) {
-      throw new ConflictException('Cannot cancel data mart run because it is no longer active');
+      throw new ConflictException(NO_LONGER_ACTIVE_MESSAGE);
     }
+  }
+
+  /**
+   * Cancels a segment of a backfill chain. Cancelling any segment stops the whole backfill: at
+   * most one chain run is active at a time, and a cancelled segment never queues the next one —
+   * so stopping the active run stops everything that remains. Completed segments keep their
+   * data, history, and consumption.
+   *
+   * The clicked row can already be finished (a stale page), and the chain may advance while the
+   * cancel is in flight, so the target is resolved again on every attempt. That resolution must
+   * not share a transaction with the cancel: under MySQL's REPEATABLE READ a transaction's
+   * first read fixes its snapshot, and a successor committed afterwards would stay invisible
+   * to every retry. Each attempt therefore resolves with plain reads (current data) and cancels
+   * in a transaction of its own. Locking reads are no option: SQLite, which self-hosted
+   * deployments use, rejects them.
+   */
+  private async cancelChainRun(
+    command: CancelDataMartRunCommand,
+    chainMeta: BackfillChainMeta
+  ): Promise<void> {
+    for (let attempt = 0; attempt < MAX_CHAIN_CANCEL_ATTEMPTS; attempt++) {
+      const target = await this.resolveChainTarget(command, chainMeta);
+      if (!target) break;
+
+      if (await this.cancelChainRunState(target)) return;
+      // The target finished between resolving it and cancelling it: the chain advanced.
+    }
+
+    throw new ConflictException(NO_LONGER_ACTIVE_MESSAGE);
+  }
+
+  /**
+   * The chain run to cancel: the clicked run while it is still active, otherwise the data
+   * mart's active connector run when it belongs to the same chain. Null when the chain has
+   * ended, or when the active run is an unrelated one that must be left alone.
+   */
+  private async resolveChainTarget(
+    command: CancelDataMartRunCommand,
+    chainMeta: BackfillChainMeta
+  ): Promise<DataMartRun | null> {
+    const clicked = await this.dataMartRunService.getByIdAndDataMartId(command.runId, command.id);
+    if (clicked && isCancellableDataMartRunStatus(clicked.status)) return clicked;
+
+    const active = await this.dataMartRunService.findActiveConnectorRun(command.id);
+    const isSameChain =
+      active && readBackfillChainMeta(active.additionalParams)?.id === chainMeta.id;
+    return isSameChain ? active : null;
+  }
+
+  /** @returns false when the run reached a terminal status before the guarded update. */
+  @Transactional()
+  private async cancelChainRunState(run: DataMartRun): Promise<boolean> {
+    if (!(await this.dataMartRunService.markAsCancelled(run))) return false;
+    await this.connectorRunTriggerService.stopTriggersForRun(run.id);
+    return true;
   }
 
   private getStandardReportRunReportId(run: { reportId?: string | null }): string {

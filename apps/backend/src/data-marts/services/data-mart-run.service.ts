@@ -302,6 +302,20 @@ export class DataMartRunService {
       .getOne();
   }
 
+  /**
+   * The data mart's one active (pending or running) connector run, or null. A backfill chain
+   * keeps exactly one segment run active at a time, so this is also the chain's active run.
+   */
+  public async findActiveConnectorRun(dataMartId: string): Promise<DataMartRun | null> {
+    return this.dataMartRunRepository.findOne({
+      where: {
+        dataMartId,
+        type: DataMartRunType.CONNECTOR,
+        status: In([DataMartRunStatus.PENDING, DataMartRunStatus.RUNNING]),
+      },
+    });
+  }
+
   public async markAsCancelled(dataMartRun: DataMartRun): Promise<boolean> {
     const result = await this.dataMartRunRepository.update(
       {

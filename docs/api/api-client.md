@@ -328,8 +328,11 @@ Mart. Omit the options, or set `runType` to `INCREMENTAL` without `data`, for an
 send connector-specific backfill fields in `data`, set `runType` to `MANUAL_BACKFILL`; connectors
 without backfill fields can omit `data`. A connector that reads `StartDate` and `EndDate` accepts
 `YYYY-MM-DD`, or the date part of an ISO-8601 timestamp. A missing or future `EndDate` counts as
-today. The resulting period may cover at most 31 days, and the backend rejects a longer one before
-it starts the run. The API client rejects `data` on implicit or explicit incremental runs before
+today. The backend rejects a `StartDate` earlier than 2000-01-01. The period has no other length
+limit. The backend runs a period longer than 31 days as a chain of runs. Each run covers one
+segment of up to 31 days. A segment counts as one connector run once any of its accounts loads
+data. The returned run ID identifies the first segment; later segments appear as separate
+runs. The API client rejects `data` on implicit or explicit incremental runs before
 authentication or any network request. The backend HTTP endpoint separately tolerates retained
 object-valued `data` on incremental requests for compatibility with existing run forms. The method
 returns the new run ID. The serialized options must not exceed 1 MB.

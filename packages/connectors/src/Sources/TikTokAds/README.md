@@ -8,7 +8,7 @@ You can:
 - Report at the grain you need: advertiser, campaign, ad group, or ad.
 - Break daily performance down by country.
 - Pull campaign, ad group, ad, and custom audience metadata alongside the numbers.
-- Backfill history in runs of up to 31 days, then schedule the connector once and let it run.
+- Backfill any past period, then schedule the connector once and let it run.
 
 ## Prerequisites
 

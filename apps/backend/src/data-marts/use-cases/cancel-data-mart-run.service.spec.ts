@@ -35,6 +35,7 @@ describe('CancelDataMartRunService', () => {
     const dataMartRunService = {
       getByIdAndDataMartId: jest.fn(),
       markAsCancelled: jest.fn().mockResolvedValue(true),
+      findActiveConnectorRun: jest.fn().mockResolvedValue(null),
     } as unknown as DataMartRunService;
 
     const connectorRunTriggerService = {
@@ -101,6 +102,129 @@ describe('CancelDataMartRunService', () => {
 
     expect(dataMartRunService.markAsCancelled).toHaveBeenCalledWith(run);
     expect(connectorRunTriggerService.stopTriggersForRun).toHaveBeenCalledWith('run-1');
+  });
+
+  describe('backfill chain cancellation', () => {
+    const chainMeta = (id = 'chain-1') => ({
+      id,
+      requestedStart: '2026-01-01',
+      requestedEnd: '2026-03-03',
+      segmentIndex: 1,
+      segmentsTotal: 2,
+    });
+    const chainRun = (
+      id: string,
+      { chainId = 'chain-1', status = DataMartRunStatus.RUNNING } = {}
+    ) => ({
+      id,
+      dataMartId: 'dm-1',
+      type: DataMartRunType.CONNECTOR,
+      status,
+      additionalParams: { payload: {}, backfill: chainMeta(chainId) },
+    });
+    const finished = (id: string) => chainRun(id, { status: DataMartRunStatus.SUCCESS });
+
+    it('cancels the whole backfill by stopping its active segment run', async () => {
+      const { service, dataMartRunService, connectorRunTriggerService } = createService();
+      (dataMartRunService.getByIdAndDataMartId as jest.Mock).mockResolvedValue(chainRun('run-1'));
+
+      await service.run(command);
+
+      expect(dataMartRunService.markAsCancelled).toHaveBeenCalledTimes(1);
+      expect(dataMartRunService.markAsCancelled).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'run-1' })
+      );
+      expect(connectorRunTriggerService.stopTriggersForRun).toHaveBeenCalledWith('run-1');
+      expect(dataMartRunService.findActiveConnectorRun).not.toHaveBeenCalled();
+    });
+
+    it('stops the active segment when the user cancels a segment row that already finished', async () => {
+      const { service, dataMartRunService, connectorRunTriggerService } = createService();
+      (dataMartRunService.getByIdAndDataMartId as jest.Mock).mockResolvedValue(finished('run-1'));
+      (dataMartRunService.findActiveConnectorRun as jest.Mock).mockResolvedValue(chainRun('run-2'));
+
+      await service.run(command);
+
+      expect(dataMartRunService.markAsCancelled).toHaveBeenCalledTimes(1);
+      expect(dataMartRunService.markAsCancelled).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'run-2' })
+      );
+      expect(connectorRunTriggerService.stopTriggersForRun).toHaveBeenCalledWith('run-2');
+      expect(connectorRunTriggerService.stopTriggersForRun).not.toHaveBeenCalledWith('run-1');
+    });
+
+    it('re-reads the chain on every attempt when it advances underneath the cancel', async () => {
+      const { service, dataMartRunService, connectorRunTriggerService } = createService();
+      // First attempt targets run-1, which finishes before the guarded update lands; the next
+      // reads current data, finds run-1 finished and run-2 active, and stops run-2.
+      (dataMartRunService.getByIdAndDataMartId as jest.Mock)
+        .mockResolvedValueOnce(chainRun('run-1')) // reading the chain of the clicked run
+        .mockResolvedValueOnce(chainRun('run-1')) // first attempt
+        .mockResolvedValue(finished('run-1')); // second attempt
+      (dataMartRunService.markAsCancelled as jest.Mock)
+        .mockResolvedValueOnce(false)
+        .mockResolvedValueOnce(true);
+      (dataMartRunService.findActiveConnectorRun as jest.Mock).mockResolvedValue(chainRun('run-2'));
+
+      await service.run(command);
+
+      expect(dataMartRunService.getByIdAndDataMartId).toHaveBeenCalledTimes(3);
+      expect(dataMartRunService.markAsCancelled).toHaveBeenNthCalledWith(
+        1,
+        expect.objectContaining({ id: 'run-1' })
+      );
+      expect(dataMartRunService.markAsCancelled).toHaveBeenNthCalledWith(
+        2,
+        expect.objectContaining({ id: 'run-2' })
+      );
+      expect(connectorRunTriggerService.stopTriggersForRun).toHaveBeenCalledTimes(1);
+      expect(connectorRunTriggerService.stopTriggersForRun).toHaveBeenCalledWith('run-2');
+    });
+
+    it('conflicts when the chain already ended and nothing is active', async () => {
+      const { service, dataMartRunService, connectorRunTriggerService } = createService();
+      (dataMartRunService.getByIdAndDataMartId as jest.Mock).mockResolvedValue(finished('run-1'));
+      (dataMartRunService.findActiveConnectorRun as jest.Mock).mockResolvedValue(null);
+
+      await expect(service.run(command)).rejects.toThrow(ConflictException);
+      expect(dataMartRunService.markAsCancelled).not.toHaveBeenCalled();
+      expect(connectorRunTriggerService.stopTriggersForRun).not.toHaveBeenCalled();
+    });
+
+    it('conflicts when the run finishes during the cancel and the chain does not go on', async () => {
+      const { service, dataMartRunService, connectorRunTriggerService } = createService();
+      (dataMartRunService.getByIdAndDataMartId as jest.Mock)
+        .mockResolvedValueOnce(chainRun('run-1'))
+        .mockResolvedValueOnce(chainRun('run-1'))
+        .mockResolvedValue(finished('run-1'));
+      (dataMartRunService.markAsCancelled as jest.Mock).mockResolvedValue(false);
+      (dataMartRunService.findActiveConnectorRun as jest.Mock).mockResolvedValue(null);
+
+      await expect(service.run(command)).rejects.toThrow(ConflictException);
+      expect(connectorRunTriggerService.stopTriggersForRun).not.toHaveBeenCalled();
+    });
+
+    it('does not cancel an active run that belongs to a different backfill', async () => {
+      const { service, dataMartRunService, connectorRunTriggerService } = createService();
+      (dataMartRunService.getByIdAndDataMartId as jest.Mock).mockResolvedValue(finished('run-1'));
+      (dataMartRunService.findActiveConnectorRun as jest.Mock).mockResolvedValue(
+        chainRun('run-9', { chainId: 'chain-other' })
+      );
+
+      await expect(service.run(command)).rejects.toThrow(ConflictException);
+      expect(dataMartRunService.markAsCancelled).not.toHaveBeenCalled();
+      expect(connectorRunTriggerService.stopTriggersForRun).not.toHaveBeenCalled();
+    });
+
+    it('gives up after a bounded number of attempts on a chain that keeps advancing', async () => {
+      const { service, dataMartRunService } = createService();
+      (dataMartRunService.getByIdAndDataMartId as jest.Mock).mockResolvedValue(finished('run-1'));
+      (dataMartRunService.markAsCancelled as jest.Mock).mockResolvedValue(false);
+      (dataMartRunService.findActiveConnectorRun as jest.Mock).mockResolvedValue(chainRun('run-2'));
+
+      await expect(service.run(command)).rejects.toThrow(ConflictException);
+      expect(dataMartRunService.markAsCancelled).toHaveBeenCalledTimes(3);
+    });
   });
 
   it('cancels a standard report run and updates the report status', async () => {

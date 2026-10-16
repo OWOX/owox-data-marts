@@ -27,6 +27,32 @@ const dateEntry = (date: string): LogEntry => ({
   metadata: { type: 'updateLastRequstedDate', date },
 });
 
+const segmentMarker = (
+  index: number,
+  phase: 'started' | 'completed' | 'failed',
+  loadedThrough?: string,
+  chainEnd?: 'finished' | 'stopped'
+): LogEntry => ({
+  id: `seg-${String(index)}-${phase}`,
+  level: LogLevel.INFO,
+  message: `Segment ${String(index)}`,
+  timestamp: 'N/A',
+  category: LogCategory.ANALYTICS,
+  severity: LogSeverity.MUTED,
+  metadata: {
+    metric: 'backfill_segment',
+    value: index,
+    phase,
+    segmentStart: '2024-03-03',
+    segmentEnd: '2024-04-02',
+    backfillStart: '2024-01-01',
+    backfillEnd: '2025-06-30',
+    segmentsTotal: 18,
+    ...(loadedThrough ? { loadedThrough } : {}),
+    ...(chainEnd ? { chainEnd } : {}),
+  },
+});
+
 describe('LoadStatusStrip', () => {
   it('renders Extracted and Loaded thousands-separated, without a node count', () => {
     render(
@@ -69,5 +95,45 @@ describe('LoadStatusStrip', () => {
   it('renders nothing when there are no load metrics', () => {
     const { container } = render(<LoadStatusStrip entries={[]} />);
     expect(container).toBeEmptyDOMElement();
+  });
+
+  it('shows the backfill period, the failed segment and its loaded-through day', () => {
+    render(
+      <LoadStatusStrip
+        entries={[segmentMarker(2, 'started'), segmentMarker(2, 'failed', '2024-02-20')]}
+      />
+    );
+
+    expect(screen.getByTestId('backfill-progress')).toHaveTextContent(
+      'Backfill 2024-01-01 – 2025-06-30 · segment 2 of 18 failed · loaded through 2024-02-20'
+    );
+  });
+
+  it('says the backfill stopped when the project was restricted', () => {
+    render(<LoadStatusStrip entries={[segmentMarker(6, 'failed', undefined, 'stopped')]} />);
+
+    expect(screen.getByTestId('backfill-progress')).toHaveTextContent(
+      'segment 6 of 18 failed · backfill stopped'
+    );
+  });
+
+  it('says the backfill ended, not complete, when its last segment failed', () => {
+    render(<LoadStatusStrip entries={[segmentMarker(18, 'failed', '2025-06-10', 'finished')]} />);
+
+    const progress = screen.getByTestId('backfill-progress');
+    expect(progress).toHaveTextContent('backfill ended');
+    expect(progress).not.toHaveTextContent('backfill complete');
+  });
+
+  it('shows the segment being loaded while the run is live', () => {
+    render(<LoadStatusStrip entries={[segmentMarker(2, 'started')]} isLive />);
+
+    expect(screen.getByTestId('backfill-progress')).toHaveTextContent('loading segment 2 of 18');
+  });
+
+  it('shows no backfill progress for a run without segment markers', () => {
+    render(<LoadStatusStrip entries={[metric('rows_written', 100)]} />);
+
+    expect(screen.queryByTestId('backfill-progress')).not.toBeInTheDocument();
   });
 });

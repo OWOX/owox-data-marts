@@ -398,7 +398,7 @@ Only a node with an `incremental` strategy, and without `isFullRefresh`, has a w
 
 ### Which strategy to choose
 
-Prefer `range` when the API takes a start and an end date and returns the date on every record — a report broken down by day, for example. A `day-by-day` run sends one request per day and writes each day to the storage separately. A write to BigQuery takes a few seconds even for a handful of rows, so a manual backfill of 31 days (the most one run covers) takes minutes with `day-by-day`, where `range` needs one request and one write.
+Prefer `range` when the API takes a start and an end date and returns the date on every record — a report broken down by day, for example. A `day-by-day` run sends one request per day and writes each day to the storage separately. A write to BigQuery takes a few seconds even for a handful of rows, so a 31-day segment of a manual backfill (the longest period one segment covers) takes minutes with `day-by-day`, where `range` needs one request and one write.
 
 Use `day-by-day` when the API takes a single date, returns totals for the whole window instead of a row per day, or leaves the date out of its records. In a `range` run `{{ dateWindow.start }}` is the start of the whole window, so it cannot date a record; only a `day-by-day` node can stamp its records with `transformations.add`.
 

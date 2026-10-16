@@ -238,6 +238,61 @@ describe('parseLogEntry — category', () => {
   });
 });
 
+describe('parseLogEntry — backfill segment markers', () => {
+  it('lifts the segment tags into metadata and keeps the message as the text', () => {
+    const entry = parseLogEntry(
+      JSON.stringify({
+        type: 'LOG',
+        at: '2026-05-02T12:00:00.000Z',
+        metric: 'backfill_segment',
+        value: 3,
+        tags: {
+          phase: 'completed',
+          segmentStart: '2024-03-03',
+          segmentEnd: '2024-04-02',
+          backfillStart: '2024-01-01',
+          backfillEnd: '2025-06-30',
+          segmentsTotal: 18,
+          loadedThrough: '2024-04-02',
+        },
+        message: 'Segment 3 of 18 completed',
+      }),
+      0
+    );
+
+    expect(entry.metadata).toMatchObject({
+      metric: 'backfill_segment',
+      value: 3,
+      phase: 'completed',
+      segmentStart: '2024-03-03',
+      segmentEnd: '2024-04-02',
+      backfillStart: '2024-01-01',
+      backfillEnd: '2025-06-30',
+      segmentsTotal: 18,
+      loadedThrough: '2024-04-02',
+    });
+    expect(entry.message).toBe('Segment 3 of 18 completed');
+  });
+
+  it('lifts the segment tags only for the segment marker, not for any tagged entry', () => {
+    const entry = parseLogEntry(
+      JSON.stringify({
+        type: 'LOG',
+        at: '2026-05-02T12:00:00.000Z',
+        metric: 'rows_written',
+        value: 100,
+        tags: { node: 'campaigns', phase: 'completed', chainEnd: 'finished', loadedThrough: 'x' },
+      }),
+      0
+    );
+
+    expect(entry.metadata).toMatchObject({ metric: 'rows_written', node: 'campaigns' });
+    expect(entry.metadata).not.toHaveProperty('phase');
+    expect(entry.metadata).not.toHaveProperty('chainEnd');
+    expect(entry.metadata).not.toHaveProperty('loadedThrough');
+  });
+});
+
 describe('parseLogEntry — analytics fields', () => {
   const at = '2026-05-02T12:00:00.000Z';
 

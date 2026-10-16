@@ -35,6 +35,10 @@ export class ConnectorExecutionService {
     return this.connectorRunService.executeInterruptedRuns();
   }
 
+  async repairBackfillChains(): Promise<void> {
+    return this.connectorRunService.repairBackfillChains();
+  }
+
   async getDataMartConnectorRunsByStatus(status: DataMartRunStatus): Promise<DataMartRun[]> {
     return this.connectorRunService.getDataMartConnectorRunsByStatus(status);
   }

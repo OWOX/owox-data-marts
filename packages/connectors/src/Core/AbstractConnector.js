@@ -1516,9 +1516,10 @@ export class AbstractConnector {
       endMs = todayMs;
     }
 
-    // Cap the window, last line of defence. The backend refuses a longer range before the
-    // run is even created; this catches any path that does not go through it, because the cost of
-    // missing it is not a slow run but a wedged one: a day-by-day node issues one request
+    // Cap the window, last line of defence. The backend splits a longer backfill into
+    // segments of at most this many days and sends one per attempt, so this is the
+    // invariant it guarantees; it catches any path that does not go through the backend,
+    // because the cost of missing it is not a slow run but a wedged one: a day-by-day node issues one request
     // per account per day, so an accidental multi-year range holds a concurrency slot for
     // hours before anything notices.
     const daysToFetch =
