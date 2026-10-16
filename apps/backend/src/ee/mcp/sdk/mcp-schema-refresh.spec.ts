@@ -15,6 +15,11 @@ const context = {
 describe('McpSchemaRefresh', () => {
   let now: number;
   beforeEach(() => {
+    jest.replaceProperty(
+      refreshModule as { MCP_SCHEMA_REFRESH_ENABLED: boolean },
+      'MCP_SCHEMA_REFRESH_ENABLED',
+      true
+    );
     now = 0;
     jest.spyOn(Date, 'now').mockImplementation(() => now);
   });
@@ -97,5 +102,13 @@ describe('McpSchemaRefresh', () => {
     await refresh.notifyIfDue({ ...context, clientId: 'other' }, notify);
     expect(notify).toHaveBeenCalledTimes(1);
     expect(entries(refresh).size).toBe(0);
+  });
+});
+
+describe('McpSchemaRefresh with the production default', () => {
+  it.each([false, true])('does not send recovery notifications (broadcast=%s)', async broadcast => {
+    const notify = jest.fn();
+    await new McpSchemaRefresh().notifyIfDue(context, notify, broadcast);
+    expect(notify).not.toHaveBeenCalled();
   });
 });

@@ -6,8 +6,18 @@ import { McpConfigService } from '../config/mcp.config';
 import { jsonToolResult, type McpToolDefinition } from '../tools/mcp-tool.definition';
 import { McpToolRegistry } from '../tools/mcp-tool.registry';
 import { McpSdkServerFactory } from './mcp-sdk-server.factory';
+import * as refreshModule from './mcp-schema-refresh';
 
 describe('MCP schema refresh over HTTP', () => {
+  beforeEach(() => {
+    jest.replaceProperty(
+      refreshModule as { MCP_SCHEMA_REFRESH_ENABLED: boolean },
+      'MCP_SCHEMA_REFRESH_ENABLED',
+      true
+    );
+  });
+  afterEach(() => jest.restoreAllMocks());
+
   it.each(['legacy', 'modern'] as const)(
     'refreshes a cached strict schema and accepts future fields without reconnecting (%s)',
     async era => {
