@@ -5,6 +5,7 @@ import { createBackend, type BackendActionHandler } from './index.js';
 const HOST = 'https://app.owox.test';
 const TOKEN = 'execution-token';
 const CURRENT_URL = 'https://app.owox.test/api/plugins/runtime/executions/current';
+const REPOSITORY_ID = '987654321';
 
 function context(overrides: Record<string, unknown> = {}) {
   return {
@@ -17,6 +18,7 @@ function context(overrides: Record<string, unknown> = {}) {
     installationId: 'i1',
     projectId: 'j1',
     userId: 'u1',
+    plugin: { id: 'p1', repositoryId: REPOSITORY_ID },
     credentialHandles: [{ name: 'sheets', kind: 'exact' }],
     ...overrides,
   };
@@ -54,7 +56,15 @@ async function read(response: Response) {
 const fetchMock = vi.fn<(input: URL | RequestInfo, init?: RequestInit) => Promise<Response>>();
 
 function backend(actions: Record<string, BackendActionHandler>) {
-  return createBackend({ hosts: [HOST], actions });
+  return createBackend({ repositoryId: REPOSITORY_ID, hosts: [HOST], actions });
+}
+
+function hostlessBackend(actions: Record<string, BackendActionHandler>) {
+  return createBackend({ repositoryId: REPOSITORY_ID, actions });
+}
+
+function onWorkers() {
+  vi.stubGlobal('navigator', { userAgent: 'Cloudflare-Workers' });
 }
 
 describe('createBackend', () => {
@@ -67,9 +77,26 @@ describe('createBackend', () => {
   it.each([[[]], [['https://app.owox.test/']], [['https://*.owox.com']], [['app.owox.com']]])(
     'refuses hosts %j at creation',
     hosts => {
-      expect(() => createBackend({ hosts, actions: {} })).toThrow(TypeError);
+      expect(() => createBackend({ repositoryId: REPOSITORY_ID, hosts, actions: {} })).toThrow(
+        TypeError
+      );
     }
   );
+
+  it.each(['', '0', '0123', '12a', '1'.repeat(21), 123])(
+    'refuses repositoryId %j at creation',
+    repositoryId => {
+      expect(() =>
+        createBackend({ repositoryId: repositoryId as string, hosts: [HOST], actions: {} })
+      ).toThrow(/gh api repos\/OWNER\/NAME --jq \.id/);
+    }
+  );
+
+  it('refuses to start without hosts outside Cloudflare Workers', () => {
+    expect(() => hostlessBackend({})).toThrow(
+      'createBackend: on this runtime list hosts, or import createBackend from @owox/plugin-sdk/server/node, which checks the addresses it connects to'
+    );
+  });
 
   it('runs the handler of the current execution and answers its result', async () => {
     fetchMock.mockResolvedValueOnce(jsonResponse(200, context()));
@@ -86,6 +113,8 @@ describe('createBackend', () => {
     expect(input).toEqual({ documentId: 'd1' });
     const { credentialHandles: _handles, ...execution } = context();
     expect(ctx.execution).toEqual({ ...execution, deadlineAt: expect.any(String) });
+    expect(ctx.execution.plugin).toEqual({ id: 'p1', repositoryId: REPOSITORY_ID });
+    expect(ctx.host).toBe(HOST);
     expect(Object.keys(ctx.credentials)).toEqual(['sheets']);
     expect(typeof ctx.collections).toBe('function');
     expect(ctx.signal.aborted).toBe(false);
@@ -142,11 +171,12 @@ describe('createBackend', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it('accepts any deployment when hosts is not given', async () => {
+  it('accepts any public HTTPS deployment on Workers when hosts is not given', async () => {
+    onWorkers();
     fetchMock.mockResolvedValueOnce(jsonResponse(200, context()));
     const handler = vi.fn<BackendActionHandler>().mockResolvedValue('ok');
 
-    const response = await createBackend({ actions: { count: handler } }).fetch(
+    const response = await hostlessBackend({ count: handler }).fetch(
       actionRequest({ body: { owox: 1, host: 'https://odm.example.test', executionId: 'e1' } })
     );
 
@@ -154,22 +184,77 @@ describe('createBackend', () => {
     expect(String(fetchMock.mock.calls[0]![0])).toBe(
       'https://odm.example.test/api/plugins/runtime/executions/current'
     );
+    expect(handler.mock.calls[0]![1].host).toBe('https://odm.example.test');
   });
 
-  it.each(['odm.example.test', 'https://odm.example.test/', 'https://odm.example.test/path'])(
-    'refuses a host %j that is not an origin, with or without hosts',
-    async host => {
-      const response = await createBackend({ actions: {} }).fetch(
-        actionRequest({ body: { owox: 1, host, executionId: 'e1' } })
-      );
+  it.each([
+    'http://odm.example.test',
+    'https://127.0.0.1',
+    'https://[::1]',
+    'https://[fd00::1]',
+    'https://localhost',
+    'https://a.localhost',
+    'https://a.localhost.',
+    'https://printer.local',
+    'https://x.internal',
+    'https://router.home.arpa',
+    'https://intranet',
+    'https://intranet.',
+  ])('refuses the non-public host %s without hosts before any request', async host => {
+    onWorkers();
 
-      expect(await read(response)).toMatchObject({
-        status: 400,
-        body: { error: { code: 'BAD_REQUEST' } },
-      });
-      expect(fetchMock).not.toHaveBeenCalled();
-    }
-  );
+    const response = await hostlessBackend({}).fetch(
+      actionRequest({ body: { owox: 1, host, executionId: 'e1' } })
+    );
+
+    expect(await read(response)).toEqual({
+      status: 403,
+      body: {
+        error: {
+          code: 'HOST_NOT_ALLOWED',
+          message: `${new URL(host).origin} is not a public HTTPS origin; list internal deployments in hosts`,
+        },
+      },
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('calls an internal http: host that hosts lists', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, context()));
+
+    const response = await createBackend({
+      repositoryId: REPOSITORY_ID,
+      hosts: ['http://odm.internal:3000'],
+      actions: { count: () => 'ok' },
+    }).fetch(
+      actionRequest({ body: { owox: 1, host: 'http://odm.internal:3000', executionId: 'e1' } })
+    );
+
+    expect(await read(response)).toEqual({ status: 200, body: { result: 'ok' } });
+    expect(String(fetchMock.mock.calls[0]![0])).toBe(
+      'http://odm.internal:3000/api/plugins/runtime/executions/current'
+    );
+  });
+
+  // A numeric IPv4 form is not the origin URL parsing makes of it, so it never reaches the name check.
+  it.each([
+    'odm.example.test',
+    'https://odm.example.test/',
+    'https://odm.example.test/path',
+    'https://2130706433',
+    'https://0x7f.1',
+  ])('refuses a host %j that is not an origin', async host => {
+    onWorkers();
+    const response = await hostlessBackend({}).fetch(
+      actionRequest({ body: { owox: 1, host, executionId: 'e1' } })
+    );
+
+    expect(await read(response)).toMatchObject({
+      status: 400,
+      body: { error: { code: 'BAD_REQUEST' } },
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
 
   it('refuses a host it does not list without calling it', async () => {
     const response = await backend({}).fetch(
@@ -228,6 +313,25 @@ describe('createBackend', () => {
       body: { error: { code: 'EXECUTION_CONTEXT_UNAVAILABLE' } },
     });
     expect(handler).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { name: 'another plugin', plugin: { id: 'p2', repositoryId: '123456789' } },
+    { name: 'no plugin', plugin: undefined },
+  ])('runs nothing for an execution of $name', async ({ plugin }) => {
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, context({ plugin })));
+    const handler = vi.fn<BackendActionHandler>();
+
+    const response = await backend({ count: handler }).fetch(actionRequest());
+
+    expect(await read(response)).toEqual({
+      status: 403,
+      body: {
+        error: { code: 'PLUGIN_MISMATCH', message: 'This execution belongs to another plugin' },
+      },
+    });
+    expect(handler).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it('runs nothing when the context belongs to another execution', async () => {

@@ -298,12 +298,17 @@ if (ctx.actions) {
 ## `@owox/plugin-sdk/server`
 
 A plugin's backend is built with `createBackend`. It uses only the Fetch API, so the same module
-runs as a Cloudflare Worker or, on Node, behind `@hono/node-server`.
+runs as a Cloudflare Worker or, on Node, behind `@hono/node-server`. On Node, import it from
+`@owox/plugin-sdk/server/node`: without `hosts`, that `createBackend` checks every address it
+connects to and refuses a host name that resolves to a loopback, private, link-local or other
+non-public address. `@owox/plugin-sdk/server` without `hosts` throws at creation outside
+Cloudflare Workers, which do not connect to private addresses.
 
 ```ts
 import { createBackend } from '@owox/plugin-sdk/server';
 
 export default createBackend({
+  repositoryId: '123456789',
   actions: {
     'update-document': async (input, ctx) => {
       const dataMarts = await ctx.owox.dataMarts.list();
@@ -317,12 +322,17 @@ For each request, `createBackend`:
 
 1. refuses a `host` that is not an origin. With `hosts`, a list of exact origins without
    wildcards, it also refuses a host outside that list. Without `hosts` any OWOX Data Marts
-   deployment may call the backend, Cloud or self-managed. Everything the handler reaches through
-   `ctx` goes back to that same host, so a forged host gains nothing from OWOX Data Marts. Set
-   `hosts` when a handler also uses the backend's own secrets or storage;
+   deployment on a public HTTPS origin may call the backend, Cloud or self-managed; a host that
+   uses `http:`, is an IP address or a single-label name, or is `localhost` or a name under
+   `.localhost`, `.local`, `.internal` or `.home.arpa` gets `HOST_NOT_ALLOWED`. Everything the
+   handler reaches through `ctx` goes back to that same host, so a forged host gains nothing from
+   OWOX Data Marts. Set `hosts` when a handler also uses the backend's own secrets or storage, and
+   to allow an internal or `http:` deployment;
 2. reads the execution from that host with the token OWOX sent. A request whose token the named
    host does not accept gets `401`, and no handler runs;
-3. runs the handler for the execution's action.
+3. refuses an execution of another plugin with `PLUGIN_MISMATCH`. `repositoryId` is the plugin's
+   GitHub repository id; find it with `gh api repos/OWNER/NAME --jq .id`;
+4. runs the handler for the execution's action.
 
 The handler's `ctx` provides:
 
@@ -330,7 +340,9 @@ The handler's `ctx` provides:
 - `credentials`: exact Credential handles, used through
   `exactCredential(ctx.credentials, name).asFetch()`. The secret stays in OWOX;
 - `collections(name)`;
-- `execution`: ids, `trigger`, `deadlineAt` and `pluginVersion`;
+- `execution`: ids, `trigger`, `deadlineAt`, `pluginVersion` and `plugin`, with the plugin's `id`
+  and `repositoryId`;
+- `host`: the OWOX origin that accepted the execution token, to build links to OWOX pages with;
 - `signal`, which aborts at the action's deadline. When OWOX drops the call, Cloudflare Workers
   cancels the whole invocation: the handler stops, code after an `await` does not run, and
   `request.signal` never fires. Do not rely on cleanup after an `await`. On Node with

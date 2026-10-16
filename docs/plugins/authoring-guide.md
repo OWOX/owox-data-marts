@@ -690,7 +690,8 @@ A failed action rejects with a `PluginActionError`. Find it by `error.name` and 
 | `ACTION_FAILED`                 | The handler threw an error with no valid `code`, or one with a reserved code. |
 | `INSTALLATION_INACTIVE`         | Rare: the plugin was uninstalled while the action started.                    |
 | `UNAUTHORIZED`                  | The backend did not accept the execution token or the request.                |
-| `HOST_NOT_ALLOWED`              | The calling host is not in the backend's `hosts`.                             |
+| `HOST_NOT_ALLOWED`              | The calling host is not in `hosts` or, without `hosts`, not public HTTPS.     |
+| `PLUGIN_MISMATCH`               | The execution belongs to another plugin than the backend's `repositoryId`.    |
 | `ACTION_NOT_IMPLEMENTED`        | The backend declares no handler for this action.                              |
 | `EXECUTION_CONTEXT_UNAVAILABLE` | The backend could not read the execution from OWOX Data Marts.                |
 | any other                       | An OWOX refusal of the request, or the code your backend returned.            |
@@ -708,6 +709,7 @@ Transport failures still reject with `PluginTransportError`; for a suspended plu
 import { createBackend } from '@owox/plugin-sdk/server';
 
 export default createBackend({
+  repositoryId: '123456789',
   actions: {
     'update-document': async (input, ctx) => {
       const { documentId } = input as { documentId: string };
@@ -718,20 +720,30 @@ export default createBackend({
 });
 ```
 
-- Any OWOX Data Marts deployment may call the backend, Cloud or self-managed. Everything the
-  handler reaches through `ctx` goes back to the deployment that called. If a handler also uses
-  the backend's own secrets or storage, list the deployments allowed to call it:
-  `hosts: ['https://app.owox.com']`. A request naming another host is then refused before anything
-  runs.
+- `repositoryId` is the plugin's GitHub repository id, which stays the same when the repository is
+  renamed or transferred. Find it with `gh api repos/OWNER/NAME --jq .id`. An execution of another
+  plugin is refused with `PLUGIN_MISMATCH` before a handler runs.
+- Without `hosts`, any OWOX Data Marts deployment on a public HTTPS origin may call the backend,
+  Cloud or self-managed. A host that uses `http:`, is an IP address or a single-label name, or is
+  `localhost` or a name under `.localhost`, `.local`, `.internal` or `.home.arpa` is refused with
+  `HOST_NOT_ALLOWED` before any request. Everything the handler reaches through `ctx` goes back to
+  the deployment that called.
+- `hosts` lists the exact origins allowed to call, such as `hosts: ['https://app.owox.com']`. Set
+  it when a handler also uses the backend's own secrets or storage, and to allow an internal or
+  `http:` deployment. A request naming another host is refused before anything runs.
+- `@owox/plugin-sdk/server` without `hosts` runs only on Cloudflare Workers, which do not connect
+  to private addresses. On Node, import `createBackend` from `@owox/plugin-sdk/server/node`.
 - Before a handler runs, `createBackend` asks the named host for the execution. A request whose
   token that host does not accept gets 401 and runs nothing.
 - The handler gets the validated `input` and `ctx`: `ctx.owox`, `ctx.credentials`,
   `ctx.collections(name)`, `ctx.execution` (`executionId`, `action`, `input`, `trigger`,
-  `deadlineAt`, `pluginVersion`, `installationId`, `projectId` and `userId`) and
-  `ctx.signal`, which aborts at the deadline. When OWOX drops the call, for example on cancel or
-  on its own timeout, Cloudflare Workers cancels the whole invocation: the handler stops, code
-  after an `await` does not run, and `request.signal` never fires. Do not rely on cleanup after an
-  `await`. On Node with `@hono/node-server`, the handler keeps running and `ctx.signal` aborts.
+  `deadlineAt`, `pluginVersion`, `installationId`, `projectId`, `userId` and `plugin`, with the
+  plugin's `id` and `repositoryId`), `ctx.host`, the OWOX origin to build links to OWOX pages
+  with, and `ctx.signal`, which aborts at the deadline. When OWOX drops the call, for example on
+  cancel or on its own timeout, Cloudflare Workers cancels the whole invocation: the handler stops,
+  code after an `await` does not run, and `request.signal` never fires. Do not rely on cleanup
+  after an `await`. On Node with `@hono/node-server`, the handler keeps running and `ctx.signal`
+  aborts.
 - Return JSON of at most 1 MiB, nested at most 100 levels. A result outside these limits fails
   the execution with `BACKEND_INVALID_RESPONSE`. To fail with your own code, throw an error with
   a `code` such as `DOCUMENT_LOCKED`; codes match `^[A-Z][A-Z0-9_]{0,63}$`. Any other error, such
@@ -773,9 +785,11 @@ Use the Worker's URL as `delivery.url`, then create a release as usual.
 
 ### Deploy the backend to Cloud Run
 
-On Node, the same `createBackend` module runs behind
-[`@hono/node-server`](https://github.com/honojs/node-server). Keep the page on GitHub Pages and put
-the backend in its own directory, such as `server/`, with this `package.json`:
+On Node, import `createBackend` from `@owox/plugin-sdk/server/node` and run it behind
+[`@hono/node-server`](https://github.com/honojs/node-server). Without `hosts`, it checks every
+address it connects to and refuses a host name that resolves to a loopback, private, link-local
+or other non-public address. Keep the page on GitHub Pages and put the backend in its own
+directory, such as `server/`, with this `package.json`:
 
 ```json
 {
@@ -788,9 +802,10 @@ the backend in its own directory, such as `server/`, with this `package.json`:
 ```js
 // server/server.js
 import { serve } from '@hono/node-server';
-import { createBackend } from '@owox/plugin-sdk/server';
+import { createBackend } from '@owox/plugin-sdk/server/node';
 
 const backend = createBackend({
+  repositoryId: '123456789',
   actions: {
     'update-document': async (input, ctx) => {
       const dataMarts = await ctx.owox.dataMarts.list();

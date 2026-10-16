@@ -3,6 +3,9 @@ import type { PluginErrorPayload, PluginRequestInput, PluginResponse } from '../
 
 const EXECUTION_TOKEN_HEADER = 'x-owox-execution-token';
 
+/** Keys the fetch server/node hands createBackend, so it is not an option callers can set. */
+export const GUARDED_FETCH = Symbol('guardedFetch');
+
 type Call = { ok: true; response: Response } | { ok: false; error: PluginErrorPayload };
 
 /** The frame's requester over fetch, so transport, collections and Credentials run unchanged. */

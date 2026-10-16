@@ -11,7 +11,7 @@ import {
   type PluginCredentials,
 } from '../credentials.js';
 import { createIframeTransport } from '../iframe-transport.js';
-import { createServerRequester } from './requester.js';
+import { createServerRequester, GUARDED_FETCH } from './requester.js';
 
 export { exactCredential } from '../credentials.js';
 export type { CredentialHandle, PluginCredentials } from '../credentials.js';
@@ -19,6 +19,8 @@ export type { PluginCollection } from '../collections.js';
 
 const CURRENT_EXECUTION_PATH = '/api/plugins/runtime/executions/current';
 const MAX_ERROR_MESSAGE_CHARS = 1000;
+const REPOSITORY_ID_PATTERN = /^[1-9][0-9]{0,19}$/;
+const LOCAL_NAME_SUFFIXES = ['.localhost', '.local', '.internal', '.home.arpa'];
 
 export interface PluginActionExecutionContext {
   readonly executionId: string;
@@ -30,6 +32,8 @@ export interface PluginActionExecutionContext {
   readonly installationId: string;
   readonly projectId: string;
   readonly userId: string;
+  /** The plugin as OWOX knows it; `repositoryId` is its GitHub repository id. */
+  readonly plugin: { readonly id: string; readonly repositoryId: string };
 }
 
 export interface BackendActionContext {
@@ -39,6 +43,8 @@ export interface BackendActionContext {
   readonly credentials: PluginCredentials;
   collections<T>(name: string): PluginCollection<T>;
   readonly execution: PluginActionExecutionContext;
+  /** The OWOX origin that accepted the execution token; build links to OWOX pages from it. */
+  readonly host: string;
   /** Aborts at the action's deadline. */
   readonly signal: AbortSignal;
 }
@@ -51,9 +57,19 @@ interface WorkerContext extends PluginActionExecutionContext {
 
 /** Builds a Fetch API handler, such as a Worker module, that runs a plugin's backend actions. */
 export function createBackend(options: {
+  /** The plugin's GitHub repository id; executions of any other plugin are refused. */
+  repositoryId: string;
   hosts?: readonly string[];
   actions: Readonly<Record<string, BackendActionHandler>>;
 }): { fetch(request: Request): Promise<Response> } {
+  if (
+    typeof options.repositoryId !== 'string' ||
+    !REPOSITORY_ID_PATTERN.test(options.repositoryId)
+  ) {
+    throw new TypeError(
+      "createBackend: repositoryId must be the plugin's GitHub repository id, as printed by gh api repos/OWNER/NAME --jq .id"
+    );
+  }
   if (
     options.hosts !== undefined &&
     (options.hosts.length === 0 || !options.hosts.every(isExactOrigin))
@@ -62,8 +78,17 @@ export function createBackend(options: {
       'createBackend: hosts must list exact origins without wildcards, such as https://app.owox.com'
     );
   }
-  // Without a list any deployment may call: everything ctx reaches goes back to that host.
+  // Without a list any public deployment may call: everything ctx reaches goes back to that host.
   const hosts = options.hosts ? new Set(options.hosts) : null;
+  // Set only by server/node, which checks the addresses it connects to.
+  const guardedFetch = (options as { [GUARDED_FETCH]?: typeof fetch })[GUARDED_FETCH];
+  // Workers refuse private, loopback and IP-literal destinations (Cloudflare errors 1002, 1003,
+  // 1016) and reach private networks only through VPC bindings, so the name check is enough there.
+  if (!hosts && !guardedFetch && globalThis.navigator?.userAgent !== 'Cloudflare-Workers') {
+    throw new TypeError(
+      'createBackend: on this runtime list hosts, or import createBackend from @owox/plugin-sdk/server/node, which checks the addresses it connects to'
+    );
+  }
 
   return {
     async fetch(request: Request): Promise<Response> {
@@ -88,9 +113,16 @@ export function createBackend(options: {
       if (hosts && !hosts.has(call.host)) {
         return failure(403, 'HOST_NOT_ALLOWED', `${call.host} is not one of this backend's hosts`);
       }
+      if (!hosts && !isPublicHttpsOrigin(call.host)) {
+        return failure(
+          403,
+          'HOST_NOT_ALLOWED',
+          `${call.host} is not a public HTTPS origin; list internal deployments in hosts`
+        );
+      }
 
       // The token proves nothing until the host it names accepts it.
-      const requester = createServerRequester({ host: call.host, token });
+      const requester = createServerRequester({ host: call.host, token, fetch: guardedFetch });
       const current = await requester.send({
         kind: 'api',
         method: 'GET',
@@ -105,6 +137,10 @@ export function createBackend(options: {
       const context = ('body' in current ? current.body : null) as WorkerContext | null;
       if (!context || context.executionId !== call.executionId) {
         return failure(401, 'UNAUTHORIZED', 'The execution does not match this request');
+      }
+      // Another plugin on the same deployment could forward its own token with a matching action.
+      if (context.plugin?.repositoryId !== options.repositoryId) {
+        return failure(403, 'PLUGIN_MISMATCH', 'This execution belongs to another plugin');
       }
       if (typeof context.action !== 'string') {
         return failure(502, 'EXECUTION_CONTEXT_UNAVAILABLE', 'OWOX sent no action name');
@@ -133,6 +169,7 @@ export function createBackend(options: {
           credentials: createPluginCredentials(requester, credentialHandles),
           collections: <T>(name: string) => createPluginCollection<T>(owox, name),
           execution,
+          host: call.host,
           signal,
         });
         return json(200, { result: result ?? null });
@@ -149,6 +186,20 @@ function isExactOrigin(value: string): boolean {
   } catch {
     return false;
   }
+}
+
+/** An `https:` DNS name, not an address literal or a name reserved for local networks. */
+function isPublicHttpsOrigin(origin: string): boolean {
+  const { protocol, hostname } = new URL(origin);
+  // WHATWG URL has already turned numeric forms such as https://2130706433 into dotted IPv4.
+  const name = hostname.replace(/\.+$/, '');
+  return (
+    protocol === 'https:' &&
+    name.includes('.') &&
+    !/^\d+\.\d+\.\d+\.\d+$/.test(name) &&
+    !name.startsWith('[') &&
+    !LOCAL_NAME_SUFFIXES.some(suffix => `.${name}`.endsWith(suffix))
+  );
 }
 
 // Both readers swallow their own throws (a code getter, a revoked Proxy), or no answer would leave.

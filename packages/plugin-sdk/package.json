@@ -40,7 +40,8 @@
   ],
   "dependencies": {
     "@ai-sdk/provider": "4.0.8",
-    "@owox/api-client": "*"
+    "@owox/api-client": "*",
+    "undici": "^6.27.0"
   },
   "devDependencies": {
     "@owox/eslint-config": "*",
@@ -65,6 +66,10 @@
     "./server": {
       "import": "./dist/server/index.js",
       "types": "./dist/server/index.d.ts"
+    },
+    "./server/node": {
+      "import": "./dist/server/node.js",
+      "types": "./dist/server/node.d.ts"
     }
   },
   "main": "./dist/index.js",
