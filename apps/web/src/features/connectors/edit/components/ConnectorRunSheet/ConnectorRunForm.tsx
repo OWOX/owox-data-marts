@@ -33,6 +33,7 @@ import { ConfirmationDialog } from '../../../../../shared/components/Confirmatio
 import {
   LARGE_BACKFILL_DAYS,
   MAX_MANUAL_BACKFILL_DAYS,
+  MIN_MANUAL_BACKFILL_START_DATE,
   countBackfillDays,
   countBackfillSegments,
   toUtcDayMs,
@@ -51,6 +52,8 @@ type BackfillPeriod =
   | { status: 'incomplete' }
   | { status: 'reversed' }
   | { status: 'startInFuture' }
+  | { status: 'startTooEarly' }
+  | { status: 'endInFuture' }
   | { status: 'ok'; days: number };
 
 /** Single source of truth for the period: the notice and the field validators both read it. */
@@ -59,6 +62,8 @@ function readBackfillPeriod(startDate: unknown, endDate: unknown, today: string)
     return { status: 'incomplete' };
   }
   if ((startDate as string) > today) return { status: 'startInFuture' };
+  if ((startDate as string) < MIN_MANUAL_BACKFILL_START_DATE) return { status: 'startTooEarly' };
+  if ((endDate as string) > today) return { status: 'endInFuture' };
   const days = countBackfillDays(startDate, endDate);
   if (days === 0) return { status: 'reversed' };
   return { status: 'ok', days };
@@ -70,6 +75,10 @@ function getBackfillSummary(period: BackfillPeriod): string {
       return `A long period runs automatically in segments of up to ${MAX_MANUAL_BACKFILL_DAYS} days. Pick a start and end date to see how many days and runs it takes.`;
     case 'startInFuture':
       return 'The start date cannot be in the future. Pick a date up to today.';
+    case 'startTooEarly':
+      return `The start date cannot be earlier than ${MIN_MANUAL_BACKFILL_START_DATE}. Pick a later date.`;
+    case 'endInFuture':
+      return 'The end date cannot be in the future. Pick a date up to today.';
     case 'reversed':
       return 'The end date must be on or after the start date.';
     case 'ok': {
@@ -106,7 +115,13 @@ function getBackfillDateValidation(
   | Record<string, Validate<ConnectorRunFormData['data'][string], ConnectorRunFormData>>
   | undefined {
   if (fieldName === 'StartDate') {
-    return { notInFuture: notInFutureValidation('Start date', today) };
+    return {
+      notInFuture: notInFutureValidation('Start date', today),
+      notTooEarly: value =>
+        toUtcDayMs(value) === undefined ||
+        (value as string) >= MIN_MANUAL_BACKFILL_START_DATE ||
+        `Start date cannot be earlier than ${MIN_MANUAL_BACKFILL_START_DATE}`,
+    };
   }
   if (fieldName === 'EndDate') {
     return {
@@ -299,6 +314,11 @@ export function ConnectorRunForm({ configuration, onClose, onSubmit }: Connector
                             max={
                               connectorField.requiredType === RequiredType.DATE ? today : undefined
                             }
+                            min={
+                              connectorField.name === 'StartDate'
+                                ? MIN_MANUAL_BACKFILL_START_DATE
+                                : undefined
+                            }
                             defaultValue={
                               typeof connectorField.default === 'string' ||
                               typeof connectorField.default === 'number'
@@ -348,7 +368,7 @@ export function ConnectorRunForm({ configuration, onClose, onSubmit }: Connector
           if (!open) setPendingRun(null);
         }}
         title={`Start a backfill of ${String(backfillSegments)} runs?`}
-        description={`This backfill covers ${String(backfillDays)} days. OWOX loads it as ${String(backfillSegments)} segments of up to ${String(MAX_MANUAL_BACKFILL_DAYS)} days, one run each. Each completed segment counts as one run for your consumption.`}
+        description={`This backfill covers ${String(backfillDays)} days. OWOX loads it as ${String(backfillSegments)} segments of up to ${String(MAX_MANUAL_BACKFILL_DAYS)} days, one run each. A segment counts as one run for your consumption once any of its accounts loads data.`}
         confirmLabel={`Start ${String(backfillSegments)} runs`}
         cancelLabel='Keep editing'
         variant='brand'

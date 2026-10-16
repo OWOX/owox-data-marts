@@ -6,6 +6,14 @@
  */
 export const MAX_MANUAL_BACKFILL_DAYS = 31;
 
+/**
+ * Earliest StartDate a manual backfill accepts. A typo guard, not a business cap: a year such as
+ * `0202` would plan tens of thousands of segments.
+ * Mirrors MIN_MANUAL_BACKFILL_START_DATE in apps/backend/src/data-marts/utils/manual-backfill-range.ts;
+ * keep the two in sync.
+ */
+export const MIN_MANUAL_BACKFILL_START_DATE = '2000-01-01';
+
 /** Periods longer than this get a heads-up that the backfill can run for hours. */
 export const LARGE_BACKFILL_DAYS = 365;
 

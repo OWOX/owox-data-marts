@@ -34,14 +34,14 @@ const MAX_MERGED_RUN_OUTPUT_BYTES = 6 * 1024 * 1024;
 /**
  * Bound on each in-memory message buffer of a single execution.
  *
- * One less than the merged cap because `addMessageToArray` spends an entry saying the
- * cap was reached, exactly as `capMergedEntries` reserves one for its own truncation
- * notice. At the merged cap the two would compose into cap + 1 entries, and the terminal
- * write would then trim that single entry and label a first attempt
- * "earlier entries from previous attempts were truncated" — reporting a resume that
- * never happened.
+ * Two less than the merged cap: `addMessageToArray` spends one entry saying the cap was
+ * reached, and a backfill segment appends its terminal marker past the bound (see the
+ * `finally` of `executeInBackground`). Without the reserved slots the two would compose
+ * into more than the merged cap, and the terminal write would trim the excess and label a
+ * first attempt "earlier entries from previous attempts were truncated" — reporting a
+ * resume that never happened, and dropping the segment's `started` marker with it.
  */
-const MAX_RUN_BUFFER_ENTRIES = MAX_MERGED_RUN_OUTPUT_ENTRIES - 1;
+const MAX_RUN_BUFFER_ENTRIES = MAX_MERGED_RUN_OUTPUT_ENTRIES - 2;
 
 /**
  * How many request traces one configuration's run keeps. A connector traces every request, so
@@ -54,7 +54,6 @@ import { ConnectorDefinition as DataMartConnectorDefinition } from '../../dto/sc
 import { DataMart } from '../../entities/data-mart.entity';
 import { DataMartRun } from '../../entities/data-mart-run.entity';
 import { DataMartRunStatus } from '../../enums/data-mart-run-status.enum';
-import { DataMartRunType } from '../../enums/data-mart-run-type.enum';
 import { ProjectOperationBlockedException } from '../../../common/exceptions/project-operation-blocked.exception';
 import { ConnectorMessage } from '../../connector-types/connector-message/schemas/connector-message.schema';
 import { ConnectorOutputCaptureService } from '../../connector-types/connector-message/services/connector-output-capture.service';
@@ -66,7 +65,6 @@ import {
   getMaxManualBackfillDays,
   isManualBackfillPayload,
   nextBackfillChainStep,
-  nextSegmentAdditionalParams,
   parseBackfillDay,
   readBackfillChainMeta,
   readBackfillProgress,
@@ -85,7 +83,7 @@ import { ConnectorRunEvent } from '../../events/connector-run.event';
 import { ProjectBillingService, RunKind } from '../project-billing/project-billing.service';
 import { ConnectorDefinitionService } from './connector-definition.service';
 import { ConnectorRunTriggerService } from './connector-run-trigger.service';
-import { buildSegmentMarker } from './backfill-segment';
+import { buildSegmentMarker, createNextSegmentRun, SegmentChainEnd } from './backfill-segment';
 import { ConnectorProcessSpawnerService } from './connector-process-spawner.service';
 import { ConnectorStorageConfigService } from './connector-storage-config.service';
 import { ConnectorSourceConfigService } from './connector-source-config.service';
@@ -331,9 +329,22 @@ export class ConnectorExecutorService {
         );
       }
     } finally {
+      // The shutdown flag is read ONCE. The chain decision, the terminal marker, the terminal
+      // status and the outcome events all derive from this value, because the flag can flip at
+      // any await below: reading it separately let a FAILED segment be persisted INTERRUPTED
+      // while its successor was still queued, so the sweep resumed segment N as N+1 ran.
+      const isShuttingDown = this.gracefulShutdownService.isInShutdownMode();
+      // Shutdown cut the run short, so the sweep must resume it. Gated on *all* configurations
+      // having succeeded, never on merely some: a run that got one account in before the pod
+      // stopped still has the rest left to import, and marking it SUCCESS put it out of the
+      // sweep's reach. Cancellation still wins — a run the user stopped must not be resurrected.
+      const willBeInterrupted = isShuttingDown && !wasCancelled && !allConfigurationsSucceeded;
+
       // Where the chain goes after this segment. Decided only for a segment that ended on
-      // its own: a cancelled run was stopped on purpose, a shut-down one is resumed by the
-      // sweep as the same run, and a restricted project cannot start the next segment.
+      // its own: a cancelled run was stopped on purpose, an interrupted one is resumed by the
+      // sweep as the same run, and a restricted project cannot start the next segment. A fully
+      // successful segment still queues its successor during a shutdown: it lands SUCCESS, so
+      // nothing would resume it, and the repair sweep would leave a gap on every deploy.
       // A failed segment never ends the chain (failure isolation); whether this run recorded
       // any date checkpoint tells a dateless (catalog or full-refresh) connector apart, which
       // loads the whole source in one run.
@@ -345,7 +356,7 @@ export class ConnectorExecutorService {
         !wasCancelled &&
         signal?.aborted !== true &&
         !operationBlockedException &&
-        !this.gracefulShutdownService.isInShutdownMode()
+        !willBeInterrupted
           ? nextBackfillChainStep(
               chainMeta,
               {
@@ -360,19 +371,25 @@ export class ConnectorExecutorService {
       // The terminal marker says how the segment ended and whether the chain goes on. An
       // interrupted segment is resumed by the sweep and a cancelled one was stopped on
       // purpose, so neither gets one.
-      if (
-        chainMeta &&
-        segmentWindow &&
-        !wasCancelled &&
-        !this.gracefulShutdownService.isInShutdownMode()
-      ) {
-        const loaded = configurationResults.map(result => result.backfillLoadedThrough);
-        // One configuration with nothing loaded leaves the segment without a known frontier.
+      if (chainMeta && segmentWindow && !wasCancelled && !willBeInterrupted) {
+        const reportedDays = configurationResults.flatMap(result =>
+          result.backfillLoadedThrough ? [result.backfillLoadedThrough] : []
+        );
+        // The earliest frontier among the configurations that reported one: every day through
+        // it was loaded by each of them. The marker says how many reported, so a configuration
+        // without a checkpoint does not erase what the others loaded.
         const loadedThrough =
-          loaded.length > 0 && loaded.every(day => day !== undefined)
-            ? (loaded as string[]).reduce((a, b) => (a < b ? a : b))
+          reportedDays.length > 0 ? reportedDays.reduce((a, b) => (a < b ? a : b)) : undefined;
+        // A restricted project cannot start the segment, so the rest of the period is not loaded.
+        const chainEnd: SegmentChainEnd | undefined = operationBlockedException
+          ? 'stopped'
+          : chainStep?.action === 'end'
+            ? chainStep.chainEnd
             : undefined;
-        addBoundedMessage(
+        // Deliberately outside the buffer bound: once the buffer is full, every bounded append
+        // is dropped, and this entry is the only record of how far the segment got and whether
+        // the chain goes on. The merge keeps the newest entries, so it survives the terminal write.
+        addMessageToArray(
           capturedLogs,
           buildSegmentMarker(
             chainMeta,
@@ -381,8 +398,11 @@ export class ConnectorExecutorService {
             this.systemTimeService.now().toISOString(),
             {
               loadedThrough,
+              configurationsLoaded: reportedDays.length,
+              configurationsTotal: configurationResults.length,
+              counted: hasAnySuccessfulConfiguration,
               chainContinues,
-              ...(chainStep?.action === 'end' ? { chainEnd: chainStep.chainEnd } : {}),
+              ...(chainEnd ? { chainEnd } : {}),
             }
           )
         );
@@ -416,9 +436,11 @@ export class ConnectorExecutorService {
         );
       }
 
-      // Schema actualization belongs to the chain's end: running it after every segment
-      // would fetch the storage schema dozens of times for one backfill.
-      if (hasSuccessfulFieldsUpdate && !chainContinues) {
+      // A segment that reported fields actualizes the schema itself: its columns exist now, and
+      // the chain may end without another executor pass (a restart, a cancel, a failed queue).
+      // Only the no-change refresh below waits for the chain's end, so a backfill does not
+      // fetch the storage schema dozens of times for nothing.
+      if (hasSuccessfulFieldsUpdate) {
         await this.actualizeSchemaAfterConnectorExecution(dataMart, runId);
       }
 
@@ -439,6 +461,7 @@ export class ConnectorExecutorService {
         capturedErrors,
         operationBlockedException,
         wasCancelled,
+        willBeInterrupted,
         flushedSnapshot,
         chainStep?.action === 'continue'
           ? { run, dataMart, meta: chainStep.meta, window: chainStep.window }
@@ -455,14 +478,10 @@ export class ConnectorExecutorService {
       // for one import. This state did not exist before this branch — INTERRUPTED used to
       // require that NOTHING had succeeded, so it could never overlap with a billable run.
       //
-      // A backfill segment run is billed only when it is fully successful: a segment that
-      // failed part-way is not charged, since its unloaded days must be requested again.
-      // Each segment is its own run, so the plain run id is the consumption id.
-      if (chainMeta) {
-        if (persistedStatus === DataMartRunStatus.SUCCESS) {
-          await this.projectBillingService.registerConnectorRunConsumption(dataMart, runId);
-        }
-      } else if (
+      // A backfill segment is an ordinary run under this rule: each segment is its own run, so
+      // the plain run id is the consumption id, and a segment counts once any of its
+      // configurations loaded data.
+      if (
         hasAnySuccessfulConfiguration &&
         persistedStatus !== null &&
         persistedStatus !== DataMartRunStatus.INTERRUPTED
@@ -481,11 +500,7 @@ export class ConnectorExecutorService {
             'successfully'
           )
         );
-      } else if (
-        persistedStatus !== null &&
-        !wasCancelled &&
-        !this.gracefulShutdownService.isInShutdownMode()
-      ) {
+      } else if (persistedStatus !== null && !wasCancelled && !willBeInterrupted) {
         await this.eventDispatcher.publishExternal(
           new ConnectorRunEvent(
             dataMart.id,
@@ -1338,6 +1353,10 @@ export class ConnectorExecutorService {
     capturedErrors: ConnectorMessage[],
     operationBlockedException?: ProjectOperationBlockedException,
     wasCancelled: boolean = false,
+    // The caller's single reading of the shutdown flag (see the top of the `finally`): the
+    // run is cut short and the sweep must resume it. Passed in rather than re-read here, so
+    // the status always agrees with the chain decision made before the awaits above.
+    willBeInterrupted: boolean = false,
     flushedSnapshot: RunLogSnapshot | null = null,
     // Set to also create the next segment run of a backfill chain, in the same transaction.
     nextSegment?: NextSegmentRun
@@ -1345,7 +1364,7 @@ export class ConnectorExecutorService {
     // terminal status won. Callers need the status itself, not just "did it write":
     // billing must skip an INTERRUPTED run because the recovery sweep will run it
     // again and bill then, and re-deriving that condition at the call site would be
-    // a second copy of the shutdown rule below, free to drift from it.
+    // a second copy of the shutdown rule, free to drift from it.
   ): Promise<DataMartRunStatus | null> {
     let status = wasCancelled
       ? DataMartRunStatus.CANCELLED
@@ -1354,17 +1373,7 @@ export class ConnectorExecutorService {
         : operationBlockedException
           ? DataMartRunStatus.RESTRICTED
           : DataMartRunStatus.FAILED;
-    // Shutdown cut the run short, so the sweep must resume it. This is gated on
-    // *all* configurations having succeeded, never on merely some: a run that got
-    // one account in before the pod stopped still has the rest left to import, and
-    // marking it SUCCESS put it out of the sweep's reach so those accounts were
-    // silently never imported. Cancellation still wins over INTERRUPTED — a run
-    // the user stopped must not be resurrected.
-    if (
-      !wasCancelled &&
-      !allConfigurationsSucceeded &&
-      this.gracefulShutdownService.isInShutdownMode()
-    ) {
+    if (willBeInterrupted) {
       status = DataMartRunStatus.INTERRUPTED;
     }
 
@@ -1396,7 +1405,8 @@ export class ConnectorExecutorService {
       if (!nextSegment) throw error;
       // The whole transaction rolled back: neither this run's terminal status nor the next
       // segment was stored. Write the honest terminal status without the next segment; the
-      // chain repair sweep queues the missing segment on its next pass.
+      // chain repair sweep queues the missing segment on its next pass. The cause stays in the
+      // server log: the run log is user-visible and must not carry raw database errors.
       const failure = castError(error);
       this.logger.error(
         `Failed to queue the next backfill segment: ${failure.message}`,
@@ -1405,7 +1415,8 @@ export class ConnectorExecutorService {
           runId,
         }
       );
-      const queueWarning = `Could not queue the next backfill segment: ${failure.message}. The backfill continues automatically within 15 minutes.`;
+      const queueWarning =
+        'Could not queue the next backfill segment. The backfill continues automatically within 15 minutes.';
       logsToSave = this.capMergedEntries([
         ...(logsToSave ?? []),
         JSON.stringify({
@@ -1442,9 +1453,14 @@ export class ConnectorExecutorService {
 
   /**
    * Writes this run's terminal outcome and, when `nextSegment` is given, the next segment
-   * run and its trigger, in one transaction: a cancel (also transactional) either lands
-   * first, so the guarded update matches nothing and no next run is created, or finds the
-   * next PENDING run as the chain's one active run and stops the chain by cancelling it.
+   * run and its trigger, in one transaction. A cancel runs in its own transaction and writes
+   * through the same guard, so one of two things happens: it lands first, the guarded update
+   * matches nothing and no next run is created; or it lands after this commit, re-resolves the
+   * chain's active run (the PENDING next segment) and stops the chain by cancelling that.
+   *
+   * The next segment is queued only behind a SUCCESS or FAILED write. Any other status means
+   * the run is not finished for good (INTERRUPTED is resumed as this same run), and a
+   * successor would run alongside it.
    *
    * @returns false when the guarded update matched no row.
    */
@@ -1464,29 +1480,22 @@ export class ConnectorExecutorService {
     if (!nextSegment) return true;
 
     const { run, dataMart, meta, window } = nextSegment;
-    const nextAdditionalParams = nextSegmentAdditionalParams(run.additionalParams, meta, window);
+    if (status !== DataMartRunStatus.SUCCESS && status !== DataMartRunStatus.FAILED) {
+      this.logger.warn(
+        `Not queueing backfill segment ${meta.segmentIndex} of ${meta.segmentsTotal}: run ended ${status}`,
+        { dataMartId: run.dataMartId, projectId: dataMart.projectId, runId }
+      );
+      return true;
+    }
 
-    const nextRun = await this.dataMartRunRepository.save(
-      this.dataMartRunRepository.create({
-        dataMartId: run.dataMartId,
-        type: DataMartRunType.CONNECTOR,
-        definitionRun: dataMart.definition,
-        status: DataMartRunStatus.PENDING,
-        createdById: run.createdById ?? undefined,
-        runType: run.runType,
-        logs: [],
-        errors: [],
-        additionalParams: nextAdditionalParams,
-      })
+    const nextRun = await createNextSegmentRun(
+      this.dataMartRunRepository,
+      this.connectorRunTriggerService,
+      run,
+      dataMart,
+      meta,
+      window
     );
-    await this.connectorRunTriggerService.createTrigger({
-      dataMartId: run.dataMartId,
-      projectId: dataMart.projectId,
-      createdById: run.createdById ?? 'system',
-      dataMartRunId: nextRun.id,
-      runType: run.runType,
-      payload: nextAdditionalParams,
-    });
 
     this.logger.log(
       `Queued backfill segment ${meta.segmentIndex} of ${meta.segmentsTotal} as run ${nextRun.id}`,

@@ -175,7 +175,7 @@ Choose **Backfill (custom period)** to import a specific date range.
 
 The import includes both the start date and the end date. The form shows how many days your
 period covers. A period longer than 31 days runs automatically as consecutive segments of up
-to 31 days, and each completed segment counts as one run.
+to 31 days. A segment counts as one run once any of its accounts loads data.
 
 Both dates are required. The date picker does not offer future dates. The **End Date** must be
 on or after the **Start Date**.

@@ -10,6 +10,7 @@ import type { DataMartDefinitionConfig } from '../../model/types/data-mart-defin
 import type { LogEntry, SortDir } from './types';
 import { LogLevel } from './types';
 import { LogCategory, categorize, severityOf, relabelStatusMessage } from './log-category';
+import { BACKFILL_SEGMENT_METRIC } from './load-status';
 
 const toSortTime = (iso: string | null | undefined): number => {
   if (!iso) return 0;
@@ -207,7 +208,9 @@ export const processJSONMessage = (
         if (tags && typeof tags === 'object' && 'node' in tags) {
           metadata.node = (tags as Record<string, unknown>).node as string;
         }
-        if (tags && typeof tags === 'object') {
+        // Only the segment marker's tags are lifted: other tagged entries (request traces, row
+        // counts) carry unrelated keys that must not surface as backfill state.
+        if (tags && typeof tags === 'object' && metadata.metric === BACKFILL_SEGMENT_METRIC) {
           for (const key of BACKFILL_SEGMENT_TAG_KEYS) {
             const value = (tags as Record<string, unknown>)[key];
             if (

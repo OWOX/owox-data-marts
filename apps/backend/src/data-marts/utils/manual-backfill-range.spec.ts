@@ -36,6 +36,12 @@ describe('manual-backfill-range', () => {
       ).toEqual({ startDate: '2026-09-01', endDate: '2026-09-17' });
     });
 
+    it('accepts the earliest allowed StartDate', () => {
+      expect(
+        parseManualBackfillRange({ StartDate: '2000-01-01', EndDate: '2000-01-31' }, TODAY)
+      ).toEqual({ startDate: '2000-01-01', endDate: '2000-01-31' });
+    });
+
     it('accepts a full calendar month as one run', () => {
       expect(
         parseManualBackfillRange({ StartDate: '2026-07-01', EndDate: '2026-07-31' }, TODAY)
@@ -47,6 +53,8 @@ describe('manual-backfill-range', () => {
       [{ StartDate: '01/09/2026' }, 'StartDate is required'],
       [{ StartDate: '2026-02-30' }, 'StartDate is required'],
       [{ StartDate: '2026-09-18' }, 'StartDate cannot be in the future'],
+      [{ StartDate: '1999-12-31' }, 'StartDate cannot be earlier than 2000-01-01'],
+      [{ StartDate: '0202-01-01' }, 'StartDate cannot be earlier than 2000-01-01'],
       [{ StartDate: '2026-09-01', EndDate: 'soon' }, 'EndDate must be'],
       [{ StartDate: '2026-09-01', EndDate: '2026-02-30' }, 'EndDate must be'],
       [{ StartDate: 20260901 }, 'StartDate is required'],
@@ -183,7 +191,40 @@ describe('manual-backfill-range', () => {
         requestedEnd: '2025-06-30',
         segmentIndex: 1,
         segmentsTotal: 18,
+        segmentDays: 31,
       });
+    });
+
+    it('keeps the segment size the chain was planned with when the default changes', () => {
+      const plannedMeta: BackfillChainMeta = { ...planBackfillChain(payload, 'chain-1')!.meta };
+
+      // A later release lowering the segment size must not re-tile a chain already running.
+      const step = nextBackfillChainStep(
+        { ...plannedMeta, segmentIndex: 2 },
+        { segmentSucceeded: true, anyProgressAdvanced: true },
+        10
+      );
+
+      expect(step).toMatchObject({
+        action: 'continue',
+        window: { startDate: '2024-03-03', endDate: '2024-04-02' },
+      });
+    });
+
+    it('falls back to the default segment size for a chain stored without one', () => {
+      const { segmentDays: _segmentDays, ...legacyMeta } = planBackfillChain(
+        payload,
+        'chain-1'
+      )!.meta;
+
+      expect(readBackfillChainMeta({ backfill: legacyMeta })).toEqual(legacyMeta);
+      expect(
+        nextBackfillChainStep(
+          { ...legacyMeta, segmentIndex: 2 },
+          { segmentSucceeded: true, anyProgressAdvanced: true },
+          31
+        )
+      ).toMatchObject({ window: { startDate: '2024-03-03', endDate: '2024-04-02' } });
     });
 
     it.each([

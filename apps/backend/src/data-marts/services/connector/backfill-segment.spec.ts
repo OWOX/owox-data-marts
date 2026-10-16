@@ -61,6 +61,77 @@ describe('buildSegmentMarker', () => {
     ).toContain('no days of this segment were loaded');
   });
 
+  it('says a failed segment counted as one run when a configuration loaded data', () => {
+    const marker = buildSegmentMarker(META, WINDOW, 'failed', AT, {
+      loadedThrough: '2024-03-20',
+      counted: true,
+      chainContinues: true,
+    });
+
+    expect(marker.message).toBe(
+      'Backfill 2024-01-01 – 2025-06-30: segment 3 of 18 (2024-03-03 – 2024-04-02) failed; days through 2024-03-20 were loaded — counted as 1 run'
+    );
+  });
+
+  it('does not claim a run for a failed segment that loaded nothing', () => {
+    const { message } = buildSegmentMarker(META, WINDOW, 'failed', AT, {
+      counted: false,
+      chainContinues: true,
+    });
+
+    expect(message).toContain('no days of this segment were loaded');
+    expect(message).not.toContain('counted as 1 run');
+  });
+
+  it('qualifies the loaded days when only some configurations reported a checkpoint', () => {
+    const { message } = buildSegmentMarker(META, WINDOW, 'failed', AT, {
+      loadedThrough: '2024-03-20',
+      configurationsLoaded: 2,
+      configurationsTotal: 3,
+      counted: true,
+    });
+
+    expect(message).toContain('days through 2024-03-20 were loaded (2 of 3 configurations)');
+  });
+
+  it('leaves the loaded days unqualified when every configuration reported', () => {
+    const { message } = buildSegmentMarker(META, WINDOW, 'failed', AT, {
+      loadedThrough: '2024-03-20',
+      configurationsLoaded: 3,
+      configurationsTotal: 3,
+    });
+
+    expect(message).toContain('days through 2024-03-20 were loaded');
+    expect(message).not.toContain('configurations');
+  });
+
+  it('names the part of the period a restricted project left unloaded, this segment included', () => {
+    const marker = buildSegmentMarker(META, WINDOW, 'failed', AT, {
+      chainContinues: false,
+      chainEnd: 'stopped',
+    });
+
+    expect(marker.message).toBe(
+      'Backfill stopped: the project is restricted; segments 3–18 (2024-03-03 – 2025-06-30) were not loaded.'
+    );
+    expect(marker.tags).toMatchObject({
+      phase: 'failed',
+      chainContinues: false,
+      chainEnd: 'stopped',
+    });
+  });
+
+  it('uses the singular when the restricted segment is the last one', () => {
+    const lastMeta = { ...META, segmentIndex: 18 };
+    const lastWindow = { startDate: '2025-06-01', endDate: '2025-06-30' };
+
+    expect(
+      buildSegmentMarker(lastMeta, lastWindow, 'failed', AT, { chainEnd: 'stopped' }).message
+    ).toBe(
+      'Backfill stopped: the project is restricted; segment 18 (2025-06-01 – 2025-06-30) was not loaded.'
+    );
+  });
+
   it('marks the run the chain deliberately ended on', () => {
     const finished = buildSegmentMarker(META, WINDOW, 'completed', AT, {
       chainContinues: false,

@@ -14,7 +14,8 @@ export interface BackfillStatus {
   segmentEnd: string;
   phase: 'started' | 'completed' | 'failed';
   loadedThrough: string | null;
-  chainEnd: 'finished' | null;
+  /** `finished`: nothing more to load; `stopped`: the rest of the period was left unloaded. */
+  chainEnd: 'finished' | 'stopped' | null;
 }
 
 export interface LoadStatus {
@@ -43,11 +44,21 @@ export function describeBackfillStatus(backfill: BackfillStatus, isRunning: bool
     ...(backfill.phase === 'failed' && backfill.loadedThrough
       ? [`loaded through ${backfill.loadedThrough}`]
       : []),
-    ...(backfill.chainEnd === 'finished' ? ['backfill complete'] : []),
+    ...describeChainEnd(backfill),
   ].join(' · ');
 }
 
-const BACKFILL_SEGMENT_METRIC = 'backfill_segment';
+/** "Complete" claims every segment loaded, so a last segment that failed says "ended" instead. */
+function describeChainEnd(backfill: BackfillStatus): string[] {
+  if (backfill.chainEnd === 'stopped') return ['backfill stopped'];
+  if (backfill.chainEnd === 'finished') {
+    return [backfill.phase === 'failed' ? 'backfill ended' : 'backfill complete'];
+  }
+  return [];
+}
+
+/** Metric of the run-log entry that identifies a run as one segment of a backfill. */
+export const BACKFILL_SEGMENT_METRIC = 'backfill_segment';
 
 const asText = (value: unknown): string | null =>
   typeof value === 'string' && value.length > 0 ? value : null;
@@ -83,7 +94,7 @@ function readBackfillStatus(entries: LogEntry[]): BackfillStatus | undefined {
       segmentEnd: asText(meta.segmentEnd) ?? '',
       phase,
       loadedThrough: asText(meta.loadedThrough),
-      chainEnd: chainEnd === 'finished' ? chainEnd : null,
+      chainEnd: chainEnd === 'finished' || chainEnd === 'stopped' ? chainEnd : null,
     };
   }
 

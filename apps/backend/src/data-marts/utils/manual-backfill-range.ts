@@ -17,6 +17,12 @@ export function getMaxManualBackfillDays(): number {
   return limit;
 }
 
+/**
+ * Earliest StartDate a manual backfill accepts. A typo guard, not a business cap: a year such as
+ * `0202` would otherwise plan tens of thousands of segments. The web form mirrors this value.
+ */
+export const MIN_MANUAL_BACKFILL_START_DATE = '2000-01-01';
+
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 function formatUtcDay(ms: number): string {
@@ -61,8 +67,9 @@ export function countBackfillDays(range: BackfillDateRange): number {
 /**
  * Validates the user-supplied StartDate/EndDate the same way AbstractConnector does
  * (EndDate defaults to today and is clamped to today), before a run is created so the caller
- * gets a 4xx instead of a failed run. The period has no length limit: the executor runs a long
- * one as consecutive segments of at most `getMaxManualBackfillDays()` days.
+ * gets a 4xx instead of a failed run. The period has no length limit, only a start-date floor
+ * (`MIN_MANUAL_BACKFILL_START_DATE`): the executor runs a long one as consecutive segments of
+ * at most `getMaxManualBackfillDays()` days.
  */
 export function parseManualBackfillRange(data: unknown, today: Date): BackfillDateRange {
   const parsed = manualBackfillDatesSchema.safeParse(data);
@@ -79,6 +86,11 @@ export function parseManualBackfillRange(data: unknown, today: Date): BackfillDa
   const start = toUtcDay(parsed.data.StartDate);
   if (start > todayMs) {
     throw new BusinessViolationException('StartDate cannot be in the future');
+  }
+  if (start < toUtcDay(MIN_MANUAL_BACKFILL_START_DATE)) {
+    throw new BusinessViolationException(
+      `StartDate cannot be earlier than ${MIN_MANUAL_BACKFILL_START_DATE}`
+    );
   }
 
   const end = parsed.data.EndDate ? Math.min(toUtcDay(parsed.data.EndDate), todayMs) : todayMs;
@@ -203,6 +215,11 @@ const backfillChainMetaSchema = z.object({
   /** 1-based position of this run's segment within the requested period. */
   segmentIndex: z.number().int().min(1),
   segmentsTotal: z.number().int().min(1),
+  /**
+   * Days per segment the chain was planned with, so a later change of the segment size cannot
+   * misalign the windows of a chain already running. Absent on rows created before it existed.
+   */
+  segmentDays: z.number().int().min(1).optional(),
 });
 
 export type BackfillChainMeta = z.infer<typeof backfillChainMetaSchema>;
@@ -245,6 +262,7 @@ export function planBackfillChain(
       requestedEnd: requested.endDate,
       segmentIndex: 1,
       segmentsTotal,
+      segmentDays: maxDays,
     },
   };
 }
@@ -282,12 +300,16 @@ export type BackfillChainStep =
  * dates), or every remaining day lies beyond the node's end lag — either way later segments
  * would load nothing more. A failed segment never ends the chain (failure isolation): every
  * segment of the requested period runs, however many fail.
+ *
+ * The windows use the segment size the chain was planned with; `defaultMaxDays` applies only
+ * to a chain created before that size was stored.
  */
 export function nextBackfillChainStep(
   meta: BackfillChainMeta,
   outcome: { segmentSucceeded: boolean; anyProgressAdvanced: boolean },
-  maxDays: number
+  defaultMaxDays: number
 ): BackfillChainStep {
+  const maxDays = meta.segmentDays ?? defaultMaxDays;
   if (meta.segmentIndex >= meta.segmentsTotal) return { action: 'end', chainEnd: 'finished' };
   if (outcome.segmentSucceeded && !outcome.anyProgressAdvanced) {
     return { action: 'end', chainEnd: 'finished' };

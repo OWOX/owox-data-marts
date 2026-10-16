@@ -156,11 +156,48 @@ describe('ConnectorRunForm backfill period', () => {
     await waitFor(() => {
       expect(runButton()).toBeDisabled();
     });
+    // Run is disabled with no field message shown, so the notice has to say why.
+    expect(notice()).toHaveTextContent(
+      'The end date cannot be in the future. Pick a date up to today.'
+    );
+    expect(notice()).not.toHaveTextContent('counts as');
+    expect(notice().className).toContain('destructive');
     await act(async () => {
       fireEvent.click(runButton());
     });
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it('explains and blocks a start date before the earliest allowed day', async () => {
+    const onSubmit = await openBackfill();
+
+    // A typo such as year 0202 would otherwise plan tens of thousands of segments.
+    setPeriod('0202-01-01', '2026-01-31');
+
+    await waitFor(() => {
+      expect(runButton()).toBeDisabled();
+    });
+    expect(notice()).toHaveTextContent(
+      'The start date cannot be earlier than 2000-01-01. Pick a later date.'
+    );
+    expect(notice()).not.toHaveTextContent('counts as');
+    expect(notice().className).toContain('destructive');
+    await act(async () => {
+      fireEvent.click(runButton());
+    });
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it('accepts the earliest allowed start date', async () => {
+    await openBackfill();
+
+    setPeriod('2000-01-01', '2000-01-31');
+
+    await waitFor(() => {
+      expect(notice()).toHaveTextContent('This backfill covers 31 days.');
+      expect(runButton()).toBeEnabled();
+    });
   });
 
   it('marks the notice as a status region so it is not announced assertively', async () => {
@@ -173,6 +210,13 @@ describe('ConnectorRunForm backfill period', () => {
     await openBackfill();
 
     expect(dateInput('Start Date')).toHaveAttribute('max', todayIso);
+  });
+
+  it('floors the start date input at the earliest allowed day', async () => {
+    await openBackfill();
+
+    expect(dateInput('Start Date')).toHaveAttribute('min', '2000-01-01');
+    expect(dateInput('End Date')).not.toHaveAttribute('min');
   });
 });
 

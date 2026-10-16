@@ -176,4 +176,37 @@ describe('backfill segments', () => {
       'Backfill 2024-01-01 – 2025-06-30 · segment 18 of 18 completed · backfill complete'
     );
   });
+
+  it('does not call a backfill complete when its last segment failed', () => {
+    const ended = aggregateLoadStatus([
+      segmentMarker(18, 'failed', {
+        loadedThrough: '2025-06-10',
+        chainContinues: false,
+        chainEnd: 'finished',
+      }),
+    ])!.backfill!;
+
+    expect(describeBackfillStatus(ended, false)).toBe(
+      'Backfill 2024-01-01 – 2025-06-30 · segment 18 of 18 failed · loaded through 2025-06-10 · backfill ended'
+    );
+  });
+
+  it('says a backfill stopped when the rest of its period was left unloaded', () => {
+    const stopped = aggregateLoadStatus([
+      segmentMarker(6, 'failed', { chainContinues: false, chainEnd: 'stopped' }),
+    ])!.backfill!;
+
+    expect(stopped.chainEnd).toBe('stopped');
+    expect(describeBackfillStatus(stopped, false)).toBe(
+      'Backfill 2024-01-01 – 2025-06-30 · segment 6 of 18 failed · backfill stopped'
+    );
+  });
+
+  it('ignores a chain end it does not recognise', () => {
+    const status = aggregateLoadStatus([
+      segmentMarker(6, 'failed', { chainEnd: 'something_new' }),
+    ])!.backfill!;
+
+    expect(status.chainEnd).toBeNull();
+  });
 });

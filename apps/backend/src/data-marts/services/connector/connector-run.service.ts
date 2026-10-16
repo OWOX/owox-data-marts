@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { Injectable, Logger } from '@nestjs/common';
 import { Transactional } from 'typeorm-transactional';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, MoreThanOrEqual, Repository } from 'typeorm';
+import { In, MoreThanOrEqual, Not, Repository } from 'typeorm';
 import { castError } from '@owox/internal-helpers';
 import { BusinessViolationException } from '../../../common/exceptions/business-violation.exception';
 import { DataMart } from '../../entities/data-mart.entity';
@@ -15,22 +15,30 @@ import { ConnectorExecutionError } from '../../errors/connector-execution.error'
 import { RunType } from '../../../common/scheduler/shared/types';
 import { ConnectorRunTriggerService } from './connector-run-trigger.service';
 import { ConnectorExecutorService } from './connector-executor.service';
+import { createNextSegmentRun } from './backfill-segment';
 import { SystemTimeService } from '../../../common/scheduler/services/system-time.service';
 import {
   BACKFILL_CHAIN_KEY,
   BackfillChainMeta,
   BackfillDateRange,
   getMaxManualBackfillDays,
+  isManualBackfillPayload,
   nextBackfillChainStep,
-  nextSegmentAdditionalParams,
   planBackfillChain,
   prepareManualBackfillPayload,
   readBackfillChainMeta,
   readBackfillProgress,
+  unwrapRunPayload,
 } from '../../utils/manual-backfill-range';
 
 /** How far back the chain repair sweep looks for a backfill whose next segment never started. */
 const CHAIN_REPAIR_LOOKBACK_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Tolerance between the application clock, which stamps `finishedAt`, and the database clock,
+ * which stamps `createdAt` of the successor created in the same transaction.
+ */
+const CHAIN_SUCCESSOR_CLOCK_SLACK_MS = 60 * 1000;
 
 @Injectable()
 export class ConnectorRunService {
@@ -162,12 +170,33 @@ export class ConnectorRunService {
    * run exists. That happens when the executor's queueing transaction failed, or when an
    * older application version executed the segment and knows nothing about chains. Without
    * this sweep such a backfill would stop silently.
+   *
+   * Candidates are selected by when the segment FINISHED, not when it was created: a segment
+   * can run for hours, and a stall happens at its end. Status and run type narrow the scan to
+   * what can stall. They cannot decide that no successor exists, though: a CANCELLED or
+   * INTERRUPTED successor is outside that status filter, yet it means the chain was stopped or
+   * is being resumed, so each candidate is checked for any later run of its data mart.
    */
   async repairBackfillChains(): Promise<void> {
     const cutoff = new Date(this.systemTimeService.now().getTime() - CHAIN_REPAIR_LOOKBACK_MS);
     const recent = await this.dataMartRunRepository.find({
-      where: { type: DataMartRunType.CONNECTOR, createdAt: MoreThanOrEqual(cutoff) },
-      select: ['id', 'dataMartId', 'status', 'runType', 'createdById', 'additionalParams'],
+      where: {
+        type: DataMartRunType.CONNECTOR,
+        // PENDING/RUNNING are alive, INTERRUPTED is resumed by its own sweep, and
+        // CANCELLED/RESTRICTED stopped the chain on purpose.
+        status: In([DataMartRunStatus.SUCCESS, DataMartRunStatus.FAILED]),
+        runType: RunType.manual,
+        finishedAt: MoreThanOrEqual(cutoff),
+      },
+      select: [
+        'id',
+        'dataMartId',
+        'status',
+        'runType',
+        'createdById',
+        'finishedAt',
+        'additionalParams',
+      ],
     });
 
     // The latest segment decides each chain's state; every earlier one already has a successor.
@@ -183,12 +212,6 @@ export class ConnectorRunService {
 
     for (const { run, meta } of latestByChain.values()) {
       try {
-        // PENDING/RUNNING are alive, INTERRUPTED is resumed by its own sweep, and
-        // CANCELLED/RESTRICTED stopped the chain on purpose.
-        if (run.status !== DataMartRunStatus.SUCCESS && run.status !== DataMartRunStatus.FAILED) {
-          continue;
-        }
-
         const step = nextBackfillChainStep(
           meta,
           {
@@ -199,8 +222,14 @@ export class ConnectorRunService {
         );
         if (step.action !== 'continue') continue;
 
-        // Another run of the data mart is active — possibly a successor this sweep's
-        // snapshot predates. Never create a second active run.
+        // A successor of any status, or a newer backfill the user started in the gap, means
+        // this chain is not stalled: queueing now would resurrect a stopped chain or fork it.
+        if (await this.hasLaterRun(run, meta)) continue;
+
+        // A second guard for a run this sweep's snapshot predates. A guard, not a lock: a run
+        // started between this check and the insert below leaves two active runs — the same
+        // window `run()` has between its own check and insert. The sweep cannot race itself,
+        // because system triggers are claimed by one worker at a time.
         const withDataMart = await this.dataMartRunRepository.findOne({
           where: { id: run.id },
           relations: ['dataMart'],
@@ -225,34 +254,49 @@ export class ConnectorRunService {
     }
   }
 
+  /**
+   * Whether a run created at or after the moment `run` finished shows the chain is not stalled:
+   * a later segment of this chain in any status, or a manual backfill the user started since.
+   * A scheduled or incremental run in the gap is neither — it leaves the backfill untouched and
+   * says nothing about the user's intent, so it must not block the repair for the whole lookback.
+   */
+  private async hasLaterRun(run: DataMartRun, meta: BackfillChainMeta): Promise<boolean> {
+    // Not repairable without a finish time: the sweep cannot tell what came after.
+    if (!run.finishedAt) return true;
+
+    const since = new Date(run.finishedAt.getTime() - CHAIN_SUCCESSOR_CLOCK_SLACK_MS);
+    const candidates = await this.dataMartRunRepository.find({
+      where: {
+        dataMartId: run.dataMartId,
+        type: DataMartRunType.CONNECTOR,
+        id: Not(run.id),
+        createdAt: MoreThanOrEqual(since),
+      },
+      select: ['id', 'additionalParams'],
+    });
+
+    return candidates.some(candidate => {
+      const candidateMeta = readBackfillChainMeta(candidate.additionalParams);
+      // An earlier segment of this chain can fall inside the clock-skew slack; it is not later.
+      if (candidateMeta?.id === meta.id) return candidateMeta.segmentIndex > meta.segmentIndex;
+      return isManualBackfillPayload(unwrapRunPayload(candidate.additionalParams));
+    });
+  }
+
   @Transactional()
   private async queueChainSegment(
     run: DataMartRun,
     meta: BackfillChainMeta,
     window: BackfillDateRange
   ): Promise<string> {
-    const additionalParams = nextSegmentAdditionalParams(run.additionalParams, meta, window);
-    const nextRun = await this.dataMartRunRepository.save(
-      this.dataMartRunRepository.create({
-        dataMartId: run.dataMartId,
-        type: DataMartRunType.CONNECTOR,
-        definitionRun: run.dataMart.definition,
-        status: DataMartRunStatus.PENDING,
-        createdById: run.createdById ?? undefined,
-        runType: run.runType,
-        logs: [],
-        errors: [],
-        additionalParams,
-      })
+    const nextRun = await createNextSegmentRun(
+      this.dataMartRunRepository,
+      this.connectorRunTriggerService,
+      run,
+      run.dataMart,
+      meta,
+      window
     );
-    await this.connectorRunTriggerService.createTrigger({
-      dataMartId: run.dataMartId,
-      projectId: run.dataMart.projectId,
-      createdById: run.createdById ?? 'system',
-      dataMartRunId: nextRun.id,
-      runType: run.runType,
-      payload: additionalParams,
-    });
     return nextRun.id;
   }
 

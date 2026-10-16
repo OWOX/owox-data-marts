@@ -2519,10 +2519,10 @@ describe('ConnectorExecutorService', () => {
 
       expect(writtenStatuses(ctx)).toContain(DataMartRunStatus.SUCCESS);
       const lastWrite = (ctx.dataMartRunRepository.update as jest.Mock).mock.calls.at(-1)![1];
-      expect(lastWrite.logs.join()).toContain(
-        'Could not queue the next backfill segment: database is gone'
-      );
+      expect(lastWrite.logs.join()).toContain('Could not queue the next backfill segment.');
       expect(lastWrite.logs.join()).toContain('continues automatically within 15 minutes');
+      // The database error is for the server log; the run log is user-visible.
+      expect(lastWrite.logs.join()).not.toContain('database is gone');
       // The segment itself completed: it is billed and reported as any finished run.
       expect(ctx.projectBilling.registerConnectorRunConsumption).toHaveBeenCalledWith(
         expect.anything(),
@@ -2547,6 +2547,247 @@ describe('ConnectorExecutorService', () => {
       expect(ctx.projectBilling.registerConnectorRunConsumption).not.toHaveBeenCalled();
       expect(persistedLogs(ctx).map(entry => entry.tags?.phase)).not.toContain('completed');
       expect(persistedLogs(ctx).map(entry => entry.tags?.phase)).not.toContain('failed');
+    });
+
+    it('writes a FAILED segment and queues its successor when shutdown begins during the terminal write', async () => {
+      const ctx = createService();
+      // The flag flips while the terminal write merges the persisted logs: after the run has
+      // decided its status and whether the chain continues. Status and successor must agree.
+      (ctx.dataMartRunRepository.findOne as jest.Mock).mockImplementation(() => {
+        (ctx.gracefulShutdownService.isInShutdownMode as jest.Mock).mockReturnValue(true);
+        return Promise.resolve(null);
+      });
+
+      await execute(ctx, chainRun(), ['2026-01-10'], { succeed: false });
+
+      expect(writtenStatuses(ctx)).toContain(DataMartRunStatus.FAILED);
+      expect(writtenStatuses(ctx)).not.toContain(DataMartRunStatus.INTERRUPTED);
+      expect(savedRuns(ctx)).toHaveLength(1);
+      expect(ctx.connectorRunTriggerService.createTrigger).toHaveBeenCalledTimes(1);
+      expect(ctx.eventDispatcher.publishExternal).toHaveBeenCalledWith(
+        expect.objectContaining({ payload: expect.objectContaining({ status: 'unsuccessfully' }) })
+      );
+    });
+
+    it('queues the successor of a fully successful segment when shutdown begins after the run', async () => {
+      const ctx = createService();
+      (ctx.gracefulShutdownService.isInShutdownMode as jest.Mock)
+        .mockReturnValueOnce(false)
+        .mockReturnValue(true);
+
+      await execute(ctx, chainRun(), ['2026-01-31']);
+
+      // It lands SUCCESS, so nothing would resume it: the repair sweep must not be the one to
+      // queue the next segment after every deploy.
+      expect(writtenStatuses(ctx)).toContain(DataMartRunStatus.SUCCESS);
+      expect(savedRuns(ctx)).toHaveLength(1);
+      expect(ctx.connectorRunTriggerService.createTrigger).toHaveBeenCalledTimes(1);
+      expect(ctx.projectBilling.registerConnectorRunConsumption).toHaveBeenCalledWith(
+        expect.anything(),
+        'run-1'
+      );
+      expect(persistedLogs(ctx)).toContainEqual(
+        expect.objectContaining({
+          tags: expect.objectContaining({ phase: 'completed', chainContinues: true }),
+        })
+      );
+    });
+
+    it('keeps the terminal marker when the segment filled the log buffer', async () => {
+      const ctx = createService();
+      (ctx.processSpawner.spawnConnector as jest.Mock).mockImplementation(() => {
+        for (let line = 0; line < MAX_MERGED_RUN_OUTPUT_ENTRIES + 200; line++) {
+          ctx.emitMessage({
+            type: ConnectorMessageType.LOG,
+            at: new Date().toISOString(),
+            message: `line ${line}`,
+            toFormattedString: () => `[LOG] line ${line}`,
+          });
+        }
+        emitDays(ctx.emitMessage, ['2026-01-31']);
+        emitSuccessMessageFor(ctx.emitMessage);
+        return Promise.resolve();
+      });
+      const run = chainRun();
+
+      await ctx.service.executeInBackground(
+        createDataMart(),
+        run,
+        run.additionalParams as Record<string, unknown>
+      );
+
+      const terminalWrite = (ctx.dataMartRunRepository.update as jest.Mock).mock.calls.find(
+        ([, update]) => update.status === DataMartRunStatus.SUCCESS
+      )![1];
+      const logs = (terminalWrite.logs as string[]).map(entry => JSON.parse(entry));
+      // Exactly at the merged cap: nothing was trimmed, so no truncation notice was prepended
+      // and the `started` marker is still the first entry.
+      expect(logs).toHaveLength(MAX_MERGED_RUN_OUTPUT_ENTRIES);
+      expect(logs[0]).toMatchObject({
+        metric: 'backfill_segment',
+        tags: expect.objectContaining({ phase: 'started' }),
+      });
+      expect(logs.at(-1)).toMatchObject({
+        metric: 'backfill_segment',
+        tags: { phase: 'completed', loadedThrough: '2026-01-31', chainContinues: true },
+      });
+    });
+
+    describe('with several configurations', () => {
+      const twoConfigDataMart = () =>
+        createDataMart({
+          definition: {
+            connector: {
+              source: {
+                name: 'TestConnector',
+                node: 'test_node',
+                fields: ['field1'],
+                configuration: [
+                  { _id: 'cfg-1', param: 'account-1' },
+                  { _id: 'cfg-2', param: 'account-2' },
+                ],
+              },
+              storage: { fullyQualifiedName: 'dataset.table' },
+            },
+          },
+        });
+
+      // Configuration 1 loads `firstDays` and succeeds; configuration 2 loads `secondDays` and fails.
+      const executeWithFailingSecond = (
+        ctx: ReturnType<typeof createService>,
+        firstDays: string[],
+        secondDays: string[]
+      ) => {
+        let spawnCount = 0;
+        (ctx.processSpawner.spawnConnector as jest.Mock).mockImplementation(() => {
+          spawnCount += 1;
+          if (spawnCount === 1) {
+            emitDays(ctx.emitMessage, firstDays);
+            emitSuccessMessageFor(ctx.emitMessage);
+          } else {
+            emitDays(ctx.emitMessage, secondDays);
+          }
+          return Promise.resolve();
+        });
+        const run = chainRun();
+        return ctx.service.executeInBackground(
+          twoConfigDataMart(),
+          run,
+          run.additionalParams as Record<string, unknown>
+        );
+      };
+
+      it('bills a failed segment once when one of its configurations loaded data', async () => {
+        const ctx = createService();
+
+        await executeWithFailingSecond(ctx, ['2026-01-31'], ['2026-01-20']);
+
+        expect(writtenStatuses(ctx)).toContain(DataMartRunStatus.FAILED);
+        expect(ctx.projectBilling.registerConnectorRunConsumption).toHaveBeenCalledTimes(1);
+        expect(ctx.projectBilling.registerConnectorRunConsumption).toHaveBeenCalledWith(
+          expect.anything(),
+          'run-1'
+        );
+        expect(persistedLogs(ctx)).toContainEqual(
+          expect.objectContaining({
+            message:
+              'Backfill 2026-01-01 – 2026-03-03: segment 1 of 2 (2026-01-01 – 2026-01-31) failed; days through 2026-01-20 were loaded — counted as 1 run',
+          })
+        );
+        // The chain goes on regardless: failure isolation.
+        expect(savedRuns(ctx)).toHaveLength(1);
+      });
+
+      it('reports the frontier of the configurations that checkpointed, and how many did', async () => {
+        const ctx = createService();
+
+        await executeWithFailingSecond(ctx, ['2026-01-31'], []);
+
+        expect(persistedLogs(ctx)).toContainEqual(
+          expect.objectContaining({
+            tags: expect.objectContaining({ phase: 'failed', loadedThrough: '2026-01-31' }),
+            message:
+              'Backfill 2026-01-01 – 2026-03-03: segment 1 of 2 (2026-01-01 – 2026-01-31) failed; days through 2026-01-31 were loaded (1 of 2 configurations) — counted as 1 run',
+          })
+        );
+      });
+    });
+
+    it('stops the chain and names the unloaded period when the project is restricted', async () => {
+      const ctx = createService();
+      const { ProjectOperationBlockedException } =
+        await import('../../../common/exceptions/project-operation-blocked.exception');
+      (ctx.projectBilling.verifyCanPerformOperations as jest.Mock).mockRejectedValue(
+        new ProjectOperationBlockedException([ProjectBlockedReason.OVERDRAFT_LIMIT_EXCEEDED])
+      );
+      const run = chainRun();
+
+      await ctx.service.executeInBackground(
+        createDataMart(),
+        run,
+        run.additionalParams as Record<string, unknown>
+      );
+
+      expect(writtenStatuses(ctx)).toContain(DataMartRunStatus.RESTRICTED);
+      expect(ctx.dataMartRunRepository.save).not.toHaveBeenCalled();
+      expect(ctx.connectorRunTriggerService.createTrigger).not.toHaveBeenCalled();
+      expect(ctx.projectBilling.registerConnectorRunConsumption).not.toHaveBeenCalled();
+      expect(persistedLogs(ctx)).toContainEqual(
+        expect.objectContaining({
+          tags: expect.objectContaining({
+            phase: 'failed',
+            chainContinues: false,
+            chainEnd: 'stopped',
+          }),
+          message:
+            'Backfill stopped: the project is restricted; segments 1–2 (2026-01-01 – 2026-03-03) were not loaded.',
+        })
+      );
+    });
+
+    it('actualizes the schema after a segment that reported fields even though the chain continues', async () => {
+      const ctx = createService();
+      (ctx.processSpawner.spawnConnector as jest.Mock).mockImplementation(() => {
+        ctx.emitMessage({
+          type: ConnectorMessageType.FIELDS_UPDATE,
+          at: new Date().toISOString(),
+          fields: ['field1', 'field2'],
+          toFormattedString: () => '[FIELDS_UPDATE]',
+        });
+        emitDays(ctx.emitMessage, ['2026-01-31']);
+        emitSuccessMessageFor(ctx.emitMessage);
+        return Promise.resolve();
+      });
+      const run = chainRun();
+
+      await ctx.service.executeInBackground(
+        createDataMart(),
+        run,
+        run.additionalParams as Record<string, unknown>
+      );
+
+      expect(savedRuns(ctx)).toHaveLength(1);
+      expect(ctx.dataMartService.updateConnectorSourceFields).toHaveBeenCalledTimes(1);
+      expect(ctx.dataMartService.actualizeSchema).toHaveBeenCalledTimes(1);
+    });
+
+    it('windows the next segment by the size the chain was planned with', async () => {
+      const ctx = createService();
+      // 62 days at 10 days a segment: the chain was planned before the default changed to 31.
+      const meta = chainMeta({ segmentDays: 10, segmentsTotal: 7 });
+
+      await execute(ctx, chainRun(meta, { startDate: '2026-01-01', endDate: '2026-01-10' }), [
+        '2026-01-10',
+      ]);
+
+      expect(savedRuns(ctx)).toEqual([
+        expect.objectContaining({
+          additionalParams: {
+            payload: segmentPayload({ startDate: '2026-01-11', endDate: '2026-01-20' }),
+            backfill: { ...meta, segmentIndex: 2 },
+          },
+        }),
+      ]);
     });
 
     it('leaves a backfill of up to 31 days a single run without chain metadata', async () => {
@@ -2676,10 +2917,10 @@ describe('ConnectorExecutorService', () => {
         .find(update => update.status === DataMartRunStatus.SUCCESS);
       const persistedLogs = finalRunUpdate.logs as string[];
 
-      // The buffer bound and the merged bound have to compose exactly: the buffer's
-      // "cap reached" entry is the last one that fits, so the terminal write has nothing
-      // left to trim and must not claim a previous attempt was truncated.
-      expect(persistedLogs).toHaveLength(MAX_MERGED_RUN_OUTPUT_ENTRIES);
+      // The buffer bound and the merged bound have to compose: the buffer's "cap reached"
+      // entry fits, one slot stays free for a backfill segment's terminal marker, so the
+      // terminal write has nothing to trim and must not claim a previous attempt was truncated.
+      expect(persistedLogs).toHaveLength(MAX_MERGED_RUN_OUTPUT_ENTRIES - 1);
       expect(persistedLogs[persistedLogs.length - 1]).toContain('Maximum number of messages');
       expect(persistedLogs[0]).not.toContain('earlier entries from previous attempts');
     } finally {
