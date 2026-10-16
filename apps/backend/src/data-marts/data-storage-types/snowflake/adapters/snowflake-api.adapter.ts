@@ -41,6 +41,8 @@ export class SnowflakeApiAdapter {
       warehouse: config.warehouse,
       retryTimeout: 10000,
       sfRetryMaxLoginRetries: 1,
+      // The driver skips revocation checks by default; ADVISORY connects even if a CRL check fails.
+      certRevocationCheckMode: 'ADVISORY',
     };
 
     if (credentials.authMethod === SnowflakeAuthMethod.PASSWORD) {

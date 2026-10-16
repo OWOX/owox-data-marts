@@ -1,3 +1,4 @@
+import * as snowflake from 'snowflake-sdk';
 import { SnowflakeApiAdapter } from './snowflake-api.adapter';
 import { SnowflakeAuthMethod } from '../enums/snowflake-auth-method.enum';
 
@@ -104,5 +105,30 @@ describe('SnowflakeApiAdapter STATEMENT_TIMEOUT_IN_SECONDS (Phase 3)', () => {
     controller.abort();
 
     expect(cancel).not.toHaveBeenCalled();
+  });
+});
+
+describe('SnowflakeApiAdapter connection options', () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  it('passes the key-pair passphrase as privateKeyPass and enables advisory CRL checks', () => {
+    new SnowflakeApiAdapter(
+      {
+        authMethod: SnowflakeAuthMethod.KEY_PAIR,
+        username: 'u',
+        privateKey: 'key',
+        privateKeyPassphrase: 'secret',
+      } as never,
+      { account: 'a', warehouse: 'w' } as never
+    );
+
+    expect(snowflake.createConnection).toHaveBeenCalledWith(
+      expect.objectContaining({
+        authenticator: 'SNOWFLAKE_JWT',
+        privateKey: 'key',
+        privateKeyPass: 'secret',
+        certRevocationCheckMode: 'ADVISORY',
+      })
+    );
   });
 });

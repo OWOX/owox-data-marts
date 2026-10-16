@@ -165,6 +165,8 @@ var SnowflakeStorage = class SnowflakeStorage extends AbstractStorage {
       database: this.context.getParameter('SnowflakeDatabase')?.value,
       schema: this.context.getParameter('SnowflakeSchema')?.value,
       authenticator: this.context.getParameter('SnowflakeAuthenticator')?.value || 'SNOWFLAKE',
+      // The driver skips revocation checks by default; ADVISORY connects even if a CRL check fails.
+      certRevocationCheckMode: 'ADVISORY',
     };
 
     // Add optional role
@@ -176,7 +178,7 @@ var SnowflakeStorage = class SnowflakeStorage extends AbstractStorage {
     if (privateKeyParam && privateKeyParam.value) {
       connectionConfig.privateKey = privateKeyParam.value;
       if (privateKeyPassphraseParam && privateKeyPassphraseParam.value) {
-        connectionConfig.privateKeyPassphrase = privateKeyPassphraseParam.value;
+        connectionConfig.privateKeyPass = privateKeyPassphraseParam.value;
       }
     }
 
