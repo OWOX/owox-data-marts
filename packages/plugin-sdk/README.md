@@ -297,12 +297,13 @@ if (ctx.actions) {
 
 ## `@owox/plugin-sdk/server`
 
-A plugin's backend is built with `createBackend`. It uses only the Fetch API, so the same module
-runs as a Cloudflare Worker or, on Node, behind `@hono/node-server`. On Node, import it from
-`@owox/plugin-sdk/server/node`: without `hosts`, that `createBackend` checks every address it
-connects to and refuses a host name that resolves to a loopback, private, link-local or other
-non-public address. `@owox/plugin-sdk/server` without `hosts` throws at creation outside
-Cloudflare Workers, which do not connect to private addresses.
+A plugin's backend is built with `createBackend`. It uses only the Fetch API. On Node, import it
+from `@owox/plugin-sdk/server/node` and run it behind `@hono/node-server`: without `hosts`, that
+`createBackend` checks every address it connects to and refuses a host name that resolves to a
+loopback, private, link-local or other non-public address. `@owox/plugin-sdk/server` without
+`hosts` throws at creation outside Cloudflare Workers. Deployed Workers do not connect to private
+addresses, but `wrangler dev` does: list `hosts` while a Worker runs locally, especially behind a
+tunnel. On other runtimes, such as Bun or Deno, list `hosts`.
 
 ```ts
 import { createBackend } from '@owox/plugin-sdk/server';
@@ -331,7 +332,8 @@ For each request, `createBackend`:
 2. reads the execution from that host with the token OWOX sent. A request whose token the named
    host does not accept gets `401`, and no handler runs;
 3. refuses an execution of another plugin with `PLUGIN_MISMATCH`. `repositoryId` is the plugin's
-   GitHub repository id; find it with `gh api repos/OWNER/NAME --jq .id`;
+   GitHub repository id; find it with `gh api repos/OWNER/NAME --jq .id`. OWOX names the plugin; a
+   host you do not list in `hosts` can name any;
 4. runs the handler for the execution's action.
 
 The handler's `ctx` provides:

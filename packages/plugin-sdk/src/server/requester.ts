@@ -5,6 +5,8 @@ const EXECUTION_TOKEN_HEADER = 'x-owox-execution-token';
 
 /** Keys the fetch server/node hands createBackend, so it is not an option callers can set. */
 export const GUARDED_FETCH = Symbol('guardedFetch');
+/** The code of server/node's lookup refusal, which undici reports as its error's `cause`. */
+export const PRIVATE_ADDRESS_CODE = 'ERR_PRIVATE_ADDRESS';
 
 type Call = { ok: true; response: Response } | { ok: false; error: PluginErrorPayload };
 
@@ -32,6 +34,10 @@ export function createServerRequester(options: {
       });
     } catch (error) {
       if (signal?.aborted) throw signal.reason;
+      const cause = (error as { cause?: { code?: unknown; message?: unknown } } | null)?.cause;
+      if (cause?.code === PRIVATE_ADDRESS_CODE) {
+        return { ok: false, error: { code: 'FORBIDDEN', message: String(cause.message) } };
+      }
       return {
         ok: false,
         error: {

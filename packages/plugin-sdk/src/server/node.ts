@@ -3,7 +3,7 @@ import dns from 'node:dns';
 import { Agent, fetch as undiciFetch } from 'undici';
 import { createBackend as createFetchBackend } from './index.js';
 import { isPublicAddress } from './private-address.js';
-import { GUARDED_FETCH } from './requester.js';
+import { GUARDED_FETCH, PRIVATE_ADDRESS_CODE } from './requester.js';
 
 export * from './index.js';
 
@@ -25,7 +25,9 @@ function guardedLookup(
     // Refuse the whole name rather than filter: the next connection may get the private answer.
     if (addresses.some(({ address }) => !isPublicAddress(address))) {
       callback(
-        Object.assign(new Error(`${hostname} resolves to a private address`), { code: 'EACCES' }),
+        Object.assign(new Error(`${hostname} resolves to a private address`), {
+          code: PRIVATE_ADDRESS_CODE,
+        }),
         []
       );
       return;
@@ -48,7 +50,13 @@ function guardedFetch(input: URL | RequestInfo, init?: RequestInit): Promise<Res
 export function createBackend(
   options: Parameters<typeof createFetchBackend>[0]
 ): ReturnType<typeof createFetchBackend> {
-  return createFetchBackend(
-    options.hosts ? options : ({ ...options, [GUARDED_FETCH]: guardedFetch } as typeof options)
-  );
+  if (options.hosts) return createFetchBackend(options);
+  // Elsewhere `undici` may be a shim that ignores the agent, as on Bun, so the lookup would not run.
+  const versions = globalThis.process?.versions;
+  if (typeof versions?.node !== 'string' || versions.bun !== undefined || 'Deno' in globalThis) {
+    throw new TypeError(
+      'createBackend: @owox/plugin-sdk/server/node checks addresses only on Node; list hosts on this runtime'
+    );
+  }
+  return createFetchBackend({ ...options, [GUARDED_FETCH]: guardedFetch } as typeof options);
 }

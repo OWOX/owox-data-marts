@@ -691,7 +691,7 @@ A failed action rejects with a `PluginActionError`. Find it by `error.name` and 
 | `INSTALLATION_INACTIVE`         | Rare: the plugin was uninstalled while the action started.                    |
 | `UNAUTHORIZED`                  | The backend did not accept the execution token or the request.                |
 | `HOST_NOT_ALLOWED`              | The calling host is not in `hosts` or, without `hosts`, not public HTTPS.     |
-| `PLUGIN_MISMATCH`               | The execution belongs to another plugin than the backend's `repositoryId`.    |
+| `PLUGIN_MISMATCH`               | The execution belongs to a plugin other than the backend's `repositoryId`.    |
 | `ACTION_NOT_IMPLEMENTED`        | The backend declares no handler for this action.                              |
 | `EXECUTION_CONTEXT_UNAVAILABLE` | The backend could not read the execution from OWOX Data Marts.                |
 | any other                       | An OWOX refusal of the request, or the code your backend returned.            |
@@ -722,7 +722,8 @@ export default createBackend({
 
 - `repositoryId` is the plugin's GitHub repository id, which stays the same when the repository is
   renamed or transferred. Find it with `gh api repos/OWNER/NAME --jq .id`. An execution of another
-  plugin is refused with `PLUGIN_MISMATCH` before a handler runs.
+  plugin is refused with `PLUGIN_MISMATCH` before a handler runs. OWOX names the plugin; a host you
+  do not list in `hosts` can name any.
 - Without `hosts`, any OWOX Data Marts deployment on a public HTTPS origin may call the backend,
   Cloud or self-managed. A host that uses `http:`, is an IP address or a single-label name, or is
   `localhost` or a name under `.localhost`, `.local`, `.internal` or `.home.arpa` is refused with
@@ -731,8 +732,12 @@ export default createBackend({
 - `hosts` lists the exact origins allowed to call, such as `hosts: ['https://app.owox.com']`. Set
   it when a handler also uses the backend's own secrets or storage, and to allow an internal or
   `http:` deployment. A request naming another host is refused before anything runs.
-- `@owox/plugin-sdk/server` without `hosts` runs only on Cloudflare Workers, which do not connect
-  to private addresses. On Node, import `createBackend` from `@owox/plugin-sdk/server/node`.
+- `@owox/plugin-sdk/server` without `hosts` runs only on Cloudflare Workers. Deployed Workers do
+  not connect to private addresses, but `wrangler dev` does: list `hosts` while a Worker runs
+  locally, especially behind a tunnel. The Worker needs the global `navigator`, which comes with a
+  compatibility date of 2022-03-21 or later and no `no_global_navigator` flag. On Node, import
+  `createBackend` from `@owox/plugin-sdk/server/node`. On other runtimes, such as Bun or Deno,
+  list `hosts`.
 - Before a handler runs, `createBackend` asks the named host for the execution. A request whose
   token that host does not accept gets 401 and runs nothing.
 - The handler gets the validated `input` and `ctx`: `ctx.owox`, `ctx.credentials`,
@@ -788,8 +793,8 @@ Use the Worker's URL as `delivery.url`, then create a release as usual.
 On Node, import `createBackend` from `@owox/plugin-sdk/server/node` and run it behind
 [`@hono/node-server`](https://github.com/honojs/node-server). Without `hosts`, it checks every
 address it connects to and refuses a host name that resolves to a loopback, private, link-local
-or other non-public address. Keep the page on GitHub Pages and put the backend in its own
-directory, such as `server/`, with this `package.json`:
+or other non-public address with `HOST_NOT_ALLOWED`. Keep the page on GitHub Pages and put the
+backend in its own directory, such as `server/`, with this `package.json`:
 
 ```json
 {

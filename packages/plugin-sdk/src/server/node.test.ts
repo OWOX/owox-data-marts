@@ -3,6 +3,7 @@ import dns from 'node:dns';
 import { Agent, fetch as undiciFetch } from 'undici';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createBackend, exactCredential } from './node.js';
+import { PRIVATE_ADDRESS_CODE } from './requester.js';
 
 vi.mock('undici', () => ({ Agent: vi.fn(), fetch: vi.fn() }));
 
@@ -63,6 +64,12 @@ function actionRequest(host: string) {
   });
 }
 
+const nodeVersions = process.versions;
+
+function withVersions(versions: NodeJS.ProcessVersions) {
+  Object.defineProperty(process, 'versions', { value: versions, configurable: true });
+}
+
 describe('server/node', () => {
   const globalFetch = vi.fn<typeof fetch>();
 
@@ -72,6 +79,7 @@ describe('server/node', () => {
     vi.stubGlobal('fetch', globalFetch);
   });
   afterEach(() => {
+    withVersions(nodeVersions);
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
   });
@@ -94,7 +102,7 @@ describe('server/node', () => {
       { address, family },
     ]);
 
-    expect(error?.code).toBe('EACCES');
+    expect(error?.code).toBe(PRIVATE_ADDRESS_CODE);
     expect(error?.message).toBe('odm.example.test resolves to a private address');
     expect(addresses).toEqual([]);
   });
@@ -145,6 +153,20 @@ describe('server/node', () => {
 
     expect(response.status).toBe(403);
     expect(undiciFetch).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { name: 'Bun', stub: () => withVersions({ ...process.versions, bun: '1.2.0' }) },
+    { name: 'Deno', stub: () => vi.stubGlobal('Deno', {}) },
+  ])('refuses to start without hosts on $name', ({ stub }) => {
+    stub();
+
+    expect(() => createBackend({ repositoryId: REPOSITORY_ID, actions: {} })).toThrow(
+      'createBackend: @owox/plugin-sdk/server/node checks addresses only on Node; list hosts on this runtime'
+    );
+    expect(() =>
+      createBackend({ repositoryId: REPOSITORY_ID, hosts: [HOST], actions: {} })
+    ).not.toThrow();
   });
 
   it('uses plain fetch when hosts lists the deployments', async () => {

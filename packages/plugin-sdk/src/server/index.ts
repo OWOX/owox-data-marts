@@ -82,8 +82,9 @@ export function createBackend(options: {
   const hosts = options.hosts ? new Set(options.hosts) : null;
   // Set only by server/node, which checks the addresses it connects to.
   const guardedFetch = (options as { [GUARDED_FETCH]?: typeof fetch })[GUARDED_FETCH];
-  // Workers refuse private, loopback and IP-literal destinations (Cloudflare errors 1002, 1003,
-  // 1016) and reach private networks only through VPC bindings, so the name check is enough there.
+  // Deployed Workers refuse private, loopback and IP-literal destinations (Cloudflare errors 1002,
+  // 1003, 1016) and reach private networks only through VPC bindings, so the name check is enough
+  // there. `wrangler dev` does reach private addresses; the docs say to list hosts locally.
   if (!hosts && !guardedFetch && globalThis.navigator?.userAgent !== 'Cloudflare-Workers') {
     throw new TypeError(
       'createBackend: on this runtime list hosts, or import createBackend from @owox/plugin-sdk/server/node, which checks the addresses it connects to'
@@ -129,6 +130,14 @@ export function createBackend(options: {
         path: CURRENT_EXECUTION_PATH,
       });
       if (!current.ok) {
+        // The path is fixed, so FORBIDDEN can only be server/node refusing the host's address.
+        if (current.error.code === 'FORBIDDEN') {
+          return failure(
+            403,
+            'HOST_NOT_ALLOWED',
+            `${call.host} resolves to a private address; list internal deployments in hosts`
+          );
+        }
         // A 403 is OWOX refusing to build the context, such as an unusable required Credential.
         return current.error.status === 401
           ? failure(401, 'UNAUTHORIZED', 'OWOX did not accept the execution token')

@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { createPluginCollection } from '../collections.js';
 import { createPluginCredentials, exactCredential } from '../credentials.js';
 import { createIframeTransport } from '../iframe-transport.js';
-import { createServerRequester } from './requester.js';
+import { createServerRequester, PRIVATE_ADDRESS_CODE } from './requester.js';
 
 const HOST = 'https://app.owox.test';
 const TOKEN = 'execution-token';
@@ -154,6 +154,20 @@ describe('createServerRequester', () => {
       id: '',
       ok: false,
       error: { code: 'NETWORK_ERROR', message: 'fetch failed' },
+    });
+  });
+
+  it("reports server/node's private-address refusal as FORBIDDEN", async () => {
+    const refusal = Object.assign(new Error('app.owox.test resolves to a private address'), {
+      code: PRIVATE_ADDRESS_CODE,
+    });
+    const fetchMock = vi.fn().mockRejectedValue(new TypeError('fetch failed', { cause: refusal }));
+    const requester = createServerRequester({ host: HOST, token: TOKEN, fetch: fetchMock });
+
+    await expect(requester.send({ kind: 'api', method: 'GET', path: '/api/x' })).resolves.toEqual({
+      id: '',
+      ok: false,
+      error: { code: 'FORBIDDEN', message: 'app.owox.test resolves to a private address' },
     });
   });
 
