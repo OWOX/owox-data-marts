@@ -11,7 +11,8 @@ ARG version=unknown
 WORKDIR /opt/owox
 COPY docker-packages/image-package.json ./package.json
 COPY docker-packages/*.tgz ./packages/
-RUN npm install --omit=dev --no-audit --no-fund \
+RUN npm install -g npm@11.21.0 --no-audit --no-fund \
+  && npm install --omit=dev --no-audit --no-fund \
   && ln -s /opt/owox/node_modules/.bin/owox /usr/local/bin/owox \
   && installed="$(node -p "require('/opt/owox/node_modules/owox/package.json').version")" \
   && { [ "$version" = "unknown" ] || [ "$installed" = "$version" ] || \
