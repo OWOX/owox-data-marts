@@ -217,6 +217,9 @@ export class CredentialExternalDefinitionRegistryService {
   }
 
   private async validateNetworkBoundary(contract: CredentialDefinitionContract): Promise<void> {
+    if (contract.auth.type !== 'header') {
+      throw new BadRequestException('An external Credential definition must use header auth');
+    }
     try {
       for (const origin of contract.origins) {
         const url = await assertPublicHttpUrl(origin, { allowedProtocols: ['https:'] });

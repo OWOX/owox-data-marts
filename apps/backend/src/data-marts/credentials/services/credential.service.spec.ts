@@ -1,3 +1,8 @@
+import { DataSource } from 'typeorm';
+import {
+  CREDENTIAL_VALIDATION_ENTITIES,
+  credentialValidationWriteCases,
+} from '../../../../test/fixtures/credential-validation-writes';
 import { CredentialService } from './credential.service';
 
 describe('CredentialService usage metadata', () => {
@@ -60,82 +65,21 @@ describe('CredentialService usage metadata', () => {
   });
 });
 
-describe('CredentialService validation writes', () => {
-  const checked = { value: 'checked-key' };
-  const result = {
-    state: 'verified',
-    message: 'ok',
-    validatedAt: new Date('2026-09-01T12:00:00.000Z'),
-  } as const;
+describe('CredentialService validation writes (SQLite)', () => {
+  let dataSource: DataSource;
 
-  function repo(stored: unknown) {
-    return {
-      findOne: jest.fn().mockResolvedValue(stored),
-      update: jest.fn().mockResolvedValue({ affected: 1 }),
-    };
-  }
-
-  it('writes only the validation columns while the stored secret is the checked one', async () => {
-    const credentials = repo({ secret: { value: 'checked-key' } });
-    const service = new CredentialService(credentials as never, {} as never);
-
-    await service.writeValidation('credential-1', checked, result);
-
-    expect(credentials.findOne).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { id: 'credential-1' } })
-    );
-    expect(credentials.update).toHaveBeenCalledWith(
-      { id: 'credential-1' },
-      { validationState: 'verified', validationMessage: 'ok', validatedAt: result.validatedAt }
-    );
-  });
-
-  it('writes nothing when the key was replaced or the Credential is gone', async () => {
-    for (const stored of [{ secret: { value: 'new-key' } }, null]) {
-      const credentials = repo(stored);
-      const service = new CredentialService(credentials as never, {} as never);
-
-      await service.writeValidation('credential-1', checked, result);
-
-      expect(credentials.update).not.toHaveBeenCalled();
-    }
-  });
-
-  it('marks rejected only for the key Google refused, with the message cut to 2000', async () => {
-    const credentials = repo({ secret: { value: 'checked-key' }, validationState: 'verified' });
-    const service = new CredentialService(credentials as never, {} as never);
-
-    await service.markRejected('credential-1', checked, 'x'.repeat(2500));
-
-    expect(credentials.update).toHaveBeenCalledWith(
-      { id: 'credential-1' },
-      {
-        validationState: 'rejected',
-        validationMessage: 'x'.repeat(2000),
-        validatedAt: expect.any(Date),
-      }
-    );
-  });
-
-  it('does not mark a replaced key rejected', async () => {
-    const credentials = repo({ secret: { value: 'new-key' }, validationState: 'verified' });
-    const service = new CredentialService(credentials as never, {} as never);
-
-    await service.markRejected('credential-1', checked, 'invalid_grant');
-
-    expect(credentials.update).not.toHaveBeenCalled();
-  });
-
-  it('does not write again when already rejected with the same message', async () => {
-    const credentials = repo({
-      secret: { value: 'checked-key' },
-      validationState: 'rejected',
-      validationMessage: 'invalid_grant',
+  beforeAll(async () => {
+    dataSource = new DataSource({
+      type: 'better-sqlite3',
+      database: ':memory:',
+      entities: CREDENTIAL_VALIDATION_ENTITIES,
+      synchronize: true,
+      logging: false,
     });
-    const service = new CredentialService(credentials as never, {} as never);
-
-    await service.markRejected('credential-1', checked, 'invalid_grant');
-
-    expect(credentials.update).not.toHaveBeenCalled();
+    await dataSource.initialize();
   });
+
+  afterAll(() => dataSource.destroy());
+
+  credentialValidationWriteCases(() => dataSource);
 });

@@ -130,6 +130,22 @@ describe('CredentialExternalDefinitionRegistryService', () => {
     });
   });
 
+  it('refuses an external definition that does not use header auth', async () => {
+    const state = setup();
+    const contract = {
+      ...input('1.0.0').contract,
+      auth: { type: 'google-service-account' as const, label: 'Service account key' },
+    };
+
+    await expect(state.service.preview(input('1.0.0', { contract }))).rejects.toThrow(
+      'must use header auth'
+    );
+    await expect(state.service.register(input('1.0.0', { contract }))).rejects.toThrow(
+      'must use header auth'
+    );
+    expect(state.definitions).toHaveLength(0);
+  });
+
   it('accepts a breaking contract on a new line and rejects it inside the same line', async () => {
     const state = setup();
     await state.service.register(input('1.0.0'));
