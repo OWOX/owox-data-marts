@@ -1,10 +1,10 @@
 <!-- markdownlint-disable MD033 -- <img> and <picture> give the icons and the light/dark diagram -->
 
-# OWOX Data Marts
+# OWOX Data Marts — AI Data Partner You Can Trust
 
-## Free connectors and ontology-backed self-service analytics without hallucinations
+## Free connectors and ontology-backed analytics without hallucinations
 
-Plug your sources into ready-to-prompt ontology models and get hallucination-free self-service analytics. Give people and AI agents [joinable Data Marts](./docs/getting-started/setup-guide/joinable-data-marts.md) in the tools they already know: [API](./docs/api/), [CLI](./docs/api/owox-ctl.md), [MCP](./docs/getting-started/setup-guide/mcp.md), [Google Sheets](./docs/destinations/supported-destinations/google-sheets.md), [Excel](./docs/destinations/supported-destinations/microsoft-excel.md), [Claude](./docs/getting-started/setup-guide/mcp.md#claude-desktop-recommended), [ChatGPT](./docs/getting-started/setup-guide/mcp.md#chatgpt), [Data Studio](./docs/destinations/supported-destinations/data-studio.md) and [more destinations](./docs/destinations/). No extra chat tool, no semantic-layer tax, no black boxes. No LLM writes the SQL behind a business user's answer, so nobody downstream gets a hallucinated number with your name on it.
+Plug your sources into ready-to-prompt ontology models and get hallucination-free analytics. Give teammates and AI agents joinable Data Marts in the tools they already know: API, CLI, MCP, Spreadsheets, Dashboards and more. No extra UI, no semantic-layer tax, no black boxes. No LLM writes the SQL behind a business user's answer, so nobody downstream gets a hallucinated number with your name on it.
 
 [**📘 Quick Start Guide**](./docs/getting-started/quick-start.md) · [**📚 Docs**](https://docs.owox.com?utm_source=github&utm_medium=referral&utm_campaign=readme) · [**🌐 Website**](https://www.owox.com/product?utm_source=github&utm_medium=referral&utm_campaign=readme) · [**🆘 Issues**](https://github.com/OWOX/owox-data-marts/issues)
 
@@ -13,8 +13,8 @@ Plug your sources into ready-to-prompt ontology models and get hallucination-fre
 1. **Zero hallucinations.** No LLM writes the SQL behind a business user's answer. Every answer resolves to your ontology model: Data Marts are the entities, [declared joins](./docs/getting-started/setup-guide/joinable-data-marts.md) are the relationships. A metric nobody defined goes back to its owner instead of being guessed. [Patented](https://patents.google.com/patent/US11074250B2/en).
 2. **Same number everywhere.** Sheets, Excel, Data Studio, Claude and ChatGPT query one model, so revenue means one thing.
 3. **You control the handoff.** Nothing reaches business users until you publish it. Access is set per Data Mart and [Data Context](./docs/project/contexts.md).
-4. **No semantic-layer tax.** No YAML that goes stale by next Tuesday. Just your SQL, plus metadata that AI autofills for you to review.
-5. **Free connectors.** MIT-licensed, with no per-connector bill. A missing API takes the [Connector Builder](./docs/connectors/connector-builder.md), not code.
+4. **No semantic-layer tax.** No YAML that's outdated by next Tuesday. Just your SQL and metadata that AI pre-fills for you.
+5. **Free connectors.** MIT-licensed, with no per-connector bill. Ask your AI to set up any missing source in minutes. [Configured](./docs/connectors/connector-builder.md), not vibe-coded.
 6. **Your warehouse.** Data Marts run as queries in Google BigQuery, Snowflake, AWS Redshift, AWS Athena or Databricks. No second copy. Self-host for free.
 7. **Agent-friendly.** The [`owox-ctl` CLI](./apps/ctl/README.md) and the [MCP server](./docs/getting-started/setup-guide/mcp.md) work out of the box, so your AI can set it up for you:
 
