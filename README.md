@@ -1,6 +1,6 @@
 <!-- markdownlint-disable MD033 -- <img> and <picture> give the icons and the light/dark diagram -->
 
-# OWOX Data Marts — AI Data Partner You Can Trust
+# OWOX Data Marts — The Easiest Way to Give Every Teammate the Data They Need
 
 ## Free connectors and ontology-backed analytics without hallucinations
 
