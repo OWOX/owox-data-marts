@@ -4,6 +4,8 @@
 
 ### Minor Changes 0.39.0
 
+<https://customer-4geatlj66rtkaxtz.cloudflarestream.com/19d267c9d08a943afaa7894f2d1c54df/iframe>
+
 - 9e9168f: **See who published a plugin in Plugin history**
 
   Installation history is now **Plugin history**, one list, newest first, of what happened to the plugins you can reach in a project: your own installs, removals and restores, every publication for the project with the member who made it, your personal publications, Verified listing changes, version updates and suspensions. **All**, **Installations** and **Publications** filter the list, and **Restore** stays within reach for every plugin you removed.
