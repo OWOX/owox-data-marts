@@ -9,3 +9,6 @@ contact_links:
   - name: 📚 Documentation
     url: https://docs.owox.com/
     about: Setup guides, connector references, and deployment instructions.
+  - name: 🔒 Report a security vulnerability
+    url: https://hackerone.com/owox
+    about: Report it privately through the OWOX vulnerability disclosure program on HackerOne.

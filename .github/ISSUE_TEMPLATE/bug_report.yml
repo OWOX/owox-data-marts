@@ -12,7 +12,8 @@ body:
         ⚠️ **This issue will be public.** Before you submit, remove API keys, access tokens,
         service account keys, refresh tokens, and passwords from anything you paste or attach.
 
-        Found a **security vulnerability**? Do not report it here. Email `bi@owox.com` instead.
+        Found a **security vulnerability**? Do not report it here. Use the
+        [OWOX vulnerability disclosure program](https://hackerone.com/owox) instead.
 
   - type: checkboxes
     id: preflight
