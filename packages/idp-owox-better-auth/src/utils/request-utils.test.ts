@@ -121,8 +121,38 @@ describe('request-utils', () => {
     expect(extractAuthFlowParams(req).integration).toBe(integration);
   });
 
+  it.each(['claude', 'chatgpt'])(
+    'keeps %s echoed by Platform with a new state and no state cookie',
+    integration => {
+      const req = {
+        path: '/auth/sign-in',
+        query: {
+          state: 'new-platform-state',
+          source: SOURCE.APP,
+          integration,
+          'app-redirect-to': '/oauth/authorize?client_id=current',
+        },
+        headers: {},
+      } as unknown as Request;
+
+      expect(extractAuthFlowParams(req).integration).toBe(integration);
+    }
+  );
+
+  it.each(['semrush', 'codex'])(
+    'rejects unsupported integration %s within an MCP continuation',
+    integration => {
+      const req = {
+        query: { integration, 'app-redirect-to': '/oauth/authorize?client_id=current' },
+        headers: {},
+      } as unknown as Request;
+
+      expect(extractAuthFlowParams(req).integration).toBeUndefined();
+    }
+  );
+
   it.each(['semrush', 'codex', 'claude'])(
-    'drops unrecognized or unrelated attribution: %s',
+    'drops integration outside an MCP continuation: %s',
     integration => {
       const req = { query: { integration }, headers: {} } as unknown as Request;
       expect(extractAuthFlowParams(req).integration).toBeUndefined();

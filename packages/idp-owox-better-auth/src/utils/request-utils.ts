@@ -369,7 +369,9 @@ export function extractAuthFlowParams(req: Request): AuthFlowParams {
     integration: req.query.integration,
   }).integration;
   const sameContinuation = resolvedAppRedirectTo === cookieParams.appRedirectTo;
-  // A new Platform state starts a new attempt. Social callbacks use a separate provider state.
+  // With source=app, Platform echoes integration as a query param when returning with a new
+  // state and no state cookie. Keep that explicit value, but do not reuse a stale cookie source.
+  // Social callbacks use a separate provider state.
   const isAuthEntry =
     req.path === `${AUTH_BASE_PATH}${ProtocolRoute.SIGN_IN}` ||
     req.path === `${AUTH_BASE_PATH}${ProtocolRoute.SIGN_UP}`;

@@ -58,7 +58,8 @@ function applyAuthFlowParams(
   if (params?.projectId) url.searchParams.set('projectId', params.projectId);
   if (params?.extraParams) {
     for (const [key, value] of Object.entries(params.extraParams)) {
-      if (!url.searchParams.has(key)) {
+      // Older cookies can still carry integration here; only use the validated field.
+      if (key !== 'integration' && !url.searchParams.has(key)) {
         url.searchParams.set(key, value);
       }
     }

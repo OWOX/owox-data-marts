@@ -2,7 +2,9 @@
  * Tests for Platform redirect URL helpers.
  */
 import { describe, expect, it } from '@jest/globals';
+import type { Request } from 'express';
 import { SOURCE } from '../core/constants.js';
+import { extractAuthFlowParams } from './request-utils.js';
 import {
   buildPlatformEntryUrl,
   buildPlatformRedirectUrl,
@@ -15,6 +17,7 @@ describe('platform-redirect-builder', () => {
       source: SOURCE.APP,
       integration: 'claude' as const,
       appRedirectTo: '/oauth/authorize?client_id=one',
+      extraParams: { integration: 'chatgpt' },
     };
     const entry = buildPlatformEntryUrl({ authUrl: 'https://platform.test/signin', params });
     const callback = buildPlatformRedirectUrl({
@@ -29,6 +32,32 @@ describe('platform-redirect-builder', () => {
       expect(url.searchParams.get('app-redirect-to')).toBe(params.appRedirectTo);
     }
   });
+
+  it.each(['claude', 'chatgpt', 'semrush'])(
+    'does not forward integration %s from a legacy extraParams cookie',
+    integration => {
+      const cookie = encodeURIComponent(
+        JSON.stringify({ extraParams: { integration, utm_source: 'legacy-link' } })
+      );
+      const req = {
+        query: {},
+        headers: { cookie: `idp-owox-params=${cookie}` },
+      } as unknown as Request;
+      const params = extractAuthFlowParams(req);
+      const entry = buildPlatformEntryUrl({ authUrl: 'https://platform.test/signin', params });
+      const callback = buildPlatformRedirectUrl({
+        baseUrl: 'https://platform.test/signin',
+        code: 'code',
+        state: 'state',
+        params,
+      });
+
+      for (const url of [entry, callback!]) {
+        expect(url.searchParams.has('integration')).toBe(false);
+        expect(url.searchParams.get('utm_source')).toBe('legacy-link');
+      }
+    }
+  );
 
   it('builds url with provided base and params', () => {
     const url = buildPlatformRedirectUrl({
