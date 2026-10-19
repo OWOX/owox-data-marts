@@ -1,0 +1,172 @@
+name: 🐞 Bug report
+description: Something in OWOX Data Marts is not working as expected
+title: '[Bug]: '
+type: Bug
+labels: ['bug']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug.
+
+        ⚠️ **This issue will be public.** Before you submit, remove API keys, access tokens,
+        service account keys, refresh tokens, and passwords from anything you paste or attach.
+
+        Found a **security vulnerability**? Do not report it here. Email `bi@owox.com` instead.
+
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: Preliminary checks
+      options:
+        - label: I searched [existing
+            issues](https://github.com/OWOX/owox-data-marts/issues?q=is%3Aissue) and this has not
+            been reported yet.
+          required: true
+        - label: I removed all credentials, tokens, and API keys from the details below.
+          required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Product area
+      description: Which part of OWOX Data Marts does this affect?
+      options:
+        - Sources / Connectors
+        - Connector Builder / Custom Connectors
+        - Data Marts
+        - Storages
+        - Destinations
+        - Reports
+        - Triggers / Scheduling
+        - MCP Server
+        - Plugins
+        - API / API Keys / owox-ctl
+        - Members, Roles & Permissions / Authentication
+        - Project Settings / Notifications
+        - UI / UX
+        - Installation / Deployment / CLI
+        - Documentation
+        - Other / Not sure
+    validations:
+      required: true
+
+  # Keep the source options in sync with packages/connectors/src/Sources/*/manifest.json (title).
+  - type: dropdown
+    id: integration
+    attributes:
+      label: Connector, storage, or destination involved
+      description: Select every one involved. Leave empty if this is not specific to an integration.
+      multiple: true
+      options:
+        - 'Source: Bank of Canada'
+        - 'Source: Criteo Ads'
+        - 'Source: Facebook Ads'
+        - 'Source: GitHub'
+        - 'Source: Google Ads'
+        - 'Source: Google Sheets'
+        - 'Source: LinkedIn Ads'
+        - 'Source: LinkedIn Pages'
+        - 'Source: Microsoft Ads'
+        - 'Source: Open Exchange Rates'
+        - 'Source: Open Holidays'
+        - 'Source: Reddit Ads'
+        - 'Source: Shopify'
+        - 'Source: TikTok Ads'
+        - 'Source: X Ads'
+        - 'Source: custom connector (Connector Builder)'
+        - 'Storage: Google BigQuery'
+        - 'Storage: AWS Athena'
+        - 'Storage: AWS Redshift'
+        - 'Storage: Snowflake'
+        - 'Storage: Databricks'
+        - 'Destination: Google Sheets'
+        - 'Destination: Microsoft Excel'
+        - 'Destination: Data Studio'
+        - 'Destination: Email'
+        - 'Destination: Slack'
+        - 'Destination: Microsoft Teams'
+        - 'Destination: Google Chat'
+        - Other / not listed
+    validations:
+      required: false
+
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: Describe what went wrong and what you expected to happen instead.
+      placeholder: |
+        Actual: the connector run stays in "Running" and never finishes.
+        Expected: the run completes and new rows appear in the storage.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Numbered steps a maintainer can follow from a clean setup.
+      value: |
+        1.
+        2.
+        3.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: deployment
+    attributes:
+      label: How do you run OWOX Data Marts?
+      options:
+        - OWOX Cloud (app.owox.com)
+        - Self-managed — npm (owox serve)
+        - Self-managed — Docker image
+        - Self-managed — Google Cloud Run
+        - Self-managed — Render
+        - Self-managed — DigitalOcean
+        - Self-managed — other
+        - Google Sheets / Apps Script extension
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Run `owox --version`, or give the Docker image tag. Write "OWOX Cloud" if you use
+        app.owox.com.
+      placeholder: 0.38.0
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Error message or log output
+      description: Paste the error text or run log. Redact anything sensitive.
+      render: shell
+    validations:
+      required: false
+
+  - type: upload
+    id: attachments
+    attributes:
+      label: Screenshots or files
+      description: Optional. Screenshots, an exported run log, or a connector manifest JSON.
+    validations:
+      required: false
+
+  - type: dropdown
+    id: contribution
+    attributes:
+      label: Are you willing to submit a pull request to address this issue?
+      description:
+        Informational only. A bug report is welcome either way, and GitHub cannot hold you to this
+        answer.
+      options:
+        - Yes — I plan to work on this and open a pull request
+        - Maybe — I could try with guidance from a maintainer
+        - No — I am reporting this for the maintainers to fix
+    validations:
+      required: true
