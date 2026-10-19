@@ -92,7 +92,11 @@ export class OnboardingController {
         answers: body.answers,
       });
 
-      const redirect = this.sanitizeRedirect(body.redirect);
+      const redirect = this.withInviteTeammatesStep(
+        this.sanitizeRedirect(body.redirect),
+        projectId,
+        userRole
+      );
       res.json({ redirect });
     } catch (error) {
       this.logger.warn(
@@ -174,6 +178,19 @@ export class OnboardingController {
     const trimmed = value.trim();
     if (!trimmed.startsWith('/') || trimmed.startsWith('//')) return '/';
     return trimmed;
+  }
+
+  /**
+   * Sends the project admin through the web app's invite-teammates step before `redirect`.
+   * Only app destinations (`/` and `/ui/...`) get the step: other targets continue a flow
+   * that started elsewhere (MCP authorization, an add-on sign-in) and must not be interrupted.
+   * Inviting needs the admin role, so other roles go straight on.
+   */
+  private withInviteTeammatesStep(redirect: string, projectId: string, userRole: string): string {
+    if (userRole !== 'admin' || !projectId) return redirect;
+    if (redirect !== '/' && !redirect.startsWith('/ui/')) return redirect;
+    const params = new URLSearchParams({ redirect });
+    return `/ui/${encodeURIComponent(projectId)}/onboarding/invite-teammates?${params.toString()}`;
   }
 
   registerRoutes(app: Express): void {

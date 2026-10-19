@@ -24,7 +24,7 @@ function createResponseMock(): Response & { body?: unknown; statusCode?: number 
   return res;
 }
 
-function createController(viewOnly: boolean) {
+function createController(viewOnly: boolean, roles: string[] = ['admin']) {
   const onboardingService = {
     shouldShowQuestionnaire: jest.fn(async () => true),
     saveAnswers: jest.fn(async () => undefined),
@@ -39,7 +39,7 @@ function createController(viewOnly: boolean) {
     parseToken: jest.fn(async () => ({
       userId: 'user-1',
       projectId: 'project-1',
-      roles: ['admin'],
+      roles,
       ...(viewOnly ? { viewOnly: true } : {}),
     })),
     setTokenToCookie: jest.fn(),
@@ -93,6 +93,43 @@ describe('OnboardingController view-only', () => {
     await controller.submitAnswers(req, res);
 
     expect(onboardingService.saveAnswers).toHaveBeenCalled();
-    expect(res.json).toHaveBeenCalledWith({ redirect: '/' });
+    expect(res.json).toHaveBeenCalledWith({
+      redirect: '/ui/project-1/onboarding/invite-teammates?redirect=%2F',
+    });
+  });
+});
+
+describe('OnboardingController invite-teammates step', () => {
+  function submit(redirect: string, roles?: string[]) {
+    const { controller } = createController(false, roles);
+    const res = createResponseMock();
+    const req = {
+      cookies: { [CORE_REFRESH_TOKEN_COOKIE]: 'refresh' },
+      body: { answers: [{ questionId: 'q1', answerValue: 'a1' }], redirect },
+    } as unknown as Request;
+    return controller.submitAnswers(req, res).then(() => res.body);
+  }
+
+  it('routes an admin heading into the app through the invite step', async () => {
+    await expect(submit('/ui/project-1/data-marts?tab=all')).resolves.toEqual({
+      redirect:
+        '/ui/project-1/onboarding/invite-teammates?redirect=%2Fui%2Fproject-1%2Fdata-marts%3Ftab%3Dall',
+    });
+  });
+
+  it('keeps redirects that continue a flow outside the app', async () => {
+    await expect(submit('/auth/mcp/authorize?client_id=c1')).resolves.toEqual({
+      redirect: '/auth/mcp/authorize?client_id=c1',
+    });
+  });
+
+  it('skips the step for roles that cannot invite', async () => {
+    await expect(submit('/', ['editor'])).resolves.toEqual({ redirect: '/' });
+  });
+
+  it('continues to the app root when the redirect is not a safe relative path', async () => {
+    const viaInviteStep = { redirect: '/ui/project-1/onboarding/invite-teammates?redirect=%2F' };
+    await expect(submit('https://evil.example/ui/x')).resolves.toEqual(viaInviteStep);
+    await expect(submit('//evil.example')).resolves.toEqual(viaInviteStep);
   });
 });

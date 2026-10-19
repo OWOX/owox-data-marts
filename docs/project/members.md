@@ -8,6 +8,16 @@ In OWOX projects, only **Project Admins** manage the member list (invite, role c
 
 ![Project Settings Members page showing the list of project members with their names and roles](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/9449c7c1-6010-4211-e4da-f88f0b413900/public)
 
+## Invite Teammates After Sign-Up
+
+When you create a new OWOX project, the sign-up questionnaire is followed by an invite step, so the teammate who will set the project up can join right away:
+
+1. Type a teammate's email and press **Enter**. Repeat for everyone you want to invite, or paste a list of emails.
+2. Pick a role. **Data Owner** is selected by default; **Project Admin** and **Business User** are also available. Every invitation gives access to the entire project.
+3. Click **Send invite**, or **Skip for now** to go straight to the app.
+
+The step is shown once. Later, invite members from **Project Settings → Members**.
+
 ## User Provisioning
 
 User Provisioning controls what happens when a new user from the same corporate domain signs in to an OWOX-managed project.

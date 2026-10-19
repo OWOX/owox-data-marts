@@ -30,6 +30,7 @@ import { ConnectGoogleSheetsDonePage } from '../pages/connect/ConnectGoogleSheet
 import { pluginsRoutes } from './plugins/routes';
 import { CredentialsPage } from '../pages/credentials/CredentialsPage';
 import ConnectorBuilderRoutePage from '../pages/connectors/builder/BuilderPage';
+import { InviteTeammatesPage } from '../pages/onboarding/InviteTeammatesPage';
 
 const routes: RouteObject[] = [
   {
@@ -179,6 +180,19 @@ const routes: RouteObject[] = [
       {
         path: 'google-sheets/done',
         element: <ConnectGoogleSheetsDonePage />,
+        errorElement: <LayoutErrorBoundary />,
+      },
+    ],
+  },
+  {
+    // First-run steps linked from the sign-up questionnaire: same guards, no app chrome.
+    path: '/ui/:projectId/onboarding',
+    element: <ConnectFlowLayout />,
+    errorElement: <RootErrorBoundary />,
+    children: [
+      {
+        path: 'invite-teammates',
+        element: <InviteTeammatesPage />,
         errorElement: <LayoutErrorBoundary />,
       },
     ],
