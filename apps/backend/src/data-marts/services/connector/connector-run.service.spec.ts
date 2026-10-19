@@ -1,3 +1,4 @@
+jest.mock('snowflake-sdk', () => ({ __esModule: true, default: {} }));
 // connector-run.service.spec.ts
 jest.mock('typeorm-transactional', () => ({
   Transactional: () => () => undefined,
@@ -19,6 +20,11 @@ import { SystemTimeService } from '../../../common/scheduler/services/system-tim
 describe('ConnectorRunService', () => {
   const createService = () => {
     const dataMartRunRepository = {
+      manager: {
+        update: jest.fn().mockResolvedValue({ affected: 1 }),
+        findOneByOrFail: jest.fn().mockResolvedValue({}),
+      },
+      findOneBy: jest.fn().mockResolvedValue(null),
       findOne: jest.fn(),
       find: jest.fn(),
       create: jest.fn().mockImplementation(data => data),

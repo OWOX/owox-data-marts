@@ -1,3 +1,4 @@
+import { contextCurrentReadLock } from './context-reference-guard';
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -73,8 +74,17 @@ export class UserProvisioningContextSettingsService {
   @Transactional()
   async saveDefaultSettings(
     projectId: string,
-    settings: UserProvisioningContextDefaultsDto
+    settings: UserProvisioningContextDefaultsDto,
+    preserveUserIds: string[] = [],
+    expectedRevision?: number
   ): Promise<UserProvisioningContextDefaultsDto> {
+    await this.contextService.lockReferences(projectId, expectedRevision);
+    if (settings.roleScope === RoleScope.SELECTED_CONTEXTS && settings.contextIds.length === 0)
+      throw new BadRequestException(
+        'At least one context is required for selected-context defaults'
+      );
+    await this.contextService.validateContextIds(settings.contextIds, projectId);
+    await this.preserveExistingMembers(projectId, preserveUserIds);
     await this.settingsRepository.upsert(
       {
         projectId,
@@ -96,6 +106,12 @@ export class UserProvisioningContextSettingsService {
 
   @Transactional()
   async applyDefaultScopeToMember(userId: string, projectId: string): Promise<RoleScope> {
+    await this.contextService.lockReferences(projectId);
+    const existing = await this.memberRoleScopeRepository.findOne({
+      where: { userId, projectId },
+      lock: contextCurrentReadLock(this.memberRoleScopeRepository.manager),
+    });
+    if (existing) return existing.roleScope;
     const settings = await this.getDefaultSettings(projectId);
     if (settings.roleScope === RoleScope.ENTIRE_PROJECT) {
       return RoleScope.ENTIRE_PROJECT;
@@ -111,6 +127,19 @@ export class UserProvisioningContextSettingsService {
     );
 
     return RoleScope.SELECTED_CONTEXTS;
+  }
+
+  private async preserveExistingMembers(projectId: string, userIds: string[]): Promise<void> {
+    const old = await this.getDefaultSettings(projectId);
+    for (const userId of new Set(userIds)) {
+      if (await this.memberRoleScopeRepository.findOneBy({ projectId, userId })) continue;
+      await this.memberRoleScopeRepository.insert({ projectId, userId, roleScope: old.roleScope });
+      if (old.roleScope === RoleScope.SELECTED_CONTEXTS && old.contextIds.length) {
+        await this.memberRoleContextRepository.save(
+          old.contextIds.map(contextId => ({ projectId, userId, contextId }))
+        );
+      }
+    }
   }
 
   private normalize(

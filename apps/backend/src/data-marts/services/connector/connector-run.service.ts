@@ -15,6 +15,7 @@ import { ConnectorExecutionError } from '../../errors/connector-execution.error'
 import { RunType } from '../../../common/scheduler/shared/types';
 import { ConnectorRunTriggerService } from './connector-run-trigger.service';
 import { ConnectorExecutorService } from './connector-executor.service';
+import { lockDataMartConnectorWork } from './connector-work-lifecycle';
 import { createNextSegmentRun } from './backfill-segment';
 import { SystemTimeService } from '../../../common/scheduler/services/system-time.service';
 import {
@@ -59,6 +60,16 @@ export class ConnectorRunService {
     runType: RunType,
     payload?: Record<string, unknown>
   ): Promise<string> {
+    await lockDataMartConnectorWork(
+      this.dataMartRunRepository.manager,
+      dataMart.id,
+      dataMart.projectId
+    );
+    const current = await this.dataMartRunRepository.manager.findOneByOrFail(DataMart, {
+      id: dataMart.id,
+      projectId: dataMart.projectId,
+    });
+    Object.assign(dataMart, current);
     this.validateDataMartForConnector(dataMart);
     const isRunning = await this.checkDataMartIsRunning(dataMart);
     if (isRunning) {
@@ -126,28 +137,9 @@ export class ConnectorRunService {
 
     for (const run of interruptedRuns) {
       try {
-        const claimed = await this.dataMartRunRepository.update(
-          { id: run.id, status: DataMartRunStatus.INTERRUPTED },
-          { status: DataMartRunStatus.PENDING }
-        );
-
-        if (!claimed.affected) {
-          this.logger.log(`Skipping resumption of run ${run.id}: no longer INTERRUPTED`, {
-            dataMartId: run.dataMartId,
-            projectId: run.dataMart.projectId,
-            runId: run.id,
-          });
-          continue;
-        }
-
-        await this.connectorRunTriggerService.createTrigger({
-          dataMartId: run.dataMartId,
-          projectId: run.dataMart.projectId,
-          createdById: run.createdById ?? 'system',
-          dataMartRunId: run.id,
-          runType: run.runType,
-          payload: run.additionalParams ?? undefined,
-        });
+        if (!run.dataMart) continue;
+        const resumed = await this.resumeInterruptedRun(run);
+        if (!resumed) continue;
 
         this.logger.log(`Created trigger for interrupted run ${run.id}`, {
           dataMartId: run.dataMartId,
@@ -162,6 +154,29 @@ export class ConnectorRunService {
         );
       }
     }
+  }
+
+  @Transactional()
+  private async resumeInterruptedRun(run: DataMartRun): Promise<boolean> {
+    await lockDataMartConnectorWork(
+      this.dataMartRunRepository.manager,
+      run.dataMartId,
+      run.dataMart.projectId
+    );
+    const claimed = await this.dataMartRunRepository.update(
+      { id: run.id, status: DataMartRunStatus.INTERRUPTED },
+      { status: DataMartRunStatus.PENDING }
+    );
+    if (!claimed.affected) return false;
+    await this.connectorRunTriggerService.createTrigger({
+      dataMartId: run.dataMartId,
+      projectId: run.dataMart.projectId,
+      createdById: run.createdById ?? 'system',
+      dataMartRunId: run.id,
+      runType: run.runType,
+      payload: run.additionalParams ?? undefined,
+    });
+    return true;
   }
 
   /**
@@ -342,9 +357,13 @@ export class ConnectorRunService {
       runType,
       logs: [],
       errors: [],
-      additionalParams: payload
-        ? { payload, ...(chainMeta ? { [BACKFILL_CHAIN_KEY]: chainMeta } : {}) }
-        : undefined,
+      additionalParams: {
+        payload: payload ?? {},
+        ...(chainMeta ? { [BACKFILL_CHAIN_KEY]: chainMeta } : {}),
+        ...(Number.isSafeInteger(dataMart.revision)
+          ? { configurationRevision: dataMart.revision }
+          : {}),
+      },
     });
     return this.dataMartRunRepository.save(dataMartRun);
   }

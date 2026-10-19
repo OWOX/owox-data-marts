@@ -1,3 +1,4 @@
+import { IsInt, Min, IsOptional as RevisionOptional } from 'class-validator';
 import {
   IsString,
   IsArray,
@@ -40,6 +41,12 @@ export class JoinConditionApiDto {
 }
 
 export class CreateRelationshipRequestApiDto {
+  @ApiProperty({ required: false, minimum: 1 })
+  @RevisionOptional()
+  @IsInt()
+  @Min(1)
+  expectedRevision?: number;
+
   @ApiProperty({
     example: '9cabc24e-1234-4a5a-8b12-abcdef123456',
     description: 'ID of the target data mart to blend with',

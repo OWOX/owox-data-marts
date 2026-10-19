@@ -1,3 +1,4 @@
+import { ConflictException } from '@nestjs/common';
 import { Injectable, ForbiddenException } from '@nestjs/common';
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
 import { DataMartMapper } from '../mappers/data-mart.mapper';
@@ -21,6 +22,8 @@ export class UpdateDataMartDescriptionService {
 
   async run(command: UpdateDataMartDescriptionCommand): Promise<DataMartDto> {
     const dataMart = await this.dataMartService.getByIdAndProjectId(command.id, command.projectId);
+    if (command.expectedRevision !== undefined && command.expectedRevision !== dataMart.revision)
+      throw new ConflictException('Data Mart configuration changed');
 
     if (command.userId) {
       const canEdit = await this.accessDecisionService.canAccess(

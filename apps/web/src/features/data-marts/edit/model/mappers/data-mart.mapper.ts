@@ -17,6 +17,7 @@ export async function mapDataMartFromDto(
 ): Promise<DataMart> {
   const dataMart: DataMart = {
     id: dataMartDto.id,
+    revision: dataMartDto.revision,
     title: dataMartDto.title,
     description: dataMartDto.description,
     icon: dataMartDto.icon ?? null,

@@ -150,7 +150,8 @@ export class DataMartMapper {
       entity.blendedFieldsConfig,
       extractContextSummaries(entity.contexts),
       entity.dataLastUpdated ?? null,
-      entity.icon ?? null
+      entity.icon ?? null,
+      entity.revision
     );
   }
 
@@ -175,6 +176,7 @@ export class DataMartMapper {
         : dto.definition;
     return {
       id: dto.id,
+      revision: dto.revision,
       title: dto.title,
       status: dto.status,
       storage: await this.dataStorageMapper.toApiResponse(dto.storage),
@@ -299,7 +301,8 @@ export class DataMartMapper {
       dto.sourceDataMartId,
       dto.sourceConfigurationId,
       context.userId,
-      context.roles ?? []
+      context.roles ?? [],
+      dto.expectedRevision
     );
   }
 
@@ -426,7 +429,8 @@ export class DataMartMapper {
       context.projectId,
       dto.title,
       context.userId,
-      context.roles ?? []
+      context.roles ?? [],
+      dto.expectedRevision
     );
   }
 
@@ -440,7 +444,8 @@ export class DataMartMapper {
       context.projectId,
       dto.icon ?? null,
       context.userId,
-      context.roles ?? []
+      context.roles ?? [],
+      dto.expectedRevision
     );
   }
 
@@ -454,7 +459,8 @@ export class DataMartMapper {
       context.projectId,
       dto.description,
       context.userId,
-      context.roles ?? []
+      context.roles ?? [],
+      dto.expectedRevision
     );
   }
 
@@ -482,7 +488,8 @@ export class DataMartMapper {
       context.projectId,
       dto.blendedFieldsConfig ?? null,
       context.userId,
-      context.roles ?? []
+      context.roles ?? [],
+      dto.expectedRevision
     );
   }
 
@@ -580,7 +587,8 @@ export class DataMartMapper {
       context.projectId,
       dto.schema,
       context.userId,
-      context.roles ?? []
+      context.roles ?? [],
+      dto.expectedRevision
     );
   }
 
@@ -848,7 +856,8 @@ export class DataMartMapper {
       dto.businessOwnerIds,
       dto.technicalOwnerIds,
       context.userId,
-      context.roles ?? []
+      context.roles ?? [],
+      dto.expectedRevision
     );
   }
 

@@ -52,10 +52,11 @@ vi.mock('@monaco-editor/react', () => ({
 
 describe('ConnectorBuilderPage (new)', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
-    create.mockResolvedValue({ id: 'def-1', name: 'MyApi', title: 'My API' });
+    vi.resetAllMocks();
+    create.mockResolvedValue({ id: 'def-1', revision: 1, name: 'MyApi', title: 'My API' });
     getById.mockResolvedValue({
       id: 'def-1',
+      revision: 1,
       name: 'MyApi',
       title: 'My API',
       description: null,
@@ -104,7 +105,7 @@ describe('ConnectorBuilderPage (new)', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /publish/i }));
     await waitFor(() => {
-      expect(publish).toHaveBeenCalledWith('def-1');
+      expect(publish).toHaveBeenCalledWith('def-1', 1, 1);
     });
   });
 
@@ -178,7 +179,7 @@ describe('ConnectorBuilderPage (new)', () => {
    * from the version being published, not from a draft; the draft carries them in the manifest.
    */
   it('saves an edited title into the draft and leaves the connector row to publish', async () => {
-    saveDraft.mockResolvedValue({ version: 1, status: 'draft', publishedAt: null });
+    saveDraft.mockResolvedValue({ version: 1, revision: 2, status: 'draft', publishedAt: null });
     getVersion.mockResolvedValue({ version: 1, status: 'draft', manifest: EXISTING_MANIFEST });
     render(<ConnectorBuilderPage id='def-1' />);
     await waitFor(() => {
@@ -195,7 +196,8 @@ describe('ConnectorBuilderPage (new)', () => {
     });
     expect(saveDraft).toHaveBeenCalledWith(
       'def-1',
-      expect.objectContaining({ title: 'Renamed API' })
+      expect.objectContaining({ title: 'Renamed API' }),
+      1
     );
   });
 
@@ -204,7 +206,7 @@ describe('ConnectorBuilderPage (new)', () => {
     // If the id is discarded with the failed read, every retry takes that path and the
     // session can never save again.
     getById.mockRejectedValueOnce(new Error('Network Error'));
-    saveDraft.mockResolvedValue({ version: 1, status: 'draft', publishedAt: null });
+    saveDraft.mockResolvedValue({ version: 1, revision: 2, status: 'draft', publishedAt: null });
     render(<ConnectorBuilderPage />);
     fireEvent.change(screen.getByPlaceholderText('MyCustomApi'), { target: { value: 'MyApi' } });
 
@@ -217,7 +219,7 @@ describe('ConnectorBuilderPage (new)', () => {
     fireEvent.change(screen.getByPlaceholderText('My Custom API'), { target: { value: 'My API' } });
     fireEvent.click(screen.getByRole('button', { name: /save draft/i }));
     await waitFor(() => {
-      expect(saveDraft).toHaveBeenCalledWith('def-1', expect.anything());
+      expect(saveDraft).toHaveBeenCalledWith('def-1', expect.anything(), 1);
     });
     expect(create).toHaveBeenCalledTimes(1);
   });
@@ -246,7 +248,7 @@ describe('ConnectorBuilderPage (new)', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /publish/i }));
     await waitFor(() => {
-      expect(publish).toHaveBeenCalledWith('def-1');
+      expect(publish).toHaveBeenCalledWith('def-1', 1, 1);
     });
     expect(onCreated).not.toHaveBeenCalled();
 
@@ -328,6 +330,7 @@ describe('ConnectorBuilderPage (new)', () => {
 describe('ConnectorBuilderPage — Code mode text typed right before an action', () => {
   const draftDetail = (versions: { version: number; status: string }[]) => ({
     id: 'def-1',
+    revision: 1,
     name: 'MyApi',
     title: 'My API',
     description: null,
@@ -338,10 +341,10 @@ describe('ConnectorBuilderPage — Code mode text typed right before an action',
   });
 
   beforeEach(() => {
-    vi.clearAllMocks();
-    create.mockResolvedValue({ id: 'def-1', name: 'MyApi', title: 'My API' });
+    vi.resetAllMocks();
+    create.mockResolvedValue({ id: 'def-1', revision: 1, name: 'MyApi', title: 'My API' });
     getById.mockResolvedValue(draftDetail([{ version: 1, status: 'draft' }]));
-    saveDraft.mockResolvedValue({ version: 1, status: 'draft', publishedAt: null });
+    saveDraft.mockResolvedValue({ version: 1, revision: 2, status: 'draft', publishedAt: null });
     publish.mockResolvedValue({ version: 1, status: 'published', publishedAt: null, warnings: [] });
     runTest.mockResolvedValue({ rows: [], logs: [] });
   });
@@ -390,11 +393,12 @@ describe('ConnectorBuilderPage — Code mode text typed right before an action',
     fireEvent.click(screen.getByRole('button', { name: /publish/i }));
 
     await waitFor(() => {
-      expect(publish).toHaveBeenCalledWith('def-1');
+      expect(publish).toHaveBeenCalledWith('def-1', 2, 1);
     });
     expect(saveDraft).toHaveBeenCalledWith(
       'def-1',
-      expect.objectContaining({ title: 'Typed just now' })
+      expect.objectContaining({ title: 'Typed just now' }),
+      1
     );
   });
 
@@ -455,7 +459,7 @@ describe('ConnectorBuilderPage — Code mode text typed right before an action',
       m.title = 'Typed just now';
     });
     fireEvent.click(screen.getByTestId('version-badge'));
-    fireEvent.click(within(screen.getByTestId('version-row-1')).getByText('v1'));
+    fireEvent.click(within(screen.getByTestId('version-row-2')).getByText('v2'));
 
     expect(await screen.findByText('Discard changes & open version')).toBeInTheDocument();
     expect(getVersion).not.toHaveBeenCalled();
@@ -496,6 +500,7 @@ describe('ConnectorBuilderPage — Code mode text typed right before an action',
 describe('ConnectorBuilderPage — publishing with an older version open', () => {
   const detail = {
     id: 'def-1',
+    revision: 1,
     name: 'MyApi',
     title: 'My API',
     description: null,
@@ -510,7 +515,7 @@ describe('ConnectorBuilderPage — publishing with an older version open', () =>
   };
 
   beforeEach(() => {
-    vi.clearAllMocks();
+    vi.resetAllMocks();
     getById.mockResolvedValue(detail);
     getVersion.mockImplementation((_id: string, version: number) =>
       Promise.resolve({
@@ -519,7 +524,7 @@ describe('ConnectorBuilderPage — publishing with an older version open', () =>
         manifest: { ...EXISTING_MANIFEST, baseUrl: `https://v${String(version)}.example.com` },
       })
     );
-    saveDraft.mockResolvedValue({ version: 2, status: 'draft', publishedAt: null });
+    saveDraft.mockResolvedValue({ version: 2, revision: 2, status: 'draft', publishedAt: null });
     publish.mockResolvedValue({ version: 2, status: 'published', publishedAt: null, warnings: [] });
   });
 
@@ -600,11 +605,12 @@ describe('ConnectorBuilderPage — publishing with an older version open', () =>
     fireEvent.click(await screen.findByRole('button', { name: 'Replace & publish' }));
 
     await waitFor(() => {
-      expect(publish).toHaveBeenCalledWith('def-1');
+      expect(publish).toHaveBeenCalledWith('def-1', 2, 2);
     });
     expect(saveDraft).toHaveBeenCalledWith(
       'def-1',
-      expect.objectContaining({ baseUrl: 'https://v1.example.com' })
+      expect.objectContaining({ baseUrl: 'https://v1.example.com' }),
+      1
     );
     expect(saveDraft.mock.invocationCallOrder[0]).toBeLessThan(publish.mock.invocationCallOrder[0]);
   });
@@ -612,9 +618,10 @@ describe('ConnectorBuilderPage — publishing with an older version open', () =>
 
 describe('ConnectorBuilderPage — nothing to publish', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    vi.resetAllMocks();
     getById.mockResolvedValue({
       id: 'def-1',
+      revision: 1,
       name: 'MyApi',
       title: 'My API',
       description: null,
@@ -643,7 +650,7 @@ describe('ConnectorBuilderPage — nothing to publish', () => {
 
 describe('ConnectorBuilderPage — a connector that could not be opened', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    vi.resetAllMocks();
   });
 
   // The builder stayed open and empty, and a Save from it created a second connector.
@@ -651,6 +658,7 @@ describe('ConnectorBuilderPage — a connector that could not be opened', () => 
     getById.mockRejectedValueOnce(new Error('Network Error'));
     getById.mockResolvedValueOnce({
       id: 'def-1',
+      revision: 1,
       name: 'MyApi',
       title: 'My API',
       description: null,

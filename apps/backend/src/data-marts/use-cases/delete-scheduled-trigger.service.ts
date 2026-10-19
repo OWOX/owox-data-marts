@@ -1,3 +1,5 @@
+import { Transactional } from 'typeorm-transactional';
+import { DataMartService } from '../services/data-mart.service';
 import { Injectable, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -8,7 +10,7 @@ import { ReportAccessService } from '../services/report-access.service';
 import { ReportService } from '../services/report.service';
 import { ScheduledTriggerType } from '../scheduled-trigger-types/enums/scheduled-trigger-type.enum';
 import { isScheduledReportRunConfig } from '../scheduled-trigger-types/scheduled-trigger-config.guards';
-import { AccessDecisionService, Action } from '../services/access-decision';
+import { AccessDecisionService, Action, EntityType } from '../services/access-decision';
 
 @Injectable()
 export class DeleteScheduledTriggerService {
@@ -18,7 +20,8 @@ export class DeleteScheduledTriggerService {
     private readonly scheduledTriggerService: ScheduledTriggerService,
     private readonly reportAccessService: ReportAccessService,
     private readonly reportService: ReportService,
-    private readonly accessDecisionService: AccessDecisionService
+    private readonly accessDecisionService: AccessDecisionService,
+    private readonly dataMartService: DataMartService
   ) {}
 
   async run(command: DeleteScheduledTriggerCommand): Promise<void> {
@@ -29,6 +32,38 @@ export class DeleteScheduledTriggerService {
     );
 
     await this.checkAccess(command, trigger);
+    return this.commit(command);
+  }
+
+  @Transactional()
+  private async commit(command: DeleteScheduledTriggerCommand): Promise<void> {
+    await this.dataMartService.lockConfigurationReferences(command.projectId);
+    const trigger = await this.scheduledTriggerService.getByIdAndDataMartIdAndProjectId(
+      command.id,
+      command.dataMartId,
+      command.projectId
+    );
+    if (trigger.type !== ScheduledTriggerType.REPORT_RUN) {
+      if (
+        !(await this.accessDecisionService.canAccessStored(
+          command.userId,
+          command.roles,
+          EntityType.DATA_MART,
+          command.dataMartId,
+          Action.MANAGE_TRIGGERS,
+          command.projectId
+        ))
+      )
+        throw new ForbiddenException(
+          'You do not have permission to manage triggers for this DataMart.'
+        );
+      await this.dataMartService.advanceConfigurationRevision(
+        this.triggerRepository.manager,
+        command.dataMartId,
+        command.projectId,
+        command.expectedRevision
+      );
+    }
 
     await this.triggerRepository.delete({
       id: command.id,

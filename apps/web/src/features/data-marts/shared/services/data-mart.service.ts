@@ -483,8 +483,8 @@ export class DataMartService extends ApiService {
   /**
    * Replace the set of contexts attached to a data mart.
    */
-  async updateContexts(id: string, contextIds: string[]): Promise<void> {
-    return this.put(`/${id}/contexts`, { contextIds });
+  async updateContexts(id: string, contextIds: string[], expectedRevision?: number): Promise<void> {
+    return this.put(`/${id}/contexts`, { contextIds, expectedRevision });
   }
 
   /**

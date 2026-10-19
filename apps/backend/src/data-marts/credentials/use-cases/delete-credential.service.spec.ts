@@ -1,3 +1,4 @@
+jest.mock('../../services/data-mart.service', () => ({ DataMartService: jest.fn() }));
 jest.mock('typeorm-transactional', () => ({
   Transactional: () => (_target: unknown, _key: string, descriptor: PropertyDescriptor) =>
     descriptor,
@@ -14,6 +15,7 @@ const context = {
 
 function setup() {
   const credentials = {
+    lockContextReferences: jest.fn(),
     getByIdAndProjectId: jest.fn().mockResolvedValue({ id: 'credential-1' }),
     lockActiveByIdAndProjectId: jest.fn().mockResolvedValue({ id: 'credential-1' }),
     countActiveBindings: jest.fn().mockResolvedValue(0),

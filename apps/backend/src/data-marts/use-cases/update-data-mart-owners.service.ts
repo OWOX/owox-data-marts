@@ -32,6 +32,7 @@ export class UpdateDataMartOwnersService {
 
   @Transactional()
   async run(command: UpdateDataMartOwnersCommand): Promise<DataMartDto> {
+    await this.dataMartService.lockConfigurationReferences(command.projectId);
     await this.dataMartService.getByIdAndProjectId(command.id, command.projectId);
 
     // Permissions Model: only existing owners or admin can manage owners
@@ -50,6 +51,13 @@ export class UpdateDataMartOwnersService {
         );
       }
     }
+
+    await this.dataMartService.advanceConfigurationRevision(
+      this.businessOwnerRepository.manager,
+      command.id,
+      command.projectId,
+      command.expectedRevision
+    );
 
     await Promise.all([
       syncOwners(

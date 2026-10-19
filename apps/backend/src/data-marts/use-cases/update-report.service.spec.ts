@@ -1,3 +1,6 @@
+jest.mock('../services/context/context-reference-guard', () => ({
+  lockContextReferences: jest.fn().mockResolvedValue(0),
+}));
 jest.mock('typeorm-transactional', () => ({
   Transactional: () => (_target: unknown, _key: string, descriptor: PropertyDescriptor) =>
     descriptor,

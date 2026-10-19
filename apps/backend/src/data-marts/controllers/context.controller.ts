@@ -68,7 +68,8 @@ export class ContextController {
       id,
       context.projectId,
       dto.name,
-      dto.description
+      dto.description,
+      dto.expectedRevision
     );
     return this.contextMapper.toApiResponse(result);
   }
@@ -90,6 +91,7 @@ export class ContextController {
       memberCount: impact.memberCount,
       userProvisioningDefaultsCount: impact.userProvisioningDefaultsCount,
       affectedMemberIds: impact.affectedMemberIds,
+      credentialCount: await this.contextService.getCredentialReferenceCount(id),
     };
   }
 
@@ -112,6 +114,11 @@ export class ContextController {
     @Param('id') contextId: string,
     @Body() dto: UpdateContextMembersRequestApiDto
   ): Promise<UpdateContextMembersResponseApiDto> {
-    return this.setContextMembersService.run(contextId, context.projectId, dto.assignedUserIds);
+    return this.setContextMembersService.run(
+      contextId,
+      context.projectId,
+      dto.assignedUserIds,
+      dto.expectedRevision
+    );
   }
 }

@@ -104,7 +104,11 @@ export function AddContextSheet({ isOpen, members, onClose, onCreated }: AddCont
         const created = await contextService.createContext(payload);
 
         if (selectedMemberIds.length > 0) {
-          await contextService.updateContextMembers(created.id, selectedMemberIds);
+          await contextService.updateContextMembers(
+            created.id,
+            selectedMemberIds,
+            created.revision
+          );
         }
 
         toast.success('Context created');

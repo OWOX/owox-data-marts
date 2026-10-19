@@ -9,6 +9,7 @@ export class CreateRelationshipCommand {
     public readonly projectId: string,
     public readonly userId: string,
     public readonly roles: string[],
-    public readonly description?: string
+    public readonly description?: string,
+    public readonly expectedRevision?: number
   ) {}
 }

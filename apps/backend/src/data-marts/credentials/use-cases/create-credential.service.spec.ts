@@ -157,7 +157,7 @@ function setupCreate(state = 'verified', message = 'Google issued a token for th
     { get: jest.fn().mockResolvedValue(googleDefinition) } as never,
     { build: jest.fn().mockResolvedValue({ id: 'credential-1' }) } as never,
     validationProbe as never,
-    { validateContextIds: jest.fn() } as never,
+    { validateContextIds: jest.fn(), lockReferences: jest.fn() } as never,
     {} as never,
     { create: jest.fn() } as never,
     { create: jest.fn(), save: jest.fn() } as never

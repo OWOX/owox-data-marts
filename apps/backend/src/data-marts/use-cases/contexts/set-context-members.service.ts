@@ -23,7 +23,8 @@ export class SetContextMembersService {
   async run(
     contextId: string,
     projectId: string,
-    assignedUserIds: string[]
+    assignedUserIds: string[],
+    expectedRevision?: number
   ): Promise<SetContextMembersResult> {
     const projectMembers = await this.idpProjectionsFacade.getProjectMembersOrThrow(projectId);
     const memberIds = new Set(projectMembers.map(m => m.userId));
@@ -39,7 +40,13 @@ export class SetContextMembersService {
     const droppedAdminIds = assignedUserIds.filter(id => adminIds.has(id));
     const filteredUserIds = assignedUserIds.filter(id => !adminIds.has(id));
 
-    await this.contextAccessService.setContextMembers(contextId, projectId, filteredUserIds);
+    await this.contextAccessService.setContextMembers(
+      contextId,
+      projectId,
+      filteredUserIds,
+      expectedRevision,
+      projectMembers.filter(member => member.role !== 'admin').map(member => member.userId)
+    );
 
     return { assignedUserIds: filteredUserIds, droppedAdminIds };
   }

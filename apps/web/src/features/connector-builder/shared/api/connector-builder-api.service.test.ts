@@ -41,3 +41,32 @@ describe('ConnectorBuilderApiService writes', () => {
     expect(await configsSentBy(write)).toEqual([expect.objectContaining({ skipErrorToast: true })]);
   });
 });
+
+it('passes revisions and reviewed versions through every existing mutation endpoint', async () => {
+  const put = vi.spyOn(ApiService.prototype, 'put').mockResolvedValue({});
+  const post = vi.spyOn(ApiService.prototype, 'post').mockResolvedValue({});
+  const remove = vi.spyOn(ApiService.prototype, 'delete').mockResolvedValue({});
+  const api = new ConnectorBuilderApiService();
+  const manifest = createEmptyManifest();
+  await api.saveDraft('id', manifest, 4);
+  expect(put).toHaveBeenCalledWith(
+    '/id/draft',
+    { manifest, expectedRevision: 4 },
+    expect.anything()
+  );
+  await api.publish('id', 5, 2);
+  expect(post).toHaveBeenCalledWith(
+    '/id/publish',
+    { expectedRevision: 5, version: 2 },
+    expect.anything()
+  );
+  await api.activateVersion('id', 1, 6);
+  expect(post).toHaveBeenCalledWith(
+    '/id/versions/1/activate',
+    { expectedRevision: 6 },
+    expect.anything()
+  );
+  await api.softDelete('id', 7);
+  expect(remove).toHaveBeenCalledWith('/id?expectedRevision=7', expect.anything());
+  vi.restoreAllMocks();
+});

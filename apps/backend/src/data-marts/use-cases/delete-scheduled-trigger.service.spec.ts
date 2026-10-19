@@ -1,3 +1,8 @@
+jest.mock('snowflake-sdk', () => ({ __esModule: true, default: {} }));
+jest.mock('typeorm-transactional', () => ({
+  Transactional: () => (_target: unknown, _key: string, descriptor: PropertyDescriptor) =>
+    descriptor,
+}));
 import { ForbiddenException } from '@nestjs/common';
 import { DeleteScheduledTriggerCommand } from '../dto/domain/delete-scheduled-trigger.command';
 import { Action } from '../services/access-decision';
@@ -32,6 +37,7 @@ describe('DeleteScheduledTriggerService', () => {
       getByIdAndDataMartIdAndProjectId: jest.fn(),
     };
     const accessDecisionService = {
+      canAccessStored: jest.fn().mockResolvedValue(true),
       canAccessDmTrigger: jest.fn().mockResolvedValue(true),
     };
 
@@ -40,7 +46,11 @@ describe('DeleteScheduledTriggerService', () => {
       scheduledTriggerService as never,
       reportAccessService as never,
       reportService as never,
-      accessDecisionService as never
+      accessDecisionService as never,
+      {
+        lockConfigurationReferences: jest.fn().mockResolvedValue(undefined),
+        advanceConfigurationRevision: jest.fn().mockResolvedValue(2),
+      } as never
     );
 
     return { service, triggerRepository, accessDecisionService };

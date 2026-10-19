@@ -1,6 +1,6 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { ConflictException, Inject, Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, Repository } from 'typeorm';
+import { DataSource, Repository, In } from 'typeorm';
 import { ConfigService } from '@nestjs/config';
 import {
   SCHEDULER_FACADE,
@@ -12,7 +12,10 @@ import { ConnectorRunTrigger } from '../../entities/connector-run-trigger.entity
 import { DataMartRun } from '../../entities/data-mart-run.entity';
 import { DataMart } from '../../entities/data-mart.entity';
 import { DataMartRunStatus } from '../../enums/data-mart-run-status.enum';
+import { DataMartDefinitionType } from '../../enums/data-mart-definition-type.enum';
+import { DataMartStatus } from '../../enums/data-mart-status.enum';
 import { DataMartRunType } from '../../enums/data-mart-run-type.enum';
+import { lockDataMartConnectorWork } from './connector-work-lifecycle';
 import { ConnectorExecutionService } from './connector-execution.service';
 import { DataMartRunService } from '../data-mart-run.service';
 import { DataMartService } from '../data-mart.service';
@@ -55,7 +58,7 @@ export class ConnectorRunTriggerHandlerService extends BaseRunTriggerHandlerServ
         trigger.projectId
       );
 
-      run = await this.claimRunSlotAtomically(trigger, dataMart.projectId);
+      run = await this.claimRunSlotAtomically(trigger, dataMart.projectId, dataMart);
 
       this.logger.log(`Executing connector run ${run.id} for data mart ${trigger.dataMartId}`);
 
@@ -78,7 +81,7 @@ export class ConnectorRunTriggerHandlerService extends BaseRunTriggerHandlerServ
         );
         trigger.status = TriggerStatus.IDLE;
         trigger.isActive = true;
-        await this.repository.save(trigger);
+        await this.persistRuntimeState(trigger);
         return;
       }
 
@@ -98,6 +101,11 @@ export class ConnectorRunTriggerHandlerService extends BaseRunTriggerHandlerServ
       }
 
       await this.failDataMartRunSafely(trigger.dataMartRunId, error);
+      if (error instanceof ConflictException) {
+        trigger.status = TriggerStatus.ERROR;
+        trigger.isActive = false;
+        await this.persistRuntimeState(trigger);
+      }
 
       this.logger.error(
         `Error processing connector run trigger ${trigger.id}: ${error instanceof Error ? error.message : String(error)}`
@@ -119,11 +127,38 @@ export class ConnectorRunTriggerHandlerService extends BaseRunTriggerHandlerServ
    */
   private async claimRunSlotAtomically(
     trigger: ConnectorRunTrigger,
-    projectId: string
+    projectId: string,
+    dataMart: DataMart
   ): Promise<DataMartRun> {
     const maxRuns = this.configService.get<number>('MAX_CONNECTOR_RUNS_PER_PROJECT', 3);
 
     return this.dataSource.transaction(async manager => {
+      await lockDataMartConnectorWork(manager, trigger.dataMartId, projectId);
+      const candidate = await manager.findOneOrFail(DataMartRun, {
+        where: { id: trigger.dataMartRunId },
+      });
+      const inputRevision = candidate.additionalParams?.configurationRevision;
+      if (
+        typeof inputRevision === 'number' &&
+        Number.isSafeInteger(inputRevision) &&
+        inputRevision > 0
+      ) {
+        const current = await this.dataMartService.getByIdAndProjectId(
+          trigger.dataMartId,
+          projectId,
+          manager
+        );
+        if (
+          current.revision !== inputRevision ||
+          current.status !== DataMartStatus.PUBLISHED ||
+          current.definitionType !== DataMartDefinitionType.CONNECTOR
+        ) {
+          throw new ConflictException(
+            'Data Mart configuration changed since this load was queued. Start a new load from the current configuration.'
+          );
+        }
+        Object.assign(dataMart, current);
+      }
       const claimResult = await manager.update(
         DataMartRun,
         { id: trigger.dataMartRunId, status: DataMartRunStatus.PENDING },
@@ -154,6 +189,46 @@ export class ConnectorRunTriggerHandlerService extends BaseRunTriggerHandlerServ
         where: { id: trigger.dataMartRunId },
       });
     });
+  }
+
+  protected async failOrphanedRun(run: DataMartRun): Promise<void> {
+    await this.dataMartRunRepository.update(
+      { id: run.id, status: DataMartRunStatus.PENDING },
+      {
+        status: DataMartRunStatus.FAILED,
+        finishedAt: new Date(),
+        errors: [
+          'The run was not started because the maximum number of concurrent runs for this project was reached. Please wait for the current runs to finish and try again.',
+        ],
+      }
+    );
+  }
+
+  protected async failDataMartRunSafely(dataMartRunId: string, error: unknown): Promise<void> {
+    try {
+      await this.dataMartRunRepository.update(
+        { id: dataMartRunId, status: In([DataMartRunStatus.PENDING, DataMartRunStatus.RUNNING]) },
+        {
+          status: DataMartRunStatus.FAILED,
+          finishedAt: new Date(),
+          errors: [error instanceof Error ? error.message : String(error)],
+        }
+      );
+    } catch (cleanupError) {
+      this.logger.warn(
+        `Failed to mark DataMartRun ${dataMartRunId} as FAILED: ${cleanupError instanceof Error ? cleanupError.message : String(cleanupError)}`
+      );
+    }
+  }
+
+  async persistRuntimeState(trigger: ConnectorRunTrigger): Promise<boolean> {
+    const result = await this.repository.update(
+      { id: trigger.id, version: trigger.version },
+      { status: trigger.status, isActive: trigger.isActive, version: () => 'version + 1' }
+    );
+    if (result.affected !== 1) return false;
+    trigger.version++;
+    return true;
   }
 
   getTriggerRepository(): Repository<ConnectorRunTrigger> {

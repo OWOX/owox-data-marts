@@ -1,3 +1,4 @@
+jest.mock('../../services/data-mart.service', () => ({ DataMartService: jest.fn() }));
 import { BadRequestException } from '@nestjs/common';
 import { SetContextMembersService } from './set-context-members.service';
 
@@ -31,10 +32,13 @@ describe('SetContextMembersService', () => {
 
     expect(result.assignedUserIds).toEqual(['editor-1', 'viewer-1']);
     expect(result.droppedAdminIds).toEqual(['admin-1']);
-    expect(contextAccessService.setContextMembers).toHaveBeenCalledWith(CONTEXT_ID, PROJECT_ID, [
-      'editor-1',
-      'viewer-1',
-    ]);
+    expect(contextAccessService.setContextMembers).toHaveBeenCalledWith(
+      CONTEXT_ID,
+      PROJECT_ID,
+      ['editor-1', 'viewer-1'],
+      undefined,
+      ['editor-1', 'viewer-1']
+    );
   });
 
   it('forwards an unchanged list when no admins are in the input', async () => {
@@ -46,20 +50,30 @@ describe('SetContextMembersService', () => {
     const result = await service.run(CONTEXT_ID, PROJECT_ID, ['editor-1']);
 
     expect(result.droppedAdminIds).toEqual([]);
-    expect(contextAccessService.setContextMembers).toHaveBeenCalledWith(CONTEXT_ID, PROJECT_ID, [
-      'editor-1',
-    ]);
+    expect(contextAccessService.setContextMembers).toHaveBeenCalledWith(
+      CONTEXT_ID,
+      PROJECT_ID,
+      ['editor-1'],
+      undefined,
+      ['editor-1']
+    );
   });
 
   it('returns empty arrays when input is empty', async () => {
     const { service, idpProjectionsFacade, contextAccessService } = createService();
     idpProjectionsFacade.getProjectMembersOrThrow.mockResolvedValue([]);
 
-    const result = await service.run(CONTEXT_ID, PROJECT_ID, []);
+    const result = await service.run(CONTEXT_ID, PROJECT_ID, [], undefined);
 
     expect(result.assignedUserIds).toEqual([]);
     expect(result.droppedAdminIds).toEqual([]);
-    expect(contextAccessService.setContextMembers).toHaveBeenCalledWith(CONTEXT_ID, PROJECT_ID, []);
+    expect(contextAccessService.setContextMembers).toHaveBeenCalledWith(
+      CONTEXT_ID,
+      PROJECT_ID,
+      [],
+      undefined,
+      []
+    );
   });
 
   it('throws BadRequestException listing the invalid ids when payload references non-members', async () => {

@@ -36,6 +36,9 @@ export class PluginInstallation {
   @Column({ type: 'varchar', length: 255 })
   userId: string;
 
+  @Column({ type: 'integer', default: 1 })
+  revision: number;
+
   /** First ever installation. Preserved across uninstall and restore. */
   @CreateDateColumn()
   createdAt: Date;

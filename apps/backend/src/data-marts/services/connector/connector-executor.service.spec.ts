@@ -1,3 +1,4 @@
+jest.mock('snowflake-sdk', () => ({ __esModule: true, default: {} }));
 import { ConfigService } from '@nestjs/config';
 
 // ConnectorRunService (the recovery sweep, exercised below) decorates `run` with
@@ -79,6 +80,11 @@ import { Repository } from 'typeorm';
 describe('ConnectorExecutorService', () => {
   const createService = () => {
     const dataMartRunRepository = {
+      manager: {
+        update: jest.fn().mockResolvedValue({ affected: 1 }),
+        findOneByOrFail: jest.fn().mockResolvedValue({}),
+      },
+      findOneBy: jest.fn().mockResolvedValue(null),
       update: jest.fn().mockResolvedValue({ affected: 1 }),
       findOne: jest.fn().mockResolvedValue(null),
       create: jest.fn().mockImplementation((data: Record<string, unknown>) => data),
@@ -853,6 +859,7 @@ describe('ConnectorExecutorService', () => {
 
     // The REAL sweep: INTERRUPTED -> PENDING, exactly as it runs on the next boot.
     const sweepRepository = {
+      manager: { update: jest.fn().mockResolvedValue({ affected: 1 }) },
       find: jest.fn(async ({ where }: { where: { status: DataMartRunStatus; type: string } }) =>
         where.status === row.status && where.type === DataMartRunType.CONNECTOR
           ? [
@@ -1360,6 +1367,7 @@ describe('ConnectorExecutorService', () => {
         additionalParams: null,
       };
       const sweepRepository = {
+        manager: { update: jest.fn().mockResolvedValue({ affected: 1 }) },
         find: jest.fn(async ({ where }: { where: { status: DataMartRunStatus; type: string } }) =>
           where.status === interruptedRow.status && where.type === interruptedRow.type
             ? [interruptedRow]

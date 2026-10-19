@@ -1,3 +1,4 @@
+import { IsInt, Min, IsOptional as RevisionOptional } from 'class-validator';
 import { ApiExtraModels, ApiProperty, ApiPropertyOptional, getSchemaPath } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
 import {
@@ -111,6 +112,12 @@ export class BlendedFieldsConfigApiDto {
 }
 
 export class UpdateBlendedFieldsConfigApiDto {
+  @ApiProperty({ required: false, minimum: 1 })
+  @RevisionOptional()
+  @IsInt()
+  @Min(1)
+  expectedRevision?: number;
+
   @ApiProperty({
     type: BlendedFieldsConfigApiDto,
     required: false,

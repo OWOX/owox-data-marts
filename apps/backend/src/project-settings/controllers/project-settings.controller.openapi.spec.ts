@@ -70,8 +70,9 @@ describe('ProjectSettingsController OpenAPI', () => {
     });
 
     expect(resolveRef('#/components/schemas/ProjectSettingsResponseApiDto')).toMatchObject({
-      required: ['description'],
+      required: ['description', 'revision'],
       properties: {
+        revision: { type: 'number', minimum: 0 },
         description: { type: 'string', nullable: true },
       },
     });
@@ -95,6 +96,7 @@ describe('ProjectSettingsController OpenAPI', () => {
     expect(resolveRef(requestSchema.$ref)).toMatchObject({
       required: ['description'],
       properties: {
+        expectedRevision: { type: 'number', minimum: 0 },
         description: {
           type: 'string',
           nullable: true,

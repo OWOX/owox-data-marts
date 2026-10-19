@@ -73,7 +73,7 @@ export class S3ApiAdapter {
 
       this.logger.debug('Successfully cleaned up query results');
     } catch (error) {
-      this.logger.error('Error cleaning up query results', error);
+      this.logger.error('Error cleaning up query results');
       throw error;
     }
   }

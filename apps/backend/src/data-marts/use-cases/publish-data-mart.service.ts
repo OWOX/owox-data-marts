@@ -1,3 +1,5 @@
+import { Transactional } from 'typeorm-transactional';
+import { DataMart } from '../entities/data-mart.entity';
 import { Injectable, ForbiddenException, Logger } from '@nestjs/common';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
 import { OwoxEventDispatcher } from '../../common/event-dispatcher/owox-event-dispatcher';
@@ -105,14 +107,13 @@ export class PublishDataMartService {
       );
     }
 
+    // Setup validates SQL in its own mutation service; preserve existing app publication behavior.
     if (dataMart.definitionType !== DataMartDefinitionType.SQL) {
       await this.definitionValidatorFacade.checkIsValid(dataMart);
     }
 
     const previousStatus = dataMart.status;
-    dataMart.status = DataMartStatus.PUBLISHED;
-
-    await this.dataMartService.save(dataMart);
+    await this.commitPublication(dataMart, command);
 
     await this.runPostPublishEffect(dataMart.id, 'scheduling the search reindex', async () => {
       await this.advancedSearchIndexSync?.scheduleReindex(
@@ -133,27 +134,24 @@ export class PublishDataMartService {
       await this.eventDispatcher.publish(event);
     });
 
-    if (dataMart.definitionType === DataMartDefinitionType.CONNECTOR) {
-      const userId = command.createdById ?? command.userId;
-
-      this.connectorExecutionService
-        .run(dataMart, userId, RunType.manual, {
-          runType: 'INCREMENTAL',
-        })
-        .catch(error => {
-          this.logger.error(
-            `Failed to auto-run connector after publishing data mart ${dataMart.id}`,
-            error?.stack,
-            {
-              dataMartId: dataMart.id,
-              projectId: dataMart.projectId,
-              userId,
-            }
-          );
-        });
-    }
-
     return this.mapper.toDomainDto(dataMart);
+  }
+
+  @Transactional()
+  private async commitPublication(
+    dataMart: DataMart,
+    command: PublishDataMartCommand
+  ): Promise<void> {
+    dataMart.status = DataMartStatus.PUBLISHED;
+    await this.dataMartService.save(dataMart);
+    if (dataMart.definitionType === DataMartDefinitionType.CONNECTOR) {
+      await this.connectorExecutionService.run(
+        dataMart,
+        command.createdById ?? command.userId,
+        RunType.manual,
+        { runType: 'INCREMENTAL' }
+      );
+    }
   }
 
   /**
@@ -163,8 +161,7 @@ export class PublishDataMartService {
    * rejection would make callers report a failure for a Data Mart that is in
    * fact published — the bulk publisher would count it as failed and send the
    * user to a DRAFT-filtered list it no longer appears in, and the single-mart
-   * endpoint would answer 500. The connector auto-run below is already
-   * fire-and-forget for the same reason.
+   * endpoint would answer 500. Connector enqueue is committed atomically with publication.
    */
   private async runPostPublishEffect(
     dataMartId: string,

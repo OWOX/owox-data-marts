@@ -1,3 +1,6 @@
+import { Transactional } from 'typeorm-transactional';
+import { lockContextReferences } from '../../services/context/context-reference-guard';
+import { CredentialContext } from '../entities/credential-context.entity';
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { IsNull, Not, Repository } from 'typeorm';
@@ -85,7 +88,14 @@ export class CredentialService {
     return this.bindings.count({ where: { credentialId, active: true } });
   }
 
+  async lockContextReferences(projectId: string): Promise<void> {
+    await lockContextReferences(this.credentials.manager, projectId);
+  }
+
+  @Transactional()
   async softDelete(id: string, projectId: string): Promise<void> {
+    await this.lockContextReferences(projectId);
+    await this.credentials.manager.getRepository(CredentialContext).delete({ credentialId: id });
     await this.credentials.softDelete({ id, projectId });
   }
 

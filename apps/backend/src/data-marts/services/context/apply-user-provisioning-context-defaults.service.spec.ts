@@ -1,3 +1,8 @@
+jest.mock('typeorm-transactional', () => ({
+  Transactional: () => (_target: unknown, _key: string, descriptor: PropertyDescriptor) =>
+    descriptor,
+}));
+jest.mock('./context-reference-guard', () => ({ lockContextReferences: jest.fn() }));
 import { RoleScope } from '../../enums/role-scope.enum';
 import { ApplyUserProvisioningContextDefaultsService } from './apply-user-provisioning-context-defaults.service';
 
@@ -7,7 +12,14 @@ describe('ApplyUserProvisioningContextDefaultsService', () => {
   const createService = () => {
     const memberRoleScopeRepository = {
       find: jest.fn(),
-      upsert: jest.fn(),
+      insert: jest.fn(),
+      manager: {
+        getRepository: () => ({
+          findOneBy: jest.fn().mockResolvedValue(null),
+          findBy: jest.fn().mockResolvedValue([]),
+          save: jest.fn(),
+        }),
+      },
     };
 
     const service = new ApplyUserProvisioningContextDefaultsService(
@@ -29,21 +41,18 @@ describe('ApplyUserProvisioningContextDefaultsService', () => {
       'user-without-scope-2',
     ]);
 
-    expect(memberRoleScopeRepository.upsert).toHaveBeenCalledWith(
-      [
-        {
-          userId: 'user-without-scope-1',
-          projectId: PROJECT_ID,
-          roleScope: RoleScope.ENTIRE_PROJECT,
-        },
-        {
-          userId: 'user-without-scope-2',
-          projectId: PROJECT_ID,
-          roleScope: RoleScope.ENTIRE_PROJECT,
-        },
-      ],
-      ['userId', 'projectId']
-    );
+    expect(memberRoleScopeRepository.insert).toHaveBeenCalledWith([
+      {
+        userId: 'user-without-scope-1',
+        projectId: PROJECT_ID,
+        roleScope: RoleScope.ENTIRE_PROJECT,
+      },
+      {
+        userId: 'user-without-scope-2',
+        projectId: PROJECT_ID,
+        roleScope: RoleScope.ENTIRE_PROJECT,
+      },
+    ]);
   });
 
   it('does not write rows when every existing member already has a local scope row', async () => {
@@ -55,7 +64,7 @@ describe('ApplyUserProvisioningContextDefaultsService', () => {
 
     await service.preserveExistingMembersAsEntireProject(PROJECT_ID, ['user-1', 'user-2']);
 
-    expect(memberRoleScopeRepository.upsert).not.toHaveBeenCalled();
+    expect(memberRoleScopeRepository.insert).not.toHaveBeenCalled();
   });
 
   it('is a no-op for an empty member list', async () => {
@@ -64,6 +73,6 @@ describe('ApplyUserProvisioningContextDefaultsService', () => {
     await service.preserveExistingMembersAsEntireProject(PROJECT_ID, []);
 
     expect(memberRoleScopeRepository.find).not.toHaveBeenCalled();
-    expect(memberRoleScopeRepository.upsert).not.toHaveBeenCalled();
+    expect(memberRoleScopeRepository.insert).not.toHaveBeenCalled();
   });
 });

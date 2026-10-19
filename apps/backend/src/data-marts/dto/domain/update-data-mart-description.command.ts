@@ -4,6 +4,7 @@ export class UpdateDataMartDescriptionCommand {
     public readonly projectId: string,
     public readonly description: string,
     public readonly userId: string = '',
-    public readonly roles: string[] = []
+    public readonly roles: string[] = [],
+    public readonly expectedRevision?: number
   ) {}
 }

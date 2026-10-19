@@ -20,6 +20,7 @@ describe('UpdateProjectDescriptionService', () => {
     projectSettingsService.saveDescription.mockResolvedValue({
       projectId: 'project-1',
       description: 'Revenue means net revenue',
+      revision: 2,
     } as never);
 
     await expect(
@@ -27,11 +28,13 @@ describe('UpdateProjectDescriptionService', () => {
     ).resolves.toEqual({
       projectId: 'project-1',
       description: 'Revenue means net revenue',
+      revision: 2,
     });
 
     expect(projectSettingsService.saveDescription).toHaveBeenCalledWith(
       'project-1',
-      'Revenue means net revenue'
+      'Revenue means net revenue',
+      undefined
     );
   });
 
@@ -43,6 +46,10 @@ describe('UpdateProjectDescriptionService', () => {
 
     await service.run(new UpdateProjectDescriptionCommand('project-1', '   '));
 
-    expect(projectSettingsService.saveDescription).toHaveBeenCalledWith('project-1', null);
+    expect(projectSettingsService.saveDescription).toHaveBeenCalledWith(
+      'project-1',
+      null,
+      undefined
+    );
   });
 });

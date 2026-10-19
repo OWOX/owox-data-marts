@@ -2,6 +2,12 @@ import { OWOXApiError } from './errors.js';
 
 export type OWOXProjectSettings = {
   description: string | null;
+  /** Absent on deployments that predate conditional description updates. */
+  revision?: number;
+};
+
+export type OWOXUpdateProjectDescriptionOptions = {
+  expectedRevision?: number;
 };
 
 export type OWOXProjectSetupStepState = {
@@ -65,14 +71,21 @@ function parseProjectSettings(response: unknown): OWOXProjectSettings {
   if (
     !isRecord(response) ||
     !('description' in response) ||
-    (typeof response.description !== 'string' && response.description !== null)
+    (typeof response.description !== 'string' && response.description !== null) ||
+    (response.revision !== undefined &&
+      (typeof response.revision !== 'number' ||
+        !Number.isSafeInteger(response.revision) ||
+        response.revision < 0))
   ) {
     throw new OWOXApiError('OWOX Project Settings API returned an unexpected response shape', {
       details: response,
     });
   }
 
-  return { description: response.description };
+  return {
+    description: response.description,
+    ...(response.revision !== undefined ? { revision: response.revision as number } : {}),
+  };
 }
 
 function parseProjectSetupProgress(response: unknown): OWOXProjectSetupProgress {
@@ -129,9 +142,22 @@ export class ProjectApi {
     );
   }
 
-  async updateDescription(description: string | null): Promise<OWOXProjectSettings> {
+  async updateDescription(
+    description: string | null,
+    options: OWOXUpdateProjectDescriptionOptions = {}
+  ): Promise<OWOXProjectSettings> {
+    const { expectedRevision } = options;
+    if (
+      expectedRevision !== undefined &&
+      (!Number.isSafeInteger(expectedRevision) || expectedRevision < 0)
+    ) {
+      throw new TypeError('expectedRevision must be a non-negative safe integer');
+    }
     return parseProjectSettings(
-      await this.requester.putJson<unknown>('/api/projects/settings/description', { description })
+      await this.requester.putJson<unknown>('/api/projects/settings/description', {
+        description,
+        ...(expectedRevision !== undefined ? { expectedRevision } : {}),
+      })
     );
   }
 }

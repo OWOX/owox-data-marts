@@ -35,6 +35,7 @@ describe('ContextController', () => {
       list: jest.fn(),
       update: jest.fn(),
       getImpact: jest.fn(),
+      getCredentialReferenceCount: jest.fn().mockResolvedValue(0),
       delete: jest.fn(),
       validateContextIds: jest.fn().mockResolvedValue(undefined),
     };
@@ -59,6 +60,7 @@ describe('ContextController', () => {
         createdByUser: dto.createdByUser,
         createdAt: dto.createdAt,
         modifiedAt: dto.modifiedAt,
+        revision: dto.revision,
       })),
     };
 
@@ -90,7 +92,8 @@ describe('ContextController', () => {
     USER_ID,
     null,
     new Date('2026-01-01T00:00:00Z'),
-    new Date('2026-01-02T00:00:00Z')
+    new Date('2026-01-02T00:00:00Z'),
+    8
   );
 
   describe('create', () => {
@@ -137,24 +140,30 @@ describe('ContextController', () => {
   });
 
   describe('update', () => {
-    it('updates context and maps to response', async () => {
-      const { controller, contextService, contextMapper } = createController();
-      contextService.update.mockResolvedValue(sampleContextDto);
+    it.each([undefined, 7])(
+      'forwards optional revision %s and returns the saved revision',
+      async expectedRevision => {
+        const { controller, contextService, contextMapper } = createController();
+        contextService.update.mockResolvedValue(sampleContextDto);
 
-      const result = await controller.update(makeAuthContext(), CONTEXT_ID, {
-        name: 'Marketing 2',
-        description: 'Updated',
-      });
+        const result = await controller.update(makeAuthContext(), CONTEXT_ID, {
+          name: 'Marketing 2',
+          description: 'Updated',
+          expectedRevision,
+        });
 
-      expect(contextService.update).toHaveBeenCalledWith(
-        CONTEXT_ID,
-        PROJECT_ID,
-        'Marketing 2',
-        'Updated'
-      );
-      expect(contextMapper.toApiResponse).toHaveBeenCalledWith(sampleContextDto);
-      expect(result.id).toBe(CONTEXT_ID);
-    });
+        expect(contextService.update).toHaveBeenCalledWith(
+          CONTEXT_ID,
+          PROJECT_ID,
+          'Marketing 2',
+          'Updated',
+          expectedRevision
+        );
+        expect(contextMapper.toApiResponse).toHaveBeenCalledWith(sampleContextDto);
+        expect(result.id).toBe(CONTEXT_ID);
+        expect(result.revision).toBe(8);
+      }
+    );
   });
 
   describe('getImpact', () => {
@@ -162,11 +171,23 @@ describe('ContextController', () => {
       const { controller, contextService } = createController();
       const impact = new ContextImpactDto(CONTEXT_ID, 'Marketing', 2, 1, 0, 3, 1, ['u1', 'u2']);
       contextService.getImpact.mockResolvedValue(impact);
+      contextService.getCredentialReferenceCount.mockResolvedValue(4);
 
       const result = await controller.getImpact(makeAuthContext(), CONTEXT_ID);
 
       expect(contextService.getImpact).toHaveBeenCalledWith(CONTEXT_ID, PROJECT_ID);
-      expect(result).toEqual(impact);
+      expect(contextService.getCredentialReferenceCount).toHaveBeenCalledWith(CONTEXT_ID);
+      expect(result).toEqual({
+        contextId: CONTEXT_ID,
+        contextName: 'Marketing',
+        dataMartCount: 2,
+        storageCount: 1,
+        destinationCount: 0,
+        memberCount: 3,
+        userProvisioningDefaultsCount: 1,
+        affectedMemberIds: ['u1', 'u2'],
+        credentialCount: 4,
+      });
     });
   });
 
@@ -187,25 +208,30 @@ describe('ContextController', () => {
   // permissions-contexts.e2e suite.
 
   describe('setContextMembers', () => {
-    it('forwards the request to SetContextMembersService and returns the result', async () => {
-      const { controller, setContextMembersService } = createController();
-      setContextMembersService.run.mockResolvedValue({
-        assignedUserIds: ['1', '2'],
-        droppedAdminIds: ['0'],
-      });
+    it.each([undefined, 7])(
+      'forwards membership with optional revision %s and returns the saved assignments',
+      async expectedRevision => {
+        const { controller, setContextMembersService } = createController();
+        setContextMembersService.run.mockResolvedValue({
+          assignedUserIds: ['1', '2'],
+          droppedAdminIds: ['0'],
+        });
 
-      const result = await controller.setContextMembers(makeAuthContext(), CONTEXT_ID, {
-        assignedUserIds: ['0', '1', '2'],
-      });
+        const result = await controller.setContextMembers(makeAuthContext(), CONTEXT_ID, {
+          assignedUserIds: ['0', '1', '2'],
+          expectedRevision,
+        });
 
-      expect(setContextMembersService.run).toHaveBeenCalledWith(CONTEXT_ID, PROJECT_ID, [
-        '0',
-        '1',
-        '2',
-      ]);
-      expect(result.assignedUserIds).toEqual(['1', '2']);
-      expect(result.droppedAdminIds).toEqual(['0']);
-    });
+        expect(setContextMembersService.run).toHaveBeenCalledWith(
+          CONTEXT_ID,
+          PROJECT_ID,
+          ['0', '1', '2'],
+          expectedRevision
+        );
+        expect(result.assignedUserIds).toEqual(['1', '2']);
+        expect(result.droppedAdminIds).toEqual(['0']);
+      }
+    );
 
     it('propagates service errors', async () => {
       const { controller, setContextMembersService } = createController();

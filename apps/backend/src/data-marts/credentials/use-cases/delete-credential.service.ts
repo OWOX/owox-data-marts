@@ -14,6 +14,7 @@ export class DeleteCredentialService {
 
   @Transactional()
   async run(id: string, context: AuthorizationContext): Promise<void> {
+    await this.credentials.lockContextReferences(context.projectId);
     await this.credentials.getByIdAndProjectId(id, context.projectId);
     if (
       !(await this.access.canAccess(

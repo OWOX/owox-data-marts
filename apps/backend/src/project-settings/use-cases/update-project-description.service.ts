@@ -15,7 +15,8 @@ export class UpdateProjectDescriptionService {
     const description = command.description?.trim() || null;
     const settings = await this.projectSettingsService.saveDescription(
       command.projectId,
-      description
+      description,
+      command.expectedRevision
     );
     return this.mapper.toDomainDto(command.projectId, settings);
   }

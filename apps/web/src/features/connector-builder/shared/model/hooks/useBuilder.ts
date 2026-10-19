@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useRef } from 'react';
 import { toast } from 'react-hot-toast';
 import { useBuilderContext } from '../context/useBuilderContext';
 import { BuilderActionType, type BuilderState, type ManifestOrigin } from '../context/types';
@@ -32,6 +32,10 @@ export function draftVersionAtRisk(
 
 export function useBuilder() {
   const { state, dispatch, codeEdits } = useBuilderContext();
+  const writtenRevision = useRef<number | undefined>(state.revision);
+  writtenRevision.current = state.revision;
+  const writtenVersion = useRef<number | null>(state.loadedVersion);
+  writtenVersion.current = state.loadedVersion;
 
   /**
    * Code mode pushes typing into the builder a quarter second after the last keystroke, so an
@@ -166,6 +170,7 @@ export function useBuilder() {
           type: BuilderActionType.SET_META,
           payload: {
             id: detail.id,
+            revision: detail.revision,
             versions: detail.versions,
             activeVersionId: detail.activeVersionId,
             activeVersion: detail.activeVersion ?? null,
@@ -210,6 +215,7 @@ export function useBuilder() {
             type: BuilderActionType.SET_META,
             payload: {
               id: created.id,
+              revision: created.revision,
               versions: [],
               activeVersionId: null,
               activeVersion: null,
@@ -221,21 +227,26 @@ export function useBuilder() {
           // nothing unsaved to ask about.
           dispatch({ type: BuilderActionType.MARK_SAVED, payload: manifest });
           const detail = await api.getById(created.id);
+          writtenRevision.current = created.revision;
+          writtenVersion.current = 1;
           dispatch({
             type: BuilderActionType.SET_META,
             payload: {
               id: created.id,
+              revision: created.revision,
               versions: detail.versions,
               activeVersionId: detail.activeVersionId,
               activeVersion: detail.activeVersion ?? null,
-              loadedVersion: detail.versions[detail.versions.length - 1]?.version ?? null,
+              loadedVersion: 1,
             },
           });
           dispatch({ type: BuilderActionType.MARK_SAVED, payload: manifest });
           toast.success('Connector created');
           return created.id;
         }
-        await api.saveDraft(state.id, manifest);
+        const saved = await api.saveDraft(state.id, manifest, state.revision);
+        writtenRevision.current = saved.revision;
+        writtenVersion.current = saved.version;
         written = true;
         // The title, description and docs link reach the connector row, which every list and
         // picker reads, when a version is published: a draft is not theirs to show yet.
@@ -244,10 +255,11 @@ export function useBuilder() {
           type: BuilderActionType.SET_META,
           payload: {
             id: state.id,
+            revision: saved.revision,
             versions: detail.versions,
             activeVersionId: detail.activeVersionId,
             activeVersion: detail.activeVersion ?? null,
-            loadedVersion: detail.versions[detail.versions.length - 1]?.version ?? null,
+            loadedVersion: saved.version,
           },
         });
         dispatch({ type: BuilderActionType.MARK_SAVED, payload: manifest });
@@ -269,7 +281,7 @@ export function useBuilder() {
         dispatch({ type: BuilderActionType.SET_SAVING, payload: false });
       }
     },
-    [dispatch, state.id, state.loadedVersion]
+    [dispatch, state.id, state.loadedVersion, state.revision]
   );
 
   const saveDraft = useCallback(
@@ -301,7 +313,11 @@ export function useBuilder() {
           ? await persistDraft(sent)
           : state.id;
       if (!id) return false;
-      const { version, warnings } = await api.publish(id);
+      const { version, warnings, revision } = await api.publish(
+        id,
+        writtenRevision.current,
+        writtenVersion.current ?? undefined
+      );
       published = true;
       trackCustomConnectorEvent(
         'custom_connector_published',
@@ -313,10 +329,11 @@ export function useBuilder() {
         type: BuilderActionType.SET_META,
         payload: {
           id,
+          revision,
           versions: detail.versions,
           activeVersionId: detail.activeVersionId,
           activeVersion: detail.activeVersion ?? null,
-          loadedVersion: detail.versions[detail.versions.length - 1]?.version ?? null,
+          loadedVersion: version,
         },
       });
       toast.success('Published');
@@ -345,7 +362,7 @@ export function useBuilder() {
     if (!state.id) return false;
     const api = new ConnectorBuilderApiService();
     try {
-      await api.softDelete(state.id);
+      await api.softDelete(state.id, state.revision);
       // The edits went with the connector: nothing is left unsaved.
       dispatch({ type: BuilderActionType.SET_DIRTY, payload: false });
       toast.success('Connector deleted');
@@ -366,7 +383,7 @@ export function useBuilder() {
       );
       return false;
     }
-  }, [dispatch, state.id, state.manifest, state.loadedVersion]);
+  }, [dispatch, state.id, state.manifest, state.loadedVersion, state.revision]);
 
   const loadVersion = useCallback(
     async (version: number) => {
@@ -384,12 +401,13 @@ export function useBuilder() {
       if (!state.id) return;
       const api = new ConnectorBuilderApiService();
       try {
-        const res = await api.activateVersion(state.id, version);
+        const res = await api.activateVersion(state.id, version, state.revision);
         dispatch({
           type: BuilderActionType.SET_META,
           payload: {
             id: state.id,
             versions: state.versions,
+            revision: res.revision,
             activeVersionId: res.activeVersionId,
             activeVersion: res.activeVersion,
             loadedVersion: state.loadedVersion,
@@ -412,7 +430,15 @@ export function useBuilder() {
         );
       }
     },
-    [dispatch, state.id, state.versions, state.loadedVersion, state.activeVersion, state.manifest]
+    [
+      dispatch,
+      state.id,
+      state.versions,
+      state.loadedVersion,
+      state.activeVersion,
+      state.manifest,
+      state.revision,
+    ]
   );
 
   // Discard unsaved edits and restore the last saved state without a page reload:

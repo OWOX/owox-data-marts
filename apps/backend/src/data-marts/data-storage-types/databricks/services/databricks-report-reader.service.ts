@@ -76,7 +76,7 @@ export class DatabricksReportReader implements DataStorageReportReader {
     const query =
       options?.sqlOverride ??
       this.queryBuilder.buildQuery(definition, { columns: options?.columnFilter });
-    this.logger.debug(`Executing query: ${query}`);
+    this.logger.debug(`Executing query (${query.length} chars)`);
 
     this.queryCursor = await this.adapter.openQueryCursor(query);
     this.queryId = this.queryCursor.queryId;
@@ -123,9 +123,7 @@ export class DatabricksReportReader implements DataStorageReportReader {
         await this.queryCursor.close();
       } catch (error) {
         closeError = castError(error);
-        this.logger.warn(
-          `Failed to close Databricks cursor during finalize: ${closeError.message}`
-        );
+        this.logger.warn('Failed to close Databricks cursor during finalize');
       } finally {
         this.queryCursor = null;
       }
@@ -192,8 +190,8 @@ export class DatabricksReportReader implements DataStorageReportReader {
       if (Array.isArray(value)) {
         try {
           return JSON.stringify(value.map(item => this.serializeValue(item)));
-        } catch (error) {
-          this.logger.warn('Failed to serialize array value to JSON', error);
+        } catch {
+          this.logger.warn('Failed to serialize array value to JSON');
           return String(value);
         }
       }
@@ -206,8 +204,8 @@ export class DatabricksReportReader implements DataStorageReportReader {
       // Plain objects to JSON
       try {
         return JSON.stringify(value);
-      } catch (error) {
-        this.logger.warn('Failed to serialize object value to JSON', error);
+      } catch {
+        this.logger.warn('Failed to serialize object value to JSON');
         return String(value);
       }
     }

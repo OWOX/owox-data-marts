@@ -1,4 +1,5 @@
 import * as snowflake from 'snowflake-sdk';
+import { Logger } from '@nestjs/common';
 import { SnowflakeApiAdapter } from './snowflake-api.adapter';
 import { SnowflakeAuthMethod } from '../enums/snowflake-auth-method.enum';
 
@@ -40,6 +41,37 @@ describe('SnowflakeApiAdapter STATEMENT_TIMEOUT_IN_SECONDS (Phase 3)', () => {
     expect(mockConnection.execute.mock.calls[0][0]).toMatchObject({
       parameters: { STATEMENT_TIMEOUT_IN_SECONDS: 30 },
     });
+  });
+
+  it('executes SQL without logging SQL literals or provider column metadata', async () => {
+    const adapter = createAdapter();
+    const debug = jest.spyOn(Logger.prototype, 'debug').mockImplementation(() => undefined);
+    mockConnection.execute.mockImplementation((opts: { complete: (...a: unknown[]) => void }) =>
+      opts.complete(
+        null,
+        {
+          ...stmt,
+          getColumns: () => [
+            {
+              getName: () => 'private-column',
+              getType: () => 'TEXT',
+              isNullable: () => true,
+              getPrecision: () => 0,
+              getScale: () => 0,
+            },
+          ],
+        },
+        []
+      )
+    );
+    try {
+      await adapter.executeQuery("SELECT 'private-sql-literal'");
+      expect(JSON.stringify(debug.mock.calls)).not.toContain('private-sql-literal');
+      expect(JSON.stringify(debug.mock.calls)).not.toContain('private-column');
+      expect(mockConnection.execute.mock.calls[0][0].sqlText).toContain('private-sql-literal');
+    } finally {
+      debug.mockRestore();
+    }
   });
 
   it('rounds a sub-second remainder up (1500ms → 2s)', async () => {

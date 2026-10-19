@@ -1,7 +1,14 @@
+import { IsInt, Min, IsOptional } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { IsBoolean } from 'class-validator';
 
 export class UpdateDataMartAvailabilityApiDto {
+  @ApiProperty({ required: false, minimum: 1 })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  expectedRevision?: number;
+
   @ApiProperty({
     description: 'Whether the DataMart is available for reporting',
     example: true,

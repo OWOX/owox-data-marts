@@ -1,6 +1,7 @@
 import type { UserProjection } from '../../../shared/types';
 
 export interface ContextDto {
+  revision?: number;
   id: string;
   name: string;
   description: string | null;
@@ -16,6 +17,7 @@ export interface ContextImpactDto {
   dataMartCount: number;
   storageCount: number;
   destinationCount: number;
+  credentialCount: number;
   memberCount: number;
   userProvisioningDefaultsCount: number;
   affectedMemberIds: string[];

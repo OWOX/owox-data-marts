@@ -6,6 +6,7 @@ export class UpdateBlendedFieldsConfigCommand {
     public readonly projectId: string,
     public readonly blendedFieldsConfig: BlendedFieldsConfig | null,
     public readonly userId: string,
-    public readonly roles: string[]
+    public readonly roles: string[],
+    public readonly expectedRevision?: number
   ) {}
 }

@@ -124,13 +124,18 @@ export function ContextDetailsSheet({
       if (!context) return;
       setSaving(true);
       try {
-        await contextService.updateContext(context.id, {
+        const updated = await contextService.updateContext(context.id, {
+          expectedRevision: context.revision,
           name: values.name.trim(),
           description: values.description?.trim() ?? '',
         });
 
         if (memberSelectionDirty) {
-          await contextService.updateContextMembers(context.id, selectedMemberIds);
+          await contextService.updateContextMembers(
+            context.id,
+            selectedMemberIds,
+            updated.revision
+          );
         }
 
         toast.success('Context updated');

@@ -71,6 +71,7 @@ export class CreateCredentialService {
     publicMetadata: CredentialPublicMetadata | null,
     validation: CredentialValidationResult
   ): Promise<CredentialDto> {
+    await this.contexts.lockReferences(context.projectId);
     const credential = await this.credentials.save(
       this.credentials.create({
         projectId: context.projectId,

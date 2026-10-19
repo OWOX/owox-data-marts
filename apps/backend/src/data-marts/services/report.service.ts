@@ -1,3 +1,4 @@
+import { lockContextReferences } from './context/context-reference-guard';
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository, OptimisticLockVersionMismatchError } from 'typeorm';
@@ -322,6 +323,12 @@ export class ReportService {
    */
   @Transactional()
   async deleteReport(report: Report): Promise<void> {
+    await lockContextReferences(
+      this.repository.manager,
+      report.dataMart.projectId,
+      undefined,
+      false
+    );
     // Lock the report before cache publication can pass its active/version check.
     // softRemove would cascade to the shared data mart and destination.
     await this.repository.softDelete(report.id);

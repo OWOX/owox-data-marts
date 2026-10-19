@@ -54,6 +54,7 @@ export function builderReducer(state: BuilderState, action: BuilderAction): Buil
       return {
         ...state,
         id: action.payload.id,
+        revision: action.payload.revision,
         versions: action.payload.versions,
         activeVersionId: action.payload.activeVersionId,
         activeVersion: action.payload.activeVersion,

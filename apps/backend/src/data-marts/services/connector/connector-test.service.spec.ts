@@ -1,3 +1,4 @@
+jest.mock('snowflake-sdk', () => ({}));
 import { BadRequestException } from '@nestjs/common';
 import { EventEmitter } from 'events';
 import { join } from 'path';

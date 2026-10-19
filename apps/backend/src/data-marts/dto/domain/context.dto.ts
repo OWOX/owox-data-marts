@@ -9,7 +9,8 @@ export class ContextDto {
     public readonly createdById: string | null,
     public readonly createdByUser: UserProjection | null,
     public readonly createdAt: Date,
-    public readonly modifiedAt: Date
+    public readonly modifiedAt: Date,
+    public readonly revision?: number
   ) {}
 }
 

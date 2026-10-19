@@ -79,7 +79,7 @@ export class RunDataMartService {
    * (network blips, rate limits, temporary API/token-endpoint failures) must not prevent a
    * run from starting, since those are surfaced during execution as they were before.
    */
-  private async checkStorageAccess(dataMart: DataMart): Promise<void> {
+  async checkStorageAccess(dataMart: DataMart): Promise<void> {
     const { storage } = dataMart;
 
     if (!storage.config || !storage.credentialId) {
@@ -103,8 +103,7 @@ export class RunDataMartService {
         throw error;
       }
       this.logger.warn(
-        `Pre-run storage access check did not complete for storage ${storage.id}; proceeding with run`,
-        error
+        `Pre-run storage access check did not complete for storage ${storage.id}; proceeding with run`
       );
     }
   }

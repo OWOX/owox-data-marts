@@ -179,7 +179,7 @@ describe('SyncLegacyDataMartService', () => {
       await service.run({ dataMartId: 'dm-123' });
 
       expect(dataMartService.create).not.toHaveBeenCalled();
-      expect(existingDataMart.deletedAt).toBeUndefined();
+      expect(existingDataMart.deletedAt).toBeNull();
       expect(existingDataMart.title).toBe('Test Data Mart');
       expect(dataMartService.save).toHaveBeenCalledWith(existingDataMart);
     });

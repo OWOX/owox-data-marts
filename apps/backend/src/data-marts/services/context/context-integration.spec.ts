@@ -1,3 +1,9 @@
+jest.mock('../data-mart.service', () => ({ DataMartService: jest.fn() }));
+jest.mock('./context-reference-guard', () => ({
+  lockContextReferences: jest.fn().mockResolvedValue(1),
+  contextRevision: jest.fn().mockResolvedValue(1),
+  contextCurrentReadLock: jest.fn().mockReturnValue(undefined),
+}));
 jest.mock('../../../idp/facades/idp-projections.facade', () => ({
   IdpProjectionsFacade: jest.fn(),
 }));
@@ -29,6 +35,12 @@ const CTX_PRODUCT = 'ctx-product';
 
 // ─── Mock repository factory ────────────────────────────────────────────────
 const createMockRepository = () => ({
+  manager: {
+    getRepository: () => ({
+      findOne: jest.fn().mockResolvedValue({ id: 'resource' }),
+      countBy: jest.fn().mockResolvedValue(0),
+    }),
+  },
   findOne: jest.fn(),
   find: jest.fn(),
   create: jest.fn(),
@@ -93,7 +105,9 @@ function buildServices() {
     memberRoleContextRepo as never,
     contextService as never,
     { applyDefaultScopeToMember: jest.fn().mockResolvedValue(RoleScope.ENTIRE_PROJECT) } as never,
-    /* accessDecisionService placeholder */ {} as never
+    /* accessDecisionService placeholder */ {} as never,
+    undefined,
+    { advanceConfigurationRevision: jest.fn().mockResolvedValue(1) } as never
   );
 
   // Real AccessDecisionService wired to real ContextAccessService

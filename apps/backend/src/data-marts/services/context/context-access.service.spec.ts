@@ -1,3 +1,4 @@
+jest.mock('../data-mart.service', () => ({ DataMartService: jest.fn() }));
 import { ForbiddenException } from '@nestjs/common';
 import { OwnerStatus, EntityType } from '../access-decision/access-decision.types';
 import { ProjectRole } from '../../enums/project-role.enum';
@@ -24,6 +25,9 @@ describe('ContextAccessService', () => {
   const CONTEXT_IDS = ['ctx-1', 'ctx-2'];
 
   const createMockRepository = () => ({
+    manager: {
+      getRepository: () => ({ findOne: jest.fn().mockResolvedValue({ id: 'resource' }) }),
+    },
     find: jest.fn(),
     findOne: jest.fn(),
     save: jest.fn(),
@@ -42,6 +46,7 @@ describe('ContextAccessService', () => {
     const memberRoleContextRepository = createMockRepository();
 
     const contextService = {
+      lockReferences: jest.fn().mockResolvedValue(1),
       validateContextIds: jest.fn(),
       getByIdAndProject: jest.fn(),
     };
@@ -61,7 +66,9 @@ describe('ContextAccessService', () => {
       memberRoleContextRepository as never,
       contextService as never,
       userProvisioningContextSettingsService as never,
-      accessDecisionService as never
+      accessDecisionService as never,
+      undefined,
+      { advanceConfigurationRevision: jest.fn().mockResolvedValue(1) } as never
     );
 
     return {

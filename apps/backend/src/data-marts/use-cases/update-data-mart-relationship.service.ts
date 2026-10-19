@@ -1,3 +1,4 @@
+import { DataSource } from 'typeorm';
 import {
   ForbiddenException,
   Injectable,
@@ -31,6 +32,7 @@ export class UpdateDataMartRelationshipService {
   constructor(
     private readonly relationshipService: DataMartRelationshipService,
     private readonly dataMartService: DataMartService,
+    private readonly dataSource: DataSource,
     private readonly userProjectionsFetcherService: UserProjectionsFetcherService,
     private readonly reportDataCacheService: ReportDataCacheService,
     private readonly mapper: RelationshipMapper,
@@ -43,6 +45,7 @@ export class UpdateDataMartRelationshipService {
     if (!command.userId) {
       throw new UnauthorizedException('Authenticated user is required');
     }
+    await this.dataMartService.lockConfigurationReferences(command.projectId);
 
     await this.dataMartService.getByIdAndProjectId(command.sourceDataMartId, command.projectId);
 
@@ -67,6 +70,28 @@ export class UpdateDataMartRelationshipService {
         'You do not have permission to manage relationships of this DataMart'
       );
     }
+
+    const target = await this.dataMartService.getByIdAndProjectId(
+      relationship.targetDataMart.id,
+      command.projectId
+    );
+    if (
+      !(await this.accessDecisionService.canAccess(
+        command.userId,
+        command.roles,
+        EntityType.DATA_MART,
+        target.id,
+        Action.EDIT,
+        command.projectId
+      ))
+    )
+      throw new ForbiddenException(
+        'You do not have permission to manage the target Data Mart relationship'
+      );
+    this.relationshipService.validateSameStorage(
+      relationship.sourceDataMart.storage.id,
+      target.storage.id
+    );
 
     const oldAlias = relationship.targetAlias;
 
@@ -93,6 +118,13 @@ export class UpdateDataMartRelationshipService {
         );
       }
     }
+
+    await this.dataMartService.advanceConfigurationRevision(
+      this.dataSource.manager,
+      command.sourceDataMartId,
+      command.projectId,
+      command.expectedRevision
+    );
 
     const updated = await this.relationshipService.update(relationship, command);
 

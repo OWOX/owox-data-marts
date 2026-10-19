@@ -14,6 +14,10 @@ import { ApiTags } from '@nestjs/swagger';
 import { Auth, AuthorizationContext, AuthContext } from '../../idp';
 import { RejectPluginAuth } from '../../idp/decorators';
 import { Role } from '../../idp/types/role-config.types';
+import {
+  ConnectorPublishApiDto,
+  ConnectorRevisionApiDto,
+} from '../dto/presentation/connector-authoring-api.dto';
 import { ConnectorFieldsResponseApiDto } from '../dto/presentation/connector-fields-response-api.dto';
 import { ConnectorSpecificationResponseApiDto } from '../dto/presentation/connector-specification-response-api.dto';
 import { ConnectorDefinitionService } from '../services/connector/connector-definition.service';
@@ -164,7 +168,12 @@ export class ConnectorDefinitionController {
     @Param('id') id: string,
     @Body() body: UpdateCustomConnectorRequestApiDto
   ): Promise<CustomConnectorDetailResponseApiDto> {
-    const def = await this.definitionService.updateMetadata(ctx.projectId, id, body);
+    const def = await this.definitionService.updateMetadata(
+      ctx.projectId,
+      id,
+      body,
+      body.expectedRevision
+    );
     const versions = await this.definitionService.listVersions(ctx.projectId, id);
     const activeVersion = await this.definitionService.getActiveVersionNumberForDef(def);
     return this.mapper.toDetailResponse(def, versions, activeVersion);
@@ -219,7 +228,12 @@ export class ConnectorDefinitionController {
     @Param('id') id: string,
     @Body() body: SaveDraftRequestApiDto
   ): Promise<CustomConnectorVersionStateResponseApiDto> {
-    const row = await this.definitionService.saveDraft(ctx.projectId, id, body.manifest);
+    const row = await this.definitionService.saveDraft(
+      ctx.projectId,
+      id,
+      body.manifest,
+      body.expectedRevision
+    );
     return this.mapper.toVersionStateResponse(row);
   }
 
@@ -228,12 +242,19 @@ export class ConnectorDefinitionController {
   @PublishCustomConnectorSpec()
   async publish(
     @AuthContext() ctx: AuthorizationContext,
-    @Param('id') id: string
+    @Param('id') id: string,
+    @Body() body: ConnectorPublishApiDto = {}
   ): Promise<PublishCustomConnectorResponseApiDto> {
-    const { version: row, warnings } = await this.definitionService.publish(ctx.projectId, id, {
-      userId: ctx.userId,
-      roles: ctx.roles ?? [],
-    });
+    const { version: row, warnings } = await this.definitionService.publish(
+      ctx.projectId,
+      id,
+      {
+        userId: ctx.userId,
+        roles: ctx.roles ?? [],
+      },
+      body.expectedRevision,
+      body.version
+    );
     return this.mapper.toPublishResponse(row, warnings);
   }
 
@@ -243,12 +264,19 @@ export class ConnectorDefinitionController {
   async activate(
     @AuthContext() ctx: AuthorizationContext,
     @Param('id') id: string,
-    @Param('version', ParseIntPipe) version: number
+    @Param('version', ParseIntPipe) version: number,
+    @Body() body: ConnectorRevisionApiDto = {}
   ): Promise<ActivateCustomConnectorVersionResponseApiDto> {
-    const def = await this.definitionService.setActiveVersion(ctx.projectId, id, version, {
-      userId: ctx.userId,
-      roles: ctx.roles ?? [],
-    });
+    const def = await this.definitionService.setActiveVersion(
+      ctx.projectId,
+      id,
+      version,
+      {
+        userId: ctx.userId,
+        roles: ctx.roles ?? [],
+      },
+      body.expectedRevision
+    );
     return this.mapper.toActivateResponse(def, version);
   }
 
@@ -257,9 +285,10 @@ export class ConnectorDefinitionController {
   @DeleteCustomConnectorSpec()
   async remove(
     @AuthContext() ctx: AuthorizationContext,
-    @Param('id') id: string
+    @Param('id') id: string,
+    @Query('expectedRevision', new ParseIntPipe({ optional: true })) expectedRevision?: number
   ): Promise<DeleteCustomConnectorResponseApiDto> {
-    await this.definitionService.softDelete(ctx.projectId, id);
+    await this.definitionService.softDelete(ctx.projectId, id, expectedRevision);
     return { success: true };
   }
 

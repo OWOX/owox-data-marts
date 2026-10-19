@@ -129,6 +129,29 @@ await client.project.updateDescription(
 await client.project.updateDescription(null);
 ```
 
+To avoid replacing a concurrent edit, pass the revision returned by `getSettings()`:
+
+```ts
+const settings = await client.project.getSettings();
+if (settings.revision === undefined) {
+  throw new Error('This deployment does not support conditional description updates.');
+}
+
+await client.project.updateDescription('Updated business definitions.', {
+  expectedRevision: settings.revision,
+});
+```
+
+A stale revision returns HTTP `409`. Read the latest settings and resolve the difference before
+saving again; do not retry without the precondition. Revision `0` is valid for a project whose
+description has not been saved. Older deployments omit `revision`, which must not be treated as
+`0`. Calls without `expectedRevision` retain unconditional overwrite behavior. Each successful
+write on a revision-aware deployment advances the revision, including unconditional writes.
+
+The REST equivalent is `PUT /api/projects/settings/description` with
+`{ "description": "Updated business definitions.", "expectedRevision": 3 }`. Both this response
+and `GET /api/projects/settings` include the saved `description` and current `revision`.
+
 ## Check project setup progress
 
 Use `project.getSetupProgress()` to inspect the current project member's merged project- and

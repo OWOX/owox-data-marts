@@ -30,7 +30,10 @@ function setup() {
     save: jest.fn().mockImplementation(value => Promise.resolve(value)),
     update: jest.fn().mockResolvedValue(undefined),
   };
-  const credentials = { findOneBy: jest.fn().mockResolvedValue(credential) };
+  const credentials = {
+    findOneBy: jest.fn().mockResolvedValue(credential),
+    findOne: jest.fn().mockResolvedValue(credential),
+  };
   const definitions = {
     getForCredential: jest.fn().mockResolvedValue({
       definitionId: 'github',
@@ -45,7 +48,10 @@ function setup() {
       },
     }),
   };
-  const access = { canAccess: jest.fn().mockResolvedValue(true) };
+  const access = {
+    canAccess: jest.fn().mockResolvedValue(true),
+    canAccessStored: jest.fn().mockResolvedValue(true),
+  };
   const credentialService = {
     lockActiveByIdAndProjectId: jest.fn().mockResolvedValue(credential),
     markLastUsed: jest.fn().mockResolvedValue(undefined),
@@ -165,7 +171,11 @@ describe('CredentialConsumerBindingFacadeImpl', () => {
   describe('Google scopes at runtime', () => {
     const DOCS = 'https://www.googleapis.com/auth/documents';
     const SHEETS = 'https://www.googleapis.com/auth/spreadsheets';
-    const google = (scopes: string[]) => ({ id: 'google-service-account', scopes });
+    const google = (scopes: string[]) => ({
+      id: 'google-service-account',
+      optional: false,
+      scopes,
+    });
     const resolveRequest = (scopes: string[]) => ({
       projectId: 'project-1',
       userId: 'member-1',
@@ -476,5 +486,98 @@ describe('CredentialConsumerBindingFacadeImpl', () => {
       expect.objectContaining({ active: true, requirementRevision: 'changed-revision' }),
       { active: false }
     );
+  });
+});
+
+describe('stored consumer readiness', () => {
+  it('reports configured requirements without reading secrets or materializing Context assignments', async () => {
+    const { facade, bindings, credentials, access, credentialService } = setup();
+    bindings.findOneBy.mockResolvedValue({
+      credentialId: credential.id,
+      requirementSnapshot: normalizeCredentialRequirement('github'),
+    });
+    const result = await facade.inspectConsumerReadiness(request);
+    expect(result).toEqual({
+      configured: true,
+      providerValidity: 'unknown',
+      requirements: [{ key: 'github', optional: false, state: 'configured' }],
+    });
+    expect(credentials.findOne).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: credential.id, projectId: request.projectId },
+        select: [
+          'id',
+          'definitionId',
+          'acceptedCompatibilityLine',
+          'enabled',
+          'aiModelMappings',
+          'aiModelMappingModes',
+          'aiModelMappingSources',
+        ],
+      })
+    );
+    expect(access.canAccessStored).toHaveBeenCalledWith(
+      request.userId,
+      request.roles,
+      'CREDENTIAL',
+      credential.id,
+      'USE',
+      request.projectId
+    );
+    expect(access.canAccess).not.toHaveBeenCalled();
+    expect(credentialService.markLastUsed).not.toHaveBeenCalled();
+    expect(JSON.stringify(result)).not.toContain('never-return-this');
+  });
+
+  it('distinguishes missing, revoked and incompatible required bindings', async () => {
+    const { facade, bindings, access, definitions } = setup();
+    bindings.findOneBy.mockResolvedValue(null);
+    expect((await facade.inspectConsumerReadiness(request)).requirements[0].state).toBe('missing');
+    bindings.findOneBy.mockResolvedValue({
+      credentialId: credential.id,
+      requirementSnapshot: normalizeCredentialRequirement('github'),
+    });
+    access.canAccessStored.mockResolvedValue(false);
+    expect(await facade.inspectConsumerReadiness(request)).toMatchObject({
+      configured: false,
+      requirements: [{ state: 'inaccessible' }],
+    });
+    access.canAccessStored.mockResolvedValue(true);
+    definitions.getForCredential.mockRejectedValue(new ConflictException('unsafe diagnostic'));
+    expect(await facade.inspectConsumerReadiness(request)).toMatchObject({
+      configured: false,
+      requirements: [{ state: 'incompatible' }],
+    });
+  });
+
+  it('treats changed requirement snapshots as missing and disabled credentials as inaccessible', async () => {
+    const { facade, bindings, credentials } = setup();
+    bindings.findOneBy.mockResolvedValue({
+      credentialId: credential.id,
+      requirementSnapshot: normalizeCredentialRequirement('other-definition'),
+    });
+    expect((await facade.inspectConsumerReadiness(request)).requirements[0].state).toBe('missing');
+    expect(credentials.findOne).not.toHaveBeenCalled();
+    bindings.findOneBy.mockResolvedValue({
+      credentialId: credential.id,
+      requirementSnapshot: normalizeCredentialRequirement('github'),
+    });
+    credentials.findOne.mockResolvedValue({ ...credential, enabled: false });
+    expect((await facade.inspectConsumerReadiness(request)).requirements[0].state).toBe(
+      'inaccessible'
+    );
+  });
+
+  it('does not require optional missing bindings and propagates storage failure', async () => {
+    const { facade, bindings } = setup();
+    bindings.findOneBy.mockResolvedValue(null);
+    expect(
+      await facade.inspectConsumerReadiness({
+        ...request,
+        requirements: [{ id: 'github', optional: true }],
+      })
+    ).toMatchObject({ configured: true, requirements: [{ optional: true, state: 'missing' }] });
+    bindings.findOneBy.mockRejectedValue(new Error('Storage unavailable'));
+    await expect(facade.inspectConsumerReadiness(request)).rejects.toThrow('Storage unavailable');
   });
 });

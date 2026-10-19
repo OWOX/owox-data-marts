@@ -12,6 +12,12 @@ export enum DbType {
 
 /** Tables whose bound values hold plugin action input, results or token hashes. */
 const REDACTED_PARAMETER_TABLES = ['plugin_action_execution'];
+// Manifests and credential payloads can also appear in SQL literals or driver errors.
+const PROTECTED_QUERY_TABLES = [
+  'connector_definition_version',
+  'connector_source_credentials',
+  'connector_protected_values',
+];
 
 /**
  * Custom DataSource logger that implements the Logger interface
@@ -38,8 +44,17 @@ export class CustomDataSourceLogger implements Logger {
     return REDACTED_PARAMETER_TABLES.some(table => query.includes(table)) ? undefined : parameters;
   }
 
+  private isProtectedQuery(query: string): boolean {
+    const normalized = query.toLowerCase();
+    return PROTECTED_QUERY_TABLES.some(table => normalized.includes(table));
+  }
+
   logQuery(query: string, queryParameters?: unknown[]) {
     if (this.checkLoggingOptions('query')) {
+      if (this.isProtectedQuery(query)) {
+        this.logger.log('Executing protected connector data query');
+        return;
+      }
       const parameters = this.loggableParameters(query, queryParameters);
       const message =
         this.logQueryParameters && parameters?.length
@@ -50,6 +65,10 @@ export class CustomDataSourceLogger implements Logger {
   }
   logQueryError(error: string | Error, query: string, queryParameters?: unknown[]) {
     if (this.checkLoggingOptions('error')) {
+      if (this.isProtectedQuery(query)) {
+        this.logger.error('[QUERY ERROR] protected connector data query failed');
+        return;
+      }
       const parameters = this.loggableParameters(query, queryParameters);
       const errorMessage = `[QUERY ERROR] ${query}${this.logQueryParameters && parameters?.length ? ` -- Parameters: ${JSON.stringify(parameters)}` : ''}`;
       this.logger.error(errorMessage, String(error));
@@ -57,6 +76,10 @@ export class CustomDataSourceLogger implements Logger {
   }
   logQuerySlow(time: number, query: string, queryParameters?: unknown[]) {
     if (this.checkLoggingOptions('warn')) {
+      if (this.isProtectedQuery(query)) {
+        this.logger.warn(`[SLOW QUERY] (${time}ms): protected connector data query`);
+        return;
+      }
       const parameters = this.loggableParameters(query, queryParameters);
       const message = `[SLOW QUERY] (${time}ms): ${query}${this.logQueryParameters && parameters?.length ? ` -- Parameters: ${JSON.stringify(parameters)}` : ''}`;
       this.logger.warn(message);

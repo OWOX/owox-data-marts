@@ -19,6 +19,8 @@ jest.mock('typeorm-transactional', () => ({
 describe('UpdateDataMartOwnersService', () => {
   const createService = () => {
     const dataMartService = {
+      lockConfigurationReferences: jest.fn(),
+      advanceConfigurationRevision: jest.fn(),
       getByIdAndProjectId: jest.fn(),
       save: jest.fn(),
     };
@@ -37,6 +39,7 @@ describe('UpdateDataMartOwnersService', () => {
     };
 
     const businessOwnerRepository = {
+      manager: {},
       delete: jest.fn().mockResolvedValue(undefined),
       save: jest.fn().mockResolvedValue(undefined),
     };

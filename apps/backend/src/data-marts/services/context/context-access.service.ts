@@ -9,6 +9,12 @@ import { MemberRoleScope } from '../../entities/member-role-scope.entity';
 import { MemberRoleContext } from '../../entities/member-role-context.entity';
 import { ProjectRole } from '../../enums/project-role.enum';
 import { RoleScope } from '../../enums/role-scope.enum';
+import { DataMartService } from '../data-mart.service';
+import { DataStorage } from '../../entities/data-storage.entity';
+import { DataDestination } from '../../entities/data-destination.entity';
+import { DataMart } from '../../entities/data-mart.entity';
+import { Credential } from '../../credentials/entities/credential.entity';
+import { NotFoundException } from '@nestjs/common';
 import { ContextService } from './context.service';
 import { AccessDecisionService } from '../access-decision/access-decision.service';
 import { EntityType, OwnerStatus } from '../access-decision/access-decision.types';
@@ -34,7 +40,9 @@ export class ContextAccessService {
     private readonly accessDecisionService: AccessDecisionService,
     @Optional()
     @InjectRepository(CredentialContext)
-    private readonly credentialContextRepository?: Repository<CredentialContext>
+    private readonly credentialContextRepository?: Repository<CredentialContext>,
+    @Optional()
+    private readonly dataMartService?: DataMartService
   ) {}
 
   @Transactional()
@@ -43,8 +51,21 @@ export class ContextAccessService {
     projectId: string,
     contextIds: string[],
     userId: string,
-    roles: string[]
+    roles: string[],
+    expectedRevision?: number
   ): Promise<void> {
+    await this.contextService.lockReferences(projectId, expectedRevision);
+    const resource = await this.dataMartContextRepository.manager
+      .getRepository(DataMart)
+      .findOne({ where: { id: dataMartId, projectId }, select: ['id'], loadEagerRelations: false });
+    if (!resource) throw new NotFoundException('Resource not found in this project');
+    if (!this.dataMartService) throw new Error('Data Mart revision service is required');
+    await this.dataMartService.advanceConfigurationRevision(
+      this.dataMartContextRepository.manager,
+      dataMartId,
+      projectId
+    );
+
     const isAdmin = roles.includes('admin');
 
     if (!isAdmin) {
@@ -79,8 +100,15 @@ export class ContextAccessService {
     projectId: string,
     contextIds: string[],
     userId: string,
-    roles: string[]
+    roles: string[],
+    expectedRevision?: number
   ): Promise<void> {
+    await this.contextService.lockReferences(projectId, expectedRevision);
+    const resource = await this.storageContextRepository.manager
+      .getRepository(DataStorage)
+      .findOne({ where: { id: storageId, projectId }, select: ['id'], loadEagerRelations: false });
+    if (!resource) throw new NotFoundException('Resource not found in this project');
+
     const isAdmin = roles.includes('admin');
 
     if (!isAdmin) {
@@ -114,8 +142,19 @@ export class ContextAccessService {
     projectId: string,
     contextIds: string[],
     userId: string,
-    roles: string[]
+    roles: string[],
+    expectedRevision?: number
   ): Promise<void> {
+    await this.contextService.lockReferences(projectId, expectedRevision);
+    const resource = await this.destinationContextRepository.manager
+      .getRepository(DataDestination)
+      .findOne({
+        where: { id: destinationId, projectId },
+        select: ['id'],
+        loadEagerRelations: false,
+      });
+    if (!resource) throw new NotFoundException('Resource not found in this project');
+
     const isAdmin = roles.includes('admin');
 
     if (!isAdmin) {
@@ -147,11 +186,22 @@ export class ContextAccessService {
     projectId: string,
     contextIds: string[],
     userId: string,
-    roles: string[]
+    roles: string[],
+    expectedRevision?: number
   ): Promise<void> {
+    await this.contextService.lockReferences(projectId, expectedRevision);
     if (!this.credentialContextRepository) {
       throw new Error('Credential contexts are not registered');
     }
+
+    const resource = await this.credentialContextRepository.manager
+      .getRepository(Credential)
+      .findOne({
+        where: { id: credentialId, projectId },
+        select: ['id'],
+        loadEagerRelations: false,
+      });
+    if (!resource) throw new NotFoundException('Resource not found in this project');
 
     if (!roles.includes('admin')) {
       const ownerStatus = await this.accessDecisionService.getOwnerStatus(
@@ -175,6 +225,35 @@ export class ContextAccessService {
     }
   }
 
+  async assertCanSetContexts(
+    entityType: EntityType,
+    entityId: string,
+    projectId: string,
+    userId: string,
+    roles: string[]
+  ): Promise<void> {
+    const config = {
+      [EntityType.DATA_MART]: DataMart,
+      [EntityType.STORAGE]: DataStorage,
+      [EntityType.DESTINATION]: DataDestination,
+      [EntityType.CREDENTIAL]: Credential,
+    };
+    const target = config[entityType as keyof typeof config];
+    if (!target) throw new ForbiddenException('Unsupported Context resource');
+    const resource = await this.dataMartContextRepository.manager
+      .getRepository(target)
+      .findOne({ where: { id: entityId, projectId }, select: ['id'], loadEagerRelations: false });
+    if (!resource) throw new NotFoundException('Resource not found in this project');
+    if (roles.includes('admin')) return;
+    const owner = await this.accessDecisionService.getOwnerStatus(userId, entityType, entityId);
+    const allowed =
+      roles.includes('editor') &&
+      (entityType === EntityType.DATA_MART
+        ? owner === OwnerStatus.TECH_OWNER
+        : owner === OwnerStatus.OWNER);
+    if (!allowed) throw new ForbiddenException('Resource ownership required to manage Contexts');
+  }
+
   async getRoleScope(userId: string, projectId: string): Promise<RoleScope> {
     const record = await this.memberRoleScopeRepository.findOne({
       where: { userId, projectId },
@@ -187,6 +266,21 @@ export class ContextAccessService {
     return this.userProvisioningContextSettingsService.applyDefaultScopeToMember(userId, projectId);
   }
 
+  /** Evaluate lazy provisioning defaults without creating member assignments. */
+  async getReadOnlyMemberScope(
+    userId: string,
+    projectId: string
+  ): Promise<{ roleScope: RoleScope; contextIds: string[] }> {
+    const record = await this.memberRoleScopeRepository.findOne({ where: { userId, projectId } });
+    if (!record) {
+      return this.userProvisioningContextSettingsService.getDefaultSettings(projectId);
+    }
+    return {
+      roleScope: record.roleScope,
+      contextIds: await this.getMemberContextIds(userId, projectId),
+    };
+  }
+
   async getMemberContextIds(userId: string, projectId: string): Promise<string[]> {
     const records = await this.memberRoleContextRepository.find({
       where: { userId, projectId },
@@ -195,11 +289,13 @@ export class ContextAccessService {
     return records.map(r => r.contextId);
   }
 
+  @Transactional()
   async updateMemberRoleScope(
     targetUserId: string,
     projectId: string,
     roleScope: RoleScope
   ): Promise<void> {
+    await this.contextService.lockReferences(projectId);
     await this.memberRoleScopeRepository.upsert({ userId: targetUserId, projectId, roleScope }, [
       'userId',
       'projectId',
@@ -212,6 +308,7 @@ export class ContextAccessService {
     projectId: string,
     contextIds: string[]
   ): Promise<void> {
+    await this.contextService.lockReferences(projectId);
     await this.contextService.validateContextIds(contextIds, projectId);
     await this.memberRoleContextRepository.delete({
       userId: targetUserId,
@@ -236,8 +333,10 @@ export class ContextAccessService {
       role: ProjectRole;
       roleScope: RoleScope;
       contextIds: string[];
-    }
+    },
+    expectedRevision?: number
   ): Promise<void> {
+    await this.contextService.lockReferences(projectId, expectedRevision);
     // Validate before any DB writes so a stale UI sending invalid contextIds
     // for an admin (where they will be stripped to []) still 400s upfront,
     // matching the validation-first pattern used by every other public
@@ -268,12 +367,20 @@ export class ContextAccessService {
   async setContextMembers(
     contextId: string,
     projectId: string,
-    assignedUserIds: string[]
+    assignedUserIds: string[],
+    expectedRevision?: number,
+    currentMemberIds: string[] = []
   ): Promise<void> {
+    await this.contextService.lockReferences(projectId, expectedRevision);
     // Single-context lookup: surface a 404 when the context does not belong
     // to the project. The bulk validateContextIds() helper would return 400
     // here, which is wrong for "context not found".
     await this.contextService.getByIdAndProject(contextId, projectId);
+
+    // Materialize implicit selected defaults before this explicit edit can remove or add a binding.
+    for (const userId of new Set(currentMemberIds)) {
+      await this.getRoleScope(userId, projectId);
+    }
 
     const currentBindings = await this.memberRoleContextRepository.find({
       where: { contextId, projectId },
@@ -304,6 +411,7 @@ export class ContextAccessService {
    */
   @Transactional()
   async removeMemberBindings(userId: string, projectId: string): Promise<void> {
+    await this.contextService.lockReferences(projectId);
     await this.memberRoleContextRepository.delete({ userId, projectId });
     await this.memberRoleScopeRepository.delete({ userId, projectId });
   }
@@ -312,22 +420,24 @@ export class ContextAccessService {
     userId: string,
     entityType: EntityType,
     entityId: string,
-    projectId: string
+    projectId: string,
+    effectiveContextIds?: string[]
   ): Promise<boolean> {
-    const memberContexts = await this.memberRoleContextRepository.find({
-      where: { userId, projectId },
-    });
-
-    if (memberContexts.length === 0) {
+    const memberContextIds =
+      effectiveContextIds ?? (await this.getMemberContextIds(userId, projectId));
+    if (memberContextIds.length === 0) {
       return false;
     }
-
-    const memberContextIds = memberContexts.map(mc => mc.contextId);
 
     const { repository, entityIdColumn } = this.getEntityContextConfig(entityType);
     const count = await repository
       .createQueryBuilder('ec')
-      .innerJoin('context', 'c', 'c.id = ec.context_id AND c.deletedAt IS NULL')
+      .innerJoin(
+        'context',
+        'c',
+        'c.id = ec.context_id AND c.deletedAt IS NULL AND c.projectId = :projectId',
+        { projectId }
+      )
       .where(`ec.${entityIdColumn} = :entityId`, { entityId })
       .andWhere('ec.context_id IN (:...memberContextIds)', { memberContextIds })
       .getCount();

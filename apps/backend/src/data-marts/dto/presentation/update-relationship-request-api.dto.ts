@@ -1,3 +1,4 @@
+import { IsInt, Min, IsOptional as RevisionOptional } from 'class-validator';
 import {
   IsString,
   IsArray,
@@ -14,6 +15,12 @@ import { ALIAS_SEGMENT_ERROR, ALIAS_SEGMENT_REGEX } from '../schemas/blended-fie
 import { JoinConditionApiDto } from './create-relationship-request-api.dto';
 
 export class UpdateRelationshipRequestApiDto {
+  @ApiProperty({ required: false, minimum: 1 })
+  @RevisionOptional()
+  @IsInt()
+  @Min(1)
+  expectedRevision?: number;
+
   @ApiProperty({
     example: 'orders',
     description: 'Alias for the target data mart in the blend',

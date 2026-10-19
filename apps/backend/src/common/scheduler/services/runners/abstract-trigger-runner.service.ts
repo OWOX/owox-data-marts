@@ -112,7 +112,7 @@ export abstract class AbstractTriggerRunnerService<
         `${this.handlerName}-trigger-${trigger.id}`
       );
 
-      await this.updateTriggerStatus(trigger, TriggerStatus.PROCESSING, repository);
+      if (!(await this.updateTriggerStatus(trigger, TriggerStatus.PROCESSING, repository))) return;
       await this.executeTrigger(trigger, repository);
 
       this.logger.debug(`[${this.handlerName}] Successfully processed trigger: ${trigger.id}`);
@@ -139,7 +139,7 @@ export abstract class AbstractTriggerRunnerService<
     try {
       await this.handler.handleTrigger(trigger, { signal: abortController.signal });
       trigger.onSuccess(this.systemClock.now());
-      await repository.save(trigger);
+      await this.persistRuntimeState(trigger, repository);
     } finally {
       this.abortControllersByTriggerId.delete(trigger.id);
     }
@@ -192,9 +192,9 @@ export abstract class AbstractTriggerRunnerService<
     trigger: T,
     status: TriggerStatus,
     repository: Repository<T>
-  ): Promise<void> {
+  ): Promise<boolean> {
     trigger.status = status;
-    await repository.save(trigger);
+    return this.persistRuntimeState(trigger, repository);
   }
 
   /**
@@ -206,7 +206,13 @@ export abstract class AbstractTriggerRunnerService<
    */
   private async markTriggerAsError(trigger: T, repository: Repository<T>): Promise<void> {
     trigger.onError(this.systemClock.now());
+    await this.persistRuntimeState(trigger, repository);
+  }
+
+  private async persistRuntimeState(trigger: T, repository: Repository<T>): Promise<boolean> {
+    if (this.handler.persistRuntimeState) return this.handler.persistRuntimeState(trigger);
     await repository.save(trigger);
+    return true;
   }
 
   /**

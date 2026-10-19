@@ -11,16 +11,22 @@ import { EntityType, Action } from '../services/access-decision';
 describe('DeleteDataMartRelationshipService', () => {
   const relationship = {
     id: 'rel-1',
-    sourceDataMart: { id: 'dm-source' },
+    sourceDataMart: { id: 'dm-source', storage: { id: 'storage' } },
+    targetDataMart: { id: 'dm-target', storage: { id: 'storage' } },
   };
 
   const createService = (canAccess = true, foundRelationship = relationship) => {
     const relationshipService = {
+      validateSameStorage: jest.fn(),
       findById: jest.fn().mockResolvedValue(foundRelationship),
       delete: jest.fn().mockResolvedValue(undefined),
     };
     const dataMartService = {
-      getByIdAndProjectId: jest.fn().mockResolvedValue({ id: 'dm-source' }),
+      lockConfigurationReferences: jest.fn(),
+      advanceConfigurationRevision: jest.fn(),
+      getByIdAndProjectId: jest
+        .fn()
+        .mockResolvedValue({ id: 'dm-source', storage: { id: 'storage' } }),
     };
     const reportDataCacheService = {
       invalidateByDataMartId: jest.fn().mockResolvedValue(undefined),
@@ -32,6 +38,7 @@ describe('DeleteDataMartRelationshipService', () => {
     const service = new DeleteDataMartRelationshipService(
       relationshipService as never,
       dataMartService as never,
+      { manager: {} } as never,
       reportDataCacheService as never,
       accessDecisionService as never
     );

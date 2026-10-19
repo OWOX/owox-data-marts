@@ -17,6 +17,9 @@ describe('UpdateBlendedFieldsConfigService', () => {
 
   const createService = (canAccess = true) => {
     const dataMartService = {
+      lockConfigurationReferences: jest.fn(),
+      advanceConfigurationRevision: jest.fn(),
+      writeConfiguration: jest.fn().mockResolvedValue(dataMart),
       getByIdAndProjectId: jest.fn().mockResolvedValue({ ...dataMart }),
       save: jest.fn().mockResolvedValue(dataMart),
     };
@@ -31,6 +34,7 @@ describe('UpdateBlendedFieldsConfigService', () => {
     };
     const service = new UpdateBlendedFieldsConfigService(
       dataMartService as never,
+      { manager: {} } as never,
       reportDataCacheService as never,
       mapper as never,
       accessDecisionService as never

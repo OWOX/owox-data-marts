@@ -1,10 +1,11 @@
-import { Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { ForbiddenException, Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { SCHEDULER_FACADE, SchedulerFacade } from '../../common/scheduler/shared/scheduler.facade';
 import { TriggerHandler } from '../../common/scheduler/shared/trigger-handler.interface';
 import { SchemaActualizeTrigger } from '../entities/schema-actualize-trigger.entity';
 import { ActualizeDataMartSchemaService } from '../use-cases/actualize-data-mart-schema.service';
+import { IdpProjectionsFacade } from '../../idp/facades/idp-projections.facade';
 
 function getErrorCode(error: unknown): string | undefined {
   const code = (error as { code?: unknown })?.code;
@@ -22,7 +23,8 @@ export class SchemaActualizeTriggerHandlerService
     private readonly repository: Repository<SchemaActualizeTrigger>,
     @Inject(SCHEDULER_FACADE)
     private readonly schedulerFacade: SchedulerFacade,
-    private readonly actualizeSchemaService: ActualizeDataMartSchemaService
+    private readonly actualizeSchemaService: ActualizeDataMartSchemaService,
+    private readonly idpProjectionsFacade: IdpProjectionsFacade
   ) {}
 
   async handleTrigger(
@@ -32,11 +34,20 @@ export class SchemaActualizeTriggerHandlerService
     try {
       if (options?.signal?.aborted) return;
 
+      if (!trigger.userId?.trim() || !trigger.projectId?.trim())
+        throw new ForbiddenException('A requesting actor and project are required');
+      const project = await this.idpProjectionsFacade.getProjectForUser(
+        trigger.userId,
+        trigger.projectId
+      );
+      if (project?.id !== trigger.projectId || !project.roles?.length)
+        throw new ForbiddenException('Current project membership is required');
+
       await this.actualizeSchemaService.run({
         id: trigger.dataMartId,
         projectId: trigger.projectId,
-        userId: '',
-        roles: [],
+        userId: trigger.userId,
+        roles: project.roles,
       });
 
       trigger.uiResponse = { success: true };
@@ -45,7 +56,7 @@ export class SchemaActualizeTriggerHandlerService
     } catch (e) {
       trigger.uiResponse = {
         success: false,
-        error: e instanceof Error ? e.message : 'Unknown error',
+        error: 'Schema actualization failed; check current access, storage and definition',
         code: getErrorCode(e),
       };
       trigger.onError();

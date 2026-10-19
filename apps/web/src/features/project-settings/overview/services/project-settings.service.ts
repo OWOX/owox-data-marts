@@ -10,8 +10,11 @@ export class ProjectSettingsApiService extends ApiService {
     return this.get<ProjectSettings>('');
   }
 
-  async updateDescription(description: string | null): Promise<ProjectSettings> {
-    const request: UpdateProjectDescriptionRequest = { description };
+  async updateDescription(
+    description: string | null,
+    expectedRevision: number
+  ): Promise<ProjectSettings> {
+    const request: UpdateProjectDescriptionRequest = { description, expectedRevision };
     return this.put<ProjectSettings>('/description', request);
   }
 }

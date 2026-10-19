@@ -20,6 +20,7 @@ const MEMBER = { projectId: 'j1', userId: 'u1' } as AuthorizationContext;
 
 function setup(overrides: { plugin?: unknown; installation?: unknown; wasDormant?: boolean } = {}) {
   const pluginService = {
+    lockReviewedVersion: jest.fn().mockResolvedValue(undefined),
     // `in` rather than ??, so a test can override with an explicit null.
     findById: jest
       .fn()
@@ -37,6 +38,7 @@ function setup(overrides: { plugin?: unknown; installation?: unknown; wasDormant
   } as unknown as jest.Mocked<PluginVersionService>;
 
   const installations = {
+    advanceRevision: jest.fn().mockResolvedValue(2),
     findOne: jest.fn().mockResolvedValue(overrides.installation ?? null),
     install: jest.fn().mockResolvedValue({
       id: 'i1',

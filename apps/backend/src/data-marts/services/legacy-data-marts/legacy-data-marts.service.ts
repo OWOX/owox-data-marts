@@ -94,13 +94,17 @@ export class LegacyDataMartsService {
     this.ensureConfigured();
 
     const payload = CreateDataMartOdmRequestSchema.parse(request);
-    const response = await this.fetchLegacyOdmApi(`${this.baseUrl}/odm/data-marts`, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json; charset=utf-8',
+    const response = await this.fetchLegacyOdmApi(
+      `${this.baseUrl}/odm/data-marts`,
+      {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json; charset=utf-8',
+        },
+        body: JSON.stringify(payload),
       },
-      body: JSON.stringify(payload),
-    });
+      false
+    );
     const data = await response.json();
     return CreateDataMartOdmResponseSchema.parse(data);
   }
@@ -184,30 +188,38 @@ export class LegacyDataMartsService {
     }
   }
 
-  private async fetchLegacyOdmApi(url: string, options: RequestInit): Promise<Response> {
+  private async fetchLegacyOdmApi(
+    url: string,
+    options: RequestInit,
+    retrySafe = true
+  ): Promise<Response> {
     const idToken = await this.impersonatedIdTokenFetcher.getIdToken(
       this.serviceAccountEmail!,
       this.targetAudience!
     );
-    const response = await fetchWithBackoff(url, {
+    const request = {
       ...options,
       headers: {
         Authorization: `Bearer ${idToken}`,
         Accept: 'application/json',
         ...(options.headers ?? {}),
       },
-    });
+    };
+    // A create POST has no provider request key; repeating an ambiguous response can duplicate it.
+    const response = await (retrySafe ? fetchWithBackoff(url, request) : fetch(url, request));
 
     if (!response.ok) {
       if (response.status === 404) {
         throw new NotFoundException('Legacy Data Mart not found');
       }
 
-      const errorBody = await response.text();
+      await response.body?.cancel();
       if (response.status >= 400 && response.status < 500) {
-        throw new BusinessViolationException(errorBody, { status: response.status });
+        throw new BusinessViolationException('Legacy ODM request was rejected', {
+          status: response.status,
+        });
       }
-      const errorMessage = `Legacy ODM API request failed with status ${response.status}. Response: ${errorBody}`;
+      const errorMessage = `Legacy ODM API request failed with status ${response.status}`;
       this.logger.error(errorMessage);
       throw new Error(errorMessage);
     }

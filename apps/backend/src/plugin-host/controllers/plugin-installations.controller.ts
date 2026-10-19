@@ -1,3 +1,4 @@
+import { PluginSetupMutationService } from '../use-cases/plugin-setup-mutation.service';
 import {
   Body,
   Controller,
@@ -67,8 +68,42 @@ export class PluginInstallationsController {
     private readonly getPluginInstallationEntryService: GetPluginInstallationEntryService,
     private readonly updatePluginService: UpdatePluginService,
     private readonly issuePluginRuntimeTokenService: IssuePluginRuntimeTokenService,
-    private readonly mapper: PluginPresentationMapper
+    private readonly mapper: PluginPresentationMapper,
+    private readonly setupMutations: PluginSetupMutationService
   ) {}
+
+  @Auth(Role.editor(Strategy.INTROSPECT))
+  @RejectApiKeyAuth()
+  @RejectPluginAuth()
+  @Post(':pluginId/setup-approvals/:approvalId/complete')
+  @HttpCode(204)
+  async completeSetupApproval(
+    @AuthContext() context: AuthorizationContext,
+    @Param('pluginId') pluginId: string,
+    @Param('approvalId') approvalId: string,
+    @Body() dto: InstallPluginApiDto
+  ): Promise<void> {
+    await this.setupMutations.complete(
+      context,
+      pluginId,
+      approvalId,
+      dto.expectedVersionId,
+      dto.credentialSelections ?? {}
+    );
+  }
+
+  @Auth(Role.editor(Strategy.INTROSPECT))
+  @RejectApiKeyAuth()
+  @RejectPluginAuth()
+  @Delete(':pluginId/setup-approvals/:approvalId')
+  @HttpCode(204)
+  async revokeSetupApproval(
+    @AuthContext() context: AuthorizationContext,
+    @Param('pluginId') pluginId: string,
+    @Param('approvalId') approvalId: string
+  ): Promise<void> {
+    await this.setupMutations.revoke(context, pluginId, approvalId);
+  }
 
   @Auth(Role.viewer(Strategy.PARSE))
   @Get('installations')

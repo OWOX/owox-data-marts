@@ -17,19 +17,27 @@ describe('ProjectSettingsApiService', () => {
   });
 
   it('loads settings for the authenticated project', async () => {
-    vi.mocked(apiClient.get).mockResolvedValue({ data: { description: 'Project context' } });
+    vi.mocked(apiClient.get).mockResolvedValue({
+      data: { description: 'Project context', revision: 3 },
+    });
 
-    await expect(service.getSettings()).resolves.toEqual({ description: 'Project context' });
+    await expect(service.getSettings()).resolves.toEqual({
+      description: 'Project context',
+      revision: 3,
+    });
     expect(apiClient.get).toHaveBeenCalledWith('/projects/settings', { params: undefined });
   });
 
   it('updates and clears the project description', async () => {
-    vi.mocked(apiClient.put).mockResolvedValue({ data: { description: null } });
+    vi.mocked(apiClient.put).mockResolvedValue({ data: { description: null, revision: 4 } });
 
-    await expect(service.updateDescription(null)).resolves.toEqual({ description: null });
+    await expect(service.updateDescription(null, 3)).resolves.toEqual({
+      description: null,
+      revision: 4,
+    });
     expect(apiClient.put).toHaveBeenCalledWith(
       '/projects/settings/description',
-      { description: null },
+      { description: null, expectedRevision: 3 },
       undefined
     );
   });

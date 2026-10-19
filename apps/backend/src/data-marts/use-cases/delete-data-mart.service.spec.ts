@@ -15,7 +15,10 @@ describe('DeleteDataMartService', () => {
       storage: { type: DataStorageType.GOOGLE_BIGQUERY },
     };
     const dataMartService = {
+      stopConnectorWorkForDeletion: jest.fn().mockResolvedValue(undefined),
+      lockConfigurationReferences: jest.fn().mockResolvedValue(undefined),
       getByIdAndProjectId: jest.fn().mockResolvedValue(dataMart),
+      deleteQueuedWork: jest.fn().mockResolvedValue(undefined),
       softDeleteByIdAndProjectId: jest.fn().mockResolvedValue(undefined),
     };
     const scheduledTriggerService = {
@@ -32,6 +35,7 @@ describe('DeleteDataMartService', () => {
       deleteSecretsByDataMart: jest.fn().mockResolvedValue(undefined),
     };
     const relationshipService = {
+      findSourceDataMartIdsByTargetDataMartId: jest.fn().mockResolvedValue([]),
       deleteAllByDataMartId: jest.fn().mockResolvedValue(undefined),
     };
     const accessDecisionService = {
@@ -50,6 +54,7 @@ describe('DeleteDataMartService', () => {
       connectorSourceCredentialsService as never,
       relationshipService as never,
       accessDecisionService as never,
+      { manager: {} } as never,
       searchIndexInvalidation as never
     );
 
@@ -77,7 +82,10 @@ describe('DeleteDataMartService', () => {
       storage: { type: DataStorageType.GOOGLE_BIGQUERY },
     };
     const dataMartService = {
+      stopConnectorWorkForDeletion: jest.fn().mockResolvedValue(undefined),
+      lockConfigurationReferences: jest.fn().mockResolvedValue(undefined),
       getByIdAndProjectId: jest.fn().mockResolvedValue(dataMart),
+      deleteQueuedWork: jest.fn().mockResolvedValue(undefined),
       softDeleteByIdAndProjectId: jest.fn().mockResolvedValue(undefined),
       findByProjectIdAndDefinitionType: jest.fn().mockResolvedValue([
         {
@@ -110,6 +118,7 @@ describe('DeleteDataMartService', () => {
       deleteSecretsByDataMart: jest.fn().mockResolvedValue(undefined),
     };
     const relationshipService = {
+      findSourceDataMartIdsByTargetDataMartId: jest.fn().mockResolvedValue([]),
       deleteAllByDataMartId: jest.fn().mockResolvedValue(undefined),
     };
     const accessDecisionService = {
@@ -128,6 +137,7 @@ describe('DeleteDataMartService', () => {
       connectorSourceCredentialsService as never,
       relationshipService as never,
       accessDecisionService as never,
+      { manager: {} } as never,
       searchIndexInvalidation as never
     );
 

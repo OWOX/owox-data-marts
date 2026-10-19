@@ -6,6 +6,7 @@ export class UpdateDataMartSchemaCommand {
     public readonly projectId: string,
     public readonly schema: DataMartSchemaUpdate,
     public readonly userId: string = '',
-    public readonly roles: string[] = []
+    public readonly roles: string[] = [],
+    public readonly expectedRevision?: number
   ) {}
 }

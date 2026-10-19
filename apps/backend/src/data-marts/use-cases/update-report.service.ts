@@ -1,3 +1,4 @@
+import { lockContextReferences } from '../services/context/context-reference-guard';
 import { Repository } from 'typeorm';
 import { Transactional } from 'typeorm-transactional';
 import {
@@ -55,6 +56,7 @@ export class UpdateReportService {
 
   @Transactional()
   async run(command: UpdateReportCommand): Promise<ReportDto> {
+    await lockContextReferences(this.reportRepository.manager, command.projectId, undefined, false);
     // Find the existing report
     const report = await this.reportRepository.findOne({
       where: {

@@ -1,9 +1,16 @@
+import { IsInt, Min, IsOptional as RevisionOptional } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { IsNotEmptyObject } from 'class-validator';
 import type { DataMartSchemaUpdate } from '../../data-storage-types/data-mart-schema.type';
 import { DataMartResponseApiDto } from './data-mart-response-api.dto';
 
 export class UpdateDataMartSchemaApiDto {
+  @ApiProperty({ required: false, minimum: 1 })
+  @RevisionOptional()
+  @IsInt()
+  @Min(1)
+  expectedRevision?: number;
+
   @ApiProperty({
     type: () => Object,
     required: true,

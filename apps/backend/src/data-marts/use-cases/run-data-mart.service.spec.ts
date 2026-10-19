@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Logger } from '@nestjs/common';
 import { RunDataMartService } from './run-data-mart.service';
 import { RunDataMartCommand } from '../dto/domain/run-data-mart.command';
 import { DataMartDefinitionType } from '../enums/data-mart-definition-type.enum';
@@ -212,6 +212,23 @@ describe('RunDataMartService', () => {
 
       expect(result).toBe('run-id-1');
       expect(connectorExecutionService.run).toHaveBeenCalled();
+    });
+
+    it('does not log credential-bearing provider failures during the public preflight', async () => {
+      const { service, credentialsResolver } = createService();
+      const providerError = Object.assign(new Error('refresh token=private-token'), {
+        config: { headers: { Authorization: 'Bearer private-access-token' } },
+      });
+      credentialsResolver.resolve.mockRejectedValue(providerError);
+      const warning = jest.spyOn(Logger.prototype, 'warn').mockImplementation();
+      try {
+        await service.checkStorageAccess(mockDataMart as never);
+        expect(warning).toHaveBeenCalled();
+        expect(JSON.stringify(warning.mock.calls)).not.toContain('private-token');
+        expect(JSON.stringify(warning.mock.calls)).not.toContain('private-access-token');
+      } finally {
+        warning.mockRestore();
+      }
     });
 
     it('skips the check for storage without a credentialId', async () => {

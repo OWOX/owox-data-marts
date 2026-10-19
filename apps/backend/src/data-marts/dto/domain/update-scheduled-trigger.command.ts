@@ -7,6 +7,7 @@ export class UpdateScheduledTriggerCommand {
     public readonly roles: string[],
     public readonly cronExpression: string,
     public readonly timeZone: string,
-    public readonly isActive: boolean
+    public readonly isActive: boolean,
+    public readonly expectedRevision?: number
   ) {}
 }

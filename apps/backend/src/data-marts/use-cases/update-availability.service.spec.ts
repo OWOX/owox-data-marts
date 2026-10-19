@@ -1,3 +1,7 @@
+jest.mock('typeorm-transactional', () => ({
+  Transactional: () => (_target: unknown, _key: string, descriptor: PropertyDescriptor) =>
+    descriptor,
+}));
 jest.mock('../services/access-decision', () => {
   const actual = jest.requireActual('../services/access-decision');
   return {
@@ -31,7 +35,17 @@ describe('UpdateAvailabilityService', () => {
       dataMartRepository as never,
       dataStorageRepository as never,
       dataDestinationRepository as never,
-      accessDecisionService as never
+      accessDecisionService as never,
+      {
+        lockConfigurationReferences: jest.fn(),
+        writeConfiguration: async (
+          _manager: unknown,
+          _id: string,
+          _project: string,
+          _revision: number,
+          patch: object
+        ) => dataMartRepository.save(patch),
+      } as never
     );
 
     return {

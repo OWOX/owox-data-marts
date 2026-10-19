@@ -85,6 +85,7 @@ export {
 } from './runs.js';
 export {
   type OWOXProjectSettings,
+  type OWOXUpdateProjectDescriptionOptions,
   type OWOXProjectSetupProgress,
   type OWOXProjectSetupProgressSteps,
   type OWOXProjectSetupStepState,

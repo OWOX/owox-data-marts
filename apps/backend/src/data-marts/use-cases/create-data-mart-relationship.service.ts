@@ -1,3 +1,4 @@
+import { DataSource } from 'typeorm';
 import { Injectable, ForbiddenException, Logger, UnauthorizedException } from '@nestjs/common';
 import { Transactional } from 'typeorm-transactional';
 import { CreateRelationshipCommand } from '../dto/domain/create-relationship.command';
@@ -17,6 +18,7 @@ export class CreateDataMartRelationshipService {
   constructor(
     private readonly relationshipService: DataMartRelationshipService,
     private readonly dataMartService: DataMartService,
+    private readonly dataSource: DataSource,
     private readonly userProjectionsFetcherService: UserProjectionsFetcherService,
     private readonly mapper: RelationshipMapper,
     private readonly accessDecisionService: AccessDecisionService,
@@ -28,6 +30,7 @@ export class CreateDataMartRelationshipService {
     if (!command.userId) {
       throw new UnauthorizedException('Authenticated user is required');
     }
+    await this.dataMartService.lockConfigurationReferences(command.projectId);
 
     this.relationshipService.validateNoSelfReference(
       command.sourceDataMartId,
@@ -87,6 +90,13 @@ export class CreateDataMartRelationshipService {
           `field(s): ${warnings.join('; ')}`
       );
     }
+
+    await this.dataMartService.advanceConfigurationRevision(
+      this.dataSource.manager,
+      command.sourceDataMartId,
+      command.projectId,
+      command.expectedRevision
+    );
 
     const relationship = await this.relationshipService.create(
       command,

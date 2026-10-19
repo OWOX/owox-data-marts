@@ -10,6 +10,7 @@ function makeDataMart(overrides: Partial<DataMart> = {}): DataMart {
   return {
     id: 'dm-1',
     projectId: 'proj-1',
+    revision: 1,
     storage: { type: DataStorageType.GOOGLE_BIGQUERY },
     schema: null,
     schemaActualizedAt: undefined,
@@ -51,6 +52,13 @@ describe('DataMartService schema actualization', () => {
       schemaMerger as any,
       searchIndexInvalidation as any
     );
+    jest
+      .spyOn(service, 'writeConfiguration')
+      .mockImplementation(async (_manager, id, projectId, _revision, patch) => {
+        await repository.update({ id, projectId }, patch);
+        const current = await repository.findOne({ where: { id, projectId } });
+        return Object.assign(current, patch);
+      });
   });
 
   it('schedules search invalidation after saving an actualized schema', async () => {
@@ -63,7 +71,13 @@ describe('DataMartService schema actualization', () => {
     expect(schemaMerger.mergeSchemas).toHaveBeenCalledWith(DataStorageType.GOOGLE_BIGQUERY, null, {
       fields: [{ name: 'amount' }],
     });
-    expect(repository.save).toHaveBeenCalledWith(dataMart);
+    expect(service.writeConfiguration).toHaveBeenCalledWith(
+      repository.manager,
+      dataMart.id,
+      dataMart.projectId,
+      1,
+      expect.objectContaining({ schema: dataMart.schema, schemaInputRevision: 1 })
+    );
     expect(searchIndexInvalidation.scheduleDataMartSchemaChanged).toHaveBeenCalledWith(
       'dm-1',
       'proj-1'
@@ -121,52 +135,6 @@ describe('DataMartService schema actualization', () => {
     warnSpy.mockRestore();
   });
 
-  it('matches SQLite timestamps stored without milliseconds during the conditional update', async () => {
-    const entitySchema = new EntitySchema<{ id: string; modifiedAt: Date; value: string }>({
-      name: 'ConditionalUpdateTest',
-      tableName: 'conditional_update_test',
-      columns: {
-        id: { type: String, primary: true },
-        modifiedAt: { type: Date },
-        value: { type: String },
-      },
-    });
-    const dataSource = new DataSource({
-      type: 'better-sqlite3',
-      database: ':memory:',
-      entities: [entitySchema],
-      synchronize: true,
-    });
-
-    await dataSource.initialize();
-    try {
-      await dataSource.query(
-        "INSERT INTO conditional_update_test (id, modifiedAt, value) VALUES ('dm-1', '2026-07-14 10:00:00', 'old')"
-      );
-      const sqliteRepository = dataSource.getRepository(entitySchema);
-      const sqliteService = new DataMartService(
-        sqliteRepository as any,
-        schemaProvider as any,
-        schemaMerger as any
-      );
-      const modifiedAtCriterion = sqliteService['createModifiedAtUpdateCriterion'](
-        new Date('2026-07-14T10:00:00.000Z')
-      );
-
-      const result = await sqliteRepository.update(
-        { id: 'dm-1', modifiedAt: modifiedAtCriterion },
-        { value: 'updated' }
-      );
-
-      expect(result.affected).toBe(1);
-      await expect(sqliteRepository.findOneByOrFail({ id: 'dm-1' })).resolves.toMatchObject({
-        value: 'updated',
-      });
-    } finally {
-      await dataSource.destroy();
-    }
-  });
-
   it('updates fields without rewriting connector configuration', async () => {
     const sourceAtRunStart = {
       name: 'GoogleSheets',
@@ -196,7 +164,7 @@ describe('DataMartService schema actualization', () => {
 
     expect(updated).toBe(true);
     expect(repository.update).toHaveBeenCalledWith(
-      { id: 'dm-1', projectId: 'proj-1', modifiedAt: latestModifiedAt },
+      { id: 'dm-1', projectId: 'proj-1' },
       {
         definition: {
           connector: {
@@ -542,11 +510,19 @@ describe('DataMartService schema path rewrite', () => {
       manager: { connection: { options: { type: driver } } },
     };
     const service = new DataMartService(repository as never, {} as never, {} as never, {} as never);
+    jest
+      .spyOn(service, 'writeConfiguration')
+      .mockImplementation(async (_manager, id, projectId, _revision, patch) => {
+        await repository.update({ id, projectId }, patch);
+        return { id, projectId, ...patch } as never;
+      });
     return { service, repository, queryBuilder };
   };
 
   const row = () => ({
     id: 'dm-1',
+    projectId: 'proj-1',
+    revision: 1,
     schema: { fields: [{ name: 'roi', calculated: { formula: 'old' } }] },
     blendedFieldsConfig: { sources: [{ path: 'old-alias' }] },
   });
@@ -566,7 +542,7 @@ describe('DataMartService schema path rewrite', () => {
 
     expect(repository.save).not.toHaveBeenCalled();
     expect(repository.update).toHaveBeenCalledWith(
-      { id: 'dm-1' },
+      { id: 'dm-1', projectId: 'proj-1' },
       {
         schema: { fields: [{ name: 'roi', calculated: { formula: 'new' } }] },
         blendedFieldsConfig: { sources: [{ path: 'old-alias' }] },
@@ -612,6 +588,8 @@ describe('DataMartService schema path rewrite', () => {
   it('leaves a column it does not own as another writer left it', async () => {
     const entitySchema = new EntitySchema<{
       id: string;
+      projectId: string;
+      revision: number;
       schema: { fields: Array<{ name: string; calculated: { formula: string } }> } | null;
       blendedFieldsConfig: { sources: Array<{ path: string }> } | null;
       definition: { sqlQuery: string } | null;
@@ -621,6 +599,8 @@ describe('DataMartService schema path rewrite', () => {
       tableName: 'schema_rewrite_test',
       columns: {
         id: { type: String, primary: true },
+        projectId: { type: String, default: 'proj-1' },
+        revision: { type: Number, default: 1 },
         schema: { type: 'json', nullable: true },
         blendedFieldsConfig: { type: 'json', nullable: true },
         definition: { type: 'json', nullable: true },
@@ -679,6 +659,8 @@ describe('DataMartService schema path rewrite', () => {
   it('does not rewrite a soft-deleted Data Mart', async () => {
     const entitySchema = new EntitySchema<{
       id: string;
+      projectId: string;
+      revision: number;
       schema: { fields: Array<{ name: string }> } | null;
       blendedFieldsConfig: null;
       deletedAt: Date | null;
@@ -687,6 +669,8 @@ describe('DataMartService schema path rewrite', () => {
       tableName: 'schema_rewrite_deleted_test',
       columns: {
         id: { type: String, primary: true },
+        projectId: { type: String, default: 'proj-1' },
+        revision: { type: Number, default: 1 },
         schema: { type: 'json', nullable: true },
         blendedFieldsConfig: { type: 'json', nullable: true },
         deletedAt: { type: Date, nullable: true, deleteDate: true },

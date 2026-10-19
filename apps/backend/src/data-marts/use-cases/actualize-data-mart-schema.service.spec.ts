@@ -7,17 +7,21 @@ import { BusinessViolationException } from '../../common/exceptions/business-vio
 import { ActualizeDataMartSchemaService } from './actualize-data-mart-schema.service';
 import { ActualizeDataMartSchemaCommand } from '../dto/domain/actualize-data-mart-schema.command';
 import { DataMartDefinitionType } from '../enums/data-mart-definition-type.enum';
+import { Action, EntityType } from '../services/access-decision';
+import { ForbiddenException } from '@nestjs/common';
 
 describe('ActualizeDataMartSchemaService', () => {
   const createService = (options: { isValid: boolean } = { isValid: true }) => {
     const dataMart = {
       id: 'dm-1',
+      storage: { id: 'storage' },
       projectId: 'proj-1',
       definitionType: DataMartDefinitionType.TABLE,
       definition: { tableName: 'my_table' },
     };
 
     const dataMartService = {
+      lockConfigurationReferences: jest.fn(),
       getByIdAndProjectId: jest.fn().mockResolvedValue(dataMart),
       actualizeSchemaInEntity: jest.fn().mockResolvedValue(undefined),
       saveActualizedSchema: jest.fn().mockResolvedValue(dataMart),
@@ -51,6 +55,7 @@ describe('ActualizeDataMartSchemaService', () => {
       dataMartService,
       definitionValidatorFacade,
       dataMart,
+      accessDecisionService,
     };
   };
 
@@ -79,6 +84,23 @@ describe('ActualizeDataMartSchemaService', () => {
     const command = new ActualizeDataMartSchemaCommand('dm-1', 'proj-1', 'user-1', ['editor']);
 
     await expect(service.run(command)).rejects.toThrow(BusinessViolationException);
+    expect(dataMartService.actualizeSchemaInEntity).not.toHaveBeenCalled();
+    expect(dataMartService.saveActualizedSchema).not.toHaveBeenCalled();
+  });
+
+  it('rejects denied Storage USE before validation or warehouse schema work', async () => {
+    const { service, dataMartService, definitionValidatorFacade, accessDecisionService } =
+      createService();
+    accessDecisionService.canAccess.mockImplementation(
+      async (_userId: string, _roles: string[], type: EntityType, _id: string, action: Action) =>
+        type !== EntityType.STORAGE || action !== Action.USE
+    );
+
+    await expect(
+      service.run(new ActualizeDataMartSchemaCommand('dm-1', 'proj-1', 'user-1', ['editor']))
+    ).rejects.toBeInstanceOf(ForbiddenException);
+
+    expect(definitionValidatorFacade.checkIsValid).not.toHaveBeenCalled();
     expect(dataMartService.actualizeSchemaInEntity).not.toHaveBeenCalled();
     expect(dataMartService.saveActualizedSchema).not.toHaveBeenCalled();
   });

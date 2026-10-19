@@ -1,3 +1,6 @@
+jest.mock('snowflake-sdk', () => ({}));
+import { ConnectorReferenceGuard } from '../../entities/connector-reference-guard.entity';
+import { AddConnectorAuthoring1792406000000 } from '../../../migrations/1792406000000-add-connector-authoring';
 import { ConflictException } from '@nestjs/common';
 import { DataSource, QueryRunner, Repository, Table } from 'typeorm';
 import {
@@ -33,11 +36,15 @@ const VALID_MANIFEST = {
   },
 };
 
-const createSqliteDataSource = async (): Promise<DataSource> => {
+const createSqliteDataSource = async (authoring = false): Promise<DataSource> => {
   const dataSource = new DataSource({
     type: 'better-sqlite3',
     database: ':memory:',
-    entities: [ConnectorDefinition, ConnectorDefinitionVersion],
+    entities: [
+      ConnectorDefinition,
+      ConnectorDefinitionVersion,
+      ...(authoring ? [ConnectorReferenceGuard] : []),
+    ],
     synchronize: false,
     logging: false,
   });
@@ -446,10 +453,11 @@ describe('ConnectorDefinitionService atomicity on the real schema', () => {
   });
 
   beforeEach(async () => {
-    dataSource = await createSqliteDataSource();
+    dataSource = await createSqliteDataSource(true);
     const queryRunner = dataSource.createQueryRunner();
     await queryRunner.connect();
     await migration.up(queryRunner);
+    await new AddConnectorAuthoring1792406000000().up(queryRunner);
     await queryRunner.release();
 
     // Order matters: the repositories must be created after the data source is patched,
@@ -819,7 +827,7 @@ describe('ConnectorDefinitionService atomicity on the real schema', () => {
     const versions = await service.listVersions('project-1', definition.id);
 
     expect(versions.map(row => row.version)).toEqual([1, 2]);
-    expect(versions.map(row => row.manifest)).toEqual([undefined, undefined]);
+    expect(versions.map(row => Reflect.get(row, 'manifest'))).toEqual([undefined, undefined]);
     // Everything both callers actually render is still there.
     expect(versions[0].id).toEqual(expect.any(String));
     expect(versions[0].status).toBe(ConnectorDefinitionVersionStatus.PUBLISHED);

@@ -40,6 +40,8 @@ describe('CreateDataMartRelationshipService', () => {
       create: jest.fn().mockResolvedValue(relationship),
     };
     const dataMartService = {
+      lockConfigurationReferences: jest.fn(),
+      advanceConfigurationRevision: jest.fn(),
       getByIdAndProjectId: jest
         .fn()
         .mockResolvedValueOnce(sourceDataMart)
@@ -61,6 +63,7 @@ describe('CreateDataMartRelationshipService', () => {
     const service = new CreateDataMartRelationshipService(
       relationshipService as never,
       dataMartService as never,
+      { manager: {} } as never,
       userProjectionsFetcherService as never,
       mapper as never,
       accessDecisionService as never

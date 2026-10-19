@@ -1,3 +1,4 @@
+import { pluginsService } from '../../../features/plugins/services/plugins.service';
 import { Alert, AlertDescription, AlertTitle } from '@owox/ui/components/alert';
 import { Badge } from '@owox/ui/components/badge';
 import { Button } from '@owox/ui/components/button';
@@ -21,7 +22,7 @@ import {
   Tag,
 } from 'lucide-react';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { useNavigate, useParams } from 'react-router';
+import { useNavigate, useParams, useSearchParams } from 'react-router';
 import { useAuth } from '../../../features/idp';
 import {
   AudienceIcon,
@@ -74,6 +75,10 @@ const CHECK_AND_UPDATE_LABEL = 'Check and Update';
 export default function PluginDetailsPage({
   installOnOpen = false,
 }: { installOnOpen?: boolean } = {}) {
+  const [searchParams] = useSearchParams();
+  const setupApproval = searchParams.get('setupApproval');
+  const [approvalError, setApprovalError] = useState<string | null>(null);
+  const [isCompletingApproval, setIsCompletingApproval] = useState(false);
   const { pluginId } = useParams<{ pluginId: string }>();
   const { plugin, isLoading } = usePlugin(pluginId);
   const { install, uninstall, checkNow, isInstalling, isUninstalling, isUpdating } =
@@ -100,6 +105,38 @@ export default function PluginDetailsPage({
     isUninstalling,
     fallbackFocus: () => actionsTriggerRef.current,
   });
+
+  useEffect(() => {
+    if (setupApproval && plugin) {
+      setConfirmingMode(plugin.installationState === 'installed' ? 'configure' : 'install');
+      setConfirming(plugin);
+    }
+  }, [setupApproval, plugin]);
+
+  async function completeApproval(
+    target: PluginGalleryEntry,
+    selections: Readonly<Record<string, string | null>>
+  ) {
+    if (!setupApproval) return;
+    setApprovalError(null);
+    setIsCompletingApproval(true);
+    try {
+      await pluginsService.completeSetupApproval(
+        target.pluginId,
+        setupApproval,
+        target.currentVersionId,
+        selections
+      );
+      setConfirming(null);
+      void navigate(scope(`/plugins/${target.pluginId}`), { replace: true });
+    } catch {
+      setApprovalError(
+        'This review could not be completed. Refresh the Plugin and request a new review.'
+      );
+    } finally {
+      setIsCompletingApproval(false);
+    }
+  }
 
   // A shared deep link opens the dialog once; closing it is the member's answer.
   const offeredInstall = useRef(false);
@@ -545,21 +582,30 @@ export default function PluginDetailsPage({
         </div>
       </div>
 
+      {approvalError && <p role='alert'>{approvalError}</p>}
       {confirming && (
         <InstallPluginDialog
           plugin={confirming}
           open
           onOpenChange={open => {
             if (!open) {
+              if (setupApproval)
+                void pluginsService
+                  .revokeSetupApproval(confirming.pluginId, setupApproval)
+                  .catch(() => undefined);
               setConfirming(null);
-              if (leaveLinkOnCancel.current) {
+              if (setupApproval || leaveLinkOnCancel.current) {
                 leaveLinkOnCancel.current = false;
                 void navigate(scope(`/plugins/${confirming.pluginId}`), { replace: true });
               }
             }
           }}
-          onConfirm={credentialSelections => void installPlugin(confirming, credentialSelections)}
-          isInstalling={isInstalling}
+          onConfirm={credentialSelections =>
+            void (setupApproval
+              ? completeApproval(confirming, credentialSelections)
+              : installPlugin(confirming, credentialSelections))
+          }
+          isInstalling={isInstalling || isCompletingApproval}
           mode={confirmingMode}
         />
       )}

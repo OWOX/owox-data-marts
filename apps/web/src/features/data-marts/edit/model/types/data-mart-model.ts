@@ -18,6 +18,9 @@ export interface DataMart {
    */
   id: string;
 
+  /** Configuration revision; absent on older backend responses. */
+  revision?: number;
+
   /**
    * Title
    */

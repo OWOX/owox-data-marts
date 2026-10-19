@@ -118,7 +118,7 @@ export class RedshiftApiAdapter {
         return;
       } else if (status === 'FAILED' || status === 'ABORTED') {
         const errorMessage = response.Error || response.QueryString || 'Unknown error';
-        this.logger.error(`Query ${statementId} ${status}: ${errorMessage}`);
+        this.logger.error(`Query ${statementId} ${status}`);
         throw new Error(`Query ${status}: ${errorMessage}`);
       }
 
@@ -291,7 +291,7 @@ export class RedshiftApiAdapter {
     const { statementId } = await this.executeQuery(explainQuery);
     await this.waitForQueryToComplete(statementId);
 
-    this.logger.debug(`Dry-run validation successful for query ${query}`);
+    this.logger.debug('Dry-run validation successful');
   }
 
   /**

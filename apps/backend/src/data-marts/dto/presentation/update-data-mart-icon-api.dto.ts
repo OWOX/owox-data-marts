@@ -1,3 +1,4 @@
+import { DataMartConfigurationPreconditionDto } from './data-mart-configuration-precondition.dto';
 import { ApiProperty } from '@nestjs/swagger';
 import { IsString, Matches, MaxLength, ValidateIf } from 'class-validator';
 import {
@@ -7,7 +8,7 @@ import {
   type DataMartIconValue,
 } from '../../enums/data-mart-icon.enum';
 
-export class UpdateDataMartIconApiDto {
+export class UpdateDataMartIconApiDto extends DataMartConfigurationPreconditionDto {
   @ApiProperty({
     type: String,
     nullable: true,

@@ -1,4 +1,12 @@
-import { Injectable, Logger, ForbiddenException } from '@nestjs/common';
+import { Transactional } from 'typeorm-transactional';
+import { DataMart } from '../entities/data-mart.entity';
+import {
+  Injectable,
+  Logger,
+  ForbiddenException,
+  ConflictException,
+  HttpException,
+} from '@nestjs/common';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
 import { DataMartDefinitionValidatorFacade } from '../data-storage-types/facades/data-mart-definition-validator-facade.service';
 import { ActualizeDataMartSchemaCommand } from '../dto/domain/actualize-data-mart-schema.command';
@@ -36,15 +44,57 @@ export class ActualizeDataMartSchemaService {
       }
     }
 
+    if (command.expectedRevision !== undefined && dataMart.revision !== command.expectedRevision)
+      throw new ConflictException('Data Mart configuration changed');
+
+    if (
+      command.userId &&
+      !(await this.accessDecisionService.canAccess(
+        command.userId,
+        command.roles,
+        EntityType.STORAGE,
+        dataMart.storage.id,
+        Action.USE,
+        command.projectId
+      ))
+    )
+      throw new ForbiddenException('Storage USE permission is required');
+
     try {
       await this.definitionValidatorFacade.checkIsValid(dataMart);
       await this.dataMartService.actualizeSchemaInEntity(dataMart);
-      await this.dataMartService.saveActualizedSchema(dataMart);
+      await this.persist(dataMart, command);
     } catch (error) {
-      throw new BusinessViolationException(error.message);
+      if (error instanceof HttpException) throw error;
+      throw new BusinessViolationException(
+        'Schema actualization failed; check the storage and definition'
+      );
     }
 
     this.logger.debug(`Data mart ${command.id} schema actualized`);
     return this.mapper.toDomainDto(dataMart);
+  }
+  @Transactional()
+  private async persist(dataMart: DataMart, command: ActualizeDataMartSchemaCommand) {
+    await this.dataMartService.lockConfigurationReferences(command.projectId);
+    if (command.userId) {
+      for (const [type, id, action] of [
+        [EntityType.DATA_MART, command.id, Action.EDIT],
+        [EntityType.STORAGE, dataMart.storage.id, Action.USE],
+      ] as const) {
+        if (
+          !(await this.accessDecisionService.canAccess(
+            command.userId,
+            command.roles,
+            type,
+            id,
+            action,
+            command.projectId
+          ))
+        )
+          throw new ForbiddenException('Access changed during schema actualization');
+      }
+    }
+    await this.dataMartService.saveActualizedSchema(dataMart);
   }
 }

@@ -1,3 +1,5 @@
+import { Transactional } from 'typeorm-transactional';
+import { DataMartService } from '../services/data-mart.service';
 import { Injectable, ForbiddenException, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -17,17 +19,21 @@ export class UpdateAvailabilityService {
     private readonly dataStorageRepository: Repository<DataStorage>,
     @InjectRepository(DataDestination)
     private readonly dataDestinationRepository: Repository<DataDestination>,
-    private readonly accessDecisionService: AccessDecisionService
+    private readonly accessDecisionService: AccessDecisionService,
+    private readonly dataMartService: DataMartService
   ) {}
 
+  @Transactional()
   async updateDataMartSharing(
     dataMartId: string,
     projectId: string,
     userId: string,
     roles: string[],
     availableForReporting: boolean,
-    availableForMaintenance: boolean
+    availableForMaintenance: boolean,
+    expectedRevision?: number
   ): Promise<void> {
+    await this.dataMartService.lockConfigurationReferences(projectId);
     const dm = await this.dataMartRepository.findOne({
       where: { id: dataMartId, projectId },
     });
@@ -46,9 +52,13 @@ export class UpdateAvailabilityService {
         'You do not have permission to configure sharing for this Data Mart. You must be a Data Owner of this Data Mart with the Data Owner role, or a Project Admin.'
       );
 
-    dm.availableForReporting = availableForReporting;
-    dm.availableForMaintenance = availableForMaintenance;
-    await this.dataMartRepository.save(dm);
+    await this.dataMartService.writeConfiguration(
+      this.dataMartRepository.manager,
+      dataMartId,
+      projectId,
+      expectedRevision ?? dm.revision,
+      { availableForReporting, availableForMaintenance }
+    );
   }
 
   async updateStorageSharing(

@@ -158,7 +158,7 @@ export class BigQueryReportReader implements DataStorageReportReader {
     definitionType: DataMartDefinitionType,
     dataMartDefinition: DataMartDefinition
   ): Promise<void> {
-    this.logger.debug('Preparing report result table', dataMartDefinition);
+    this.logger.debug('Preparing report result table');
     try {
       // When a SQL override is present (e.g. blended SQL), bypass the
       // TABLE/CONNECTOR fast path and always execute the override query.
@@ -189,7 +189,7 @@ export class BigQueryReportReader implements DataStorageReportReader {
         await this.prepareQueryData(query);
       }
     } catch (error) {
-      this.logger.error('Failed to prepare report data', error);
+      this.logger.error('Failed to prepare report data');
       throw error;
     }
   }
@@ -226,7 +226,7 @@ export class BigQueryReportReader implements DataStorageReportReader {
       this.contextGcpProject = dataStorageConfig.projectId;
       this.logger.debug('BigQuery adapter created successfully');
     } catch (error) {
-      this.logger.error('Failed to create BigQuery adapter', error);
+      this.logger.error('Failed to create BigQuery adapter');
       throw error;
     }
   }

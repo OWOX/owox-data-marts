@@ -1,3 +1,9 @@
+jest.mock('../data-mart.service', () => ({ DataMartService: jest.fn() }));
+jest.mock('./context-reference-guard', () => ({
+  lockContextReferences: jest.fn().mockResolvedValue(1),
+  contextRevision: jest.fn().mockResolvedValue(1),
+  contextCurrentReadLock: jest.fn().mockReturnValue(undefined),
+}));
 import { ConflictException, NotFoundException, BadRequestException } from '@nestjs/common';
 import { UserProjectionDto } from '../../../idp/dto/domain/user-projection.dto';
 import { UserProjectionsListDto } from '../../../idp/dto/domain/user-projections-list.dto';
@@ -21,6 +27,12 @@ describe('ContextService', () => {
   const USER_ID = 'user-1';
 
   const createMockRepository = () => ({
+    manager: {
+      getRepository: () => ({
+        findOne: jest.fn().mockResolvedValue({ id: 'resource' }),
+        countBy: jest.fn().mockResolvedValue(0),
+      }),
+    },
     findOne: jest.fn(),
     find: jest.fn(),
     create: jest.fn(),

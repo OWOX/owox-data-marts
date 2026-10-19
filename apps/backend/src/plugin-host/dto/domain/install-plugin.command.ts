@@ -6,6 +6,7 @@ export class InstallPluginCommand {
     /** The version the member was shown. Guards against installing something they never saw. */
     readonly expectedVersionId: string | null,
     readonly context: AuthorizationContext,
-    readonly credentialSelections: Readonly<Record<string, string | null>> = {}
+    readonly credentialSelections: Readonly<Record<string, string | null>> = {},
+    readonly expectedRevision?: number
   ) {}
 }

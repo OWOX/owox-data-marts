@@ -140,7 +140,7 @@ export class SnowflakeApiAdapter {
               )
             );
           } else {
-            this.logger.debug(`Query executed: ${query}`);
+            this.logger.debug(`Query executed (${query.length} chars)`);
             this.logger.debug(`Query returned ${rows?.length || 0} rows`);
             const columns = stmt.getColumns();
             const metadata: SnowflakeQueryMetadata = {
@@ -153,7 +153,7 @@ export class SnowflakeApiAdapter {
                   scale: col.getScale(),
                 })) || [],
             };
-            this.logger.debug(`Query metadata: ${JSON.stringify(metadata)}`);
+            this.logger.debug(`Query returned ${metadata.columns.length} columns`);
             const queryId = stmt.getQueryId();
             resolve({ queryId, rows, metadata });
           }

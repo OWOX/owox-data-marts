@@ -17,6 +17,9 @@ import {
 } from '../../enums/data-mart-icon.enum';
 
 export class DataMartResponseApiDto {
+  @ApiProperty({ description: 'Authoritative configuration revision', minimum: 1 })
+  revision: number;
+
   @ApiProperty({ example: '9cabc24e-1234-4a5a-8b12-abcdef123456' })
   id: string;
 

@@ -17,14 +17,18 @@ export class ProjectSettingsMapper {
     context: AuthorizationContext,
     dto: UpdateProjectDescriptionApiDto
   ): UpdateProjectDescriptionCommand {
-    return new UpdateProjectDescriptionCommand(context.projectId, dto.description);
+    return new UpdateProjectDescriptionCommand(
+      context.projectId,
+      dto.description,
+      dto.expectedRevision
+    );
   }
 
   toDomainDto(projectId: string, entity: ProjectSettings | null): ProjectSettingsDto {
-    return new ProjectSettingsDto(projectId, entity?.description ?? null);
+    return new ProjectSettingsDto(projectId, entity?.description ?? null, entity?.revision ?? 0);
   }
 
   toResponse(dto: ProjectSettingsDto): ProjectSettingsResponseApiDto {
-    return { description: dto.description };
+    return { description: dto.description, revision: dto.revision };
   }
 }

@@ -1,5 +1,12 @@
 import { BigQuery } from '@google-cloud/bigquery';
-import { Injectable, Logger } from '@nestjs/common';
+import {
+  BadGatewayException,
+  ForbiddenException,
+  HttpException,
+  Injectable,
+  Logger,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { JWT, OAuth2Client } from 'google-auth-library';
 import { google } from 'googleapis';
 import { raceWithTimeout } from '../../../../common/utils/promise.util';
@@ -9,6 +16,7 @@ import { DataStorageType } from '../../enums/data-storage-type.enum';
 import type {
   IStorageResourceBrowserProvider,
   StorageResourceFilter,
+  StorageResourceBrowseOptions,
   StorageResourceLeaf,
   StorageResourceNode,
 } from '../../interfaces/storage-resource-browser.interface';
@@ -89,34 +97,48 @@ export class BigQueryStorageResourceBrowser implements IStorageResourceBrowserPr
 
   // ── IStorageResourceBrowserProvider ───────────────────────────────────────
 
-  async listNamespaces(storage: DataStorage): Promise<StorageResourceNode[]> {
-    const clients = await this.createClients(storage);
-    const projects = await this.listProjects(clients);
-    return projects.map(p => ({ id: p.id, label: p.friendlyName }));
+  async listNamespaces(
+    storage: DataStorage,
+    options?: StorageResourceBrowseOptions
+  ): Promise<StorageResourceNode[]> {
+    try {
+      const clients = await this.createClients(storage);
+      const projects = await this.listProjects(clients, options);
+      return projects.map(p => ({ id: p.id, label: p.friendlyName }));
+    } catch (error) {
+      if (options?.strict) this.throwStrictDiscoveryError(error);
+      throw error;
+    }
   }
 
   async listLeafResources(
     storage: DataStorage,
     namespaceId: string,
-    filter?: StorageResourceFilter
+    filter?: StorageResourceFilter,
+    options?: StorageResourceBrowseOptions
   ): Promise<StorageResourceLeaf[]> {
-    const clients = await this.createClients(storage);
-    // Always pull both tables and views so the wildcard rollup can group by dataset
-    // regardless of the caller filter. The filter is applied as a post-step.
-    const rawTables = await this.listTablesInProject(clients, namespaceId);
-    this.logger.debug?.(
-      `listLeafResources(${namespaceId}, ${filter ?? 'unfiltered'}): ` +
-        `${rawTables.length} raw rows from BQ`
-    );
-    const result = flagLocationMismatches(
-      applyResourceFilter(rawTables, namespaceId, filter),
-      clients.location
-    );
-    this.logger.debug?.(
-      `listLeafResources(${namespaceId}, ${filter ?? 'unfiltered'}): ` +
-        `${result.length} leaves after wildcard collapsing`
-    );
-    return result;
+    try {
+      const clients = await this.createClients(storage);
+      // Always pull both tables and views so the wildcard rollup can group by dataset
+      // regardless of the caller filter. The filter is applied as a post-step.
+      const rawTables = await this.listTablesInProject(clients, namespaceId, undefined, options);
+      this.logger.debug?.(
+        `listLeafResources(${namespaceId}, ${filter ?? 'unfiltered'}): ` +
+          `${rawTables.length} raw rows from BQ`
+      );
+      const result = flagLocationMismatches(
+        applyResourceFilter(rawTables, namespaceId, filter),
+        clients.location
+      );
+      this.logger.debug?.(
+        `listLeafResources(${namespaceId}, ${filter ?? 'unfiltered'}): ` +
+          `${result.length} leaves after wildcard collapsing`
+      );
+      return result;
+    } catch (error) {
+      if (options?.strict) this.throwStrictDiscoveryError(error);
+      throw error;
+    }
   }
 
   // ── Client creation ────────────────────────────────────────────────────────
@@ -166,10 +188,10 @@ export class BigQueryStorageResourceBrowser implements IStorageResourceBrowserPr
    * Falls back to the storage's configured project when listing fails entirely,
    * so the picker always shows at least one entry.
    */
-  private async listProjects({
-    authClient,
-    bigQuery,
-  }: BigQueryClients): Promise<GbqProjectListing[]> {
+  private async listProjects(
+    { authClient, bigQuery }: BigQueryClients,
+    options?: StorageResourceBrowseOptions
+  ): Promise<GbqProjectListing[]> {
     const bq = google.bigquery({ version: 'v2', auth: authClient });
     const results: GbqProjectListing[] = [];
     const seen = new Set<string>();
@@ -180,6 +202,8 @@ export class BigQueryStorageResourceBrowser implements IStorageResourceBrowserPr
       for (let page = 0; page < GBQ_PROJECTS_MAX_PAGES; page++) {
         const elapsed = Date.now() - startedAt;
         if (elapsed >= GBQ_PROJECTS_OVERALL_BUDGET_MS) {
+          if (options?.strict)
+            throw new BadGatewayException('Storage resource listing exceeded its time limit');
           this.logger.warn(
             `listProjects: overall budget (${GBQ_PROJECTS_OVERALL_BUDGET_MS}ms) exceeded after ${elapsed}ms, returning ${results.length} projects`
           );
@@ -211,6 +235,8 @@ export class BigQueryStorageResourceBrowser implements IStorageResourceBrowserPr
         }
 
         if (results.length >= GBQ_PROJECTS_RESULT_CAP) {
+          if (options?.strict)
+            throw new BadGatewayException('Storage resource listing exceeded its result limit');
           this.logger.warn(
             `listProjects: reached cap of ${GBQ_PROJECTS_RESULT_CAP} projects, truncating`
           );
@@ -219,15 +245,18 @@ export class BigQueryStorageResourceBrowser implements IStorageResourceBrowserPr
 
         pageToken = data.nextPageToken ?? undefined;
         if (!pageToken) break;
+        if (options?.strict && page === GBQ_PROJECTS_MAX_PAGES - 1)
+          throw new BadGatewayException('Storage resource listing exceeded its page limit');
       }
     } catch (error) {
+      if (options?.strict) this.throwStrictDiscoveryError(error);
       const message = error instanceof Error ? error.message : String(error);
       this.logger.warn(
         `listProjects: failed after ${Date.now() - startedAt}ms (${results.length} projects collected): ${message}`
       );
     }
 
-    if (results.length === 0) {
+    if (results.length === 0 && !options?.strict) {
       const fallbackId = bigQuery.projectId;
       if (fallbackId && typeof fallbackId === 'string') {
         this.logger.log(
@@ -242,13 +271,16 @@ export class BigQueryStorageResourceBrowser implements IStorageResourceBrowserPr
 
   private async listDatasets(
     clients: BigQueryClients,
-    projectId: string
+    projectId: string,
+    options?: StorageResourceBrowseOptions
   ): Promise<GbqDatasetListing[]> {
     const bq = this.cloneForProject(clients, projectId);
-    const [datasets] = await bq.getDatasets({
-      autoPaginate: true,
-      maxResults: GBQ_LIST_PAGE_SIZE,
+    const [datasets, nextPage] = await bq.getDatasets({
+      autoPaginate: !options?.strict,
+      maxResults: options?.strict ? GBQ_LIST_RESULT_CAP + 1 : GBQ_LIST_PAGE_SIZE,
     });
+    if (options?.strict && (datasets.length > GBQ_LIST_RESULT_CAP || nextPage))
+      throw new BadGatewayException('Storage resource listing exceeded its result limit');
     return datasets
       .slice(0, GBQ_LIST_RESULT_CAP)
       .map(dataset => {
@@ -267,12 +299,16 @@ export class BigQueryStorageResourceBrowser implements IStorageResourceBrowserPr
   private async listTables(
     clients: BigQueryClients,
     projectId: string,
-    { id: datasetId, location }: GbqDatasetListing
+    { id: datasetId, location }: GbqDatasetListing,
+    options?: StorageResourceBrowseOptions
   ): Promise<GbqTableListing[]> {
     const bq = this.cloneForProject(clients, projectId);
-    const [tables] = await bq
-      .dataset(datasetId, { projectId })
-      .getTables({ autoPaginate: true, maxResults: GBQ_LIST_PAGE_SIZE });
+    const [tables, nextPage] = await bq.dataset(datasetId, { projectId }).getTables({
+      autoPaginate: !options?.strict,
+      maxResults: options?.strict ? GBQ_LIST_RESULT_CAP + 1 : GBQ_LIST_PAGE_SIZE,
+    });
+    if (options?.strict && (tables.length > GBQ_LIST_RESULT_CAP || nextPage))
+      throw new BadGatewayException('Storage resource listing exceeded its result limit');
     return tables
       .slice(0, GBQ_LIST_RESULT_CAP)
       .map(table => {
@@ -298,17 +334,24 @@ export class BigQueryStorageResourceBrowser implements IStorageResourceBrowserPr
   private async listTablesInProject(
     clients: BigQueryClients,
     projectId: string,
-    filter?: GbqTableTypeFilter
+    filter?: GbqTableTypeFilter,
+    options?: StorageResourceBrowseOptions
   ): Promise<GbqTableListing[]> {
     const startedAt = Date.now();
-    const datasets = await this.listDatasets(clients, projectId);
+    const datasets = await this.listDatasets(clients, projectId, options);
     if (datasets.length === 0) return [];
 
     const results: GbqTableListing[] = [];
     for (let i = 0; i < datasets.length; i += GBQ_PROJECT_FANOUT_CONCURRENCY) {
-      if (results.length >= GBQ_LIST_RESULT_CAP) break;
+      if (results.length >= GBQ_LIST_RESULT_CAP) {
+        if (options?.strict)
+          throw new BadGatewayException('Storage resource listing exceeded its result limit');
+        break;
+      }
       const elapsed = Date.now() - startedAt;
       if (elapsed >= GBQ_PROJECT_TABLES_BUDGET_MS) {
+        if (options?.strict)
+          throw new BadGatewayException('Storage resource listing exceeded its time limit');
         this.logger.warn(
           `listTablesInProject(${projectId}): budget (${GBQ_PROJECT_TABLES_BUDGET_MS}ms) exceeded after ${elapsed}ms; returning ${results.length} of ${datasets.length} datasets' worth`
         );
@@ -318,7 +361,7 @@ export class BigQueryStorageResourceBrowser implements IStorageResourceBrowserPr
       const settled = await Promise.allSettled(
         batch.map(dataset =>
           raceWithTimeout(
-            this.listTables(clients, projectId, dataset),
+            this.listTables(clients, projectId, dataset, options),
             GBQ_PROJECT_TABLES_PER_DATASET_TIMEOUT_MS,
             `listTables ${projectId}.${dataset.id}`
           )
@@ -329,9 +372,14 @@ export class BigQueryStorageResourceBrowser implements IStorageResourceBrowserPr
           for (const table of outcome.value) {
             if (filter && table.type !== filter) continue;
             results.push(table);
-            if (results.length >= GBQ_LIST_RESULT_CAP) break;
+            if (results.length >= GBQ_LIST_RESULT_CAP) {
+              if (options?.strict)
+                throw new BadGatewayException('Storage resource listing exceeded its result limit');
+              break;
+            }
           }
         } else {
+          if (options?.strict) this.throwStrictDiscoveryError(outcome.reason);
           this.logger.warn(
             `Failed to list tables for a dataset in ${projectId}: ${
               outcome.reason instanceof Error ? outcome.reason.message : String(outcome.reason)
@@ -340,7 +388,23 @@ export class BigQueryStorageResourceBrowser implements IStorageResourceBrowserPr
         }
       }
     }
+    if (options?.strict && results.length >= GBQ_LIST_RESULT_CAP)
+      throw new BadGatewayException('Storage resource listing exceeded its result limit');
     return results;
+  }
+
+  private throwStrictDiscoveryError(error: unknown): never {
+    const status =
+      error instanceof HttpException
+        ? error.getStatus()
+        : error && typeof error === 'object'
+          ? ((error as { status?: unknown }).status ?? (error as { code?: unknown }).code)
+          : undefined;
+    if (status === 401 || status === '401')
+      throw new UnauthorizedException('Storage credentials are invalid or expired');
+    if (status === 403 || status === '403')
+      throw new ForbiddenException('Storage credentials cannot list resources');
+    throw new BadGatewayException('Storage resource discovery failed');
   }
 
   private cloneForProject({ authClient, location }: BigQueryClients, projectId: string): BigQuery {

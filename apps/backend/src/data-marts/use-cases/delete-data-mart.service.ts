@@ -1,3 +1,4 @@
+import { DataSource } from 'typeorm';
 import { Injectable, ForbiddenException, Logger } from '@nestjs/common';
 import { Transactional } from 'typeorm-transactional';
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
@@ -24,11 +25,13 @@ export class DeleteDataMartService {
     private readonly connectorSourceCredentialsService: ConnectorSourceCredentialsService,
     private readonly relationshipService: DataMartRelationshipService,
     private readonly accessDecisionService: AccessDecisionService,
+    private readonly dataSource: DataSource,
     private readonly searchIndexInvalidation?: DataMartSearchIndexInvalidationService
   ) {}
 
   @Transactional()
   async run(command: DeleteDataMartCommand): Promise<void> {
+    await this.dataMartService.lockConfigurationReferences(command.projectId);
     const dataMart = await this.dataMartService.getByIdAndProjectId(command.id, command.projectId);
 
     if (command.userId) {
@@ -44,6 +47,8 @@ export class DeleteDataMartService {
         throw new ForbiddenException('You do not have permission to delete this DataMart');
       }
     }
+
+    await this.dataMartService.stopConnectorWorkForDeletion(command.id, command.projectId);
 
     if (
       !command.disableLegacySync &&
@@ -70,9 +75,25 @@ export class DeleteDataMartService {
         command.projectId
       )) ?? [];
 
+    const dependentSources = await this.relationshipService.findSourceDataMartIdsByTargetDataMartId(
+      command.id,
+      command.projectId
+    );
+    for (const sourceId of dependentSources.filter(id => id !== command.id).sort()) {
+      await this.dataMartService.advanceConfigurationRevision(
+        this.dataSource.manager,
+        sourceId,
+        command.projectId
+      );
+    }
     await this.relationshipService.deleteAllByDataMartId(command.id);
 
-    await this.dataMartService.softDeleteByIdAndProjectId(command.id, command.projectId);
+    await this.dataMartService.deleteQueuedWork(command.id, command.projectId);
+    await this.dataMartService.softDeleteByIdAndProjectId(
+      command.id,
+      command.projectId,
+      command.expectedRevision
+    );
     await this.searchIndexInvalidation?.scheduleDataMartDeleted(
       command.id,
       command.projectId,

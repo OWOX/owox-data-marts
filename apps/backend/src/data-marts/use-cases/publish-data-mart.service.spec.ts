@@ -103,6 +103,19 @@ describe('PublishDataMartService', () => {
     );
   });
 
+  it('preserves the existing REST SQL publication contract without a warehouse validation call', async () => {
+    const { service, dataMart, definitionValidatorFacade } = createService({ isValid: false });
+    Object.assign(dataMart, {
+      definitionType: DataMartDefinitionType.SQL,
+      definition: { sqlQuery: 'SELECT 1' },
+    });
+
+    await expect(
+      service.run(new PublishDataMartCommand('dm-1', 'proj-1', 'user-1', ['editor'], 'user-1'))
+    ).resolves.toMatchObject({ status: DataMartStatus.PUBLISHED });
+    expect(definitionValidatorFacade.checkIsValid).not.toHaveBeenCalled();
+  });
+
   it('should reject publish when storage validation fails', async () => {
     const { service, dataMartService, advancedSearchIndexSync } = createService({
       isValid: false,

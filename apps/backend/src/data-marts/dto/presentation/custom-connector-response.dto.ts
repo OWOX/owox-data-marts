@@ -15,6 +15,8 @@ import { ConnectorDefinitionVersionStatus } from '../../entities/connector-defin
  */
 
 export class CustomConnectorListItemResponseApiDto {
+  @ApiProperty({ type: 'integer', minimum: 1 })
+  revision: number;
   @ApiProperty({ example: '9cabc24e-1234-4a5a-8b12-abcdef123456' })
   id: string;
 
@@ -52,6 +54,8 @@ export class CustomConnectorListItemResponseApiDto {
 }
 
 export class CustomConnectorVersionStateResponseApiDto {
+  @ApiProperty({ type: 'integer', minimum: 1, required: false })
+  revision?: number;
   @ApiProperty({ type: 'integer', example: 1, minimum: 1 })
   version: number;
 
@@ -82,6 +86,8 @@ export class CustomConnectorDetailResponseApiDto extends CustomConnectorListItem
 }
 
 export class CreateCustomConnectorResponseApiDto {
+  @ApiProperty({ type: 'integer', minimum: 1 })
+  revision: number;
   @ApiProperty({ example: '9cabc24e-1234-4a5a-8b12-abcdef123456' })
   id: string;
 
@@ -135,6 +141,8 @@ export class PublishCustomConnectorResponseApiDto extends CustomConnectorVersion
 }
 
 export class ActivateCustomConnectorVersionResponseApiDto {
+  @ApiProperty({ type: 'integer', minimum: 1 })
+  revision: number;
   @ApiProperty({ type: String, example: '0f1e2d3c-4b5a-4c6d-8e9f-0a1b2c3d4e5f', nullable: true })
   activeVersionId: string | null;
 

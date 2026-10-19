@@ -1,4 +1,5 @@
-import { Repository } from 'typeorm';
+import { ConflictException } from '@nestjs/common';
+import { In, Repository } from 'typeorm';
 import { ConnectorMessage } from '../../connector-types/connector-message/schemas/connector-message.schema';
 import { ConnectorMessageType } from '../../connector-types/enums/connector-message-type-enum';
 import { DataMart } from '../../entities/data-mart.entity';
@@ -10,6 +11,7 @@ import {
   BackfillDateRange,
   nextSegmentAdditionalParams,
 } from '../../utils/manual-backfill-range';
+import { lockDataMartConnectorWork } from './connector-work-lifecycle';
 import { ConnectorRunTriggerService } from './connector-run-trigger.service';
 
 /** Run-log metric the web UI reads to show which backfill segment a run is. */
@@ -132,7 +134,19 @@ export async function createNextSegmentRun(
   meta: BackfillChainMeta,
   window: BackfillDateRange
 ): Promise<DataMartRun> {
-  const additionalParams = nextSegmentAdditionalParams(previousRun.additionalParams, meta, window);
+  await lockDataMartConnectorWork(runRepository.manager, dataMart.id, dataMart.projectId);
+  const active = await runRepository.findOneBy({
+    dataMartId: dataMart.id,
+    type: DataMartRunType.CONNECTOR,
+    status: In([DataMartRunStatus.PENDING, DataMartRunStatus.RUNNING]),
+  });
+  if (active) throw new ConflictException('A connector load is already active');
+  const additionalParams = {
+    ...nextSegmentAdditionalParams(previousRun.additionalParams, meta, window),
+    ...(Number.isSafeInteger(dataMart.revision)
+      ? { configurationRevision: dataMart.revision }
+      : {}),
+  };
   const nextRun = await runRepository.save(
     runRepository.create({
       dataMartId: previousRun.dataMartId,

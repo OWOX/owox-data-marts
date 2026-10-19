@@ -1,3 +1,4 @@
+jest.mock('../../services/data-mart.service', () => ({ DataMartService: jest.fn() }));
 import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { ProjectRole } from '../../enums/project-role.enum';
 import { RoleScope } from '../../enums/role-scope.enum';
@@ -205,10 +206,6 @@ describe('UpdateUserProvisioningSettingsService', () => {
       RoleScope.SELECTED_CONTEXTS,
       ['ctx-1']
     );
-    expect(applyDefaultsService.preserveExistingMembersAsEntireProject).toHaveBeenCalledWith(
-      PROJECT_ID,
-      ['existing-user-1', 'existing-user-2']
-    );
     expect(idpProjectionsFacade.updateUserProvisioningSettings).toHaveBeenCalledWith(
       PROJECT_ID,
       ACTOR_USER_ID,
@@ -217,21 +214,21 @@ describe('UpdateUserProvisioningSettingsService', () => {
         defaultRole: ProjectRole.VIEWER,
       }
     );
-    expect(contextSettingsService.saveDefaultSettings).toHaveBeenCalledWith(PROJECT_ID, {
-      roleScope: RoleScope.SELECTED_CONTEXTS,
-      contextIds: ['ctx-1'],
-    });
-    expect(
-      idpProjectionsFacade.updateUserProvisioningSettings.mock.invocationCallOrder[0]
-    ).toBeLessThan(
-      applyDefaultsService.preserveExistingMembersAsEntireProject.mock.invocationCallOrder[0]
+    expect(contextSettingsService.saveDefaultSettings).toHaveBeenCalledWith(
+      PROJECT_ID,
+      {
+        roleScope: RoleScope.SELECTED_CONTEXTS,
+        contextIds: ['ctx-1'],
+      },
+      ['existing-user-1', 'existing-user-2']
     );
     expect(
       idpProjectionsFacade.updateUserProvisioningSettings.mock.invocationCallOrder[0]
     ).toBeLessThan(contextSettingsService.saveDefaultSettings.mock.invocationCallOrder[0]);
     expect(
-      applyDefaultsService.preserveExistingMembersAsEntireProject.mock.invocationCallOrder[0]
+      idpProjectionsFacade.updateUserProvisioningSettings.mock.invocationCallOrder[0]
     ).toBeLessThan(contextSettingsService.saveDefaultSettings.mock.invocationCallOrder[0]);
+
     expect(result.settings).toEqual({
       mode: 'manual',
       defaultRole: ProjectRole.VIEWER,
@@ -305,7 +302,7 @@ describe('UpdateUserProvisioningSettingsService', () => {
           defaultRole: ProjectRole.VIEWER,
         },
       }),
-      getProjectMembersOrThrow: jest.fn(),
+      getProjectMembersOrThrow: jest.fn().mockResolvedValue([]),
       updateUserProvisioningSettings: jest.fn(),
     };
     const contextSettingsService = {
@@ -346,7 +343,7 @@ describe('UpdateUserProvisioningSettingsService', () => {
     expect(applyDefaultsService.preserveExistingMembersAsEntireProject).not.toHaveBeenCalled();
   });
 
-  it('does not preserve existing members when effective default is entire project', async () => {
+  it('preserves existing member snapshots when effective default changes to entire project', async () => {
     const idpProjectionsFacade = {
       getUserProvisioningSettings: jest.fn().mockResolvedValue({
         isApplicable: true,
@@ -360,7 +357,7 @@ describe('UpdateUserProvisioningSettingsService', () => {
           defaultRole: ProjectRole.VIEWER,
         },
       }),
-      getProjectMembersOrThrow: jest.fn(),
+      getProjectMembersOrThrow: jest.fn().mockResolvedValue([]),
       updateUserProvisioningSettings: jest.fn().mockResolvedValue({
         isApplicable: true,
         organization: {
@@ -405,8 +402,12 @@ describe('UpdateUserProvisioningSettingsService', () => {
       )
     );
 
-    expect(idpProjectionsFacade.getProjectMembersOrThrow).not.toHaveBeenCalled();
-    expect(applyDefaultsService.preserveExistingMembersAsEntireProject).not.toHaveBeenCalled();
+    expect(idpProjectionsFacade.getProjectMembersOrThrow).toHaveBeenCalledWith(PROJECT_ID);
+    expect(contextSettingsService.saveDefaultSettings).toHaveBeenCalledWith(
+      PROJECT_ID,
+      { roleScope: RoleScope.ENTIRE_PROJECT, contextIds: [] },
+      []
+    );
   });
 
   it('rejects updates for organization projects that are not the main project', async () => {
@@ -423,7 +424,7 @@ describe('UpdateUserProvisioningSettingsService', () => {
           defaultRole: ProjectRole.VIEWER,
         },
       }),
-      getProjectMembersOrThrow: jest.fn(),
+      getProjectMembersOrThrow: jest.fn().mockResolvedValue([]),
       updateUserProvisioningSettings: jest.fn(),
     };
     const contextSettingsService = {
@@ -475,6 +476,8 @@ describe('UserProvisioningContextSettingsService', () => {
       save: jest.fn(),
     };
     const memberRoleScopeRepository = {
+      findOne: jest.fn().mockResolvedValue(null),
+      manager: {},
       upsert: jest.fn(),
     };
     const memberRoleContextRepository = {
@@ -482,6 +485,7 @@ describe('UserProvisioningContextSettingsService', () => {
       save: jest.fn(),
     };
     const contextService = {
+      lockReferences: jest.fn().mockResolvedValue(1),
       validateContextIds: jest.fn(),
     };
 

@@ -1,3 +1,4 @@
+jest.mock('../data-mart.service', () => ({ DataMartService: jest.fn() }));
 // These cases drive the service with in-memory repository doubles, which cannot join a real
 // transaction. Rollback is covered against the real schema in
 // connector-definition-tables.migration.spec.ts.
@@ -29,7 +30,7 @@ describe('ConnectorDefinitionService', () => {
     const store: { defs: any[]; versions: any[] } = { defs: [], versions: [] };
 
     const defRepo = {
-      create: jest.fn(d => ({ id: `def-${store.defs.length + 1}`, ...d })),
+      create: jest.fn(d => ({ id: `def-${store.defs.length + 1}`, revision: 1, ...d })),
       save: jest.fn(async d => {
         const i = store.defs.findIndex(x => x.id === d.id);
         if (i >= 0) store.defs[i] = d;
@@ -61,9 +62,15 @@ describe('ConnectorDefinitionService', () => {
       // that assigned the entity wholesale would agree with both and pin neither.
       update: jest.fn(async (criteria, patch) => {
         const rows = store.defs.filter(d =>
-          Object.entries(criteria).every(([column, value]) => d[column] === value)
+          Object.entries(criteria).every(([column, value]) =>
+            column === 'deletedAt' ? !d.deletedAt : d[column] === value
+          )
         );
-        for (const row of rows) Object.assign(row, patch);
+        for (const row of rows) {
+          const next = { ...patch };
+          if (typeof next.revision === 'function') next.revision = (row.revision ?? 1) + 1;
+          Object.assign(row, next);
+        }
         return { affected: rows.length };
       }),
       softDelete: jest.fn(async (id: string) => {
@@ -394,7 +401,7 @@ describe('ConnectorDefinitionService', () => {
 
     await service.updateMetadata('proj-1', def.id, {
       title: 'New title',
-      ...({ name: 'Renamed' } as Record<string, never>),
+      ...({ name: 'Renamed' } as unknown as Record<string, never>),
     });
 
     expect(store.defs[0].name).toBe('MyCustom');
@@ -443,7 +450,7 @@ describe('ConnectorDefinitionService', () => {
     expect(store.defs[0].activeVersionId).toBe('ver-1');
   });
 
-  it('updateMetadata() leaves the row alone when the body carries nothing', async () => {
+  it('updateMetadata() invalidates pending revisions even for an empty setter', async () => {
     const { service, defRepo } = make();
     const def = await service.create('proj-1', 'user-1', {
       name: 'MyCustom',
@@ -454,8 +461,8 @@ describe('ConnectorDefinitionService', () => {
 
     await service.updateMetadata('proj-1', def.id, {});
 
-    // TypeORM rejects an empty update outright, so this has to be skipped, not sent.
-    expect(defRepo.update).not.toHaveBeenCalled();
+    expect(defRepo.update).toHaveBeenCalledTimes(1);
+    expect((await service.getById('proj-1', def.id)).revision).toBe(2);
   });
 
   it('create() rejects an invalid name pattern', async () => {
@@ -612,7 +619,7 @@ describe('ConnectorDefinitionService', () => {
     expect(versionRepo.find).toHaveBeenCalledWith(
       expect.objectContaining({ select: expect.not.arrayContaining(['manifest']) })
     );
-    expect(versions[0].manifest).toBeUndefined();
+    expect('manifest' in versions[0]).toBe(false);
     expect(versions[0]).toMatchObject({
       version: 1,
       status: ConnectorDefinitionVersionStatus.DRAFT,
@@ -671,7 +678,7 @@ describe('ConnectorDefinitionService', () => {
     const error = await service.publish('proj-1', def.id, EDITOR).catch((e: Error) => e);
 
     expect(error).toBeInstanceOf(BadRequestException);
-    expect((error as Error).message).toMatch(/^Invalid manifest: /);
+    expect((error as Error).message).toBe('Invalid connector manifest');
   });
 
   // Such a node would publish and fail every run with "Template path ... is unresolved".
@@ -694,9 +701,7 @@ describe('ConnectorDefinitionService', () => {
     const error = await service.publish('proj-1', def.id, EDITOR).catch((e: Error) => e);
 
     expect(error).toBeInstanceOf(BadRequestException);
-    expect((error as Error).message).toMatch(
-      /^Invalid manifest: .*node "items" uses "\{\{ dateWindow\.start \}\}" in request\.path/
-    );
+    expect((error as Error).message).toBe('Invalid connector manifest');
   });
 
   // Storage merges rows on the primary key and cannot be created without one, so such a
@@ -734,7 +739,7 @@ describe('ConnectorDefinitionService', () => {
     });
 
     await expect(service.publish('proj-1', def.id, EDITOR)).rejects.toThrow(
-      'node "items" uniqueKeys names "missing", which is not one of its fields'
+      'Invalid connector manifest'
     );
   });
 
@@ -1157,6 +1162,25 @@ describe('ConnectorDefinitionService', () => {
 
   // --- setActiveVersion ---
 
+  it('setActiveVersion() acquires the consumer guard before its first snapshot read', async () => {
+    const { service, defRepo } = make();
+    const def = await service.create('proj-1', 'u', {
+      name: 'A',
+      title: 'A',
+      manifest: validManifest,
+    });
+    const { version: published } = await service.publish('proj-1', def.id, EDITOR);
+    defRepo.findOne.mockClear();
+    const guard = jest.spyOn(service, 'lockReferences');
+
+    const result = await service.setActiveVersion('proj-1', def.id, published.version, EDITOR);
+
+    expect(result.activeVersionId).toBe(published.id);
+    expect(guard.mock.invocationCallOrder[0]).toBeLessThan(
+      defRepo.findOne.mock.invocationCallOrder[0]
+    );
+  });
+
   it('setActiveVersion() sets activeVersionId to the published version row id', async () => {
     const { service, store } = make();
     const def = await service.create('proj-1', 'u', {
@@ -1276,7 +1300,8 @@ describe('ConnectorDefinitionService', () => {
         EntityType.DATA_MART,
         ['dm-sales', 'dm-hidden'],
         Action.EDIT,
-        'proj-1'
+        'proj-1',
+        { scopeMode: 'read-only' }
       );
     });
 

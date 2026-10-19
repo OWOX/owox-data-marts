@@ -1,3 +1,5 @@
+import { Transactional } from 'typeorm-transactional';
+import { DataMartService } from '../services/data-mart.service';
 import { Injectable, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -13,7 +15,7 @@ import { ReportAccessService } from '../services/report-access.service';
 import { ReportService } from '../services/report.service';
 import { ScheduledTriggerType } from '../scheduled-trigger-types/enums/scheduled-trigger-type.enum';
 import { isScheduledReportRunConfig } from '../scheduled-trigger-types/scheduled-trigger-config.guards';
-import { AccessDecisionService, Action } from '../services/access-decision';
+import { AccessDecisionService, Action, EntityType } from '../services/access-decision';
 
 @Injectable()
 export class UpdateScheduledTriggerService {
@@ -25,7 +27,8 @@ export class UpdateScheduledTriggerService {
     private readonly userProjectionsFetcherService: UserProjectionsFetcherService,
     private readonly reportAccessService: ReportAccessService,
     private readonly reportService: ReportService,
-    private readonly accessDecisionService: AccessDecisionService
+    private readonly accessDecisionService: AccessDecisionService,
+    private readonly dataMartService: DataMartService
   ) {}
 
   async run(command: UpdateScheduledTriggerCommand): Promise<ScheduledTriggerDto> {
@@ -36,6 +39,41 @@ export class UpdateScheduledTriggerService {
     );
 
     await this.checkAccess(command, trigger);
+    const updatedTrigger = await this.commit(command);
+    const createdByUser =
+      await this.userProjectionsFetcherService.fetchCreatedByUser(updatedTrigger);
+    return this.mapper.toDomainDto(updatedTrigger, createdByUser);
+  }
+
+  @Transactional()
+  private async commit(command: UpdateScheduledTriggerCommand): Promise<DataMartScheduledTrigger> {
+    await this.dataMartService.lockConfigurationReferences(command.projectId);
+    const trigger = await this.scheduledTriggerService.getByIdAndDataMartIdAndProjectId(
+      command.id,
+      command.dataMartId,
+      command.projectId
+    );
+    if (trigger.type !== ScheduledTriggerType.REPORT_RUN) {
+      if (
+        !(await this.accessDecisionService.canAccessStored(
+          command.userId,
+          command.roles,
+          EntityType.DATA_MART,
+          command.dataMartId,
+          Action.MANAGE_TRIGGERS,
+          command.projectId
+        ))
+      )
+        throw new ForbiddenException(
+          'You do not have permission to manage triggers for this DataMart.'
+        );
+      await this.dataMartService.advanceConfigurationRevision(
+        this.triggerRepository.manager,
+        command.dataMartId,
+        command.projectId,
+        command.expectedRevision
+      );
+    }
 
     if (trigger.dataMart.status !== DataMartStatus.PUBLISHED) {
       throw new BusinessViolationException(
@@ -57,12 +95,20 @@ export class UpdateScheduledTriggerService {
       trigger.discardNextRun();
     }
 
-    const updatedTrigger = await this.triggerRepository.save(trigger);
-
-    const createdByUser =
-      await this.userProjectionsFetcherService.fetchCreatedByUser(updatedTrigger);
-
-    return this.mapper.toDomainDto(updatedTrigger, createdByUser);
+    // Configuration writers must not reset a version advanced by an in-flight runtime update.
+    await this.triggerRepository.update(trigger.id, {
+      cronExpression: trigger.cronExpression,
+      timeZone: trigger.timeZone,
+      isActive: trigger.isActive,
+      status: trigger.status,
+      nextRunTimestamp: trigger.nextRunTimestamp,
+      version: () => 'version + 1',
+    });
+    return this.scheduledTriggerService.getByIdAndDataMartIdAndProjectId(
+      command.id,
+      command.dataMartId,
+      command.projectId
+    );
   }
 
   private async checkAccess(

@@ -1,3 +1,6 @@
+import { ConflictException } from '@nestjs/common';
+import { DataMart } from '../entities/data-mart.entity';
+import { randomUUID } from 'node:crypto';
 import { BadRequestException, Injectable, ForbiddenException } from '@nestjs/common';
 import { Transactional } from 'typeorm-transactional';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
@@ -36,9 +39,108 @@ export class UpdateDataMartDefinitionService {
     private readonly advancedSearchIndexSync?: AdvancedSearchIndexSyncService
   ) {}
 
-  @Transactional()
   async run(command: UpdateDataMartDefinitionCommand): Promise<DataMartDto> {
+    const before = await this.dataMartService.getByIdAndProjectId(command.id, command.projectId);
+    if (
+      command.userId &&
+      !(await this.accessDecisionService.canAccess(
+        command.userId,
+        command.roles,
+        EntityType.DATA_MART,
+        command.id,
+        Action.EDIT,
+        command.projectId
+      ))
+    )
+      throw new ForbiddenException('You do not have permission to edit this DataMart');
+    if (
+      command.userId &&
+      !(await this.accessDecisionService.canAccess(
+        command.userId,
+        command.roles,
+        EntityType.STORAGE,
+        before.storage.id,
+        Action.USE,
+        command.projectId
+      ))
+    )
+      throw new ForbiddenException('Storage USE permission is required');
+    if (command.expectedRevision !== undefined && command.expectedRevision !== before.revision)
+      throw new ConflictException('Data Mart configuration changed');
+    if (before.definitionType && before.definitionType !== command.definitionType)
+      this.assertDefinitionTypeChangeAllowed(before.definitionType, command.definitionType);
+    const previousDefinitionType = before.definitionType;
+    const definitionTypeWasEmpty = !previousDefinitionType;
+    const definitionWasEmpty = !before.definition;
+    const definitionTypeChanged =
+      !!previousDefinitionType && previousDefinitionType !== command.definitionType;
+    const candidate = Object.assign(new DataMart(), before, {
+      definitionType: command.definitionType,
+      definition: command.definition,
+    });
+    if (
+      before.status === 'PUBLISHED' ||
+      (before.definitionType && before.definitionType !== command.definitionType)
+    )
+      await this.definitionValidatorFacade.checkIsValid(candidate);
+    const result = await this.persist(command, before.revision);
+    const dataMart = Object.assign({}, before, {
+      definitionType: command.definitionType,
+      definition: command.definition,
+    });
+    if (definitionTypeWasEmpty && dataMart.definitionType) {
+      await this.eventDispatcher.publishExternal(
+        new DataMartDefinitionTypeSetEvent(
+          dataMart.id,
+          command.projectId,
+          dataMart.definitionType,
+          dataMart.createdById
+        )
+      );
+    }
+
+    if (definitionWasEmpty && dataMart.definition) {
+      await this.eventDispatcher.publishExternal(
+        new DataMartDefinitionSetEvent(
+          dataMart.id,
+          command.projectId,
+          dataMart.createdById,
+          dataMart.definitionType
+        )
+      );
+    }
+
+    if (definitionTypeChanged && previousDefinitionType) {
+      await this.eventDispatcher.publishExternal(
+        new DataMartDefinitionTypeChangedEvent(
+          dataMart.id,
+          command.projectId,
+          previousDefinitionType,
+          dataMart.definitionType,
+          dataMart.createdById
+        )
+      );
+    }
+
+    if (before.storage.type === DataStorageType.LEGACY_GOOGLE_BIGQUERY)
+      await this.legacyDataMartsService.updateQuery(
+        before.id,
+        (command.definition as SqlDefinition).sqlQuery
+      );
+    return result;
+  }
+
+  @Transactional()
+  private async persist(
+    command: UpdateDataMartDefinitionCommand,
+    validatedRevision: number
+  ): Promise<DataMartDto> {
+    await this.dataMartService.lockConfigurationReferences(command.projectId);
     const dataMart = await this.dataMartService.getByIdAndProjectId(command.id, command.projectId);
+    if (dataMart.revision !== validatedRevision)
+      throw new ConflictException('Data Mart configuration changed during validation');
+    if (command.expectedRevision !== undefined && command.expectedRevision !== dataMart.revision)
+      throw new ConflictException('Data Mart configuration changed');
 
     if (command.userId) {
       const canEdit = await this.accessDecisionService.canAccess(
@@ -55,13 +157,9 @@ export class UpdateDataMartDefinitionService {
     }
 
     const previousDefinitionType = dataMart.definitionType;
-    const definitionTypeWasEmpty = !previousDefinitionType;
-    const definitionWasEmpty = !dataMart.definition;
-    let definitionTypeChanged = false;
 
     if (previousDefinitionType && previousDefinitionType !== command.definitionType) {
       this.assertDefinitionTypeChangeAllowed(previousDefinitionType, command.definitionType);
-      definitionTypeChanged = true;
     }
 
     const connectorCapabilities = await this.resolveConnectorCapabilities(command);
@@ -73,11 +171,6 @@ export class UpdateDataMartDefinitionService {
           'Only SQL definition type is supported for Legacy Google BigQuery data storages.'
         );
       }
-
-      await this.legacyDataMartsService.updateQuery(
-        dataMart.id,
-        (command.definition as SqlDefinition).sqlQuery
-      );
     }
 
     dataMart.definitionType = command.definitionType;
@@ -148,52 +241,12 @@ export class UpdateDataMartDefinitionService {
       dataMart.definition = command.definition;
     }
 
-    // A type change repoints the Data Mart at a different kind of source, so the new definition is
-    // checked against the storage before it lands. Same-type edits keep their existing behaviour:
-    // they are validated on publish and on schema actualization, not on every save.
-    //
-    // SQL targets are checked here too. The editor's dry run is advisory — its result does not
-    // gate Save, and API callers never run it at all — so exempting SQL would let an invalid
-    // query silently replace a working table definition.
-    if (definitionTypeChanged) {
-      await this.definitionValidatorFacade.checkIsValid(dataMart);
+    if (command.definitionType === DataMartDefinitionType.CONNECTOR && command.userId) {
+      dataMart.connectorPreparationId = randomUUID();
+      dataMart.connectorPreparedById = command.userId;
+      dataMart.connectorPreparedRevision = dataMart.revision + 1;
     }
-
     await this.dataMartService.save(dataMart);
-
-    if (definitionTypeWasEmpty && dataMart.definitionType) {
-      await this.eventDispatcher.publishExternal(
-        new DataMartDefinitionTypeSetEvent(
-          dataMart.id,
-          command.projectId,
-          dataMart.definitionType,
-          dataMart.createdById
-        )
-      );
-    }
-
-    if (definitionWasEmpty && dataMart.definition) {
-      await this.eventDispatcher.publishExternal(
-        new DataMartDefinitionSetEvent(
-          dataMart.id,
-          command.projectId,
-          dataMart.createdById,
-          dataMart.definitionType
-        )
-      );
-    }
-
-    if (definitionTypeChanged && previousDefinitionType) {
-      await this.eventDispatcher.publishExternal(
-        new DataMartDefinitionTypeChangedEvent(
-          dataMart.id,
-          command.projectId,
-          previousDefinitionType,
-          dataMart.definitionType,
-          dataMart.createdById
-        )
-      );
-    }
 
     await this.advancedSearchIndexSync?.scheduleReindex(
       SearchableEntityType.DATA_MART,

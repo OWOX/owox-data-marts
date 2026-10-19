@@ -77,6 +77,22 @@ class PluginsService extends ApiService {
     return this.post<PluginInstallation>(`/${pluginId}/installation`, payload);
   }
 
+  async completeSetupApproval(
+    pluginId: string,
+    approvalId: string,
+    expectedVersionId: string | null,
+    credentialSelections: Readonly<Record<string, string | null>>
+  ): Promise<void> {
+    await this.post(`/${pluginId}/setup-approvals/${approvalId}/complete`, {
+      expectedVersionId,
+      credentialSelections,
+    });
+  }
+
+  async revokeSetupApproval(pluginId: string, approvalId: string): Promise<void> {
+    await this.delete(`/${pluginId}/setup-approvals/${approvalId}`);
+  }
+
   async uninstall(pluginId: string): Promise<void> {
     return this.delete(`/${pluginId}/installation`);
   }

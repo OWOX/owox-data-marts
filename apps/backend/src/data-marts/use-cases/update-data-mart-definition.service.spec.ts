@@ -32,6 +32,7 @@ describe('UpdateDataMartDefinitionService', () => {
     };
 
     const dataMartService = {
+      lockConfigurationReferences: jest.fn().mockResolvedValue(undefined),
       getByIdAndProjectId: jest.fn().mockResolvedValue(dataMart),
       save: jest.fn().mockResolvedValue(dataMart),
     };
@@ -305,7 +306,9 @@ describe('UpdateDataMartDefinitionService', () => {
       singleConfiguration: false,
       copySecretsByValue: true,
     });
-    accessDecisionService.canAccess.mockResolvedValueOnce(true).mockResolvedValueOnce(false);
+    accessDecisionService.canAccess.mockImplementation(
+      async (_user, _roles, _type, id) => id !== 'source-dm-1'
+    );
     const definition = {
       connector: {
         source: {
@@ -332,7 +335,7 @@ describe('UpdateDataMartDefinitionService', () => {
       'You do not have permission to copy connector credentials from the source Data Mart'
     );
     expect(accessDecisionService.canAccess).toHaveBeenNthCalledWith(
-      2,
+      4,
       'user-1',
       ['editor'],
       'DATA_MART',
@@ -345,7 +348,9 @@ describe('UpdateDataMartDefinitionService', () => {
 
   it('requires edit access on the copy source for every connector', async () => {
     const { service, accessDecisionService, connectorSecretService } = createService();
-    accessDecisionService.canAccess.mockResolvedValueOnce(true).mockResolvedValueOnce(false);
+    accessDecisionService.canAccess.mockImplementation(
+      async (_user, _roles, _type, id) => id !== 'source-dm-1'
+    );
     const definition = {
       connector: {
         source: {
@@ -372,7 +377,7 @@ describe('UpdateDataMartDefinitionService', () => {
       'You do not have permission to copy connector credentials from the source Data Mart'
     );
     expect(accessDecisionService.canAccess).toHaveBeenNthCalledWith(
-      2,
+      4,
       'user-1',
       ['editor'],
       'DATA_MART',
@@ -496,12 +501,15 @@ describe('UpdateDataMartDefinitionService', () => {
         storage: { fullyQualifiedName: 'dataset.source_table' },
       },
     };
-    dataMartService.getByIdAndProjectId.mockResolvedValueOnce(dataMart).mockResolvedValueOnce({
-      id: 'source-dm-1',
-      projectId: 'proj-1',
-      definitionType: DataMartDefinitionType.CONNECTOR,
-      definition: sourceDefinition,
-    });
+    dataMartService.getByIdAndProjectId
+      .mockResolvedValueOnce(dataMart)
+      .mockResolvedValueOnce(dataMart)
+      .mockResolvedValueOnce({
+        id: 'source-dm-1',
+        projectId: 'proj-1',
+        definitionType: DataMartDefinitionType.CONNECTOR,
+        definition: sourceDefinition,
+      });
     connectorSecretService.mergeDefinitionSecretsFromSource.mockResolvedValue(definition);
     connectorSecretService.mergeDefinitionSecrets.mockResolvedValue(definition);
     connectorSecretService.extractAndSaveSecrets.mockResolvedValue(definition);
@@ -769,6 +777,7 @@ describe('UpdateDataMartDefinitionService with the real ConnectorService', () =>
     };
 
     const dataMartService = {
+      lockConfigurationReferences: jest.fn().mockResolvedValue(undefined),
       getByIdAndProjectId: jest.fn().mockResolvedValue(dataMart),
       save: jest.fn().mockResolvedValue(dataMart),
     };

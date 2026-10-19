@@ -59,8 +59,8 @@ export class AthenaCreateViewExecutor implements CreateViewExecutor {
     } finally {
       try {
         await s3.cleanupOutputFiles(outputBucket, outputPrefix);
-      } catch (cleanupError) {
-        this.logger.error('Error cleaning up Athena DDL output files', cleanupError as Error);
+      } catch {
+        this.logger.error('Error cleaning up Athena DDL output files');
       }
     }
 

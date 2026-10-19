@@ -16,7 +16,7 @@ class ContextApiService extends ApiService {
 
   async updateContext(
     id: string,
-    data: { name: string; description?: string }
+    data: { name: string; description?: string; expectedRevision?: number }
   ): Promise<ContextDto> {
     return this.put<ContextDto>(`/${id}`, data);
   }
@@ -34,8 +34,12 @@ class ContextApiService extends ApiService {
    * the current state and only touches `member_role_contexts` rows for this one
    * context. Admin ids are silently ignored on the server.
    */
-  async updateContextMembers(contextId: string, assignedUserIds: string[]): Promise<void> {
-    return this.put(`/${contextId}/members`, { assignedUserIds });
+  async updateContextMembers(
+    contextId: string,
+    assignedUserIds: string[],
+    expectedRevision?: number
+  ): Promise<void> {
+    return this.put(`/${contextId}/members`, { assignedUserIds, expectedRevision });
   }
 }
 

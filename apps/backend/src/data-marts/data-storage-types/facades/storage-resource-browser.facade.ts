@@ -6,6 +6,7 @@ import { DataStorageType } from '../enums/data-storage-type.enum';
 import type {
   IStorageResourceBrowserProvider,
   StorageResourceFilter,
+  StorageResourceBrowseOptions,
   StorageResourceLeaf,
   StorageResourceNode,
 } from '../interfaces/storage-resource-browser.interface';
@@ -24,20 +25,24 @@ export class StorageResourceBrowserFacade {
     private readonly resolver: TypeResolver<DataStorageType, IStorageResourceBrowserProvider>
   ) {}
 
-  async listNamespaces(storage: DataStorage): Promise<StorageResourceNode[]> {
+  async listNamespaces(
+    storage: DataStorage,
+    options?: StorageResourceBrowseOptions
+  ): Promise<StorageResourceNode[]> {
     const provider = await this.resolver.tryResolve(storage.type);
     if (!provider) {
       throw new BadRequestException(
         `Resource browsing is not supported for storage type: ${storage.type}`
       );
     }
-    return provider.listNamespaces(storage);
+    return provider.listNamespaces(storage, options);
   }
 
   async listLeafResources(
     storage: DataStorage,
     namespaceId: string,
-    filter?: StorageResourceFilter
+    filter?: StorageResourceFilter,
+    options?: StorageResourceBrowseOptions
   ): Promise<StorageResourceLeaf[]> {
     const provider = await this.resolver.tryResolve(storage.type);
     if (!provider) {
@@ -45,6 +50,6 @@ export class StorageResourceBrowserFacade {
         `Resource browsing is not supported for storage type: ${storage.type}`
       );
     }
-    return provider.listLeafResources(storage, namespaceId, filter);
+    return provider.listLeafResources(storage, namespaceId, filter, options);
   }
 }

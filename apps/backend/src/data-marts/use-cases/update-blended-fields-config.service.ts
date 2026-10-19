@@ -1,3 +1,4 @@
+import { DataSource } from 'typeorm';
 import { Injectable, ForbiddenException, UnauthorizedException } from '@nestjs/common';
 import { Transactional } from 'typeorm-transactional';
 import { deepEqual } from '../../common/utils/deep-equal.util';
@@ -12,6 +13,7 @@ import { AccessDecisionService, EntityType, Action } from '../services/access-de
 export class UpdateBlendedFieldsConfigService {
   constructor(
     private readonly dataMartService: DataMartService,
+    private readonly dataSource: DataSource,
     private readonly reportDataCacheService: ReportDataCacheService,
     private readonly mapper: DataMartMapper,
     private readonly accessDecisionService: AccessDecisionService
@@ -23,6 +25,7 @@ export class UpdateBlendedFieldsConfigService {
       throw new UnauthorizedException('Authenticated user is required');
     }
 
+    await this.dataMartService.lockConfigurationReferences(command.projectId);
     const dataMart = await this.dataMartService.getByIdAndProjectId(command.id, command.projectId);
 
     const canEdit = await this.accessDecisionService.canAccess(
@@ -42,10 +45,26 @@ export class UpdateBlendedFieldsConfigService {
 
     if (changed) {
       dataMart.blendedFieldsConfig = nextConfig;
-      await this.dataMartService.save(dataMart);
+      Object.assign(
+        dataMart,
+        await this.dataMartService.writeConfiguration(
+          this.dataSource.manager,
+          command.id,
+          command.projectId,
+          command.expectedRevision ?? dataMart.revision,
+          { blendedFieldsConfig: nextConfig ?? (() => 'NULL') }
+        )
+      );
       await this.reportDataCacheService.invalidateByDataMartId(dataMart.id);
     }
 
+    if (!changed)
+      dataMart.revision = await this.dataMartService.advanceConfigurationRevision(
+        this.dataSource.manager,
+        command.id,
+        command.projectId,
+        command.expectedRevision ?? dataMart.revision
+      );
     return this.mapper.toDomainDto(dataMart);
   }
 }

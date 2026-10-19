@@ -1,3 +1,8 @@
+jest.mock('snowflake-sdk', () => ({ __esModule: true, default: {} }));
+jest.mock('typeorm-transactional', () => ({
+  Transactional: () => (_target: unknown, _key: string, descriptor: PropertyDescriptor) =>
+    descriptor,
+}));
 jest.mock('../../idp/facades/idp-projections.facade', () => ({
   IdpProjectionsFacade: jest.fn(),
 }));
@@ -30,6 +35,8 @@ describe('CreateScheduledTriggerService', () => {
     };
     const dataMartService = {
       getByIdAndProjectId: jest.fn().mockResolvedValue(dataMart),
+      lockConfigurationReferences: jest.fn().mockResolvedValue(undefined),
+      advanceConfigurationRevision: jest.fn().mockResolvedValue(2),
     };
     const mapper = {
       toDomainDto: jest.fn().mockReturnValue({ id: 'trigger-1' }),
@@ -43,6 +50,7 @@ describe('CreateScheduledTriggerService', () => {
         ),
     };
     const accessDecisionService = {
+      canAccessStored: jest.fn().mockResolvedValue(true),
       canAccess: jest
         .fn()
         .mockImplementation((_userId, roles: string[]) =>

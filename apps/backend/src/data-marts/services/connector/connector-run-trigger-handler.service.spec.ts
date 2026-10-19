@@ -1,3 +1,4 @@
+jest.mock('snowflake-sdk', () => ({ __esModule: true, default: {} }));
 import { Repository, DataSource, EntityManager, In } from 'typeorm';
 import { ConfigService } from '@nestjs/config';
 import { ConnectorRunTriggerHandlerService } from './connector-run-trigger-handler.service';
@@ -18,6 +19,7 @@ describe('ConnectorRunTriggerHandlerService', () => {
     } as unknown as Repository<ConnectorRunTrigger>;
 
     const dataMartRunRepository = {
+      update: jest.fn().mockResolvedValue({ affected: 1 }),
       save: jest.fn().mockImplementation(data => Promise.resolve(data)),
     } as unknown as Repository<DataMartRun>;
 
@@ -49,7 +51,7 @@ describe('ConnectorRunTriggerHandlerService', () => {
         andWhere: jest.fn().mockReturnThis(),
         getCount: jest.fn().mockResolvedValue(0),
       }),
-      findOneOrFail: jest.fn(),
+      findOneOrFail: jest.fn().mockResolvedValue({ id: 'run-1' }),
     } as unknown as EntityManager;
 
     const dataSource = {
@@ -96,6 +98,7 @@ describe('ConnectorRunTriggerHandlerService', () => {
 
   const mockTrigger = {
     id: 'trigger-1',
+    version: 1,
     dataMartId: 'dm-1',
     projectId: 'proj-1',
     dataMartRunId: 'run-1',
@@ -139,11 +142,9 @@ describe('ConnectorRunTriggerHandlerService', () => {
 
       await service.handleTrigger(mockTrigger);
 
-      expect(triggerRepository.save).toHaveBeenCalledWith(
-        expect.objectContaining({
-          status: TriggerStatus.IDLE,
-          isActive: true,
-        })
+      expect(triggerRepository.update).toHaveBeenCalledWith(
+        { id: mockTrigger.id, version: mockTrigger.version - 1 },
+        expect.objectContaining({ status: TriggerStatus.IDLE, isActive: true })
       );
     });
 
@@ -163,7 +164,9 @@ describe('ConnectorRunTriggerHandlerService', () => {
 
       (dataMartService.getByIdAndProjectId as jest.Mock).mockResolvedValue(mockDataMart);
       // Simulate claim failure — run is no longer PENDING
-      (mockManager.update as jest.Mock).mockResolvedValue({ affected: 0 });
+      (mockManager.update as jest.Mock).mockImplementation(async target => ({
+        affected: target === DataMart ? 1 : 0,
+      }));
       // Run is already RUNNING from a previous trigger processing
       (dataMartRunService.findById as jest.Mock).mockResolvedValue({
         id: 'run-1',
@@ -187,7 +190,9 @@ describe('ConnectorRunTriggerHandlerService', () => {
       } = createService();
 
       (dataMartService.getByIdAndProjectId as jest.Mock).mockResolvedValue(mockDataMart);
-      (mockManager.update as jest.Mock).mockResolvedValue({ affected: 0 });
+      (mockManager.update as jest.Mock).mockImplementation(async target => ({
+        affected: target === DataMart ? 1 : 0,
+      }));
       (dataMartRunService.findById as jest.Mock).mockResolvedValue({
         id: 'run-1',
         status: DataMartRunStatus.CANCELLED,
@@ -237,7 +242,9 @@ describe('ConnectorRunTriggerHandlerService', () => {
       const { service, dataMartService, dataMartRunService, mockManager } = createService();
 
       (dataMartService.getByIdAndProjectId as jest.Mock).mockResolvedValue(mockDataMart);
-      (mockManager.update as jest.Mock).mockResolvedValue({ affected: 0 });
+      (mockManager.update as jest.Mock).mockImplementation(async target => ({
+        affected: target === DataMart ? 1 : 0,
+      }));
       // Run is in some other non-RUNNING state (e.g. PENDING changed by another process)
       (dataMartRunService.findById as jest.Mock).mockResolvedValue({
         id: 'run-1',

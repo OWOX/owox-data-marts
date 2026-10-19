@@ -47,7 +47,30 @@ export interface ReconcileCredentialBindingsRequest {
   readonly requirements: readonly StoredCredentialRequirement[];
 }
 
+export interface InspectCredentialConsumerRequest {
+  readonly projectId: string;
+  readonly userId: string;
+  readonly roles: readonly string[];
+  readonly consumerType: 'plugin-installation';
+  readonly consumerId: string;
+  readonly requirements: readonly StoredCredentialRequirement[];
+}
+
+export interface CredentialConsumerReadiness {
+  readonly configured: boolean;
+  /** Stored configuration and permission checks cannot establish current provider validity. */
+  readonly providerValidity: 'unknown';
+  readonly requirements: readonly {
+    readonly key: string;
+    readonly optional: boolean;
+    readonly state: 'configured' | 'missing' | 'inaccessible' | 'incompatible';
+  }[];
+}
+
 export interface CredentialConsumerBindingFacade {
+  inspectConsumerReadiness(
+    request: InspectCredentialConsumerRequest
+  ): Promise<CredentialConsumerReadiness>;
   replaceBindings(request: ReplaceCredentialBindingsRequest): Promise<void>;
   deactivateConsumer(
     consumerType: 'plugin-installation',

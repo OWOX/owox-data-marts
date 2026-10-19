@@ -84,7 +84,8 @@ export class AccessDecisionService {
     entityType: EntityType,
     entityId: string,
     action: Action,
-    projectId?: string
+    projectId?: string,
+    options?: { scopeMode: 'read-only' }
   ): Promise<boolean> {
     const role = this.resolveRole(roles);
 
@@ -141,14 +142,28 @@ export class AccessDecisionService {
     }
 
     if (projectId) {
-      const roleScope = await this.contextAccessService.getRoleScope(userId, projectId);
+      const effectiveScope =
+        options?.scopeMode === 'read-only'
+          ? await this.contextAccessService.getReadOnlyMemberScope(userId, projectId)
+          : undefined;
+      const roleScope =
+        effectiveScope?.roleScope ??
+        (await this.contextAccessService.getRoleScope(userId, projectId));
       if (roleScope === RoleScope.SELECTED_CONTEXTS) {
-        const hasOverlap = await this.contextAccessService.hasContextOverlap(
-          userId,
-          entityType,
-          entityId,
-          projectId
-        );
+        const hasOverlap = effectiveScope
+          ? await this.contextAccessService.hasContextOverlap(
+              userId,
+              entityType,
+              entityId,
+              projectId,
+              effectiveScope.contextIds
+            )
+          : await this.contextAccessService.hasContextOverlap(
+              userId,
+              entityType,
+              entityId,
+              projectId
+            );
         if (!hasOverlap) {
           this.logger.debug(
             `Access denied (context): user=${userId} entity=${entityType}/${entityId} no context overlap`
@@ -161,17 +176,32 @@ export class AccessDecisionService {
     return true;
   }
 
+  /** Stored metadata access must not materialize provisioning defaults. */
+  async canAccessStored(
+    userId: string,
+    roles: string[],
+    entityType: EntityType,
+    entityId: string,
+    action: Action,
+    projectId: string
+  ): Promise<boolean> {
+    return this.canAccess(userId, roles, entityType, entityId, action, projectId, {
+      scopeMode: 'read-only',
+    });
+  }
+
   async canAccessMany(
     userId: string,
     roles: string[],
     entityType: EntityType,
     entityIds: readonly string[],
     action: Action,
-    projectId?: string
+    projectId?: string,
+    options?: { scopeMode: 'read-only' }
   ): Promise<Map<string, boolean>> {
     const uniqueIds = Array.from(new Set(entityIds));
     const results = await Promise.all(
-      uniqueIds.map(id => this.canAccess(userId, roles, entityType, id, action, projectId))
+      uniqueIds.map(id => this.canAccess(userId, roles, entityType, id, action, projectId, options))
     );
     return new Map(uniqueIds.map((id, index) => [id, results[index]]));
   }

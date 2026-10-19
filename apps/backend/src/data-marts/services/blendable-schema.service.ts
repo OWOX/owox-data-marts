@@ -51,6 +51,7 @@ import { DataStorageType } from '../data-storage-types/enums/data-storage-type.e
 export interface BlendableSchemaAccessor {
   userId: string;
   roles: string[];
+  scopeMode?: 'read-only';
 }
 
 export async function resolveBlendableSchemaAccessor(
@@ -399,14 +400,34 @@ export class BlendableSchemaService {
     if (availableSources.length === 0) return;
 
     const targetDataMartIds = Array.from(new Set(availableSources.map(s => s.dataMartId)));
-    const directAccess = await this.accessDecisionService.canAccessMany(
-      accessor.userId,
-      accessor.roles,
-      EntityType.DATA_MART,
-      targetDataMartIds,
-      Action.USE,
-      projectId
-    );
+    const directAccess =
+      accessor.scopeMode === 'read-only'
+        ? new Map(
+            await Promise.all(
+              targetDataMartIds.map(
+                async id =>
+                  [
+                    id,
+                    await this.accessDecisionService.canAccessStored(
+                      accessor.userId,
+                      accessor.roles,
+                      EntityType.DATA_MART,
+                      id,
+                      Action.USE,
+                      projectId
+                    ),
+                  ] as const
+              )
+            )
+          )
+        : await this.accessDecisionService.canAccessMany(
+            accessor.userId,
+            accessor.roles,
+            EntityType.DATA_MART,
+            targetDataMartIds,
+            Action.USE,
+            projectId
+          );
 
     const accessibleByAliasPath = new Map<string, boolean>();
     const sortedByDepth = [...availableSources].sort((a, b) => a.depth - b.depth);

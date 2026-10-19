@@ -11,6 +11,7 @@ export class CreateScheduledTriggerCommand {
     public readonly timeZone: string,
     public readonly isActive: boolean = true,
     public readonly triggerConfig?: ScheduledTriggerConfig,
-    public readonly roles: string[] = []
+    public readonly roles: string[] = [],
+    public readonly expectedRevision?: number
   ) {}
 }

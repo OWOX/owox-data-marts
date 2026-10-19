@@ -119,13 +119,13 @@ describe('ConnectorDefinitionController OpenAPI', () => {
         path: `${BASE}/{id}/publish`,
         method: 'post',
         handler: 'publish',
-        statuses: ['201', '400', '403', '404'],
+        statuses: ['201', '400', '403', '404', '413'],
       },
       {
         path: `${BASE}/{id}/versions/{version}/activate`,
         method: 'post',
         handler: 'activate',
-        statuses: ['201', '400', '403', '404'],
+        statuses: ['201', '400', '403', '404', '413'],
       },
       {
         path: `${BASE}/{id}`,
@@ -185,6 +185,7 @@ describe('ConnectorDefinitionController OpenAPI', () => {
 
     const itemSchema = resolveRef('#/components/schemas/CustomConnectorListItemResponseApiDto');
     expect(itemSchema.required).toEqual([
+      'revision',
       'id',
       'name',
       'title',
@@ -217,6 +218,7 @@ describe('ConnectorDefinitionController OpenAPI', () => {
     // same view model, so every list field has to survive here too.
     const detailSchema = resolveRef('#/components/schemas/CustomConnectorDetailResponseApiDto');
     expect(detailSchema.required).toEqual([
+      'revision',
       'id',
       'name',
       'title',
@@ -297,7 +299,7 @@ describe('ConnectorDefinitionController OpenAPI', () => {
     const activateSchema = resolveRef(
       '#/components/schemas/ActivateCustomConnectorVersionResponseApiDto'
     );
-    expect(activateSchema.required).toEqual(['activeVersionId', 'activeVersion']);
+    expect(activateSchema.required).toEqual(['revision', 'activeVersionId', 'activeVersion']);
     expect(activateSchema.properties).toMatchObject({
       activeVersionId: { type: 'string', nullable: true },
       activeVersion: { type: 'integer' },
@@ -309,7 +311,7 @@ describe('ConnectorDefinitionController OpenAPI', () => {
       $ref: '#/components/schemas/CreateCustomConnectorResponseApiDto',
     });
     const createSchema = resolveRef('#/components/schemas/CreateCustomConnectorResponseApiDto');
-    expect(createSchema.required).toEqual(['id', 'name', 'title']);
+    expect(createSchema.required).toEqual(['revision', 'id', 'name', 'title']);
 
     expect(
       jsonSchemaOf(document.paths[`${BASE}/{id}`]?.delete as Record<string, any>, '200')

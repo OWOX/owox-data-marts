@@ -1,6 +1,7 @@
 export class ProjectSettingsDto {
   constructor(
     public readonly projectId: string,
-    public readonly description: string | null
+    public readonly description: string | null,
+    public readonly revision: number
   ) {}
 }

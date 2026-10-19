@@ -40,6 +40,7 @@ export class ConnectorDefinitionMapper {
   ): CustomConnectorListItemResponseApiDto {
     return {
       id: def.id,
+      revision: def.revision,
       name: def.name,
       title: def.title,
       description: def.description ?? null,
@@ -73,7 +74,7 @@ export class ConnectorDefinitionMapper {
   }
 
   toCreateResponse(def: ConnectorDefinition): CreateCustomConnectorResponseApiDto {
-    return { id: def.id, name: def.name, title: def.title };
+    return { id: def.id, name: def.name, title: def.title, revision: def.revision };
   }
 
   /** The one response that carries a manifest verbatim; see the handler's @Auth note. */
@@ -82,9 +83,13 @@ export class ConnectorDefinitionMapper {
   }
 
   toVersionStateResponse(
-    row: ConnectorDefinitionVersion
+    row: ConnectorDefinitionVersion & { revision?: number }
   ): CustomConnectorVersionStateResponseApiDto {
-    return { version: row.version, status: row.status };
+    return {
+      version: row.version,
+      status: row.status,
+      ...(row.revision === undefined ? {} : { revision: row.revision }),
+    };
   }
 
   /**
@@ -93,16 +98,26 @@ export class ConnectorDefinitionMapper {
    * column carries no value.
    */
   toPublishResponse(
-    row: ConnectorDefinitionVersion,
+    row: ConnectorDefinitionVersion & { revision?: number },
     warnings: string[]
   ): PublishCustomConnectorResponseApiDto {
-    return { version: row.version, status: row.status, publishedAt: row.publishedAt, warnings };
+    return {
+      version: row.version,
+      status: row.status,
+      publishedAt: row.publishedAt,
+      warnings,
+      ...(row.revision === undefined ? {} : { revision: row.revision }),
+    };
   }
 
   toActivateResponse(
     def: ConnectorDefinition,
     version: number
   ): ActivateCustomConnectorVersionResponseApiDto {
-    return { activeVersionId: def.activeVersionId ?? null, activeVersion: version };
+    return {
+      activeVersionId: def.activeVersionId ?? null,
+      activeVersion: version,
+      revision: def.revision,
+    };
   }
 }

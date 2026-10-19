@@ -24,6 +24,27 @@ export class ConnectorBuilderApiService extends ApiService {
     super('/connectors/custom');
   }
 
+  async prepareForAgent(
+    id: string,
+    payload: {
+      expectedRevision: number;
+      version: number;
+      protectedPaths: string[][];
+      reviewedNonSecretContent: true;
+    }
+  ): Promise<{ preparationId: string; expiresAt: string }> {
+    return this.post(`/${id}/authoring-preparation`, payload, REPORTED_BY_BUILDER);
+  }
+  async approveAgentTest(
+    id: string,
+    payload: { expectedRevision: number; version: number; configuration: Record<string, unknown> }
+  ): Promise<{ approvalId: string; expiresAt: string }> {
+    return this.post(`/${id}/test-approval`, payload, REPORTED_BY_BUILDER);
+  }
+  async revokeAgentPreparation(id: string, preparationId: string): Promise<void> {
+    await this.delete(`/${id}/authoring-preparations/${preparationId}`, REPORTED_BY_BUILDER);
+  }
+
   async list(): Promise<CustomConnectorListItemDto[]> {
     return this.get<CustomConnectorListItemDto[]>('/');
   }
@@ -38,8 +59,8 @@ export class ConnectorBuilderApiService extends ApiService {
 
   async create(
     payload: CreateCustomConnectorPayload
-  ): Promise<{ id: string; name: string; title: string }> {
-    return this.post<{ id: string; name: string; title: string }>(
+  ): Promise<{ id: string; name: string; title: string; revision?: number }> {
+    return this.post<{ id: string; name: string; title: string; revision?: number }>(
       '/',
       payload,
       REPORTED_BY_BUILDER
@@ -48,19 +69,26 @@ export class ConnectorBuilderApiService extends ApiService {
 
   async saveDraft(
     id: string,
-    manifest: BuilderManifest
+    manifest: BuilderManifest,
+    expectedRevision?: number
   ): Promise<CustomConnectorVersionSummaryDto> {
     return this.put<CustomConnectorVersionSummaryDto>(
       `/${id}/draft`,
-      { manifest },
+      { manifest, ...(expectedRevision === undefined ? {} : { expectedRevision }) },
       REPORTED_BY_BUILDER
     );
   }
 
-  async publish(id: string): Promise<PublishCustomConnectorResultDto> {
+  async publish(
+    id: string,
+    expectedRevision?: number,
+    version?: number
+  ): Promise<PublishCustomConnectorResultDto> {
     return this.post<PublishCustomConnectorResultDto>(
       `/${id}/publish`,
-      undefined,
+      expectedRevision === undefined && version === undefined
+        ? undefined
+        : { expectedRevision, version },
       REPORTED_BY_BUILDER
     );
   }
@@ -69,15 +97,22 @@ export class ConnectorBuilderApiService extends ApiService {
     return this.post<ConnectorTestResultDto>('/test', payload);
   }
 
-  async activateVersion(id: string, version: number): Promise<ActivateVersionResultDto> {
+  async activateVersion(
+    id: string,
+    version: number,
+    expectedRevision?: number
+  ): Promise<ActivateVersionResultDto> {
     return this.post<ActivateVersionResultDto>(
       `/${id}/versions/${version}/activate`,
-      undefined,
+      expectedRevision === undefined ? undefined : { expectedRevision },
       REPORTED_BY_BUILDER
     );
   }
 
-  async softDelete(id: string): Promise<void> {
-    await this.delete(`/${id}`, REPORTED_BY_BUILDER);
+  async softDelete(id: string, expectedRevision?: number): Promise<void> {
+    await this.delete(
+      `/${id}${expectedRevision === undefined ? '' : `?expectedRevision=${expectedRevision}`}`,
+      REPORTED_BY_BUILDER
+    );
   }
 }

@@ -10,6 +10,7 @@ export class UpdateRelationshipCommand {
     public readonly targetAlias?: string,
     public readonly joinConditions?: JoinCondition[],
     /** undefined = leave untouched; null or empty string = clear. */
-    public readonly description?: string | null
+    public readonly description?: string | null,
+    public readonly expectedRevision?: number
   ) {}
 }

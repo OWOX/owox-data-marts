@@ -5,6 +5,9 @@ import { ProjectSettingsController } from './controllers/project-settings.contro
 import { ProjectSettings } from './entities/project-settings.entity';
 import { PROJECT_SETTINGS_FACADE } from './facades/project-settings.facade';
 import { ProjectSettingsFacadeImpl } from './facades/project-settings.facade.impl';
+import { MCP_PROJECT_SETUP_FACADE } from './facades/mcp-project-setup.facade';
+import { McpProjectSetupFacadeImpl } from './facades/mcp-project-setup.facade.impl';
+import { McpProjectSetupMapper } from './mappers/mcp-project-setup.mapper';
 import { ProjectSettingsMapper } from './mappers/project-settings.mapper';
 import { ProjectSettingsService } from './services/project-settings.service';
 import { GetProjectSettingsService } from './use-cases/get-project-settings.service';
@@ -16,6 +19,7 @@ import { UpdateProjectDescriptionService } from './use-cases/update-project-desc
   providers: [
     ProjectSettingsService,
     ProjectSettingsMapper,
+    McpProjectSetupMapper,
     GetProjectSettingsService,
     UpdateProjectDescriptionService,
     ProjectSettingsFacadeImpl,
@@ -23,7 +27,8 @@ import { UpdateProjectDescriptionService } from './use-cases/update-project-desc
       provide: PROJECT_SETTINGS_FACADE,
       useExisting: ProjectSettingsFacadeImpl,
     },
+    { provide: MCP_PROJECT_SETUP_FACADE, useClass: McpProjectSetupFacadeImpl },
   ],
-  exports: [PROJECT_SETTINGS_FACADE],
+  exports: [PROJECT_SETTINGS_FACADE, MCP_PROJECT_SETUP_FACADE],
 })
 export class ProjectSettingsModule {}

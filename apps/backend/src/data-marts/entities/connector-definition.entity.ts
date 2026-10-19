@@ -18,6 +18,9 @@ export class ConnectorDefinition {
   @Column()
   projectId: string;
 
+  @Column({ type: 'int', default: 1 })
+  revision: number;
+
   @Column()
   name: string;
 

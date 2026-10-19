@@ -1,5 +1,7 @@
 import {
   BadRequestException,
+  ConflictException,
+  BadGatewayException,
   ForbiddenException,
   GatewayTimeoutException,
   HttpException,
@@ -8,8 +10,8 @@ import {
   Logger,
   Optional,
 } from '@nestjs/common';
-import { castError } from '@owox/internal-helpers';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
+import { ProjectOperationBlockedException } from '../../common/exceptions/project-operation-blocked.exception';
 import { TypeResolver } from '../../common/resolver/type-resolver';
 import type { Role as RoleType } from '@owox/idp-protocol';
 import {
@@ -32,6 +34,8 @@ import {
 } from '../services/blendable-schema.service';
 import { DataMartService } from '../services/data-mart.service';
 import { calculatedFieldsOf } from '../calculated-fields/calculated-field.utils';
+import { DataMartDefinitionType } from '../enums/data-mart-definition-type.enum';
+import { DataMartStatus } from '../enums/data-mart-status.enum';
 import {
   ProjectBillingService,
   RunKind,
@@ -79,6 +83,19 @@ export interface DataMartPreviewResult {
   truncated: boolean;
 }
 
+/** Start observations are not revisions: SQL view composition can reload the saved definition. */
+export interface DataMartPreviewObservation {
+  preview: DataMartPreviewResult;
+  revision: number;
+  schemaInputRevision: number | null;
+  schemaFreshness: 'current' | 'stale' | 'missing';
+  observedModifiedAt: string;
+  observedStatus: DataMartStatus;
+  observedDefinitionType: DataMartDefinitionType | null;
+  schemaActualizedAt: string | null;
+  currentness: 'not-guaranteed' | 'changed-during-preview';
+}
+
 // 499 "Client Closed Request" (nginx convention): a cancel is neither a server fault nor worth an
 // error-level log, and nobody reads the response anyway.
 export const CLIENT_CLOSED_REQUEST_STATUS = 499;
@@ -120,6 +137,55 @@ export class PreviewDataMartService {
   ) {}
 
   async run(command: PreviewDataMartCommand, signal?: AbortSignal): Promise<DataMartPreviewResult> {
+    return (await this.execute(command, signal)).preview;
+  }
+
+  async runForSetup(
+    command: PreviewDataMartCommand,
+    signal?: AbortSignal
+  ): Promise<DataMartPreviewObservation> {
+    try {
+      return await this.execute(command, signal, true);
+    } catch (error) {
+      // Provider/composer exceptions may contain SQL, source parameters or credential details.
+      if (error instanceof ProjectOperationBlockedException) {
+        throw new ForbiddenException(
+          'Preview is unavailable under the current project license or operation limits'
+        );
+      }
+      if (error instanceof PreviewAbortedError) throw new PreviewAbortedError();
+      if (error instanceof GatewayTimeoutException) {
+        throw new GatewayTimeoutException(
+          'Preview timed out; reduce its limit or retry in the app'
+        );
+      }
+      if (error instanceof HttpException) {
+        const status = error.getStatus();
+        const messages: Record<number, string> = {
+          400: 'Preview requires a configured Data Mart with a usable saved output schema',
+          402: 'Preview is unavailable under the current project license',
+          403: 'Preview is not permitted by current access or project operation limits',
+          404: 'The Data Mart or its output is unavailable',
+          409: 'Schema refresh required: actualize the schema for the current Data Mart definition before previewing',
+          424: 'Preview source is unavailable; check the warehouse output and schema in the app',
+          429: 'Preview is unavailable under current operation limits',
+          499: 'Preview was cancelled',
+          504: 'Preview timed out; reduce its limit or retry in the app',
+        };
+        if (messages[status]) throw new HttpException(messages[status], status);
+      }
+      if (error instanceof BusinessViolationException) {
+        throw new BadRequestException('Preview output configuration requires repair in the app');
+      }
+      throw new BadGatewayException('Preview could not be completed; check setup in the app');
+    }
+  }
+
+  private async execute(
+    command: PreviewDataMartCommand,
+    signal?: AbortSignal,
+    setup = false
+  ): Promise<DataMartPreviewObservation> {
     const limit = this.parseLimit(command.limit);
     const filters = this.parseFilters(command.filters);
     const sort = this.parseSort(command.sort);
@@ -128,7 +194,10 @@ export class PreviewDataMartService {
       command.dataMartId,
       command.projectId
     );
-    const canSee = await this.accessDecisionService.canAccess(
+    const checkAccess = setup
+      ? this.accessDecisionService.canAccessStored.bind(this.accessDecisionService)
+      : this.accessDecisionService.canAccess.bind(this.accessDecisionService);
+    const canSee = await checkAccess(
       command.userId,
       command.roles,
       EntityType.DATA_MART,
@@ -140,7 +209,21 @@ export class PreviewDataMartService {
       throw new ForbiddenException('You do not have access to this Data Mart');
     }
 
-    const accessor: BlendableSchemaAccessor = { userId: command.userId, roles: command.roles };
+    if (setup) {
+      await this.requireSetupStorageAccess(dataMart, command);
+      this.requireSetupSchema(dataMart);
+    }
+    const observedModifiedAt = dataMart.modifiedAt.toISOString();
+    const observedStatus = dataMart.status;
+    const observedDefinitionType = dataMart.definitionType ?? null;
+    const schemaActualizedAt = dataMart.schemaActualizedAt?.toISOString() ?? null;
+    const observation = setup ? configurationObservation(dataMart) : '';
+
+    const accessor: BlendableSchemaAccessor = {
+      userId: command.userId,
+      roles: command.roles,
+      ...(setup ? { scopeMode: 'read-only' as const } : {}),
+    };
     const schema = await this.blendableSchemaService.computeBlendableSchema(
       dataMart.id,
       dataMart.projectId,
@@ -193,7 +276,7 @@ export class PreviewDataMartService {
       // A warehouse error (bad column, missing table, permissions — including the technical view
       // a SQL Data Mart is read through) is not a server fault: hand the provider's own sentence
       // back, the same way HTTP Data does, so the person can fix the schema or the filter.
-      this.logger.warn(`Preview of Data Mart ${dataMart.id} failed: ${castError(error).message}`);
+      this.logger.warn(`Preview of Data Mart ${dataMart.id} failed`);
       const mapper = await this.errorMapperResolver.resolve(dataMart.storage.type);
       throw mapper.toStorageReadError(error, { force: true });
     }
@@ -203,7 +286,75 @@ export class PreviewDataMartService {
       row.map(toPreviewCell)
     );
 
-    return { columns: result.columns, rows, rowCount: rows.length, limit, truncated };
+    let currentness: DataMartPreviewObservation['currentness'] = 'not-guaranteed';
+    if (setup) {
+      const current = await this.dataMartService.getByIdAndProjectId(
+        command.dataMartId,
+        command.projectId
+      );
+      await this.requireSetupStorageAccess(current, command);
+      if (
+        !(await checkAccess(
+          command.userId,
+          command.roles,
+          EntityType.DATA_MART,
+          current.id,
+          Action.SEE,
+          command.projectId
+        ))
+      ) {
+        throw new ForbiddenException('Data Mart access changed during preview');
+      }
+      this.requireSetupSchema(current);
+      if (observation !== configurationObservation(current)) currentness = 'changed-during-preview';
+    }
+
+    return {
+      preview: { columns: result.columns, rows, rowCount: rows.length, limit, truncated },
+      revision: dataMart.revision,
+      schemaInputRevision: dataMart.schemaInputRevision ?? null,
+      schemaFreshness: !dataMart.schema
+        ? 'missing'
+        : dataMart.schemaInputRevision === dataMart.revision - 1
+          ? 'current'
+          : 'stale',
+      observedModifiedAt,
+      observedStatus,
+      observedDefinitionType,
+      schemaActualizedAt,
+      currentness,
+    };
+  }
+
+  private requireSetupSchema(dataMart: DataMart): void {
+    if (
+      !dataMart.schema ||
+      dataMart.schemaInputRevision == null ||
+      dataMart.schemaInputRevision !== dataMart.revision - 1
+    )
+      throw new ConflictException(
+        'Schema refresh required: actualize the schema for the current Data Mart definition before previewing'
+      );
+  }
+
+  private async requireSetupStorageAccess(
+    dataMart: DataMart,
+    command: PreviewDataMartCommand
+  ): Promise<void> {
+    if (
+      dataMart.projectId !== command.projectId ||
+      dataMart.storage.projectId !== command.projectId ||
+      !(await this.accessDecisionService.canAccessStored(
+        command.userId,
+        command.roles,
+        EntityType.STORAGE,
+        dataMart.storage.id,
+        Action.USE,
+        command.projectId
+      ))
+    ) {
+      throw new ForbiddenException('You do not have permission to use this Storage');
+    }
   }
 
   private parseLimit(limit: number | undefined): number {
@@ -325,10 +476,8 @@ export class PreviewDataMartService {
         workController.abort();
         try {
           await reader?.finalize();
-        } catch (finalizeError) {
-          this.logger.warn(
-            `reader.finalize() failed; ignoring: ${castError(finalizeError).message}`
-          );
+        } catch {
+          this.logger.warn('reader.finalize() failed; ignoring');
         }
       }
     })();
@@ -340,6 +489,24 @@ export class PreviewDataMartService {
       if (signal && abortListener) signal.removeEventListener('abort', abortListener);
     }
   }
+}
+
+function configurationObservation(dataMart: DataMart): string {
+  // Local comparison only. Never return or log this secret-bearing snapshot as a revision.
+  return JSON.stringify({
+    revision: dataMart.revision,
+    modifiedAt: dataMart.modifiedAt,
+    status: dataMart.status,
+    definitionType: dataMart.definitionType,
+    definition: dataMart.definition,
+    schema: dataMart.schema,
+    schemaActualizedAt: dataMart.schemaActualizedAt,
+    blendedFieldsConfig: dataMart.blendedFieldsConfig,
+    storageId: dataMart.storage.id,
+    storageType: dataMart.storage.type,
+    storageConfig: dataMart.storage.config,
+    credentialId: dataMart.storage.credentialId,
+  });
 }
 
 function throwIfAborted(signal: AbortSignal | undefined): void {

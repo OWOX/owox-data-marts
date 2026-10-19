@@ -1,4 +1,15 @@
-import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  Param,
+  Patch,
+  Post,
+  Query,
+  ParseIntPipe,
+} from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { Auth, AuthContext, AuthorizationContext, Role, Strategy } from '../../idp';
 import { CreateRelationshipRequestApiDto } from '../dto/presentation/create-relationship-request-api.dto';
@@ -74,9 +85,10 @@ export class DataMartRelationshipController {
   async delete(
     @AuthContext() context: AuthorizationContext,
     @Param('dataMartId') dataMartId: string,
-    @Param('id') id: string
+    @Param('id') id: string,
+    @Query('expectedRevision', new ParseIntPipe({ optional: true })) expectedRevision?: number
   ): Promise<void> {
-    const command = this.mapper.toDeleteCommand(id, dataMartId, context);
+    const command = this.mapper.toDeleteCommand(id, dataMartId, context, expectedRevision);
     await this.deleteService.run(command);
   }
 }

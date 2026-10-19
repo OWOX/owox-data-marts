@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { ConflictException, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { IsNull, MoreThan, Repository } from 'typeorm';
 import { isUniqueConstraintViolation } from '../../common/typeorm/query-error.utils';
@@ -82,6 +82,21 @@ export class PluginInstallationService {
 
       return { installation: existing, wonRace: false };
     }
+  }
+
+  async advanceRevision(installationId: string, expectedRevision?: number): Promise<number> {
+    const result = await this.repository
+      .createQueryBuilder()
+      .update()
+      .set({ revision: () => 'revision + 1' })
+      .where('id = :id', { id: installationId })
+      .andWhere(expectedRevision === undefined ? '1 = 1' : 'revision = :revision', {
+        revision: expectedRevision,
+      })
+      .execute();
+    if (result.affected !== 1)
+      throw new ConflictException('Plugin installation changed; refresh before continuing');
+    return (await this.repository.findOneByOrFail({ id: installationId })).revision;
   }
 
   async restore(installationId: string): Promise<void> {

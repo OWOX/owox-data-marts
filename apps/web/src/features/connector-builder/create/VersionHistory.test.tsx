@@ -44,6 +44,7 @@ describe('Version history', () => {
     vi.clearAllMocks();
     getById.mockResolvedValue({
       id: 'def-1',
+      revision: 3,
       name: 'MyApi',
       title: 'My API',
       description: null,
@@ -58,7 +59,7 @@ describe('Version history', () => {
       ],
     });
     getVersion.mockResolvedValue({ version: 3, status: 'draft', manifest: MANIFEST });
-    activateVersion.mockResolvedValue({ activeVersionId: 'v1-id', activeVersion: 1 });
+    activateVersion.mockResolvedValue({ activeVersionId: 'v1-id', activeVersion: 1, revision: 4 });
   });
 
   it('lists versions with active marker, opens an old version, and rolls back', async () => {
@@ -90,7 +91,7 @@ describe('Version history', () => {
     expect(versionsMarkedActive()).toEqual([2]);
     fireEvent.click(within(panel2).getByRole('button', { name: /make version 1 active/i }));
     await waitFor(() => {
-      expect(activateVersion).toHaveBeenCalledWith('def-1', 1);
+      expect(activateVersion).toHaveBeenCalledWith('def-1', 1, 3);
     });
 
     // …and the roll-back is visible: the marker moved onto v1 and off v2, so the offer to

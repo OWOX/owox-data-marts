@@ -1,3 +1,4 @@
+jest.mock('snowflake-sdk', () => ({ __esModule: true, default: {} }));
 import { Test, TestingModule } from '@nestjs/testing';
 import {
   BlendableSchemaAccessor,
@@ -97,6 +98,7 @@ describe('BlendableSchemaService', () => {
         {
           provide: AccessDecisionService,
           useValue: {
+            canAccessStored: jest.fn().mockResolvedValue(true),
             canAccessMany: jest.fn(async (_uid, _roles, _type, ids: string[]) => {
               return new Map(ids.map(id => [id, true]));
             }),
@@ -112,6 +114,33 @@ describe('BlendableSchemaService', () => {
   });
 
   describe('computeBlendableSchema', () => {
+    it('read-only access checks every joined target without provisioning Context defaults', async () => {
+      dataMartService.getByIdAndProjectId.mockResolvedValue(makeDataMart());
+      relationshipService.findByStorageId.mockResolvedValue([
+        makeRelationship(),
+        makeRelationship({
+          id: 'rel-2',
+          targetAlias: 'orders',
+          targetDataMart: makeDataMart({ id: 'dm-3' }),
+        }),
+      ]);
+      accessDecisionService.canAccessStored.mockImplementation(
+        async (_user, _roles, _type, id) => id !== 'dm-2'
+      );
+      const result = await service.computeBlendableSchema('dm-1', 'project-1', {
+        ...defaultAccessor,
+        scopeMode: 'read-only',
+      });
+      expect(accessDecisionService.canAccessMany).not.toHaveBeenCalled();
+      expect(accessDecisionService.canAccessStored).toHaveBeenCalledTimes(2);
+      expect(
+        result.availableSources.map(source => [source.aliasPath, source.isAccessibleForReporting])
+      ).toEqual([
+        ['customers', false],
+        ['orders', true],
+      ]);
+    });
+
     it('should return native fields and empty blendedFields when no relationships exist', async () => {
       const nativeSchemaFields = [{ name: 'id', type: 'STRING' }];
       dataMartService.getByIdAndProjectId.mockResolvedValue(

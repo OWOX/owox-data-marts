@@ -158,7 +158,7 @@ export class AthenaReportReader implements DataStorageReportReader {
     try {
       await this.s3Adapter.cleanupOutputFiles(this.outputBucket, this.outputPrefix);
     } catch (error) {
-      this.logger.error('Error cleaning up query results', error);
+      this.logger.error('Error cleaning up query results');
       throw error;
     }
   }
@@ -188,7 +188,7 @@ export class AthenaReportReader implements DataStorageReportReader {
   }
 
   private async prepareQueryExecution(dataMartDefinition: DataMartDefinition): Promise<void> {
-    this.logger.debug('Preparing query execution', dataMartDefinition);
+    this.logger.debug('Preparing query execution');
     try {
       const builtFallback = this.athenaQueryBuilder.buildQuery(dataMartDefinition);
       const query =
@@ -196,7 +196,7 @@ export class AthenaReportReader implements DataStorageReportReader {
         (isQueryBuildResult(builtFallback) ? builtFallback.sql : builtFallback);
       await this.executeQuery(query, this.pendingParams);
     } catch (error) {
-      this.logger.error('Failed to prepare query execution', error);
+      this.logger.error('Failed to prepare query execution');
       throw error;
     }
   }

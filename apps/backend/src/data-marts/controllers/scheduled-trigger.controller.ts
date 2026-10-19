@@ -7,6 +7,7 @@ import {
   Param,
   Post,
   Put,
+  Query,
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { AuthContext, AuthorizationContext, Auth } from '../../idp';
@@ -133,10 +134,16 @@ export class ScheduledTriggerController {
   async delete(
     @AuthContext() context: AuthorizationContext,
     @Param('dataMartId') dataMartId: string,
-    @Param('id') id: string
+    @Param('id') id: string,
+    @Query('expectedRevision') expectedRevision?: string
   ): Promise<void> {
     await this.checkDataMartAccess(dataMartId, context, Action.SEE);
-    const command = this.mapper.toDeleteCommand(id, dataMartId, context);
+    const command = this.mapper.toDeleteCommand(
+      id,
+      dataMartId,
+      context,
+      expectedRevision === undefined ? undefined : Number(expectedRevision)
+    );
     await this.deleteService.run(command);
   }
 }

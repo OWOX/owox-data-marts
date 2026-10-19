@@ -1,9 +1,10 @@
+import { DataMartConfigurationPreconditionDto } from './data-mart-configuration-precondition.dto';
 import { ApiProperty } from '@nestjs/swagger';
 import { DataMartDefinition } from '../schemas/data-mart-table-definitions/data-mart-definition';
 import { DataMartDefinitionType } from '../../enums/data-mart-definition-type.enum';
 import { IsEnum, IsNotEmptyObject, IsOptional, IsUUID, IsString } from 'class-validator';
 
-export class UpdateDataMartDefinitionApiDto {
+export class UpdateDataMartDefinitionApiDto extends DataMartConfigurationPreconditionDto {
   @ApiProperty({ enum: DataMartDefinitionType, example: DataMartDefinitionType.SQL })
   @IsEnum(DataMartDefinitionType)
   definitionType: DataMartDefinitionType;

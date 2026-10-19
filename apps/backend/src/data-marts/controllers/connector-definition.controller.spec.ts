@@ -1,3 +1,4 @@
+jest.mock('snowflake-sdk', () => ({}));
 jest.mock('@owox/connectors', () => ({
   // An array, not an object: connector-definition.service builds a Set from it.
   AvailableConnectors: [],

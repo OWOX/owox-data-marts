@@ -12,6 +12,7 @@ import { UninstallPluginService } from './uninstall-plugin.service';
 
 function setup(installation: { id: string; uninstalledAt: Date | null } | null) {
   const installations = {
+    advanceRevision: jest.fn().mockResolvedValue(2),
     findOne: jest.fn().mockResolvedValue(installation),
     uninstall: jest.fn().mockResolvedValue(undefined),
   };

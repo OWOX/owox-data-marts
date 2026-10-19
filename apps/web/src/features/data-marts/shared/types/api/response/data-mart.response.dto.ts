@@ -14,6 +14,7 @@ import type { DataMartIconValue } from '../../../enums/data-mart-icon.enum';
  */
 export interface DataMartResponseDto {
   id: string;
+  revision?: number;
   title: string;
   status: DataMartStatus;
   storage: DataStorageResponseDto;

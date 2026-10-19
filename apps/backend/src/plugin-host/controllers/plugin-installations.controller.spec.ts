@@ -12,6 +12,7 @@ jest.mock('../../idp', () => ({
   Strategy: { INTROSPECT: 'introspect', PARSE: 'parse' },
 }));
 
+import { REJECT_API_KEY_AUTH_METADATA } from '../../idp/decorators/reject-api-key-auth.decorator';
 import { REJECT_PLUGIN_AUTH_METADATA } from '../../idp/decorators/reject-plugin-auth.decorator';
 import { PluginInstallationsController } from './plugin-installations.controller';
 
@@ -28,10 +29,27 @@ describe('PluginInstallationsController plugin runtime authority', () => {
       PluginInstallationsController,
     ]) === true;
 
-  it.each(['install', 'uninstall', 'update', 'updateByRepository', 'runtimeToken'] as const)(
-    'refuses a plugin runtime token on %s',
+  it.each([
+    'install',
+    'uninstall',
+    'update',
+    'updateByRepository',
+    'runtimeToken',
+    'completeSetupApproval',
+    'revokeSetupApproval',
+  ] as const)('refuses a plugin runtime token on %s', handler => {
+    expect(rejectsPluginAuth(handler)).toBe(true);
+  });
+
+  it.each(['completeSetupApproval', 'revokeSetupApproval'] as const)(
+    'requires app authentication instead of API key authority on %s',
     handler => {
-      expect(rejectsPluginAuth(handler)).toBe(true);
+      expect(
+        reflector.getAllAndOverride<boolean>(REJECT_API_KEY_AUTH_METADATA, [
+          PluginInstallationsController.prototype[handler],
+          PluginInstallationsController,
+        ])
+      ).toBe(true);
     }
   );
 

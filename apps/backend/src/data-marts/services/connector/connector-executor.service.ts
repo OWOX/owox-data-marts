@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
+import { lockDataMartConnectorWork } from './connector-work-lifecycle';
 import { Transactional } from 'typeorm-transactional';
 
 import { Core } from '@owox/connectors';
@@ -532,7 +533,14 @@ export class ConnectorExecutorService {
     });
 
     try {
-      await this.dataMartService.actualizeSchema(dataMart.id, dataMart.projectId);
+      const saved = Number.isSafeInteger(dataMart.revision)
+        ? await this.dataMartService.actualizeSchema(
+            dataMart.id,
+            dataMart.projectId,
+            dataMart.revision
+          )
+        : await this.dataMartService.actualizeSchema(dataMart.id, dataMart.projectId);
+      if (saved) Object.assign(dataMart, saved);
     } catch (error) {
       const schemaError = error instanceof Error ? error.message : String(error);
       const logMeta = {
@@ -1472,6 +1480,12 @@ export class ConnectorExecutorService {
     errors: string[] | null,
     nextSegment?: NextSegmentRun
   ): Promise<boolean> {
+    if (nextSegment)
+      await lockDataMartConnectorWork(
+        this.dataMartRunRepository.manager,
+        nextSegment.dataMart.id,
+        nextSegment.dataMart.projectId
+      );
     const result = await this.dataMartRunRepository.update(
       { id: runId, status: In(NON_TERMINAL_DATA_MART_RUN_STATUSES) },
       { status, finishedAt: this.systemTimeService.now(), logs, errors }

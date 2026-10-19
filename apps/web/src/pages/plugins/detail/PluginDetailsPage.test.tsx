@@ -26,6 +26,14 @@ let publications: PluginPublication[] = [];
 let installations: InstalledPlugin[] = [];
 let plugin: PluginGalleryEntry;
 
+const { completeSetupApproval, revokeSetupApproval } = vi.hoisted(() => ({
+  completeSetupApproval: vi.fn(),
+  revokeSetupApproval: vi.fn(),
+}));
+vi.mock('../../../features/plugins/services/plugins.service', () => ({
+  pluginsService: { completeSetupApproval, revokeSetupApproval },
+}));
+
 vi.mock('react-router', async () => {
   const actual = await vi.importActual<typeof import('react-router')>('react-router');
   return { ...actual, useParams: () => ({ pluginId: 'p1' }), useNavigate: () => navigate };
@@ -139,6 +147,8 @@ const openMenu = () =>
 describe('PluginDetailsPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    completeSetupApproval.mockResolvedValue(undefined);
+    revokeSetupApproval.mockResolvedValue(undefined);
     publications = [];
     installations = [];
     publishableScopes = ['member'];
@@ -147,6 +157,57 @@ describe('PluginDetailsPage', () => {
     uninstall.mockResolvedValue(undefined);
     unpublish.mockResolvedValue(undefined);
     plugin = entry();
+  });
+
+  it('opens the existing review dialog and completes app approval only after confirmation', async () => {
+    render(
+      <MemoryRouter initialEntries={['/plugins/p1?setupApproval=review-1']}>
+        <PluginDetailsPage />
+      </MemoryRouter>
+    );
+    expect(screen.getByRole('dialog', { name: 'Install this plugin?' })).toBeTruthy();
+    expect(completeSetupApproval).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm install' }));
+    await waitFor(() => {
+      expect(completeSetupApproval).toHaveBeenCalledWith(
+        'p1',
+        'review-1',
+        plugin.currentVersionId,
+        {}
+      );
+    });
+    expect(install).not.toHaveBeenCalled();
+    await waitFor(() => {
+      expect(navigate).toHaveBeenCalledWith('/ui/project-1/plugins/p1', { replace: true });
+    });
+  });
+
+  it('revokes the pending review when the member cancels', async () => {
+    render(
+      <MemoryRouter initialEntries={['/plugins/p1?setupApproval=review-1']}>
+        <PluginDetailsPage />
+      </MemoryRouter>
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    await waitFor(() => {
+      expect(revokeSetupApproval).toHaveBeenCalledWith('p1', 'review-1');
+    });
+    expect(navigate).toHaveBeenCalledWith('/ui/project-1/plugins/p1', { replace: true });
+    expect(completeSetupApproval).not.toHaveBeenCalled();
+  });
+
+  it('keeps failed app completion visible and does not silently install', async () => {
+    completeSetupApproval.mockRejectedValue(new Error('version changed'));
+    render(
+      <MemoryRouter initialEntries={['/plugins/p1?setupApproval=review-1']}>
+        <PluginDetailsPage />
+      </MemoryRouter>
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm install' }));
+    await waitFor(() => {
+      expect(screen.getByRole('alert').textContent).toContain('request a new review');
+    });
+    expect(install).not.toHaveBeenCalled();
   });
 
   // Header owns Install; the version chip carries Check and Update regardless. An installed

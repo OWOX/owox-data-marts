@@ -1,6 +1,7 @@
 import type { BuilderManifest } from '../model/manifest.types';
 
 export interface CustomConnectorListItemDto {
+  revision?: number;
   id: string;
   name: string;
   title: string;
@@ -12,6 +13,7 @@ export interface CustomConnectorListItemDto {
 }
 
 export interface CustomConnectorVersionSummaryDto {
+  revision?: number;
   version: number;
   status: 'draft' | 'published';
   publishedAt: string | null;
@@ -42,6 +44,7 @@ export interface CreateCustomConnectorPayload {
 }
 
 export interface ActivateVersionResultDto {
+  revision?: number;
   activeVersionId: string | null;
   activeVersion: number;
 }

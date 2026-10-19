@@ -33,6 +33,22 @@ export class ScheduledTriggersHandlerService
     }
   }
 
+  async persistRuntimeState(trigger: DataMartScheduledTrigger): Promise<boolean> {
+    const result = await this.repository.update(
+      { id: trigger.id, version: trigger.version },
+      {
+        status: trigger.status,
+        isActive: trigger.isActive,
+        nextRunTimestamp: trigger.nextRunTimestamp,
+        lastRunTimestamp: trigger.lastRunTimestamp,
+        version: () => 'version + 1',
+      }
+    );
+    if (result.affected !== 1) return false;
+    trigger.version++;
+    return true;
+  }
+
   getTriggerRepository(): Repository<DataMartScheduledTrigger> {
     return this.repository;
   }

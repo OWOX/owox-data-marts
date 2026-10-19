@@ -290,7 +290,8 @@ export class DataMartController {
       context.projectId,
       dto.contextIds,
       context.userId,
-      context.roles ?? []
+      context.roles ?? [],
+      dto.expectedRevision
     );
   }
 
@@ -465,7 +466,8 @@ export class DataMartController {
       context.userId,
       context.roles ?? [],
       dto.availableForReporting,
-      dto.availableForMaintenance
+      dto.availableForMaintenance,
+      dto.expectedRevision
     );
   }
 

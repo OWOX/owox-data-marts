@@ -319,8 +319,9 @@ export class GoogleOAuthFlowService {
         throw new CredentialsExpiredException(credentialId, type);
       }
 
-      this.logger.error(`Failed to refresh tokens for ${type} credential ${credentialId}`, error);
-      throw new TokenRefreshFailedException(undefined, error);
+      // OAuth client errors may contain the request body, client secret, and tokens.
+      this.logger.error(`Failed to refresh tokens for ${type} credential ${credentialId}`);
+      throw new TokenRefreshFailedException();
     }
 
     if (!newTokens.access_token) {
@@ -345,14 +346,11 @@ export class GoogleOAuthFlowService {
     try {
       await service.update(credential.id, { credentials: updatedTokens });
       this.logger.log(`Refreshed OAuth tokens for ${type} credential ${credentialId}`);
-    } catch (error) {
-      this.logger.error(
-        `Failed to save refreshed tokens for ${type} credential ${credentialId}`,
-        error
-      );
+    } catch {
+      // ORM errors include bound parameters containing the complete token payload.
+      this.logger.error(`Failed to save refreshed tokens for ${type} credential ${credentialId}`);
       throw new TokenRefreshFailedException(
-        'Google access was refreshed, but the updated tokens could not be saved. Please try again later.',
-        error
+        'Google access was refreshed, but the updated tokens could not be saved. Please try again later.'
       );
     }
   }

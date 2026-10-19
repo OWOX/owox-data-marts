@@ -7,7 +7,8 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm';
+import { In, IsNull, Repository } from 'typeorm';
+import { ConnectorReferenceGuardService } from './connector-reference-guard.service';
 import { QueryDeepPartialEntity } from 'typeorm/query-builder/QueryPartialEntity';
 import { Transactional } from 'typeorm-transactional';
 
@@ -158,7 +159,7 @@ interface ParsedManifestAuthReport {
  * report" from "this response predates warnings".
  */
 export interface PublishedConnectorVersion {
-  version: ConnectorDefinitionVersion;
+  version: ConnectorDefinitionVersion & { revision?: number };
   warnings: string[];
 }
 
@@ -204,6 +205,38 @@ export class ConnectorDefinitionService {
     private readonly accessDecisionService: AccessDecisionService
   ) {}
 
+  get transactionManager() {
+    return this.definitionRepo.manager;
+  }
+
+  async lockReferences(projectId: string): Promise<void> {
+    const manager = this.definitionRepo.manager;
+    if (manager) await new ConnectorReferenceGuardService().acquire(manager, projectId);
+  }
+
+  async advanceRevision(projectId: string, id: string, expectedRevision?: number): Promise<number> {
+    if (
+      expectedRevision !== undefined &&
+      (!Number.isSafeInteger(expectedRevision) || expectedRevision < 1)
+    )
+      throw new BadRequestException('Invalid connector revision');
+    await this.lockReferences(projectId);
+    const changed = await this.definitionRepo.update(
+      {
+        id,
+        projectId,
+        deletedAt: IsNull(),
+        ...(expectedRevision === undefined ? {} : { revision: expectedRevision }),
+      },
+      { revision: () => 'revision + 1' }
+    );
+    if (changed.affected !== 1) {
+      await this.getById(projectId, id);
+      throw new ConflictException('Connector changed; reload its current revision');
+    }
+    return (await this.getById(projectId, id)).revision;
+  }
+
   /**
    * A definition with no versions is a broken connector: listByProject() shows it like any
    * other, resolveActivePublished() returns null so every read of it 404s, and it holds its
@@ -217,6 +250,7 @@ export class ConnectorDefinitionService {
     userId: string,
     input: CreateConnectorDefinitionInput
   ): Promise<ConnectorDefinition> {
+    await this.lockReferences(projectId);
     this.assertManifestFitsSpawn(input.manifest);
     await this.assertNameAvailable(projectId, input.name);
 
@@ -225,6 +259,7 @@ export class ConnectorDefinitionService {
       definition = await this.definitionRepo.save(
         this.definitionRepo.create({
           projectId,
+          revision: 1,
           name: input.name,
           title: input.title,
           description: blankToNull(input.description),
@@ -290,12 +325,33 @@ export class ConnectorDefinitionService {
    * activateVersion(); a publish landing between the read and the write would be silently
    * undone.
    */
+  @Transactional()
   async updateMetadata(
     projectId: string,
     id: string,
-    patch: UpdateConnectorDefinitionMetadataInput
+    patch: UpdateConnectorDefinitionMetadataInput,
+    expectedRevision?: number
   ): Promise<ConnectorDefinition> {
-    await this.getById(projectId, id);
+    if (
+      patch.title !== undefined &&
+      (typeof patch.title !== 'string' ||
+        !patch.title.trim() ||
+        patch.title.length > MAX_VARCHAR_LENGTH)
+    )
+      throw new BadRequestException('Invalid connector title');
+    for (const key of ['description', 'logo', 'docUrl'] as const) {
+      const value = patch[key];
+      if (
+        value !== undefined &&
+        value !== null &&
+        (typeof value !== 'string' ||
+          (key === 'docUrl'
+            ? value.length > MAX_VARCHAR_LENGTH
+            : Buffer.byteLength(value) > MAX_TEXT_COLUMN_BYTES))
+      )
+        throw new BadRequestException('Invalid connector metadata');
+    }
+    await this.advanceRevision(projectId, id, expectedRevision);
 
     const columns: QueryDeepPartialEntity<ConnectorDefinition> = {};
     if (patch.title !== undefined) {
@@ -466,13 +522,15 @@ export class ConnectorDefinitionService {
    * refuses the second, which used to escape as a bare driver 500. Either way the retry
    * lands on the state a serialized pair of calls would have produced.
    */
+  @Transactional()
   async saveDraft(
     projectId: string,
     id: string,
-    manifest: Record<string, unknown>
-  ): Promise<ConnectorDefinitionVersion> {
+    manifest: Record<string, unknown>,
+    expectedRevision?: number
+  ): Promise<ConnectorDefinitionVersion & { revision: number }> {
     this.assertManifestFitsSpawn(manifest);
-    await this.getById(projectId, id);
+    const revision = await this.advanceRevision(projectId, id, expectedRevision);
 
     for (let attempt = 0; attempt < SAVE_DRAFT_ATTEMPTS; attempt++) {
       const latest = await this.versionRepo.findOne({
@@ -491,7 +549,7 @@ export class ConnectorDefinitionService {
         );
         if (result.affected) {
           latest.manifest = manifest;
-          return latest;
+          return Object.assign(latest, { revision });
         }
 
         // Zero affected rows is not proof the predicate rejected the row: MySQL counts
@@ -500,19 +558,22 @@ export class ConnectorDefinitionService {
         // routinely — reports zero too. Read the row instead of guessing which happened.
         const current = await this.versionRepo.findOne({ where: { id: latest.id } });
         if (current?.status === ConnectorDefinitionVersionStatus.DRAFT) {
-          return current;
+          return Object.assign(current, { revision });
         }
         continue;
       }
 
       try {
-        return await this.versionRepo.save(
-          this.versionRepo.create({
-            connectorDefinitionId: id,
-            version: (latest?.version ?? 0) + 1,
-            manifest,
-            status: ConnectorDefinitionVersionStatus.DRAFT,
-          })
+        return Object.assign(
+          await this.versionRepo.save(
+            this.versionRepo.create({
+              connectorDefinitionId: id,
+              version: (latest?.version ?? 0) + 1,
+              manifest,
+              status: ConnectorDefinitionVersionStatus.DRAFT,
+            })
+          ),
+          { revision }
         );
       } catch (e) {
         if (!isUniqueConstraintViolation(e)) {
@@ -541,8 +602,12 @@ export class ConnectorDefinitionService {
   async publish(
     projectId: string,
     id: string,
-    actor: ConnectorVersionActor
+    actor: ConnectorVersionActor,
+    expectedRevision?: number,
+    expectedVersion?: number,
+    reportWarnings = true
   ): Promise<PublishedConnectorVersion> {
+    const revision = await this.advanceRevision(projectId, id, expectedRevision);
     const def = await this.getById(projectId, id);
     await this.assertMayChangeActiveVersion(def, actor, 'Publishing', 'publish');
     const draft = await this.versionRepo.findOne({
@@ -550,7 +615,7 @@ export class ConnectorDefinitionService {
       order: { version: 'DESC' },
       ...(this.canLockRows() ? { lock: { mode: 'pessimistic_write' as const } } : {}),
     });
-    if (!draft) {
+    if (!draft || (expectedVersion !== undefined && draft.version !== expectedVersion)) {
       throw new BadRequestException(`Connector '${id}' has no draft to publish`);
     }
 
@@ -559,8 +624,8 @@ export class ConnectorDefinitionService {
       model = new Core.ManifestParser().parse(JSON.stringify(draft.manifest), {
         authoring: true,
       }) as ParsedManifestAuthReport;
-    } catch (e) {
-      throw new BadRequestException(`Invalid manifest: ${(e as Error).message}`);
+    } catch {
+      throw new BadRequestException('Invalid connector manifest');
     }
     this.assertNodesHavePrimaryKeys(draft.manifest);
     // Every Data Mart that opens or saves this connector builds these from the manifest, by
@@ -570,7 +635,9 @@ export class ConnectorDefinitionService {
     fieldsSchemaFromManifest(draft.manifest);
     const displayFields = this.displayFieldsOf(draft.manifest);
 
-    const warnings = this.reportSecretCoverage(def.name, draft.version, model);
+    const warnings = reportWarnings
+      ? this.reportSecretCoverage(def.name, draft.version, model)
+      : [];
 
     const publishedAt = new Date();
     const flipped = await this.versionRepo.update(
@@ -587,7 +654,12 @@ export class ConnectorDefinitionService {
       { ...displayFields, activeVersionId: draft.id }
     );
 
-    const published = { ...draft, status: ConnectorDefinitionVersionStatus.PUBLISHED, publishedAt };
+    const published = {
+      ...draft,
+      status: ConnectorDefinitionVersionStatus.PUBLISHED,
+      publishedAt,
+      revision,
+    };
     return { version: published, warnings };
   }
 
@@ -617,12 +689,16 @@ export class ConnectorDefinitionService {
     }
   }
 
+  @Transactional()
   async setActiveVersion(
     projectId: string,
     id: string,
     version: number,
-    actor: ConnectorVersionActor
+    actor: ConnectorVersionActor,
+    expectedRevision?: number
   ): Promise<ConnectorDefinition> {
+    // Take the consumer guard before the first read opens a MySQL snapshot.
+    await this.advanceRevision(projectId, id, expectedRevision);
     const def = await this.getById(projectId, id);
     await this.assertMayChangeActiveVersion(def, actor, 'Activating this version', 'activate it');
     const row = await this.versionRepo.findOne({
@@ -718,7 +794,10 @@ export class ConnectorDefinitionService {
         EntityType.DATA_MART,
         ids,
         action,
-        def.projectId
+        def.projectId,
+        // The Connector guard is already held. Lazy scope writes would acquire
+        // the Context guard in the reverse order of Data Mart reference writers.
+        { scopeMode: 'read-only' }
       );
     const canEdit = await ask(
       followers.map(mart => mart.id),
@@ -806,7 +885,8 @@ export class ConnectorDefinitionService {
    * leave a live connector under a name nobody can search for.
    */
   @Transactional()
-  async softDelete(projectId: string, id: string): Promise<void> {
+  async softDelete(projectId: string, id: string, expectedRevision?: number): Promise<void> {
+    await this.advanceRevision(projectId, id, expectedRevision);
     const def = await this.getById(projectId, id);
 
     const connectorMarts = await this.dataMartService.findByProjectIdAndDefinitionType(

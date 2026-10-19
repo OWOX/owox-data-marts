@@ -1,5 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { Transactional } from 'typeorm-transactional';
+import { lockContextReferences } from './context-reference-guard';
+import { UserProvisioningContextSettings } from '../../entities/user-provisioning-context-settings.entity';
+import { UserProvisioningContextSettingsContext } from '../../entities/user-provisioning-context-settings-context.entity';
+import { MemberRoleContext } from '../../entities/member-role-context.entity';
 import { In, Repository } from 'typeorm';
 import { MemberRoleScope } from '../../entities/member-role-scope.entity';
 import { RoleScope } from '../../enums/role-scope.enum';
@@ -11,14 +16,23 @@ export class ApplyUserProvisioningContextDefaultsService {
     private readonly memberRoleScopeRepository: Repository<MemberRoleScope>
   ) {}
 
+  @Transactional()
   async preserveExistingMembersAsEntireProject(
     projectId: string,
     userIds: string[]
   ): Promise<void> {
+    await lockContextReferences(this.memberRoleScopeRepository.manager, projectId);
     if (userIds.length === 0) {
       return;
     }
 
+    const manager = this.memberRoleScopeRepository.manager;
+    const settings = await manager
+      .getRepository(UserProvisioningContextSettings)
+      .findOneBy({ projectId });
+    const contexts = await manager
+      .getRepository(UserProvisioningContextSettingsContext)
+      .findBy({ projectId });
     const existingRows = await this.memberRoleScopeRepository.find({
       where: { projectId, userId: In(userIds) },
     });
@@ -28,13 +42,24 @@ export class ApplyUserProvisioningContextDefaultsService {
       .map(userId => ({
         userId,
         projectId,
-        roleScope: RoleScope.ENTIRE_PROJECT,
+        roleScope: settings?.roleScope ?? RoleScope.ENTIRE_PROJECT,
       }));
 
     if (missingRows.length === 0) {
       return;
     }
 
-    await this.memberRoleScopeRepository.upsert(missingRows, ['userId', 'projectId']);
+    await this.memberRoleScopeRepository.insert(missingRows);
+    if (settings?.roleScope === RoleScope.SELECTED_CONTEXTS && contexts.length) {
+      await manager.getRepository(MemberRoleContext).save(
+        missingRows.flatMap(member =>
+          contexts.map(context => ({
+            projectId,
+            userId: member.userId,
+            contextId: context.contextId,
+          }))
+        )
+      );
+    }
   }
 }

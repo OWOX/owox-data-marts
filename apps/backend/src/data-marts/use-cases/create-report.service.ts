@@ -1,3 +1,4 @@
+import { lockContextReferences } from '../services/context/context-reference-guard';
 import { Repository } from 'typeorm';
 import { Transactional } from 'typeorm-transactional';
 import { Injectable } from '@nestjs/common';
@@ -51,6 +52,7 @@ export class CreateReportService {
 
   @Transactional()
   async run(command: CreateReportCommand): Promise<ReportDto> {
+    await lockContextReferences(this.reportRepository.manager, command.projectId, undefined, false);
     // Get the data mart and verify it's in published status
     const dataMart = await this.dataMartService.getByIdAndProjectId(
       command.dataMartId,

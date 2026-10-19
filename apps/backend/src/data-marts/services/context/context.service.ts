@@ -7,6 +7,12 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Not, Repository } from 'typeorm';
 import { Transactional } from 'typeorm-transactional';
+import { CredentialContext } from '../../credentials/entities/credential-context.entity';
+import {
+  contextRevision,
+  lockContextReferences,
+  contextCurrentReadLock,
+} from './context-reference-guard';
 import { ContextDto, ContextImpactDto } from '../../dto/domain/context.dto';
 import { RoleScope } from '../../enums/role-scope.enum';
 import { Context } from '../../entities/context.entity';
@@ -62,12 +68,14 @@ export class ContextService {
     private readonly userProjectionsFetcherService: UserProjectionsFetcherService
   ) {}
 
+  @Transactional()
   async create(
     projectId: string,
     createdById: string,
     name: string,
     description?: string
   ): Promise<ContextDto> {
+    await this.lockReferences(projectId);
     await this.validateUniqueName(name, projectId);
 
     const entity = this.contextRepository.create({
@@ -94,7 +102,11 @@ export class ContextService {
       saved.createdById ? [saved.createdById] : []
     );
 
-    return this.contextMapper.toDomainDto(saved, userProjections);
+    return this.contextMapper.toDomainDto(
+      saved,
+      userProjections,
+      await this.getRevision(projectId)
+    );
   }
 
   async listForMcp(projectId: string) {
@@ -120,6 +132,7 @@ export class ContextService {
   }
 
   async list(projectId: string): Promise<ContextDto[]> {
+    const revision = await this.getRevision(projectId);
     const entities = await this.contextRepository.find({
       where: { projectId },
       order: { name: 'ASC' },
@@ -131,15 +144,20 @@ export class ContextService {
     const userProjections =
       await this.userProjectionsFetcherService.fetchUserProjectionsList(creatorIds);
 
-    return entities.map(entity => this.contextMapper.toDomainDto(entity, userProjections));
+    return entities.map(entity =>
+      this.contextMapper.toDomainDto(entity, userProjections, revision)
+    );
   }
 
+  @Transactional()
   async update(
     contextId: string,
     projectId: string,
     name: string,
-    description?: string
+    description?: string | null,
+    expectedRevision?: number
   ): Promise<ContextDto> {
+    await this.lockReferences(projectId, expectedRevision);
     const entity = await this.getByIdAndProject(contextId, projectId);
 
     await this.validateUniqueName(name, projectId, contextId);
@@ -161,7 +179,11 @@ export class ContextService {
       saved.createdById ? [saved.createdById] : []
     );
 
-    return this.contextMapper.toDomainDto(saved, userProjections);
+    return this.contextMapper.toDomainDto(
+      saved,
+      userProjections,
+      await this.getRevision(projectId)
+    );
   }
 
   async getImpact(contextId: string, projectId: string): Promise<ContextImpactDto> {
@@ -220,6 +242,15 @@ export class ContextService {
    */
   @Transactional()
   async delete(contextId: string, projectId: string): Promise<void> {
+    await this.lockReferences(projectId);
+    const credentialCount = await this.contextRepository.manager
+      .getRepository(CredentialContext)
+      .countBy({ contextId });
+    if (credentialCount)
+      throw new ConflictException({
+        message: 'Detach Credentials before deleting this Context',
+        credentialCount,
+      });
     const entity = await this.getByIdAndProject(contextId, projectId);
 
     const [
@@ -258,9 +289,22 @@ export class ContextService {
     await this.contextRepository.softRemove(entity);
   }
 
+  async getCredentialReferenceCount(contextId: string): Promise<number> {
+    return this.contextRepository.manager.getRepository(CredentialContext).countBy({ contextId });
+  }
+
+  async lockReferences(projectId: string, expectedRevision?: number): Promise<number> {
+    return lockContextReferences(this.contextRepository.manager, projectId, expectedRevision);
+  }
+
+  async getRevision(projectId: string): Promise<number> {
+    return contextRevision(this.contextRepository.manager, projectId);
+  }
+
   async getByIdAndProject(contextId: string, projectId: string): Promise<Context> {
     const entity = await this.contextRepository.findOne({
       where: { id: contextId, projectId },
+      lock: contextCurrentReadLock(this.contextRepository.manager),
     });
 
     if (!entity) {
@@ -273,9 +317,18 @@ export class ContextService {
   async validateContextIds(contextIds: string[], projectId: string): Promise<void> {
     if (contextIds.length === 0) return;
 
-    const count = await this.contextRepository.count({
-      where: { id: In(contextIds), projectId },
-    });
+    const lock = contextCurrentReadLock(this.contextRepository.manager);
+    let count: number;
+    if (lock) {
+      const query = this.contextRepository
+        .createQueryBuilder('context')
+        .select(['context.id'])
+        .where({ id: In(contextIds), projectId })
+        .setLock(lock.mode);
+      count = (await query.getMany()).length;
+    } else {
+      count = await this.contextRepository.count({ where: { id: In(contextIds), projectId } });
+    }
 
     if (count !== contextIds.length) {
       throw new BadRequestException(
@@ -296,6 +349,7 @@ export class ContextService {
 
     const existing = await this.contextRepository.findOne({
       where: whereCondition,
+      lock: contextCurrentReadLock(this.contextRepository.manager),
     });
 
     if (existing) {

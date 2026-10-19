@@ -9,6 +9,7 @@ import {
   Min,
   ValidateIf,
 } from 'class-validator';
+import { ConnectorRevisionApiDto } from './connector-authoring-api.dto';
 import { ApiProperty } from '@nestjs/swagger';
 import { MaxByteLength } from '../../../common/validators/max-byte-length.validator';
 import { MaxJsonSize } from '../../../common/validators/max-json-size.validator';
@@ -106,7 +107,7 @@ export class CreateCustomConnectorRequestApiDto {
  * Every field is optional, and the three nullable ones accept an explicit null to clear them:
  * absent means "leave alone", which is what makes this a PATCH rather than a PUT.
  */
-export class UpdateCustomConnectorRequestApiDto {
+export class UpdateCustomConnectorRequestApiDto extends ConnectorRevisionApiDto {
   // Not @IsOptional, which lets null through as well: the title column is NOT NULL, so only an
   // absent title may skip validation.
   @ApiProperty({ required: false, example: 'My Custom API', maxLength: MAX_VARCHAR_LENGTH })
@@ -135,7 +136,7 @@ export class UpdateCustomConnectorRequestApiDto {
   docUrl?: string | null;
 }
 
-export class SaveDraftRequestApiDto {
+export class SaveDraftRequestApiDto extends ConnectorRevisionApiDto {
   @ApiProperty({ type: 'object', additionalProperties: true })
   @IsObject()
   @MaxJsonSize(MAX_MANIFEST_SIZE_BYTES)

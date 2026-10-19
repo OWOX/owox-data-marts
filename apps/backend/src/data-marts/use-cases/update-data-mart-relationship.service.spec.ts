@@ -19,8 +19,8 @@ import { EntityType, Action } from '../services/access-decision';
 describe('UpdateDataMartRelationshipService', () => {
   const relationship = {
     id: 'rel-1',
-    sourceDataMart: { id: 'dm-source', schema: [] },
-    targetDataMart: { id: 'dm-target', schema: [] },
+    sourceDataMart: { id: 'dm-source', schema: [], storage: { id: 'storage' } },
+    targetDataMart: { id: 'dm-target', schema: [], storage: { id: 'storage' } },
     targetAlias: 'old-alias',
     createdById: 'user-1',
   };
@@ -34,6 +34,7 @@ describe('UpdateDataMartRelationshipService', () => {
    */
   const createService = (canAccess = true, sourceDm: unknown = null, rowAtWriteTime?: unknown) => {
     const relationshipService = {
+      validateSameStorage: jest.fn(),
       findById: jest.fn().mockResolvedValue(relationship),
       validateUniqueAlias: jest.fn().mockResolvedValue(undefined),
       validateJoinFieldTypes: jest.fn(),
@@ -43,6 +44,8 @@ describe('UpdateDataMartRelationshipService', () => {
     // persisted result rather than the shape of the call that produced it.
     const persisted: { row?: Record<string, unknown> } = {};
     const dataMartService = {
+      lockConfigurationReferences: jest.fn(),
+      advanceConfigurationRevision: jest.fn(),
       findById: jest.fn().mockResolvedValue(sourceDm),
       save: jest.fn().mockImplementation(async (dm: Record<string, unknown>) => {
         persisted.row = dm;
@@ -58,7 +61,9 @@ describe('UpdateDataMartRelationshipService', () => {
             return true;
           }
         ),
-      getByIdAndProjectId: jest.fn().mockResolvedValue({ id: 'dm-source' }),
+      getByIdAndProjectId: jest
+        .fn()
+        .mockResolvedValue({ id: 'dm-source', storage: { id: 'storage' } }),
     };
     const userProjectionsFetcherService = {
       fetchCreatedByUser: jest.fn().mockResolvedValue(null),
@@ -76,6 +81,7 @@ describe('UpdateDataMartRelationshipService', () => {
     const service = new UpdateDataMartRelationshipService(
       relationshipService as never,
       dataMartService as never,
+      { manager: {} } as never,
       userProjectionsFetcherService as never,
       reportDataCacheService as never,
       mapper as never,

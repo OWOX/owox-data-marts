@@ -6,7 +6,6 @@ import {
   UserProvisioningSettingsDto,
 } from '../../dto/domain/user-provisioning-settings.dto';
 import { ProjectRole } from '../../enums/project-role.enum';
-import { RoleScope } from '../../enums/role-scope.enum';
 import { ApplyUserProvisioningContextDefaultsService } from '../../services/context/apply-user-provisioning-context-defaults.service';
 import { UserProvisioningContextSettingsService } from '../../services/context/user-provisioning-context-settings.service';
 
@@ -52,12 +51,9 @@ export class UpdateUserProvisioningSettingsService {
       contextIds
     );
 
-    const existingMemberIds =
-      contextDefaults.roleScope === RoleScope.SELECTED_CONTEXTS
-        ? (await this.idpProjectionsFacade.getProjectMembersOrThrow(projectId)).map(
-            member => member.userId
-          )
-        : [];
+    const existingMemberIds = (
+      await this.idpProjectionsFacade.getProjectMembersOrThrow(projectId)
+    ).map(member => member.userId);
 
     const idpSettings = await this.idpProjectionsFacade.updateUserProvisioningSettings(
       projectId,
@@ -77,16 +73,10 @@ export class UpdateUserProvisioningSettingsService {
       };
     }
 
-    if (contextDefaults.roleScope === RoleScope.SELECTED_CONTEXTS) {
-      await this.applyDefaultsService.preserveExistingMembersAsEntireProject(
-        projectId,
-        existingMemberIds
-      );
-    }
-
     const effectiveContextDefaults = await this.contextSettingsService.saveDefaultSettings(
       projectId,
-      contextDefaults
+      contextDefaults,
+      existingMemberIds
     );
     const savedDefaultRole = idpSettings.settings.defaultRole as ProjectRole;
 

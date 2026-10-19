@@ -39,6 +39,7 @@ export function ContextsTab() {
         impact.dataMartCount +
         impact.storageCount +
         impact.destinationCount +
+        impact.credentialCount +
         impact.memberCount +
         impact.userProvisioningDefaultsCount;
       if (total > 0) {
@@ -88,6 +89,11 @@ export function ContextsTab() {
       parts.push({
         label: `${String(impact.memberCount)} Member${impact.memberCount === 1 ? '' : 's'}`,
         to: scope('/project-settings/members'),
+      });
+    if (impact.credentialCount > 0)
+      parts.push({
+        label: `${String(impact.credentialCount)} Credential${impact.credentialCount === 1 ? '' : 's'}`,
+        to: scope('/credentials'),
       });
     if (impact.userProvisioningDefaultsCount > 0)
       parts.push({

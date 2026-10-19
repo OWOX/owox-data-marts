@@ -65,10 +65,8 @@ export class RedshiftDataMartValidator implements DataMartValidator {
       await adapter.executeDryRunQuery(query);
 
       return ValidationResult.success();
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-
-      this.logger.error(`Redshift validation error: ${errorMessage}`);
+    } catch {
+      this.logger.error('Redshift validation failed');
 
       return ValidationResult.failure(
         'Data mart validation failed: Invalid query or database error'

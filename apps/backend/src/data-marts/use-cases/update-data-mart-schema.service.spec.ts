@@ -31,8 +31,9 @@ describe('UpdateDataMartSchemaService', () => {
       schema: null,
     };
     const dataMartService = {
+      lockConfigurationReferences: jest.fn(),
       getByIdAndProjectId: jest.fn().mockResolvedValue(dataMart),
-      save: jest.fn().mockResolvedValue(dataMart),
+      writeConfiguration: jest.fn().mockResolvedValue(dataMart),
     };
     const schemaParserFacade = {
       validateAndParse: jest.fn().mockResolvedValue(parsedSchema),
@@ -63,6 +64,7 @@ describe('UpdateDataMartSchemaService', () => {
       mapper as never,
       accessDecisionService as never,
       credentialsResolver as never,
+      { manager: {} } as never,
       searchIndexInvalidation as never
     );
     return {
@@ -88,7 +90,13 @@ describe('UpdateDataMartSchemaService', () => {
     );
 
     expect(dataMart.schema).toBe(parsedSchema);
-    expect(dataMartService.save).toHaveBeenCalledWith(dataMart);
+    expect(dataMartService.writeConfiguration).toHaveBeenCalledWith(
+      {},
+      dataMart.id,
+      dataMart.projectId,
+      dataMart.revision,
+      expect.objectContaining({ schema: parsedSchema })
+    );
     expect(searchIndexInvalidation.scheduleDataMartSchemaChanged).toHaveBeenCalledWith(
       'target-1',
       'project-1'
@@ -452,7 +460,7 @@ describe('UpdateDataMartSchemaService', () => {
       // fresh row then outlives the edit for a full cache lifetime.
       expect(
         reportDataCacheService.invalidateByDataMartId.mock.invocationCallOrder[0]
-      ).toBeGreaterThan(dataMartService.save.mock.invocationCallOrder[0]);
+      ).toBeGreaterThan(dataMartService.writeConfiguration.mock.invocationCallOrder[0]);
     });
 
     it('leaves the cache alone when the save is rejected', async () => {
@@ -489,7 +497,7 @@ describe('UpdateDataMartSchemaService', () => {
     });
 
     // A rejected formula must not reach the database — the invalid schema is never persisted.
-    expect(dataMartService.save).not.toHaveBeenCalled();
+    expect(dataMartService.writeConfiguration).not.toHaveBeenCalled();
   });
 
   it('returns warnings on a successful save', async () => {
@@ -749,7 +757,9 @@ describe('UpdateDataMartSchemaService', () => {
       expect(result.warnings).toEqual([
         expect.objectContaining({ code: 'FORMULA_WAREHOUSE_CHECK_SKIPPED' }),
       ]);
-      const saved = dataMartService.save.mock.calls[0][0] as { schema: typeof parsedSchema };
+      const saved = dataMartService.writeConfiguration.mock.calls[0][4] as {
+        schema: typeof parsedSchema;
+      };
       expect(saved.schema.fields[0].calculated.warehouseValidation).toBe('skipped');
     });
 
@@ -792,7 +802,9 @@ describe('UpdateDataMartSchemaService', () => {
       expect(result.warnings).toEqual([
         expect.objectContaining({ code: 'FORMULA_WAREHOUSE_CHECK_SKIPPED' }),
       ]);
-      const saved = dataMartService.save.mock.calls[0][0] as { schema: typeof parsedSchema };
+      const saved = dataMartService.writeConfiguration.mock.calls[0][4] as {
+        schema: typeof parsedSchema;
+      };
       expect(saved.schema.fields[0].calculated.warehouseValidation).toBe('skipped');
     });
   });
@@ -933,7 +945,9 @@ describe('UpdateDataMartSchemaService', () => {
 
       await service.run(new UpdateDataMartSchemaCommand('target-1', 'project-1', {} as never));
 
-      const saved = dataMartService.save.mock.calls[0][0] as { schema: typeof parsedSchema };
+      const saved = dataMartService.writeConfiguration.mock.calls[0][4] as {
+        schema: typeof parsedSchema;
+      };
       expect(saved.schema.fields.find(f => f.name === 'ctr')?.calculated.warehouseValidation).toBe(
         'passed'
       );
@@ -953,7 +967,9 @@ describe('UpdateDataMartSchemaService', () => {
 
       await service.run(new UpdateDataMartSchemaCommand('target-1', 'project-1', {} as never));
 
-      const saved = dataMartService.save.mock.calls[0][0] as { schema: typeof parsedSchema };
+      const saved = dataMartService.writeConfiguration.mock.calls[0][4] as {
+        schema: typeof parsedSchema;
+      };
       expect(saved.schema.fields.find(f => f.name === 'ctr')?.calculated.warehouseValidation).toBe(
         'skipped'
       );

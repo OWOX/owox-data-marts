@@ -18,6 +18,9 @@ export interface TriggerHandler<T extends Trigger> {
    */
   getTriggerRepository(): Repository<T>;
 
+  /** Optional conditional runtime update; false means the trigger snapshot is obsolete. */
+  persistRuntimeState?(trigger: T): Promise<boolean>;
+
   /**
    * Handles the processing of a single trigger.
    *

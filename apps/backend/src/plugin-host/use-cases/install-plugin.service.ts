@@ -1,4 +1,10 @@
-import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Inject,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { Transactional } from 'typeorm-transactional';
 import { InstallPluginCommand } from '../dto/domain/install-plugin.command';
 import { PluginInstallationDto } from '../dto/domain/plugin-installation.dto';
@@ -45,18 +51,21 @@ export class InstallPluginService {
    * stale-confirmation path, which asks them again with whatever version is current now.
    */
   async run(command: InstallPluginCommand): Promise<PluginInstallationDto> {
-    if (await this.schedule.ensureScheduled(command.pluginId)) {
-      const plugin = await this.pluginService.findById(command.pluginId);
+    await this.prepareReviewedInstall(command.pluginId);
+    return this.commitReviewed(command);
+  }
+
+  async prepareReviewedInstall(pluginId: string): Promise<void> {
+    if (await this.schedule.ensureScheduled(pluginId)) {
+      const plugin = await this.pluginService.findById(pluginId);
       if (plugin) {
         await this.check.run(plugin, 'automatic');
       }
     }
-
-    return this.commit(command);
   }
 
   @Transactional()
-  private async commit(command: InstallPluginCommand): Promise<PluginInstallationDto> {
+  async commitReviewed(command: InstallPluginCommand): Promise<PluginInstallationDto> {
     const plugin = await this.pluginService.findById(command.pluginId);
     if (!plugin) {
       throw new NotFoundException(`Plugin ${command.pluginId} was not found`);
@@ -78,6 +87,8 @@ export class InstallPluginService {
       throw new StaleVersionConfirmationError(plugin.currentVersionId, current?.semver ?? null);
     }
 
+    await this.pluginService.lockReviewedVersion(plugin.id, command.expectedVersionId);
+
     const existing = await this.installations.findOne(
       plugin.id,
       command.context.projectId,
@@ -91,14 +102,20 @@ export class InstallPluginService {
     let wasUninstalled = false;
     let installation: PluginInstallation;
     if (existing) {
+      await this.installations.advanceRevision(existing.id, command.expectedRevision);
       wasUninstalled = existing.uninstalledAt !== null;
       installation = await this.restore(existing);
     } else {
+      if (command.expectedRevision !== undefined && command.expectedRevision !== 0) {
+        throw new ConflictException('Plugin installation changed; refresh before continuing');
+      }
       const claimed = await this.installations.installOrFind(
         plugin.id,
         command.context.projectId,
         command.context.userId
       );
+      if (!claimed.wonRace)
+        await this.installations.advanceRevision(claimed.installation.id, command.expectedRevision);
       firstInstall = claimed.wonRace;
       wasUninstalled = claimed.installation.uninstalledAt !== null;
       installation = claimed.wonRace

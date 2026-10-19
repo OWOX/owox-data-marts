@@ -1,4 +1,6 @@
-import { Injectable, Logger, ForbiddenException } from '@nestjs/common';
+import { Injectable, Logger, ForbiddenException, ConflictException } from '@nestjs/common';
+import { DataSource } from 'typeorm';
+import { QueryDeepPartialEntity } from 'typeorm/query-builder/QueryPartialEntity';
 import { Transactional } from 'typeorm-transactional';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
 import { DataMart } from '../entities/data-mart.entity';
@@ -37,6 +39,7 @@ export class UpdateDataMartSchemaService {
     private readonly mapper: DataMartMapper,
     private readonly accessDecisionService: AccessDecisionService,
     private readonly credentialsResolver: DataStorageCredentialsResolver,
+    private readonly dataSource: DataSource,
     private readonly searchIndexInvalidation?: DataMartSearchIndexInvalidationService
   ) {}
 
@@ -58,11 +61,32 @@ export class UpdateDataMartSchemaService {
       }
     }
 
+    if (command.expectedRevision !== undefined && dataMart.revision !== command.expectedRevision)
+      throw new ConflictException('Data Mart configuration changed');
+
+    if (
+      command.userId &&
+      !(await this.accessDecisionService.canAccess(
+        command.userId,
+        command.roles,
+        EntityType.STORAGE,
+        dataMart.storage.id,
+        Action.USE,
+        command.projectId
+      ))
+    )
+      throw new ForbiddenException('Storage USE permission is required');
+
+    const schemaWasCurrent =
+      dataMart.schema !== undefined &&
+      dataMart.schema !== null &&
+      dataMart.schemaInputRevision != null &&
+      dataMart.schemaInputRevision === dataMart.revision - 1;
     const parsed = await this.schemaParserFacade.validateAndParse(
       command.schema,
       dataMart.storage.type
     );
-    const introducesNativeField = applyServerOwnedFieldStatuses(parsed, dataMart.schema);
+    const requiresNativeRefresh = applyServerOwnedFieldStatuses(parsed, dataMart.schema);
     const previousFields = dataMart.schema?.fields ?? [];
 
     // Assigned BEFORE the dry run, not after: composeMetricsOnly (via CalculatedFieldValidatorService)
@@ -70,10 +94,10 @@ export class UpdateDataMartSchemaService {
     // the schema BEING SAVED, never the stale one still in the database — otherwise a brand-new
     // metric is dry-run as an unknown column, and an edited formula's OLD text is what actually
     // gets validated while the new one is persisted as `warehouseValidation: 'passed'`. Safe to
-    // assign here: `dataMart` stays unsaved until `dataMartService.save` below, so a validation
+    // assign here: `dataMart` stays unsaved until `writeConfiguration` below, so a validation
     // failure afterwards just leaves the in-memory mutation unpersisted.
     dataMart.schema = parsed;
-    if (introducesNativeField) {
+    if (requiresNativeRefresh) {
       // Read as expired by actualizeSchemaIfExpired, so lazy readers re-check the warehouse.
       dataMart.schemaActualizedAt = null;
     }
@@ -103,10 +127,10 @@ export class UpdateDataMartSchemaService {
           credentials: await this.credentialsResolver.resolve(dataMart.storage),
           config: storageConfig,
         };
-      } catch (e) {
+      } catch {
         this.logger.warn(
           `Credentials unavailable for data mart ${command.id}; ` +
-            `saving with the warehouse check skipped: ${e instanceof Error ? e.message : String(e)}`
+            `saving with the warehouse check skipped`
         );
         credentialsUnavailable = true;
       }
@@ -150,7 +174,13 @@ export class UpdateDataMartSchemaService {
       }
     }
 
-    await this.saveAndInvalidate(dataMart);
+    // Carry proof forward only for a current schema whose native structure stays verified.
+    const schemaInputRevision = requiresNativeRefresh
+      ? null
+      : schemaWasCurrent
+        ? dataMart.revision
+        : (dataMart.schemaInputRevision ?? null);
+    await this.saveAndInvalidate(dataMart, command, schemaInputRevision);
     await this.searchIndexInvalidation?.scheduleDataMartSchemaChanged(
       dataMart.id,
       command.projectId
@@ -161,6 +191,7 @@ export class UpdateDataMartSchemaService {
     // stored ones already have — before it, a field saved untouched would read as edited.
     return {
       ...this.mapper.toDomainDto(dataMart),
+      schemaInputRevision: dataMart.schemaInputRevision ?? null,
       warnings: withoutUntouchedJoinAdvisories(
         warnings,
         editedCalculatedFields(previousFields, calculatedFields),
@@ -188,8 +219,49 @@ export class UpdateDataMartSchemaService {
    * problem for a slower one.
    */
   @Transactional()
-  private async saveAndInvalidate(dataMart: DataMart): Promise<void> {
-    await this.dataMartService.save(dataMart);
+  private async saveAndInvalidate(
+    dataMart: DataMart,
+    command: UpdateDataMartSchemaCommand,
+    schemaInputRevision: number | null
+  ): Promise<void> {
+    await this.dataMartService.lockConfigurationReferences(command.projectId);
+    if (
+      command.userId &&
+      !(await this.accessDecisionService.canAccess(
+        command.userId,
+        command.roles,
+        EntityType.DATA_MART,
+        command.id,
+        Action.EDIT,
+        command.projectId
+      ))
+    )
+      throw new ForbiddenException('Data Mart access changed during schema validation');
+    if (
+      command.userId &&
+      !(await this.accessDecisionService.canAccess(
+        command.userId,
+        command.roles,
+        EntityType.STORAGE,
+        dataMart.storage.id,
+        Action.USE,
+        command.projectId
+      ))
+    )
+      throw new ForbiddenException('Storage access changed during schema validation');
+    const manager = this.dataSource.manager;
+    const saved = await this.dataMartService.writeConfiguration(
+      manager,
+      dataMart.id,
+      command.projectId,
+      dataMart.revision,
+      {
+        schema: dataMart.schema,
+        schemaActualizedAt: dataMart.schemaActualizedAt,
+        schemaInputRevision,
+      } as QueryDeepPartialEntity<DataMart>
+    );
+    Object.assign(dataMart, saved);
     await this.reportDataCacheService.invalidateByDataMartId(dataMart.id);
   }
 }
@@ -209,7 +281,7 @@ function applyFieldStatuses(
   persistedFields: readonly DataMartSchemaField[]
 ): boolean {
   const persistedByName = new Map(persistedFields.map(field => [field.name, field]));
-  let introducesNativeField = false;
+  let requiresNativeRefresh = false;
 
   for (const field of fields) {
     const persistedField = persistedByName.get(field.name);
@@ -217,19 +289,24 @@ function applyFieldStatuses(
       field.status = DataMartSchemaFieldStatus.CONNECTED;
     } else if (persistedField && !isCalculatedField(persistedField)) {
       field.status = persistedField.status;
+      requiresNativeRefresh =
+        requiresNativeRefresh ||
+        field.type !== persistedField.type ||
+        ('mode' in field ? field.mode : undefined) !==
+          ('mode' in persistedField ? persistedField.mode : undefined);
     } else {
       field.status = DataMartSchemaFieldStatus.DISCONNECTED;
-      introducesNativeField = true;
+      requiresNativeRefresh = true;
     }
 
     const nestedFields = nestedFieldsOf(field);
     if (nestedFields) {
       const persistedNestedFields = persistedField ? (nestedFieldsOf(persistedField) ?? []) : [];
-      introducesNativeField =
-        applyFieldStatuses(nestedFields, persistedNestedFields) || introducesNativeField;
+      requiresNativeRefresh =
+        applyFieldStatuses(nestedFields, persistedNestedFields) || requiresNativeRefresh;
     }
   }
-  return introducesNativeField;
+  return requiresNativeRefresh;
 }
 
 function nestedFieldsOf(field: DataMartSchemaField): DataMartSchemaField[] | undefined {

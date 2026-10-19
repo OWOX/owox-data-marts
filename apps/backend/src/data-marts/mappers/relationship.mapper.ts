@@ -38,7 +38,8 @@ export class RelationshipMapper {
       context.projectId,
       context.userId,
       context.roles ?? [],
-      dto.description
+      dto.description,
+      dto.expectedRevision
     );
   }
 
@@ -56,21 +57,24 @@ export class RelationshipMapper {
       context.roles ?? [],
       dto.targetAlias,
       dto.joinConditions?.map(c => this.toJoinCondition(c)),
-      dto.description
+      dto.description,
+      dto.expectedRevision
     );
   }
 
   toDeleteCommand(
     relationshipId: string,
     dataMartId: string,
-    context: AuthorizationContext
+    context: AuthorizationContext,
+    expectedRevision?: number
   ): DeleteRelationshipCommand {
     return new DeleteRelationshipCommand(
       relationshipId,
       dataMartId,
       context.projectId,
       context.userId,
-      context.roles ?? []
+      context.roles ?? [],
+      expectedRevision
     );
   }
 

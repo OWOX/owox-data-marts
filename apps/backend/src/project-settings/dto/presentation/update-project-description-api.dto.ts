@@ -1,7 +1,8 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { IsString, MaxLength, MinLength, ValidateIf } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsInt, IsString, MaxLength, Min, MinLength, ValidateIf } from 'class-validator';
 
-export const PROJECT_DESCRIPTION_MAX_LENGTH = 10_000;
+import { PROJECT_DESCRIPTION_MAX_LENGTH } from '../domain/project-description-update.schema';
+export { PROJECT_DESCRIPTION_MAX_LENGTH } from '../domain/project-description-update.schema';
 
 export class UpdateProjectDescriptionApiDto {
   @ApiProperty({
@@ -15,4 +16,14 @@ export class UpdateProjectDescriptionApiDto {
   @MinLength(1)
   @MaxLength(PROJECT_DESCRIPTION_MAX_LENGTH)
   description: string | null;
+
+  @ApiPropertyOptional({
+    type: Number,
+    minimum: 0,
+    description: 'Expected settings revision; omit for a legacy unconditional write.',
+  })
+  @ValidateIf((_object, value: unknown) => value !== undefined)
+  @IsInt()
+  @Min(0)
+  expectedRevision?: number;
 }

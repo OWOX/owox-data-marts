@@ -41,6 +41,7 @@ export class UninstallPluginService {
       throw new NotFoundException('You do not have this plugin installed');
     }
 
+    await this.installations.advanceRevision(installation.id, command.expectedRevision);
     const wasUninstalled = installation.uninstalledAt !== null;
     if (!wasUninstalled) {
       await this.installations.uninstall(installation.id);

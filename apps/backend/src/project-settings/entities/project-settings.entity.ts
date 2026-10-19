@@ -8,6 +8,9 @@ export class ProjectSettings {
   @Column({ type: 'text', nullable: true })
   description: string | null;
 
+  @Column({ type: 'int', default: 0 })
+  revision: number;
+
   @CreateDateColumn()
   createdAt: Date;
 

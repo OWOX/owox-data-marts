@@ -1,3 +1,8 @@
+jest.mock('snowflake-sdk', () => ({ __esModule: true, default: {} }));
+jest.mock('typeorm-transactional', () => ({
+  Transactional: () => (_target: unknown, _key: string, descriptor: PropertyDescriptor) =>
+    descriptor,
+}));
 import { ForbiddenException } from '@nestjs/common';
 import { UpdateScheduledTriggerCommand } from '../dto/domain/update-scheduled-trigger.command';
 import { DataMartStatus } from '../enums/data-mart-status.enum';
@@ -22,7 +27,7 @@ describe('UpdateScheduledTriggerService', () => {
 
   const createService = () => {
     const triggerRepository = {
-      save: jest.fn().mockImplementation(trigger => Promise.resolve(trigger)),
+      update: jest.fn().mockResolvedValue({ affected: 1 }),
     };
     const scheduledTriggerService = {
       getByIdAndDataMartIdAndProjectId: jest.fn().mockResolvedValue({
@@ -49,6 +54,7 @@ describe('UpdateScheduledTriggerService', () => {
       getByIdAndDataMartIdAndProjectId: jest.fn(),
     };
     const accessDecisionService = {
+      canAccessStored: jest.fn().mockResolvedValue(true),
       canAccessDmTrigger: jest.fn().mockResolvedValue(true),
     };
 
@@ -59,7 +65,11 @@ describe('UpdateScheduledTriggerService', () => {
       userProjectionsFetcherService as never,
       reportAccessService as never,
       reportService as never,
-      accessDecisionService as never
+      accessDecisionService as never,
+      {
+        lockConfigurationReferences: jest.fn().mockResolvedValue(undefined),
+        advanceConfigurationRevision: jest.fn().mockResolvedValue(2),
+      } as never
     );
 
     return { service, triggerRepository, accessDecisionService };
@@ -89,7 +99,7 @@ describe('UpdateScheduledTriggerService', () => {
       Action.MANAGE_TRIGGERS,
       'project-1'
     );
-    expect(triggerRepository.save).toHaveBeenCalled();
+    expect(triggerRepository.update).toHaveBeenCalled();
   });
 
   it('rejects connector-run trigger updates when Data Mart trigger management is denied', async () => {
@@ -106,6 +116,6 @@ describe('UpdateScheduledTriggerService', () => {
       Action.MANAGE_TRIGGERS,
       'project-1'
     );
-    expect(triggerRepository.save).not.toHaveBeenCalled();
+    expect(triggerRepository.update).not.toHaveBeenCalled();
   });
 });

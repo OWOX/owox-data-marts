@@ -4,6 +4,7 @@ export class DeleteDataMartCommand {
     public readonly projectId: string,
     public readonly disableLegacySync: boolean = false,
     public readonly userId: string = '',
-    public readonly roles: string[] = []
+    public readonly roles: string[] = [],
+    public readonly expectedRevision?: number
   ) {}
 }

@@ -1,3 +1,6 @@
+import { Transactional } from 'typeorm-transactional';
+import { lockContextReferences } from '../services/context/context-reference-guard';
+import { StorageContext } from '../entities/storage-context.entity';
 import { Injectable, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -22,7 +25,9 @@ export class DeleteDataStorageService {
     private readonly advancedSearchIndexSync?: AdvancedSearchIndexSyncService
   ) {}
 
+  @Transactional()
   async run(command: DeleteDataStorageCommand): Promise<void> {
+    await lockContextReferences(this.dataStorageRepository.manager, command.projectId);
     const dataStorage = await this.dataStorageService.getByProjectIdAndId(
       command.projectId,
       command.id
@@ -57,6 +62,9 @@ export class DeleteDataStorageService {
       );
     }
 
+    await this.dataStorageRepository.manager
+      .getRepository(StorageContext)
+      .delete({ storageId: command.id });
     await this.dataStorageRepository.softDelete({
       id: command.id,
       projectId: command.projectId,

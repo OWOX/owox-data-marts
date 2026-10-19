@@ -3,5 +3,6 @@ import { DataMartDto } from './data-mart.dto';
 
 /** The saved Data Mart plus every non-blocking formula warning this save surfaced. */
 export interface UpdateDataMartSchemaResult extends DataMartDto {
+  schemaInputRevision?: number | null;
   warnings: FormulaViolation[];
 }

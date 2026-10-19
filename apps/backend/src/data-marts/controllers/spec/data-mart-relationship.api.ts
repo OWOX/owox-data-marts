@@ -6,6 +6,7 @@ import {
   ApiOkResponse,
   ApiOperation,
   ApiParam,
+  ApiQuery,
 } from '@nestjs/swagger';
 import { RelationshipResponseApiDto } from '../../dto/presentation/relationship-response-api.dto';
 import { RelationshipGraphResponseApiDto } from '../../dto/presentation/relationship-graph-response-api.dto';
@@ -56,6 +57,12 @@ export function DeleteRelationshipSpec() {
     ApiOperation({ summary: 'Delete a relationship' }),
     ApiParam({ name: 'dataMartId', description: 'Source data mart ID' }),
     ApiParam({ name: 'id', description: 'Relationship ID' }),
+    ApiQuery({
+      name: 'expectedRevision',
+      required: false,
+      type: Number,
+      description: 'Optional source Data Mart configuration revision precondition',
+    }),
     ApiNoContentResponse({
       description: 'The relationship has been successfully deleted.',
     })

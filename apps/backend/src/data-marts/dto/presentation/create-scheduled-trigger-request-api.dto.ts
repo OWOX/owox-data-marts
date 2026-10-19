@@ -1,9 +1,10 @@
+import { DataMartConfigurationPreconditionDto } from './data-mart-configuration-precondition.dto';
 import { ApiProperty } from '@nestjs/swagger';
 import { IsBoolean, IsEnum, IsNotEmpty, IsObject, IsOptional, IsString } from 'class-validator';
 import { ScheduledTriggerConfig } from '../../scheduled-trigger-types/scheduled-trigger-config.type';
 import { ScheduledTriggerType } from '../../scheduled-trigger-types/enums/scheduled-trigger-type.enum';
 
-export class CreateScheduledTriggerRequestApiDto {
+export class CreateScheduledTriggerRequestApiDto extends DataMartConfigurationPreconditionDto {
   @ApiProperty({ enum: ScheduledTriggerType, example: ScheduledTriggerType.CONNECTOR_RUN })
   @IsEnum(ScheduledTriggerType)
   @IsNotEmpty()

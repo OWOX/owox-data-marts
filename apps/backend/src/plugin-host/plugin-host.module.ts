@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { MutationReceiptService } from '../common/mutations/mutation-receipt.service';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { IdpModule } from '../idp/idp.module';
 import { CommonModule } from '../common/common.module';
@@ -27,6 +28,9 @@ import { ExternalCredentialDefinitionSyncService } from './services/external-cre
 import { GithubAuthService } from './services/github-auth.service';
 import { PLUGIN_INSTALLATION_LOOKUP } from './facades/plugin-installation-lookup.facade';
 import { PluginInstallationLookupFacade } from './facades/plugin-installation-lookup.facade.impl';
+import { MCP_PLUGIN_SETUP_FACADE } from './facades/mcp-plugin-setup.facade';
+import { McpPluginSetupFacadeImpl } from './facades/mcp-plugin-setup.facade.impl';
+import { McpPluginSetupMapper } from './mappers/mcp-plugin-setup.mapper';
 import { ActionInputValidatorService } from './services/action-input-validator.service';
 import { PluginActionDispatcherService } from './services/plugin-action-dispatcher.service';
 import { PluginActionExecutionService } from './services/plugin-action-execution.service';
@@ -47,6 +51,7 @@ import { FindPluginByRepositoryService } from './use-cases/find-plugin-by-reposi
 import { GetPluginDetailsService } from './use-cases/get-plugin-details.service';
 import { GetPluginInstallationEntryService } from './use-cases/get-plugin-installation-entry.service';
 import { InstallPluginService } from './use-cases/install-plugin.service';
+import { PluginSetupMutationService } from './use-cases/plugin-setup-mutation.service';
 import { ListInstallationsService } from './use-cases/list-installations.service';
 import { ListPluginHistoryService } from './use-cases/list-plugin-history.service';
 import { UninstallPluginService } from './use-cases/uninstall-plugin.service';
@@ -129,6 +134,7 @@ import { PutPluginCollectionDocumentService } from './collections/use-cases/put-
     PluginGalleryController,
   ],
   providers: [
+    MutationReceiptService,
     PluginCollectionMapper,
     PluginCollectionAuditService,
     PluginCollectionAuthorizationService,
@@ -177,6 +183,7 @@ import { PutPluginCollectionDocumentService } from './collections/use-cases/put-
     CredentialDefinitionUpdateCheckProcessor,
     PluginActionExecutionSweepProcessor,
     InstallPluginService,
+    PluginSetupMutationService,
     UninstallPluginService,
     ListInstallationsService,
     ListPluginHistoryService,
@@ -186,6 +193,8 @@ import { PutPluginCollectionDocumentService } from './collections/use-cases/put-
     IssuePluginRuntimeTokenService,
     PluginInstallationLookupFacade,
     { provide: PLUGIN_INSTALLATION_LOOKUP, useExisting: PluginInstallationLookupFacade },
+    McpPluginSetupMapper,
+    { provide: MCP_PLUGIN_SETUP_FACADE, useClass: McpPluginSetupFacadeImpl },
     PluginRuntimeAuthorizerService,
     { provide: PLUGIN_RUNTIME_AUTHORIZER, useExisting: PluginRuntimeAuthorizerService },
   ],
@@ -195,6 +204,7 @@ import { PutPluginCollectionDocumentService } from './collections/use-cases/put-
     PublishPluginService,
     UnpublishPluginService,
     PLUGIN_INSTALLATION_LOOKUP,
+    MCP_PLUGIN_SETUP_FACADE,
     PLUGIN_RUNTIME_AUTHORIZER,
   ],
 })

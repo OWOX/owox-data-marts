@@ -55,7 +55,7 @@ export class DatabricksDataMartValidator implements DataMartValidator {
       const explain = await adapter.executeDryRunQuery(query);
 
       if (!explain.isValid) {
-        this.logger.warn('Dry run validation failed', explain.error);
+        this.logger.warn('Dry run validation failed');
         await adapter.destroy();
         return ValidationResult.failure(explain.error || 'Query validation failed');
       }
@@ -64,7 +64,7 @@ export class DatabricksDataMartValidator implements DataMartValidator {
       await adapter.destroy();
       return ValidationResult.success();
     } catch (error) {
-      this.logger.warn('Dry run failed', error);
+      this.logger.warn('Dry run failed');
       return ValidationResult.failure(error instanceof Error ? error.message : String(error));
     }
   }

@@ -1,5 +1,10 @@
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Module, MiddlewareConsumer, RequestMethod } from '@nestjs/common';
+import { MutationReceiptService } from '../common/mutations/mutation-receipt.service';
+import { ConnectorReferenceGuardService } from './services/connector/connector-reference-guard.service';
+import { ConnectorAuthoringService } from './use-cases/connector-authoring.service';
+import { ConnectorAuthoringController } from './controllers/connector-authoring.controller';
+import { DataMartSetupMutationService } from './use-cases/data-mart-setup-mutation.service';
 import { DataMartController } from './controllers/data-mart.controller';
 import { DataStorageController } from './controllers/data-storage.controller';
 import { DataDestinationController } from './controllers/data-destination.controller';
@@ -61,6 +66,32 @@ import { SummarizeMcpDataCatalogService } from './use-cases/summarize-mcp-data-c
 import { MCP_DATA_MARTS_FACADE } from './facades/mcp-data-marts.facade';
 import { MCP_CONTEXTS_FACADE } from './facades/mcp-contexts.facade';
 import { McpContextsFacadeImpl } from './facades/mcp-contexts.facade.impl';
+import { MCP_CONTEXT_SETUP_FACADE } from './facades/mcp-context-setup.facade';
+import { McpContextSetupFacadeImpl } from './facades/mcp-context-setup.facade.impl';
+import { ContextSetupMapper } from './mappers/context-setup.mapper';
+import { ReadContextSetupService } from './use-cases/contexts/read-context-setup.service';
+import { MutateContextSetupService } from './use-cases/contexts/mutate-context-setup.service';
+import { MCP_SETUP_DISCOVERY_FACADE } from './facades/mcp-setup-discovery.facade';
+import { McpSetupDiscoveryFacadeImpl } from './facades/mcp-setup-discovery.facade.impl';
+import { McpSetupDiscoveryMapper } from './mappers/mcp-setup-discovery.mapper';
+import { SetupDiscoveryService } from './use-cases/setup-discovery.service';
+import { MCP_DATA_MART_SETUP_FACADE } from './facades/mcp-data-mart-setup.facade';
+import { McpDataMartSetupFacadeImpl } from './facades/mcp-data-mart-setup.facade.impl';
+import { McpDataMartSetupMapper } from './mappers/mcp-data-mart-setup.mapper';
+import { DataMartSetupService } from './use-cases/data-mart-setup.service';
+import { MCP_DATA_MART_MODEL_FACADE } from './facades/mcp-data-mart-model.facade';
+import { McpDataMartModelFacadeImpl } from './facades/mcp-data-mart-model.facade.impl';
+import { McpDataMartModelMapper } from './mappers/mcp-data-mart-model.mapper';
+import { DataMartModelService } from './use-cases/data-mart-model.service';
+import { DataMartModelMutationService } from './use-cases/data-mart-model-mutation.service';
+import { MCP_DATA_MART_EXECUTION_FACADE } from './facades/mcp-data-mart-execution.facade';
+import { McpDataMartExecutionFacadeImpl } from './facades/mcp-data-mart-execution.facade.impl';
+import { McpDataMartExecutionMapper } from './mappers/mcp-data-mart-execution.mapper';
+import { DataMartExecutionService } from './use-cases/data-mart-execution.service';
+import { MCP_CUSTOM_CONNECTORS_FACADE } from './facades/mcp-custom-connectors.facade';
+import { McpCustomConnectorsFacadeImpl } from './facades/mcp-custom-connectors.facade.impl';
+import { McpCustomConnectorsMapper } from './mappers/mcp-custom-connectors.mapper';
+import { ConnectorManifestStaticValidationService } from './services/connector/connector-manifest-static-validation.service';
 import { McpDataMartsFacadeImpl } from './facades/mcp-data-marts.facade.impl';
 import { MCP_DATA_DESTINATIONS_FACADE } from './facades/mcp-data-destinations.facade';
 import { McpDataDestinationsFacadeImpl } from './facades/mcp-data-destinations.facade.impl';
@@ -560,6 +591,7 @@ import { ConsentCredentialDefinitionService } from './credentials/use-cases/cons
     IdpModule,
   ],
   controllers: [
+    ConnectorAuthoringController,
     DataQualityBatchController,
     DataQualityController,
     ProjectDataMartRunsController,
@@ -601,6 +633,10 @@ import { ConsentCredentialDefinitionService } from './credentials/use-cases/cons
     CredentialsController,
   ],
   providers: [
+    MutationReceiptService,
+    ConnectorReferenceGuardService,
+    ConnectorAuthoringService,
+    DataMartSetupMutationService,
     CredentialConsumerBindingFacadeImpl,
     {
       provide: CREDENTIAL_CONSUMER_BINDING_FACADE,
@@ -645,6 +681,26 @@ import { ConsentCredentialDefinitionService } from './credentials/use-cases/cons
     DataQualitySummaryService,
     McpDataCatalogSummaryService,
     { provide: MCP_CONTEXTS_FACADE, useClass: McpContextsFacadeImpl },
+    ContextSetupMapper,
+    ReadContextSetupService,
+    MutateContextSetupService,
+    { provide: MCP_CONTEXT_SETUP_FACADE, useClass: McpContextSetupFacadeImpl },
+    McpSetupDiscoveryMapper,
+    SetupDiscoveryService,
+    { provide: MCP_SETUP_DISCOVERY_FACADE, useClass: McpSetupDiscoveryFacadeImpl },
+    McpDataMartSetupMapper,
+    DataMartSetupService,
+    { provide: MCP_DATA_MART_SETUP_FACADE, useClass: McpDataMartSetupFacadeImpl },
+    McpDataMartModelMapper,
+    DataMartModelService,
+    DataMartModelMutationService,
+    { provide: MCP_DATA_MART_MODEL_FACADE, useClass: McpDataMartModelFacadeImpl },
+    McpDataMartExecutionMapper,
+    DataMartExecutionService,
+    { provide: MCP_DATA_MART_EXECUTION_FACADE, useClass: McpDataMartExecutionFacadeImpl },
+    McpCustomConnectorsMapper,
+    ConnectorManifestStaticValidationService,
+    { provide: MCP_CUSTOM_CONNECTORS_FACADE, useClass: McpCustomConnectorsFacadeImpl },
     CreateDataMartService,
     ListDataMartsService,
     GetModelCanvasDataMartsService,
@@ -1004,6 +1060,12 @@ import { ConsentCredentialDefinitionService } from './credentials/use-cases/cons
   ],
   exports: [
     MCP_CONTEXTS_FACADE,
+    MCP_CONTEXT_SETUP_FACADE,
+    MCP_SETUP_DISCOVERY_FACADE,
+    MCP_DATA_MART_SETUP_FACADE,
+    MCP_DATA_MART_MODEL_FACADE,
+    MCP_DATA_MART_EXECUTION_FACADE,
+    MCP_CUSTOM_CONNECTORS_FACADE,
     CREDENTIAL_CONSUMER_BINDING_FACADE,
     CredentialFetchService,
     CredentialAiService,

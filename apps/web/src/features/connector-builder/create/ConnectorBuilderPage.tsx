@@ -3,6 +3,7 @@ import { Upload } from 'lucide-react';
 import { Button } from '@owox/ui/components/button';
 import { BuilderProvider } from '../shared/model/context/BuilderProvider';
 import { useBuilder } from '../shared/model/hooks/useBuilder';
+import { ConnectorAgentPreparationPanel } from './components/ConnectorAgentPreparationPanel';
 import { BuilderTopBar } from './components/BuilderTopBar';
 import { BuilderModeTabs } from './components/BuilderModeTabs';
 import { BuilderNavRail, type BuilderSelection } from './components/BuilderNavRail';
@@ -227,6 +228,7 @@ function BuilderShell({
     // available area and never grows the document — the inner panes scroll on
     // their own. Anchoring to 100dvh let the page scroll past the viewport.
     <div className='bg-muted/30 absolute inset-0 flex flex-col overflow-hidden'>
+      <ConnectorAgentPreparationPanel />
       <BuilderTopBar
         onToggleTest={() => {
           setDockOpen(v => !v);

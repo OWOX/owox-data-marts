@@ -99,7 +99,7 @@ export class SyncLegacyDataMartService {
   ): Promise<DataMart> {
     const existing = await this.dataMartService.findById(projection.id, true);
     if (existing) {
-      existing.deletedAt = undefined;
+      existing.deletedAt = null;
       return existing;
     }
 

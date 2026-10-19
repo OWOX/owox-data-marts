@@ -72,7 +72,7 @@ export class SnowflakeReportReader implements DataStorageReportReader {
     const query =
       options?.sqlOverride ??
       this.queryBuilder.buildQuery(definition, { columns: options?.columnFilter });
-    this.logger.debug(`Executing query: ${query}`);
+    this.logger.debug(`Executing query (${query.length} chars)`);
 
     const result = await this.adapter.executeQuery(
       query,
@@ -176,8 +176,8 @@ export class SnowflakeReportReader implements DataStorageReportReader {
       if (Array.isArray(value)) {
         try {
           return JSON.stringify(value.map(item => this.serializeValue(item)));
-        } catch (error) {
-          this.logger.warn('Failed to serialize array value to JSON', error);
+        } catch {
+          this.logger.warn('Failed to serialize array value to JSON');
           return String(value);
         }
       }
@@ -190,8 +190,8 @@ export class SnowflakeReportReader implements DataStorageReportReader {
       // For plain objects, serialize to JSON
       try {
         return JSON.stringify(value);
-      } catch (error) {
-        this.logger.warn('Failed to serialize object value to JSON', error);
+      } catch {
+        this.logger.warn('Failed to serialize object value to JSON');
         return String(value);
       }
     }

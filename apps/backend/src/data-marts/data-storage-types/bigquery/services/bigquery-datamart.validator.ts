@@ -56,7 +56,7 @@ export class BigQueryDataMartValidator implements DataMartValidator {
       const result = await adapter.executeDryRunQuery(query);
       return ValidationResult.success(result);
     } catch (error) {
-      this.logger.warn('Dry run failed', error);
+      this.logger.warn('Dry run failed');
       return ValidationResult.failure(error instanceof Error ? error.message : String(error));
     }
   }

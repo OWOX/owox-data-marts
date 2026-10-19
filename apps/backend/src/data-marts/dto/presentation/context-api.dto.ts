@@ -2,6 +2,9 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   ArrayMaxSize,
   IsArray,
+  IsInt,
+  Min,
+  Max,
   IsEmail,
   IsEnum,
   IsNotEmpty,
@@ -28,6 +31,13 @@ export class CreateContextRequestApiDto {
 }
 
 export class UpdateContextRequestApiDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(Number.MAX_SAFE_INTEGER)
+  expectedRevision?: number;
+
   @ApiProperty()
   @IsString()
   @IsNotEmpty()
@@ -41,6 +51,8 @@ export class UpdateContextRequestApiDto {
 }
 
 export class ContextResponseApiDto {
+  @ApiPropertyOptional()
+  revision?: number;
   @ApiProperty()
   id: string;
 
@@ -64,6 +76,8 @@ export class ContextResponseApiDto {
 }
 
 export class ContextImpactResponseApiDto {
+  @ApiProperty()
+  credentialCount: number;
   @ApiProperty()
   contextId: string;
 
@@ -90,6 +104,13 @@ export class ContextImpactResponseApiDto {
 }
 
 export class UpdateEntityContextsRequestApiDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(Number.MAX_SAFE_INTEGER)
+  expectedRevision?: number;
+
   @ApiProperty({ type: [String] })
   @IsArray()
   @ArrayMaxSize(100)
@@ -99,6 +120,13 @@ export class UpdateEntityContextsRequestApiDto {
 }
 
 export class UpdateContextMembersRequestApiDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(Number.MAX_SAFE_INTEGER)
+  expectedRevision?: number;
+
   @ApiProperty({
     type: [String],
     description: 'Project member user ids to bind to this context. Admin ids are ignored.',

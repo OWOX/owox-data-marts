@@ -62,6 +62,7 @@ const detail = (
   active: number
 ) => ({
   id: 'def-1',
+  revision: 1,
   name: 'MyApi',
   title: 'My API',
   description: null,
@@ -115,9 +116,10 @@ function startNewConnector() {
 
 describe('Connector builder analytics', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    vi.resetAllMocks();
     localStorage.clear();
-    create.mockResolvedValue({ id: 'def-1', name: 'MyApi', title: 'My API' });
+    create.mockResolvedValue({ id: 'def-1', revision: 1, name: 'MyApi', title: 'My API' });
+    saveDraft.mockResolvedValue({ version: 2, revision: 2, status: 'draft', publishedAt: null });
     getById.mockResolvedValue(detail([{ version: 1, status: 'published' }], 1));
     getVersion.mockResolvedValue({ version: 1, status: 'published', manifest: MANIFEST });
     publish.mockResolvedValue({

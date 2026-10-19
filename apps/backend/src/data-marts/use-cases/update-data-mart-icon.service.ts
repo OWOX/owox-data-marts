@@ -1,3 +1,4 @@
+import { ConflictException } from '@nestjs/common';
 import { Injectable, ForbiddenException } from '@nestjs/common';
 import { DataMartMapper } from '../mappers/data-mart.mapper';
 import { DataMartDto } from '../dto/domain/data-mart.dto';
@@ -15,6 +16,8 @@ export class UpdateDataMartIconService {
 
   async run(command: UpdateDataMartIconCommand): Promise<DataMartDto> {
     const dataMart = await this.dataMartService.getByIdAndProjectId(command.id, command.projectId);
+    if (command.expectedRevision !== undefined && command.expectedRevision !== dataMart.revision)
+      throw new ConflictException('Data Mart configuration changed');
 
     if (command.userId) {
       const canEdit = await this.accessDecisionService.canAccess(

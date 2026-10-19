@@ -34,6 +34,7 @@ export class DataMartDto {
     public readonly blendedFieldsConfig?: BlendedFieldsConfig,
     public readonly contexts: ContextSummary[] = [],
     public readonly dataLastUpdated: SourceDataLastUpdated | null = null,
-    public readonly icon: DataMartIconValue | null = null
+    public readonly icon: DataMartIconValue | null = null,
+    public readonly revision: number = 1
   ) {}
 }

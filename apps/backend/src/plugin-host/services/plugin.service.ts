@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { ConflictException, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 import { randomUUID } from 'node:crypto';
@@ -29,6 +29,20 @@ export class PluginService {
     @InjectRepository(Plugin)
     private readonly repository: Repository<Plugin>
   ) {}
+
+  async lockReviewedVersion(pluginId: string, versionId: string | null): Promise<void> {
+    const result = await this.repository
+      .createQueryBuilder()
+      .update()
+      .set({ currentVersionId: versionId })
+      .where('id = :pluginId AND currentVersionId = :versionId AND suspendedAt IS NULL', {
+        pluginId,
+        versionId,
+      })
+      .execute();
+    if (result.affected !== 1)
+      throw new ConflictException('Plugin version or suspension changed; review again');
+  }
 
   /** Lookup by the identity anchor. Owner and name are never used to find a plugin. */
   findByGithubRepoId(githubRepoId: string): Promise<Plugin | null> {

@@ -1,3 +1,4 @@
+import { Transactional } from 'typeorm-transactional';
 import { Injectable, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -31,7 +32,22 @@ export class CreateScheduledTriggerService {
 
   async run(command: CreateScheduledTriggerCommand): Promise<ScheduledTriggerDto> {
     await this.checkAccess(command);
+    const created = await this.commit(command);
+    await this.eventDispatcher.publishExternal(
+      new TriggerCreatedEvent(
+        created.id,
+        command.dataMartId,
+        command.projectId,
+        command.type,
+        command.userId
+      )
+    );
+    return created;
+  }
 
+  @Transactional()
+  private async commit(command: CreateScheduledTriggerCommand): Promise<ScheduledTriggerDto> {
+    await this.dataMartService.lockConfigurationReferences(command.projectId);
     const dataMart = await this.dataMartService.getByIdAndProjectId(
       command.dataMartId,
       command.projectId
@@ -66,17 +82,28 @@ export class CreateScheduledTriggerService {
       }
     }
 
-    const newTrigger = await this.triggerRepository.save(trigger);
-
-    await this.eventDispatcher.publishExternal(
-      new TriggerCreatedEvent(
-        newTrigger.id,
-        dataMart.id,
-        command.projectId,
-        command.type,
-        command.userId
+    if (command.type !== ScheduledTriggerType.REPORT_RUN) {
+      if (
+        !(await this.accessDecisionService.canAccessStored(
+          command.userId,
+          command.roles,
+          EntityType.DATA_MART,
+          command.dataMartId,
+          Action.MANAGE_TRIGGERS,
+          command.projectId
+        ))
       )
-    );
+        throw new ForbiddenException(
+          'You do not have permission to manage triggers for this DataMart.'
+        );
+      await this.dataMartService.advanceConfigurationRevision(
+        this.triggerRepository.manager,
+        command.dataMartId,
+        command.projectId,
+        command.expectedRevision
+      );
+    }
+    const newTrigger = await this.triggerRepository.save(trigger);
 
     return this.mapper.toDomainDto(newTrigger);
   }

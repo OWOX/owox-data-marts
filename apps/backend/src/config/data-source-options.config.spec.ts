@@ -41,4 +41,23 @@ describe('CustomDataSourceLogger', () => {
       'ER_DUP_ENTRY'
     );
   });
+
+  it.each([
+    'connector_definition_version',
+    'connector_source_credentials',
+    'connector_protected_values',
+  ])('withholds SQL, parameters and driver diagnostics containing %s secrets', table => {
+    const { logger: sinkLogger, output } = createSink();
+    const logger = new CustomDataSourceLogger(sinkLogger, 'all');
+    const query = `INSERT INTO \`${table}\` (\`payload\`) VALUES ('inline-secret')`;
+
+    logger.logQuery(query, ['bound-secret']);
+    logger.logQuerySlow(100, query, ['bound-secret']);
+    logger.logQueryError(new Error('Invalid value: driver-secret'), query, ['bound-secret']);
+
+    expect(output()).not.toContain('inline-secret');
+    expect(output()).not.toContain('bound-secret');
+    expect(output()).not.toContain('driver-secret');
+    expect(output()).toContain('protected');
+  });
 });

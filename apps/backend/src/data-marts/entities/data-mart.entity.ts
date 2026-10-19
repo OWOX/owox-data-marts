@@ -40,6 +40,21 @@ export class DataMart implements CreatorAwareEntity {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
+  @Column({ type: 'int', default: 1 })
+  revision: number;
+
+  @Column({ type: 'varchar', length: 36, nullable: true })
+  connectorPreparationId?: string | null;
+
+  @Column({ type: 'varchar', nullable: true })
+  connectorPreparedById?: string | null;
+
+  @Column({ type: 'int', nullable: true })
+  connectorPreparedRevision?: number | null;
+
+  @Column({ type: 'int', nullable: true })
+  schemaInputRevision?: number | null;
+
   @Column()
   title: string;
 
@@ -126,7 +141,7 @@ export class DataMart implements CreatorAwareEntity {
   createdById: string;
 
   @DeleteDateColumn({ nullable: true })
-  deletedAt?: Date;
+  deletedAt?: Date | null;
 
   @CreateDateColumn()
   createdAt: Date;

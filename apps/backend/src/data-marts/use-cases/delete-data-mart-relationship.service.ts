@@ -1,3 +1,4 @@
+import { DataSource } from 'typeorm';
 import {
   Injectable,
   NotFoundException,
@@ -18,6 +19,7 @@ export class DeleteDataMartRelationshipService {
   constructor(
     private readonly relationshipService: DataMartRelationshipService,
     private readonly dataMartService: DataMartService,
+    private readonly dataSource: DataSource,
     private readonly reportDataCacheService: ReportDataCacheService,
     private readonly accessDecisionService: AccessDecisionService,
     private readonly advancedSearchIndexSync?: AdvancedSearchIndexSyncService
@@ -28,6 +30,7 @@ export class DeleteDataMartRelationshipService {
     if (!command.userId) {
       throw new UnauthorizedException('Authenticated user is required');
     }
+    await this.dataMartService.lockConfigurationReferences(command.projectId);
 
     await this.dataMartService.getByIdAndProjectId(command.sourceDataMartId, command.projectId);
 
@@ -52,6 +55,35 @@ export class DeleteDataMartRelationshipService {
         'You do not have permission to manage relationships of this DataMart'
       );
     }
+
+    const target = await this.dataMartService.getByIdAndProjectId(
+      relationship.targetDataMart.id,
+      command.projectId
+    );
+    if (
+      !(await this.accessDecisionService.canAccess(
+        command.userId,
+        command.roles,
+        EntityType.DATA_MART,
+        target.id,
+        Action.EDIT,
+        command.projectId
+      ))
+    )
+      throw new ForbiddenException(
+        'You do not have permission to manage the target Data Mart relationship'
+      );
+    this.relationshipService.validateSameStorage(
+      relationship.sourceDataMart.storage.id,
+      target.storage.id
+    );
+
+    await this.dataMartService.advanceConfigurationRevision(
+      this.dataSource.manager,
+      command.sourceDataMartId,
+      command.projectId,
+      command.expectedRevision
+    );
 
     await this.relationshipService.delete(relationship);
     await this.reportDataCacheService.invalidateByDataMartId(command.sourceDataMartId);

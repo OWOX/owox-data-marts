@@ -22,6 +22,8 @@ import { CredentialDefinitionService } from '../services/credential-definition.s
 import { CredentialService } from '../services/credential.service';
 import type {
   CredentialConsumerBindingFacade,
+  CredentialConsumerReadiness,
+  InspectCredentialConsumerRequest,
   MarkCredentialUsedRequest,
   ReconcileCredentialBindingsRequest,
   ReplaceCredentialBindingsRequest,
@@ -225,6 +227,74 @@ export class CredentialConsumerBindingFacadeImpl implements CredentialConsumerBi
       ready.push(requirement);
     }
     return ready;
+  }
+
+  async inspectConsumerReadiness(
+    request: InspectCredentialConsumerRequest
+  ): Promise<CredentialConsumerReadiness> {
+    const requirements = request.requirements.map(normalizeCredentialRequirement);
+    assertUniqueRequirementKeys(requirements);
+    const results: Array<CredentialConsumerReadiness['requirements'][number]> = [];
+    for (const requirement of requirements) {
+      const binding = await this.bindings.findOneBy({
+        consumerType: request.consumerType,
+        consumerId: request.consumerId,
+        projectId: request.projectId,
+        requirementKey: requirement.key,
+        active: true,
+      });
+      let state: CredentialConsumerReadiness['requirements'][number]['state'] = 'missing';
+      if (binding && sameRequirement(binding.requirementSnapshot, requirement)) {
+        // This path must not load a key or call resolveBinding merely to show setup status.
+        const credential = await this.credentials.findOne({
+          where: { id: binding.credentialId, projectId: request.projectId },
+          select: [
+            'id',
+            'definitionId',
+            'acceptedCompatibilityLine',
+            'enabled',
+            'aiModelMappings',
+            'aiModelMappingModes',
+            'aiModelMappingSources',
+          ],
+        });
+        if (!credential || !credential.enabled) {
+          state = 'inaccessible';
+        } else if (
+          !(await this.access.canAccessStored(
+            request.userId,
+            [...request.roles],
+            EntityType.CREDENTIAL,
+            credential.id,
+            Action.USE,
+            request.projectId
+          ))
+        ) {
+          state = 'inaccessible';
+        } else {
+          try {
+            await this.assertRequirementMatches(credential, requirement);
+            state = 'configured';
+          } catch (error) {
+            if (
+              !(
+                error instanceof BadRequestException ||
+                error instanceof ConflictException ||
+                error instanceof NotFoundException
+              )
+            )
+              throw error;
+            state = 'incompatible';
+          }
+        }
+      }
+      results.push({ key: requirement.key, optional: requirement.optional, state });
+    }
+    return {
+      configured: results.every(result => result.optional || result.state === 'configured'),
+      providerValidity: 'unknown',
+      requirements: results,
+    };
   }
 
   async reconcileBindings(request: ReconcileCredentialBindingsRequest): Promise<void> {

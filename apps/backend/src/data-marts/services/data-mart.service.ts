@@ -1,6 +1,6 @@
-import { Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
+import { ConflictException, Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { FindOperator, In, Raw, Repository, SelectQueryBuilder } from 'typeorm';
+import { EntityManager, In, Repository, SelectQueryBuilder } from 'typeorm';
 import { QueryDeepPartialEntity } from 'typeorm/query-builder/QueryPartialEntity';
 import { DataMartSchemaMergerFacade } from '../data-storage-types/facades/data-mart-schema-merger.facade';
 import { DataMartSchemaProviderFacade } from '../data-storage-types/facades/data-mart-schema-provider.facade';
@@ -14,6 +14,18 @@ import { DataMartStatus } from '../enums/data-mart-status.enum';
 import { OwnerFilter } from '../enums/owner-filter.enum';
 import { RoleScope } from '../enums/role-scope.enum';
 import { applyDataMartVisibilityFilter } from '../utils/apply-data-mart-visibility-filter';
+import { createHash } from 'node:crypto';
+import { DataMartRun } from '../entities/data-mart-run.entity';
+import { DataMartRunStatus } from '../enums/data-mart-run-status.enum';
+import { DataMartRunType } from '../enums/data-mart-run-type.enum';
+import { cancelDataMartConnectorWork } from './connector/connector-work-lifecycle';
+import { DataMartContext } from '../entities/data-mart-context.entity';
+import { DataMartRelationship } from '../entities/data-mart-relationship.entity';
+import { DataMartScheduledTrigger } from '../entities/data-mart-scheduled-trigger.entity';
+import { ConnectorRunTrigger } from '../entities/connector-run-trigger.entity';
+import { Report } from '../entities/report.entity';
+import { ConnectorReferenceGuardService } from './connector/connector-reference-guard.service';
+import { lockContextReferences } from './context/context-reference-guard';
 import { DataMartSearchIndexInvalidationService } from './data-mart-search-index-invalidation.service';
 
 @Injectable()
@@ -33,8 +45,12 @@ export class DataMartService {
     return this.dataMartRepository.create(data);
   }
 
-  async getByIdAndProjectId(id: string, projectId: string): Promise<DataMart> {
-    const entity = await this.dataMartRepository.findOne({
+  async getByIdAndProjectId(
+    id: string,
+    projectId: string,
+    manager?: EntityManager
+  ): Promise<DataMart> {
+    const entity = await (manager?.getRepository(DataMart) ?? this.dataMartRepository).findOne({
       where: { id, projectId },
       relations: [
         'connectorState',
@@ -64,6 +80,26 @@ export class DataMartService {
     return this.dataMartRepository.find({
       where: { id: In(uniqueIds), projectId },
       select: ['id'],
+    });
+  }
+
+  /** Stored setup summaries; action checks and effective Context defaults are applied by the caller. */
+  async listSetupMetadata(projectId: string): Promise<DataMart[]> {
+    return this.dataMartRepository.find({
+      where: { projectId },
+      loadEagerRelations: false,
+      select: [
+        'id',
+        'projectId',
+        'title',
+        'description',
+        'icon',
+        'status',
+        'definitionType',
+        'modifiedAt',
+        'revision',
+      ],
+      order: { createdAt: 'DESC', id: 'ASC' },
     });
   }
 
@@ -351,12 +387,136 @@ export class DataMartService {
       .then(dms => dms.map(dm => dm.id));
   }
 
-  async softDeleteByIdAndProjectId(id: string, projectId: string): Promise<void> {
-    await this.dataMartRepository.softDelete({ id, projectId });
+  async connectorWorkImpact(
+    id: string,
+    projectId: string
+  ): Promise<{ activeConnectorRunsCount: number; queuedConnectorWorkCount: number }> {
+    const manager = this.dataMartRepository.manager;
+    return {
+      activeConnectorRunsCount: await manager.getRepository(DataMartRun).count({
+        where: {
+          dataMartId: id,
+          type: DataMartRunType.CONNECTOR,
+          status: In([
+            DataMartRunStatus.PENDING,
+            DataMartRunStatus.RUNNING,
+            DataMartRunStatus.INTERRUPTED,
+          ]),
+        },
+      }),
+      queuedConnectorWorkCount: await manager
+        .getRepository(ConnectorRunTrigger)
+        .count({ where: { dataMartId: id, projectId, isActive: true } }),
+    };
   }
 
-  async actualizeSchema(id: string, projectId: string): Promise<DataMart> {
+  /** Digest includes restricted dependencies without disclosing their identifiers or payloads. */
+  async setupDependencyDigest(id: string, projectId: string): Promise<string> {
+    const manager = this.dataMartRepository.manager;
+    const relationships = await manager
+      .getRepository(DataMartRelationship)
+      .createQueryBuilder('edge')
+      .select([
+        'edge.id',
+        'edge.sourceDataMart',
+        'edge.targetDataMart',
+        'edge.targetAlias',
+        'edge.joinConditions',
+      ])
+      .where(
+        'edge.projectId = :projectId AND (edge.sourceDataMart = :id OR edge.targetDataMart = :id)',
+        { projectId, id }
+      )
+      .orderBy('edge.id')
+      .getRawMany();
+    const reports = await manager
+      .getRepository(Report)
+      .createQueryBuilder('report')
+      .select(['report.id', 'report.version'])
+      .where('report.dataMart = :id', { id })
+      .orderBy('report.id')
+      .getRawMany();
+    const schedules = await manager
+      .getRepository(DataMartScheduledTrigger)
+      .createQueryBuilder('schedule')
+      .select([
+        'schedule.id',
+        'schedule.type',
+        'schedule.isActive',
+        'schedule.cronExpression',
+        'schedule.timeZone',
+        'schedule.triggerConfig',
+      ])
+      .where('schedule.dataMart = :id', { id })
+      .orderBy('schedule.id')
+      .getRawMany();
+    const queued = await manager
+      .getRepository(ConnectorRunTrigger)
+      .createQueryBuilder('trigger')
+      .select(['trigger.id', 'trigger.dataMartRunId'])
+      .where('trigger.dataMartId = :id AND trigger.projectId = :projectId', { id, projectId })
+      .orderBy('trigger.id')
+      .getRawMany();
+    const connectors = await this.findByProjectIdAndDefinitionType(
+      projectId,
+      DataMartDefinitionType.CONNECTOR
+    );
+    const references = connectors
+      .map(mart => ({ id: mart.id, definition: mart.definition }))
+      .sort((a, b) => a.id.localeCompare(b.id));
+    return createHash('sha256')
+      .update(JSON.stringify([relationships, reports, schedules, queued, references]))
+      .digest('hex');
+  }
+
+  /** Queue rows belong to this Data Mart; warehouse objects are never touched here. */
+  async deleteQueuedWork(id: string, projectId: string): Promise<void> {
+    const manager = this.dataMartRepository.manager;
+    for (const metadata of manager.connection.entityMetadatas) {
+      if (
+        ![
+          'ConnectorRunTrigger',
+          'SchemaActualizeTrigger',
+          'SqlDryRunTrigger',
+          'InsightRunTrigger',
+          'InsightTemplateRunTrigger',
+          'InsightArtifactSqlPreviewTrigger',
+          'AiHelperTrigger',
+          'AiAssistantRunTrigger',
+        ].includes(metadata.name) ||
+        !metadata.findColumnWithPropertyName('dataMartId')
+      )
+        continue;
+      const criteria = {
+        dataMartId: id,
+        ...(metadata.findColumnWithPropertyName('projectId') ? { projectId } : {}),
+      };
+      await manager.getRepository(metadata.target).delete(criteria);
+    }
+  }
+
+  async softDeleteByIdAndProjectId(
+    id: string,
+    projectId: string,
+    expectedRevision?: number
+  ): Promise<void> {
+    await this.dataMartRepository.manager.connection.transaction(async manager => {
+      await lockContextReferences(manager, projectId);
+      await new ConnectorReferenceGuardService().acquire(manager, projectId);
+      await this.advanceConfigurationRevision(manager, id, projectId, expectedRevision);
+      await manager.getRepository(DataMartContext).delete({ dataMartId: id });
+      await manager.getRepository(DataMart).softDelete({ id, projectId });
+    });
+  }
+
+  async actualizeSchema(
+    id: string,
+    projectId: string,
+    expectedRevision?: number
+  ): Promise<DataMart> {
     const dataMart = await this.getByIdAndProjectId(id, projectId);
+    if (expectedRevision !== undefined && dataMart.revision !== expectedRevision)
+      throw new ConflictException('Data Mart configuration changed before schema actualization');
     await this.actualizeSchemaInEntity(dataMart);
     return this.saveActualizedSchema(dataMart);
   }
@@ -420,8 +580,107 @@ export class DataMartService {
     return Date.now() - dataMart.schemaActualizedAt.getTime() >= expiresAfterMs;
   }
 
-  async save(dataMart: DataMart): Promise<DataMart> {
-    return this.dataMartRepository.save(dataMart);
+  /** The caller supplies its active transaction manager for all child/configuration writes. */
+  async writeConfiguration(
+    manager: EntityManager,
+    id: string,
+    projectId: string,
+    expectedRevision: number | undefined,
+    patch: QueryDeepPartialEntity<DataMart>
+  ): Promise<DataMart> {
+    if (!manager.queryRunner?.isTransactionActive)
+      return manager.connection.transaction(active =>
+        this.writeConfiguration(active, id, projectId, expectedRevision, patch)
+      );
+    if (
+      expectedRevision !== undefined &&
+      (!Number.isSafeInteger(expectedRevision) || expectedRevision < 1)
+    ) {
+      throw new ConflictException('Invalid Data Mart revision');
+    }
+    const repository = manager.getRepository(
+      this.dataMartRepository.target
+    ) as Repository<DataMart>;
+    if (Object.hasOwn(patch, 'definition') || Object.hasOwn(patch, 'definitionType')) {
+      await lockContextReferences(manager, projectId, undefined, false);
+      await new ConnectorReferenceGuardService().acquire(manager, projectId);
+    }
+    const update = repository
+      .createQueryBuilder()
+      .update(repository.target)
+      .set({ ...patch, revision: () => 'revision + 1' })
+      .where('id = :id AND projectId = :projectId', { id, projectId });
+    if (patch.deletedAt !== null) update.andWhere('deletedAt IS NULL');
+    if (expectedRevision !== undefined)
+      update.andWhere('revision = :expectedRevision', { expectedRevision });
+    if ((await update.execute()).affected !== 1)
+      throw new ConflictException('Data Mart configuration changed; read it again');
+    return repository.findOneByOrFail({ id, projectId });
+  }
+
+  async stopConnectorWorkForDeletion(id: string, projectId: string): Promise<void> {
+    await cancelDataMartConnectorWork(this.dataMartRepository.manager, id, projectId);
+  }
+
+  async lockConfigurationReferences(projectId: string): Promise<void> {
+    const manager = this.dataMartRepository.manager;
+    await lockContextReferences(manager, projectId, undefined, false);
+    await new ConnectorReferenceGuardService().acquire(manager, projectId);
+  }
+
+  async advanceConfigurationRevision(
+    manager: EntityManager,
+    id: string,
+    projectId: string,
+    expectedRevision?: number
+  ): Promise<number> {
+    return (await this.writeConfiguration(manager, id, projectId, expectedRevision, {})).revision;
+  }
+
+  async save(dataMart: DataMart, manager?: EntityManager): Promise<DataMart> {
+    const repository = manager?.getRepository(DataMart) ?? this.dataMartRepository;
+    if (!repository.manager.queryRunner?.isTransactionActive)
+      return repository.manager.connection.transaction(active => this.save(dataMart, active));
+    await lockContextReferences(repository.manager, dataMart.projectId, undefined, false);
+    await new ConnectorReferenceGuardService().acquire(repository.manager, dataMart.projectId);
+    const current = dataMart.id
+      ? await repository.findOne({
+          where: { id: dataMart.id },
+          select: { id: true, revision: true },
+          withDeleted: true,
+        })
+      : null;
+    if (!current) {
+      const created = repository.create({ ...dataMart, revision: 1 });
+      await repository.insert(created as QueryDeepPartialEntity<DataMart>);
+      const saved = await this.getByIdAndProjectId(
+        created.id,
+        created.projectId,
+        repository.manager
+      );
+      Object.assign(dataMart, saved);
+      return dataMart;
+    }
+    // Loaded entities carry their revision even for legacy REST clients that omit a precondition.
+    // Writing columns only prevents ORM cascades from saving a stale Storage or owner snapshot.
+    const patch: Record<string, unknown> = {};
+    for (const column of repository.metadata.columns) {
+      const key = column.propertyName;
+      if (
+        !['id', 'revision', 'createdAt', 'modifiedAt', 'dataLastUpdated'].includes(key) &&
+        key in dataMart
+      )
+        patch[key] = dataMart[key as keyof DataMart];
+    }
+    const saved = await this.writeConfiguration(
+      repository.manager,
+      dataMart.id,
+      dataMart.projectId,
+      dataMart.revision ?? current.revision,
+      patch as QueryDeepPartialEntity<DataMart>
+    );
+    Object.assign(dataMart, saved);
+    return dataMart;
   }
 
   /**
@@ -434,15 +693,14 @@ export class DataMartService {
    * since the request began is written back out of existence. SQLite serializes transactions
    * already.
    *
-   * This NARROWS the lost-update window to the caller's transaction; it does not close it. A writer
-   * committing after this read still loses, and closing that needs a version column.
+   * The configuration CAS rejects an intervening write instead of overwriting the newer row.
    *
    * @returns true when the rewrite was persisted; false when it changed nothing or the row is gone.
    */
   async rewriteSchemaPaths(id: string, rewrite: (dataMart: DataMart) => boolean): Promise<boolean> {
     const query = this.dataMartRepository
       .createQueryBuilder('dm')
-      .select(['dm.id', 'dm.schema', 'dm.blendedFieldsConfig'])
+      .select(['dm.id', 'dm.projectId', 'dm.revision', 'dm.schema', 'dm.blendedFieldsConfig'])
       .where('dm.id = :id', { id });
     if (
       ['mysql', 'mariadb'].includes(String(this.dataMartRepository.manager.connection.options.type))
@@ -455,8 +713,11 @@ export class DataMartService {
       return false;
     }
 
-    await this.dataMartRepository.update(
-      { id },
+    await this.writeConfiguration(
+      this.dataMartRepository.manager,
+      id,
+      current.projectId,
+      current.revision,
       // Cast for TypeORM's inference only, and it costs no safety: `current.schema` is already a
       // parsed `DataMartSchema` and is written back unchanged. Since the field schema became
       // `.passthrough()` (rolling-deploy safety — see createBaseFieldSchemaForType),
@@ -472,7 +733,18 @@ export class DataMartService {
   }
 
   async saveActualizedSchema(dataMart: DataMart): Promise<DataMart> {
-    const saved = await this.dataMartRepository.save(dataMart);
+    const saved = await this.writeConfiguration(
+      this.dataMartRepository.manager,
+      dataMart.id,
+      dataMart.projectId,
+      dataMart.revision,
+      {
+        schema: dataMart.schema,
+        schemaActualizedAt: dataMart.schemaActualizedAt,
+        schemaInputRevision: dataMart.revision,
+      } as QueryDeepPartialEntity<DataMart>
+    );
+    Object.assign(dataMart, saved);
     await this.scheduleSchemaSearchInvalidation(saved);
     return saved;
   }
@@ -506,6 +778,10 @@ export class DataMartService {
       return false;
     }
 
+    if (Number.isSafeInteger(dataMart.revision) && latestDataMart.revision !== dataMart.revision) {
+      return false;
+    }
+
     const sourceAtRunStart = definitionAtRunStart.connector.source;
     const latestSource = latestDefinition.connector.source;
     if (this.areStringArraysEqual(latestSource.fields, fields)) {
@@ -532,29 +808,20 @@ export class DataMartService {
       },
     };
 
-    const updateResult = await this.dataMartRepository.update(
-      {
-        id: dataMart.id,
-        projectId: dataMart.projectId,
-        modifiedAt: this.createModifiedAtUpdateCriterion(latestDataMart.modifiedAt),
-      },
-      { definition: nextDefinition }
-    );
-    return (updateResult.affected ?? 0) > 0;
-  }
-
-  private createModifiedAtUpdateCriterion(modifiedAt: Date): Date | FindOperator<Date> {
-    if (this.dataMartRepository.manager.connection.options.type !== 'better-sqlite3') {
-      return modifiedAt;
+    try {
+      const saved = await this.writeConfiguration(
+        this.dataMartRepository.manager,
+        dataMart.id,
+        dataMart.projectId,
+        latestDataMart.revision,
+        { definition: nextDefinition }
+      );
+      Object.assign(dataMart, saved);
+      return true;
+    } catch (error) {
+      if (error instanceof ConflictException) return false;
+      throw error;
     }
-
-    return Raw(
-      alias =>
-        `strftime('%Y-%m-%d %H:%M:%f', ${alias}) = strftime('%Y-%m-%d %H:%M:%f', :expectedModifiedAt)`,
-      {
-        expectedModifiedAt: modifiedAt.toISOString(),
-      }
-    );
   }
 
   private areStringArraysEqual(left: string[], right: string[]): boolean {

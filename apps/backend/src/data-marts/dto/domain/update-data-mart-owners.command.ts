@@ -5,6 +5,7 @@ export class UpdateDataMartOwnersCommand {
     public readonly businessOwnerIds: string[],
     public readonly technicalOwnerIds: string[],
     public readonly userId: string = '',
-    public readonly roles: string[] = []
+    public readonly roles: string[] = [],
+    public readonly expectedRevision?: number
   ) {}
 }

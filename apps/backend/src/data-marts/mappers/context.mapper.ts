@@ -20,7 +20,11 @@ export class ContextMapper {
     return result;
   }
 
-  toDomainDto(entity: Context, userProjections?: UserProjectionsListDto): ContextDto {
+  toDomainDto(
+    entity: Context,
+    userProjections?: UserProjectionsListDto,
+    revision?: number
+  ): ContextDto {
     const projection =
       entity.createdById && userProjections
         ? userProjections.getByUserId(entity.createdById)
@@ -34,7 +38,8 @@ export class ContextMapper {
       entity.createdById ?? null,
       projection ?? null,
       entity.createdAt,
-      entity.modifiedAt
+      entity.modifiedAt,
+      revision
     );
   }
 
@@ -47,6 +52,7 @@ export class ContextMapper {
       createdByUser: dto.createdByUser,
       createdAt: dto.createdAt,
       modifiedAt: dto.modifiedAt,
+      revision: dto.revision,
     };
   }
 }

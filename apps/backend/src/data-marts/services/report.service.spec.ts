@@ -1,3 +1,6 @@
+jest.mock('./context/context-reference-guard', () => ({
+  lockContextReferences: jest.fn().mockResolvedValue(0),
+}));
 import { NotFoundException } from '@nestjs/common';
 import { Repository } from 'typeorm';
 import { ScheduledTriggerService } from './scheduled-trigger.service';

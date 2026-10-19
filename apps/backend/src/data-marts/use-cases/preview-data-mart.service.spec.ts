@@ -1,3 +1,4 @@
+jest.mock('snowflake-sdk', () => ({ __esModule: true, default: {} }));
 import {
   BadRequestException,
   ForbiddenException,
@@ -13,6 +14,7 @@ import { BusinessViolationException } from '../../common/exceptions/business-vio
 import { ProjectOperationBlockedException } from '../../common/exceptions/project-operation-blocked.exception';
 import { DataMartSchemaFieldStatus } from '../data-storage-types/enums/data-mart-schema-field-status.enum';
 import { DataMartStatus } from '../enums/data-mart-status.enum';
+import { DataMartDefinitionType } from '../enums/data-mart-definition-type.enum';
 import { ProjectBlockedReason } from '../enums/project-blocked-reason.enum';
 import { RunKind } from '../services/project-billing/project-billing.service';
 import {
@@ -27,7 +29,14 @@ describe('PreviewDataMartService', () => {
     id: 'dm1',
     projectId: 'p1',
     status: DataMartStatus.DRAFT,
-    storage: { id: 'storage-1', type: DataStorageType.GOOGLE_BIGQUERY },
+    modifiedAt: new Date('2026-10-19T09:00:00Z'),
+    definitionType: DataMartDefinitionType.TABLE,
+    definition: { fullyQualifiedName: 'project.dataset.table' },
+    revision: 3,
+    schemaInputRevision: 2,
+    schemaActualizedAt: new Date('2026-10-19T08:00:00Z'),
+    schema: { type: 'bigquery-data-mart-schema', fields: [] },
+    storage: { id: 'storage-1', projectId: 'p1', type: DataStorageType.GOOGLE_BIGQUERY },
   };
 
   const command = (overrides: { limit?: number; filters?: unknown; sort?: unknown } = {}) =>
@@ -104,6 +113,7 @@ describe('PreviewDataMartService', () => {
     const readerResolver = { resolve: jest.fn().mockResolvedValue(reader) };
     const accessDecisionService = {
       canAccess: jest.fn().mockResolvedValue(overrides.accessAllowed ?? true),
+      canAccessStored: jest.fn().mockResolvedValue(overrides.accessAllowed ?? true),
     };
     // Stands in for the storage error mapper: a provider error becomes a 424 carrying its message.
     const errorMapper = {
@@ -136,8 +146,158 @@ describe('PreviewDataMartService', () => {
       projectBilling as never,
       overrides.deadlineMs ?? 3_600_000
     );
-    return { service, composer, reader, readerResolver, errorMapper, projectBilling };
+    return {
+      service,
+      composer,
+      reader,
+      readerResolver,
+      errorMapper,
+      projectBilling,
+      dataMartService,
+      accessDecisionService,
+      blendableSchemaService,
+    };
   };
+
+  it('Setup preview uses stored action checks and records an observation with its starting configuration revision', async () => {
+    const { service, accessDecisionService, blendableSchemaService } = createService();
+    const result = await service.runForSetup(command());
+    expect(result.observedModifiedAt).toBe('2026-10-19T09:00:00.000Z');
+    expect(result.currentness).toBe('not-guaranteed');
+    expect(result.preview.rowCount).toBe(2);
+    expect(accessDecisionService.canAccess).not.toHaveBeenCalled();
+    expect(accessDecisionService.canAccessStored).toHaveBeenCalledWith(
+      'user-1',
+      [],
+      'STORAGE',
+      'storage-1',
+      'USE',
+      'p1'
+    );
+    expect(blendableSchemaService.computeBlendableSchema).toHaveBeenCalledWith(
+      'dm1',
+      'p1',
+      expect.objectContaining({ scopeMode: 'read-only' })
+    );
+  });
+
+  it.each([null, 1])(
+    'Setup preview rejects missing/stale schema binding %s before warehouse work',
+    async schemaInputRevision => {
+      const { service, dataMartService, composer, reader, blendableSchemaService } =
+        createService();
+      dataMartService.getByIdAndProjectId.mockResolvedValue({
+        ...dataMart,
+        revision: 4,
+        schemaInputRevision,
+      });
+      await expect(service.runForSetup(command())).rejects.toMatchObject({ status: 409 });
+      expect(blendableSchemaService.computeBlendableSchema).not.toHaveBeenCalled();
+      expect(composer.compose).not.toHaveBeenCalled();
+      expect(reader.prepareReportData).not.toHaveBeenCalled();
+    }
+  );
+
+  it('REST preview retains its existing behavior for an unbound schema', async () => {
+    const { service, dataMartService, reader } = createService();
+    dataMartService.getByIdAndProjectId.mockResolvedValue({
+      ...dataMart,
+      revision: 4,
+      schemaInputRevision: null,
+    });
+    await expect(service.run(command())).resolves.toMatchObject({ rowCount: 2 });
+    expect(reader.prepareReportData).toHaveBeenCalledTimes(1);
+  });
+
+  it('Setup preview refuses a storage USE denial before composing or reading', async () => {
+    const { service, accessDecisionService, composer } = createService();
+    accessDecisionService.canAccessStored.mockImplementation(
+      async (_user, _roles, type) => type !== 'STORAGE'
+    );
+    await expect(service.runForSetup(command())).rejects.toMatchObject({ status: 403 });
+    expect(composer.compose).not.toHaveBeenCalled();
+  });
+
+  it('Setup preview rejects a concurrent definition change before returning obsolete rows', async () => {
+    const { service, dataMartService } = createService();
+    dataMartService.getByIdAndProjectId.mockResolvedValueOnce(dataMart).mockResolvedValue({
+      ...dataMart,
+      definition: { fullyQualifiedName: 'other.output' },
+      revision: dataMart.revision + 1,
+    });
+    await expect(service.runForSetup(command())).rejects.toMatchObject({ status: 409 });
+  });
+
+  it('Setup preview rechecks action authority before returning warehouse rows', async () => {
+    const { service, accessDecisionService } = createService();
+    accessDecisionService.canAccessStored
+      .mockResolvedValueOnce(true)
+      .mockResolvedValueOnce(true)
+      .mockResolvedValue(false);
+    await expect(service.runForSetup(command())).rejects.toMatchObject({ status: 403 });
+  });
+
+  it.each([DataMartStatus.DRAFT, DataMartStatus.PUBLISHED])(
+    'Setup preview reads saved %s connector output without changing its definition',
+    async status => {
+      const { service, dataMartService, composer } = createService();
+      const saved = {
+        ...dataMart,
+        status,
+        definitionType: DataMartDefinitionType.CONNECTOR,
+        definition: {
+          connector: {
+            source: { configuration: [{ token: 'private' }] },
+            storage: { fullyQualifiedName: 'project.dataset.loaded_output' },
+          },
+        },
+      };
+      dataMartService.getByIdAndProjectId.mockResolvedValue(saved as never);
+      await expect(service.runForSetup(command())).resolves.toMatchObject({
+        observedStatus: status,
+        observedDefinitionType: DataMartDefinitionType.CONNECTOR,
+        preview: { rowCount: 2 },
+      });
+      expect(composer.compose.mock.calls[0][0].dataMart.definition).toEqual(saved.definition);
+    }
+  );
+
+  it('Setup preview rejects an unavailable schema instead of returning empty success', async () => {
+    const { service, composer } = createService({ nativeFields: [] });
+    await expect(service.runForSetup(command())).rejects.toMatchObject({ status: 400 });
+    expect(composer.compose).not.toHaveBeenCalled();
+  });
+
+  it('Setup preview enforces the real project license gate without reading', async () => {
+    const { service, composer, reader } = createService({ blocked: true });
+    await expect(service.runForSetup(command())).rejects.toMatchObject({ status: 403 });
+    expect(composer.compose).not.toHaveBeenCalled();
+    expect(reader.prepareReportData).not.toHaveBeenCalled();
+  });
+
+  it('Setup preview keeps cancellation and timeout semantics', async () => {
+    const { service, reader } = createService({ readerNeverResolves: true, deadlineMs: 5 });
+    await expect(service.runForSetup(command())).rejects.toBeInstanceOf(GatewayTimeoutException);
+    expect(reader.prepareReportData.mock.calls[0][1].signal.aborted).toBe(true);
+    const cancelled = new AbortController();
+    cancelled.abort();
+    await expect(service.runForSetup(command(), cancelled.signal)).rejects.toBeInstanceOf(
+      PreviewAbortedError
+    );
+  });
+
+  it.each(['readerError', 'composeError'] as const)(
+    'Setup preview never returns or logs %s diagnostic bodies',
+    async key => {
+      const { service } = createService({ [key]: new Error('credential=secret-provider-payload') });
+      const warn = jest.spyOn((service as any).logger, 'warn').mockImplementation(() => undefined);
+      const failure = service.runForSetup(command());
+      await expect(failure).rejects.toMatchObject({ status: 424 });
+      await expect(failure).rejects.not.toThrow('secret-provider-payload');
+      expect(JSON.stringify(warn.mock.calls)).not.toContain('secret-provider-payload');
+      warn.mockRestore();
+    }
+  );
 
   it('reads the default 10 rows (+1 to detect more) from a DRAFT Data Mart', async () => {
     const { service, composer } = createService();

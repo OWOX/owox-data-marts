@@ -52,17 +52,12 @@ export class SnowflakeDataMartValidator implements DataMartValidator {
     try {
       const adapter = this.adapterFactory.create(credentials, config);
       const query = this.snowflakeQueryBuilder.buildQuery(definition);
-      const explain = await adapter.executeDryRunQuery(query);
-      const explainSummary = {
-        partitionsTotal: explain?.GlobalStats?.partitionsTotal,
-        partitionsAssigned: explain?.GlobalStats?.partitionsAssigned,
-        bytesAssigned: explain?.GlobalStats?.bytesAssigned,
-      };
-      this.logger.debug(`Data mart validation successful: ${JSON.stringify(explainSummary)}`);
+      await adapter.executeDryRunQuery(query);
+      this.logger.debug('Data mart validation successful');
       await adapter.destroy();
       return ValidationResult.success();
     } catch (error) {
-      this.logger.warn('Dry run failed', error);
+      this.logger.warn('Dry run failed');
       return ValidationResult.failure(error instanceof Error ? error.message : String(error));
     }
   }

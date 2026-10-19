@@ -68,7 +68,7 @@ export class AthenaDataMartValidator implements DataMartValidator {
 
       return ValidationResult.success();
     } catch (error) {
-      this.logger.log('Athena dry run failed', error);
+      this.logger.log('Athena dry run failed');
       return ValidationResult.failure(error instanceof Error ? error.message : String(error));
     }
   }

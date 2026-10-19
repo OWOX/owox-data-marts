@@ -1,3 +1,4 @@
+import { DataMartConfigurationPreconditionDto } from './data-mart-configuration-precondition.dto';
 import { ApiProperty } from '@nestjs/swagger';
 import { IsOptional, IsString, MinLength, ValidateIf } from 'class-validator';
 import { MaxByteLength } from '../../../common/validators/max-byte-length.validator';
@@ -14,7 +15,7 @@ import { MaxByteLength } from '../../../common/validators/max-byte-length.valida
  */
 const MAX_TEXT_COLUMN_BYTES = 65535;
 
-export class UpdateDataMartDescriptionApiDto {
+export class UpdateDataMartDescriptionApiDto extends DataMartConfigurationPreconditionDto {
   @ApiProperty({ required: false, nullable: true })
   @IsOptional()
   @ValidateIf(obj => obj.description !== null)

@@ -29,6 +29,7 @@ export type BuilderAction =
       type: BuilderActionType.SET_META;
       payload: {
         id: string | null;
+        revision?: number;
         versions: CustomConnectorVersionSummaryDto[];
         activeVersionId: string | null;
         activeVersion: number | null;
@@ -48,6 +49,7 @@ export type BuilderAction =
   | { type: BuilderActionType.SET_MANIFEST_ORIGIN; payload: ManifestOrigin };
 
 export interface BuilderState {
+  revision?: number;
   id: string | null;
   manifest: BuilderManifest;
   versions: CustomConnectorVersionSummaryDto[];
