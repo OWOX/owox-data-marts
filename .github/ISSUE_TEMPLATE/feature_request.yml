@@ -29,7 +29,7 @@ body:
       label: Product area
       description: Which part of OWOX Data Marts would this change?
       options:
-        - Sources / Connectors
+        - Sources / Connectors (behavior of an existing connector)
         - Connector Builder / Custom Connectors
         - Data Marts
         - Storages
@@ -48,7 +48,12 @@ body:
     validations:
       required: true
 
-  # Keep the source options in sync with packages/connectors/src/Sources/*/manifest.json (title).
+  # The options below are duplicated in bug_report.yml — update both files together.
+  # Sources:      packages/connectors/src/Sources/*/manifest.json (title)
+  # Storages:     packages/connectors/src/Storages/*/manifest.json, plus
+  #               apps/web/src/features/data-storage/shared/types/data-storage-type.model.ts
+  # Destinations: apps/backend/src/data-marts/data-destination-types/enums/
+  #               data-destination-type.enum.ts
   - type: dropdown
     id: integration
     attributes:
@@ -73,6 +78,7 @@ body:
         - 'Source: X Ads'
         - 'Source: custom connector (Connector Builder)'
         - 'Storage: Google BigQuery'
+        - 'Storage: Google BigQuery (used in OWOX extension)'
         - 'Storage: AWS Athena'
         - 'Storage: AWS Redshift'
         - 'Storage: Snowflake'

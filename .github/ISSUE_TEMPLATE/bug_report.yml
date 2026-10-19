@@ -24,8 +24,6 @@ body:
             issues](https://github.com/OWOX/owox-data-marts/issues?q=is%3Aissue) and this has not
             been reported yet.
           required: true
-        - label: I removed all credentials, tokens, and API keys from the details below.
-          required: true
 
   - type: dropdown
     id: area
@@ -52,7 +50,12 @@ body:
     validations:
       required: true
 
-  # Keep the source options in sync with packages/connectors/src/Sources/*/manifest.json (title).
+  # The options below are duplicated in feature_request.yml — update both files together.
+  # Sources:      packages/connectors/src/Sources/*/manifest.json (title)
+  # Storages:     packages/connectors/src/Storages/*/manifest.json, plus
+  #               apps/web/src/features/data-storage/shared/types/data-storage-type.model.ts
+  # Destinations: apps/backend/src/data-marts/data-destination-types/enums/
+  #               data-destination-type.enum.ts
   - type: dropdown
     id: integration
     attributes:
@@ -77,6 +80,7 @@ body:
         - 'Source: X Ads'
         - 'Source: custom connector (Connector Builder)'
         - 'Storage: Google BigQuery'
+        - 'Storage: Google BigQuery (used in OWOX extension)'
         - 'Storage: AWS Athena'
         - 'Storage: AWS Redshift'
         - 'Storage: Snowflake'
@@ -135,8 +139,9 @@ body:
     id: version
     attributes:
       label: Version
-      description: Run `owox --version`, or give the Docker image tag. Write "OWOX Cloud" if you use
-        app.owox.com.
+      description:
+        Run `owox --version`, or give the Docker image tag. Write "OWOX Cloud" for app.owox.com, or
+        "Extension" for the Google Sheets add-on.
       placeholder: 0.38.0
     validations:
       required: true
@@ -154,9 +159,21 @@ body:
     id: attachments
     attributes:
       label: Screenshots or files
-      description: Optional. Screenshots, an exported run log, or a connector manifest JSON.
+      description:
+        Optional. Screenshots or an exported log. Open each file and check it for credentials
+        first — an upload stays public even if you later delete the comment. To share a connector
+        manifest, paste it into the field above instead, with secrets removed.
     validations:
       required: false
+      accept: '.png,.jpg,.jpeg,.gif,.webp,.log,.txt,.csv'
+
+  - type: checkboxes
+    id: redaction
+    attributes:
+      label: Before you submit
+      options:
+        - label: I removed all credentials, tokens, and API keys from the details and files above.
+          required: true
 
   - type: dropdown
     id: contribution
