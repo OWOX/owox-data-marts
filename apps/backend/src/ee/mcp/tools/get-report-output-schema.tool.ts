@@ -16,15 +16,13 @@ type GetReportOutputSchemaInput = z.infer<typeof inputSchema>;
 export class GetReportOutputSchemaTool implements McpToolDefinition<GetReportOutputSchemaInput> {
   readonly name = 'get_report_output_schema';
   readonly description =
-    "The columns a report's rows will carry, in the order they are projected — the names to put " +
+    "Use when you need the columns a saved report's rows will carry, in the order they are projected — the names to put " +
     'above the values the report delivers. Includes the columns a report synthesises (aggregated ' +
     '`revenue | SUM`, Unique Count, calculated fields), which appear in no data mart schema. ' +
     'Answers from the stored schema and the report config, so it reads no report data — the ' +
     "columns are as of the Data Mart's last schema actualization, so one added warehouse-side and " +
-    'not yet actualized is missing until a run or a data read picks it up. For a report that ' +
-    'joins other data marts, resolving the join may refresh SQL-defined source views in the ' +
-    'warehouse. This changes warehouse state and can incur warehouse costs even though the tool ' +
-    'does not return report data rows.';
+    'not yet actualized is missing until a run or a data read picks it up. This tool reads stored ' +
+    'metadata only: it does not query report rows or refresh SQL views in the warehouse.';
   readonly zodSchema = inputSchema.shape;
   readonly outputSchema = {
     report_id: z.string(),
@@ -53,9 +51,9 @@ export class GetReportOutputSchemaTool implements McpToolDefinition<GetReportOut
   };
   readonly annotations = {
     title: 'Get Report Output Schema',
-    readOnlyHint: false,
+    readOnlyHint: true,
     destructiveHint: false,
-    openWorldHint: true,
+    openWorldHint: false,
   };
   readonly requiredScopes: McpScope[] = ['mcp:read'];
 

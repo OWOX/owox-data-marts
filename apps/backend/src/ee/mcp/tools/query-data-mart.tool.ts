@@ -78,7 +78,7 @@ function formatUtcTimestampForHumans(iso: string): string {
 @Injectable()
 export class QueryDataMartTool implements McpToolDefinition<QueryDataMartInput> {
   readonly name = 'query_data_mart';
-  readonly description = `Query an OWOX data mart and return its data rows in a compact, header-once table, plus server-side totals computed over all matching rows (ignoring the row limit). Each call costs credits.
+  readonly description = `Query an OWOX data mart and return its data rows in a compact, header-once table, plus server-side totals computed over all matching rows (ignoring the row limit). Each call costs credits, records a run, and may replace an OWOX-managed technical view when the Data Mart has a SQL definition.
 
 Call get_data_mart_details_by_id first to get the data mart's exact field names and joinable/blended fields, then copy field names verbatim into fields — unless you already have that schema in context. Field names must be exact; never guess or invent them.
 
@@ -190,7 +190,7 @@ If truncated is true, not all matching rows were returned: narrow the query (few
   readonly annotations = {
     title: 'Query Data Mart',
     readOnlyHint: false, // costs credits and records a billable Run — not a silent read; clients should confirm
-    destructiveHint: false,
+    destructiveHint: true, // SQL Data Mart queries can replace a technical warehouse view
     idempotentHint: false, // each call is a new billable Run
     openWorldHint: true,
   };

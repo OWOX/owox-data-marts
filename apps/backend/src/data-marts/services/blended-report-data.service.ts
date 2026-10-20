@@ -72,6 +72,8 @@ import { TypeResolver } from '../../common/resolver/type-resolver';
 import { CalculatedFieldPlan } from '../data-storage-types/utils/sql-clause-renderer';
 
 export interface BlendingDecisionOptions {
+  /** Resolve report headers from stored schemas without composing SQL or refreshing SQL views. */
+  headersOnly?: boolean;
   /**
    * Drop a stored sort rule whose column the current schema no longer offers, instead of letting
    * the validator refuse the whole report over it. Passed ONLY by the paths that execute a STORED
@@ -383,6 +385,32 @@ export class BlendedReportDataService {
       accessor
     );
 
+    // The output-schema tool needs the same selected headers and access checks as a report run,
+    // but resolving table references below would CREATE OR REPLACE VIEW for SQL Data Marts.
+    // AvailableSourceDto already carries the source's current Unique Count key, so no warehouse
+    // reference or SQL build is needed to name even a joined Unique Count column.
+    if (options?.headersOnly) {
+      const normalizedAggregations = this.withoutJoinedCountBesideCountDistinct(
+        report.aggregationConfig ?? [],
+        new Set(blendableSchema.blendedFields.map(f => f.name))
+      );
+      return {
+        needsBlending: true,
+        columnFilter: nonMetricColumns,
+        blendedDataHeaders,
+        calculatedFields: calculatedFields.length > 0 ? calculatedFields : undefined,
+        uniqueCountSources: this.resolveUniqueCountSources(
+          uniqueCountAliasPaths,
+          [],
+          blendableSchema.availableSources,
+          usesSuffixedJoinedFieldNames(report) ? 'suffix' : 'prefix',
+          true
+        ),
+        aggregations: normalizedAggregations,
+        primaryKeyColumns,
+      };
+    }
+
     const mainTableReference = await this.tableReferenceService.resolveTableName(
       dataMart.id,
       dataMart.projectId,
@@ -586,7 +614,8 @@ export class BlendedReportDataService {
     uniqueCountAliasPaths: ReadonlySet<string>,
     chains: ResolvedRelationshipChain[],
     availableSources: AvailableSourceDto[],
-    nameStyle: BlendedFieldNameStyle
+    nameStyle: BlendedFieldNameStyle,
+    headersOnly = false
   ): JoinedUniqueCountSource[] {
     const chainByCteName = new Map(chains.map(c => [c.cteName, c]));
     const sourceByAliasPath = new Map(availableSources.map(s => [s.aliasPath, s]));
@@ -596,13 +625,21 @@ export class BlendedReportDataService {
         const cteName = tryAliasPathToCteName(aliasPath);
         const chain = cteName === undefined ? undefined : chainByCteName.get(cteName);
         const source = sourceByAliasPath.get(aliasPath);
-        const pkColumns = chain?.targetPrimaryKeyFields ?? [];
-        if (!chain || !source || source.isIncluded === false || pkColumns.length === 0) {
+        const pkColumns = headersOnly
+          ? (source?.uniqueCountKeyFields ?? [])
+          : (chain?.targetPrimaryKeyFields ?? []);
+        if (
+          (!headersOnly && !chain) ||
+          !source ||
+          source.isIncluded === false ||
+          pkColumns.length === 0 ||
+          cteName === undefined
+        ) {
           return undefined;
         }
         return {
           aliasPath,
-          cteName: chain.cteName,
+          cteName,
           pkColumns,
           // The SQL identifier comes from the alias path; the free-form display prefix stays out
           // of SQL and rides along as the header's display alias.

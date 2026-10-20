@@ -110,15 +110,13 @@ describe('GetReportOutputSchemaTool', () => {
     expect(() => tool.parseInput({ report_id: '   ' })).toThrow();
   });
 
-  // A blended SQL source may refresh a warehouse view while resolving headers.
-  // The hint must reflect that side effect even though the OAuth scope remains mcp:read.
-  it('advertises the warehouse side effect and keeps the read scope', () => {
+  it('advertises a read-only metadata lookup with the read scope', () => {
     const registry = new McpToolRegistry([new GetReportOutputSchemaTool({} as McpReportsFacade)]);
 
     expect(new GetReportOutputSchemaTool({} as McpReportsFacade)).toMatchObject({
       name: 'get_report_output_schema',
       requiredScopes: ['mcp:read'],
-      annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: true },
+      annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false },
     });
     expect(MCP_TOOL_PROVIDER_CLASSES.map(tool => tool.name)).toContain('GetReportOutputSchemaTool');
     expect(registry.getTool('get_report_output_schema')).toBeDefined();

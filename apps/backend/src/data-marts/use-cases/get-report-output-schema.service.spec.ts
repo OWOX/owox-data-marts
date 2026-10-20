@@ -135,7 +135,7 @@ describe('GetReportOutputSchemaService', () => {
   // them, so the decision is their only source. Order is pinned too — a calculated field stripped
   // out of `columnFilter` lands AFTER the joined Unique Count, not at the position it was selected.
   it('describes a blended report from the decision: joined columns, Unique Count sources, metrics', async () => {
-    const { service } = createService({
+    const { service, resolveBlendingDecision } = createService({
       reportOverrides: onBigQuery,
       nativeHeaders: [
         new ReportDataHeader('date', 'Date', 'Reporting day', BigQueryFieldType.DATE),
@@ -176,6 +176,13 @@ describe('GetReportOutputSchemaService', () => {
       }),
       expect.objectContaining({ name: 'ctr', alias: 'CTR, %' }),
     ]);
+    expect(resolveBlendingDecision).toHaveBeenCalledWith(
+      expect.anything(),
+      { userId: 'user-1', roles: ['admin'] },
+      undefined,
+      undefined,
+      { headersOnly: true }
+    );
   });
 
   it('publishes the main Unique Count column, which the Data Mart schema does not carry', async () => {
@@ -195,8 +202,7 @@ describe('GetReportOutputSchemaService', () => {
     ]);
   });
 
-  // The order matters, not just the exception: the blending decision refreshes a SQL-defined
-  // source's view on the joined path, so a request that can only fail must not reach it.
+  // Reject a report without a stored schema before trying to resolve joined headers.
   it('refuses a Data Mart whose schema was never stored, before resolving any blending', async () => {
     const { service, generateHeadersFromSchema, resolveBlendingDecision } = createService({
       reportOverrides: { dataMart: { ...report.dataMart, schema: undefined } },

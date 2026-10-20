@@ -23,13 +23,8 @@ import { BlendedReportDataService } from '../services/blended-report-data.servic
  * `prepareReportData` starts a warehouse query on some storages, and describing a report is a read
  * under `Role.viewer`.
  *
- * `ReportSqlComposerService.compose` is avoided for the same reason: it resolves the main table
- * reference, which for a SQL-defined Data Mart runs `CREATE OR REPLACE VIEW`. That leaves ONE
- * warehouse write still reachable from here — a BLENDED report, where
- * `resolveBlendingDecision` resolves table references itself on its way to the joined SQL, which
- * this service needs for `blendedDataHeaders` and `uniqueCountSources`. Closing that one needs a
- * headers-only mode on `resolveBlendingDecision`; until then a blended report on a SQL-defined
- * Data Mart still refreshes its view when its schema is described.
+ * The blending decision runs in headers-only mode: it validates selected fields and source access
+ * against stored schemas, but does not resolve table references or refresh SQL views.
  */
 @Injectable()
 export class GetReportOutputSchemaService {
@@ -74,22 +69,23 @@ export class GetReportOutputSchemaService {
       );
     }
 
-    // Ahead of the blending decision, not just ahead of the header build: without a stored schema
-    // this request can only end in the exception below, and the decision is the one step here that
-    // still writes — it refreshes a SQL-defined source's view on the joined path. Failing first
-    // keeps a doomed request from touching the warehouse at all.
+    // A stored schema is required for both the blending decision and the final headers.
     if (!report.dataMart.schema) {
       throw new BusinessViolationException('Data mart schema must be provided');
     }
 
     const accessor = { userId: command.userId, roles: command.roles };
-    const decision = await this.blendedReportDataService.resolveBlendingDecision(report, accessor);
+    const decision = await this.blendedReportDataService.resolveBlendingDecision(
+      report,
+      accessor,
+      undefined,
+      undefined,
+      { headersOnly: true }
+    );
 
     // Calculated fields are named by their formula and exist only in the plan that built them.
     // Both branches read the decision: it builds these plans on either path, so naming the columns
-    // needs neither a second parse of every formula nor `compose()` — which would resolve the main
-    // table reference and, for a SQL-defined Data Mart, run `CREATE OR REPLACE VIEW` against the
-    // customer's warehouse from a describe endpoint under `Role.viewer`.
+    // needs neither a second parse of every formula nor `compose()`.
     const calculatedFields = decision.calculatedFields;
 
     const nativeHeaders = await this.reportHeadersGeneratorFacade.generateHeadersFromSchema(

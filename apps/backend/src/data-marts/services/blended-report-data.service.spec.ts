@@ -3660,6 +3660,11 @@ describe('BlendedReportDataService', () => {
             isAccessibleForReporting: s.accessible ?? true,
             relationshipId: s.relationshipId,
             dataMartId: `dm-${i}`,
+            uniqueCountAvailability: s.primaryKey?.length ? 'available' : 'no-primary-key',
+            uniqueCountKeyFields: s.primaryKey ?? [],
+            mainGrainMultiplication: 'unknown',
+            mainGrainKeyFields: [],
+            mainGrainCollapse: 'none',
           })),
           blendedFields: sources.map(s => {
             const field = new BlendedFieldDto();
@@ -3717,6 +3722,37 @@ describe('BlendedReportDataService', () => {
         const [, context] = blendedQueryBuilderFacade.buildBlendedQuery.mock.calls[0];
         return context;
       }
+
+      it('resolves joined headers from stored schemas without refreshing SQL views', async () => {
+        const report = makeJoinedReport(
+          { columnConfig: ['customer_email', 'orders__status'], uniqueCountConfig: ['orders'] },
+          [ORDERS]
+        );
+
+        const result = await service.resolveBlendingDecision(
+          report,
+          { userId: 'user-1', roles: ['admin'] },
+          undefined,
+          undefined,
+          { headersOnly: true }
+        );
+
+        expect(result.needsBlending).toBe(true);
+        expect(result.columnFilter).toEqual(['customer_email', 'orders__status']);
+        expect(result.blendedDataHeaders?.map(header => header.name)).toEqual(['orders__status']);
+        expect(result.uniqueCountSources).toEqual([
+          {
+            aliasPath: 'orders',
+            cteName: 'orders',
+            pkColumns: ['order_id'],
+            outputLabel: 'orders__unique_count',
+            displayLabel: 'Orders Unique Count',
+          },
+        ]);
+        expect(outputControlsValidator.validateForReport).toHaveBeenCalled();
+        expect(tableReferenceService.resolveTableName).not.toHaveBeenCalled();
+        expect(blendedQueryBuilderFacade.buildBlendedQuery).not.toHaveBeenCalled();
+      });
 
       // The headline case: the ONLY blended content is a joined Unique Count. Nothing else drags
       // the report onto the blended path, so every seeding site has to let it through.
