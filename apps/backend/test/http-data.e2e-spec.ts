@@ -23,6 +23,7 @@ import { BlendableSchemaService } from '../src/data-marts/services/blendable-sch
 import { DataMartTableReferenceService } from '../src/data-marts/services/data-mart-table-reference.service';
 import { Report } from '../src/data-marts/entities/report.entity';
 import { DataDestination } from '../src/data-marts/entities/data-destination.entity';
+import { DataMartRun } from '../src/data-marts/entities/data-mart-run.entity';
 
 interface HttpRunView {
   type: string;
@@ -439,6 +440,47 @@ describe('HTTP Data API (e2e)', () => {
   });
 
   describe('Run history', () => {
+    const b64 = (value: unknown) => Buffer.from(JSON.stringify(value)).toString('base64url');
+
+    it.each([
+      ['malformed filter', { column: 'date', filter: '@@not-json@@' }],
+      ['invalid limit', { column: 'date', limit: '0' }],
+      ['unknown selected column', { column: 'ghost' }],
+      [
+        'unknown filter column',
+        { column: 'date', filter: b64([{ column: 'ghost', operator: 'eq', value: 'x' }]) },
+      ],
+      [
+        'unknown sort column',
+        { column: 'date', sort: b64([{ column: 'ghost', direction: 'asc' }]) },
+      ],
+      [
+        'unknown aggregation column',
+        { column: 'date', aggregation: b64([{ column: 'ghost', function: 'SUM' }]) },
+      ],
+      [
+        'unknown date bucket column',
+        { column: 'date', dateTrunc: b64([{ column: 'ghost', unit: 'MONTH' }]) },
+      ],
+      [
+        'invalid date bucket type',
+        { column: 'revenue', dateTrunc: b64([{ column: 'revenue', unit: 'MONTH' }]) },
+      ],
+    ])('returns 400 without a run or run-id header for %s', async (_name, query) => {
+      const runs = app.get<Repository<DataMartRun>>(getRepositoryToken(DataMartRun));
+      const countBefore = await runs.countBy({ dataMartId });
+
+      const res = await agent
+        .get(`/api/external/http-data/data-marts/${dataMartId}.ndjson`)
+        .query(query)
+        .set(AUTH_HEADER);
+
+      expect(res.status).toBe(400);
+      expect(res.body.message).toEqual(expect.any(String));
+      expect(res.headers['x-owox-run-id']).toBeUndefined();
+      expect(await runs.countBy({ dataMartId })).toBe(countBefore);
+    });
+
     it('creates a HTTP_DATA DataMartRun with manual runType and SUCCESS status', async () => {
       const before = await agent.get(`/api/data-marts/${dataMartId}/runs`).set(AUTH_HEADER);
       const beforeRuns: Array<{ type: string }> = before.body?.runs ?? [];

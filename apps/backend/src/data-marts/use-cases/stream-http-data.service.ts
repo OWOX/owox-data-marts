@@ -1,6 +1,7 @@
 import {
   ForbiddenException,
   HttpException,
+  HttpStatus,
   Inject,
   Injectable,
   InternalServerErrorException,
@@ -11,6 +12,7 @@ import {
 import type { Response } from 'express';
 import { GracefulShutdownService } from '../../common/scheduler/services/graceful-shutdown.service';
 import { ProjectOperationBlockedException } from '../../common/exceptions/project-operation-blocked.exception';
+import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
 import { TypeResolver } from '../../common/resolver/type-resolver';
 import { AuthorizationContext } from '../../idp/types/auth.types';
 import {
@@ -602,6 +604,19 @@ export class StreamHttpDataService {
 
       res.end();
     } catch (error) {
+      // Project restrictions are audited even though their HTTP response is also 400.
+      if (
+        !res.headersSent &&
+        !(error instanceof ProjectOperationBlockedException) &&
+        (error instanceof BusinessViolationException ||
+          (error instanceof HttpException && error.getStatus() === HttpStatus.BAD_REQUEST))
+      ) {
+        this.logger.log(
+          `Rejected data request for Data Mart ${dataMart.id}: ${this.clientFacingErrorMessage(error)}`
+        );
+        throw error;
+      }
+
       const mappedError = await this.toClientFacingReadError(
         error,
         reader,

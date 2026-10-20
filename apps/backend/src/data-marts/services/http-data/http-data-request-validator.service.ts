@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { BusinessViolationException } from '../../../common/exceptions/business-violation.exception';
 import {
   HttpDataQuery,
@@ -9,6 +9,8 @@ import {
 
 @Injectable()
 export class HttpDataRequestValidator {
+  private readonly logger = new Logger(HttpDataRequestValidator.name);
+
   validate(rawQuery: Record<string, unknown>): HttpDataQuery {
     const result = HttpDataQuerySchema.safeParse(rawQuery);
     if (!result.success) {
@@ -18,6 +20,7 @@ export class HttpDataRequestValidator {
           return path ? `${path}: ${issue.message}` : issue.message;
         })
         .join('; ');
+      this.logger.log(`Rejected data request: ${message}`);
       throw new BusinessViolationException(message);
     }
     return result.data;
@@ -32,6 +35,7 @@ export class HttpDataRequestValidator {
           return path ? `${path}: ${issue.message}` : issue.message;
         })
         .join('; ');
+      this.logger.log(`Rejected data request: ${message}`);
       throw new BusinessViolationException(message);
     }
     return result.data;
