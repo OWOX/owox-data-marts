@@ -162,7 +162,11 @@ When the policy requires a changeset, verify that:
   public numeric ID followed by a short kebab-case summary;
 - the selected package and version bump follow the repository release strategy;
 - the title and body accurately explain the user-visible outcome without
-  unnecessary implementation detail.
+  unnecessary implementation detail;
+- the title and first sentence say what gets better for the customer, not only
+  which command, screen, or API changed; when they don't, propose a rewritten
+  title and lead as a non-blocking suggestion, separate from approval-blocking
+  release-readiness gaps.
 
 If the owning Fibery ID is missing or ambiguous, request clarification rather
 than guessing it or substituting a pull request number. Treat a missing required
