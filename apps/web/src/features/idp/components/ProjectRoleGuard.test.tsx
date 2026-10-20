@@ -47,6 +47,15 @@ describe('ProjectRoleGuard', () => {
     expect(screen.getByText('Guarded content')).toBeInTheDocument();
     expect(screen.getByTestId('location')).toHaveTextContent('/ui/project-1/data-marts');
   });
+
+  it('does not return to MCP authorization after a requested role is approved', () => {
+    authUser.value = user(['viewer']);
+    renderGuard(
+      '/ui/project-1/request-access?mcp-integration=claude&redirect-to=%2Foauth%2Fauthorize%3Fstate%3Dold-state'
+    );
+    expect(screen.getByTestId('location')).toHaveTextContent('/ui/project-1/data-marts');
+    expect(screen.getByTestId('location')).not.toHaveTextContent('/oauth/authorize');
+  });
 });
 
 function renderGuard(initialEntry: string) {

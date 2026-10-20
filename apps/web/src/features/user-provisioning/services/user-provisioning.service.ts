@@ -1,5 +1,6 @@
 import { ApiService } from '../../../services/api-service';
 import type { Role } from '../../idp/types';
+import type { McpIntegration } from '../utils/mcp-request-access';
 
 export interface RequestAccessContext {
   decision: 'request_access';
@@ -50,8 +51,11 @@ class UserProvisioningApiService extends ApiService {
     return this.post<RequestAccessResult>('/request-access', { role });
   }
 
-  async createNewProject(): Promise<CreateNewProjectResult> {
-    return this.post<CreateNewProjectResult>('/create-new-project');
+  async createNewProject(integration?: McpIntegration): Promise<CreateNewProjectResult> {
+    return this.post<CreateNewProjectResult>(
+      '/create-new-project',
+      integration ? { integration } : undefined
+    );
   }
 }
 

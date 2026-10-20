@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsEnum } from 'class-validator';
+import { IsEnum, IsOptional } from 'class-validator';
 import { ProjectRole } from '../../enums/project-role.enum';
+import { ProjectCreationIntegration } from '../../enums/project-creation-integration.enum';
 
 export class RequestAccessUserApiDto {
   @ApiProperty()
@@ -72,6 +73,16 @@ export class RequestProjectAccessResponseApiDto {
 
   @ApiProperty({ type: ExistingAccessRequestApiDto })
   request: ExistingAccessRequestApiDto;
+}
+
+export class CreateNewProjectApiDto {
+  @ApiPropertyOptional({
+    enum: ProjectCreationIntegration,
+    default: ProjectCreationIntegration.OWOX_DATA_MARTS,
+  })
+  @IsOptional()
+  @IsEnum(ProjectCreationIntegration)
+  integration?: ProjectCreationIntegration;
 }
 
 export class CreateNewProjectResponseApiDto {

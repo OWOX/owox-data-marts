@@ -8,6 +8,7 @@ import type {
   Role,
 } from '@owox/idp-protocol';
 import type { AuthorizationContext } from '../types';
+import { OAuthProjectAccessRequiredError } from './oauth-project-access-required.error';
 
 const PROJECT_ROLES: readonly Role[] = ['admin', 'editor', 'viewer'];
 const PROJECT_ROLE_LABELS: Record<Role, string> = {
@@ -53,7 +54,10 @@ export class OAuthProjectSelectionService {
 
     const members = await provider.getProjectMembers(project.id, { forceFresh: true });
     const member = members.find(candidate => candidate.userId === context.userId);
-    if (!member || !this.isActiveMember(member)) {
+    if (!member) {
+      throw new OAuthProjectAccessRequiredError(project.id);
+    }
+    if (!this.isActiveMember(member)) {
       throw new UnauthorizedException('User must be an active project member');
     }
 
@@ -82,7 +86,7 @@ export class OAuthProjectSelectionService {
       project => project.id === projectId
     );
     if (matches.length !== 1) {
-      throw new BadRequestException('project from MCP resource is not available for user');
+      throw new OAuthProjectAccessRequiredError(projectId);
     }
 
     return this.resolveSelectedProjectMember(provider, context, projects, matches[0].id);

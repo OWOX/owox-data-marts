@@ -12,6 +12,7 @@ import {
 } from '../../idp';
 import {
   CreateNewProjectResponseApiDto,
+  CreateNewProjectApiDto,
   RequestAccessContextApiDto,
   RequestProjectAccessApiDto,
   RequestProjectAccessResponseApiDto,
@@ -74,9 +75,13 @@ export class RequestAccessController {
   @Post('create-new-project')
   @CreateNewProjectSpec()
   async createNewProject(
-    @AuthContext() context: AuthorizationContext
+    @AuthContext() context: AuthorizationContext,
+    @Body() dto?: CreateNewProjectApiDto
   ): Promise<CreateNewProjectResponseApiDto> {
-    const result = await this.createNewProjectService.run(context.userId);
+    const result = await this.createNewProjectService.run(
+      context.userId,
+      dto?.integration ?? undefined
+    );
     return result as CreateNewProjectResponseApiDto;
   }
 }

@@ -1,5 +1,6 @@
 import { UnauthorizedException } from '@nestjs/common';
 import { OAuthProjectMemberResolver } from './oauth-project-member.resolver';
+import { OAuthProjectAccessRequiredError } from './oauth-project-access-required.error';
 import type { AuthorizationContext } from '../types';
 
 describe('OAuthProjectMemberResolver', () => {
@@ -34,6 +35,11 @@ describe('OAuthProjectMemberResolver', () => {
         projectId: 'project-1',
         roles: [],
       } as AuthorizationContext)
-    ).toThrow(UnauthorizedException);
+    ).toThrow(OAuthProjectAccessRequiredError);
+  });
+
+  it('keeps missing authentication distinct from missing project membership', () => {
+    const resolver = new OAuthProjectMemberResolver();
+    expect(() => resolver.resolve(undefined)).toThrow(UnauthorizedException);
   });
 });

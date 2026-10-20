@@ -213,7 +213,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
         if (hasEmptyProjectRoles(user)) {
           const isRequestAccessPath =
             currentPath === LEGACY_REQUEST_ACCESS_PATH ||
-            isProjectRequestAccessPath(currentPath, user.projectId);
+            isProjectRequestAccessPath(
+              currentPath,
+              getProjectIdFromPath(currentPath) ?? user.projectId
+            );
 
           if (!isRequestAccessPath) {
             const storedRedirect = RedirectStorageService.retrieve();
