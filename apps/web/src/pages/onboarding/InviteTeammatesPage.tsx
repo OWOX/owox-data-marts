@@ -3,7 +3,7 @@ import { Navigate, useNavigate, useSearchParams } from 'react-router';
 import { CornerDownLeft, Loader2, X } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { Button } from '@owox/ui/components/button';
-import { apiErrorMessage } from '../../app/api';
+import { extractApiError } from '../../app/api';
 import { useIsAdmin } from '../../features/idp';
 import { projectMembersService } from '../../features/project-members/services/project-members.service';
 import type { Role } from '../../features/project-members/types';
@@ -50,7 +50,13 @@ export function InviteTeammatesPage() {
   useEffect(() => {
     if (!isAdmin || shownTracked.current) return;
     shownTracked.current = true;
-    trackEvent({ event: 'onboarding_invite_shown', category: 'Onboarding', action: 'InviteShown' });
+    trackEvent({
+      event: 'onboarding_invite_shown',
+      category: 'Onboarding',
+      action: 'InviteShown',
+      label: null,
+      value: null,
+    });
   }, [isAdmin]);
 
   // Inviting needs the Project Admin role; anyone else just continues.
@@ -111,7 +117,14 @@ export function InviteTeammatesPage() {
   };
 
   const handleSkip = () => {
-    trackEvent({ event: 'onboarding_invite_skipped', category: 'Onboarding', action: 'Skip' });
+    // Null label/value: GTM would otherwise forward the role and count of an earlier send.
+    trackEvent({
+      event: 'onboarding_invite_skipped',
+      category: 'Onboarding',
+      action: 'Skip',
+      label: null,
+      value: null,
+    });
     continueToApp();
   };
 
@@ -138,7 +151,13 @@ export function InviteTeammatesPage() {
         });
         invited.push(email);
       } catch (caught) {
-        failed.push({ email, message: apiErrorMessage(caught, 'Failed to send invitation') });
+        // The server's own sentence when it wrote one (e.g. already a member). A 5xx carries
+        // none: the API client's toast reports it with the request id, so no raw Axios text here.
+        const serverMessage = extractApiError(caught).message?.trim() ?? '';
+        failed.push({
+          email,
+          message: serverMessage.length > 0 ? serverMessage : 'Failed to send invitation',
+        });
       }
     }
     setSending(false);

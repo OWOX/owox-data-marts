@@ -117,10 +117,13 @@ describe('OnboardingController invite-teammates step', () => {
     });
   });
 
-  it('keeps redirects that continue a flow outside the app', async () => {
-    await expect(submit('/auth/mcp/authorize?client_id=c1')).resolves.toEqual({
-      redirect: '/auth/mcp/authorize?client_id=c1',
-    });
+  it.each([
+    // MCP client authorization (connecting an AI assistant).
+    '/oauth/authorize?client_id=c1&state=s1',
+    // Continuation of a switch to another project.
+    '/auth/idp-start?projectId=project-2',
+  ])('keeps the redirect %s that continues a flow outside the app', async redirect => {
+    await expect(submit(redirect)).resolves.toEqual({ redirect });
   });
 
   it('skips the step for roles that cannot invite', async () => {

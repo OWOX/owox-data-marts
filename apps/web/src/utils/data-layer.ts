@@ -3,8 +3,8 @@ export interface DataLayerEvent {
   eventType?: 'app' | 'system';
   category?: string;
   action?: string;
-  label?: string;
   // Null clears what an earlier push set: GTM keeps the last value pushed for a key.
+  label?: string | null;
   context?: string | null;
   value?: string | null;
   details?: string;

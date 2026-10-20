@@ -10,7 +10,7 @@ In OWOX projects, only **Project Admins** manage the member list (invite, role c
 
 ## Invite Teammates After Sign-Up
 
-When you create a new OWOX project, the sign-up questionnaire is followed by an invite step, so the teammate who will set the project up can join right away:
+When you sign up for OWOX and become the only admin of your new project, the sign-up questionnaire is followed by an invite step, so the teammate who will set the project up can join right away:
 
 1. Type a teammate's email and press **Enter**. Repeat for everyone you want to invite, or paste a list of emails.
 2. Pick a role. **Data Owner** is selected by default; **Project Admin** and **Business User** are also available. Every invitation gives access to the entire project.

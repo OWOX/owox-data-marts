@@ -109,7 +109,7 @@ describe('InviteTeammatesPage', () => {
   it('keeps only the failed addresses for a retry', async () => {
     inviteMember
       .mockResolvedValueOnce({ kind: 'email-sent', email: 'ann@company.com', role: 'editor' })
-      .mockRejectedValueOnce(new Error('Already a member'));
+      .mockRejectedValueOnce({ response: { status: 400, data: { message: 'Already a member' } } });
     renderPage();
     addEmail('ann@company.com');
     addEmail('bob@company.com');
@@ -123,6 +123,34 @@ describe('InviteTeammatesPage', () => {
     expect(screen.queryByRole('button', { name: 'Remove ann@company.com' })).toBeNull();
     expect(screen.getByRole('button', { name: 'Remove bob@company.com' })).toBeTruthy();
     expect(screen.queryByTestId('location')).toBeNull();
+  });
+
+  it('shows a plain message for a failure the server did not explain', async () => {
+    inviteMember.mockRejectedValueOnce(
+      Object.assign(new Error('Request failed with status code 500'), {
+        response: { status: 500, data: { requestId: 'r-1' } },
+      })
+    );
+    renderPage();
+    addEmail('ann@company.com');
+    fireEvent.click(screen.getByRole('button', { name: 'Send invite' }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert').textContent).toBe(
+        "Couldn't invite ann@company.com: Failed to send invitation"
+      );
+    });
+  });
+
+  it('clears the role and count GTM would carry over from an earlier send', () => {
+    renderPage();
+    fireEvent.click(screen.getByRole('button', { name: 'Skip for now' }));
+
+    for (const event of ['onboarding_invite_shown', 'onboarding_invite_skipped']) {
+      expect(trackEvent).toHaveBeenCalledWith(
+        expect.objectContaining({ event, label: null, value: null })
+      );
+    }
   });
 
   it('skips to the redirect target', () => {
