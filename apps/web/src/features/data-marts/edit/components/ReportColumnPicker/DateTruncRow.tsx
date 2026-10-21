@@ -18,6 +18,7 @@ interface DateTruncRowProps {
   allowBucketTimeZone?: boolean;
   displayLabel?: string;
   dataMartName?: string;
+  countWarning?: string;
   /** Edit the whole column's bucket/aggregation selection at once. */
   onApplyDraft: (draft: AggregationDraft) => void;
   onRemove: () => void;
@@ -31,6 +32,7 @@ export function DateTruncRow({
   allowBucketTimeZone,
   displayLabel,
   dataMartName,
+  countWarning,
   onApplyDraft,
   onRemove,
 }: DateTruncRowProps) {
@@ -100,6 +102,7 @@ export function DateTruncRow({
           displayLabel={displayLabel}
           dataMartName={dataMartName}
           allowedAggregations={allowedAggregations}
+          countWarning={countWarning}
           allowBucketTimeZone={allowBucketTimeZone}
           initialBucket={rule.unit}
           initialTimeZone={rule.timeZone ?? null}

@@ -63,6 +63,7 @@ import {
 } from '../../../shared/utils/unique-count-availability';
 import { UniqueCountRow } from './UniqueCountRow';
 import { RowFilterIcon } from './RowFilterIcon';
+import { joinedCountWarning } from '../../../shared/utils/joined-count-warning';
 import { RowAggregationIcon } from './RowAggregationIcon';
 import { isArrayFieldType, isFilterableType } from './output-controls-operators';
 import { resolveColumnAllowedAggregations } from '../../../shared/utils/aggregation-governance';
@@ -206,6 +207,7 @@ interface ColumnAggregation {
   allowDateBucket: boolean;
   /** False for EITHER level of calculated field — see `dropdownColumns`. */
   allowBucketTimeZone: boolean;
+  countWarning?: string;
 }
 
 function renderRowAggregationIcon(
@@ -225,6 +227,7 @@ function renderRowAggregationIcon(
       displayLabel={displayLabel}
       dataMartName={dataMartName}
       allowedAggregations={agg.allowed}
+      countWarning={agg.countWarning}
       allowDateBucket={agg.allowDateBucket}
       allowBucketTimeZone={agg.allowBucketTimeZone}
       activeFunctions={agg.functions}
@@ -1661,13 +1664,23 @@ export function ReportColumnPicker({
       // wire; absent only on a response cached before it existed, which reads as an ordinary
       // column.
       const isCalculated = f.isCalculated === true;
+      const dataMartName = f.outputPrefix.trim() || f.sourceDataMartTitle;
       cols.push({
         name: f.name,
         // Projection controls run on the post-join value. `sourceType` above is only the
         // array-value classifier; scalar joined values retain their effective type here.
         type: f.type,
         label: fieldDisplayLabel(f.alias, f.originalFieldName),
-        dataMartName: f.outputPrefix.trim() || f.sourceDataMartTitle,
+        dataMartName,
+        countWarning: joinedCountWarning(availableSourceByPath.get(f.aliasPath), {
+          name: dataMartName,
+          nameAt: path => availableSourceByPath.get(path)?.title,
+          offersCountUnique: resolveColumnAllowedAggregations({
+            type: f.type,
+            allowedAggregations: f.allowedAggregations,
+            postJoinAggregations: f.postJoinAggregations,
+          }).includes('COUNT_DISTINCT'),
+        }),
         path: [...f.aliasPath.split('.'), f.originalFieldName],
         aggregationRole: f.aggregationRole,
         allowedAggregations: isCalculated ? [] : f.allowedAggregations,
@@ -1784,6 +1797,7 @@ export function ReportColumnPicker({
         // The two flags part company here, and only here: a row-level formula buckets like the
         // TIMESTAMP column beside it and is still refused the ZONE.
         allowBucketTimeZone: !col.isCalculated,
+        countWarning: col.countWarning,
       });
     }
     return map;
