@@ -17,30 +17,10 @@ import { DescriptionEditor } from './DescriptionEditor';
 vi.mock('next-themes', () => ({ useTheme: () => ({ resolvedTheme: 'light' }) }));
 vi.mock('./DataMartMentionPicker', () => ({ DataMartMentionPicker: () => null }));
 vi.mock('./useDescriptionPreview', () => ({
-  useDescriptionPreview: () => ({ html: '', loading: false, error: null }),
+  useDescriptionPreview: () => ({ html: '<p>Business context</p>', loading: false, error: null }),
 }));
 vi.mock('../MarkdownEditor', () => ({
   MarkdownEditorPreview: () => <div>Preview content</div>,
-  MarkdownEditorTabs: ({ onChange }: { onChange: (tab: 'markdown' | 'preview') => void }) => (
-    <>
-      <button
-        type='button'
-        onClick={() => {
-          onChange('markdown');
-        }}
-      >
-        Markdown
-      </button>
-      <button
-        type='button'
-        onClick={() => {
-          onChange('preview');
-        }}
-      >
-        Preview
-      </button>
-    </>
-  ),
   MarkdownEditor: function MockMarkdownEditor({ onMount, options }: MarkdownEditorProps) {
     const root = useRef<HTMLDivElement>(null);
     useEffect(() => {
@@ -48,6 +28,8 @@ vi.mock('../MarkdownEditor', () => ({
       let blur = () => {};
       const editor = {
         getDomNode: () => root.current,
+        focus: () => root.current?.querySelector('textarea')?.focus(),
+        getModel: () => null,
         onDidDispose: (callback: () => void) => {
           dispose = callback;
         },
@@ -116,8 +98,12 @@ function ContextDescriptionField() {
 }
 
 describe('DescriptionEditor form integration', () => {
-  it('connects the label, help, errors, focus ref and blur to the Monaco input across preview switches', async () => {
+  it('starts in reading state and preserves form labels, errors, focus and blur when editing and returning', async () => {
     render(<ContextDescriptionField />);
+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Markdown' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Preview' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Edit description' }));
     expect(screen.getByRole('button', { name: 'Bold' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Slash commands' })).not.toBeInTheDocument();
     const input = screen.getByRole('textbox');
@@ -144,10 +130,10 @@ describe('DescriptionEditor form integration', () => {
         .split(' ')
         .map(id => document.getElementById(id)?.textContent)
     ).toEqual(['Context help', 'Invalid description']);
-    fireEvent.click(screen.getByRole('button', { name: 'Preview' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Done editing' }));
     expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Bold' })).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Markdown' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Edit description' }));
     expect(screen.getByRole('button', { name: 'Bold' })).toBeInTheDocument();
     const reopened = screen.getByRole('textbox');
     expect(label.control).toBe(reopened);

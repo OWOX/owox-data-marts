@@ -1,5 +1,7 @@
 import { useState } from 'react';
-import { Link } from 'react-router';
+import { Link, useSearchParams } from 'react-router';
+import { Alert, AlertDescription, AlertTitle } from '@owox/ui/components/alert';
+import { Button } from '@owox/ui/components/button';
 import { toast } from 'react-hot-toast';
 import { ContextsTable } from '../../features/contexts/components/ContextsTable/ContextsTable';
 import { ContextDetailsSheet } from '../../features/contexts/components/ContextDetailsSheet/ContextDetailsSheet';
@@ -16,9 +18,13 @@ function buildContextsFilterUrl(basePath: string, contextId: string): string {
 }
 
 export function ContextsTab() {
-  const { contexts, members, refresh, isAdmin, openAddContextSheet } = useMembersSettings();
+  const { contexts, members, refresh, isAdmin, openAddContextSheet, loading, hasLoadError } =
+    useMembersSettings();
   const { scope } = useProjectRoute();
-  const [selected, setSelected] = useState<ContextDto | null>(null);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const selectedId = searchParams.get('context');
+  const selected =
+    !loading && !hasLoadError ? (contexts.find(c => c.id === selectedId) ?? null) : null;
   const [pendingDelete, setPendingDelete] = useState<ContextDto | null>(null);
   const [blocked, setBlocked] = useState<{
     context: ContextDto;
@@ -26,8 +32,20 @@ export function ContextsTab() {
   } | null>(null);
 
   const openContextSheet = (contextId: string) => {
-    const ctx = contexts.find(c => c.id === contextId);
-    if (ctx) setSelected(ctx);
+    setSearchParams(params => {
+      params.set('context', contextId);
+      return params;
+    });
+  };
+
+  const closeContextSheet = () => {
+    setSearchParams(
+      params => {
+        params.delete('context');
+        return params;
+      },
+      { replace: true }
+    );
   };
 
   const handleDelete = async (contextId: string) => {
@@ -112,12 +130,23 @@ export function ContextsTab() {
 
   return (
     <>
+      {selectedId && !loading && !hasLoadError && !selected && (
+        <Alert className='mb-4'>
+          <AlertTitle>Context unavailable</AlertTitle>
+          <AlertDescription>
+            This context was deleted or is not available in this project.
+            <Button type='button' variant='link' onClick={closeContextSheet}>
+              Back to contexts
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
       <ContextsTable
         contexts={contexts}
         members={members}
         isAdmin={isAdmin}
         onRowClick={ctx => {
-          if (isAdmin) setSelected(ctx);
+          openContextSheet(ctx.id);
         }}
         onEditContext={openContextSheet}
         onDeleteContext={id => {
@@ -130,11 +159,10 @@ export function ContextsTab() {
         isOpen={!!selected}
         context={selected}
         members={members}
-        onClose={() => {
-          setSelected(null);
-        }}
+        readOnly={!isAdmin}
+        onClose={closeContextSheet}
         onSaved={() => {
-          setSelected(null);
+          closeContextSheet();
           void refresh();
         }}
       />

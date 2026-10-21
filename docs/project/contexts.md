@@ -56,7 +56,15 @@ In the contexts list, click a row (or use the row actions) to open the **Configu
 
 ### Business descriptions and Data Mart links
 
-The description editor supports Markdown and a **Preview** tab. Use the formatting toolbar to insert headings, bold or italic text, links, lists, quotes, code blocks, and tables without typing the Markdown syntax yourself. Type `@` and search by title to select an accessible published Data Mart. Each entry shows the Data Mart’s icon. Then choose **Link entire Data Mart** or a specific output-schema field. Search fields by alias or technical name; calculated fields are included and marked in the list. Fields without an alias use their technical name. Hidden fields, including hidden calculated fields, and disconnected warehouse fields are not offered for reporting references. Calculated fields remain available regardless of their warehouse connection status. The Data Mart icon also appears before its link in Preview. The same editor is available in **Project Settings → Overview → Description** and on a **Data Mart → Overview**.
+Project, Context, and Data Mart descriptions show formatted text by default. Click the pencil icon (**Edit description**) to make changes. **Copy as Markdown** copies the original text, including formatting and Data Mart/field links, so you can paste the same business context into an AI assistant or another document. Copying does not require edit permission.
+
+The editor supports Markdown. Use the formatting toolbar to insert headings, bold or italic text, links, lists, quotes, code blocks, and tables without typing the Markdown syntax yourself. Type `@` and search by title to select an accessible published Data Mart. Each entry shows the Data Mart’s icon. Then choose **Link entire Data Mart** or a specific output-schema field. Search fields by alias or technical name; calculated fields are included and marked in the list. Fields without an alias use their technical name. Hidden fields, including hidden calculated fields, and disconnected warehouse fields are not offered for reporting references. Calculated fields remain available regardless of their warehouse connection status. The Data Mart icon also appears before its link in the formatted description. The same editor is available in **Project Settings → Overview → Description** and on a **Data Mart → Overview**.
+
+Use **Expand description** to read a long formatted description in full screen, including when you do not have edit permission. Copying Markdown remains available there. Use **Exit full screen** to return to the page.
+
+Use **Expand description editor** to edit a long description in full screen. **Exit full screen** or **Escape** returns to the inline editor with your draft, selection, and Undo history intact. Expanding or collapsing does not save the description. If a mention picker is open, Escape handles that picker first.
+
+Open a Context and click **Copy link to context** to share a permanent URL. The link uses the Context ID, so renaming it does not break the link. Opening it selects the Context automatically. Project Admins can edit it; other project members can read and copy its description. The link requires access to the project and does not grant any new permissions. A deleted or unavailable Context shows **Context unavailable** with a link back to the list.
 
 Press **Escape** in the field picker to return to the Data Mart list. Press it again to close the picker and keep editing the description, including literal text after `@`. Moving the caret through an existing `@` does not reopen the picker. Tab closes it when focus moves to another control. In a Context editor, these actions keep the panel open and preserve your draft.
 
@@ -68,7 +76,7 @@ The link stores the Data Mart's project and resource IDs in its URL. Renaming th
 
 Use descriptions to explain goals, terminology, and which Data Marts supply relevant measurements. Connected AI assistants receive the complete Markdown through MCP: `get_project_context` for Project, `list_contexts` for Context, and the Data Mart discovery/details tools for Data Mart descriptions. All project members can view context descriptions; only Project Admins can edit them.
 
-In the Project and Data Mart descriptions, click **Edit description**, then **Save** to persist changes or **Cancel** to discard them. Selecting a suggestion or switching to Preview does not save the description. Context descriptions are saved with their existing Create/Save form.
+In the Project and Data Mart descriptions, click the pencil icon, then **Save** to persist changes or **Cancel** to discard them. Context descriptions are saved with their existing Create/Save form; **Done editing** returns to the formatted draft without saving the form. Selecting a suggestion or copying text does not save the description. If formatting cannot load, the description remains visible as text.
 
 ### Deleting a Context
 

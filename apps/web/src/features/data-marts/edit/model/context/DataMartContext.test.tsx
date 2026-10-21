@@ -16,17 +16,22 @@ vi.mock('../../../../../shared/components/DescriptionEditor/DescriptionEditor', 
   DescriptionEditor: ({
     value,
     onChange,
+    saveError,
   }: {
     value: string;
     onChange: (value: string) => void;
+    saveError?: string | null;
   }) => (
-    <textarea
-      aria-label='Description'
-      value={value}
-      onChange={event => {
-        onChange(event.target.value);
-      }}
-    />
+    <>
+      <textarea
+        aria-label='Description'
+        value={value}
+        onChange={event => {
+          onChange(event.target.value);
+        }}
+      />
+      {saveError && <p role='alert'>{saveError}</p>}
+    </>
   ),
 }));
 vi.mock('../../../../../shared/components/DescriptionEditor/useDescriptionPreview', () => ({

@@ -62,6 +62,7 @@ export function MarkdownToolbar({
               <TooltipContent>Heading</TooltipContent>
             </Tooltip>
             <DropdownMenuContent
+              data-ignore-outside-dismiss
               align='end'
               onCloseAutoFocus={event => {
                 event.preventDefault();

@@ -17,6 +17,7 @@ export interface MarkdownEditorPreviewProps {
   height?: number | string;
   className?: string;
   emptyState?: ReactNode;
+  title?: string;
 }
 
 export function MarkdownEditorPreview({
@@ -26,6 +27,7 @@ export function MarkdownEditorPreview({
   height = 240,
   className,
   emptyState = <div className='text-muted-foreground text-sm'>Nothing to preview</div>,
+  title = 'Markdown preview',
 }: MarkdownEditorPreviewProps) {
   const { resolvedTheme } = useTheme();
   const [colors, setColors] = useState(() => readThemeColors());
@@ -49,8 +51,10 @@ export function MarkdownEditorPreview({
       {!loading && !error && !html && emptyState}
       {!loading && !error && !!html && (
         <iframe
-          key={`${String(resolvedTheme)}-${colors.bg}-${colors.fg}`}
-          title='Markdown preview'
+          // Updating srcDoc on an existing frame adds an entry to the browser's
+          // joint history. Mount a new document so Back still navigates the app.
+          key={`${String(resolvedTheme)}-${colors.bg}-${colors.fg}-${html}`}
+          title={title}
           sandbox='allow-popups allow-popups-to-escape-sandbox'
           srcDoc={`<!doctype html>
             <html lang='en' style="background:${colors.bg};color:${colors.fg}">

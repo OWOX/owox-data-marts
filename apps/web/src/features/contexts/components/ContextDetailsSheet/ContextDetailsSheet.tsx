@@ -12,6 +12,8 @@ import {
 import { Button } from '@owox/ui/components/button';
 import { Input } from '@owox/ui/components/input';
 import { DescriptionEditor } from '../../../../shared/components/DescriptionEditor/DescriptionEditor';
+import { DescriptionView } from '../../../../shared/components/DescriptionEditor/DescriptionView';
+import { CopyContextLinkButton } from '../CopyContextLinkButton';
 import { preventSheetDismissWhileSuggesting } from '../../../../shared/components/DescriptionEditor/description-editor-escape';
 import { useUser } from '../../../idp/hooks/useAuthState';
 import {
@@ -73,6 +75,7 @@ interface ContextDetailsSheetProps {
   members: MemberWithScopeDto[];
   onClose: () => void;
   onSaved: () => void;
+  readOnly?: boolean;
 }
 
 export function ContextDetailsSheet({
@@ -81,6 +84,7 @@ export function ContextDetailsSheet({
   members,
   onClose,
   onSaved,
+  readOnly = false,
 }: ContextDetailsSheetProps) {
   const user = useUser();
   const form = useForm<ContextDetailsFormValues>({
@@ -121,7 +125,7 @@ export function ContextDetailsSheet({
 
   const onSubmit = useCallback(
     async (values: ContextDetailsFormValues) => {
-      if (!context) return;
+      if (!context || readOnly) return;
       setSaving(true);
       try {
         await contextService.updateContext(context.id, {
@@ -141,7 +145,7 @@ export function ContextDetailsSheet({
         setSaving(false);
       }
     },
-    [context, selectedMemberIds, memberSelectionDirty, onSaved]
+    [context, selectedMemberIds, memberSelectionDirty, onSaved, readOnly]
   );
 
   if (!context) return null;
@@ -156,145 +160,162 @@ export function ContextDetailsSheet({
       >
         <SheetContent onEscapeKeyDown={preventSheetDismissWhileSuggesting}>
           <SheetHeader>
-            <SheetTitle>Configure context</SheetTitle>
-            <SheetDescription>Customize settings for this context</SheetDescription>
+            <div className='flex items-start justify-between gap-2 pr-8'>
+              <SheetTitle>{readOnly ? context.name : 'Configure context'}</SheetTitle>
+              <CopyContextLinkButton contextId={context.id} />
+            </div>
+            <SheetDescription>
+              {readOnly
+                ? 'Business context for this project'
+                : 'Customize settings for this context'}
+            </SheetDescription>
           </SheetHeader>
 
-          <Form {...form}>
-            <AppForm
-              onSubmit={e => {
-                void handleSubmit(onSubmit)(e);
-              }}
-            >
-              <FormLayout>
-                <FormSection title='General' name='ctx-details-general'>
-                  <FormField
-                    control={control}
-                    name='name'
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel tooltip='Business-domain label shown on resources'>
-                          Name
-                        </FormLabel>
-                        <FormControl>
-                          <Input {...field} disabled={saving} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+          {readOnly ? (
+            <div className='p-4'>
+              <DescriptionView
+                projectId={user?.projectId ?? ''}
+                value={context.description ?? ''}
+                scope='context'
+              />
+            </div>
+          ) : (
+            <Form {...form}>
+              <AppForm
+                onSubmit={e => {
+                  void handleSubmit(onSubmit)(e);
+                }}
+              >
+                <FormLayout>
+                  <FormSection title='General' name='ctx-details-general'>
+                    <FormField
+                      control={control}
+                      name='name'
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel tooltip='Business-domain label shown on resources'>
+                            Name
+                          </FormLabel>
+                          <FormControl>
+                            <Input {...field} disabled={saving} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
 
-                  <FormField
-                    control={control}
-                    name='description'
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel tooltip='Helps members understand what resources belong to this context'>
-                          Description
-                        </FormLabel>
-                        <FormControl>
-                          <DescriptionEditor
-                            ref={field.ref}
-                            name={field.name}
-                            onBlur={field.onBlur}
-                            projectId={user?.projectId ?? ''}
-                            value={field.value ?? ''}
-                            onChange={field.onChange}
-                            disabled={saving}
-                            placeholder='What this context represents'
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </FormSection>
+                    <FormField
+                      control={control}
+                      name='description'
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel tooltip='Helps members understand what resources belong to this context'>
+                            Description
+                          </FormLabel>
+                          <FormControl>
+                            <DescriptionEditor
+                              ref={field.ref}
+                              name={field.name}
+                              onBlur={field.onBlur}
+                              projectId={user?.projectId ?? ''}
+                              value={field.value ?? ''}
+                              onChange={field.onChange}
+                              disabled={saving}
+                              placeholder='What this context represents'
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </FormSection>
 
-                <FormSection title='Members' name='ctx-details-members'>
-                  <MembersAssignmentField
-                    idPrefix='ctx-mem'
-                    label='Assigned members'
-                    tooltip='Members assigned to this context can access resources tagged with it. Admins and project-wide members are always included.'
-                    members={members.map(m => ({
-                      userId: m.userId,
-                      email: m.email,
-                      displayName: m.displayName,
-                      avatarUrl: m.avatarUrl,
-                      role: m.role,
-                      roleScope: m.roleScope,
-                      roleLabel: getRoleDisplayName(m.role),
-                    }))}
-                    selectedIds={selectedMemberIds}
-                    onToggle={handleToggleMember}
-                    onSetSelected={setSelectedMemberIds}
+                  <FormSection title='Members' name='ctx-details-members'>
+                    <MembersAssignmentField
+                      idPrefix='ctx-mem'
+                      label='Assigned members'
+                      tooltip='Members assigned to this context can access resources tagged with it. Admins and project-wide members are always included.'
+                      members={members.map(m => ({
+                        userId: m.userId,
+                        email: m.email,
+                        displayName: m.displayName,
+                        avatarUrl: m.avatarUrl,
+                        role: m.role,
+                        roleScope: m.roleScope,
+                        roleLabel: getRoleDisplayName(m.role),
+                      }))}
+                      selectedIds={selectedMemberIds}
+                      onToggle={handleToggleMember}
+                      onSetSelected={setSelectedMemberIds}
+                      disabled={saving}
+                      emptyText='No project members to assign yet.'
+                      footer={
+                        <FormDescription>
+                          <Accordion variant='common' type='single' collapsible>
+                            <AccordionItem value='ctx-members-help'>
+                              <AccordionTrigger>Why are some members locked?</AccordionTrigger>
+                              <AccordionContent>
+                                <p className='mb-2'>
+                                  Admins and members with project-wide scope already see every
+                                  resource, regardless of context assignments. They appear here as a
+                                  reminder, but their context membership can&apos;t be changed from
+                                  this screen — adjust their role scope in Project settings →
+                                  Members instead.
+                                </p>
+                              </AccordionContent>
+                            </AccordionItem>
+                          </Accordion>
+                        </FormDescription>
+                      }
+                    />
+                  </FormSection>
+
+                  <FormSection title='Details' name='ctx-details-meta' defaultOpen={false}>
+                    <FormItem>
+                      <FormLabel>Created by</FormLabel>
+                      {context.createdByUser ? (
+                        <UserReference userProjection={context.createdByUser} />
+                      ) : (
+                        <span className='text-muted-foreground text-sm'>—</span>
+                      )}
+                    </FormItem>
+                    <FormItem>
+                      <FormLabel>Created at</FormLabel>
+                      <span className='text-muted-foreground text-sm'>
+                        {formatDate(context.createdAt)}
+                      </span>
+                    </FormItem>
+                    <FormItem>
+                      <FormLabel>Last modified</FormLabel>
+                      <span className='text-muted-foreground text-sm'>
+                        {formatDate(context.modifiedAt)}
+                      </span>
+                    </FormItem>
+                  </FormSection>
+                </FormLayout>
+
+                <FormActions>
+                  <Button
+                    type='submit'
+                    className='w-full'
+                    disabled={saving || (!formState.isDirty && !memberSelectionDirty)}
+                  >
+                    {saving && <Loader2 className='mr-2 h-4 w-4 animate-spin' />}
+                    Save
+                  </Button>
+                  <Button
+                    type='button'
+                    variant='outline'
+                    className='w-full'
+                    onClick={onClose}
                     disabled={saving}
-                    emptyText='No project members to assign yet.'
-                    footer={
-                      <FormDescription>
-                        <Accordion variant='common' type='single' collapsible>
-                          <AccordionItem value='ctx-members-help'>
-                            <AccordionTrigger>Why are some members locked?</AccordionTrigger>
-                            <AccordionContent>
-                              <p className='mb-2'>
-                                Admins and members with project-wide scope already see every
-                                resource, regardless of context assignments. They appear here as a
-                                reminder, but their context membership can&apos;t be changed from
-                                this screen — adjust their role scope in Project settings → Members
-                                instead.
-                              </p>
-                            </AccordionContent>
-                          </AccordionItem>
-                        </Accordion>
-                      </FormDescription>
-                    }
-                  />
-                </FormSection>
-
-                <FormSection title='Details' name='ctx-details-meta' defaultOpen={false}>
-                  <FormItem>
-                    <FormLabel>Created by</FormLabel>
-                    {context.createdByUser ? (
-                      <UserReference userProjection={context.createdByUser} />
-                    ) : (
-                      <span className='text-muted-foreground text-sm'>—</span>
-                    )}
-                  </FormItem>
-                  <FormItem>
-                    <FormLabel>Created at</FormLabel>
-                    <span className='text-muted-foreground text-sm'>
-                      {formatDate(context.createdAt)}
-                    </span>
-                  </FormItem>
-                  <FormItem>
-                    <FormLabel>Last modified</FormLabel>
-                    <span className='text-muted-foreground text-sm'>
-                      {formatDate(context.modifiedAt)}
-                    </span>
-                  </FormItem>
-                </FormSection>
-              </FormLayout>
-
-              <FormActions>
-                <Button
-                  type='submit'
-                  className='w-full'
-                  disabled={saving || (!formState.isDirty && !memberSelectionDirty)}
-                >
-                  {saving && <Loader2 className='mr-2 h-4 w-4 animate-spin' />}
-                  Save
-                </Button>
-                <Button
-                  type='button'
-                  variant='outline'
-                  className='w-full'
-                  onClick={onClose}
-                  disabled={saving}
-                >
-                  Cancel
-                </Button>
-              </FormActions>
-            </AppForm>
-          </Form>
+                  >
+                    Cancel
+                  </Button>
+                </FormActions>
+              </AppForm>
+            </Form>
+          )}
         </SheetContent>
       </Sheet>
     </>

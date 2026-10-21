@@ -1,33 +1,125 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { useEffect, useRef } from 'react';
 import { describe, expect, it, vi } from 'vitest';
+import type { MarkdownEditorProps } from '../MarkdownEditor/MarkdownEditor';
 import { InlineMarkdownDescription } from './InlineMarkdownDescription';
 
-vi.mock('./DescriptionEditor', () => ({
-  DescriptionEditor: ({
-    value,
-    onChange,
-  }: {
-    value: string;
-    onChange: (value: string) => void;
-  }) => (
-    <textarea
-      aria-label='Description'
-      value={value}
-      onChange={event => {
-        onChange(event.target.value);
-      }}
-    />
-  ),
-}));
+vi.mock('next-themes', () => ({ useTheme: () => ({ resolvedTheme: 'light' }) }));
+vi.mock('./DataMartMentionPicker', () => ({ DataMartMentionPicker: () => null }));
 vi.mock('./useDescriptionPreview', () => ({
   useDescriptionPreview: () => ({ html: '', loading: true, error: null }),
 }));
 vi.mock('../MarkdownEditor', () => ({
-  useMarkdownPreview: () => ({ html: '', loading: true, error: null }),
   MarkdownEditorPreview: () => <div>preview</div>,
+  MarkdownEditor: function MockMarkdownEditor({
+    onMount,
+    options,
+    value,
+    onChange,
+  }: MarkdownEditorProps) {
+    const root = useRef<HTMLDivElement>(null);
+    useEffect(() => {
+      let dispose = () => {};
+      let blur = () => {};
+      const commands = new Map<number, () => void>();
+      const editor = {
+        getDomNode: () => root.current,
+        focus: () => root.current?.querySelector('textarea')?.focus(),
+        getModel: () => null,
+        onDidDispose: (callback: () => void) => {
+          dispose = callback;
+        },
+        onDidBlurEditorText: (callback: () => void) => {
+          blur = callback;
+        },
+        addCommand: (key: number, callback: () => void) => commands.set(key, callback),
+      };
+      const textarea = root.current!.querySelector('textarea')!;
+      const onKeyDown = (event: KeyboardEvent) => {
+        if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) commands.get(3)?.();
+      };
+      const onBlur = () => {
+        blur();
+      };
+      textarea.addEventListener('keydown', onKeyDown);
+      textarea.addEventListener('blur', onBlur);
+      onMount?.(
+        editor as never,
+        { KeyMod: { CtrlCmd: 1 }, KeyCode: { Enter: 2, Escape: 9 } } as never
+      );
+      return () => {
+        textarea.removeEventListener('keydown', onKeyDown);
+        textarea.removeEventListener('blur', onBlur);
+        dispose();
+      };
+    }, [onMount]);
+    return (
+      <div ref={root}>
+        <textarea
+          className='inputarea'
+          aria-label={options?.ariaLabel}
+          readOnly={options?.readOnly}
+          value={value}
+          onChange={event => {
+            onChange(event.target.value);
+          }}
+        />
+      </div>
+    );
+  },
 }));
 
 describe('InlineMarkdownDescription', () => {
+  it('shows a failed save inside full screen, preserves the draft and allows retry', async () => {
+    const onUpdate = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('offline'))
+      .mockResolvedValueOnce(undefined);
+    const draft = '[Revenue](https://app.example/ui/project/data-marts/id?field=revenue)';
+    render(
+      <InlineMarkdownDescription
+        projectId='project'
+        currentDataMartId='data-mart'
+        description='Original'
+        onUpdate={onUpdate}
+      />
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Edit description' }));
+    const input = screen.getByRole('textbox');
+    fireEvent.change(input, { target: { value: draft } });
+    fireEvent.click(screen.getByRole('button', { name: 'Expand description editor' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Description editor' });
+    fireEvent.keyDown(input, { key: 'Enter', metaKey: true });
+    const alert = await within(dialog).findByRole('alert');
+    expect(alert).toHaveTextContent(
+      'Could not save description. Your changes are still in the editor.'
+    );
+    expect(alert.closest('[aria-hidden="true"]')).toBeNull();
+    expect(screen.getAllByRole('alert')).toHaveLength(1);
+    expect(within(dialog).getByRole('textbox')).toBe(input);
+    expect(input).toHaveValue(draft);
+    expect(onUpdate).toHaveBeenCalledExactlyOnceWith(draft);
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Exit full screen' }));
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    });
+    expect(screen.getByRole('alert')).toBe(alert);
+    expect(alert.closest('[aria-hidden="true"]')).toBeNull();
+    expect(input).toHaveValue(draft);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Expand description editor' }));
+    await screen.findByRole('dialog', { name: 'Description editor' });
+    fireEvent.keyDown(input, { key: 'Enter', ctrlKey: true });
+    await waitFor(() => {
+      expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
+    });
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(onUpdate).toHaveBeenCalledTimes(2);
+    expect(onUpdate).toHaveBeenLastCalledWith(draft);
+  });
+
   it('saves Markdown unchanged and keeps unsaved text on failure for retry', async () => {
     const onUpdate = vi
       .fn()

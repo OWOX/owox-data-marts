@@ -8,11 +8,17 @@ import {
 } from 'react';
 import type * as monaco from 'monaco-editor';
 import { useTheme } from 'next-themes';
-import { MarkdownEditor, MarkdownEditorTabs, MarkdownEditorPreview } from '../MarkdownEditor';
+import { Check, Maximize2, Minimize2 } from 'lucide-react';
+import { Button } from '@owox/ui/components/button';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
+import { cn } from '@owox/ui/lib/utils';
+import { MarkdownEditor } from '../MarkdownEditor';
+import { ExpandableEditor } from '../MarkdownEditor/ExpandableEditor';
 import { MarkdownToolbar } from '../MarkdownEditor/MarkdownToolbar';
 import { useMarkdownToolbar } from '../MarkdownEditor/useMarkdownToolbar';
 import { DataMartMentionPicker } from './DataMartMentionPicker';
-import { useDescriptionPreview } from './useDescriptionPreview';
+import { CopyDescriptionButton, DescriptionView, type DescriptionScope } from './DescriptionView';
+import { preventSheetDismissWhileSuggesting } from './description-editor-escape';
 
 export interface DescriptionEditorProps extends Pick<
   ComponentPropsWithoutRef<'textarea'>,
@@ -25,9 +31,13 @@ export interface DescriptionEditorProps extends Pick<
   disabled?: boolean;
   placeholder?: string;
   autoFocus?: boolean;
+  saveError?: string | null;
   onSave?: () => void;
   onCancel?: () => void;
   onBlur?: () => void;
+  /** Inline editors already have their own reading state and Save/Cancel actions. */
+  startEditing?: boolean;
+  scope?: DescriptionScope;
 }
 
 export const DescriptionEditor = forwardRef<HTMLTextAreaElement, DescriptionEditorProps>(
@@ -40,9 +50,12 @@ export const DescriptionEditor = forwardRef<HTMLTextAreaElement, DescriptionEdit
       disabled = false,
       placeholder = 'Describe business goals and terminology…',
       autoFocus = false,
+      saveError,
       onSave,
       onCancel,
       onBlur,
+      startEditing = false,
+      scope = 'context',
       id,
       name,
       'aria-describedby': ariaDescribedBy,
@@ -52,7 +65,8 @@ export const DescriptionEditor = forwardRef<HTMLTextAreaElement, DescriptionEdit
     },
     ref
   ) {
-    const [tab, setTab] = useState<'markdown' | 'preview'>('markdown');
+    const [editing, setEditing] = useState(startEditing);
+    const [expanded, setExpanded] = useState(false);
     const latest = useRef({ onSave, onCancel, onBlur });
     latest.current = { onSave, onCancel, onBlur };
     const [mountedEditor, setMountedEditor] = useState<monaco.editor.IStandaloneCodeEditor | null>(
@@ -67,11 +81,6 @@ export const DescriptionEditor = forwardRef<HTMLTextAreaElement, DescriptionEdit
     });
     const [input, setInput] = useState<HTMLTextAreaElement | null>(null);
     const { resolvedTheme } = useTheme();
-    const preview = useDescriptionPreview({
-      markdown: value,
-      enabled: tab === 'preview',
-      projectId,
-    });
 
     useEffect(() => {
       if (!input) return;
@@ -123,20 +132,98 @@ export const DescriptionEditor = forwardRef<HTMLTextAreaElement, DescriptionEdit
           },
           '!suggestWidgetVisible'
         );
-        if (autoFocus) {
+        if (autoFocus || !startEditing) {
           editor.focus();
           const model = editor.getModel();
           if (model) editor.setPosition(model.getPositionAt(model.getValueLength()));
         }
       },
-      [autoFocus]
+      [autoFocus, startEditing]
     );
 
+    if (!editing) {
+      return (
+        <DescriptionView
+          projectId={projectId}
+          value={value}
+          placeholder={placeholder}
+          scope={scope}
+          disabled={disabled}
+          onEdit={() => {
+            setEditing(true);
+          }}
+          editButtonProps={{
+            id,
+            name,
+            onBlur,
+            'aria-describedby': ariaDescribedBy,
+            'aria-invalid': ariaInvalid,
+            'aria-labelledby': ariaLabelledBy,
+          }}
+        />
+      );
+    }
+
     return (
-      <div className='w-full min-w-0 space-y-2'>
-        <MarkdownEditorTabs value={tab} onChange={setTab} />
-        {tab === 'markdown' ? (
-          <div className='overflow-hidden rounded-md border'>
+      <ExpandableEditor
+        expanded={expanded}
+        onExpandedChange={setExpanded}
+        title='Description editor'
+        onEscapeKeyDown={preventSheetDismissWhileSuggesting}
+      >
+        <div
+          className={cn(
+            'w-full min-w-0 space-y-2',
+            expanded && 'flex min-h-0 flex-1 flex-col gap-2 space-y-0'
+          )}
+          data-testid='descriptionEditor'
+        >
+          <div className='flex items-center justify-between gap-2'>
+            <p className='text-muted-foreground text-xs'>Supports Markdown formatting.</p>
+            <div className='flex items-center gap-1'>
+              <CopyDescriptionButton value={value} scope={scope} />
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type='button'
+                    variant='ghost'
+                    size='icon-sm'
+                    aria-label={expanded ? 'Exit full screen' : 'Expand description editor'}
+                    aria-expanded={expanded}
+                    onClick={() => {
+                      setExpanded(!expanded);
+                    }}
+                  >
+                    {expanded ? <Minimize2 aria-hidden /> : <Maximize2 aria-hidden />}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  {expanded ? 'Exit full screen' : 'Expand description editor'}
+                </TooltipContent>
+              </Tooltip>
+              {!startEditing && (
+                <Button
+                  type='button'
+                  variant='ghost'
+                  size='sm'
+                  disabled={disabled}
+                  onClick={() => {
+                    setExpanded(false);
+                    setEditing(false);
+                  }}
+                >
+                  <Check aria-hidden />
+                  Done editing
+                </Button>
+              )}
+            </div>
+          </div>
+          <div
+            className={cn(
+              'overflow-hidden rounded-md border',
+              expanded && 'flex min-h-0 flex-1 flex-col'
+            )}
+          >
             <MarkdownToolbar
               showFormatBadge={false}
               readOnly={disabled}
@@ -145,6 +232,8 @@ export const DescriptionEditor = forwardRef<HTMLTextAreaElement, DescriptionEdit
             />
             <MarkdownEditor
               key={projectId}
+              height={expanded ? '100%' : 240}
+              className={expanded ? 'min-h-0 flex-1' : undefined}
               value={value}
               onChange={onChange}
               onMount={onMount}
@@ -170,14 +259,17 @@ export const DescriptionEditor = forwardRef<HTMLTextAreaElement, DescriptionEdit
               disabled={disabled}
             />
           </div>
-        ) : (
-          <MarkdownEditorPreview {...preview} />
-        )}
-        <p className='text-muted-foreground text-xs'>
-          Type @ to link a published Data Mart or one of its fields. Links do not change context
-          assignments or access.
-        </p>
-      </div>
+          <p className='text-muted-foreground text-xs'>
+            Type @ to link a published Data Mart or one of its fields. Links do not change context
+            assignments or access.
+          </p>
+          {saveError && (
+            <p className='text-destructive text-xs' role='alert'>
+              {saveError}
+            </p>
+          )}
+        </div>
+      </ExpandableEditor>
     );
   }
 );
