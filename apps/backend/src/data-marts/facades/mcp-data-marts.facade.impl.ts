@@ -1,4 +1,4 @@
-import { extractContextSummaries } from '../utils/extract-context-summaries';
+import { extractContextSummaries, type ContextSummary } from '../utils/extract-context-summaries';
 import { Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { castError } from '@owox/internal-helpers';
 import { TypeResolver } from '../../common/resolver/type-resolver';
@@ -92,7 +92,7 @@ export class McpDataMartsFacadeImpl implements McpDataMartsFacade {
           description: item.description,
           status: item.status,
           updatedAt: item.modifiedAt.toISOString(),
-          contexts: item.contexts ?? [],
+          contexts: toMcpContextSummaries(item.contexts),
         })),
     };
   }
@@ -138,7 +138,7 @@ export class McpDataMartsFacadeImpl implements McpDataMartsFacade {
     return {
       id: dataMart.id,
       name: dataMart.title,
-      contexts: extractContextSummaries(dataMart.contexts),
+      contexts: toMcpContextSummaries(extractContextSummaries(dataMart.contexts)),
       description: dataMart.description ?? '',
       fields: this.withDisplayNames(schema?.fields ?? []),
       joinedFields,
@@ -484,4 +484,11 @@ export class McpDataMartsFacadeImpl implements McpDataMartsFacade {
         } as DataMartSchemaField;
       });
   }
+}
+
+/** MCP tools describe a Data Mart's contexts by id and name only. */
+function toMcpContextSummaries(
+  contexts: ContextSummary[] | undefined
+): Array<{ id: string; name: string }> {
+  return (contexts ?? []).map(({ id, name }) => ({ id, name }));
 }

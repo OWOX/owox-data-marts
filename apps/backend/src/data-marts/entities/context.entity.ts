@@ -7,6 +7,7 @@ import {
   UpdateDateColumn,
   DeleteDateColumn,
 } from 'typeorm';
+import type { DataMartIconValue } from '../enums/data-mart-icon.enum';
 
 @Entity('context')
 @Index('idx_context_project', ['projectId'])
@@ -20,6 +21,10 @@ export class Context {
 
   @Column({ type: 'text', nullable: true })
   description?: string;
+
+  /** User-picked icon (same values as a Data Mart icon); null renders the default one. */
+  @Column({ type: 'varchar', length: 64, nullable: true })
+  icon?: DataMartIconValue | null;
 
   @Column()
   projectId: string;

@@ -172,8 +172,12 @@ const ICONS_BY_KEY = new Map<string, LucideIcon>(
 
 /**
  * The icon to draw for a recommended key; unknown or missing keys fall back to
- * the default. `lucide:` values are drawn by `DataMartIconGlyph`.
+ * `fallback` (the Data Mart default unless given). `lucide:` values are drawn by
+ * `DataMartIconGlyph`.
  */
-export function getDataMartIcon(key: string | null | undefined): LucideIcon {
-  return (key ? ICONS_BY_KEY.get(key) : undefined) ?? DEFAULT_DATA_MART_ICON;
+export function getDataMartIcon(
+  key: string | null | undefined,
+  fallback: LucideIcon = DEFAULT_DATA_MART_ICON
+): LucideIcon {
+  return (key ? ICONS_BY_KEY.get(key) : undefined) ?? fallback;
 }

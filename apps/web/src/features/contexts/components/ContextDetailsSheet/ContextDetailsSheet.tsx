@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { useForm } from 'react-hook-form';
+import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import {
@@ -39,7 +39,10 @@ import { contextService } from '../../services/context.service';
 import { MembersAssignmentField } from '../../../../shared/components/MembersAssignmentField';
 import { UserReference } from '../../../../shared/components/UserReference';
 import { getRoleDisplayName } from '../../../idp/utils/role-display-name';
+import type { DataMartIconValue } from '../../../data-marts/shared/enums/data-mart-icon.enum';
+import { trackEvent } from '../../../../utils';
 import type { ContextDto, MemberWithScopeDto } from '../../types/context.types';
+import { ContextIconPicker } from '../ContextIcon';
 
 const DATE_FORMATTER = new Intl.DateTimeFormat('en-US', {
   year: 'numeric',
@@ -63,6 +66,7 @@ const contextDetailsSchema = z.object({
     .min(1, 'Name is required')
     .max(255, 'Name must be 255 characters or fewer'),
   description: z.string().optional(),
+  icon: z.custom<DataMartIconValue | null>(),
 });
 
 type ContextDetailsFormValues = z.infer<typeof contextDetailsSchema>;
@@ -85,10 +89,11 @@ export function ContextDetailsSheet({
   const user = useUser();
   const form = useForm<ContextDetailsFormValues>({
     resolver: zodResolver(contextDetailsSchema),
-    defaultValues: { name: '', description: '' },
+    defaultValues: { name: '', description: '', icon: null },
     mode: 'onChange',
   });
-  const { control, handleSubmit, reset: resetForm, formState } = form;
+  const { control, handleSubmit, reset: resetForm, formState, setValue } = form;
+  const icon = useWatch({ control, name: 'icon' });
   const [selectedMemberIds, setSelectedMemberIds] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
 
@@ -103,6 +108,7 @@ export function ContextDetailsSheet({
       resetForm({
         name: context.name,
         description: context.description ?? '',
+        icon: context.icon ?? null,
       });
       setSelectedMemberIds(initialMemberIds);
     }
@@ -128,6 +134,18 @@ export function ContextDetailsSheet({
           name: values.name.trim(),
           description: values.description?.trim() ?? '',
         });
+
+        const nextIcon = values.icon ?? null;
+        if (nextIcon !== (context.icon ?? null)) {
+          await contextService.updateContextIcon(context.id, nextIcon);
+          trackEvent({
+            event: 'context_updated',
+            category: 'Context',
+            action: nextIcon ? 'UpdateIcon' : 'ResetIcon',
+            label: context.id,
+            ...(nextIcon ? { value: nextIcon } : {}),
+          });
+        }
 
         if (memberSelectionDirty) {
           await contextService.updateContextMembers(context.id, selectedMemberIds);
@@ -173,12 +191,21 @@ export function ContextDetailsSheet({
                     name='name'
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel tooltip='Business-domain label shown on resources'>
+                        <FormLabel tooltip='Business-domain label shown on resources. Pick an icon to tell contexts apart at a glance'>
                           Name
                         </FormLabel>
-                        <FormControl>
-                          <Input {...field} disabled={saving} />
-                        </FormControl>
+                        <div className='flex items-center gap-2'>
+                          <ContextIconPicker
+                            icon={icon ?? null}
+                            onChange={next => {
+                              setValue('icon', next, { shouldDirty: true });
+                            }}
+                            disabled={saving}
+                          />
+                          <FormControl>
+                            <Input {...field} disabled={saving} />
+                          </FormControl>
+                        </div>
                         <FormMessage />
                       </FormItem>
                     )}

@@ -211,6 +211,47 @@ describe('McpDataMartsFacadeImpl', () => {
     });
   });
 
+  it('lists Data Mart contexts by id and name only, without their icons', async () => {
+    const listDataMartsService = createListDataMartsService([
+      new DataMartListItemDto(
+        'dm_1',
+        'Orders',
+        DataMartStatus.PUBLISHED,
+        DataStorageType.GOOGLE_BIGQUERY,
+        'BigQuery',
+        new Date('2026-06-01T10:00:00.000Z'),
+        new Date('2026-06-10T10:00:00.000Z'),
+        'Mock Description',
+        null,
+        undefined,
+        0,
+        0,
+        null,
+        [],
+        [],
+        [{ id: 'ctx_1', name: 'Marketing', icon: 'lucide:megaphone' }]
+      ),
+    ]);
+    const facade = new McpDataMartsFacadeImpl(
+      listDataMartsService,
+      createGetDataMartService(),
+      createDataMartService(),
+      createQueryDataMartService(),
+      createBlendableSchemaService(),
+      createRelationshipService(),
+      createSummarizeMcpDataCatalogService(),
+      createFormulaFunctionDialectRegistry()
+    );
+
+    const result = await facade.listDataMarts({
+      projectId: 'project-1',
+      userId: 'user-1',
+      roles: ['viewer'],
+    });
+
+    expect(result.dataMarts[0].contexts).toEqual([{ id: 'ctx_1', name: 'Marketing' }]);
+  });
+
   it('returns prepared schema fields for data marts visible to the project member', async () => {
     const listDataMartsService = createListDataMartsService([
       new DataMartListItemDto(

@@ -2,6 +2,7 @@ import type { UserProjectionDto } from '../../../../../shared/types/api';
 import { DataStorageType } from '../../../../data-storage';
 import type { DataMartStatusInfo, DataMartDefinitionType } from '../../../shared';
 import type { DataLastUpdatedDto } from '../../../shared/types/api/response/data-mart-data-last-updated.dto';
+import type { ContextSummary } from '../../../../contexts/types/context.types';
 
 export interface DataMartListItem {
   id: string;
@@ -18,7 +19,7 @@ export interface DataMartListItem {
   connectorSourceName: string | null;
   businessOwnerUsers: UserProjectionDto[];
   technicalOwnerUsers: UserProjectionDto[];
-  contexts: { id: string; name: string }[];
+  contexts: ContextSummary[];
   availableForReporting?: boolean;
   availableForMaintenance?: boolean;
   dataLastUpdated: DataLastUpdatedDto | null;

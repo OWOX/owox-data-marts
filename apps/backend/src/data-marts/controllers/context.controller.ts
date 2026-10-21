@@ -5,6 +5,7 @@ import {
   ContextImpactResponseApiDto,
   ContextResponseApiDto,
   CreateContextRequestApiDto,
+  UpdateContextIconApiDto,
   UpdateContextMembersRequestApiDto,
   UpdateContextMembersResponseApiDto,
   UpdateContextRequestApiDto,
@@ -19,6 +20,7 @@ import {
   GetContextImpactSpec,
   ListContextsSpec,
   SetContextMembersSpec,
+  UpdateContextIconSpec,
   UpdateContextSpec,
 } from './spec/context.api';
 
@@ -43,7 +45,8 @@ export class ContextController {
       context.projectId,
       context.userId,
       dto.name,
-      dto.description
+      dto.description,
+      dto.icon ?? null
     );
     return this.contextMapper.toApiResponse(result);
   }
@@ -70,6 +73,18 @@ export class ContextController {
       dto.name,
       dto.description
     );
+    return this.contextMapper.toApiResponse(result);
+  }
+
+  @Auth(Role.admin(Strategy.INTROSPECT))
+  @Put(':id/icon')
+  @UpdateContextIconSpec()
+  async updateIcon(
+    @AuthContext() context: AuthorizationContext,
+    @Param('id') id: string,
+    @Body() dto: UpdateContextIconApiDto
+  ): Promise<ContextResponseApiDto> {
+    const result = await this.contextService.updateIcon(id, context.projectId, dto.icon);
     return this.contextMapper.toApiResponse(result);
   }
 

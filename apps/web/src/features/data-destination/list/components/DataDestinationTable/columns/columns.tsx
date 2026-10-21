@@ -9,6 +9,7 @@ import { type UserProjection } from '../../../../../../shared/types';
 import { UserReference } from '../../../../../../shared/components/UserReference';
 import { UserAvatarGroup } from '../../../../../../shared/components/UserAvatarGroup/UserAvatarGroup';
 import { ContextBadges } from '../../../../../../features/contexts/components/ContextBadges/ContextBadges';
+import type { ContextSummary } from '../../../../../contexts/types/context.types';
 
 export interface DataDestinationTableItem {
   id: string;
@@ -21,7 +22,7 @@ export interface DataDestinationTableItem {
   ownerUsers?: UserProjection[];
   availableForUse?: boolean;
   availableForMaintenance?: boolean;
-  contexts: { id: string; name: string }[];
+  contexts: ContextSummary[];
 }
 
 interface DataDestinationColumnsProps {

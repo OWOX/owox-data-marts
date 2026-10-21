@@ -1,4 +1,5 @@
 import type { DataStorageType } from './data-storage-type.enum.ts';
+import type { ContextSummary } from '../../../../contexts/types/context.types';
 
 export interface DataStorageListItem {
   id: string;
@@ -12,6 +13,6 @@ export interface DataStorageListItem {
   ownerUsers?: import('../../../../../shared/types').UserProjection[];
   availableForUse?: boolean;
   availableForMaintenance?: boolean;
-  contexts?: { id: string; name: string }[];
+  contexts?: ContextSummary[];
 }
 export type DataStorageList = DataStorageListItem[];

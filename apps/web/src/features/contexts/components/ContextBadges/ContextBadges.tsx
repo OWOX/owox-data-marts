@@ -1,12 +1,9 @@
 import { Badge } from '@owox/ui/components/badge';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
+import type { ContextSummary } from '../../types/context.types';
+import { ContextIconGlyph } from '../ContextIcon';
 
-interface ContextBadgeData {
-  id: string;
-  name: string;
-}
-
-export function ContextBadges({ contexts }: { contexts?: ContextBadgeData[] }) {
+export function ContextBadges({ contexts }: { contexts?: ContextSummary[] }) {
   if (!contexts || contexts.length === 0) return null;
 
   return (
@@ -20,6 +17,7 @@ export function ContextBadges({ contexts }: { contexts?: ContextBadgeData[] }) {
               // overflow the cell; full name is exposed via tooltip below.
               className='max-w-[220px]'
             >
+              <ContextIconGlyph icon={ctx.icon} className='shrink-0' aria-hidden='true' />
               <span className='truncate text-xs'>{ctx.name}</span>
             </Badge>
           </TooltipTrigger>

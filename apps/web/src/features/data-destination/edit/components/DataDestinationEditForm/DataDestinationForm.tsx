@@ -61,6 +61,7 @@ import { EmailFields } from './EmailFields';
 import { GoogleSheetsFields } from './GoogleSheetsFields';
 import { LookerStudioFields } from './LookerStudioFields';
 import { GoogleChatFields } from './GoogleChatFields';
+import type { ContextSummary } from '../../../../contexts/types/context.types';
 
 interface DataDestinationFormProps {
   initialData:
@@ -68,7 +69,7 @@ interface DataDestinationFormProps {
         ownerUsers?: UserProjection[];
         createdAt?: Date;
         createdByUser?: UserProjection | null;
-        contexts?: { id: string; name: string }[];
+        contexts?: ContextSummary[];
       })
     | null;
   onSubmit: (

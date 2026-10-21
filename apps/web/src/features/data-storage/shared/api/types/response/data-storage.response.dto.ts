@@ -1,5 +1,6 @@
 import type { DataStorageCredentialsDto } from '../data-storage-credentials.dto.ts';
 import type { DataStorageType } from '../../../model/types';
+import type { ContextSummary } from '../../../../../contexts/types/context.types';
 
 export interface GoogleBigQueryConfigDto {
   projectId: string;
@@ -52,5 +53,5 @@ export interface DataStorageResponseDto {
   ownerUsers?: import('../../../../../../shared/types').UserProjection[];
   availableForUse?: boolean;
   availableForMaintenance?: boolean;
-  contexts?: { id: string; name: string }[];
+  contexts?: ContextSummary[];
 }

@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { useForm } from 'react-hook-form';
+import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import {
@@ -38,7 +38,10 @@ import { toast } from 'react-hot-toast';
 import { contextService } from '../../services/context.service';
 import { MembersAssignmentField } from '../../../../shared/components/MembersAssignmentField';
 import { getRoleDisplayName } from '../../../idp/utils/role-display-name';
+import type { DataMartIconValue } from '../../../data-marts/shared/enums/data-mart-icon.enum';
+import { trackEvent } from '../../../../utils';
 import type { ContextDto, MemberWithScopeDto } from '../../types/context.types';
+import { ContextIconPicker } from '../ContextIcon';
 
 const addContextSchema = z.object({
   name: z
@@ -47,11 +50,12 @@ const addContextSchema = z.object({
     .min(1, 'Name is required')
     .max(255, 'Name must be 255 characters or fewer'),
   description: z.string().optional(),
+  icon: z.custom<DataMartIconValue | null>(),
 });
 
 type AddContextFormValues = z.infer<typeof addContextSchema>;
 
-const DEFAULT_VALUES: AddContextFormValues = { name: '', description: '' };
+const DEFAULT_VALUES: AddContextFormValues = { name: '', description: '', icon: null };
 
 interface AddContextSheetProps {
   isOpen: boolean;
@@ -67,7 +71,8 @@ export function AddContextSheet({ isOpen, members, onClose, onCreated }: AddCont
     defaultValues: DEFAULT_VALUES,
     mode: 'onChange',
   });
-  const { control, handleSubmit, formState, reset: resetForm } = form;
+  const { control, handleSubmit, formState, reset: resetForm, setValue } = form;
+  const icon = useWatch({ control, name: 'icon' });
   const [selectedMemberIds, setSelectedMemberIds] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
 
@@ -91,9 +96,12 @@ export function AddContextSheet({ isOpen, members, onClose, onCreated }: AddCont
       setSaving(true);
       try {
         const trimmedDescription = values.description?.trim();
-        const payload: { name: string; description?: string } = {
+        const payload: { name: string; description?: string; icon?: DataMartIconValue } = {
           name: values.name.trim(),
         };
+        if (values.icon) {
+          payload.icon = values.icon;
+        }
         // Don't send empty-string description — backend treats it as a
         // distinct value from "absent". `??` would not collapse '' to
         // undefined; an explicit guard is the cleanest way to express
@@ -102,6 +110,13 @@ export function AddContextSheet({ isOpen, members, onClose, onCreated }: AddCont
           payload.description = trimmedDescription;
         }
         const created = await contextService.createContext(payload);
+        trackEvent({
+          event: 'context_created',
+          category: 'Context',
+          action: 'Create',
+          label: created.id,
+          ...(payload.icon ? { value: payload.icon } : {}),
+        });
 
         if (selectedMemberIds.length > 0) {
           await contextService.updateContextMembers(created.id, selectedMemberIds);
@@ -147,10 +162,21 @@ export function AddContextSheet({ isOpen, members, onClose, onCreated }: AddCont
                   name='name'
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel tooltip='Business-domain label shown on resources'>Name</FormLabel>
-                      <FormControl>
-                        <Input {...field} placeholder='Marketing' disabled={saving} autoFocus />
-                      </FormControl>
+                      <FormLabel tooltip='Business-domain label shown on resources. Pick an icon to tell contexts apart at a glance'>
+                        Name
+                      </FormLabel>
+                      <div className='flex items-center gap-2'>
+                        <ContextIconPicker
+                          icon={icon ?? null}
+                          onChange={next => {
+                            setValue('icon', next, { shouldDirty: true });
+                          }}
+                          disabled={saving}
+                        />
+                        <FormControl>
+                          <Input {...field} placeholder='Marketing' disabled={saving} autoFocus />
+                        </FormControl>
+                      </div>
                       <FormMessage />
                     </FormItem>
                   )}

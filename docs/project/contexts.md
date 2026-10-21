@@ -30,7 +30,7 @@ Open **Project Settings → Contexts** to see all contexts in the project. Each 
 
 | Column          | Description                                                           |
 | --------------- | --------------------------------------------------------------------- |
-| **Name**        | The context label shown on resources                                  |
+| **Name**        | The context label shown on resources, with its icon                   |
 | **Members**     | Members assigned to this context                                      |
 | **Description** | Optional Markdown description with business goals and Data Mart links |
 | **Created by**  | The Project Admin who created the context                             |
@@ -42,9 +42,10 @@ Open **Project Settings → Contexts** to see all contexts in the project. Each 
 
 1. In **Project Settings → Contexts**, click **+ Add context**.
 2. Enter a **Name** (required, up to 255 characters; must be unique within the project).
-3. Optionally add a **Description** to explain what the context represents.
-4. Optionally select members to assign to this context immediately.
-5. Click **Create**.
+3. Optionally click the icon tile to the left of **Name** and pick an icon (see [Context Icons](#context-icons)).
+4. Optionally add a **Description** to explain what the context represents.
+5. Optionally select members to assign to this context immediately.
+6. Click **Create**.
 
 ![Add context panel with fields for Name, Description, and Members](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/717f7601-5999-4177-90ca-166be7d70e00/public)
 
@@ -52,7 +53,15 @@ You can also create a context inline from the **Contexts** field on a Data Mart,
 
 ### Editing a Context
 
-In the contexts list, click a row (or use the row actions) to open the **Configure context** panel. From there you can change the name, description, and the set of assigned members. Changes apply immediately to all resources tagged with this context — the context's identity is preserved, so attachments remain intact.
+In the contexts list, click a row (or use the row actions) to open the **Configure context** panel. From there you can change the name, icon, description, and the set of assigned members. Changes apply immediately to all resources tagged with this context — the context's identity is preserved, so attachments remain intact.
+
+### Context Icons
+
+Each context shows an icon before its name, so contexts are easier to tell apart: in the contexts list, on the context badges of Data Marts, Storages, Destinations and members, and in every **Contexts** picker. Until someone picks an icon, a context shows the default tag icon.
+
+To pick one, click the icon tile to the left of **Name** in **Add context** or **Configure context**. The picker offers the same icons as [Data Mart icons](../getting-started/setup-guide/models-canvas.md#data-mart-icons): **Recommended** icons first, then every icon of the [Lucide](https://lucide.dev/icons/) library, with search. **Reset to default** brings back the tag icon. The icon is saved with the rest of the form when you click **Create** or **Save**. Only Project Admins can change a context's icon.
+
+Through the API, `PUT /api/contexts/{id}/icon` sets the icon (`{"icon": "lucide:megaphone"}`) or resets it (`{"icon": null}`). `POST /api/contexts` accepts an optional `icon`. An icon is a recommended key such as `purchases`, or any library icon as `lucide:<icon-name>`. The contexts list and the contexts listed on Data Marts, Storages, Destinations and Credentials return `icon`, where `null` means the default icon. MCP tools do not return context icons.
 
 ### Business descriptions and Data Mart links
 
@@ -99,7 +108,7 @@ You manage attachments from the resource itself:
 
 In each place, the **Contexts** picker shows every context defined in the project; check the ones that apply.
 
-Resource lists (Data Marts, Storages, Destinations) display attached contexts as badges, and the lists can be filtered by context.
+Resource lists (Data Marts, Storages, Destinations) display attached contexts as badges with their icons, and the lists can be filtered by context.
 
 ![Data Marts list showing context badges on each row and a context filter dropdown in the toolbar](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/2a131338-482e-43c0-ded7-40fafe0b5000/public)
 

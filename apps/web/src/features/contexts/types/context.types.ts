@@ -1,9 +1,12 @@
 import type { UserProjection } from '../../../shared/types';
+import type { DataMartIconValue } from '../../data-marts/shared/enums/data-mart-icon.enum';
 
 export interface ContextDto {
   id: string;
   name: string;
   description: string | null;
+  /** Picked icon (same values as a Data Mart icon); null draws the default one. */
+  icon: DataMartIconValue | null;
   createdById: string | null;
   createdByUser: UserProjection | null;
   createdAt: string;
@@ -33,7 +36,9 @@ export interface MemberWithScopeDto {
   contextIds: string[];
 }
 
+/** A context as other resources (Data Marts, Storages, Destinations, Credentials) carry it. */
 export interface ContextSummary {
   id: string;
   name: string;
+  icon?: DataMartIconValue | null;
 }

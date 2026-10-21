@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
+import { Tags } from 'lucide-react';
 import { DataMartIconPicker } from './DataMartIconPicker';
 import { DATA_MART_ICON_OPTIONS, DEFAULT_DATA_MART_ICON, getDataMartIcon } from './data-mart-icons';
 import { DATA_MART_ICON_KEYS } from '../../enums/data-mart-icon.enum';
@@ -13,6 +14,12 @@ describe('getDataMartIcon', () => {
     expect(getDataMartIcon('purchases')).toBe(DATA_MART_ICON_OPTIONS[0].icon);
     expect(getDataMartIcon(null)).toBe(DEFAULT_DATA_MART_ICON);
     expect(getDataMartIcon('rocket')).toBe(DEFAULT_DATA_MART_ICON);
+  });
+
+  it('falls back to a given icon instead of the Data Mart default', () => {
+    expect(getDataMartIcon(null, Tags)).toBe(Tags);
+    expect(getDataMartIcon('rocket', Tags)).toBe(Tags);
+    expect(getDataMartIcon('purchases', Tags)).toBe(DATA_MART_ICON_OPTIONS[0].icon);
   });
 
   it('keeps every key unique', () => {

@@ -4,6 +4,7 @@ import { Label } from '@owox/ui/components/label';
 import { Button } from '@owox/ui/components/button';
 import { Plus } from 'lucide-react';
 import type { ContextDto } from '../types/context.types';
+import { ContextIconGlyph } from './ContextIcon';
 
 interface ContextsCheckboxListProps {
   idPrefix: string;
@@ -65,6 +66,11 @@ export function ContextsCheckboxList({
                 disabled={disabled}
               />
               <Label htmlFor={id} className='flex flex-1 cursor-pointer items-center gap-2'>
+                <ContextIconGlyph
+                  icon={ctx.icon}
+                  className='text-muted-foreground size-4 shrink-0'
+                  aria-hidden='true'
+                />
                 <span className='font-medium'>{ctx.name}</span>
                 {ctx.description && (
                   <span className='text-muted-foreground truncate text-xs'>{ctx.description}</span>
