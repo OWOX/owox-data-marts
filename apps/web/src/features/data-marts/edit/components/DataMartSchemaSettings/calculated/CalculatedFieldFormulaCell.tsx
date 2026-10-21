@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, type ReactElement } from 'react';
 import { EditableText } from '@owox/ui/components/common/editable-text';
 import { ExternalAnchor } from '@owox/ui/components/common/external-anchor';
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '@owox/ui/components/hover-card';
-import { useDraftCalculatedFields } from './draft-calculated-fields';
+import { useDraftCalculatedFields, useDraftPrimaryKeyFields } from './draft-calculated-fields';
 import { toAuthoringForm, toStoredForm, type ResolvedReference } from './formula-authoring';
 import { FormulaChips } from './FormulaChips';
 import { refDisplayName } from './formula-reference-display-name';
@@ -86,6 +86,7 @@ function LiveCheckedFormulaEditor({
   // and BaseSchemaTable, and this is the only component that has any use for what the OTHER rows
   // hold.
   const calculatedFields = useDraftCalculatedFields();
+  const primaryKeyFields = useDraftPrimaryKeyFields();
 
   const diagnostics = useFormulaDiagnostics({
     dataMartId: dataMartId ?? '',
@@ -93,6 +94,7 @@ function LiveCheckedFormulaEditor({
     type: fieldType ?? '',
     formula,
     calculatedFields,
+    primaryKeyFields,
   });
 
   return (

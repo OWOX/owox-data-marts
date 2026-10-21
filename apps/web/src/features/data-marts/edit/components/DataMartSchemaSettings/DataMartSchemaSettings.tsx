@@ -41,7 +41,9 @@ import {
 import { FormulaDataMartIdContext } from './calculated/formula-data-mart-context';
 import {
   collectDraftCalculatedFields,
+  collectDraftPrimaryKeyFields,
   DraftCalculatedFieldsContext,
+  DraftPrimaryKeyFieldsContext,
 } from './calculated/draft-calculated-fields';
 import { resolveCalculatedFieldIssues } from '../../../shared/utils/calculated-field-issues';
 
@@ -287,6 +289,10 @@ export function DataMartSchemaSettings({
   // the persisted one calls a sibling added in this session a field that no longer exists.
   const draftCalculatedFields = useMemo(
     () => collectDraftCalculatedFields(schema?.fields),
+    [schema]
+  );
+  const draftPrimaryKeyFields = useMemo(
+    () => (schema ? collectDraftPrimaryKeyFields(schema.fields) : undefined),
     [schema]
   );
 
@@ -638,27 +644,29 @@ export function DataMartSchemaSettings({
         <CalculatedFieldIssuesContext.Provider value={calculatedFieldIssues}>
           <FormulaDataMartIdContext.Provider value={dataMartId}>
             <DraftCalculatedFieldsContext.Provider value={draftCalculatedFields}>
-              <SchemaFieldReferenceProvider
-                fieldName={referencedField}
-                navigationKey={fieldNavigationKey}
-                fields={schema?.fields ?? []}
-              >
-                <SchemaContent
-                  schema={schema}
-                  storageType={dataMart.storage.type}
-                  onFieldsChange={handleSchemaFieldsChange}
-                  aiHelper={
-                    showAiHelper
-                      ? {
-                          pendingScope: aiPendingScope,
-                          onGenerateFieldAlias: handleGenerateFieldAlias,
-                          onGenerateFieldDescription: handleGenerateFieldDescription,
-                        }
-                      : undefined
-                  }
-                  schemaToolbar={schemaToolbar}
-                />
-              </SchemaFieldReferenceProvider>
+              <DraftPrimaryKeyFieldsContext.Provider value={draftPrimaryKeyFields}>
+                <SchemaFieldReferenceProvider
+                  fieldName={referencedField}
+                  navigationKey={fieldNavigationKey}
+                  fields={schema?.fields ?? []}
+                >
+                  <SchemaContent
+                    schema={schema}
+                    storageType={dataMart.storage.type}
+                    onFieldsChange={handleSchemaFieldsChange}
+                    aiHelper={
+                      showAiHelper
+                        ? {
+                            pendingScope: aiPendingScope,
+                            onGenerateFieldAlias: handleGenerateFieldAlias,
+                            onGenerateFieldDescription: handleGenerateFieldDescription,
+                          }
+                        : undefined
+                    }
+                    schemaToolbar={schemaToolbar}
+                  />
+                </SchemaFieldReferenceProvider>
+              </DraftPrimaryKeyFieldsContext.Provider>
             </DraftCalculatedFieldsContext.Provider>
           </FormulaDataMartIdContext.Provider>
         </CalculatedFieldIssuesContext.Provider>

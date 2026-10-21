@@ -29,6 +29,8 @@ export class ValidateFormulaCommand {
      * nothing, and reading that as "this Data Mart has no calculated fields" would delete every
      * persisted sibling from the check and report the exact error this field exists to prevent.
      */
-    public readonly calculatedFields?: readonly DraftCalculatedField[]
+    public readonly calculatedFields?: readonly DraftCalculatedField[],
+    /** The editor's primary-key columns by full dotted name; undefined keeps the persisted flags. */
+    public readonly primaryKeyFields?: readonly string[]
   ) {}
 }

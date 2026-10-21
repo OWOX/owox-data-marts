@@ -151,6 +151,35 @@ describe('useFormulaDiagnostics', () => {
    * it resolves a sibling reference against the schema on disk and calls it missing — in the one
    * flow this feature exists for.
    */
+  describe('the primary key the editor is holding', () => {
+    it('sends it with the formula, an empty one included', async () => {
+      renderHook(props => useFormulaDiagnostics(props), {
+        initialProps: options({ primaryKeyFields: [] }),
+      });
+
+      await advance(FORMULA_DIAGNOSTICS_DEBOUNCE_MS);
+
+      expect(validateFormula).toHaveBeenCalledWith(
+        'dm-1',
+        {
+          name: 'ctr',
+          type: 'FLOAT',
+          formula: 'SUM({{ref field="clicks"}})',
+          primaryKeyFields: [],
+        },
+        expect.anything()
+      );
+    });
+
+    it('sends no key at all when the caller holds no schema', async () => {
+      renderHook(props => useFormulaDiagnostics(props), { initialProps: options() });
+
+      await advance(FORMULA_DIAGNOSTICS_DEBOUNCE_MS);
+
+      expect(validateFormula.mock.calls[0][1]).not.toHaveProperty('primaryKeyFields');
+    });
+  });
+
   describe('the draft the editor is holding', () => {
     const drafted = [{ name: 'revenue', type: 'FLOAT', formula: 'SUM({{ref field="amount"}})' }];
 

@@ -244,6 +244,9 @@ function buildProbeSchema(
     ? (structuredClone(persisted) as { fields?: DataMartSchemaField[] })
     : { fields: [] };
   const fields = withDraftCalculatedFields(cloned.fields ?? [], command.calculatedFields);
+  if (command.primaryKeyFields) {
+    applyDraftPrimaryKey(fields, new Set(command.primaryKeyFields), '');
+  }
   const existing = fields.findIndex(field => field.name === command.name);
   if (existing === -1) return { fields: [...fields, probe] };
 
@@ -259,6 +262,21 @@ function buildProbeSchema(
       index === existing ? ({ ...replaced, ...probe } as DataMartSchemaField) : field
     ),
   };
+}
+
+/** Rewrites the cloned columns' `isPrimaryKey` to the editor's key, the one the save will judge. */
+function applyDraftPrimaryKey(
+  fields: readonly DataMartSchemaField[],
+  primaryKey: ReadonlySet<string>,
+  prefix: string
+): void {
+  for (const field of fields) {
+    const fullName = prefix ? `${prefix}.${field.name}` : field.name;
+    if (!isCalculatedField(field)) field.isPrimaryKey = primaryKey.has(fullName);
+    if ('fields' in field && field.fields?.length) {
+      applyDraftPrimaryKey(field.fields as DataMartSchemaField[], primaryKey, fullName);
+    }
+  }
 }
 
 /**

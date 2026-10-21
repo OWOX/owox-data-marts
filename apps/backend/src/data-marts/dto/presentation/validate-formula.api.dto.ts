@@ -86,6 +86,20 @@ export class ValidateFormulaApiDto {
   @ValidateNested({ each: true })
   @Type(() => DraftCalculatedFieldApiDto)
   calculatedFields?: DraftCalculatedFieldApiDto[];
+
+  @ApiPropertyOptional({
+    type: [String],
+    example: ['order_id'],
+    description:
+      "The columns the caller's schema editor marks as the primary key, nested ones by their " +
+      'dotted name. Sent, they replace the persisted primary-key flags for this check, so the ' +
+      'join-grain advice matches what the save will say; an empty list means no primary key. ' +
+      'Omit it and the check uses the persisted flags.',
+  })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  primaryKeyFields?: string[];
 }
 
 export class ValidateFormulaResponseApiDto {

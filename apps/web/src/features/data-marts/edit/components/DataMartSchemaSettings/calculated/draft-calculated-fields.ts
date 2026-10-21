@@ -109,6 +109,20 @@ function ownFieldNamesIn(formula: string): string[] {
     .map(ref => ref.field);
 }
 
+/** The editor's primary-key columns, nested ones by their dotted name. */
+export function collectDraftPrimaryKeyFields(fields: readonly SchemaField[]): string[] {
+  const keys: string[] = [];
+  const walk = (nodes: readonly SchemaField[], prefix: string) => {
+    for (const field of nodes) {
+      const fullName = prefix ? `${prefix}.${field.name}` : field.name;
+      if (field.isPrimaryKey && !field.calculated) keys.push(fullName);
+      if (field.fields?.length) walk(field.fields, fullName);
+    }
+  };
+  walk(fields, '');
+  return keys;
+}
+
 /** Stable empty default, so a consumer outside a provider does not re-render on identity alone. */
 const NO_DRAFT_CALCULATED_FIELDS: readonly DraftCalculatedFieldDto[] = [];
 
@@ -127,3 +141,9 @@ export const DraftCalculatedFieldsContext = createContext<readonly DraftCalculat
 
 export const useDraftCalculatedFields = (): readonly DraftCalculatedFieldDto[] =>
   useContext(DraftCalculatedFieldsContext);
+
+/** Undefined outside a provider, which the endpoint reads as "use the persisted key". */
+export const DraftPrimaryKeyFieldsContext = createContext<readonly string[] | undefined>(undefined);
+
+export const useDraftPrimaryKeyFields = (): readonly string[] | undefined =>
+  useContext(DraftPrimaryKeyFieldsContext);

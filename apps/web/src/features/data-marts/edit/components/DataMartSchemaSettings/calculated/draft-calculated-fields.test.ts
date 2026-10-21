@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { DataMartSchemaFieldStatus } from '../../../../shared/types/data-mart-schema.types';
 import {
   collectDraftCalculatedFields,
+  collectDraftPrimaryKeyFields,
   DRAFT_FORMULA_MAX_LENGTH,
   MAX_DRAFT_CALCULATED_FIELDS,
   selectDraftCalculatedFields,
@@ -105,6 +106,34 @@ describe('collectDraftCalculatedFields', () => {
  * `` `z` no longer exists in the Data Mart `` — while the menu still offers it and Save still
  * succeeds. So what must survive the cut is decided by the formula being checked, not by row order.
  */
+describe('collectDraftPrimaryKeyFields', () => {
+  it('names every key column, nested ones by their dotted path', () => {
+    const keys = collectDraftPrimaryKeyFields([
+      field({ name: 'date', isPrimaryKey: true }),
+      field({ name: 'clicks' }),
+      field({
+        name: 'event',
+        type: 'RECORD',
+        fields: [field({ name: 'id', isPrimaryKey: true }), field({ name: 'label' })],
+      }),
+    ]);
+
+    expect(keys).toEqual(['date', 'event.id']);
+  });
+
+  it('skips a calculated field, which can never be part of the key', () => {
+    const keys = collectDraftPrimaryKeyFields([
+      field({
+        name: 'revenue',
+        isPrimaryKey: true,
+        calculated: { formula: 'SUM({{ref field="amount"}})', level: 'metric' },
+      }),
+    ]);
+
+    expect(keys).toEqual([]);
+  });
+});
+
 describe('selectDraftCalculatedFields', () => {
   const draft = (name: string, formula = 'SUM(1)') => ({ name, type: 'FLOAT', formula });
   const filler = (count: number, from = 0) =>

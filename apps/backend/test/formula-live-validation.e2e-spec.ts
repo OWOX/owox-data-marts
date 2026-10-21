@@ -244,6 +244,22 @@ describe('Formula live validation API (e2e)', () => {
     expect(res.status).toBe(400);
   });
 
+  it('accepts the primary key the editor is holding, and refuses one that is not a list of names', async () => {
+    const send = (primaryKeyFields: unknown) =>
+      agent.post(`/api/data-marts/${dataMartId}/schema/validate-formula`).set(AUTH_HEADER).send({
+        name: 'roi',
+        type: 'FLOAT',
+        formula: 'SUM({{ref field="clicks"}})',
+        primaryKeyFields,
+      });
+
+    const accepted = await send(['clicks']);
+    expect(accepted.status).toBe(200);
+    expect(accepted.body.errors).toEqual([]);
+
+    expect((await send([1])).status).toBe(400);
+  });
+
   // Substitution, not blind appending: submitting under the name of an existing field REPLACES it,
   // so the formula sees the schema the save would produce. Appending instead would leave the real
   // `impressions` column in place and report nothing here.
