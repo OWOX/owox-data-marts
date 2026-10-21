@@ -466,7 +466,13 @@ describe('DataMartService canvas visibility queries', () => {
 
     expect(new Set(viewer)).toEqual(new Set(['owned', 'shared-context']));
     expect(new Set(admin)).toEqual(new Set(['shared-other-context', 'other-storage']));
-    await expect(service.findVisibleIdsByProjectIdAndIds('project-1', [])).resolves.toEqual([]);
+    await expect(
+      service.findVisibleIdsByProjectIdAndIds('project-1', [], {
+        userId: 'viewer-1',
+        roles: ['viewer'],
+        roleScope: RoleScope.SELECTED_CONTEXTS,
+      })
+    ).resolves.toEqual([]);
   });
 });
 
