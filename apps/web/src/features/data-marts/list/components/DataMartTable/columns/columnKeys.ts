@@ -5,7 +5,6 @@ export enum DataMartColumnKey {
   STATUS = 'status',
   TRIGGERS_COUNT = 'triggersCount',
   REPORTS_COUNT = 'reportsCount',
-  RELATIONSHIPS_COUNT = 'relationshipsCount',
   CREATED_AT = 'createdAt',
   CREATED_BY_USER = 'createdByUser',
   HEALTH_STATUS = 'healthStatus',

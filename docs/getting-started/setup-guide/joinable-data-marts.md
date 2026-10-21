@@ -256,12 +256,9 @@ A join can't express what a cross-fact ratio needs: one row per grain shared by 
 
 ## Find Data Marts With or Without Relationships
 
-The **Data Marts** list shows which Data Marts are joined to others, across every storage you can see:
+The **Relationships** filter in the **Data Marts** list keeps the Data Marts **With relationships** or **Without relationships**, across every storage you can see. Those without are candidates to connect, or to clean up.
 
-- The **Relationships** filter keeps the Data Marts **With relationships** or **Without relationships**. Those without are candidates to connect, or to clean up.
-- The **Relationships** column shows how many relationships each Data Mart has, and you can sort by it. It is hidden by default: turn it on in the **⋯** menu at the right end of the table header.
-
-A Data Mart's relationships are the ones it defines plus the ones that point to it, and a relationship that joins a Data Mart to itself counts once — the same number as on its card on the [Models canvas](models-canvas.md). A relationship with a Data Mart you cannot see is not counted.
+A Data Mart has relationships when it defines one or another Data Mart points to it — the Data Marts whose card on the [Models canvas](models-canvas.md) shows any relationships. A relationship with a Data Mart you cannot see does not count.
 
 Combine it with the other filters. For example, **Relationships** _With relationships_ and **Contexts** _No context_ lists the joined Data Marts that are not attached to any [context](../../project/contexts.md) yet.
 

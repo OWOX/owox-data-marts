@@ -256,22 +256,6 @@ export const getDataMartColumns = ({
     },
   },
   {
-    accessorKey: DataMartColumnKey.RELATIONSHIPS_COUNT,
-    size: 120,
-    meta: {
-      title: dataMartColumnLabels[DataMartColumnKey.RELATIONSHIPS_COUNT],
-    },
-    header: ({ column }) => (
-      <SortableHeader column={column}>
-        {dataMartColumnLabels[DataMartColumnKey.RELATIONSHIPS_COUNT]}
-      </SortableHeader>
-    ),
-    cell: ({ row }) => {
-      const count = row.original.relationshipsCount;
-      return <div className='text-muted-foreground'>{count > 0 ? count : '—'}</div>;
-    },
-  },
-  {
     id: DataMartColumnKey.BUSINESS_OWNERS,
     size: 200,
     accessorFn: row => row.businessOwnerUsers.map(u => u.fullName ?? u.email).join(', '),

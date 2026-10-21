@@ -292,7 +292,7 @@ export function buildDataMartsTableFilters(
     },
     {
       id: AdditionalFilterKeys.RELATIONSHIPS,
-      label: dataMartColumnLabels[DataMartColumnKey.RELATIONSHIPS_COUNT],
+      label: 'Relationships',
       dataType: 'enum',
       operators: ['eq', 'neq'],
       options: [
