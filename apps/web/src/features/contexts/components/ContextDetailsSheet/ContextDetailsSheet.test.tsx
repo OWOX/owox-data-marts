@@ -6,7 +6,6 @@ import { ContextDetailsSheet } from './ContextDetailsSheet';
 const { contextServiceMock, trackEventMock } = vi.hoisted(() => ({
   contextServiceMock: {
     updateContext: vi.fn(),
-    updateContextIcon: vi.fn(),
     updateContextMembers: vi.fn(),
   },
   trackEventMock: vi.fn(),
@@ -57,10 +56,9 @@ describe('ContextDetailsSheet icon', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     contextServiceMock.updateContext.mockResolvedValue(makeContext(null));
-    contextServiceMock.updateContextIcon.mockResolvedValue(makeContext(null));
   });
 
-  it('saves a picked icon together with the context', async () => {
+  it('saves a picked icon in the same request as the name and description', async () => {
     const onSaved = vi.fn();
     renderSheet(makeContext(null), onSaved);
 
@@ -71,7 +69,12 @@ describe('ContextDetailsSheet icon', () => {
     await waitFor(() => {
       expect(onSaved).toHaveBeenCalled();
     });
-    expect(contextServiceMock.updateContextIcon).toHaveBeenCalledWith('ctx-1', 'purchases');
+    expect(contextServiceMock.updateContext).toHaveBeenCalledTimes(1);
+    expect(contextServiceMock.updateContext).toHaveBeenCalledWith('ctx-1', {
+      name: 'Marketing',
+      description: '',
+      icon: 'purchases',
+    });
     expect(trackEventMock).toHaveBeenCalledWith(
       expect.objectContaining({
         event: 'context_updated',
@@ -93,7 +96,11 @@ describe('ContextDetailsSheet icon', () => {
     await waitFor(() => {
       expect(onSaved).toHaveBeenCalled();
     });
-    expect(contextServiceMock.updateContextIcon).toHaveBeenCalledWith('ctx-1', null);
+    expect(contextServiceMock.updateContext).toHaveBeenCalledWith('ctx-1', {
+      name: 'Marketing',
+      description: '',
+      icon: null,
+    });
     expect(trackEventMock).toHaveBeenCalledWith(
       expect.objectContaining({ event: 'context_updated', action: 'ResetIcon' })
     );
@@ -112,10 +119,11 @@ describe('ContextDetailsSheet icon', () => {
     await waitFor(() => {
       expect(onSaved).toHaveBeenCalled();
     });
+    // No `icon` key: the backend keeps the current icon.
     expect(contextServiceMock.updateContext).toHaveBeenCalledWith('ctx-1', {
       name: 'Growth',
       description: '',
     });
-    expect(contextServiceMock.updateContextIcon).not.toHaveBeenCalled();
+    expect(trackEventMock).not.toHaveBeenCalled();
   });
 });

@@ -3,6 +3,7 @@ import { DataStorageConfig } from '../../data-storage-types/data-storage-config.
 import { DataStorageType } from '../../data-storage-types/enums/data-storage-type.enum';
 import { UserProjectionDto } from '../../../idp/dto/domain/user-projection.dto';
 import { ContextSummary } from '../../utils/extract-context-summaries';
+import { ContextSummaryApiDto } from './context-summary-api.dto';
 
 export type DataStorageCredentialsPublic =
   | {
@@ -73,6 +74,6 @@ export class DataStorageResponseApiDto {
   @ApiProperty({ example: true })
   availableForMaintenance?: boolean;
 
-  @ApiProperty({ type: [Object] })
+  @ApiProperty({ type: [ContextSummaryApiDto] })
   contexts: ContextSummary[];
 }

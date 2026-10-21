@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { ContextIconGlyph } from './ContextIconGlyph';
 import { ContextIconPicker } from './ContextIconPicker';
+import { DataMartIconPicker } from '../../../data-marts/shared/components/DataMartIcon';
 
 describe('ContextIconGlyph', () => {
   it('draws the context default icon when none is picked or the key is unknown', () => {
@@ -49,6 +50,33 @@ describe('ContextIconPicker', () => {
     await waitFor(() => {
       expect(onChange).toHaveBeenCalledWith(null);
     });
+  });
+
+  it('opens as a modal popover, so its list stays scrollable inside a sheet', () => {
+    render(
+      <>
+        <p>Outside the picker</p>
+        <ContextIconPicker icon={null} onChange={vi.fn()} />
+      </>
+    );
+
+    open();
+
+    // A modal popover hides the rest of the page from assistive tech and owns the scroll lock.
+    expect(screen.getByText('Outside the picker').closest('[aria-hidden="true"]')).not.toBeNull();
+  });
+
+  it('leaves the Data Mart picker non-modal', () => {
+    render(
+      <>
+        <p>Outside the picker</p>
+        <DataMartIconPicker icon={null} onChange={vi.fn()} />
+      </>
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Change Data Mart icon' }));
+
+    expect(screen.getByText('Outside the picker').closest('[aria-hidden="true"]')).toBeNull();
   });
 
   it('cannot be opened while disabled', () => {

@@ -4,6 +4,7 @@ import { DataDestinationType } from '../../data-destination-types/enums/data-des
 import { UserProjectionDto } from '../../../idp/dto/domain/user-projection.dto';
 import { CredentialIdentity } from '../../entities/credential-identity.type';
 import { ContextSummary } from '../../utils/extract-context-summaries';
+import { ContextSummaryApiDto } from './context-summary-api.dto';
 import { DestinationConfig } from '../../entities/destination-config.type';
 
 export type DataDestinationCredentialsPublic = {
@@ -76,7 +77,7 @@ export class DataDestinationResponseApiDto {
   @ApiProperty({ example: true })
   availableForMaintenance?: boolean;
 
-  @ApiProperty({ type: [Object] })
+  @ApiProperty({ type: [ContextSummaryApiDto] })
   contexts!: ContextSummary[];
 
   @ApiPropertyOptional({

@@ -284,6 +284,24 @@ describe('Permissions Model Contexts & Role Scope (e2e)', () => {
       expect(reset.body.icon).toBeNull();
     });
 
+    it('PUT /api/contexts/:id → 200 saves an icon sent with the name, and null resets it', async () => {
+      const created = await createContext('A-icon-with-rename');
+      const set = await agent
+        .put(`/api/contexts/${created.body.id}`)
+        .set(AUTH_HEADER)
+        .send({ name: 'A-icon-with-rename-2', description: '', icon: 'lucide:megaphone' });
+      expect(set.status).toBe(200);
+      expect(set.body.name).toBe('A-icon-with-rename-2');
+      expect(set.body.icon).toBe('lucide:megaphone');
+
+      const reset = await agent
+        .put(`/api/contexts/${created.body.id}`)
+        .set(AUTH_HEADER)
+        .send({ name: 'A-icon-with-rename-2', description: '', icon: null });
+      expect(reset.status).toBe(200);
+      expect(reset.body.icon).toBeNull();
+    });
+
     it('PUT /api/contexts/:id/icon → 400 unknown icon or missing field', async () => {
       const created = await createContext('A-icon-invalid');
       const unknown = await agent

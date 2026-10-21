@@ -59,6 +59,19 @@ export class UpdateContextRequestApiDto {
   @IsOptional()
   @IsString()
   description?: string;
+
+  @ApiProperty({
+    type: String,
+    required: false,
+    nullable: true,
+    example: 'lucide:megaphone',
+    description: `${DATA_MART_ICON_API_DESCRIPTION} Omit to keep the current icon; null resets it to the default.`,
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(DATA_MART_ICON_MAX_LENGTH)
+  @Matches(DATA_MART_ICON_PATTERN)
+  icon?: DataMartIconValue | null;
 }
 
 export class UpdateContextIconApiDto {

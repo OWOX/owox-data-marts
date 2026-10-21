@@ -130,14 +130,16 @@ export function ContextDetailsSheet({
       if (!context) return;
       setSaving(true);
       try {
+        const nextIcon = values.icon ?? null;
+        const iconChanged = nextIcon !== (context.icon ?? null);
+        // One request for name, description and icon, so a failed save never leaves half of it.
         await contextService.updateContext(context.id, {
           name: values.name.trim(),
           description: values.description?.trim() ?? '',
+          ...(iconChanged ? { icon: nextIcon } : {}),
         });
 
-        const nextIcon = values.icon ?? null;
-        if (nextIcon !== (context.icon ?? null)) {
-          await contextService.updateContextIcon(context.id, nextIcon);
+        if (iconChanged) {
           trackEvent({
             event: 'context_updated',
             category: 'Context',

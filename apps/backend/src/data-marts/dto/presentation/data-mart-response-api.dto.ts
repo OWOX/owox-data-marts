@@ -10,6 +10,7 @@ import { ConnectorState as ConnectorStateData } from '../../connector-types/inte
 import { ConnectorStateResponseApiDto } from './connector-state-response-api.dto';
 import { BlendedFieldsConfig } from '../schemas/blended-fields-config.schema';
 import { ContextSummary } from '../../utils/extract-context-summaries';
+import { ContextSummaryApiDto } from './context-summary-api.dto';
 import { DataMartDataLastUpdatedResponseApiDto } from './data-mart-data-last-updated-response-api.dto';
 import {
   DATA_MART_ICON_API_DESCRIPTION,
@@ -82,7 +83,7 @@ export class DataMartResponseApiDto {
   @ApiProperty({ example: true })
   availableForMaintenance?: boolean;
 
-  @ApiProperty({ type: [Object] })
+  @ApiProperty({ type: [ContextSummaryApiDto] })
   contexts: ContextSummary[];
 
   @ApiProperty({

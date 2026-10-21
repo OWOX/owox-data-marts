@@ -1,6 +1,10 @@
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
-import { CreateContextRequestApiDto, UpdateContextIconApiDto } from './context-api.dto';
+import {
+  CreateContextRequestApiDto,
+  UpdateContextIconApiDto,
+  UpdateContextRequestApiDto,
+} from './context-api.dto';
 
 describe('Context icon request validation', () => {
   it.each([
@@ -35,6 +39,17 @@ describe('Context icon request validation', () => {
     ).toHaveLength(0);
     const errors = await validate(
       plainToInstance(CreateContextRequestApiDto, { ...base, icon: 'rocket' })
+    );
+    expect(errors.map(e => e.property)).toEqual(['icon']);
+  });
+
+  it('accepts an update without an icon, with a library icon or with null, and rejects an unknown one', async () => {
+    const base = { name: 'Marketing' };
+    for (const body of [base, { ...base, icon: 'lucide:megaphone' }, { ...base, icon: null }]) {
+      expect(await validate(plainToInstance(UpdateContextRequestApiDto, body))).toHaveLength(0);
+    }
+    const errors = await validate(
+      plainToInstance(UpdateContextRequestApiDto, { ...base, icon: 'rocket' })
     );
     expect(errors.map(e => e.property)).toEqual(['icon']);
   });

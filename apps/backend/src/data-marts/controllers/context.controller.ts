@@ -71,7 +71,8 @@ export class ContextController {
       id,
       context.projectId,
       dto.name,
-      dto.description
+      dto.description,
+      dto.icon
     );
     return this.contextMapper.toApiResponse(result);
   }

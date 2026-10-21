@@ -8,7 +8,11 @@ interface ContextIconPickerProps {
   disabled?: boolean;
 }
 
-/** Icon tile beside a context name; the same icon set and search as for Data Marts. */
+/**
+ * Icon tile beside a context name; the same icon set and search as for Data Marts.
+ * It lives in the Add/Configure context sheets, so the popover is modal to keep
+ * its icon list scrollable under the sheet's scroll lock.
+ */
 export function ContextIconPicker({ icon, onChange, disabled }: ContextIconPickerProps) {
   return (
     <DataMartIconPicker
@@ -21,6 +25,7 @@ export function ContextIconPicker({ icon, onChange, disabled }: ContextIconPicke
       fallbackIcon={DEFAULT_CONTEXT_ICON}
       triggerLabel='Change context icon'
       testId='contextIconPicker'
+      modal
     />
   );
 }

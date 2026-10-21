@@ -19,16 +19,12 @@ class ContextApiService extends ApiService {
     return this.post<ContextDto>('', data);
   }
 
+  /** Omit `icon` to keep the current one; null resets it to the default. */
   async updateContext(
     id: string,
-    data: { name: string; description?: string }
+    data: { name: string; description?: string; icon?: DataMartIconValue | null }
   ): Promise<ContextDto> {
     return this.put<ContextDto>(`/${id}`, data);
-  }
-
-  /** Sets the icon, or resets it to the default with null. */
-  async updateContextIcon(id: string, icon: DataMartIconValue | null): Promise<ContextDto> {
-    return this.put<ContextDto>(`/${id}/icon`, { icon });
   }
 
   async getContextImpact(id: string): Promise<ContextImpactDto> {

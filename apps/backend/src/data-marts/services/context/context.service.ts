@@ -137,11 +137,13 @@ export class ContextService {
     return entities.map(entity => this.contextMapper.toDomainDto(entity, userProjections));
   }
 
+  /** `icon` undefined keeps the current icon; null resets it to the default. */
   async update(
     contextId: string,
     projectId: string,
     name: string,
-    description?: string
+    description?: string,
+    icon?: DataMartIconValue | null
   ): Promise<ContextDto> {
     const entity = await this.getByIdAndProject(contextId, projectId);
 
@@ -149,6 +151,9 @@ export class ContextService {
 
     entity.name = name;
     entity.description = description;
+    if (icon !== undefined) {
+      entity.icon = icon;
+    }
 
     let saved: Context;
     try {

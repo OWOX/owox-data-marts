@@ -1,21 +1,4 @@
-import { ApiProperty } from '@nestjs/swagger';
-import {
-  DATA_MART_ICON_API_DESCRIPTION,
-  type DataMartIconValue,
-} from '../../enums/data-mart-icon.enum';
+import { ContextSummaryApiDto } from './context-summary-api.dto';
 
-export class DataMartListItemContextApiDto {
-  @ApiProperty({ description: 'Context identifier' })
-  id: string;
-
-  @ApiProperty({ description: 'Context display name' })
-  name: string;
-
-  @ApiProperty({
-    type: String,
-    nullable: true,
-    example: 'lucide:megaphone',
-    description: `Context icon: ${DATA_MART_ICON_API_DESCRIPTION} null means the default icon.`,
-  })
-  icon: DataMartIconValue | null;
-}
+/** Kept as its own schema name so the Data Mart list contract stays stable. */
+export class DataMartListItemContextApiDto extends ContextSummaryApiDto {}

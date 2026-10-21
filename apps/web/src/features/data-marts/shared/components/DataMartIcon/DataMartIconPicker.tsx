@@ -30,6 +30,11 @@ interface DataMartIconPickerProps {
   /** Accessible name of the tile button. */
   triggerLabel?: string;
   testId?: string;
+  /**
+   * Set inside a modal sheet or dialog: its scroll lock swallows wheel and touch
+   * scrolling on the portaled icon list unless the popover takes the lock over.
+   */
+  modal?: boolean;
 }
 
 /**
@@ -45,6 +50,7 @@ export function DataMartIconPicker({
   fallbackIcon,
   triggerLabel = 'Change Data Mart icon',
   testId = 'dataMartIconPicker',
+  modal = false,
 }: DataMartIconPickerProps) {
   const [open, setOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -125,7 +131,7 @@ export function DataMartIconPicker({
   );
 
   return (
-    <Popover open={open} onOpenChange={handleOpenChange}>
+    <Popover open={open} onOpenChange={handleOpenChange} modal={modal}>
       <PopoverTrigger asChild>
         <button
           type='button'

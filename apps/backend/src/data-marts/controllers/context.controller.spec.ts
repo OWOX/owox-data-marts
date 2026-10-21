@@ -207,10 +207,39 @@ describe('ContextController', () => {
         CONTEXT_ID,
         PROJECT_ID,
         'Marketing 2',
-        'Updated'
+        'Updated',
+        undefined
       );
       expect(contextMapper.toApiResponse).toHaveBeenCalledWith(sampleContextDto);
       expect(result.id).toBe(CONTEXT_ID);
+    });
+
+    it('passes an icon sent with the update, null included', async () => {
+      const { controller, contextService } = createController();
+      contextService.update.mockResolvedValue(sampleContextDto);
+
+      await controller.update(makeAuthContext(), CONTEXT_ID, {
+        name: 'Marketing',
+        icon: 'lucide:megaphone',
+      });
+      await controller.update(makeAuthContext(), CONTEXT_ID, { name: 'Marketing', icon: null });
+
+      expect(contextService.update).toHaveBeenNthCalledWith(
+        1,
+        CONTEXT_ID,
+        PROJECT_ID,
+        'Marketing',
+        undefined,
+        'lucide:megaphone'
+      );
+      expect(contextService.update).toHaveBeenNthCalledWith(
+        2,
+        CONTEXT_ID,
+        PROJECT_ID,
+        'Marketing',
+        undefined,
+        null
+      );
     });
   });
 

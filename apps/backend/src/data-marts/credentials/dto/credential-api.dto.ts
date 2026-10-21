@@ -21,6 +21,7 @@ import type {
 } from '../credential.types';
 import type { UserProjectionDto } from '../../../idp/dto/domain/user-projection.dto';
 import type { ContextSummary } from '../../utils/extract-context-summaries';
+import { ContextSummaryApiDto } from '../../dto/presentation/context-summary-api.dto';
 
 export class CredentialSecretApiDto {
   @ApiProperty({
@@ -224,7 +225,7 @@ export class CredentialResponseApiDto {
   })
   publicMetadata: CredentialPublicMetadata | null;
   @ApiProperty({ type: [Object] }) ownerUsers: UserProjectionDto[];
-  @ApiProperty({ type: [Object] }) contexts: ContextSummary[];
+  @ApiProperty({ type: [ContextSummaryApiDto] }) contexts: ContextSummary[];
   @ApiProperty({ type: [Object] }) usedBy: CredentialConsumerReferenceApiDto[];
   @ApiProperty() createdAt: Date;
   @ApiProperty() modifiedAt: Date;

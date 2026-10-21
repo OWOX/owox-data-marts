@@ -61,7 +61,7 @@ Each context shows an icon before its name, so contexts are easier to tell apart
 
 To pick one, click the icon tile to the left of **Name** in **Add context** or **Configure context**. The picker offers the same icons as [Data Mart icons](../getting-started/setup-guide/models-canvas.md#data-mart-icons): **Recommended** icons first, then every icon of the [Lucide](https://lucide.dev/icons/) library, with search. **Reset to default** brings back the tag icon. The icon is saved with the rest of the form when you click **Create** or **Save**. Only Project Admins can change a context's icon.
 
-Through the API, `PUT /api/contexts/{id}/icon` sets the icon (`{"icon": "lucide:megaphone"}`) or resets it (`{"icon": null}`). `POST /api/contexts` accepts an optional `icon`. An icon is a recommended key such as `purchases`, or any library icon as `lucide:<icon-name>`. The contexts list and the contexts listed on Data Marts, Storages, Destinations and Credentials return `icon`, where `null` means the default icon. MCP tools do not return context icons.
+Through the API, `PUT /api/contexts/{id}/icon` sets the icon (`{"icon": "lucide:megaphone"}`) or resets it (`{"icon": null}`). `POST /api/contexts` accepts an optional `icon`, and so does `PUT /api/contexts/{id}`: omit it to keep the current icon, or send `null` to reset it. An icon is a recommended key such as `purchases`, or any library icon as `lucide:<icon-name>`. The contexts list and the contexts listed on Data Marts, Storages, Destinations and Credentials return `icon`, where `null` means the default icon. MCP tools do not return context icons.
 
 ### Business descriptions and Data Mart links
 
