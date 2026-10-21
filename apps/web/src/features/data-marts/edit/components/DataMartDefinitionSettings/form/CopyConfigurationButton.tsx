@@ -40,7 +40,7 @@ export function CopyConfigurationButton({
   // and the document, which is exactly what people hesitate to grant again.
   const reuseHint =
     currentConnectorName === GOOGLE_SHEETS_CONNECTOR_NAME
-      ? 'Reuses the connected Google account, spreadsheet and sheet of one of your Google Sheets Data Marts. No new sign-in is needed, and you can change the spreadsheet and sheet afterwards.'
+      ? 'Reuses the Google access (signed-in account or service account key), spreadsheet and sheet of one of your Google Sheets Data Marts. No new sign-in is needed, and you can change the spreadsheet and sheet afterwards.'
       : 'Reuses the connection settings and credentials of one of your Data Marts with the same source. You can change any of them afterwards.';
 
   const loadDataMarts = useCallback(async () => {

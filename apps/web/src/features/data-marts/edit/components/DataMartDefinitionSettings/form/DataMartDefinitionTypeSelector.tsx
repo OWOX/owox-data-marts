@@ -9,6 +9,8 @@ import {
   SelectValue,
 } from '@owox/ui/components/select';
 import { Label } from '@owox/ui/components/label';
+import { FacebookAdsIcon, GoogleSheetsIcon, LinkedInAdsIcon } from '../../../../../../shared/icons';
+import type { LocalIcon } from '../../../../../../shared/icons';
 
 interface DataMartDefinitionTypeSelectorProps {
   initialType?: DataMartDefinitionType | null;
@@ -29,7 +31,18 @@ interface TypeOption {
   type: DataMartDefinitionType;
   label: string;
   description: string;
+  /**
+   * Sources shown with their logos instead of the plain description. A spreadsheet owner
+   * recognises the Google Sheets logo faster than the words "data import".
+   */
+  examples?: { name: string; icon: LocalIcon }[];
 }
+
+const POPULAR_CONNECTORS: { name: string; icon: LocalIcon }[] = [
+  { name: 'Facebook Ads', icon: FacebookAdsIcon },
+  { name: 'Google Sheets', icon: GoogleSheetsIcon },
+  { name: 'LinkedIn Ads', icon: LinkedInAdsIcon },
+];
 
 export function DataMartDefinitionTypeSelector({
   initialType,
@@ -77,6 +90,7 @@ export function DataMartDefinitionTypeSelector({
       type: DataMartDefinitionType.CONNECTOR,
       label: 'Connector',
       description: 'Facebook Ads, Google Sheets, LinkedIn Ads and more',
+      examples: POPULAR_CONNECTORS,
     },
   ];
 
@@ -102,7 +116,20 @@ export function DataMartDefinitionTypeSelector({
               {typeOptions.map(option => (
                 <SelectItem key={option.type} value={option.type}>
                   {option.label}
-                  <span className='text-muted-foreground/80 ml-2'>{option.description}</span>
+                  {option.examples ? (
+                    <span className='text-muted-foreground/80 ml-2 inline-flex items-center gap-1.5'>
+                      {option.examples.map(({ name, icon: Icon }, index) => (
+                        <span key={name} className='inline-flex items-center gap-1'>
+                          <Icon size={14} aria-hidden='true' />
+                          {name}
+                          {index < POPULAR_CONNECTORS.length - 1 ? ',' : ''}
+                        </span>
+                      ))}
+                      <span>and more</span>
+                    </span>
+                  ) : (
+                    <span className='text-muted-foreground/80 ml-2'>{option.description}</span>
+                  )}
                   {savedType === option.type && (
                     <span className='text-muted-foreground/60 ml-2'>(current)</span>
                   )}
