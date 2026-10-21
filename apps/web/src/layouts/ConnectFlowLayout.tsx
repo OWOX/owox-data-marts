@@ -1,6 +1,5 @@
 import { Outlet } from 'react-router';
 import { ThemeProvider } from '../app/providers/theme-provider.tsx';
-import { Toaster as HotToaster } from '../shared/components/Toaster';
 import { ProjectAuthGuards } from './ProjectAuthGuards';
 
 /**
@@ -19,8 +18,6 @@ export function ConnectFlowLayout() {
         <div className='bg-background flex min-h-screen items-center justify-center p-4'>
           <Outlet />
         </div>
-        {/* Pages here and the API client's error interceptor report through toasts too. */}
-        <HotToaster />
       </ProjectAuthGuards>
     </ThemeProvider>
   );

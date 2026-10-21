@@ -18,8 +18,15 @@ export interface PlatformEntryOptions {
   allowedRedirectOrigins?: string[];
 }
 
-function isRelativePath(value: string): boolean {
-  return value.startsWith('/') && !value.startsWith('//');
+/**
+ * A same-origin path. Browsers read `\` as `/` in a URL, so `/\evil.com` would leave the
+ * site like `//evil.com` does once a page assigns it to `location`; control characters are
+ * stripped before parsing and could hide the same trick.
+ */
+export function isRelativePath(value: string): boolean {
+  if (!value.startsWith('/') || value.startsWith('//')) return false;
+  // eslint-disable-next-line no-control-regex
+  return !/[\\\u0000-\u001F\u007F]/.test(value);
 }
 
 /**

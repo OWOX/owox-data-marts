@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { requestAccessRedirectTarget, storedRedirectTarget } from './post-auth-redirect';
+import {
+  isOnboardingStepPath,
+  requestAccessRedirectTarget,
+  storedRedirectTarget,
+} from './post-auth-redirect';
 
 describe('storedRedirectTarget', () => {
   it('resolves a stored placeholder link to the member project', () => {
@@ -71,5 +75,18 @@ describe('requestAccessRedirectTarget', () => {
         projectId: '42',
       })
     ).toBe('/ui/42/data-marts');
+  });
+});
+
+describe('isOnboardingStepPath', () => {
+  it.each([
+    ['/ui/p1/onboarding/invite-teammates', true],
+    ['/ui/p1/Onboarding/Invite-Teammates', true],
+    ['/ui/p1/onboarding', true],
+    ['/ui/p1/data-marts', false],
+    ['/ui/onboarding/x', false],
+    ['/onboarding/invite-teammates', false],
+  ])('%s → %s', (path, expected) => {
+    expect(isOnboardingStepPath(path)).toBe(expected);
   });
 });

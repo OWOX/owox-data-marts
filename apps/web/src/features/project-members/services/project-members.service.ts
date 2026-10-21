@@ -1,3 +1,4 @@
+import type { AxiosRequestConfig as AppRequestConfig } from '../../../app/api/apiClient';
 import { ApiService } from '../../../services/api-service';
 import type { MemberWithScopeDto } from '../../contexts/types/context.types';
 import type {
@@ -72,8 +73,17 @@ class ProjectMembersApiService extends ApiService {
     return this.put(`/${userId}`, payload);
   }
 
-  async inviteMember(payload: InviteMemberPayload): Promise<InviteMemberResponse> {
-    return this.post('/invite', payload);
+  /**
+   * `silent` skips the API client's error toast, for a caller that reports each failure itself.
+   */
+  async inviteMember(
+    payload: InviteMemberPayload,
+    options?: { silent?: boolean }
+  ): Promise<InviteMemberResponse> {
+    const config: AppRequestConfig | undefined = options?.silent
+      ? { skipErrorToast: true }
+      : undefined;
+    return this.post('/invite', payload, config);
   }
 
   async removeMember(userId: string): Promise<void> {

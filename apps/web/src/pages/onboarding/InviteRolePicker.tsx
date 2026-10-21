@@ -40,6 +40,8 @@ export function InviteRolePicker({ value, onChange, disabled = false }: InviteRo
         {ROLE_OPTIONS.map(option => (
           <DropdownMenuItem
             key={option.role}
+            role='menuitemradio'
+            aria-checked={option.role === value}
             onSelect={() => {
               onChange(option.role);
             }}

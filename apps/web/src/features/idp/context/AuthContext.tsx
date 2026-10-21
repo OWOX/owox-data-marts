@@ -11,7 +11,11 @@ import {
   isViewOnlySession,
 } from '../services';
 import { getProjectIdFromPath } from '../utils/project-id';
-import { requestAccessRedirectTarget, storedRedirectTarget } from '../utils/post-auth-redirect';
+import {
+  isOnboardingStepPath,
+  requestAccessRedirectTarget,
+  storedRedirectTarget,
+} from '../utils/post-auth-redirect';
 import {
   setTokenProvider,
   clearTokenProvider,
@@ -242,7 +246,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
           return;
         }
 
-        const storedRedirect = RedirectStorageService.retrieve();
+        // An onboarding step (the invite step after sign-up) takes the stored deep link over
+        // and continues to it once the user is done, instead of being skipped here.
+        const storedRedirect = isOnboardingStepPath(currentPath)
+          ? null
+          : RedirectStorageService.retrieve();
         if (storedRedirect) {
           RedirectStorageService.clear();
           const target = storedRedirectTarget({

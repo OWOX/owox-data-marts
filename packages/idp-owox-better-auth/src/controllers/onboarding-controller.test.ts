@@ -130,9 +130,11 @@ describe('OnboardingController invite-teammates step', () => {
     await expect(submit('/', ['editor'])).resolves.toEqual({ redirect: '/' });
   });
 
-  it('continues to the app root when the redirect is not a safe relative path', async () => {
+  it('falls back to the app root, via the invite step, for an unsafe redirect', async () => {
     const viaInviteStep = { redirect: '/ui/project-1/onboarding/invite-teammates?redirect=%2F' };
     await expect(submit('https://evil.example/ui/x')).resolves.toEqual(viaInviteStep);
     await expect(submit('//evil.example')).resolves.toEqual(viaInviteStep);
+    // A browser reads `/\` as `//`.
+    await expect(submit('/\\evil.example')).resolves.toEqual(viaInviteStep);
   });
 });

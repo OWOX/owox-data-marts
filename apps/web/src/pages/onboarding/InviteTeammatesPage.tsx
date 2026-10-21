@@ -1,12 +1,16 @@
 import { useEffect, useRef, useState, type ClipboardEvent, type KeyboardEvent } from 'react';
-import { Navigate, useNavigate, useSearchParams } from 'react-router';
+import { Navigate, useNavigate, useParams, useSearchParams } from 'react-router';
 import { CornerDownLeft, Loader2, X } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { Button } from '@owox/ui/components/button';
 import { extractApiError } from '../../app/api';
+import { useFlags } from '../../app/store/hooks';
 import { useIsAdmin } from '../../features/idp';
+import { RedirectStorageService } from '../../features/idp/services/redirect-storage.service';
+import { storedRedirectTarget } from '../../features/idp/utils/post-auth-redirect';
 import { projectMembersService } from '../../features/project-members/services/project-members.service';
 import type { Role } from '../../features/project-members/types';
+import { checkVisible } from '../../utils/check-visible';
 import { trackEvent } from '../../utils/data-layer';
 import { InviteRolePicker } from './InviteRolePicker';
 import {
@@ -25,48 +29,95 @@ const COPY = {
 };
 
 const DEFAULT_ROLE: Role = 'editor';
+const ERROR_ID = 'invite-teammates-error';
+
+interface InviteFailure {
+  email: string;
+  message: string;
+}
+
+/** The server's sentence for a failed invite (e.g. already a member), or a plain fallback. */
+function describeInviteFailure(caught: unknown): string {
+  const apiError = extractApiError(caught);
+  const message = apiError.message?.trim() ?? '';
+  if (message.length > 0) return message;
+  // A 5xx has no message; its request id is the only handle support has on the server log.
+  return apiError.requestId
+    ? `Something went wrong on our side. Request id: ${apiError.requestId}`
+    : 'Failed to send invitation';
+}
+
+/** Analytics keys GTM would otherwise carry over from an earlier push (it keeps the last value). */
+const CLEARED_EVENT_KEYS = { label: null, value: null, context: null };
 
 /**
  * First-run step shown once, right after the sign-up questionnaire: the new project's only
  * admin invites the teammates who will set the project up. Sending or skipping continues to
- * the page the sign-in flow was heading to (`?redirect=`).
+ * the deep link the user opened before signing up, or else to `?redirect=`.
  *
- * Only the OWOX sign-up questionnaire links here, and its IDP always emails the invitation
- * itself, so there is no magic link to show (unlike the Members page invite sheet).
+ * Only the OWOX sign-up questionnaire links here, and that IDP emails the invitation itself.
+ * Under any other IDP (which may answer with a one-time link to share) the step is skipped.
  */
 export function InviteTeammatesPage() {
   const isAdmin = useIsAdmin();
+  const { flags } = useFlags();
+  const isOwoxIdp = checkVisible('IDP_PROVIDER', ['owox-better-auth'], flags);
   const navigate = useNavigate();
+  const { projectId } = useParams();
   const [searchParams] = useSearchParams();
-  const continueTarget = resolveContinueTarget(searchParams.get('redirect'));
+
+  // A deep link kept by the sign-in flow (e.g. a plugin link opened before signing up) wins
+  // over `?redirect=`: the post-auth redirect leaves it to this step (see AuthContext).
+  const [storedTarget] = useState(() => {
+    const stored = RedirectStorageService.retrieve();
+    if (!stored || !projectId) return null;
+    return storedRedirectTarget({
+      storedRedirect: stored,
+      currentUrl: window.location.pathname + window.location.search,
+      projectId,
+    });
+  });
+  const continueTarget = resolveContinueTarget(storedTarget ?? searchParams.get('redirect'));
+  const canInvite = isAdmin && isOwoxIdp;
 
   const [emails, setEmails] = useState<string[]>([]);
   const [draft, setDraft] = useState('');
   const [role, setRole] = useState<Role>(DEFAULT_ROLE);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [failures, setFailures] = useState<InviteFailure[]>([]);
+  const [invitedCount, setInvitedCount] = useState(0);
   const shownTracked = useRef(false);
 
   useEffect(() => {
-    if (!isAdmin || shownTracked.current) return;
+    RedirectStorageService.clear();
+  }, []);
+
+  useEffect(() => {
+    if (!canInvite || shownTracked.current) return;
     shownTracked.current = true;
     trackEvent({
       event: 'onboarding_invite_shown',
       category: 'Onboarding',
       action: 'InviteShown',
-      label: null,
-      value: null,
+      ...CLEARED_EVENT_KEYS,
     });
-  }, [isAdmin]);
+  }, [canInvite]);
 
-  // Inviting needs the Project Admin role; anyone else just continues.
-  if (!isAdmin) {
+  // Inviting needs the Project Admin role and the OWOX IDP; otherwise just continue.
+  if (!canInvite) {
     return <Navigate to={continueTarget} replace />;
   }
 
+  const clearMessages = () => {
+    setError(null);
+    setFailures([]);
+    setInvitedCount(0);
+  };
+
   /**
    * Moves valid addresses from `text` into the list. Returns the list as it will be after
-   * the update, or null when something in `text` isn't a valid email (it stays in the input).
+   * the update, or null when `text` can't be taken as is (it then stays in the input).
    */
   const commitDraft = (text: string): string[] | null => {
     const candidates = splitEmailInput(text);
@@ -75,7 +126,9 @@ export function InviteTeammatesPage() {
     for (const candidate of candidates) {
       if (isValidEmail(candidate) && !next.includes(candidate)) next.push(candidate);
     }
+    clearMessages();
     if (next.length > MAX_INVITE_EMAILS) {
+      setDraft(text.trim());
       setError(`You can invite up to ${String(MAX_INVITE_EMAILS)} people at once.`);
       return null;
     }
@@ -85,13 +138,12 @@ export function InviteTeammatesPage() {
       setError(`"${invalid[0]}" is not a valid email address.`);
       return null;
     }
-    setError(null);
     return next;
   };
 
   const removeEmail = (email: string) => {
     setEmails(prev => prev.filter(item => item !== email));
-    setError(null);
+    clearMessages();
   };
 
   const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
@@ -109,7 +161,11 @@ export function InviteTeammatesPage() {
     const pasted = event.clipboardData.getData('text');
     if (splitEmailInput(pasted).length < 2) return;
     event.preventDefault();
-    commitDraft(`${draft} ${pasted}`);
+    // Keep what was typed around the cursor; the selection is replaced, as a paste would.
+    const input = event.currentTarget;
+    const start = input.selectionStart ?? draft.length;
+    const end = input.selectionEnd ?? draft.length;
+    commitDraft(`${draft.slice(0, start)} ${pasted} ${draft.slice(end)}`);
   };
 
   const continueToApp = () => {
@@ -117,13 +173,11 @@ export function InviteTeammatesPage() {
   };
 
   const handleSkip = () => {
-    // Null label/value: GTM would otherwise forward the role and count of an earlier send.
     trackEvent({
       event: 'onboarding_invite_skipped',
       category: 'Onboarding',
       action: 'Skip',
-      label: null,
-      value: null,
+      ...CLEARED_EVENT_KEYS,
     });
     continueToApp();
   };
@@ -137,27 +191,21 @@ export function InviteTeammatesPage() {
     }
 
     setSending(true);
-    setError(null);
+    clearMessages();
     const invited: string[] = [];
-    const failed: { email: string; message: string }[] = [];
+    const failed: InviteFailure[] = [];
     // One at a time: each invite is a call to the identity provider, and a batch of
     // parallel calls for a fresh project gains nothing but upstream rate-limit risk.
     for (const email of recipients) {
       try {
-        await projectMembersService.inviteMember({
-          email,
-          role,
-          roleScope: role === 'admin' ? undefined : 'entire_project',
-        });
+        // Silent: every failure is listed below the input, so no toast per address.
+        await projectMembersService.inviteMember(
+          { email, role, roleScope: role === 'admin' ? undefined : 'entire_project' },
+          { silent: true }
+        );
         invited.push(email);
       } catch (caught) {
-        // The server's own sentence when it wrote one (e.g. already a member). A 5xx carries
-        // none: the API client's toast reports it with the request id, so no raw Axios text here.
-        const serverMessage = extractApiError(caught).message?.trim() ?? '';
-        failed.push({
-          email,
-          message: serverMessage.length > 0 ? serverMessage : 'Failed to send invitation',
-        });
+        failed.push({ email, message: describeInviteFailure(caught) });
       }
     }
     setSending(false);
@@ -167,31 +215,32 @@ export function InviteTeammatesPage() {
         event: 'onboarding_invite_sent',
         category: 'Onboarding',
         action: 'InviteSent',
+        ...CLEARED_EVENT_KEYS,
         label: role,
         value: String(invited.length),
       });
+    }
+
+    if (failed.length === 0) {
+      // Shown by the app's toaster on the page this step continues to.
       toast.success(
         invited.length === 1
           ? `Invitation sent to ${invited[0]}`
           : `Invitations sent to ${String(invited.length)} teammates`
       );
-    }
-
-    if (failed.length === 0) {
       continueToApp();
       return;
     }
     // Keep only the addresses that failed, so a retry doesn't re-invite the others.
     setEmails(failed.map(item => item.email));
-    setError(
-      failed.length === 1
-        ? `Couldn't invite ${failed[0].email}: ${failed[0].message}`
-        : `Couldn't invite ${String(failed.length)} people. Check the addresses and try again.`
-    );
+    setFailures(failed);
+    setInvitedCount(invited.length);
   };
 
-  const pendingCount = emails.length + (draft.trim() ? 1 : 0);
-  const sendLabel = emails.length > 1 ? `Send ${String(emails.length)} invites` : 'Send invite';
+  const pendingCount =
+    emails.length + splitEmailInput(draft).filter(email => !emails.includes(email)).length;
+  const sendLabel = pendingCount > 1 ? `Send ${String(pendingCount)} invites` : 'Send invite';
+  const hasMessage = Boolean(error) || failures.length > 0;
 
   return (
     <div className='w-full max-w-xl py-8 text-center'>
@@ -200,7 +249,9 @@ export function InviteTeammatesPage() {
         {COPY.subtitle}
       </p>
 
+      {/* noValidate: the page validates each address itself, so no browser bubble. */}
       <form
+        noValidate
         className='mt-8 text-left'
         onSubmit={event => {
           event.preventDefault();
@@ -228,8 +279,11 @@ export function InviteTeammatesPage() {
                 </button>
               </span>
             ))}
+            {/* type=text: an email input rejects a typed or pasted list and trims the value. */}
             <input
-              type='email'
+              type='text'
+              inputMode='email'
+              autoComplete='off'
               value={draft}
               onChange={event => {
                 setDraft(event.target.value);
@@ -242,7 +296,8 @@ export function InviteTeammatesPage() {
               }}
               placeholder={emails.length === 0 ? 'teammate@company.com' : ''}
               aria-label='Teammate email'
-              aria-invalid={error ? true : undefined}
+              aria-invalid={hasMessage ? true : undefined}
+              aria-describedby={hasMessage ? ERROR_ID : undefined}
               disabled={sending}
               autoFocus
               className='placeholder:text-muted-foreground min-w-40 flex-1 bg-transparent py-1 text-sm outline-none'
@@ -251,10 +306,26 @@ export function InviteTeammatesPage() {
           <InviteRolePicker value={role} onChange={setRole} disabled={sending} />
         </div>
 
-        {error ? (
-          <p className='text-destructive mt-2 text-sm' role='alert'>
-            {error}
-          </p>
+        {hasMessage ? (
+          <div id={ERROR_ID} className='text-destructive mt-2 text-sm' role='alert'>
+            {error && <p>{error}</p>}
+            {failures.length > 0 && (
+              <>
+                <p>
+                  {invitedCount > 0 &&
+                    `Sent ${String(invitedCount)} ${invitedCount === 1 ? 'invitation' : 'invitations'}. `}
+                  {`Couldn't invite:`}
+                </p>
+                <ul className='mt-1 list-disc pl-5'>
+                  {failures.map(failure => (
+                    <li key={failure.email}>
+                      {failure.email}: {failure.message}
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
+          </div>
         ) : (
           <p className='text-muted-foreground mt-2 flex items-center justify-center gap-1.5 text-sm'>
             Press

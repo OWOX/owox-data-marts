@@ -1,4 +1,6 @@
 import { z } from 'zod';
+import { isSafePath } from '../../features/idp/services/redirect-storage.service';
+import { isOnboardingStepPath } from '../../features/idp/utils/post-auth-redirect';
 
 const emailSchema = z.string().email().max(320);
 
@@ -21,11 +23,12 @@ export function splitEmailInput(value: string): string[] {
 }
 
 /**
- * The page the invite step continues to. Only same-origin relative paths are accepted, and
- * never this step itself, so a crafted link can neither leave the app nor loop back here.
+ * The page the invite step continues to: the app root or a safe in-app path, and never an
+ * onboarding step itself, so a crafted link can neither leave the app nor loop back here.
  */
 export function resolveContinueTarget(raw: string | null): string {
-  if (!raw?.startsWith('/') || raw.startsWith('//') || raw.includes('\\')) return '/';
-  if (raw.includes('/onboarding/invite-teammates')) return '/';
-  return raw;
+  if (!isSafePath(raw)) return '/';
+  const target = raw.trim();
+  const pathname = target.split(/[?#]/, 1)[0];
+  return isOnboardingStepPath(pathname) ? '/' : target;
 }

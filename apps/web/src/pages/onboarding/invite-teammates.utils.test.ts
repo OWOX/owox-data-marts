@@ -18,7 +18,12 @@ describe('resolveContinueTarget', () => {
     ['https://evil.example', '/'],
     ['//evil.example', '/'],
     ['/\\evil.example', '/'],
+    ['/', '/'],
     ['/ui/p1/onboarding/invite-teammates', '/'],
+    ['/ui/p1/Onboarding/Invite-Teammates?redirect=%2F', '/'],
+    ['/ui/p1/data-marts ', '/ui/p1/data-marts'],
+    ['/ui/p1/\tdata-marts', '/'],
+    ['/auth/sign-in', '/'],
   ])('%s → %s', (raw, expected) => {
     expect(resolveContinueTarget(raw)).toBe(expected);
   });

@@ -7,6 +7,7 @@ import type { OnboardingService } from '../services/onboarding/onboarding-servic
 import { TemplateService } from '../services/rendering/template-service.js';
 import type { SaveOnboardingAnswersRequest } from '../types/index.js';
 import type { OwoxTokenFacade } from '../facades/owox-token-facade.js';
+import { isRelativePath } from '../utils/platform-redirect-builder.js';
 
 /**
  * Handles onboarding questionnaire pages and submissions.
@@ -176,8 +177,7 @@ export class OnboardingController {
   private sanitizeRedirect(value: unknown): string {
     if (typeof value !== 'string') return '/';
     const trimmed = value.trim();
-    if (!trimmed.startsWith('/') || trimmed.startsWith('//')) return '/';
-    return trimmed;
+    return isRelativePath(trimmed) ? trimmed : '/';
   }
 
   /**
@@ -185,6 +185,9 @@ export class OnboardingController {
    * Only app destinations (`/` and `/ui/...`) get the step: other targets continue a flow
    * that started elsewhere (MCP authorization, an add-on sign-in) and must not be interrupted.
    * Inviting needs the admin role, so other roles go straight on.
+   *
+   * The path is the web app's `/ui/:projectId/onboarding/invite-teammates` route
+   * (apps/web/src/routes/index.tsx); both ship in one release, so rename them together.
    */
   private withInviteTeammatesStep(redirect: string, projectId: string, userRole: string): string {
     if (userRole !== 'admin' || !projectId) return redirect;

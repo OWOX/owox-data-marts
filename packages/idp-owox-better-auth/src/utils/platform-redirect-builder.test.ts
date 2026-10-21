@@ -129,6 +129,15 @@ describe('platform-redirect-builder', () => {
     expect(url).toBeNull();
   });
 
+  it('drops relative-looking redirects that a browser would send off-site', () => {
+    const allowed = ['https://platform.test'];
+    expect(sanitizeRedirectParam('/\\evil.test', allowed)).toBeUndefined();
+    expect(sanitizeRedirectParam('/\t/evil.test', allowed)).toBeUndefined();
+    expect(sanitizeRedirectParam('/ui/p1/data-marts?tab=all', allowed)).toBe(
+      '/ui/p1/data-marts?tab=all'
+    );
+  });
+
   it('drops absolute redirects when allowed origins are missing', () => {
     expect(sanitizeRedirectParam('https://platform.test/path', undefined)).toBeUndefined();
     expect(sanitizeRedirectParam('/relative', undefined)).toBe('/relative');

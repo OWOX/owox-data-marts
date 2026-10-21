@@ -540,7 +540,10 @@ const storageIcons = {
   // Validate redirect is a safe relative path
   const urlParams = new URLSearchParams(window.location.search);
   const rawRedirect = urlParams.get('redirect') || '/';
-  const redirectUrl = (rawRedirect.startsWith('/') && !rawRedirect.startsWith('//')) ? rawRedirect : '/';
+  // Browsers read a backslash as a slash, so `/\evil.com` would leave the site like `//evil.com`.
+  const isSafeRelative = rawRedirect.startsWith('/') && !rawRedirect.startsWith('//') &&
+    !/[\\\u0000-\u001F\u007F]/.test(rawRedirect);
+  const redirectUrl = isSafeRelative ? rawRedirect : '/';
 
   function showStep(step) {
     const container = document.getElementById('onboarding-container');
