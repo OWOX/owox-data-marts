@@ -23,7 +23,7 @@ export function LoadingProvider({ children }: LoadingProviderProps) {
       },
       (error: AxiosError) => {
         // Only decrement if the request would have incremented
-        if (!(error.config as unknown as AxiosRequestConfig).skipLoadingIndicator) {
+        if (!(error.config as AxiosRequestConfig | undefined)?.skipLoadingIndicator) {
           setPendingRequests(prev => Math.max(0, prev - 1));
         }
         return Promise.reject(error);
@@ -41,7 +41,7 @@ export function LoadingProvider({ children }: LoadingProviderProps) {
       },
       (error: AxiosError) => {
         // Only decrement if the request would have incremented
-        if (!(error.config as unknown as AxiosRequestConfig).skipLoadingIndicator) {
+        if (!(error.config as AxiosRequestConfig | undefined)?.skipLoadingIndicator) {
           setPendingRequests(prev => Math.max(0, prev - 1));
         }
         return Promise.reject(error);

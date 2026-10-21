@@ -99,7 +99,8 @@ apiClient.interceptors.response.use(
           })
         );
 
-        return Promise.reject(new Error('Token refresh failed'));
+        // Keep request options for downstream interceptors, including silent loading behavior.
+        return Promise.reject(new AxiosError('Token refresh failed', undefined, originalRequest));
       };
 
       let newAccessToken: string;
