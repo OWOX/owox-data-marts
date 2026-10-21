@@ -9,6 +9,8 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
+import { InvalidQueryColumnsException } from '../errors/invalid-query-columns.exception';
+import { InvalidOutputControlsException } from '../errors/invalid-output-controls.exception';
 import type { Response } from 'express';
 import { DataDestinationType } from '../data-destination-types/enums/data-destination-type.enum';
 import { usesSuffixedJoinedFieldNames } from '../dto/domain/report-like-read-plan';
@@ -551,13 +553,18 @@ describe('StreamHttpDataService', () => {
   });
 
   it.each([
-    new BusinessViolationException('Unknown column: ghost', { columns: ['ghost'] }),
-    new BadRequestException('Invalid output controls'),
-    new HttpException('Invalid query configuration', HttpStatus.BAD_REQUEST),
+    new InvalidQueryColumnsException('Unknown column: private@example.com', {
+      columns: ['private@example.com'],
+    }),
+    new InvalidOutputControlsException('Invalid output controls for private@example.com'),
   ])('rejects invalid configuration without a run or run-id header: %s', async error => {
-    columnValidator.validate.mockImplementationOnce(() => {
-      throw error;
-    });
+    if (error instanceof InvalidQueryColumnsException) {
+      columnValidator.validate.mockImplementationOnce(() => {
+        throw error;
+      });
+    } else {
+      blended.resolveBlendingDecision.mockRejectedValueOnce(error);
+    }
     const log = jest.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined);
     const res = mockResponse();
 
@@ -568,23 +575,102 @@ describe('StreamHttpDataService', () => {
       expect(projectBilling.registerHttpDataRunConsumption).not.toHaveBeenCalled();
       expect(res.setHeader).not.toHaveBeenCalled();
       expect(res.flushHeaders).not.toHaveBeenCalled();
-      expect(log).toHaveBeenCalledWith(expect.stringContaining(error.message));
+      expect(log).toHaveBeenCalledWith('Rejected data request', {
+        dataMartId: 'dm-1',
+        projectId: 'proj-1',
+        reason: error.constructor.name,
+      });
+      expect(JSON.stringify(log.mock.calls)).not.toContain('private@example.com');
     } finally {
       log.mockRestore();
     }
   });
 
-  it('preserves a reader validation error without mapping it to a storage failure or recording a run', async () => {
+  it('records a failure when the Data Mart has no available columns', async () => {
+    const error = new BusinessViolationException(
+      'No columns available for the requested Data Mart'
+    );
+    columnResolver.resolve.mockImplementationOnce(() => {
+      throw error;
+    });
+
+    await expect(service.stream(fakeCommand(), mockResponse())).rejects.toBe(error);
+    expect(dataMartRunService.recordHttpDataRun).toHaveBeenCalledWith(
+      expect.objectContaining({ status: DataMartRunStatus.FAILED, errors: [error.message] })
+    );
+  });
+
+  it('records and maps a business error raised while preparing the storage reader', async () => {
     const error = new BusinessViolationException('Selected column is disconnected');
     reader.prepareReportData.mockRejectedValueOnce(error);
     const res = mockResponse();
 
-    await expect(service.stream(fakeCommand(), res)).rejects.toBe(error);
+    await expect(service.stream(fakeCommand(), res)).rejects.toMatchObject({
+      status: HttpStatus.FAILED_DEPENDENCY,
+    });
 
-    expect(dataMartRunService.recordHttpDataRun).not.toHaveBeenCalled();
+    expect(dataMartRunService.recordHttpDataRun).toHaveBeenCalledWith(
+      expect.objectContaining({ status: DataMartRunStatus.FAILED })
+    );
     expect(reader.finalize).toHaveBeenCalledTimes(1);
     expect(res.setHeader).not.toHaveBeenCalled();
     expect(res.flushHeaders).not.toHaveBeenCalled();
+  });
+
+  it('records and maps a missing storage configuration during schema actualization', async () => {
+    const error = new BusinessViolationException('DataMart storage config must be provided');
+    dataMartService.actualizeSchemaInEntityIfExpired.mockRejectedValueOnce(error);
+    const res = mockResponse();
+
+    await expect(service.stream(fakeCommand(), res)).rejects.toMatchObject({
+      status: HttpStatus.FAILED_DEPENDENCY,
+      response: expect.objectContaining({ code: 'STORAGE_READ_FAILED' }),
+    });
+
+    expect(errorMapper.toStorageReadError).toHaveBeenCalledWith(error, { force: true });
+    expect(dataMartRunService.recordHttpDataRun).toHaveBeenCalledWith(
+      expect.objectContaining({ status: DataMartRunStatus.FAILED })
+    );
+    expect(readerResolver.resolve).not.toHaveBeenCalled();
+    expect(res.setHeader).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    new BusinessViolationException('The calculated field has an invalid saved formula'),
+    new BadRequestException('Saved Data Mart configuration is invalid'),
+  ])('records an owner configuration failure during SQL composition: %s', async error => {
+    requestValidator.validate.mockReturnValueOnce({
+      columnSelector: { mode: 'explicit', explicit: ['date', 'revenue'] },
+      sort: [{ column: 'date', direction: 'asc' }],
+    });
+    sqlComposer.compose.mockRejectedValueOnce(error);
+    const res = mockResponse();
+
+    await expect(service.stream(fakeCommand(), res)).rejects.toBe(error);
+
+    expect(dataMartRunService.recordHttpDataRun).toHaveBeenCalledWith(
+      expect.objectContaining({ status: DataMartRunStatus.FAILED, errors: [error.message] })
+    );
+    expect(projectBilling.registerHttpDataRunConsumption).not.toHaveBeenCalled();
+    expect(res.setHeader).not.toHaveBeenCalled();
+  });
+
+  it('records a source access failure without writing its identity details to the rejection log', async () => {
+    const error = new BusinessViolationException(
+      'Cannot build report SQL, user "reader@example.com" is missing access to data marts: joined'
+    );
+    blended.resolveBlendingDecision.mockRejectedValueOnce(error);
+    const log = jest.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined);
+
+    try {
+      await expect(service.stream(fakeCommand(), mockResponse())).rejects.toBe(error);
+      expect(dataMartRunService.recordHttpDataRun).toHaveBeenCalledWith(
+        expect.objectContaining({ status: DataMartRunStatus.FAILED, errors: [error.message] })
+      );
+      expect(JSON.stringify(log.mock.calls)).not.toContain('reader@example.com');
+    } finally {
+      log.mockRestore();
+    }
   });
 
   it('keeps a run and its ID when a later batch fails after rows have already been delivered', async () => {
@@ -1658,6 +1744,8 @@ describe('StreamHttpDataService', () => {
 
     it.each([
       new BusinessViolationException('Report references a column that no longer exists'),
+      new InvalidQueryColumnsException('Disconnected saved report column'),
+      new InvalidOutputControlsException('Invalid saved output controls'),
       new BadRequestException('Invalid saved output controls'),
       new HttpException('Invalid saved query configuration', HttpStatus.BAD_REQUEST),
       new Error('Query planning failed unexpectedly'),
@@ -1873,7 +1961,7 @@ describe('StreamHttpDataService', () => {
      * already right while nothing carried them all the way out.
      */
     describe('for an Excel report', () => {
-      function excelReport(overrides: Record<string, unknown> = {}) {
+      function excelReport() {
         return {
           id: 'report-1',
           dataMart: { id: 'dm-1' },
@@ -1885,20 +1973,19 @@ describe('StreamHttpDataService', () => {
           dateTruncConfig: null,
           uniqueCountConfig: null,
           limitConfig: null,
-          ...overrides,
         } as never;
       }
 
       it.each([
         new BusinessViolationException('Report references a column that no longer exists'),
-        new BadRequestException('Invalid saved output controls'),
+        new InvalidQueryColumnsException('Disconnected saved report column'),
+        new InvalidOutputControlsException('Invalid saved output controls'),
         new HttpException('Invalid saved query configuration', HttpStatus.BAD_REQUEST),
       ])(
         'records the failed run and marks the report failed for invalid saved configuration: %s',
         async error => {
-          reportService.getByIdAndProjectId.mockResolvedValueOnce(
-            excelReport({ lastRunStatus: ReportRunStatus.SUCCESS })
-          );
+          const report = excelReport();
+          reportService.getByIdAndProjectId.mockResolvedValueOnce(report);
           blended.resolveBlendingDecision.mockRejectedValueOnce(error);
           const res = mockResponse();
 
@@ -1910,6 +1997,7 @@ describe('StreamHttpDataService', () => {
               type: DataMartRunType.EXCEL,
               status: DataMartRunStatus.FAILED,
               reportId: 'report-1',
+              report,
               errors: [error.message],
             })
           );

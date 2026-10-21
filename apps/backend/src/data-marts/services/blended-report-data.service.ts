@@ -45,6 +45,7 @@ import { BusinessViolationException } from '../../common/exceptions/business-vio
 import { buildDataMartUrl } from '../../common/helpers/data-mart-url.helper';
 import { UserProjectionsFetcherService } from './user-projections-fetcher.service';
 import { throwDisconnectedReportColumnsError } from '../errors/disconnected-report-columns.error';
+import { InvalidQueryColumnsException } from '../errors/invalid-query-columns.exception';
 import { buildBlendedFieldIndex } from './blended-field-index';
 import { buildJoinedUniqueCountColumnName } from './blended-field-name';
 import { collectKnownOutputColumns, withoutUnknownSortColumns } from './known-output-columns.util';
@@ -937,7 +938,7 @@ export class BlendedReportDataService {
     );
     if (refusals.length === 0) return;
 
-    throw new BusinessViolationException(refusals.map(r => r.message).join(' '), {
+    throw new InvalidQueryColumnsException(refusals.map(r => r.message).join(' '), {
       dataMartId: dataMart.id,
       joinedCalculatedColumns: refusals.map(r => r.column),
     });

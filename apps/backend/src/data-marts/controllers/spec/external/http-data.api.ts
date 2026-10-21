@@ -164,8 +164,9 @@ export function StreamHttpDataSpec() {
         'forbidden pagination parameter (`pageToken`/`offset`), malformed ' +
         'filter/sort/aggregation/dateTrunc/limit, aggregation or dateTrunc without an explicit ' +
         '`column` projection, unsupported storage type, or a project blocked because it is ' +
-        'inactive or has exceeded its credit limit. Invalid query configuration creates no run ' +
-        'and returns no `x-owox-run-id` header. Project blocks are recorded as RESTRICTED runs.',
+        'inactive or has exceeded its credit limit. Invalid query parameters create no run. ' +
+        'Errors in saved Data Mart configuration create a FAILED run. Project blocks create ' +
+        'RESTRICTED runs. No 400 response carries an `x-owox-run-id` header.',
     }),
     ApiResponse({
       status: 403,
@@ -236,9 +237,10 @@ export function StreamHttpReportDataSpec() {
     ApiResponse({
       status: 400,
       description:
-        'An unsupported query parameter or invalid `limit` creates no run. Invalid saved report ' +
-        'output controls create a FAILED run. Project restrictions create a RESTRICTED run. ' +
-        'Errors before streaming starts return no `x-owox-run-id` header.',
+        'An unsupported query parameter or invalid `limit` creates no run. Saved report output ' +
+        'controls rejected during validation create a FAILED run. Storage rejections return ' +
+        '424. Project restrictions create a RESTRICTED run. No 400 response carries an ' +
+        '`x-owox-run-id` header.',
     }),
     ApiResponse({ status: 401, description: 'Missing or invalid `x-owox-authorization` token.' }),
     ApiResponse({
@@ -251,7 +253,9 @@ export function StreamHttpReportDataSpec() {
     }),
     ApiResponse({
       status: 424,
-      description: 'Storage dependency failed while preparing or reading the report data.',
+      description:
+        'Storage dependency failed while preparing or reading the report data. A FAILED run ' +
+        'is recorded, including when storage rejects saved report configuration.',
     })
   );
 }

@@ -17,6 +17,7 @@ import { OutputControlsCapabilityService } from './output-controls-capability.se
 import { BlendableSchemaAccessor, BlendableSchemaService } from './blendable-schema.service';
 import { BlendableSchemaDto } from '../dto/domain/blendable-schema.dto';
 import { throwDisconnectedReportColumnsError } from '../errors/disconnected-report-columns.error';
+import { InvalidOutputControlsException } from '../errors/invalid-output-controls.exception';
 import {
   JoinedUniqueCountAvailability,
   collectSchemaFieldPathTypes,
@@ -800,7 +801,7 @@ export class OutputControlsValidatorService {
     }
 
     if (!this.capabilityService.isSupported(args.storageType)) {
-      throw new BadRequestException({
+      throw new InvalidOutputControlsException({
         message: 'Output controls not yet supported for this storage type',
         details: {
           errors: [{ code: 'OUTPUT_CONTROLS_NOT_SUPPORTED', storageType: args.storageType }],
@@ -815,7 +816,7 @@ export class OutputControlsValidatorService {
     if (args.filterConfig != null) {
       const result = FilterConfigSchema.safeParse(args.filterConfig);
       if (!result.success) {
-        throw new BadRequestException({
+        throw new InvalidOutputControlsException({
           message: 'Filter config has invalid shape',
           details: { errors: result.error.issues },
         });
@@ -825,7 +826,7 @@ export class OutputControlsValidatorService {
     if (args.sortConfig != null) {
       const result = SortConfigSchema.safeParse(args.sortConfig);
       if (!result.success) {
-        throw new BadRequestException({
+        throw new InvalidOutputControlsException({
           message: 'Sort config has invalid shape',
           details: { errors: result.error.issues },
         });
@@ -835,7 +836,7 @@ export class OutputControlsValidatorService {
     if (args.aggregationConfig != null) {
       const result = AggregationConfigSchema.safeParse(args.aggregationConfig);
       if (!result.success) {
-        throw new BadRequestException({
+        throw new InvalidOutputControlsException({
           message: 'Aggregation config has invalid shape',
           details: { errors: result.error.issues },
         });
@@ -845,7 +846,7 @@ export class OutputControlsValidatorService {
     if (args.dateTruncConfig != null) {
       const result = DateTruncConfigSchema.safeParse(args.dateTruncConfig);
       if (!result.success) {
-        throw new BadRequestException({
+        throw new InvalidOutputControlsException({
           message: 'Date-trunc config has invalid shape',
           details: { errors: result.error.issues },
         });
@@ -1454,7 +1455,11 @@ export class OutputControlsValidatorService {
 
   private throwIfInvalid(errors: ValidationError[]): void {
     if (errors.length > 0) {
-      throw new BadRequestException({
+      // A broken saved formula is a Data Mart failure, even when a caller selects it in a query.
+      const Exception = errors.some(error => error.code === 'CALCULATED_FIELD_BROKEN_REFERENCES')
+        ? BadRequestException
+        : InvalidOutputControlsException;
+      throw new Exception({
         // The summary rides in `message` and not only in `details`: a failed scheduled run stores
         // the exception's message alone (`BaseReportRun.markAsUnsuccessful`), and so does every
         // client that never learned the `details.errors` envelope. Same shape as the web toast's

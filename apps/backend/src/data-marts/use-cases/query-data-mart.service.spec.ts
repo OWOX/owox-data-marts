@@ -772,13 +772,13 @@ describe('QueryDataMartService', () => {
     });
 
     it.each([
-      new Error('unknown column: nope_field'),
+      new Error('SQL composition failed'),
       new BusinessViolationException('Unknown column: nope_field'),
       new BadRequestException({
         message: 'Invalid output controls',
         details: { errors: [{ code: 'SORT_COLUMN_NOT_SELECTED', column: 'nope_field' }] },
       }),
-    ])('rethrows a compose-time rejection without a run or billing: %s', async error => {
+    ])('preserves compose-time errors without a run or billing: %s', async error => {
       const { service, composer, reader, dataMartRunService, readerResolver, projectBilling } =
         createService();
       composer.compose.mockRejectedValue(error);

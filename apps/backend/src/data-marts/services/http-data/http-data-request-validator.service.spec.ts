@@ -11,7 +11,26 @@ describe('HttpDataRequestValidator', () => {
       const log = jest.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined);
       try {
         expect(() => validator[method]({ limit: '0' })).toThrow(BusinessViolationException);
-        expect(log).toHaveBeenCalledWith(expect.stringContaining('limit must be'));
+        expect(log).toHaveBeenCalledTimes(1);
+        expect(log).toHaveBeenCalledWith('Rejected data request: invalid query parameters', {
+          issues: expect.arrayContaining([expect.objectContaining({ path: ['limit'] })]),
+        });
+      } finally {
+        log.mockRestore();
+      }
+    }
+  );
+
+  it.each(['validate', 'validateReportQuery'] as const)(
+    '%s keeps query values and unknown keys out of validation logs',
+    method => {
+      const log = jest.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined);
+      try {
+        expect(() =>
+          validator[method]({ limit: 'private@example.com', 'private@example.com': 'value' })
+        ).toThrow(BusinessViolationException);
+        expect(log).toHaveBeenCalledTimes(1);
+        expect(JSON.stringify(log.mock.calls)).not.toContain('private@example.com');
       } finally {
         log.mockRestore();
       }
