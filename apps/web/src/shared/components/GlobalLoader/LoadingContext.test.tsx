@@ -30,7 +30,7 @@ function pendingResponse() {
   return { adapter, finish };
 }
 
-describe('LoadingProvider with the API interceptors', () => {
+describe('LoadingProvider with the API client', () => {
   beforeEach(() => {
     clearTokenProvider();
   });
@@ -136,6 +136,59 @@ describe('LoadingProvider with the API interceptors', () => {
     expect(result.current.isLoading).toBe(false);
   });
 
+  it.each(['serialization', 'adapter', 'auth header'])(
+    'keeps a foreground request loading when a silent %s failure has no request config',
+    async scenario => {
+      const { result } = renderHook(useLoading, { wrapper: LoadingProvider });
+      const foreground = pendingResponse();
+      const failure: Error = Object.freeze(new Error('Request preparation failed'));
+      let request!: Promise<AxiosResponse>;
+      let caught: unknown;
+
+      await act(async () => {
+        request = apiClient.get('/data-marts', { adapter: foreground.adapter });
+      });
+      expect(result.current.isLoading).toBe(true);
+
+      try {
+        if (scenario === 'auth header') {
+          setTokenProvider({
+            getAccessToken: () => {
+              throw failure;
+            },
+            refreshToken: async () => 'unused-token',
+          });
+        }
+        await act(async () => {
+          caught = await apiClient
+            .post('/search', scenario === 'serialization' ? { value: 1n } : {}, {
+              skipLoadingIndicator: true,
+              adapter: async () => {
+                throw failure;
+              },
+            } as AxiosRequestConfig)
+            .catch((error: unknown) => error);
+        });
+
+        if (scenario === 'serialization') {
+          expect(caught).toBeInstanceOf(TypeError);
+          expect((caught as Error).message).toMatch(/BigInt/i);
+        } else {
+          expect(caught).toBe(failure);
+        }
+        expect(caught).not.toHaveProperty('config');
+        expect(result.current.isLoading).toBe(true);
+      } finally {
+        await act(async () => {
+          foreground.finish();
+          await request;
+        });
+      }
+
+      expect(result.current.isLoading).toBe(false);
+    }
+  );
+
   it.each([AxiosError.ERR_NETWORK, AxiosError.ECONNABORTED, AxiosError.ERR_CANCELED])(
     'preserves a silent %s failure without finishing another request',
     async code => {
@@ -203,5 +256,95 @@ describe('LoadingProvider with the API interceptors', () => {
       await request;
     });
     expect(result.current.isLoading).toBe(false);
+  });
+
+  const calls: [string, (config: AxiosRequestConfig) => Promise<AxiosResponse>][] = [
+    ['client(config)', config => apiClient({ ...config, url: '/data-marts' })],
+    ['client(url, config)', config => apiClient('/data-marts', config)],
+    ['request(config)', config => apiClient.request({ ...config, url: '/data-marts' })],
+    ['get', config => apiClient.get('/data-marts', config)],
+    ['delete', config => apiClient.delete('/data-marts', config)],
+    ['head', config => apiClient.head('/data-marts', config)],
+    ['options', config => apiClient.options('/data-marts', config)],
+    ['post', config => apiClient.post('/data-marts', {}, config)],
+    ['put', config => apiClient.put('/data-marts', {}, config)],
+    ['patch', config => apiClient.patch('/data-marts', {}, config)],
+    ['query', config => apiClient.query('/data-marts', {}, config)],
+    ['postForm', config => apiClient.postForm('/data-marts', {}, config)],
+    ['putForm', config => apiClient.putForm('/data-marts', {}, config)],
+    ['patchForm', config => apiClient.patchForm('/data-marts', {}, config)],
+  ];
+
+  it.each(calls)('tracks only foreground requests through %s', async (_name, send) => {
+    const { result } = renderHook(useLoading, { wrapper: LoadingProvider });
+
+    for (const skipLoadingIndicator of [false, true]) {
+      const pending = pendingResponse();
+      let request!: Promise<AxiosResponse>;
+
+      await act(async () => {
+        request = send({ adapter: pending.adapter, skipLoadingIndicator });
+      });
+      try {
+        expect(result.current.isLoading).toBe(!skipLoadingIndicator);
+      } finally {
+        await act(async () => {
+          pending.finish();
+          await request;
+        });
+      }
+      expect(result.current.isLoading).toBe(false);
+    }
+  });
+
+  it('stays loading until every foreground request finishes', async () => {
+    const { result } = renderHook(useLoading, { wrapper: LoadingProvider });
+    const first = pendingResponse();
+    const second = pendingResponse();
+    let firstRequest!: Promise<AxiosResponse>;
+    let secondRequest!: Promise<AxiosResponse>;
+
+    await act(async () => {
+      firstRequest = apiClient.get('/data-marts', { adapter: first.adapter });
+      secondRequest = apiClient.get('/data-storages', { adapter: second.adapter });
+    });
+
+    try {
+      expect(result.current.isLoading).toBe(true);
+      await act(async () => {
+        first.finish();
+        await firstRequest;
+      });
+      expect(result.current.isLoading).toBe(true);
+    } finally {
+      await act(async () => {
+        first.finish();
+        second.finish();
+        await Promise.all([firstRequest, secondRequest]);
+      });
+    }
+    expect(result.current.isLoading).toBe(false);
+  });
+
+  it('keeps tracking an in-flight request when the loading provider remounts', async () => {
+    const mounted = renderHook(useLoading, { wrapper: LoadingProvider });
+    const pending = pendingResponse();
+    let request!: Promise<AxiosResponse>;
+
+    await act(async () => {
+      request = apiClient.get('/data-marts', { adapter: pending.adapter });
+    });
+    mounted.unmount();
+    const remounted = renderHook(useLoading, { wrapper: LoadingProvider });
+
+    try {
+      expect(remounted.result.current.isLoading).toBe(true);
+    } finally {
+      await act(async () => {
+        pending.finish();
+        await request;
+      });
+    }
+    expect(remounted.result.current.isLoading).toBe(false);
   });
 });

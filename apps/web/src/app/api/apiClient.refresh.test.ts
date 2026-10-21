@@ -9,15 +9,13 @@ vi.mock('./token-provider', () => ({
 }));
 
 // The instance must be callable: the interceptor retries the original request through it.
-vi.mock('axios', async importOriginal => {
-  const { AxiosError } = await importOriginal<typeof import('axios')>();
+vi.mock('axios', () => {
   const instance = Object.assign(vi.fn(), {
     interceptors: { request: { use: vi.fn() }, response: { use: vi.fn() } },
   });
   return {
     __esModule: true,
     default: { create: vi.fn().mockReturnValue(instance) },
-    AxiosError,
     AxiosHeaders: vi.fn(),
   };
 });

@@ -9,6 +9,7 @@ import { showApiErrorToast } from '../../shared/utils';
 import { isBlockedUserError } from '../../features/idp/services/auth-api.service';
 import { AuthStateManager } from './auth-state-manager';
 import { getTokenProvider } from './token-provider';
+import { withLoadingIndicator } from './api-loading';
 
 // Extend AxiosRequestConfig to include our custom properties
 export interface AxiosRequestConfig extends OriginalAxiosRequestConfig {
@@ -37,7 +38,7 @@ const axiosConfig: AxiosRequestConfig = {
   },
 };
 
-const apiClient: AxiosInstance = axios.create(axiosConfig);
+const apiClient: AxiosInstance = withLoadingIndicator(axios.create(axiosConfig));
 
 /**
  * Rejections this interceptor already reported with a toast (400, 403, 404, 5xx). A caller that
@@ -99,8 +100,7 @@ apiClient.interceptors.response.use(
           })
         );
 
-        // Keep request options for downstream interceptors, including silent loading behavior.
-        return Promise.reject(new AxiosError('Token refresh failed', undefined, originalRequest));
+        return Promise.reject(new Error('Token refresh failed'));
       };
 
       let newAccessToken: string;
