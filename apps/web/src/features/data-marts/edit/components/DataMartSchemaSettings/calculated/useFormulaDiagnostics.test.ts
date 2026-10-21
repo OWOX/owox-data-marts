@@ -146,11 +146,6 @@ describe('useFormulaDiagnostics', () => {
     );
   });
 
-  /**
-   * The schema editor defers its save, so the check has to be told what the editor is holding or
-   * it resolves a sibling reference against the schema on disk and calls it missing — in the one
-   * flow this feature exists for.
-   */
   describe('the primary key the editor is holding', () => {
     it('sends it with the formula, an empty one included', async () => {
       renderHook(props => useFormulaDiagnostics(props), {
@@ -180,6 +175,11 @@ describe('useFormulaDiagnostics', () => {
     });
   });
 
+  /**
+   * The schema editor defers its save, so the check has to be told what the editor is holding or
+   * it resolves a sibling reference against the schema on disk and calls it missing — in the one
+   * flow this feature exists for.
+   */
   describe('the draft the editor is holding', () => {
     const drafted = [{ name: 'revenue', type: 'FLOAT', formula: 'SUM({{ref field="amount"}})' }];
 

@@ -99,13 +99,6 @@ describe('collectDraftCalculatedFields', () => {
   });
 });
 
-/**
- * A draft past the endpoint's count cannot be sent whole, and what is left out does not merely go
- * unresolved: the probe REPLACES the persisted formulas, so a dropped sibling disappears even when
- * it is saved on disk, and the answer is the same sentence a genuinely missing field gets —
- * `` `z` no longer exists in the Data Mart `` — while the menu still offers it and Save still
- * succeeds. So what must survive the cut is decided by the formula being checked, not by row order.
- */
 describe('collectDraftPrimaryKeyFields', () => {
   it('names every key column, nested ones by their dotted path', () => {
     const keys = collectDraftPrimaryKeyFields([
@@ -134,6 +127,13 @@ describe('collectDraftPrimaryKeyFields', () => {
   });
 });
 
+/**
+ * A draft past the endpoint's count cannot be sent whole, and what is left out does not merely go
+ * unresolved: the probe REPLACES the persisted formulas, so a dropped sibling disappears even when
+ * it is saved on disk, and the answer is the same sentence a genuinely missing field gets —
+ * `` `z` no longer exists in the Data Mart `` — while the menu still offers it and Save still
+ * succeeds. So what must survive the cut is decided by the formula being checked, not by row order.
+ */
 describe('selectDraftCalculatedFields', () => {
   const draft = (name: string, formula = 'SUM(1)') => ({ name, type: 'FLOAT', formula });
   const filler = (count: number, from = 0) =>

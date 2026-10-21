@@ -245,7 +245,7 @@ function buildProbeSchema(
     : { fields: [] };
   const fields = withDraftCalculatedFields(cloned.fields ?? [], command.calculatedFields);
   if (command.primaryKeyFields) {
-    applyDraftPrimaryKey(fields, new Set(command.primaryKeyFields), '');
+    applyDraftPrimaryKey(fields, new Set(command.primaryKeyFields));
   }
   const existing = fields.findIndex(field => field.name === command.name);
   if (existing === -1) return { fields: [...fields, probe] };
@@ -264,19 +264,25 @@ function buildProbeSchema(
   };
 }
 
-/** Rewrites the cloned columns' `isPrimaryKey` to the editor's key, the one the save will judge. */
+// Sets the editor's key, the one the save judges; a key column the probe lacks (renamed in the
+// editor) keeps the persisted flags, since part of a key reads as a narrower key.
 function applyDraftPrimaryKey(
   fields: readonly DataMartSchemaField[],
-  primaryKey: ReadonlySet<string>,
-  prefix: string
+  primaryKey: ReadonlySet<string>
 ): void {
-  for (const field of fields) {
-    const fullName = prefix ? `${prefix}.${field.name}` : field.name;
-    if (!isCalculatedField(field)) field.isPrimaryKey = primaryKey.has(fullName);
-    if ('fields' in field && field.fields?.length) {
-      applyDraftPrimaryKey(field.fields as DataMartSchemaField[], primaryKey, fullName);
+  const columns = new Map<string, DataMartSchemaField>();
+  const walk = (nodes: readonly DataMartSchemaField[], prefix: string) => {
+    for (const field of nodes) {
+      const fullName = prefix ? `${prefix}.${field.name}` : field.name;
+      if (!isCalculatedField(field)) columns.set(fullName, field);
+      if ('fields' in field && field.fields?.length) {
+        walk(field.fields as DataMartSchemaField[], fullName);
+      }
     }
-  }
+  };
+  walk(fields, '');
+  if ([...primaryKey].some(name => !columns.has(name))) return;
+  for (const [fullName, field] of columns) field.isPrimaryKey = primaryKey.has(fullName);
 }
 
 /**

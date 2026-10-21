@@ -55,6 +55,7 @@ export interface UseFormulaDiagnosticsOptions {
    * coalesce typing into a request per render. Read when a request is built instead.
    */
   calculatedFields?: readonly DraftCalculatedFieldDto[];
+  /** The editor's primary-key columns; read like `calculatedFields`, when a request is built. */
   primaryKeyFields?: readonly string[];
   /** Off entirely when false — no timer, no request. Defaults to on. */
   enabled?: boolean;

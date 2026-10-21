@@ -414,6 +414,14 @@ describe('ValidateFormulaService', () => {
       expect(await judgedKey(schema)).toEqual(['clicks']);
     });
 
+    it('keeps the persisted key when the editor names a column the probe lacks', async () => {
+      const schema = schemaWith([
+        { name: 'clicks', type: 'INTEGER', isPrimaryKey: true },
+        { name: 'line_no', type: 'INTEGER', isPrimaryKey: true },
+      ]);
+      expect(await judgedKey(schema, ['clicks', 'line_number'])).toEqual(['clicks', 'line_no']);
+    });
+
     it('reaches a nested key column by its dotted name', async () => {
       const schema = {
         type: 'bigquery-data-mart-schema',
