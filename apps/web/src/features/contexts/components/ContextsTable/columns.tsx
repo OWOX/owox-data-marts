@@ -55,7 +55,8 @@ export const getContextsColumns = ({
           className='text-muted-foreground size-4 shrink-0'
           aria-hidden='true'
         />
-        <span className='truncate'>{row.original.name}</span>
+        {/* min-w-0 lets the name shrink inside the flex row, so a long name wraps in the cell. */}
+        <span className='min-w-0 break-words'>{row.original.name}</span>
       </div>
     ),
   },
