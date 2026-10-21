@@ -1,4 +1,6 @@
 import type { PluginActionExecutionView } from '../dto/domain/plugin-action-execution.dto';
+import type { PluginRunView } from '../dto/domain/plugin-run.dto';
+import type { PluginRunApiDto } from '../dto/presentation/plugin-run-api.dto';
 import {
   isFinalPluginActionStatus,
   PluginActionExecutionStatus,
@@ -16,6 +18,7 @@ export function toPluginActionExecutionView(
     action: execution.action,
     status: execution.status,
     trigger: execution.trigger,
+    scheduleId: execution.scheduleId,
     startedAt: execution.startedAt,
     deadlineAt: execution.deadlineAt,
     finishedAt: execution.finishedAt,
@@ -24,5 +27,29 @@ export function toPluginActionExecutionView(
     error: failed
       ? { code: execution.errorCode ?? execution.status, message: execution.errorMessage ?? '' }
       : null,
+  };
+}
+
+export function toPluginRunResponse(view: PluginRunView): PluginRunApiDto {
+  return {
+    id: view.id,
+    pluginId: view.pluginId,
+    pluginName: view.pluginName,
+    pluginVersion: view.pluginVersion,
+    action: view.action,
+    status: view.status,
+    trigger: view.trigger,
+    scheduleId: view.scheduleId,
+    scheduleName: view.scheduleName,
+    owner: view.owner,
+    timeLimitSeconds: view.timeLimitSeconds,
+    errorCode: view.errorCode,
+    errorMessage: view.errorMessage,
+    errorMessageCleared: view.errorMessageCleared,
+    canCancel: view.canCancel,
+    createdAt: view.createdAt.toISOString(),
+    queuedAt: view.queuedAt?.toISOString() ?? null,
+    startedAt: view.startedAt?.toISOString() ?? null,
+    finishedAt: view.finishedAt?.toISOString() ?? null,
   };
 }

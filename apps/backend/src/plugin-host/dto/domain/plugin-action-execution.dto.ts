@@ -15,6 +15,8 @@ export interface PluginActionExecutionView {
   readonly action: string;
   readonly status: PluginActionExecutionStatus;
   readonly trigger: PluginActionTrigger;
+  /** The schedule that started the execution; null for a start from the plugin page. */
+  readonly scheduleId: string | null;
   readonly startedAt: Date | null;
   readonly deadlineAt: Date | null;
   readonly finishedAt: Date | null;
@@ -30,6 +32,7 @@ export interface PluginActionWorkerContext {
   readonly action: string;
   readonly input: unknown;
   readonly trigger: PluginActionTrigger;
+  readonly scheduleId: string | null;
   readonly deadlineAt: Date;
   /** The plugin the execution belongs to. */
   readonly plugin: { readonly id: string; readonly repositoryId: string };

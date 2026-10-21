@@ -29,6 +29,7 @@ const EXECUTION = {
   action: 'list-documents',
   input: { page: 1 },
   trigger: 'frontend',
+  scheduleId: null,
   status: PluginActionExecutionStatus.RUNNING,
   role: 'editor',
   deadlineAt: DEADLINE_AT,
@@ -79,6 +80,7 @@ describe('GetCurrentPluginActionExecutionService', () => {
       action: 'list-documents',
       input: { page: 1 },
       trigger: 'frontend',
+      scheduleId: null,
       deadlineAt: DEADLINE_AT,
       plugin: { id: 'plugin-1', repositoryId: '123456' },
       pluginVersion: '1.0.0',
@@ -134,5 +136,19 @@ describe('GetCurrentPluginActionExecutionService', () => {
     executions.findWithInput.mockResolvedValue({ ...EXECUTION, installationId: 'installation-2' });
 
     await expect(service.run({ context: CONTEXT })).rejects.toBeInstanceOf(ExecutionNotFoundError);
+  });
+
+  it('tells a scheduled run which schedule started it', async () => {
+    const { service, executions } = setup();
+    executions.findWithInput.mockResolvedValue({
+      ...EXECUTION,
+      trigger: 'schedule',
+      scheduleId: 'schedule-1',
+    });
+
+    await expect(service.run({ context: CONTEXT })).resolves.toMatchObject({
+      trigger: 'schedule',
+      scheduleId: 'schedule-1',
+    });
   });
 });

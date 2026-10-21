@@ -17,6 +17,7 @@ describe('isPluginOwnedErrorCode', () => {
     'INVALID_INPUT',
     'INSTALLATION_INACTIVE',
     'PLUGIN_SUSPENDED',
+    'OWNER_NOT_MEMBER',
     '',
   ])('refuses %s', code => {
     expect(isPluginOwnedErrorCode(code)).toBe(false);

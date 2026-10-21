@@ -23,7 +23,7 @@ vi.mock('../../../features/idp', () => ({
   useAuth: () => ({ user: authUser }),
 }));
 interface CapturedBridgeOptions {
-  context?: { route?: string; actions?: true };
+  context?: { route?: string; actions?: true; schedules?: true };
   onBroken?: () => void;
   onOpenExternal?: (url: string) => void;
   onNavigate?: (path: string) => void;
@@ -279,6 +279,15 @@ describe('PluginRuntimePage', () => {
     });
 
     expect(bridgeOptions.context).toHaveProperty('actions', true);
+  });
+
+  it('tells the plugin this host brokers installation schedules', async () => {
+    renderPage('/');
+    await waitFor(() => {
+      expect(bridgeCreations).toBe(1);
+    });
+
+    expect(bridgeOptions.context).toHaveProperty('schedules', true);
   });
 
   it('keeps one bridge and replaces the address once for reports in quick succession', async () => {

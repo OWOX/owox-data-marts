@@ -400,6 +400,7 @@ export class PluginPresentationMapper {
       action: dto.action,
       status: dto.status,
       trigger: dto.trigger,
+      scheduleId: dto.scheduleId,
       startedAt: dto.startedAt,
       deadlineAt: dto.deadlineAt,
       finishedAt: dto.finishedAt,
@@ -414,6 +415,7 @@ export class PluginPresentationMapper {
       action: dto.action,
       input: dto.input,
       trigger: dto.trigger,
+      scheduleId: dto.scheduleId,
       deadlineAt: dto.deadlineAt,
       plugin: { id: dto.plugin.id, repositoryId: dto.plugin.repositoryId },
       pluginVersion: dto.pluginVersion,
@@ -429,7 +431,7 @@ export class PluginPresentationMapper {
    * the repository name is exactly what `toSource` withholds for a private repository -- so
    * that case falls back to the owner, which `toSource` discloses anyway.
    */
-  private displayNameOf(plugin: Plugin, version: PluginVersion | null): string {
+  displayNameOf(plugin: Plugin, version: PluginVersion | null): string {
     return version?.displayName ?? (plugin.isPrivateRepo ? plugin.repoOwner : plugin.repoName);
   }
 

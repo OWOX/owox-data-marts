@@ -1,5 +1,5 @@
 import { PluginTransportError, type IframeRequester } from './iframe-transport.js';
-import type { PluginRequestInput } from './protocol.js';
+import type { PluginErrorPayload, PluginRequestInput } from './protocol.js';
 
 const ACTIONS_PATH = '/api/plugins/runtime/actions';
 const EXECUTIONS_PATH = '/api/plugins/runtime/executions';
@@ -13,13 +13,21 @@ export const FINAL_STATUSES: ReadonlySet<string> = new Set([
   'TIMED_OUT',
 ]);
 
-export type PluginActionStatus = 'RUNNING' | 'SUCCEEDED' | 'FAILED' | 'CANCELLED' | 'TIMED_OUT';
+export type PluginActionStatus =
+  | 'QUEUED'
+  | 'RUNNING'
+  | 'SUCCEEDED'
+  | 'FAILED'
+  | 'CANCELLED'
+  | 'TIMED_OUT';
 
 export interface PluginActionExecution {
   readonly id: string;
   readonly action: string;
   readonly status: PluginActionStatus;
-  readonly trigger: 'frontend';
+  readonly trigger: 'frontend' | 'schedule';
+  /** The schedule that started a scheduled execution; null for a start from the plugin page. */
+  readonly scheduleId: string | null;
   readonly startedAt: string | null;
   readonly deadlineAt: string | null;
   readonly finishedAt: string | null;
@@ -79,17 +87,7 @@ export function createPluginActions(requester: IframeRequester): PluginActions {
       body: { input: input ?? null },
       ...(cancelOnClose ? { cancelOnClose: true as const } : {}),
     });
-    if (!response.ok) {
-      const { code, apiCode, status, message, details } = response.error;
-      if (code === 'HTTP_ERROR' && apiCode) {
-        throw new PluginActionError(apiCode, message, undefined, inputErrors(details));
-      }
-      // A body over the route limit is refused before the API can attach its code.
-      if (code === 'HTTP_ERROR' && status === 413) {
-        throw new PluginActionError('INPUT_TOO_LARGE', message);
-      }
-      throw new PluginTransportError(response.error);
-    }
+    if (!response.ok) throw toRefusal(response.error, 'INPUT_TOO_LARGE');
     const id = 'body' in response ? (response.body as { id?: unknown } | undefined)?.id : undefined;
     if (typeof id !== 'string') {
       throw new PluginTransportError({
@@ -100,23 +98,33 @@ export function createPluginActions(requester: IframeRequester): PluginActions {
     return id;
   }
 
-  const read = (id: string, waitSeconds: string, signal?: AbortSignal) =>
-    request<PluginActionExecution>(
-      {
-        kind: 'api',
-        method: 'GET',
-        path: executionPath(id),
-        query: [['waitSeconds', waitSeconds]],
-      },
-      signal
+  // An older OWOX sends no scheduleId.
+  const withScheduleId = (execution: PluginActionExecution): PluginActionExecution => ({
+    ...execution,
+    scheduleId: execution.scheduleId ?? null,
+  });
+
+  const read = async (id: string, waitSeconds: string, signal?: AbortSignal) =>
+    withScheduleId(
+      await request<PluginActionExecution>(
+        {
+          kind: 'api',
+          method: 'GET',
+          path: executionPath(id),
+          query: [['waitSeconds', waitSeconds]],
+        },
+        signal
+      )
     );
 
-  const cancel = (id: string) =>
-    request<PluginActionExecution>({
-      kind: 'api',
-      method: 'POST',
-      path: `${executionPath(id)}/cancel`,
-    });
+  const cancel = async (id: string) =>
+    withScheduleId(
+      await request<PluginActionExecution>({
+        kind: 'api',
+        method: 'POST',
+        path: `${executionPath(id)}/cancel`,
+      })
+    );
 
   async function waitForResult<T>(id: string, signal?: AbortSignal): Promise<T> {
     try {
@@ -161,7 +169,23 @@ export function createPluginActions(requester: IframeRequester): PluginActions {
   };
 }
 
-/** An `INVALID_INPUT` refusal carries the failed fields as `errorDetails.errors`. */
+/** @internal Maps a failed start or schedule call: an API refusal, a bare 413 when the caller names its code, or the transport error. */
+export function toRefusal(
+  error: PluginErrorPayload,
+  bare413Code?: string
+): PluginActionError | PluginTransportError {
+  const { code, apiCode, status, message, details } = error;
+  if (code === 'HTTP_ERROR' && apiCode) {
+    return new PluginActionError(apiCode, message, undefined, inputErrors(details));
+  }
+  // A body over the route's body limit is refused before the API can attach its code.
+  if (code === 'HTTP_ERROR' && status === 413 && bare413Code) {
+    return new PluginActionError(bare413Code, message);
+  }
+  return new PluginTransportError(error);
+}
+
+/** An `INVALID_INPUT` or `INVALID_PARAMETERS` refusal carries the failed fields as `errorDetails.errors`. */
 function inputErrors(details: unknown): PluginActionError['errors'] {
   const errors = (details as { errors?: unknown } | null | undefined)?.errors;
   return Array.isArray(errors) ? (errors as PluginActionError['errors']) : undefined;

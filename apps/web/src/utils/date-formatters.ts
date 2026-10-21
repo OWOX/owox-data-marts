@@ -5,9 +5,12 @@
 
 /**
  * Format a date as a short, readable string (e.g., "Mar 15, 2024, 02:30 PM")
- * Uses browser's timezone for display
+ * Uses browser's timezone for display, or the given zone, which is then named (e.g., "GMT+3")
  */
-export const formatDateShort = (date: Date | string | null): string => {
+export const formatDateShort = (
+  date: Date | string | null,
+  options?: { timeZone?: string }
+): string => {
   if (!date) return '—';
 
   let d: Date;
@@ -19,13 +22,21 @@ export const formatDateShort = (date: Date | string | null): string => {
     if (isNaN(d.getTime())) return '—';
   }
 
-  return new Intl.DateTimeFormat('en-US', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(d);
+  const format = (zone?: string) =>
+    new Intl.DateTimeFormat('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      ...(zone && { timeZone: zone, timeZoneName: 'short' }),
+    }).format(d);
+  try {
+    return format(options?.timeZone);
+  } catch {
+    // A zone Intl refuses must not blank the page; show the browser zone, unnamed.
+    return format();
+  }
 };
 
 export const formatDateOnly = (

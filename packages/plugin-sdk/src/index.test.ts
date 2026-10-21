@@ -327,6 +327,42 @@ describe('connect', () => {
     expect(context.actions).toBeUndefined();
   });
 
+  it('offers schedules when the host advertises them', async () => {
+    const parent = pretendToBeFramed();
+    const channel = new MessageChannel();
+    const pending = connect();
+    await vi.advanceTimersByTimeAsync(0);
+    const init = hostInit();
+    deliverFromParent(parent, { ...init, context: { ...init.context, schedules: true } }, [
+      channel.port2,
+    ]);
+
+    const context = await pending;
+
+    expect(Object.keys(context.schedules ?? {}).sort()).toEqual([
+      'create',
+      'delete',
+      'get',
+      'list',
+      'pause',
+      'resume',
+      'update',
+    ]);
+  });
+
+  // A host without schedules sends no capability, and that absence is how a plugin can tell.
+  it('leaves schedules undefined when the host sends no capability', async () => {
+    const parent = pretendToBeFramed();
+    const channel = new MessageChannel();
+    const pending = connect();
+    await vi.advanceTimersByTimeAsync(0);
+    deliverFromParent(parent, hostInit(), [channel.port2]);
+
+    const context = await pending;
+
+    expect(context.schedules).toBeUndefined();
+  });
+
   it('reports its route to the host without waiting for an answer', async () => {
     const parent = pretendToBeFramed();
     const channel = new MessageChannel();

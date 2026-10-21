@@ -9,8 +9,11 @@ import {
 } from '../errors/plugin-action.errors';
 import { hashExecutionToken } from '../utils/execution-token.util';
 import type { PluginBackendDeclaration } from '../utils/plugin-manifest.util';
-import { ActionInputValidatorService } from './action-input-validator.service';
-import type { InsertRunningExecutionInput } from './plugin-action-execution.service';
+import { ActionInputValidatorService, isOverBudget } from './action-input-validator.service';
+import type {
+  InsertRunningExecutionInput,
+  InsertScheduledExecutionInput,
+} from './plugin-action-execution.service';
 import {
   PluginActionStarterService,
   type PluginActionStart,
@@ -41,22 +44,23 @@ function setup(backend: PluginBackendDeclaration | null = BACKEND) {
       id: 'execution-1',
       ...input,
     })),
+    insertScheduled: jest.fn(async (input: InsertScheduledExecutionInput) => ({
+      execution: { id: 'execution-2', ...input },
+      queued: false,
+    })),
   };
-  const dispatcher = { dispatch: jest.fn().mockResolvedValue(undefined) };
-  const starter = new PluginActionStarterService(
-    validator,
-    executions as never,
-    dispatcher as never
-  );
+  const queue = { dispatchAndPromote: jest.fn() };
+  const starter = new PluginActionStarterService(validator, executions as never, queue as never);
   const version = {
     id: 'version-1',
     pluginId: 'plugin-1',
     deliveryUrl: 'https://a.workers.dev/app/',
     backend,
   } as PluginVersion;
+  const installation = { id: 'installation-1', projectId: 'project-1', userId: 'user-1' };
   const start = (action: string, input?: unknown, overrides: Partial<PluginActionStart> = {}) =>
     starter.start({
-      installation: { id: 'installation-1', projectId: 'project-1', userId: 'user-1' },
+      installation,
       version,
       action,
       input,
@@ -64,14 +68,24 @@ function setup(backend: PluginBackendDeclaration | null = BACKEND) {
       trigger: 'frontend',
       ...overrides,
     });
-  return { start, executions, dispatcher };
+  const startScheduled = (action: string, input?: unknown) =>
+    starter.startScheduled({
+      installation,
+      version,
+      action,
+      input,
+      role: 'viewer',
+      scheduleId: 'schedule-1',
+      scheduleVersion: 4,
+    });
+  return { start, startScheduled, executions, queue };
 }
 
 describe('PluginActionStarterService', () => {
   afterAll(() => validator.onModuleDestroy());
 
   it('records an execution with the given role and trigger, then dispatches it to the resolved backend', async () => {
-    const { start, executions, dispatcher } = setup();
+    const { start, executions, queue } = setup();
 
     await expect(
       start('update-document', { documentId: 'd1' }, { role: 'viewer' })
@@ -91,18 +105,18 @@ describe('PluginActionStarterService', () => {
       tokenHash: expect.stringMatching(/^[0-9a-f]{64}$/),
       trigger: 'frontend',
     });
-    const [execution, backendUrl, token, timeoutSeconds] = dispatcher.dispatch.mock.calls[0];
+    const [execution, backendUrl, token, timeoutSeconds] = queue.dispatchAndPromote.mock.calls[0];
     expect(execution).toMatchObject({ id: 'execution-1' });
     expect(backendUrl).toBe('https://a.workers.dev/owox');
     expect(hashExecutionToken(token)).toBe(executions.insertRunning.mock.calls[0][0].tokenHash);
     expect(timeoutSeconds).toBe(60);
     expect(executions.insertRunning.mock.invocationCallOrder[0]).toBeLessThan(
-      dispatcher.dispatch.mock.invocationCallOrder[0]
+      queue.dispatchAndPromote.mock.invocationCallOrder[0]
     );
   });
 
   it('refuses a start over a limit before the validator runs, and never inserts', async () => {
-    const { start, executions, dispatcher } = setup();
+    const { start, executions, queue } = setup();
     executions.assertWithinStartLimits.mockRejectedValue(new TooManyExecutionsError());
     const validate = jest.spyOn(validator, 'validate');
 
@@ -116,7 +130,7 @@ describe('PluginActionStarterService', () => {
     );
     expect(validate).not.toHaveBeenCalled();
     expect(executions.insertRunning).not.toHaveBeenCalled();
-    expect(dispatcher.dispatch).not.toHaveBeenCalled();
+    expect(queue.dispatchAndPromote).not.toHaveBeenCalled();
     validate.mockRestore();
   });
 
@@ -204,10 +218,97 @@ describe('PluginActionStarterService', () => {
   });
 
   it('dispatches nothing when no running slot is free', async () => {
-    const { start, executions, dispatcher } = setup();
+    const { start, executions, queue } = setup();
     executions.insertRunning.mockRejectedValue(new TooManyExecutionsError());
 
     await expect(start('list-documents')).rejects.toBeInstanceOf(TooManyExecutionsError);
-    expect(dispatcher.dispatch).not.toHaveBeenCalled();
+    expect(queue.dispatchAndPromote).not.toHaveBeenCalled();
+  });
+
+  describe('startScheduled', () => {
+    it('records a scheduled execution and dispatches it when a slot is free', async () => {
+      const { startScheduled, executions, queue } = setup();
+
+      await expect(startScheduled('update-document', { documentId: 'd1' })).resolves.toEqual({
+        id: 'execution-2',
+        status: PluginActionExecutionStatus.RUNNING,
+      });
+
+      expect(executions.insertScheduled).toHaveBeenCalledWith({
+        pluginId: 'plugin-1',
+        pluginVersionId: 'version-1',
+        installationId: 'installation-1',
+        projectId: 'project-1',
+        userId: 'user-1',
+        action: 'update-document',
+        input: { documentId: 'd1' },
+        inputBytes: Buffer.byteLength('{"documentId":"d1"}'),
+        role: 'viewer',
+        timeoutSeconds: 60,
+        tokenHash: expect.stringMatching(/^[0-9a-f]{64}$/),
+        scheduleId: 'schedule-1',
+        scheduleVersion: 4,
+      });
+      const [execution, backendUrl, token, timeoutSeconds] = queue.dispatchAndPromote.mock.calls[0];
+      expect(execution).toMatchObject({ id: 'execution-2' });
+      expect(backendUrl).toBe('https://a.workers.dev/owox');
+      expect(hashExecutionToken(token)).toBe(executions.insertScheduled.mock.calls[0][0].tokenHash);
+      expect(timeoutSeconds).toBe(60);
+    });
+
+    it('inserts QUEUED when a limit refuses, and does not dispatch it', async () => {
+      const { startScheduled, executions, queue } = setup();
+      executions.insertScheduled.mockImplementationOnce(async input => ({
+        execution: { id: 'execution-2', ...input },
+        queued: true,
+      }));
+
+      await expect(startScheduled('list-documents')).resolves.toEqual({
+        id: 'execution-2',
+        status: PluginActionExecutionStatus.QUEUED,
+      });
+      expect(queue.dispatchAndPromote).not.toHaveBeenCalled();
+    });
+
+    it('leaves the limits to the locked insert, with no early check', async () => {
+      const { startScheduled, executions } = setup();
+
+      await startScheduled('list-documents');
+
+      expect(executions.assertWithinStartLimits).not.toHaveBeenCalled();
+    });
+
+    it("hands the validator's over-budget answer on, so the handler can tell it apart", async () => {
+      const { startScheduled } = setup({
+        url: '/owox',
+        actions: { slow: { timeoutSeconds: 30, input: { $async: true } } },
+      });
+
+      const error = await startScheduled('slow', 1).catch((refusal: unknown) => refusal);
+
+      expect(error).toBeInstanceOf(ActionInputInvalidError);
+      expect(isOverBudget((error as ActionInputInvalidError).errorDetails?.errors)).toBe(true);
+    });
+
+    it.each([
+      ['an undeclared action', 'delete-document', undefined, ActionNotDeclaredError],
+      [
+        'input that does not match the schema',
+        'update-document',
+        { documentId: 1 },
+        ActionInputInvalidError,
+      ],
+      [
+        'input above 256 KiB',
+        'list-documents',
+        'x'.repeat(PLUGIN_ACTION_LIMITS.maxInputBytes - 1),
+        ActionInputTooLargeError,
+      ],
+    ])('refuses %s as start does, and inserts nothing', async (_label, action, input, refusal) => {
+      const { startScheduled, executions } = setup();
+
+      await expect(startScheduled(action, input)).rejects.toBeInstanceOf(refusal);
+      expect(executions.insertScheduled).not.toHaveBeenCalled();
+    });
   });
 });

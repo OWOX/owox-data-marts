@@ -1,3 +1,5 @@
+import type { ScheduleConfig } from '../../utils/schedule-utils';
+
 export interface ParsedCron {
   minute: string;
   hour: string;
@@ -158,4 +160,25 @@ export function cronToScheduleConfig(cronExpression: string, timezone = 'UTC') {
     intervalValue: 15,
     timezone,
   };
+}
+
+export function scheduleConfigToCron(config: ScheduleConfig): string {
+  const [hours, minutes] = config.time.split(':').map(Number);
+
+  switch (config.type) {
+    case 'daily':
+      return `${String(minutes)} ${String(hours)} * * *`;
+    case 'weekly':
+      return `${String(minutes)} ${String(hours)} * * ${config.weekdays.join(',')}`;
+    case 'monthly':
+      return `${String(minutes)} ${String(hours)} ${config.monthDays.join(',')} * *`;
+    case 'interval':
+      return config.intervalType === 'minutes'
+        ? `*/${String(config.intervalValue)} * * * *`
+        : `0 */${String(config.intervalValue)} * * *`;
+    case 'custom':
+      return config.customCron;
+    default:
+      return `${String(minutes)} ${String(hours)} * * *`;
+  }
 }

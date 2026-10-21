@@ -69,6 +69,8 @@ export interface PluginHostContext {
   readonly credentialHandles?: readonly PluginCredentialHandleDescriptor[];
   /** Set by a host that brokers backend actions; an older host omits it. */
   readonly actions?: true;
+  /** Set by a host that brokers installation schedules; an older host omits it. */
+  readonly schedules?: true;
 }
 
 export type PluginCredentialHandleDescriptor =

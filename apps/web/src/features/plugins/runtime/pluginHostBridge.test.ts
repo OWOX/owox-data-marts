@@ -268,6 +268,78 @@ describe('plugin host bridge', () => {
     });
   });
 
+  describe('schedule calls', () => {
+    const SCHEDULES = '/api/plugins/runtime/schedules';
+    const schedulePath = `${SCHEDULES}/${crypto.randomUUID()}`;
+
+    it.each([
+      ['list', 'GET', SCHEDULES, undefined],
+      ['get', 'GET', schedulePath, undefined],
+      ['create', 'POST', SCHEDULES, { action: 'export', cron: '* * * * *', timeZone: 'UTC' }],
+      ['update', 'PATCH', schedulePath, { cron: '0 9 * * *' }],
+      ['pause', 'POST', `${schedulePath}/pause`, undefined],
+      ['resume', 'POST', `${schedulePath}/resume`, undefined],
+      ['delete', 'DELETE', schedulePath, undefined],
+    ] as const)(
+      'sends %s to its runtime path with the runtime token',
+      async (_name, method, path, body) => {
+        const h = await harness();
+
+        const response = await h.send({
+          kind: 'api',
+          method,
+          path,
+          ...(body ? { body } : {}),
+        } as PluginRequestInput);
+
+        expect(response).toMatchObject({ ok: true });
+        const [url, init] = h.fetchMock.mock.calls[0] as [string, RequestInit];
+        expect(url).toBe(`${API_ORIGIN}${path}`);
+        expect(init.method).toBe(method);
+        expect((init.headers as Record<string, string>)['x-owox-authorization']).toBe(
+          `Bearer ${RUNTIME_TOKEN}`
+        );
+        expect(init.body).toBe(body ? JSON.stringify(body) : undefined);
+      }
+    );
+
+    it('answers a refusal with the HTTP status and the API code', async () => {
+      const h = await harness(async () =>
+        Response.json({ code: 'SCHEDULE_NOT_FOUND', message: 'No such schedule' }, { status: 404 })
+      );
+
+      const response = await h.send({ kind: 'api', method: 'GET', path: schedulePath });
+
+      expect(response).toMatchObject({
+        ok: false,
+        error: {
+          code: 'HTTP_ERROR',
+          status: 404,
+          apiCode: 'SCHEDULE_NOT_FOUND',
+          message: 'No such schedule',
+        },
+      });
+    });
+
+    it.each([
+      ['a slash', 'a/b'],
+      ['a percent sign', '100%'],
+      ['a backslash', 'a\\b'],
+    ])('refuses an id with %s without a network call', async (_label, id) => {
+      const h = await harness();
+
+      const response = await h.send({
+        kind: 'api',
+        method: 'GET',
+        path: `${SCHEDULES}/${encodeURIComponent(id)}`,
+      });
+
+      expect(response).toMatchObject({ ok: false, error: { code: 'FORBIDDEN' } });
+      expect(h.fetchMock).not.toHaveBeenCalled();
+      expect(h.fetchRuntimeToken).not.toHaveBeenCalled();
+    });
+  });
+
   describe('credential containment', () => {
     // The property the whole design rests on: the token exists only in the bridge
     // closure, so there is nothing for the plugin to read.

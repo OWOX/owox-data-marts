@@ -154,7 +154,7 @@ export default function PluginsGalleryPage() {
             <Plus className='size-4' aria-hidden /> Publish Plugin
           </Button>
 
-          {/* History sits behind the menu so it does not compete with the only action that adds a plugin. */}
+          {/* Schedules and history sit behind the menu so they do not compete with the only action that adds a plugin. */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant='ghost' size='icon' aria-label='More plugin actions'>
@@ -162,6 +162,9 @@ export default function PluginsGalleryPage() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align='end'>
+              <DropdownMenuItem asChild>
+                <Link to={scope('/plugins/schedules')}>Schedules</Link>
+              </DropdownMenuItem>
               <DropdownMenuItem asChild>
                 <Link to={scope('/plugins/history')}>Plugin history</Link>
               </DropdownMenuItem>

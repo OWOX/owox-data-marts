@@ -79,9 +79,15 @@ parentPort.on('message', message => {
 parentPort.postMessage({ ready: true });
 `;
 
-const OVER_BUDGET: readonly ActionInputError[] = [
+/** What validate answers when a validation runs past its budget: no verdict on the input. */
+export const OVER_BUDGET: readonly ActionInputError[] = [
   { instancePath: '', message: 'Input validation exceeded its budget' },
 ];
+
+/** Whether `errors` is the over-budget answer itself; a schema's errors never are, whatever they say. */
+export function isOverBudget(errors: unknown): boolean {
+  return errors === OVER_BUDGET;
+}
 
 const COMPILE_OVER_BUDGET = 'Input schema compilation exceeded its budget';
 

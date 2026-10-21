@@ -235,7 +235,8 @@ this value; contact support to add a domain.
 ## Plugins
 
 Plugins are third-party web apps embedded in a sandboxed iframe. These variables control
-who may publish them and how OWOX Data Marts reads their GitHub sources.
+who may publish them, how OWOX Data Marts reads their GitHub sources and how it runs their
+schedules.
 
 | Variable                                                     | Purpose                                                                                                                                                                                                                                                                                                   |
 | ------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -245,6 +246,11 @@ who may publish them and how OWOX Data Marts reads their GitHub sources.
 | `GITHUB_API_BASE_URL`                                        | GitHub REST base URL. Override only for GitHub Enterprise.                                                                                                                                                                                                                                                |
 | `PLUGIN_HOST_SYNC_MIN_INTERVAL_SEC`                          | Optional minimum seconds between two synchronizations of the same plugin. Defaults to `30` with GitHub App or server-token access and `300` with anonymous access. An explicit value overrides every access mode. During the cooldown, publishing reuses the last validated version.                      |
 | `PLUGIN_HOST_REMOTE_PROBE_TIMEOUT_MS`                        | Timeout for probing a plugin's delivery URL. Default `8000`.                                                                                                                                                                                                                                              |
+| `PLUGIN_HOST_MAX_SCHEDULES_PER_INSTALLATION`                 | Schedules one plugin installation may have, from `1` to `1000`. Default `20`. `ctx.schedules.list()` returns every schedule with its parameters, so this limit and the next one bound its response.                                                                                                       |
+| `PLUGIN_HOST_MAX_SCHEDULE_PARAMETERS_KIB`                    | Largest `parameters` of a schedule, in KiB, from `1` to `256`, the most an action's input takes. Default `64`.                                                                                                                                                                                            |
+| `PLUGIN_HOST_SCHEDULE_RETRY_SEC`                             | Seconds before a schedule that could not start for a passing reason, such as an unavailable identity provider or a busy validator, tries again. From `1` to `86400`. Default `60`. Rounded down to the minute, never after the schedule's next run; below `60`, at the next poll.                         |
+| `PLUGIN_HOST_SCHEDULE_STUCK_SEC`                             | Seconds after which the scheduler takes back a schedule that a replica began to start and never finished, for example because it stopped. From `600` to `86400`, since a replica may spend minutes starting the schedules it claimed. Default `600`.                                                      |
+| `PLUGIN_HOST_QUEUE_SWEEP_INSTALLATIONS`                      | Installations with queued plugin runs that the sweep reads per page each minute, from `1` to `10000`. Default `500`.                                                                                                                                                                                      |
 
 ### Plugin collections database
 

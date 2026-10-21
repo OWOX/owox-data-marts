@@ -59,11 +59,22 @@ export class PluginActionExecutionApiDto {
   @ApiProperty() id: string;
   @ApiProperty() action: string;
 
-  @ApiProperty({ enum: PluginActionExecutionStatus })
+  @ApiProperty({
+    enum: PluginActionExecutionStatus,
+    description:
+      'QUEUED: a scheduled run waits for a start limit; it has no startedAt or deadlineAt yet.',
+  })
   status: PluginActionExecutionStatus;
 
-  @ApiProperty({ enum: ['frontend'] })
+  @ApiProperty({ enum: ['frontend', 'schedule'] })
   trigger: PluginActionTrigger;
+
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description: 'The schedule that started the execution; null for a start from the plugin page.',
+  })
+  scheduleId: string | null;
 
   @ApiProperty({ type: Date, nullable: true }) startedAt: Date | null;
   @ApiProperty({ type: Date, nullable: true }) deadlineAt: Date | null;
@@ -97,8 +108,15 @@ export class PluginActionWorkerContextApiDto {
   @ApiProperty({ description: 'The input the execution was started with.' })
   input: unknown;
 
-  @ApiProperty({ enum: ['frontend'] })
+  @ApiProperty({ enum: ['frontend', 'schedule'] })
   trigger: PluginActionTrigger;
+
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description: 'The schedule that started the execution; null for a start from the plugin page.',
+  })
+  scheduleId: string | null;
 
   @ApiProperty() deadlineAt: Date;
 

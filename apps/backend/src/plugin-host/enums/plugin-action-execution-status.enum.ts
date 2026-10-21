@@ -1,4 +1,5 @@
 export enum PluginActionExecutionStatus {
+  QUEUED = 'QUEUED',
   RUNNING = 'RUNNING',
   SUCCEEDED = 'SUCCEEDED',
   FAILED = 'FAILED',
@@ -6,7 +7,7 @@ export enum PluginActionExecutionStatus {
   TIMED_OUT = 'TIMED_OUT',
 }
 
-export type PluginActionTrigger = 'frontend';
+export type PluginActionTrigger = 'frontend' | 'schedule';
 
 const FINAL_STATUSES: ReadonlySet<string> = new Set([
   PluginActionExecutionStatus.SUCCEEDED,

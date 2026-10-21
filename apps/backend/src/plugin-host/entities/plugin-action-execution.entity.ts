@@ -1,23 +1,9 @@
-import {
-  Column,
-  CreateDateColumn,
-  Entity,
-  Index,
-  PrimaryGeneratedColumn,
-  type ValueTransformer,
-} from 'typeorm';
+import { Column, CreateDateColumn, Entity, Index, PrimaryGeneratedColumn } from 'typeorm';
 import {
   PluginActionExecutionStatus,
   type PluginActionTrigger,
 } from '../enums/plugin-action-execution-status.enum';
-
-/** Stored as JSON text: TypeORM parses a MySQL `json` value again, so the string "12345" came back as 12345. */
-const JSON_TEXT: ValueTransformer = {
-  to: (value: unknown) => (value === undefined || value === null ? value : JSON.stringify(value)),
-  // SQLite's `json` column has numeric affinity, so a number comes back as a number.
-  from: (text: string | number | null | undefined) =>
-    text === null || text === undefined ? null : JSON.parse(String(text)),
-};
+import { JSON_TEXT } from '../utils/json-text.transformer';
 
 /** One call of a plugin backend action. No foreign keys: the record outlives the rows it names. */
 @Entity('plugin_action_execution')
@@ -27,6 +13,11 @@ const JSON_TEXT: ValueTransformer = {
 @Index('idx_plugin_action_execution_starts', ['installationId', 'startedAt', 'payloadBytes'])
 @Index('idx_plugin_action_execution_finished', ['finishedAt'])
 @Index('idx_plugin_action_execution_payloads', ['payloadsClearedAt', 'finishedAt'])
+@Index('idx_plugin_action_execution_schedule', ['scheduleId', 'status'])
+@Index('idx_plugin_action_execution_queue', ['installationId', 'status', 'queuedAt'])
+@Index('idx_plugin_action_execution_project_created', ['projectId', 'createdAt'])
+@Index('idx_plugin_action_execution_project_user_created', ['projectId', 'userId', 'createdAt'])
+@Index('idx_plugin_action_execution_schedule_created', ['scheduleId', 'createdAt'])
 export class PluginActionExecution {
   @PrimaryGeneratedColumn('uuid')
   id: string;
@@ -61,6 +52,10 @@ export class PluginActionExecution {
   @Column({ type: 'varchar', length: 16 })
   trigger: PluginActionTrigger;
 
+  /** The schedule that started the execution; null for a start from the plugin page. */
+  @Column({ type: 'varchar', length: 36, nullable: true })
+  scheduleId: string | null;
+
   @Column({ type: 'varchar', length: 16 })
   status: PluginActionExecutionStatus;
 
@@ -80,6 +75,10 @@ export class PluginActionExecution {
 
   @Column({ type: 'datetime', nullable: true })
   startedAt: Date | null;
+
+  /** When a scheduled run began to wait for a start limit. */
+  @Column({ type: 'datetime', nullable: true })
+  queuedAt: Date | null;
 
   @Column({ type: 'datetime', nullable: true })
   finishedAt: Date | null;

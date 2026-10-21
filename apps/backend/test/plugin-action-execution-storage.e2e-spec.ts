@@ -3,16 +3,20 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { createTestApp } from '@owox/test-utils';
 import { randomUUID } from 'node:crypto';
 import { Repository } from 'typeorm';
+import { TriggerStatus } from 'src/common/scheduler/shared/entities/trigger-status';
 import { PluginActionExecution } from 'src/plugin-host/entities/plugin-action-execution.entity';
+import { PluginActionSchedule } from 'src/plugin-host/entities/plugin-action-schedule.entity';
 import { PluginInstallation } from 'src/plugin-host/entities/plugin-installation.entity';
 import { Plugin } from 'src/plugin-host/entities/plugin.entity';
 import { PluginActionExecutionStatus } from 'src/plugin-host/enums/plugin-action-execution-status.enum';
+import type { PluginRunCursor, PluginRunFilter } from 'src/plugin-host/dto/domain/plugin-run.dto';
 import {
   InstallationInactiveError,
   TooManyExecutionsError,
 } from 'src/plugin-host/errors/plugin-action.errors';
 import {
   InsertRunningExecutionInput,
+  InsertScheduledExecutionInput,
   PluginActionExecutionService,
 } from 'src/plugin-host/services/plugin-action-execution.service';
 import { createExecutionToken } from 'src/plugin-host/utils/execution-token.util';
@@ -24,12 +28,14 @@ describe('Plugin action execution storage (e2e)', () => {
   let app: INestApplication;
   let service: PluginActionExecutionService;
   let executions: Repository<PluginActionExecution>;
+  let schedules: Repository<PluginActionSchedule>;
   let repoCounter = 870_000;
 
   beforeAll(async () => {
     app = (await createTestApp()).app;
     service = app.get(PluginActionExecutionService);
     executions = app.get(getRepositoryToken(PluginActionExecution));
+    schedules = app.get(getRepositoryToken(PluginActionSchedule));
   }, 60_000);
 
   afterAll(async () => {
@@ -79,6 +85,47 @@ describe('Plugin action execution storage (e2e)', () => {
       tokenHash: createExecutionToken().tokenHash,
       trigger: 'frontend',
       ...overrides,
+    };
+  }
+
+  // Paused, so no scheduler run picks it up; PROCESSING, as the runner holds it during a start.
+  function schedule(target: PluginInstallation): Promise<PluginActionSchedule> {
+    return schedules.save(
+      schedules.create({
+        pluginId: target.pluginId,
+        installationId: target.id,
+        projectId: target.projectId,
+        action: 'update-document',
+        parameters: { documentId: 'd1' },
+        name: null,
+        cronExpression: '0 9 * * *',
+        timeZone: 'UTC',
+        status: TriggerStatus.PROCESSING,
+        isActive: false,
+        nextRunTimestamp: null,
+        lastRunTimestamp: null,
+        disabledReason: null,
+        lastExecutionId: null,
+      })
+    );
+  }
+
+  function scheduled(
+    target: PluginInstallation,
+    plan: PluginActionSchedule
+  ): InsertScheduledExecutionInput {
+    const { trigger: _frontend, ...request } = running(target);
+    return { ...request, scheduleId: plan.id, scheduleVersion: plan.version };
+  }
+
+  function promotion(execution: PluginActionExecution, tokenHash: string) {
+    return {
+      id: execution.id,
+      installationId: execution.installationId,
+      pluginVersionId: randomUUID(),
+      role: 'viewer',
+      tokenHash,
+      timeoutSeconds: 30,
     };
   }
 
@@ -178,6 +225,62 @@ describe('Plugin action execution storage (e2e)', () => {
       { startedAt: new Date(Date.now() - 2 * 60_000) }
     );
     await expect(service.insertRunning(running(target))).resolves.toBeDefined();
+  });
+
+  it('counts a queued run cancelled before it started toward the limits, a live one not', async () => {
+    const target = await installation();
+    const plan = await schedule(target);
+    const started: PluginActionExecution[] = [];
+    for (let i = 0; i < 5; i += 1) {
+      started.push(await service.insertRunning(running(target)));
+    }
+    await expect(service.insertScheduled(scheduled(target, plan))).resolves.toMatchObject({
+      queued: true,
+    });
+    for (const row of started) {
+      await service.cancel(row.id, target.id);
+    }
+    for (let i = started.length; i < 59; i += 1) {
+      const row = await service.insertRunning(running(target));
+      await service.cancel(row.id, target.id);
+    }
+
+    await expect(service.assertWithinStartLimits(target.id, Date.now())).resolves.toBeUndefined();
+    await expect(service.cancelQueuedForSchedule(plan.id)).resolves.toBe(1);
+    await expect(service.assertWithinStartLimits(target.id, Date.now())).rejects.toBeInstanceOf(
+      TooManyExecutionsError
+    );
+  });
+
+  it('counts the payload of a run timed out in the queue, and of a started one once', async () => {
+    const target = await installation();
+    const plan = await schedule(target);
+    const promoted = await service.insertRunning(running(target));
+    // Queued, then promoted: both timestamps are set, and the started sum alone may count it.
+    await executions.update(promoted.id, {
+      status: PluginActionExecutionStatus.TIMED_OUT,
+      queuedAt: new Date(Date.now() - 2 * HOUR),
+      finishedAt: new Date(),
+      payloadBytes: 60 * 1024 * 1024,
+    });
+    await expect(service.assertWithinStartLimits(target.id, Date.now())).resolves.toBeUndefined();
+
+    for (let i = 0; i < 5; i += 1) {
+      await service.insertRunning(running(target));
+    }
+    const { execution: waiting } = await service.insertScheduled(scheduled(target, plan));
+    await executions.update(waiting.id, {
+      queuedAt: new Date(Date.now() - 25 * HOUR),
+      payloadBytes: 40 * 1024 * 1024,
+    });
+    await service.timeOutQueued(new Date(Date.now() - 24 * HOUR));
+
+    await expect(service.findStatus(waiting.id)).resolves.toBe(
+      PluginActionExecutionStatus.TIMED_OUT
+    );
+    await expect(service.assertWithinStartLimits(target.id, Date.now())).rejects.toThrow(
+      '100 MiB of stored payloads reached'
+    );
   });
 
   it('counts payloadBytes only within 48 hours of the start', async () => {
@@ -348,5 +451,317 @@ describe('Plugin action execution storage (e2e)', () => {
       result: null,
     });
     await expect(service.findById(ancient.id)).resolves.toBeNull();
+  });
+
+  it('queues a scheduled run at five RUNNING and points the schedule at it', async () => {
+    const target = await installation();
+    const plan = await schedule(target);
+    for (let i = 0; i < 5; i += 1) {
+      await service.insertRunning(running(target));
+    }
+
+    const { execution, queued } = await service.insertScheduled(scheduled(target, plan));
+
+    expect(queued).toBe(true);
+    await expect(executions.findOneByOrFail({ id: execution.id })).resolves.toMatchObject({
+      status: PluginActionExecutionStatus.QUEUED,
+      trigger: 'schedule',
+      scheduleId: plan.id,
+      tokenHash: null,
+      startedAt: null,
+      deadlineAt: null,
+      queuedAt: expect.any(Date),
+      input: { documentId: 'd1' },
+      payloadBytes: Buffer.byteLength('{"documentId":"d1"}'),
+    });
+    await expect(schedules.findOneByOrFail({ id: plan.id })).resolves.toMatchObject({
+      lastExecutionId: execution.id,
+      version: plan.version,
+    });
+    await expect(service.hasOpenForSchedule(plan.id)).resolves.toBe(true);
+    await expect(service.findOldestQueued(target.id)).resolves.toMatchObject({ id: execution.id });
+    await expect(service.findInstallationsWithQueued(500)).resolves.toContain(target.id);
+    await expect(
+      service.promote(promotion(execution, createExecutionToken().tokenHash))
+    ).resolves.toEqual({ outcome: 'WAIT' });
+
+    await expect(service.cancel(execution.id, target.id)).resolves.toBe(true);
+    await expect(service.findStatus(execution.id)).resolves.toBe(
+      PluginActionExecutionStatus.CANCELLED
+    );
+    await expect(service.hasOpenForSchedule(plan.id)).resolves.toBe(false);
+    await expect(service.findInstallationsWithQueued(500)).resolves.not.toContain(target.id);
+  });
+
+  it('pages the installations with a queued run one by one, each once, in id order', async () => {
+    const targets = [await installation(), await installation(), await installation()];
+    for (const target of targets) {
+      const plan = await schedule(target);
+      for (let i = 0; i < 5; i += 1) {
+        await service.insertRunning(running(target));
+      }
+      // Two queued rows on one installation: DISTINCT must still return it once.
+      await service.insertScheduled(scheduled(target, plan));
+      await service.insertScheduled(scheduled(target, plan));
+    }
+
+    const seen: string[] = [];
+    let after: string | undefined;
+    for (;;) {
+      const page = await service.findInstallationsWithQueued(1, after);
+      if (page.length === 0) {
+        break;
+      }
+      expect(page).toHaveLength(1);
+      seen.push(page[0]);
+      after = page[0];
+    }
+
+    expect(seen).toEqual([...new Set(seen)].sort());
+    expect(seen.filter(id => targets.some(target => target.id === id))).toEqual(
+      targets.map(target => target.id).sort()
+    );
+    await expect(service.findInstallationsWithQueued(1, seen[seen.length - 1])).resolves.toEqual(
+      []
+    );
+  });
+
+  it('lets five of seven concurrent scheduled runs start and queues the other two', async () => {
+    const target = await installation();
+    const plan = await schedule(target);
+
+    const results = await Promise.all(
+      Array.from({ length: 7 }, () => service.insertScheduled(scheduled(target, plan)))
+    );
+
+    expect(results.filter(result => !result.queued)).toHaveLength(5);
+    expect(results.filter(result => result.queued)).toHaveLength(2);
+    expect(
+      await executions.countBy({
+        installationId: target.id,
+        status: PluginActionExecutionStatus.RUNNING,
+      })
+    ).toBe(5);
+    expect(
+      await executions.countBy({
+        installationId: target.id,
+        status: PluginActionExecutionStatus.QUEUED,
+      })
+    ).toBe(2);
+  });
+
+  it('starts a queued run once when two promoters race for it', async () => {
+    const target = await installation();
+    const plan = await schedule(target);
+    const started: PluginActionExecution[] = [];
+    for (let i = 0; i < 5; i += 1) {
+      started.push(await service.insertRunning(running(target)));
+    }
+    const { execution } = await service.insertScheduled(scheduled(target, plan));
+    for (const row of started.slice(0, 2)) {
+      await service.finish(row.id, { status: PluginActionExecutionStatus.SUCCEEDED, result: null });
+    }
+    const tokens = [createExecutionToken().tokenHash, createExecutionToken().tokenHash];
+
+    const outcomes = await Promise.all(
+      tokens.map(tokenHash => service.promote(promotion(execution, tokenHash)))
+    );
+
+    expect(outcomes.map(result => result.outcome).sort()).toEqual(['GONE', 'STARTED']);
+    const loaded = await executions.findOneByOrFail({ id: execution.id });
+    expect(loaded).toMatchObject({
+      status: PluginActionExecutionStatus.RUNNING,
+      role: 'viewer',
+      queuedAt: expect.any(Date),
+    });
+    expect(tokens).toContain(loaded.tokenHash);
+    expect(loaded.startedAt!.getMilliseconds()).toBe(0);
+    expect(loaded.deadlineAt!.getTime()).toBeGreaterThanOrEqual(
+      loaded.startedAt!.getTime() + 30_000
+    );
+    expect(outcomes.find(result => result.outcome === 'STARTED')).toMatchObject({
+      execution: { id: execution.id, tokenHash: loaded.tokenHash },
+    });
+    expect(
+      await executions.countBy({
+        installationId: target.id,
+        status: PluginActionExecutionStatus.RUNNING,
+      })
+    ).toBe(4);
+  });
+
+  it("cancels a schedule's queued run and leaves its running one", async () => {
+    const target = await installation();
+    const plan = await schedule(target);
+    const { execution: runningRun } = await service.insertScheduled(scheduled(target, plan));
+    for (let i = 0; i < 4; i += 1) {
+      await service.insertRunning(running(target));
+    }
+    const { execution: queuedRun, queued } = await service.insertScheduled(scheduled(target, plan));
+    expect(queued).toBe(true);
+
+    await expect(service.cancelQueuedForSchedule(plan.id)).resolves.toBe(1);
+
+    const lastRuns = await service.findLastRuns([runningRun.id, queuedRun.id, randomUUID()]);
+    expect(lastRuns).toHaveLength(2);
+    expect(lastRuns).toEqual(
+      expect.arrayContaining([
+        {
+          id: runningRun.id,
+          status: PluginActionExecutionStatus.RUNNING,
+          errorCode: null,
+          finishedAt: null,
+        },
+        {
+          id: queuedRun.id,
+          status: PluginActionExecutionStatus.CANCELLED,
+          errorCode: null,
+          finishedAt: expect.any(Date),
+        },
+      ])
+    );
+    await expect(service.findById(queuedRun.id)).resolves.toMatchObject({
+      scheduleId: plan.id,
+      errorMessage: 'The schedule was changed, paused or deleted',
+    });
+    await expect(service.failQueued(queuedRun.id, 'OWNER_NOT_MEMBER', 'late')).resolves.toBe(false);
+    await expect(service.hasOpenForSchedule(plan.id)).resolves.toBe(true);
+    await expect(service.findLastRuns([])).resolves.toEqual([]);
+  });
+
+  describe('Run History reads', () => {
+    const SECOND = '2026-10-17 10:00:00';
+    const filter = (overrides: Partial<PluginRunFilter> = {}): PluginRunFilter => ({
+      statuses: [],
+      trigger: null,
+      pluginId: null,
+      scheduleId: null,
+      userId: null,
+      ...overrides,
+    });
+    // Each test reads its own project, so rows of the other tests never page in.
+    const project = () => `runs-${randomUUID()}`;
+
+    async function run(
+      projectId: string,
+      createdAt: string,
+      overrides: Partial<PluginActionExecution> = {}
+    ): Promise<string> {
+      const saved = await executions.save(
+        executions.create({
+          pluginId: randomUUID(),
+          pluginVersionId: randomUUID(),
+          installationId: randomUUID(),
+          projectId,
+          userId: 'user-1',
+          action: 'update-document',
+          input: { documentId: 'd1' },
+          trigger: 'frontend',
+          status: PluginActionExecutionStatus.SUCCEEDED,
+          role: 'editor',
+          tokenHash: null,
+          result: { rows: 1 },
+          ...overrides,
+        })
+      );
+      // Whole-second text, as the column default stores it; a saved Date would keep milliseconds.
+      await executions.query('UPDATE plugin_action_execution SET createdAt = ? WHERE id = ?', [
+        createdAt,
+        saved.id,
+      ]);
+      return saved.id;
+    }
+
+    async function allPages(
+      projectId: string,
+      runFilter: PluginRunFilter,
+      take: number
+    ): Promise<string[]> {
+      const seen: string[] = [];
+      let after: PluginRunCursor | null = null;
+      for (;;) {
+        const page = await service.listRuns(projectId, runFilter, after, take);
+        seen.push(...page.map(row => row.id));
+        if (page.length < take) {
+          return seen;
+        }
+        const last = page[page.length - 1];
+        after = { createdAt: last.createdAt, id: last.id };
+      }
+    }
+
+    it('pages newest first through runs that share a second', async () => {
+      const projectId = project();
+      const tied: string[] = [];
+      for (let i = 0; i < 5; i += 1) {
+        tied.push(await run(projectId, SECOND));
+      }
+      await run(projectId, SECOND, { userId: 'user-2' });
+      const newest = await run(projectId, '2026-10-17 10:00:01');
+      const oldest = await run(projectId, '2026-10-17 09:59:59');
+      const expected = [newest, ...[...tied].sort().reverse(), oldest];
+
+      for (const take of [1, 2, 3, 7]) {
+        await expect(allPages(projectId, filter({ userId: 'user-1' }), take)).resolves.toEqual(
+          expected
+        );
+      }
+    });
+
+    it('filters by status, source, plugin, schedule and owner, inside one project', async () => {
+      const projectId = project();
+      const pluginId = randomUUID();
+      const scheduleId = randomUUID();
+      const failed = await run(projectId, '2026-10-17 10:00:00', {
+        pluginId,
+        status: PluginActionExecutionStatus.FAILED,
+        errorCode: 'DOC_LOCKED',
+      });
+      const timedOut = await run(projectId, '2026-10-17 10:00:01', {
+        trigger: 'schedule',
+        scheduleId,
+        status: PluginActionExecutionStatus.TIMED_OUT,
+      });
+      const theirs = await run(projectId, '2026-10-17 10:00:02', { userId: 'user-2' });
+      await run(project(), '2026-10-17 10:00:03');
+      const ids = async (overrides: Partial<PluginRunFilter>) =>
+        (await service.listRuns(projectId, filter(overrides), null, 50)).map(row => row.id);
+
+      await expect(ids({})).resolves.toEqual([theirs, timedOut, failed]);
+      await expect(
+        ids({
+          statuses: [PluginActionExecutionStatus.FAILED, PluginActionExecutionStatus.TIMED_OUT],
+        })
+      ).resolves.toEqual([timedOut, failed]);
+      await expect(ids({ trigger: 'schedule' })).resolves.toEqual([timedOut]);
+      await expect(ids({ scheduleId })).resolves.toEqual([timedOut]);
+      await expect(ids({ pluginId })).resolves.toEqual([failed]);
+      await expect(ids({ userId: 'user-2' })).resolves.toEqual([theirs]);
+      await expect(
+        ids({ statuses: [PluginActionExecutionStatus.FAILED], userId: 'user-2' })
+      ).resolves.toEqual([]);
+    });
+
+    it('reads no payload or token column, and null for an unknown run', async () => {
+      const projectId = project();
+      const id = await run(projectId, SECOND, { tokenHash: createExecutionToken().tokenHash });
+
+      const [listed] = await service.listRuns(projectId, filter(), null, 50);
+      const found = await service.findRun(id);
+
+      for (const row of [listed, found]) {
+        expect(row).toMatchObject({
+          id,
+          projectId,
+          userId: 'user-1',
+          createdAt: new Date('2026-10-17T10:00:00.000Z'),
+          payloadsClearedAt: null,
+        });
+        for (const column of ['input', 'result', 'tokenHash']) {
+          expect(row).not.toMatchObject({ [column]: expect.anything() });
+        }
+      }
+      await expect(service.findRun(randomUUID())).resolves.toBeNull();
+    });
   });
 });

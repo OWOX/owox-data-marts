@@ -17,12 +17,14 @@ function execution(overrides: Partial<PluginActionExecution> = {}): PluginAction
     action: 'update-document',
     input: { documentId: 'd1' },
     trigger: 'frontend',
+    scheduleId: null,
     status: PluginActionExecutionStatus.RUNNING,
     role: 'editor',
     tokenHash: 'a'.repeat(64),
     deadlineAt: DEADLINE_AT,
     createdAt: STARTED_AT,
     startedAt: STARTED_AT,
+    queuedAt: null,
     finishedAt: null,
     errorCode: null,
     errorMessage: null,
@@ -40,6 +42,7 @@ describe('toPluginActionExecutionView', () => {
       action: 'update-document',
       status: 'RUNNING',
       trigger: 'frontend',
+      scheduleId: null,
       startedAt: STARTED_AT,
       deadlineAt: DEADLINE_AT,
       finishedAt: null,
@@ -48,10 +51,25 @@ describe('toPluginActionExecutionView', () => {
     });
   });
 
-  it('shows no error for a status that is not final', () => {
-    const queued = execution({ status: 'QUEUED' as PluginActionExecutionStatus });
+  it('names the schedule of a queued run and shows no error for it', () => {
+    const queued = execution({
+      status: PluginActionExecutionStatus.QUEUED,
+      trigger: 'schedule',
+      scheduleId: 'schedule-1',
+      tokenHash: null,
+      startedAt: null,
+      deadlineAt: null,
+      queuedAt: STARTED_AT,
+    });
 
-    expect(toPluginActionExecutionView(queued)).toMatchObject({ status: 'QUEUED', error: null });
+    expect(toPluginActionExecutionView(queued)).toMatchObject({
+      status: 'QUEUED',
+      trigger: 'schedule',
+      scheduleId: 'schedule-1',
+      startedAt: null,
+      deadlineAt: null,
+      error: null,
+    });
   });
 
   it.each([

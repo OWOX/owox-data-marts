@@ -31,6 +31,10 @@ export class PluginInstallationService {
     return this.repository.findBy({ projectId, userId });
   }
 
+  findByProject(projectId: string): Promise<PluginInstallation[]> {
+    return this.repository.findBy({ projectId });
+  }
+
   listActiveByPluginIdAfter(
     pluginId: string,
     afterId: string | null,

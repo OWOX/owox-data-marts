@@ -3,11 +3,14 @@ jest.mock('typeorm-transactional', () => ({
     descriptor,
 }));
 
-import { In, IsNull, LessThan, MoreThan } from 'typeorm';
+import { In, IsNull, LessThan, MoreThan, QueryFailedError } from 'typeorm';
+import { TriggerStatus } from '../../common/scheduler/shared/entities/trigger-status';
 import { PluginActionExecutionStatus } from '../enums/plugin-action-execution-status.enum';
 import { InstallationInactiveError, TooManyExecutionsError } from '../errors/plugin-action.errors';
 import {
   InsertRunningExecutionInput,
+  InsertScheduledExecutionInput,
+  PromoteQueuedExecutionInput,
   PluginActionExecutionService,
 } from './plugin-action-execution.service';
 
@@ -28,13 +31,30 @@ const REQUEST: InsertRunningExecutionInput = {
   trigger: 'frontend',
 };
 
+const { trigger: _frontend, ...UNTRIGGERED } = REQUEST;
+const SCHEDULED: InsertScheduledExecutionInput = {
+  ...UNTRIGGERED,
+  scheduleId: 's1',
+  scheduleVersion: 3,
+};
+
 type Totals = {
   perMinute: string | number | null;
   perDay: string | number | null;
   bytes: string | number | null;
 };
+const NONE: Totals = { perMinute: null, perDay: null, bytes: null };
 
-function setup(options: { locked?: number; running?: number; totals?: Totals } = {}) {
+function setup(
+  options: {
+    locked?: number;
+    running?: number;
+    totals?: Totals;
+    unstarted?: Totals;
+    updated?: number;
+    scheduleUpdated?: number;
+  } = {}
+) {
   const calls: string[] = [];
   const lockQuery = {
     update: jest.fn().mockReturnThis(),
@@ -50,32 +70,65 @@ function setup(options: { locked?: number; running?: number; totals?: Totals } =
   const totalsQuery = {
     select: jest.fn().mockReturnThis(),
     addSelect: jest.fn().mockReturnThis(),
+    distinct: jest.fn().mockReturnThis(),
     where: jest.fn().mockReturnThis(),
     andWhere: jest.fn().mockReturnThis(),
     setParameters: jest.fn().mockReturnThis(),
+    orderBy: jest.fn().mockReturnThis(),
+    limit: jest.fn().mockReturnThis(),
     getRawOne: jest.fn(async () => {
       calls.push('totals');
       return options.totals ?? { perMinute: '0', perDay: '0', bytes: null };
     }),
+    getRawMany: jest.fn().mockResolvedValue([]),
+  };
+  // The second start-limit query: queued runs that were cancelled or failed before they started.
+  const unstartedQuery = {
+    select: jest.fn().mockReturnThis(),
+    addSelect: jest.fn().mockReturnThis(),
+    where: jest.fn().mockReturnThis(),
+    andWhere: jest.fn().mockReturnThis(),
+    setParameters: jest.fn().mockReturnThis(),
+    getRawOne: jest.fn(async () => options.unstarted ?? NONE),
   };
   const executions = {
-    createQueryBuilder: jest.fn(() => totalsQuery),
+    createQueryBuilder: jest
+      .fn<typeof totalsQuery | typeof unstartedQuery, []>(() => totalsQuery)
+      .mockReturnValueOnce(totalsQuery)
+      .mockReturnValueOnce(unstartedQuery),
     countBy: jest.fn(async () => {
       calls.push('count');
       return options.running ?? 0;
     }),
+    existsBy: jest.fn().mockResolvedValue(false),
     create: jest.fn((row: object) => row),
     save: jest.fn(async (row: object) => {
       calls.push('insert');
       return { id: 'e1', ...row };
     }),
-    update: jest.fn().mockResolvedValue({ affected: 1 }),
+    update: jest.fn().mockImplementation(async () => {
+      calls.push('update');
+      return { affected: options.updated ?? 1 };
+    }),
     findOne: jest.fn().mockResolvedValue(null),
+    findOneByOrFail: jest
+      .fn()
+      .mockResolvedValue({ id: 'e1', status: PluginActionExecutionStatus.RUNNING }),
     find: jest.fn().mockResolvedValue([]),
     delete: jest.fn().mockResolvedValue({ affected: 0 }),
   };
-  const service = new PluginActionExecutionService(executions as never, installations as never);
-  return { service, calls, lockQuery, executions, totalsQuery };
+  const schedules = {
+    update: jest.fn().mockImplementation(async () => {
+      calls.push('schedule');
+      return { affected: options.scheduleUpdated ?? 1 };
+    }),
+  };
+  const service = new PluginActionExecutionService(
+    executions as never,
+    installations as never,
+    schedules as never
+  );
+  return { service, calls, lockQuery, executions, totalsQuery, unstartedQuery, schedules };
 }
 
 describe('PluginActionExecutionService', () => {
@@ -112,17 +165,46 @@ describe('PluginActionExecutionService', () => {
     });
 
     it.each([
-      ['per minute', { perMinute: '60', perDay: '60', bytes: '0' }, '60 starts per minute reached'],
-      ['per day', { perMinute: 3, perDay: '5000', bytes: '0' }, '5000 starts per day reached'],
+      [
+        'per minute',
+        { perMinute: '60', perDay: '60', bytes: '0' },
+        NONE,
+        '60 starts per minute reached',
+      ],
+      [
+        'per day',
+        { perMinute: 3, perDay: '5000', bytes: '0' },
+        NONE,
+        '5000 starts per day reached',
+      ],
       [
         'in stored bytes',
         { perMinute: 0, perDay: 0, bytes: String(100 * 1024 * 1024) },
+        NONE,
+        '100 MiB of stored payloads reached',
+      ],
+      [
+        'per minute, with a queued run that never started',
+        { perMinute: '59', perDay: '59', bytes: '0' },
+        { perMinute: '1', perDay: '1', bytes: '0' },
+        '60 starts per minute reached',
+      ],
+      [
+        'per day, with a queued run that never started',
+        { perMinute: 3, perDay: '4999', bytes: '0' },
+        { perMinute: 0, perDay: '1', bytes: '0' },
+        '5000 starts per day reached',
+      ],
+      [
+        'in stored bytes, with a queued run that never started',
+        { perMinute: 0, perDay: 0, bytes: String(100 * 1024 * 1024 - 1) },
+        { perMinute: 0, perDay: 0, bytes: '1' },
         '100 MiB of stored payloads reached',
       ],
     ])(
       'refuses a start over the limit %s, naming it and leaving the input out',
-      async (_n, totals, message) => {
-        const s = setup({ totals });
+      async (_n, totals, unstarted, message) => {
+        const s = setup({ totals, unstarted });
 
         const refusal = await s.service.insertRunning(REQUEST).catch((error: unknown) => error);
 
@@ -146,6 +228,15 @@ describe('PluginActionExecutionService', () => {
         dayAgo: new Date(NOW.getTime() - 24 * 3_600_000),
         bytesSince: new Date(NOW.getTime() - 48 * 3_600_000),
       });
+      expect(s.unstartedQuery.andWhere).toHaveBeenCalledWith('e.status IN (:...statuses)', {
+        statuses: [
+          PluginActionExecutionStatus.CANCELLED,
+          PluginActionExecutionStatus.FAILED,
+          PluginActionExecutionStatus.TIMED_OUT,
+        ],
+      });
+      expect(s.unstartedQuery.andWhere).toHaveBeenCalledWith('e.startedAt IS NULL');
+      expect(s.unstartedQuery.andWhere).toHaveBeenCalledWith('e.queuedAt > :bytesSince');
     });
 
     it('stores the UTF-8 byte length of the input as payloadBytes', async () => {
@@ -206,8 +297,192 @@ describe('PluginActionExecutionService', () => {
           deadlineAt: new Date(NOW.getTime() + 60_000),
           tokenHash: 'a'.repeat(64),
           input: { documentId: 'd1' },
+          trigger: 'frontend',
+          scheduleId: null,
+          queuedAt: null,
         })
       );
+    });
+  });
+
+  describe('insertScheduled', () => {
+    it('starts a run within the limits and points the schedule at it', async () => {
+      const s = setup();
+
+      await expect(s.service.insertScheduled(SCHEDULED)).resolves.toEqual({
+        execution: expect.objectContaining({ id: 'e1' }),
+        queued: false,
+      });
+
+      expect(s.calls).toEqual(['lock', 'count', 'totals', 'insert', 'schedule']);
+      expect(s.executions.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: PluginActionExecutionStatus.RUNNING,
+          trigger: 'schedule',
+          scheduleId: 's1',
+          tokenHash: 'a'.repeat(64),
+          startedAt: NOW,
+          deadlineAt: new Date(NOW.getTime() + 60_000),
+          queuedAt: null,
+        })
+      );
+      expect(s.schedules.update).toHaveBeenCalledWith(
+        { id: 's1', status: TriggerStatus.PROCESSING, version: 3 },
+        { lastExecutionId: 'e1', version: expect.any(Function) }
+      );
+      expect(s.schedules.update.mock.calls[0][1].version()).toBe('version');
+    });
+
+    it('refuses with an optimistic-lock error when the runner no longer holds the schedule', async () => {
+      const s = setup({ scheduleUpdated: 0 });
+
+      const error = await s.service.insertScheduled(SCHEDULED).catch((refusal: unknown) => refusal);
+
+      expect(error).toBeInstanceOf(QueryFailedError);
+      expect((error as QueryFailedError).message).toContain('optimistic lock');
+      expect(s.calls).toEqual(['lock', 'count', 'totals', 'insert', 'schedule']);
+    });
+
+    it.each([
+      ['five running executions', { running: 5 }, ['lock', 'count', 'insert', 'schedule']],
+      [
+        'the per-minute limit',
+        { totals: { perMinute: '60', perDay: '60', bytes: '0' } },
+        ['lock', 'count', 'totals', 'insert', 'schedule'],
+      ],
+      [
+        'the per-day limit',
+        { totals: { perMinute: 0, perDay: '5000', bytes: '0' } },
+        ['lock', 'count', 'totals', 'insert', 'schedule'],
+      ],
+      [
+        'the stored-bytes limit',
+        { totals: { perMinute: 0, perDay: 0, bytes: String(100 * 1024 * 1024) } },
+        ['lock', 'count', 'totals', 'insert', 'schedule'],
+      ],
+    ])(
+      'queues the run when it meets %s, with no token or clock',
+      async (_limit, options, calls) => {
+        const s = setup(options);
+
+        await expect(s.service.insertScheduled(SCHEDULED)).resolves.toMatchObject({
+          queued: true,
+        });
+
+        expect(s.calls).toEqual(calls);
+        expect(s.executions.create).toHaveBeenCalledWith(
+          expect.objectContaining({
+            status: PluginActionExecutionStatus.QUEUED,
+            trigger: 'schedule',
+            scheduleId: 's1',
+            tokenHash: null,
+            startedAt: null,
+            deadlineAt: null,
+            queuedAt: NOW,
+            input: { documentId: 'd1' },
+            payloadBytes: REQUEST.inputBytes,
+          })
+        );
+        expect(s.schedules.update).toHaveBeenCalledWith(
+          { id: 's1', status: TriggerStatus.PROCESSING, version: 3 },
+          expect.objectContaining({ lastExecutionId: 'e1' })
+        );
+      }
+    );
+
+    it('refuses an uninstalled installation and leaves the schedule alone', async () => {
+      const s = setup({ locked: 0 });
+
+      await expect(s.service.insertScheduled(SCHEDULED)).rejects.toBeInstanceOf(
+        InstallationInactiveError
+      );
+      expect(s.calls).toEqual(['lock']);
+      expect(s.schedules.update).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('promote', () => {
+    const PROMOTION: PromoteQueuedExecutionInput = {
+      id: 'e1',
+      installationId: 'i1',
+      pluginVersionId: 'v2',
+      role: 'viewer',
+      tokenHash: 'b'.repeat(64),
+      timeoutSeconds: 1,
+    };
+
+    it('moves the row from QUEUED to RUNNING under the lock, in whole seconds', async () => {
+      jest.setSystemTime(new Date('2026-10-14T12:00:00.750Z'));
+      const s = setup();
+
+      const outcome = await s.service.promote(PROMOTION);
+
+      expect(s.calls).toEqual(['lock', 'count', 'totals', 'update']);
+      expect(s.lockQuery.where).toHaveBeenCalledWith('id = :id', { id: 'i1' });
+      expect(s.executions.update).toHaveBeenCalledWith(
+        { id: 'e1', installationId: 'i1', status: PluginActionExecutionStatus.QUEUED },
+        {
+          status: PluginActionExecutionStatus.RUNNING,
+          tokenHash: 'b'.repeat(64),
+          role: 'viewer',
+          pluginVersionId: 'v2',
+          startedAt: new Date('2026-10-14T12:00:00.000Z'),
+          deadlineAt: new Date('2026-10-14T12:00:02.000Z'),
+        }
+      );
+      expect(s.executions.findOneByOrFail).toHaveBeenCalledWith({ id: 'e1' });
+      expect(outcome).toEqual({
+        outcome: 'STARTED',
+        execution: { id: 'e1', status: PluginActionExecutionStatus.RUNNING },
+      });
+    });
+
+    it.each([
+      ['five running executions', { running: 5 }],
+      ['the per-minute limit', { totals: { perMinute: '60', perDay: '60', bytes: '0' } }],
+    ])('waits when it meets %s, leaving the row QUEUED', async (_limit, options) => {
+      const s = setup(options);
+
+      await expect(s.service.promote(PROMOTION)).resolves.toEqual({ outcome: 'WAIT' });
+      expect(s.executions.update).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ['five running executions', { running: 5 }, true, ['count']],
+      [
+        'the per-minute limit',
+        { totals: { perMinute: '60', perDay: '60', bytes: '0' } },
+        true,
+        ['count', 'totals'],
+      ],
+      ['no limit', {}, false, ['count', 'totals']],
+    ])(
+      'answers whether a start would meet %s, as promote counts, without the lock',
+      async (_limit, options, refused, calls) => {
+        const s = setup(options);
+
+        await expect(s.service.refusesStart('i1')).resolves.toBe(refused);
+        expect(s.calls).toEqual(calls);
+        expect(s.executions.countBy).toHaveBeenCalledWith({
+          installationId: 'i1',
+          status: PluginActionExecutionStatus.RUNNING,
+          deadlineAt: MoreThan(NOW),
+        });
+      }
+    );
+
+    it('answers GONE when a cancel or another promoter moved the row first', async () => {
+      const s = setup({ updated: 0 });
+
+      await expect(s.service.promote(PROMOTION)).resolves.toEqual({ outcome: 'GONE' });
+      expect(s.executions.findOneByOrFail).not.toHaveBeenCalled();
+    });
+
+    it('refuses an uninstalled installation before it counts', async () => {
+      const s = setup({ locked: 0 });
+
+      await expect(s.service.promote(PROMOTION)).rejects.toBeInstanceOf(InstallationInactiveError);
+      expect(s.calls).toEqual(['lock']);
     });
   });
 
@@ -250,19 +525,145 @@ describe('PluginActionExecutionService', () => {
     ).resolves.toBe(false);
   });
 
-  it('cancels only a RUNNING execution of the same installation', async () => {
+  it('cancels only a RUNNING or QUEUED execution of the same installation', async () => {
     const s = setup();
 
     await expect(s.service.cancel('e1', 'i1')).resolves.toBe(true);
 
     expect(s.executions.update).toHaveBeenCalledWith(
-      { id: 'e1', installationId: 'i1', status: PluginActionExecutionStatus.RUNNING },
+      {
+        id: 'e1',
+        installationId: 'i1',
+        status: In([PluginActionExecutionStatus.RUNNING, PluginActionExecutionStatus.QUEUED]),
+      },
       {
         status: PluginActionExecutionStatus.CANCELLED,
         finishedAt: NOW,
         errorMessage: 'The execution was cancelled',
       }
     );
+  });
+
+  describe('queue', () => {
+    it('finds an open execution of a schedule, QUEUED or RUNNING', async () => {
+      const s = setup();
+      s.executions.existsBy.mockResolvedValue(true);
+
+      await expect(s.service.hasOpenForSchedule('s1')).resolves.toBe(true);
+
+      expect(s.executions.existsBy).toHaveBeenCalledWith({
+        scheduleId: 's1',
+        status: In([PluginActionExecutionStatus.QUEUED, PluginActionExecutionStatus.RUNNING]),
+      });
+    });
+
+    it('reads the oldest queued execution of an installation, input included', async () => {
+      const s = setup();
+
+      await s.service.findOldestQueued('i1');
+
+      expect(s.executions.findOne).toHaveBeenCalledWith({
+        where: { installationId: 'i1', status: PluginActionExecutionStatus.QUEUED },
+        order: { queuedAt: 'ASC', id: 'ASC' },
+      });
+    });
+
+    it('lists the distinct installations with a queued execution in id order, up to the limit', async () => {
+      const s = setup();
+      s.totalsQuery.getRawMany.mockResolvedValue([
+        { installationId: 'i1' },
+        { installationId: 'i2' },
+      ]);
+
+      await expect(s.service.findInstallationsWithQueued(500)).resolves.toEqual(['i1', 'i2']);
+
+      expect(s.totalsQuery.select).toHaveBeenCalledWith('e.installationId', 'installationId');
+      expect(s.totalsQuery.distinct).toHaveBeenCalledWith(true);
+      expect(s.totalsQuery.where).toHaveBeenCalledWith('e.status = :status', {
+        status: PluginActionExecutionStatus.QUEUED,
+      });
+      expect(s.totalsQuery.orderBy).toHaveBeenCalledWith('e.installationId', 'ASC');
+      expect(s.totalsQuery.limit).toHaveBeenCalledWith(500);
+      expect(s.totalsQuery.andWhere).not.toHaveBeenCalled();
+    });
+
+    it('lists the next page after the last installation of the previous one', async () => {
+      const s = setup();
+
+      await s.service.findInstallationsWithQueued(500, 'i2');
+
+      expect(s.totalsQuery.andWhere).toHaveBeenCalledWith('e.installationId > :after', {
+        after: 'i2',
+      });
+      expect(s.totalsQuery.orderBy).toHaveBeenCalledWith('e.installationId', 'ASC');
+    });
+
+    it('fails only an execution that is still QUEUED', async () => {
+      const s = setup();
+
+      await expect(
+        s.service.failQueued('e1', 'OWNER_NOT_MEMBER', 'The owner is no longer a project member')
+      ).resolves.toBe(true);
+
+      expect(s.executions.update).toHaveBeenCalledWith(
+        { id: 'e1', status: PluginActionExecutionStatus.QUEUED },
+        {
+          status: PluginActionExecutionStatus.FAILED,
+          finishedAt: NOW,
+          errorCode: 'OWNER_NOT_MEMBER',
+          errorMessage: 'The owner is no longer a project member',
+        }
+      );
+    });
+
+    it('reports a failQueued that lost its compare-and-set as false', async () => {
+      const s = setup({ updated: 0 });
+
+      await expect(s.service.failQueued('e1', 'INVALID_INPUT', 'No longer valid')).resolves.toBe(
+        false
+      );
+    });
+
+    it("cancels a schedule's queued execution and counts what it cancelled", async () => {
+      const s = setup({ updated: 1 });
+
+      await expect(s.service.cancelQueuedForSchedule('s1')).resolves.toBe(1);
+
+      expect(s.executions.update).toHaveBeenCalledWith(
+        { scheduleId: 's1', status: PluginActionExecutionStatus.QUEUED },
+        {
+          status: PluginActionExecutionStatus.CANCELLED,
+          finishedAt: NOW,
+          errorMessage: 'The schedule was changed, paused or deleted',
+        }
+      );
+    });
+
+    it("cancels an installation's queued executions and counts what it cancelled", async () => {
+      const s = setup({ updated: 2 });
+
+      await expect(s.service.cancelQueuedForInstallation('i1')).resolves.toBe(2);
+
+      expect(s.executions.update).toHaveBeenCalledWith(
+        { installationId: 'i1', status: PluginActionExecutionStatus.QUEUED },
+        {
+          status: PluginActionExecutionStatus.CANCELLED,
+          finishedAt: NOW,
+          errorMessage: 'The plugin was uninstalled',
+        }
+      );
+    });
+
+    it('reads the last runs of several executions in one query, without input, result or message', async () => {
+      const s = setup();
+
+      await s.service.findLastRuns(['e1', 'e2']);
+
+      expect(s.executions.find).toHaveBeenCalledWith({
+        select: { id: true, status: true, errorCode: true, finishedAt: true },
+        where: { id: In(['e1', 'e2']) },
+      });
+    });
   });
 
   describe('reads', () => {
@@ -307,6 +708,7 @@ describe('PluginActionExecutionService', () => {
           'id',
           'installationId',
           'result',
+          'scheduleId',
           'startedAt',
           'status',
           'trigger',
@@ -319,6 +721,21 @@ describe('PluginActionExecutionService', () => {
     const CUTOFF = new Date('2026-10-13T12:00:00.000Z');
     const rows = (count: number, errorCode: string | null = null) =>
       Array.from({ length: count }, (_, index) => ({ id: `e${index}`, errorCode }));
+
+    it('times out QUEUED rows queued before the cutoff and counts them', async () => {
+      const s = setup({ updated: 2 });
+
+      await expect(s.service.timeOutQueued(CUTOFF)).resolves.toBe(2);
+
+      expect(s.executions.update).toHaveBeenCalledWith(
+        { status: PluginActionExecutionStatus.QUEUED, queuedAt: LessThan(CUTOFF) },
+        {
+          status: PluginActionExecutionStatus.TIMED_OUT,
+          finishedAt: NOW,
+          errorMessage: 'The run waited 24 hours in the queue',
+        }
+      );
+    });
 
     it('clears only rows not cleared yet, and marks the rows it clears', async () => {
       const s = setup();
