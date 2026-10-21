@@ -697,11 +697,51 @@ describe('HTTP Data API (e2e)', () => {
       expect(run.body.additionalParams?.httpData?.limit).toBe(1);
     });
 
-    it('returns 400 for any query param other than limit', async () => {
-      const res = await agent
-        .get(`/api/external/http-data/reports/${reportId}.ndjson?filter=abc`)
-        .set(AUTH_HEADER);
-      expect(res.status).toBe(400);
+    it.each([{ filter: 'abc' }, { limit: '0' }])(
+      'rejects invalid request parameters without creating a run: %j',
+      async query => {
+        const runRepo = app.get<Repository<DataMartRun>>(getRepositoryToken(DataMartRun));
+        const runsBefore = await runRepo.count();
+        const res = await agent
+          .get(`/api/external/http-data/reports/${reportId}.ndjson`)
+          .query(query)
+          .set(AUTH_HEADER);
+
+        expect(res.status).toBe(400);
+        expect(res.headers['x-owox-run-id']).toBeUndefined();
+        expect(await runRepo.count()).toBe(runsBefore);
+      }
+    );
+
+    it('records a failed run when a saved filter column disappears from the schema', async () => {
+      const runRepo = app.get<Repository<DataMartRun>>(getRepositoryToken(DataMartRun));
+      const runsBefore = await runRepo.find({ where: { reportId } });
+      const previousRunIds = new Set(runsBefore.map(run => run.id));
+      const originalImpl = blendableSchemaMock.computeBlendableSchema.getMockImplementation();
+      blendableSchemaMock.computeBlendableSchema.mockImplementation(
+        buildMockBlendableSchema([{ name: 'revenue', type: 'NUMERIC' }]).computeBlendableSchema
+      );
+
+      try {
+        const res = await agent
+          .get(`/api/external/http-data/reports/${reportId}.ndjson`)
+          .set(AUTH_HEADER);
+        expect(res.status).toBe(400);
+        expect(res.body.message).toContain('date');
+        expect(res.headers['x-owox-run-id']).toBeUndefined();
+
+        const runsAfter = await runRepo.find({ where: { reportId } });
+        const failedRuns = runsAfter.filter(run => !previousRunIds.has(run.id));
+        expect(failedRuns).toHaveLength(1);
+        expect(failedRuns[0]).toMatchObject({
+          type: 'HTTP_DATA',
+          status: 'FAILED',
+          reportId,
+          errors: [expect.stringContaining('date')],
+        });
+      } finally {
+        blendableSchemaMock.computeBlendableSchema.mockImplementation(originalImpl!);
+      }
     });
 
     it('returns 404 for an unknown report id', async () => {

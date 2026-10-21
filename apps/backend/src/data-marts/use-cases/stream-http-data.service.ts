@@ -604,8 +604,10 @@ export class StreamHttpDataService {
 
       res.end();
     } catch (error) {
+      // Saved-report failures must remain visible in run history and the Excel report status.
       // Project restrictions are audited even though their HTTP response is also 400.
       if (
+        params.reportId === undefined &&
         !res.headersSent &&
         !(error instanceof ProjectOperationBlockedException) &&
         (error instanceof BusinessViolationException ||

@@ -83,9 +83,10 @@ X-OWOX-Api-Key-Id: <apiKeyId>
 Both endpoints include an `x-owox-run-id` response header when NDJSON streaming starts.
 Use it to look up the run and its executed query through the run history endpoint.
 
-Requests rejected with `400 Bad Request` for invalid query parameters or output controls do
-not create a Run History entry or return an `x-owox-run-id` header. Project restrictions, such
-as an inactive project or an exceeded credit limit, create a `RESTRICTED` run.
+Invalid query parameters, including output controls supplied to the Data Mart endpoint, return
+`400 Bad Request` without a Run History entry. Errors in a saved report's configuration create
+a `FAILED` run. Project restrictions, such as an inactive project or an exceeded credit limit,
+create a `RESTRICTED` run.
 
 When output controls or joined fields produce a SQL query, both HTTP Data endpoints save it in
 `additionalParams.httpData.executionSqlQuery`, with parameter values inlined. The web UI shows

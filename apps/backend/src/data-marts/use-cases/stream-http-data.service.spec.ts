@@ -1656,28 +1656,29 @@ describe('StreamHttpDataService', () => {
       );
     });
 
-    it('records a FAILED run tagged with reportId for an unexpected query-planning failure', async () => {
-      blended.resolveBlendingDecision.mockRejectedValueOnce(
-        new Error('Query planning failed unexpectedly')
-      );
+    it.each([
+      new BusinessViolationException('Report references a column that no longer exists'),
+      new BadRequestException('Invalid saved output controls'),
+      new HttpException('Invalid saved query configuration', HttpStatus.BAD_REQUEST),
+      new Error('Query planning failed unexpectedly'),
+    ])('records a FAILED run tagged with reportId when planning fails: %s', async error => {
+      blended.resolveBlendingDecision.mockRejectedValueOnce(error);
       const res = mockResponse();
 
-      await expect(service.streamReport(fakeReportCommand(), res)).rejects.toThrow(
-        'Query planning failed unexpectedly'
-      );
+      await expect(service.streamReport(fakeReportCommand(), res)).rejects.toBe(error);
 
       expect(res._writes).toHaveLength(0);
+      expect(res.setHeader).not.toHaveBeenCalled();
       expect(dataMartRunService.recordHttpDataRun).toHaveBeenCalledTimes(1);
       expect(dataMartRunService.recordHttpDataRun).toHaveBeenCalledWith(
         expect.objectContaining({
           status: DataMartRunStatus.FAILED,
           reportId: 'report-1',
           metadata: expect.objectContaining({ completed: false }),
-          errors: expect.arrayContaining([
-            expect.stringContaining('Query planning failed unexpectedly'),
-          ]),
+          errors: [error.message],
         })
       );
+      expect(reportService.updateRunStatus).not.toHaveBeenCalled();
     });
 
     it('streams and records a SUCCESS run without executionSqlQuery when SQL inlining throws', async () => {
@@ -1888,19 +1889,40 @@ describe('StreamHttpDataService', () => {
         } as never;
       }
 
-      it('leaves the report status unchanged when saved output controls are invalid', async () => {
-        reportService.getByIdAndProjectId.mockResolvedValueOnce(excelReport());
-        const error = new BadRequestException('Invalid saved output controls');
-        blended.resolveBlendingDecision.mockRejectedValueOnce(error);
-        const res = mockResponse();
+      it.each([
+        new BusinessViolationException('Report references a column that no longer exists'),
+        new BadRequestException('Invalid saved output controls'),
+        new HttpException('Invalid saved query configuration', HttpStatus.BAD_REQUEST),
+      ])(
+        'records the failed run and marks the report failed for invalid saved configuration: %s',
+        async error => {
+          reportService.getByIdAndProjectId.mockResolvedValueOnce(
+            excelReport({ lastRunStatus: ReportRunStatus.SUCCESS })
+          );
+          blended.resolveBlendingDecision.mockRejectedValueOnce(error);
+          const res = mockResponse();
 
-        await expect(service.streamReport(fakeReportCommand(), res)).rejects.toBe(error);
+          await expect(service.streamReport(fakeReportCommand(), res)).rejects.toBe(error);
 
-        expect(dataMartRunService.recordHttpDataRun).not.toHaveBeenCalled();
-        expect(reportService.updateRunStatus).not.toHaveBeenCalled();
-        expect(projectBilling.registerExcelReportRunConsumption).not.toHaveBeenCalled();
-        expect(res.setHeader).not.toHaveBeenCalled();
-      });
+          expect(dataMartRunService.recordHttpDataRun).toHaveBeenCalledTimes(1);
+          expect(dataMartRunService.recordHttpDataRun).toHaveBeenCalledWith(
+            expect.objectContaining({
+              type: DataMartRunType.EXCEL,
+              status: DataMartRunStatus.FAILED,
+              reportId: 'report-1',
+              errors: [error.message],
+            })
+          );
+          expect(reportService.updateRunStatus).toHaveBeenCalledWith(
+            'report-1',
+            ReportRunStatus.ERROR,
+            error.message
+          );
+          expect(projectBilling.registerExcelReportRunConsumption).not.toHaveBeenCalled();
+          expect(projectBilling.registerHttpDataRunConsumption).not.toHaveBeenCalled();
+          expect(res.setHeader).not.toHaveBeenCalled();
+        }
+      );
 
       it('keeps where the caller put the rows in the recorded run', async () => {
         // The metadata object is rebuilt from the read plan once the plan exists. Every other

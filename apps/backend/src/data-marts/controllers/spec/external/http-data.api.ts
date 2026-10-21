@@ -198,9 +198,9 @@ export function StreamHttpReportDataSpec() {
         'envelope), applying the report’s stored output controls (columns, filters, aggregations, ' +
         'date buckets, unique count, sort). The only accepted query parameter is an optional ' +
         '`limit` override; any other query key is rejected. Authenticated with the ODM member ' +
-        'token via `x-owox-authorization`. Successful executions and execution failures create a ' +
-        'DataMartRun tagged with the reportId. Requests rejected because of invalid query ' +
-        'configuration create no run. ' +
+        'token via `x-owox-authorization`. Successful executions and execution failures, including ' +
+        'invalid saved output controls, create a DataMartRun tagged with the reportId. ' +
+        'Invalid request query parameters create no run. ' +
         'When the report applies output controls or blends fields, the run also records the ' +
         'executed SQL under `additionalParams.httpData.executionSqlQuery`.',
     }),
@@ -236,11 +236,9 @@ export function StreamHttpReportDataSpec() {
     ApiResponse({
       status: 400,
       description:
-        'A query parameter other than `limit`, an invalid `limit`, invalid saved report output ' +
-        'controls (such as a column that no longer exists in the Data Mart), or a project blocked ' +
-        'because it is inactive or has exceeded its credit limit. Invalid query configuration ' +
-        'creates no run and returns no `x-owox-run-id` header. Project blocks are recorded as ' +
-        'RESTRICTED runs.',
+        'An unsupported query parameter or invalid `limit` creates no run. Invalid saved report ' +
+        'output controls create a FAILED run. Project restrictions create a RESTRICTED run. ' +
+        'Errors before streaming starts return no `x-owox-run-id` header.',
     }),
     ApiResponse({ status: 401, description: 'Missing or invalid `x-owox-authorization` token.' }),
     ApiResponse({
