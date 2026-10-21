@@ -20,11 +20,10 @@ import {
   splitEmailInput,
 } from './invite-teammates.utils';
 
-// TODO: placeholder copy — replace with the final product copy.
 const COPY = {
-  title: 'Invite your Data Owner',
+  title: 'Invite your colleague',
   subtitle:
-    'Bring in the teammate who manages your data warehouse, so they can connect storages and build Data Marts. You can change roles later in Project Settings → Members.',
+    'Bring in a teammate who helps set up the project (e.g. connect your data warehouse, create Data Marts).',
   hint: 'to add as many people as you need',
 };
 

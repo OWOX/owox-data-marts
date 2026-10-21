@@ -2,9 +2,9 @@
 'owox': minor
 ---
 
-**Invite your Data Owner right after sign-up**
+**Bring in the colleague who sets up your project right after sign-up**
 
-A new project's admin now sees an invite step right after the sign-up questionnaire. Add one or more teammate emails, press Enter after each, pick a role and send the invitations in one go, or skip to the app.
+A new project's admin can now invite the teammate who will connect the data warehouse and create Data Marts, on a step right after the sign-up questionnaire. Add one or more emails, press Enter after each, pick a role and send the invitations in one go, or skip to the app.
 
 - **Data Owner** is preselected. **Project Admin** and **Business User** are one click away, and every invitation gives access to the entire project.
 - The step shows once. Later invitations go through **Project Settings** → **Members** or the **Invite teammates** step of the setup checklist.
