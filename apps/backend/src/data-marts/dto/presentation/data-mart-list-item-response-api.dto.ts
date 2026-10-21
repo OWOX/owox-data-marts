@@ -51,6 +51,15 @@ export class DataMartListItemResponseApiDto {
   @ApiProperty({ type: 'integer', example: 2, minimum: 0 })
   reportsCount: number;
 
+  @ApiProperty({
+    type: 'integer',
+    example: 3,
+    minimum: 0,
+    description:
+      'Relationships the Data Mart defines plus the ones that point to it; a relationship to itself counts once. Only relationships whose other Data Mart the caller can see are counted.',
+  })
+  relationshipsCount: number;
+
   @ApiProperty({ type: UserProjectionDto, nullable: true })
   createdByUser: UserProjectionDto | null;
 

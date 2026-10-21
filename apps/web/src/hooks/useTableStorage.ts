@@ -175,7 +175,9 @@ export function useTableStorage<TData, TValue>({
       const visibility: VisibilityState = {};
       for (const id of currentColumnIds) {
         if (excludedColumnsFromVisibilityRef.current.includes(id)) continue;
-        visibility[id] = savedRaw[id] as boolean;
+        // A column added after the state was saved starts with its default visibility.
+        const saved = savedRaw[id];
+        visibility[id] = typeof saved === 'boolean' ? saved : defaultColumnVisibility[id];
       }
       return visibility;
     }

@@ -181,6 +181,7 @@ describe('DataMartController list OpenAPI', () => {
       'icon',
       'triggersCount',
       'reportsCount',
+      'relationshipsCount',
       'createdByUser',
       'businessOwnerUsers',
       'technicalOwnerUsers',
@@ -211,6 +212,7 @@ describe('DataMartController list OpenAPI', () => {
       connectorSourceName: { type: 'string' },
       triggersCount: { type: 'integer', minimum: 0 },
       reportsCount: { type: 'integer', minimum: 0 },
+      relationshipsCount: { type: 'integer', minimum: 0 },
       createdByUser: {
         nullable: true,
         allOf: [{ $ref: '#/components/schemas/UserProjectionDto' }],

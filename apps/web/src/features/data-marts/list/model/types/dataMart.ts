@@ -11,6 +11,8 @@ export interface DataMartListItem {
   storageTitle?: string;
   triggersCount: number;
   reportsCount: number;
+  /** Relationships the Data Mart defines plus the ones that point to it. */
+  relationshipsCount: number;
   createdByUser: UserProjectionDto | null;
   createdAt: Date;
   modifiedAt: Date;

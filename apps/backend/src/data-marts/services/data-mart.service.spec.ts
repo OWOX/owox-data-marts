@@ -451,6 +451,23 @@ describe('DataMartService canvas visibility queries', () => {
 
     expect(new Set(ids)).toEqual(new Set(['owned', 'shared-context']));
   });
+
+  it('keeps only the given Data Marts the caller can see, across storages', async () => {
+    const viewer = await service.findVisibleIdsByProjectIdAndIds(
+      'project-1',
+      ['owned', 'shared-context', 'maintenance-context', 'shared-other-context', 'owned'],
+      { userId: 'viewer-1', roles: ['viewer'], roleScope: RoleScope.SELECTED_CONTEXTS }
+    );
+    const admin = await service.findVisibleIdsByProjectIdAndIds(
+      'project-1',
+      ['shared-other-context', 'other-storage', 'deleted', 'other-project', 'missing'],
+      { userId: 'admin-1', roles: ['admin'], roleScope: RoleScope.ENTIRE_PROJECT }
+    );
+
+    expect(new Set(viewer)).toEqual(new Set(['owned', 'shared-context']));
+    expect(new Set(admin)).toEqual(new Set(['shared-other-context', 'other-storage']));
+    await expect(service.findVisibleIdsByProjectIdAndIds('project-1', [])).resolves.toEqual([]);
+  });
 });
 
 describe('DataMartService data last updated persistence', () => {

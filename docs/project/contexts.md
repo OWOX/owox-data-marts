@@ -101,6 +101,8 @@ In each place, the **Contexts** picker shows every context defined in the projec
 
 Resource lists (Data Marts, Storages, Destinations) display attached contexts as badges, and the lists can be filtered by context.
 
+In the Data Marts list, the **Contexts** filter also offers **No context**. Pick it to find the Data Marts that are not attached to any context, alone or together with the contexts you choose. **is none of** _No context_ keeps the Data Marts that have at least one context.
+
 ![Data Marts list showing context badges on each row and a context filter dropdown in the toolbar](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/2a131338-482e-43c0-ded7-40fafe0b5000/public)
 
 ### Who Can Change a Resource's Contexts

@@ -117,6 +117,29 @@ describe('DataMartMapper', () => {
       expect(mapper.toDomainDto(entity).icon).toBe(DataMartIcon.PURCHASES);
       expect(toResponse({ ...entity, icon: undefined } as DataMart).icon).toBeNull();
     });
+
+    it('carries the relationships count to the list item and defaults it to zero', () => {
+      const entity = {
+        id: 'data-mart-1',
+        title: 'Purchases',
+        status: DataMartStatus.PUBLISHED,
+        storage: { type: DataStorageType.GOOGLE_BIGQUERY, title: 'Warehouse' },
+        createdAt: new Date('2026-07-23T12:00:00.000Z'),
+        modifiedAt: new Date('2026-07-23T12:00:00.000Z'),
+        contexts: [],
+      } as unknown as DataMart;
+
+      expect(
+        mapper.toListItemResponse(
+          mapper.toListItemDto(entity, { triggersCount: 0, reportsCount: 0, relationshipsCount: 3 })
+        ).relationshipsCount
+      ).toBe(3);
+      expect(
+        mapper.toListItemResponse(
+          mapper.toListItemDto(entity, { triggersCount: 0, reportsCount: 0 })
+        ).relationshipsCount
+      ).toBe(0);
+    });
   });
 
   it('keeps Data Quality state out of the generic Data Mart response', async () => {

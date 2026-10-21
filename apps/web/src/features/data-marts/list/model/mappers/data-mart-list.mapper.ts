@@ -15,6 +15,7 @@ export function mapDataMartListFromDto(
     connectorSourceName: dmart.connectorSourceName,
     triggersCount: dmart.triggersCount,
     reportsCount: dmart.reportsCount,
+    relationshipsCount: dmart.relationshipsCount ?? 0,
     createdByUser: dmart.createdByUser,
     businessOwnerUsers: dmart.businessOwnerUsers ?? [],
     technicalOwnerUsers: dmart.technicalOwnerUsers ?? [],

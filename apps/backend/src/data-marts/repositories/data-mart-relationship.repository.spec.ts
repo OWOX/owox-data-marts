@@ -69,6 +69,40 @@ describe('DataMartRelationshipRepository', () => {
     expect(repository.createQueryBuilder).not.toHaveBeenCalled();
   });
 
+  it('loads both ends of relationships that start or end at the given Data Marts', async () => {
+    const rows = [
+      { sourceDataMartId: 'dm-1', targetDataMartId: 'dm-2' },
+      { sourceDataMartId: 'dm-3', targetDataMartId: 'dm-1' },
+    ];
+    const qb = createQueryBuilder(rows);
+    const repository = {
+      createQueryBuilder: jest.fn().mockReturnValue(qb),
+    } as unknown as jest.Mocked<Repository<DataMartRelationship>>;
+    const graphRepository = new DataMartRelationshipRepository(repository);
+
+    const result = await graphRepository.listEndpointRowsByProjectIdAndDataMartIds('project-1', [
+      'dm-1',
+    ]);
+
+    expect(qb.select).toHaveBeenCalledWith('source.id', 'sourceDataMartId');
+    expect(qb.addSelect).toHaveBeenCalledWith('target.id', 'targetDataMartId');
+    expect(qb.where).toHaveBeenCalledWith('relationship.projectId = :projectId', {
+      projectId: 'project-1',
+    });
+    expect(qb.andWhere).toHaveBeenCalledWith('source.deletedAt IS NULL');
+    expect(qb.andWhere).toHaveBeenCalledWith('target.deletedAt IS NULL');
+    expect(qb.andWhere).toHaveBeenCalledWith(
+      '(source.id IN (:...dataMartIds) OR target.id IN (:...dataMartIds))',
+      { dataMartIds: ['dm-1'] }
+    );
+    expect(result).toEqual(rows);
+
+    await expect(
+      graphRepository.listEndpointRowsByProjectIdAndDataMartIds('project-1', [])
+    ).resolves.toEqual([]);
+    expect(repository.createQueryBuilder).toHaveBeenCalledTimes(1);
+  });
+
   it('scopes storage graph rows by project and storage', async () => {
     const qb = createQueryBuilder();
     const repository = {

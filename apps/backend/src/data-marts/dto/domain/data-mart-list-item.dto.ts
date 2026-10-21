@@ -28,6 +28,7 @@ export class DataMartListItemDto {
     public readonly availableForReporting: boolean = true,
     public readonly availableForMaintenance: boolean = false,
     public readonly dataLastUpdated: SourceDataLastUpdatedSummary | null = null,
-    public readonly icon: DataMartIconValue | null = null
+    public readonly icon: DataMartIconValue | null = null,
+    public readonly relationshipsCount: number = 0
   ) {}
 }
