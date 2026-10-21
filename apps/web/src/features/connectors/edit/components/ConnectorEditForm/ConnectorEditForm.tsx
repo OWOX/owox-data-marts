@@ -39,6 +39,7 @@ import type { CustomConnectorListItemDto } from '../../../../connector-builder/s
 import { useProjectRoute } from '../../../../../shared/hooks/useProjectRoute';
 import { usePermissions } from '../../../../../app/permissions';
 import { isUnpublishedCustomConnector } from '../../../shared/utils/custom-connector-publish.utils';
+import { suggestGoogleSheetsTableName } from '../../../shared/utils/google-sheets-table-name.utils';
 
 const connectorKey = (c: ConnectorListItem) =>
   c.isCustom && c.id ? `custom:${c.id}` : `bundled:${c.name}`;
@@ -895,10 +896,12 @@ export function ConnectorEditForm({
         ) : null;
       case 4:
         if (isGoogleSheetsConnector) {
+          // Suggest the table from the selected sheet, not the connector's generic
+          // `google_sheets`: two sheets of one document must not default to one table.
           return selectedNode && connectorFields ? (
             <TargetSetupStep
               dataStorageType={dataStorageType}
-              destinationName={getDestinationName(connectorFields, selectedNode)}
+              destinationName={suggestGoogleSheetsTableName(connectorConfiguration.SheetName)}
               connectorName={selectedConnector.displayName}
               target={target}
               onTargetChange={handleTargetChange}

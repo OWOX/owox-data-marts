@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { Button } from '@owox/ui/components/button';
-import { Box, ChevronRight, PackageSearch } from 'lucide-react';
+import { Box, ChevronRight, Copy, PackageSearch } from 'lucide-react';
 import { cn } from '@owox/ui/lib/utils';
 import {
   DropdownMenu,
@@ -20,6 +20,7 @@ import {
 import { dataMartService } from '../../../../shared';
 import type { DataMartResponseDto } from '../../../../shared/types/api';
 import type { ConnectorDefinitionConfig, CopiedConfiguration } from '../../../model/types';
+import { GOOGLE_SHEETS_CONNECTOR_NAME } from '../../../../../connectors/shared/utils/google-sheets-fields.utils';
 
 interface CopyConfigurationButtonProps {
   currentConnectorName: string;
@@ -35,6 +36,12 @@ export function CopyConfigurationButton({
   const [dataMarts, setDataMarts] = useState<DataMartResponseDto[]>([]);
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
+  // What gets reused differs per source: for Google Sheets it is the connected account
+  // and the document, which is exactly what people hesitate to grant again.
+  const reuseHint =
+    currentConnectorName === GOOGLE_SHEETS_CONNECTOR_NAME
+      ? 'Reuses the connected Google account, spreadsheet and sheet of one of your Google Sheets Data Marts. No new sign-in is needed, and you can change the spreadsheet and sheet afterwards.'
+      : 'Reuses the connection settings and credentials of one of your Data Marts with the same source. You can change any of them afterwards.';
 
   const loadDataMarts = useCallback(async () => {
     setLoading(true);
@@ -135,19 +142,25 @@ export function CopyConfigurationButton({
   return (
     <TooltipProvider>
       <DropdownMenu open={open} onOpenChange={setOpen}>
-        <DropdownMenuTrigger asChild>
-          <Button type='button' variant='ghost' size='sm' className='cursor-pointer'>
-            <span className='text-muted-foreground/75 text-xs font-semibold tracking-wide uppercase'>
-              Copy from&hellip;
-            </span>
-            <ChevronRight
-              className={cn(
-                'text-foreground/75 h-3.5 w-3.5 transition-transform duration-200',
-                open && 'rotate-90'
-              )}
-            />
-          </Button>
-        </DropdownMenuTrigger>
+        <Tooltip delayDuration={300}>
+          <TooltipTrigger asChild>
+            <DropdownMenuTrigger asChild>
+              <Button type='button' variant='outline' size='sm' className='cursor-pointer'>
+                <Copy className='h-3.5 w-3.5' aria-hidden='true' />
+                Reuse from another Data&nbsp;Mart
+                <ChevronRight
+                  className={cn(
+                    'text-muted-foreground h-3.5 w-3.5 transition-transform duration-200',
+                    open && 'rotate-90'
+                  )}
+                />
+              </Button>
+            </DropdownMenuTrigger>
+          </TooltipTrigger>
+          <TooltipContent side='bottom' className='max-w-xs'>
+            {reuseHint}
+          </TooltipContent>
+        </Tooltip>
         <DropdownMenuContent side='bottom' align='end' className='w-72'>
           {loading ? (
             <DropdownMenuItem disabled>Loading&hellip;</DropdownMenuItem>
@@ -160,16 +173,13 @@ export function CopyConfigurationButton({
                 No matching Data&nbsp;Marts
               </span>
               <span className='text-muted-foreground text-sm'>
-                You can reuse configuration settings only from connector-based Data&nbsp;Marts that
-                use the same source.
+                You can reuse settings only from connector-based Data&nbsp;Marts that use the same
+                source.
               </span>
             </div>
           ) : (
             <div className='flex flex-col gap-2'>
-              <div className='text-muted-foreground border-b p-2 text-sm'>
-                Select one of your existing Data&nbsp;Marts to&nbsp;reuse its configuration
-                settings.
-              </div>
+              <div className='text-muted-foreground border-b p-2 text-sm'>{reuseHint}</div>
               <div>
                 {dataMarts.map(dataMart => {
                   const definition = dataMart.definition as ConnectorDefinitionConfig;

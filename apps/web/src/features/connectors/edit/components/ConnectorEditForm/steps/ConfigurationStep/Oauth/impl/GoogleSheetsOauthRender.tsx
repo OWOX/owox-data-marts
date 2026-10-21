@@ -6,8 +6,9 @@ import type { OauthRenderComponentProps } from '../OauthRenderFactory';
 import { useGoogleSheetsPicker } from '../../../../../../../../google-oauth';
 import { Button } from '@owox/ui/components/button';
 import { ExternalAnchor } from '@owox/ui/components/common/external-anchor';
-import { FileSpreadsheet } from 'lucide-react';
+import { CircleCheck, FileSpreadsheet } from 'lucide-react';
 import { useState } from 'react';
+import { toast } from 'react-hot-toast';
 
 export function GoogleSheetsOauthRender({
   isLoading,
@@ -38,6 +39,13 @@ export function GoogleSheetsOauthRender({
     }
     if (result) {
       setPickerError(null);
+      // The popup closes on its own; say out loud that the account is connected and
+      // what comes next, so the user does not have to spot the changed button label.
+      toast.success(
+        nextEmail
+          ? `Google account ${nextEmail} connected. Now choose a spreadsheet.`
+          : 'Google account connected. Now choose a spreadsheet.'
+      );
     }
   };
 
@@ -83,6 +91,7 @@ export function GoogleSheetsOauthRender({
       >
         {status?.user ? (
           <>
+            <CircleCheck className='h-4 w-4 text-green-600' aria-hidden='true' />
             Connected as <strong>{status.user.name ?? status.user.id}</strong>
           </>
         ) : (

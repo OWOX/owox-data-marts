@@ -2,6 +2,7 @@
 import { renderHook } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
+  getPickerDialogSize,
   useGoogleSheetsPicker,
   validateGoogleSheetsPickerScopes,
   verifyGooglePickerAccount,
@@ -21,6 +22,22 @@ describe('validateGoogleSheetsPickerScopes', () => {
     expect(() => {
       validateGoogleSheetsPickerScopes(USERINFO_EMAIL_SCOPE);
     }).toThrow('Google Sheets access was not fully granted');
+  });
+});
+
+describe('getPickerDialogSize', () => {
+  it('uses the Picker maximum in a large window', () => {
+    expect(getPickerDialogSize({ innerWidth: 1920, innerHeight: 1080 })).toEqual({
+      width: 1051,
+      height: 650,
+    });
+  });
+
+  it('shrinks the dialog to a short or narrow window so the header stays visible', () => {
+    expect(getPickerDialogSize({ innerWidth: 960, innerHeight: 560 })).toEqual({
+      width: 928,
+      height: 528,
+    });
   });
 });
 
@@ -91,6 +108,7 @@ describe('useGoogleSheetsPicker', () => {
     const dispose = vi.fn();
     const onPicked = vi.fn();
     let pickerCallback: ((response: { action: string; docs?: unknown[] }) => void) | undefined;
+    let pickerSize: { width: number; height: number } | undefined;
     const requestAccessToken = vi.fn();
     const initTokenClient = vi.fn(
       (config: { callback: (response: Record<string, unknown>) => void }) => {
@@ -127,6 +145,10 @@ describe('useGoogleSheetsPicker', () => {
         return this;
       }
       enableFeature() {
+        return this;
+      }
+      setSize(width: number, height: number) {
+        pickerSize = { width, height };
         return this;
       }
       setCallback(callback: (response: { action: string; docs?: unknown[] }) => void) {
@@ -181,6 +203,7 @@ describe('useGoogleSheetsPicker', () => {
       expect.objectContaining({ login_hint: 'analyst@example.com' })
     );
     expect(requestAccessToken).toHaveBeenCalledWith({ login_hint: 'analyst@example.com' });
+    expect(pickerSize).toEqual(getPickerDialogSize(window));
 
     unmount();
     await opening;

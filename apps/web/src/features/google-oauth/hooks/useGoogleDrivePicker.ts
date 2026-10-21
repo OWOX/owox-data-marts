@@ -8,6 +8,12 @@ const GAPI_SRC = 'https://apis.google.com/js/api.js';
 const GIS_SRC = 'https://accounts.google.com/gsi/client';
 const GOOGLE_SHEETS_MIME_TYPE = 'application/vnd.google-apps.spreadsheet';
 const PICKER_LOAD_TIMEOUT_MS = 10000;
+// Google Picker clamps the dialog to 566x350 .. 1051x650 and centres it in the window.
+// Without an explicit size it uses the maximum, and in a short window the top of the
+// dialog (title and search box) ends up above the viewport.
+const PICKER_MAX_WIDTH = 1051;
+const PICKER_MAX_HEIGHT = 650;
+const PICKER_VIEWPORT_MARGIN = 32;
 
 export interface PickedGoogleSpreadsheet {
   id: string;
@@ -46,6 +52,7 @@ interface PickerBuilderLike {
   setAppId(appId: string): PickerBuilderLike;
   addView(view: DocsViewLike): PickerBuilderLike;
   enableFeature(feature: unknown): PickerBuilderLike;
+  setSize(width: number, height: number): PickerBuilderLike;
   setCallback(callback: (response: PickerResponse) => void): PickerBuilderLike;
   build(): PickerInstanceLike;
 }
@@ -228,6 +235,16 @@ export async function verifyGooglePickerAccount(
   }
 }
 
+export function getPickerDialogSize(viewport: { innerWidth: number; innerHeight: number }): {
+  width: number;
+  height: number;
+} {
+  return {
+    width: Math.max(1, Math.min(PICKER_MAX_WIDTH, viewport.innerWidth - PICKER_VIEWPORT_MARGIN)),
+    height: Math.max(1, Math.min(PICKER_MAX_HEIGHT, viewport.innerHeight - PICKER_VIEWPORT_MARGIN)),
+  };
+}
+
 function buildPickerView(picker: GooglePicker) {
   return new picker.DocsView(picker.ViewId.SPREADSHEETS)
     .setMimeTypes(GOOGLE_SHEETS_MIME_TYPE)
@@ -297,12 +314,14 @@ export function useGoogleSheetsPicker() {
             settle();
           };
 
+          const { width, height } = getPickerDialogSize(window);
           const builtPicker = new picker.PickerBuilder()
             .setOAuthToken(token)
             .setDeveloperKey(apiKey)
             .setAppId(appId)
             .addView(buildPickerView(picker))
             .enableFeature(picker.Feature.SUPPORT_DRIVES)
+            .setSize(width, height)
             .setCallback(response => {
               if (!isMountedRef.current || activePickerRef.current !== builtPicker) {
                 return;

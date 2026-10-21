@@ -76,7 +76,7 @@ export function DataMartDefinitionTypeSelector({
     {
       type: DataMartDefinitionType.CONNECTOR,
       label: 'Connector',
-      description: 'Data import from Source to Storage',
+      description: 'Facebook Ads, Google Sheets, LinkedIn Ads and more',
     },
   ];
 

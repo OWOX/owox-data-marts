@@ -54,6 +54,13 @@ export function ConnectorConfigurationItem({
     return undefined;
   };
 
+  // The manifest title ("Google Sheets"), not the technical name ("GoogleSheets").
+  // Falls back to the technical name until the connector list has loaded.
+  const getConnectorTitle = (connectorName: string) => {
+    const connector = connectors.find(c => c.name === connectorName);
+    return connector?.displayName ?? (connectorName || 'Connector');
+  };
+
   const getConnectorSubtitle = () => {
     const node = connectorDef.connector.source.node || 'No node selected';
     return (
@@ -297,7 +304,7 @@ export function ConnectorConfigurationItem({
           >
             <ListItemCard
               icon={getConnectorIcon(connectorDef.connector.source.name)}
-              title={connectorDef.connector.source.name || 'Connector'}
+              title={getConnectorTitle(connectorDef.connector.source.name)}
               subtitle={getConnectorSubtitle()}
               className='bg-background hover:bg-muted min-h-[80px] cursor-pointer border-0 transition-colors hover:shadow-none'
             />
