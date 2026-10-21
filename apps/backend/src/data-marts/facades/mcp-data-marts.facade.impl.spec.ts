@@ -137,6 +137,7 @@ describe('McpDataMartsFacadeImpl', () => {
         userId: 'user-1',
         roles: ['viewer'],
         status: DataMartStatus.PUBLISHED,
+        includeRelationshipsCount: false,
       })
     );
     expect(result).toEqual({

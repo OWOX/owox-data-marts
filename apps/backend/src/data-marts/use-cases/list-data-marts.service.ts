@@ -57,37 +57,38 @@ export class ListDataMartsService {
 
     const ids = dataMarts.map(dataMart => dataMart.id);
 
-    const rawTriggerCounts = await this.triggerRepo
-      .createQueryBuilder('t')
-      .leftJoin('t.dataMart', 'dm')
-      .where('dm.id IN (:...ids)', { ids })
-      .select('dm.id', 'dataMartId')
-      .addSelect('COUNT(*)', 'count')
-      .groupBy('dm.id')
-      .getRawMany<{ dataMartId: string; count: string }>();
+    const [rawTriggerCounts, rawReportCounts, relationshipCountMap] = await Promise.all([
+      this.triggerRepo
+        .createQueryBuilder('t')
+        .leftJoin('t.dataMart', 'dm')
+        .where('dm.id IN (:...ids)', { ids })
+        .select('dm.id', 'dataMartId')
+        .addSelect('COUNT(*)', 'count')
+        .groupBy('dm.id')
+        .getRawMany<{ dataMartId: string; count: string }>(),
+      this.reportRepo
+        .createQueryBuilder('r')
+        .leftJoin('r.dataMart', 'dm')
+        .where('dm.id IN (:...ids)', { ids })
+        .select('dm.id', 'dataMartId')
+        .addSelect('COUNT(*)', 'count')
+        .groupBy('dm.id')
+        .getRawMany<{ dataMartId: string; count: string }>(),
+      command.includeRelationshipsCount
+        ? this.countVisibleRelationships(command.projectId, ids, {
+            userId: command.userId,
+            roles: command.roles,
+            roleScope,
+          })
+        : new Map<string, number>(),
+    ]);
 
     const triggerCountMap = new Map<string, number>(
       rawTriggerCounts.map(r => [r.dataMartId, Number(r.count)])
     );
-
-    const rawReportCounts = await this.reportRepo
-      .createQueryBuilder('r')
-      .leftJoin('r.dataMart', 'dm')
-      .where('dm.id IN (:...ids)', { ids })
-      .select('dm.id', 'dataMartId')
-      .addSelect('COUNT(*)', 'count')
-      .groupBy('dm.id')
-      .getRawMany<{ dataMartId: string; count: string }>();
-
     const reportCountMap = new Map<string, number>(
       rawReportCounts.map(r => [r.dataMartId, Number(r.count)])
     );
-
-    const relationshipCountMap = await this.countVisibleRelationships(command.projectId, ids, {
-      userId: command.userId,
-      roles: command.roles,
-      roleScope,
-    });
 
     const userProjections =
       await this.userProjectionsFetcherService.fetchAllRelevantUserProjections(dataMarts);

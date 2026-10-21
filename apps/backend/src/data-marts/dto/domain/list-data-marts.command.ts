@@ -9,6 +9,8 @@ export class ListDataMartsCommand {
     public readonly offset?: number,
     public readonly ownerFilter?: OwnerFilter,
     public readonly status?: DataMartStatus,
-    public readonly contextIds?: string[]
+    public readonly contextIds?: string[],
+    /** Callers that do not return `relationshipsCount` (MCP) skip counting relationships. */
+    public readonly includeRelationshipsCount: boolean = true
   ) {}
 }

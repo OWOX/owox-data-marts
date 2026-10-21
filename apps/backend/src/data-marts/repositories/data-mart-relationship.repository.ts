@@ -11,6 +11,7 @@ export interface DataMartRelationshipGraphEdgeRow {
 }
 
 export interface DataMartRelationshipEndpointRow {
+  id: string;
   sourceDataMartId: string;
   targetDataMartId: string;
 }
@@ -43,19 +44,20 @@ export class DataMartRelationshipRepository {
   ): Promise<DataMartRelationshipEndpointRow[]> {
     if (dataMartIds.length === 0) return [];
 
-    return this.repository
-      .createQueryBuilder('relationship')
-      .select('source.id', 'sourceDataMartId')
-      .addSelect('target.id', 'targetDataMartId')
-      .innerJoin('relationship.sourceDataMart', 'source')
-      .innerJoin('relationship.targetDataMart', 'target')
-      .where('relationship.projectId = :projectId', { projectId })
-      .andWhere('source.deletedAt IS NULL')
-      .andWhere('target.deletedAt IS NULL')
-      .andWhere('(source.id IN (:...dataMartIds) OR target.id IN (:...dataMartIds))', {
-        dataMartIds,
-      })
-      .getRawMany<DataMartRelationshipEndpointRow>();
+    // One query per foreign key keeps each lookup on its own index; an OR across both would not.
+    const [outgoing, incoming] = await Promise.all([
+      this.buildEndpointRowsQuery(projectId)
+        .andWhere('relationship.sourceDataMart IN (:...dataMartIds)', { dataMartIds })
+        .getRawMany<DataMartRelationshipEndpointRow>(),
+      this.buildEndpointRowsQuery(projectId)
+        .andWhere('relationship.targetDataMart IN (:...dataMartIds)', { dataMartIds })
+        .getRawMany<DataMartRelationshipEndpointRow>(),
+    ]);
+
+    // A relationship between two of the given Data Marts comes back from both queries.
+    const byId = new Map<string, DataMartRelationshipEndpointRow>();
+    for (const row of [...outgoing, ...incoming]) byId.set(row.id, row);
+    return [...byId.values()];
   }
 
   async listGraphEdgeRowsByProjectIdAndStorageId(
@@ -65,6 +67,19 @@ export class DataMartRelationshipRepository {
     return this.buildGraphEdgeRowsQuery(projectId)
       .andWhere('relationship.dataStorage = :storageId', { storageId })
       .getRawMany<DataMartRelationshipGraphEdgeRow>();
+  }
+
+  private buildEndpointRowsQuery(projectId: string) {
+    return this.repository
+      .createQueryBuilder('relationship')
+      .select('relationship.id', 'id')
+      .addSelect('source.id', 'sourceDataMartId')
+      .addSelect('target.id', 'targetDataMartId')
+      .innerJoin('relationship.sourceDataMart', 'source')
+      .innerJoin('relationship.targetDataMart', 'target')
+      .where('relationship.projectId = :projectId', { projectId })
+      .andWhere('source.deletedAt IS NULL')
+      .andWhere('target.deletedAt IS NULL');
   }
 
   private buildGraphEdgeRowsQuery(projectId: string) {

@@ -351,7 +351,7 @@ export class DataMartMapper {
 
   toListItemDto(
     entity: DataMart,
-    counters: { triggersCount: number; reportsCount: number; relationshipsCount?: number },
+    counters: { triggersCount: number; reportsCount: number; relationshipsCount: number },
     createdByUser?: UserProjectionDto,
     businessOwnerUsers: UserProjectionDto[] = [],
     technicalOwnerUsers: UserProjectionDto[] = []
@@ -377,7 +377,7 @@ export class DataMartMapper {
       entity.availableForMaintenance,
       toSourceDataLastUpdatedSummary(entity.dataLastUpdated),
       entity.icon ?? null,
-      counters.relationshipsCount ?? 0
+      counters.relationshipsCount
     );
   }
 

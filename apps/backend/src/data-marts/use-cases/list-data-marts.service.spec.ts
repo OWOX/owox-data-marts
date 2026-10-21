@@ -78,6 +78,29 @@ describe('ListDataMartsService relationships count', () => {
     expect(counts(result.items)).toEqual({ orders: 3, customers: 1, sessions: 0 });
   });
 
+  it('skips counting relationships when the caller does not return them', async () => {
+    const { service, dataMartService, relationshipService } = setup([
+      { sourceDataMartId: 'orders', targetDataMartId: 'customers' },
+    ]);
+
+    const result = await service.run(
+      new ListDataMartsCommand(
+        'project-1',
+        'user-1',
+        ['viewer'],
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        false
+      )
+    );
+
+    expect(relationshipService.findEndpointsByDataMartIds).not.toHaveBeenCalled();
+    expect(dataMartService.findVisibleIdsByProjectIdAndIds).not.toHaveBeenCalled();
+    expect(counts(result.items)).toEqual({ orders: 0, customers: 0, sessions: 0 });
+  });
+
   it('skips the visibility query when the listed Data Marts have no relationships', async () => {
     const { service, dataMartService } = setup([]);
 

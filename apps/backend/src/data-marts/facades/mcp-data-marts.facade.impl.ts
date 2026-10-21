@@ -77,7 +77,8 @@ export class McpDataMartsFacadeImpl implements McpDataMartsFacade {
         undefined,
         undefined,
         status,
-        request.contextIds
+        request.contextIds,
+        false // MCP responses carry no relationships count
       )
     );
 
