@@ -25,6 +25,7 @@ body:
             been reported yet.
           required: true
 
+  # Mirrored in feature_request.yml; only the first option intentionally differs there.
   - type: dropdown
     id: area
     attributes:
@@ -37,12 +38,13 @@ body:
         - Storages
         - Destinations
         - Reports
+        - Insights / AI Insights
         - Triggers / Scheduling
         - MCP Server
         - Plugins
         - API / API Keys / owox-ctl
         - Members, Roles & Permissions / Authentication
-        - Project Settings / Notifications
+        - Project Settings / Notifications / Licenses & Billing
         - UI / UX
         - Installation / Deployment / CLI
         - Documentation
@@ -51,11 +53,11 @@ body:
       required: true
 
   # The options below are duplicated in feature_request.yml — update both files together.
+  # COMING_SOON entries (Azure Synapse, OData) are intentionally omitted.
   # Sources:      packages/connectors/src/Sources/*/manifest.json (title)
   # Storages:     packages/connectors/src/Storages/*/manifest.json, plus
   #               apps/web/src/features/data-storage/shared/types/data-storage-type.model.ts
-  # Destinations: apps/backend/src/data-marts/data-destination-types/enums/
-  #               data-destination-type.enum.ts
+  # Destinations: apps/backend/src/data-marts/data-destination-types/enums/data-destination-type.enum.ts
   - type: dropdown
     id: integration
     attributes:
@@ -112,7 +114,7 @@ body:
     attributes:
       label: Steps to reproduce
       description: Numbered steps a maintainer can follow from a clean setup.
-      value: |
+      placeholder: |
         1.
         2.
         3.
@@ -131,7 +133,7 @@ body:
         - Self-managed — Render
         - Self-managed — DigitalOcean
         - Self-managed — other
-        - Google Sheets / Apps Script extension
+        - OWOX Reports (Google Sheets extension)
     validations:
       required: true
 
@@ -140,8 +142,9 @@ body:
     attributes:
       label: Version
       description:
-        Run `owox --version`, or give the Docker image tag. Write "OWOX Cloud" for app.owox.com, or
-        "Extension" for the Google Sheets add-on.
+        Run `owox --version`, or copy the version from the startup log line "Starting OWOX Data
+        Marts (vX.Y.Z)". Prefer the version number over a Docker tag like "latest". Write
+        "OWOX Cloud" for app.owox.com, or "Extension" for OWOX Reports.
       placeholder: 0.38.0
     validations:
       required: true
@@ -165,7 +168,7 @@ body:
         manifest, paste it into the field above instead, with secrets removed.
     validations:
       required: false
-      accept: '.png,.jpg,.jpeg,.gif,.webp,.log,.txt,.csv'
+      accept: '.png,.jpg,.jpeg,.gif,.webp,.log,.txt'
 
   - type: checkboxes
     id: redaction

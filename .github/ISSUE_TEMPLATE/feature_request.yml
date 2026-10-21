@@ -23,6 +23,7 @@ body:
             been requested yet.
           required: true
 
+  # Mirrored in bug_report.yml; only the first option intentionally differs here.
   - type: dropdown
     id: area
     attributes:
@@ -35,12 +36,13 @@ body:
         - Storages
         - Destinations
         - Reports
+        - Insights / AI Insights
         - Triggers / Scheduling
         - MCP Server
         - Plugins
         - API / API Keys / owox-ctl
         - Members, Roles & Permissions / Authentication
-        - Project Settings / Notifications
+        - Project Settings / Notifications / Licenses & Billing
         - UI / UX
         - Installation / Deployment / CLI
         - Documentation
@@ -49,11 +51,11 @@ body:
       required: true
 
   # The options below are duplicated in bug_report.yml — update both files together.
+  # COMING_SOON entries (Azure Synapse, OData) are intentionally omitted.
   # Sources:      packages/connectors/src/Sources/*/manifest.json (title)
   # Storages:     packages/connectors/src/Storages/*/manifest.json, plus
   #               apps/web/src/features/data-storage/shared/types/data-storage-type.model.ts
-  # Destinations: apps/backend/src/data-marts/data-destination-types/enums/
-  #               data-destination-type.enum.ts
+  # Destinations: apps/backend/src/data-marts/data-destination-types/enums/data-destination-type.enum.ts
   - type: dropdown
     id: integration
     attributes:
