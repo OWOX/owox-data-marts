@@ -126,7 +126,11 @@ describe('InviteTeammatesPage', () => {
 
   it('keeps an invalid address in the input with an error', () => {
     renderPage();
+    addEmail('ann@company.com');
     addEmail('not-an-email');
+
+    // The typo isn't counted as an invite.
+    expect(screen.getByRole('button', { name: 'Send invite' })).toBeTruthy();
 
     expect(screen.getByRole('alert').textContent).toContain('"not-an-email"');
     expect((emailInput() as HTMLInputElement).value).toBe('not-an-email');

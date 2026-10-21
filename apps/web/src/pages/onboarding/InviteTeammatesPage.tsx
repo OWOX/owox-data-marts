@@ -237,9 +237,12 @@ export function InviteTeammatesPage() {
     setInvitedCount(invited.length);
   };
 
-  const pendingCount =
-    emails.length + splitEmailInput(draft).filter(email => !emails.includes(email)).length;
-  const sendLabel = pendingCount > 1 ? `Send ${String(pendingCount)} invites` : 'Send invite';
+  // The label counts only addresses that will be sent; a typo in the input doesn't add one.
+  const sendCount =
+    emails.length +
+    splitEmailInput(draft).filter(email => isValidEmail(email) && !emails.includes(email)).length;
+  const sendLabel = sendCount > 1 ? `Send ${String(sendCount)} invites` : 'Send invite';
+  const hasInput = emails.length > 0 || draft.trim().length > 0;
   const hasMessage = Boolean(error) || failures.length > 0;
 
   return (
@@ -337,7 +340,7 @@ export function InviteTeammatesPage() {
         )}
 
         <div className='mt-8 flex flex-col items-center gap-3'>
-          <Button type='submit' size='lg' disabled={sending || pendingCount === 0}>
+          <Button type='submit' size='lg' disabled={sending || !hasInput}>
             {sending && <Loader2 className='mr-2 h-4 w-4 animate-spin' />}
             {sendLabel}
           </Button>
