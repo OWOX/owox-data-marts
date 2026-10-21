@@ -12,12 +12,7 @@ export interface PluginSchedule {
   readonly cron: string;
   readonly timeZone: string;
   readonly enabled: boolean;
-  readonly disabledReason:
-    | 'OWNER_NOT_MEMBER'
-    | 'ACTION_NOT_DECLARED'
-    | 'INVALID_PARAMETERS'
-    | 'PAUSED_BY_ADMIN'
-    | null;
+  readonly disabledReason: 'ACTION_NOT_DECLARED' | 'INVALID_PARAMETERS' | 'PAUSED_BY_ADMIN' | null;
   readonly nextRunAt: string | null;
   readonly lastRun: {
     readonly executionId: string;

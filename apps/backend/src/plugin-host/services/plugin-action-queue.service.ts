@@ -206,8 +206,7 @@ export class PluginActionQueueService {
     if (!member) {
       return fail(
         'OWNER_NOT_MEMBER',
-        'The installation owner is no longer a project member, or their account is locked',
-        PluginScheduleDisabledReason.OWNER_NOT_MEMBER
+        'The installation owner is no longer a project member, or their account is locked'
       );
     }
     return {

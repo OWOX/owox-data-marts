@@ -49,6 +49,7 @@ const schedule = (over: Partial<ProjectPluginSchedule> = {}): ProjectPluginSched
   installationId: 'i1',
   installationState: 'installed',
   owner: { userId: 'u1', fullName: 'Alice Doe', email: 'alice@example.com', avatar: null },
+  ownerIsMember: true,
   canManage: true,
   ...over,
 });
@@ -149,6 +150,22 @@ describe('AllSchedulesTab', () => {
     fireEvent.focus(screen.getByText('Disabled').closest('[data-slot="tooltip-trigger"]')!);
     expect(await screen.findByRole('tooltip')).toHaveTextContent(
       'Its settings no longer match the action'
+    );
+  });
+
+  it('marks an enabled schedule whose owner left the project, with the reason', async () => {
+    service.listSchedules.mockResolvedValue([
+      schedule({ id: 's1', name: 'A', ownerIsMember: false }),
+    ]);
+
+    renderTab();
+
+    await screen.findByText('A');
+    fireEvent.focus(
+      screen.getByText('Owner not a member').closest('[data-slot="tooltip-trigger"]')!
+    );
+    expect(await screen.findByRole('tooltip')).toHaveTextContent(
+      'The owner is no longer a project member, or their account is locked, so its runs are skipped'
     );
   });
 
@@ -415,7 +432,7 @@ describe('AllSchedulesTab', () => {
         name: 'Orphan',
         enabled: false,
         nextRunAt: null,
-        disabledReason: 'OWNER_NOT_MEMBER',
+        ownerIsMember: false,
       }),
       schedule({
         id: 's2',
@@ -468,9 +485,7 @@ describe('AllSchedulesTab', () => {
   });
 
   it('toasts a resume the owner check could not answer, so the member can try again', async () => {
-    service.listSchedules.mockResolvedValue([
-      schedule({ enabled: false, nextRunAt: null, disabledReason: 'OWNER_NOT_MEMBER' }),
-    ]);
+    service.listSchedules.mockResolvedValue([schedule({ enabled: false, nextRunAt: null })]);
     service.resumeSchedule.mockRejectedValue({
       response: {
         status: 503,

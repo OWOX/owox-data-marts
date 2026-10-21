@@ -331,9 +331,11 @@ if (ctx.schedules) {
 - By default, an installation has at most 20 schedules, and `parameters` take at most 64 KiB; a
   self-managed deployment can change both.
 - A schedule that cannot run is disabled and keeps its settings. `disabledReason` says why:
-  `OWNER_NOT_MEMBER`, `ACTION_NOT_DECLARED` or `INVALID_PARAMETERS`. `resume` checks it again. A
-  schedule a project admin paused in **Plugins → Schedules** has `PAUSED_BY_ADMIN`, and its
-  `resume` is refused with `SCHEDULE_PAUSED_BY_ADMIN`.
+  `ACTION_NOT_DECLARED` or `INVALID_PARAMETERS`. `resume` checks it again. A schedule a project
+  admin paused in **Plugins → Schedules** has `PAUSED_BY_ADMIN`, and its `resume` is refused with
+  `SCHEDULE_PAUSED_BY_ADMIN`.
+- While the installing member is not an active project member, or their account is locked, a
+  schedule stays enabled and skips its runs.
 - `lastRun` is the schedule's latest execution. A run held back by the start limits has the status
   `QUEUED` and starts when a slot frees up; one still queued after 24 hours ends `TIMED_OUT`. An
   update that changes `action` or `parameters` cancels the queued run.

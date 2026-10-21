@@ -72,6 +72,7 @@ const nightly: ProjectPluginSchedule = {
   installationId: 'i1',
   installationState: 'installed',
   owner: null,
+  ownerIsMember: true,
   canManage: true,
 };
 
@@ -334,7 +335,7 @@ describe('RunHistoryTab', () => {
     expect(screen.getByText('Run ID: 9b2f4c1e-3d5a-4e6f-8a7b-0c1d2e3f4a5b')).toBeInTheDocument();
   });
 
-  it('renders the list when a linked run is gone, with no linked row, retry or spinner', async () => {
+  it('says a linked run is gone, drops it from the URL and renders the list, with no retry or spinner', async () => {
     service.listRuns.mockResolvedValue(page([run({ id: 'r1', action: 'listed' })]));
     service.getRun.mockRejectedValue({
       response: {
@@ -359,6 +360,12 @@ describe('RunHistoryTab', () => {
       ).toBe('error');
     });
     expect(service.getRun).toHaveBeenCalledTimes(1);
+    expect(toast.error).toHaveBeenCalledWith('This run no longer exists.', {
+      id: 'plugin-run-gone',
+    });
+    await waitFor(() => {
+      expect(currentSearch()).toBe('?tab=runs');
+    });
     expect(screen.queryByText('Linked run')).toBeNull();
     expect(screen.queryByRole('alert')).toBeNull();
     expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull();
@@ -366,7 +373,7 @@ describe('RunHistoryTab', () => {
     expect(screen.getByRole('list', { name: 'Plugin runs' })).toBeInTheDocument();
   });
 
-  it('never asks for a linked run whose id is not a UUID', async () => {
+  it('never asks for a linked run whose id is not a UUID, and reads it as gone', async () => {
     service.listRuns.mockResolvedValue(page([run({ id: 'r1', action: 'listed' })]));
 
     renderTab({ url: '/?tab=runs&run=..' });
@@ -374,6 +381,12 @@ describe('RunHistoryTab', () => {
     expect(
       await screen.findByRole('button', { name: 'Succeeded run of listed' })
     ).toBeInTheDocument();
+    await waitFor(() => {
+      expect(currentSearch()).toBe('?tab=runs');
+    });
+    expect(toast.error).toHaveBeenCalledWith('This run no longer exists.', {
+      id: 'plugin-run-gone',
+    });
     expect(service.getRun).not.toHaveBeenCalled();
     expect(screen.queryByText('Linked run')).toBeNull();
   });

@@ -6,6 +6,8 @@ export interface ProjectPluginScheduleView {
   readonly pluginName: string;
   readonly installationState: 'installed' | 'uninstalled';
   readonly owner: UserProjectionDto | null;
+  /** False while the owner is not an active member, so the runs are skipped; null when the IDP could not say. */
+  readonly ownerIsMember: boolean | null;
   readonly canManage: boolean;
 }
 

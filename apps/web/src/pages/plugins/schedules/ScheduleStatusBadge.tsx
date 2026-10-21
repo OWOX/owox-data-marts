@@ -1,6 +1,7 @@
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
 import {
   SCHEDULE_DISABLED_REASON_TEXT,
+  SCHEDULE_OWNER_NOT_MEMBER_TEXT,
   type ProjectPluginSchedule,
 } from '../../../features/plugins';
 import { StatusLabel, StatusTypeEnum } from '../../../shared/components/StatusLabel';
@@ -11,6 +12,7 @@ const TYPE: Record<ScheduleStatus, StatusTypeEnum> = {
   active: StatusTypeEnum.SUCCESS,
   paused: StatusTypeEnum.NEUTRAL,
   disabled: StatusTypeEnum.ERROR,
+  'owner-not-member': StatusTypeEnum.WARNING,
   removed: StatusTypeEnum.NEUTRAL,
 };
 
@@ -21,7 +23,13 @@ export function ScheduleStatusBadge({ schedule }: { schedule: ProjectPluginSched
       {SCHEDULE_STATUS_LABEL[status]}
     </StatusLabel>
   );
-  if (status !== 'disabled' || schedule.disabledReason === null) {
+  const reason =
+    status === 'owner-not-member'
+      ? SCHEDULE_OWNER_NOT_MEMBER_TEXT
+      : status === 'disabled' && schedule.disabledReason !== null
+        ? SCHEDULE_DISABLED_REASON_TEXT[schedule.disabledReason]
+        : null;
+  if (reason === null) {
     return badge;
   }
   return (
@@ -29,7 +37,7 @@ export function ScheduleStatusBadge({ schedule }: { schedule: ProjectPluginSched
       <TooltipTrigger asChild>
         <span tabIndex={0}>{badge}</span>
       </TooltipTrigger>
-      <TooltipContent>{SCHEDULE_DISABLED_REASON_TEXT[schedule.disabledReason]}</TooltipContent>
+      <TooltipContent>{reason}</TooltipContent>
     </Tooltip>
   );
 }

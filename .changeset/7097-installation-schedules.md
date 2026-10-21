@@ -20,8 +20,9 @@ the Doc:
 
 <https://customer-4geatlj66rtkaxtz.cloudflarestream.com/7739195f870a655a5e0e7da55f148ed2/iframe>
 
-OWOX Data Marts disables a schedule, with the reason, when the member leaves the project or their
-account is locked, the action is no longer declared, or the parameters no longer match its schema.
+OWOX Data Marts disables a schedule, with the reason, when the action is no longer declared or the
+parameters no longer match its schema, and skips its runs while the member is out of the project or
+their account is locked.
 A scheduled run that meets the installation's action limits waits, up to 24 hours, and starts once
 they allow. In the SDK, `PluginActionStatus` now includes `QUEUED`, and an execution's `trigger`
 can be `schedule`.

@@ -169,7 +169,6 @@ describe('PluginSchedulesCard', () => {
   });
 
   it.each([
-    ['OWNER_NOT_MEMBER', 'The owner is no longer a project member, or their account is locked'],
     ['ACTION_NOT_DECLARED', 'The plugin no longer has this action'],
     ['INVALID_PARAMETERS', 'Its settings no longer match the action'],
   ] as const)('shows a schedule disabled by %s with its reason', async (reason, text) => {

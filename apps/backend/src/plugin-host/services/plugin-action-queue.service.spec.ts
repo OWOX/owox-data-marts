@@ -153,7 +153,7 @@ const FAILING_CHECKS: Array<
   [
     'the owner is no longer an active project member',
     'OWNER_NOT_MEMBER',
-    PluginScheduleDisabledReason.OWNER_NOT_MEMBER,
+    null,
     s => s.owners.activeMember.mockResolvedValueOnce(null),
   ],
 ];
@@ -253,7 +253,9 @@ describe('PluginActionQueueService', () => {
 
   it('logs no disable when the schedule was held, paused or gone', async () => {
     const s = setup();
-    s.owners.activeMember.mockResolvedValueOnce(null);
+    s.validator.validate.mockResolvedValueOnce([
+      { instancePath: '/documentId', message: 'must be string' },
+    ]);
     s.schedules.failQueuedAndDisable.mockResolvedValueOnce(false);
 
     await s.queue.promote('installation-1');
@@ -277,7 +279,9 @@ describe('PluginActionQueueService', () => {
 
   it('disables no schedule for a row the frontend started', async () => {
     const s = setup([{ ...queued('execution-1'), trigger: 'frontend', scheduleId: null }]);
-    s.owners.activeMember.mockResolvedValueOnce(null);
+    s.validator.validate.mockResolvedValueOnce([
+      { instancePath: '/documentId', message: 'must be string' },
+    ]);
 
     await s.queue.promote('installation-1');
 
@@ -404,11 +408,10 @@ describe('PluginActionQueueService', () => {
 
     await expect(s.queue.promote('installation-1')).resolves.toBeUndefined();
 
-    expect(s.schedules.failQueuedAndDisable).toHaveBeenCalledWith(
-      expect.objectContaining({ id: 'execution-1' }),
+    expect(s.executions.failQueued).toHaveBeenCalledWith(
+      'execution-1',
       'OWNER_NOT_MEMBER',
-      'The installation owner is no longer a project member, or their account is locked',
-      PluginScheduleDisabledReason.OWNER_NOT_MEMBER
+      'The installation owner is no longer a project member, or their account is locked'
     );
     expect(s.dispatcher.dispatch).toHaveBeenCalledTimes(1);
     expect(error).toHaveBeenCalledTimes(1);

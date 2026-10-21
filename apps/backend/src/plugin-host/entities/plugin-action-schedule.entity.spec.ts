@@ -51,14 +51,14 @@ describe('PluginActionSchedule', () => {
 
     it('keeps a schedule disabled during the run off, with its reason', () => {
       const disabled = schedule();
-      disabled.disable(PluginScheduleDisabledReason.OWNER_NOT_MEMBER);
+      disabled.disable(PluginScheduleDisabledReason.ACTION_NOT_DECLARED);
 
       disabled[settle](NOW);
 
       expect(disabled).toMatchObject({
         nextRunTimestamp: null,
         isActive: false,
-        disabledReason: 'OWNER_NOT_MEMBER',
+        disabledReason: 'ACTION_NOT_DECLARED',
         status: TriggerStatus.IDLE,
       });
     });

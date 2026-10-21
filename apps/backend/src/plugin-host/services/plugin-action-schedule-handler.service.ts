@@ -177,8 +177,9 @@ export class PluginActionScheduleHandlerService
       );
       return this.retry(schedule, 'IDP_UNAVAILABLE');
     }
+    // A skip, not a disable: the schedule runs again once the owner is an active member.
     if (!member) {
-      return this.disable(schedule, PluginScheduleDisabledReason.OWNER_NOT_MEMBER);
+      return 'OWNER_NOT_MEMBER';
     }
     const version = plugin?.currentVersionId
       ? await this.versions.findById(plugin.currentVersionId)

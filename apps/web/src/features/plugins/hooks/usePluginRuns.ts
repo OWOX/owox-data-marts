@@ -59,8 +59,8 @@ export function usePluginRuns(filters: PluginRunFilters) {
   };
 }
 
-/** A run named by a link; null until it loads, and for good when the API cannot find it. */
-export function usePluginRun(id: string | null): PluginRun | null {
+/** A run named by a link; undefined until it loads, and null for good when the API cannot find it. */
+export function usePluginRun(id: string | null): PluginRun | null | undefined {
   const projectId = useProjectId();
 
   const { data, error } = useQuery({
@@ -75,7 +75,7 @@ export function usePluginRun(id: string | null): PluginRun | null {
       state.data && isOpen(state.data) && !isNotFound(state.error) ? POLL_MS : false,
   });
 
-  return isNotFound(error) ? null : (data ?? null);
+  return isNotFound(error) ? null : (data ?? undefined);
 }
 
 export function useCancelPluginRun() {

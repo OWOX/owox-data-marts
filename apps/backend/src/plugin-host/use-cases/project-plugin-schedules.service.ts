@@ -20,7 +20,10 @@ import {
 import { PluginPresentationMapper } from '../mappers/plugin-presentation.mapper';
 import { PluginActionScheduleService } from '../services/plugin-action-schedule.service';
 import { PluginInstallationService } from '../services/plugin-installation.service';
-import { isActiveMember } from '../services/plugin-owner-membership.service';
+import {
+  isActiveMember,
+  PluginOwnerMembershipService,
+} from '../services/plugin-owner-membership.service';
 import { PluginVersionService } from '../services/plugin-version.service';
 import { PluginService } from '../services/plugin.service';
 import { pluginNamesById, unique } from './project-plugin-names';
@@ -36,7 +39,8 @@ export class ProjectPluginSchedulesService {
     private readonly plugins: PluginService,
     private readonly versions: PluginVersionService,
     private readonly mapper: PluginPresentationMapper,
-    private readonly idpProjections: IdpProjectionsFacade
+    private readonly idpProjections: IdpProjectionsFacade,
+    private readonly owners: PluginOwnerMembershipService
   ) {}
 
   async list(command: ListProjectPluginSchedulesCommand): Promise<ProjectPluginSchedulePage> {
@@ -67,7 +71,7 @@ export class ProjectPluginSchedulesService {
 
   async resume(command: ProjectPluginScheduleCommand): Promise<ProjectPluginScheduleView> {
     const installation = await this.manageable(command);
-    // Its next run would disable it again; the plugin's own resume comes from the owner, a member.
+    // Its runs would only be skipped; the plugin's own resume comes from the owner, a member.
     const owner = await this.idpProjections
       .getProjectMemberOrThrow(installation.projectId, installation.userId)
       .catch((error: unknown) => {
@@ -124,9 +128,13 @@ export class ProjectPluginSchedulesService {
       this.mapper,
       views.map(view => view.pluginId)
     );
-    const owners = await this.idpProjections.getUserProjectionList(
-      unique(views.flatMap(view => installationById.get(view.installationId)?.userId ?? []))
+    const ownerIds = unique(
+      views.flatMap(view => installationById.get(view.installationId)?.userId ?? [])
     );
+    const [owners, members] = await Promise.all([
+      this.idpProjections.getUserProjectionList(ownerIds),
+      this.activeMemberIds(context, ownerIds),
+    ]);
 
     return views.flatMap((view): ProjectPluginScheduleView[] => {
       const installation = installationById.get(view.installationId);
@@ -139,9 +147,27 @@ export class ProjectPluginSchedulesService {
           pluginName: names.get(view.pluginId) ?? view.pluginId,
           installationState: installation.uninstalledAt === null ? 'installed' : 'uninstalled',
           owner: owners.getByUserId(installation.userId) ?? null,
+          ownerIsMember:
+            installation.userId === context.userId || (members?.has(installation.userId) ?? null),
           canManage: isProjectAdmin(context) || installation.userId === context.userId,
         },
       ];
+    });
+  }
+
+  // The caller is a member; a failed check of the others reads as unknown, not as a list error.
+  private async activeMemberIds(
+    context: AuthorizationContext,
+    ownerIds: string[]
+  ): Promise<ReadonlySet<string> | null> {
+    if (ownerIds.every(id => id === context.userId)) {
+      return null;
+    }
+    return this.owners.activeMemberIds(context.projectId).catch((error: unknown) => {
+      this.logger.warn(
+        `Plugin schedule owners check failed projectId=${context.projectId}: ${castError(error).message}`
+      );
+      return null;
     });
   }
 }

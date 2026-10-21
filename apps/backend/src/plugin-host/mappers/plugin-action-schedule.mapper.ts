@@ -72,6 +72,7 @@ export function toProjectPluginScheduleResponse(
     installationId: view.schedule.installationId,
     installationState: view.installationState,
     owner: view.owner,
+    ownerIsMember: view.ownerIsMember,
     canManage: view.canManage,
   };
 }

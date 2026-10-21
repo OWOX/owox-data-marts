@@ -2,11 +2,13 @@ import { formatDateShort } from '../../utils/date-formatters';
 import type { PluginRunStatus, PluginScheduleDisabledReason, PluginScheduleSummary } from './types';
 
 export const SCHEDULE_DISABLED_REASON_TEXT: Record<PluginScheduleDisabledReason, string> = {
-  OWNER_NOT_MEMBER: 'The owner is no longer a project member, or their account is locked',
   ACTION_NOT_DECLARED: 'The plugin no longer has this action',
   INVALID_PARAMETERS: 'Its settings no longer match the action',
   PAUSED_BY_ADMIN: 'A project admin paused this schedule',
 };
+
+export const SCHEDULE_OWNER_NOT_MEMBER_TEXT =
+  'The owner is no longer a project member, or their account is locked, so its runs are skipped';
 
 export const PLUGIN_RUN_STATUS_LABEL: Record<PluginRunStatus, string> = {
   QUEUED: 'Queued',

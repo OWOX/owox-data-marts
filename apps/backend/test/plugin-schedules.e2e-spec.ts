@@ -299,7 +299,7 @@ describe('Plugin schedules (e2e)', () => {
     const schedule = await seedSchedule(primary, {
       isActive: false,
       nextRunTimestamp: null,
-      disabledReason: PluginScheduleDisabledReason.OWNER_NOT_MEMBER,
+      disabledReason: PluginScheduleDisabledReason.ACTION_NOT_DECLARED,
     });
 
     const res = await agent.post(`${SCHEDULES}/${schedule.id}/resume`).set(runtime()).expect(200);
@@ -569,7 +569,12 @@ describe('Plugin schedules (e2e)', () => {
         pluginName: expect.stringMatching(/^schedules-e2e-/),
         installationId: foreign.installationId,
         installationState: 'installed',
+        // The list reads the NullIdpProvider's member list, which has user 0 only.
+        ownerIsMember: false,
         canManage: true,
+      });
+      expect(res.body.items.find((item: { id: string }) => item.id === own.id)).toMatchObject({
+        ownerIsMember: true,
       });
       for (const item of res.body.items) {
         expect(item).not.toHaveProperty('parameters');
@@ -805,13 +810,12 @@ describe('Plugin schedules (e2e)', () => {
       await expect(schedules.countBy({ id: schedule.id })).resolves.toBe(0);
     });
 
-    it('refuses to resume a schedule whose owner left the project, keeping it Disabled', async () => {
+    it('refuses to resume a schedule whose owner left the project, keeping it Paused', async () => {
       const left = await seedInstallation({ projectId: '0', userId: 'left-member' });
       const schedule = await seedSchedule(left, {
         parameters: { documentId: 'd1' },
         isActive: false,
         nextRunTimestamp: null,
-        disabledReason: PluginScheduleDisabledReason.OWNER_NOT_MEMBER,
       });
 
       const res = await agent
@@ -825,16 +829,15 @@ describe('Plugin schedules (e2e)', () => {
       });
       await expect(schedules.findOneByOrFail({ id: schedule.id })).resolves.toMatchObject({
         isActive: false,
-        disabledReason: PluginScheduleDisabledReason.OWNER_NOT_MEMBER,
+        disabledReason: null,
         version: schedule.version,
       });
     });
 
-    it('answers OWNER_CHECK_UNAVAILABLE 503 when the IDP cannot check the owner, keeping it Disabled', async () => {
+    it('answers OWNER_CHECK_UNAVAILABLE 503 when the IDP cannot check the owner, keeping it Paused', async () => {
       const schedule = await seedSchedule(primary, {
         isActive: false,
         nextRunTimestamp: null,
-        disabledReason: PluginScheduleDisabledReason.OWNER_NOT_MEMBER,
       });
       jest
         .spyOn(app.get(IdpProjectionsFacade), 'getProjectMemberOrThrow')
@@ -1562,7 +1565,7 @@ describe('Plugin schedules (e2e)', () => {
         await expect(executions.countBy({ scheduleId })).resolves.toBe(0);
       }
 
-      it('disables a schedule whose installation owner is not a project member', async () => {
+      it('skips the run of a schedule whose owner is not a project member, keeping it Active', async () => {
         const foreign = await seedInstallation(
           { projectId: '0', userId: 'someone-else' },
           STUB_BACKEND
@@ -1571,7 +1574,13 @@ describe('Plugin schedules (e2e)', () => {
 
         await runNow(id);
 
-        await expectDisabled(id, PluginScheduleDisabledReason.OWNER_NOT_MEMBER);
+        await expect(schedules.findOneByOrFail({ id })).resolves.toMatchObject({
+          isActive: true,
+          disabledReason: null,
+          nextRunTimestamp: expect.any(Date),
+          status: TriggerStatus.IDLE,
+        });
+        await expect(executions.countBy({ scheduleId: id })).resolves.toBe(0);
       });
 
       it('disables a schedule whose action the current version no longer declares, and resumes it once declared again', async () => {

@@ -6,6 +6,8 @@ import { useProjectId } from '../../../shared/hooks';
 import { actionableRejections } from '../rejections';
 import { pluginsService } from '../services/plugins.service';
 import type { InstalledPlugin, PluginGalleryEntry, PluginUpdateResult } from '../types';
+import { RUNS_KEY } from './usePluginRuns';
+import { SCHEDULES_KEY } from './usePluginSchedules';
 
 /**
  * Exported because publishing invalidates the Gallery too, from the other hook module.
@@ -101,6 +103,9 @@ export function usePluginActions() {
       queryClient.invalidateQueries({ queryKey: [INSTALLATIONS_KEY, projectId] }),
       // Reset, not invalidate: a refetch would reload every loaded page, each an audit scan.
       queryClient.resetQueries({ queryKey: [HISTORY_KEY, projectId] }),
+      // Uninstall parks the schedules and cancels their queued runs; a restore brings the schedules back.
+      queryClient.invalidateQueries({ queryKey: [SCHEDULES_KEY, projectId] }),
+      queryClient.invalidateQueries({ queryKey: [RUNS_KEY, projectId] }),
     ]);
   }, [queryClient, projectId]);
 

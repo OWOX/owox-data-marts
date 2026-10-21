@@ -47,6 +47,7 @@ export {
   PLUGIN_RUN_STATUS_LABEL,
   runStatusLabel,
   SCHEDULE_DISABLED_REASON_TEXT,
+  SCHEDULE_OWNER_NOT_MEMBER_TEXT,
 } from './scheduleLabels';
 export {
   usePlugin,

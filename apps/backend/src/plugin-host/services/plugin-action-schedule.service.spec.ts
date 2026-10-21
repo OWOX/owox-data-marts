@@ -796,21 +796,23 @@ describe('PluginActionScheduleService', () => {
       await expect(
         s.service.failQueuedAndDisable(
           QUEUED,
-          'OWNER_NOT_MEMBER',
-          'The owner left',
-          PluginScheduleDisabledReason.OWNER_NOT_MEMBER
+          'ACTION_NOT_DECLARED',
+          'The action is gone',
+          PluginScheduleDisabledReason.ACTION_NOT_DECLARED
         )
       ).resolves.toBe(true);
 
       expect(s.calls).toEqual(['lock', 'fail', 'update']);
       expect(s.executions.failQueued).toHaveBeenCalledWith(
         'e1',
-        'OWNER_NOT_MEMBER',
-        'The owner left'
+        'ACTION_NOT_DECLARED',
+        'The action is gone'
       );
       expect(s.schedules.update).toHaveBeenCalledWith(
         { id: 's1', status: TriggerStatus.IDLE, isActive: true },
-        expect.objectContaining({ disabledReason: PluginScheduleDisabledReason.OWNER_NOT_MEMBER })
+        expect.objectContaining({
+          disabledReason: PluginScheduleDisabledReason.ACTION_NOT_DECLARED,
+        })
       );
     });
 
@@ -847,7 +849,7 @@ describe('PluginActionScheduleService', () => {
       const s = setup();
 
       await expect(
-        s.service.disableIfIdle('s1', PluginScheduleDisabledReason.OWNER_NOT_MEMBER)
+        s.service.disableIfIdle('s1', PluginScheduleDisabledReason.ACTION_NOT_DECLARED)
       ).resolves.toBe(true);
 
       expect(s.schedules.update).toHaveBeenCalledWith(
@@ -855,7 +857,7 @@ describe('PluginActionScheduleService', () => {
         {
           isActive: false,
           nextRunTimestamp: null,
-          disabledReason: PluginScheduleDisabledReason.OWNER_NOT_MEMBER,
+          disabledReason: PluginScheduleDisabledReason.ACTION_NOT_DECLARED,
           version: expect.any(Function),
         }
       );
@@ -866,7 +868,7 @@ describe('PluginActionScheduleService', () => {
       const s = setup({ affected: [0] });
 
       await expect(
-        s.service.disableIfIdle('s1', PluginScheduleDisabledReason.OWNER_NOT_MEMBER)
+        s.service.disableIfIdle('s1', PluginScheduleDisabledReason.ACTION_NOT_DECLARED)
       ).resolves.toBe(false);
     });
 

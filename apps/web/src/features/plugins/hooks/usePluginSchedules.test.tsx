@@ -41,6 +41,7 @@ const schedule = (over: Partial<ProjectPluginSchedule> = {}): ProjectPluginSched
   installationId: 'i1',
   installationState: 'installed',
   owner: null,
+  ownerIsMember: true,
   canManage: true,
   ...over,
 });

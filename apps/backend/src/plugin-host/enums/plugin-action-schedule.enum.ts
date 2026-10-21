@@ -1,5 +1,4 @@
 export enum PluginScheduleDisabledReason {
-  OWNER_NOT_MEMBER = 'OWNER_NOT_MEMBER',
   ACTION_NOT_DECLARED = 'ACTION_NOT_DECLARED',
   INVALID_PARAMETERS = 'INVALID_PARAMETERS',
   /** A project admin paused someone else's schedule; the plugin cannot resume it. */

@@ -62,7 +62,7 @@ describe('PluginOwnerMembershipService', () => {
   it('asks the IDP once more before a cached list says no, and answers from that', async () => {
     const { idp, owners } = setup();
     await owners.activeMember('project-1', 'user-1');
-    // The owner was added back, and their schedule resumed, after the cached list was read.
+    // The owner was added back after the cached list was read.
     idp.getProjectMembersOrThrow.mockResolvedValueOnce([member('user-1'), member('user-2')]);
 
     await expect(owners.activeMember('project-1', 'user-2')).resolves.toEqual(member('user-2'));
@@ -78,5 +78,13 @@ describe('PluginOwnerMembershipService', () => {
 
   it('reads a removed member still listed as outbound as no member', async () => {
     await expect(setup().owners.activeMember('project-1', 'gone')).resolves.toBeNull();
+  });
+
+  it('lists the active members for display from the cached list', async () => {
+    const { idp, owners } = setup();
+    await owners.activeMember('project-1', 'user-1');
+
+    await expect(owners.activeMemberIds('project-1')).resolves.toEqual(new Set(['user-1']));
+    expect(idp.getProjectMembersOrThrow).toHaveBeenCalledTimes(1);
   });
 });

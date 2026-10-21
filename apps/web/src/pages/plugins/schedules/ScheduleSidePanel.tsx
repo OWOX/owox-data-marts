@@ -23,6 +23,7 @@ import { Link, useNavigate } from 'react-router';
 import {
   lastRunSummary,
   SCHEDULE_DISABLED_REASON_TEXT,
+  SCHEDULE_OWNER_NOT_MEMBER_TEXT,
   type ProjectPluginSchedule,
   type ScheduleOperation,
 } from '../../../features/plugins';
@@ -31,6 +32,7 @@ import { timezoneService } from '../../../services/timezone.service';
 import { formatDateShort } from '../../../utils/date-formatters';
 import { describeCron } from './describeCron';
 import { ScheduleStatusBadge } from './ScheduleStatusBadge';
+import { scheduleStatus } from './scheduleStatus';
 
 export function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -124,19 +126,25 @@ export function ScheduleSidePanel({
               <Value label='Status'>
                 <span className='flex flex-wrap items-center gap-2'>
                   <ScheduleStatusBadge schedule={schedule} />
-                  {schedule.disabledReason && (
+                  {schedule.disabledReason ? (
                     <span className='text-muted-foreground'>
                       {SCHEDULE_DISABLED_REASON_TEXT[schedule.disabledReason]}
                     </span>
+                  ) : (
+                    scheduleStatus(schedule) === 'owner-not-member' && (
+                      <span className='text-muted-foreground'>
+                        {SCHEDULE_OWNER_NOT_MEMBER_TEXT}
+                      </span>
+                    )
                   )}
                 </span>
               </Value>
               <Hint question='Why would a schedule stop?'>
                 <p>
-                  OWOX disables a schedule when its owner is no longer a project member or their
-                  account is locked, when the plugin&apos;s current version no longer has its
-                  action, or when its settings no longer match that action. Resume first checks the
-                  owner and the current version.
+                  OWOX disables a schedule when the plugin&apos;s current version no longer has its
+                  action, or when its settings no longer match that action. While its owner is not a
+                  project member or their account is locked, it skips its runs. Resume first checks
+                  the owner and the current version.
                 </p>
                 <p className='mt-2'>
                   Removing the plugin stops its schedules; restoring the plugin brings them back.

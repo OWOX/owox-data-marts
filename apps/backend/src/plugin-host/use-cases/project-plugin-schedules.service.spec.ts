@@ -114,15 +114,18 @@ function setup(
         )
     ),
   };
+  // bob has left the project.
+  const owners = { activeMemberIds: jest.fn(async () => new Set(['admin', 'alice'])) };
   const service = new ProjectPluginSchedulesService(
     schedules as never,
     installations as never,
     plugins as never,
     versions as never,
     new PluginPresentationMapper(),
-    idp as never
+    idp as never,
+    owners as never
   );
-  return { service, schedules, installations, plugins, versions, idp };
+  return { service, schedules, installations, plugins, versions, idp, owners };
 }
 
 describe('ProjectPluginSchedulesService', () => {
@@ -161,6 +164,40 @@ describe('ProjectPluginSchedulesService', () => {
       expect(page.items.map(item => [item.schedule.id, item.canManage])).toEqual([
         ['s-i-alice', true],
       ]);
+    });
+
+    it('tells an admin whose owner is no longer an active member, with one IDP list', async () => {
+      const s = setup();
+
+      const page = await s.service.list(new ListProjectPluginSchedulesCommand(ADMIN, 100, 0, null));
+
+      expect(page.items.map(item => [item.schedule.id, item.ownerIsMember])).toEqual([
+        ['s-i-alice', true],
+        ['s-i-bob', false],
+      ]);
+      expect(s.owners.activeMemberIds).toHaveBeenCalledTimes(1);
+      expect(s.owners.activeMemberIds).toHaveBeenCalledWith('project-1');
+    });
+
+    it("asks the IDP nothing for the caller's own schedules: the caller is a member", async () => {
+      const s = setup();
+
+      const page = await s.service.list(new ListProjectPluginSchedulesCommand(ALICE, 100, 0, null));
+
+      expect(page.items.map(item => item.ownerIsMember)).toEqual([true]);
+      expect(s.owners.activeMemberIds).not.toHaveBeenCalled();
+    });
+
+    it('lists the schedules with owners unknown when the IDP cannot say', async () => {
+      const warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+      const s = setup();
+      s.owners.activeMemberIds.mockRejectedValueOnce(new Error('IDP is down'));
+
+      const page = await s.service.list(new ListProjectPluginSchedulesCommand(ADMIN, 100, 0, null));
+
+      expect(page.items.map(item => item.ownerIsMember)).toEqual([null, null]);
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('projectId=project-1'));
+      warn.mockRestore();
     });
 
     it("reads another member's installation as one with no schedules", async () => {

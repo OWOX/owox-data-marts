@@ -12,6 +12,14 @@ export class ProjectPluginScheduleApiDto extends MemberPluginScheduleApiDto {
 
   @ApiProperty({ type: UserProjectionDto, nullable: true }) owner: UserProjectionDto | null;
 
+  @ApiProperty({
+    type: Boolean,
+    nullable: true,
+    description:
+      'False while the owner is not an active project member: the schedule skips its runs. Null when the check failed.',
+  })
+  ownerIsMember: boolean | null;
+
   @ApiProperty({ description: 'True for the installation owner and for a project admin.' })
   canManage: boolean;
 }

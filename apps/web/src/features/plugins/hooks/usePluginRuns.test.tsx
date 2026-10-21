@@ -102,7 +102,7 @@ describe('usePluginRuns', () => {
     expect(service.listRuns).toHaveBeenCalledTimes(2);
   });
 
-  it('reads a linked run once, and gives null for one the API cannot find', async () => {
+  it('reads a linked run once, and gives null only for one the API cannot find', async () => {
     service.getRun
       .mockResolvedValueOnce(run({ id: 'r9' }))
       .mockRejectedValueOnce({ response: { status: 404 } });
@@ -110,7 +110,7 @@ describe('usePluginRuns', () => {
       wrapper,
       initialProps: { id: null as string | null },
     });
-    expect(result.current).toBeNull();
+    expect(result.current).toBeUndefined();
     expect(service.getRun).not.toHaveBeenCalled();
 
     rerender({ id: 'r9' });

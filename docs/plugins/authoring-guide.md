@@ -948,16 +948,20 @@ async function scheduleWeeklyCheck(ctx: PluginContext, watchId: string) {
 
 OWOX disables a schedule at run time and records why in `disabledReason`:
 
-| `disabledReason`      | Cause                                                                            |
-| --------------------- | -------------------------------------------------------------------------------- |
-| `OWNER_NOT_MEMBER`    | The member who installed the plugin left the project or their account is locked. |
-| `ACTION_NOT_DECLARED` | The current version no longer declares the action.                               |
-| `INVALID_PARAMETERS`  | The parameters no longer match the action's `input` schema.                      |
-| `PAUSED_BY_ADMIN`     | A project admin paused the schedule in **Plugins → Schedules**.                  |
+| `disabledReason`      | Cause                                                           |
+| --------------------- | --------------------------------------------------------------- |
+| `ACTION_NOT_DECLARED` | The current version no longer declares the action.              |
+| `INVALID_PARAMETERS`  | The parameters no longer match the action's `input` schema.     |
+| `PAUSED_BY_ADMIN`     | A project admin paused the schedule in **Plugins → Schedules**. |
 
 A disabled schedule does not run until `resume`, which checks it again. A run that fails in the
-queue with `OWNER_NOT_MEMBER`, `ACTION_NOT_DECLARED` or `INVALID_INPUT` disables its schedule the
-same way. A run that the action fails, or that times out, does not.
+queue with `ACTION_NOT_DECLARED` or `INVALID_INPUT` disables its schedule the same way. A run that
+the action fails, or that times out, does not.
+
+While the member who installed the plugin is not an active project member, or their account is
+locked, OWOX skips the schedule's runs and leaves it enabled, so it runs again once they are back. A
+run already queued then fails with `OWNER_NOT_MEMBER`. **Plugins → Schedules** shows a project admin
+which schedules wait for their owner.
 
 `ctx.schedules.resume` of a schedule with `PAUSED_BY_ADMIN` is refused with the code
 `SCHEDULE_PAUSED_BY_ADMIN`. Only a resume in **Plugins → Schedules**, by the owner or an admin,

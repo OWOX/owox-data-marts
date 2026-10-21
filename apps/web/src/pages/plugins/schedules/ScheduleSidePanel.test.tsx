@@ -21,6 +21,7 @@ const schedule = (over: Partial<ProjectPluginSchedule> = {}): ProjectPluginSched
   installationId: 'i1',
   installationState: 'installed',
   owner: null,
+  ownerIsMember: true,
   canManage: true,
   ...over,
 });
@@ -88,7 +89,19 @@ describe('ScheduleSidePanel', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Why would a schedule stop?' }));
 
     expect(
-      screen.getByText(/when its owner is no longer a project member or their account is locked,/)
+      screen.getByText(
+        /While its owner is not a project member or their account is locked, it skips its runs\./
+      )
+    ).toBeInTheDocument();
+  });
+
+  it('says why an enabled schedule whose owner left does not run', () => {
+    renderPanel(schedule({ ownerIsMember: false }));
+
+    expect(
+      screen.getByText(
+        'The owner is no longer a project member, or their account is locked, so its runs are skipped'
+      )
     ).toBeInTheDocument();
   });
 });

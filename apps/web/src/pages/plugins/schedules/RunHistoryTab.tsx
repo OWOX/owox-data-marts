@@ -1,7 +1,8 @@
 import { Button } from '@owox/ui/components/button';
 import { SkeletonList } from '@owox/ui/components/common/skeleton-list';
 import { History, X } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import toast from 'react-hot-toast';
 import {
   PLUGIN_RUN_STATUSES,
   PLUGIN_RUN_STATUS_LABEL,
@@ -23,6 +24,8 @@ const SOURCES = [
   { value: 'page', label: 'Plugin page' },
   { value: 'schedule', label: 'Schedule' },
 ];
+
+const GONE_TOAST_ID = 'plugin-run-gone';
 
 const STATUS_OPTIONS = PLUGIN_RUN_STATUSES.map(value => ({
   value,
@@ -52,12 +55,19 @@ export function RunHistoryTab({ isAdmin }: { isAdmin: boolean }) {
 
   const listed = runId !== null && runs.some(item => item.id === runId);
   // Asked for only once the list has loaded without it, and only by a UUID, which goes into the request path.
-  const linked = usePluginRun(
-    runId !== null && !isPending && !(isError && runs.length === 0) && !listed
-      ? uuidOrNull(runId)
-      : null
-  );
-  const rows = linked !== null && !listed && linked.id === runId ? [linked, ...runs] : runs;
+  const unlisted =
+    runId !== null && !isPending && !(isError && runs.length === 0) && !listed ? runId : null;
+  const linked = usePluginRun(unlisted === null ? null : uuidOrNull(unlisted));
+  const rows = linked && !listed && linked.id === runId ? [linked, ...runs] : runs;
+  // Swept, hidden from this member or no run id at all: a dead link must not read as the whole list.
+  const gone = unlisted !== null && (uuidOrNull(unlisted) === null || linked === null);
+
+  useEffect(() => {
+    if (gone) {
+      toast.error('This run no longer exists.', { id: GONE_TOAST_ID });
+      update({ run: null });
+    }
+  }, [gone, update]);
 
   const { statuses: chosen, ...narrowed } = filters;
   const filtered = chosen.length > 0 || Object.keys(narrowed).length > 0;

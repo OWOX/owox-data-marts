@@ -97,7 +97,6 @@ export interface PluginInstallation {
 }
 
 export type PluginScheduleDisabledReason =
-  | 'OWNER_NOT_MEMBER'
   | 'ACTION_NOT_DECLARED'
   | 'INVALID_PARAMETERS'
   | 'PAUSED_BY_ADMIN';
@@ -130,6 +129,8 @@ export interface ProjectPluginSchedule extends PluginScheduleSummary {
   installationId: string;
   installationState: 'installed' | 'uninstalled';
   owner: UserProjection | null;
+  /** False while the owner is not an active project member: the runs are skipped. Null when unknown. */
+  ownerIsMember: boolean | null;
   /** True for the installation owner and for a project admin. */
   canManage: boolean;
 }

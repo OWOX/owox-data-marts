@@ -253,18 +253,16 @@ describe('PluginActionScheduleHandlerService', () => {
     expect(warn.mock.calls[0][0]).not.toContain('PARAMETERS-MARKER');
   });
 
-  it('disables the schedule when its owner is no longer an active project member', async () => {
+  it('takes the next slot with no execution while the owner is not an active project member', async () => {
     const s = setup();
     s.owners.activeMember.mockResolvedValueOnce(null);
     const due = schedule();
 
     await s.handler.handleTrigger(due);
 
-    expect(due).toMatchObject({
-      isActive: false,
-      nextRunTimestamp: null,
-      disabledReason: PluginScheduleDisabledReason.OWNER_NOT_MEMBER,
-    });
+    expect(due).toMatchObject({ isActive: true, disabledReason: null, lastExecutionId: null });
+    expect(due.parked).toBeFalsy();
+    expect(due.retryAt).toBeFalsy();
     expect(s.starter.startScheduled).not.toHaveBeenCalled();
   });
 
