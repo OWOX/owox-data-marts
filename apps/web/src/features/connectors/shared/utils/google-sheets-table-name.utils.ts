@@ -1,4 +1,14 @@
 const FALLBACK_TABLE_NAME = 'google_sheets';
+// Letters that NFKD does not split into a base letter plus a mark.
+const LETTER_REPLACEMENTS: Record<string, string> = {
+  ß: 'ss',
+  ł: 'l',
+  ø: 'o',
+  æ: 'ae',
+  œ: 'oe',
+  đ: 'd',
+  þ: 'th',
+};
 
 /**
  * Suggests a target table name for a Google Sheets source from the selected sheet (tab)
@@ -18,6 +28,7 @@ export function suggestGoogleSheetsTableName(sheetName: unknown): string {
     .normalize('NFKD')
     .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase()
+    .replace(/[ßłøæœđþ]/g, letter => LETTER_REPLACEMENTS[letter] ?? letter)
     .replace(/[^a-z0-9]+/g, '_')
     .replace(/^_+|_+$/g, '');
 

@@ -268,9 +268,12 @@ test.describe('Data Setup - Connector Definition', () => {
 
     // Verify connector info is displayed on the data-setup page.
     // After saving, the Input Source section shows the connector configuration.
-    // The ConnectorConfigurationItem renders the connector's internal name "BankOfCanada".
+    // The ConnectorConfigurationItem renders the connector's manifest title "Bank of Canada",
+    // not its internal name "BankOfCanada".
     const dataSetupContent = page.getByTestId(TESTIDS.datamartTabDataSetup);
-    await expect(dataSetupContent.getByText('BankOfCanada')).toBeVisible({ timeout: 10000 });
+    await expect(dataSetupContent.getByText('Bank of Canada', { exact: true })).toBeVisible({
+      timeout: 10000,
+    });
 
     // -----------------------------------------------------------------------
     // DSET-07: Verify persistence after reload
@@ -280,7 +283,9 @@ test.describe('Data Setup - Connector Definition', () => {
 
     // After reload, the connector definition should still be displayed.
     // The definition type selector will NOT appear since definition exists.
-    await expect(dataSetupContent.getByText('BankOfCanada')).toBeVisible({ timeout: 10000 });
+    await expect(dataSetupContent.getByText('Bank of Canada', { exact: true })).toBeVisible({
+      timeout: 10000,
+    });
 
     // Verify via API that the definition was saved with connector type
     const apiRes = await page.request.get(`/api/data-marts/${datamartId}`);

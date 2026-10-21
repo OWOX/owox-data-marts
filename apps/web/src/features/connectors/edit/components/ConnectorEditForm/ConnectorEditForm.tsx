@@ -451,15 +451,32 @@ export function ConnectorEditForm({
   // Do not clone or normalise here (`{ ...configuration }`, structuredClone, etc.):
   // every echo would become a new reference, the step would re-seed on each keystroke,
   // and typed characters would be dropped again.
+  // The sheet the target table is suggested from. When it changes while creating a
+  // Google Sheets Data Mart, the target seeded from the previous sheet is dropped, so
+  // going Back, picking another sheet and returning suggests a name for the new sheet
+  // instead of keeping the old one.
+  const googleSheetsSourceKeyRef = useRef<string | null>(null);
+
   const handleConfigurationChange = useCallback(
     (configuration: Record<string, unknown>) => {
       setConnectorConfiguration(configuration);
       if (isGoogleSheetsConnector) {
         setPreviewConfigurationKey(null);
+        if (!existingConnector) {
+          const asText = (value: unknown) => (typeof value === 'string' ? value : '');
+          const sourceKey = `${asText(configuration.SpreadsheetId)}\u0000${asText(configuration.SheetName)}`;
+          if (
+            googleSheetsSourceKeyRef.current !== null &&
+            googleSheetsSourceKeyRef.current !== sourceKey
+          ) {
+            setTarget(null);
+          }
+          googleSheetsSourceKeyRef.current = sourceKey;
+        }
       }
       setIsDirty(true);
     },
-    [isGoogleSheetsConnector]
+    [existingConnector, isGoogleSheetsConnector]
   );
 
   const handleConfigurationValidationChange = useCallback((isValid: boolean) => {

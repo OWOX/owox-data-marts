@@ -30,7 +30,8 @@ interface DataMartDefinitionTypeSelectorProps {
 interface TypeOption {
   type: DataMartDefinitionType;
   label: string;
-  description: string;
+  /** Secondary text in the list; `examples` replaces it when set. */
+  description?: string;
   /**
    * Sources shown with their logos instead of the plain description. A spreadsheet owner
    * recognises the Google Sheets logo faster than the words "data import".
@@ -89,7 +90,6 @@ export function DataMartDefinitionTypeSelector({
     {
       type: DataMartDefinitionType.CONNECTOR,
       label: 'Connector',
-      description: 'Facebook Ads, Google Sheets, LinkedIn Ads and more',
       examples: POPULAR_CONNECTORS,
     },
   ];
@@ -118,11 +118,11 @@ export function DataMartDefinitionTypeSelector({
                   {option.label}
                   {option.examples ? (
                     <span className='text-muted-foreground/80 ml-2 inline-flex items-center gap-1.5'>
-                      {option.examples.map(({ name, icon: Icon }, index) => (
+                      {option.examples.map(({ name, icon: Icon }, index, examples) => (
                         <span key={name} className='inline-flex items-center gap-1'>
-                          <Icon size={14} aria-hidden='true' />
+                          <Icon size={16} />
                           {name}
-                          {index < POPULAR_CONNECTORS.length - 1 ? ',' : ''}
+                          {index < examples.length - 1 ? ',' : ''}
                         </span>
                       ))}
                       <span>and more</span>

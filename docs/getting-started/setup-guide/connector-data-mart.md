@@ -59,9 +59,9 @@ Each connector requires authentication. Here is how you can obtain the required 
 
 Use the **credentials screen** to manage access per platform.
 
-### Copy a configuration from another Data Mart
+### Reuse a configuration from another Data Mart
 
-The **Copy from…** option reuses a connector configuration from another Data Mart, including its stored credentials.
+The **Reuse from another Data Mart** option copies a connector configuration from another Data Mart in the project, including its stored credentials. For Google Sheets that is the Google access, the spreadsheet and the sheet; you can pick another sheet afterwards.
 
 Copying credentials requires **Edit** access to the source Data Mart. You have it in one of these cases:
 

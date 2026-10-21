@@ -11,6 +11,8 @@ const PICKER_LOAD_TIMEOUT_MS = 10000;
 // Google Picker clamps the dialog to 566x350 .. 1051x650 and centres it in the window.
 // Without an explicit size it uses the maximum, and in a short window the top of the
 // dialog (title and search box) ends up above the viewport.
+const PICKER_MIN_WIDTH = 566;
+const PICKER_MIN_HEIGHT = 350;
 const PICKER_MAX_WIDTH = 1051;
 const PICKER_MAX_HEIGHT = 650;
 const PICKER_VIEWPORT_MARGIN = 32;
@@ -239,9 +241,16 @@ export function getPickerDialogSize(viewport: { innerWidth: number; innerHeight:
   width: number;
   height: number;
 } {
+  // Picker ignores anything below its minimum, so clamp to it rather than pretend.
   return {
-    width: Math.max(1, Math.min(PICKER_MAX_WIDTH, viewport.innerWidth - PICKER_VIEWPORT_MARGIN)),
-    height: Math.max(1, Math.min(PICKER_MAX_HEIGHT, viewport.innerHeight - PICKER_VIEWPORT_MARGIN)),
+    width: Math.max(
+      PICKER_MIN_WIDTH,
+      Math.min(PICKER_MAX_WIDTH, viewport.innerWidth - PICKER_VIEWPORT_MARGIN)
+    ),
+    height: Math.max(
+      PICKER_MIN_HEIGHT,
+      Math.min(PICKER_MAX_HEIGHT, viewport.innerHeight - PICKER_VIEWPORT_MARGIN)
+    ),
   };
 }
 

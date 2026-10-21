@@ -16,6 +16,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/too
 import { DataMartStatus } from '../../../../data-marts/shared/enums';
 import type { DataStorage } from '../../../../data-storage/shared/model/types/data-storage';
 import { useConnector } from '../../../shared/model/hooks/useConnector';
+import { getConnectorDisplayName } from '../../../shared/utils';
 import { useEffect } from 'react';
 import { RawBase64Icon } from '../../../../../shared/icons';
 import { unquoteIdentifier } from '../../utils/snowflake-identifier.utils';
@@ -52,13 +53,6 @@ export function ConnectorConfigurationItem({
       return () => <RawBase64Icon base64={connector.logoBase64} size={24} />;
     }
     return undefined;
-  };
-
-  // The manifest title ("Google Sheets"), not the technical name ("GoogleSheets").
-  // Falls back to the technical name until the connector list has loaded.
-  const getConnectorTitle = (connectorName: string) => {
-    const connector = connectors.find(c => c.name === connectorName);
-    return connector?.displayName ?? (connectorName || 'Connector');
   };
 
   const getConnectorSubtitle = () => {
@@ -302,9 +296,11 @@ export function ConnectorConfigurationItem({
               storage: connectorDef.connector.storage,
             }}
           >
+            {/* The manifest title ("Google Sheets"), not the technical name ("GoogleSheets");
+                the technical name stays until the connector list has loaded. */}
             <ListItemCard
               icon={getConnectorIcon(connectorDef.connector.source.name)}
-              title={getConnectorTitle(connectorDef.connector.source.name)}
+              title={getConnectorDisplayName(connectorDef.connector, connectors) || 'Connector'}
               subtitle={getConnectorSubtitle()}
               className='bg-background hover:bg-muted min-h-[80px] cursor-pointer border-0 transition-colors hover:shadow-none'
             />

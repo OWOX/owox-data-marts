@@ -9,14 +9,19 @@ describe('suggestGoogleSheetsTableName', () => {
 
   it('strips diacritics and collapses separators', () => {
     expect(suggestGoogleSheetsTableName('Plán – Výroba / 2026')).toBe('plan_vyroba_2026');
+    expect(suggestGoogleSheetsTableName('Straße Łódź')).toBe('strasse_lodz');
   });
 
   it('keeps the identifier valid when the sheet name starts with a digit', () => {
     expect(suggestGoogleSheetsTableName('2026 Plan')).toBe('sheet_2026_plan');
   });
 
-  it('falls back to google_sheets when nothing usable is left', () => {
+  it('keeps only the digits of a non-Latin name', () => {
     expect(suggestGoogleSheetsTableName('Лист1')).toBe('sheet_1');
+  });
+
+  it('falls back to google_sheets when nothing usable is left', () => {
+    expect(suggestGoogleSheetsTableName('План')).toBe('google_sheets');
     expect(suggestGoogleSheetsTableName('***')).toBe('google_sheets');
     expect(suggestGoogleSheetsTableName(undefined)).toBe('google_sheets');
   });

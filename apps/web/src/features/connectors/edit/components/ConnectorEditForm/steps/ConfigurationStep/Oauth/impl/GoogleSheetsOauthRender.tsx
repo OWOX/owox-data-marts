@@ -28,24 +28,25 @@ export function GoogleSheetsOauthRender({
     const result = await onOAuthSuccess({ code: response.code });
     const nextEmail = result?.user.email ?? result?.user.name;
 
-    if (
+    const accountChanged = Boolean(
       result &&
       connectedEmail &&
       nextEmail &&
-      nextEmail.toLowerCase() !== connectedEmail.toLowerCase() &&
-      configuration.SpreadsheetId
-    ) {
+      nextEmail.toLowerCase() !== connectedEmail.toLowerCase()
+    );
+    if (accountChanged && configuration.SpreadsheetId) {
       onValueChange('SpreadsheetId', '');
     }
     if (result) {
       setPickerError(null);
-      // The popup closes on its own; say out loud that the account is connected and
-      // what comes next, so the user does not have to spot the changed button label.
-      toast.success(
-        nextEmail
-          ? `Google account ${nextEmail} connected. Now choose a spreadsheet.`
-          : 'Google account connected. Now choose a spreadsheet.'
-      );
+      // The popup closes on its own; say out loud that the account is connected and,
+      // when no spreadsheet is chosen yet, what comes next, so the user does not have
+      // to spot the changed button label.
+      const connected = nextEmail
+        ? `Google account ${nextEmail} connected.`
+        : 'Google account connected.';
+      const needsSpreadsheet = accountChanged || !configuration.SpreadsheetId;
+      toast.success(needsSpreadsheet ? `${connected} Now choose a spreadsheet.` : connected);
     }
   };
 
@@ -91,7 +92,7 @@ export function GoogleSheetsOauthRender({
       >
         {status?.user ? (
           <>
-            <CircleCheck className='h-4 w-4 text-green-600' aria-hidden='true' />
+            {status.valid && <CircleCheck className='h-4 w-4 text-green-600' aria-hidden='true' />}
             Connected as <strong>{status.user.name ?? status.user.id}</strong>
           </>
         ) : (

@@ -11,7 +11,7 @@ A marketer or product manager who keeps targets in a spreadsheet and wants plan-
 - After _Sign in with Google_ a confirmation names the connected account and the next step, and the button shows a connected state, so nobody has to spot a changed label.
 - _Copy from…_ is now _Reuse from another Data Mart_ with a hint that says what it reuses: for Google Sheets, the Google access (signed-in account or service account key), spreadsheet and sheet of an existing Data Mart, with no new sign-in, and the spreadsheet and sheet can still be changed afterwards.
 - The Google file picker fits the browser window, so its title and search field stay visible without resizing the window.
-- The suggested table name for a Google Sheets source comes from the selected sheet (for example `product_engineering`), not the generic `google_sheets`, so two sheets of one document no longer default to the same table. Previously the default repeated the previous Data Mart's table, and accepting it would have overwritten that table on the next run.
+- The suggested table name for a Google Sheets source comes from the selected sheet (for example `product_engineering`) instead of the same `google_sheets` for every Data Mart, so differently named sheets get different defaults. The dataset stays `google_sheets_owox`, and a sheet name that leaves no Latin letters or digits still falls back to `google_sheets`, so check the suggestion before saving: nothing stops two Data Marts from writing to one table.
 
 See [Connector Data Mart](../../docs/getting-started/setup-guide/connector-data-mart.md) and the [Google Sheets source guide](../../packages/connectors/src/Sources/GoogleSheets/GETTING_STARTED.md).
 

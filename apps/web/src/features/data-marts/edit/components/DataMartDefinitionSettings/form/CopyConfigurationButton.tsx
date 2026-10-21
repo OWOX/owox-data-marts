@@ -36,12 +36,17 @@ export function CopyConfigurationButton({
   const [dataMarts, setDataMarts] = useState<DataMartResponseDto[]>([]);
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
-  // What gets reused differs per source: for Google Sheets it is the connected account
-  // and the document, which is exactly what people hesitate to grant again.
+  // Controlled so the tooltip does not reopen when the menu closes and Radix returns
+  // focus to the trigger; the same hint heads the list anyway.
+  const [tooltipOpen, setTooltipOpen] = useState(false);
+  // What gets reused differs per source: for Google Sheets it is the Google access and
+  // the document, which is exactly what people hesitate to grant again. Picking another
+  // spreadsheet reopens the Google Picker as the connected account, so that part only
+  // holds when the user can sign in to Google as that account.
   const reuseHint =
     currentConnectorName === GOOGLE_SHEETS_CONNECTOR_NAME
-      ? 'Reuses the Google access (signed-in account or service account key), spreadsheet and sheet of one of your Google Sheets Data Marts. No new sign-in is needed, and you can change the spreadsheet and sheet afterwards.'
-      : 'Reuses the connection settings and credentials of one of your Data Marts with the same source. You can change any of them afterwards.';
+      ? 'Reuses the Google access (signed-in account or service account key), spreadsheet and sheet of a Google Sheets Data Mart in this project. No new sign-in is needed. You can pick another sheet afterwards, and another spreadsheet if you can open Google with the connected account.'
+      : 'Reuses the connection settings and credentials of a Data Mart in this project with the same source. You can change any of them afterwards.';
 
   const loadDataMarts = useCallback(async () => {
     setLoading(true);
@@ -142,7 +147,7 @@ export function CopyConfigurationButton({
   return (
     <TooltipProvider>
       <DropdownMenu open={open} onOpenChange={setOpen}>
-        <Tooltip delayDuration={300}>
+        <Tooltip delayDuration={300} open={tooltipOpen && !open} onOpenChange={setTooltipOpen}>
           <TooltipTrigger asChild>
             <DropdownMenuTrigger asChild>
               <Button type='button' variant='outline' size='sm' className='cursor-pointer'>

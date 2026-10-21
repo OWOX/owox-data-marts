@@ -39,6 +39,13 @@ describe('getPickerDialogSize', () => {
       height: 528,
     });
   });
+
+  it('never goes below the size Picker itself enforces', () => {
+    expect(getPickerDialogSize({ innerWidth: 400, innerHeight: 300 })).toEqual({
+      width: 566,
+      height: 350,
+    });
+  });
 });
 
 describe('verifyGooglePickerAccount', () => {
