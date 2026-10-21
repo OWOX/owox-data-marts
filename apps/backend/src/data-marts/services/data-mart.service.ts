@@ -112,6 +112,7 @@ export class DataMartService {
         'dmContexts.contextId',
         'dmContext.id',
         'dmContext.name',
+        'dmContext.icon',
       ])
       .addSelect(
         'CASE WHEN dm.definitionType = :connectorDefinitionType THEN dm.definition ELSE NULL END',

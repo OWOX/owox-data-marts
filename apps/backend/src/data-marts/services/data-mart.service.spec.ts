@@ -279,7 +279,7 @@ describe('DataMartService list filtering', () => {
     );
   });
 
-  it('selects dataLastUpdated so the list column has a value to render', async () => {
+  it('selects dataLastUpdated and the icons so the list columns have values to render', async () => {
     const countQueryBuilder = {
       take: jest.fn(),
       skip: jest.fn(),
@@ -328,7 +328,7 @@ describe('DataMartService list filtering', () => {
     // The projection is explicit, so an unlisted column loads as undefined and the whole list
     // column silently renders "Unknown" however many snapshots are persisted.
     expect(queryBuilder.select).toHaveBeenCalledWith(
-      expect.arrayContaining(['dm.dataLastUpdated', 'dm.icon'])
+      expect.arrayContaining(['dm.dataLastUpdated', 'dm.icon', 'dmContext.icon'])
     );
   });
 });
