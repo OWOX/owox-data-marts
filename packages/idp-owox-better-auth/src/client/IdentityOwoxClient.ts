@@ -280,7 +280,7 @@ export class IdentityOwoxClient {
         { headers: authHeader }
       );
       const result = McpOAuthTokenVerificationResponseSchema.parse(data);
-      return result.active ? result.payload : null;
+      return result.active && result.payload.roles.length > 0 ? result.payload : null;
     } catch (err) {
       this.handleAxiosError(err, { req }, 'Failed to verify MCP access token');
     }

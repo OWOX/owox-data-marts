@@ -10,6 +10,8 @@ import { firstHeaderValue } from '../http-headers.util';
 import { MCP_AUTH_PORT, type McpAuthPort } from './mcp-auth.port';
 
 const REQUIRED_SCOPES: McpScope[] = ['mcp:read'];
+const MCP_RECONNECT_MESSAGE =
+  'Your OWOX MCP connection is no longer authorized. Sign in to OWOX to check your project access, ask a project administrator to restore it if needed, then reconnect your MCP client.';
 
 /**
  * `createMcpHandler`'s auth model is pass-through only (`AuthInfo.verifyAccessToken(token)`,
@@ -23,7 +25,10 @@ export interface McpAuthenticatedRequest extends Request {
 }
 
 class McpAuthRejection extends Error {
-  constructor(message: string) {
+  constructor(
+    message: string,
+    readonly code?: 'invalid_token'
+  ) {
     super(message);
     this.name = 'McpAuthRejection';
   }
@@ -59,7 +64,7 @@ export class McpAuthMiddleware {
       next();
     } catch (error) {
       if (error instanceof McpAuthRejection) {
-        this.reject(request, response, error.message, resourceContext);
+        this.reject(request, response, error, resourceContext);
       } else {
         this.rejectUnexpected(request, response, error);
       }
@@ -77,7 +82,7 @@ export class McpAuthMiddleware {
 
     const payload = await this.auth.verifyToken(token, resourceContext.resource, REQUIRED_SCOPES);
     if (!payload) {
-      throw new McpAuthRejection('Invalid MCP bearer token');
+      throw new McpAuthRejection(MCP_RECONNECT_MESSAGE, 'invalid_token');
     }
 
     this.assertPayload(payload, resourceContext);
@@ -106,9 +111,10 @@ export class McpAuthMiddleware {
   private reject(
     request: Request,
     response: Response,
-    message: string,
+    rejection: McpAuthRejection,
     resourceContext: McpResourceContext | null
   ): void {
+    const { message } = rejection;
     const metadata = {
       method: request.method,
       url: request.originalUrl ?? request.url,
@@ -125,7 +131,7 @@ export class McpAuthMiddleware {
       this.logger.warn('MCP auth rejected', metadata);
     }
 
-    response.setHeader('WWW-Authenticate', this.getChallengeHeader(resourceContext));
+    response.setHeader('WWW-Authenticate', this.getChallengeHeader(resourceContext, rejection));
     response.status(401).json({
       statusCode: 401,
       message,
@@ -189,7 +195,7 @@ export class McpAuthMiddleware {
     }
 
     if (!payload.roles.length) {
-      throw new McpAuthRejection('Missing MCP project roles');
+      throw new McpAuthRejection(MCP_RECONNECT_MESSAGE, 'invalid_token');
     }
 
     for (const scope of REQUIRED_SCOPES) {
@@ -199,12 +205,19 @@ export class McpAuthMiddleware {
     }
   }
 
-  private getChallengeHeader(resourceContext: McpResourceContext | null): string {
+  private getChallengeHeader(
+    resourceContext: McpResourceContext | null,
+    rejection: McpAuthRejection
+  ): string {
     const metadataUrl = resourceContext
       ? `${resourceContext.publicBaseUrl}/.well-known/oauth-protected-resource`
       : this.config.protectedResourceMetadataUrl;
 
-    return `Bearer resource_metadata="${metadataUrl}", scope="${this.config.scopes.join(' ')}"`;
+    const challenge = `Bearer resource_metadata="${metadataUrl}", scope="${this.config.scopes.join(' ')}"`;
+    // Both the code and description are fixed local messages, never raw upstream error text.
+    return rejection.code
+      ? `${challenge}, error="${rejection.code}", error_description="${rejection.message}"`
+      : challenge;
   }
 
   private isExpectedAnonymousProbe(request: Request, message: string): boolean {

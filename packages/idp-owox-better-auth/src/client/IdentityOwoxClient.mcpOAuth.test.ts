@@ -262,6 +262,59 @@ describe('IdentityOwoxClient MCP OAuth flow', () => {
     expect(result?.avatar).toBeUndefined();
   });
 
+  it('rejects an MCP token refreshed after project membership was removed', async () => {
+    const payload = {
+      clientId: 'mcp-client',
+      userId: 'user-1',
+      projectId: 'project-1',
+      roles: ['viewer'],
+      resource: 'https://mcp.owox.com/mcp',
+      scopes: ['mcp:read'],
+      authFlow: 'mcp',
+    };
+    const client = createClient();
+    const request = {
+      token: 'access-token',
+      resource: payload.resource,
+      requiredScopes: ['mcp:read' as const],
+    };
+    httpMock.post.mockResolvedValueOnce({ data: { active: true, payload } });
+    await expect(client.verifyMcpAccessToken(request)).resolves.toMatchObject({
+      roles: ['viewer'],
+    });
+
+    // IB can refresh a project token with no roles. Its verification response is still active,
+    // but it must be treated as an invalid MCP token rather than a malformed server response.
+    httpMock.post.mockResolvedValueOnce({
+      data: { active: true, payload: { ...payload, roles: [] } },
+    });
+    await expect(client.verifyMcpAccessToken(request)).resolves.toBeNull();
+  });
+
+  it('keeps malformed verification responses distinct from a loss of project access', async () => {
+    httpMock.post.mockResolvedValueOnce({
+      data: { active: true, payload: { roles: [] } },
+    });
+    await expect(
+      createClient().verifyMcpAccessToken({
+        token: 'access-token',
+        resource: 'https://mcp.owox.com/mcp',
+        requiredScopes: ['mcp:read'],
+      })
+    ).rejects.toThrow();
+  });
+
+  it('treats an inactive token as unauthorized when its old project role is revoked', async () => {
+    httpMock.post.mockResolvedValueOnce({ data: { active: false } });
+    await expect(
+      createClient().verifyMcpAccessToken({
+        token: 'access-token',
+        resource: 'https://mcp.owox.com/mcp',
+        requiredScopes: ['mcp:read'],
+      })
+    ).resolves.toBeNull();
+  });
+
   it('gets one project for a user through C2C backchannel', async () => {
     httpMock.get.mockResolvedValue({
       data: {

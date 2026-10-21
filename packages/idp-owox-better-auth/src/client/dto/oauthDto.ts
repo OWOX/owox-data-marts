@@ -7,6 +7,7 @@ import {
   OAuthAuthorizationRequestSchema,
   OAuthTokenExchangeRequestSchema,
   OAuthTokenExchangeResultSchema,
+  RoleEnum,
 } from '@owox/idp-protocol';
 
 export const McpOAuthAuthorizationCodeRequestSchema = z.object({
@@ -51,7 +52,9 @@ export type McpOAuthTokenVerificationRequest = z.infer<
 export const McpOAuthTokenVerificationResponseSchema = z.discriminatedUnion('active', [
   z.object({
     active: z.literal(true),
-    payload: McpTokenPayloadSchema,
+    // IB can refresh a token after membership removal and return an empty current role list.
+    // Parse that denial here; only non-empty roles may leave the client as a verified payload.
+    payload: McpTokenPayloadSchema.extend({ roles: z.array(RoleEnum) }),
   }),
   z.object({
     active: z.literal(false),

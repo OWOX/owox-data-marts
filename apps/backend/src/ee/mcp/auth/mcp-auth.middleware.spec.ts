@@ -11,6 +11,8 @@ import {
 } from './mcp-auth.middleware';
 
 describe('McpAuthMiddleware', () => {
+  const reconnectMessage =
+    'Your OWOX MCP connection is no longer authorized. Sign in to OWOX to check your project access, ask a project administrator to restore it if needed, then reconnect your MCP client.';
   const tokenPayload: McpTokenPayload = {
     clientId: 'mcp-client-1',
     userId: 'user-1',
@@ -149,7 +151,7 @@ describe('McpAuthMiddleware', () => {
 
   it.each([
     ['missing bearer token', undefined, null, 'Missing MCP bearer token'],
-    ['invalid token', 'Bearer invalid-token', null, 'Invalid MCP bearer token'],
+    ['invalid token', 'Bearer invalid-token', null, reconnectMessage],
     [
       'wrong resource',
       'Bearer wrong-resource',
@@ -162,12 +164,7 @@ describe('McpAuthMiddleware', () => {
       { ...tokenPayload, projectId: '' },
       'Missing MCP project context',
     ],
-    [
-      'empty roles',
-      'Bearer empty-roles',
-      { ...tokenPayload, roles: [] },
-      'Missing MCP project roles',
-    ],
+    ['empty roles', 'Bearer empty-roles', { ...tokenPayload, roles: [] }, reconnectMessage],
     [
       'missing required scope',
       'Bearer missing-scope',
@@ -195,6 +192,52 @@ describe('McpAuthMiddleware', () => {
           message: expectedMessage,
           error: 'Unauthorized',
         })
+      );
+    }
+  );
+
+  it.each([
+    ['mcp.owox.com', 'POST'],
+    ['mcp.owox.com', 'GET'],
+    ['8c90f0b0f314bf5f5d6f69d24fd7ee3b.mcp.owox.com', 'POST'],
+    ['8c90f0b0f314bf5f5d6f69d24fd7ee3b.mcp.owox.com', 'GET'],
+  ])(
+    'rejects the next %s %s request after an existing connection loses project access',
+    async (host, method) => {
+      const payload = {
+        ...tokenPayload,
+        projectId: '8c90f0b0f314bf5f5d6f69d24fd7ee3b',
+        resource: `https://${host}/mcp`,
+      };
+      const auth = {
+        verifyToken: jest.fn().mockResolvedValueOnce(payload).mockResolvedValue(null),
+      };
+      const middleware = createMiddleware(auth);
+      const next = jest.fn();
+      await middleware.handle(
+        createRequest('Bearer access-token', { host }),
+        createResponse() as unknown as Response,
+        next
+      );
+      expect(next).toHaveBeenCalledTimes(1);
+
+      next.mockClear();
+      const request = createRequest('Bearer access-token', { host });
+      request.method = method;
+      const response = createResponse();
+      await middleware.handle(request, response as unknown as Response, next);
+
+      expect(next).not.toHaveBeenCalled();
+      expect(request.auth).toBeUndefined();
+      expect(response.status).toHaveBeenCalledWith(401);
+      expect(response.json).toHaveBeenCalledWith({
+        statusCode: 401,
+        message: reconnectMessage,
+        error: 'Unauthorized',
+      });
+      expect(response.setHeader).toHaveBeenCalledWith(
+        'WWW-Authenticate',
+        `Bearer resource_metadata="https://${host}/.well-known/oauth-protected-resource", scope="mcp:read mcp:write", error="invalid_token", error_description="${reconnectMessage}"`
       );
     }
   );
