@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AuthProvider } from './AuthContext';
 import { AuthContext } from './AuthContext.types';
 import type { Role } from '../types';
+import { RedirectStorageService } from '../services/redirect-storage.service';
 
 const api = vi.hoisted(() => ({
   refreshAccessToken: vi.fn(),
@@ -12,12 +13,15 @@ const api = vi.hoisted(() => ({
   signOut: vi.fn(),
 }));
 
-vi.mock('../services', () => ({
-  ...api,
-  RedirectStorageService: { retrieve: () => null, clear: vi.fn() },
-  isBlockedUserError: () => false,
-  isViewOnlySession: () => false,
-}));
+vi.mock('../services', async () => {
+  const { RedirectStorageService } = await import('../services/redirect-storage.service');
+  return {
+    ...api,
+    RedirectStorageService,
+    isBlockedUserError: () => false,
+    isViewOnlySession: () => false,
+  };
+});
 
 vi.mock('../../../app/api/token-provider', () => ({
   setTokenProvider: vi.fn(),
@@ -45,19 +49,21 @@ function Status() {
 describe('AuthProvider request-access entry', () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    sessionStorage.clear();
     api.refreshAccessToken.mockResolvedValue({ accessToken: 'access-token' });
     setRoles([]);
   });
 
   afterEach(() => {
     vi.restoreAllMocks();
+    sessionStorage.clear();
     window.history.replaceState({}, '', '/');
   });
 
-  function setRoles(roles: Role[]) {
+  function setRoles(roles: Role[], projectId = 'main-project') {
     api.getUserApi.mockResolvedValue({
       id: 'user-1',
-      projectId: 'main-project',
+      projectId,
       roles,
       email: 'user@example.com',
     });
@@ -98,6 +104,73 @@ describe('AuthProvider request-access entry', () => {
       );
     });
   });
+
+  it.each(['claude', 'chatgpt'])(
+    'restores the complete %s Request Access URL after switching to its project',
+    async integration => {
+      const target = `/ui/resource-project/request-access?mcp-integration=${integration}#access`;
+      // signIn stores the target page before ProjectIdGuard changes the session's project.
+      RedirectStorageService.save(target);
+      setRoles([], 'resource-project');
+      window.history.replaceState({}, '', '/');
+      const replace = vi.spyOn(window.location, 'replace').mockImplementation(() => {});
+
+      render(
+        <AuthProvider>
+          <Status />
+        </AuthProvider>
+      );
+
+      await waitFor(() => {
+        expect(replace).toHaveBeenCalledWith(target);
+      });
+      expect(RedirectStorageService.retrieve()).toBeNull();
+      expect(api.signIn).not.toHaveBeenCalled();
+    }
+  );
+
+  it('keeps a stored protected page as redirect-to for an empty-role user', async () => {
+    RedirectStorageService.save('/ui/main-project/data-marts?tab=recent#list');
+    window.history.replaceState({}, '', '/');
+    const replace = vi.spyOn(window.location, 'replace').mockImplementation(() => {});
+
+    render(
+      <AuthProvider>
+        <Status />
+      </AuthProvider>
+    );
+
+    await waitFor(() => {
+      expect(replace).toHaveBeenCalledWith(
+        '/ui/main-project/request-access?redirect-to=%2Fui%2Fmain-project%2Fdata-marts%3Ftab%3Drecent%23list'
+      );
+    });
+  });
+
+  it.each([
+    '/ui/other-project/request-access?mcp-integration=claude',
+    'https://untrusted.example/ui/main-project/request-access?mcp-integration=claude',
+    '//untrusted.example/ui/main-project/request-access?mcp-integration=claude',
+  ])(
+    'does not restore a stored Request Access URL outside the current project: %s',
+    async target => {
+      sessionStorage.setItem('owox_auth_redirect_url', target);
+      window.history.replaceState({}, '', '/');
+      const replace = vi.spyOn(window.location, 'replace').mockImplementation(() => {});
+
+      render(
+        <AuthProvider>
+          <Status />
+        </AuthProvider>
+      );
+
+      await waitFor(() => {
+        expect(replace).toHaveBeenCalledWith(
+          '/ui/main-project/request-access?redirect-to=%2Fui%2Fmain-project%2Fdata-marts'
+        );
+      });
+    }
+  );
 
   it('does not resume an old OAuth authorization when access is approved', async () => {
     setRoles(['viewer']);

@@ -126,7 +126,7 @@ export class OAuthAuthorizationController {
     );
 
     const projects = this.projectSelectionService.filterSelectableProjects(
-      await this.loadProjectsOrEmpty(provider, authorization.accessToken)
+      await this.projectSelectionService.loadProjects(provider, authorization.accessToken)
     );
     const selectedProjectId = this.getSelectedProjectId(query);
     const projectMember =
@@ -319,17 +319,6 @@ export class OAuthAuthorizationController {
     } catch {
       this.redirectToSignIn(request, response, integration);
       return null;
-    }
-  }
-
-  private async loadProjectsOrEmpty(
-    provider: ReturnType<IdpProviderService['getProvider']>,
-    accessToken: string
-  ) {
-    try {
-      return await this.projectSelectionService.loadProjects(provider, accessToken);
-    } catch {
-      return [];
     }
   }
 

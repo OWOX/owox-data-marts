@@ -186,8 +186,9 @@ describe('OAuthAuthorizationController', () => {
         publicBaseUrl: 'https://resource-project.mcp.example',
       },
     });
-    projectSelectionService.resolveProjectHostMember.mockRejectedValueOnce(
-      new OAuthProjectAccessRequiredError(projectId)
+    projectSelectionService.loadProjects.mockResolvedValueOnce([]);
+    projectSelectionService.resolveProjectHostMember.mockImplementation((...args) =>
+      new OAuthProjectSelectionService().resolveProjectHostMember(...args)
     );
     const response = createResponse();
 
@@ -202,6 +203,63 @@ describe('OAuthAuthorizationController', () => {
     );
     expect(oauthIdp.createAuthorizationCode).not.toHaveBeenCalled();
   });
+
+  it.each([
+    { name: 'shared member', projectSpecific: false, roles: ['admin'] },
+    { name: 'shared restricted session', projectSpecific: false, roles: [] },
+    { name: 'project member', projectSpecific: true, roles: ['admin'] },
+    { name: 'project restricted session', projectSpecific: true, roles: [] },
+  ])(
+    'returns server_error when project loading fails for a $name',
+    async ({ projectSpecific, roles }) => {
+      const resourceContext = projectSpecific
+        ? {
+            kind: 'project' as const,
+            projectId: 'resource-project',
+            resource: 'https://resource-project.mcp.example/mcp',
+            publicBaseUrl: 'https://resource-project.mcp.example',
+          }
+        : sharedResourceContext;
+      const { controller, provider, projectSelectionService, projectMemberResolver, oauthIdp } =
+        createController({ request: authorizationRequest, resourceContext });
+      provider.parseToken.mockResolvedValueOnce({ ...payload, roles });
+      projectSelectionService.loadProjects.mockRejectedValueOnce(
+        new Error('Internal project service unavailable')
+      );
+      projectMemberResolver.resolve.mockImplementation(context =>
+        new OAuthProjectMemberResolver().resolve(context)
+      );
+      projectSelectionService.resolveProjectHostMember.mockImplementation((...args) =>
+        new OAuthProjectSelectionService().resolveProjectHostMember(...args)
+      );
+      jest.spyOn(Logger.prototype, 'error').mockImplementation(() => {});
+      const response = createResponse();
+
+      await controller.authorize(
+        {},
+        createRequest({ cookies: { refreshToken: 'refresh-token-1' } }),
+        response as unknown as Response
+      );
+
+      expect(response.redirect).toHaveBeenCalledTimes(1);
+      const redirect = new URL(response.redirect.mock.calls[0][0] as string);
+      expect(redirect.origin + redirect.pathname).toBe(authorizationRequest.redirectUri);
+      expect(redirect.searchParams.get('error')).toBe('server_error');
+      expect(redirect.searchParams.get('state')).toBe(authorizationRequest.state);
+      expect(redirect.searchParams.get('iss')).toBe(
+        projectSpecific ? resourceContext.publicBaseUrl : null
+      );
+      expect(redirect.searchParams.get('error_description')).toBe(
+        'The authorization server encountered an unexpected condition.'
+      );
+      expect(redirect.searchParams.has('code')).toBe(false);
+      expect(projectSelectionService.resolveProjectHostMember).not.toHaveBeenCalled();
+      expect(projectSelectionService.resolveSelectedProjectMember).not.toHaveBeenCalled();
+      expect(projectMemberResolver.resolve).not.toHaveBeenCalled();
+      expect(oauthIdp.createAuthorizationCode).not.toHaveBeenCalled();
+      expect(response.send).not.toHaveBeenCalled();
+    }
+  );
 
   it('uses the single available project when the current session has no roles', async () => {
     const { controller, provider, projectSelectionService, oauthIdp } = createController();

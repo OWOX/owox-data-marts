@@ -229,7 +229,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
               currentPath,
               projectId: user.projectId,
             });
-            window.location.replace(buildProjectRequestAccessPath(user.projectId, redirectTo));
+            const targetUrl = new URL(redirectTo, window.location.origin);
+            // A project switch returns through /; restore the saved access page with its MCP label.
+            const target =
+              targetUrl.origin === window.location.origin &&
+              isProjectRequestAccessPath(targetUrl.pathname, user.projectId)
+                ? `${targetUrl.pathname}${targetUrl.search}${targetUrl.hash}`
+                : buildProjectRequestAccessPath(user.projectId, redirectTo);
+            window.location.replace(target);
           }
           return;
         }
