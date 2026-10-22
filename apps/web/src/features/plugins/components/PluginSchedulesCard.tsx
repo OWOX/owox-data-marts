@@ -62,8 +62,16 @@ export function PluginSchedulesCard({
   const { schedules, enabled, hasData, isPending, isError, refetch } =
     usePluginSchedules(installationId);
   const columns = useMemo(() => scheduleColumns(pluginId), [pluginId]);
+  // The ten are picked first, so sorting a column reorders them rather than picking others.
+  const latest = useMemo(
+    () =>
+      [...schedules]
+        .sort((a, b) => (lastRunSortKey(b) ?? '').localeCompare(lastRunSortKey(a) ?? ''))
+        .slice(0, CARD_ROWS),
+    [schedules]
+  );
   const { table } = useBaseTable<PluginScheduleSummary>({
-    data: schedules,
+    data: latest,
     columns,
     storageKeyPrefix: `plugin-schedules-card-${pluginId}`,
     defaultSortingColumn: 'lastRun',
@@ -247,7 +255,7 @@ function NextRun({ schedule }: { schedule: PluginScheduleSummary }) {
   }
   return withHint(
     <span className='text-muted-foreground'>
-      <RelativeTime date={new Date(nextRunAt)} showTitle={false} />
+      <RelativeTime date={new Date(nextRunAt)} timeZone={schedule.timeZone} showTitle={false} />
     </span>,
     `Next run: ${formatDateShort(nextRunAt, { timeZone: schedule.timeZone })}`
   );
@@ -265,7 +273,12 @@ function LastRun({ schedule }: { schedule: PluginScheduleSummary }) {
       </StatusLabel>
       {lastRun.finishedAt && (
         <span className='text-muted-foreground'>
-          · <RelativeTime date={new Date(lastRun.finishedAt)} showTitle={false} />
+          ·{' '}
+          <RelativeTime
+            date={new Date(lastRun.finishedAt)}
+            timeZone={schedule.timeZone}
+            showTitle={false}
+          />
         </span>
       )}
     </span>,

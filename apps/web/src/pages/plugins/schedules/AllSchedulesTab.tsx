@@ -195,7 +195,11 @@ export function AllSchedulesTab({ isAdmin }: { isAdmin: boolean }) {
             <Tooltip>
               <TooltipTrigger asChild>
                 <span className='text-muted-foreground text-sm' tabIndex={0}>
-                  <RelativeTime date={new Date(row.original.nextRunAt)} showTitle={false} />
+                  <RelativeTime
+                    date={new Date(row.original.nextRunAt)}
+                    timeZone={row.original.timeZone}
+                    showTitle={false}
+                  />
                 </span>
               </TooltipTrigger>
               <TooltipContent>
@@ -232,7 +236,12 @@ export function AllSchedulesTab({ isAdmin }: { isAdmin: boolean }) {
                 {runStatusLabel(lastRun.status)}
                 {lastRun.finishedAt && ' · '}
               </span>
-              {lastRun.finishedAt && <RelativeTime date={new Date(lastRun.finishedAt)} />}
+              {lastRun.finishedAt && (
+                <RelativeTime
+                  date={new Date(lastRun.finishedAt)}
+                  timeZone={row.original.timeZone}
+                />
+              )}
             </Link>
           );
         },

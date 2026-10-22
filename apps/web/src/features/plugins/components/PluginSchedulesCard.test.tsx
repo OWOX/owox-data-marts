@@ -129,6 +129,28 @@ describe('PluginSchedulesCard', () => {
     );
   });
 
+  it('keeps the ten that ran last when a column sorts them', async () => {
+    service.listSchedules.mockResolvedValue(
+      Array.from({ length: 12 }, (_, index) =>
+        schedule({
+          id: `s${String(index)}`,
+          name: `Schedule ${String(index)}`,
+          lastRun: ranAt(index + 1),
+        })
+      )
+    );
+
+    renderCard();
+    await screen.findByText('Schedule 11');
+    fireEvent.click(screen.getByRole('button', { name: /^Name - / }));
+
+    expect(namesInOrder()).toEqual([
+      'Schedule 10',
+      'Schedule 11',
+      ...[2, 3, 4, 5, 6, 7, 8, 9].map(index => `Schedule ${String(index)}`),
+    ]);
+  });
+
   it('links to all the schedules from the eleventh on', async () => {
     service.listSchedules.mockResolvedValue(
       Array.from({ length: 11 }, (_, index) =>
@@ -329,6 +351,28 @@ describe('PluginSchedulesCard', () => {
     expect(await hintOf(nextRun)).toHaveTextContent('Next run: Oct 17, 2026, 09:00 AM GMT+3');
     // No second hint in the browser's own zone.
     expect(nextRun.querySelector('[title]')).toBeNull();
+  });
+
+  it("reads the next and last run in the schedule's zone, not the browser's", async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-10-15T12:00:00.000Z'));
+    try {
+      service.listSchedules.mockResolvedValue([
+        schedule({
+          timeZone: 'Asia/Tokyo',
+          // Monday 09:00 and Tuesday 18:30 in Tokyo, UTC+9.
+          nextRunAt: '2026-10-19T00:00:00.000Z',
+          lastRun: { ...ranAt(13), finishedAt: '2026-10-13T09:30:00.000Z' },
+        }),
+      ]);
+
+      renderCard();
+
+      expect(await screen.findByText('This Monday at 9:00 AM')).toBeInTheDocument();
+      expect(screen.getByText('Last Tuesday at 6:30 PM')).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('shows a dash for an enabled schedule with no next run', async () => {
