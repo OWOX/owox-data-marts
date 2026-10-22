@@ -3,6 +3,7 @@ export { InstallPluginDialog } from './InstallPluginDialog';
 export { PluginCard } from './PluginCard';
 export { PluginPageMessage } from './PluginPageMessage';
 export { PluginReleaseIssuesCard } from './PluginReleaseIssuesCard';
+export { PluginSchedulesCard } from './PluginSchedulesCard';
 export { PublishPluginSheet } from './PublishPluginSheet';
 export { useCopyLink } from './useCopyLink';
 export { useUninstallConfirmation } from './useUninstallConfirmation';

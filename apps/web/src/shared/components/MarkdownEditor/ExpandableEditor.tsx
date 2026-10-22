@@ -16,6 +16,7 @@ interface ExpandableEditorProps {
   onExpandedChange: (expanded: boolean) => void;
   title: string;
   focusTargetRef?: RefObject<HTMLElement | null>;
+  returnFocusRef?: RefObject<HTMLElement | null>;
   onEscapeKeyDown?: ComponentProps<typeof DialogContent>['onEscapeKeyDown'];
   children: ReactNode;
 }
@@ -26,6 +27,7 @@ export function ExpandableEditor({
   onExpandedChange,
   title,
   focusTargetRef,
+  returnFocusRef,
   onEscapeKeyDown,
   children,
 }: ExpandableEditorProps) {
@@ -93,7 +95,12 @@ export function ExpandableEditor({
           showCloseButton={false}
           aria-describedby={undefined}
           onOpenAutoFocus={focusContent}
-          onCloseAutoFocus={focusContent}
+          onCloseAutoFocus={event => {
+            if (returnFocusRef?.current) {
+              event.preventDefault();
+              returnFocusRef.current.focus();
+            } else focusContent(event);
+          }}
           onInteractOutside={event => {
             // The editor's stable React portal is owned outside Dialog even
             // while its DOM is inside it. Treat those interactions as inside.

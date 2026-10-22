@@ -241,6 +241,97 @@ describe('Permissions Model Contexts & Role Scope (e2e)', () => {
         .send({ name: 'any', description: 'any' });
       expect(res.status).toBe(404);
     });
+
+    it('POST /api/contexts → 201 with an icon, returned by the list', async () => {
+      const res = await agent
+        .post('/api/contexts')
+        .set(AUTH_HEADER)
+        .send({ name: 'A-with-icon', icon: 'lucide:megaphone' });
+      expect(res.status).toBe(201);
+      expect(res.body.icon).toBe('lucide:megaphone');
+
+      const list = await agent.get('/api/contexts').set(VIEWER_AUTH_HEADER);
+      const found = (list.body as Array<{ id: string; icon: string | null }>).find(
+        c => c.id === res.body.id
+      );
+      expect(found?.icon).toBe('lucide:megaphone');
+    });
+
+    it('PUT /api/contexts/:id/icon → 200 admin sets, keeps on rename, and resets with null', async () => {
+      const created = await createContext('A-icon');
+      expect((created.body as { icon?: string | null }).icon).toBeNull();
+
+      const set = await agent
+        .put(`/api/contexts/${created.body.id}/icon`)
+        .set(AUTH_HEADER)
+        .send({ icon: 'purchases' });
+      expect(set.status).toBe(200);
+      expect(set.body.icon).toBe('purchases');
+      expect(set.body.name).toBe('A-icon');
+
+      const renamed = await agent
+        .put(`/api/contexts/${created.body.id}`)
+        .set(AUTH_HEADER)
+        .send({ name: 'A-icon-renamed', description: '' });
+      expect(renamed.status).toBe(200);
+      expect(renamed.body.icon).toBe('purchases');
+
+      const reset = await agent
+        .put(`/api/contexts/${created.body.id}/icon`)
+        .set(AUTH_HEADER)
+        .send({ icon: null });
+      expect(reset.status).toBe(200);
+      expect(reset.body.icon).toBeNull();
+    });
+
+    it('PUT /api/contexts/:id → 200 saves an icon sent with the name, and null resets it', async () => {
+      const created = await createContext('A-icon-with-rename');
+      const set = await agent
+        .put(`/api/contexts/${created.body.id}`)
+        .set(AUTH_HEADER)
+        .send({ name: 'A-icon-with-rename-2', description: '', icon: 'lucide:megaphone' });
+      expect(set.status).toBe(200);
+      expect(set.body.name).toBe('A-icon-with-rename-2');
+      expect(set.body.icon).toBe('lucide:megaphone');
+
+      const reset = await agent
+        .put(`/api/contexts/${created.body.id}`)
+        .set(AUTH_HEADER)
+        .send({ name: 'A-icon-with-rename-2', description: '', icon: null });
+      expect(reset.status).toBe(200);
+      expect(reset.body.icon).toBeNull();
+    });
+
+    it('PUT /api/contexts/:id/icon → 400 unknown icon or missing field', async () => {
+      const created = await createContext('A-icon-invalid');
+      const unknown = await agent
+        .put(`/api/contexts/${created.body.id}/icon`)
+        .set(AUTH_HEADER)
+        .send({ icon: 'rocket' });
+      expect(unknown.status).toBe(400);
+      const missing = await agent
+        .put(`/api/contexts/${created.body.id}/icon`)
+        .set(AUTH_HEADER)
+        .send({});
+      expect(missing.status).toBe(400);
+    });
+
+    it('PUT /api/contexts/:id/icon → 403 editor', async () => {
+      const created = await createContext('A-icon-forbidden');
+      const res = await agent
+        .put(`/api/contexts/${created.body.id}/icon`)
+        .set(EDITOR_AUTH_HEADER)
+        .send({ icon: 'purchases' });
+      expect(res.status).toBe(403);
+    });
+
+    it('PUT /api/contexts/:id/icon → 404 not found', async () => {
+      const res = await agent
+        .put(`/api/contexts/${NONEXISTENT_UUID}/icon`)
+        .set(AUTH_HEADER)
+        .send({ icon: 'purchases' });
+      expect(res.status).toBe(404);
+    });
   });
 
   // ─── B. Context DELETE — detach-first rule ───────────────────
@@ -365,7 +456,9 @@ describe('Permissions Model Contexts & Role Scope (e2e)', () => {
 
         const res = await agent.get(`/api/data-marts/${dataMartId}`).set(AUTH_HEADER);
         expect(res.status).toBe(200);
-        expect(res.body.contexts).toEqual([{ id: ctx.body.id, name: 'C-dm-roundtrip' }]);
+        expect(res.body.contexts).toEqual([
+          { id: ctx.body.id, name: 'C-dm-roundtrip', icon: null },
+        ]);
       });
 
       it('GET /api/data-marts (list) reflects attached contexts for each DM', async () => {
@@ -379,7 +472,7 @@ describe('Permissions Model Contexts & Role Scope (e2e)', () => {
         const found = items.find(i => i.id === dataMartId);
         // The context filter UI collects options straight from list responses,
         // so this assertion mirrors exactly what the toolbar dropdown needs.
-        expect(found?.contexts).toEqual([{ id: ctx.body.id, name: 'C-dm-list' }]);
+        expect(found?.contexts).toEqual([{ id: ctx.body.id, name: 'C-dm-list', icon: null }]);
       });
 
       it('TU editor owner → 204', async () => {

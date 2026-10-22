@@ -34,6 +34,7 @@ describe('ContextController', () => {
       create: jest.fn(),
       list: jest.fn(),
       update: jest.fn(),
+      updateIcon: jest.fn(),
       getImpact: jest.fn(),
       delete: jest.fn(),
       validateContextIds: jest.fn().mockResolvedValue(undefined),
@@ -55,6 +56,7 @@ describe('ContextController', () => {
         id: dto.id,
         name: dto.name,
         description: dto.description,
+        icon: dto.icon,
         createdById: dto.createdById,
         createdByUser: dto.createdByUser,
         createdAt: dto.createdAt,
@@ -107,10 +109,65 @@ describe('ContextController', () => {
         PROJECT_ID,
         USER_ID,
         'Marketing',
-        'Marketing ctx'
+        'Marketing ctx',
+        null
       );
       expect(contextMapper.toApiResponse).toHaveBeenCalledWith(sampleContextDto);
       expect(result.id).toBe(CONTEXT_ID);
+    });
+
+    it('passes the picked icon on create', async () => {
+      const { controller, contextService } = createController();
+      contextService.create.mockResolvedValue(sampleContextDto);
+
+      await controller.create(makeAuthContext(), { name: 'Marketing', icon: 'lucide:megaphone' });
+
+      expect(contextService.create).toHaveBeenCalledWith(
+        PROJECT_ID,
+        USER_ID,
+        'Marketing',
+        undefined,
+        'lucide:megaphone'
+      );
+    });
+  });
+
+  describe('updateIcon', () => {
+    it('updates the icon in the caller project and maps to response', async () => {
+      const { controller, contextService, contextMapper } = createController();
+      const withIcon = new ContextDto(
+        CONTEXT_ID,
+        'Marketing',
+        'Marketing ctx',
+        PROJECT_ID,
+        USER_ID,
+        null,
+        new Date('2026-01-01T00:00:00Z'),
+        new Date('2026-01-02T00:00:00Z'),
+        'lucide:megaphone'
+      );
+      contextService.updateIcon.mockResolvedValue(withIcon);
+
+      const result = await controller.updateIcon(makeAuthContext(), CONTEXT_ID, {
+        icon: 'lucide:megaphone',
+      });
+
+      expect(contextService.updateIcon).toHaveBeenCalledWith(
+        CONTEXT_ID,
+        PROJECT_ID,
+        'lucide:megaphone'
+      );
+      expect(contextMapper.toApiResponse).toHaveBeenCalledWith(withIcon);
+      expect(result.icon).toBe('lucide:megaphone');
+    });
+
+    it('passes null through as a reset', async () => {
+      const { controller, contextService } = createController();
+      contextService.updateIcon.mockResolvedValue(sampleContextDto);
+
+      await controller.updateIcon(makeAuthContext(), CONTEXT_ID, { icon: null });
+
+      expect(contextService.updateIcon).toHaveBeenCalledWith(CONTEXT_ID, PROJECT_ID, null);
     });
   });
 
@@ -150,10 +207,39 @@ describe('ContextController', () => {
         CONTEXT_ID,
         PROJECT_ID,
         'Marketing 2',
-        'Updated'
+        'Updated',
+        undefined
       );
       expect(contextMapper.toApiResponse).toHaveBeenCalledWith(sampleContextDto);
       expect(result.id).toBe(CONTEXT_ID);
+    });
+
+    it('passes an icon sent with the update, null included', async () => {
+      const { controller, contextService } = createController();
+      contextService.update.mockResolvedValue(sampleContextDto);
+
+      await controller.update(makeAuthContext(), CONTEXT_ID, {
+        name: 'Marketing',
+        icon: 'lucide:megaphone',
+      });
+      await controller.update(makeAuthContext(), CONTEXT_ID, { name: 'Marketing', icon: null });
+
+      expect(contextService.update).toHaveBeenNthCalledWith(
+        1,
+        CONTEXT_ID,
+        PROJECT_ID,
+        'Marketing',
+        undefined,
+        'lucide:megaphone'
+      );
+      expect(contextService.update).toHaveBeenNthCalledWith(
+        2,
+        CONTEXT_ID,
+        PROJECT_ID,
+        'Marketing',
+        undefined,
+        null
+      );
     });
   });
 

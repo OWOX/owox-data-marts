@@ -1,6 +1,7 @@
 import { BadRequestException, UnauthorizedException } from '@nestjs/common';
 import type { IdpProvider, Projects } from '@owox/idp-protocol';
 import { OAuthProjectSelectionService } from './oauth-project-selection.service';
+import { OAuthProjectAccessRequiredError } from './oauth-project-access-required.error';
 import type { AuthorizationContext } from '../types';
 
 describe('OAuthProjectSelectionService', () => {
@@ -233,7 +234,20 @@ describe('OAuthProjectSelectionService', () => {
         projects,
         '8c90f0b0f314bf5f5d6f69d24fd7ee3b'
       )
-    ).rejects.toThrow('project from MCP resource is not available for user');
+    ).rejects.toMatchObject({ projectId: '8c90f0b0f314bf5f5d6f69d24fd7ee3b' });
+  });
+
+  it('identifies a selected project that needs membership instead of minting an MCP token', async () => {
+    const provider = createProvider();
+    provider.getProjectMembers.mockResolvedValueOnce([]);
+    await expect(
+      service.resolveSelectedProjectMember(
+        provider as IdpProvider,
+        context,
+        [{ id: 'needs-access', title: 'Needs access' }],
+        'needs-access'
+      )
+    ).rejects.toEqual(new OAuthProjectAccessRequiredError('needs-access'));
   });
 
   it('renders a centered project selection dialog with project statuses', () => {

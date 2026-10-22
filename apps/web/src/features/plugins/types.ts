@@ -1,3 +1,5 @@
+import type { UserProjection } from '../../shared/types';
+
 export type PluginPublicationScope = 'deployment' | 'project' | 'member';
 
 export type PluginInstallationState = 'not_installed' | 'installed' | 'uninstalled';
@@ -92,6 +94,95 @@ export interface PluginInstallation {
   createdAt: string;
   installedAt: string;
   uninstalledAt: string | null;
+}
+
+export type PluginScheduleDisabledReason =
+  | 'ACTION_NOT_DECLARED'
+  | 'INVALID_PARAMETERS'
+  | 'PAUSED_BY_ADMIN';
+
+/** A schedule as the plugin page lists it: the settings the plugin chose are not sent. */
+export interface PluginScheduleSummary {
+  id: string;
+  name: string | null;
+  action: string;
+  cron: string;
+  timeZone: string;
+  enabled: boolean;
+  disabledReason: PluginScheduleDisabledReason | null;
+  nextRunAt: string | null;
+  lastRun: {
+    executionId: string;
+    status: string;
+    errorCode: string | null;
+    finishedAt: string | null;
+  } | null;
+  createdAt: string;
+  modifiedAt: string;
+}
+
+/** A schedule as Plugins → Schedules lists it: the caller's own, or every one for a project admin. */
+export interface ProjectPluginSchedule extends PluginScheduleSummary {
+  pluginId: string;
+  /** The current version's display name. */
+  pluginName: string;
+  installationId: string;
+  installationState: 'installed' | 'uninstalled';
+  owner: UserProjection | null;
+  /** False while the owner is not an active project member: the runs are skipped. Null when unknown. */
+  ownerIsMember: boolean | null;
+  /** True for the installation owner and for a project admin. */
+  canManage: boolean;
+}
+
+export type PluginRunStatus =
+  | 'QUEUED'
+  | 'RUNNING'
+  | 'SUCCEEDED'
+  | 'FAILED'
+  | 'CANCELLED'
+  | 'TIMED_OUT';
+
+/** `frontend` is a start from the plugin page. */
+export type PluginRunTrigger = 'frontend' | 'schedule';
+
+/** One run of a plugin backend action; its input and result are never sent. */
+export interface PluginRun {
+  id: string;
+  pluginId: string;
+  pluginName: string;
+  pluginVersion: string | null;
+  action: string;
+  status: PluginRunStatus;
+  trigger: PluginRunTrigger;
+  scheduleId: string | null;
+  /** Null once the schedule is deleted. */
+  scheduleName: string | null;
+  owner: UserProjection | null;
+  createdAt: string;
+  queuedAt: string | null;
+  startedAt: string | null;
+  finishedAt: string | null;
+  timeLimitSeconds: number | null;
+  errorCode: string | null;
+  errorMessage: string | null;
+  /** The 24-hour sweep removed the plugin's own message. */
+  errorMessageCleared: boolean;
+  canCancel: boolean;
+}
+
+export interface PluginRunPage {
+  items: PluginRun[];
+  nextCursor: string | null;
+}
+
+/** Run History filters; the API applies userId for project admins only. */
+export interface PluginRunFilters {
+  statuses: PluginRunStatus[];
+  trigger?: PluginRunTrigger;
+  pluginId?: string;
+  scheduleId?: string;
+  userId?: string;
 }
 
 /**

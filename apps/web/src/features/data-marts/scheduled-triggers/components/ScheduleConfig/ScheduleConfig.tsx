@@ -13,7 +13,7 @@ import { Badge } from '@owox/ui/components/badge';
 import { Switch } from '@owox/ui/components/switch';
 import { Separator } from '@owox/ui/components/separator';
 import { Settings, AlertCircle, ChevronDown, ChevronUp, Zap, Check } from 'lucide-react';
-import { cronToScheduleConfig } from './cron-parser';
+import { cronToScheduleConfig, scheduleConfigToCron } from './cron-parser';
 import { MultiSelect } from '@owox/ui/components/common/multi-select';
 import { timezoneService } from '../../../../../services';
 import { Alert, AlertDescription, AlertTitle } from '@owox/ui/components/alert';
@@ -393,27 +393,6 @@ export function ScheduleConfig({
     }
   }, [cron, currentTimezone]);
 
-  const generateCronExpression = (config: ScheduleConfig): string => {
-    const [hours, minutes] = config.time.split(':').map(Number);
-
-    switch (config.type) {
-      case 'daily':
-        return `${String(minutes)} ${String(hours)} * * *`;
-      case 'weekly':
-        return `${String(minutes)} ${String(hours)} * * ${config.weekdays.join(',')}`;
-      case 'monthly':
-        return `${String(minutes)} ${String(hours)} ${config.monthDays.join(',')} * *`;
-      case 'interval':
-        return config.intervalType === 'minutes'
-          ? `*/${String(config.intervalValue)} * * * *`
-          : `0 */${String(config.intervalValue)} * * *`;
-      case 'custom':
-        return config.customCron;
-      default:
-        return `${String(minutes)} ${String(hours)} * * *`;
-    }
-  };
-
   const handleIntervalTypeChange = useCallback((intervalType: 'minutes' | 'hours') => {
     setConfig(prev => {
       if (prev.intervalType === intervalType) {
@@ -447,7 +426,7 @@ export function ScheduleConfig({
   }, [isEnabled]);
 
   useEffect(() => {
-    const cron = generateCronExpression(config);
+    const cron = scheduleConfigToCron(config);
     setCronExpression(cron);
     setNextRun(getNextRunDescription(config));
   }, [config, isEnabled, currentTimezone, getNextRunDescription]);
@@ -458,7 +437,7 @@ export function ScheduleConfig({
   const prevEnabledRef = useRef(false);
 
   useEffect(() => {
-    const cron = generateCronExpression(config);
+    const cron = scheduleConfigToCron(config);
     if (onChange) {
       // Only call onChange if any of the values have changed
       if (

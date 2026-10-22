@@ -56,4 +56,12 @@ describe('mapDataMartListFromDto', () => {
     expect(item.technicalOwnerUsers).toEqual([]);
     expect(item.contexts).toEqual([]);
   });
+
+  it('carries the relationships count and reads a missing one as zero', () => {
+    const [withCount] = mapDataMartListFromDto([baseDto({ relationshipsCount: 4 })]);
+    const [withoutCount] = mapDataMartListFromDto([baseDto()]);
+
+    expect(withCount.relationshipsCount).toBe(4);
+    expect(withoutCount.relationshipsCount).toBe(0);
+  });
 });

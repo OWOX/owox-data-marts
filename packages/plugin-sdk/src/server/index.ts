@@ -11,11 +11,13 @@ import {
   type PluginCredentials,
 } from '../credentials.js';
 import { createIframeTransport } from '../iframe-transport.js';
+import { createPluginScheduleReader, type PluginScheduleReader } from '../schedules.js';
 import { createServerRequester, GUARDED_FETCH } from './requester.js';
 
 export { exactCredential } from '../credentials.js';
 export type { CredentialHandle, PluginCredentials } from '../credentials.js';
 export type { PluginCollection } from '../collections.js';
+export type { PluginSchedule, PluginScheduleReader } from '../schedules.js';
 
 const CURRENT_EXECUTION_PATH = '/api/plugins/runtime/executions/current';
 const MAX_ERROR_MESSAGE_CHARS = 1000;
@@ -26,7 +28,9 @@ export interface PluginActionExecutionContext {
   readonly executionId: string;
   readonly action: string;
   readonly input: unknown;
-  readonly trigger: 'frontend';
+  readonly trigger: 'frontend' | 'schedule';
+  /** The schedule that started a scheduled execution; null for a start from the plugin page. */
+  readonly scheduleId: string | null;
   readonly deadlineAt: string;
   readonly pluginVersion: string;
   readonly installationId: string;
@@ -42,6 +46,8 @@ export interface BackendActionContext {
   /** Exact Credential handles; the secret stays in OWOX. */
   readonly credentials: PluginCredentials;
   collections<T>(name: string): PluginCollection<T>;
+  /** The installation's schedules, read-only: a backend action cannot change them. */
+  readonly schedules: PluginScheduleReader;
   readonly execution: PluginActionExecutionContext;
   /** The OWOX origin that accepted the execution token; build links to OWOX pages from it. */
   readonly host: string;
@@ -173,11 +179,13 @@ export function createBackend(options: {
         );
         // Not every runtime gives the incoming request a signal.
         const signal = request.signal ? AbortSignal.any([deadline, request.signal]) : deadline;
+        // An older OWOX sends no scheduleId.
         const result = await handler(execution.input, {
           owox,
           credentials: createPluginCredentials(requester, credentialHandles),
           collections: <T>(name: string) => createPluginCollection<T>(owox, name),
-          execution,
+          schedules: createPluginScheduleReader(requester),
+          execution: { ...execution, scheduleId: execution.scheduleId ?? null },
           host: call.host,
           signal,
         });

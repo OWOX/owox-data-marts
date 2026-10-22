@@ -77,4 +77,25 @@ describe('PluginActionRuntimeController OpenAPI', () => {
       })
     );
   });
+
+  it('documents a queued execution, the schedule trigger and the schedule id', () => {
+    const schemas = document.components?.schemas;
+
+    expect(schemas?.PluginActionExecutionApiDto).toMatchObject({
+      properties: {
+        status: expect.objectContaining({
+          enum: expect.arrayContaining(['QUEUED', 'RUNNING']),
+          description: expect.stringContaining('QUEUED'),
+        }),
+        trigger: expect.objectContaining({ enum: ['frontend', 'schedule'] }),
+        scheduleId: expect.objectContaining({ type: 'string', nullable: true }),
+      },
+    });
+    expect(schemas?.PluginActionWorkerContextApiDto).toMatchObject({
+      properties: {
+        trigger: expect.objectContaining({ enum: ['frontend', 'schedule'] }),
+        scheduleId: expect.objectContaining({ type: 'string', nullable: true }),
+      },
+    });
+  });
 });

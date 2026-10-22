@@ -34,7 +34,8 @@ export class ContextMapper {
       entity.createdById ?? null,
       projection ?? null,
       entity.createdAt,
-      entity.modifiedAt
+      entity.modifiedAt,
+      entity.icon ?? null
     );
   }
 
@@ -43,6 +44,7 @@ export class ContextMapper {
       id: dto.id,
       name: dto.name,
       description: dto.description,
+      icon: dto.icon,
       createdById: dto.createdById,
       createdByUser: dto.createdByUser,
       createdAt: dto.createdAt,

@@ -2,6 +2,7 @@ import { IdpProjectionsFacade } from '../../../idp/facades/idp-projections.facad
 import { CreateNewProjectService } from './create-new-project.service';
 import { GetRequestAccessContextService } from './get-request-access-context.service';
 import { RequestProjectAccessService } from './request-project-access.service';
+import { ProjectCreationIntegration } from '../../enums/project-creation-integration.enum';
 
 describe('User provisioning request access use cases', () => {
   let idpProjectionsFacade: jest.Mocked<
@@ -76,4 +77,17 @@ describe('User provisioning request access use cases', () => {
     await expect(service.run('user-1')).resolves.toBe(result);
     expect(idpProjectionsFacade.createNewProject).toHaveBeenCalledWith('user-1', 'owox-data-marts');
   });
+
+  it.each([ProjectCreationIntegration.CLAUDE, ProjectCreationIntegration.CHATGPT])(
+    'preserves %s attribution when creating a project',
+    async integration => {
+      const result = { projectId: 'new-project', projectTitle: 'New project' };
+      idpProjectionsFacade.createNewProject.mockResolvedValueOnce(result);
+      const service = new CreateNewProjectService(
+        idpProjectionsFacade as unknown as IdpProjectionsFacade
+      );
+      await expect(service.run('user-1', integration)).resolves.toBe(result);
+      expect(idpProjectionsFacade.createNewProject).toHaveBeenCalledWith('user-1', integration);
+    }
+  );
 });

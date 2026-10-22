@@ -831,14 +831,17 @@ the legacy `setTimeout(5000)` pattern.
   the existing `OWOX_COLUMNS` from the prior run and diffs against the new
   schema, regardless of which `reportId` produced it.
 
-### `plugin-action-execution-mysql.integration.ts` — 12 tests
+### `plugin-action-execution-mysql.integration.ts` — 17 tests
 
-Runs the `plugin_action_execution` migrations on MySQL and checks what SQLite cannot: the start
-lock under concurrent starts, payloads stored as text (a top-level string keeps its type, key
-order holds, and values a `json` column refuses are stored), and whole-second `datetime` values. Set `PLUGIN_ACTIONS_MYSQL_HOST` and `PLUGIN_ACTIONS_MYSQL_PASSWORD`; `_PORT`,
-`_USER` and `_DATABASE` default to `3306`, `root` and `owox_test`. It drops `plugin_action_execution`,
-`plugin_installation` and `migrations`, so use a throwaway database, for example
-`docker run -d --rm -e MYSQL_ROOT_PASSWORD=… -e MYSQL_DATABASE=owox_test -p 33306:3306 mysql:8.4`.
+Runs the `plugin_action_execution` and `plugin_action_schedule` migrations on MySQL and checks what
+SQLite cannot: the start lock under concurrent starts and promotions, payloads stored as text (a top-level string
+keeps its type, key order holds, and values a `json` column refuses are stored), 64 KiB of schedule
+parameters in `mediumtext`, the schedule and queue indexes, the join and `LIMIT` that give stranded
+schedules of active installations their slot back, and whole-second `datetime` values. Set
+`PLUGIN_ACTIONS_MYSQL_HOST` and `PLUGIN_ACTIONS_MYSQL_PASSWORD`; `_PORT`, `_USER` and `_DATABASE`
+default to `3306`, `root` and `owox_test`. It drops `plugin_action_schedule`,
+`plugin_action_execution`, `plugin_installation` and `migrations`, so use a throwaway database, for
+example `docker run -d --rm -e MYSQL_ROOT_PASSWORD=… -e MYSQL_DATABASE=owox_test -p 33306:3306 mysql:8.4`.
 
 ## Adding a New Integration Test
 

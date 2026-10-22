@@ -1,14 +1,16 @@
 import { Injectable } from '@nestjs/common';
 import type { CreateNewProjectResult } from '@owox/idp-protocol';
 import { IdpProjectionsFacade } from '../../../idp/facades/idp-projections.facade';
-
-const ODM_SIGN_IN_INTEGRATION = 'owox-data-marts';
+import { ProjectCreationIntegration } from '../../enums/project-creation-integration.enum';
 
 @Injectable()
 export class CreateNewProjectService {
   constructor(private readonly idpProjectionsFacade: IdpProjectionsFacade) {}
 
-  async run(userId: string): Promise<CreateNewProjectResult> {
-    return this.idpProjectionsFacade.createNewProject(userId, ODM_SIGN_IN_INTEGRATION);
+  async run(
+    userId: string,
+    integration: ProjectCreationIntegration = ProjectCreationIntegration.OWOX_DATA_MARTS
+  ): Promise<CreateNewProjectResult> {
+    return this.idpProjectionsFacade.createNewProject(userId, integration);
   }
 }

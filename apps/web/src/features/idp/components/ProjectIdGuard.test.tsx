@@ -52,6 +52,12 @@ describe('ProjectIdGuard', () => {
     expect(signIn).toHaveBeenCalledWith({ projectId: '7' });
   });
 
+  it('switches to the MCP resource project before rendering its request-access page', () => {
+    renderAt('/ui/7/request-access?mcp-integration=claude');
+    expect(signIn).toHaveBeenCalledWith({ projectId: '7' });
+    expect(screen.queryByText(/^at /)).not.toBeInTheDocument();
+  });
+
   it('renders the page for the member own project', () => {
     renderAt('/ui/42/plugins');
     expect(screen.getByText('at /ui/42/plugins')).toBeInTheDocument();

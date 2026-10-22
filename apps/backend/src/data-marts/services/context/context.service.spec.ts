@@ -210,6 +210,154 @@ describe('ContextService', () => {
     });
   });
 
+  describe('icon', () => {
+    it('saves the icon picked on create and returns it', async () => {
+      const { service, contextRepository, userProjectionsFetcherService } = createService();
+      contextRepository.findOne.mockResolvedValue(null);
+      contextRepository.create.mockImplementation((data: Partial<Context>) =>
+        createContextEntity(data)
+      );
+      contextRepository.save.mockImplementation((entity: Context) => Promise.resolve(entity));
+      userProjectionsFetcherService.fetchUserProjectionsList.mockResolvedValue(
+        new UserProjectionsListDto([])
+      );
+
+      const result = await service.create(
+        PROJECT_ID,
+        USER_ID,
+        'Marketing',
+        undefined,
+        'lucide:megaphone'
+      );
+
+      expect(contextRepository.create).toHaveBeenCalledWith(
+        expect.objectContaining({ icon: 'lucide:megaphone' })
+      );
+      expect(result.icon).toBe('lucide:megaphone');
+    });
+
+    it('creates a context without an icon as the default one', async () => {
+      const { service, contextRepository, userProjectionsFetcherService } = createService();
+      contextRepository.findOne.mockResolvedValue(null);
+      contextRepository.create.mockImplementation((data: Partial<Context>) =>
+        createContextEntity(data)
+      );
+      contextRepository.save.mockImplementation((entity: Context) => Promise.resolve(entity));
+      userProjectionsFetcherService.fetchUserProjectionsList.mockResolvedValue(
+        new UserProjectionsListDto([])
+      );
+
+      const result = await service.create(PROJECT_ID, USER_ID, 'Marketing');
+
+      expect(result.icon).toBeNull();
+    });
+
+    it('keeps the icon when the name and description are updated', async () => {
+      const { service, contextRepository, userProjectionsFetcherService } = createService();
+      const existingEntity = createContextEntity({ icon: 'purchases' });
+      contextRepository.findOne.mockResolvedValueOnce(existingEntity).mockResolvedValueOnce(null);
+      contextRepository.save.mockImplementation((entity: Context) => Promise.resolve(entity));
+      userProjectionsFetcherService.fetchUserProjectionsList.mockResolvedValue(
+        new UserProjectionsListDto([])
+      );
+
+      const result = await service.update(CONTEXT_ID, PROJECT_ID, 'Renamed', 'New description');
+
+      expect(contextRepository.save).toHaveBeenCalledWith(
+        expect.objectContaining({ name: 'Renamed', icon: 'purchases' })
+      );
+      expect(result.icon).toBe('purchases');
+    });
+
+    it('saves an icon sent with the name and description in the same update', async () => {
+      const { service, contextRepository, userProjectionsFetcherService } = createService();
+      contextRepository.findOne
+        .mockResolvedValueOnce(createContextEntity({ icon: null }))
+        .mockResolvedValueOnce(null);
+      contextRepository.save.mockImplementation((entity: Context) => Promise.resolve(entity));
+      userProjectionsFetcherService.fetchUserProjectionsList.mockResolvedValue(
+        new UserProjectionsListDto([])
+      );
+
+      const result = await service.update(
+        CONTEXT_ID,
+        PROJECT_ID,
+        'Renamed',
+        'New description',
+        'lucide:megaphone'
+      );
+
+      expect(contextRepository.save).toHaveBeenCalledTimes(1);
+      expect(contextRepository.save).toHaveBeenCalledWith(
+        expect.objectContaining({ name: 'Renamed', icon: 'lucide:megaphone' })
+      );
+      expect(result.icon).toBe('lucide:megaphone');
+    });
+
+    it('resets the icon when the update sends null', async () => {
+      const { service, contextRepository, userProjectionsFetcherService } = createService();
+      contextRepository.findOne
+        .mockResolvedValueOnce(createContextEntity({ icon: 'purchases' }))
+        .mockResolvedValueOnce(null);
+      contextRepository.save.mockImplementation((entity: Context) => Promise.resolve(entity));
+      userProjectionsFetcherService.fetchUserProjectionsList.mockResolvedValue(
+        new UserProjectionsListDto([])
+      );
+
+      const result = await service.update(CONTEXT_ID, PROJECT_ID, 'Test Context', undefined, null);
+
+      expect(result.icon).toBeNull();
+    });
+
+    it('sets the icon only', async () => {
+      const { service, contextRepository, userProjectionsFetcherService } = createService();
+      const existingEntity = createContextEntity({ description: 'Kept', icon: null });
+      contextRepository.findOne.mockResolvedValue(existingEntity);
+      contextRepository.save.mockImplementation((entity: Context) => Promise.resolve(entity));
+      userProjectionsFetcherService.fetchUserProjectionsList.mockResolvedValue(
+        new UserProjectionsListDto([])
+      );
+
+      const result = await service.updateIcon(CONTEXT_ID, PROJECT_ID, 'lucide:megaphone');
+
+      expect(contextRepository.findOne).toHaveBeenCalledWith({
+        where: { id: CONTEXT_ID, projectId: PROJECT_ID },
+      });
+      expect(contextRepository.save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: 'Test Context',
+          description: 'Kept',
+          icon: 'lucide:megaphone',
+        })
+      );
+      expect(result.icon).toBe('lucide:megaphone');
+    });
+
+    it('resets the icon to the default with null', async () => {
+      const { service, contextRepository, userProjectionsFetcherService } = createService();
+      contextRepository.findOne.mockResolvedValue(createContextEntity({ icon: 'purchases' }));
+      contextRepository.save.mockImplementation((entity: Context) => Promise.resolve(entity));
+      userProjectionsFetcherService.fetchUserProjectionsList.mockResolvedValue(
+        new UserProjectionsListDto([])
+      );
+
+      const result = await service.updateIcon(CONTEXT_ID, PROJECT_ID, null);
+
+      expect(contextRepository.save).toHaveBeenCalledWith(expect.objectContaining({ icon: null }));
+      expect(result.icon).toBeNull();
+    });
+
+    it('rejects an icon update for a context of another project', async () => {
+      const { service, contextRepository } = createService();
+      contextRepository.findOne.mockResolvedValue(null);
+
+      await expect(service.updateIcon(CONTEXT_ID, 'other-project', 'purchases')).rejects.toThrow(
+        NotFoundException
+      );
+      expect(contextRepository.save).not.toHaveBeenCalled();
+    });
+  });
+
   describe('update', () => {
     it('should update name and description', async () => {
       const { service, contextRepository, userProjectionsFetcherService } = createService();

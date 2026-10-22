@@ -69,7 +69,7 @@ describe('DataMartMapper', () => {
       } as unknown as DataMart;
 
       const response = mapper.toListItemResponse(
-        mapper.toListItemDto(entity, { triggersCount: 0, reportsCount: 0 })
+        mapper.toListItemDto(entity, { triggersCount: 0, reportsCount: 0, relationshipsCount: 0 })
       );
 
       expect(response.definitionType).toBeNull();
@@ -111,11 +111,31 @@ describe('DataMartMapper', () => {
         icon: DataMartIcon.PURCHASES,
       } as unknown as DataMart;
       const toResponse = (e: DataMart) =>
-        mapper.toListItemResponse(mapper.toListItemDto(e, { triggersCount: 0, reportsCount: 0 }));
+        mapper.toListItemResponse(
+          mapper.toListItemDto(e, { triggersCount: 0, reportsCount: 0, relationshipsCount: 0 })
+        );
 
       expect(toResponse(entity).icon).toBe(DataMartIcon.PURCHASES);
       expect(mapper.toDomainDto(entity).icon).toBe(DataMartIcon.PURCHASES);
       expect(toResponse({ ...entity, icon: undefined } as DataMart).icon).toBeNull();
+    });
+
+    it('carries the relationships count to the list item', () => {
+      const entity = {
+        id: 'data-mart-1',
+        title: 'Purchases',
+        status: DataMartStatus.PUBLISHED,
+        storage: { type: DataStorageType.GOOGLE_BIGQUERY, title: 'Warehouse' },
+        createdAt: new Date('2026-07-23T12:00:00.000Z'),
+        modifiedAt: new Date('2026-07-23T12:00:00.000Z'),
+        contexts: [],
+      } as unknown as DataMart;
+
+      expect(
+        mapper.toListItemResponse(
+          mapper.toListItemDto(entity, { triggersCount: 0, reportsCount: 0, relationshipsCount: 3 })
+        ).relationshipsCount
+      ).toBe(3);
     });
   });
 

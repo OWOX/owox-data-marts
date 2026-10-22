@@ -2,6 +2,7 @@ import { INestApplication } from '@nestjs/common';
 import { getDataSourceToken, getRepositoryToken } from '@nestjs/typeorm';
 import { createTestApp } from '@owox/test-utils';
 import { PluginActionExecution } from 'src/plugin-host/entities/plugin-action-execution.entity';
+import { PluginActionSchedule } from 'src/plugin-host/entities/plugin-action-schedule.entity';
 import { PluginAuditEvent } from 'src/plugin-host/entities/plugin-audit-event.entity';
 import { PluginInstallation } from 'src/plugin-host/entities/plugin-installation.entity';
 import { PluginPublicationProject } from 'src/plugin-host/entities/plugin-publication-project.entity';
@@ -118,6 +119,18 @@ describe('Plugin host schema (e2e)', () => {
     expect(collections.hasMetadata(PluginActionExecution)).toBe(false);
     expect(await main.createQueryRunner().hasTable('plugin_action_execution')).toBe(true);
     expect(await collections.createQueryRunner().hasTable('plugin_action_execution')).toBe(false);
+  });
+
+  it('keeps action schedules on the main data source', async () => {
+    await expect(
+      repo(PluginActionSchedule).find({ where: { installationId: 'none' } })
+    ).resolves.toEqual([]);
+
+    const main = app.get(DataSource);
+    const collections = app.get<DataSource>(getDataSourceToken(PLUGIN_COLLECTIONS_DATA_SOURCE));
+    expect(main.hasMetadata(PluginActionSchedule)).toBe(true);
+    expect(collections.hasMetadata(PluginActionSchedule)).toBe(false);
+    expect(await main.createQueryRunner().hasTable('plugin_action_schedule')).toBe(true);
   });
 
   it('enforces one plugin per github repository', async () => {

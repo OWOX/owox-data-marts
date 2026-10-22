@@ -1,9 +1,4 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ContextSummaryApiDto } from './context-summary-api.dto';
 
-export class DataMartListItemContextApiDto {
-  @ApiProperty({ description: 'Context identifier' })
-  id: string;
-
-  @ApiProperty({ description: 'Context display name' })
-  name: string;
-}
+/** Kept as its own schema name so the Data Mart list contract stays stable. */
+export class DataMartListItemContextApiDto extends ContextSummaryApiDto {}

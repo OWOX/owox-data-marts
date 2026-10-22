@@ -27,6 +27,7 @@ import {
   AudienceIcon,
   InstallPluginDialog,
   PluginReleaseIssuesCard,
+  PluginSchedulesCard,
   findReleaseIssues,
   usePlugin,
   usePluginActions,
@@ -79,6 +80,8 @@ export default function PluginDetailsPage({
   const { install, uninstall, checkNow, isInstalling, isUninstalling, isUpdating } =
     usePluginActions();
   const { installations } = usePluginInstallations();
+  // Only the history list holds an uninstalled installation, whose schedules can still be deleted.
+  const { installations: history } = usePluginInstallations(true);
   const publications = usePluginManageablePublications(pluginId ?? '');
   const { publish, unpublish, isPublishing, isUnpublishing } = usePluginPublishing();
   const publishableScopes = usePublishableScopes();
@@ -160,6 +163,13 @@ export default function PluginDetailsPage({
   // even though the API reactivates the same installation row.
   const showHeaderAction = !isInstalled || isConfiguringCredentials;
   const installation = installations.find(item => item.pluginId === plugin.pluginId);
+  const schedulesInstallation = isInstalled
+    ? installation
+    : plugin.installationState === 'uninstalled'
+      ? history.find(
+          item => item.pluginId === plugin.pluginId && item.installationState === 'uninstalled'
+        )
+      : undefined;
   const visibility = describeVisibility(plugin.visibleViaScopes, plugin.installationState);
   // Source URLs travel as untrusted strings; only absolute https becomes an href.
   const ownerHref = safeHttpsUrl(plugin.source.ownerUrl);
@@ -359,6 +369,15 @@ export default function PluginDetailsPage({
             </CollapsibleCardContent>
             <CollapsibleCardFooter></CollapsibleCardFooter>
           </CollapsibleCard>
+
+          {schedulesInstallation && (
+            <PluginSchedulesCard
+              pluginId={plugin.pluginId}
+              installationId={schedulesInstallation.installationId}
+              hasBackend={Boolean(plugin.backendOrigin)}
+              uninstalled={!isInstalled}
+            />
+          )}
 
           <CollapsibleCard collapsible name='plugin-source'>
             <CollapsibleCardHeader>

@@ -9,8 +9,12 @@ import type {
   PluginInstallation,
   PluginPublication,
   PluginPublicationScope,
+  PluginRun,
+  PluginRunFilters,
+  PluginRunPage,
   PluginRuntimeToken,
   PluginUpdateResult,
+  ProjectPluginSchedule,
   PublishPluginRequest,
 } from '../types';
 
@@ -102,6 +106,78 @@ class PluginsService extends ApiService {
 
   async unpublish(payload: PublishPluginRequest): Promise<PluginPublication> {
     return this.post<PluginPublication>('/publications/unpublish', payload);
+  }
+
+  /** The schedules the caller can see, or one installation's; the pages after the first are read together. */
+  async listSchedules(installationId?: string): Promise<ProjectPluginSchedule[]> {
+    const readPage = (offset: number) =>
+      this.get<{ items: ProjectPluginSchedule[]; total: number }>(
+        '/schedules',
+        installationId === undefined ? { offset } : { offset, installationId },
+        { skipErrorToast: true } as AxiosRequestConfig
+      );
+    const first = await readPage(0);
+    const size = first.items.length;
+    const offsets: number[] = [];
+    // An empty first page ends the read even when deletes shrank the list under it.
+    for (let offset = size; size > 0 && offset < first.total; offset += size) {
+      offsets.push(offset);
+    }
+    const rest = await Promise.all(offsets.map(readPage));
+    // A row that enters ahead of an offset between two page reads would come back twice.
+    const byId = new Map<string, ProjectPluginSchedule>();
+    for (const page of [first, ...rest]) {
+      for (const item of page.items) {
+        byId.set(item.id, item);
+      }
+    }
+    return [...byId.values()];
+  }
+
+  // The card and the page report a refusal themselves, so the global toast would say it twice.
+  async pauseSchedule(id: string): Promise<ProjectPluginSchedule> {
+    return this.post<ProjectPluginSchedule>(`/schedules/${id}/pause`, undefined, {
+      skipErrorToast: true,
+    } as AxiosRequestConfig);
+  }
+
+  async resumeSchedule(id: string): Promise<ProjectPluginSchedule> {
+    return this.post<ProjectPluginSchedule>(`/schedules/${id}/resume`, undefined, {
+      skipErrorToast: true,
+    } as AxiosRequestConfig);
+  }
+
+  async deleteSchedule(id: string): Promise<void> {
+    return this.delete(`/schedules/${id}`, { skipErrorToast: true } as AxiosRequestConfig);
+  }
+
+  /** One page of runs, newest first. Statuses go as repeated keys: the API refuses `status[]`. */
+  async listRuns(filters: PluginRunFilters, cursor?: string): Promise<PluginRunPage> {
+    return this.get<PluginRunPage>(
+      '/runs',
+      {
+        status: filters.statuses,
+        trigger: filters.trigger,
+        pluginId: filters.pluginId,
+        scheduleId: filters.scheduleId,
+        userId: filters.userId,
+        cursor,
+      },
+      { skipErrorToast: true, paramsSerializer: { indexes: null } } as AxiosRequestConfig
+    );
+  }
+
+  // A linked run that is gone answers 404, which the page drops without a toast.
+  async getRun(id: string): Promise<PluginRun> {
+    return this.get<PluginRun>(`/runs/${id}`, undefined, {
+      skipErrorToast: true,
+    } as AxiosRequestConfig);
+  }
+
+  async cancelRun(id: string): Promise<PluginRun> {
+    return this.post<PluginRun>(`/runs/${id}/cancel`, undefined, {
+      skipErrorToast: true,
+    } as AxiosRequestConfig);
   }
 
   async lookupByRepository(repository: string): Promise<{ pluginId: string }> {

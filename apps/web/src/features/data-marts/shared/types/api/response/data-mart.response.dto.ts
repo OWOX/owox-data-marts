@@ -8,6 +8,7 @@ import type { ConnectorStateResponseDto } from './connector-state.response.dto';
 import type { BlendedFieldsConfig } from '../../relationship.types';
 import type { DataLastUpdatedDto } from './data-mart-data-last-updated.dto';
 import type { DataMartIconValue } from '../../../enums/data-mart-icon.enum';
+import type { ContextSummary } from '../../../../../contexts/types/context.types';
 
 /**
  * Data mart response data transfer object
@@ -34,6 +35,6 @@ export interface DataMartResponseDto {
   availableForReporting?: boolean;
   availableForMaintenance?: boolean;
   blendedFieldsConfig?: BlendedFieldsConfig | null;
-  contexts?: { id: string; name: string }[];
+  contexts?: ContextSummary[];
   dataLastUpdated?: DataLastUpdatedDto | null;
 }

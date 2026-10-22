@@ -17,14 +17,18 @@ function setup(installation: { id: string; uninstalledAt: Date | null } | null) 
   };
   const audit = { record: jest.fn().mockResolvedValue(undefined) };
   const bindings = { deactivateConsumer: jest.fn().mockResolvedValue(undefined) };
+  const schedules = { parkForInstallation: jest.fn().mockResolvedValue(undefined) };
+  const executions = { cancelQueuedForInstallation: jest.fn().mockResolvedValue(0) };
   const service = new UninstallPluginService(
     installations as unknown as PluginInstallationService,
     audit as unknown as PluginAuditService,
-    bindings as never
+    bindings as never,
+    schedules as never,
+    executions as never
   );
   const run = () =>
     service.run(new UninstallPluginCommand('p1', { projectId: 'j1', userId: 'u1' } as never));
-  return { run, installations, audit };
+  return { run, installations, audit, schedules, executions };
 }
 
 describe('UninstallPluginService', () => {
@@ -48,8 +52,32 @@ describe('UninstallPluginService', () => {
     await s.run();
 
     expect(s.installations.uninstall).not.toHaveBeenCalled();
+    expect(s.schedules.parkForInstallation).not.toHaveBeenCalled();
+    expect(s.executions.cancelQueuedForInstallation).not.toHaveBeenCalled();
     expect(s.audit.record).toHaveBeenCalledWith(
       expect.objectContaining({ beforeState: { uninstalled: true } })
+    );
+  });
+
+  it('parks the schedules once the installation is uninstalled', async () => {
+    const s = setup({ id: 'i1', uninstalledAt: null });
+
+    await s.run();
+
+    expect(s.schedules.parkForInstallation).toHaveBeenCalledWith('i1');
+    expect(s.installations.uninstall.mock.invocationCallOrder[0]).toBeLessThan(
+      s.schedules.parkForInstallation.mock.invocationCallOrder[0]
+    );
+  });
+
+  it('cancels the queued runs after parking the schedules, in the installation, schedules, executions lock order', async () => {
+    const s = setup({ id: 'i1', uninstalledAt: null });
+
+    await s.run();
+
+    expect(s.executions.cancelQueuedForInstallation).toHaveBeenCalledWith('i1');
+    expect(s.schedules.parkForInstallation.mock.invocationCallOrder[0]).toBeLessThan(
+      s.executions.cancelQueuedForInstallation.mock.invocationCallOrder[0]
     );
   });
 

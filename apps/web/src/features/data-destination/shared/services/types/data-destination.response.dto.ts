@@ -1,5 +1,6 @@
 import { DataDestinationCredentialsType, DataDestinationType } from '../../enums';
 import type { CredentialIdentity, GoogleServiceAccount } from '../../../../../shared/types';
+import type { ContextSummary } from '../../../../contexts/types/context.types';
 
 /**
  * Google Sheets credentials response
@@ -91,7 +92,7 @@ export interface DataDestinationResponseDto {
   ownerUsers?: import('../../../../../shared/types').UserProjection[];
   availableForUse?: boolean;
   availableForMaintenance?: boolean;
-  contexts?: { id: string; name: string }[];
+  contexts?: ContextSummary[];
 
   /**
    * Optional destination-level config (e.g. Drive folder for auto-created Google Sheets)

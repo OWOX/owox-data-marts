@@ -29,6 +29,23 @@ describe('CustomDataSourceLogger', () => {
     );
   });
 
+  it('never prints the parameters of a plugin_action_schedule query', () => {
+    const { sink, logger: sinkLogger, output } = createSink();
+    const logger = new CustomDataSourceLogger(sinkLogger, 'all');
+    const insert = 'INSERT INTO `plugin_action_schedule`(`id`, `parameters`) VALUES (?, ?)';
+    const update = 'UPDATE "plugin_action_schedule" SET "parameters" = ? WHERE "id" = ?';
+    const parameters = ['schedule-1', '{"secret":"schedule parameters"}'];
+
+    logger.logQueryError('ER_DATA_TOO_LONG', insert, parameters);
+    logger.logQuery(update, parameters);
+    logger.logQuerySlow(100, update, parameters);
+
+    expect(output()).not.toContain('schedule parameters');
+    expect(sink.error).toHaveBeenCalledWith(`[QUERY ERROR] ${insert}`, 'ER_DATA_TOO_LONG');
+    expect(sink.log).toHaveBeenCalledWith(update);
+    expect(sink.warn).toHaveBeenCalledWith(`[SLOW QUERY] (100ms): ${update}`);
+  });
+
   it('prints the parameters of a query on another table', () => {
     const { sink, logger: sinkLogger } = createSink();
     const logger = new CustomDataSourceLogger(sinkLogger, ['error']);

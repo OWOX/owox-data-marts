@@ -40,7 +40,13 @@ vi.mock('../../../features/plugins', () => ({
     isUninstalling: false,
     isUpdating: false,
   }),
-  usePluginInstallations: () => ({ installations, isLoading: false }),
+  // Only the history list holds an uninstalled installation.
+  usePluginInstallations: (includeUninstalled = false) => ({
+    installations: includeUninstalled
+      ? installations
+      : installations.filter(item => !item.uninstalledAt),
+    isLoading: false,
+  }),
   usePluginManageablePublications: () => publications,
   usePluginPublishing: () => ({ publish, unpublish, isPublishing: false, isUnpublishing: false }),
   usePublishableScopes: () => publishableScopes,
@@ -53,6 +59,25 @@ vi.mock('../../../features/plugins', () => ({
   // The real confirmation: the page's part of the contract is what it asks and when it closes.
   useUninstallConfirmation: actualUseUninstallConfirmation,
   AudienceIcon: () => null,
+  PluginSchedulesCard: ({
+    pluginId,
+    installationId,
+    hasBackend,
+    uninstalled,
+  }: {
+    pluginId: string;
+    installationId: string;
+    hasBackend: boolean;
+    uninstalled?: boolean;
+  }) => (
+    <div
+      data-testid='schedules-card'
+      data-plugin={pluginId}
+      data-installation={installationId}
+      data-backend={String(hasBackend)}
+      data-uninstalled={String(Boolean(uninstalled))}
+    />
+  ),
   InstallPluginDialog: ({
     open,
     onOpenChange,
@@ -572,6 +597,88 @@ describe('PluginDetailsPage', () => {
     renderPage();
 
     expect(screen.queryByText(/Runs code on/)).toBeNull();
+  });
+
+  describe('Schedules card', () => {
+    const installed = (over: Partial<PluginGalleryEntry> = {}) => {
+      plugin = entry({ installationState: 'installed', ...over });
+      installations = [
+        {
+          ...plugin,
+          installationId: 'i1',
+          installedAt: '2026-07-02T00:00:00.000Z',
+          uninstalledAt: null,
+        },
+      ];
+    };
+
+    it('shows the card of the member installation after the description', () => {
+      installed({ backendOrigin: 'https://acme.workers.dev' });
+
+      renderPage();
+
+      const card = screen.getByTestId('schedules-card');
+      expect(card.dataset.installation).toBe('i1');
+      expect(card.dataset.plugin).toBe('p1');
+      expect(card.dataset.backend).toBe('true');
+      const description = screen.getByText('Does something');
+      expect(
+        description.compareDocumentPosition(card) & Node.DOCUMENT_POSITION_FOLLOWING
+      ).toBeTruthy();
+    });
+
+    it('still hands the card an installation of a plugin without a backend', () => {
+      installed();
+
+      renderPage();
+
+      expect(screen.getByTestId('schedules-card').dataset.backend).toBe('false');
+    });
+
+    it('shows no card for a plugin the member has not installed', () => {
+      plugin = entry({ backendOrigin: 'https://acme.workers.dev' });
+
+      renderPage();
+
+      expect(screen.queryByTestId('schedules-card')).toBeNull();
+    });
+
+    it('shows the card of an uninstalled plugin for deleting, marked uninstalled', () => {
+      plugin = entry({
+        installationState: 'uninstalled',
+        backendOrigin: 'https://acme.workers.dev',
+      });
+      installations = [
+        {
+          ...plugin,
+          installationId: 'i-old',
+          installedAt: '2026-07-02T00:00:00.000Z',
+          uninstalledAt: '2026-08-02T00:00:00.000Z',
+        },
+      ];
+
+      renderPage();
+
+      const card = screen.getByTestId('schedules-card');
+      expect(card.dataset.installation).toBe('i-old');
+      expect(card.dataset.uninstalled).toBe('true');
+    });
+
+    it('shows no card for an uninstalled plugin the member never installed', () => {
+      plugin = entry({ installationState: 'uninstalled' });
+
+      renderPage();
+
+      expect(screen.queryByTestId('schedules-card')).toBeNull();
+    });
+
+    it('does not mark the card of an installed plugin uninstalled', () => {
+      installed();
+
+      renderPage();
+
+      expect(screen.getByTestId('schedules-card').dataset.uninstalled).toBe('false');
+    });
   });
 
   describe('install on open', () => {

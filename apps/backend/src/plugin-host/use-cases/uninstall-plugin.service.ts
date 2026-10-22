@@ -3,6 +3,8 @@ import { Transactional } from 'typeorm-transactional';
 import { UninstallPluginCommand } from '../dto/domain/uninstall-plugin.command';
 import { PluginAuditAction } from '../enums/plugin-audit-action.enum';
 import { PluginPublicationScope } from '../enums/plugin-publication-scope.enum';
+import { PluginActionExecutionService } from '../services/plugin-action-execution.service';
+import { PluginActionScheduleService } from '../services/plugin-action-schedule.service';
 import { PluginAuditService } from '../services/plugin-audit.service';
 import { PluginInstallationService } from '../services/plugin-installation.service';
 import {
@@ -26,7 +28,9 @@ export class UninstallPluginService {
     private readonly installations: PluginInstallationService,
     private readonly audit: PluginAuditService,
     @Inject(CREDENTIAL_CONSUMER_BINDING_FACADE)
-    private readonly credentialBindings: CredentialConsumerBindingFacade
+    private readonly credentialBindings: CredentialConsumerBindingFacade,
+    private readonly schedules: PluginActionScheduleService,
+    private readonly executions: PluginActionExecutionService
   ) {}
 
   @Transactional()
@@ -44,6 +48,9 @@ export class UninstallPluginService {
     const wasUninstalled = installation.uninstalledAt !== null;
     if (!wasUninstalled) {
       await this.installations.uninstall(installation.id);
+      await this.schedules.parkForInstallation(installation.id);
+      // While a start limit holds the queue nothing fails these runs, and a restore would start them.
+      await this.executions.cancelQueuedForInstallation(installation.id);
     }
 
     await this.credentialBindings.deactivateConsumer(

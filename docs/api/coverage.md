@@ -18,7 +18,7 @@ means the dimension has not been evaluated and does not imply a gap.
 
 | API-key endpoints | Fully covered | OpenAPI covered | API client covered | Unassessed |
 | ----------------: | ------------: | ---------------: | -----------------: | ---------: |
-|               140 |  16/140 (11%) |    16/140 (11%) |       16/140 (11%) |        124 |
+|               141 |  16/141 (11%) |    16/141 (11%) |       16/141 (11%) |        125 |
 
 Fully covered means both OpenAPI and API client coverage are complete. All
 percentages use the complete endpoint inventory below as their denominator.
@@ -52,6 +52,7 @@ as API-client coverage.
 | `POST /api/contexts` | Unassessed | Unassessed |
 | `DELETE /api/contexts/{id}` | Unassessed | Unassessed |
 | `PUT /api/contexts/{id}` | Unassessed | Unassessed |
+| `PUT /api/contexts/{id}/icon` | Unassessed | Unassessed |
 | `GET /api/contexts/{id}/impact` | Unassessed | Unassessed |
 | `PUT /api/contexts/{id}/members` | Unassessed | Unassessed |
 

@@ -1,6 +1,7 @@
 import { OWOXApiClient } from '@owox/api-client';
 import { createPluginActions, type PluginActions } from './actions.js';
 import { createPluginCollection, type PluginCollection } from './collections.js';
+import { createPluginSchedules, type PluginSchedules } from './schedules.js';
 export type {
   PluginActionError,
   PluginActionExecution,
@@ -37,6 +38,7 @@ export type {
   PluginCollectionPage,
   PluginCollectionPutOptions,
 } from './collections.js';
+export type { PluginSchedule, PluginScheduleReader, PluginSchedules } from './schedules.js';
 
 /** Long enough for a slow host, short enough that a broken embed fails visibly. */
 const HANDSHAKE_TIMEOUT_MS = 10_000;
@@ -64,7 +66,7 @@ export interface PluginUi {
   copyLink(path?: string): Promise<void>;
 }
 
-export interface PluginContext extends Omit<PluginHostContext, 'actions'> {
+export interface PluginContext extends Omit<PluginHostContext, 'actions' | 'schedules'> {
   /** The route the host opened this plugin at; undefined on a host without page links. */
   readonly route: string | undefined;
 
@@ -88,6 +90,8 @@ export interface PluginContext extends Omit<PluginHostContext, 'actions'> {
   collections<T>(name: string): PluginCollection<T>;
   /** Actions of this plugin's backend, run through OWOX; undefined on a host without backend actions. */
   readonly actions: PluginActions | undefined;
+  /** Cron schedules that start your backend's actions; undefined on a host without schedules. */
+  readonly schedules: PluginSchedules | undefined;
 
   /**
    * Things the sandbox forbids you, which the host will do on your behalf if it agrees.
@@ -216,6 +220,7 @@ function bind(
     credentials: createPluginCredentials(requester, init.context.credentialHandles ?? []),
     collections: <T>(name: string) => createPluginCollection<T>(owox, name),
     actions: init.context.actions ? createPluginActions(requester) : undefined,
+    schedules: init.context.schedules ? createPluginSchedules(requester) : undefined,
     ui: {
       openExternal: (url: string) => {
         port.postMessage({ id: crypto.randomUUID(), kind: 'openExternal', url });

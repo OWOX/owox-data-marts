@@ -254,6 +254,14 @@ Independently of any key and of the aggregate, every join runs outwards from the
 
 A join can't express what a cross-fact ratio needs: one row per grain shared by both facts, with neither side's rows dropped. Aggregate the two measures to the grain they share — day and traffic source, say — in a **separate Data Mart** built with `UNION ALL`, and calculate the ratio there instead of across the join. When only one side has to be complete — all spend, for the ROAS of paid campaigns — the ratio can stay on that side's Data Mart; see [Design a Data Model](../best-practices/data-model-design.md#step-5-put-each-metric-where-its-rows-are).
 
+## Find Data Marts With or Without Relationships
+
+The **Relationships** filter in the **Data Marts** list keeps the Data Marts **With relationships** or **Without relationships**, across all storages. Those without are candidates to connect, or to clean up.
+
+A Data Mart has relationships when it defines one or another Data Mart points to it — the Data Marts whose card on the [Models canvas](models-canvas.md) shows any relationships. A relationship with a Data Mart you cannot see does not count.
+
+Combine it with the other filters. For example, **Relationships** _With relationships_ and **Contexts** _No context_ lists the joined Data Marts that are not attached to any [context](../../project/contexts.md) yet.
+
 ## Limitations and Considerations
 
 - **Same storage.** All Data Marts in a chain must live on the same storage type and connection. Cross-storage joins are not supported.

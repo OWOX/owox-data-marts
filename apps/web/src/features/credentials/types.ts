@@ -1,4 +1,5 @@
 import type { UserProjectionDto } from '../../shared/types/api';
+import type { ContextSummary } from '../contexts/types/context.types';
 
 export type CredentialValidationState = 'unknown' | 'verified' | 'rejected';
 
@@ -57,7 +58,7 @@ export interface Credential {
   aiModelMappings: Record<string, string> | null;
   aiModelMappingModes: Record<string, 'recommended' | 'override'> | null;
   ownerUsers: UserProjectionDto[];
-  contexts: { id: string; name: string }[];
+  contexts: ContextSummary[];
   usedBy: CredentialConsumerReference[];
   /** Optional for the same rolling-deploy reason as CredentialDefinition.auth. */
   publicMetadata?: CredentialPublicMetadata | null;

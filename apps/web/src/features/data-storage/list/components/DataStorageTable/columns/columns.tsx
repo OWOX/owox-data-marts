@@ -9,6 +9,7 @@ import { type UserProjection } from '../../../../../../shared/types';
 import { UserReference } from '../../../../../../shared/components/UserReference';
 import { UserAvatarGroup } from '../../../../../../shared/components/UserAvatarGroup/UserAvatarGroup';
 import { ContextBadges } from '../../../../../../features/contexts/components/ContextBadges/ContextBadges';
+import type { ContextSummary } from '../../../../../contexts/types/context.types';
 
 export interface DataStorageTableItem {
   id: string;
@@ -22,7 +23,7 @@ export interface DataStorageTableItem {
   ownerUsers?: UserProjection[];
   availableForUse?: boolean;
   availableForMaintenance?: boolean;
-  contexts: { id: string; name: string }[];
+  contexts: ContextSummary[];
 }
 
 interface DataStorageColumnsProps {

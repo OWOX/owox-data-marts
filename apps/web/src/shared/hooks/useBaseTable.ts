@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   type ColumnDef,
   type Table,
@@ -28,12 +28,16 @@ export interface UseBaseTableConfig<TData> {
   defaultColumnVisibility?: VisibilityState;
   /** Default column ID for initial sorting */
   defaultSortingColumn?: string;
+  /** Whether the default sort is descending (defaults to true) */
+  defaultSortingDesc?: boolean;
   /** Default table page size */
   defaultPageSize?: number;
   /** Enable row selection functionality */
   enableRowSelection?: boolean;
   /** Stable row identity used to preserve selection across data refreshes */
   getRowId?: TableOptions<TData>['getRowId'];
+  /** Stay on the current page when the data changes, such as on a poll (defaults to TanStack's reset to page 1) */
+  keepPageOnDataChange?: boolean;
 }
 
 /**
@@ -75,9 +79,11 @@ export function useBaseTable<TData>({
   storageKeyPrefix,
   defaultColumnVisibility,
   defaultSortingColumn,
+  defaultSortingDesc,
   defaultPageSize,
   enableRowSelection = false,
   getRowId,
+  keepPageOnDataChange = false,
 }: UseBaseTableConfig<TData>): UseBaseTableReturn<TData> {
   // Initialize table storage (sorting, visibility, pagination, sizing)
   const {
@@ -94,6 +100,7 @@ export function useBaseTable<TData>({
     storageKeyPrefix,
     defaultColumnVisibility,
     defaultSortingColumn,
+    defaultSortingDesc,
     defaultPageSize,
   });
 
@@ -108,7 +115,13 @@ export function useBaseTable<TData>({
     columns,
     getCoreRowModel: getCoreRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
-    onSortingChange: setSorting,
+    onSortingChange: updater => {
+      setSorting(updater);
+      // The automatic reset is off here, so a new order starts from the first page by hand.
+      if (keepPageOnDataChange) {
+        setPageIndex(0);
+      }
+    },
     getSortedRowModel: getSortedRowModel(),
     onColumnFiltersChange: setColumnFilters,
     getFilteredRowModel: getFilteredRowModel(),
@@ -149,9 +162,18 @@ export function useBaseTable<TData>({
     },
     enableRowSelection,
     getRowId,
+    ...(keepPageOnDataChange && { autoResetPageIndex: false }),
     enableColumnResizing: true,
     columnResizeMode: 'onChange',
   });
+
+  // Without the automatic reset, a list that shrinks below the page would leave it empty.
+  const lastPage = Math.max(table.getPageCount() - 1, 0);
+  useEffect(() => {
+    if (keepPageOnDataChange && pageIndex > lastPage) {
+      setPageIndex(lastPage);
+    }
+  }, [keepPageOnDataChange, pageIndex, lastPage]);
 
   return {
     table,

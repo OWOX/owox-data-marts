@@ -5,6 +5,8 @@ import {
   useRef,
   useState,
   type ComponentPropsWithoutRef,
+  type ReactNode,
+  type RefObject,
 } from 'react';
 import type * as monaco from 'monaco-editor';
 import { useTheme } from 'next-themes';
@@ -32,6 +34,8 @@ export interface DescriptionEditorProps extends Pick<
   placeholder?: string;
   autoFocus?: boolean;
   saveError?: string | null;
+  footer?: ReactNode;
+  returnFocusRef?: RefObject<HTMLElement | null>;
   onSave?: () => void;
   onCancel?: () => void;
   onBlur?: () => void;
@@ -51,6 +55,8 @@ export const DescriptionEditor = forwardRef<HTMLTextAreaElement, DescriptionEdit
       placeholder = 'Describe business goals and terminology…',
       autoFocus = false,
       saveError,
+      footer,
+      returnFocusRef,
       onSave,
       onCancel,
       onBlur,
@@ -67,6 +73,12 @@ export const DescriptionEditor = forwardRef<HTMLTextAreaElement, DescriptionEdit
   ) {
     const [editing, setEditing] = useState(startEditing);
     const [expanded, setExpanded] = useState(false);
+    const editButtonRef = useRef<HTMLButtonElement>(null);
+    const wasEditing = useRef(false);
+    useEffect(() => {
+      if (!editing && wasEditing.current) editButtonRef.current?.focus();
+      wasEditing.current = editing;
+    }, [editing]);
     const latest = useRef({ onSave, onCancel, onBlur });
     latest.current = { onSave, onCancel, onBlur };
     const [mountedEditor, setMountedEditor] = useState<monaco.editor.IStandaloneCodeEditor | null>(
@@ -153,6 +165,7 @@ export const DescriptionEditor = forwardRef<HTMLTextAreaElement, DescriptionEdit
             setEditing(true);
           }}
           editButtonProps={{
+            ref: editButtonRef,
             id,
             name,
             onBlur,
@@ -169,6 +182,7 @@ export const DescriptionEditor = forwardRef<HTMLTextAreaElement, DescriptionEdit
         expanded={expanded}
         onExpandedChange={setExpanded}
         title='Description editor'
+        returnFocusRef={returnFocusRef ?? editButtonRef}
         onEscapeKeyDown={preventSheetDismissWhileSuggesting}
       >
         <div
@@ -230,28 +244,29 @@ export const DescriptionEditor = forwardRef<HTMLTextAreaElement, DescriptionEdit
               onActionClick={applyAction}
               onHeadingClick={applyHeadingLevel}
             />
-            <MarkdownEditor
-              key={projectId}
-              height={expanded ? '100%' : 240}
-              className={expanded ? 'min-h-0 flex-1' : undefined}
-              value={value}
-              onChange={onChange}
-              onMount={onMount}
-              placeholder={placeholder}
-              theme={resolvedTheme === 'dark' ? 'vs-dark' : 'light'}
-              options={{
-                readOnly: disabled,
-                padding: { top: 8 },
-                fixedOverflowWidgets: true,
-                tabIndex: 0,
-                ariaLabel,
-                // Keep a labelable native textarea for FormControl and React Hook Form.
-                editContext: false,
-                quickSuggestions: false,
-                suggestOnTriggerCharacters: false,
-                wordBasedSuggestions: 'off',
-              }}
-            />
+            <div className={expanded ? 'min-h-0 flex-1' : undefined}>
+              <MarkdownEditor
+                key={projectId}
+                height={expanded ? '100%' : 240}
+                value={value}
+                onChange={onChange}
+                onMount={onMount}
+                placeholder={placeholder}
+                theme={resolvedTheme === 'dark' ? 'vs-dark' : 'light'}
+                options={{
+                  readOnly: disabled,
+                  padding: { top: 8 },
+                  fixedOverflowWidgets: true,
+                  tabIndex: 0,
+                  ariaLabel,
+                  // Keep a labelable native textarea for FormControl and React Hook Form.
+                  editContext: false,
+                  quickSuggestions: false,
+                  suggestOnTriggerCharacters: false,
+                  wordBasedSuggestions: 'off',
+                }}
+              />
+            </div>
             <DataMartMentionPicker
               editor={mountedEditor}
               projectId={projectId}
@@ -268,6 +283,7 @@ export const DescriptionEditor = forwardRef<HTMLTextAreaElement, DescriptionEdit
               {saveError}
             </p>
           )}
+          {footer && <div className='shrink-0'>{footer}</div>}
         </div>
       </ExpandableEditor>
     );

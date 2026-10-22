@@ -1,4 +1,4 @@
-/** Plugin backend action limits. None is configurable through the environment. */
+/** Plugin backend action limits fixed in code; PluginHostConfigService reads the configurable ones. */
 export const PLUGIN_ACTION_LIMITS = {
   maxActions: 50,
   maxInputSchemaBytes: 32 * 1024,
@@ -28,6 +28,12 @@ export const PLUGIN_ACTION_LIMITS = {
   validationWorkerCacheSize: 50,
   maxValidationsPerVersion: 4,
   maxQueuedValidations: 64,
+  maxScheduleNameChars: 200,
+  maxScheduleCronChars: 255,
+  maxScheduleTimeZoneChars: 64,
+  scheduleBusyRetryMs: 200,
+  scheduleBusyTimeoutMs: 5000,
+  queuedMaxAgeHours: 24,
 } as const;
 
 // The SDK keeps copies of these three; `test/contracts/plugin-action-contract.mjs` pins them.
@@ -41,6 +47,7 @@ export const PLUGIN_ACTION_RESERVED_ERROR_CODES: ReadonlySet<string> = new Set([
   'INVALID_INPUT',
   'INSTALLATION_INACTIVE',
   'PLUGIN_SUSPENDED',
+  'OWNER_NOT_MEMBER',
 ]);
 
 /** OWOX's codes for a call to the backend that failed, such as BACKEND_UNREACHABLE. */

@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { useContext } from 'react';
+import { useContext, type ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { DataMartProvider } from './DataMartContext';
 import { DataMartContext } from './context';
@@ -17,10 +17,12 @@ vi.mock('../../../../../shared/components/DescriptionEditor/DescriptionEditor', 
     value,
     onChange,
     saveError,
+    footer,
   }: {
     value: string;
     onChange: (value: string) => void;
     saveError?: string | null;
+    footer?: ReactNode;
   }) => (
     <>
       <textarea
@@ -31,6 +33,7 @@ vi.mock('../../../../../shared/components/DescriptionEditor/DescriptionEditor', 
         }}
       />
       {saveError && <p role='alert'>{saveError}</p>}
+      {footer}
     </>
   ),
 }));

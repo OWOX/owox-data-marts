@@ -6,6 +6,7 @@ import PluginHistoryPage from '../../pages/plugins/history/PluginHistoryPage';
 import PluginOpenPage from '../../pages/plugins/open/PluginOpenPage';
 import PluginRepoRedirect from '../../pages/plugins/repository/PluginRepoRedirect';
 import LegacyPluginRunRedirect from '../../pages/plugins/runtime/LegacyPluginRunRedirect';
+import PluginSchedulesPage from '../../pages/plugins/schedules/PluginSchedulesPage';
 
 /**
  * Project-scoped plugin routes.
@@ -23,6 +24,11 @@ export const pluginsRoutes: RouteObject[] = [
     // Before :pluginId, or the router would read "history" as a plugin id.
     path: 'plugins/history',
     element: <PluginHistoryPage />,
+    errorElement: <LayoutErrorBoundary />,
+  },
+  {
+    path: 'plugins/schedules',
+    element: <PluginSchedulesPage />,
     errorElement: <LayoutErrorBoundary />,
   },
   {

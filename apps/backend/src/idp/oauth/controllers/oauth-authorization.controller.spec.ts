@@ -3,6 +3,8 @@ import type { Request, Response } from 'express';
 import { type McpOAuthProjectMemberContext, type Payload } from '@owox/idp-protocol';
 import { IdpProviderService } from '../../services/idp-provider.service';
 import { OAuthClientRegistry } from '../oauth-client.registry';
+import { OAuthConfigService } from '../oauth-config.service';
+import { OAuthProjectAccessRequiredError } from '../oauth-project-access-required.error';
 import { OAuthIdpPort } from '../oauth-idp.port';
 import { OAuthProjectSelectionService } from '../oauth-project-selection.service';
 import { OAuthProjectMemberResolver } from '../oauth-project-member.resolver';
@@ -128,7 +130,8 @@ describe('OAuthAuthorizationController', () => {
         idpProviderService,
         oauthIdp,
         clientRegistry,
-        projectSelectionService
+        projectSelectionService,
+        { issuer: 'https://app.example.com' } as OAuthConfigService
       ),
       validator,
       projectMemberResolver,
@@ -138,6 +141,198 @@ describe('OAuthAuthorizationController', () => {
       projectSelectionService,
     };
   }
+
+  it.each([
+    ['https://claude.ai/api/mcp/auth_callback', 'claude'],
+    ['https://chatgpt.com/connector/oauth/callback', 'chatgpt'],
+    ['http://127.0.0.1:63888/callback', 'owox-data-marts'],
+  ])(
+    'sends a restricted session to Request Access without OAuth continuation: %s',
+    async (redirectUri, integration) => {
+      const { controller, provider, projectMemberResolver, projectSelectionService, oauthIdp } =
+        createController({
+          request: { ...authorizationRequest, redirectUri },
+          resourceContext: sharedResourceContext,
+        });
+      provider.parseToken.mockResolvedValueOnce({ ...payload, roles: [] });
+      projectSelectionService.loadProjects.mockResolvedValueOnce([]);
+      projectMemberResolver.resolve.mockImplementation(context =>
+        new OAuthProjectMemberResolver().resolve(context)
+      );
+      const response = createResponse();
+
+      await controller.authorize(
+        { integration: 'untrusted-source', redirect_uri: 'https://untrusted.example' },
+        createRequest({ cookies: { refreshToken: 'refresh-token-1' } }),
+        response as unknown as Response
+      );
+
+      expect(response.redirect).toHaveBeenCalledWith(
+        `https://app.example.com/ui/project-1/request-access?mcp-integration=${integration}`
+      );
+      expect(oauthIdp.createAuthorizationCode).not.toHaveBeenCalled();
+      expect(response.send).not.toHaveBeenCalled();
+    }
+  );
+
+  it('opens Request Access for the project-specific MCP resource, not the current session project', async () => {
+    const projectId = 'resource-project';
+    const { controller, projectSelectionService, oauthIdp } = createController({
+      request: { ...authorizationRequest, redirectUri: 'https://claude.ai/api/mcp/auth_callback' },
+      resourceContext: {
+        kind: 'project',
+        projectId,
+        resource: 'https://resource-project.mcp.example/mcp',
+        publicBaseUrl: 'https://resource-project.mcp.example',
+      },
+    });
+    projectSelectionService.loadProjects.mockResolvedValueOnce([]);
+    projectSelectionService.resolveProjectHostMember.mockImplementation((...args) =>
+      new OAuthProjectSelectionService().resolveProjectHostMember(...args)
+    );
+    const response = createResponse();
+
+    await controller.authorize(
+      {},
+      createRequest({ cookies: { refreshToken: 'refresh-token-1' } }),
+      response as unknown as Response
+    );
+
+    expect(response.redirect).toHaveBeenCalledWith(
+      'https://app.example.com/ui/resource-project/request-access?mcp-integration=claude'
+    );
+    expect(oauthIdp.createAuthorizationCode).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { name: 'shared member', projectSpecific: false, roles: ['admin'] },
+    { name: 'shared restricted session', projectSpecific: false, roles: [] },
+    { name: 'project member', projectSpecific: true, roles: ['admin'] },
+    { name: 'project restricted session', projectSpecific: true, roles: [] },
+  ])(
+    'returns server_error when project loading fails for a $name',
+    async ({ projectSpecific, roles }) => {
+      const resourceContext = projectSpecific
+        ? {
+            kind: 'project' as const,
+            projectId: 'resource-project',
+            resource: 'https://resource-project.mcp.example/mcp',
+            publicBaseUrl: 'https://resource-project.mcp.example',
+          }
+        : sharedResourceContext;
+      const { controller, provider, projectSelectionService, projectMemberResolver, oauthIdp } =
+        createController({ request: authorizationRequest, resourceContext });
+      provider.parseToken.mockResolvedValueOnce({ ...payload, roles });
+      projectSelectionService.loadProjects.mockRejectedValueOnce(
+        new Error('Internal project service unavailable')
+      );
+      projectMemberResolver.resolve.mockImplementation(context =>
+        new OAuthProjectMemberResolver().resolve(context)
+      );
+      projectSelectionService.resolveProjectHostMember.mockImplementation((...args) =>
+        new OAuthProjectSelectionService().resolveProjectHostMember(...args)
+      );
+      jest.spyOn(Logger.prototype, 'error').mockImplementation(() => {});
+      const response = createResponse();
+
+      await controller.authorize(
+        {},
+        createRequest({ cookies: { refreshToken: 'refresh-token-1' } }),
+        response as unknown as Response
+      );
+
+      expect(response.redirect).toHaveBeenCalledTimes(1);
+      const redirect = new URL(response.redirect.mock.calls[0][0] as string);
+      expect(redirect.origin + redirect.pathname).toBe(authorizationRequest.redirectUri);
+      expect(redirect.searchParams.get('error')).toBe('server_error');
+      expect(redirect.searchParams.get('state')).toBe(authorizationRequest.state);
+      expect(redirect.searchParams.get('iss')).toBe(
+        projectSpecific ? resourceContext.publicBaseUrl : null
+      );
+      expect(redirect.searchParams.get('error_description')).toBe(
+        'The authorization server encountered an unexpected condition.'
+      );
+      expect(redirect.searchParams.has('code')).toBe(false);
+      expect(projectSelectionService.resolveProjectHostMember).not.toHaveBeenCalled();
+      expect(projectSelectionService.resolveSelectedProjectMember).not.toHaveBeenCalled();
+      expect(projectMemberResolver.resolve).not.toHaveBeenCalled();
+      expect(oauthIdp.createAuthorizationCode).not.toHaveBeenCalled();
+      expect(response.send).not.toHaveBeenCalled();
+    }
+  );
+
+  it('uses the single available project when the current session has no roles', async () => {
+    const { controller, provider, projectSelectionService, oauthIdp } = createController();
+    provider.parseToken.mockResolvedValueOnce({ ...payload, roles: [] });
+    projectSelectionService.loadProjects.mockResolvedValueOnce([
+      { id: 'project-2', title: 'Other project', roles: ['viewer'] },
+    ]);
+    const member = { ...projectMember, projectId: 'project-2', roles: ['viewer'] as const };
+    projectSelectionService.resolveSelectedProjectMember.mockResolvedValueOnce({
+      ...member,
+      roles: ['viewer'],
+    });
+    const response = createResponse();
+
+    await controller.authorize(
+      {},
+      createRequest({ cookies: { refreshToken: 'refresh-token-1' } }),
+      response as unknown as Response
+    );
+
+    expect(projectSelectionService.resolveSelectedProjectMember).toHaveBeenCalledWith(
+      provider,
+      expect.objectContaining({ roles: [] }),
+      expect.any(Array),
+      'project-2'
+    );
+    expect(oauthIdp.createAuthorizationCode).toHaveBeenCalledWith(authorizationRequest, member);
+    expect(response.redirect).toHaveBeenCalledWith(
+      'http://127.0.0.1:63888/callback?code=auth-code-1&state=state-1'
+    );
+  });
+
+  it('continues OAuth for an automatically provisioned viewer', async () => {
+    const { controller, provider, projectMemberResolver, oauthIdp } = createController();
+    provider.parseToken.mockResolvedValueOnce({ ...payload, roles: ['viewer'] });
+    projectMemberResolver.resolve.mockImplementation(context =>
+      new OAuthProjectMemberResolver().resolve(context)
+    );
+    const response = createResponse();
+
+    await controller.authorize(
+      {},
+      createRequest({ cookies: { refreshToken: 'refresh-token-1' } }),
+      response as unknown as Response
+    );
+
+    expect(oauthIdp.createAuthorizationCode).toHaveBeenCalledWith(
+      authorizationRequest,
+      expect.objectContaining({ projectId: 'project-1', roles: ['viewer'] })
+    );
+    expect(response.redirect).toHaveBeenCalledWith(
+      'http://127.0.0.1:63888/callback?code=auth-code-1&state=state-1'
+    );
+  });
+
+  it('opens Request Access when membership is lost after project selection', async () => {
+    const { controller, projectSelectionService, oauthIdp } = createController();
+    projectSelectionService.resolveSelectedProjectMember.mockRejectedValueOnce(
+      new OAuthProjectAccessRequiredError('project-2')
+    );
+    const response = createResponse();
+
+    await controller.authorize(
+      { selected_project_id: 'project-2' },
+      createRequest({ cookies: { refreshToken: 'refresh-token-1' } }),
+      response as unknown as Response
+    );
+
+    expect(response.redirect).toHaveBeenCalledWith(
+      'https://app.example.com/ui/project-2/request-access?mcp-integration=owox-data-marts'
+    );
+    expect(oauthIdp.createAuthorizationCode).not.toHaveBeenCalled();
+  });
 
   it.each([
     ['https://claude.ai/api/mcp/auth_callback', 'claude'],

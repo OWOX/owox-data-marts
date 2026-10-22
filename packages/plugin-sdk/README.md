@@ -52,6 +52,7 @@ redirecting paths are refused.
 | `ctx.credentials`                          | Declared, installation-bound Credential handles. No raw secrets.                               |
 | `ctx.collections(name)`                    | Host-stored JSON documents declared by the plugin.                                             |
 | `ctx.actions`                              | Runs your backend's actions through OWOX; `undefined` on a host without backend actions.       |
+| `ctx.schedules`                            | Creates cron schedules for your backend's actions; `undefined` on a host without schedules.    |
 | `ctx.ui.openExternal(url)`                 | Ask the host to open an external https URL in a new tab.                                       |
 | `ctx.ui.navigate(path)`                    | Ask the host to go to a page inside OWOX, in place of your frame.                              |
 | `ctx.route`                                | The plugin's own route, e.g. `/dashboards/42`; `undefined` on a host without page links.       |
@@ -295,6 +296,58 @@ if (ctx.actions) {
   reported with its own code 24 hours after it finishes.
 - `ctx.actions` is `undefined` on a host without backend actions.
 
+## Schedules
+
+`ctx.schedules` creates cron schedules that start one of your backend actions for the member who
+installed the plugin, with no browser open. It is `undefined` on a host without schedules.
+
+```ts
+if (ctx.schedules) {
+  const schedule = await ctx.schedules.create({
+    action: 'update-document',
+    parameters: { documentId },
+    cron: '0 9 * * *',
+    timeZone: 'Europe/Kyiv',
+    name: 'Morning update',
+  });
+  await ctx.schedules.pause(schedule.id);
+}
+```
+
+- `create`, `update`, `pause`, `resume` and `delete` change a schedule; `list` and `get` read. Writes
+  work only from the plugin page. The server `ctx.schedules` only reads, with `list()` and
+  `get(id)`; a write that a backend action sends to the runtime API directly is refused with
+  `EXECUTION_TOKEN_NOT_ALLOWED`.
+- `create` makes an enabled schedule unless you pass `enabled: false`. `name` is optional, at most
+  200 characters after OWOX trims it; an empty name is stored as no name.
+- `parameters` is the action's input and must match its `input` schema. Omit it for an action
+  without one.
+- `cron` and `timeZone` follow the rules of Data Mart schedules. `cron` takes at most 255
+  characters and needs a run in the next eight years. `timeZone`, 1 to 64 characters, must be an
+  IANA zone that `Intl.DateTimeFormat` accepts. A schedule runs at most once a minute.
+- Schedule ids are UUIDs. Another id rejects with a `PluginTransportError` (`HTTP_ERROR`, status
+  400). In the plugin page, the host bridge answers `FORBIDDEN`, without sending a request, to an id
+  that contains `/`, `%` or `\`, or is `.` or `..`.
+- By default, an installation has at most 20 schedules, and `parameters` take at most 64 KiB; a
+  self-managed deployment can change both.
+- A schedule that cannot run is disabled and keeps its settings. `disabledReason` says why:
+  `ACTION_NOT_DECLARED` or `INVALID_PARAMETERS`. `resume` checks it again. A schedule a project
+  admin paused in **Plugins → Schedules** has `PAUSED_BY_ADMIN`, and its `resume` is refused with
+  `SCHEDULE_PAUSED_BY_ADMIN`.
+- While the installing member is not an active project member, or their account is locked, a
+  schedule stays enabled and skips its runs.
+- `lastRun` is the schedule's latest execution. A run held back by the start limits has the status
+  `QUEUED` and starts when a slot frees up; one still queued after 24 hours ends `TIMED_OUT`. An
+  update that changes `action` or `parameters` cancels the queued run.
+- A refusal with any OWOX error code rejects with an error whose `name` is `PluginActionError`; its
+  `code` is, for example, `INVALID_SCHEDULE`, `ACTION_NOT_DECLARED`, `INVALID_PARAMETERS`,
+  `PARAMETERS_TOO_LARGE`, `TOO_MANY_SCHEDULES`, `SCHEDULE_BUSY`, `SCHEDULE_NOT_FOUND`,
+  `SCHEDULE_PAUSED_BY_ADMIN` or `TOO_MANY_EXECUTIONS`. For `INVALID_PARAMETERS`, `errors` lists
+  the fields that failed as `{ instancePath, message }`. A failure without a code stays a
+  `PluginTransportError`, and so does the refusal of a suspended plugin, with the code `SUSPENDED`.
+- In a scheduled run, `ctx.execution.trigger` is `'schedule'` and `ctx.execution.scheduleId` names
+  the schedule.
+
 ## `@owox/plugin-sdk/server`
 
 A plugin's backend is built with `createBackend`. It uses only the Fetch API. On Node, import it
@@ -342,8 +395,11 @@ The handler's `ctx` provides:
 - `credentials`: exact Credential handles, used through
   `exactCredential(ctx.credentials, name).asFetch()`. The secret stays in OWOX;
 - `collections(name)`;
-- `execution`: ids, `trigger`, `deadlineAt`, `pluginVersion` and `plugin`, with the plugin's `id`
-  and `repositoryId`;
+- `schedules`: `list()` and `get(id)` of the installation's schedules, read-only. It is always
+  defined; on an older OWOX without schedules its calls fail with a 404 transport error;
+- `execution`: ids, `trigger` (`'frontend'` or `'schedule'`), `scheduleId` (`null` for a start from
+  the plugin page, and from an older OWOX), `deadlineAt`, `pluginVersion` and `plugin`, with the
+  plugin's `id` and `repositoryId`;
 - `host`: the OWOX origin that accepted the execution token, to build links to OWOX pages with;
 - `signal`, which aborts at the action's deadline. When OWOX drops the call, Cloudflare Workers
   cancels the whole invocation: the handler stops, code after an `await` does not run, and

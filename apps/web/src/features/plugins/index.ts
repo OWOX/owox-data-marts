@@ -4,6 +4,7 @@ export {
   PluginCard,
   PluginPageMessage,
   PluginReleaseIssuesCard,
+  PluginSchedulesCard,
   PublishPluginSheet,
   useCopyLink,
   useUninstallConfirmation,
@@ -37,6 +38,17 @@ export {
   type PublishFailure,
 } from './hooks/usePluginPublications';
 export { usePluginHistory } from './hooks/usePluginHistory';
+export { useCancelPluginRun, usePluginRun, usePluginRuns } from './hooks/usePluginRuns';
+export { usePluginSchedules, type ScheduleOperation } from './hooks/usePluginSchedules';
+export {
+  isPluginRunStatus,
+  lastRunSummary,
+  PLUGIN_RUN_STATUSES,
+  PLUGIN_RUN_STATUS_LABEL,
+  runStatusLabel,
+  SCHEDULE_DISABLED_REASON_TEXT,
+  SCHEDULE_OWNER_NOT_MEMBER_TEXT,
+} from './scheduleLabels';
 export {
   usePlugin,
   usePluginActions,
@@ -55,9 +67,17 @@ export type {
   PluginInstallationState,
   PluginPublication,
   PluginPublicationScope,
+  PluginRun,
+  PluginRunFilters,
+  PluginRunPage,
+  PluginRunStatus,
+  PluginRunTrigger,
   PluginRuntimeToken,
+  PluginScheduleDisabledReason,
+  PluginScheduleSummary,
   PluginSource,
   PluginUpdateOutcome,
   PluginUpdateResult,
+  ProjectPluginSchedule,
   PublishPluginRequest,
 } from './types';

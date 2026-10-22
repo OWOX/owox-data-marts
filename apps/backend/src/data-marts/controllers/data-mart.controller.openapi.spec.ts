@@ -181,6 +181,7 @@ describe('DataMartController list OpenAPI', () => {
       'icon',
       'triggersCount',
       'reportsCount',
+      'relationshipsCount',
       'createdByUser',
       'businessOwnerUsers',
       'technicalOwnerUsers',
@@ -211,6 +212,7 @@ describe('DataMartController list OpenAPI', () => {
       connectorSourceName: { type: 'string' },
       triggersCount: { type: 'integer', minimum: 0 },
       reportsCount: { type: 'integer', minimum: 0 },
+      relationshipsCount: { type: 'integer', minimum: 0 },
       createdByUser: {
         nullable: true,
         allOf: [{ $ref: '#/components/schemas/UserProjectionDto' }],
@@ -255,10 +257,29 @@ describe('DataMartController list OpenAPI', () => {
     expect(userSchema.properties.email).not.toHaveProperty('format');
     expect(userSchema.properties.avatar).not.toHaveProperty('format');
     expect(resolveRef('#/components/schemas/DataMartListItemContextApiDto')).toMatchObject({
-      required: ['id', 'name'],
+      required: ['id', 'name', 'icon'],
       properties: {
         id: { type: 'string' },
         name: { type: 'string' },
+        icon: { type: 'string', nullable: true },
+      },
+    });
+  });
+
+  it('describes the contexts of a single Data Mart, icon included', () => {
+    const detailSchema = resolveRef('#/components/schemas/DataMartResponseApiDto');
+    expect(detailSchema.properties).toMatchObject({
+      contexts: {
+        type: 'array',
+        items: { $ref: '#/components/schemas/ContextSummaryApiDto' },
+      },
+    });
+    expect(resolveRef('#/components/schemas/ContextSummaryApiDto')).toMatchObject({
+      required: ['id', 'name', 'icon'],
+      properties: {
+        id: { type: 'string' },
+        name: { type: 'string' },
+        icon: { type: 'string', nullable: true },
       },
     });
   });

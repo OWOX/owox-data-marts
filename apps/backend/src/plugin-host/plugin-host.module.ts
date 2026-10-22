@@ -7,6 +7,7 @@ import { PLUGIN_COLLECTIONS_DATA_SOURCE } from '../config/plugin-collections-dat
 import { PLUGIN_RUNTIME_AUTHORIZER } from '../idp/ports/plugin-runtime-authorizer.port';
 import { PluginHostConfigService } from './config/plugin-host.config';
 import { PluginActionExecution } from './entities/plugin-action-execution.entity';
+import { PluginActionSchedule } from './entities/plugin-action-schedule.entity';
 import { PluginAuditEvent } from './entities/plugin-audit-event.entity';
 import { PluginInstallation } from './entities/plugin-installation.entity';
 import { PluginPublicationProject } from './entities/plugin-publication-project.entity';
@@ -17,10 +18,13 @@ import { PluginAdminController } from './controllers/plugin-admin.controller';
 import { PluginGalleryController } from './controllers/plugin-gallery.controller';
 import { PluginHistoryController } from './controllers/plugin-history.controller';
 import { PluginInstallationsController } from './controllers/plugin-installations.controller';
+import { ProjectPluginSchedulesController } from './controllers/project-plugin-schedules.controller';
+import { ProjectPluginRunsController } from './controllers/project-plugin-runs.controller';
 import { PluginReleaseCheckController } from './controllers/plugin-release-check.controller';
 import { PluginPublicationsController } from './controllers/plugin-publications.controller';
 import { PluginCredentialRuntimeController } from './controllers/plugin-credential-runtime.controller';
 import { PluginActionRuntimeController } from './controllers/plugin-action-runtime.controller';
+import { PluginScheduleRuntimeController } from './controllers/plugin-schedule-runtime.controller';
 import { CredentialDefinitionsGithubController } from './controllers/credential-definitions-github.controller';
 import { GithubApiService } from './services/github-api.service';
 import { ExternalCredentialDefinitionSyncService } from './services/external-credential-definition-sync.service';
@@ -30,9 +34,12 @@ import { PluginInstallationLookupFacade } from './facades/plugin-installation-lo
 import { ActionInputValidatorService } from './services/action-input-validator.service';
 import { PluginActionDispatcherService } from './services/plugin-action-dispatcher.service';
 import { PluginActionExecutionService } from './services/plugin-action-execution.service';
+import { PluginActionQueueService } from './services/plugin-action-queue.service';
 import { PluginActionStarterService } from './services/plugin-action-starter.service';
+import { PluginActionScheduleService } from './services/plugin-action-schedule.service';
 import { PluginAuditService } from './services/plugin-audit.service';
 import { PluginInstallationService } from './services/plugin-installation.service';
+import { PluginOwnerMembershipService } from './services/plugin-owner-membership.service';
 import { PluginCredentialBindingReconciliationService } from './services/plugin-credential-binding-reconciliation.service';
 import { PluginPublicationService } from './services/plugin-publication.service';
 import { PluginUpdateScheduleService } from './services/plugin-update-schedule.service';
@@ -49,11 +56,20 @@ import { GetPluginInstallationEntryService } from './use-cases/get-plugin-instal
 import { InstallPluginService } from './use-cases/install-plugin.service';
 import { ListInstallationsService } from './use-cases/list-installations.service';
 import { ListPluginHistoryService } from './use-cases/list-plugin-history.service';
+import { ProjectPluginSchedulesService } from './use-cases/project-plugin-schedules.service';
+import { ProjectPluginRunsService } from './use-cases/project-plugin-runs.service';
 import { UninstallPluginService } from './use-cases/uninstall-plugin.service';
 import { UpdatePluginService } from './use-cases/update-plugin.service';
 import { CheckPluginReleaseService } from './use-cases/check-plugin-release.service';
 import { IssuePluginRuntimeTokenService } from './use-cases/issue-plugin-runtime-token.service';
 import { StartPluginActionExecutionService } from './use-cases/start-plugin-action-execution.service';
+import { CreatePluginScheduleService } from './use-cases/create-plugin-schedule.service';
+import { ListPluginSchedulesService } from './use-cases/list-plugin-schedules.service';
+import { GetPluginScheduleService } from './use-cases/get-plugin-schedule.service';
+import { UpdatePluginScheduleService } from './use-cases/update-plugin-schedule.service';
+import { PausePluginScheduleService } from './use-cases/pause-plugin-schedule.service';
+import { ResumePluginScheduleService } from './use-cases/resume-plugin-schedule.service';
+import { DeletePluginScheduleService } from './use-cases/delete-plugin-schedule.service';
 import { CancelPluginActionExecutionService } from './use-cases/cancel-plugin-action-execution.service';
 import { GetCurrentPluginActionExecutionService } from './use-cases/get-current-plugin-action-execution.service';
 import { GetPluginActionExecutionService } from './use-cases/get-plugin-action-execution.service';
@@ -65,6 +81,7 @@ import { RunPluginUpdateCheckService } from './use-cases/run-plugin-update-check
 import { PluginUpdateCheckProcessor } from './system-triggers/plugin-update-check.processor';
 import { CredentialDefinitionUpdateCheckProcessor } from './system-triggers/credential-definition-update-check.processor';
 import { PluginActionExecutionSweepProcessor } from './system-triggers/plugin-action-execution-sweep.processor';
+import { PluginActionScheduleHandlerService } from './services/plugin-action-schedule-handler.service';
 import { SuspendPluginService } from './use-cases/suspend-plugin.service';
 import { SyncPluginReleasesService } from './use-cases/sync-plugin-releases.service';
 import { UnpublishPluginService } from './use-cases/unpublish-plugin.service';
@@ -100,6 +117,7 @@ import { PutPluginCollectionDocumentService } from './collections/use-cases/put-
       PluginInstallation,
       PluginAuditEvent,
       PluginActionExecution,
+      PluginActionSchedule,
     ]),
     TypeOrmModule.forFeature(
       [PluginCollectionDocument, PluginCollectionUsage, PluginCollectionAuditEvent],
@@ -121,11 +139,14 @@ import { PutPluginCollectionDocumentService } from './collections/use-cases/put-
     CredentialDefinitionsGithubController,
     PluginCredentialRuntimeController,
     PluginActionRuntimeController,
+    PluginScheduleRuntimeController,
     PluginPublicationsController,
     PluginAdminController,
     PluginReleaseCheckController,
     PluginInstallationsController,
     PluginHistoryController,
+    ProjectPluginSchedulesController,
+    ProjectPluginRunsController,
     PluginGalleryController,
   ],
   providers: [
@@ -165,8 +186,18 @@ import { PutPluginCollectionDocumentService } from './collections/use-cases/put-
     PluginActionExecutionService,
     PluginActionDispatcherService,
     ActionInputValidatorService,
+    PluginOwnerMembershipService,
+    PluginActionQueueService,
     PluginActionStarterService,
+    PluginActionScheduleService,
     StartPluginActionExecutionService,
+    CreatePluginScheduleService,
+    ListPluginSchedulesService,
+    GetPluginScheduleService,
+    UpdatePluginScheduleService,
+    PausePluginScheduleService,
+    ResumePluginScheduleService,
+    DeletePluginScheduleService,
     GetPluginActionExecutionService,
     CancelPluginActionExecutionService,
     GetCurrentPluginActionExecutionService,
@@ -176,9 +207,12 @@ import { PutPluginCollectionDocumentService } from './collections/use-cases/put-
     PluginUpdateCheckProcessor,
     CredentialDefinitionUpdateCheckProcessor,
     PluginActionExecutionSweepProcessor,
+    PluginActionScheduleHandlerService,
     InstallPluginService,
     UninstallPluginService,
     ListInstallationsService,
+    ProjectPluginSchedulesService,
+    ProjectPluginRunsService,
     ListPluginHistoryService,
     GetPluginInstallationEntryService,
     UpdatePluginService,

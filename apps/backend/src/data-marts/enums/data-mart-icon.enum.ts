@@ -4,6 +4,7 @@
  * each key to a drawn icon. Beyond this set a Data Mart can carry any icon of
  * the web's icon library as `lucide:<icon-name>` (see `DataMartIconValue`).
  * `null` on the Data Mart means "no choice" and renders the default icon.
+ * Contexts take the same icon values (`context.icon`).
  */
 export enum DataMartIcon {
   PURCHASES = 'purchases',
@@ -90,7 +91,7 @@ export type LucideIconValue = `${typeof LUCIDE_ICON_PREFIX}${string}`;
 /** What a Data Mart's `icon` holds: a recommended key or a library icon. */
 export type DataMartIconValue = DataMartIcon | LucideIconValue;
 
-/** Longest icon value the `data_mart.icon` column stores. */
+/** Longest icon value the `data_mart.icon` and `context.icon` columns store. */
 export const DATA_MART_ICON_MAX_LENGTH = 64;
 
 /**

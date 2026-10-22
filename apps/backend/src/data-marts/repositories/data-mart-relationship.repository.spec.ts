@@ -69,6 +69,58 @@ describe('DataMartRelationshipRepository', () => {
     expect(repository.createQueryBuilder).not.toHaveBeenCalled();
   });
 
+  it('loads both ends of relationships that start or end at the given Data Marts', async () => {
+    const outgoing = [
+      { id: 'rel-1', sourceDataMartId: 'dm-1', targetDataMartId: 'dm-2' },
+      { id: 'rel-2', sourceDataMartId: 'dm-1', targetDataMartId: 'dm-3' },
+    ];
+    const incoming = [
+      { id: 'rel-2', sourceDataMartId: 'dm-1', targetDataMartId: 'dm-3' },
+      { id: 'rel-3', sourceDataMartId: 'dm-4', targetDataMartId: 'dm-1' },
+    ];
+    const qb = createQueryBuilder();
+    qb.getRawMany.mockResolvedValueOnce(outgoing).mockResolvedValueOnce(incoming);
+    const repository = {
+      createQueryBuilder: jest.fn().mockReturnValue(qb),
+    } as unknown as jest.Mocked<Repository<DataMartRelationship>>;
+    const graphRepository = new DataMartRelationshipRepository(repository);
+
+    const result = await graphRepository.listEndpointRowsByProjectIdAndDataMartIds('project-1', [
+      'dm-1',
+      'dm-3',
+    ]);
+
+    expect(repository.createQueryBuilder).toHaveBeenCalledTimes(2);
+    expect(qb.select).toHaveBeenCalledWith('relationship.id', 'id');
+    expect(qb.addSelect).toHaveBeenCalledWith('source.id', 'sourceDataMartId');
+    expect(qb.addSelect).toHaveBeenCalledWith('target.id', 'targetDataMartId');
+    expect(qb.where).toHaveBeenCalledWith('relationship.projectId = :projectId', {
+      projectId: 'project-1',
+    });
+    expect(qb.andWhere).toHaveBeenCalledWith('source.deletedAt IS NULL');
+    expect(qb.andWhere).toHaveBeenCalledWith('target.deletedAt IS NULL');
+    expect(qb.andWhere).toHaveBeenCalledWith('relationship.sourceDataMart IN (:...dataMartIds)', {
+      dataMartIds: ['dm-1', 'dm-3'],
+    });
+    expect(qb.andWhere).toHaveBeenCalledWith('relationship.targetDataMart IN (:...dataMartIds)', {
+      dataMartIds: ['dm-1', 'dm-3'],
+    });
+    // rel-2 joins two of the given Data Marts, so both queries return it; it is kept once.
+    expect(result).toEqual([outgoing[0], outgoing[1], incoming[1]]);
+  });
+
+  it('does not query endpoints for an empty Data Mart list', async () => {
+    const repository = {
+      createQueryBuilder: jest.fn(),
+    } as unknown as jest.Mocked<Repository<DataMartRelationship>>;
+    const graphRepository = new DataMartRelationshipRepository(repository);
+
+    await expect(
+      graphRepository.listEndpointRowsByProjectIdAndDataMartIds('project-1', [])
+    ).resolves.toEqual([]);
+    expect(repository.createQueryBuilder).not.toHaveBeenCalled();
+  });
+
   it('scopes storage graph rows by project and storage', async () => {
     const qb = createQueryBuilder();
     const repository = {

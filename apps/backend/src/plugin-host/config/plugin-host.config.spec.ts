@@ -146,6 +146,65 @@ describe('PluginHostConfigService', () => {
     });
   });
 
+  describe('schedule limits', () => {
+    const limits = (service: PluginHostConfigService) => ({
+      schedules: service.maxSchedulesPerInstallation,
+      parametersBytes: service.maxScheduleParametersBytes,
+      retrySeconds: service.scheduleRetrySeconds,
+      stuckSeconds: service.scheduleStuckSeconds,
+      sweepInstallations: service.queueSweepInstallations,
+    });
+    const DEFAULTS = {
+      schedules: 20,
+      parametersBytes: 64 * 1024,
+      retrySeconds: 60,
+      stuckSeconds: 600,
+      sweepInstallations: 500,
+    };
+    const TUNED_ENV = {
+      PLUGIN_HOST_MAX_SCHEDULES_PER_INSTALLATION: '50',
+      PLUGIN_HOST_MAX_SCHEDULE_PARAMETERS_KIB: '128',
+      PLUGIN_HOST_SCHEDULE_RETRY_SEC: '30',
+      PLUGIN_HOST_SCHEDULE_STUCK_SEC: '1200',
+      PLUGIN_HOST_QUEUE_SWEEP_INSTALLATIONS: '100',
+    };
+    const TUNED = {
+      schedules: 50,
+      parametersBytes: 128 * 1024,
+      retrySeconds: 30,
+      stuckSeconds: 1200,
+      sweepInstallations: 100,
+    };
+
+    it('falls back to defaults when the env vars are absent or blank', () => {
+      expect(limits(config({}))).toEqual(DEFAULTS);
+      expect(limits(config(validateConfig({})))).toEqual(DEFAULTS);
+      expect(
+        limits(
+          config(validateConfig(Object.fromEntries(Object.keys(TUNED_ENV).map(key => [key, ' ']))))
+        )
+      ).toEqual(DEFAULTS);
+    });
+
+    it('reads values from the environment, before and after boot-time coercion', () => {
+      expect(limits(config(TUNED_ENV))).toEqual(TUNED);
+      expect(limits(config(validateConfig(TUNED_ENV)))).toEqual(TUNED);
+    });
+
+    it.each([
+      ['PLUGIN_HOST_MAX_SCHEDULES_PER_INSTALLATION', ['0', '1001', '2.5']],
+      // Over the 256 KiB an action's input may take.
+      ['PLUGIN_HOST_MAX_SCHEDULE_PARAMETERS_KIB', ['0', '257']],
+      ['PLUGIN_HOST_SCHEDULE_RETRY_SEC', ['0', '86401']],
+      ['PLUGIN_HOST_SCHEDULE_STUCK_SEC', ['599', '86401']],
+      ['PLUGIN_HOST_QUEUE_SWEEP_INSTALLATIONS', ['0', '10001', 'many']],
+    ])('refuses to boot with %s out of range', (key, values) => {
+      for (const value of values) {
+        expect(() => validateConfig({ [key]: value })).toThrow(/Configuration validation failed/);
+      }
+    });
+  });
+
   /**
    * One origin for the deployment, not a plugin-specific copy of it. The page that embeds
    * a plugin is served from PUBLIC_ORIGIN, so validating `frame-ancestors` against

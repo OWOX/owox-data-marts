@@ -36,30 +36,34 @@
 
   <!-- markdownlint-disable-file MD041 MD036 -->
 
-- b23b1c5: **Backfill any past period**
+- b23b1c5: **Reload a year of history in one backfill, not twelve**
 
-  A manual backfill is no longer limited to 31 days. Pick any past start and end date, and OWOX runs the period as a chain of runs, one segment of up to 31 days each. Previously a longer period was rejected, and you had to start a separate backfill for every month.
-  - Each segment appears as its own run in **Run History**, named with its period and position, such as "segment 3 of 18".
-  - The **Manual Run** form shows how many days the period covers and how many runs it counts as. A period over 31 days asks you to confirm how many runs it costs before it starts. A period over a year also notes that it can take hours.
-  - A segment counts as one run once any of its accounts loads data. A segment that loads nothing, or is cancelled or interrupted, does not count.
-  - The start date cannot be earlier than 2000-01-01. This guard catches typos such as a wrong year.
-  - A failed segment never stops the rest of the backfill, so OWOX attempts the whole period. The failed run names the last day it loaded.
-  - If the project becomes restricted, the backfill stops. The last run names the segments that did not load, and OWOX does not resume them when the restriction lifts.
+  An analyst who adds an ad account, or fixes a field that started collecting late, needs the Data Mart's whole history back — and used to get it a month at a time: a manual backfill rejected any period longer than 31 days, so a year meant starting twelve backfills by hand and waiting for each one to finish before queueing the next. Now you pick any past start and end date in **Manual Run**, and OWOX runs the period as a chain of runs, one segment of up to 31 days each.
+
+  The video picks a 90-day period, confirms the three runs it costs, and follows the segments through Run History:
+
+  <https://customer-4geatlj66rtkaxtz.cloudflarestream.com/e5a4f2bcc838c4fdf7c961519ccca126/iframe>
+
+  **Each segment counts as one run.** Before the backfill starts, the form shows how many days the period covers and how many runs that is, and asks you to confirm from two segments up; a period over a year also notes that it can take hours. A segment is counted only once one of its accounts loads data — a segment that loads nothing, or is cancelled or interrupted, is not.
+  - Every segment is its own run in **Run History**, the log of every run of a Data Mart, showing its period and position, such as "segment 3 of 18".
+  - A failed segment never stops the rest of the backfill: OWOX attempts the whole period, and the failed run names the last day it loaded.
   - Cancelling the active run stops the whole backfill. Finished segments stay loaded and keep their history.
-  - If a restart or deploy delays a segment, OWOX queues it again automatically within 15 minutes.
-  - OWOX does not start other runs of the same Data Mart, including scheduled runs, until the backfill finishes.
+  - While a backfill is running, OWOX starts no other run of the same Data Mart, including its scheduled runs.
+  - If the project becomes restricted, the backfill stops; the last run names the segments that did not load, and OWOX does not resume them when the restriction lifts.
+  - The start date cannot be earlier than 2000-01-01, which catches a typo such as a wrong year.
 
   See [Backfill a custom period](../../docs/getting-started/setup-guide/connector-data-mart.md#backfill-a-custom-period).
 
   <!-- markdownlint-disable-file MD041 MD036 -->
 
-- 0cd64e4: **Facebook Ads imports now retry a corrupted response instead of failing**
+- 0cd64e4: **Long Facebook Ads imports no longer fail on a corrupted response**
 
-  A long Facebook Ads import could fail near the end with a message like `Unexpected non-whitespace character after JSON at position 88743`. Facebook had answered one request with a damaged response body, and the connector gave up on it immediately, even though **Max Fetch Retries** was set.
+  A Facebook Ads import of a large account could fail near its end with `SyntaxError: Unexpected non-whitespace character after JSON at position 88743`, after it had already loaded thousands of rows. Facebook had answered one page request with a damaged body, and the connector gave up on that page immediately: **Max Fetch Retries** never applied to this error, so the only way forward was to start the import again by hand and hope the same page came back clean.
 
-  Those damaged responses now count as retriable. The connector re-requests the page, waits between attempts as it does for any network problem, and finishes the import. A page only fails the run after every attempt in your retry budget returns a damaged body, and the error then names the endpoint that sent it.
-  - Nothing to change in your connector setup. **Max Fetch Retries** and **Initial Retry Delay (ms)** already cover this case.
-  - Re-run any import that failed with a JSON parsing error.
+  A damaged body now counts as a retriable failure, like a dropped connection. The connector re-requests the page, waits between attempts exactly as your retry settings say, and the import finishes. A page fails the run only when every attempt in the budget comes back damaged, and the error then names the endpoint that sent it and how large the body was.
+  - Nothing to change in your connector setup: **Max Fetch Retries** and **Initial Retry Delay (ms)** already cover this case.
+  - Re-run any Facebook Ads import that failed with a JSON parsing error.
+  - This covers the paginated data requests of the Facebook Marketing source; other sources are unchanged.
 
   <!-- markdownlint-disable-file MD041 MD036 -->
 

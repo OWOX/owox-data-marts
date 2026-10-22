@@ -3,7 +3,7 @@ import { EventEmitter } from 'node:events';
 import { Worker } from 'node:worker_threads';
 import { PLUGIN_ACTION_LIMITS } from '../constants/plugin-action-limits';
 import { TooManyExecutionsError } from '../errors/plugin-action.errors';
-import { ActionInputValidatorService } from './action-input-validator.service';
+import { ActionInputValidatorService, isOverBudget } from './action-input-validator.service';
 
 // The same object the service reads `Worker` from, so a test can stand in a worker that never starts.
 const workerThreads =
@@ -78,6 +78,17 @@ describe('ActionInputValidatorService', () => {
     await new Promise(resolve => setTimeout(resolve, 100));
 
     expect(terminate).not.toHaveBeenCalled();
+  });
+
+  it('tells its over-budget answer from the errors of a schema', async () => {
+    const overBudget = await validator.validate('version-1', 'run', { $async: true }, 1);
+    const invalid = await validator.validate('version-2', 'run', NUMBER, 'one');
+
+    expect(invalid).toEqual(MUST_BE_NUMBER);
+    expect(isOverBudget(overBudget)).toBe(true);
+    expect(isOverBudget(invalid)).toBe(false);
+    // A schema cannot answer it: only the answer itself counts, not an equal list.
+    expect(isOverBudget(OVER_BUDGET)).toBe(false);
   });
 
   it('answers an async schema only once its work has settled, so the next validation is not refused', async () => {

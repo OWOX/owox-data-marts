@@ -279,7 +279,7 @@ describe('DataMartService list filtering', () => {
     );
   });
 
-  it('selects dataLastUpdated so the list column has a value to render', async () => {
+  it('selects dataLastUpdated and the icons so the list columns have values to render', async () => {
     const countQueryBuilder = {
       take: jest.fn(),
       skip: jest.fn(),
@@ -328,7 +328,7 @@ describe('DataMartService list filtering', () => {
     // The projection is explicit, so an unlisted column loads as undefined and the whole list
     // column silently renders "Unknown" however many snapshots are persisted.
     expect(queryBuilder.select).toHaveBeenCalledWith(
-      expect.arrayContaining(['dm.dataLastUpdated', 'dm.icon'])
+      expect.arrayContaining(['dm.dataLastUpdated', 'dm.icon', 'dmContext.icon'])
     );
   });
 });
@@ -450,6 +450,29 @@ describe('DataMartService canvas visibility queries', () => {
     });
 
     expect(new Set(ids)).toEqual(new Set(['owned', 'shared-context']));
+  });
+
+  it('keeps only the given Data Marts the caller can see, across storages', async () => {
+    const viewer = await service.findVisibleIdsByProjectIdAndIds(
+      'project-1',
+      ['owned', 'shared-context', 'maintenance-context', 'shared-other-context', 'owned'],
+      { userId: 'viewer-1', roles: ['viewer'], roleScope: RoleScope.SELECTED_CONTEXTS }
+    );
+    const admin = await service.findVisibleIdsByProjectIdAndIds(
+      'project-1',
+      ['shared-other-context', 'other-storage', 'deleted', 'other-project', 'missing'],
+      { userId: 'admin-1', roles: ['admin'], roleScope: RoleScope.ENTIRE_PROJECT }
+    );
+
+    expect(new Set(viewer)).toEqual(new Set(['owned', 'shared-context']));
+    expect(new Set(admin)).toEqual(new Set(['shared-other-context', 'other-storage']));
+    await expect(
+      service.findVisibleIdsByProjectIdAndIds('project-1', [], {
+        userId: 'viewer-1',
+        roles: ['viewer'],
+        roleScope: RoleScope.SELECTED_CONTEXTS,
+      })
+    ).resolves.toEqual([]);
   });
 });
 

@@ -21,6 +21,8 @@ import {
 import type { AuthorizationContext } from '../../index';
 import { IdpProviderService } from '../../services/idp-provider.service';
 import { OAuthClientRegistry } from '../oauth-client.registry';
+import { OAuthConfigService } from '../oauth-config.service';
+import { OAuthProjectAccessRequiredError } from '../oauth-project-access-required.error';
 import { getMcpClientIntegration } from '../mcp-client-integration';
 import { OAuthIdpPort, OAUTH_IDP_PORT } from '../oauth-idp.port';
 import { OAuthProjectSelectionService } from '../oauth-project-selection.service';
@@ -48,7 +50,8 @@ export class OAuthAuthorizationController {
     private readonly idpProviderService: IdpProviderService,
     @Inject(OAUTH_IDP_PORT) private readonly oauthIdp: OAuthIdpPort,
     private readonly clientRegistry: OAuthClientRegistry,
-    private readonly projectSelectionService: OAuthProjectSelectionService
+    private readonly projectSelectionService: OAuthProjectSelectionService,
+    private readonly oauthConfig: OAuthConfigService
   ) {}
 
   @Get('/authorize')
@@ -74,6 +77,19 @@ export class OAuthAuthorizationController {
     } catch (error) {
       if (response.headersSent) {
         throw error;
+      }
+      if (error instanceof OAuthProjectAccessRequiredError) {
+        const url = new URL(
+          `/ui/${encodeURIComponent(error.projectId)}/request-access`,
+          this.oauthConfig.issuer
+        );
+        // Finish this attempt in the app. Do not retain OAuth parameters for a later retry.
+        url.searchParams.set(
+          'mcp-integration',
+          getMcpClientIntegration(validated.request.redirectUri)
+        );
+        response.redirect(url.toString());
+        return;
       }
       this.redirectAuthorizationError(this.toAuthorizationErrorContext(validated), response, error);
     }
@@ -110,7 +126,7 @@ export class OAuthAuthorizationController {
     );
 
     const projects = this.projectSelectionService.filterSelectableProjects(
-      await this.loadProjectsOrEmpty(provider, authorization.accessToken)
+      await this.projectSelectionService.loadProjects(provider, authorization.accessToken)
     );
     const selectedProjectId = this.getSelectedProjectId(query);
     const projectMember =
@@ -254,12 +270,16 @@ export class OAuthAuthorizationController {
       return null;
     }
 
-    return selectedProjectId
+    // A restricted session can have gained access to one other project since sign-in.
+    const effectiveProjectId =
+      selectedProjectId ||
+      (!context.roles?.length && projects.length === 1 ? projects[0].id : undefined);
+    return effectiveProjectId
       ? this.projectSelectionService.resolveSelectedProjectMember(
           provider,
           context,
           projects,
-          selectedProjectId
+          effectiveProjectId
         )
       : this.projectMemberResolver.resolve(context);
   }
@@ -299,17 +319,6 @@ export class OAuthAuthorizationController {
     } catch {
       this.redirectToSignIn(request, response, integration);
       return null;
-    }
-  }
-
-  private async loadProjectsOrEmpty(
-    provider: ReturnType<IdpProviderService['getProvider']>,
-    accessToken: string
-  ) {
-    try {
-      return await this.projectSelectionService.loadProjects(provider, accessToken);
-    } catch {
-      return [];
     }
   }
 

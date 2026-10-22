@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Button } from '@owox/ui/components/button';
 import type { InlineEditDescriptionProps } from '../InlineEditDescription/InlineEditDescription';
 import { DescriptionEditor } from './DescriptionEditor';
@@ -17,6 +17,12 @@ export function InlineMarkdownDescription({
   const [value, setValue] = useState(description ?? '');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const editButtonRef = useRef<HTMLButtonElement>(null);
+  const wasEditing = useRef(false);
+  useEffect(() => {
+    if (!editing && wasEditing.current) editButtonRef.current?.focus();
+    wasEditing.current = editing;
+  }, [editing]);
   const scope = currentDataMartId ? 'data_mart' : 'project';
   useEffect(() => {
     setValue(description ?? '');
@@ -63,27 +69,36 @@ export function InlineMarkdownDescription({
             startEditing
             scope={scope}
             saveError={error}
+            returnFocusRef={editButtonRef}
             onSave={() => {
               void save();
             }}
             onCancel={cancel}
+            footer={
+              <div className='flex items-center gap-2'>
+                <Button
+                  type='button'
+                  size='sm'
+                  onClick={() => {
+                    void save();
+                  }}
+                  disabled={saving}
+                >
+                  Save
+                </Button>
+                <Button
+                  type='button'
+                  variant='outline'
+                  size='sm'
+                  onClick={cancel}
+                  disabled={saving}
+                >
+                  Cancel
+                </Button>
+                {ai}
+              </div>
+            }
           />
-          <div className='flex items-center gap-2'>
-            <Button
-              type='button'
-              size='sm'
-              onClick={() => {
-                void save();
-              }}
-              disabled={saving}
-            >
-              Save
-            </Button>
-            <Button type='button' variant='outline' size='sm' onClick={cancel} disabled={saving}>
-              Cancel
-            </Button>
-            {ai}
-          </div>
         </>
       ) : (
         <DescriptionView
@@ -91,6 +106,7 @@ export function InlineMarkdownDescription({
           value={description ?? ''}
           placeholder={placeholder}
           scope={scope}
+          editButtonProps={{ ref: editButtonRef }}
           onEdit={
             readOnly
               ? undefined

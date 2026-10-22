@@ -1,0 +1,193 @@
+name: 🐞 Bug report
+description: Something in OWOX Data Marts is not working as expected
+title: '[Bug]: '
+type: Bug
+labels: ['bug']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug.
+
+        ⚠️ **This issue will be public.** Before you submit, remove API keys, access tokens,
+        service account keys, refresh tokens, and passwords from anything you paste or attach.
+
+        Found a **security vulnerability**? Do not report it here. Use the
+        [OWOX vulnerability disclosure program](https://hackerone.com/owox) instead.
+
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: Preliminary checks
+      options:
+        - label: I searched [existing
+            issues](https://github.com/OWOX/owox-data-marts/issues?q=is%3Aissue) and this has not
+            been reported yet.
+          required: true
+
+  # Mirrored in feature_request.yml; only the first option intentionally differs there.
+  - type: dropdown
+    id: area
+    attributes:
+      label: Product area
+      description: Which part of OWOX Data Marts does this affect?
+      options:
+        - Sources / Connectors
+        - Connector Builder / Custom Connectors
+        - Data Marts
+        - Storages
+        - Destinations
+        - Reports
+        - Insights / AI Insights
+        - Triggers / Scheduling
+        - MCP Server
+        - Plugins
+        - API / API Keys / owox-ctl
+        - Members, Roles & Permissions / Authentication
+        - Project Settings / Notifications / Licenses & Billing
+        - UI / UX
+        - Installation / Deployment / CLI
+        - Documentation
+        - Other / Not sure
+    validations:
+      required: true
+
+  # The options below are duplicated in feature_request.yml — update both files together.
+  # COMING_SOON entries (Azure Synapse, OData) are intentionally omitted.
+  # Sources:      packages/connectors/src/Sources/*/manifest.json (title)
+  # Storages:     packages/connectors/src/Storages/*/manifest.json, plus
+  #               apps/web/src/features/data-storage/shared/types/data-storage-type.model.ts
+  # Destinations: apps/backend/src/data-marts/data-destination-types/enums/data-destination-type.enum.ts
+  - type: dropdown
+    id: integration
+    attributes:
+      label: Connector, storage, or destination involved
+      description: Select every one involved. Leave empty if this is not specific to an integration.
+      multiple: true
+      options:
+        - 'Source: Bank of Canada'
+        - 'Source: Criteo Ads'
+        - 'Source: Facebook Ads'
+        - 'Source: GitHub'
+        - 'Source: Google Ads'
+        - 'Source: Google Sheets'
+        - 'Source: LinkedIn Ads'
+        - 'Source: LinkedIn Pages'
+        - 'Source: Microsoft Ads'
+        - 'Source: Open Exchange Rates'
+        - 'Source: Open Holidays'
+        - 'Source: Reddit Ads'
+        - 'Source: Shopify'
+        - 'Source: TikTok Ads'
+        - 'Source: X Ads'
+        - 'Source: custom connector (Connector Builder)'
+        - 'Storage: Google BigQuery'
+        - 'Storage: Google BigQuery (used in OWOX extension)'
+        - 'Storage: AWS Athena'
+        - 'Storage: AWS Redshift'
+        - 'Storage: Snowflake'
+        - 'Storage: Databricks'
+        - 'Destination: Google Sheets'
+        - 'Destination: Microsoft Excel'
+        - 'Destination: Data Studio'
+        - 'Destination: Email'
+        - 'Destination: Slack'
+        - 'Destination: Microsoft Teams'
+        - 'Destination: Google Chat'
+        - Other / not listed
+    validations:
+      required: false
+
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: Describe what went wrong and what you expected to happen instead.
+      placeholder: |
+        Actual: the connector run stays in "Running" and never finishes.
+        Expected: the run completes and new rows appear in the storage.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Numbered steps a maintainer can follow from a clean setup.
+      placeholder: |
+        1.
+        2.
+        3.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: deployment
+    attributes:
+      label: How do you run OWOX Data Marts?
+      options:
+        - OWOX Cloud (app.owox.com)
+        - Self-managed — npm (owox serve)
+        - Self-managed — Docker image
+        - Self-managed — Google Cloud Run
+        - Self-managed — Render
+        - Self-managed — DigitalOcean
+        - Self-managed — other
+        - OWOX Reports (Google Sheets extension)
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description:
+        Run `owox --version`, or copy the version from the startup log line "Starting OWOX Data
+        Marts (vX.Y.Z)". Prefer the version number over a Docker tag like "latest". Write
+        "OWOX Cloud" for app.owox.com, or "Extension" for OWOX Reports.
+      placeholder: 0.38.0
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Error message or log output
+      description: Paste the error text or run log. Redact anything sensitive.
+      render: shell
+    validations:
+      required: false
+
+  - type: upload
+    id: attachments
+    attributes:
+      label: Screenshots or files
+      description:
+        Optional. Screenshots or an exported log. Open each file and check it for credentials
+        first — an upload stays public even if you later delete the comment. To share a connector
+        manifest, paste it into the field above instead, with secrets removed.
+    validations:
+      required: false
+      accept: '.png,.jpg,.jpeg,.gif,.webp,.log,.txt'
+
+  - type: checkboxes
+    id: redaction
+    attributes:
+      label: Before you submit
+      options:
+        - label: I removed all credentials, tokens, and API keys from the details and files above.
+          required: true
+
+  - type: dropdown
+    id: contribution
+    attributes:
+      label: Are you willing to submit a pull request to address this issue?
+      description:
+        Informational only. A bug report is welcome either way, and GitHub cannot hold you to this
+        answer.
+      options:
+        - Yes — I plan to work on this and open a pull request
+        - Maybe — I could try with guidance from a maintainer
+        - No — I am reporting this for the maintainers to fix
+    validations:
+      required: true

@@ -2,6 +2,7 @@ import { applyDecorators } from '@nestjs/common';
 import { ApiBody, ApiOkResponse, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import {
   CreateNewProjectResponseApiDto,
+  CreateNewProjectApiDto,
   RequestAccessContextApiDto,
   RequestProjectAccessApiDto,
   RequestProjectAccessResponseApiDto,
@@ -40,7 +41,9 @@ export function CreateNewProjectSpec() {
       description:
         'Creates a separate project for the authenticated user and returns the new project id/title.',
     }),
+    ApiBody({ type: CreateNewProjectApiDto, required: false }),
     ApiResponse({ status: 201, type: CreateNewProjectResponseApiDto }),
+    ApiResponse({ status: 400, description: 'Invalid project creation integration' }),
     ApiResponse({ status: 502, description: 'Upstream IDP failure' })
   );
 }

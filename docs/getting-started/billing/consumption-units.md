@@ -77,7 +77,7 @@ For better transparency and flexibility, Process Runs are broken down into follo
   - **A:** Yes! Reports will continue to be updated on schedule, and manual runs will work as usual — even if you exceed the limit. No interruptions.
 
 - **Q:** How are monthly limits calculated if I pay for a year upfront?
-  - **A:** Example: if you need up to 2,000 data refreshes per month, select _2000 Report Runs monthly_ on the payment page. This equals **100 credits per month** (1200 credits per year). Once your card is charged, you’ll get **100 credits every month** to run 2000 Report Runs. Simple and consistent.
+  - **A:** Each Report Run costs **0.1 credit**. Annual billing doesn't change the monthly limit: once your card is charged, you get your plan's credits **every month**. Example: with **150 credits per month** (1,800 credits per year), you can run up to **1,500 Report Runs** every month. See the plans on our [Pricing page](https://www.owox.com/pricing#credits).
 
 - **Q:** What happens if I exceed the set limit?
-  - **A:** Excess usage is billed on a Pay As You Go basis according to the rates on our [Pricing page](https://www.owox.com/pricing-details/). For example: if you receive 100 credits (2000 Report Runs) per month but use 3000 Report Runs (150 credits), then the extra 50 credits will be charged to your card the following month. If this happens regularly, consider adjusting your plan — our Support Team will help you choose the best option.
+  - **A:** Excess usage is billed on a Pay As You Go basis according to the rates on our [Pricing page](https://www.owox.com/pricing#credits). For example: if you receive 150 credits (1,500 Report Runs) per month but use 2,000 Report Runs (200 credits), then the extra 50 credits will be charged to your card the following month. If this happens regularly, consider adjusting your plan — our Support Team will help you choose the best option.

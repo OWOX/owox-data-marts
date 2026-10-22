@@ -19,10 +19,11 @@ describe('MCP transport (e2e)', () => {
   const originalMcpPublicBaseUrl = process.env.MCP_PUBLIC_BASE_URL;
   const originalOwoxAuthPublicBaseUrl = process.env.OWOX_AUTH_PUBLIC_BASE_URL;
   const TEST_TOKEN = 'e2e-mcp-token';
+  let hasProjectAccess = true;
 
   const fakeAuthPort: McpAuthPort = {
     verifyToken: async (token, resource, requiredScopes) => {
-      if (token !== TEST_TOKEN) return null;
+      if (token !== TEST_TOKEN || !hasProjectAccess) return null;
       return {
         clientId: 'e2e-client',
         userId: 'user-1',
@@ -136,5 +137,44 @@ describe('MCP transport (e2e)', () => {
     });
 
     await expect(client.connect(transport)).rejects.toThrow();
+  });
+
+  it('returns an actionable 401 on the next request when a connected user loses project access', async () => {
+    const client = await connectClient();
+    try {
+      await expect(client.listTools()).resolves.toEqual(
+        expect.objectContaining({ tools: expect.any(Array) })
+      );
+      hasProjectAccess = false;
+
+      const response = await fetch(baseUrl, {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${TEST_TOKEN}`,
+          accept: 'application/json, text/event-stream',
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({ jsonrpc: '2.0', id: 2, method: 'tools/list' }),
+      });
+
+      expect(response.status).toBe(401);
+      const body = await response.json();
+      expect(body).toEqual({
+        statusCode: 401,
+        error: 'Unauthorized',
+        message: expect.stringMatching(/check your project access.*administrator.*reconnect/),
+      });
+      expect(response.headers.get('www-authenticate')).toContain('error="invalid_token"');
+      expect(response.headers.get('www-authenticate')).toContain(
+        `error_description="${body.message}"`
+      );
+      expect(response.headers.get('www-authenticate')).toContain(
+        `resource_metadata="${baseUrl.origin}/.well-known/oauth-protected-resource"`
+      );
+      await expect(client.listTools()).rejects.toThrow();
+    } finally {
+      hasProjectAccess = true;
+      await client.close();
+    }
   });
 });

@@ -73,6 +73,25 @@ const configSchema = z
       .min(1_000)
       .max(60_000)
       .default(8_000),
+    // Plugin schedules; unset keeps the defaults in PluginHostConfigService.
+    PLUGIN_HOST_MAX_SCHEDULES_PER_INSTALLATION: blankAsUnset(
+      z.coerce.number().int().min(1).max(1000).optional()
+    ),
+    // Parameters become the action's input, which takes at most 256 KiB.
+    PLUGIN_HOST_MAX_SCHEDULE_PARAMETERS_KIB: blankAsUnset(
+      z.coerce.number().int().min(1).max(256).optional()
+    ),
+    PLUGIN_HOST_SCHEDULE_RETRY_SEC: blankAsUnset(
+      z.coerce.number().int().min(1).max(86_400).optional()
+    ),
+    // A replica starts up to 100 claimed schedules one at a time, each up to a few seconds;
+    // a batch that outlived this would have the rest taken back while it still starts them.
+    PLUGIN_HOST_SCHEDULE_STUCK_SEC: blankAsUnset(
+      z.coerce.number().int().min(600).max(86_400).optional()
+    ),
+    PLUGIN_HOST_QUEUE_SWEEP_INSTALLATIONS: blankAsUnset(
+      z.coerce.number().int().min(1).max(10_000).optional()
+    ),
   })
   .passthrough(); // Pass through all other fields as-is
 

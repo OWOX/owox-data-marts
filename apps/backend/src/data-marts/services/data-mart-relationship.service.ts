@@ -14,7 +14,10 @@ import { DataMartRelationship } from '../entities/data-mart-relationship.entity'
 import { JoinCondition } from '../dto/schemas/join-condition.schema';
 import { RelationshipMapper } from '../mappers/relationship.mapper';
 import { DataMartRelationshipGraphEdgeDto } from '../dto/domain/data-mart-relationship-graph-edge.dto';
-import { DataMartRelationshipRepository } from '../repositories/data-mart-relationship.repository';
+import {
+  DataMartRelationshipEndpointRow,
+  DataMartRelationshipRepository,
+} from '../repositories/data-mart-relationship.repository';
 
 @Injectable()
 export class DataMartRelationshipService {
@@ -65,6 +68,16 @@ export class DataMartRelationshipService {
     );
 
     return rows.map(row => this.mapper.toGraphEdgeDto(row));
+  }
+
+  async findEndpointsByDataMartIds(
+    projectId: string,
+    dataMartIds: string[]
+  ): Promise<DataMartRelationshipEndpointRow[]> {
+    return this.relationshipRepository.listEndpointRowsByProjectIdAndDataMartIds(
+      projectId,
+      dataMartIds
+    );
   }
 
   async findGraphEdgesByStorageId(

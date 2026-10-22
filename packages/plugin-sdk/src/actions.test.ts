@@ -10,7 +10,7 @@ import {
   OWOX_ERROR_CODES,
   RESERVED_ERROR_CODE_PREFIX,
 } from './action-codes.js';
-import { FINAL_STATUSES, createPluginActions } from './actions.js';
+import { FINAL_STATUSES, createPluginActions, toRefusal } from './actions.js';
 import { PluginTransportError } from './iframe-transport.js';
 import type { PluginErrorPayload, PluginResponse } from './protocol.js';
 
@@ -24,6 +24,7 @@ function execution(overrides: Record<string, unknown> = {}) {
     action: 'update-document',
     status: 'RUNNING',
     trigger: 'frontend',
+    scheduleId: null,
     startedAt: '2026-10-14T10:00:00.000Z',
     deadlineAt: '2026-10-14T10:01:00.000Z',
     finishedAt: null,
@@ -304,6 +305,18 @@ describe('ctx.actions', () => {
     ]);
   });
 
+  it.each(['get', 'cancel'] as const)(
+    'reads the scheduleId an older OWOX leaves out as null in %s',
+    async method => {
+      const { scheduleId: _omitted, ...older } = execution();
+      const { actions } = setup(ok(older));
+
+      const answer = await actions[method]('e1');
+
+      expect(answer).toMatchObject({ scheduleId: null });
+    }
+  );
+
   it('encodes an id into a single path segment', async () => {
     const { send, actions } = setup(ok(execution({ id: 'a/b' })));
 
@@ -331,5 +344,46 @@ describe('the shared action contract', () => {
 
   it('treats the same statuses as final', () => {
     expect([...FINAL_STATUSES].sort()).toEqual([...pluginActionFinalStatuses].sort());
+  });
+});
+
+describe('toRefusal', () => {
+  it('maps an API refusal to a PluginActionError with its failed fields', () => {
+    const error = toRefusal(
+      {
+        code: 'HTTP_ERROR',
+        status: 400,
+        message: 'Bad input',
+        apiCode: 'INVALID_INPUT',
+        details: { errors: [{ instancePath: '/a', message: 'must be string' }] },
+      },
+      'ANY_TOO_LARGE'
+    );
+
+    expect(error).toMatchObject({
+      name: 'PluginActionError',
+      code: 'INVALID_INPUT',
+      message: 'Bad input',
+      executionId: undefined,
+      errors: [{ instancePath: '/a', message: 'must be string' }],
+    });
+  });
+
+  it('names a 413 without an API code with the code it is given', () => {
+    const error = toRefusal(
+      { code: 'HTTP_ERROR', status: 413, message: 'Request failed with 413' },
+      'ANY_TOO_LARGE'
+    );
+
+    expect(error).toMatchObject({ name: 'PluginActionError', code: 'ANY_TOO_LARGE' });
+  });
+
+  it('keeps anything else as the transport error it was', () => {
+    const payload: PluginErrorPayload = { code: 'NETWORK_ERROR', message: 'offline' };
+
+    const error = toRefusal(payload, 'ANY_TOO_LARGE');
+
+    expect(error).toBeInstanceOf(PluginTransportError);
+    expect((error as PluginTransportError).payload).toBe(payload);
   });
 });

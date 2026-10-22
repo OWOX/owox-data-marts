@@ -1,5 +1,5 @@
 import { useMemo, useState, type UIEvent } from 'react';
-import { RotateCcw, Search } from 'lucide-react';
+import { RotateCcw, Search, type LucideIcon } from 'lucide-react';
 import { cn } from '@owox/ui/lib/utils';
 import { Button } from '@owox/ui/components/button';
 import { Input } from '@owox/ui/components/input';
@@ -24,13 +24,34 @@ interface DataMartIconPickerProps {
   icon: DataMartIconValue | null;
   onChange: (icon: DataMartIconValue | null) => Promise<void>;
   className?: string;
+  disabled?: boolean;
+  /** Icon shown when none is picked; the Data Mart default unless given. */
+  fallbackIcon?: LucideIcon;
+  /** Accessible name of the tile button. */
+  triggerLabel?: string;
+  testId?: string;
+  /**
+   * Set inside a modal sheet or dialog: its scroll lock swallows wheel and touch
+   * scrolling on the portaled icon list unless the popover takes the lock over.
+   */
+  modal?: boolean;
 }
 
 /**
- * Icon tile beside the Data Mart title. It opens the recommended icons and,
- * below them, every icon of the library, with a search over both.
+ * Icon tile beside the Data Mart title (or a Context name). It opens the
+ * recommended icons and, below them, every icon of the library, with a search
+ * over both.
  */
-export function DataMartIconPicker({ icon, onChange, className }: DataMartIconPickerProps) {
+export function DataMartIconPicker({
+  icon,
+  onChange,
+  className,
+  disabled = false,
+  fallbackIcon,
+  triggerLabel = 'Change Data Mart icon',
+  testId = 'dataMartIconPicker',
+  modal = false,
+}: DataMartIconPickerProps) {
   const [open, setOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [query, setQuery] = useState('');
@@ -110,7 +131,7 @@ export function DataMartIconPicker({ icon, onChange, className }: DataMartIconPi
   );
 
   return (
-    <Popover open={open} onOpenChange={handleOpenChange}>
+    <Popover open={open} onOpenChange={handleOpenChange} modal={modal}>
       <PopoverTrigger asChild>
         <button
           type='button'
@@ -118,12 +139,17 @@ export function DataMartIconPicker({ icon, onChange, className }: DataMartIconPi
             'bg-muted text-foreground hover:bg-accent focus-visible:ring-ring/50 flex size-9 shrink-0 items-center justify-center rounded-md transition-colors outline-none focus-visible:ring-[3px] disabled:opacity-50',
             className
           )}
-          aria-label='Change Data Mart icon'
+          aria-label={triggerLabel}
           title='Change icon'
-          disabled={isSaving}
-          data-testid='dataMartIconPicker'
+          disabled={disabled || isSaving}
+          data-testid={testId}
         >
-          <DataMartIconGlyph icon={icon} className='size-5' aria-hidden='true' />
+          <DataMartIconGlyph
+            icon={icon}
+            fallback={fallbackIcon}
+            className='size-5'
+            aria-hidden='true'
+          />
         </button>
       </PopoverTrigger>
       <PopoverContent align='start' className='w-auto p-3'>

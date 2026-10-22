@@ -15,6 +15,7 @@ import type {
   RedshiftDataStorageConfig,
   DatabricksDataStorageConfig,
 } from './data-storage-config.ts';
+import type { ContextSummary } from '../../../../contexts/types/context.types';
 
 export interface BaseDataStorage<T extends DataStorageCredentials, C extends DataStorageConfig> {
   id: string;
@@ -28,7 +29,7 @@ export interface BaseDataStorage<T extends DataStorageCredentials, C extends Dat
   ownerUsers?: import('../../../../../shared/types').UserProjection[];
   availableForUse?: boolean;
   availableForMaintenance?: boolean;
-  contexts?: { id: string; name: string }[];
+  contexts?: ContextSummary[];
 }
 
 export interface GoogleBigQueryDataStorage extends BaseDataStorage<

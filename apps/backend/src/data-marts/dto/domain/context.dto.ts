@@ -1,4 +1,5 @@
 import { UserProjection } from '../schemas/user-projection.schema';
+import type { DataMartIconValue } from '../../enums/data-mart-icon.enum';
 
 export class ContextDto {
   constructor(
@@ -9,7 +10,8 @@ export class ContextDto {
     public readonly createdById: string | null,
     public readonly createdByUser: UserProjection | null,
     public readonly createdAt: Date,
-    public readonly modifiedAt: Date
+    public readonly modifiedAt: Date,
+    public readonly icon: DataMartIconValue | null = null
   ) {}
 }
 

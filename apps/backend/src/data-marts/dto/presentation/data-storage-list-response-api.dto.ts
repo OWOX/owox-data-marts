@@ -2,6 +2,7 @@ import { ApiProperty } from '@nestjs/swagger';
 import { DataStorageType } from '../../data-storage-types/enums/data-storage-type.enum';
 import { UserProjectionDto } from '../../../idp/dto/domain/user-projection.dto';
 import { ContextSummary } from '../../utils/extract-context-summaries';
+import { ContextSummaryApiDto } from './context-summary-api.dto';
 
 export class DataStorageListResponseApiDto {
   @ApiProperty({ example: 'abc123e4-5678-90ab-cdef-1234567890ab' })
@@ -31,7 +32,7 @@ export class DataStorageListResponseApiDto {
   @ApiProperty({ type: [UserProjectionDto] })
   ownerUsers: UserProjectionDto[];
 
-  @ApiProperty({ type: [Object] })
+  @ApiProperty({ type: [ContextSummaryApiDto] })
   contexts: ContextSummary[];
 
   @ApiProperty({ example: true })

@@ -38,6 +38,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/too
 import { dataMartService } from '../../../features/data-marts/shared/services/data-mart.service';
 import { DataLastUpdatedValue } from '../../../features/data-marts/shared/components/DataLastUpdatedValue';
 import type { DataLastUpdatedDto } from '../../../features/data-marts/shared/types/api/response/data-mart-data-last-updated.dto';
+import type { ContextSummary } from '../../../features/contexts/types/context.types';
 
 interface OutletContextType {
   dataMart: {
@@ -49,7 +50,7 @@ interface OutletContextType {
     technicalOwnerUsers: UserProjectionDto[];
     availableForReporting?: boolean;
     availableForMaintenance?: boolean;
-    contexts?: { id: string; name: string }[];
+    contexts?: ContextSummary[];
     dataLastUpdated?: DataLastUpdatedDto | null;
   };
   updateDataMartOwners: (

@@ -11,6 +11,7 @@ import {
   ContextImpactResponseApiDto,
   ContextResponseApiDto,
   CreateContextRequestApiDto,
+  UpdateContextIconApiDto,
   UpdateContextMembersRequestApiDto,
   UpdateContextMembersResponseApiDto,
   UpdateContextRequestApiDto,
@@ -40,6 +41,16 @@ export function UpdateContextSpec() {
     ApiOkResponse({ type: ContextResponseApiDto }),
     ApiResponse({ status: 404, description: 'Context not found' }),
     ApiResponse({ status: 409, description: 'Context name already exists in this project' })
+  );
+}
+
+export function UpdateContextIconSpec() {
+  return applyDecorators(
+    ApiOperation({ summary: 'Update a Context icon by ID' }),
+    ApiParam({ name: 'id', description: 'Context ID' }),
+    ApiBody({ type: UpdateContextIconApiDto }),
+    ApiOkResponse({ type: ContextResponseApiDto }),
+    ApiResponse({ status: 404, description: 'Context not found' })
   );
 }
 

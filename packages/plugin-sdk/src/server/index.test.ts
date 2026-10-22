@@ -13,6 +13,7 @@ function context(overrides: Record<string, unknown> = {}) {
     action: 'count',
     input: { documentId: 'd1' },
     trigger: 'frontend',
+    scheduleId: null,
     deadlineAt: new Date(Date.now() + 60_000).toISOString(),
     pluginVersion: '1.2.0',
     installationId: 'i1',
@@ -118,6 +119,53 @@ describe('createBackend', () => {
     expect(Object.keys(ctx.credentials)).toEqual(['sheets']);
     expect(typeof ctx.collections).toBe('function');
     expect(ctx.signal.aborted).toBe(false);
+  });
+
+  it('reads a missing scheduleId, from an older OWOX, as null', async () => {
+    const { scheduleId: _omitted, ...older } = context();
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, older));
+    const handler = vi.fn<BackendActionHandler>((_input, ctx) => ctx.execution.scheduleId);
+
+    const response = await backend({ count: handler }).fetch(actionRequest());
+
+    expect(await read(response)).toEqual({ status: 200, body: { result: null } });
+    expect(handler.mock.calls[0]![1].execution.scheduleId).toBeNull();
+  });
+
+  it('gives the handler a read-only ctx.schedules on the execution token', async () => {
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse(200, context({ trigger: 'schedule', scheduleId: 's1' })))
+      .mockResolvedValueOnce(jsonResponse(200, { schedules: [{ id: 's1' }] }))
+      .mockResolvedValueOnce(jsonResponse(200, { id: 's 1' }));
+    const handler = vi.fn<BackendActionHandler>(async (_input, ctx) => ({
+      keys: Object.keys(ctx.schedules).sort(),
+      list: await ctx.schedules.list(),
+      one: await ctx.schedules.get('s 1'),
+      trigger: ctx.execution.trigger,
+      scheduleId: ctx.execution.scheduleId,
+    }));
+
+    const response = await backend({ count: handler }).fetch(actionRequest());
+
+    expect(await read(response)).toEqual({
+      status: 200,
+      body: {
+        result: {
+          keys: ['get', 'list'],
+          list: [{ id: 's1' }],
+          one: { id: 's 1' },
+          trigger: 'schedule',
+          scheduleId: 's1',
+        },
+      },
+    });
+    const [listUrl, listInit] = fetchMock.mock.calls[1]!;
+    expect(String(listUrl)).toBe('https://app.owox.test/api/plugins/runtime/schedules');
+    expect(listInit?.method).toBe('GET');
+    expect(new Headers(listInit?.headers).get('x-owox-execution-token')).toBe(TOKEN);
+    expect(String(fetchMock.mock.calls[2]![0])).toBe(
+      'https://app.owox.test/api/plugins/runtime/schedules/s%201'
+    );
   });
 
   it('gives the handler an OWOX client that sends the execution token', async () => {
@@ -426,6 +474,7 @@ describe('createBackend', () => {
     'CANCELLED',
     'INVALID_INPUT',
     'PLUGIN_SUSPENDED',
+    'OWNER_NOT_MEMBER',
     'oops',
     42,
   ])('replaces the thrown code %s with ACTION_FAILED', async code => {

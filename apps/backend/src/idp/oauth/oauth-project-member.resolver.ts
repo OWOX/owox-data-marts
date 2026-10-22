@@ -1,6 +1,7 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import type { McpOAuthProjectMemberContext } from '@owox/idp-protocol';
 import type { AuthorizationContext } from '../types';
+import { OAuthProjectAccessRequiredError } from './oauth-project-access-required.error';
 
 @Injectable()
 export class OAuthProjectMemberResolver {
@@ -9,7 +10,7 @@ export class OAuthProjectMemberResolver {
       throw new UnauthorizedException('User must be authenticated in a project context');
     }
     if (!context.roles || context.roles.length === 0) {
-      throw new UnauthorizedException('User must be an active project member');
+      throw new OAuthProjectAccessRequiredError(context.projectId);
     }
 
     return {

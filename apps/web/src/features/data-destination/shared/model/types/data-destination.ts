@@ -5,6 +5,7 @@ import type { EmailCredentials } from './email-credentials.ts';
 import type { LookerStudioCredentials } from './looker-studio-credentials.ts';
 import type { GoogleChatCredentials } from './google-chat-credentials.ts';
 import type { ExcelCredentials } from './excel-credentials.ts';
+import type { ContextSummary } from '../../../../contexts/types/context.types';
 
 export interface BaseDataDestination<T extends DataDestinationCredentials> {
   id: string;
@@ -18,7 +19,7 @@ export interface BaseDataDestination<T extends DataDestinationCredentials> {
   ownerUsers?: UserProjection[];
   availableForUse?: boolean;
   availableForMaintenance?: boolean;
-  contexts?: { id: string; name: string }[];
+  contexts?: ContextSummary[];
 }
 
 export interface GoogleSheetsCredentials {

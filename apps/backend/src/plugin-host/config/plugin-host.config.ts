@@ -7,6 +7,11 @@ const DEFAULT_GITHUB_API_BASE_URL = 'https://api.github.com';
 const DEFAULT_AUTHENTICATED_SYNC_MIN_INTERVAL_SEC = 30;
 const DEFAULT_ANONYMOUS_SYNC_MIN_INTERVAL_SEC = 300;
 const DEFAULT_REMOTE_PROBE_TIMEOUT_MS = 8_000;
+const DEFAULT_MAX_SCHEDULES_PER_INSTALLATION = 20;
+const DEFAULT_MAX_SCHEDULE_PARAMETERS_KIB = 64;
+const DEFAULT_SCHEDULE_RETRY_SEC = 60;
+const DEFAULT_SCHEDULE_STUCK_SEC = 600;
+const DEFAULT_QUEUE_SWEEP_INSTALLATIONS = 500;
 
 /** Redirect hops followed while validating a delivery URL. Not configurable. */
 const MAX_REDIRECT_HOPS = 5;
@@ -119,6 +124,35 @@ export class PluginHostConfigService {
 
   get maxRedirectHops(): number {
     return MAX_REDIRECT_HOPS;
+  }
+
+  get maxSchedulesPerInstallation(): number {
+    return this.numeric(
+      'PLUGIN_HOST_MAX_SCHEDULES_PER_INSTALLATION',
+      DEFAULT_MAX_SCHEDULES_PER_INSTALLATION
+    );
+  }
+
+  get maxScheduleParametersBytes(): number {
+    return (
+      this.numeric('PLUGIN_HOST_MAX_SCHEDULE_PARAMETERS_KIB', DEFAULT_MAX_SCHEDULE_PARAMETERS_KIB) *
+      1024
+    );
+  }
+
+  /** How soon a schedule that could not start for a passing reason, such as a database error, tries again. */
+  get scheduleRetrySeconds(): number {
+    return this.numeric('PLUGIN_HOST_SCHEDULE_RETRY_SEC', DEFAULT_SCHEDULE_RETRY_SEC);
+  }
+
+  /** After this long in processing, the scheduler takes a schedule back from a replica that died. */
+  get scheduleStuckSeconds(): number {
+    return this.numeric('PLUGIN_HOST_SCHEDULE_STUCK_SEC', DEFAULT_SCHEDULE_STUCK_SEC);
+  }
+
+  /** Installations with queued runs that the sweep reads per page. */
+  get queueSweepInstallations(): number {
+    return this.numeric('PLUGIN_HOST_QUEUE_SWEEP_INSTALLATIONS', DEFAULT_QUEUE_SWEEP_INSTALLATIONS);
   }
 
   /**

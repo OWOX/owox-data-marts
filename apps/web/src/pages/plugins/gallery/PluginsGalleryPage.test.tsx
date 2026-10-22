@@ -98,6 +98,23 @@ describe('PluginsGalleryPage', () => {
     );
   });
 
+  it('lists Schedules above Plugin history in the overflow menu', () => {
+    renderPage();
+
+    fireEvent.keyDown(screen.getByRole('button', { name: 'More plugin actions' }), {
+      key: 'Enter',
+    });
+
+    expect(screen.getAllByRole('menuitem').map(item => item.textContent)).toEqual([
+      'Schedules',
+      'Plugin history',
+    ]);
+    expect(screen.getByRole('menuitem', { name: 'Schedules' })).toHaveAttribute(
+      'href',
+      '/ui/project-1/plugins/schedules'
+    );
+  });
+
   it('filters to what the member has installed', () => {
     view = { sort: 'default', filter: 'installed' };
     plugins = [

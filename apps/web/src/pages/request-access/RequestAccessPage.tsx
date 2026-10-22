@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useLocation } from 'react-router';
 import { Button } from '@owox/ui/components/button';
 import { Alert, AlertDescription, AlertTitle } from '@owox/ui/components/alert';
 import { Badge } from '@owox/ui/components/badge';
@@ -9,7 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@owox/ui/components/select';
-import { AlertCircle, CheckCircle2, Plus, Send } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Info, Plus, Send } from 'lucide-react';
 import { FullScreenLoader } from '@owox/ui/components/common/loading-spinner';
 import { useAuth } from '../../features/idp';
 import { AuthStatus, type Role } from '../../features/idp/types';
@@ -17,8 +18,13 @@ import { signIn } from '../../features/idp/services';
 import { useRequestAccessContext } from '../../features/user-provisioning/hooks/useRequestAccessContext';
 import {
   type RequestAccessResult,
+  type CreateNewProjectResult,
   userProvisioningService,
 } from '../../features/user-provisioning/services/user-provisioning.service';
+import {
+  getMcpClientName,
+  getMcpIntegration,
+} from '../../features/user-provisioning/utils/mcp-request-access';
 import { buildProjectPath } from '../../utils/path';
 
 const ROLE_LABELS: Record<Role, string> = {
@@ -38,11 +44,15 @@ function SummaryItem({ label, value }: { label: string; value: string }) {
 
 export function RequestAccessPage() {
   const { status, user } = useAuth();
+  const { search } = useLocation();
+  const mcpIntegration = getMcpIntegration(search);
+  const mcpClientName = mcpIntegration ? getMcpClientName(mcpIntegration) : null;
   const { context, loading, error, refresh } = useRequestAccessContext();
   const [selectedRole, setSelectedRole] = useState<Role>('viewer');
   const [submitted, setSubmitted] = useState<RequestAccessResult | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [creatingProject, setCreatingProject] = useState(false);
+  const [createdProject, setCreatedProject] = useState<CreateNewProjectResult | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -86,7 +96,12 @@ export function RequestAccessPage() {
     setCreatingProject(true);
     setActionError(null);
     try {
-      const project = await userProvisioningService.createNewProject();
+      const project = await userProvisioningService.createNewProject(mcpIntegration ?? undefined);
+      if (mcpIntegration) {
+        setCreatedProject(project);
+        setCreatingProject(false);
+        return;
+      }
       const redirect = buildProjectPath(project.projectId, '/data-marts');
       signIn({ projectId: project.projectId, redirect });
     } catch (err) {
@@ -108,6 +123,35 @@ export function RequestAccessPage() {
 
       <div className='dm-page-content'>
         <div className='w-full max-w-3xl'>
+          {mcpClientName && (
+            <Alert className='mb-4'>
+              <Info className='h-4 w-4' />
+              <AlertTitle>
+                {createdProject
+                  ? 'Project created'
+                  : `Project access needed to connect ${mcpClientName}`}
+              </AlertTitle>
+              <AlertDescription>
+                {createdProject ? (
+                  <>
+                    Your project {createdProject.projectTitle} is ready. Open it to copy its MCP
+                    URL, then return to {mcpClientName} and connect OWOX again.
+                  </>
+                ) : submitted ? (
+                  <>
+                    Your request is waiting for approval. Once approved, return to {mcpClientName}{' '}
+                    and connect OWOX again. You can also create your own project.
+                  </>
+                ) : (
+                  <>
+                    To connect {mcpClientName}, create your own project or request a role in this
+                    project. After creating a project or receiving approval, return to{' '}
+                    {mcpClientName} and connect OWOX again.
+                  </>
+                )}
+              </AlertDescription>
+            </Alert>
+          )}
           {error && (
             <Alert variant='destructive' className='mb-4'>
               <AlertCircle className='h-4 w-4' />
@@ -124,7 +168,7 @@ export function RequestAccessPage() {
             </Alert>
           )}
 
-          {context && (
+          {context && !createdProject && (
             <div className='dm-card flex flex-col gap-3'>
               <section className='dm-card-block'>
                 <dl className='grid gap-4 sm:grid-cols-3'>
@@ -209,6 +253,18 @@ export function RequestAccessPage() {
                 </div>
               </section>
             </div>
+          )}
+          {createdProject && (
+            <Button
+              onClick={() => {
+                signIn({
+                  projectId: createdProject.projectId,
+                  redirect: buildProjectPath(createdProject.projectId, '/data-marts'),
+                });
+              }}
+            >
+              Open project
+            </Button>
           )}
         </div>
       </div>

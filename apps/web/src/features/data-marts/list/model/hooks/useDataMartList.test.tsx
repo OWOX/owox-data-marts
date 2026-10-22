@@ -65,6 +65,7 @@ function apiListItem(title = 'Orders') {
     storageType: 'GOOGLE_BIGQUERY',
     triggersCount: 0,
     reportsCount: 0,
+    relationshipsCount: 0,
     createdByUser: null,
     createdAt: new Date('2026-07-16T09:00:00.000Z'),
     modifiedAt: new Date('2026-07-16T09:00:00.000Z'),

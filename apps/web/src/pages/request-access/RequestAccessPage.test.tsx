@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { MemoryRouter } from 'react-router';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { RequestAccessContext } from '../../features/user-provisioning/services/user-provisioning.service';
@@ -71,7 +72,7 @@ describe('RequestAccessPage', () => {
   });
 
   it('renders as a regular app page with request access content', () => {
-    const { container } = render(<RequestAccessPage />);
+    const { container } = renderPage();
 
     expect(container.querySelector('.dm-page')).toBeInTheDocument();
     expect(container.querySelector('.dm-card')).toBeInTheDocument();
@@ -97,7 +98,7 @@ describe('RequestAccessPage', () => {
       },
     });
 
-    render(<RequestAccessPage />);
+    renderPage();
 
     fireEvent.click(screen.getByRole('button', { name: /Request access/ }));
 
@@ -119,7 +120,7 @@ describe('RequestAccessPage', () => {
       }),
     };
 
-    render(<RequestAccessPage />);
+    renderPage();
 
     expect(screen.getByText('Access request submitted')).toBeInTheDocument();
     expect(screen.getByText('Requested role: Data Owner')).toBeInTheDocument();
@@ -133,7 +134,7 @@ describe('RequestAccessPage', () => {
       projectTitle: 'New Project',
     });
 
-    render(<RequestAccessPage />);
+    renderPage();
 
     fireEvent.click(screen.getByRole('button', { name: /Create new project/ }));
 
@@ -144,7 +145,110 @@ describe('RequestAccessPage', () => {
       });
     });
   });
+  it.each([
+    ['claude', 'Claude'],
+    ['chatgpt', 'ChatGPT'],
+    ['owox-data-marts', 'your MCP client'],
+  ])(
+    'explains how to connect %s and does not resume OAuth after requesting access',
+    async (integration, clientName) => {
+      userProvisioningServiceMock.requestAccess.mockResolvedValueOnce({
+        userId: 'user-1',
+        projectId: 'main-project',
+        projectTitle: 'OWOX',
+        request: { role: 'viewer', status: 'processing' },
+      });
+      renderPage(
+        `/ui/main-project/request-access?mcp-integration=${integration}&redirect-to=%2Foauth%2Fauthorize%3Fstate%3Dold-state`
+      );
+      expect(
+        screen.getByText(`Project access needed to connect ${clientName}`)
+      ).toBeInTheDocument();
+      expect(screen.getByText(/create your own project or request a role/)).toBeInTheDocument();
+      fireEvent.click(screen.getByRole('button', { name: /Request access/ }));
+      expect(await screen.findByText(/Your request is waiting for approval/)).toHaveTextContent(
+        `Once approved, return to ${clientName} and connect OWOX again`
+      );
+      expect(signInMock).not.toHaveBeenCalled();
+      expect(userProvisioningServiceMock.createNewProject).not.toHaveBeenCalled();
+    }
+  );
+
+  it.each([
+    ['claude', 'Claude'],
+    ['chatgpt', 'ChatGPT'],
+  ])(
+    'preserves %s when creating a project and requires an explicit action to leave the page',
+    async (integration, clientName) => {
+      userProvisioningServiceMock.createNewProject.mockResolvedValueOnce({
+        projectId: 'new-project',
+        projectTitle: 'My project',
+      });
+      renderPage(`/ui/main-project/request-access?mcp-integration=${integration}`);
+      fireEvent.click(screen.getByRole('button', { name: /Create new project/ }));
+
+      expect(await screen.findByText('Project created')).toBeInTheDocument();
+      expect(userProvisioningServiceMock.createNewProject).toHaveBeenCalledWith(integration);
+      expect(screen.getByText(/Your project My project is ready/)).toHaveTextContent(
+        `return to ${clientName} and connect OWOX again`
+      );
+      expect(signInMock).not.toHaveBeenCalled();
+      expect(screen.queryByRole('button', { name: /Request access/ })).not.toBeInTheDocument();
+      fireEvent.click(screen.getByRole('button', { name: 'Open project' }));
+      expect(signInMock).toHaveBeenCalledWith({
+        projectId: 'new-project',
+        redirect: '/ui/new-project/data-marts',
+      });
+    }
+  );
+
+  it('shows retry instructions for an already pending MCP access request', () => {
+    requestAccessContextMock.value.context = context({
+      existingRequest: { role: 'editor', status: 'processing' },
+    });
+    renderPage('/ui/main-project/request-access?mcp-integration=claude');
+    expect(screen.getByText(/Your request is waiting for approval/)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Request access/ })).not.toBeInTheDocument();
+    expect(signInMock).not.toHaveBeenCalled();
+  });
+
+  it('does not treat an arbitrary integration parameter as MCP attribution', async () => {
+    userProvisioningServiceMock.createNewProject.mockResolvedValueOnce({
+      projectId: 'new-project',
+      projectTitle: 'My project',
+    });
+    renderPage('/ui/main-project/request-access?mcp-integration=untrusted&integration=claude');
+    expect(screen.queryByText(/Project access needed to connect/)).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Create new project/ }));
+    await waitFor(() => {
+      expect(userProvisioningServiceMock.createNewProject).toHaveBeenCalledWith(undefined);
+    });
+    expect(signInMock).toHaveBeenCalledWith({
+      projectId: 'new-project',
+      redirect: '/ui/new-project/data-marts',
+    });
+  });
+
+  it('keeps the MCP retry instructions and creation action after a failed creation', async () => {
+    userProvisioningServiceMock.createNewProject.mockRejectedValueOnce(
+      new Error('Could not create project')
+    );
+    renderPage('/ui/main-project/request-access?mcp-integration=chatgpt');
+    fireEvent.click(screen.getByRole('button', { name: /Create new project/ }));
+    expect(await screen.findByText('Could not create project')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Create new project/ })).toBeEnabled();
+    expect(screen.getByText(/return to ChatGPT and connect OWOX again/)).toBeInTheDocument();
+    expect(signInMock).not.toHaveBeenCalled();
+  });
 });
+
+function renderPage(entry = '/ui/main-project/request-access') {
+  return render(
+    <MemoryRouter initialEntries={[entry]}>
+      <RequestAccessPage />
+    </MemoryRouter>
+  );
+}
 
 function context(overrides: Partial<RequestAccessContext> = {}): RequestAccessContext {
   return {

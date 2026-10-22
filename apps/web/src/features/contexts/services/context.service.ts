@@ -1,4 +1,5 @@
 import { ApiService } from '../../../services/api-service';
+import type { DataMartIconValue } from '../../data-marts/shared/enums/data-mart-icon.enum';
 import type { ContextDto, ContextImpactDto } from '../types/context.types';
 
 class ContextApiService extends ApiService {
@@ -10,13 +11,18 @@ class ContextApiService extends ApiService {
     return this.get<ContextDto[]>('');
   }
 
-  async createContext(data: { name: string; description?: string }): Promise<ContextDto> {
+  async createContext(data: {
+    name: string;
+    description?: string;
+    icon?: DataMartIconValue;
+  }): Promise<ContextDto> {
     return this.post<ContextDto>('', data);
   }
 
+  /** Omit `icon` to keep the current one; null resets it to the default. */
   async updateContext(
     id: string,
-    data: { name: string; description?: string }
+    data: { name: string; description?: string; icon?: DataMartIconValue | null }
   ): Promise<ContextDto> {
     return this.put<ContextDto>(`/${id}`, data);
   }

@@ -3,6 +3,20 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { runInNewContext } from 'node:vm';
 import {
+  ActionNotDeclaredError,
+  ExecutionTokenNotAllowedError,
+  TooManyExecutionsError,
+} from '../errors/plugin-action.errors';
+import {
+  InvalidScheduleError,
+  ScheduleBusyError,
+  ScheduleNotFoundError,
+  ScheduleParametersInvalidError,
+  ScheduleParametersTooLargeError,
+  SchedulePausedByAdminError,
+  TooManySchedulesError,
+} from '../errors/plugin-schedule.errors';
+import {
   PluginActionExecutionStatus,
   isFinalPluginActionStatus,
 } from '../enums/plugin-action-execution-status.enum';
@@ -50,5 +64,22 @@ describe('plugin action constants match the shared contract', () => {
     expect(
       Object.values(PluginActionExecutionStatus).filter(isFinalPluginActionStatus).sort()
     ).toEqual([...(contract.pluginActionFinalStatuses as string[])].sort());
+  });
+
+  it('answers a schedule route with the same error codes', () => {
+    const answered = [
+      new InvalidScheduleError('cron is invalid'),
+      new ScheduleParametersInvalidError([]),
+      new ScheduleParametersTooLargeError(64 * 1024),
+      new TooManySchedulesError(20),
+      new ScheduleBusyError(),
+      new ScheduleNotFoundError(),
+      new SchedulePausedByAdminError(),
+      new ActionNotDeclaredError('export'),
+      new ExecutionTokenNotAllowedError(),
+      new TooManyExecutionsError(),
+    ].map(error => error.code);
+
+    expect(answered.sort()).toEqual([...(contract.pluginScheduleErrorCodes as string[])].sort());
   });
 });

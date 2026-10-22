@@ -74,6 +74,7 @@ import { GoogleBigQueryFields } from './GoogleBigQueryFields';
 import { LegacyGoogleBigQueryFields } from './LegacyGoogleBigQueryFields';
 import { RedshiftFields } from './RedshiftFields';
 import { SnowflakeFields } from './SnowflakeFields';
+import type { ContextSummary } from '../../../../contexts/types/context.types';
 
 interface DataStorageFormProps {
   initialData?: DataStorageFormData & {
@@ -81,7 +82,7 @@ interface DataStorageFormProps {
     ownerUsers?: UserProjection[];
     createdAt?: Date;
     createdByUser?: UserProjection | null;
-    contexts?: { id: string; name: string }[];
+    contexts?: ContextSummary[];
   };
   onSubmit: (
     data: DataStorageFormData,

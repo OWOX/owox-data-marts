@@ -9,6 +9,7 @@ export const OWOX_ERROR_CODES: ReadonlySet<string> = new Set([
   'INVALID_INPUT',
   'INSTALLATION_INACTIVE',
   'PLUGIN_SUSPENDED',
+  'OWNER_NOT_MEMBER',
 ]);
 /** OWOX's codes for a call to the Worker that failed, such as BACKEND_UNREACHABLE. */
 export const RESERVED_ERROR_CODE_PREFIX = 'BACKEND_';

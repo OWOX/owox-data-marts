@@ -82,6 +82,7 @@ describe('InlineMarkdownDescription', () => {
         currentDataMartId='data-mart'
         description='Original'
         onUpdate={onUpdate}
+        aiButton={<button type='button'>AI helper</button>}
       />
     );
     fireEvent.click(screen.getByRole('button', { name: 'Edit description' }));
@@ -89,6 +90,9 @@ describe('InlineMarkdownDescription', () => {
     fireEvent.change(input, { target: { value: draft } });
     fireEvent.click(screen.getByRole('button', { name: 'Expand description editor' }));
     const dialog = await screen.findByRole('dialog', { name: 'Description editor' });
+    expect(within(dialog).getByRole('button', { name: 'Save' })).toBeVisible();
+    expect(within(dialog).getByRole('button', { name: 'Cancel' })).toBeVisible();
+    expect(within(dialog).getByRole('button', { name: 'AI helper' })).toBeVisible();
     fireEvent.keyDown(input, { key: 'Enter', metaKey: true });
     const alert = await within(dialog).findByRole('alert');
     expect(alert).toHaveTextContent(
@@ -110,7 +114,7 @@ describe('InlineMarkdownDescription', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Expand description editor' }));
     await screen.findByRole('dialog', { name: 'Description editor' });
-    fireEvent.keyDown(input, { key: 'Enter', ctrlKey: true });
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
     await waitFor(() => {
       expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
     });
@@ -118,6 +122,28 @@ describe('InlineMarkdownDescription', () => {
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
     expect(onUpdate).toHaveBeenCalledTimes(2);
     expect(onUpdate).toHaveBeenLastCalledWith(draft);
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Edit description' })).toHaveFocus();
+    });
+  });
+
+  it('cancels a full-screen draft without saving and returns focus to the pencil', async () => {
+    const onUpdate = vi.fn();
+    render(
+      <InlineMarkdownDescription projectId='project' description='Original' onUpdate={onUpdate} />
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Edit description' }));
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Unsaved' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Expand description editor' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Description editor' });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    });
+    expect(onUpdate).not.toHaveBeenCalled();
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Edit description' })).toHaveFocus();
+    });
   });
 
   it('saves Markdown unchanged and keeps unsaved text on failure for retry', async () => {

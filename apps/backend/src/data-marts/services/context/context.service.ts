@@ -17,6 +17,7 @@ import { MemberRoleContext } from '../../entities/member-role-context.entity';
 import { MemberRoleScope } from '../../entities/member-role-scope.entity';
 import { UserProvisioningContextSettingsContext } from '../../entities/user-provisioning-context-settings-context.entity';
 import { ContextMapper } from '../../mappers/context.mapper';
+import type { DataMartIconValue } from '../../enums/data-mart-icon.enum';
 import { UserProjectionsFetcherService } from '../user-projections-fetcher.service';
 
 /**
@@ -66,13 +67,15 @@ export class ContextService {
     projectId: string,
     createdById: string,
     name: string,
-    description?: string
+    description?: string,
+    icon: DataMartIconValue | null = null
   ): Promise<ContextDto> {
     await this.validateUniqueName(name, projectId);
 
     const entity = this.contextRepository.create({
       name,
       description,
+      icon,
       projectId,
       createdById,
     });
@@ -134,11 +137,13 @@ export class ContextService {
     return entities.map(entity => this.contextMapper.toDomainDto(entity, userProjections));
   }
 
+  /** `icon` undefined keeps the current icon; null resets it to the default. */
   async update(
     contextId: string,
     projectId: string,
     name: string,
-    description?: string
+    description?: string,
+    icon?: DataMartIconValue | null
   ): Promise<ContextDto> {
     const entity = await this.getByIdAndProject(contextId, projectId);
 
@@ -146,6 +151,9 @@ export class ContextService {
 
     entity.name = name;
     entity.description = description;
+    if (icon !== undefined) {
+      entity.icon = icon;
+    }
 
     let saved: Context;
     try {
@@ -156,6 +164,23 @@ export class ContextService {
       }
       throw err;
     }
+
+    const userProjections = await this.userProjectionsFetcherService.fetchUserProjectionsList(
+      saved.createdById ? [saved.createdById] : []
+    );
+
+    return this.contextMapper.toDomainDto(saved, userProjections);
+  }
+
+  /** Sets or resets (null) the icon only; the name, description and links stay as they are. */
+  async updateIcon(
+    contextId: string,
+    projectId: string,
+    icon: DataMartIconValue | null
+  ): Promise<ContextDto> {
+    const entity = await this.getByIdAndProject(contextId, projectId);
+    entity.icon = icon;
+    const saved = await this.contextRepository.save(entity);
 
     const userProjections = await this.userProjectionsFetcherService.fetchUserProjectionsList(
       saved.createdById ? [saved.createdById] : []

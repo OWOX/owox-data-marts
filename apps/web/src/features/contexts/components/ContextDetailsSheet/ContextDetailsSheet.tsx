@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
-import { useForm } from 'react-hook-form';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import {
@@ -41,7 +41,11 @@ import { contextService } from '../../services/context.service';
 import { MembersAssignmentField } from '../../../../shared/components/MembersAssignmentField';
 import { UserReference } from '../../../../shared/components/UserReference';
 import { getRoleDisplayName } from '../../../idp/utils/role-display-name';
+import type { DataMartIconValue } from '../../../data-marts/shared/enums/data-mart-icon.enum';
+import { trackEvent } from '../../../../utils';
 import type { ContextDto, MemberWithScopeDto } from '../../types/context.types';
+import { ContextIconPicker } from '../ContextIcon';
+import { UnsavedChangesConfirmationDialog } from '../../../../shared/components/UnsavedChangesConfirmationDialog';
 
 const DATE_FORMATTER = new Intl.DateTimeFormat('en-US', {
   year: 'numeric',
@@ -65,6 +69,7 @@ const contextDetailsSchema = z.object({
     .min(1, 'Name is required')
     .max(255, 'Name must be 255 characters or fewer'),
   description: z.string().optional(),
+  icon: z.custom<DataMartIconValue | null>(),
 });
 
 type ContextDetailsFormValues = z.infer<typeof contextDetailsSchema>;
@@ -76,6 +81,12 @@ interface ContextDetailsSheetProps {
   onClose: () => void;
   onSaved: () => void;
   readOnly?: boolean;
+  onDirtyChange?: (dirty: boolean) => void;
+  navigationGuard?: {
+    blocked: boolean;
+    onConfirm: () => void;
+    onCancel: () => void;
+  };
 }
 
 export function ContextDetailsSheet({
@@ -85,14 +96,18 @@ export function ContextDetailsSheet({
   onClose,
   onSaved,
   readOnly = false,
+  onDirtyChange,
+  navigationGuard,
 }: ContextDetailsSheetProps) {
   const user = useUser();
+  const titleRef = useRef<HTMLHeadingElement>(null);
   const form = useForm<ContextDetailsFormValues>({
     resolver: zodResolver(contextDetailsSchema),
-    defaultValues: { name: '', description: '' },
+    defaultValues: { name: '', description: '', icon: null },
     mode: 'onChange',
   });
-  const { control, handleSubmit, reset: resetForm, formState } = form;
+  const { control, handleSubmit, reset: resetForm, formState, setValue } = form;
+  const icon = useWatch({ control, name: 'icon' });
   const [selectedMemberIds, setSelectedMemberIds] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
 
@@ -107,6 +122,7 @@ export function ContextDetailsSheet({
       resetForm({
         name: context.name,
         description: context.description ?? '',
+        icon: context.icon ?? null,
       });
       setSelectedMemberIds(initialMemberIds);
     }
@@ -119,6 +135,13 @@ export function ContextDetailsSheet({
     return a.some((id, i) => id !== b[i]);
   }, [selectedMemberIds, initialMemberIds]);
 
+  useEffect(() => {
+    onDirtyChange?.(
+      !!context && isOpen && !readOnly && (formState.isDirty || memberSelectionDirty)
+    );
+  }, [onDirtyChange, context, isOpen, readOnly, formState.isDirty, memberSelectionDirty]);
+  useEffect(() => () => onDirtyChange?.(false), [onDirtyChange]);
+
   const handleToggleMember = (userId: string, checked: boolean) => {
     setSelectedMemberIds(prev => (checked ? [...prev, userId] : prev.filter(id => id !== userId)));
   };
@@ -128,10 +151,24 @@ export function ContextDetailsSheet({
       if (!context || readOnly) return;
       setSaving(true);
       try {
+        const nextIcon = values.icon ?? null;
+        const iconChanged = nextIcon !== (context.icon ?? null);
+        // One request for name, description and icon, so a failed save never leaves half of it.
         await contextService.updateContext(context.id, {
           name: values.name.trim(),
           description: values.description?.trim() ?? '',
+          ...(iconChanged ? { icon: nextIcon } : {}),
         });
+
+        if (iconChanged) {
+          trackEvent({
+            event: 'context_updated',
+            category: 'Context',
+            action: nextIcon ? 'UpdateIcon' : 'ResetIcon',
+            label: context.id,
+            ...(nextIcon ? { value: nextIcon } : {}),
+          });
+        }
 
         if (memberSelectionDirty) {
           await contextService.updateContextMembers(context.id, selectedMemberIds);
@@ -158,10 +195,19 @@ export function ContextDetailsSheet({
           if (!open && !saving) onClose();
         }}
       >
-        <SheetContent onEscapeKeyDown={preventSheetDismissWhileSuggesting}>
+        <SheetContent
+          onEscapeKeyDown={preventSheetDismissWhileSuggesting}
+          onOpenAutoFocus={event => {
+            event.preventDefault();
+            if (readOnly) titleRef.current?.focus();
+            else form.setFocus('name');
+          }}
+        >
           <SheetHeader>
             <div className='flex items-start justify-between gap-2 pr-8'>
-              <SheetTitle>{readOnly ? context.name : 'Configure context'}</SheetTitle>
+              <SheetTitle ref={titleRef} tabIndex={-1}>
+                {readOnly ? context.name : 'Configure context'}
+              </SheetTitle>
               <CopyContextLinkButton contextId={context.id} />
             </div>
             <SheetDescription>
@@ -193,12 +239,21 @@ export function ContextDetailsSheet({
                       name='name'
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel tooltip='Business-domain label shown on resources'>
+                          <FormLabel tooltip='Business-domain label shown on resources. Pick an icon to tell contexts apart at a glance'>
                             Name
                           </FormLabel>
-                          <FormControl>
-                            <Input {...field} disabled={saving} />
-                          </FormControl>
+                          <div className='flex items-center gap-2'>
+                            <ContextIconPicker
+                              icon={icon ?? null}
+                              onChange={next => {
+                                setValue('icon', next, { shouldDirty: true });
+                              }}
+                              disabled={saving}
+                            />
+                            <FormControl>
+                              <Input {...field} disabled={saving} />
+                            </FormControl>
+                          </div>
                           <FormMessage />
                         </FormItem>
                       )}
@@ -315,6 +370,15 @@ export function ContextDetailsSheet({
                 </FormActions>
               </AppForm>
             </Form>
+          )}
+          {navigationGuard && (
+            <UnsavedChangesConfirmationDialog
+              open={navigationGuard.blocked}
+              onOpenChange={open => {
+                if (!open) navigationGuard.onCancel();
+              }}
+              onConfirm={navigationGuard.onConfirm}
+            />
           )}
         </SheetContent>
       </Sheet>

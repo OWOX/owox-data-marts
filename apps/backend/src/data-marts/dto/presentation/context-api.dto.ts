@@ -7,12 +7,20 @@ import {
   IsNotEmpty,
   IsOptional,
   IsString,
+  Matches,
   MaxLength,
+  ValidateIf,
 } from 'class-validator';
 import { ProjectRole } from '../../enums/project-role.enum';
 import { RoleScope } from '../../enums/role-scope.enum';
 import { UserProjection } from '../schemas/user-projection.schema';
 import { UserProjectionDto } from '../../../idp/dto/domain/user-projection.dto';
+import {
+  DATA_MART_ICON_API_DESCRIPTION,
+  DATA_MART_ICON_MAX_LENGTH,
+  DATA_MART_ICON_PATTERN,
+  type DataMartIconValue,
+} from '../../enums/data-mart-icon.enum';
 
 export class CreateContextRequestApiDto {
   @ApiProperty()
@@ -25,6 +33,19 @@ export class CreateContextRequestApiDto {
   @IsOptional()
   @IsString()
   description?: string;
+
+  @ApiProperty({
+    type: String,
+    required: false,
+    nullable: true,
+    example: 'lucide:megaphone',
+    description: `${DATA_MART_ICON_API_DESCRIPTION} Omit or null for the default icon.`,
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(DATA_MART_ICON_MAX_LENGTH)
+  @Matches(DATA_MART_ICON_PATTERN)
+  icon?: DataMartIconValue | null;
 }
 
 export class UpdateContextRequestApiDto {
@@ -38,6 +59,34 @@ export class UpdateContextRequestApiDto {
   @IsOptional()
   @IsString()
   description?: string;
+
+  @ApiProperty({
+    type: String,
+    required: false,
+    nullable: true,
+    example: 'lucide:megaphone',
+    description: `${DATA_MART_ICON_API_DESCRIPTION} Omit to keep the current icon; null resets it to the default.`,
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(DATA_MART_ICON_MAX_LENGTH)
+  @Matches(DATA_MART_ICON_PATTERN)
+  icon?: DataMartIconValue | null;
+}
+
+export class UpdateContextIconApiDto {
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    example: 'lucide:megaphone',
+    description: `${DATA_MART_ICON_API_DESCRIPTION} null resets the Context to the default icon.`,
+  })
+  // Required: a body without `icon` is a client mistake, not a reset — only an explicit null resets.
+  @ValidateIf(obj => obj.icon !== null)
+  @IsString()
+  @MaxLength(DATA_MART_ICON_MAX_LENGTH)
+  @Matches(DATA_MART_ICON_PATTERN)
+  icon: DataMartIconValue | null;
 }
 
 export class ContextResponseApiDto {
@@ -49,6 +98,14 @@ export class ContextResponseApiDto {
 
   @ApiPropertyOptional()
   description: string | null;
+
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    example: 'lucide:megaphone',
+    description: `User-picked icon: ${DATA_MART_ICON_API_DESCRIPTION} null means the default icon.`,
+  })
+  icon: DataMartIconValue | null;
 
   @ApiPropertyOptional()
   createdById: string | null;

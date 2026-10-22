@@ -8,6 +8,7 @@ import type { ConnectorStateResponseDto } from '../../../shared/types/api/respon
 import type { BlendedFieldsConfig } from '../../../shared/types/relationship.types';
 import type { DataLastUpdatedDto } from '../../../shared/types/api/response/data-mart-data-last-updated.dto';
 import type { DataMartIconValue } from '../../../shared/enums/data-mart-icon.enum';
+import type { ContextSummary } from '../../../../contexts/types/context.types';
 
 /**
  * Data mart domain model
@@ -116,7 +117,7 @@ export interface DataMart {
    * is assigned. Always present after loading so `useEffect` dependency equality
    * behaves predictably.
    */
-  contexts: { id: string; name: string }[];
+  contexts: ContextSummary[];
 
   /**
    * Last-known Data Last Updated snapshot; null when never computed.

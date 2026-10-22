@@ -37,6 +37,16 @@ describe('Plugin route registration (e2e)', () => {
     expect(Array.isArray(res.body)).toBe(true);
   });
 
+  it.each([['/api/plugins/schedules'], ['/api/plugins/runs']])(
+    '%s reaches its own handler and answers a list',
+    async path => {
+      const res = await agent.get(path).set(AUTH_HEADER);
+
+      expect(res.status).toBe(200);
+      expect(Array.isArray(res.body.items)).toBe(true);
+    }
+  );
+
   it('/api/plugins/lookup reaches its own handler, not the plugin lookup', async () => {
     const res = await agent
       .get('/api/plugins/lookup?repository=OWOX/nothing-here')

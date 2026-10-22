@@ -54,6 +54,8 @@ interface UseTableStorageProps<TData, TValue> {
   storageKeyPrefix: string;
   /** Default column ID for initial sorting (defaults to 'createdAt') */
   defaultSortingColumn?: string;
+  /** Whether the default sort is descending (defaults to true) */
+  defaultSortingDesc?: boolean;
   /** Default visibility state for columns */
   defaultColumnVisibility?: VisibilityState;
   /** Default page size for pagination */
@@ -108,6 +110,7 @@ export function useTableStorage<TData, TValue>({
   columns,
   storageKeyPrefix,
   defaultSortingColumn = TABLE_STORAGE_CONSTANTS.DEFAULT_SORTING_COLUMN,
+  defaultSortingDesc = true,
   defaultColumnVisibility = {},
   defaultPageSize = TABLE_STORAGE_CONSTANTS.DEFAULT_PAGE_SIZE,
   excludedColumnsFromSorting = TABLE_STORAGE_CONSTANTS.DEFAULT_EXCLUDED_COLUMNS,
@@ -159,8 +162,8 @@ export function useTableStorage<TData, TValue>({
       ? defaultSortingColumn
       : (allowedSortingColumnIds[0] ?? TABLE_STORAGE_CONSTANTS.DEFAULT_SORTING_COLUMN);
 
-    return [{ id: finalSortingColumn, desc: true }];
-  }, [STORAGE_KEYS.SORTING, defaultSortingColumn]);
+    return [{ id: finalSortingColumn, desc: defaultSortingDesc }];
+  }, [STORAGE_KEYS.SORTING, defaultSortingColumn, defaultSortingDesc]);
 
   /**
    * Initialize column visibility state from localStorage or use default

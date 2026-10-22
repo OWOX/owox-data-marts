@@ -1,0 +1,14 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 💬 Question or help with setup
+    url: https://github.com/OWOX/owox-data-marts/discussions/categories/q-a
+    about: Ask the community. Most setup and configuration questions are answered here.
+  - name: 🔌 Request a new connector
+    url: https://github.com/OWOX/owox-data-marts/discussions/categories/ideas
+    about: Propose a source we do not support yet, or upvote an existing request.
+  - name: 📚 Documentation
+    url: https://docs.owox.com/
+    about: Setup guides, connector references, and deployment instructions.
+  - name: 🔒 Report a security vulnerability
+    url: https://hackerone.com/owox
+    about: Report it privately through the OWOX vulnerability disclosure program on HackerOne.

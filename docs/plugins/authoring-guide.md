@@ -703,6 +703,8 @@ if (ctx.actions) {
 }
 ```
 
+An execution from `get` also carries `scheduleId`: the schedule that started it, or `null`.
+
 OWOX clears an execution's `input` and `result` 24 hours after it finishes, so a later `get`
 returns `result: null`. It clears the `errorMessage` of a failure your backend reported with its
 own code at the same time.
@@ -713,6 +715,8 @@ exceeds its time and memory budget, with the message "Input validation exceeded 
 At most 5 actions run at once per installation. An installation can also start at most 60 actions
 per minute and 5,000 per 24 hours, and OWOX refuses new starts once 100 MiB of inputs and results it
 has not cleared yet are stored. Every execution that starts counts, even a cancelled or failed one.
+So does a queued run that was cancelled, failed or timed out before it started; only a run still
+waiting does not.
 Each waiting `invoke` or `wait` holds one of the 32 request slots of the page while it polls.
 
 ### Handle action errors
@@ -721,28 +725,31 @@ A failed action rejects with a `PluginActionError`. Find it by `error.name` and 
 `message`. It also carries `errors` for `INVALID_INPUT`, as `{instancePath, message}`, and
 `executionId` when the action had started:
 
-| `code`                          | Meaning                                                                       |
-| ------------------------------- | ----------------------------------------------------------------------------- |
-| `ACTION_NOT_DECLARED`           | The current version does not declare this action.                             |
-| `INPUT_TOO_LARGE`               | The input is over 256 KiB.                                                    |
-| `INVALID_INPUT`                 | The input fails the schema, nests over 100 levels or exceeds its budget.      |
-| `TOO_MANY_EXECUTIONS`           | The installation hit a run, start or storage limit, or too many validations.  |
-| `TIMED_OUT`                     | The action did not finish within `timeoutSeconds`.                            |
-| `CANCELLED`                     | The action was cancelled.                                                     |
-| `BACKEND_UNREACHABLE`           | OWOX Data Marts could not connect to the backend.                             |
-| `BACKEND_INVALID_RESPONSE`      | The answer was not a valid result or error, or the result cannot be stored.   |
-| `ACTION_FAILED`                 | The handler threw an error with no valid `code`, or one with a reserved code. |
-| `INSTALLATION_INACTIVE`         | Rare: the plugin was uninstalled while the action started.                    |
-| `UNAUTHORIZED`                  | The backend did not accept the execution token or the request.                |
-| `HOST_NOT_ALLOWED`              | The calling host is not in `hosts` or, without `hosts`, not public HTTPS.     |
-| `PLUGIN_MISMATCH`               | The execution belongs to a plugin other than the backend's `repositoryId`.    |
-| `ACTION_NOT_IMPLEMENTED`        | The backend declares no handler for this action.                              |
-| `EXECUTION_CONTEXT_UNAVAILABLE` | The backend could not read the execution from OWOX Data Marts.                |
-| any other                       | An OWOX refusal of the request, or the code your backend returned.            |
+| `code`                          | Meaning                                                                                             |
+| ------------------------------- | --------------------------------------------------------------------------------------------------- |
+| `ACTION_NOT_DECLARED`           | The current version does not declare this action.                                                   |
+| `INPUT_TOO_LARGE`               | The input is over 256 KiB.                                                                          |
+| `INVALID_INPUT`                 | The input fails the schema, nests over 100 levels or exceeds its budget.                            |
+| `TOO_MANY_EXECUTIONS`           | The installation hit a run, start or storage limit, or too many validations.                        |
+| `TIMED_OUT`                     | The action did not finish within `timeoutSeconds`, or a run waited 24 hours.                        |
+| `CANCELLED`                     | The action was cancelled.                                                                           |
+| `BACKEND_UNREACHABLE`           | OWOX Data Marts could not connect to the backend.                                                   |
+| `BACKEND_INVALID_RESPONSE`      | The answer was not a valid result or error, or the result cannot be stored.                         |
+| `ACTION_FAILED`                 | The handler threw an error with no valid `code`, or one with a reserved code.                       |
+| `INSTALLATION_INACTIVE`         | Rare: the plugin was uninstalled while the action started or a run waited.                          |
+| `PLUGIN_SUSPENDED`              | A queued run was due to start while the plugin was suspended.                                       |
+| `OWNER_NOT_MEMBER`              | The installing member left the project, or their account is locked, before a scheduled run started. |
+| `UNAUTHORIZED`                  | The backend did not accept the execution token or the request.                                      |
+| `HOST_NOT_ALLOWED`              | The calling host is not in `hosts` or, without `hosts`, not public HTTPS.                           |
+| `PLUGIN_MISMATCH`               | The execution belongs to a plugin other than the backend's `repositoryId`.                          |
+| `ACTION_NOT_IMPLEMENTED`        | The backend declares no handler for this action.                                                    |
+| `EXECUTION_CONTEXT_UNAVAILABLE` | The backend could not read the execution from OWOX Data Marts.                                      |
+| any other                       | An OWOX refusal of the request, or the code your backend returned.                                  |
 
 A start from a plugin that is no longer installed is refused with `AUTHORIZATION_ERROR`. Refusals
-become a `PluginActionError` only for `start` and `invoke`; a refusal from `get`, `wait` or
-`cancel`, such as `EXECUTION_NOT_FOUND`, stays a `PluginTransportError` that carries `apiCode`.
+become a `PluginActionError` only for `start`, `invoke` and the `ctx.schedules` calls; a refusal
+from `get`, `wait` or `cancel`, such as `EXECUTION_NOT_FOUND`, stays a `PluginTransportError` that
+carries `apiCode`.
 
 Transport failures still reject with `PluginTransportError`; for a suspended plugin its
 `payload.code` is `SUSPENDED`.
@@ -786,13 +793,13 @@ export default createBackend({
   token that host does not accept gets 401 and runs nothing.
 - The handler gets the validated `input` and `ctx`: `ctx.owox`, `ctx.credentials`,
   `ctx.collections(name)`, `ctx.execution` (`executionId`, `action`, `input`, `trigger`,
-  `deadlineAt`, `pluginVersion`, `installationId`, `projectId`, `userId` and `plugin`, with the
-  plugin's `id` and `repositoryId`), `ctx.host`, the OWOX origin to build links to OWOX pages
-  with, and `ctx.signal`, which aborts at the deadline. When OWOX drops the call, for example on
-  cancel or on its own timeout, Cloudflare Workers cancels the whole invocation: the handler stops,
-  code after an `await` does not run, and `request.signal` never fires. Do not rely on cleanup
-  after an `await`. On Node with `@hono/node-server`, the handler keeps running and `ctx.signal`
-  aborts.
+  `scheduleId`, `deadlineAt`, `pluginVersion`, `installationId`, `projectId`, `userId` and `plugin`,
+  with the plugin's `id` and `repositoryId`), `ctx.host`, the OWOX origin to build links to OWOX
+  pages with, and `ctx.signal`, which aborts at the deadline. When OWOX drops the call, for example
+  on cancel or on its own timeout, Cloudflare Workers cancels the whole invocation: the handler
+  stops, code after an `await` does not run, and `request.signal` never fires. Do not rely on
+  cleanup after an `await`. On Node with `@hono/node-server`, the handler keeps running and
+  `ctx.signal` aborts.
 - Return JSON of at most 1 MiB, nested at most 100 levels. A result outside these limits fails
   the execution with `BACKEND_INVALID_RESPONSE`. To fail with your own code, throw an error with
   a `code` such as `DOCUMENT_LOCKED`; codes match `^[A-Z][A-Z0-9_]{0,63}$`. Any other error, such
@@ -878,6 +885,148 @@ gcloud run deploy acme-docs-backend --source . --region europe-west1 --allow-una
   `https://acme-docs-backend-123456789012.europe-west1.run.app/`. A new deploy of the same service
   keeps that URL.
 - Cloud Run's default request timeout, 300 seconds, covers the largest `timeoutSeconds`.
+
+## Run actions on a schedule
+
+A plugin can create schedules for its own installation. OWOX Data Marts then starts the
+scheduled action on time with the installing member's access, whether or not anyone has the
+plugin open. In OWOX Data Marts, members pause, resume and delete their schedules on the plugin's
+page and under **Plugins → Schedules**. That page also lists their runs; a queued or running run
+can be cancelled there. A project admin sees and manages every plugin schedule and run of the
+project on the same page.
+
+```ts
+import type { PluginContext } from '@owox/plugin-sdk';
+
+/** One schedule per watch: every Monday at 09:00 in the member's own time zone. */
+async function scheduleWeeklyCheck(ctx: PluginContext, watchId: string) {
+  if (!ctx.schedules) {
+    return; // This OWOX Data Marts deployment has no schedules.
+  }
+  const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const existing = (await ctx.schedules.list()).find(
+    schedule => (schedule.parameters as { watchId?: string } | null)?.watchId === watchId
+  );
+  if (existing) {
+    return ctx.schedules.update(existing.id, { cron: '0 9 * * 1', timeZone });
+  }
+  return ctx.schedules.create({
+    name: 'Weekly check',
+    action: 'run-check',
+    parameters: { watchId },
+    cron: '0 9 * * 1',
+    timeZone,
+  });
+}
+```
+
+- `cron` is any expression of at most 255 characters that the
+  [`cron`](https://www.npmjs.com/package/cron) package accepts, as in Data Mart schedules. It needs
+  a run in the next eight years: `0 9 30 2 *`, the 30th of February, is refused. There is no
+  minimum interval, but OWOX checks schedules once a minute, so a schedule runs at most once a
+  minute.
+- `timeZone` is required: an IANA time zone of 1 to 64 characters that `Intl.DateTimeFormat`
+  accepts, such as `Europe/Kyiv`. Names such as `local` or `system`, which mean the server's zone,
+  are refused. The member's zone is `Intl.DateTimeFormat().resolvedOptions().timeZone`.
+- `parameters` become the action's `input`. They must match the action's `input` schema and be at
+  most 64 KiB. OWOX checks them on every create and update, and again before every run.
+- `enabled: false` creates a paused schedule. `name` is optional, at most 200 characters after
+  OWOX trims it; an empty name is stored as no name.
+- An installation has at most 20 schedules. A self-managed deployment can change this limit and
+  the 64 KiB one; see [Environment variables](../getting-started/deployment-guide/environment-variables.md#plugins).
+- `list()`, `get(id)`, `update(id, patch)`, `pause(id)`, `resume(id)` and `delete(id)` manage
+  them. `update` changes `action`, `parameters`, `cron`, `timeZone` and `name`; only `pause` and
+  `resume` change whether a schedule runs. Each schedule carries `nextRunAt`, `disabledReason` and
+  `lastRun`.
+- Schedule ids are UUIDs. A call with an id that is not a UUID rejects with a
+  `PluginTransportError` (`HTTP_ERROR`, status 400), not `SCHEDULE_NOT_FOUND`. In the plugin page,
+  an id that contains `/`, `%` or `\`, or is `.` or `..`, rejects with a `FORBIDDEN`
+  `PluginTransportError` before any request is sent.
+- Only the plugin's own frame can create or change schedules; in OWOX Data Marts, members and
+  project admins only pause, resume and delete them. A backend reads them with
+  `ctx.schedules.list()` and `get(id)`.
+
+OWOX disables a schedule at run time and records why in `disabledReason`:
+
+| `disabledReason`      | Cause                                                           |
+| --------------------- | --------------------------------------------------------------- |
+| `ACTION_NOT_DECLARED` | The current version no longer declares the action.              |
+| `INVALID_PARAMETERS`  | The parameters no longer match the action's `input` schema.     |
+| `PAUSED_BY_ADMIN`     | A project admin paused the schedule in **Plugins → Schedules**. |
+
+A disabled schedule does not run until `resume`, which checks it again. A run that fails in the
+queue with `ACTION_NOT_DECLARED` or `INVALID_INPUT` disables its schedule the same way. A run that
+the action fails, or that times out, does not.
+
+While the member who installed the plugin is not an active project member, or their account is
+locked, OWOX skips the schedule's runs and leaves it enabled, so it runs again once they are back. A
+run already queued then fails with `OWNER_NOT_MEMBER`. **Plugins → Schedules** shows a project admin
+which schedules wait for their owner.
+
+`ctx.schedules.resume` of a schedule with `PAUSED_BY_ADMIN` is refused with the code
+`SCHEDULE_PAUSED_BY_ADMIN`. Only a resume in **Plugins → Schedules**, by the owner or an admin,
+lifts it. The plugin can still pause, update and delete that schedule.
+
+> **Warning:** A release that drops an action or changes its `input` schema disables that action's
+> schedules in every installation within a minute, with `ACTION_NOT_DECLARED` or
+> `INVALID_PARAMETERS`. A later release that restores the action does not enable them again; each
+> schedule has to be resumed.
+
+Scheduled runs count toward the installation's action limits. When a limit is reached, the run waits
+as `QUEUED` and starts once the limit allows, oldest first; a run held by the 24-hour limit can wait
+up to a day. A run still queued after 24 hours ends `TIMED_OUT` with the message "The run waited 24
+hours in the queue". An update that changes a schedule's `action` or `parameters` cancels its queued
+run. When OWOX cannot validate a scheduled run's parameters within its time budget, it tries again a
+minute later by default, or at the next run if that comes first, and does not disable the schedule.
+While a run waits or runs, the schedule skips its next slots. The schedules of an uninstalled plugin
+stop and run again after a restore; those of a suspended plugin skip their runs.
+
+In the backend, `ctx.execution.trigger` is `schedule` and `ctx.execution.scheduleId` names the
+schedule. Make scheduled actions safe to run twice: when a replica fails, OWOX can run a slot
+again. After downtime, OWOX makes one overdue run, not one per missed slot.
+
+```ts
+'run-check': async (input, ctx) => {
+  const { watchId } = input as { watchId: string };
+  // A scheduled run takes its date in the schedule's time zone, not the backend's.
+  const timeZone =
+    ctx.execution.trigger === 'schedule' && ctx.execution.scheduleId
+      ? (await ctx.schedules.get(ctx.execution.scheduleId)).timeZone
+      : 'UTC';
+  const today = new Date().toLocaleDateString('en-CA', { timeZone }); // 2026-10-20
+  return { watchId, today };
+},
+```
+
+A refusal with any OWOX error code rejects with a `PluginActionError`, not only the codes below.
+A failure without a code stays a `PluginTransportError`, and so does the refusal of a suspended
+plugin, with the code `SUSPENDED`. These codes are the usual ones:
+
+| `code`                     | Meaning                                                                        |
+| -------------------------- | ------------------------------------------------------------------------------ |
+| `INVALID_SCHEDULE`         | The cron expression, the time zone or the name is invalid or too long.         |
+| `ACTION_NOT_DECLARED`      | The current version does not declare the action.                               |
+| `INVALID_PARAMETERS`       | The parameters fail the schema or nest over 100 levels; `errors` lists fields. |
+| `PARAMETERS_TOO_LARGE`     | The parameters are over the limit, 64 KiB by default.                          |
+| `TOO_MANY_SCHEDULES`       | The installation has as many schedules as allowed, 20 by default.              |
+| `SCHEDULE_BUSY`            | OWOX was starting this schedule's run for over 5 seconds; try again.           |
+| `SCHEDULE_NOT_FOUND`       | This installation has no schedule with this id.                                |
+| `SCHEDULE_PAUSED_BY_ADMIN` | `resume` of a schedule that a project admin paused.                            |
+| `TOO_MANY_EXECUTIONS`      | Too many inputs are being validated at once; try again.                        |
+
+Show the member why a change failed, for example after `scheduleWeeklyCheck` above:
+
+```ts
+import type { PluginActionError } from '@owox/plugin-sdk';
+
+function describeScheduleError(error: unknown): string {
+  if (error instanceof Error && error.name === 'PluginActionError') {
+    const { code, message } = error as PluginActionError;
+    return code === 'TOO_MANY_SCHEDULES' ? 'Delete a schedule to add another.' : message;
+  }
+  return error instanceof Error ? error.message : String(error);
+}
+```
 
 ## Deploy with GitHub Pages
 
@@ -1079,6 +1228,7 @@ With a mouse, the menu appears when you point at the plugin; expand the sidebar 
 collapsed. The same action is in the **⋮** menu of the plugin's page, which **Settings** in that
 sidebar menu opens. Uninstalling stops the plugin only for you: who can find it does not change,
 other members keep their installations, and any Credential access you granted ends.
+Uninstalling also stops the plugin's schedules, and restoring runs them again.
 
 To bring an uninstalled plugin back, open **Plugins**, select **⋮** → **Plugin history**, and
 select **Restore** next to the plugin's latest removal, or under **Restore a removed plugin** when

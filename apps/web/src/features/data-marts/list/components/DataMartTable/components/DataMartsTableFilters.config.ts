@@ -21,11 +21,20 @@ import { dataMartColumnLabels } from '../columns/columnLabels';
 /* ---------------------------------------------------------------------------
  * Filter keys
  * ------------------------------------------------------------------------ */
-enum AdditionalFilterKeys {
+export enum AdditionalFilterKeys {
   STORAGE_TITLE = 'storageTitle',
   INPUT_SOURCE = 'inputSource',
   AVAILABILITY = 'availability',
+  RELATIONSHIPS = 'relationships',
 }
+
+/** Contexts filter value for Data Marts attached to no context; no context id looks like it. */
+export const NO_CONTEXT_FILTER_VALUE = '__no_context__';
+
+export const RELATIONSHIPS_FILTER_VALUE = {
+  WITH: 'with',
+  WITHOUT: 'without',
+} as const;
 
 export type DataMartFilterKey =
   | DataMartColumnKey.STATUS
@@ -38,6 +47,7 @@ export type DataMartFilterKey =
   | DataMartColumnKey.BUSINESS_OWNERS
   | DataMartColumnKey.TECHNICAL_OWNERS
   | DataMartColumnKey.CONTEXTS
+  | AdditionalFilterKeys.RELATIONSHIPS
   | AdditionalFilterKeys.AVAILABILITY;
 
 /* ---------------------------------------------------------------------------
@@ -59,7 +69,12 @@ export const dataMartsFilterAccessors: FilterAccessors<DataMartFilterKey, DataMa
   [DataMartColumnKey.CREATED_BY_USER]: row => row.createdByUser?.userId,
   [DataMartColumnKey.BUSINESS_OWNERS]: row => row.businessOwnerUsers.map(u => u.userId),
   [DataMartColumnKey.TECHNICAL_OWNERS]: row => row.technicalOwnerUsers.map(u => u.userId),
-  [DataMartColumnKey.CONTEXTS]: row => row.contexts.map(c => c.id),
+  [DataMartColumnKey.CONTEXTS]: row =>
+    row.contexts.length > 0 ? row.contexts.map(c => c.id) : [NO_CONTEXT_FILTER_VALUE],
+  [AdditionalFilterKeys.RELATIONSHIPS]: row =>
+    row.relationshipsCount > 0
+      ? RELATIONSHIPS_FILTER_VALUE.WITH
+      : RELATIONSHIPS_FILTER_VALUE.WITHOUT,
   [AdditionalFilterKeys.AVAILABILITY]: row =>
     classifyAvailability(row.availableForReporting, row.availableForMaintenance),
 };
@@ -268,9 +283,22 @@ export function buildDataMartsTableFilters(
       label: dataMartColumnLabels[DataMartColumnKey.CONTEXTS],
       dataType: 'enum',
       operators: ['eq', 'neq'],
-      options: collectOptionsFromData(data, dataMartsFilterAccessors[DataMartColumnKey.CONTEXTS], {
-        labelMapper: contextLabelMapper,
-      }),
+      options: [
+        { value: NO_CONTEXT_FILTER_VALUE, label: 'No context' },
+        ...collectOptionsFromData(data, row => row.contexts.map(c => c.id), {
+          labelMapper: contextLabelMapper,
+        }),
+      ],
+    },
+    {
+      id: AdditionalFilterKeys.RELATIONSHIPS,
+      label: 'Relationships',
+      dataType: 'enum',
+      operators: ['eq', 'neq'],
+      options: [
+        { value: RELATIONSHIPS_FILTER_VALUE.WITH, label: 'With relationships' },
+        { value: RELATIONSHIPS_FILTER_VALUE.WITHOUT, label: 'Without relationships' },
+      ],
     },
     buildAvailabilityFilter<DataMartFilterKey>({
       id: AdditionalFilterKeys.AVAILABILITY,

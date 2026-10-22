@@ -5,6 +5,7 @@ import { UserAvatarGroup } from '../../../../shared/components/UserAvatarGroup/U
 import type { UserProjection } from '../../../../shared/types';
 import type { ContextDto } from '../../types/context.types';
 import { ContextsActionsCell } from './ContextsActionsCell';
+import { ContextIconGlyph } from '../ContextIcon';
 
 export interface ContextsTableItem extends ContextDto {
   memberCount: number;
@@ -47,7 +48,17 @@ export const getContextsColumns = ({
         {contextsColumnLabels[ContextsColumnKey.NAME]}
       </SortableHeader>
     ),
-    cell: ({ row }) => <div className='font-medium'>{row.original.name}</div>,
+    cell: ({ row }) => (
+      <div className='flex items-center gap-2 font-medium'>
+        <ContextIconGlyph
+          icon={row.original.icon}
+          className='text-muted-foreground size-4 shrink-0'
+          aria-hidden='true'
+        />
+        {/* min-w-0 lets the name shrink inside the flex row, so a long name wraps in the cell. */}
+        <span className='min-w-0 break-words'>{row.original.name}</span>
+      </div>
+    ),
   },
   {
     accessorKey: ContextsColumnKey.MEMBERS,
