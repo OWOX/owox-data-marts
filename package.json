@@ -112,7 +112,10 @@
     },
     "markdownlint-cli2": {
       "js-yaml": "^4.2.0",
-      "markdown-it": "^14.2.0"
+      "markdown-it": "^14.3.3"
+    },
+    "micromark-extension-math": {
+      "katex": "^0.18.2"
     },
     "googleapis-common": {
       "google-auth-library": "^10.1.0"
