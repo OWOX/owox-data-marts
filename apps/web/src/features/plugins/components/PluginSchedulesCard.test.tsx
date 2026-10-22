@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { MemoryRouter } from 'react-router';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { useEffect } from 'react';
+import { MemoryRouter, useLocation } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PluginScheduleSummary } from '../types';
 
@@ -10,6 +11,8 @@ vi.mock('../../../shared/hooks', async importOriginal => ({
   useProjectId: () => projectId,
   useProjectRoute: () => ({ scope: (path: string) => `/ui/${projectId}${path}` }),
 }));
+const user = { id: 'u1' };
+vi.mock('../../idp/hooks/useAuthState', () => ({ useUser: () => user }));
 vi.mock('../services/plugins.service', () => ({
   pluginsService: { listSchedules: vi.fn() },
 }));
@@ -34,26 +37,43 @@ const schedule = (over: Partial<PluginScheduleSummary> = {}): PluginScheduleSumm
   ...over,
 });
 
+let location = '';
+function Location() {
+  const { pathname, search } = useLocation();
+  useEffect(() => {
+    location = pathname + search;
+  });
+  return null;
+}
+
 let client: QueryClient;
-const renderCard = (hasBackend = true, uninstalled = false) =>
+const renderCard = (hasBackend = true, uninstalled = false, pluginId = 'p1') =>
   render(
     <QueryClientProvider
       client={(client = new QueryClient({ defaultOptions: { queries: { retry: false } } }))}
     >
       <MemoryRouter>
         <PluginSchedulesCard
-          pluginId='p1'
+          pluginId={pluginId}
           installationId='i1'
           hasBackend={hasBackend}
           uninstalled={uninstalled}
         />
+        <Location />
       </MemoryRouter>
     </QueryClientProvider>
   );
 
+const namesInOrder = () =>
+  screen
+    .getAllByRole('row')
+    .slice(1)
+    .map(row => row.querySelector('a')?.textContent);
+
 describe('PluginSchedulesCard', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    localStorage.clear();
     projectId = 'project-1';
     service.listSchedules.mockResolvedValue([]);
   });
@@ -84,7 +104,7 @@ describe('PluginSchedulesCard', () => {
     finishedAt: `2026-10-${String(day).padStart(2, '0')}T06:00:00.000Z`,
   });
 
-  it('shows the ten schedules that ran last and links to all of them', async () => {
+  it("shows the ten schedules that ran last and links to all of the member's own", async () => {
     service.listSchedules.mockResolvedValue(
       Array.from({ length: 12 }, (_, index) =>
         schedule({
@@ -102,10 +122,24 @@ describe('PluginSchedulesCard', () => {
     expect(screen.getByText('Schedule 2')).toBeInTheDocument();
     expect(screen.queryByText('Schedule 1')).toBeNull();
     expect(screen.queryByText('Schedule 0')).toBeNull();
+    // An admin's full list holds every member's schedules, so the link keeps it to the card's.
     expect(screen.getByRole('link', { name: 'View all 12 schedules' })).toHaveAttribute(
       'href',
-      '/ui/project-1/plugins/schedules?plugin=p1'
+      '/ui/project-1/plugins/schedules?plugin=p1&owner=u1'
     );
+  });
+
+  it('links to all the schedules from the eleventh on', async () => {
+    service.listSchedules.mockResolvedValue(
+      Array.from({ length: 11 }, (_, index) =>
+        schedule({ id: `s${String(index)}`, name: `Schedule ${String(index)}` })
+      )
+    );
+
+    renderCard();
+
+    expect(await screen.findByRole('link', { name: 'View all 11 schedules' })).toBeInTheDocument();
+    expect(screen.getAllByRole('row')).toHaveLength(11);
   });
 
   it('lists the schedules that ran last first, and those not run yet last', async () => {
@@ -118,21 +152,79 @@ describe('PluginSchedulesCard', () => {
     renderCard();
 
     await screen.findByText('Latest');
-    expect(
-      screen
-        .getAllByRole('row')
-        .slice(1)
-        .map(row => row.querySelector('a')?.textContent)
-    ).toEqual(['Latest', 'Earlier', 'Never']);
+    expect(namesInOrder()).toEqual(['Latest', 'Earlier', 'Never']);
   });
 
-  it('has no link to all the schedules when the card shows them all', async () => {
+  it('lists a schedule whose run is still going first, by its status alone', async () => {
+    service.listSchedules.mockResolvedValue([
+      schedule({ id: 's1', name: 'Latest', lastRun: ranAt(16) }),
+      schedule({ id: 's2', name: 'Never' }),
+      schedule({
+        id: 's3',
+        name: 'Going',
+        lastRun: { executionId: 'e3', status: 'RUNNING', errorCode: null, finishedAt: null },
+      }),
+    ]);
+
+    renderCard();
+
+    await screen.findByText('Going');
+    expect(namesInOrder()).toEqual(['Going', 'Latest', 'Never']);
+    expect(screen.getByText('Running').closest('td')).toHaveTextContent(/^Running$/);
+  });
+
+  it.each([1, 10])('has no link to all the schedules when the card shows all %i', async count => {
+    service.listSchedules.mockResolvedValue(
+      Array.from({ length: count }, (_, index) =>
+        schedule({ id: `s${String(index)}`, name: `Schedule ${String(index)}` })
+      )
+    );
+
+    renderCard();
+
+    await screen.findByText('Schedule 0');
+    expect(screen.getAllByRole('row')).toHaveLength(count + 1);
+    expect(screen.queryByRole('link', { name: /View all/ })).toBeNull();
+  });
+
+  it('sorts the schedules by how they read, not by their cron', async () => {
+    service.listSchedules.mockResolvedValue([
+      schedule({ id: 's1', name: 'Quarter', cron: '*/15 * * * *' }),
+      schedule({ id: 's2', name: 'Nine', cron: '0 9 * * *' }),
+      schedule({ id: 's3', name: 'Half past eight', cron: '30 8 * * *' }),
+    ]);
+
+    renderCard();
+
+    await screen.findByText('Quarter');
+    fireEvent.click(screen.getByRole('button', { name: /^Schedule - / }));
+    expect(namesInOrder()).toEqual(['Half past eight', 'Nine', 'Quarter']);
+  });
+
+  it("keeps each plugin's sorting to its own card", async () => {
+    service.listSchedules.mockResolvedValue([
+      schedule({ id: 's1', name: 'Zed', lastRun: ranAt(16) }),
+      schedule({ id: 's2', name: 'Abe', lastRun: ranAt(14) }),
+    ]);
+    const { unmount } = renderCard();
+    await screen.findByText('Zed');
+    fireEvent.click(screen.getByRole('button', { name: /^Name - / }));
+    expect(namesInOrder()).toEqual(['Abe', 'Zed']);
+    unmount();
+
+    renderCard(true, false, 'p2');
+
+    await screen.findByText('Zed');
+    expect(namesInOrder()).toEqual(['Zed', 'Abe']);
+  });
+
+  it('opens the schedule from anywhere in its row', async () => {
     service.listSchedules.mockResolvedValue([schedule()]);
 
     renderCard();
 
-    await screen.findByText('Morning export');
-    expect(screen.queryByRole('link', { name: /View all/ })).toBeNull();
+    fireEvent.click(await screen.findByText('Daily at 09:00'));
+    expect(location).toBe('/ui/project-1/plugins/schedules?plugin=p1&schedule=s1');
   });
 
   it('links each schedule to its panel under Plugins → Schedules, with no actions here', async () => {
@@ -233,9 +325,19 @@ describe('PluginSchedulesCard', () => {
     renderCard();
 
     // 06:00 UTC is 09:00 in Kyiv (UTC+3), whatever zone the browser is in.
-    expect(await hintOf(await cellOf(2))).toHaveTextContent(
-      'Next run: Oct 17, 2026, 09:00 AM GMT+3'
-    );
+    const nextRun = await cellOf(2);
+    expect(await hintOf(nextRun)).toHaveTextContent('Next run: Oct 17, 2026, 09:00 AM GMT+3');
+    // No second hint in the browser's own zone.
+    expect(nextRun.querySelector('[title]')).toBeNull();
+  });
+
+  it('shows a dash for an enabled schedule with no next run', async () => {
+    service.listSchedules.mockResolvedValue([schedule({ nextRunAt: null })]);
+
+    renderCard();
+
+    await screen.findByText('Morning export');
+    expect(screen.getAllByRole('row')[1].querySelectorAll('td')[2]).toHaveTextContent(/^—$/);
   });
 
   it('marks a paused schedule, and a schedule paused by an admin with the reason', async () => {
@@ -252,9 +354,11 @@ describe('PluginSchedulesCard', () => {
 
     renderCard();
 
-    const [own, byAdmin] = await screen.findAllByText('Paused');
-    expect(own.closest('[data-slot="tooltip-trigger"]')).toBeNull();
-    expect(await hintOf(byAdmin)).toHaveTextContent('A project admin paused this schedule');
+    const pausedIn = (name: string) =>
+      within(screen.getByRole('link', { name }).closest('tr')!).getByText('Paused');
+    await screen.findByText('A');
+    expect(pausedIn('A').closest('[data-slot="tooltip-trigger"]')).toBeNull();
+    expect(await hintOf(pausedIn('B'))).toHaveTextContent('A project admin paused this schedule');
     expect(screen.queryByText('Disabled')).toBeNull();
   });
 
@@ -343,6 +447,19 @@ describe('PluginSchedulesCard', () => {
     await waitFor(() => {
       expect(screen.queryByRole('alert')).toBeNull();
     });
+  });
+
+  it('keeps the alert beside an empty list when a later refresh fails', async () => {
+    service.listSchedules.mockResolvedValueOnce([]).mockRejectedValue(new Error('offline'));
+    renderCard();
+
+    await screen.findByText(/^This plugin has no schedules\./);
+    await act(async () => {
+      await client.invalidateQueries();
+    });
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Could not load schedules.');
+    expect(screen.getByText(/^This plugin has no schedules\./)).toBeInTheDocument();
   });
 
   it('shows the load error of an uninstalled plugin whose schedules are unknown', async () => {

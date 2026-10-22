@@ -43,6 +43,7 @@ export { useCancelPluginRun, usePluginRun, usePluginRuns } from './hooks/usePlug
 export { usePluginSchedules, type ScheduleOperation } from './hooks/usePluginSchedules';
 export {
   isPluginRunStatus,
+  lastRunSortKey,
   lastRunSummary,
   PLUGIN_RUN_STATUSES,
   PLUGIN_RUN_STATUS_LABEL,

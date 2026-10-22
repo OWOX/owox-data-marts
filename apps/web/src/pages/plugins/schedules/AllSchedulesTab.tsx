@@ -17,6 +17,7 @@ import toast from 'react-hot-toast';
 import { Link } from 'react-router';
 import {
   describeCron,
+  lastRunSortKey,
   runStatusLabel,
   usePluginSchedules,
   type ProjectPluginSchedule,
@@ -194,7 +195,7 @@ export function AllSchedulesTab({ isAdmin }: { isAdmin: boolean }) {
             <Tooltip>
               <TooltipTrigger asChild>
                 <span className='text-muted-foreground text-sm' tabIndex={0}>
-                  <RelativeTime date={new Date(row.original.nextRunAt)} />
+                  <RelativeTime date={new Date(row.original.nextRunAt)} showTitle={false} />
                 </span>
               </TooltipTrigger>
               <TooltipContent>
@@ -207,7 +208,7 @@ export function AllSchedulesTab({ isAdmin }: { isAdmin: boolean }) {
       },
       {
         id: 'lastRun',
-        accessorFn: item => item.lastRun?.finishedAt ?? undefined,
+        accessorFn: lastRunSortKey,
         sortingFn: 'basic',
         sortUndefined: 'last',
         size: 150,

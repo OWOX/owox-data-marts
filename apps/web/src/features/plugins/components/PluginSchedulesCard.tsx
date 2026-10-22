@@ -18,9 +18,15 @@ import { BaseTable, SortableHeader } from '../../../shared/components/Table';
 import { useBaseTable, useProjectRoute } from '../../../shared/hooks';
 import { timezoneService } from '../../../services/timezone.service';
 import { formatDateShort } from '../../../utils/date-formatters';
+import { useUser } from '../../idp/hooks/useAuthState';
 import { describeCron } from '../describeCron';
 import { usePluginSchedules } from '../hooks/usePluginSchedules';
-import { lastRunSummary, runStatusLabel, SCHEDULE_DISABLED_REASON_TEXT } from '../scheduleLabels';
+import {
+  lastRunSortKey,
+  lastRunSummary,
+  runStatusLabel,
+  SCHEDULE_DISABLED_REASON_TEXT,
+} from '../scheduleLabels';
 import type { PluginScheduleSummary } from '../types';
 
 // The card shows the schedules that ran last; the rest are a link away, under Plugins → Schedules.
@@ -52,13 +58,14 @@ export function PluginSchedulesCard({
 }) {
   const { scope } = useProjectRoute();
   const navigate = useNavigate();
+  const user = useUser();
   const { schedules, enabled, hasData, isPending, isError, refetch } =
     usePluginSchedules(installationId);
   const columns = useMemo(() => scheduleColumns(pluginId), [pluginId]);
   const { table } = useBaseTable<PluginScheduleSummary>({
     data: schedules,
     columns,
-    storageKeyPrefix: 'plugin-schedules-card',
+    storageKeyPrefix: `plugin-schedules-card-${pluginId}`,
     defaultSortingColumn: 'lastRun',
     defaultSortingDesc: true,
     // Pagination stays hidden, so the page is the whole card.
@@ -103,10 +110,13 @@ export function PluginSchedulesCard({
             Loading…
           </p>
         ) : schedules.length === 0 ? (
-          <p className='text-muted-foreground text-sm'>
-            This plugin has no schedules. A plugin adds them itself:{' '}
-            <ExternalAnchor href={SCHEDULES_DOCS_URL}>Run actions on a schedule</ExternalAnchor>
-          </p>
+          <div className='flex flex-col gap-3'>
+            {loadError}
+            <p className='text-muted-foreground text-sm'>
+              This plugin has no schedules. A plugin adds them itself:{' '}
+              <ExternalAnchor href={SCHEDULES_DOCS_URL}>Run actions on a schedule</ExternalAnchor>
+            </p>
+          </div>
         ) : (
           <>
             {loadError}
@@ -131,7 +141,8 @@ export function PluginSchedulesCard({
         right={
           schedules.length > CARD_ROWS && (
             <Link
-              to={scope(manageSearch(pluginId))}
+              // The card holds the user's own schedules, and an admin's full list holds everyone's.
+              to={scope(`${manageSearch(pluginId)}${user ? `&owner=${user.id}` : ''}`)}
               className='text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-sm'
             >
               View all {schedules.length} schedules
@@ -183,7 +194,8 @@ function scheduleColumns(pluginId: string): ColumnDef<PluginScheduleSummary>[] {
     },
     {
       id: 'schedule',
-      accessorFn: item => item.cron,
+      // By what the cell reads, not the raw cron.
+      accessorFn: item => describeCron(item.cron) ?? item.cron,
       size: 190,
       meta: { title: 'Schedule' },
       header: ({ column }) => <SortableHeader column={column}>Schedule</SortableHeader>,
@@ -207,7 +219,7 @@ function scheduleColumns(pluginId: string): ColumnDef<PluginScheduleSummary>[] {
     },
     {
       id: 'lastRun',
-      accessorFn: item => item.lastRun?.finishedAt ?? undefined,
+      accessorFn: lastRunSortKey,
       sortingFn: 'basic',
       sortUndefined: 'last',
       size: 260,
@@ -235,7 +247,7 @@ function NextRun({ schedule }: { schedule: PluginScheduleSummary }) {
   }
   return withHint(
     <span className='text-muted-foreground'>
-      <RelativeTime date={new Date(nextRunAt)} />
+      <RelativeTime date={new Date(nextRunAt)} showTitle={false} />
     </span>,
     `Next run: ${formatDateShort(nextRunAt, { timeZone: schedule.timeZone })}`
   );
@@ -253,7 +265,7 @@ function LastRun({ schedule }: { schedule: PluginScheduleSummary }) {
       </StatusLabel>
       {lastRun.finishedAt && (
         <span className='text-muted-foreground'>
-          · <RelativeTime date={new Date(lastRun.finishedAt)} />
+          · <RelativeTime date={new Date(lastRun.finishedAt)} showTitle={false} />
         </span>
       )}
     </span>,

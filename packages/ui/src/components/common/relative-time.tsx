@@ -3,9 +3,15 @@ import { useMemo } from 'react';
 interface RelativeTimeProps {
   date: Date;
   className?: string;
+  /** False when the caller shows the exact time in its own tooltip, so hovering shows one time. */
+  showTitle?: boolean;
 }
 
-export default function RelativeTime({ date, className = '' }: RelativeTimeProps) {
+export default function RelativeTime({
+  date,
+  className = '',
+  showTitle = true,
+}: RelativeTimeProps) {
   const relativeText = useMemo(() => {
     const now = new Date();
     const diffMs = date.getTime() - now.getTime();
@@ -94,7 +100,7 @@ export default function RelativeTime({ date, className = '' }: RelativeTimeProps
   }, [date]);
 
   return (
-    <span className={`${className}`} title={date.toLocaleString()}>
+    <span className={`${className}`} title={showTitle ? date.toLocaleString() : undefined}>
       {relativeText}
     </span>
   );
