@@ -5,7 +5,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PluginScheduleSummary } from '../types';
 
 let projectId = 'project-1';
-vi.mock('../../../shared/hooks', () => ({
+vi.mock('../../../shared/hooks', async importOriginal => ({
+  ...(await importOriginal<object>()),
   useProjectId: () => projectId,
   useProjectRoute: () => ({ scope: (path: string) => `/ui/${projectId}${path}` }),
 }));
@@ -145,23 +146,32 @@ describe('PluginSchedulesCard', () => {
     expect(await screen.findByRole('link', { name: 'export' })).toBeInTheDocument();
   });
 
-  it('counts the active, paused and disabled schedules', async () => {
-    service.listSchedules.mockResolvedValue([
-      schedule({ id: 's1' }),
-      schedule({ id: 's2', name: 'Weekly' }),
-      schedule({ id: 's3', name: 'Off', enabled: false, nextRunAt: null }),
-      schedule({
-        id: 's4',
-        name: 'Broken',
-        enabled: false,
-        nextRunAt: null,
-        disabledReason: 'ACTION_NOT_DECLARED',
-      }),
-    ]);
+  it('lists the schedules in a table with Name, Schedule, Next run and Last run', async () => {
+    service.listSchedules.mockResolvedValue([schedule()]);
 
     renderCard();
 
-    expect(await screen.findByText('2 active · 1 paused · 1 disabled')).toBeInTheDocument();
+    await screen.findByText('Morning export');
+    expect(screen.getAllByRole('columnheader').map(cell => cell.textContent)).toEqual([
+      'Name',
+      'Schedule',
+      'Next run',
+      'Last run',
+    ]);
+  });
+
+  const cellOf = async (column: number) => {
+    await screen.findByText('Morning export');
+    const cells = screen.getAllByRole('row')[1].querySelectorAll<HTMLElement>('td');
+    return cells[column].querySelector<HTMLElement>('[data-slot="tooltip-trigger"]')!;
+  };
+
+  it("names the schedule's time zone on hover", async () => {
+    service.listSchedules.mockResolvedValue([schedule()]);
+
+    renderCard();
+
+    expect(await hintOf(await cellOf(1))).toHaveTextContent('Europe/Kyiv');
   });
 
   it("shows when a schedule runs next, with the time in the schedule's own zone", async () => {
@@ -169,19 +179,10 @@ describe('PluginSchedulesCard', () => {
 
     renderCard();
 
-    const row = await screen.findByRole('listitem');
     // 06:00 UTC is 09:00 in Kyiv (UTC+3), whatever zone the browser is in.
-    expect(
-      await hintOf(row.querySelector<HTMLElement>('[data-slot="tooltip-trigger"]')!)
-    ).toHaveTextContent('Next run: Oct 17, 2026, 09:00 AM GMT+3');
-  });
-
-  it('counts a paused schedule alone', async () => {
-    service.listSchedules.mockResolvedValue([schedule({ enabled: false, nextRunAt: null })]);
-
-    renderCard();
-
-    expect(await screen.findByText('1 paused')).toBeInTheDocument();
+    expect(await hintOf(await cellOf(2))).toHaveTextContent(
+      'Next run: Oct 17, 2026, 09:00 AM GMT+3'
+    );
   });
 
   it('marks a paused schedule, and a schedule paused by an admin with the reason', async () => {
@@ -300,7 +301,7 @@ describe('PluginSchedulesCard', () => {
   });
 
   describe('for an uninstalled plugin', () => {
-    it('says the schedules return with the plugin instead of counting them', async () => {
+    it('says the schedules return with the plugin', async () => {
       service.listSchedules.mockResolvedValue([schedule()]);
 
       renderCard(true, true);
@@ -309,7 +310,6 @@ describe('PluginSchedulesCard', () => {
       expect(
         screen.getByText('These schedules run again if the plugin is restored.')
       ).toBeInTheDocument();
-      expect(screen.queryByText(/active/)).toBeNull();
     });
 
     it('shows nothing when it has no schedules', async () => {

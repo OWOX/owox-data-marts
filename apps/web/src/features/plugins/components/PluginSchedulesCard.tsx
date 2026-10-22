@@ -1,9 +1,10 @@
 import { Button } from '@owox/ui/components/button';
 import RelativeTime from '@owox/ui/components/common/relative-time';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
+import type { ColumnDef } from '@tanstack/react-table';
 import { CalendarClock } from 'lucide-react';
-import type { ReactElement } from 'react';
-import { Link } from 'react-router';
+import { useMemo, type MouseEvent, type ReactElement } from 'react';
+import { Link, useNavigate } from 'react-router';
 import {
   CollapsibleCard,
   CollapsibleCardContent,
@@ -12,7 +13,9 @@ import {
   CollapsibleCardHeaderTitle,
 } from '../../../shared/components/CollapsibleCard';
 import { StatusLabel, StatusTypeEnum } from '../../../shared/components/StatusLabel';
-import { useProjectRoute } from '../../../shared/hooks';
+import { BaseTable, SortableHeader } from '../../../shared/components/Table';
+import { useBaseTable, useProjectRoute } from '../../../shared/hooks';
+import { timezoneService } from '../../../services/timezone.service';
 import { formatDateShort } from '../../../utils/date-formatters';
 import { describeCron } from '../describeCron';
 import { usePluginSchedules } from '../hooks/usePluginSchedules';
@@ -27,7 +30,7 @@ const RUN_TYPE: Record<string, StatusTypeEnum> = {
   RUNNING: StatusTypeEnum.INFO,
 };
 
-// An overview: pause, resume, delete and the runs are under Plugins → Schedules, where each row links.
+// An overview: pause, resume, delete and the runs are under Plugins → Schedules, which each row opens.
 // A plugin without a backend can still hold schedules from an earlier version, so only an empty list hides it.
 export function PluginSchedulesCard({
   pluginId,
@@ -41,15 +44,22 @@ export function PluginSchedulesCard({
   uninstalled?: boolean;
 }) {
   const { scope } = useProjectRoute();
+  const navigate = useNavigate();
   const { schedules, enabled, hasData, isPending, isError, refetch } =
     usePluginSchedules(installationId);
+  const columns = useMemo(() => scheduleColumns(pluginId), [pluginId]);
+  const { table } = useBaseTable<PluginScheduleSummary>({
+    data: schedules,
+    columns,
+    storageKeyPrefix: 'plugin-schedules-card',
+    defaultSortingColumn: 'nextRun',
+    defaultSortingDesc: false,
+    getRowId: item => item.id,
+  });
 
   if (!enabled || ((!hasBackend || uninstalled) && schedules.length === 0 && !isError)) {
     return null;
   }
-
-  const manageHref = (scheduleId?: string) =>
-    scope(`/plugins/schedules?plugin=${pluginId}${scheduleId ? `&schedule=${scheduleId}` : ''}`);
 
   const loadError = isError && (
     <div role='alert' className='flex items-center gap-3 text-sm'>
@@ -88,46 +98,27 @@ export function PluginSchedulesCard({
         ) : (
           <>
             {loadError}
-            <p className='text-muted-foreground mb-3 text-sm'>
-              {uninstalled
-                ? 'These schedules run again if the plugin is restored.'
-                : overview(schedules)}
-            </p>
-            <ul className='@container divide-y'>
-              {schedules.map(schedule => (
-                // One grid template per row, so the columns line up across rows.
-                <li
-                  key={schedule.id}
-                  className='flex flex-col gap-1 py-2 text-sm first:pt-0 last:pb-0 @4xl:grid @4xl:grid-cols-[minmax(0,1fr)_14rem_12rem_16rem] @4xl:items-center @4xl:gap-4'
-                >
-                  <Link
-                    to={manageHref(schedule.id)}
-                    className='min-w-0 truncate font-medium hover:underline'
-                  >
-                    {schedule.name ?? schedule.action}
-                  </Link>
-                  {/* Stacked and labelled while the card is too narrow for columns. */}
-                  <div className='text-muted-foreground flex flex-col gap-1 @4xl:contents'>
-                    <span>{describeCron(schedule.cron) ?? <code>{schedule.cron}</code>}</span>
-                    <span className='inline-flex items-center gap-1 whitespace-nowrap'>
-                      <span className='@4xl:hidden'>Next run:</span>
-                      <NextRun schedule={schedule} />
-                    </span>
-                    <span className='inline-flex items-center gap-1 whitespace-nowrap'>
-                      <span className='@4xl:hidden'>Last run:</span>
-                      <LastRun schedule={schedule} />
-                    </span>
-                  </div>
-                </li>
-              ))}
-            </ul>
+            {uninstalled && (
+              <p className='text-muted-foreground mb-3 text-sm'>
+                These schedules run again if the plugin is restored.
+              </p>
+            )}
+            <BaseTable
+              tableId='plugin-schedules-card-table'
+              table={table}
+              ariaLabel='Schedules of this plugin'
+              showPagination={false}
+              onRowClick={row => {
+                void navigate(scope(manageSearch(pluginId, row.original.id)));
+              }}
+            />
           </>
         )}
       </CollapsibleCardContent>
       <CollapsibleCardFooter
         right={
           <Button asChild variant='link' size='sm'>
-            <Link to={manageHref()}>Manage schedules</Link>
+            <Link to={scope(manageSearch(pluginId))}>Manage schedules</Link>
           </Button>
         }
       />
@@ -135,22 +126,78 @@ export function PluginSchedulesCard({
   );
 }
 
-/** "2 active · 1 paused · 1 disabled". */
-function overview(schedules: PluginScheduleSummary[]): string {
-  const disabled = schedules.filter(
-    item =>
-      !item.enabled && item.disabledReason !== null && item.disabledReason !== 'PAUSED_BY_ADMIN'
-  ).length;
-  const active = schedules.filter(item => item.enabled);
-  const counts: [number, string][] = [
-    [active.length, 'active'],
-    [schedules.length - active.length - disabled, 'paused'],
-    [disabled, 'disabled'],
+const manageSearch = (pluginId: string, scheduleId?: string) =>
+  `/plugins/schedules?plugin=${pluginId}${scheduleId ? `&schedule=${scheduleId}` : ''}`;
+
+// The row opens the same panel; the link keeps it reachable by keyboard.
+const keepRowClick = (event: MouseEvent) => {
+  event.stopPropagation();
+};
+
+function ScheduleLink({
+  pluginId,
+  schedule,
+}: {
+  pluginId: string;
+  schedule: PluginScheduleSummary;
+}) {
+  const { scope } = useProjectRoute();
+  return (
+    <Link
+      to={scope(manageSearch(pluginId, schedule.id))}
+      className='font-medium [overflow-wrap:anywhere] hover:underline'
+      onClick={keepRowClick}
+    >
+      {schedule.name ?? schedule.action}
+    </Link>
+  );
+}
+
+function scheduleColumns(pluginId: string): ColumnDef<PluginScheduleSummary>[] {
+  return [
+    {
+      id: 'name',
+      accessorFn: item => item.name ?? item.action,
+      size: 200,
+      meta: { title: 'Name' },
+      header: ({ column }) => <SortableHeader column={column}>Name</SortableHeader>,
+      cell: ({ row }) => <ScheduleLink pluginId={pluginId} schedule={row.original} />,
+    },
+    {
+      id: 'schedule',
+      accessorFn: item => item.cron,
+      size: 190,
+      meta: { title: 'Schedule' },
+      header: ({ column }) => <SortableHeader column={column}>Schedule</SortableHeader>,
+      cell: ({ row }) =>
+        withHint(
+          <span className='text-muted-foreground'>
+            {describeCron(row.original.cron) ?? <code>{row.original.cron}</code>}
+          </span>,
+          timezoneService.getTimezoneDisplayName(row.original.timeZone)
+        ),
+    },
+    {
+      id: 'nextRun',
+      accessorFn: item => item.nextRunAt ?? undefined,
+      sortingFn: 'basic',
+      sortUndefined: 'last',
+      size: 170,
+      meta: { title: 'Next run' },
+      header: ({ column }) => <SortableHeader column={column}>Next run</SortableHeader>,
+      cell: ({ row }) => <NextRun schedule={row.original} />,
+    },
+    {
+      id: 'lastRun',
+      accessorFn: item => item.lastRun?.finishedAt ?? undefined,
+      sortingFn: 'basic',
+      sortUndefined: 'last',
+      size: 260,
+      meta: { title: 'Last run' },
+      header: ({ column }) => <SortableHeader column={column}>Last run</SortableHeader>,
+      cell: ({ row }) => <LastRun schedule={row.original} />,
+    },
   ];
-  return counts
-    .filter(([count]) => count > 0)
-    .map(([count, label]) => `${String(count)} ${label}`)
-    .join(' · ');
 }
 
 // The next run in words, its time in the schedule's own zone; Paused or Disabled, with the reason, in its place.
@@ -182,7 +229,7 @@ function LastRun({ schedule }: { schedule: PluginScheduleSummary }) {
     return <span className='text-muted-foreground'>Not run yet</span>;
   }
   return withHint(
-    <span className='inline-flex items-center gap-1'>
+    <span className='inline-flex items-center gap-1 whitespace-nowrap'>
       <StatusLabel type={RUN_TYPE[lastRun.status] ?? StatusTypeEnum.NEUTRAL}>
         {runStatusLabel(lastRun.status)}
       </StatusLabel>
