@@ -9,10 +9,10 @@
 A plugin's backend action used to run only while a member had the plugin open, so a check meant
 for every Monday at nine waited for someone to open it. Now a plugin can create schedules for its
 installation with `ctx.schedules`, and OWOX Data Marts starts the action on its cron expression and
-time zone with the installing member's access. Members pause, resume and delete their schedules on
-the plugin's page and under **Plugins → Schedules**, which also lists their runs and lets them
-cancel a queued or running one; a project admin sees the whole project there, and the plugin cannot
-resume a schedule an admin paused.
+time zone with the installing member's access. The plugin's page lists its schedules, and members
+pause, resume and delete them under **Plugins → Schedules**, which also lists their runs and lets
+them cancel a queued or running one; a project admin sees the whole project there, and the plugin
+cannot resume a schedule an admin paused.
 
 The video adds a Google Doc to a weekly schedule of the example plugin Metric Watch, then opens
 **Plugins → Schedules**, the schedule's run in **Run History**, and the check that run added to
