@@ -2,7 +2,10 @@ import { useEffect, useRef, useState } from 'react';
 import { extractApiError } from '../../../../../../app/api';
 import { dataMartService } from '../../../../shared/services/data-mart.service';
 import type { FormulaViolationDto, ValidateFormulaResponseDto } from '../../../../shared/types/api';
-import type { DraftCalculatedFieldDto } from '../../../../shared/types/api/request/validate-formula.request.dto';
+import type {
+  DraftCalculatedFieldDto,
+  ValidateFormulaRequestDto,
+} from '../../../../shared/types/api/request/validate-formula.request.dto';
 import { DRAFT_FORMULA_MAX_LENGTH, selectDraftCalculatedFields } from './draft-calculated-fields';
 
 /**
@@ -52,6 +55,8 @@ export interface UseFormulaDiagnosticsOptions {
    * coalesce typing into a request per render. Read when a request is built instead.
    */
   calculatedFields?: readonly DraftCalculatedFieldDto[];
+  /** The editor's primary-key columns; read like `calculatedFields`, when a request is built. */
+  primaryKeyFields?: readonly string[];
   /** Off entirely when false — no timer, no request. Defaults to on. */
   enabled?: boolean;
 }
@@ -141,6 +146,7 @@ export function useFormulaDiagnostics({
   type,
   formula,
   calculatedFields,
+  primaryKeyFields,
   enabled = true,
 }: UseFormulaDiagnosticsOptions): FormulaDiagnostics {
   const [verdict, setVerdict] = useState<Verdict>(NO_VERDICT);
@@ -158,6 +164,8 @@ export function useFormulaDiagnostics({
   const [checksHalted, setChecksHalted] = useState(() => sessionRefused);
   const calculatedFieldsRef = useRef(calculatedFields);
   calculatedFieldsRef.current = calculatedFields;
+  const primaryKeyFieldsRef = useRef(primaryKeyFields);
+  primaryKeyFieldsRef.current = primaryKeyFields;
 
   // Everything the request needs must be there, or the endpoint answers 400 about a field the
   // analyst has not finished creating yet (a metric's row exists before it is named).
@@ -216,9 +224,10 @@ export function useFormulaDiagnostics({
       // caller with no draft needs — sending `[]` as "no formulas exist" would delete every
       // persisted sibling from the check.
       const drafted = selectDraftCalculatedFields(calculatedFieldsRef.current ?? [], formula);
-      const body = drafted.fields.length
+      const body: ValidateFormulaRequestDto = drafted.fields.length
         ? { name, type, formula, calculatedFields: drafted.fields }
         : { name, type, formula };
+      if (primaryKeyFieldsRef.current) body.primaryKeyFields = primaryKeyFieldsRef.current;
       void dataMartService
         .validateFormula(dataMartId, body, { signal: controller.signal })
         .then(response => {

@@ -33,6 +33,8 @@ import { ReportDataHeader } from '../dto/domain/report-data-header.dto';
 import { StreamHttpDataCommand } from '../dto/domain/stream-http-data.command';
 import { StreamHttpReportDataCommand } from '../dto/domain/stream-http-report-data.command';
 import { DataMart } from '../entities/data-mart.entity';
+import { InvalidQueryColumnsException } from '../errors/invalid-query-columns.exception';
+import { InvalidOutputControlsException } from '../errors/invalid-output-controls.exception';
 import { DataMartStatus } from '../enums/data-mart-status.enum';
 import { DataMartRunType } from '../enums/data-mart-run-type.enum';
 import { DataDestinationType } from '../data-destination-types/enums/data-destination-type.enum';
@@ -395,7 +397,7 @@ export class StreamHttpDataService {
     startedAt: Date;
     initialMetadata: HttpDataRunMetadata;
     reportId?: string;
-    /** See asExcelReportRun. Settled before the read starts, so a refusal is still its run. */
+    /** See asExcelReportRun. Execution failures belong to this run even before planning. */
     excelReportRun?: Report;
     buildPlan: (dataMart: DataMart) => Promise<ExecuteStreamPlan>;
   }): Promise<void> {
@@ -602,6 +604,24 @@ export class StreamHttpDataService {
 
       res.end();
     } catch (error) {
+      // Only caller-supplied query validation skips history; saved configuration and storage
+      // failures retain their run and normal error mapping, even when they also return 400.
+      if (
+        params.reportId === undefined &&
+        !res.headersSent &&
+        !schemaActualizationInProgress &&
+        reader === null &&
+        (error instanceof InvalidQueryColumnsException ||
+          error instanceof InvalidOutputControlsException)
+      ) {
+        this.logger.log('Rejected data request', {
+          dataMartId: dataMart.id,
+          projectId: dataMart.projectId,
+          reason: error.constructor.name,
+        });
+        throw error;
+      }
+
       const mappedError = await this.toClientFacingReadError(
         error,
         reader,

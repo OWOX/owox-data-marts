@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { BlendedReportDataService } from './blended-report-data.service';
+import { InvalidQueryColumnsException } from '../errors/invalid-query-columns.exception';
 import { BlendableSchemaService } from './blendable-schema.service';
 import { DataMartRelationshipService } from './data-mart-relationship.service';
 import { DataMartTableReferenceService } from './data-mart-table-reference.service';
@@ -3030,6 +3031,7 @@ describe('BlendedReportDataService', () => {
 
         const error = await refusalOf(report);
 
+        expect(error).toBeInstanceOf(InvalidQueryColumnsException);
         expect(error.message).toContain('`alias_1__ctr`');
         expect(error.message).toContain('Target DM 1');
         expect(error.errorDetails).toMatchObject({

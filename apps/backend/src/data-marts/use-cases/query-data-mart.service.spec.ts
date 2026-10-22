@@ -4,6 +4,7 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { QueryDataMartCommand, QueryDataMartService } from './query-data-mart.service';
+import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
 import { RunKind } from '../services/project-billing/project-billing.service';
 import { QueryAbortedError, QueryTimeoutError } from '../facades/mcp-data-marts.facade';
 import { ProjectOperationBlockedException } from '../../common/exceptions/project-operation-blocked.exception';
@@ -770,9 +771,17 @@ describe('QueryDataMartService', () => {
       expect(dataMartRunService.recordMcpQueryRun).not.toHaveBeenCalled();
     });
 
-    it('rethrows without recording a run when compose throws (compose-time reject, e.g. unknown field)', async () => {
-      const { service, composer, reader, dataMartRunService, readerResolver } = createService();
-      composer.compose.mockRejectedValue(new Error('unknown column: nope_field'));
+    it.each([
+      new Error('SQL composition failed'),
+      new BusinessViolationException('Unknown column: nope_field'),
+      new BadRequestException({
+        message: 'Invalid output controls',
+        details: { errors: [{ code: 'SORT_COLUMN_NOT_SELECTED', column: 'nope_field' }] },
+      }),
+    ])('preserves compose-time errors without a run or billing: %s', async error => {
+      const { service, composer, reader, dataMartRunService, readerResolver, projectBilling } =
+        createService();
+      composer.compose.mockRejectedValue(error);
 
       await expect(
         service.run(
@@ -785,9 +794,10 @@ describe('QueryDataMartService', () => {
             limit: 100,
           })
         )
-      ).rejects.toThrow('unknown column: nope_field');
+      ).rejects.toBe(error);
 
       expect(dataMartRunService.recordMcpQueryRun).not.toHaveBeenCalled();
+      expect(projectBilling.registerMcpQueryRunConsumption).not.toHaveBeenCalled();
       expect(readerResolver.resolve).not.toHaveBeenCalled();
       expect(reader.finalize).not.toHaveBeenCalled();
     });

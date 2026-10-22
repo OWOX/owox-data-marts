@@ -1,4 +1,4 @@
-import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
+import { InvalidQueryColumnsException } from './invalid-query-columns.exception';
 
 const quoted = (columns: readonly string[]): string => columns.map(c => `"${c}"`).join(', ');
 
@@ -44,7 +44,7 @@ export function throwDisconnectedReportColumnsError(
       : 'or contact your analyst to restore the schema.'
   );
 
-  throw new BusinessViolationException(sentences.join(' '), {
+  throw new InvalidQueryColumnsException(sentences.join(' '), {
     unknownColumns: uniqueUnknownColumns,
     ...(hidden.length > 0 ? { hiddenColumns: hidden } : {}),
     dataMartId,

@@ -452,3 +452,41 @@ describe('AggregationEditorPopover — Apply gating', () => {
     expect(apply).not.toBeDisabled();
   });
 });
+
+describe('AggregationEditorPopover — joined count warning', () => {
+  const render_ = (countWarning?: string, initialFunctions: ReportAggregateFunction[] = []) =>
+    render(
+      <AggregationEditorPopover
+        open
+        onOpenChange={() => undefined}
+        trigger={<button>open</button>}
+        column='orders.id'
+        fieldType='INTEGER'
+        allowedAggregations={['COUNT', 'SUM']}
+        initialFunctions={initialFunctions}
+        countWarning={countWarning}
+        onApply={vi.fn()}
+      />
+    );
+
+  it('shows while Count is ticked and hides when it is unticked', () => {
+    render_('careful');
+    expect(screen.queryByTestId('joined-count-warning')).toBeNull();
+
+    fireEvent.click(screen.getByLabelText('COUNT'));
+    expect(screen.getByTestId('joined-count-warning').textContent).toContain('careful');
+
+    fireEvent.click(screen.getByLabelText('COUNT'));
+    expect(screen.queryByTestId('joined-count-warning')).toBeNull();
+  });
+
+  it('shows on open when the column already has Count', () => {
+    render_('careful', ['COUNT']);
+    expect(screen.getByTestId('joined-count-warning')).toBeTruthy();
+  });
+
+  it('stays hidden without countWarning', () => {
+    render_(undefined, ['COUNT']);
+    expect(screen.queryByTestId('joined-count-warning')).toBeNull();
+  });
+});

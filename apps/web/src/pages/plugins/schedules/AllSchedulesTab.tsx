@@ -16,6 +16,8 @@ import { useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
 import toast from 'react-hot-toast';
 import { Link } from 'react-router';
 import {
+  describeCron,
+  lastRunSortKey,
   runStatusLabel,
   usePluginSchedules,
   type ProjectPluginSchedule,
@@ -27,7 +29,6 @@ import { UserReference } from '../../../shared/components/UserReference';
 import { useBaseTable, useProjectRoute } from '../../../shared/hooks';
 import { timezoneService } from '../../../services/timezone.service';
 import { formatDateShort } from '../../../utils/date-formatters';
-import { describeCron } from './describeCron';
 import { FilterMenu } from './FilterMenu';
 import { filterOptions, ownerLabel } from './filterOptions';
 import { ScheduleSidePanel } from './ScheduleSidePanel';
@@ -194,7 +195,11 @@ export function AllSchedulesTab({ isAdmin }: { isAdmin: boolean }) {
             <Tooltip>
               <TooltipTrigger asChild>
                 <span className='text-muted-foreground text-sm' tabIndex={0}>
-                  <RelativeTime date={new Date(row.original.nextRunAt)} />
+                  <RelativeTime
+                    date={new Date(row.original.nextRunAt)}
+                    timeZone={row.original.timeZone}
+                    showTitle={false}
+                  />
                 </span>
               </TooltipTrigger>
               <TooltipContent>
@@ -207,7 +212,7 @@ export function AllSchedulesTab({ isAdmin }: { isAdmin: boolean }) {
       },
       {
         id: 'lastRun',
-        accessorFn: item => item.lastRun?.finishedAt ?? undefined,
+        accessorFn: lastRunSortKey,
         sortingFn: 'basic',
         sortUndefined: 'last',
         size: 150,
@@ -231,7 +236,12 @@ export function AllSchedulesTab({ isAdmin }: { isAdmin: boolean }) {
                 {runStatusLabel(lastRun.status)}
                 {lastRun.finishedAt && ' · '}
               </span>
-              {lastRun.finishedAt && <RelativeTime date={new Date(lastRun.finishedAt)} />}
+              {lastRun.finishedAt && (
+                <RelativeTime
+                  date={new Date(lastRun.finishedAt)}
+                  timeZone={row.original.timeZone}
+                />
+              )}
             </Link>
           );
         },

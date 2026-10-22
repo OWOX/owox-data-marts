@@ -1,28 +1,22 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { MemoryRouter } from 'react-router';
+import { useEffect } from 'react';
+import { MemoryRouter, useLocation } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PluginScheduleSummary } from '../types';
 
 let projectId = 'project-1';
-vi.mock('../../../shared/hooks', () => ({
+vi.mock('../../../shared/hooks', async importOriginal => ({
+  ...(await importOriginal<object>()),
   useProjectId: () => projectId,
   useProjectRoute: () => ({ scope: (path: string) => `/ui/${projectId}${path}` }),
 }));
-vi.mock('react-hot-toast', () => {
-  const toast = Object.assign(vi.fn(), { error: vi.fn(), success: vi.fn() });
-  return { default: toast };
-});
+const user = { id: 'u1' };
+vi.mock('../../idp/hooks/useAuthState', () => ({ useUser: () => user }));
 vi.mock('../services/plugins.service', () => ({
-  pluginsService: {
-    listSchedules: vi.fn(),
-    pauseSchedule: vi.fn(),
-    resumeSchedule: vi.fn(),
-    deleteSchedule: vi.fn(),
-  },
+  pluginsService: { listSchedules: vi.fn() },
 }));
 
-import toast from 'react-hot-toast';
 import { pluginsService } from '../services/plugins.service';
 import { PluginSchedulesCard } from './PluginSchedulesCard';
 
@@ -43,47 +37,228 @@ const schedule = (over: Partial<PluginScheduleSummary> = {}): PluginScheduleSumm
   ...over,
 });
 
+let location = '';
+function Location() {
+  const { pathname, search } = useLocation();
+  useEffect(() => {
+    location = pathname + search;
+  });
+  return null;
+}
+
 let client: QueryClient;
-const renderCard = (hasBackend = true, uninstalled = false) =>
+const renderCard = (hasBackend = true, uninstalled = false, pluginId = 'p1') =>
   render(
     <QueryClientProvider
       client={(client = new QueryClient({ defaultOptions: { queries: { retry: false } } }))}
     >
       <MemoryRouter>
         <PluginSchedulesCard
-          pluginId='p1'
+          pluginId={pluginId}
           installationId='i1'
           hasBackend={hasBackend}
           uninstalled={uninstalled}
         />
+        <Location />
       </MemoryRouter>
     </QueryClientProvider>
   );
 
+const namesInOrder = () =>
+  screen
+    .getAllByRole('row')
+    .slice(1)
+    .map(row => row.querySelector('a')?.textContent);
+
 describe('PluginSchedulesCard', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    localStorage.clear();
     projectId = 'project-1';
     service.listSchedules.mockResolvedValue([]);
   });
 
-  it('says there are no schedules for a plugin with a backend', async () => {
+  const hintOf = async (trigger: HTMLElement) => {
+    fireEvent.focus(trigger.closest('[data-slot="tooltip-trigger"]')!);
+    return screen.findByRole('tooltip');
+  };
+
+  it('says there are no schedules for a plugin with a backend, and links to how a plugin adds one', async () => {
     renderCard();
 
-    expect(await screen.findByText('This plugin has no schedules.')).toBeInTheDocument();
+    expect(await screen.findByText(/^This plugin has no schedules\./)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Run actions on a schedule' })).toHaveAttribute(
+      'href',
+      expect.stringMatching(
+        /^https:\/\/docs\.owox\.com\/docs\/plugins\/authoring-guide\/\?.*#run-actions-on-a-schedule$/
+      )
+    );
     expect(screen.getByText('Schedules')).toBeInTheDocument();
     expect(service.listSchedules).toHaveBeenCalledWith('i1');
   });
 
-  it('links View all to Plugins → Schedules, filtered to this plugin', async () => {
+  const ranAt = (day: number) => ({
+    executionId: `e${String(day)}`,
+    status: 'SUCCEEDED',
+    errorCode: null,
+    finishedAt: `2026-10-${String(day).padStart(2, '0')}T06:00:00.000Z`,
+  });
+
+  it("shows the ten schedules that ran last and links to all of the member's own", async () => {
+    service.listSchedules.mockResolvedValue(
+      Array.from({ length: 12 }, (_, index) =>
+        schedule({
+          id: `s${String(index)}`,
+          name: `Schedule ${String(index)}`,
+          lastRun: ranAt(index + 1),
+        })
+      )
+    );
+
+    renderCard();
+
+    expect(await screen.findByText('Schedule 11')).toBeInTheDocument();
+    expect(screen.getAllByRole('row')).toHaveLength(11);
+    expect(screen.getByText('Schedule 2')).toBeInTheDocument();
+    expect(screen.queryByText('Schedule 1')).toBeNull();
+    expect(screen.queryByText('Schedule 0')).toBeNull();
+    // An admin's full list holds every member's schedules, so the link keeps it to the card's.
+    expect(screen.getByRole('link', { name: 'View all 12 schedules' })).toHaveAttribute(
+      'href',
+      '/ui/project-1/plugins/schedules?plugin=p1&owner=u1'
+    );
+  });
+
+  it('keeps the ten that ran last when a column sorts them', async () => {
+    service.listSchedules.mockResolvedValue(
+      Array.from({ length: 12 }, (_, index) =>
+        schedule({
+          id: `s${String(index)}`,
+          name: `Schedule ${String(index)}`,
+          lastRun: ranAt(index + 1),
+        })
+      )
+    );
+
+    renderCard();
+    await screen.findByText('Schedule 11');
+    fireEvent.click(screen.getByRole('button', { name: /^Name - / }));
+
+    expect(namesInOrder()).toEqual([
+      'Schedule 10',
+      'Schedule 11',
+      ...[2, 3, 4, 5, 6, 7, 8, 9].map(index => `Schedule ${String(index)}`),
+    ]);
+  });
+
+  it('links to all the schedules from the eleventh on', async () => {
+    service.listSchedules.mockResolvedValue(
+      Array.from({ length: 11 }, (_, index) =>
+        schedule({ id: `s${String(index)}`, name: `Schedule ${String(index)}` })
+      )
+    );
+
+    renderCard();
+
+    expect(await screen.findByRole('link', { name: 'View all 11 schedules' })).toBeInTheDocument();
+    expect(screen.getAllByRole('row')).toHaveLength(11);
+  });
+
+  it('lists the schedules that ran last first, and those not run yet last', async () => {
+    service.listSchedules.mockResolvedValue([
+      schedule({ id: 's1', name: 'Never' }),
+      schedule({ id: 's2', name: 'Earlier', lastRun: ranAt(14) }),
+      schedule({ id: 's3', name: 'Latest', lastRun: ranAt(16) }),
+    ]);
+
+    renderCard();
+
+    await screen.findByText('Latest');
+    expect(namesInOrder()).toEqual(['Latest', 'Earlier', 'Never']);
+  });
+
+  it('lists a schedule whose run is still going first, by its status alone', async () => {
+    service.listSchedules.mockResolvedValue([
+      schedule({ id: 's1', name: 'Latest', lastRun: ranAt(16) }),
+      schedule({ id: 's2', name: 'Never' }),
+      schedule({
+        id: 's3',
+        name: 'Going',
+        lastRun: { executionId: 'e3', status: 'RUNNING', errorCode: null, finishedAt: null },
+      }),
+    ]);
+
+    renderCard();
+
+    await screen.findByText('Going');
+    expect(namesInOrder()).toEqual(['Going', 'Latest', 'Never']);
+    expect(screen.getByText('Running').closest('td')).toHaveTextContent(/^Running$/);
+  });
+
+  it.each([1, 10])('has no link to all the schedules when the card shows all %i', async count => {
+    service.listSchedules.mockResolvedValue(
+      Array.from({ length: count }, (_, index) =>
+        schedule({ id: `s${String(index)}`, name: `Schedule ${String(index)}` })
+      )
+    );
+
+    renderCard();
+
+    await screen.findByText('Schedule 0');
+    expect(screen.getAllByRole('row')).toHaveLength(count + 1);
+    expect(screen.queryByRole('link', { name: /View all/ })).toBeNull();
+  });
+
+  it('sorts the schedules by how they read, not by their cron', async () => {
+    service.listSchedules.mockResolvedValue([
+      schedule({ id: 's1', name: 'Quarter', cron: '*/15 * * * *' }),
+      schedule({ id: 's2', name: 'Nine', cron: '0 9 * * *' }),
+      schedule({ id: 's3', name: 'Half past eight', cron: '30 8 * * *' }),
+    ]);
+
+    renderCard();
+
+    await screen.findByText('Quarter');
+    fireEvent.click(screen.getByRole('button', { name: /^Schedule - / }));
+    expect(namesInOrder()).toEqual(['Half past eight', 'Nine', 'Quarter']);
+  });
+
+  it("keeps each plugin's sorting to its own card", async () => {
+    service.listSchedules.mockResolvedValue([
+      schedule({ id: 's1', name: 'Zed', lastRun: ranAt(16) }),
+      schedule({ id: 's2', name: 'Abe', lastRun: ranAt(14) }),
+    ]);
+    const { unmount } = renderCard();
+    await screen.findByText('Zed');
+    fireEvent.click(screen.getByRole('button', { name: /^Name - / }));
+    expect(namesInOrder()).toEqual(['Abe', 'Zed']);
+    unmount();
+
+    renderCard(true, false, 'p2');
+
+    await screen.findByText('Zed');
+    expect(namesInOrder()).toEqual(['Zed', 'Abe']);
+  });
+
+  it('opens the schedule from anywhere in its row', async () => {
     service.listSchedules.mockResolvedValue([schedule()]);
 
     renderCard();
 
-    expect(await screen.findByRole('link', { name: 'View all' })).toHaveAttribute(
+    fireEvent.click(await screen.findByText('Daily at 09:00'));
+    expect(location).toBe('/ui/project-1/plugins/schedules?plugin=p1&schedule=s1');
+  });
+
+  it('links each schedule to its panel under Plugins → Schedules, with no actions here', async () => {
+    service.listSchedules.mockResolvedValue([schedule()]);
+
+    renderCard();
+
+    expect(await screen.findByRole('link', { name: 'Morning export' })).toHaveAttribute(
       'href',
-      '/ui/project-1/plugins/schedules?plugin=p1'
+      '/ui/project-1/plugins/schedules?plugin=p1&schedule=s1'
     );
+    expect(screen.queryByRole('button', { name: /Pause|Resume|Delete/ })).toBeNull();
   });
 
   it('shows nothing for a plugin without a backend and without schedules', async () => {
@@ -112,103 +287,138 @@ describe('PluginSchedulesCard', () => {
     expect(await screen.findByText('Could not load schedules.')).toBeInTheDocument();
   });
 
-  it('lists an active schedule with its action, cron, zone, next run and last run', async () => {
-    service.listSchedules.mockResolvedValue([
-      schedule({
-        lastRun: {
-          executionId: 'e1',
-          status: 'SUCCEEDED',
-          errorCode: null,
-          finishedAt: '2026-10-16T06:00:05.000Z',
-        },
-      }),
-    ]);
+  it('describes a schedule in words, not by its cron or action', async () => {
+    service.listSchedules.mockResolvedValue([schedule()]);
 
     renderCard();
 
-    expect(await screen.findByText('Morning export')).toBeInTheDocument();
-    expect(screen.getByText('export')).toBeInTheDocument();
-    expect(screen.getByText('0 9 * * *')).toBeInTheDocument();
-    expect(screen.getByText('Europe/Kyiv')).toBeInTheDocument();
-    expect(screen.getByText(/Next run/)).toBeInTheDocument();
-    expect(screen.getByText(/Last run: Succeeded/)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Pause Morning export' })).toBeInTheDocument();
-    expect(screen.queryByText('Paused')).toBeNull();
+    expect(await screen.findByText('Daily at 09:00')).toBeInTheDocument();
+    expect(screen.queryByText('0 9 * * *')).toBeNull();
+    expect(screen.queryByText('export')).toBeNull();
   });
 
-  it('names an unnamed schedule by its action, once', async () => {
+  it('shows a cron the summary cannot describe as it is', async () => {
+    service.listSchedules.mockResolvedValue([schedule({ cron: '0 9 * * 1-5' })]);
+
+    renderCard();
+
+    expect(await screen.findByText('0 9 * * 1-5')).toBeInTheDocument();
+  });
+
+  it('names an unnamed schedule by its action', async () => {
     service.listSchedules.mockResolvedValue([schedule({ name: null })]);
 
     renderCard();
 
-    expect(await screen.findAllByText('export')).toHaveLength(1);
+    expect(await screen.findByRole('link', { name: 'export' })).toBeInTheDocument();
   });
 
-  it("names each row's buttons after its schedule", async () => {
-    service.listSchedules.mockResolvedValue([
-      schedule(),
-      schedule({ id: 's2', name: null, enabled: false, nextRunAt: null }),
+  it('lists the schedules in a table with Name, Schedule, Next run and Last run', async () => {
+    service.listSchedules.mockResolvedValue([schedule()]);
+
+    renderCard();
+
+    await screen.findByText('Morning export');
+    expect(screen.getAllByRole('columnheader').map(cell => cell.textContent)).toEqual([
+      'Name',
+      'Schedule',
+      'Next run',
+      'Last run',
     ]);
+  });
+
+  const cellOf = async (column: number) => {
+    await screen.findByText('Morning export');
+    const cells = screen.getAllByRole('row')[1].querySelectorAll<HTMLElement>('td');
+    return cells[column].querySelector<HTMLElement>('[data-slot="tooltip-trigger"]')!;
+  };
+
+  it("names the schedule's time zone on hover", async () => {
+    service.listSchedules.mockResolvedValue([schedule()]);
 
     renderCard();
 
-    expect(await screen.findByRole('button', { name: 'Pause Morning export' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Delete Morning export' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Resume export' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Delete export' })).toBeInTheDocument();
+    expect(await hintOf(await cellOf(1))).toHaveTextContent('Europe/Kyiv');
   });
 
-  it('shows a paused schedule with a Paused badge and a Resume button', async () => {
-    service.listSchedules.mockResolvedValue([schedule({ enabled: false, nextRunAt: null })]);
+  it("shows when a schedule runs next, with the time in the schedule's own zone", async () => {
+    service.listSchedules.mockResolvedValue([schedule()]);
 
     renderCard();
 
-    expect(await screen.findByText('Paused')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Resume Morning export' })).toBeInTheDocument();
-    expect(screen.queryByText(/Next run/)).toBeNull();
+    // 06:00 UTC is 09:00 in Kyiv (UTC+3), whatever zone the browser is in.
+    const nextRun = await cellOf(2);
+    expect(await hintOf(nextRun)).toHaveTextContent('Next run: Oct 17, 2026, 09:00 AM GMT+3');
+    // No second hint in the browser's own zone.
+    expect(nextRun.querySelector('[title]')).toBeNull();
   });
 
-  it.each([
-    ['ACTION_NOT_DECLARED', 'The plugin no longer has this action'],
-    ['INVALID_PARAMETERS', 'Its settings no longer match the action'],
-  ] as const)('shows a schedule disabled by %s with its reason', async (reason, text) => {
+  it("reads the next and last run in the schedule's zone, not the browser's", async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-10-15T12:00:00.000Z'));
+    try {
+      service.listSchedules.mockResolvedValue([
+        schedule({
+          timeZone: 'Asia/Tokyo',
+          // Monday 09:00 and Tuesday 18:30 in Tokyo, UTC+9.
+          nextRunAt: '2026-10-19T00:00:00.000Z',
+          lastRun: { ...ranAt(13), finishedAt: '2026-10-13T09:30:00.000Z' },
+        }),
+      ]);
+
+      renderCard();
+
+      expect(await screen.findByText('This Monday at 9:00 AM')).toBeInTheDocument();
+      expect(screen.getByText('Last Tuesday at 6:30 PM')).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('shows a dash for an enabled schedule with no next run', async () => {
+    service.listSchedules.mockResolvedValue([schedule({ nextRunAt: null })]);
+
+    renderCard();
+
+    await screen.findByText('Morning export');
+    expect(screen.getAllByRole('row')[1].querySelectorAll('td')[2]).toHaveTextContent(/^—$/);
+  });
+
+  it('marks a paused schedule, and a schedule paused by an admin with the reason', async () => {
     service.listSchedules.mockResolvedValue([
-      schedule({ enabled: false, nextRunAt: null, disabledReason: reason }),
-    ]);
-
-    renderCard();
-
-    expect(await screen.findByText('Disabled')).toBeInTheDocument();
-    expect(screen.getByText(text)).toBeInTheDocument();
-    expect(screen.queryByText('Paused')).toBeNull();
-    expect(screen.getByRole('button', { name: 'Resume Morning export' })).toBeInTheDocument();
-  });
-
-  it('shows a schedule paused by an admin as Paused with its reason', async () => {
-    service.listSchedules.mockResolvedValue([
-      schedule({ enabled: false, nextRunAt: null, disabledReason: 'PAUSED_BY_ADMIN' }),
-    ]);
-
-    renderCard();
-
-    expect(await screen.findByText('Paused')).toBeInTheDocument();
-    expect(screen.getByText('A project admin paused this schedule')).toBeInTheDocument();
-    expect(screen.queryByText('Disabled')).toBeNull();
-  });
-
-  it('shows a queued last run', async () => {
-    service.listSchedules.mockResolvedValue([
+      schedule({ id: 's1', name: 'A', enabled: false, nextRunAt: null }),
       schedule({
-        lastRun: { executionId: 'e1', status: 'QUEUED', errorCode: null, finishedAt: null },
+        id: 's2',
+        name: 'B',
+        enabled: false,
+        nextRunAt: null,
+        disabledReason: 'PAUSED_BY_ADMIN',
       }),
     ]);
 
     renderCard();
 
-    expect(await screen.findByText('Last run: Queued')).toBeInTheDocument();
+    const pausedIn = (name: string) =>
+      within(screen.getByRole('link', { name }).closest('tr')!).getByText('Paused');
+    await screen.findByText('A');
+    expect(pausedIn('A').closest('[data-slot="tooltip-trigger"]')).toBeNull();
+    expect(await hintOf(pausedIn('B'))).toHaveTextContent('A project admin paused this schedule');
+    expect(screen.queryByText('Disabled')).toBeNull();
   });
 
-  it('shows the code of a failed last run', async () => {
+  it('marks a disabled schedule with the reason', async () => {
+    service.listSchedules.mockResolvedValue([
+      schedule({ enabled: false, nextRunAt: null, disabledReason: 'INVALID_PARAMETERS' }),
+    ]);
+
+    renderCard();
+
+    expect(await hintOf(await screen.findByText('Disabled'))).toHaveTextContent(
+      'Its settings no longer match the action'
+    );
+  });
+
+  it("shows the last run's status, with its code and time in the schedule's zone on hover", async () => {
     service.listSchedules.mockResolvedValue([
       schedule({
         lastRun: {
@@ -222,151 +432,17 @@ describe('PluginSchedulesCard', () => {
 
     renderCard();
 
-    expect(await screen.findByText(/Last run: Failed \(DOCUMENT_LOCKED\)/)).toBeInTheDocument();
+    expect(await hintOf(await screen.findByText('Failed'))).toHaveTextContent(
+      'Last run: Failed (DOCUMENT_LOCKED) · Oct 16, 2026, 09:00 AM GMT+3'
+    );
   });
 
-  it('pauses a schedule and shows it paused after the refresh', async () => {
-    service.listSchedules
-      .mockResolvedValueOnce([schedule()])
-      .mockResolvedValueOnce([schedule({ enabled: false, nextRunAt: null })]);
-    service.pauseSchedule.mockResolvedValue(schedule({ enabled: false, nextRunAt: null }));
-    renderCard();
-
-    fireEvent.click(await screen.findByRole('button', { name: 'Pause Morning export' }));
-
-    await waitFor(() => {
-      expect(service.pauseSchedule).toHaveBeenCalledWith('s1');
-    });
-    expect(await screen.findByText('Paused')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Resume Morning export' })).toBeInTheDocument();
-  });
-
-  it('resumes a paused schedule and shows it active after the refresh', async () => {
-    service.listSchedules
-      .mockResolvedValueOnce([schedule({ enabled: false, nextRunAt: null })])
-      .mockResolvedValueOnce([schedule()]);
-    service.resumeSchedule.mockResolvedValue(schedule());
-    renderCard();
-
-    fireEvent.click(await screen.findByRole('button', { name: 'Resume Morning export' }));
-
-    await waitFor(() => {
-      expect(service.resumeSchedule).toHaveBeenCalledWith('s1');
-    });
-    expect(await screen.findByRole('button', { name: 'Pause Morning export' })).toBeInTheDocument();
-    expect(screen.queryByText('Paused')).toBeNull();
-  });
-
-  it('shows the refusal message of a refused resume and leaves the schedule disabled', async () => {
-    const disabled = schedule({
-      enabled: false,
-      nextRunAt: null,
-      disabledReason: 'INVALID_PARAMETERS',
-    });
-    service.listSchedules.mockResolvedValue([disabled]);
-    service.resumeSchedule.mockRejectedValue({
-      response: {
-        data: { code: 'INVALID_PARAMETERS', message: 'Parameters do not match the action schema' },
-      },
-    });
-    renderCard();
-
-    fireEvent.click(await screen.findByRole('button', { name: 'Resume Morning export' }));
-
-    await waitFor(() => {
-      expect(toast.error).toHaveBeenCalledWith('Parameters do not match the action schema');
-    });
-    expect(await screen.findByText('Disabled')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Resume Morning export' })).toBeInTheDocument();
-  });
-
-  it('asks before deleting, and does nothing when the member cancels', async () => {
+  it('says a schedule has not run yet', async () => {
     service.listSchedules.mockResolvedValue([schedule()]);
-    renderCard();
-
-    fireEvent.click(await screen.findByRole('button', { name: 'Delete Morning export' }));
-    const dialog = screen.getByRole('dialog', { name: 'Delete this schedule?' });
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
-
-    await waitFor(() => {
-      expect(screen.queryByRole('dialog')).toBeNull();
-    });
-    expect(service.deleteSchedule).not.toHaveBeenCalled();
-    expect(screen.getByText('Morning export')).toBeInTheDocument();
-  });
-
-  it('deletes a schedule after confirmation and drops its row', async () => {
-    service.listSchedules.mockResolvedValueOnce([schedule()]).mockResolvedValueOnce([]);
-    service.deleteSchedule.mockResolvedValue(undefined);
-    renderCard();
-
-    fireEvent.click(await screen.findByRole('button', { name: 'Delete Morning export' }));
-    const dialog = screen.getByRole('dialog', { name: 'Delete this schedule?' });
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Delete' }));
-
-    await waitFor(() => {
-      expect(service.deleteSchedule).toHaveBeenCalledWith('s1');
-    });
-    expect(await screen.findByText('This plugin has no schedules.')).toBeInTheDocument();
-    expect(screen.queryByRole('dialog')).toBeNull();
-  });
-
-  it('keeps the dialog open and reports a refused delete', async () => {
-    service.listSchedules.mockResolvedValue([schedule()]);
-    service.deleteSchedule.mockRejectedValue({
-      response: { data: { code: 'SCHEDULE_BUSY', message: 'The schedule is running' } },
-    });
-    renderCard();
-
-    fireEvent.click(await screen.findByRole('button', { name: 'Delete Morning export' }));
-    const dialog = screen.getByRole('dialog', { name: 'Delete this schedule?' });
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Delete' }));
-
-    await waitFor(() => {
-      expect(toast.error).toHaveBeenCalledWith('The schedule is running');
-    });
-    expect(screen.getByRole('dialog', { name: 'Delete this schedule?' })).toBeInTheDocument();
-  });
-
-  it("shows the next and last run in the schedule's own zone, named", async () => {
-    service.listSchedules.mockResolvedValue([
-      schedule({
-        lastRun: {
-          executionId: 'e1',
-          status: 'SUCCEEDED',
-          errorCode: null,
-          finishedAt: '2026-10-16T06:00:05.000Z',
-        },
-      }),
-    ]);
 
     renderCard();
 
-    // 06:00 UTC is 09:00 in Kyiv (UTC+3), whatever zone the browser is in.
-    expect(await screen.findByText('Next run Oct 17, 2026, 09:00 AM GMT+3')).toBeInTheDocument();
-    expect(
-      screen.getByText('Last run: Succeeded · Oct 16, 2026, 09:00 AM GMT+3')
-    ).toBeInTheDocument();
-  });
-
-  it('closes the delete dialog once the schedule is gone, when the delete found it missing', async () => {
-    service.listSchedules.mockResolvedValueOnce([schedule()]).mockResolvedValue([]);
-    service.deleteSchedule.mockRejectedValue({
-      response: { data: { code: 'SCHEDULE_NOT_FOUND', message: 'The schedule does not exist' } },
-    });
-    renderCard();
-
-    fireEvent.click(await screen.findByRole('button', { name: 'Delete Morning export' }));
-    const dialog = screen.getByRole('dialog', { name: 'Delete this schedule?' });
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Delete' }));
-
-    await waitFor(() => {
-      expect(toast.error).toHaveBeenCalledWith('The schedule does not exist');
-    });
-    await waitFor(() => {
-      expect(screen.queryByRole('dialog')).toBeNull();
-    });
-    expect(await screen.findByText('This plugin has no schedules.')).toBeInTheDocument();
+    expect(await screen.findByText('Not run yet')).toBeInTheDocument();
   });
 
   it('announces a failed load as an alert and reads the list again on Retry', async () => {
@@ -402,10 +478,12 @@ describe('PluginSchedulesCard', () => {
       .mockResolvedValueOnce([schedule()])
       .mockRejectedValueOnce(new Error('offline'))
       .mockResolvedValue([schedule()]);
-    service.pauseSchedule.mockResolvedValue(schedule({ enabled: false }));
     renderCard();
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Pause Morning export' }));
+    await screen.findByText('Morning export');
+    await act(async () => {
+      await client.invalidateQueries();
+    });
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Could not load schedules.');
     expect(screen.getByText('Morning export')).toBeInTheDocument();
@@ -413,6 +491,19 @@ describe('PluginSchedulesCard', () => {
     await waitFor(() => {
       expect(screen.queryByRole('alert')).toBeNull();
     });
+  });
+
+  it('keeps the alert beside an empty list when a later refresh fails', async () => {
+    service.listSchedules.mockResolvedValueOnce([]).mockRejectedValue(new Error('offline'));
+    renderCard();
+
+    await screen.findByText(/^This plugin has no schedules\./);
+    await act(async () => {
+      await client.invalidateQueries();
+    });
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Could not load schedules.');
+    expect(screen.getByText(/^This plugin has no schedules\./)).toBeInTheDocument();
   });
 
   it('shows the load error of an uninstalled plugin whose schedules are unknown', async () => {
@@ -423,37 +514,19 @@ describe('PluginSchedulesCard', () => {
     expect(await screen.findByRole('alert')).toBeInTheDocument();
   });
 
-  it('asks about the current row of the schedule, not the one clicked', async () => {
-    service.listSchedules
-      .mockResolvedValueOnce([schedule()])
-      .mockResolvedValue([schedule({ name: 'Renamed export' })]);
-    renderCard();
-
-    fireEvent.click(await screen.findByRole('button', { name: 'Delete Morning export' }));
-    await act(async () => {
-      await client.invalidateQueries();
-    });
-
-    expect(
-      await within(screen.getByRole('dialog')).findByText('Renamed export')
-    ).toBeInTheDocument();
-  });
-
   describe('for an uninstalled plugin', () => {
-    it('offers Delete only and says the schedules return with the plugin', async () => {
+    it('says the schedules return with the plugin', async () => {
       service.listSchedules.mockResolvedValue([schedule()]);
 
       renderCard(true, true);
 
       expect(await screen.findByText('Morning export')).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: 'Delete Morning export' })).toBeInTheDocument();
-      expect(screen.queryByRole('button', { name: /^(Pause|Resume)/ })).toBeNull();
       expect(
         screen.getByText('These schedules run again if the plugin is restored.')
       ).toBeInTheDocument();
     });
 
-    it('shows nothing when there are no schedules to delete', async () => {
+    it('shows nothing when it has no schedules', async () => {
       renderCard(true, true);
 
       await waitFor(() => {

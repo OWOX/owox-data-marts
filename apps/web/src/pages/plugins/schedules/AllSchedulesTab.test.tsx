@@ -229,7 +229,7 @@ describe('AllSchedulesTab', () => {
 
     const panel = await screen.findByRole('dialog', { name: 'Morning export' });
     expect(currentSearch()).toBe('?schedule=s1');
-    expect(within(panel).getByText('0 9 * * *')).toBeInTheDocument();
+    expect(within(panel).getByText('Daily at 09:00')).toBeInTheDocument();
     expect(within(panel).queryByText('Alice Doe')).toBeNull();
     fireEvent.click(within(panel).getByRole('button', { name: 'Ownership' }));
     expect(within(panel).getByText('Alice Doe')).toBeInTheDocument();

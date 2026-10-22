@@ -370,15 +370,6 @@ export default function PluginDetailsPage({
             <CollapsibleCardFooter></CollapsibleCardFooter>
           </CollapsibleCard>
 
-          {schedulesInstallation && (
-            <PluginSchedulesCard
-              pluginId={plugin.pluginId}
-              installationId={schedulesInstallation.installationId}
-              hasBackend={Boolean(plugin.backendOrigin)}
-              uninstalled={!isInstalled}
-            />
-          )}
-
           <CollapsibleCard collapsible name='plugin-source'>
             <CollapsibleCardHeader>
               <CollapsibleCardHeaderTitle
@@ -510,6 +501,15 @@ export default function PluginDetailsPage({
           </CollapsibleCard>
 
           {releaseIssues && <PluginReleaseIssuesCard issues={releaseIssues} />}
+
+          {schedulesInstallation && (
+            <PluginSchedulesCard
+              pluginId={plugin.pluginId}
+              installationId={schedulesInstallation.installationId}
+              hasBackend={Boolean(plugin.backendOrigin)}
+              uninstalled={!isInstalled}
+            />
+          )}
 
           <CollapsibleCard collapsible name='plugin-details'>
             <CollapsibleCardHeader>

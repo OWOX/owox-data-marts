@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { BusinessViolationException } from '../../../common/exceptions/business-violation.exception';
+import { InvalidQueryColumnsException } from '../../errors/invalid-query-columns.exception';
 import { FilterConfig } from '../../dto/schemas/filter-config.schema';
 import { SortConfig } from '../../dto/schemas/sort-config.schema';
 import { AggregationConfig } from '../../dto/schemas/aggregation-config.schema';
@@ -24,7 +24,7 @@ export class HttpDataColumnValidator {
     );
 
     if (unknownColumns.length > 0) {
-      throw new BusinessViolationException(
+      throw new InvalidQueryColumnsException(
         `Unknown column${unknownColumns.length > 1 ? 's' : ''}: ${unknownColumns.join(', ')}`,
         { columns: unknownColumns }
       );

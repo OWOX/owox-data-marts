@@ -225,6 +225,13 @@ export interface AvailableSource {
   // Optional for the same reason as the key fields below, and read only through
   // `readJoinedUniqueCountState`, which maps anything it does not recognise to 'unknown'.
   uniqueCountAvailability?: JoinedUniqueCountAvailability;
+  // Whether one row of this source can match several main rows, and several of its rows share one
+  // join key value. Absent on a response cached before they existed: read as 'unknown' / 'collapses'.
+  mainGrainMultiplication?: 'none' | 'multiplies' | 'unknown';
+  mainGrainCollapse?: 'none' | 'collapses';
+  // The aliasPath that lacks a primary key ('' is the main Data Mart) or whose rows collapse.
+  mainGrainUnprovenAt?: string;
+  mainGrainCollapsedAt?: string;
   // The primary-key columns this source's Unique Count counts by, in schema order. Empty whenever
   // the metric is unavailable. Optional on the wire: a response cached before the field existed
   // carries none, and the description is simply omitted then.

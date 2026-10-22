@@ -130,6 +130,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
           items: [
             { label: 'Overview', slug: 'docs/project' },
             'docs/project/license-keys',
+            'docs/project/credentials',
             {
               label: 'Members Management',
               items: [
@@ -213,6 +214,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             { label: 'Overview', slug: 'docs/plugins' },
             'docs/plugins/project-setup',
             'docs/plugins/authoring-guide',
+            'docs/plugins/credential-definitions',
             'docs/plugins/trusted-plugins',
           ],
         },

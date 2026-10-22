@@ -2,6 +2,7 @@ import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import { Popover, PopoverContent, PopoverTrigger } from '@owox/ui/components/popover';
 import { Button } from '@owox/ui/components/button';
 import { Checkbox } from '@owox/ui/components/checkbox';
+import { TriangleAlert } from 'lucide-react';
 import { Label } from '@owox/ui/components/label';
 import {
   Select,
@@ -70,6 +71,8 @@ export interface AggregationEditorPopoverProps {
   autoFunctionLabel?: string;
   /** Functions the column may be aggregated by (already resolved via governance). */
   allowedAggregations: readonly ReportAggregateFunction[];
+  /** Shown below the function list while Count is ticked. */
+  countWarning?: string;
   /**
    * Whether THIS column may be date-bucketed, for callers whose column is of a date type but is
    * still not bucketable — today the aggregate-level calculated field, which already aggregates
@@ -271,6 +274,15 @@ export function AggregationEditorPopover(props: AggregationEditorPopoverProps) {
                 );
               })}
             </div>
+            {props.countWarning && !bucketActive && functions.includes('COUNT') && (
+              <div
+                data-testid='joined-count-warning'
+                className='bg-warning-bg text-warning flex gap-1.5 rounded p-1.5 text-[11px]'
+              >
+                <TriangleAlert className='mt-0.5 size-3 shrink-0' />
+                <span>{props.countWarning}</span>
+              </div>
+            )}
           </div>
         )}
 

@@ -599,7 +599,8 @@ export class DataMartMapper {
       dto.formula,
       context.userId,
       context.roles ?? [],
-      dto.calculatedFields
+      dto.calculatedFields,
+      dto.primaryKeyFields
     );
   }
 

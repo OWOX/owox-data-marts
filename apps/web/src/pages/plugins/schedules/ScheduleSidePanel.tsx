@@ -21,6 +21,7 @@ import { ExternalLink, Trash2 } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router';
 import {
+  describeCron,
   lastRunSummary,
   SCHEDULE_DISABLED_REASON_TEXT,
   SCHEDULE_OWNER_NOT_MEMBER_TEXT,
@@ -30,7 +31,6 @@ import {
 import { UserReference } from '../../../shared/components/UserReference';
 import { timezoneService } from '../../../services/timezone.service';
 import { formatDateShort } from '../../../utils/date-formatters';
-import { describeCron } from './describeCron';
 import { ScheduleStatusBadge } from './ScheduleStatusBadge';
 import { scheduleStatus } from './scheduleStatus';
 
@@ -160,11 +160,10 @@ export function ScheduleSidePanel({
           <FormSection title='Schedule' name='plugin-schedule-timing'>
             <FormItem>
               <Value label='Runs'>
-                {summary !== null && <div>{summary}</div>}
-                <code className='text-muted-foreground block text-xs'>
+                <div>{summary ?? <code>{schedule.cron}</code>}</div>
+                <div className='text-muted-foreground text-xs'>
                   {timezoneService.getTimezoneDisplayName(schedule.timeZone)}
-                </code>
-                <code className='text-muted-foreground text-xs'>{schedule.cron}</code>
+                </div>
               </Value>
               <Hint question='How do I change when it runs?'>
                 The plugin sets its schedules: open it to change when a schedule runs or what it

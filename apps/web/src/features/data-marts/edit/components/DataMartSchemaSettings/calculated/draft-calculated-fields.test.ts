@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { DataMartSchemaFieldStatus } from '../../../../shared/types/data-mart-schema.types';
 import {
   collectDraftCalculatedFields,
+  collectDraftPrimaryKeyFields,
   DRAFT_FORMULA_MAX_LENGTH,
   MAX_DRAFT_CALCULATED_FIELDS,
   selectDraftCalculatedFields,
@@ -95,6 +96,34 @@ describe('collectDraftCalculatedFields', () => {
   it('reports nothing for a schema with no calculated fields, and none for an absent one', () => {
     expect(collectDraftCalculatedFields([field({ name: 'clicks' })])).toEqual([]);
     expect(collectDraftCalculatedFields(undefined)).toEqual([]);
+  });
+});
+
+describe('collectDraftPrimaryKeyFields', () => {
+  it('names every key column, nested ones by their dotted path', () => {
+    const keys = collectDraftPrimaryKeyFields([
+      field({ name: 'date', isPrimaryKey: true }),
+      field({ name: 'clicks' }),
+      field({
+        name: 'event',
+        type: 'RECORD',
+        fields: [field({ name: 'id', isPrimaryKey: true }), field({ name: 'label' })],
+      }),
+    ]);
+
+    expect(keys).toEqual(['date', 'event.id']);
+  });
+
+  it('skips a calculated field, which can never be part of the key', () => {
+    const keys = collectDraftPrimaryKeyFields([
+      field({
+        name: 'revenue',
+        isPrimaryKey: true,
+        calculated: { formula: 'SUM({{ref field="amount"}})', level: 'metric' },
+      }),
+    ]);
+
+    expect(keys).toEqual([]);
   });
 });
 

@@ -55,6 +55,8 @@ export interface AggregationDropdownColumn {
   label: string;
   /** Joined data mart name; absent for home-mart fields. */
   dataMartName?: string;
+  /** Why Count on this joined column is not the joined Data Mart's row count; absent otherwise. */
+  countWarning?: string;
   /** Full path segments, shown as a tree on hover. */
   path?: string[];
   /** Aggregation governance (optional; absent → type-derived defaults). */
@@ -250,6 +252,7 @@ function AggregationSection({
               columnFunctions={functionsForColumn(rule.column, aggregations)}
               displayLabel={col?.label}
               dataMartName={col?.dataMartName}
+              countWarning={col?.countWarning}
               onApplyDraft={draft => {
                 const next = applyAggregationDraft(rule.column, draft, aggregations, dateTrunc);
                 onChange(next.aggregationConfig, next.dateTruncConfig);
@@ -280,6 +283,7 @@ function AggregationSection({
               allowBucketTimeZone={!col?.isCalculated}
               displayLabel={col?.label}
               dataMartName={col?.dataMartName}
+              countWarning={col?.countWarning}
               onApplyDraft={draft => {
                 const next = applyAggregationDraft(rule.column, draft, aggregations, dateTrunc);
                 onChange(next.aggregationConfig, next.dateTruncConfig);
@@ -303,6 +307,7 @@ function AggregationSection({
             displayLabel={pendingColumn.label}
             dataMartName={pendingColumn.dataMartName}
             allowedAggregations={allowedAggregationsFor(pendingColumn)}
+            countWarning={pendingColumn.countWarning}
             allowDateBucket={!pendingColumn.isAggregateLevelCalculated}
             allowBucketTimeZone={!pendingColumn.isCalculated}
             activeFunctions={functionsForColumn(pendingColumn.name, aggregations)}

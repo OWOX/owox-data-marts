@@ -35,6 +35,15 @@ export function runStatusLabel(status: string): string {
   return isPluginRunStatus(status) ? PLUGIN_RUN_STATUS_LABEL[status] : status;
 }
 
+/** Sorts by the last run: one still queued or running is the latest, a schedule never run has none. */
+export function lastRunSortKey({ lastRun }: Pick<PluginScheduleSummary, 'lastRun'>) {
+  if (!lastRun) {
+    return undefined;
+  }
+  // After any time the API sends, which is ISO 8601 in UTC.
+  return lastRun.finishedAt ?? '9999-12-31T23:59:59.999Z';
+}
+
 /** The run's status, its error code and when it finished, in the schedule's own zone. */
 export function lastRunSummary(
   lastRun: NonNullable<PluginScheduleSummary['lastRun']>,

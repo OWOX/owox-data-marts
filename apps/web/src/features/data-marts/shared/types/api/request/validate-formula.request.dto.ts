@@ -40,4 +40,9 @@ export interface ValidateFormulaRequestDto {
    * caller with no draft to offer needs.
    */
   calculatedFields?: readonly DraftCalculatedFieldDto[];
+  /**
+   * The columns the editor marks as the primary key, nested ones by their dotted name. Sent even
+   * when empty — that means "no key" — and omitted only by a caller that holds no schema.
+   */
+  primaryKeyFields?: readonly string[];
 }

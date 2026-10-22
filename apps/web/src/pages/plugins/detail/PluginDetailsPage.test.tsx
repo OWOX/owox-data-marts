@@ -612,7 +612,7 @@ describe('PluginDetailsPage', () => {
       ];
     };
 
-    it('shows the card of the member installation after the description', () => {
+    it('shows the card of the member installation between Source and Details', () => {
       installed({ backendOrigin: 'https://acme.workers.dev' });
 
       renderPage();
@@ -621,9 +621,11 @@ describe('PluginDetailsPage', () => {
       expect(card.dataset.installation).toBe('i1');
       expect(card.dataset.plugin).toBe('p1');
       expect(card.dataset.backend).toBe('true');
-      const description = screen.getByText('Does something');
       expect(
-        description.compareDocumentPosition(card) & Node.DOCUMENT_POSITION_FOLLOWING
+        screen.getByText('Source').compareDocumentPosition(card) & Node.DOCUMENT_POSITION_FOLLOWING
+      ).toBeTruthy();
+      expect(
+        screen.getByText('Details').compareDocumentPosition(card) & Node.DOCUMENT_POSITION_PRECEDING
       ).toBeTruthy();
     });
 
@@ -643,7 +645,7 @@ describe('PluginDetailsPage', () => {
       expect(screen.queryByTestId('schedules-card')).toBeNull();
     });
 
-    it('shows the card of an uninstalled plugin for deleting, marked uninstalled', () => {
+    it('shows the card of an uninstalled plugin, marked uninstalled', () => {
       plugin = entry({
         installationState: 'uninstalled',
         backendOrigin: 'https://acme.workers.dev',

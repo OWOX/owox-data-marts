@@ -23,6 +23,9 @@ import { BlendableSchemaService } from '../src/data-marts/services/blendable-sch
 import { DataMartTableReferenceService } from '../src/data-marts/services/data-mart-table-reference.service';
 import { Report } from '../src/data-marts/entities/report.entity';
 import { DataDestination } from '../src/data-marts/entities/data-destination.entity';
+import { DataMartRun } from '../src/data-marts/entities/data-mart-run.entity';
+import { DataMart } from '../src/data-marts/entities/data-mart.entity';
+import { DataMartRunStatus } from '../src/data-marts/enums/data-mart-run-status.enum';
 
 interface HttpRunView {
   type: string;
@@ -439,6 +442,47 @@ describe('HTTP Data API (e2e)', () => {
   });
 
   describe('Run history', () => {
+    const b64 = (value: unknown) => Buffer.from(JSON.stringify(value)).toString('base64url');
+
+    it.each([
+      ['malformed filter', { column: 'date', filter: '@@not-json@@' }],
+      ['invalid limit', { column: 'date', limit: '0' }],
+      ['unknown selected column', { column: 'ghost' }],
+      [
+        'unknown filter column',
+        { column: 'date', filter: b64([{ column: 'ghost', operator: 'eq', value: 'x' }]) },
+      ],
+      [
+        'unknown sort column',
+        { column: 'date', sort: b64([{ column: 'ghost', direction: 'asc' }]) },
+      ],
+      [
+        'unknown aggregation column',
+        { column: 'date', aggregation: b64([{ column: 'ghost', function: 'SUM' }]) },
+      ],
+      [
+        'unknown date bucket column',
+        { column: 'date', dateTrunc: b64([{ column: 'ghost', unit: 'MONTH' }]) },
+      ],
+      [
+        'invalid date bucket type',
+        { column: 'revenue', dateTrunc: b64([{ column: 'revenue', unit: 'MONTH' }]) },
+      ],
+    ])('returns 400 without a run or run-id header for %s', async (_name, query) => {
+      const runs = app.get<Repository<DataMartRun>>(getRepositoryToken(DataMartRun));
+      const countBefore = await runs.countBy({ dataMartId });
+
+      const res = await agent
+        .get(`/api/external/http-data/data-marts/${dataMartId}.ndjson`)
+        .query(query)
+        .set(AUTH_HEADER);
+
+      expect(res.status).toBe(400);
+      expect(res.body.message).toEqual(expect.any(String));
+      expect(res.headers['x-owox-run-id']).toBeUndefined();
+      expect(await runs.countBy({ dataMartId })).toBe(countBefore);
+    });
+
     it('creates a HTTP_DATA DataMartRun with manual runType and SUCCESS status', async () => {
       const before = await agent.get(`/api/data-marts/${dataMartId}/runs`).set(AUTH_HEADER);
       const beforeRuns: Array<{ type: string }> = before.body?.runs ?? [];
@@ -655,11 +699,51 @@ describe('HTTP Data API (e2e)', () => {
       expect(run.body.additionalParams?.httpData?.limit).toBe(1);
     });
 
-    it('returns 400 for any query param other than limit', async () => {
-      const res = await agent
-        .get(`/api/external/http-data/reports/${reportId}.ndjson?filter=abc`)
-        .set(AUTH_HEADER);
-      expect(res.status).toBe(400);
+    it.each([{ filter: 'abc' }, { limit: '0' }])(
+      'rejects invalid request parameters without creating a run: %j',
+      async query => {
+        const runRepo = app.get<Repository<DataMartRun>>(getRepositoryToken(DataMartRun));
+        const runsBefore = await runRepo.count();
+        const res = await agent
+          .get(`/api/external/http-data/reports/${reportId}.ndjson`)
+          .query(query)
+          .set(AUTH_HEADER);
+
+        expect(res.status).toBe(400);
+        expect(res.headers['x-owox-run-id']).toBeUndefined();
+        expect(await runRepo.count()).toBe(runsBefore);
+      }
+    );
+
+    it('records a failed run when a saved filter column disappears from the schema', async () => {
+      const runRepo = app.get<Repository<DataMartRun>>(getRepositoryToken(DataMartRun));
+      const runsBefore = await runRepo.find({ where: { reportId } });
+      const previousRunIds = new Set(runsBefore.map(run => run.id));
+      const originalImpl = blendableSchemaMock.computeBlendableSchema.getMockImplementation();
+      blendableSchemaMock.computeBlendableSchema.mockImplementation(
+        buildMockBlendableSchema([{ name: 'revenue', type: 'NUMERIC' }]).computeBlendableSchema
+      );
+
+      try {
+        const res = await agent
+          .get(`/api/external/http-data/reports/${reportId}.ndjson`)
+          .set(AUTH_HEADER);
+        expect(res.status).toBe(400);
+        expect(res.body.message).toContain('date');
+        expect(res.headers['x-owox-run-id']).toBeUndefined();
+
+        const runsAfter = await runRepo.find({ where: { reportId } });
+        const failedRuns = runsAfter.filter(run => !previousRunIds.has(run.id));
+        expect(failedRuns).toHaveLength(1);
+        expect(failedRuns[0]).toMatchObject({
+          type: 'HTTP_DATA',
+          status: 'FAILED',
+          reportId,
+          errors: [expect.stringContaining('date')],
+        });
+      } finally {
+        blendableSchemaMock.computeBlendableSchema.mockImplementation(originalImpl!);
+      }
     });
 
     it('returns 404 for an unknown report id', async () => {
@@ -1024,7 +1108,82 @@ describe('HTTP Data API (e2e)', () => {
       }
     });
 
-    it('rejects an aggregation applied to the calculated field', async () => {
+    it.each(['broken reference', 'expansion budget'] as const)(
+      'records a FAILED run for a saved formula with an invalid %s',
+      async failure => {
+        const dataMarts = app.get<Repository<DataMart>>(getRepositoryToken(DataMart));
+        const runs = app.get<Repository<DataMartRun>>(getRepositoryToken(DataMartRun));
+        const dataMart = await dataMarts.findOneByOrFail({ id: dataMartWithCtrId });
+        const originalSchema = dataMart.schema;
+        if (originalSchema?.type !== 'bigquery-data-mart-schema') {
+          throw new Error('Expected the calculated-field fixture to have a BigQuery schema');
+        }
+        const metric = originalSchema.fields.find(field => field.name === 'ctr')!;
+        const calculatedFields =
+          failure === 'broken reference'
+            ? [
+                {
+                  ...metric,
+                  calculated: { formula: 'SUM({{ref field="missing"}})', level: 'metric' as const },
+                },
+              ]
+            : Array.from({ length: 17 }, (_, index) => ({
+                ...metric,
+                name: `metric_${index}`,
+                calculated: {
+                  formula:
+                    index === 0
+                      ? 'SUM({{ref field="clicks"}})'
+                      : `{{ref field="metric_${index - 1}"}} + {{ref field="metric_${index - 1}"}}`,
+                  level: 'metric' as const,
+                },
+              }));
+        const schema = {
+          ...originalSchema,
+          fields: [
+            ...originalSchema.fields.filter(field => field.name !== 'ctr'),
+            ...calculatedFields,
+          ],
+        };
+        const originalBlendable =
+          blendableSchemaMock.computeBlendableSchema.getMockImplementation();
+        const before = await runs.countBy({
+          dataMartId: dataMartWithCtrId,
+          status: DataMartRunStatus.FAILED,
+        });
+
+        try {
+          // Persisted legacy formulas and saves without a warehouse dry run can reach execution.
+          await dataMarts.update(dataMartWithCtrId, { schema });
+          blendableSchemaMock.computeBlendableSchema.mockImplementation(async () => ({
+            nativeFields: schema.fields,
+            blendedFields: [],
+            availableSources: [],
+            mainUniqueCountKeyFields: [],
+          }));
+          const res = await agent
+            .get(`/api/external/http-data/data-marts/${dataMartWithCtrId}.ndjson`)
+            .query({ column: calculatedFields[calculatedFields.length - 1].name })
+            .set(AUTH_HEADER);
+
+          expect(res.status).toBe(400);
+          expect(res.body.message).toContain(
+            failure === 'broken reference' ? 'missing' : 'characters of SQL'
+          );
+          expect(res.headers['x-owox-run-id']).toBeUndefined();
+          expect(
+            await runs.countBy({ dataMartId: dataMartWithCtrId, status: DataMartRunStatus.FAILED })
+          ).toBe(before + 1);
+        } finally {
+          await dataMarts.update(dataMartWithCtrId, { schema: originalSchema });
+          blendableSchemaMock.computeBlendableSchema.mockImplementation(originalBlendable!);
+        }
+      }
+    );
+
+    it('rejects an aggregation applied to the calculated field without creating a run', async () => {
+      const runs = app.get<Repository<DataMartRun>>(getRepositoryToken(DataMartRun));
+      const before = await runs.countBy({ dataMartId: dataMartWithCtrId });
       const b64 = (v: unknown) => Buffer.from(JSON.stringify(v)).toString('base64url');
       const aggregation = b64([{ column: 'ctr', function: 'SUM' }]);
 
@@ -1042,6 +1201,7 @@ describe('HTTP Data API (e2e)', () => {
           ]),
         },
       });
+      expect(await runs.countBy({ dataMartId: dataMartWithCtrId })).toBe(before);
     });
   });
 });

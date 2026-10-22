@@ -23,6 +23,8 @@ interface AggregationRowProps {
   displayLabel?: string;
   /** Joined data mart name (muted second line); absent for home-mart fields. */
   dataMartName?: string;
+  /** Passed straight to the editor: shown while Count is ticked. */
+  countWarning?: string;
   /** Edit the whole column's aggregation/bucket selection at once. */
   onApplyDraft: (draft: AggregationDraft) => void;
   onRemove: () => void;
@@ -37,6 +39,7 @@ export function AggregationRow({
   columnFunctions,
   displayLabel,
   dataMartName,
+  countWarning,
   onApplyDraft,
   onRemove,
 }: AggregationRowProps) {
@@ -108,6 +111,7 @@ export function AggregationRow({
           displayLabel={displayLabel}
           dataMartName={dataMartName}
           allowedAggregations={allowedAggregations}
+          countWarning={countWarning}
           allowDateBucket={allowDateBucket}
           allowBucketTimeZone={allowBucketTimeZone}
           initialFunctions={columnFunctions}

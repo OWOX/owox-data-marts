@@ -890,9 +890,9 @@ gcloud run deploy acme-docs-backend --source . --region europe-west1 --allow-una
 
 A plugin can create schedules for its own installation. OWOX Data Marts then starts the
 scheduled action on time with the installing member's access, whether or not anyone has the
-plugin open. In OWOX Data Marts, members pause, resume and delete their schedules on the plugin's
-page and under **Plugins → Schedules**. That page also lists their runs; a queued or running run
-can be cancelled there. A project admin sees and manages every plugin schedule and run of the
+plugin open. In OWOX Data Marts, the plugin's page lists its schedules, and members pause, resume
+and delete them under **Plugins → Schedules**. That page also lists their runs; a queued or running
+run can be cancelled there. A project admin sees and manages every plugin schedule and run of the
 project on the same page.
 
 ```ts

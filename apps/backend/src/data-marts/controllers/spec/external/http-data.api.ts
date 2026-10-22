@@ -35,8 +35,10 @@ export function StreamHttpDataSpec() {
         '`STRINGAGG`, `ANY_VALUE` becomes `ANYVALUE`) — and an explicit `column` projection is ' +
         'required (a wildcard selector ' +
         'would group by every column). Authenticated ' +
-        'with the ODM member token via `x-owox-authorization`. Creates one DataMartRun ' +
-        'of type HTTP_DATA per request, available through the run history endpoint.',
+        'with the ODM member token via `x-owox-authorization`. Successful executions and ' +
+        'execution failures are recorded as DataMartRuns of type HTTP_DATA, available through ' +
+        'the run history endpoint. Requests rejected because of invalid query configuration ' +
+        'are not recorded.',
     }),
     ApiParam({
       name: 'dataMartId',
@@ -162,7 +164,9 @@ export function StreamHttpDataSpec() {
         'forbidden pagination parameter (`pageToken`/`offset`), malformed ' +
         'filter/sort/aggregation/dateTrunc/limit, aggregation or dateTrunc without an explicit ' +
         '`column` projection, unsupported storage type, or a project blocked because it is ' +
-        'inactive or has exceeded its credit limit.',
+        'inactive or has exceeded its credit limit. Invalid query parameters create no run. ' +
+        'Errors in saved Data Mart configuration create a FAILED run. Project blocks create ' +
+        'RESTRICTED runs. No 400 response carries an `x-owox-run-id` header.',
     }),
     ApiResponse({
       status: 403,
@@ -195,10 +199,11 @@ export function StreamHttpReportDataSpec() {
         'envelope), applying the report’s stored output controls (columns, filters, aggregations, ' +
         'date buckets, unique count, sort). The only accepted query parameter is an optional ' +
         '`limit` override; any other query key is rejected. Authenticated with the ODM member ' +
-        'token via `x-owox-authorization`. Creates one DataMartRun of type HTTP_DATA per request ' +
-        '(tagged with the reportId; when the report applies output controls or blends fields, the ' +
-        'run also records the executed SQL under `additionalParams.httpData.executionSqlQuery`), ' +
-        'on both success and failure.',
+        'token via `x-owox-authorization`. Successful executions and execution failures, including ' +
+        'invalid saved output controls, create a DataMartRun tagged with the reportId. ' +
+        'Invalid request query parameters create no run. ' +
+        'When the report applies output controls or blends fields, the run also records the ' +
+        'executed SQL under `additionalParams.httpData.executionSqlQuery`.',
     }),
     ApiHeader({ name: 'x-owox-authorization', description: 'ODM member token', required: true }),
     ApiParam({ name: 'reportId', description: 'Report identifier (UUID)' }),
@@ -215,7 +220,7 @@ export function StreamHttpReportDataSpec() {
         'header with the created DataMartRun ID.',
       headers: {
         'x-owox-run-id': {
-          description: 'ID of the created DataMartRun (HTTP_DATA) for traceability',
+          description: 'ID of the created DataMartRun for traceability',
           schema: { type: 'string' },
         },
       },
@@ -232,8 +237,10 @@ export function StreamHttpReportDataSpec() {
     ApiResponse({
       status: 400,
       description:
-        'A query parameter other than `limit`, an invalid `limit`, or a report whose saved ' +
-        'output controls reference a column that no longer exists in the Data Mart.',
+        'An unsupported query parameter or invalid `limit` creates no run. Saved report output ' +
+        'controls rejected during validation create a FAILED run. Storage rejections return ' +
+        '424. Project restrictions create a RESTRICTED run. No 400 response carries an ' +
+        '`x-owox-run-id` header.',
     }),
     ApiResponse({ status: 401, description: 'Missing or invalid `x-owox-authorization` token.' }),
     ApiResponse({
@@ -246,7 +253,9 @@ export function StreamHttpReportDataSpec() {
     }),
     ApiResponse({
       status: 424,
-      description: 'Storage dependency failed while preparing or reading the report data.',
+      description:
+        'Storage dependency failed while preparing or reading the report data. A FAILED run ' +
+        'is recorded, including when storage rejects saved report configuration.',
     })
   );
 }

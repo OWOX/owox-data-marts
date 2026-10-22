@@ -1,8 +1,8 @@
 import {
   cronToScheduleConfig,
   scheduleConfigToCron,
-} from '../../../features/data-marts/scheduled-triggers/components/ScheduleConfig/cron-parser';
-import { getScheduleDescription } from '../../../features/data-marts/scheduled-triggers/utils/schedule-utils';
+} from '../data-marts/scheduled-triggers/components/ScheduleConfig/cron-parser';
+import { getScheduleDescription } from '../data-marts/scheduled-triggers/utils/schedule-utils';
 
 /** The Data Mart summary of a plugin's cron, or null where it would misdescribe it. */
 export function describeCron(cron: string): string | null {

@@ -3,9 +3,28 @@ import { useMemo } from 'react';
 interface RelativeTimeProps {
   date: Date;
   className?: string;
+  /** False when the caller shows the exact time in its own tooltip, so hovering shows one time. */
+  showTitle?: boolean;
+  /** The IANA zone the time and weekday read in, such as a schedule's; the browser's by default. */
+  timeZone?: string;
 }
 
-export default function RelativeTime({ date, className = '' }: RelativeTimeProps) {
+/** The zone when Intl accepts it, else the browser's, so an unknown zone does not break the page. */
+function knownZone(timeZone: string | undefined) {
+  try {
+    return new Intl.DateTimeFormat('en-US', { timeZone }).resolvedOptions().timeZone;
+  } catch {
+    return undefined;
+  }
+}
+
+export default function RelativeTime({
+  date,
+  className = '',
+  showTitle = true,
+  timeZone,
+}: RelativeTimeProps) {
+  const zone = useMemo(() => knownZone(timeZone), [timeZone]);
   const relativeText = useMemo(() => {
     const now = new Date();
     const diffMs = date.getTime() - now.getTime();
@@ -32,10 +51,11 @@ export default function RelativeTime({ date, className = '' }: RelativeTimeProps
         hour: 'numeric',
         minute: '2-digit',
         hour12: true,
+        timeZone: zone,
       });
 
     // Format the day name correctly
-    const dayName = (d: Date) => d.toLocaleDateString('en-US', { weekday: 'long' });
+    const dayName = (d: Date) => d.toLocaleDateString('en-US', { weekday: 'long', timeZone: zone });
 
     // < 1 minute = Just now / In a moment
     if (minutes < 1) {
@@ -90,11 +110,14 @@ export default function RelativeTime({ date, className = '' }: RelativeTimeProps
     }
 
     // Fallback: show absolute date if no relative rule matched
-    return date.toLocaleString();
-  }, [date]);
+    return date.toLocaleString(undefined, { timeZone: zone });
+  }, [date, zone]);
 
   return (
-    <span className={`${className}`} title={date.toLocaleString()}>
+    <span
+      className={`${className}`}
+      title={showTitle ? date.toLocaleString(undefined, { timeZone: zone }) : undefined}
+    >
       {relativeText}
     </span>
   );

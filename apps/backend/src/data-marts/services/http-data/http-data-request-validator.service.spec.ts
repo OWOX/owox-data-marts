@@ -1,8 +1,41 @@
+import { Logger } from '@nestjs/common';
 import { BusinessViolationException } from '../../../common/exceptions/business-violation.exception';
 import { HttpDataRequestValidator } from './http-data-request-validator.service';
 
 describe('HttpDataRequestValidator', () => {
   const validator = new HttpDataRequestValidator();
+
+  it.each(['validate', 'validateReportQuery'] as const)(
+    '%s logs the rejection reason for malformed query parameters',
+    method => {
+      const log = jest.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined);
+      try {
+        expect(() => validator[method]({ limit: '0' })).toThrow(BusinessViolationException);
+        expect(log).toHaveBeenCalledTimes(1);
+        expect(log).toHaveBeenCalledWith('Rejected data request: invalid query parameters', {
+          issues: expect.arrayContaining([expect.objectContaining({ path: ['limit'] })]),
+        });
+      } finally {
+        log.mockRestore();
+      }
+    }
+  );
+
+  it.each(['validate', 'validateReportQuery'] as const)(
+    '%s keeps query values and unknown keys out of validation logs',
+    method => {
+      const log = jest.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined);
+      try {
+        expect(() =>
+          validator[method]({ limit: 'private@example.com', 'private@example.com': 'value' })
+        ).toThrow(BusinessViolationException);
+        expect(log).toHaveBeenCalledTimes(1);
+        expect(JSON.stringify(log.mock.calls)).not.toContain('private@example.com');
+      } finally {
+        log.mockRestore();
+      }
+    }
+  );
 
   it('parses a single string column into an explicit selector', () => {
     const result = validator.validate({ column: 'date' });

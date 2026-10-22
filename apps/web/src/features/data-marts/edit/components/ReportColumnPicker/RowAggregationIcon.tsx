@@ -15,6 +15,8 @@ interface RowAggregationIconProps {
   dataMartName?: string;
   /** Functions the column may be aggregated by (resolved via governance). */
   allowedAggregations: readonly ReportAggregateFunction[];
+  /** Passed straight to the editor: shown while Count is ticked. */
+  countWarning?: string;
   /** Functions currently assigned to this column. */
   activeFunctions: readonly ReportAggregateFunction[];
   /** Date-trunc bucket currently assigned to this column (date fields only). */
@@ -50,6 +52,7 @@ export function RowAggregationIcon({
   displayLabel,
   dataMartName,
   allowedAggregations,
+  countWarning,
   activeFunctions,
   activeBucket,
   activeTimeZone,
@@ -102,6 +105,7 @@ export function RowAggregationIcon({
         autoFunction !== undefined ? REPORT_AGGREGATE_FUNCTION_LABELS[autoFunction] : undefined
       }
       allowedAggregations={allowedAggregations}
+      countWarning={countWarning}
       allowDateBucket={allowDateBucket}
       allowBucketTimeZone={allowBucketTimeZone}
       initialFunctions={activeFunctions}

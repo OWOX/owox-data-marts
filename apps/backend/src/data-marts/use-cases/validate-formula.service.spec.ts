@@ -1,6 +1,7 @@
 import { ForbiddenException, UnauthorizedException } from '@nestjs/common';
 import { CalculatedFieldValidatorService } from '../calculated-fields/calculated-field-validator.service';
 import { createFormulaFunctionDialectRegistry } from '../calculated-fields/formula-function-dialect';
+import { declaredPrimaryKeyFields } from '../data-storage-types/data-mart-schema.utils';
 import { DataMartSchemaFieldStatus } from '../data-storage-types/enums/data-mart-schema-field-status.enum';
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
 import { storageFieldTypesFor } from '../data-storage-types/field-aggregation';
@@ -13,6 +14,7 @@ import { ValidateFormulaService } from './validate-formula.service';
 interface FieldSpec {
   name: string;
   type: string;
+  isPrimaryKey?: boolean;
   calculated?: { formula: string; level: 'metric' };
 }
 
@@ -48,7 +50,8 @@ const command = (overrides: Partial<Record<string, unknown>> = {}) =>
     (overrides.formula as string) ?? 'SUM({{ref field="clicks"}})',
     overrides.userId === undefined ? 'user-9' : (overrides.userId as string),
     (overrides.roles as string[]) ?? ['editor'],
-    overrides.calculatedFields as DraftCalculatedField[] | undefined
+    overrides.calculatedFields as DraftCalculatedField[] | undefined,
+    overrides.primaryKeyFields as string[] | undefined
   );
 
 describe('ValidateFormulaService', () => {
@@ -378,6 +381,68 @@ describe('ValidateFormulaService', () => {
       );
 
       expect(result.errors).toEqual([]);
+    });
+  });
+
+  describe('the primary key the editor is holding', () => {
+    const joinedFormula = 'COUNT({{ref path="orders" field="id"}})';
+    const judgedKey = async (schema: unknown, primaryKeyFields?: string[]) => {
+      const { service, blendableSchemaService } = buildService({
+        schema,
+        blendableSchema: blendable({
+          sources: [{ aliasPath: 'orders' }],
+          fields: [{ aliasPath: 'orders', originalFieldName: 'id' }],
+        }),
+      });
+      await service.run(command({ formula: joinedFormula, primaryKeyFields }));
+      const [, , , options] = blendableSchemaService.computeBlendableSchema.mock.calls[0];
+      return declaredPrimaryKeyFields(options.unsavedMainSchemaFields);
+    };
+
+    it('judges the join grain against a key set in the editor', async () => {
+      const schema = schemaWith([{ name: 'clicks', type: 'INTEGER' }]);
+      expect(await judgedKey(schema, ['clicks'])).toEqual(['clicks']);
+    });
+
+    it('judges it without a key the editor has cleared', async () => {
+      const schema = schemaWith([{ name: 'clicks', type: 'INTEGER', isPrimaryKey: true }]);
+      expect(await judgedKey(schema, [])).toEqual([]);
+    });
+
+    it('keeps the persisted key when the editor sends none', async () => {
+      const schema = schemaWith([{ name: 'clicks', type: 'INTEGER', isPrimaryKey: true }]);
+      expect(await judgedKey(schema)).toEqual(['clicks']);
+    });
+
+    it('keeps the persisted key when the editor names a column the probe lacks', async () => {
+      const schema = schemaWith([
+        { name: 'clicks', type: 'INTEGER', isPrimaryKey: true },
+        { name: 'line_no', type: 'INTEGER', isPrimaryKey: true },
+      ]);
+      expect(await judgedKey(schema, ['clicks', 'line_number'])).toEqual(['clicks', 'line_no']);
+    });
+
+    it('reaches a nested key column by its dotted name', async () => {
+      const schema = {
+        type: 'bigquery-data-mart-schema',
+        fields: [
+          {
+            name: 'event',
+            type: 'RECORD',
+            mode: 'NULLABLE',
+            status: DataMartSchemaFieldStatus.CONNECTED,
+            fields: [
+              {
+                name: 'id',
+                type: 'STRING',
+                mode: 'NULLABLE',
+                status: DataMartSchemaFieldStatus.CONNECTED,
+              },
+            ],
+          },
+        ],
+      };
+      expect(await judgedKey(schema, ['event.id'])).toEqual(['event.id']);
     });
   });
 
