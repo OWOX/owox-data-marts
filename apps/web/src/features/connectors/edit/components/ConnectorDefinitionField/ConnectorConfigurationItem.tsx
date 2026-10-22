@@ -17,6 +17,7 @@ import { DataMartStatus } from '../../../../data-marts/shared/enums';
 import type { DataStorage } from '../../../../data-storage/shared/model/types/data-storage';
 import { useConnector } from '../../../shared/model/hooks/useConnector';
 import { getConnectorDisplayName } from '../../../shared/utils';
+import { GOOGLE_SHEETS_CONNECTOR_NAME } from '../../../shared/utils/google-sheets-fields.utils';
 import { useEffect } from 'react';
 import { RawBase64Icon } from '../../../../../shared/icons';
 import { unquoteIdentifier } from '../../utils/snowflake-identifier.utils';
@@ -55,12 +56,49 @@ export function ConnectorConfigurationItem({
     return undefined;
   };
 
+  // For Google Sheets the node is always "sheet"; the sheet (tab) name is what tells
+  // one plan apart from another, so show it and link it to the spreadsheet.
+  const getGoogleSheetsSource = () => {
+    if (connectorDef.connector.source.name !== GOOGLE_SHEETS_CONNECTOR_NAME) return null;
+    const config = connectorDef.connector.source.configuration[configIndex];
+    const sheetName = typeof config.SheetName === 'string' ? config.SheetName.trim() : '';
+    const spreadsheet =
+      typeof config.SpreadsheetId === 'string' ? config.SpreadsheetId.trim() : '';
+    if (!sheetName) return null;
+    const spreadsheetUrl = spreadsheet
+      ? /^https?:\/\//i.test(spreadsheet)
+        ? spreadsheet
+        : `https://docs.google.com/spreadsheets/d/${spreadsheet}/edit`
+      : null;
+    return { sheetName, spreadsheetUrl };
+  };
+
   const getConnectorSubtitle = () => {
     const node = connectorDef.connector.source.node || 'No node selected';
+    const googleSheetsSource = getGoogleSheetsSource();
     return (
       <div className='flex flex-wrap items-center gap-2'>
-        <span className='text-muted-foreground/75'>Data:</span>{' '}
-        <span className='text-muted-foreground font-medium'>{node}</span>
+        {googleSheetsSource ? (
+          googleSheetsSource.spreadsheetUrl ? (
+            formatLinkParam(
+              'Sheet',
+              googleSheetsSource.sheetName,
+              googleSheetsSource.spreadsheetUrl
+            )
+          ) : (
+            <>
+              <span className='text-muted-foreground/75'>Sheet:</span>{' '}
+              <span className='text-muted-foreground font-medium'>
+                {googleSheetsSource.sheetName}
+              </span>
+            </>
+          )
+        ) : (
+          <>
+            <span className='text-muted-foreground/75'>Data:</span>{' '}
+            <span className='text-muted-foreground font-medium'>{node}</span>
+          </>
+        )}
         <span className='text-muted-foreground'>•</span>
         <Tooltip>
           <TooltipTrigger asChild>

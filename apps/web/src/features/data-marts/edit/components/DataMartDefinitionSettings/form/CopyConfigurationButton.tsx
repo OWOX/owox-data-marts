@@ -40,13 +40,13 @@ export function CopyConfigurationButton({
   // focus to the trigger; the same hint heads the list anyway.
   const [tooltipOpen, setTooltipOpen] = useState(false);
   // What gets reused differs per source: for Google Sheets it is the Google access and
-  // the document, which is exactly what people hesitate to grant again. Picking another
-  // spreadsheet reopens the Google Picker as the connected account, so that part only
-  // holds when the user can sign in to Google as that account.
+  // the document, which is exactly what people hesitate to grant again. Changing the
+  // spreadsheet reopens the Google Picker as the connected account, so the hint promises
+  // only the sheet.
   const reuseHint =
     currentConnectorName === GOOGLE_SHEETS_CONNECTOR_NAME
-      ? 'Reuses the Google access (signed-in account or service account key), spreadsheet and sheet of a Google Sheets Data Mart in this project. No new sign-in is needed. You can pick another sheet afterwards, and another spreadsheet if you can open Google with the connected account.'
-      : 'Reuses the connection settings and credentials of a Data Mart in this project with the same source. You can change any of them afterwards.';
+      ? 'Copies the Google access, spreadsheet and sheet of another Google Sheets Data Mart in this project. No new sign-in; the sheet can be changed afterwards.'
+      : 'Copies the connection settings and credentials of another Data Mart with the same source. You can change them afterwards.';
 
   const loadDataMarts = useCallback(async () => {
     setLoading(true);

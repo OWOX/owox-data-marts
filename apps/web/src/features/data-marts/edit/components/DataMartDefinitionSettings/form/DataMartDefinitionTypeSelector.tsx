@@ -9,7 +9,13 @@ import {
   SelectValue,
 } from '@owox/ui/components/select';
 import { Label } from '@owox/ui/components/label';
-import { FacebookAdsIcon, GoogleSheetsIcon, LinkedInAdsIcon } from '../../../../../../shared/icons';
+import {
+  FacebookAdsIcon,
+  GoogleAdsIcon,
+  GoogleSheetsIcon,
+  LinkedInAdsIcon,
+  TikTokAdsIcon,
+} from '../../../../../../shared/icons';
 import type { LocalIcon } from '../../../../../../shared/icons';
 
 interface DataMartDefinitionTypeSelectorProps {
@@ -33,16 +39,19 @@ interface TypeOption {
   /** Secondary text in the list; `examples` replaces it when set. */
   description?: string;
   /**
-   * Sources shown with their logos instead of the plain description. A spreadsheet owner
-   * recognises the Google Sheets logo faster than the words "data import".
+   * Sources shown as a row of logos, the way the list shows Data Owners as avatars: a
+   * spreadsheet owner recognises the Google Sheets logo faster than the words "data
+   * import". Names stay in the tooltip and for screen readers.
    */
   examples?: { name: string; icon: LocalIcon }[];
 }
 
 const POPULAR_CONNECTORS: { name: string; icon: LocalIcon }[] = [
   { name: 'Facebook Ads', icon: FacebookAdsIcon },
+  { name: 'Google Ads', icon: GoogleAdsIcon },
   { name: 'Google Sheets', icon: GoogleSheetsIcon },
   { name: 'LinkedIn Ads', icon: LinkedInAdsIcon },
+  { name: 'TikTok Ads', icon: TikTokAdsIcon },
 ];
 
 export function DataMartDefinitionTypeSelector({
@@ -118,14 +127,15 @@ export function DataMartDefinitionTypeSelector({
                   {option.label}
                   {option.examples ? (
                     <span className='text-muted-foreground/80 ml-2 inline-flex items-center gap-1.5'>
-                      {option.examples.map(({ name, icon: Icon }, index, examples) => (
-                        <span key={name} className='inline-flex items-center gap-1'>
-                          <Icon size={16} />
-                          {name}
-                          {index < examples.length - 1 ? ',' : ''}
-                        </span>
-                      ))}
-                      <span>and more</span>
+                      <span className='inline-flex items-center gap-1'>
+                        {option.examples.map(({ name, icon: Icon }) => (
+                          <span key={name} title={name} className='inline-flex'>
+                            <Icon size={16} />
+                            <span className='sr-only'>{name}</span>
+                          </span>
+                        ))}
+                      </span>
+                      <span>and others</span>
                     </span>
                   ) : (
                     <span className='text-muted-foreground/80 ml-2'>{option.description}</span>

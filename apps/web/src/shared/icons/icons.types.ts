@@ -15,6 +15,7 @@ import { type SlackIcon } from './slack-icon';
 import { type DataMartPlusIcon } from './data-mart-plus-icon';
 import { type XAdsIcon } from './x-ads-icon';
 import { type FacebookAdsIcon } from './facebook-ads-icon';
+import { type GoogleAdsIcon } from './google-ads-icon';
 import { type LinkedInAdsIcon } from './linkedin-ads-icon';
 import { type TikTokAdsIcon } from './tiktok-ads-icon';
 import { type MicrosoftAdsIcon } from './microsoft-ads-icon';
@@ -43,6 +44,7 @@ export type LocalIcon =
   | typeof DataMartPlusIcon
   | typeof XAdsIcon
   | typeof FacebookAdsIcon
+  | typeof GoogleAdsIcon
   | typeof LinkedInAdsIcon
   | typeof TikTokAdsIcon
   | typeof MicrosoftAdsIcon
