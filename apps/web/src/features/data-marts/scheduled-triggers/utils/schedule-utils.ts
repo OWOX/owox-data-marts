@@ -47,9 +47,11 @@ export function getScheduleDescription(config: ScheduleConfig, isEnabled: boolea
     case 'monthly': {
       const sortedDays = [...config.monthDays].sort((a, b) => a - b);
       const dayStrings = sortedDays.map(day => {
-        if (day === 1) return '1st';
-        if (day === 2) return '2nd';
-        if (day === 3) return '3rd';
+        // 11th, 12th and 13th, though they end in 1, 2 and 3.
+        const teen = day >= 11 && day <= 13;
+        if (!teen && day % 10 === 1) return `${String(day)}st`;
+        if (!teen && day % 10 === 2) return `${String(day)}nd`;
+        if (!teen && day % 10 === 3) return `${String(day)}rd`;
         return `${String(day)}th`;
       });
       const daysText =
