@@ -1,4 +1,5 @@
 import { Button } from '@owox/ui/components/button';
+import { ExternalAnchor } from '@owox/ui/components/common/external-anchor';
 import RelativeTime from '@owox/ui/components/common/relative-time';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
 import type { ColumnDef } from '@tanstack/react-table';
@@ -24,6 +25,9 @@ import type { PluginScheduleSummary } from '../types';
 
 // The card shows the schedules that ran last; the rest are a link away, under Plugins → Schedules.
 const CARD_ROWS = 10;
+
+const SCHEDULES_DOCS_URL =
+  'https://docs.owox.com/docs/plugins/authoring-guide/?utm_source=owox_data_marts&utm_medium=plugin_page&utm_campaign=no_plugin_schedules#run-actions-on-a-schedule';
 
 const RUN_TYPE: Record<string, StatusTypeEnum> = {
   SUCCEEDED: StatusTypeEnum.SUCCESS,
@@ -99,7 +103,10 @@ export function PluginSchedulesCard({
             Loading…
           </p>
         ) : schedules.length === 0 ? (
-          <p className='text-muted-foreground text-sm'>This plugin has no schedules.</p>
+          <p className='text-muted-foreground text-sm'>
+            This plugin has no schedules. A plugin adds them itself:{' '}
+            <ExternalAnchor href={SCHEDULES_DOCS_URL}>Run actions on a schedule</ExternalAnchor>
+          </p>
         ) : (
           <>
             {loadError}

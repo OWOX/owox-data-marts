@@ -63,10 +63,16 @@ describe('PluginSchedulesCard', () => {
     return screen.findByRole('tooltip');
   };
 
-  it('says there are no schedules for a plugin with a backend', async () => {
+  it('says there are no schedules for a plugin with a backend, and links to how a plugin adds one', async () => {
     renderCard();
 
-    expect(await screen.findByText('This plugin has no schedules.')).toBeInTheDocument();
+    expect(await screen.findByText(/^This plugin has no schedules\./)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Run actions on a schedule' })).toHaveAttribute(
+      'href',
+      expect.stringMatching(
+        /^https:\/\/docs\.owox\.com\/docs\/plugins\/authoring-guide\/\?.*#run-actions-on-a-schedule$/
+      )
+    );
     expect(screen.getByText('Schedules')).toBeInTheDocument();
     expect(service.listSchedules).toHaveBeenCalledWith('i1');
   });
