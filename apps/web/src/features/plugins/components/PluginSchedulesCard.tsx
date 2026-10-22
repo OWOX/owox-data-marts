@@ -2,7 +2,7 @@ import { Button } from '@owox/ui/components/button';
 import RelativeTime from '@owox/ui/components/common/relative-time';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
 import type { ColumnDef } from '@tanstack/react-table';
-import { CalendarClock } from 'lucide-react';
+import { ArrowRight, CalendarClock } from 'lucide-react';
 import { useMemo, type MouseEvent, type ReactElement } from 'react';
 import { Link, useNavigate } from 'react-router';
 import {
@@ -117,9 +117,13 @@ export function PluginSchedulesCard({
       </CollapsibleCardContent>
       <CollapsibleCardFooter
         right={
-          <Button asChild variant='link' size='sm'>
-            <Link to={scope(manageSearch(pluginId))}>Manage schedules</Link>
-          </Button>
+          <Link
+            to={scope(manageSearch(pluginId))}
+            className='text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-sm'
+          >
+            Manage schedules
+            <ArrowRight className='size-4' aria-hidden='true' />
+          </Link>
         }
       />
     </CollapsibleCard>
