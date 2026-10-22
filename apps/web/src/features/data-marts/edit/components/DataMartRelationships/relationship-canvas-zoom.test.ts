@@ -1,10 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { getViewportForBounds } from '@xyflow/react';
 import {
+  GRAPH_READABLE_ZOOM,
+  GRAPH_ROOT_FOCUS_MARGIN,
   GRAPH_ZOOM_MAX,
   GRAPH_ZOOM_MIN,
   getFittedGraphViewport,
   getGraphZoomRange,
+  getInitialGraphViewport,
   getNextGraphZoom,
 } from './relationship-canvas-zoom';
 
@@ -96,6 +99,95 @@ describe('relationship canvas zoom', () => {
       expect(
         getGraphZoomRange(getFittedGraphViewport(bounds, 0, 0, 0.1)?.zoom ?? Number.NaN).min
       ).toBe(1);
+    });
+  });
+
+  describe('getInitialGraphViewport', () => {
+    const pane = { paneWidth: 1000, paneHeight: 480 };
+
+    it('keeps the full fit when the whole graph is readable', () => {
+      const fitted = { x: 12, y: 34, zoom: GRAPH_READABLE_ZOOM };
+
+      expect(
+        getInitialGraphViewport({
+          fitted,
+          bounds: { minX: 0, minY: 0, maxX: 800, maxY: 300 },
+          root: { x: 0, y: 126, width: 240, height: 48 },
+          direction: 'horizontal',
+          ...pane,
+        })
+      ).toBe(fitted);
+    });
+
+    it('keeps the full fit when the root card is unknown', () => {
+      const fitted = { x: 0, y: 0, zoom: 0.1 };
+
+      expect(
+        getInitialGraphViewport({
+          fitted,
+          bounds: { minX: 0, minY: 0, maxX: 3000, maxY: 4000 },
+          root: null,
+          direction: 'horizontal',
+          ...pane,
+        })
+      ).toBe(fitted);
+    });
+
+    it('opens a large horizontal graph on the root card pinned to the left edge', () => {
+      const root = { x: 0, y: 1976, width: 240, height: 48 };
+      const viewport = getInitialGraphViewport({
+        fitted: { x: 0, y: 0, zoom: 0.1 },
+        bounds: { minX: 0, minY: 0, maxX: 3000, maxY: 4000 },
+        root,
+        direction: 'horizontal',
+        ...pane,
+      });
+
+      expect(viewport.zoom).toBe(GRAPH_READABLE_ZOOM);
+      // Screen position of a flow point = viewport offset + point * zoom.
+      expect(viewport.x + root.x * viewport.zoom).toBeCloseTo(GRAPH_ROOT_FOCUS_MARGIN);
+      expect(viewport.y + (root.y + root.height / 2) * viewport.zoom).toBeCloseTo(
+        pane.paneHeight / 2
+      );
+    });
+
+    it('opens a large vertical graph on the root card pinned to the top edge', () => {
+      const root = { x: 1880, y: 0, width: 240, height: 48 };
+      const viewport = getInitialGraphViewport({
+        fitted: { x: 0, y: 0, zoom: 0.1 },
+        bounds: { minX: 0, minY: 0, maxX: 4000, maxY: 3000 },
+        root,
+        direction: 'vertical',
+        ...pane,
+      });
+
+      expect(viewport.zoom).toBe(GRAPH_READABLE_ZOOM);
+      expect(viewport.y + root.y * viewport.zoom).toBeCloseTo(GRAPH_ROOT_FOCUS_MARGIN);
+      expect(viewport.x + (root.x + root.width / 2) * viewport.zoom).toBeCloseTo(
+        pane.paneWidth / 2
+      );
+    });
+
+    it('keeps a shallow graph centered along the layout direction', () => {
+      // A wide fan-out: too tall to read when fitted, but its two ranks fit
+      // the pane width at the readable zoom — no reason to hug the left edge.
+      const bounds = { minX: 0, minY: 0, maxX: 600, maxY: 4000 };
+      const root = { x: 0, y: 1976, width: 240, height: 48 };
+      const viewport = getInitialGraphViewport({
+        fitted: { x: 0, y: 0, zoom: 0.1 },
+        bounds,
+        root,
+        direction: 'horizontal',
+        ...pane,
+      });
+
+      const leftGap = viewport.x + bounds.minX * viewport.zoom;
+      const rightGap = pane.paneWidth - (viewport.x + bounds.maxX * viewport.zoom);
+      expect(viewport.zoom).toBe(GRAPH_READABLE_ZOOM);
+      expect(leftGap).toBeCloseTo(rightGap);
+      expect(viewport.y + (root.y + root.height / 2) * viewport.zoom).toBeCloseTo(
+        pane.paneHeight / 2
+      );
     });
   });
 });

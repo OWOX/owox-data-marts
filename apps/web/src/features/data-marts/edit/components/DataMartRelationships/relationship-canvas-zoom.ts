@@ -1,14 +1,79 @@
 import { getViewportForBounds, type Viewport } from '@xyflow/react';
+import type { CanvasDirection } from '../../../shared/canvas/canvas-direction';
 import type { CanvasGraphBounds } from '../../../shared/canvas/viewport';
 
 export const GRAPH_ZOOM_MAX = 3;
 export const GRAPH_ZOOM_MIN = 0.05;
+/**
+ * The smallest zoom the graph opens at. Card titles are 13px; below this they
+ * shrink under ~8px and the cards can no longer be read without zooming in.
+ */
+export const GRAPH_READABLE_ZOOM = 0.6;
+/** Gap between the pane edge and the root card when the graph opens on it. */
+export const GRAPH_ROOT_FOCUS_MARGIN = 40;
 const GRAPH_ZOOM_EPSILON = 0.0001;
 const GRAPH_ZOOM_FALLBACK_MIN = 1;
 
 export interface GraphZoomRange {
   min: number;
   max: number;
+}
+
+export interface GraphNodeRect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+export interface InitialGraphViewportInput {
+  /** The viewport a full fit lands on (see getFittedGraphViewport). */
+  fitted: Viewport;
+  bounds: CanvasGraphBounds;
+  /** The card of the data mart being edited; null leaves the full fit. */
+  root: GraphNodeRect | null;
+  paneWidth: number;
+  paneHeight: number;
+  direction: CanvasDirection;
+}
+
+/**
+ * The viewport the graph opens on. A graph that fits at a readable zoom opens
+ * fitted whole. A larger one opens at the readable zoom on the root card, so
+ * the data mart being edited and its own relationships are what the user sees
+ * first; "Fit to view" still shows the whole graph.
+ *
+ * Along the layout direction the graph stays centered while it fits at that
+ * zoom; otherwise the root card (always on the first rank) is pinned to the
+ * leading edge. Across it, the view centers on the root card, which the layout
+ * already centers over its own relationships.
+ */
+export function getInitialGraphViewport({
+  fitted,
+  bounds,
+  root,
+  paneWidth,
+  paneHeight,
+  direction,
+}: InitialGraphViewportInput): Viewport {
+  if (!root || fitted.zoom >= GRAPH_READABLE_ZOOM) return fitted;
+
+  const zoom = GRAPH_READABLE_ZOOM;
+  const horizontal = direction === 'horizontal';
+  const mainPane = horizontal ? paneWidth : paneHeight;
+  const crossPane = horizontal ? paneHeight : paneWidth;
+  const mainMin = horizontal ? bounds.minX : bounds.minY;
+  const mainExtent = (horizontal ? bounds.maxX - bounds.minX : bounds.maxY - bounds.minY) * zoom;
+  const rootMainStart = horizontal ? root.x : root.y;
+  const rootCrossCenter = horizontal ? root.y + root.height / 2 : root.x + root.width / 2;
+
+  const main =
+    mainExtent <= mainPane - 2 * GRAPH_ROOT_FOCUS_MARGIN
+      ? (mainPane - mainExtent) / 2 - mainMin * zoom
+      : GRAPH_ROOT_FOCUS_MARGIN - rootMainStart * zoom;
+  const cross = crossPane / 2 - rootCrossCenter * zoom;
+
+  return horizontal ? { x: main, y: cross, zoom } : { x: cross, y: main, zoom };
 }
 
 /**

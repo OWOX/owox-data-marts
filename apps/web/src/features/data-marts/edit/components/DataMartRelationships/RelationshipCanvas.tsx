@@ -88,6 +88,7 @@ import {
   GRAPH_ZOOM_MIN,
   getFittedGraphViewport,
   getGraphZoomRange,
+  getInitialGraphViewport,
   getNextGraphZoom,
 } from './relationship-canvas-zoom';
 import type { RelationshipStatusFilter } from './relationship-filters';
@@ -989,21 +990,48 @@ function RelationshipCanvasInner({
     });
   }, [reactFlow]);
 
+  const rootRect = useMemo(() => {
+    const root = graphResult.nodes.find(node => node.id === dataMartId);
+    if (!root) return null;
+    return {
+      x: root.position.x,
+      y: root.position.y,
+      width: root.width ?? NODE_W,
+      height: root.height ?? SRC_H,
+    };
+  }, [graphResult.nodes, dataMartId]);
+
+  // Small graphs open fitted whole; graphs too large to read when fitted open
+  // on the root card at a readable zoom.
+  const initialViewport = useMemo(
+    () =>
+      fittedViewport
+        ? getInitialGraphViewport({
+            fitted: fittedViewport,
+            bounds: graphBounds,
+            root: rootRect,
+            paneWidth,
+            paneHeight,
+            direction,
+          })
+        : null,
+    [fittedViewport, graphBounds, rootRect, paneWidth, paneHeight, direction]
+  );
+
   // Behind a ref so the automatic fit below stays keyed on the graph identity:
   // cosmetic relayouts (view mode, direction, join labels) move the bounds but
   // must not wipe the user's viewport.
-  const fittedViewportRef = useRef(fittedViewport);
-  fittedViewportRef.current = fittedViewport;
+  const initialViewportRef = useRef(initialViewport);
+  initialViewportRef.current = initialViewport;
 
   const fitInitial = useCallback(() => {
     // Not fitView: it only fits nodes whose DOM dimensions are measured, and
     // the declared node sizes make the graph count as initialized before any
     // measurement — on first mount that fit ran against a half-measured
-    // subset and left the canvas zoomed in on the root card instead of
-    // showing the whole graph. The layout-derived viewport needs no DOM.
-    const fitted = fittedViewportRef.current;
-    if (!fitted) return fitFull();
-    return reactFlow.setViewport(fitted);
+    // subset. The layout-derived viewport needs no DOM.
+    const initial = initialViewportRef.current;
+    if (!initial) return fitFull();
+    return reactFlow.setViewport(initial);
   }, [fitFull, reactFlow]);
 
   const markUserInteracted = useCallback(() => {

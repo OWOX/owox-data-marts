@@ -6,7 +6,7 @@ import type { ErdCardField } from '../../../shared/canvas/erd-fields';
 import type { DataMartRelationship } from '../../../shared/types/relationship.types';
 import { RelationshipCanvas } from './RelationshipCanvas';
 import { getViewportForBounds } from '@xyflow/react';
-import { getGraphZoomRange } from './relationship-canvas-zoom';
+import { GRAPH_READABLE_ZOOM, getGraphZoomRange } from './relationship-canvas-zoom';
 
 const FIT_VIEW_PADDING = 1 / 0.85 - 1;
 
@@ -191,6 +191,30 @@ describe('RelationshipCanvas viewport', () => {
         FIT_VIEW_PADDING
       )
     );
+    expect(reactFlowHarness.fitView).not.toHaveBeenCalled();
+  });
+
+  it('opens a graph too large to read when fitted on the root card at a readable zoom', async () => {
+    const relationships = Array.from({ length: 12 }, (_, index) =>
+      buildRelationship(`rel-${String(index)}`, `target-${String(index)}`)
+    );
+    render(<RelationshipCanvas {...buildCanvasProps(relationships)} />);
+
+    await waitFor(() => {
+      expect(reactFlowHarness.setViewport).toHaveBeenCalledTimes(1);
+    });
+    const viewport = reactFlowHarness.setViewport.mock.lastCall?.[0];
+    const root = reactFlowHarness.latestProps?.nodes?.find(node => node.data.isSource);
+    if (!viewport || !root) throw new Error('expected an initial viewport and a root card');
+
+    expect(viewport.zoom).toBe(GRAPH_READABLE_ZOOM);
+    // The root card sits in the vertical middle of the pane (screen position
+    // of a flow point = viewport offset + point * zoom).
+    expect(viewport.y + (root.position.y + (root.height ?? 0) / 2) * viewport.zoom).toBeCloseTo(
+      reactFlowHarness.store.height / 2
+    );
+    // Zooming out still reaches the whole graph.
+    expect(reactFlowHarness.latestProps?.minZoom).toBeLessThan(GRAPH_READABLE_ZOOM);
     expect(reactFlowHarness.fitView).not.toHaveBeenCalled();
   });
 
