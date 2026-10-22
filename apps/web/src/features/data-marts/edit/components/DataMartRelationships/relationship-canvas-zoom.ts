@@ -1,4 +1,4 @@
-import { getViewportForBounds, type Viewport } from '@xyflow/react';
+import { getViewportForBounds, type Rect, type Viewport } from '@xyflow/react';
 import type { CanvasDirection } from '../../../shared/canvas/canvas-direction';
 import type { CanvasGraphBounds } from '../../../shared/canvas/viewport';
 
@@ -19,22 +19,42 @@ export interface GraphZoomRange {
   max: number;
 }
 
-export interface GraphNodeRect {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-}
-
 export interface InitialGraphViewportInput {
   /** The viewport a full fit lands on (see getFittedGraphViewport). */
   fitted: Viewport;
   bounds: CanvasGraphBounds;
   /** The card of the data mart being edited; null leaves the full fit. */
-  root: GraphNodeRect | null;
+  root: Rect | null;
   paneWidth: number;
   paneHeight: number;
   direction: CanvasDirection;
+}
+
+interface AxisPlacement {
+  paneSize: number;
+  /** Graph bounds along this axis, in flow coordinates. */
+  min: number;
+  max: number;
+  zoom: number;
+  /** The viewport offset that puts the point of interest where it belongs. */
+  focusOffset: number;
+}
+
+/**
+ * The viewport offset along one axis. A graph that fits the pane along it is
+ * centered. A larger one goes where `focusOffset` puts it, clamped so neither
+ * graph edge comes further into the pane than the focus margin — the view
+ * never spends pane space beyond the graph while cards are cut off on the
+ * other side.
+ */
+function placeAlongAxis({ paneSize, min, max, zoom, focusOffset }: AxisPlacement): number {
+  const extent = (max - min) * zoom;
+  if (extent <= paneSize - 2 * GRAPH_ROOT_FOCUS_MARGIN) {
+    return (paneSize - extent) / 2 - min * zoom;
+  }
+  const farEdgeAtPaneEnd = paneSize - GRAPH_ROOT_FOCUS_MARGIN - max * zoom;
+  const nearEdgeAtPaneStart = GRAPH_ROOT_FOCUS_MARGIN - min * zoom;
+  return Math.min(Math.max(focusOffset, farEdgeAtPaneEnd), nearEdgeAtPaneStart);
 }
 
 /**
@@ -43,10 +63,11 @@ export interface InitialGraphViewportInput {
  * the data mart being edited and its own relationships are what the user sees
  * first; "Fit to view" still shows the whole graph.
  *
- * Along the layout direction the graph stays centered while it fits at that
- * zoom; otherwise the root card (always on the first rank) is pinned to the
- * leading edge. Across it, the view centers on the root card, which the layout
- * already centers over its own relationships.
+ * On each axis the graph is centered while it fits the pane at that zoom.
+ * Otherwise, along the layout direction the root card (always on the first
+ * rank) is pinned to the leading edge, and across it the view centers on the
+ * root card — clamped to the graph bounds, because the layout aligns the root
+ * with the median of its relationships, not with the middle of the tree.
  */
 export function getInitialGraphViewport({
   fitted,
@@ -60,20 +81,29 @@ export function getInitialGraphViewport({
 
   const zoom = GRAPH_READABLE_ZOOM;
   const horizontal = direction === 'horizontal';
-  const mainPane = horizontal ? paneWidth : paneHeight;
-  const crossPane = horizontal ? paneHeight : paneWidth;
-  const mainMin = horizontal ? bounds.minX : bounds.minY;
-  const mainExtent = (horizontal ? bounds.maxX - bounds.minX : bounds.maxY - bounds.minY) * zoom;
-  const rootMainStart = horizontal ? root.x : root.y;
-  const rootCrossCenter = horizontal ? root.y + root.height / 2 : root.x + root.width / 2;
+  const pinToLeadingEdge = (rootStart: number) => GRAPH_ROOT_FOCUS_MARGIN - rootStart * zoom;
+  const centerOn = (paneSize: number, rootCenter: number) => paneSize / 2 - rootCenter * zoom;
 
-  const main =
-    mainExtent <= mainPane - 2 * GRAPH_ROOT_FOCUS_MARGIN
-      ? (mainPane - mainExtent) / 2 - mainMin * zoom
-      : GRAPH_ROOT_FOCUS_MARGIN - rootMainStart * zoom;
-  const cross = crossPane / 2 - rootCrossCenter * zoom;
+  const x = placeAlongAxis({
+    paneSize: paneWidth,
+    min: bounds.minX,
+    max: bounds.maxX,
+    zoom,
+    focusOffset: horizontal
+      ? pinToLeadingEdge(root.x)
+      : centerOn(paneWidth, root.x + root.width / 2),
+  });
+  const y = placeAlongAxis({
+    paneSize: paneHeight,
+    min: bounds.minY,
+    max: bounds.maxY,
+    zoom,
+    focusOffset: horizontal
+      ? centerOn(paneHeight, root.y + root.height / 2)
+      : pinToLeadingEdge(root.y),
+  });
 
-  return horizontal ? { x: main, y: cross, zoom } : { x: cross, y: main, zoom };
+  return { x, y, zoom };
 }
 
 /**

@@ -1018,11 +1018,19 @@ function RelationshipCanvasInner({
     [fittedViewport, graphBounds, rootRect, paneWidth, paneHeight, direction]
   );
 
-  // Behind a ref so the automatic fit below stays keyed on the graph identity:
-  // cosmetic relayouts (view mode, direction, join labels) move the bounds but
-  // must not wipe the user's viewport.
+  // Behind a ref so the automatic fit below is keyed on values, not on object
+  // identity: an identical-content rebuild produces new objects with the same
+  // numbers and must not re-run the fit.
   const initialViewportRef = useRef(initialViewport);
   initialViewportRef.current = initialViewport;
+  // Cosmetic relayouts (view mode, direction, join labels, late field rows)
+  // move the graph without changing its identity. Until the user takes over
+  // the viewport, the automatic view follows them — otherwise the view opened
+  // on the root card would stay where the root used to be. Once the user has
+  // moved the canvas, the fit effect bails out and their viewport is kept.
+  const initialViewportKey = initialViewport
+    ? `${String(initialViewport.x)}:${String(initialViewport.y)}:${String(initialViewport.zoom)}`
+    : '';
 
   const fitInitial = useCallback(() => {
     // Not fitView: it only fits nodes whose DOM dimensions are measured, and
@@ -1045,9 +1053,10 @@ function RelationshipCanvasInner({
       hasFitRef.current = true;
       zoomToMatches();
     });
-    // graphIdentity (not graphResult): an identical-content rebuild — e.g. a
-    // schema refetch producing byte-equal fields — must not re-run the fit.
-  }, [paneWidth, paneHeight, graphIdentity, fitInitial, zoomToMatches]);
+    // graphIdentity and initialViewportKey (not graphResult): an
+    // identical-content rebuild — e.g. a schema refetch producing byte-equal
+    // fields — must not re-run the fit.
+  }, [paneWidth, paneHeight, graphIdentity, initialViewportKey, fitInitial, zoomToMatches]);
 
   useEffect(() => {
     if (!hasFitRef.current) return;
