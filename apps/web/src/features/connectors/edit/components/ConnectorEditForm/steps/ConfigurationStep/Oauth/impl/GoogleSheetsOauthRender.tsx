@@ -23,6 +23,9 @@ export function GoogleSheetsOauthRender({
   const { openPicker } = useGoogleSheetsPicker();
 
   const connectedEmail = status?.user?.email ?? status?.user?.name;
+  const spreadsheetUrl =
+    typeof configuration.SpreadsheetId === 'string' ? configuration.SpreadsheetId.trim() : '';
+  const spreadsheetSelected = spreadsheetUrl !== '';
 
   const handleGoogleLogin = async (response: GoogleSheetsLoginResponse) => {
     const result = await onOAuthSuccess({ code: response.code });
@@ -34,7 +37,7 @@ export function GoogleSheetsOauthRender({
       nextEmail &&
       nextEmail.toLowerCase() !== connectedEmail.toLowerCase()
     );
-    if (accountChanged && configuration.SpreadsheetId) {
+    if (accountChanged && spreadsheetSelected) {
       onValueChange('SpreadsheetId', '');
     }
     if (result) {
@@ -45,7 +48,7 @@ export function GoogleSheetsOauthRender({
       const connected = nextEmail
         ? `Google account ${nextEmail} connected.`
         : 'Google account connected.';
-      const needsSpreadsheet = accountChanged || !configuration.SpreadsheetId;
+      const needsSpreadsheet = accountChanged || !spreadsheetSelected;
       toast.success(needsSpreadsheet ? `${connected} Now choose a spreadsheet.` : connected);
     }
   };
@@ -53,9 +56,6 @@ export function GoogleSheetsOauthRender({
   const clientId = settings?.vars.ClientId as string | undefined;
   const pickerApiKey = settings?.vars.PickerApiKey as string | undefined;
   const projectNumber = settings?.vars.ProjectNumber as string | undefined;
-  const spreadsheetUrl =
-    typeof configuration.SpreadsheetId === 'string' ? configuration.SpreadsheetId.trim() : '';
-  const spreadsheetSelected = spreadsheetUrl !== '';
   const handlePickSpreadsheet = () => {
     if (!clientId || !pickerApiKey || !projectNumber) {
       setPickerError('Google Picker configuration is incomplete');

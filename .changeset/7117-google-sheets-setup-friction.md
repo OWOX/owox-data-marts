@@ -16,7 +16,7 @@ A marketer or product manager who keeps targets in a spreadsheet and wants plan-
 
   ![The Reuse from another Data Mart list open above the connector settings, with the hint on what is copied and a Data Mart to copy from](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/67212225-c938-4612-d494-607e67c3d100/w=800)
 
-- The Google file picker fits the browser window, so its title and search field stay visible without resizing the window.
+- The Google file picker is sized to the browser window (down to Google's own 566×350 minimum), so its title and search field stay visible without resizing the window.
 - The suggested table name for a Google Sheets source comes from the selected sheet (for example `product_engineering`) instead of the same `google_sheets` for every Data Mart, so differently named sheets get different defaults. The dataset stays `google_sheets_owox`, and a sheet name that leaves no Latin letters or digits still falls back to `google_sheets`, so check the suggestion before saving: nothing stops two Data Marts from writing to one table.
 
 See [Connector Data Mart](../../docs/getting-started/setup-guide/connector-data-mart.md) and the [Google Sheets source guide](../../packages/connectors/src/Sources/GoogleSheets/GETTING_STARTED.md).

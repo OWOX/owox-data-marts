@@ -368,10 +368,22 @@ export function ConnectorEditForm({
     void fetchConnectorFields(connector);
   };
 
+  // The sheet the target table is suggested from. When it changes while creating a
+  // Google Sheets Data Mart, the target seeded from the previous sheet is dropped, so
+  // going Back, picking another sheet and returning suggests a name for the new sheet
+  // instead of keeping the old one.
+  const googleSheetsSourceKeyRef = useRef<string | null>(null);
+
   const handleConnectorSelect = (connector: ConnectorListItem) => {
     setSelectedConnector(connector);
     setConnectorConfiguration({});
     setConfigurationIsValid(false);
+    if (!existingConnector) {
+      // A target seeded for the previous connector (or its sheet) must not survive a
+      // connector change; the target step re-seeds from the new connector.
+      setTarget(null);
+      googleSheetsSourceKeyRef.current = null;
+    }
     if (
       connector.name === GOOGLE_SHEETS_CONNECTOR_NAME ||
       selectedConnector?.name === GOOGLE_SHEETS_CONNECTOR_NAME
@@ -451,12 +463,6 @@ export function ConnectorEditForm({
   // Do not clone or normalise here (`{ ...configuration }`, structuredClone, etc.):
   // every echo would become a new reference, the step would re-seed on each keystroke,
   // and typed characters would be dropped again.
-  // The sheet the target table is suggested from. When it changes while creating a
-  // Google Sheets Data Mart, the target seeded from the previous sheet is dropped, so
-  // going Back, picking another sheet and returning suggests a name for the new sheet
-  // instead of keeping the old one.
-  const googleSheetsSourceKeyRef = useRef<string | null>(null);
-
   const handleConfigurationChange = useCallback(
     (configuration: Record<string, unknown>) => {
       setConnectorConfiguration(configuration);

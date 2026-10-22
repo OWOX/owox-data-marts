@@ -16,9 +16,10 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/too
 import { DataMartStatus } from '../../../../data-marts/shared/enums';
 import type { DataStorage } from '../../../../data-storage/shared/model/types/data-storage';
 import { useConnector } from '../../../shared/model/hooks/useConnector';
-import { getConnectorDisplayName } from '../../../shared/utils';
+import { getConnectorInfoByName } from '../../../shared/utils';
 import { GOOGLE_SHEETS_CONNECTOR_NAME } from '../../../shared/utils/google-sheets-fields.utils';
-import { useEffect } from 'react';
+import { spreadsheetUrlFrom } from '../../../../google-oauth';
+import { useEffect, useState } from 'react';
 import { RawBase64Icon } from '../../../../../shared/icons';
 import { unquoteIdentifier } from '../../utils/snowflake-identifier.utils';
 import { RedshiftConnectionType } from '../../../../data-storage/shared/model/types/credentials';
@@ -48,6 +49,22 @@ export function ConnectorConfigurationItem({
     void fetchAvailableConnectors();
   }, [fetchAvailableConnectors]);
 
+  // The manifest title ("Google Sheets"), not the technical name ("GoogleSheets").
+  // Resolved through the helper that also knows custom connectors, which the bundled
+  // list from `useConnector` does not carry; the technical name shows until it lands.
+  const sourceName = connectorDef.connector.source.name;
+  const [connectorTitle, setConnectorTitle] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    setConnectorTitle(null);
+    void getConnectorInfoByName(sourceName).then(info => {
+      if (!cancelled && info) setConnectorTitle(info.displayName);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [sourceName]);
+
   const getConnectorIcon = (connectorName: string) => {
     const connector = connectors.find(c => c.name === connectorName);
     if (connector?.logoBase64) {
@@ -64,12 +81,7 @@ export function ConnectorConfigurationItem({
     const sheetName = typeof config.SheetName === 'string' ? config.SheetName.trim() : '';
     const spreadsheet = typeof config.SpreadsheetId === 'string' ? config.SpreadsheetId.trim() : '';
     if (!sheetName) return null;
-    const spreadsheetUrl = spreadsheet
-      ? /^https?:\/\//i.test(spreadsheet)
-        ? spreadsheet
-        : `https://docs.google.com/spreadsheets/d/${spreadsheet}/edit`
-      : null;
-    return { sheetName, spreadsheetUrl };
+    return { sheetName, spreadsheetUrl: spreadsheet ? spreadsheetUrlFrom(spreadsheet) : null };
   };
 
   const getConnectorSubtitle = () => {
@@ -333,11 +345,9 @@ export function ConnectorConfigurationItem({
               storage: connectorDef.connector.storage,
             }}
           >
-            {/* The manifest title ("Google Sheets"), not the technical name ("GoogleSheets");
-                the technical name stays until the connector list has loaded. */}
             <ListItemCard
-              icon={getConnectorIcon(connectorDef.connector.source.name)}
-              title={getConnectorDisplayName(connectorDef.connector, connectors) || 'Connector'}
+              icon={getConnectorIcon(sourceName)}
+              title={connectorTitle ?? (sourceName || 'Connector')}
               subtitle={getConnectorSubtitle()}
               className='bg-background hover:bg-muted min-h-[80px] cursor-pointer border-0 transition-colors hover:shadow-none'
             />

@@ -35,9 +35,6 @@ export function CopyConfigurationButton({
   const [dataMarts, setDataMarts] = useState<DataMartResponseDto[]>([]);
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
-  // Controlled so the tooltip does not reopen when the menu closes and Radix returns
-  // focus to the trigger; the same hint heads the list anyway.
-  const [tooltipOpen, setTooltipOpen] = useState(false);
   // The same for every connector: credentials are what people hesitate to enter or grant
   // again, and the settings come along with them.
   const reuseHint =
@@ -142,7 +139,7 @@ export function CopyConfigurationButton({
   return (
     <TooltipProvider>
       <DropdownMenu open={open} onOpenChange={setOpen}>
-        <Tooltip delayDuration={300} open={tooltipOpen && !open} onOpenChange={setTooltipOpen}>
+        <Tooltip delayDuration={300}>
           <TooltipTrigger asChild>
             <DropdownMenuTrigger asChild>
               <Button type='button' variant='outline' size='sm' className='cursor-pointer'>
@@ -161,7 +158,16 @@ export function CopyConfigurationButton({
             {reuseHint}
           </TooltipContent>
         </Tooltip>
-        <DropdownMenuContent side='bottom' align='end' className='w-72'>
+        <DropdownMenuContent
+          side='bottom'
+          align='end'
+          className='w-72'
+          // Radix returns focus to the trigger when the menu closes, and a focused trigger
+          // opens the tooltip; the same hint heads the list, so keep focus where it is.
+          onCloseAutoFocus={event => {
+            event.preventDefault();
+          }}
+        >
           {loading ? (
             <DropdownMenuItem disabled>Loading&hellip;</DropdownMenuItem>
           ) : dataMarts.length === 0 ? (

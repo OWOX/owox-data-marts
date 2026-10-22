@@ -260,11 +260,19 @@ function buildPickerView(picker: GooglePicker) {
     .setMode(picker.DocsViewMode.LIST);
 }
 
+/** The spreadsheet's edit URL from either its ID or an already complete URL. */
+export function spreadsheetUrlFrom(idOrUrl: string): string {
+  const value = idOrUrl.trim();
+  return /^https?:\/\//i.test(value)
+    ? value
+    : `https://docs.google.com/spreadsheets/d/${value}/edit`;
+}
+
 function buildItemUrl(doc: PickerDoc): string {
   if (doc.url) {
     return doc.url;
   }
-  return `https://docs.google.com/spreadsheets/d/${doc.id}/edit`;
+  return spreadsheetUrlFrom(doc.id);
 }
 
 export function useGoogleSheetsPicker() {
