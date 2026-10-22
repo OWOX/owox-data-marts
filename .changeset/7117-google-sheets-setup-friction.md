@@ -6,7 +6,7 @@
 
 A marketer or product manager who keeps targets in a spreadsheet and wants plan-vs-fact answers had to guess their way through the Google Sheets connector: which definition type hides the connectors, whether the Google sign-in actually worked, why the file picker opened without its search box, and why the suggested table name was the same one their previous Data Mart already used. Each guess cost a retry or a second sign-in. This release removes the ones that did not need a bigger change.
 
-- The _Connector_ definition type shows the logos of the most used sources (Facebook Ads, Google Ads, Google Sheets, LinkedIn Ads, TikTok Ads) instead of a generic description, so a spreadsheet owner sees where to go.
+- The _Connector_ definition type shows the logos of the most used sources (Facebook Ads, Google Ads, TikTok Ads, LinkedIn Ads, Google Sheets) instead of a generic description, so a spreadsheet owner sees where to go.
 - The Input Source card shows the connector by its name from the catalog ("Google Sheets", not "GoogleSheets") and, for Google Sheets, the selected sheet with a link to the spreadsheet, so several plan Data Marts can be told apart without opening their settings.
 - After _Sign in with Google_ a confirmation names the connected account and the next step, and the button shows a connected state, so nobody has to spot a changed label.
 - _Copy from…_ is now _Reuse from another Data Mart_ with a hint that says what it reuses: for Google Sheets, the Google access, spreadsheet and sheet of another Data Mart, with no new sign-in; the sheet can still be changed afterwards.

@@ -46,12 +46,14 @@ interface TypeOption {
   examples?: { name: string; icon: LocalIcon }[];
 }
 
+// Ordered by how often they run in practice; Google Sheets stays because plans and
+// targets live there.
 const POPULAR_CONNECTORS: { name: string; icon: LocalIcon }[] = [
   { name: 'Facebook Ads', icon: FacebookAdsIcon },
   { name: 'Google Ads', icon: GoogleAdsIcon },
-  { name: 'Google Sheets', icon: GoogleSheetsIcon },
-  { name: 'LinkedIn Ads', icon: LinkedInAdsIcon },
   { name: 'TikTok Ads', icon: TikTokAdsIcon },
+  { name: 'LinkedIn Ads', icon: LinkedInAdsIcon },
+  { name: 'Google Sheets', icon: GoogleSheetsIcon },
 ];
 
 export function DataMartDefinitionTypeSelector({
