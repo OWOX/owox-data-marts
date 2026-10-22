@@ -22,6 +22,9 @@ import { usePluginSchedules } from '../hooks/usePluginSchedules';
 import { lastRunSummary, runStatusLabel, SCHEDULE_DISABLED_REASON_TEXT } from '../scheduleLabels';
 import type { PluginScheduleSummary } from '../types';
 
+// The card shows the schedules that ran last; the rest are a link away, under Plugins → Schedules.
+const CARD_ROWS = 10;
+
 const RUN_TYPE: Record<string, StatusTypeEnum> = {
   SUCCEEDED: StatusTypeEnum.SUCCESS,
   FAILED: StatusTypeEnum.ERROR,
@@ -52,8 +55,10 @@ export function PluginSchedulesCard({
     data: schedules,
     columns,
     storageKeyPrefix: 'plugin-schedules-card',
-    defaultSortingColumn: 'nextRun',
-    defaultSortingDesc: false,
+    defaultSortingColumn: 'lastRun',
+    defaultSortingDesc: true,
+    // Pagination stays hidden, so the page is the whole card.
+    defaultPageSize: CARD_ROWS,
     getRowId: item => item.id,
   });
 
@@ -117,13 +122,15 @@ export function PluginSchedulesCard({
       </CollapsibleCardContent>
       <CollapsibleCardFooter
         right={
-          <Link
-            to={scope(manageSearch(pluginId))}
-            className='text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-sm'
-          >
-            Manage schedules
-            <ArrowRight className='size-4' aria-hidden='true' />
-          </Link>
+          schedules.length > CARD_ROWS && (
+            <Link
+              to={scope(manageSearch(pluginId))}
+              className='text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-sm'
+            >
+              View all {schedules.length} schedules
+              <ArrowRight className='size-4' aria-hidden='true' />
+            </Link>
+          )
         }
       />
     </CollapsibleCard>

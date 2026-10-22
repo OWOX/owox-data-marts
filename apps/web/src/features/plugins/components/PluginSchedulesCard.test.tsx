@@ -71,15 +71,62 @@ describe('PluginSchedulesCard', () => {
     expect(service.listSchedules).toHaveBeenCalledWith('i1');
   });
 
-  it('links Manage schedules to Plugins → Schedules, filtered to this plugin', async () => {
+  const ranAt = (day: number) => ({
+    executionId: `e${String(day)}`,
+    status: 'SUCCEEDED',
+    errorCode: null,
+    finishedAt: `2026-10-${String(day).padStart(2, '0')}T06:00:00.000Z`,
+  });
+
+  it('shows the ten schedules that ran last and links to all of them', async () => {
+    service.listSchedules.mockResolvedValue(
+      Array.from({ length: 12 }, (_, index) =>
+        schedule({
+          id: `s${String(index)}`,
+          name: `Schedule ${String(index)}`,
+          lastRun: ranAt(index + 1),
+        })
+      )
+    );
+
+    renderCard();
+
+    expect(await screen.findByText('Schedule 11')).toBeInTheDocument();
+    expect(screen.getAllByRole('row')).toHaveLength(11);
+    expect(screen.getByText('Schedule 2')).toBeInTheDocument();
+    expect(screen.queryByText('Schedule 1')).toBeNull();
+    expect(screen.queryByText('Schedule 0')).toBeNull();
+    expect(screen.getByRole('link', { name: 'View all 12 schedules' })).toHaveAttribute(
+      'href',
+      '/ui/project-1/plugins/schedules?plugin=p1'
+    );
+  });
+
+  it('lists the schedules that ran last first, and those not run yet last', async () => {
+    service.listSchedules.mockResolvedValue([
+      schedule({ id: 's1', name: 'Never' }),
+      schedule({ id: 's2', name: 'Earlier', lastRun: ranAt(14) }),
+      schedule({ id: 's3', name: 'Latest', lastRun: ranAt(16) }),
+    ]);
+
+    renderCard();
+
+    await screen.findByText('Latest');
+    expect(
+      screen
+        .getAllByRole('row')
+        .slice(1)
+        .map(row => row.querySelector('a')?.textContent)
+    ).toEqual(['Latest', 'Earlier', 'Never']);
+  });
+
+  it('has no link to all the schedules when the card shows them all', async () => {
     service.listSchedules.mockResolvedValue([schedule()]);
 
     renderCard();
 
-    expect(await screen.findByRole('link', { name: 'Manage schedules' })).toHaveAttribute(
-      'href',
-      '/ui/project-1/plugins/schedules?plugin=p1'
-    );
+    await screen.findByText('Morning export');
+    expect(screen.queryByRole('link', { name: /View all/ })).toBeNull();
   });
 
   it('links each schedule to its panel under Plugins → Schedules, with no actions here', async () => {
