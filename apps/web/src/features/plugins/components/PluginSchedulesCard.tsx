@@ -1,4 +1,5 @@
 import { Button } from '@owox/ui/components/button';
+import RelativeTime from '@owox/ui/components/common/relative-time';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
 import { CalendarClock } from 'lucide-react';
 import type { ReactElement } from 'react';
@@ -15,7 +16,7 @@ import { useProjectRoute } from '../../../shared/hooks';
 import { formatDateShort } from '../../../utils/date-formatters';
 import { describeCron } from '../describeCron';
 import { usePluginSchedules } from '../hooks/usePluginSchedules';
-import { lastRunSummary, SCHEDULE_DISABLED_REASON_TEXT } from '../scheduleLabels';
+import { lastRunSummary, runStatusLabel, SCHEDULE_DISABLED_REASON_TEXT } from '../scheduleLabels';
 import type { PluginScheduleSummary } from '../types';
 
 const RUN_TYPE: Record<string, StatusTypeEnum> = {
@@ -92,27 +93,31 @@ export function PluginSchedulesCard({
                 ? 'These schedules run again if the plugin is restored.'
                 : overview(schedules)}
             </p>
-            <ul className='divide-y'>
+            <ul className='@container divide-y'>
               {schedules.map(schedule => (
+                // One grid template per row, so the columns line up across rows.
                 <li
                   key={schedule.id}
-                  className='flex items-center gap-4 py-2 text-sm first:pt-0 last:pb-0'
+                  className='flex flex-col gap-1 py-2 text-sm first:pt-0 last:pb-0 @4xl:grid @4xl:grid-cols-[minmax(0,1fr)_14rem_12rem_16rem] @4xl:items-center @4xl:gap-4'
                 >
-                  <div className='flex min-w-0 flex-1 flex-col gap-x-4 sm:flex-row sm:items-center'>
-                    <Link
-                      to={manageHref(schedule.id)}
-                      className='min-w-0 truncate font-medium hover:underline sm:flex-1'
-                    >
-                      {schedule.name ?? schedule.action}
-                    </Link>
-                    <span className='text-muted-foreground'>
-                      {describeCron(schedule.cron) ?? <code>{schedule.cron}</code>}
+                  <Link
+                    to={manageHref(schedule.id)}
+                    className='min-w-0 truncate font-medium hover:underline'
+                  >
+                    {schedule.name ?? schedule.action}
+                  </Link>
+                  {/* Stacked and labelled while the card is too narrow for columns. */}
+                  <div className='text-muted-foreground flex flex-col gap-1 @4xl:contents'>
+                    <span>{describeCron(schedule.cron) ?? <code>{schedule.cron}</code>}</span>
+                    <span className='inline-flex items-center gap-1 whitespace-nowrap'>
+                      <span className='@4xl:hidden'>Next run:</span>
+                      <NextRun schedule={schedule} />
+                    </span>
+                    <span className='inline-flex items-center gap-1 whitespace-nowrap'>
+                      <span className='@4xl:hidden'>Last run:</span>
+                      <LastRun schedule={schedule} />
                     </span>
                   </div>
-                  {/* A fixed column, so the schedules line up whether a row shows an icon or a word. */}
-                  <span className='flex w-16 shrink-0 justify-end'>
-                    <ScheduleState schedule={schedule} />
-                  </span>
                 </li>
               ))}
             </ul>
@@ -130,7 +135,7 @@ export function PluginSchedulesCard({
   );
 }
 
-/** "2 active · 1 paused · next run …", the next run in its schedule's own zone. */
+/** "2 active · 1 paused · 1 disabled". */
 function overview(schedules: PluginScheduleSummary[]): string {
   const disabled = schedules.filter(
     item =>
@@ -142,24 +147,15 @@ function overview(schedules: PluginScheduleSummary[]): string {
     [schedules.length - active.length - disabled, 'paused'],
     [disabled, 'disabled'],
   ];
-  const next = active.reduce<PluginScheduleSummary | null>(
-    (soonest, item) =>
-      item.nextRunAt &&
-      (!soonest?.nextRunAt || Date.parse(item.nextRunAt) < Date.parse(soonest.nextRunAt))
-        ? item
-        : soonest,
-    null
-  );
-  return [
-    ...counts.filter(([count]) => count > 0).map(([count, label]) => `${String(count)} ${label}`),
-    ...(next?.nextRunAt
-      ? [`next run ${formatDateShort(next.nextRunAt, { timeZone: next.timeZone })}`]
-      : []),
-  ].join(' · ');
+  return counts
+    .filter(([count]) => count > 0)
+    .map(([count, label]) => `${String(count)} ${label}`)
+    .join(' · ');
 }
 
-function ScheduleState({ schedule }: { schedule: PluginScheduleSummary }) {
-  const { lastRun, disabledReason } = schedule;
+// The next run in words, its time in the schedule's own zone; Paused or Disabled, with the reason, in its place.
+function NextRun({ schedule }: { schedule: PluginScheduleSummary }) {
+  const { disabledReason, nextRunAt } = schedule;
   if (!schedule.enabled) {
     const disabled = disabledReason !== null && disabledReason !== 'PAUSED_BY_ADMIN';
     return withHint(
@@ -169,21 +165,34 @@ function ScheduleState({ schedule }: { schedule: PluginScheduleSummary }) {
       disabledReason && SCHEDULE_DISABLED_REASON_TEXT[disabledReason]
     );
   }
-  const summary = lastRun
-    ? `Last run: ${lastRunSummary(lastRun, schedule.timeZone)}`
-    : 'Not run yet';
+  if (!nextRunAt) {
+    return <span className='text-muted-foreground'>—</span>;
+  }
   return withHint(
-    lastRun ? (
+    <span className='text-muted-foreground'>
+      <RelativeTime date={new Date(nextRunAt)} />
+    </span>,
+    `Next run: ${formatDateShort(nextRunAt, { timeZone: schedule.timeZone })}`
+  );
+}
+
+function LastRun({ schedule }: { schedule: PluginScheduleSummary }) {
+  const { lastRun } = schedule;
+  if (!lastRun) {
+    return <span className='text-muted-foreground'>Not run yet</span>;
+  }
+  return withHint(
+    <span className='inline-flex items-center gap-1'>
       <StatusLabel type={RUN_TYPE[lastRun.status] ?? StatusTypeEnum.NEUTRAL}>
-        <span className='sr-only'>{summary}</span>
+        {runStatusLabel(lastRun.status)}
       </StatusLabel>
-    ) : (
-      <span className='text-muted-foreground'>
-        <span aria-hidden='true'>—</span>
-        <span className='sr-only'>{summary}</span>
-      </span>
-    ),
-    summary
+      {lastRun.finishedAt && (
+        <span className='text-muted-foreground'>
+          · <RelativeTime date={new Date(lastRun.finishedAt)} />
+        </span>
+      )}
+    </span>,
+    `Last run: ${lastRunSummary(lastRun, schedule.timeZone)}`
   );
 }
 

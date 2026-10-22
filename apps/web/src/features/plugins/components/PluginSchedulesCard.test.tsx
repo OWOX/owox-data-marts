@@ -145,11 +145,10 @@ describe('PluginSchedulesCard', () => {
     expect(await screen.findByRole('link', { name: 'export' })).toBeInTheDocument();
   });
 
-  it("counts the schedules and names the soonest next run in that schedule's own zone", async () => {
+  it('counts the active, paused and disabled schedules', async () => {
     service.listSchedules.mockResolvedValue([
-      schedule({ id: 's1', nextRunAt: '2026-10-19T06:00:00.000Z' }),
-      // 06:00 UTC is 09:00 in Kyiv (UTC+3), whatever zone the browser is in.
-      schedule({ id: 's2', name: 'Weekly', nextRunAt: '2026-10-17T06:00:00.000Z' }),
+      schedule({ id: 's1' }),
+      schedule({ id: 's2', name: 'Weekly' }),
       schedule({ id: 's3', name: 'Off', enabled: false, nextRunAt: null }),
       schedule({
         id: 's4',
@@ -162,14 +161,22 @@ describe('PluginSchedulesCard', () => {
 
     renderCard();
 
-    expect(
-      await screen.findByText(
-        '2 active · 1 paused · 1 disabled · next run Oct 17, 2026, 09:00 AM GMT+3'
-      )
-    ).toBeInTheDocument();
+    expect(await screen.findByText('2 active · 1 paused · 1 disabled')).toBeInTheDocument();
   });
 
-  it('names no next run when no schedule is active', async () => {
+  it("shows when a schedule runs next, with the time in the schedule's own zone", async () => {
+    service.listSchedules.mockResolvedValue([schedule()]);
+
+    renderCard();
+
+    const row = await screen.findByRole('listitem');
+    // 06:00 UTC is 09:00 in Kyiv (UTC+3), whatever zone the browser is in.
+    expect(
+      await hintOf(row.querySelector<HTMLElement>('[data-slot="tooltip-trigger"]')!)
+    ).toHaveTextContent('Next run: Oct 17, 2026, 09:00 AM GMT+3');
+  });
+
+  it('counts a paused schedule alone', async () => {
     service.listSchedules.mockResolvedValue([schedule({ enabled: false, nextRunAt: null })]);
 
     renderCard();
@@ -209,7 +216,7 @@ describe('PluginSchedulesCard', () => {
     );
   });
 
-  it("shows the last run's status and code, and when it finished in the schedule's zone", async () => {
+  it("shows the last run's status, with its code and time in the schedule's zone on hover", async () => {
     service.listSchedules.mockResolvedValue([
       schedule({
         lastRun: {
@@ -223,10 +230,9 @@ describe('PluginSchedulesCard', () => {
 
     renderCard();
 
-    const status = await screen.findByText(
+    expect(await hintOf(await screen.findByText('Failed'))).toHaveTextContent(
       'Last run: Failed (DOCUMENT_LOCKED) · Oct 16, 2026, 09:00 AM GMT+3'
     );
-    expect(await hintOf(status)).toHaveTextContent('Last run: Failed (DOCUMENT_LOCKED)');
   });
 
   it('says a schedule has not run yet', async () => {
