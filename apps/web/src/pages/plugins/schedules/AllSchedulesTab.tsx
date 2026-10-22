@@ -16,6 +16,7 @@ import { useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
 import toast from 'react-hot-toast';
 import { Link } from 'react-router';
 import {
+  describeCron,
   runStatusLabel,
   usePluginSchedules,
   type ProjectPluginSchedule,
@@ -27,7 +28,6 @@ import { UserReference } from '../../../shared/components/UserReference';
 import { useBaseTable, useProjectRoute } from '../../../shared/hooks';
 import { timezoneService } from '../../../services/timezone.service';
 import { formatDateShort } from '../../../utils/date-formatters';
-import { describeCron } from './describeCron';
 import { FilterMenu } from './FilterMenu';
 import { filterOptions, ownerLabel } from './filterOptions';
 import { ScheduleSidePanel } from './ScheduleSidePanel';

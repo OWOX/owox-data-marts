@@ -12,7 +12,9 @@ import {
 } from '../../../shared/components/CollapsibleCard';
 import { ConfirmationDialog } from '../../../shared/components/ConfirmationDialog/ConfirmationDialog';
 import { useProjectRoute } from '../../../shared/hooks';
+import { timezoneService } from '../../../services/timezone.service';
 import { formatDateShort } from '../../../utils/date-formatters';
+import { describeCron } from '../describeCron';
 import { usePluginSchedules } from '../hooks/usePluginSchedules';
 import { lastRunSummary, SCHEDULE_DISABLED_REASON_TEXT } from '../scheduleLabels';
 import type { PluginScheduleSummary } from '../types';
@@ -168,8 +170,8 @@ function ScheduleRow({
           <span className='text-muted-foreground truncate text-sm'>{schedule.action}</span>
         )}
         <span className='text-muted-foreground flex flex-wrap gap-2 text-sm'>
-          <span className='font-mono'>{schedule.cron}</span>
-          <span>{schedule.timeZone}</span>
+          <span>{describeCron(schedule.cron) ?? <code>{schedule.cron}</code>}</span>
+          <span>{timezoneService.getTimezoneDisplayName(schedule.timeZone)}</span>
         </span>
         <div className='flex flex-wrap items-center gap-2 text-sm'>
           {schedule.enabled ? (

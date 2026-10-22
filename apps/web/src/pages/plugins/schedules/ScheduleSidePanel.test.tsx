@@ -43,11 +43,11 @@ function renderPanel(item: ProjectPluginSchedule) {
 }
 
 describe('ScheduleSidePanel', () => {
-  it('shows the summary of a describable cron above the cron and the zone name', () => {
+  it('shows the summary of a describable cron and the zone name, not the cron', () => {
     renderPanel(schedule());
 
     expect(screen.getByText('Daily at 09:00')).toBeInTheDocument();
-    expect(screen.getByText('0 9 * * *')).toBeInTheDocument();
+    expect(screen.queryByText('0 9 * * *')).toBeNull();
     expect(screen.getByText(/Kyiv/)).toBeInTheDocument();
   });
 

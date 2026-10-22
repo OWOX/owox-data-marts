@@ -112,7 +112,7 @@ describe('PluginSchedulesCard', () => {
     expect(await screen.findByText('Could not load schedules.')).toBeInTheDocument();
   });
 
-  it('lists an active schedule with its action, cron, zone, next run and last run', async () => {
+  it('lists an active schedule with its action, schedule, zone, next run and last run', async () => {
     service.listSchedules.mockResolvedValue([
       schedule({
         lastRun: {
@@ -128,12 +128,21 @@ describe('PluginSchedulesCard', () => {
 
     expect(await screen.findByText('Morning export')).toBeInTheDocument();
     expect(screen.getByText('export')).toBeInTheDocument();
-    expect(screen.getByText('0 9 * * *')).toBeInTheDocument();
+    expect(screen.getByText('Daily at 09:00')).toBeInTheDocument();
+    expect(screen.queryByText('0 9 * * *')).toBeNull();
     expect(screen.getByText('Europe/Kyiv')).toBeInTheDocument();
     expect(screen.getByText(/Next run/)).toBeInTheDocument();
     expect(screen.getByText(/Last run: Succeeded/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Pause Morning export' })).toBeInTheDocument();
     expect(screen.queryByText('Paused')).toBeNull();
+  });
+
+  it('shows a cron the summary cannot describe as it is', async () => {
+    service.listSchedules.mockResolvedValue([schedule({ cron: '0 9 * * 1-5' })]);
+
+    renderCard();
+
+    expect(await screen.findByText('0 9 * * 1-5')).toBeInTheDocument();
   });
 
   it('names an unnamed schedule by its action, once', async () => {

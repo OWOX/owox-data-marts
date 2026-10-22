@@ -13,6 +13,7 @@ export { findReleaseIssues, type ReleaseIssues, type ReleaseRejection } from './
 export { pluginsService } from './services/plugins.service';
 export { repositoryPath } from './repository';
 export { safeHttpsUrl } from './safeHttpsUrl';
+export { describeCron } from './describeCron';
 export { describeVisibility, type GalleryVisibility, type PluginAudience } from './visibility';
 export { createPluginHostBridge, type FetchRuntimeToken } from './runtime/pluginHostBridge';
 export { fetchRuntimeToken } from './runtime/fetchRuntimeToken';
