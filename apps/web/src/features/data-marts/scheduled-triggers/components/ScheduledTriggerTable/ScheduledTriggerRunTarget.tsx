@@ -4,6 +4,7 @@ import { RawBase64Icon } from '../../../../../shared';
 import { ConnectorHoverCard, ConnectorNameDisplay } from '../../../../connectors/shared/components';
 import { useConnector } from '../../../../connectors/shared/model/hooks/useConnector';
 import { DataDestinationTypeModel } from '../../../../data-destination';
+import { ReportOpenDocumentAction } from '../../../reports/shared/components';
 import { ReportHoverCard } from '../../../reports/shared/components/ReportHoverCard';
 import { ScheduledTriggerType } from '../../enums';
 import type { ConnectorListItem } from '../../../../connectors/shared/model/types/connector';
@@ -36,6 +37,7 @@ function renderReportRunTarget(trigger: ScheduledTrigger) {
       <span className='max-w-full flex-1 truncate' title={config.report.title}>
         {config.report.title}
       </span>
+      <ReportOpenDocumentAction report={config.report} />
       <ReportHoverCard report={config.report}>
         <Info className='inline-block h-4 w-4 align-text-bottom opacity-0 transition-opacity duration-200 group-hover:opacity-100' />
       </ReportHoverCard>
