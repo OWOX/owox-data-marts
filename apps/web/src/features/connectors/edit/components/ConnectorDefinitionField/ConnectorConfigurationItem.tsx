@@ -62,8 +62,7 @@ export function ConnectorConfigurationItem({
     if (connectorDef.connector.source.name !== GOOGLE_SHEETS_CONNECTOR_NAME) return null;
     const config = connectorDef.connector.source.configuration[configIndex];
     const sheetName = typeof config.SheetName === 'string' ? config.SheetName.trim() : '';
-    const spreadsheet =
-      typeof config.SpreadsheetId === 'string' ? config.SpreadsheetId.trim() : '';
+    const spreadsheet = typeof config.SpreadsheetId === 'string' ? config.SpreadsheetId.trim() : '';
     if (!sheetName) return null;
     const spreadsheetUrl = spreadsheet
       ? /^https?:\/\//i.test(spreadsheet)
