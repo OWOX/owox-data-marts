@@ -20,7 +20,6 @@ import {
 import { dataMartService } from '../../../../shared';
 import type { DataMartResponseDto } from '../../../../shared/types/api';
 import type { ConnectorDefinitionConfig, CopiedConfiguration } from '../../../model/types';
-import { GOOGLE_SHEETS_CONNECTOR_NAME } from '../../../../../connectors/shared/utils/google-sheets-fields.utils';
 
 interface CopyConfigurationButtonProps {
   currentConnectorName: string;
@@ -39,14 +38,10 @@ export function CopyConfigurationButton({
   // Controlled so the tooltip does not reopen when the menu closes and Radix returns
   // focus to the trigger; the same hint heads the list anyway.
   const [tooltipOpen, setTooltipOpen] = useState(false);
-  // What gets reused differs per source: for Google Sheets it is the Google access and
-  // the document, which is exactly what people hesitate to grant again. Changing the
-  // spreadsheet reopens the Google Picker as the connected account, so the hint promises
-  // only the sheet.
+  // The same for every connector: credentials are what people hesitate to enter or grant
+  // again, and the settings come along with them.
   const reuseHint =
-    currentConnectorName === GOOGLE_SHEETS_CONNECTOR_NAME
-      ? 'Copies the Google access, spreadsheet and sheet of another Google Sheets Data Mart in this project. No new sign-in; the sheet can be changed afterwards.'
-      : 'Copies the connection settings and credentials of another Data Mart with the same source. You can change them afterwards.';
+    'Copies the credentials and connection settings of another Data Mart with the same source, so you do not enter or grant access again. You can change them afterwards.';
 
   const loadDataMarts = useCallback(async () => {
     setLoading(true);
