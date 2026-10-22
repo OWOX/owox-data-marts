@@ -78,8 +78,8 @@
     "@google-cloud/pubsub": "^4.0.7",
     "@google-cloud/storage": "^7.21.0",
     "@huggingface/transformers": "^4.3.1",
-    "@modelcontextprotocol/node": "^2.0.0",
-    "@modelcontextprotocol/server": "^2.0.0",
+    "@modelcontextprotocol/node": "^2.1.1",
+    "@modelcontextprotocol/server": "^2.3.1",
     "@nestjs/common": "^11.0.1",
     "@nestjs/config": "^4.0.2",
     "@nestjs/core": "^11.1.2",
@@ -134,7 +134,7 @@
     "express": "^5"
   },
   "devDependencies": {
-    "@modelcontextprotocol/client": "^2.0.0",
+    "@modelcontextprotocol/client": "^2.3.1",
     "@nestjs/cli": "^11.0.9",
     "@nestjs/schematics": "^11.0.0",
     "@nestjs/testing": "^11.1.2",
