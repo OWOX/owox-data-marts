@@ -385,6 +385,50 @@ const DATABRICKS = [
   'RAND',
 ];
 
+/** DuckDB built-in scalar functions. */
+const DUCKDB = [
+  'DATE_PART',
+  'DATE_DIFF',
+  'DATE_ADD',
+  'DATE_SUB',
+  'STRFTIME',
+  'STRPTIME',
+  'MAKE_DATE',
+  'MAKE_TIMESTAMP',
+  'LAST_DAY',
+  'DAYNAME',
+  'MONTHNAME',
+  'YEAR',
+  'MONTH',
+  'DAY',
+  'EPOCH',
+  'NOW',
+  'SUBSTRING',
+  'LEFT',
+  'RIGHT',
+  'STRPOS',
+  'CONTAINS',
+  'STARTS_WITH',
+  'ENDS_WITH',
+  'SPLIT_PART',
+  'STRING_SPLIT',
+  'REGEXP_MATCHES',
+  'REGEXP_EXTRACT',
+  'CONCAT_WS',
+  'REPEAT',
+  'JSON_EXTRACT',
+  'JSON_EXTRACT_STRING',
+  'JSON_VALUE',
+  'LOG',
+  'LN',
+  'LOG10',
+  'TRUNC',
+  'SUBSTR',
+  'REGEXP_FULL_MATCH',
+  'JSON_EXTRACT_PATH',
+  'RANDOM',
+];
+
 /**
  * Which per-dialect extras a storage adds to {@link SHARED_SCALAR}. Keyed by {@link DataStorageType}
  * because this module — unlike the aggregate mirror next to it — is the web's own data, so it may
@@ -398,6 +442,7 @@ const EXTRA_BY_STORAGE: Readonly<Partial<Record<DataStorageType, readonly string
   [DataStorageType.SNOWFLAKE]: SNOWFLAKE,
   [DataStorageType.AWS_REDSHIFT]: REDSHIFT,
   [DataStorageType.DATABRICKS]: DATABRICKS,
+  [DataStorageType.DUCKDB]: DUCKDB,
 };
 
 /**

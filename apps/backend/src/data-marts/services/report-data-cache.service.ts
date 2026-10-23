@@ -112,7 +112,10 @@ export class ReportDataCacheService {
     const existingOperation = this.pendingOperations.get(operationKey);
     if (existingOperation) {
       this.logger.debug(`Waiting for existing operation for report ${report.id}`);
-      return existingOperation;
+      if (report.dataMart.storage.type !== DataStorageType.DUCKDB) return existingOperation;
+      await existingOperation;
+      // A DuckDB reader keeps its read position and is released by the request that used it.
+      return this.executeGetOrCreateOperation(report, accessor);
     }
 
     const operationPromise = this.executeGetOrCreateOperation(report, accessor);
@@ -184,6 +187,20 @@ export class ReportDataCacheService {
     this.logger.debug(`Cache miss for report ${report.id}, creating new reader`);
 
     const reader = await this.readerResolver.resolve(report.dataMart.storage.type);
+    try {
+      return await this.fillCacheFromNewReader(report, options, decision, reader);
+    } catch (error) {
+      await this.releaseReader(reader);
+      throw error;
+    }
+  }
+
+  private async fillCacheFromNewReader(
+    report: Report,
+    options: PrepareReportDataOptions,
+    decision: BlendingDecision,
+    reader: DataStorageReportReader
+  ): Promise<CachedReaderData> {
     let dataDescription: CachedReaderData['dataDescription'];
     try {
       dataDescription = await reader.prepareReportData(report, options);
@@ -225,6 +242,18 @@ export class ReportDataCacheService {
       fromCache: false,
       blendingDecision: decision,
     };
+  }
+
+  /** Ends a request's use of a DuckDB reader; other readers stay with the cache, as before. */
+  async releaseReader(reader: DataStorageReportReader): Promise<void> {
+    if (reader.type !== DataStorageType.DUCKDB) return;
+    try {
+      await reader.finalize();
+    } catch (error) {
+      this.logger.warn(
+        `Failed to finalize a ${reader.type} report reader: ${castError(error).message}`
+      );
+    }
   }
 
   @Transactional()

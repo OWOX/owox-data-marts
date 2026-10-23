@@ -2,7 +2,7 @@
 
 Data Quality Checks validate the data behind a published Data Mart before you use it in reports and dashboards. Configure checks for the whole Data Mart, individual Output Schema fields, and relationships, then run them manually or on a schedule.
 
-Data Quality Checks are supported for **Google BigQuery, Legacy Google BigQuery, AWS Athena, Snowflake, AWS Redshift, and Databricks** in Cloud and Self-Managed editions.
+Data Quality Checks are supported for **Google BigQuery, Legacy Google BigQuery, AWS Athena, Snowflake, AWS Redshift, and Databricks** in Cloud and Self-Managed editions, and for **DuckDB** in Self-Managed editions.
 
 ## Before You Start
 
@@ -38,6 +38,7 @@ Checks are shown only where they apply. For example, **Primary key uniqueness** 
 - AWS Athena: `TIMESTAMP WITH TIME ZONE`
 - AWS Redshift: `TIMESTAMPTZ`
 - Databricks: `TIMESTAMP`
+- DuckDB: `TIMESTAMP WITH TIME ZONE` (`TIMESTAMPTZ`)
 
 Data freshness is not available for Snowflake fields.
 

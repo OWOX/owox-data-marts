@@ -19,6 +19,8 @@ export function createInitialSchema(storageType: DataStorageType): DataMartSchem
       return { type: 'redshift-data-mart-schema', fields: [] };
     case DataStorageType.DATABRICKS:
       return { type: 'databricks-data-mart-schema', fields: [] };
+    case DataStorageType.DUCKDB:
+      return { type: 'duckdb-data-mart-schema', fields: [] };
     default:
       throw new Error(`Unsupported storage type: ${storageType}`);
   }

@@ -13,6 +13,7 @@ import { DataStorageCredentialsResolver } from '../data-storage-types/data-stora
 import { ValidationResultCode } from '../data-storage-types/interfaces/data-storage-access-validator.interface';
 import { CredentialsExpiredException } from '../exceptions/google-oauth.exceptions';
 import { isBigQueryOAuthCredentials } from '../data-storage-types/data-storage-credentials.guards';
+import { usesStoredCredentials } from '../data-storage-types/enums/data-storage-type.enum';
 import { DataMartStatus } from '../enums/data-mart-status.enum';
 
 @Injectable()
@@ -85,7 +86,11 @@ export class RunDataMartService {
   private async checkStorageAccess(dataMart: DataMart): Promise<void> {
     const { storage } = dataMart;
 
-    if (!storage.config || !(await this.credentialsResolver.hasCredentials(storage))) {
+    if (
+      !storage.config ||
+      !usesStoredCredentials(storage.type) ||
+      !(await this.credentialsResolver.hasCredentials(storage))
+    ) {
       return;
     }
 

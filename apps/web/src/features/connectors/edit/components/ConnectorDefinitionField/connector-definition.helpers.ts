@@ -13,6 +13,8 @@ export const getStorageDisplayName = (type: DataStorageType) => {
       return 'AWS Redshift';
     case DataStorageType.DATABRICKS:
       return 'Databricks';
+    case DataStorageType.DUCKDB:
+      return 'DuckDB';
     default:
       return type;
   }

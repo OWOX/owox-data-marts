@@ -3,6 +3,7 @@ export type { BootstrapOptions } from './bootstrap';
 export { dumpInserts } from './dump/create-dump';
 export { applyDump } from './dump/apply-dump';
 export { runMigrations, revertMigration, getMigrationStatus } from './config/migrations.config';
+export { isDuckDbStorageEnabled } from './data-marts/data-storage-types/duckdb/utils/duckdb-availability.utils';
 export { createHealthProbe, type HealthProbeAware } from './health/health-probe';
 export { GracefulShutdownService } from './common/scheduler/services/graceful-shutdown.service';
 export { McpHttpEntryService } from './ee/mcp/transport/mcp-http-entry.service';

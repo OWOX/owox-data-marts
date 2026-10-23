@@ -1,6 +1,7 @@
 import { AthenaFieldType } from './athena/enums/athena-field-type.enum';
 import { BigQueryFieldType } from './bigquery/enums/bigquery-field-type.enum';
 import { DatabricksFieldType } from './databricks/enums/databricks-field-type.enum';
+import { DuckdbFieldType } from './duckdb/enums/duckdb-field-type.enum';
 import { DataStorageType } from './enums/data-storage-type.enum';
 import { RedshiftFieldType } from './redshift/enums/redshift-field-type.enum';
 import { SnowflakeFieldType } from './snowflake/enums/snowflake-field-type.enum';
@@ -72,6 +73,8 @@ export function integerTypeFor(storageType: DataStorageType): StorageFieldType {
       return RedshiftFieldType.INTEGER;
     case DataStorageType.DATABRICKS:
       return DatabricksFieldType.INT;
+    case DataStorageType.DUCKDB:
+      return DuckdbFieldType.BIGINT;
     default: {
       // Compile-time exhaustiveness + runtime guard: a future storage type must fail loudly,
       // never silently return undefined.
@@ -100,6 +103,8 @@ export function storageFieldTypesFor(storageType: DataStorageType): ReadonlySet<
       return new Set(Object.values(RedshiftFieldType));
     case DataStorageType.DATABRICKS:
       return new Set(Object.values(DatabricksFieldType));
+    case DataStorageType.DUCKDB:
+      return new Set(Object.values(DuckdbFieldType));
     default: {
       // Compile-time exhaustiveness + runtime guard: a future storage type must fail loudly,
       // never silently return undefined.
@@ -122,6 +127,8 @@ function getFloatType(storageType: DataStorageType): StorageFieldType {
       return RedshiftFieldType.DOUBLE_PRECISION;
     case DataStorageType.DATABRICKS:
       return DatabricksFieldType.DOUBLE;
+    case DataStorageType.DUCKDB:
+      return DuckdbFieldType.DOUBLE;
     default: {
       // Compile-time exhaustiveness + runtime guard: a future storage type must fail loudly,
       // never silently return undefined.
@@ -144,6 +151,8 @@ function getStringType(storageType: DataStorageType): StorageFieldType {
       return RedshiftFieldType.VARCHAR;
     case DataStorageType.DATABRICKS:
       return DatabricksFieldType.STRING;
+    case DataStorageType.DUCKDB:
+      return DuckdbFieldType.VARCHAR;
     default: {
       // Compile-time exhaustiveness + runtime guard: a future storage type must fail loudly,
       // never silently return undefined.

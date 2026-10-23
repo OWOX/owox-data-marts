@@ -4,6 +4,7 @@ import { BigQueryDataMartSchemaSchema } from './bigquery/schemas/bigquery-data-m
 import { SnowflakeDataMartSchemaSchema } from './snowflake/schemas/snowflake-data-mart-schema.schema';
 import { RedshiftDataMartSchemaSchema } from './redshift/schemas/redshift-data-mart-schema.schema';
 import { DatabricksDataMartSchemaSchema } from './databricks/schemas/databricks-data-mart-schema.schema';
+import { DuckDbDataMartSchemaSchema } from './duckdb/schemas/duckdb-data-mart-schema.schema';
 
 export const DataMartSchemaSchema = z.discriminatedUnion('type', [
   BigQueryDataMartSchemaSchema,
@@ -11,6 +12,7 @@ export const DataMartSchemaSchema = z.discriminatedUnion('type', [
   SnowflakeDataMartSchemaSchema,
   RedshiftDataMartSchemaSchema,
   DatabricksDataMartSchemaSchema,
+  DuckDbDataMartSchemaSchema,
 ]);
 
 export type DataMartSchema = z.infer<typeof DataMartSchemaSchema>;

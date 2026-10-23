@@ -12,6 +12,38 @@ import { validateConfig } from './env-validation.config';
  * variable can never quietly leave the schema again.
  */
 describe('validateConfig', () => {
+  describe('DUCKDB_DATA_DIR', () => {
+    it('accepts DUCKDB_DATA_DIR as a string', () => {
+      expect(validateConfig({ DUCKDB_DATA_DIR: '/data/duck' }).DUCKDB_DATA_DIR).toBe('/data/duck');
+    });
+    it('treats a blank DUCKDB_DATA_DIR as unset', () => {
+      expect(validateConfig({ DUCKDB_DATA_DIR: '  ' }).DUCKDB_DATA_DIR).toBeUndefined();
+    });
+  });
+
+  describe('DUCKDB_STORAGE_ENABLED', () => {
+    it('rejects a DUCKDB_STORAGE_ENABLED value other than true/false', () => {
+      expect(() => validateConfig({ DUCKDB_STORAGE_ENABLED: 'yes' })).toThrow(
+        'Configuration validation failed'
+      );
+    });
+    it('accepts DUCKDB_STORAGE_ENABLED=False', () => {
+      expect(validateConfig({ DUCKDB_STORAGE_ENABLED: 'False' }).DUCKDB_STORAGE_ENABLED).toBe(
+        'false'
+      );
+    });
+    it('trims and lowercases DUCKDB_STORAGE_ENABLED', () => {
+      expect(validateConfig({ DUCKDB_STORAGE_ENABLED: ' TRUE ' }).DUCKDB_STORAGE_ENABLED).toBe(
+        'true'
+      );
+    });
+    it('treats a blank DUCKDB_STORAGE_ENABLED as unset', () => {
+      expect(
+        validateConfig({ DUCKDB_STORAGE_ENABLED: '  ' }).DUCKDB_STORAGE_ENABLED
+      ).toBeUndefined();
+    });
+  });
+
   describe('CONNECTOR_RUN_LOG_FLUSH_INTERVAL_MS', () => {
     it('defaults to 2000 when unset', () => {
       expect(validateConfig({}).CONNECTOR_RUN_LOG_FLUSH_INTERVAL_MS).toBe(2_000);

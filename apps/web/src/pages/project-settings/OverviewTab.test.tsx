@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ProjectsContextType } from '../../features/idp/context/ProjectContext.types';
 import type { User } from '../../features/idp/types';
 import { RequestStatus } from '../../shared/types/request-status';
+import { dataStorageApiService } from '../../features/data-storage/shared/api/data-storage-api.service';
 import { OverviewTab } from './OverviewTab';
 
 const currentUser = vi.hoisted(() => ({
@@ -125,6 +126,16 @@ describe('OverviewTab project status', () => {
       error: null,
       updateDescription: vi.fn().mockResolvedValue(undefined),
     };
+  });
+
+  it('shows DuckDB storages as DuckDB', async () => {
+    vi.mocked(dataStorageApiService.getDataStorages).mockResolvedValueOnce([
+      { id: 'storage-1', type: 'DUCKDB' },
+    ] as Awaited<ReturnType<typeof dataStorageApiService.getDataStorages>>);
+
+    renderOverview();
+
+    expect(await screen.findByText('DuckDB')).toBeInTheDocument();
   });
 
   it('renders blocked status for the current project from project list', () => {

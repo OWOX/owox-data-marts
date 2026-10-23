@@ -106,10 +106,9 @@ export class LookerStudioConnectorApiService {
    */
   public async getSchema(request: GetSchemaRequest): Promise<GetSchemaResponse> {
     const report = await this.getReport(request);
-    const cachedReader = await this.getCachedReader(report);
-
-    // Pass cached data to schema service
-    return this.schemaService.getSchema(request, report, cachedReader);
+    return this.withCachedReader(report, cachedReader =>
+      this.schemaService.getSchema(request, report, cachedReader)
+    );
   }
 
   /**
@@ -201,18 +200,18 @@ export class LookerStudioConnectorApiService {
         report.dataMart.projectId,
         RunKind.LOOKER_REPORT_RUN
       );
-      const cachedReader = await this.getCachedReader(report);
-      this.recordExecutionSqlQuery(reportRun, cachedReader);
-      logBlendedSqlIfNeeded(cachedReader.blendingDecision, reportRunLogger);
-      const context = await this.dataService.prepareStreamingContext(
-        request,
-        report,
-        cachedReader,
-        false
-      );
-
-      const { limitExceeded, limitReason, rowCount, bytesWritten } =
-        await this.dataService.streamData(res, context);
+      const { limitExceeded, limitReason, rowCount, bytesWritten, cachedReader } =
+        await this.withCachedReader(report, async cachedReader => {
+          this.recordExecutionSqlQuery(reportRun, cachedReader);
+          logBlendedSqlIfNeeded(cachedReader.blendingDecision, reportRunLogger);
+          const context = await this.dataService.prepareStreamingContext(
+            request,
+            report,
+            cachedReader,
+            false
+          );
+          return { ...(await this.dataService.streamData(res, context)), cachedReader };
+        });
 
       if (limitExceeded) {
         await this.handleFailedReportRun(
@@ -265,14 +264,22 @@ export class LookerStudioConnectorApiService {
     return report;
   }
 
-  private async getCachedReader(report: Report): Promise<CachedReaderData> {
+  /** Reads through the report's cached reader and releases the reader when the read ends. */
+  private async withCachedReader<T>(
+    report: Report,
+    read: (cachedReader: CachedReaderData) => Promise<T>
+  ): Promise<T> {
     const accessor = await resolveBlendableSchemaAccessor(
       this.idpProjectionsFacade,
       report.dataMart.projectId,
       report.createdById
     );
-
-    return this.cacheService.getOrCreateCachedReader(report, accessor);
+    const cachedReader = await this.cacheService.getOrCreateCachedReader(report, accessor);
+    try {
+      return await read(cachedReader);
+    } finally {
+      await this.cacheService.releaseReader(cachedReader.reader);
+    }
   }
 
   /**
@@ -340,8 +347,9 @@ export class LookerStudioConnectorApiService {
         report.dataMart.projectId,
         RunKind.LOOKER_REPORT_RUN
       );
-      const cachedReader = await this.getCachedReader(report);
-      const { response } = await this.dataService.getData(request, report, cachedReader, true);
+      const { response } = await this.withCachedReader(report, cachedReader =>
+        this.dataService.getData(request, report, cachedReader, true)
+      );
       return response;
     } catch (error) {
       if (!(error instanceof DataMartReadFailedException)) {
@@ -380,10 +388,17 @@ export class LookerStudioConnectorApiService {
         report.dataMart.projectId,
         RunKind.LOOKER_REPORT_RUN
       );
-      const cachedReader = await this.getCachedReader(report);
-      this.recordExecutionSqlQuery(reportRun, cachedReader);
-      logBlendedSqlIfNeeded(cachedReader.blendingDecision, reportRunLogger);
-      const { response, meta } = await this.dataService.getData(request, report, cachedReader);
+      const { response, meta, cachedReader } = await this.withCachedReader(
+        report,
+        async cachedReader => {
+          this.recordExecutionSqlQuery(reportRun, cachedReader);
+          logBlendedSqlIfNeeded(cachedReader.blendingDecision, reportRunLogger);
+          return {
+            ...(await this.dataService.getData(request, report, cachedReader)),
+            cachedReader,
+          };
+        }
+      );
 
       if (meta.limitExceeded) {
         await this.handleFailedReportRun(

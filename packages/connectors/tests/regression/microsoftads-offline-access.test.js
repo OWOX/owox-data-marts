@@ -59,7 +59,10 @@ function makeSource() {
         Fields: { value: ['campaigns campaign_id'] },
       },
     },
-    storage: { name: 'GoogleBigQueryStorage', config: {} },
+    storage: {
+      name: 'DuckDB',
+      config: { DatabasePath: { value: '/tmp/microsoftads-offline-access.duckdb' } },
+    },
     runConfig: null,
     env: { datamartId: 'dm', runId: 'run' },
   });

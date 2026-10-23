@@ -6,9 +6,9 @@ import { DataStorageReportReader } from '../data-storage-types/interfaces/data-s
 import { ReportLike, ReportLikeReadPlan } from '../dto/domain/report-like-read-plan';
 import { BlendableSchemaAccessor } from './blendable-schema.service';
 import { ReportSqlComposerService } from './report-sql-composer.service';
+import type { TableReferenceMemo } from './data-mart-table-reference.service';
 import { columnFilterWithoutCalculatedFields } from '../calculated-fields/calculated-field.utils';
 import { castError } from '@owox/internal-helpers';
-import { TableReferenceMemo } from './data-mart-table-reference.service';
 
 export type ReportTotals = Record<string, number | string | boolean | null>;
 

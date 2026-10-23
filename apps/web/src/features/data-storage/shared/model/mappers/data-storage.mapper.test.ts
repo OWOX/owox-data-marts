@@ -44,6 +44,7 @@ describe('mapToUpdateDataStorageRequest', () => {
       database: 'd',
       workgroupName: 'w',
     },
+    [DataStorageType.DUCKDB]: {},
   } satisfies Record<Exclude<DataStorageType, DataStorageType.AZURE_SYNAPSE>, object>;
 
   it.each(Object.entries(configs))(

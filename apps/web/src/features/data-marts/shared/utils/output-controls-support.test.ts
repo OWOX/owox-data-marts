@@ -27,6 +27,10 @@ describe('supportsOutputControls', () => {
     expect(supportsOutputControls(DataStorageType.SNOWFLAKE)).toBe(true);
   });
 
+  it('returns true for DuckDB', () => {
+    expect(supportsOutputControls(DataStorageType.DUCKDB)).toBe(true);
+  });
+
   it('returns false for not-yet-supported storages', () => {
     expect(supportsOutputControls(DataStorageType.AZURE_SYNAPSE)).toBe(false);
   });

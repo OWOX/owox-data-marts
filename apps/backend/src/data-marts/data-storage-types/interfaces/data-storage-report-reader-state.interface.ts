@@ -3,6 +3,7 @@ import { AthenaReaderState } from '../athena/interfaces/athena-reader-state.inte
 import { SnowflakeReaderState } from '../snowflake/interfaces/snowflake-reader-state.interface';
 import { RedshiftReaderState } from '../redshift/interfaces/redshift-reader-state.interface';
 import { DatabricksReaderState } from '../databricks/interfaces/databricks-reader-state.interface';
+import { DuckDbReaderState } from '../duckdb/interfaces/duckdb-reader-state.interface';
 
 /**
  * Union type for all supported reader states
@@ -12,4 +13,5 @@ export type DataStorageReportReaderState =
   | AthenaReaderState
   | SnowflakeReaderState
   | RedshiftReaderState
-  | DatabricksReaderState;
+  | DatabricksReaderState
+  | DuckDbReaderState;

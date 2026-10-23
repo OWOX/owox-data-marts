@@ -18,6 +18,8 @@ import { BigQueryBlendedQueryBuilder } from '../bigquery/services/bigquery-blend
 import { BigQueryClauseRenderer } from '../bigquery/services/bigquery-clause-renderer';
 import { DatabricksBlendedQueryBuilder } from '../databricks/services/databricks-blended-query-builder';
 import { DatabricksClauseRenderer } from '../databricks/services/databricks-clause-renderer';
+import { DuckDbBlendedQueryBuilder } from '../duckdb/services/duckdb-blended-query.builder';
+import { DuckDbClauseRenderer } from '../duckdb/services/duckdb-clause-renderer';
 import { RedshiftBlendedQueryBuilder } from '../redshift/services/redshift-blended-query-builder';
 import { RedshiftClauseRenderer } from '../redshift/services/redshift-clause-renderer';
 import { SnowflakeBlendedQueryBuilder } from '../snowflake/services/snowflake-blended-query-builder';
@@ -127,6 +129,17 @@ const DIALECTS: {
     floatCast: 'DOUBLE',
     declaredInteger: 'INT',
     monthBucket: e => `DATE_TRUNC('MONTH', ${e})`,
+  },
+  {
+    name: 'DuckDB',
+    builder: () => new DuckDbBlendedQueryBuilder(new DuckDbClauseRenderer()),
+    ref: c => `main.${c}`,
+    alias: n => `"${n}"`,
+    id: n => n,
+    declaredFloat: 'DOUBLE',
+    floatCast: 'DOUBLE',
+    declaredInteger: 'BIGINT',
+    monthBucket: e => `CAST(date_trunc('month', ${e}) AS DATE)`,
   },
 ];
 
@@ -322,7 +335,8 @@ describe('a row-level calculated field on a joined report — every dialect', ()
       // field can carry a bucket, and no map states a target for one); the assertions that DO
       // catch it are the flat ones over a FLOAT declaration — `sql-clause-renderer.spec.ts`'s
       // `adds no CAST … declared FLOAT` and BigQuery's `adds no CAST, whatever the declared type`.
-      expect(sql).not.toContain('CAST(');
+      // Checked outside the bucket itself: DuckDB casts its truncated bucket back to DATE.
+      expect(sql.split(bucket).join('')).not.toContain('CAST(');
     });
 
     // A formula that reads ANOTHER formula. The outer SELECT emits the SUBSTITUTED text, so the

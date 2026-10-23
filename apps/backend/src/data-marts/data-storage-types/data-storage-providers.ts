@@ -78,6 +78,22 @@ import { DatabricksBlendedQueryBuilder } from './databricks/services/databricks-
 import { DatabricksClauseRenderer } from './databricks/services/databricks-clause-renderer';
 import { DatabricksSqlRunExecutor } from './databricks/services/databricks-sql-run.executor';
 import { DatabricksStorageErrorMapper } from './databricks/services/databricks-storage-error.mapper';
+import { DuckDbApiAdapterFactory } from './duckdb/adapters/duckdb-api-adapter.factory';
+import { DuckDbAccessValidator } from './duckdb/services/duckdb-access.validator';
+import { DuckDbBlendedQueryBuilder } from './duckdb/services/duckdb-blended-query.builder';
+import { DuckDbClauseRenderer } from './duckdb/services/duckdb-clause-renderer';
+import { DuckDbCreateViewExecutor } from './duckdb/services/duckdb-create-view.executor';
+import { DuckDbDataMartSchemaParser } from './duckdb/services/duckdb-data-mart-schema.parser';
+import { DuckDbDataMartSchemaProvider } from './duckdb/services/duckdb-data-mart-schema.provider';
+import { DuckDbDataMartValidator } from './duckdb/services/duckdb-datamart.validator';
+import { DuckDbIdentifierEscaper } from './duckdb/services/duckdb-identifier.escaper';
+import { DuckDbQueryBuilder } from './duckdb/services/duckdb-query.builder';
+import { DuckDbReportHeadersGenerator } from './duckdb/services/duckdb-report-headers-generator.service';
+import { DuckDbReportReader } from './duckdb/services/duckdb-report-reader.service';
+import { DuckDbSchemaMerger } from './duckdb/services/duckdb-schema-merger';
+import { DuckDbSqlDryRunExecutor } from './duckdb/services/duckdb-sql-dry-run.executor';
+import { DuckDbSqlRunExecutor } from './duckdb/services/duckdb-sql-run.executor';
+import { DuckDbStorageErrorMapper } from './duckdb/services/duckdb-storage-error.mapper';
 import { DataStorageType } from './enums/data-storage-type.enum';
 import { BlendedQueryBuilder } from './interfaces/blended-query-builder.interface';
 import { CreateViewExecutor } from './interfaces/create-view-executor.interface';
@@ -162,6 +178,7 @@ const accessValidatorProviders = [
   SnowflakeAccessValidator,
   RedshiftAccessValidator,
   DatabricksAccessValidator,
+  DuckDbAccessValidator,
 ];
 const storageDataProviders = [
   BigQueryReportReader,
@@ -170,6 +187,7 @@ const storageDataProviders = [
   SnowflakeReportReader,
   RedshiftReportReader,
   DatabricksReportReader,
+  DuckDbReportReader,
 ];
 const storageErrorMapperProviders = [
   BigQueryStorageErrorMapper,
@@ -178,6 +196,7 @@ const storageErrorMapperProviders = [
   SnowflakeStorageErrorMapper,
   RedshiftStorageErrorMapper,
   DatabricksStorageErrorMapper,
+  DuckDbStorageErrorMapper,
 ];
 const adapterFactories = [
   BigQueryApiAdapterFactory,
@@ -186,6 +205,7 @@ const adapterFactories = [
   SnowflakeApiAdapterFactory,
   RedshiftApiAdapterFactory,
   DatabricksApiAdapterFactory,
+  DuckDbApiAdapterFactory,
 ];
 const queryBuilderProviders = [
   AthenaQueryBuilder,
@@ -194,6 +214,7 @@ const queryBuilderProviders = [
   SnowflakeQueryBuilder,
   RedshiftQueryBuilder,
   DatabricksQueryBuilder,
+  DuckDbQueryBuilder,
 ];
 export const validatorProviders = [
   BigQueryDataMartValidator,
@@ -202,6 +223,7 @@ export const validatorProviders = [
   SnowflakeDataMartValidator,
   RedshiftDataMartValidator,
   DatabricksDataMartValidator,
+  DuckDbDataMartValidator,
 ];
 const dataMartSchemaProviders = [
   BigQueryDataMartSchemaProvider,
@@ -210,6 +232,7 @@ const dataMartSchemaProviders = [
   SnowflakeDataMartSchemaProvider,
   RedshiftDataMartSchemaProvider,
   DatabricksDataMartSchemaProvider,
+  DuckDbDataMartSchemaProvider,
 ];
 const dataMartSchemaMergerProviders = [
   BigQuerySchemaMerger,
@@ -218,6 +241,7 @@ const dataMartSchemaMergerProviders = [
   SnowflakeSchemaMerger,
   RedshiftSchemaMerger,
   DatabricksSchemaMerger,
+  DuckDbSchemaMerger,
 ];
 const schemaParserProviders = [
   BigQueryDataMartSchemaParser,
@@ -226,6 +250,7 @@ const schemaParserProviders = [
   SnowflakeDataMartSchemaParser,
   RedshiftDataMartSchemaParser,
   DatabricksDataMartSchemaParser,
+  DuckDbDataMartSchemaParser,
 ];
 const reportHeadersGeneratorProviders = [
   BigQueryReportHeadersGenerator,
@@ -234,6 +259,7 @@ const reportHeadersGeneratorProviders = [
   SnowflakeReportHeadersGenerator,
   RedshiftReportHeadersGenerator,
   DatabricksReportHeadersGenerator,
+  DuckDbReportHeadersGenerator,
 ];
 const sqlDryRunExecutorProviders = [
   BigquerySqlDryRunExecutor,
@@ -242,6 +268,7 @@ const sqlDryRunExecutorProviders = [
   SnowflakeSqlDryRunExecutor,
   RedshiftSqlDryRunExecutor,
   DatabricksSqlDryRunExecutor,
+  DuckDbSqlDryRunExecutor,
 ];
 const sqlRunExecutorProviders = [
   BigQuerySqlRunExecutor,
@@ -250,6 +277,7 @@ const sqlRunExecutorProviders = [
   SnowflakeSqlRunExecutor,
   RedshiftSqlRunExecutor,
   DatabricksSqlRunExecutor,
+  DuckDbSqlRunExecutor,
 ];
 const createViewExecutorProviders = [
   BigQueryCreateViewExecutor,
@@ -258,6 +286,7 @@ const createViewExecutorProviders = [
   SnowflakeCreateViewExecutor,
   RedshiftCreateViewExecutor,
   DatabricksCreateViewExecutor,
+  DuckDbCreateViewExecutor,
 ];
 const identifierEscaperProviders = [
   BigQueryIdentifierEscaper,
@@ -266,6 +295,7 @@ const identifierEscaperProviders = [
   SnowflakeIdentifierEscaper,
   RedshiftIdentifierEscaper,
   DatabricksIdentifierEscaper,
+  DuckDbIdentifierEscaper,
 ];
 // Best-effort family: a storage with no entry here resolves to nothing and the caller reports
 // `unavailable`, so storages can be added one at a time without a placeholder implementation.
@@ -284,12 +314,14 @@ const blendedQueryBuilderProviders = [
   RedshiftClauseRenderer,
   DatabricksClauseRenderer,
   SnowflakeClauseRenderer,
+  DuckDbClauseRenderer,
   BigQueryBlendedQueryBuilder,
   SnowflakeBlendedQueryBuilder,
   RedshiftBlendedQueryBuilder,
   AthenaBlendedQueryBuilder,
   DatabricksBlendedQueryBuilder,
   LegacyBigQueryBlendedQueryBuilder,
+  DuckDbBlendedQueryBuilder,
 ];
 
 export const dataStorageResolverProviders = [

@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import { SCHEDULER_FACADE, SchedulerFacade } from '../../common/scheduler/shared/scheduler.facade';
 import { SystemTimeService } from '../../common/scheduler/services/system-time.service';
 import { TriggerStatus } from '../../common/scheduler/shared/entities/trigger-status';
+import { ConcurrencyLimitExceededException } from '../../common/exceptions/concurrency-limit-exceeded.exception';
 import { DataMartRun } from '../entities/data-mart-run.entity';
 import { DataQualityRunTrigger } from '../entities/data-quality-run-trigger.entity';
 import { DataMartRunStatus } from '../enums/data-mart-run-status.enum';
@@ -68,6 +69,13 @@ export class DataQualityRunTriggerHandlerService extends BaseRunTriggerHandlerSe
         return;
       }
     } catch (error) {
+      if (error instanceof ConcurrencyLimitExceededException) {
+        this.logger.debug(`${error.message}, trigger ${trigger.id} will retry`);
+        trigger.status = TriggerStatus.IDLE;
+        trigger.isActive = true;
+        await this.repository.save(trigger);
+        return;
+      }
       if (isCancellation(error, options?.signal)) {
         const run = await this.dataMartRunService.findById(trigger.dataMartRunId);
         if (run && isCancellableDataMartRunStatus(run.status)) {

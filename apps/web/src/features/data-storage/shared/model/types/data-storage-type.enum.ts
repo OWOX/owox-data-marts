@@ -6,4 +6,5 @@ export enum DataStorageType {
   DATABRICKS = 'DATABRICKS',
   AWS_REDSHIFT = 'AWS_REDSHIFT',
   AZURE_SYNAPSE = 'AZURE_SYNAPSE',
+  DUCKDB = 'DUCKDB',
 }
