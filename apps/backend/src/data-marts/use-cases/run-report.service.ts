@@ -423,14 +423,25 @@ export class RunReportService {
       processingError = error;
       throw error;
     } finally {
-      if (reportWriter) {
-        finalizeResult =
-          (await reportWriter.finalize(processingError, {
-            mainRowsTruncationInfo: executionPolicy.getRowsTruncationInfo(),
-          })) ?? undefined;
-      }
-      if (reportReader) {
-        await reportReader.finalize();
+      let writerFailed = true;
+      try {
+        if (reportWriter) {
+          finalizeResult =
+            (await reportWriter.finalize(processingError, {
+              mainRowsTruncationInfo: executionPolicy.getRowsTruncationInfo(),
+            })) ?? undefined;
+        }
+        writerFailed = false;
+      } finally {
+        await reportReader?.finalize().catch(readerError => {
+          // The writer's error is the one to report.
+          if (!writerFailed) throw readerError;
+          this.logger.warn(
+            `Failed to finalize the reader of report ${report.id}: ${
+              readerError instanceof Error ? readerError.message : String(readerError)
+            }`
+          );
+        });
       }
     }
     return finalizeResult;

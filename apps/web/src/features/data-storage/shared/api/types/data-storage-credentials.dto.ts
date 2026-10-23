@@ -41,6 +41,11 @@ export interface DatabricksCredentialsDto {
 }
 
 /**
+ * DuckDB credentials DTO interface — always empty (credential-less storage).
+ */
+export type DuckDbCredentialsDto = Record<string, never>;
+
+/**
  * Combined type for data storage credentials
  */
 export type DataStorageCredentialsDto =
@@ -48,4 +53,5 @@ export type DataStorageCredentialsDto =
   | AwsAthenaCredentialsDto
   | SnowflakeCredentialsDto
   | RedshiftCredentialsDto
-  | DatabricksCredentialsDto;
+  | DatabricksCredentialsDto
+  | DuckDbCredentialsDto;

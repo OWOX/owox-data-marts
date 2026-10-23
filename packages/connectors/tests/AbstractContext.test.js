@@ -244,6 +244,27 @@ describe('AbstractContext', () => {
         'orders target_table'
       );
     });
+
+    it('reads the DuckDB file and schema from the storage config, not from the source config', () => {
+      const ctx = new AbstractContext({
+        source: {
+          name: 'S',
+          config: {
+            DatabasePath: { value: '/elsewhere/other.duckdb' },
+            DestinationSchemaName: { value: 'other_schema' },
+          },
+        },
+        storage: {
+          name: 'S',
+          config: {
+            DatabasePath: { value: '/data/duckdb/storage-1.duckdb' },
+            DestinationSchemaName: { value: 'main' },
+          },
+        },
+      });
+      assert.strictEqual(ctx.getParameter('DatabasePath').value, '/data/duckdb/storage-1.duckdb');
+      assert.strictEqual(ctx.getParameter('DestinationSchemaName').value, 'main');
+    });
   });
 
   describe('emit', () => {

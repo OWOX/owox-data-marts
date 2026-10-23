@@ -1,6 +1,7 @@
 import { Injectable, Logger, ForbiddenException } from '@nestjs/common';
 import { DataStorageAccessValidatorFacade } from '../data-storage-types/facades/data-storage-access-validator-facade.service';
 import { DataStorageCredentialsResolver } from '../data-storage-types/data-storage-credentials-resolver.service';
+import { usesStoredCredentials } from '../data-storage-types/enums/data-storage-type.enum';
 import { ValidationResult } from '../data-storage-types/interfaces/data-storage-access-validator.interface';
 import { ValidateDataStorageAccessCommand } from '../dto/domain/validate-data-storage-access.command';
 import { DataStorageService } from '../services/data-storage.service';
@@ -43,6 +44,14 @@ export class ValidateDataStorageAccessService {
 
     if (!dataStorage.config) {
       return ValidationResult.unconfigured('Complete setup to activate Storage');
+    }
+
+    if (!usesStoredCredentials(dataStorage.type)) {
+      return this.dataStorageValidationFacade.validateAccess(
+        dataStorage.type,
+        dataStorage.config,
+        await this.dataStorageCredentialsResolver.resolve(dataStorage)
+      );
     }
 
     if (dataStorage.credentialId) {

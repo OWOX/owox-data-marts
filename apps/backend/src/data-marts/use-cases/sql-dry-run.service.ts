@@ -6,6 +6,7 @@ import { DataMartService } from '../services/data-mart.service';
 import { DataMartSqlTableService } from '../services/data-mart-sql-table.service';
 import { DataStorageCredentialsResolver } from '../data-storage-types/data-storage-credentials-resolver.service';
 import { AccessDecisionService, EntityType, Action } from '../services/access-decision';
+import { usesStoredCredentials } from '../data-storage-types/enums/data-storage-type.enum';
 
 @Injectable()
 export class SqlDryRunService {
@@ -41,7 +42,7 @@ export class SqlDryRunService {
     if (!storage || !storage.type || !storage.config) {
       return SqlDryRunResult.failed('Storage setup is not finished…');
     }
-    if (!storage.credentialId) {
+    if (usesStoredCredentials(storage.type) && !storage.credentialId) {
       return SqlDryRunResult.failed('Storage setup is not finished…');
     }
 

@@ -37,6 +37,7 @@ import {
   DataQualitySnapshotTableReferenceService,
 } from '../data-quality/data-quality-snapshot-table-reference.service';
 import { ProjectOperationBlockedException } from '../../common/exceptions/project-operation-blocked.exception';
+import { ConcurrencyLimitExceededException } from '../../common/exceptions/concurrency-limit-exceeded.exception';
 import { RunDataQualityService } from './run-data-quality.service';
 
 const rule = (key: string) => ({
@@ -1025,6 +1026,61 @@ describe('RunDataQualityService', () => {
 
     expect(runQueryBuilder.innerJoinAndSelect).toHaveBeenCalledWith('run.dataMart', 'dataMart');
     expect(runQueryBuilder.innerJoinAndSelect).toHaveBeenCalledWith('dataMart.storage', 'storage');
+  });
+
+  describe('on a DuckDB storage', () => {
+    let storageRuns: Record<string, jest.Mock>;
+
+    beforeEach(() => {
+      dataMart.storage = { id: 'storage-1', type: DataStorageType.DUCKDB, config: {} } as never;
+      storageRuns = {
+        innerJoin: jest.fn(),
+        where: jest.fn(),
+        andWhere: jest.fn(),
+        getCount: jest.fn().mockResolvedValue(0),
+      };
+      Object.values(storageRuns)
+        .slice(0, 3)
+        .forEach(mock => mock.mockReturnValue(storageRuns));
+      (manager as unknown as Record<string, jest.Mock>).createQueryBuilder = jest.fn(
+        () => storageRuns
+      );
+    });
+
+    it('leaves a pending run pending while a load runs on its storage', async () => {
+      storageRuns.getCount.mockResolvedValue(1);
+
+      await expect(service.executeExistingRun('run-1', 'project-1')).rejects.toBeInstanceOf(
+        ConcurrencyLimitExceededException
+      );
+
+      expect(storageRuns.where).toHaveBeenCalledWith('dm.storage = :storageId', {
+        storageId: 'storage-1',
+      });
+      expect(storageRuns.andWhere).toHaveBeenCalledWith('run.type IN (:...types)', {
+        types: [DataMartRunType.CONNECTOR],
+      });
+      expect(repositories.get(DataMartRun)!.update).not.toHaveBeenCalled();
+      expect(executor.executeChecks).not.toHaveBeenCalled();
+    });
+
+    it('leaves a pending run pending while an older load waits for its storage', async () => {
+      storageRuns.getCount.mockResolvedValueOnce(0).mockResolvedValueOnce(1);
+
+      await expect(service.executeExistingRun('run-1', 'project-1')).rejects.toThrow(
+        'DuckDB storage storage-1 has an older load waiting'
+      );
+
+      expect(repositories.get(DataMartRun)!.update).not.toHaveBeenCalled();
+      expect(executor.executeChecks).not.toHaveBeenCalled();
+    });
+
+    it('starts the run when no load runs on its storage or waits for it', async () => {
+      await service.executeExistingRun('run-1', 'project-1');
+
+      expect(storageRuns.getCount).toHaveBeenCalledTimes(2);
+      expect(executor.executeChecks).toHaveBeenCalled();
+    });
   });
 
   it('finishes a fully persisted resumed run without rechecking project balance', async () => {

@@ -22,6 +22,7 @@ const validConfigByType = {
     workgroupName: 'my-workgroup',
   },
   [DataStorageType.DATABRICKS]: { host: 'my-host', httpPath: '/sql/1.0' },
+  [DataStorageType.DUCKDB]: {},
 };
 
 type SchemaBackedType = keyof typeof validConfigByType;

@@ -67,6 +67,7 @@ const mockReader = buildMockReader(MOCK_HEADERS, MOCK_ROWS);
 
 const mockCacheService = {
   invalidateByReportId: jest.fn().mockResolvedValue(undefined),
+  releaseReader: jest.fn().mockResolvedValue(undefined),
   getOrCreateCachedReader: jest
     .fn()
     .mockResolvedValue(buildMockCachedReader(mockReader, MOCK_HEADERS, MOCK_ROWS)),
@@ -111,8 +112,7 @@ describe('Looker Studio Connector (e2e)', () => {
     dataMartId = prerequisites.dataMartId;
     destinationId = prerequisites.dataDestinationId;
 
-    // Seed storage credentials directly in DB (the Looker Studio queries use
-    // INNER JOIN on storage.credential which requires it to exist).
+    // Seed storage credentials in DB: Looker Studio skips a non-DuckDB report without them.
     /* eslint-disable @typescript-eslint/no-require-imports */
     const backendRoot = require.resolve('@owox/backend/package.json');
     const backendDir = require('path').dirname(backendRoot);

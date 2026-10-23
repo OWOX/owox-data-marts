@@ -4,6 +4,7 @@ import { In, Repository, OptimisticLockVersionMismatchError } from 'typeorm';
 import { Transactional } from 'typeorm-transactional';
 import { DataDestinationConfig } from '../data-destination-types/data-destination-config.type';
 import { DataDestinationType } from '../data-destination-types/enums/data-destination-type.enum';
+import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
 import { LookerStudioConnectorCredentialsType } from '../data-destination-types/looker-studio-connector/schemas/looker-studio-connector-credentials.schema';
 import { Report } from '../entities/report.entity';
 import { ReportRunStatus } from '../enums/report-run-status.enum';
@@ -188,7 +189,7 @@ export class ReportService {
       .innerJoinAndSelect('report.dataDestination', 'dest')
       .innerJoinAndSelect('report.dataMart', 'dataMart')
       .innerJoinAndSelect('dataMart.storage', 'storage')
-      .innerJoinAndSelect('storage.credential', 'storageCredential')
+      .leftJoinAndSelect('storage.credential', 'storageCredential')
       .innerJoin(
         'data_destination_credentials',
         'cred',
@@ -196,6 +197,9 @@ export class ReportService {
       )
       .where('dest.type = :destType', { destType: DataDestinationType.LOOKER_STUDIO })
       .andWhere('dest.id = :destinationId', { destinationId })
+      .andWhere('(storageCredential.id IS NOT NULL OR storage.type = :duckdb)', {
+        duckdb: DataStorageType.DUCKDB,
+      })
       .andWhere(`JSON_EXTRACT(cred.credentials, '$.type') = :credType`, {
         credType: LookerStudioConnectorCredentialsType,
       })
@@ -219,7 +223,7 @@ export class ReportService {
         .innerJoinAndSelect('report.dataDestination', 'dest')
         .innerJoinAndSelect('report.dataMart', 'dataMart')
         .innerJoinAndSelect('dataMart.storage', 'storage')
-        .innerJoinAndSelect('storage.credential', 'storageCredential')
+        .leftJoinAndSelect('storage.credential', 'storageCredential')
         .innerJoin(
           'data_destination_credentials',
           'cred',
@@ -227,6 +231,9 @@ export class ReportService {
         )
         .where('report.id = :id', { id })
         .andWhere('dest.type = :destType', { destType: DataDestinationType.LOOKER_STUDIO })
+        .andWhere('(storageCredential.id IS NOT NULL OR storage.type = :duckdb)', {
+          duckdb: DataStorageType.DUCKDB,
+        })
         .andWhere(`JSON_EXTRACT(cred.credentials, '$.type') = :credType`, {
           credType: LookerStudioConnectorCredentialsType,
         })

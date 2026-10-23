@@ -1,8 +1,13 @@
 import { Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { AuthorizationContext } from '../../idp';
 import { DataStorageCredentialsUtils } from '../data-storage-types/data-mart-schema.utils';
 import { DataStorageCredentials } from '../data-storage-types/data-storage-credentials.type';
-import { toHumanReadable } from '../data-storage-types/enums/data-storage-type.enum';
+import {
+  toHumanReadable,
+  DataStorageType,
+} from '../data-storage-types/enums/data-storage-type.enum';
+import { resolveDuckDbDatabasePath } from '../data-storage-types/duckdb/utils/duckdb-path.utils';
 import { DataStorageCredentialService } from '../services/data-storage-credential.service';
 import { StorageCredentialType } from '../enums/storage-credential-type.enum';
 import { ValidationResult } from '../data-storage-types/interfaces/data-storage-access-validator.interface';
@@ -40,7 +45,8 @@ import { extractContextSummaries, ContextSummary } from '../utils/extract-contex
 export class DataStorageMapper {
   constructor(
     private readonly credentialsUtils: DataStorageCredentialsUtils,
-    private readonly dataStorageCredentialService: DataStorageCredentialService
+    private readonly dataStorageCredentialService: DataStorageCredentialService,
+    private readonly configService: ConfigService
   ) {}
 
   toCreateCommand(
@@ -123,6 +129,10 @@ export class DataStorageMapper {
       projectId: dataStorageDto.projectId,
       credentials: publicCredentials,
       config: dataStorageDto.config,
+      databasePath:
+        dataStorageDto.type === DataStorageType.DUCKDB
+          ? resolveDuckDbDatabasePath(this.configService, dataStorageDto.id)
+          : undefined,
       createdAt: dataStorageDto.createdAt,
       modifiedAt: dataStorageDto.modifiedAt,
       credentialId: dataStorageDto.credentialId,

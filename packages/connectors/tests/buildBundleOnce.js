@@ -14,7 +14,7 @@
 // the ENTIRE build+require critical section, released only once the module is
 // safely parsed into the calling process's own require cache (in-memory —
 // immune to any later on-disk deletion by a sibling). This fully serializes
-// the hazardous section instead of racing and hoping; not a storage or
+// the hazardous section instead of racing and hoping; not a DuckDBStorage or
 // SsrfGuard defect — every affected test's own assertions pass whenever the
 // build+require sequence completes without interference.
 //

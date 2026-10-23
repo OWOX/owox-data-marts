@@ -113,6 +113,8 @@ describe('ManifestParser', () => {
     'LastRequestedDate',
     'Schema',
     'ProjectID',
+    'DatabasePath',
+    'DestinationSchemaName',
   ]) {
     it(`refuses a parameter named ${name}, which the engine or a storage uses`, () => {
       const bad = JSON.parse(JSON.stringify(valid));

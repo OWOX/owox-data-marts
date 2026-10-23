@@ -22,6 +22,10 @@ export function resolveStorageCredentialType(
       return StorageCredentialType.SNOWFLAKE_PASSWORD;
     case DataStorageType.DATABRICKS:
       return StorageCredentialType.DATABRICKS_PAT;
+    case DataStorageType.DUCKDB:
+      // DuckDB is credential-less; no stored StorageCredentialType. This is only reached
+      // if a credential is ever supplied for DuckDB (it never is in the create/load flow).
+      throw new Error('DuckDB storage does not use stored credentials');
     default:
       throw new Error(`Unknown storage type: ${String(storageType)}`);
   }

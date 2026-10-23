@@ -486,3 +486,55 @@ describe('UpdateDataStorageService - BigQuery projectId validation', () => {
     expect(dataStorageRepository.save).toHaveBeenCalled();
   });
 });
+
+describe('UpdateDataStorageService - DuckDB', () => {
+  it('ignores credentials sent for a DuckDB storage and saves the rest', async () => {
+    const storage = {
+      id: 'duck-1',
+      type: DataStorageType.DUCKDB,
+      projectId: 'proj-1',
+      credentialId: null,
+      credential: null,
+      config: {},
+      title: 'Old',
+      createdById: null,
+      ownerIds: [],
+    };
+    const dataStorageRepository = { save: jest.fn(async (entity: unknown) => entity) };
+    const dataStorageAccessFacade = { verifyAccess: jest.fn().mockResolvedValue(undefined) };
+    const dataStorageCredentialService = { create: jest.fn(), update: jest.fn() };
+    const service = new UpdateDataStorageService(
+      dataStorageRepository as never,
+      { getByProjectIdAndId: jest.fn().mockResolvedValue(storage) } as never,
+      { toDomainDto: jest.fn().mockReturnValue({ id: 'duck-1' }) } as never,
+      dataStorageAccessFacade as never,
+      dataStorageCredentialService as never,
+      {} as never,
+      {
+        fetchUserProjectionsList: jest.fn().mockResolvedValue({ getByUserId: () => null }),
+      } as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never
+    );
+
+    await expect(
+      service.run(
+        new UpdateDataStorageCommand('duck-1', 'proj-1', {} as never, 'New', {} as never, 'cred-x')
+      )
+    ).resolves.toEqual({ id: 'duck-1' });
+
+    expect(dataStorageCredentialService.create).not.toHaveBeenCalled();
+    expect(dataStorageCredentialService.update).not.toHaveBeenCalled();
+    expect(dataStorageAccessFacade.verifyAccess).toHaveBeenCalledWith(
+      DataStorageType.DUCKDB,
+      {},
+      {}
+    );
+    expect(dataStorageRepository.save).toHaveBeenCalledWith(
+      expect.objectContaining({ title: 'New', credentialId: null })
+    );
+  });
+});

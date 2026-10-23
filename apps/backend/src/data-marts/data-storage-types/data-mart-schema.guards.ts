@@ -18,6 +18,10 @@ import {
   DatabricksDataMartSchema,
   DatabricksDataMartSchemaSchema,
 } from './databricks/schemas/databricks-data-mart-schema.schema';
+import {
+  DuckDbDataMartSchema,
+  DuckDbDataMartSchemaSchema,
+} from './duckdb/schemas/duckdb-data-mart-schema.schema';
 
 export function isBigQueryDataMartSchema(schema: unknown): schema is BigqueryDataMartSchema {
   return BigQueryDataMartSchemaSchema.safeParse(schema).success;
@@ -37,4 +41,8 @@ export function isRedshiftDataMartSchema(schema: unknown): schema is RedshiftDat
 
 export function isDatabricksDataMartSchema(schema: unknown): schema is DatabricksDataMartSchema {
   return DatabricksDataMartSchemaSchema.safeParse(schema).success;
+}
+
+export function isDuckDbDataMartSchema(schema: unknown): schema is DuckDbDataMartSchema {
+  return DuckDbDataMartSchemaSchema.safeParse(schema).success;
 }

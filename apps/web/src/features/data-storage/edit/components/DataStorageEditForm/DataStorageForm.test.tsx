@@ -6,6 +6,10 @@ import { wasErrorToastShown } from '../../../../../app/api';
 import { DataStorageType, type DataStorageFormData } from '../../../shared';
 import { DataStorageForm } from './DataStorageForm';
 
+vi.mock('../../../../../app/store/hooks', () => ({
+  useFlags: () => ({ flags: { DUCKDB_STORAGE_ENABLED: 'false' } }),
+}));
+
 vi.mock('react-hot-toast', () => {
   const toastMock = { error: vi.fn(), success: vi.fn() };
   return { default: toastMock, toast: toastMock };
@@ -216,5 +220,30 @@ describe('DataStorageForm — a rejected save', () => {
     for (const [payload] of onSubmit.mock.calls as [Record<string, unknown>][]) {
       expect(payload.ownerIds).toEqual(['user-2']);
     }
+  });
+});
+
+describe('DataStorageForm — an existing DuckDB storage with the flag off', () => {
+  it('opens with its type and file path, and no credential fields', () => {
+    const databasePath = '/data/owox-duckdb/storage-1.duckdb';
+    render(
+      <DataStorageForm
+        initialData={
+          {
+            type: DataStorageType.DUCKDB,
+            title: 'Local',
+            config: {},
+            credentials: {},
+            databasePath,
+          } as unknown as DataStorageFormData
+        }
+        onSubmit={vi.fn()}
+        onCancel={vi.fn()}
+      />
+    );
+
+    expect(screen.getAllByText('DuckDB').length).toBeGreaterThan(0);
+    expect(screen.getByText(databasePath)).toBeInTheDocument();
+    expect(screen.queryByText('Connection Settings')).toBeNull();
   });
 });

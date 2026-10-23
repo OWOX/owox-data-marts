@@ -2,19 +2,30 @@ import {
   CalculatedFieldValidatorService,
   DryRunContext,
 } from './calculated-field-validator.service';
+import * as fs from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
 import { createFormulaFunctionDialectRegistry } from './formula-function-dialect';
+import { DuckDbApiAdapterFactory } from '../data-storage-types/duckdb/adapters/duckdb-api-adapter.factory';
+import { DuckDbSqlDryRunExecutor } from '../data-storage-types/duckdb/services/duckdb-sql-dry-run.executor';
+import { SqlDryRunExecutorFacade } from '../data-storage-types/facades/sql-dry-run-executor.facade';
 import type { CalculatedFieldLevel } from './formula-level';
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
 import { DataMartSchemaFieldStatus } from '../data-storage-types/enums/data-mart-schema-field-status.enum';
 import type { DataMartSchema } from '../data-storage-types/data-mart-schema.type';
 import { UNIQUE_COUNT_FIELD_TOKEN } from '../dto/schemas/unique-count-sources';
 import { SqlDryRunResult } from '../dto/domain/sql-dry-run-result.dto';
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, Logger } from '@nestjs/common';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
 import { ReportSqlComposerService } from '../services/report-sql-composer.service';
 import { BigQueryQueryBuilder } from '../data-storage-types/bigquery/services/bigquery-query.builder';
 import { BigQueryClauseRenderer } from '../data-storage-types/bigquery/services/bigquery-clause-renderer';
 import type { FormulaViolation } from './formula-violations';
+import { createProductionDuckDbInstance } from '../data-storage-types/duckdb/__fixtures__/production-duckdb-instance';
+import { DuckDbQueryBuilder } from '../data-storage-types/duckdb/services/duckdb-query.builder';
+import { DuckDbClauseRenderer } from '../data-storage-types/duckdb/services/duckdb-clause-renderer';
+import { OutputControlsCapabilityService } from '../services/output-controls-capability.service';
+import type { DataMart } from '../entities/data-mart.entity';
 
 interface FieldSpec {
   name: string;
@@ -332,7 +343,7 @@ describe('CalculatedFieldValidatorService', () => {
     const joinTree = { dataMartId: 'dm-1', projectId: 'project-1', accessor };
     const buildCtx = () =>
       ({
-        dataMart: { id: 'dm-1', projectId: 'project-1' },
+        dataMart: { id: 'dm-1', projectId: 'project-1', storage: { id: 'storage-1' } },
         storageType: DataStorageType.GOOGLE_BIGQUERY,
         credentials: {},
         config: {},
@@ -1525,7 +1536,7 @@ describe('CalculatedFieldValidatorService', () => {
 
     const buildCtx = (storageType: DataStorageType = DataStorageType.GOOGLE_BIGQUERY) =>
       ({
-        dataMart: { id: 'dm-1' },
+        dataMart: { id: 'dm-1', storage: { id: 'storage-1' } },
         storageType,
         credentials: {},
         config: {},
@@ -1577,6 +1588,131 @@ describe('CalculatedFieldValidatorService', () => {
         },
       },
     ]);
+
+    describe('on a DuckDB file, through the real composer and dry run', () => {
+      let dir: string;
+      let databasePath: string;
+      let debugLog: jest.SpyInstance;
+
+      beforeEach(async () => {
+        debugLog = jest.spyOn(Logger.prototype, 'debug').mockImplementation(() => undefined);
+        dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cf-duckdb-'));
+        databasePath = path.join(dir, 'st-cf.duckdb');
+        const instance = await createProductionDuckDbInstance(databasePath);
+        const connection = await instance.connect();
+        await connection.run(
+          `CREATE TABLE main.holidays AS SELECT range AS id, 'name_' || range AS name FROM range(3)`
+        );
+        connection.closeSync();
+        instance.closeSync();
+      });
+
+      afterEach(() => {
+        debugLog.mockRestore();
+        fs.rmSync(dir, { recursive: true, force: true });
+      });
+
+      const VALID = 'COUNT(DISTINCT {{ref field="id"}})';
+      const SUM_OF_TEXT = 'SUM({{ref field="name"}})';
+      const UNKNOWN_FUNCTION = 'COUNT({{ref field="id"}}) + no_such_function_xyz(1)';
+
+      const dataMartWith = (formula: string) => {
+        const schema = {
+          type: 'duckdb-data-mart-schema',
+          fields: [
+            { name: 'id', type: 'BIGINT', status: DataMartSchemaFieldStatus.CONNECTED },
+            { name: 'name', type: 'VARCHAR', status: DataMartSchemaFieldStatus.CONNECTED },
+            {
+              name: 'metric',
+              type: 'BIGINT',
+              status: DataMartSchemaFieldStatus.CONNECTED,
+              calculated: { formula, level: 'metric' },
+            },
+          ],
+        } as unknown as DataMartSchema;
+        return {
+          id: 'dm-1',
+          projectId: 'project-1',
+          storage: { id: 'st-cf', type: DataStorageType.DUCKDB },
+          definition: { fullyQualifiedName: 'main.holidays' },
+          schema,
+        } as unknown as DataMart;
+      };
+
+      const builder = new DuckDbQueryBuilder(new DuckDbClauseRenderer());
+      const composer = new ReportSqlComposerService(
+        { resolveBlendingDecision: jest.fn() } as never,
+        {
+          buildQuery: (
+            _type: unknown,
+            definition: Parameters<DuckDbQueryBuilder['buildQuery']>[0],
+            options: Parameters<DuckDbQueryBuilder['buildQuery']>[1]
+          ) => builder.buildQuery(definition, options),
+        } as never,
+        { resolveTableName: jest.fn() } as never,
+        new OutputControlsCapabilityService(),
+        {} as never,
+        {} as never
+      );
+      const dryRunExecutor = new DuckDbSqlDryRunExecutor(new DuckDbApiAdapterFactory());
+
+      const dryRun = async (formula: string) => {
+        const { sql } = await composer.composeMetricsOnly(dataMartWith(formula), ['metric']);
+        return { sql, result: await dryRunExecutor.execute({ databasePath }, {} as never, sql) };
+      };
+
+      it('composes the formula into the dry run, which DuckDB refuses when it is wrong', async () => {
+        const valid = await dryRun(VALID);
+        expect(valid.sql).toBe(
+          'SELECT\n  COUNT(DISTINCT "id") AS "metric"\nFROM "main"."holidays"'
+        );
+        expect(valid.result.isValid).toBe(true);
+
+        expect((await dryRun(SUM_OF_TEXT)).result).toMatchObject({
+          isValid: false,
+          error: expect.stringMatching(/Binder Error: No function matches[\s\S]*sum\(VARCHAR\)/),
+        });
+        expect((await dryRun(UNKNOWN_FUNCTION)).result).toMatchObject({
+          isValid: false,
+          error: expect.stringContaining(
+            'Catalog Error: Scalar Function with name no_such_function_xyz does not exist'
+          ),
+        });
+      });
+
+      it('refuses at save a formula DuckDB rejects, and passes one it accepts', async () => {
+        const v = new CalculatedFieldValidatorService(
+          createFormulaFunctionDialectRegistry(),
+          composer,
+          new SqlDryRunExecutorFacade({ resolve: async () => dryRunExecutor } as never),
+          noopBlendableSchema as never
+        );
+        const validate = (formula: string) => {
+          const dataMart = dataMartWith(formula);
+          return v.validate(dataMart.schema!, DataStorageType.DUCKDB, {
+            ...buildCtx(DataStorageType.DUCKDB),
+            dataMart,
+            credentials: { databasePath },
+          });
+        };
+
+        expect(await validate(VALID)).toMatchObject({ errors: [], warehouseValidation: 'passed' });
+        for (const [formula, detail] of [
+          [SUM_OF_TEXT, 'sum(VARCHAR)'],
+          [UNKNOWN_FUNCTION, 'no_such_function_xyz does not exist'],
+        ]) {
+          const result = await validate(formula);
+          expect(result.warehouseValidation).toBeUndefined();
+          expect(result.errors).toEqual([
+            expect.objectContaining({
+              field: 'metric',
+              code: 'FORMULA_WAREHOUSE_REJECTED',
+              message: expect.stringContaining(detail),
+            }),
+          ]);
+        }
+      });
+    });
 
     it('issues ONE dry run for a schema carrying several metrics', async () => {
       const { validator: v, dryRun } = buildValidator();

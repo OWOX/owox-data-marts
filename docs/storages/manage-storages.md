@@ -21,6 +21,7 @@ To configure a new **Storage**:
     - [AWS Redshift](supported-storages/aws-redshift.md)
     - [Snowflake](supported-storages/snowflake.md)
     - [Databricks](supported-storages/databricks.md)
+    - [DuckDB](supported-storages/duckdb.md) (self-managed only)
     - Azure Synapse (Coming soon)
 3. Fill in the required configuration fields based on the selected data warehouse. Follow the instructions for your platform.
 4. Click **Save** to complete storage setup or **Cancel** to finish the configuration later.

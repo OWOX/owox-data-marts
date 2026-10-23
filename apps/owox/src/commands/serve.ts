@@ -183,8 +183,12 @@ export default class Serve extends BaseCommand {
 
     this.log(`Starting server on port ${port} with ${logFormat} logs...`);
 
-    const { bootstrap, createHealthProbe, registerPluginCollectionsBodyParser } =
-      await import('@owox/backend');
+    const {
+      bootstrap,
+      createHealthProbe,
+      isDuckDbStorageEnabled,
+      registerPluginCollectionsBodyParser,
+    } = await import('@owox/backend');
 
     const expressApp = express();
     // Must precede IDP middleware: some providers install Express's default 100 KiB
@@ -213,7 +217,17 @@ export default class Serve extends BaseCommand {
     currentIdp = idpProvider;
 
     // Register public route to expose whitelisted flags
-    registerPublicFlagsRoute(expressApp);
+    registerPublicFlagsRoute(expressApp, {
+      computed: {
+        DUCKDB_STORAGE_ENABLED: () =>
+          String(
+            isDuckDbStorageEnabled({
+              DB_TYPE: process.env.DB_TYPE,
+              DUCKDB_STORAGE_ENABLED: process.env.DUCKDB_STORAGE_ENABLED,
+            })
+          ),
+      },
+    });
 
     // Configure web static assets if web interface is enabled
     if (flags['web-enabled']) {

@@ -1,16 +1,28 @@
+import * as fs from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
 import { HttpException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { DataStorageCredentialsResolver } from '../data-storage-types/data-storage-credentials-resolver.service';
+import { DuckDbApiAdapterFactory } from '../data-storage-types/duckdb/adapters/duckdb-api-adapter.factory';
+import { DuckDbClauseRenderer } from '../data-storage-types/duckdb/services/duckdb-clause-renderer';
+import { DuckDbQueryBuilder } from '../data-storage-types/duckdb/services/duckdb-query.builder';
+import { DuckDbSqlRunExecutor } from '../data-storage-types/duckdb/services/duckdb-sql-run.executor';
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
+import { SqlRunExecutorFacade } from '../data-storage-types/facades/sql-run-executor.facade';
 import { SqlRunBatch } from '../dto/domain/sql-run-batch.dto';
 import { DataMart } from '../entities/data-mart.entity';
 import { DataQualityCategory } from '../enums/data-quality-category.enum';
 import { DataQualitySeverity } from '../enums/data-quality-severity.enum';
 import { DataQualityCompiledCheck } from './data-quality-check-compiler';
 import { DataQualityQueryExecutorService } from './data-quality-query-executor.service';
+import { createProductionDuckDbInstance } from '../data-storage-types/duckdb/__fixtures__/production-duckdb-instance';
 
 describe('DataQualityQueryExecutorService', () => {
   const dataMart = {
     definition: { type: 'TABLE', fullyQualifiedName: 'dataset.table' },
     storage: {
+      id: 'storage-1',
       type: DataStorageType.GOOGLE_BIGQUERY,
       config: { projectId: 'project-123456', location: 'US' },
     },
@@ -93,6 +105,7 @@ describe('DataQualityQueryExecutorService', () => {
       dataMart.storage.config,
       dataMart.definition,
       'first-sql',
+      undefined,
     ]);
     expect(executionOrder).toEqual([
       'start:first-sql',
@@ -105,6 +118,45 @@ describe('DataQualityQueryExecutorService', () => {
       rows: [{ value: 'first-sql:1' }, { value: 'first-sql:2' }],
       columnMetadata: [{ name: 'value', label: 'VALUE', typeName: 'varchar' }],
     });
+  });
+
+  it('runs a DuckDB check on the file its credentials point to', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'dq-duckdb-'));
+    try {
+      const instance = await createProductionDuckDbInstance(path.join(dir, 'st-dq.duckdb'));
+      const connection = await instance.connect();
+      await connection.run('CREATE TABLE main.orders AS SELECT range AS id FROM range(3)');
+      connection.closeSync();
+      instance.closeSync();
+
+      const runExecutor = new DuckDbSqlRunExecutor(
+        new DuckDbApiAdapterFactory(),
+        new DuckDbQueryBuilder(new DuckDbClauseRenderer())
+      );
+      const service = new DataQualityQueryExecutorService(
+        new DataStorageCredentialsResolver(
+          {} as never,
+          {} as never,
+          {} as never,
+          new ConfigService({ DUCKDB_DATA_DIR: dir })
+        ),
+        new SqlRunExecutorFacade({ resolve: async () => runExecutor } as never),
+        { resolve: async () => ({ toStorageReadError: (error: unknown) => error }) } as never
+      );
+      const duckDbDataMart = {
+        definition: { type: 'TABLE', fullyQualifiedName: 'main.orders' },
+        storage: { id: 'st-dq', type: DataStorageType.DUCKDB, config: {} },
+      } as unknown as DataMart;
+      const sql = 'SELECT count(*) AS violation_count FROM main.orders';
+
+      const [result] = await collect(
+        service.executeChecks(duckDbDataMart, [executableCheck('check', sql)])
+      );
+
+      expect(result.execution).toEqual({ sql, rows: [{ violation_count: 3 }] });
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   it('maps a failed SQL and continues with the next check', async () => {

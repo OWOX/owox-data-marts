@@ -3,7 +3,7 @@ import { TESTIDS } from '../selectors/testids';
 import { describeIfCredentials } from '../helpers/credentials';
 
 // ---------------------------------------------------------------------------
-// STOR-01 + STOR-02: Create each of the 5 active storage types via UI
+// STOR-01 + STOR-02: Create each of the 6 active storage types via UI
 // ---------------------------------------------------------------------------
 
 test.describe('Storage Type Creation', () => {
@@ -95,6 +95,22 @@ test.describe('Storage Type Creation', () => {
     await expect(
       page.getByTestId(TESTIDS.storageTable).getByText('AWS Athena').first()
     ).toBeVisible();
+  });
+
+  test('create DuckDB storage', async ({ page }) => {
+    await page.goto('/ui/0/data-storages');
+    await expect(page.getByTestId(TESTIDS.storageListPage)).toBeVisible();
+
+    await page.getByRole('button', { name: 'New Storage' }).click();
+    await expect(page.getByTestId(TESTIDS.storageTypeDialog)).toBeVisible();
+
+    await page.getByRole('button', { name: 'DuckDB' }).click();
+    await expect(page.getByTestId(TESTIDS.storageTypeDialog)).not.toBeVisible();
+    await expect(page.getByTestId(TESTIDS.storageConfigSheet)).toBeVisible();
+
+    await page.keyboard.press('Escape');
+
+    await expect(page.getByTestId(TESTIDS.storageTable).getByText('DuckDB').first()).toBeVisible();
   });
 });
 
