@@ -34,7 +34,7 @@ Each of those things becomes a Data Mart of one of two kinds:
 - **Split tables that hold several objects.** A raw analytics export with sessions, events and transactions in one table has no single grain, so no sum over it can be read without an explanation.
 - **Merge objects that differ only by type** — first and repeat orders are one Data Mart with an `order_type` field — and **keep apart events that happen at different times**: an invoice and the payment for it are two Data Marts.
 - **Keep an attribute that changes over time on the event, as it was then.** Whether an order came from a new or a loyal customer belongs to the order; the customer's current segment belongs to the customer (Vlad Flaks, [When will I get my money back?](https://www.vladflaks.com/thoughts/when-will-i-get-my-money-back-5/)).
-- **A metric is not an object.** ROAS does not exist without spend and revenue, so it is a calculated field on a Data Mart that holds them, never a Data Mart of its own. See [Step 5](#step-5-put-each-metric-where-its-rows-are).
+- **A metric is not an object.** ROAS does not exist without spend and revenue, so it is a calculated field on a Data Mart that holds them, never a Data Mart named after it. A Data Mart that holds spend and revenue at a grain they share is not a metric: it is an event of its own, one day of one campaign, and a ratio of the two often lives there. See [Step 5](#step-5-put-each-metric-where-its-rows-are).
 
 ## Step 2: Make the Grain the Primary Key
 
@@ -74,7 +74,7 @@ This path answers "leads from the countries these sessions came from", not "lead
 
 **One path per meaning.** Two paths to the same Data Mart are two groups of identical fields in the column picker, and a reader has to guess which is right. Keep both only when they mean different things — the customer who placed the order and the customer the session belonged to — and give each its own Output Alias and Description. A property of an object is a field, not a relationship.
 
-The path paid ROAS reads, drawn from the spend Data Mart it starts from: events in a row, each joined to the next by what links them, references below them as end points. Relationships run one way, so a base needs its own relationships in the direction it reads.
+The path attributed ROAS reads, drawn from the spend Data Mart it starts from: events in a row, each joined to the next by what links them, references below them as end points. Relationships run one way, so a base needs its own relationships in the direction it reads.
 
 ```text
 Ad Spend ─(date, source, medium, campaign)─▶ Sessions ─(session_id)─▶ Orders ─(order_id)─▶ Order Lines
@@ -100,12 +100,19 @@ Ad Spend ─(source, medium, campaign)─▶ Traffic Sources ─(traffic_source_
 
 The base keeps all of its rows, and everything joined to it is seen from it. So the first question about a metric is **which total has to be complete**. Make that Data Mart the base, and put the metric on it.
 
-| Question                                      | Base                                                                                       | Complete      | Left out by design           |
-| --------------------------------------------- | ------------------------------------------------------------------------------------------ | ------------- | ---------------------------- |
-| ROAS and CPA of paid campaigns                | Ad Spend                                                                                   | all spend     | revenue no campaign paid for |
-| Revenue by channel, organic included          | Orders                                                                                     | every order   | spend                        |
-| Session conversion rate                       | Sessions                                                                                   | every session | orders without a session     |
-| Spend and revenue side by side, both complete | a Data Mart at the grain they share ([Step 5](#step-5-put-each-metric-where-its-rows-are)) | both          | nothing                      |
+The same name can ask for different totals. Two definitions of ROAS are common, and each needs its own model:
+
+- **Attributed ROAS** divides the revenue the spend bought by the spend. Revenue is reached through what links the two: the session, or the traffic source attributed to the order. The question is about spend, so spend is the base.
+- **Period ROAS** divides the revenue of a period by the spend of the same period, matched by campaign or channel, not by cause. It is what a finance dashboard usually shows, and it counts revenue the ads did not bring. Both totals must be complete.
+
+Ask which number the business reconciles against before you model either one.
+
+| Question                                                      | Base                                                                                       | Complete      | Left out by design                              |
+| ------------------------------------------------------------- | ------------------------------------------------------------------------------------------ | ------------- | ----------------------------------------------- |
+| Attributed ROAS and CPA of paid campaigns                     | Ad Spend                                                                                   | all spend     | revenue no campaign paid for                    |
+| Revenue by channel, organic included                          | Orders                                                                                     | every order   | spend                                           |
+| Session conversion rate                                       | Sessions                                                                                   | every session | orders without a session                        |
+| Period ROAS, or spend and revenue side by side, both complete | a Data Mart at the grain they share ([Step 5](#step-5-put-each-metric-where-its-rows-are)) | both          | nothing; revenue is counted whatever brought it |
 
 What a wrong base costs, measured on a demo project: with Sessions as the base, one ad platform's spend came to $5,846.12 instead of $5,865.17, because eleven days had spend and no session. With Ad Spend as the base, it matched to the cent — every spend row stays in the report, including the ones no session reached:
 
@@ -117,15 +124,20 @@ What a wrong base costs, measured on a demo project: with Sessions as the base, 
 - **Write a ratio as a ratio of sums:** `SUM(clicks) * 1.0 / NULLIF(SUM(impressions), 0)`. A ratio stored per row and averaged later is wrong: on one demo campaign, the average of daily CTRs was seven times the true CTR.
 - **One metric, one home.** Two `ROAS` fields in two Data Marts are two answers, and an assistant picks one of them. Delete or hide the copy. Hide the raw inputs a metric replaces, too: formulas on the same Data Mart still read a hidden field.
 
-**A ratio of two events, one side complete.** Paid ROAS is about spend: all of it counts, and revenue counts where a campaign paid for it. Put the formula on the spend Data Mart and read revenue through the real path — here `sessions` and `orders` are the SQL aliases of the two relationships:
+**A ratio of two events, one side complete: attributed ROAS.** Attributed ROAS is about spend: all of it counts, and revenue counts where a campaign paid for it. Put the formula on the spend Data Mart and read revenue through the real path — here `sessions` and `orders` are the SQL aliases of the two relationships:
 
 ```text
 SUM(sessions.orders.revenue) / NULLIF(SUM(spend), 0)
 ```
 
-Keep it one formula: a calculated field cannot reuse another calculated field that reads a joined Data Mart. OWOX warns that a formula reading a joined Data Mart leaves that Data Mart's unmatched rows out — for paid ROAS, that is the definition, not a defect.
+Keep it one formula: a calculated field cannot reuse another calculated field that reads a joined Data Mart. OWOX warns that a formula reading a joined Data Mart leaves that Data Mart's unmatched rows out — for attributed ROAS, that is the definition, not a defect.
 
-**A ratio of two events, both sides complete.** Spend and revenue by channel with organic channels in, or total revenue over total spend, needs every row of both. A join cannot give that: whichever side is the base, the other loses its unmatched rows. Build one Data Mart at the grain the two share — aggregate each event to that grain separately, stack them with `UNION ALL`, and sum:
+**A ratio of two events, both sides complete: period ROAS.** Period ROAS, spend and revenue by channel with organic channels in, and total revenue over total spend need every row of both. A join cannot give that:
+
+- **Joined on the date**, the base loses the other side's unmatched rows: revenue of a campaign on a day it had no spend never reaches the ratio.
+- **Joined without the date**, the ratio is right only while a report groups by exactly the join keys. Any other column repeats the joined revenue on every row, as _Group at or above the grain of the join_ below shows.
+
+Build one Data Mart at the grain the two share — aggregate each event to that grain separately, stack them with `UNION ALL`, and sum:
 
 ```sql
 SELECT date, source, medium, campaign,
@@ -146,9 +158,15 @@ GROUP BY date, source, medium, campaign
 
 Declare `date`, `source`, `medium` and `campaign` as its primary key, join it to your reference Data Marts like any other event, and define ROAS, CPA and CPC on it. Name it for what a row is — Marketing Performance, one row per day and campaign — not after one metric: it holds several. Pick one date for revenue — the day of the visit the spend bought, or the day of the order — and use it everywhere.
 
-**Write the rules into the model, not into the prompt.** If ROAS covers paid channels only, say so in the Data Mart's description — an assistant reads it and applies it. Terms and rules shared by every Data Mart belong in the [project description](../setup-guide/mcp.md#add-project-context-for-your-assistant). A rule that lives in one person's prompt is missing from everyone else's answer.
+That choice is the reason this Data Mart exists. Which date joins spend to revenue is a business decision, and no join can infer it from the two events. So write it first in the description: "One row per day and campaign. Spend on the day it was spent; revenue on the day the order was placed." The Data Mart is part of the model, not a table beside it: relate it to Campaigns, Traffic Sources and the other references its keys point to, the same way as any other event.
 
-**Group at or above the grain of the join.** A joined value belongs to its join key. Group spend by keyword while revenue joins by campaign, and each keyword shows the campaign's whole revenue: every row is overstated, while Totals stay right. See [Limitations and Considerations](../setup-guide/calculated-fields.md#limitations-and-considerations).
+**Offer only the dimensions both sides share.** A ratio of two events can be cut by an attribute of anything both events relate to: the day, the campaign, the traffic source. A dimension that exists on one side only has no value on the other. Spend has no new or returning customer. Country is three different things for a campaign, a session and a delivery. Either write the rule that allocates spend to such a dimension into the shared-grain Data Mart, or do not offer it next to the ratio. A many-to-many join does not supply it: the joined Data Mart is collapsed to one row per join key, so its attributes become a list or whichever value the Dedup keeps.
+
+**Write the rules into the model, not into the prompt.** If ROAS covers paid channels only, say so in the Data Mart's description — an assistant reads it and applies it. Terms and rules shared by every Data Mart belong in the [project description](../setup-guide/mcp.md#add-project-context-for-your-assistant). A rule that lives in one person's prompt is missing from everyone else's answer. A description states scope; it cannot make a number right. If a metric's description has to tell an assistant how to filter — "filter the spend date and set the order date to the same period" — the model is missing a Data Mart, usually the one at the shared grain.
+
+**Group at or above the grain of the join.** A joined value belongs to its join key. Add a column the join does not use, and each row of that key shows the key's whole joined value. Group spend by keyword while revenue joins by campaign, and each keyword shows the campaign's whole revenue. Totals stay right, but every row is overstated, and so is anything that sums the rows again: a pivot table in Google Sheets, a chart, an assistant adding up its answer. A date is such a column too: viewed by week, a formula joined without the date gives each week the revenue of the whole period. See [Limitations and Considerations](../setup-guide/calculated-fields.md#limitations-and-considerations).
+
+**Group by the ID of a thing whose name changes.** A campaign name on a spend row is the name on the day of the spend, so a rename splits one campaign into two rows. Measured on a customer's project: a campaign renamed mid-week became two rows, each carrying the campaign's whole revenue, and its ROAS in a pivot table went from 0.69 to 1.37. Group by `campaign_id`, and take the name from a Campaigns reference Data Mart, which holds the current one.
 
 ## Step 6: Describe the Model for People and AI
 
@@ -193,19 +211,22 @@ A good answer says where its numbers come from, which rows they cover, and which
 
 ## Common Mistakes
 
-| Symptom                                                | Cause                                                                     | Fix                                                                               |
-| ------------------------------------------------------ | ------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
-| A week of spend shows revenue from months ago          | Spend reaches revenue through a reference Data Mart, which has no date    | Join the two events on the date and the campaign                                  |
-| Spend in a report is lower than in the ad platform     | The base is Sessions or Orders, so spend without a session is unreachable | Make spend the base of spend metrics                                              |
-| Revenue splits into `(null)` or duplicate channels     | A shared attribute derived differently in two Data Marts, or empty keys   | Derive it once; use one placeholder for empty keys                                |
-| A joined attribute shows a list or an unexpected value | The join covers only part of the target's primary key                     | Join on the full key                                                              |
-| A count across a join is too high or too low           | A plain `COUNT` over a joined field                                       | `COUNT(DISTINCT …)` over the joined Data Mart's own key, or its Unique Count      |
-| Two answers to "what is our ROAS"                      | The metric is defined in two Data Marts                                   | Keep one; hide or delete the other                                                |
-| A Data Mart named after a metric                       | A metric modeled as an object                                             | Put the metric on the spend Data Mart, or on a Data Mart at the shared grain      |
-| Per-keyword revenue adds up to more than the total     | Grouping finer than the join key                                          | Group at or above the join's grain                                                |
-| An assistant counts organic revenue in ROAS            | The scope rule lives in someone's prompt                                  | State the scope in the Data Mart description                                      |
-| Campaigns from different platforms merge               | Grouping by campaign name alone, while names repeat across platforms      | Group by source and campaign, or by campaign ID                                   |
-| A user or an assistant picks the wrong joined group    | Two join paths show the same name, such as _Sessions_                     | Name each path by its role — _Order Session_, _Session Visitor_ — and describe it |
+| Symptom                                                     | Cause                                                                     | Fix                                                                               |
+| ----------------------------------------------------------- | ------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| A week of spend shows revenue from months ago               | Spend reaches revenue through a reference Data Mart, which has no date    | Join the two events on the date and the campaign                                  |
+| Spend in a report is lower than in the ad platform          | The base is Sessions or Orders, so spend without a session is unreachable | Make spend the base of spend metrics                                              |
+| Revenue splits into `(null)` or duplicate channels          | A shared attribute derived differently in two Data Marts, or empty keys   | Derive it once; use one placeholder for empty keys                                |
+| A joined attribute shows a list or an unexpected value      | The join covers only part of the target's primary key                     | Join on the full key                                                              |
+| A count across a join is too high or too low                | A plain `COUNT` over a joined field                                       | `COUNT(DISTINCT …)` over the joined Data Mart's own key, or its Unique Count      |
+| Two answers to "what is our ROAS"                           | The metric is defined in two Data Marts                                   | Keep one; hide or delete the other                                                |
+| A Data Mart named after a metric                            | A metric modeled as an object                                             | Put the metric on the spend Data Mart, or on a Data Mart at the shared grain      |
+| Per-keyword revenue adds up to more than the total          | Grouping finer than the join key                                          | Group at or above the join's grain                                                |
+| ROAS changes when a column is added or weeks are chosen     | Spend and revenue joined without the date, grouped finer than the join    | Put period ROAS on a Data Mart at the grain both share                            |
+| A campaign's ROAS doubles after it is renamed               | Grouping by a name recorded on each spend row                             | Group by the campaign ID; take the name from a Campaigns reference                |
+| ROAS is right only if the assistant follows its description | The description carries filters the model should hold                     | Build the shared-grain Data Mart; keep descriptions for scope                     |
+| An assistant counts organic revenue in ROAS                 | The scope rule lives in someone's prompt                                  | State the scope in the Data Mart description                                      |
+| Campaigns from different platforms merge                    | Grouping by campaign name alone, while names repeat across platforms      | Group by source and campaign, or by campaign ID                                   |
+| A user or an assistant picks the wrong joined group         | Two join paths show the same name, such as _Sessions_                     | Name each path by its role — _Order Session_, _Session Visitor_ — and describe it |
 
 ## Checklist
 
@@ -239,6 +260,10 @@ business, not by conformance to a modeling framework.
 10. A key or attribute shared by several Data Marts has the same values, type and empty-value placeholder in each.
 11. Each join path has a name and a description that say what it is, seen from the Data Mart the report starts from — inherited descriptions included — and no two joined groups share a name.
 12. Each scope rule an answer depends on — paid channels only, test orders excluded — is written in a description.
+13. Each ratio of two events says which definition it follows — attributed or period — and on which date each side is counted.
+14. Each dimension offered next to a ratio of two events belongs to something both events relate to, or a written rule allocates the other side to it.
+15. No description has to tell an assistant how to filter for a number to be right.
+16. A name that changes over time — campaign, ad, product — is grouped by its ID, with the current name taken from a reference Data Mart.
 
 ## Related Links
 
