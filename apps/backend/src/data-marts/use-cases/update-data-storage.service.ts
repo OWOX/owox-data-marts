@@ -9,7 +9,10 @@ import {
 } from '../data-storage-types/bigquery/schemas/bigquery-config.schema';
 import { DataStorageCredentials } from '../data-storage-types/data-storage-credentials.type';
 import { ValidationResult } from '../data-storage-types/interfaces/data-storage-access-validator.interface';
-import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
+import {
+  DataStorageType,
+  usesStoredCredentials,
+} from '../data-storage-types/enums/data-storage-type.enum';
 import { DataStorageDto } from '../dto/domain/data-storage.dto';
 import { UpdateDataStorageCommand } from '../dto/domain/update-data-storage.command';
 import { DataStorage } from '../entities/data-storage.entity';
@@ -213,8 +216,11 @@ export class UpdateDataStorageService {
       return this.replaceOwnersAndBuildResponse(updatedDataStorageEntity, command.ownerIds);
     }
 
-    let credentialsToCheck: DataStorageCredentials | undefined = command.credentials;
-    if (!command.hasCredentials() && dataStorageEntity.credential) {
+    // A DuckDB storage has no stored credential, so credentials sent with it are ignored.
+    const hasCredentials =
+      usesStoredCredentials(dataStorageEntity.type) && command.hasCredentials();
+    let credentialsToCheck = hasCredentials ? command.credentials : undefined;
+    if (!hasCredentials && dataStorageEntity.credential) {
       credentialsToCheck = dataStorageEntity.credential.credentials as
         | DataStorageCredentials
         | undefined;
@@ -262,7 +268,7 @@ export class UpdateDataStorageService {
 
     // Skip access validation for OAuth-configured storages (tokens are validated during OAuth exchange).
     // Only skip when not submitting new service account credentials (which would indicate switching back to SA).
-    const isOAuthStorage = !!dataStorageEntity.credentialId && !command.hasCredentials();
+    const isOAuthStorage = !!dataStorageEntity.credentialId && !hasCredentials;
     if (!isOAuthStorage) {
       await this.dataStorageAccessFacade.verifyAccess(
         dataStorageEntity.type,
@@ -271,7 +277,7 @@ export class UpdateDataStorageService {
       );
     }
 
-    if (command.hasCredentials()) {
+    if (hasCredentials) {
       // Create or update credential record in the new table
       const credentialType = resolveStorageCredentialType(
         dataStorageEntity.type,

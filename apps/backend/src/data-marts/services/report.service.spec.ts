@@ -1,10 +1,23 @@
+import 'reflect-metadata';
 import { NotFoundException } from '@nestjs/common';
-import { Repository } from 'typeorm';
+import * as path from 'node:path';
+import { DataSource, Repository } from 'typeorm';
 import { ScheduledTriggerService } from './scheduled-trigger.service';
 import { SystemTimeService } from '../../common/scheduler/services/system-time.service';
 import { Report } from '../entities/report.entity';
 import { ReportRunStatus } from '../enums/report-run-status.enum';
 import { ReportService } from './report.service';
+import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
+import { DataDestinationType } from '../data-destination-types/enums/data-destination-type.enum';
+import { LookerStudioConnectorConfigType } from '../data-destination-types/looker-studio-connector/schemas/looker-studio-connector-config.schema';
+import { LookerStudioConnectorCredentialsType } from '../data-destination-types/looker-studio-connector/schemas/looker-studio-connector-credentials.schema';
+import { DataDestination } from '../entities/data-destination.entity';
+import { DataDestinationCredential } from '../entities/data-destination-credential.entity';
+import { DataMart } from '../entities/data-mart.entity';
+import { DataStorage } from '../entities/data-storage.entity';
+import { DataStorageCredential } from '../entities/data-storage-credential.entity';
+import { DestinationCredentialType } from '../enums/destination-credential-type.enum';
+import { StorageCredentialType } from '../enums/storage-credential-type.enum';
 
 describe('ReportService', () => {
   const createService = () => {
@@ -132,6 +145,85 @@ describe('ReportService', () => {
 
       expect((await service.countByDataMartIds([])).size).toBe(0);
       expect(repository.createQueryBuilder).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('Looker Studio report queries', () => {
+    let dataSource: DataSource;
+    let service: ReportService;
+    let destinationId: string;
+
+    beforeAll(async () => {
+      dataSource = new DataSource({
+        type: 'better-sqlite3',
+        database: ':memory:',
+        entities: [path.join(__dirname, '../entities/*.entity.ts')],
+        synchronize: true,
+      });
+      await dataSource.initialize();
+      service = new ReportService(
+        dataSource.getRepository(Report),
+        {} as never,
+        {} as never,
+        {} as never
+      );
+      const credential = await dataSource.getRepository(DataDestinationCredential).save({
+        projectId: 'p1',
+        type: DestinationCredentialType.LOOKER_STUDIO,
+        credentials: { type: LookerStudioConnectorCredentialsType, destinationSecretKey: 'secret' },
+      });
+      const destination = await dataSource.getRepository(DataDestination).save({
+        title: 'Looker',
+        type: DataDestinationType.LOOKER_STUDIO,
+        projectId: 'p1',
+        credentialId: credential.id,
+      });
+      destinationId = destination.id;
+    }, 30_000);
+
+    afterAll(() => dataSource.destroy());
+
+    async function saveReport(type: DataStorageType, withCredential: boolean): Promise<string> {
+      const credential = withCredential
+        ? await dataSource.getRepository(DataStorageCredential).save({
+            projectId: 'p1',
+            type: StorageCredentialType.GOOGLE_SERVICE_ACCOUNT,
+            credentials: {},
+          })
+        : null;
+      const storage = await dataSource
+        .getRepository(DataStorage)
+        .save({ type, projectId: 'p1', credentialId: credential?.id ?? null });
+      const dataMart = await dataSource
+        .getRepository(DataMart)
+        .save({ title: 'dm', projectId: 'p1', createdById: 'u1', storage: { id: storage.id } });
+      const report = await dataSource.getRepository(Report).save({
+        title: type,
+        createdById: 'u1',
+        dataMart: { id: dataMart.id },
+        dataDestination: { id: destinationId },
+        destinationConfig: { type: LookerStudioConnectorConfigType, cacheLifetime: 300 },
+      });
+      return report.id;
+    }
+
+    it('returns a DuckDB report and a report whose Storage has a credential, not a report whose Storage lost it', async () => {
+      const onDuckDb = await saveReport(DataStorageType.DUCKDB, false);
+      const withCredential = await saveReport(DataStorageType.GOOGLE_BIGQUERY, true);
+      const withoutCredential = await saveReport(DataStorageType.GOOGLE_BIGQUERY, false);
+
+      const all = await service.getAllByDestinationIdAndLookerStudioSecret(destinationId, 'secret');
+      expect(all.map(report => report.id).sort()).toEqual([onDuckDb, withCredential].sort());
+
+      await expect(service.getByIdAndLookerStudioSecret(onDuckDb, 'secret')).resolves.toMatchObject(
+        { id: onDuckDb }
+      );
+      await expect(
+        service.getByIdAndLookerStudioSecret(withCredential, 'secret')
+      ).resolves.toMatchObject({ id: withCredential });
+      await expect(
+        service.getByIdAndLookerStudioSecret(withoutCredential, 'secret')
+      ).resolves.toBeNull();
     });
   });
 });

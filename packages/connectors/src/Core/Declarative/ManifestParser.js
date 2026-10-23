@@ -218,6 +218,9 @@ export const RESERVED_PARAMETER_NAMES = new Set([
   'DatabricksToken',
   'DatabricksCatalog',
   'DatabricksSchema',
+  // DuckDB
+  'DatabasePath',
+  'DestinationSchemaName',
 ]);
 
 function validateBackoff(b, nodeName, where) {

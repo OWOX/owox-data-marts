@@ -63,6 +63,11 @@ export class DataStoragePublicCredentialsFactory {
         };
       }
 
+      case DataStorageType.DUCKDB: {
+        // DuckDB is credential-less; there is nothing to expose in the public API.
+        return undefined;
+      }
+
       default: {
         throw new Error(`Unsupported data storage type: ${type}`);
       }

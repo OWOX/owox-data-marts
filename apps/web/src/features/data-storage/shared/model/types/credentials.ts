@@ -47,12 +47,17 @@ export interface DatabricksCredentials {
   token: string;
 }
 
+// DuckDB is credential-less (local embedded database). `Record<string, never>`
+// matches the `credentials: z.object({})` schema added in T3.
+export type DuckDbCredentials = Record<string, never>;
+
 export type DataStorageCredentials =
   | GoogleBigQueryCredentials
   | AwsAthenaCredentials
   | SnowflakeCredentials
   | RedshiftCredentials
-  | DatabricksCredentials;
+  | DatabricksCredentials
+  | DuckDbCredentials;
 
 export function isGoogleBigQueryCredentials(
   credentials: DataStorageCredentials

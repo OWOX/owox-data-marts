@@ -7,6 +7,7 @@ import {
   AwsRedshiftIcon,
   AzureSynapseIcon,
   LegacyGoogleBigQueryIcon,
+  DuckDBIcon,
 } from '../../../../shared';
 import type { AppIcon } from '../../../../shared';
 
@@ -49,6 +50,12 @@ export const DataStorageTypeModel = {
       icon: DatabricksIcon,
       status: DataStorageStatus.ACTIVE,
     },
+    [DataStorageType.DUCKDB]: {
+      type: DataStorageType.DUCKDB,
+      displayName: 'DuckDB',
+      icon: DuckDBIcon,
+      status: DataStorageStatus.ACTIVE,
+    },
     [DataStorageType.AZURE_SYNAPSE]: {
       type: DataStorageType.AZURE_SYNAPSE,
       displayName: 'Azure Synapse',
@@ -69,5 +76,11 @@ export const DataStorageTypeModel = {
 
   getAllTypes(): DataStorageTypeInfo[] {
     return Object.values(this.types);
+  },
+
+  getOfferedTypes(duckDbEnabled: boolean, currentType?: DataStorageType): DataStorageTypeInfo[] {
+    return this.getAllTypes().filter(
+      ({ type }) => type !== DataStorageType.DUCKDB || duckDbEnabled || currentType === type
+    );
   },
 } as const;

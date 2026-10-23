@@ -108,7 +108,8 @@ export abstract class BaseReportRun {
       this.dataMartRun.status = DataMartRunStatus.FAILED;
     }
 
-    const errorString = error instanceof Error ? error.message : error;
+    // Not instanceof: errors from native drivers can come from another realm.
+    const errorString = typeof error === 'string' ? error : error.message;
     const errorEntry = JSON.stringify({
       type: 'error',
       at: new Date().toISOString(),

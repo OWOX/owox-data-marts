@@ -210,6 +210,7 @@ describe('the dialect aggregate-function lists match the backend', () => {
       'ATHENA',
       'BIGQUERY',
       'DATABRICKS',
+      'DUCKDB',
       'REDSHIFT',
       'SHARED',
       'SNOWFLAKE',

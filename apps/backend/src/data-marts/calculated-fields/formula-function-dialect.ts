@@ -212,6 +212,83 @@ const DATABRICKS = [
   'TRY_AVG',
   'TRY_SUM',
 ];
+// Postgres-shaped, but Redshift's list is NOT aliasable: DuckDB has no PERCENTILE_CONT /
+// PERCENTILE_DISC — it spells those QUANTILE_CONT / QUANTILE_DISC, which is what
+// DuckDbClauseRenderer.renderPercentile already emits. The same trap three more times: SKEWNESS
+// never Snowflake's SKEW, APPROX_COUNT_DISTINCT never Athena's APPROX_DISTINCT or HLL, and
+// FIRST / LAST aggregate while FIRST_VALUE / LAST_VALUE are WINDOW-only here — Databricks calls
+// all four aggregates. It is also the one dialect that spells COUNTIF and COUNT_IF both.
+// Every name below was read off the engine's own `duckdb_functions()` catalog and then bound in a
+// bare, OVER-less call to prove it aggregates. That catalog files the window family under
+// "aggregate" as well, so it is no drop-in whitelist: the 13 names that only bind with OVER are
+// excluded, while GEOMEAN / GEOMETRIC_MEAN are IN despite being filed as macros — they expand to
+// an AVG and aggregate like one. Two more stay out on purpose: COUNT_STAR, which takes no column
+// to aggregate, and SUM_NO_OVERFLOW, which the binder itself refuses as "for internal use only".
+const DUCKDB = [
+  'APPROX_COUNT_DISTINCT',
+  'APPROX_QUANTILE',
+  'APPROX_TOP_K',
+  'ARBITRARY',
+  'ARGMAX',
+  'ARGMIN',
+  'ARG_MAX',
+  'ARG_MAX_NULL',
+  'ARG_MAX_NULLS_LAST',
+  'ARG_MIN',
+  'ARG_MIN_NULL',
+  'ARG_MIN_NULLS_LAST',
+  'ARRAY_AGG',
+  'BITSTRING_AGG',
+  'BIT_AND',
+  'BIT_OR',
+  'BIT_XOR',
+  'BOOL_AND',
+  'BOOL_OR',
+  'CORR',
+  'COUNTIF',
+  'COUNT_IF',
+  'COVAR_POP',
+  'COVAR_SAMP',
+  'ENTROPY',
+  'FAVG',
+  'FIRST',
+  'FSUM',
+  'GEOMEAN',
+  'GEOMETRIC_MEAN',
+  'GROUP_CONCAT',
+  'HISTOGRAM',
+  'HISTOGRAM_EXACT',
+  'KAHAN_SUM',
+  'KURTOSIS',
+  'KURTOSIS_POP',
+  'LAST',
+  'LIST',
+  'LISTAGG',
+  'MAD',
+  'MAX_BY',
+  'MEAN',
+  'MEDIAN',
+  'MIN_BY',
+  'MODE',
+  'PRODUCT',
+  'QUANTILE',
+  'QUANTILE_CONT',
+  'QUANTILE_DISC',
+  'REGR_AVGX',
+  'REGR_AVGY',
+  'REGR_COUNT',
+  'REGR_INTERCEPT',
+  'REGR_R2',
+  'REGR_SLOPE',
+  'REGR_SXX',
+  'REGR_SXY',
+  'REGR_SYY',
+  'RESERVOIR_QUANTILE',
+  'SEM',
+  'SKEWNESS',
+  'STRING_AGG',
+  'SUMKAHAN',
+];
 
 const SHARED_SET: ReadonlySet<string> = new Set(SHARED.map(n => n.toUpperCase()));
 
@@ -243,6 +320,7 @@ export const FORMULA_FUNCTION_DIALECT_NAME_LISTS: Readonly<Record<string, readon
   SNOWFLAKE,
   REDSHIFT,
   DATABRICKS,
+  DUCKDB,
 };
 
 /**
@@ -310,6 +388,7 @@ export function createFormulaFunctionDialectRegistry(): TypeResolver<
     new BaseFormulaFunctionDialect(DataStorageType.SNOWFLAKE, SNOWFLAKE),
     new BaseFormulaFunctionDialect(DataStorageType.AWS_REDSHIFT, REDSHIFT),
     new BaseFormulaFunctionDialect(DataStorageType.DATABRICKS, DATABRICKS),
+    new BaseFormulaFunctionDialect(DataStorageType.DUCKDB, DUCKDB),
   ]);
 }
 

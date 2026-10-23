@@ -5,6 +5,7 @@ import type {
   BigQuerySchemaField,
   DataMartSchema,
   DatabricksSchemaField,
+  DuckDbSchemaField,
   RedshiftSchemaField,
   SnowflakeSchemaField,
 } from '../../../shared/types/data-mart-schema.types';
@@ -12,6 +13,7 @@ import {
   AthenaSchemaTable,
   BigQuerySchemaTable,
   DatabricksSchemaTable,
+  DuckDbSchemaTable,
   RedshiftSchemaTable,
   SnowflakeSchemaTable,
 } from './tables';
@@ -20,6 +22,7 @@ import {
   isAthenaSchema,
   isBigQuerySchema,
   isDatabricksSchema,
+  isDuckDbSchema,
   isRedshiftSchema,
   isSnowflakeSchema,
 } from './utils';
@@ -42,6 +45,7 @@ interface SchemaContentProps {
       | SnowflakeSchemaField[]
       | RedshiftSchemaField[]
       | DatabricksSchemaField[]
+      | DuckDbSchemaField[]
   ) => void;
   /** AI helper handlers; omit to hide AI buttons on this deployment. */
   aiHelper?: SchemaAiHelper;
@@ -110,6 +114,15 @@ export function SchemaContent({
   } else if (isDatabricksSchema(initialSchema)) {
     return (
       <DatabricksSchemaTable
+        fields={initialSchema.fields}
+        onFieldsChange={onFieldsChange}
+        aiHelper={aiHelper}
+        schemaToolbar={schemaToolbar}
+      />
+    );
+  } else if (isDuckDbSchema(initialSchema)) {
+    return (
+      <DuckDbSchemaTable
         fields={initialSchema.fields}
         onFieldsChange={onFieldsChange}
         aiHelper={aiHelper}

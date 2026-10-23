@@ -36,6 +36,9 @@ function buildCopySourcePlaceholderCredentials(
     case DataStorageType.AZURE_SYNAPSE:
       // No Zod schema yet — credentials aren't validated, so no placeholder needed.
       return undefined;
+    case DataStorageType.DUCKDB:
+      // Credential-less storage — no fields to populate with a placeholder.
+      return undefined;
     case undefined:
       return undefined;
     default: {

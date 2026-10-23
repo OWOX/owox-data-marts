@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { DataStorageCredentials } from './data-storage-credentials.type';
@@ -11,6 +12,8 @@ import { StorageCredentialType } from '../enums/storage-credential-type.enum';
 import { DataStorage } from '../entities/data-storage.entity';
 import { DataStorageCredential } from '../entities/data-storage-credential.entity';
 import { DataStorageCredentialService } from '../services/data-storage-credential.service';
+import { DataStorageType } from './enums/data-storage-type.enum';
+import { resolveDuckDbDatabasePath } from './duckdb/utils/duckdb-path.utils';
 
 @Injectable()
 export class DataStorageCredentialsResolver {
@@ -18,10 +21,16 @@ export class DataStorageCredentialsResolver {
     private readonly googleOAuthClientService: GoogleOAuthClientService,
     @InjectRepository(DataStorage)
     private readonly dataStorageRepository: Repository<DataStorage>,
-    private readonly dataStorageCredentialService: DataStorageCredentialService
+    private readonly dataStorageCredentialService: DataStorageCredentialService,
+    private readonly configService: ConfigService
   ) {}
 
   async resolve(storage: DataStorage): Promise<DataStorageCredentials> {
+    if (storage.type === DataStorageType.DUCKDB) {
+      // No stored credential row: a DuckDB storage is its file, derived from the storage id.
+      return { databasePath: resolveDuckDbDatabasePath(this.configService, storage.id) };
+    }
+
     const credential = await this.loadCredential(storage);
 
     if (!credential) {

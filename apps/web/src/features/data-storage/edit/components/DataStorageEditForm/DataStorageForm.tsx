@@ -60,6 +60,7 @@ import {
   DataStorageType,
 } from '../../../shared';
 import type { UseFormReturn } from 'react-hook-form';
+import { useDuckDbStorageEnabled } from '../../../shared/hooks/useDuckDbStorageEnabled.ts';
 import { DataStorageTypeModel } from '../../../shared/types/data-storage-type.model.ts';
 import { AwsAthenaFields } from './AwsAthenaFields';
 import { DatabricksFields } from './DatabricksFields';
@@ -67,9 +68,11 @@ import LegacyGoogleBigQueryTitleDescription from './FormDescriptions/LegacyGoogl
 import StorageTypeAthenaDescription from './FormDescriptions/StorageTypeAthenaDescription.tsx';
 import StorageTypeBigQueryDescription from './FormDescriptions/StorageTypeBigQueryDescription.tsx';
 import StorageTypeDatabricksDescription from './FormDescriptions/StorageTypeDatabricksDescription.tsx';
+import StorageTypeDuckDbDescription from './FormDescriptions/StorageTypeDuckDbDescription.tsx';
 import StorageTypeLegacyBigQueryDescription from './FormDescriptions/StorageTypeLegacyBigQueryDescription.tsx';
 import StorageTypeRedshiftDescription from './FormDescriptions/StorageTypeRedshiftDescription.tsx';
 import StorageTypeSnowflakeDescription from './FormDescriptions/StorageTypeSnowflakeDescription.tsx';
+import { DuckDbFields } from './DuckDbFields';
 import { GoogleBigQueryFields } from './GoogleBigQueryFields';
 import { LegacyGoogleBigQueryFields } from './LegacyGoogleBigQueryFields';
 import { RedshiftFields } from './RedshiftFields';
@@ -83,6 +86,7 @@ interface DataStorageFormProps {
     createdAt?: Date;
     createdByUser?: UserProjection | null;
     contexts?: ContextSummary[];
+    databasePath?: string;
   };
   onSubmit: (
     data: DataStorageFormData,
@@ -111,6 +115,7 @@ export function DataStorageForm({
   });
 
   const currentUser = useUser();
+  const duckDbEnabled = useDuckDbStorageEnabled();
   const initialOwnerUsers =
     (initialData?.ownerUsers as UserProjectionDto[] | undefined) ??
     (currentUser
@@ -316,7 +321,7 @@ export function DataStorageForm({
                       </SelectTrigger>
                       <SelectContent>
                         <SelectGroup>
-                          {DataStorageTypeModel.getAllTypes().map(
+                          {DataStorageTypeModel.getOfferedTypes(duckDbEnabled, field.value).map(
                             ({ type, displayName, icon: Icon, status }) => (
                               <SelectItem
                                 key={type}
@@ -353,12 +358,16 @@ export function DataStorageForm({
                     {selectedType === DataStorageType.DATABRICKS && (
                       <StorageTypeDatabricksDescription />
                     )}
+                    {selectedType === DataStorageType.DUCKDB && <StorageTypeDuckDbDescription />}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
             />
           </FormSection>
+          {selectedType === DataStorageType.DUCKDB && (
+            <DuckDbFields databasePath={initialData?.databasePath} />
+          )}
           <CopyCredentialContext.Provider value={copyCredentialCtx}>
             {selectedType === DataStorageType.GOOGLE_BIGQUERY && (
               <GoogleBigQueryFields form={form as UseFormReturn<GoogleBigQueryFormData>} />

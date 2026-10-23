@@ -649,6 +649,7 @@ export default defineConfig({
         /^node:/,
         '@owox/connectors',
         'adm-zip',
+        '@duckdb/node-api',
         '@google-cloud/bigquery',
         '@aws-sdk/client-athena',
         '@aws-sdk/client-s3',

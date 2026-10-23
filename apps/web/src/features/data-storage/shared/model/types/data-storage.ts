@@ -5,6 +5,7 @@ import type {
   SnowflakeCredentials,
   RedshiftCredentials,
   DatabricksCredentials,
+  DuckDbCredentials,
 } from './credentials.ts';
 import { DataStorageType } from './data-storage-type.enum.ts';
 import type {
@@ -14,6 +15,7 @@ import type {
   SnowflakeDataStorageConfig,
   RedshiftDataStorageConfig,
   DatabricksDataStorageConfig,
+  DuckDbDataStorageConfig,
 } from './data-storage-config.ts';
 import type { ContextSummary } from '../../../../contexts/types/context.types';
 
@@ -80,13 +82,24 @@ export interface DatabricksDataStorage extends BaseDataStorage<
   config: DatabricksDataStorageConfig;
 }
 
+export interface DuckDbDataStorage extends BaseDataStorage<
+  DuckDbCredentials,
+  DuckDbDataStorageConfig
+> {
+  type: DataStorageType.DUCKDB;
+  config: DuckDbDataStorageConfig;
+  /** Read-only, server-managed .duckdb file path (present when editing a saved storage). */
+  databasePath?: string;
+}
+
 export type DataStorage =
   | GoogleBigQueryDataStorage
   | LegacyGoogleBigQueryDataStorage
   | AwsAthenaDataStorage
   | SnowflakeDataStorage
   | RedshiftDataStorage
-  | DatabricksDataStorage;
+  | DatabricksDataStorage
+  | DuckDbDataStorage;
 
 export function isGoogleBigQueryStorage(
   storage: DataStorage

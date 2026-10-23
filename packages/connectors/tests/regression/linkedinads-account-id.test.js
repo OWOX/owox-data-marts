@@ -44,7 +44,10 @@ function makeContext(sourceConfig) {
   const { Core } = OWOX;
   return new Core.AbstractContext({
     source: { name: 'LinkedInAds', config: sourceConfig },
-    storage: { name: 'GoogleBigQueryStorage', config: {} },
+    storage: {
+      name: 'DuckDB',
+      config: { DatabasePath: { value: '/tmp/linkedinads-account-id.duckdb' } },
+    },
     runConfig: null,
     env: { datamartId: 'dm', runId: 'run' },
   });

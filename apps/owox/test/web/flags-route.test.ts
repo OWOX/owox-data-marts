@@ -56,6 +56,63 @@ describe('registerPublicFlagsRoute', () => {
     expect(body?.PUBLIC_ORIGIN).to.equal('https://public.example.test');
   });
 
+  it('exposes DUCKDB_STORAGE_ENABLED', () => {
+    const original = process.env.DUCKDB_STORAGE_ENABLED;
+    process.env.DUCKDB_STORAGE_ENABLED = 'false';
+    try {
+      const app = {
+        get(path: string, handler: (req: Request, res: Response) => void) {
+          routes.push({ handler, path });
+        },
+      } as unknown as Express;
+      registerPublicFlagsRoute(app);
+      let body: Record<string, unknown> | undefined;
+      const res = {
+        json(payload: Record<string, unknown>) {
+          body = payload;
+        },
+        setHeader() {},
+      } as unknown as Response;
+
+      routes.find(route => route.path === '/api/flags')?.handler({} as Request, res);
+
+      expect(body?.DUCKDB_STORAGE_ENABLED).to.equal('false');
+    } finally {
+      if (original === undefined) delete process.env.DUCKDB_STORAGE_ENABLED;
+      else process.env.DUCKDB_STORAGE_ENABLED = original;
+    }
+  });
+
+  it('computes a flag at request time when the route is given its resolver', () => {
+    const original = process.env.DUCKDB_STORAGE_ENABLED;
+    delete process.env.DUCKDB_STORAGE_ENABLED;
+    let enabled = 'true';
+    try {
+      const app = {
+        get(path: string, handler: (req: Request, res: Response) => void) {
+          routes.push({ handler, path });
+        },
+      } as unknown as Express;
+      registerPublicFlagsRoute(app, { computed: { DUCKDB_STORAGE_ENABLED: () => enabled } });
+      const bodies: Array<Record<string, unknown>> = [];
+      const res = {
+        json(payload: Record<string, unknown>) {
+          bodies.push(payload);
+        },
+        setHeader() {},
+      } as unknown as Response;
+      const route = routes.find(route => route.path === '/api/flags');
+
+      route?.handler({} as Request, res);
+      enabled = 'false';
+      route?.handler({} as Request, res);
+
+      expect(bodies.map(body => body.DUCKDB_STORAGE_ENABLED)).to.deep.equal(['true', 'false']);
+    } finally {
+      if (original !== undefined) process.env.DUCKDB_STORAGE_ENABLED = original;
+    }
+  });
+
   it('exposes fallback PUBLIC_ORIGIN when the environment value is absent', async () => {
     delete process.env.PUBLIC_ORIGIN;
     const app = {

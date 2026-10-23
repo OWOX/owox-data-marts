@@ -32,6 +32,10 @@ import {
   isValidDatabricksFullyQualifiedName,
   isValidDatabricksTablePattern,
 } from './databricks-validation';
+import {
+  getDuckDbFullyQualifiedNameError,
+  isValidDuckDbFullyQualifiedName,
+} from './duckdb-validation';
 
 /**
  * Validates if a string matches the fully qualified name pattern for the given storage type
@@ -53,6 +57,8 @@ export const isValidFullyQualifiedName = (value: string, storageType: DataStorag
       return isValidRedshiftFullyQualifiedName(value);
     case DataStorageType.DATABRICKS:
       return isValidDatabricksFullyQualifiedName(value);
+    case DataStorageType.DUCKDB:
+      return isValidDuckDbFullyQualifiedName(value);
     default:
       return false;
   }
@@ -78,6 +84,9 @@ export const isValidTablePattern = (value: string, storageType: DataStorageType)
       return isValidRedshiftTablePattern(value);
     case DataStorageType.DATABRICKS:
       return isValidDatabricksTablePattern(value);
+    case DataStorageType.DUCKDB:
+      // DuckDB has no table-pattern support (no wildcard FQN variant on the backend).
+      return false;
     default:
       return false;
   }
@@ -103,6 +112,8 @@ export const getFullyQualifiedNameError = (value: string, storageType: DataStora
       return getRedshiftFullyQualifiedNameError(value);
     case DataStorageType.DATABRICKS:
       return getDatabricksFullyQualifiedNameError(value);
+    case DataStorageType.DUCKDB:
+      return getDuckDbFullyQualifiedNameError(value);
     default:
       return 'Unsupported storage type';
   }
@@ -128,6 +139,8 @@ export const getTablePatternError = (value: string, storageType: DataStorageType
       return getRedshiftTablePatternError(value);
     case DataStorageType.DATABRICKS:
       return getDatabricksTablePatternError(value);
+    case DataStorageType.DUCKDB:
+      return 'DuckDB does not support table patterns';
     default:
       return 'Unsupported storage type';
   }
@@ -150,6 +163,8 @@ export const getFullyQualifiedNamePlaceholder = (storageType: DataStorageType): 
       return 'schema.table or database.schema.table';
     case DataStorageType.DATABRICKS:
       return 'catalog.schema.table';
+    case DataStorageType.DUCKDB:
+      return 'schema.table';
     default:
       return '';
   }
@@ -194,6 +209,8 @@ export const getFullyQualifiedNameHelpText = (storageType: DataStorageType): str
       return 'Enter the fully qualified name of the table (e.g., schema.table or database.schema.table)';
     case DataStorageType.DATABRICKS:
       return 'Enter the fully qualified name of the table (e.g., catalog.schema.table)';
+    case DataStorageType.DUCKDB:
+      return 'Enter the fully qualified name of the table (e.g., schema.table)';
     default:
       return '';
   }

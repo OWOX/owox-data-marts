@@ -85,6 +85,11 @@ function castValue(value, type) {
 }
 
 export class FieldCaster {
+  /** cast()'s reading of a date or datetime value: a Date, or null when it is not one. */
+  static toDate(value) {
+    return toDate(value);
+  }
+
   /**
    * @param {Record<string, { dataPath?: string, apiName?: string, type: string }>} fields
    */
