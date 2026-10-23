@@ -4,8 +4,13 @@ import type { OpenGoogleSheetsPickerOptions } from '../../../../../../../../goog
 import type { OauthRenderComponentProps } from '../OauthRenderFactory';
 import { GoogleSheetsOauthRender } from './GoogleSheetsOauthRender';
 
-const { openPicker } = vi.hoisted(() => ({
+const { openPicker, toastSuccess } = vi.hoisted(() => ({
   openPicker: vi.fn<(options: OpenGoogleSheetsPickerOptions) => Promise<void>>(),
+  toastSuccess: vi.fn(),
+}));
+
+vi.mock('react-hot-toast', () => ({
+  toast: { success: toastSuccess },
 }));
 
 vi.mock('../../../../../../../../google-oauth', () => ({
@@ -68,6 +73,7 @@ function renderGoogleSheetsOAuth(overrides: Partial<OauthRenderComponentProps> =
 describe('GoogleSheetsOauthRender', () => {
   beforeEach(() => {
     openPicker.mockReset();
+    toastSuccess.mockReset();
   });
 
   it('stores the spreadsheet selected with Google Picker', async () => {
@@ -197,5 +203,53 @@ describe('GoogleSheetsOauthRender', () => {
       expect(props.onOAuthSuccess).toHaveBeenCalledWith({ code: 'code' });
     });
     expect(props.onValueChange).not.toHaveBeenCalledWith('SpreadsheetId', '');
+  });
+
+  it('confirms the account and keeps the chosen spreadsheet after reconnecting the same account', async () => {
+    renderGoogleSheetsOAuth({
+      configuration: {
+        SpreadsheetId: 'https://docs.google.com/spreadsheets/d/old-sheet/edit',
+      },
+    });
+
+    fireEvent.click(screen.getByTestId('google-login'));
+
+    await waitFor(() => {
+      expect(toastSuccess).toHaveBeenCalledWith('Google account analyst@example.com connected.');
+    });
+  });
+
+  it('asks for a spreadsheet when the account changed and the old one was cleared', async () => {
+    renderGoogleSheetsOAuth({
+      configuration: {
+        SpreadsheetId: 'https://docs.google.com/spreadsheets/d/old-sheet/edit',
+      },
+      onOAuthSuccess: vi.fn().mockResolvedValue({
+        success: true,
+        credentialId: 'credential-2',
+        user: { id: 'user-2', name: 'other@example.com', email: 'other@example.com' },
+        additional: {},
+      }),
+    });
+
+    fireEvent.click(screen.getByTestId('google-login'));
+
+    await waitFor(() => {
+      expect(toastSuccess).toHaveBeenCalledWith(
+        'Google account other@example.com connected. Now choose a spreadsheet.'
+      );
+    });
+  });
+
+  it('asks for a spreadsheet when none is chosen yet, even if the value is blank', async () => {
+    renderGoogleSheetsOAuth({ configuration: { SpreadsheetId: '   ' } });
+
+    fireEvent.click(screen.getByTestId('google-login'));
+
+    await waitFor(() => {
+      expect(toastSuccess).toHaveBeenCalledWith(
+        'Google account analyst@example.com connected. Now choose a spreadsheet.'
+      );
+    });
   });
 });

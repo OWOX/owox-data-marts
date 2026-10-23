@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { Button } from '@owox/ui/components/button';
 import { Box, ChevronRight, Copy, PackageSearch } from 'lucide-react';
 import { cn } from '@owox/ui/lib/utils';
@@ -35,6 +35,11 @@ export function CopyConfigurationButton({
   const [dataMarts, setDataMarts] = useState<DataMartResponseDto[]>([]);
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
+  // Radix returns focus to the trigger when the menu closes, and a focused trigger opens
+  // the tooltip. Keep that focus return (keyboard users rely on it) and swallow only the
+  // one tooltip open it causes; the same hint heads the list anyway.
+  const [tooltipOpen, setTooltipOpen] = useState(false);
+  const skipNextTooltipOpenRef = useRef(false);
   // The same for every connector: credentials are what people hesitate to enter or grant
   // again, and the settings come along with them.
   const reuseHint =
@@ -139,7 +144,17 @@ export function CopyConfigurationButton({
   return (
     <TooltipProvider>
       <DropdownMenu open={open} onOpenChange={setOpen}>
-        <Tooltip delayDuration={300}>
+        <Tooltip
+          delayDuration={300}
+          open={tooltipOpen && !open}
+          onOpenChange={next => {
+            if (next && skipNextTooltipOpenRef.current) {
+              skipNextTooltipOpenRef.current = false;
+              return;
+            }
+            setTooltipOpen(next);
+          }}
+        >
           <TooltipTrigger asChild>
             <DropdownMenuTrigger asChild>
               <Button type='button' variant='outline' size='sm' className='cursor-pointer'>
@@ -162,10 +177,13 @@ export function CopyConfigurationButton({
           side='bottom'
           align='end'
           className='w-72'
-          // Radix returns focus to the trigger when the menu closes, and a focused trigger
-          // opens the tooltip; the same hint heads the list, so keep focus where it is.
-          onCloseAutoFocus={event => {
-            event.preventDefault();
+          onCloseAutoFocus={() => {
+            // The focus return (and the tooltip open it triggers) happens right after this
+            // handler; the flag is cleared again in case no focus event follows.
+            skipNextTooltipOpenRef.current = true;
+            setTimeout(() => {
+              skipNextTooltipOpenRef.current = false;
+            }, 0);
           }}
         >
           {loading ? (

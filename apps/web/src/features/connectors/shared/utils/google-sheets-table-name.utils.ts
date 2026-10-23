@@ -17,6 +17,10 @@ const LETTER_REPLACEMENTS: Record<string, string> = {
   ŧ: 't',
   ƒ: 'f',
 };
+const LETTER_REPLACEMENT_PATTERN = new RegExp(
+  `[${Object.keys(LETTER_REPLACEMENTS).join('')}]`,
+  'g'
+);
 
 /**
  * Suggests a target table name for a Google Sheets source from the selected sheet (tab)
@@ -38,7 +42,7 @@ export function suggestGoogleSheetsTableName(sheetName: unknown): string {
     .normalize('NFKD')
     .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase()
-    .replace(/[ßłøæœđðþıŋħŧƒ]/g, letter => LETTER_REPLACEMENTS[letter] ?? letter)
+    .replace(LETTER_REPLACEMENT_PATTERN, letter => LETTER_REPLACEMENTS[letter] ?? letter)
     .replace(/[^a-z0-9]+/g, '_')
     .replace(/^_+|_+$/g, '');
 

@@ -378,9 +378,13 @@ export function ConnectorEditForm({
     setSelectedConnector(connector);
     setConnectorConfiguration({});
     setConfigurationIsValid(false);
-    if (!existingConnector) {
+    if (
+      !existingConnector &&
+      (!selectedConnector || connectorKey(selectedConnector) !== connectorKey(connector))
+    ) {
       // A target seeded for the previous connector (or its sheet) must not survive a
-      // connector change; the target step re-seeds from the new connector.
+      // connector change; the target step re-seeds from the new connector. Re-clicking
+      // the selected connector keeps whatever the user typed there.
       setTarget(null);
       googleSheetsSourceKeyRef.current = null;
     }

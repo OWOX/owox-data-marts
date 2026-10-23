@@ -50,20 +50,25 @@ export function ConnectorConfigurationItem({
   }, [fetchAvailableConnectors]);
 
   // The manifest title ("Google Sheets"), not the technical name ("GoogleSheets").
-  // Resolved through the helper that also knows custom connectors, which the bundled
-  // list from `useConnector` does not carry; the technical name shows until it lands.
+  // Bundled titles come from the list `useConnector` already loaded; only a source
+  // absent from it (a custom connector) needs the project-scoped lookup. The technical
+  // name shows until either lands, and stays if the lookup fails.
   const sourceName = connectorDef.connector.source.name;
-  const [connectorTitle, setConnectorTitle] = useState<string | null>(null);
+  const bundledTitle = connectors.find(c => c.name === sourceName)?.displayName;
+  const [customTitle, setCustomTitle] = useState<string | null>(null);
   useEffect(() => {
+    if (bundledTitle || connectors.length === 0) return;
     let cancelled = false;
-    setConnectorTitle(null);
-    void getConnectorInfoByName(sourceName).then(info => {
-      if (!cancelled && info) setConnectorTitle(info.displayName);
-    });
+    setCustomTitle(null);
+    getConnectorInfoByName(sourceName)
+      .then(info => {
+        if (!cancelled && info) setCustomTitle(info.displayName);
+      })
+      .catch(() => undefined);
     return () => {
       cancelled = true;
     };
-  }, [sourceName]);
+  }, [bundledTitle, connectors.length, sourceName]);
 
   const getConnectorIcon = (connectorName: string) => {
     const connector = connectors.find(c => c.name === connectorName);
@@ -347,7 +352,7 @@ export function ConnectorConfigurationItem({
           >
             <ListItemCard
               icon={getConnectorIcon(sourceName)}
-              title={connectorTitle ?? (sourceName || 'Connector')}
+              title={bundledTitle ?? customTitle ?? (sourceName || 'Connector')}
               subtitle={getConnectorSubtitle()}
               className='bg-background hover:bg-muted min-h-[80px] cursor-pointer border-0 transition-colors hover:shadow-none'
             />
