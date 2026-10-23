@@ -75,6 +75,7 @@ All other types of Data Marts query data directly from the **Storage**.
 - [AWS Athena](../storages/supported-storages/aws-athena.md)
 - Databricks
 - Snowflake
+- [DuckDB](../storages/supported-storages/duckdb.md)
 - etc
 
 Each project must have at least one **Storage**, which stores and processes all your data.

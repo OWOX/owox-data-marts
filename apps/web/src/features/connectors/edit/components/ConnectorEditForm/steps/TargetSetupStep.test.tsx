@@ -25,11 +25,13 @@ function TargetSetupStepHarness({
   stepKey = 1,
   conflict,
   replacesTable,
+  onTarget,
 }: {
   conflict?: ConnectorTargetConflictResponseDto | null;
   dataStorageType: DataStorageType;
   replacesTable?: boolean;
   stepKey?: number;
+  onTarget?: (target: Target) => void;
 }) {
   const [target, setTarget] = useState<Target>(null);
 
@@ -41,7 +43,10 @@ function TargetSetupStepHarness({
         destinationName='ad_insights'
         connectorName='TikTok Ads'
         target={target}
-        onTargetChange={setTarget}
+        onTargetChange={next => {
+          setTarget(next);
+          onTarget?.(next);
+        }}
         conflict={conflict}
         replacesTable={replacesTable}
       />
@@ -174,5 +179,59 @@ describe('TargetSetupStep', () => {
       </MemoryRouter>
     );
     expect(onTargetChange).toHaveBeenLastCalledWith(expect.objectContaining({ isValid: true }));
+  });
+
+  describe('DuckDB', () => {
+    const renderDuckDb = () => {
+      const onTarget = vi.fn();
+      render(
+        <TargetSetupStepHarness dataStorageType={DataStorageType.DUCKDB} onTarget={onTarget} />
+      );
+      return {
+        onTarget,
+        schemaInput: screen.getByLabelText(/schema name/i, { selector: 'input' }),
+        tableInput: screen.getByLabelText(/table name/i, { selector: 'input' }),
+      };
+    };
+
+    it('builds schema.table from the two fields', () => {
+      const { onTarget, schemaInput, tableInput } = renderDuckDb();
+      expect(onTarget).toHaveBeenLastCalledWith({
+        fullyQualifiedName: 'tiktok_ads_owox.ad_insights',
+        isValid: true,
+      });
+
+      fireEvent.change(schemaInput, { target: { value: 'main' } });
+      fireEvent.change(tableInput, { target: { value: 'holidays' } });
+
+      expect(onTarget).toHaveBeenLastCalledWith({
+        fullyQualifiedName: 'main.holidays',
+        isValid: true,
+      });
+    });
+
+    it('keeps the schema when the table name is cleared', () => {
+      const { onTarget, schemaInput, tableInput } = renderDuckDb();
+
+      fireEvent.change(tableInput, { target: { value: '' } });
+
+      expect(schemaInput).toHaveValue('tiktok_ads_owox');
+      expect(onTarget).toHaveBeenLastCalledWith({ fullyQualifiedName: '', isValid: false });
+    });
+
+    it('flags a schema name that is not a single identifier', () => {
+      const { onTarget, schemaInput } = renderDuckDb();
+
+      fireEvent.change(schemaInput, { target: { value: 'db.main' } });
+
+      expect(schemaInput).toHaveAttribute('aria-invalid', 'true');
+      expect(
+        screen.getByText('Use letters, numbers, and underscores; start with a letter')
+      ).toBeInTheDocument();
+      expect(onTarget).toHaveBeenLastCalledWith({
+        fullyQualifiedName: 'db.main.ad_insights',
+        isValid: false,
+      });
+    });
   });
 });

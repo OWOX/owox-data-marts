@@ -62,6 +62,7 @@ function humaniseStorageType(type: string): string {
     SNOWFLAKE: 'Snowflake',
     DATABRICKS: 'Databricks',
     REDSHIFT: 'Redshift',
+    DUCKDB: 'DuckDB',
   };
   return map[type] ?? type;
 }

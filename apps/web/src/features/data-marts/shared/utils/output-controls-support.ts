@@ -8,6 +8,7 @@ const SUPPORTED: ReadonlySet<DataStorageType> = new Set([
   DataStorageType.AWS_REDSHIFT,
   DataStorageType.DATABRICKS,
   DataStorageType.SNOWFLAKE,
+  DataStorageType.DUCKDB,
 ]);
 
 export function supportsOutputControls(type: DataStorageType): boolean {

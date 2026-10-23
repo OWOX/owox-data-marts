@@ -1,6 +1,7 @@
 import { DataStorageType } from '../types';
 import { AwsAthenaMapper } from './aws-athena.mapper.ts';
 import { DatabricksMapper } from './databricks.mapper.ts';
+import { DuckDbMapper } from './duckdb.mapper.ts';
 import { GoogleBigQueryMapper } from './google-bigquery.mapper.ts';
 import { LegacyGoogleBigQueryMapper } from './legacy-google-bigquery.mapper.ts';
 import { RedshiftMapper } from './redshift.mapper.ts';
@@ -22,6 +23,8 @@ export const StorageMapperFactory = {
         return new DatabricksMapper();
       case DataStorageType.LEGACY_GOOGLE_BIGQUERY:
         return new LegacyGoogleBigQueryMapper();
+      case DataStorageType.DUCKDB:
+        return new DuckDbMapper();
       default:
         throw new Error(`Unknown storage type: ${type}`);
     }

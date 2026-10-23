@@ -59,6 +59,7 @@ import {
 } from '../../../shared';
 import type { UseFormReturn } from 'react-hook-form';
 import type { DataStorage } from '../../../shared/model/types/data-storage.ts';
+import { useDuckDbStorageEnabled } from '../../../shared/hooks/useDuckDbStorageEnabled.ts';
 import { DataStorageTypeModel } from '../../../shared/types/data-storage-type.model.ts';
 import { AwsAthenaFields } from './AwsAthenaFields';
 import { DatabricksFields } from './DatabricksFields';
@@ -66,9 +67,11 @@ import LegacyGoogleBigQueryTitleDescription from './FormDescriptions/LegacyGoogl
 import StorageTypeAthenaDescription from './FormDescriptions/StorageTypeAthenaDescription.tsx';
 import StorageTypeBigQueryDescription from './FormDescriptions/StorageTypeBigQueryDescription.tsx';
 import StorageTypeDatabricksDescription from './FormDescriptions/StorageTypeDatabricksDescription.tsx';
+import StorageTypeDuckDbDescription from './FormDescriptions/StorageTypeDuckDbDescription.tsx';
 import StorageTypeLegacyBigQueryDescription from './FormDescriptions/StorageTypeLegacyBigQueryDescription.tsx';
 import StorageTypeRedshiftDescription from './FormDescriptions/StorageTypeRedshiftDescription.tsx';
 import StorageTypeSnowflakeDescription from './FormDescriptions/StorageTypeSnowflakeDescription.tsx';
+import { DuckDbFields } from './DuckDbFields';
 import { GoogleBigQueryFields } from './GoogleBigQueryFields';
 import { LegacyGoogleBigQueryFields } from './LegacyGoogleBigQueryFields';
 import { RedshiftFields } from './RedshiftFields';
@@ -104,6 +107,7 @@ export function DataStorageForm({
   );
 
   const currentUser = useUser();
+  const duckDbEnabled = useDuckDbStorageEnabled();
   const initialOwnerUsers =
     (initialData?.ownerUsers as UserProjectionDto[] | undefined) ??
     (currentUser
@@ -283,7 +287,7 @@ export function DataStorageForm({
                       </SelectTrigger>
                       <SelectContent>
                         <SelectGroup>
-                          {DataStorageTypeModel.getAllTypes().map(
+                          {DataStorageTypeModel.getOfferedTypes(duckDbEnabled, field.value).map(
                             ({ type, displayName, icon: Icon, status }) => (
                               <SelectItem
                                 key={type}
@@ -320,6 +324,7 @@ export function DataStorageForm({
                     {selectedType === DataStorageType.DATABRICKS && (
                       <StorageTypeDatabricksDescription />
                     )}
+                    {selectedType === DataStorageType.DUCKDB && <StorageTypeDuckDbDescription />}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
@@ -338,35 +343,45 @@ export function DataStorageForm({
           {selectedType === DataStorageType.SNOWFLAKE && <SnowflakeFields form={form} />}
           {selectedType === DataStorageType.AWS_REDSHIFT && <RedshiftFields form={form} />}
           {selectedType === DataStorageType.DATABRICKS && <DatabricksFields form={form} />}
-          <FormSection title='Authentication' fields={['reusableCredentialId']}>
-            <FormField
-              control={control}
-              name='reusableCredentialId'
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel tooltip='Choose the Credential this Storage connects with'>
-                    Credential
-                  </FormLabel>
-                  <FormControl>
-                    <ConsumerCredentialField
-                      consumer='storage'
-                      consumerType={selectedType}
-                      isNew={!hasBinding}
-                      value={field.value || null}
-                      summary={initialCredential}
-                      onChange={handleCredentialChange}
-                    />
-                  </FormControl>
-                  {initialCredential?.access === 'pending' && !field.value && (
-                    <FormDescription>
-                      Uses its own key until you select a Credential
-                    </FormDescription>
-                  )}
-                  <FormMessage />
-                </FormItem>
-              )}
+          {selectedType === DataStorageType.DUCKDB && (
+            <DuckDbFields
+              databasePath={
+                initialData?.type === DataStorageType.DUCKDB ? initialData.databasePath : undefined
+              }
             />
-          </FormSection>
+          )}
+          {/* A DuckDB Storage is a local file and takes no Credential. */}
+          {selectedType !== DataStorageType.DUCKDB && (
+            <FormSection title='Authentication' fields={['reusableCredentialId']}>
+              <FormField
+                control={control}
+                name='reusableCredentialId'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel tooltip='Choose the Credential this Storage connects with'>
+                      Credential
+                    </FormLabel>
+                    <FormControl>
+                      <ConsumerCredentialField
+                        consumer='storage'
+                        consumerType={selectedType}
+                        isNew={!hasBinding}
+                        value={field.value || null}
+                        summary={initialCredential}
+                        onChange={handleCredentialChange}
+                      />
+                    </FormControl>
+                    {initialCredential?.access === 'pending' && !field.value && (
+                      <FormDescription>
+                        Uses its own key until you select a Credential
+                      </FormDescription>
+                    )}
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </FormSection>
+          )}
 
           <FormSection title='Ownership' defaultOpen={false} name='storage-ownership'>
             <FormItem>

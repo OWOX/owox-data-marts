@@ -67,13 +67,15 @@ export interface PrepareReportDataOptions {
 
   /**
    * Server-side per-query timeout (ms). BigQuery/Snowflake abort the job/statement at the
-   * warehouse when exceeded, capping cost. Other storages currently ignore it.
+   * warehouse when exceeded, capping cost; DuckDB interrupts the query. Other storages
+   * currently ignore it.
    */
   queryTimeoutMs?: number;
 
   /**
    * When it fires (client disconnect/cancel), BigQuery/Snowflake cancel the in-flight warehouse
-   * job/statement so an abandoned query stops billing compute immediately. Other storages ignore it.
+   * job/statement so an abandoned query stops billing compute immediately, and DuckDB interrupts
+   * the query. Other storages ignore it.
    */
   signal?: AbortSignal;
 

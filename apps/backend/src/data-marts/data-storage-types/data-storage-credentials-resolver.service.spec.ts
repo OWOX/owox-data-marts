@@ -62,7 +62,8 @@ describe('DataStorageCredentialsResolver', () => {
     resolver = new DataStorageCredentialsResolver(
       storageRepo as unknown as Repository<DataStorage>,
       facade as unknown as StorageCredentialBindingService,
-      legacy
+      legacy,
+      {} as never
     );
   });
 

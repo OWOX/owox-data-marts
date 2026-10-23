@@ -11,6 +11,7 @@ import type {
   BigQuerySchemaField,
   DatabricksSchemaField,
   DataMartSchema,
+  DuckDbSchemaField,
   RedshiftSchemaField,
   SnowflakeSchemaField,
 } from '../../../shared/types/data-mart-schema.types';
@@ -343,6 +344,7 @@ export function DataMartSchemaSettings({
         | SnowflakeSchemaField[]
         | RedshiftSchemaField[]
         | DatabricksSchemaField[]
+        | DuckDbSchemaField[]
     ) => {
       if (saveInFlightRef.current) {
         editedDuringSaveRef.current = true;

@@ -13,10 +13,13 @@ import { DataMartRun } from '../../entities/data-mart-run.entity';
 import { DataMart } from '../../entities/data-mart.entity';
 import { DataMartRunStatus } from '../../enums/data-mart-run-status.enum';
 import { DataMartRunType } from '../../enums/data-mart-run-type.enum';
+import { DataStorageType } from '../../data-storage-types/enums/data-storage-type.enum';
 import { ConnectorExecutionService } from './connector-execution.service';
 import { DataMartRunService } from '../data-mart-run.service';
 import { DataMartService } from '../data-mart.service';
 import { BaseRunTriggerHandlerService } from '../base-run-trigger-handler.service';
+import { STANDARD_REPORT_RUN_TYPES } from '../../utils/data-mart-run-cancellation';
+import { countRunningStorageRuns } from '../../utils/count-running-storage-runs';
 
 @Injectable()
 export class ConnectorRunTriggerHandlerService extends BaseRunTriggerHandlerService<ConnectorRunTrigger> {
@@ -55,7 +58,7 @@ export class ConnectorRunTriggerHandlerService extends BaseRunTriggerHandlerServ
         trigger.projectId
       );
 
-      run = await this.claimRunSlotAtomically(trigger, dataMart.projectId);
+      run = await this.claimRunSlotAtomically(trigger, dataMart);
 
       this.logger.log(`Executing connector run ${run.id} for data mart ${trigger.dataMartId}`);
 
@@ -73,9 +76,7 @@ export class ConnectorRunTriggerHandlerService extends BaseRunTriggerHandlerServ
       }
     } catch (error) {
       if (error instanceof ConcurrencyLimitExceededException) {
-        this.logger.log(
-          `Concurrency limit reached for project ${trigger.projectId}, trigger ${trigger.id} will retry`
-        );
+        this.logger.log(`${error.message}, trigger ${trigger.id} will retry`);
         trigger.status = TriggerStatus.IDLE;
         trigger.isActive = true;
         await this.repository.save(trigger);
@@ -107,10 +108,12 @@ export class ConnectorRunTriggerHandlerService extends BaseRunTriggerHandlerServ
   }
 
   /**
-   * Claims a run slot using optimistic approach: claim first, then verify the limit.
+   * Claims a run slot using optimistic approach: claim first, then verify the limits.
    * 1. Atomically set run status to RUNNING (UPDATE WHERE status=PENDING)
-   * 2. Count all RUNNING runs for the project
-   * 3. If over limit — throw (transaction rolls back, run returns to PENDING)
+   * 2. Count all RUNNING connector runs for the project
+   * 3. On a DuckDB storage, count the other RUNNING connector, report and data quality runs
+   *    on the same storage: a load needs the file to itself
+   * 4. If over a limit — throw (transaction rolls back, run returns to PENDING)
    *
    * TODO: This approach has a potential race condition under MySQL REPEATABLE READ isolation.
    * Two workers may simultaneously claim slots and both pass the limit check because
@@ -119,8 +122,9 @@ export class ConnectorRunTriggerHandlerService extends BaseRunTriggerHandlerServ
    */
   private async claimRunSlotAtomically(
     trigger: ConnectorRunTrigger,
-    projectId: string
+    dataMart: DataMart
   ): Promise<DataMartRun> {
+    const projectId = dataMart.projectId;
     const maxRuns = this.configService.get<number>('MAX_CONNECTOR_RUNS_PER_PROJECT', 3);
 
     return this.dataSource.transaction(async manager => {
@@ -147,6 +151,21 @@ export class ConnectorRunTriggerHandlerService extends BaseRunTriggerHandlerServ
       if (activeCount >= maxRuns) {
         throw new ConcurrencyLimitExceededException(
           `Project ${projectId} has reached the limit of ${maxRuns} concurrent connector runs`
+        );
+      }
+
+      if (
+        dataMart.storage.type === DataStorageType.DUCKDB &&
+        (await countRunningStorageRuns(
+          manager,
+          dataMart.storage.id,
+          // Looker Studio reads are never claimed: like HTTP Data and MCP they wait in the adapter.
+          [DataMartRunType.CONNECTOR, ...STANDARD_REPORT_RUN_TYPES, DataMartRunType.DATA_QUALITY],
+          trigger.dataMartRunId
+        )) > 0
+      ) {
+        throw new ConcurrencyLimitExceededException(
+          `DuckDB storage ${dataMart.storage.id} has a load or a run reading it in progress`
         );
       }
 
