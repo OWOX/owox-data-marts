@@ -2,7 +2,7 @@
 
 ## 0.40.0
 
-### Patch Changes
+### Patch Changes 0.40.0
 
 - @owox/internal-helpers@0.40.0
 

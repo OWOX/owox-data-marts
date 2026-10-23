@@ -2,7 +2,7 @@
 
 ## 0.40.0
 
-### Minor Changes
+### Minor Changes 0.40.0
 
 - 9dc6e5f: **Warnings when a Count reads a joined Data Mart**
 
@@ -146,7 +146,7 @@
 
   <!-- markdownlint-disable-file MD041 MD036 -->
 
-### Patch Changes
+### Patch Changes 0.40.0
 
 - @owox/internal-helpers@0.40.0
 - @owox/idp-protocol@0.40.0
