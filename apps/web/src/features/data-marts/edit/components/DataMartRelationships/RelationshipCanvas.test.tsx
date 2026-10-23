@@ -277,6 +277,32 @@ describe('RelationshipCanvas viewport', () => {
     expect(reactFlowHarness.fitView).not.toHaveBeenCalled();
   });
 
+  it('follows the search matches on a relayout without snapping to the initial view', async () => {
+    const relationships = Array.from({ length: 12 }, (_, index) =>
+      buildRelationship(`rel-${String(index)}`, `target-${String(index)}`)
+    );
+    const props = { ...buildCanvasProps(relationships), searchQuery: 'target-3' };
+    const { rerender } = render(<RelationshipCanvas {...props} />);
+
+    await waitFor(() => {
+      expect(reactFlowHarness.fitView).toHaveBeenCalledWith(
+        expect.objectContaining({ nodes: [{ id: 'path:target-3' }] })
+      );
+    });
+    expect(reactFlowHarness.setViewport).toHaveBeenCalledTimes(1);
+    const matchZooms = reactFlowHarness.fitView.mock.calls.length;
+
+    // The search box and the settings popover sit outside the canvas, so the
+    // user has not taken over the viewport. The relayout must go straight to
+    // the matches — not snap to the root view first and animate back.
+    rerender(<RelationshipCanvas {...props} direction='vertical' />);
+
+    await waitFor(() => {
+      expect(reactFlowHarness.fitView.mock.calls.length).toBeGreaterThan(matchZooms);
+    });
+    expect(reactFlowHarness.setViewport).toHaveBeenCalledTimes(1);
+  });
+
   it('passes the low zoom floor to a full fit while the interactive floor is raised', async () => {
     render(<RelationshipCanvas {...buildCanvasProps([buildRelationship('rel-1', 'target-1')])} />);
 
@@ -309,10 +335,63 @@ describe('RelationshipCanvas viewport', () => {
       expect(reactFlowHarness.latestProps?.nodes).toHaveLength(2);
     });
 
+    // A mid-range zoom, so both steps stay inside the range (a zoom-out step
+    // that reaches the floor fits the whole graph instead — tested below).
+    reactFlowHarness.getZoom.mockReturnValue(2);
     fireEvent.click(screen.getByRole('button', { name: 'Zoom in' }));
     expect(reactFlowHarness.zoomTo).toHaveBeenCalledTimes(1);
     fireEvent.click(screen.getByRole('button', { name: 'Zoom out' }));
     expect(reactFlowHarness.zoomTo).toHaveBeenCalledTimes(2);
+  });
+
+  it('fits the whole graph when zooming out reaches the full-fit floor', async () => {
+    // zoomTo pivots on the pane centre: zooming out from a view opened on the
+    // root card would reach the floor with part of the graph off screen.
+    const relationships = Array.from({ length: 12 }, (_, index) =>
+      buildRelationship(`rel-${String(index)}`, `target-${String(index)}`)
+    );
+    render(<RelationshipCanvas {...buildCanvasProps(relationships)} />);
+
+    await waitFor(() => {
+      expect(reactFlowHarness.setViewport).toHaveBeenCalledTimes(1);
+    });
+    const floor = reactFlowHarness.latestProps?.minZoom ?? Number.NaN;
+    expect(floor).toBeLessThan(GRAPH_READABLE_ZOOM);
+
+    reactFlowHarness.getZoom.mockReturnValue(floor * 2);
+    fireEvent.click(screen.getByRole('button', { name: 'Zoom out' }));
+    expect(reactFlowHarness.zoomTo).toHaveBeenCalledTimes(1);
+    expect(reactFlowHarness.fitView).not.toHaveBeenCalled();
+
+    reactFlowHarness.getZoom.mockReturnValue(floor * 1.2);
+    fireEvent.click(screen.getByRole('button', { name: 'Zoom out' }));
+    expect(reactFlowHarness.zoomTo).toHaveBeenCalledTimes(1);
+    expect(reactFlowHarness.fitView).toHaveBeenCalledWith(
+      expect.objectContaining({
+        minZoom: 0.05,
+        maxZoom: 3,
+        padding: FIT_VIEW_PADDING,
+        duration: 150,
+      })
+    );
+  });
+
+  it('keeps stepping down to the 1x floor of a graph that fits at the maximum zoom', async () => {
+    // A tiny graph on a huge pane fits at the 3x cap, so its floor is the 1x
+    // fallback, not the full fit — fitting there would zoom back in to 3x.
+    reactFlowHarness.store.width = 20000;
+    reactFlowHarness.store.height = 20000;
+    render(<RelationshipCanvas {...buildCanvasProps([buildRelationship('rel-1', 'target-1')])} />);
+
+    await waitFor(() => {
+      expect(reactFlowHarness.setViewport).toHaveBeenCalledTimes(1);
+    });
+    expect(reactFlowHarness.latestProps?.minZoom).toBe(1);
+
+    reactFlowHarness.getZoom.mockReturnValue(1.2);
+    fireEvent.click(screen.getByRole('button', { name: 'Zoom out' }));
+    expect(reactFlowHarness.zoomTo).toHaveBeenCalledWith(1, { duration: 150 });
+    expect(reactFlowHarness.fitView).not.toHaveBeenCalled();
   });
 
   it('recovers with a full fit when the viewport zoom is corrupted', async () => {
@@ -720,9 +799,8 @@ describe('RelationshipCanvas view settings', () => {
     });
 
     const rootId = reactFlowHarness.latestProps?.nodes?.find(node => node.data.isSource)?.id ?? '';
-    // Clicking a card starts with a pointer press on the canvas, which hands
-    // the viewport over to the user.
-    fireEvent.pointerDown(screen.getByTestId('react-flow'));
+    // Selecting a card hands the viewport over to the user. No pointer press
+    // here, as with keyboard activation: the selection alone must count.
     act(() => {
       reactFlowHarness.latestProps?.onNodeClick?.(null, { id: rootId });
     });

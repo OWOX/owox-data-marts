@@ -42,14 +42,15 @@ interface AxisPlacement {
 
 /**
  * The viewport offset along one axis. A graph that fits the pane along it is
- * centered. A larger one goes where `focusOffset` puts it, clamped so neither
- * graph edge comes further into the pane than the focus margin — the view
- * never spends pane space beyond the graph while cards are cut off on the
- * other side.
+ * centered — even with less than the focus margin left on each side, since
+ * anchoring it to an edge could cut the far side off. A larger one goes where
+ * `focusOffset` puts it, clamped so neither graph edge comes further into the
+ * pane than the focus margin — the view never spends pane space beyond the
+ * graph while cards are cut off on the other side.
  */
 function placeAlongAxis({ paneSize, min, max, zoom, focusOffset }: AxisPlacement): number {
   const extent = (max - min) * zoom;
-  if (extent <= paneSize - 2 * GRAPH_ROOT_FOCUS_MARGIN) {
+  if (extent <= paneSize) {
     return (paneSize - extent) / 2 - min * zoom;
   }
   const farEdgeAtPaneEnd = paneSize - GRAPH_ROOT_FOCUS_MARGIN - max * zoom;

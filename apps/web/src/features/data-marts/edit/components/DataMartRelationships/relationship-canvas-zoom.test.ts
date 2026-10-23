@@ -264,5 +264,24 @@ describe('relationship canvas zoom', () => {
       );
       expect(viewport.y + root.y * viewport.zoom).toBeCloseTo(GRAPH_ROOT_FOCUS_MARGIN);
     });
+
+    it('centers a graph that fits the pane even without room for the focus margins', () => {
+      // 960 px along the layout direction at the readable zoom, in a 1000 px
+      // pane: pinning the root 40 px from the edge would cut the far side off.
+      const bounds = { minX: 0, minY: 0, maxX: 1600, maxY: 4000 };
+      const root = { x: 0, y: 1976, width: 240, height: 48 };
+      const viewport = getInitialGraphViewport({
+        fitted: { x: 0, y: 0, zoom: 0.1 },
+        bounds,
+        root,
+        direction: 'horizontal',
+        ...pane,
+      });
+
+      const leftGap = viewport.x + bounds.minX * viewport.zoom;
+      const rightGap = pane.paneWidth - (viewport.x + bounds.maxX * viewport.zoom);
+      expect(leftGap).toBeCloseTo(rightGap);
+      expect(rightGap).toBeGreaterThanOrEqual(0);
+    });
   });
 });

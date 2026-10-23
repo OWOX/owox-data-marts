@@ -486,10 +486,13 @@ interface RelationshipFlowGraph {
 
 /**
  * Structural fingerprint of the graph: membership and data flags only —
- * deliberately NOT positions or sizes. View-settings toggles (view mode,
- * layout direction, join labels) relayout every node, and keying the reset
- * and auto-fit effects on geometry would wipe the user's pan/zoom and
- * selection on every cosmetic toggle.
+ * deliberately NOT positions or sizes. A new identity means a new graph: it
+ * hands the viewport back to the automatic fit and drops a selection whose
+ * target is gone. View-settings toggles (view mode, layout direction, join
+ * labels) relayout every node without making a new graph, so they keep the
+ * selection and, once the user has moved the canvas, the user's pan/zoom;
+ * before that, the auto-fit follows the relayout through the initial
+ * viewport key in RelationshipCanvasInner.
  */
 function getRelationshipFlowGraphIdentity(graph: RelationshipFlowGraph): string {
   return JSON.stringify([
@@ -952,12 +955,17 @@ function RelationshipCanvasInner({
     [graphResult.edges, highlightState, selectedEdgeId, selectedNodeId]
   );
 
+  // Selecting a card or an arrow hands the viewport over to the user, like
+  // the zoom buttons do. Pointer presses already mark it through the capture
+  // wrapper; keyboard activation fires no pointer event, so mark it here too.
   const handleEdgeClick = useCallback((_event: React.MouseEvent, edge: { id: string }) => {
+    userInteractedRef.current = true;
     setSelectedEdgeId(current => (current === edge.id ? null : edge.id));
     setSelectedNodeId(null);
   }, []);
 
   const handleNodeClick = useCallback((_event: React.MouseEvent, node: { id: string }) => {
+    userInteractedRef.current = true;
     setSelectedNodeId(current => (current === node.id ? null : node.id));
     setSelectedEdgeId(null);
   }, []);
@@ -970,25 +978,33 @@ function RelationshipCanvasInner({
   const highlightStateRef = useRef(highlightState);
   highlightStateRef.current = highlightState;
 
+  const getMatchingIds = useCallback(
+    () =>
+      [...highlightStateRef.current.entries()].filter(([, s]) => s.highlighted).map(([id]) => id),
+    []
+  );
+
   const zoomToMatches = useCallback(() => {
-    const matchingIds = [...highlightStateRef.current.entries()]
-      .filter(([, s]) => s.highlighted)
-      .map(([id]) => id);
+    const matchingIds = getMatchingIds();
     if (matchingIds.length === 0) return;
     void reactFlow.fitView({
       nodes: matchingIds.map(id => ({ id })),
       duration: 300,
       padding: FIT_VIEW_PADDING,
     });
-  }, [reactFlow]);
+  }, [getMatchingIds, reactFlow]);
 
-  const fitFull = useCallback(() => {
-    return reactFlow.fitView({
-      minZoom: GRAPH_ZOOM_MIN,
-      maxZoom: GRAPH_ZOOM_MAX,
-      padding: FIT_VIEW_PADDING,
-    });
-  }, [reactFlow]);
+  const fitFull = useCallback(
+    (duration?: number) => {
+      return reactFlow.fitView({
+        minZoom: GRAPH_ZOOM_MIN,
+        maxZoom: GRAPH_ZOOM_MAX,
+        padding: FIT_VIEW_PADDING,
+        duration,
+      });
+    },
+    [reactFlow]
+  );
 
   const rootRect = useMemo(() => {
     const root = graphResult.nodes.find(node => node.id === dataMartId);
@@ -996,8 +1012,10 @@ function RelationshipCanvasInner({
     return {
       x: root.position.x,
       y: root.position.y,
-      width: root.width ?? NODE_W,
-      height: root.height ?? SRC_H,
+      // Same fallback as getCanvasGraphBounds, so the root rect and the bounds
+      // agree by construction (every node gets an explicit size anyway).
+      width: root.width ?? 0,
+      height: root.height ?? 0,
     };
   }, [graphResult.nodes, dataMartId]);
 
@@ -1049,6 +1067,13 @@ function RelationshipCanvasInner({
   useEffect(() => {
     if (paneWidth === 0 || paneHeight === 0) return;
     if (userInteractedRef.current) return;
+    if (hasFitRef.current && getMatchingIds().length > 0) {
+      // Search matches decide the view once the canvas has its first fit:
+      // snapping to the initial view only to animate to the matches right
+      // after would flash on every relayout.
+      zoomToMatches();
+      return;
+    }
     void fitInitial().then(() => {
       hasFitRef.current = true;
       zoomToMatches();
@@ -1056,7 +1081,15 @@ function RelationshipCanvasInner({
     // graphIdentity and initialViewportKey (not graphResult): an
     // identical-content rebuild — e.g. a schema refetch producing byte-equal
     // fields — must not re-run the fit.
-  }, [paneWidth, paneHeight, graphIdentity, initialViewportKey, fitInitial, zoomToMatches]);
+  }, [
+    paneWidth,
+    paneHeight,
+    graphIdentity,
+    initialViewportKey,
+    fitInitial,
+    getMatchingIds,
+    zoomToMatches,
+  ]);
 
   useEffect(() => {
     if (!hasFitRef.current) return;
@@ -1075,10 +1108,19 @@ function RelationshipCanvasInner({
         return;
       }
       const next = getNextGraphZoom(currentZoom, delta, zoomRange);
+      // The zoom floor is the full-fit zoom (unless a small graph falls back
+      // to the 1x floor). zoomTo pivots on the pane centre, so zooming out
+      // from a view opened on the root card would reach the floor with part
+      // of the graph still off screen — at the floor, show the whole graph.
+      const floorIsFullFit = fittedViewport !== null && fittedViewport.zoom < GRAPH_ZOOM_MAX;
+      if (delta < 0 && floorIsFullFit && (!next || next.zoom <= zoomRange.min)) {
+        void fitFull(150);
+        return;
+      }
       if (!next) return;
       void reactFlow.zoomTo(next.zoom, { duration: 150 });
     },
-    [fitFull, markUserInteracted, reactFlow, zoomRange]
+    [fitFull, fittedViewport, markUserInteracted, reactFlow, zoomRange]
   );
 
   const handleMove = useCallback(

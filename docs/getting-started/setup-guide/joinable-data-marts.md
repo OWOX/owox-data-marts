@@ -207,7 +207,7 @@ You can chain relationships across more than two Data Marts.
 
 The Joinable Data Marts block has a **Graph** view that visualizes every relationship reachable from the source Data Mart, including transitive paths.
 
-A small graph opens whole. A graph too large to read that way opens on the source Data Mart and the relationships next to it; the **Fit to view** button (the target icon in the top-right corner) shows the whole graph, and zooming out reaches it too.
+A small graph opens whole. A graph too large to read that way opens on the source Data Mart and the relationships next to it; the **Fit to view** button (the target icon in the top-right corner) shows the whole graph.
 
 ![Graph view of the Joinable Data Marts block showing transitive paths and Loop stubs](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/e570279e-6b2d-4fe2-1b05-5d7dbdfce300/public)
 
