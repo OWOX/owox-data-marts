@@ -231,6 +231,37 @@ describe('DataMartSchedulesPage', () => {
     expect(screen.getByText('Trigger form 0 9 * * *')).toBeInTheDocument();
   });
 
+  it('links the run target to the Google Sheets document without opening the edit sheet', async () => {
+    vi.mocked(scheduledTriggerService.getProjectScheduledTriggers).mockResolvedValueOnce({
+      triggers: [buildProjectSheetsReportTrigger()],
+    });
+
+    renderPage();
+
+    const openDocumentLink = await screen.findByRole('link', { name: /Daily Sales Report/ });
+    expect(openDocumentLink).toHaveAttribute(
+      'href',
+      'https://docs.google.com/spreadsheets/d/spreadsheet-1/edit#gid=123'
+    );
+    expect(openDocumentLink).toHaveAttribute('target', '_blank');
+    expect(openDocumentLink).toHaveTextContent('(opens in a new tab)');
+
+    fireEvent.click(openDocumentLink);
+
+    expect(screen.queryByTestId('projectTriggerEditSheet')).not.toBeInTheDocument();
+  });
+
+  it('does not link the report title for reports without a Google Sheets document', async () => {
+    vi.mocked(scheduledTriggerService.getProjectScheduledTriggers).mockResolvedValueOnce({
+      triggers: [buildProjectReportTrigger()],
+    });
+
+    renderPage();
+
+    expect(await screen.findByText('Daily Sales Report')).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /Daily Sales Report/ })).not.toBeInTheDocument();
+  });
+
   it('renders trigger row actions like the Data Mart triggers tab', async () => {
     vi.mocked(scheduledTriggerService.getProjectScheduledTriggers).mockResolvedValueOnce({
       triggers: [buildProjectReportTrigger()],
@@ -493,6 +524,36 @@ function buildReportResponse(overrides: { id?: string; title?: string } = {}): R
     canRun: true,
     canManageTriggers: true,
     canEditConfig: true,
+  };
+}
+
+function buildProjectSheetsReportTrigger(): ProjectScheduledTriggerResponseApiDto {
+  return {
+    ...buildProjectReportTrigger(),
+    triggerConfig: {
+      type: TRIGGER_CONFIG_TYPES.SCHEDULED_REPORT_RUN,
+      reportId: 'report-1',
+      report: {
+        ...buildReportResponse(),
+        dataDestinationAccess: {
+          id: 'dest-sheets-1',
+          title: 'Google Sheets',
+          type: DataDestinationType.GOOGLE_SHEETS,
+          projectId: 'project-1',
+          credentials: {
+            type: DataDestinationCredentialsType.GOOGLE_SHEETS_CREDENTIALS,
+            serviceAccountKey: {},
+          },
+          createdAt: new Date('2026-06-01T00:00:00.000Z'),
+          modifiedAt: new Date('2026-06-01T00:00:00.000Z'),
+        },
+        destinationConfig: {
+          type: DestinationTypeConfigEnum.GOOGLE_SHEETS_CONFIG,
+          spreadsheetId: 'spreadsheet-1',
+          sheetId: 123,
+        },
+      },
+    } as unknown as ProjectScheduledTriggerResponseApiDto['triggerConfig'],
   };
 }
 
