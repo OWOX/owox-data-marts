@@ -35,8 +35,8 @@ export class DataMartResponseApiDto {
   @ApiProperty()
   definition?: DataMartDefinition;
 
-  @ApiProperty()
-  description?: string;
+  @ApiProperty({ type: String, nullable: true })
+  description?: string | null;
 
   @ApiProperty({
     type: String,

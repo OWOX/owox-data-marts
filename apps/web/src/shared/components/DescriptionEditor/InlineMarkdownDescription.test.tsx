@@ -28,6 +28,29 @@ vi.mock('../MarkdownEditor', () => ({
 }));
 
 describe('InlineMarkdownDescription', () => {
+  it('shows the empty state after an external clear and can edit the description again', async () => {
+    const onUpdate = vi.fn().mockResolvedValue(undefined);
+    const view = render(
+      <InlineMarkdownDescription
+        projectId='project'
+        description='Existing notes'
+        onUpdate={onUpdate}
+      />
+    );
+    view.rerender(
+      <InlineMarkdownDescription projectId='project' description={null} onUpdate={onUpdate} />
+    );
+    expect(screen.getByText('Add description…')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Edit description' }));
+    expect(screen.getByRole('textbox')).toHaveValue('');
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'New notes' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => {
+      expect(onUpdate).toHaveBeenCalledWith('New notes');
+    });
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
   it('saves Markdown unchanged and keeps unsaved text on failure for retry', async () => {
     const onUpdate = vi
       .fn()

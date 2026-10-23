@@ -37,9 +37,9 @@ const DATA_MART_CREATOR_ROLES: ReadonlySet<string> = new Set(
 
 /**
  * Attached to a discovery tool result when the user sees no published Data Mart, so the
- * assistant can explain what to do next instead of reporting an empty catalog. Every MCP
- * data-mart tool works with published Data Marts only, and a Data Mart can be created and
- * published only in the web app — hence the deep links and guides rather than a tool call.
+ * assistant can explain what to do next instead of reporting an empty catalog. Reporting
+ * requires published Data Marts; configuration tools can prepare and publish drafts when
+ * the user's role, resource access, and connection scopes allow it.
  */
 export const gettingStartedSchema = z.object({
   reason: z.literal('no_published_data_marts'),
@@ -57,7 +57,9 @@ export const gettingStartedSchema = z.object({
   }),
   draft_data_marts: z
     .array(z.object({ id: z.string(), title: z.string(), url: z.string() }))
-    .describe('Draft Data Marts visible to the user; unavailable through MCP until published.'),
+    .describe(
+      'Visible draft Data Marts; configuration tools can inspect and edit them when authorized. Reporting requires publication.'
+    ),
   instructions: z.string().describe('What to tell the user; relay it in their language.'),
 });
 
@@ -121,7 +123,11 @@ export async function buildGettingStarted(
       sql_data_mart: SQL_DATA_MART_GUIDE_URL,
     },
     draft_data_marts: drafts,
-    instructions: buildInstructions(canCreate, drafts.length),
+    instructions: buildInstructions(
+      canCreate,
+      canCreate && context.scopes.includes('mcp:write'),
+      drafts.length
+    ),
   };
 }
 
@@ -150,27 +156,35 @@ async function listVisibleDrafts(
   }
 }
 
-function buildInstructions(canCreate: boolean, draftCount: number): string {
+function buildInstructions(
+  canCreate: boolean,
+  canConfigureViaMcp: boolean,
+  draftCount: number
+): string {
   const parts: string[] = [
     canCreate
-      ? 'This project has no published Data Mart visible to the user, so there is nothing to explore or query through MCP yet.'
-      : 'No published Data Mart is shared with the user in this project, so there is nothing to explore or query through MCP yet.',
-    'Explain in one or two sentences that a Data Mart is a reusable dataset defined in OWOX Data Marts — data collected from a connector (for example Facebook Ads, Google Ads, or TikTok Ads) or defined as SQL, a table, or a view on a connected storage — and that MCP works only with published Data Marts.',
+      ? 'This project has no published Data Mart visible to the user, so no Data Mart is ready to query or use for reporting yet.'
+      : 'No published Data Mart is shared with the user in this project, so no Data Mart is ready to query or use for reporting yet.',
+    'Explain in one or two sentences that a Data Mart is a reusable dataset defined in OWOX Data Marts — data collected from a connector (for example Facebook Ads, Google Ads, or TikTok Ads) or defined as SQL, a table, or a view on a connected storage. Query and reporting tools require published Data Marts; configuration tools can work with drafts when authorized.',
   ];
 
   if (draftCount > 0) {
     parts.push(
-      `The user can see ${draftCount} draft Data Mart(s) listed in draft_data_marts; name them with their url. Drafts are not available through MCP until they are ${
-        canCreate
-          ? 'opened in the OWOX Data Marts web app, finished, and published.'
-          : 'published by a Project Admin or a Data Owner.'
+      `The user can see ${draftCount} draft Data Mart(s) listed in draft_data_marts; name them with their url. ${
+        canConfigureViaMcp
+          ? 'Read a selected draft with get_data_mart_configuration before editing it, finish its definition and schema, then use publish_data_mart when ready.'
+          : canCreate
+            ? 'Open them in the OWOX Data Marts web app, finish their setup, and publish them.'
+            : 'They must be published by a Project Admin or a Data Owner before reporting.'
       }`
     );
   }
 
   parts.push(
     canCreate
-      ? 'The user can create Data Marts. Walk them through the steps: 1) open create_data_mart_url in the OWOX Data Marts web app; 2) connect a data source or define the Data Mart from SQL, a table, or a view on a connected storage; 3) save and publish it. Share create_data_mart_url and the matching guide from guides.'
+      ? canConfigureViaMcp
+        ? 'The user can create Data Marts and this connection has mcp:write. To create a new Data Mart, use list_data_storages to select an existing configured storage, then create_data_mart → update_data_mart_definition → validate_data_mart_definition → actualize_data_mart_schema → update_data_mart_schema as needed → publish_data_mart. Use list_storage_resources if tables or views need discovery. Storage setup and credentials belong in the OWOX Data Marts web app; never ask the user to paste secrets into chat. Share the matching guide from guides.'
+        : 'The user can create Data Marts, but this connection lacks mcp:write. Walk them through the steps: 1) open create_data_mart_url in the OWOX Data Marts web app; 2) connect a data source or define the Data Mart from SQL, a table, or a view on a connected storage; 3) save and publish it. Share create_data_mart_url and the matching guide from guides.'
       : 'The user role (Business User) cannot create Data Marts. Advise them to ask a Project Admin or a Data Owner of this project to create and publish a Data Mart and share it with them for reporting. Share data_marts_url and guides.core_concepts so they can pass them on.',
     'Once a published Data Mart is available, the user can simply ask again. Do not retry discovery tools with different wording, and do not call query_data_mart or any report or schedule tool until then.'
   );

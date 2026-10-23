@@ -36,6 +36,10 @@ export class UpdateDataMartDescriptionService {
       }
     }
 
+    if (command.description === undefined) {
+      return this.mapper.toDomainDto(dataMart);
+    }
+
     if (dataMart.storage.type === DataStorageType.LEGACY_GOOGLE_BIGQUERY) {
       await this.legacyDataMartsService.updateDescription(dataMart.id, command.description);
     }

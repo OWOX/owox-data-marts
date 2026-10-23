@@ -56,9 +56,24 @@ describe('MCP instructions', () => {
     expect(MCP_SYSTEM_INSTRUCTIONS).toContain('returns getting_started');
     expect(MCP_SYSTEM_INSTRUCTIONS).toContain('Follow getting_started.instructions');
     expect(MCP_SYSTEM_INSTRUCTIONS).toContain('do not rephrase and retry discovery tools');
-    expect(MCP_SYSTEM_INSTRUCTIONS).toContain(
+    expect(MCP_SYSTEM_INSTRUCTIONS).not.toContain(
       'A Data Mart cannot be created or published through MCP'
     );
+    expect(MCP_SYSTEM_INSTRUCTIONS).toContain('get_data_mart_configuration');
+    expect(MCP_SYSTEM_INSTRUCTIONS).toContain('mcp:write');
+  });
+
+  it('guides draft configuration through the registered setup workflow before reporting', () => {
+    expect(MCP_SYSTEM_INSTRUCTIONS).toMatch(
+      /list_data_storages[\s\S]*create_data_mart[\s\S]*update_data_mart_definition[\s\S]*validate_data_mart_definition[\s\S]*actualize_data_mart_schema[\s\S]*update_data_mart_schema[\s\S]*publish_data_mart/
+    );
+    expect(MCP_SYSTEM_INSTRUCTIONS).toContain('get_data_mart_configuration');
+    expect(MCP_SYSTEM_INSTRUCTIONS).toContain('get_data_mart_relationship_graph');
+    expect(MCP_SYSTEM_INSTRUCTIONS).toContain('update_project_description');
+    expect(MCP_SYSTEM_INSTRUCTIONS).toContain('get_context_impact');
+    expect(MCP_SYSTEM_INSTRUCTIONS).toContain('credentials');
+    expect(MCP_SYSTEM_INSTRUCTIONS).toContain('masked');
+    expect(MCP_SYSTEM_INSTRUCTIONS).toContain('until a published Data Mart exists');
   });
 
   // Keep the report workflow scoped to OWOX-managed exports and preserve the

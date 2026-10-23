@@ -109,7 +109,7 @@ export class RelationshipMapper {
       sourceDataMart: {
         id: entity.sourceDataMart.id,
         title: entity.sourceDataMart.title,
-        description: entity.sourceDataMart.description,
+        description: entity.sourceDataMart.description ?? undefined,
         status: entity.sourceDataMart.status,
         userHasAccess: accessByDataMartId.get(entity.sourceDataMart.id) ?? false,
         hasPrimaryKey: this.hasPrimaryKey(entity.sourceDataMart),
@@ -117,7 +117,7 @@ export class RelationshipMapper {
       targetDataMart: {
         id: entity.targetDataMart.id,
         title: entity.targetDataMart.title,
-        description: entity.targetDataMart.description,
+        description: entity.targetDataMart.description ?? undefined,
         status: entity.targetDataMart.status,
         userHasAccess: accessByDataMartId.get(entity.targetDataMart.id) ?? false,
         hasPrimaryKey: this.hasPrimaryKey(entity.targetDataMart),

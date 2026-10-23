@@ -54,6 +54,11 @@ const REDACTED = '[REDACTED]';
 const MAX_META_VALUE_LEN = 1024;
 const MAX_META_KEYS = 64;
 const MAX_REDACT_DEPTH = 16;
+const CONFIGURATION_INPUT_TOOLS = new Set([
+  'update_data_mart_definition',
+  'preview_connector_fields',
+  'preview_connector_field_options',
+]);
 
 /** _meta keys that carry a stable conversation id, in priority order. */
 const CONVERSATION_ID_META_KEYS = ['openai/session'] as const;
@@ -102,15 +107,18 @@ function flattenMeta(meta?: Record<string, unknown>): Record<string, string | bo
   return out;
 }
 
-function redact(value: unknown, depth = 0): unknown {
+function redact(value: unknown, depth = 0, redactConfiguration = false): unknown {
   if (depth > MAX_REDACT_DEPTH) return '[TRUNCATED]';
-  if (Array.isArray(value)) return value.map(v => redact(v, depth + 1));
+  if (Array.isArray(value)) return value.map(v => redact(v, depth + 1, redactConfiguration));
   if (value && typeof value === 'object') {
     // Null-proto so a literal "__proto__" key becomes an own property that survives JSON.stringify
     // instead of silently mutating the prototype.
     const out: Record<string, unknown> = Object.create(null);
     for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
-      out[k] = REDACT_KEYS.test(k) ? REDACTED : redact(v, depth + 1);
+      out[k] =
+        REDACT_KEYS.test(k) || (redactConfiguration && k === 'configuration')
+          ? REDACTED
+          : redact(v, depth + 1, redactConfiguration);
     }
     return out;
   }
@@ -145,6 +153,7 @@ function extractResultErrorMessage(result?: McpToolResult): string {
 export function buildMcpToolCallEvent(p: BuildMcpToolCallEventParams): McpToolCallEvent {
   const occurredAt = new Date();
   const status: 'ok' | 'error' = p.error != null || p.result?.isError ? 'error' : 'ok';
+  const configurationInput = CONFIGURATION_INPUT_TOOLS.has(p.toolName);
 
   const realConversationId = extractConversationId(p.meta);
   const dateUtc = occurredAt.toISOString().slice(0, 10);
@@ -180,12 +189,14 @@ export function buildMcpToolCallEvent(p: BuildMcpToolCallEventParams): McpToolCa
     if (p.error != null) {
       const err = normalizeError(p.error);
       payload.error_type = err.type;
-      payload.error_message = err.message;
+      payload.error_message = configurationInput ? 'Configuration tool failed' : err.message;
     } else {
       // Structured tool error (result.isError) has no thrown error — hoist a short reason to the
       // top level so status=error always carries *why*, even when the result blob is offloaded.
       payload.error_type = 'ToolError';
-      payload.error_message = extractResultErrorMessage(p.result);
+      payload.error_message = configurationInput
+        ? 'Configuration tool failed'
+        : extractResultErrorMessage(p.result);
     }
   }
 
@@ -202,8 +213,13 @@ export function buildMcpToolCallEvent(p: BuildMcpToolCallEventParams): McpToolCa
     mcp_tool_status: status,
     occurred_at: occurredAt.toISOString(),
     // Bulky (heterogeneous per tool → load into BQ JSON-typed columns).
-    arguments: redact(p.input),
-    result: redact(p.result?.structuredContent ?? p.result?.content),
+    // Connector SECRET fields have provider-specific names; suppress the entire configuration.
+    arguments: redact(p.input, 0, configurationInput),
+    // Validation/provider errors may echo arbitrary configuration values in free text.
+    result:
+      configurationInput && status === 'error'
+        ? REDACTED
+        : redact(p.result?.structuredContent ?? p.result?.content),
   };
   if (p.executedSql) offload.sql = p.executedSql;
   payload[OFFLOAD_KEY] = offload;

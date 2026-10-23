@@ -1,6 +1,6 @@
-import type { McpAuthContext } from '../auth/mcp-auth-context';
-import type { McpProjectContextFacade } from '../../../idp/facades/mcp-project-context.facade';
-import type { ProjectSettingsFacade } from '../../../project-settings/facades/project-settings.facade';
+import type { McpAuthContext } from '../../auth/mcp-auth-context';
+import type { McpProjectContextFacade } from '../../../../idp/facades/mcp-project-context.facade';
+import type { ProjectSettingsFacade } from '../../../../project-settings/facades/project-settings.facade';
 import { GetProjectContextTool } from './project-context.tool';
 
 describe('GetProjectContextTool', () => {

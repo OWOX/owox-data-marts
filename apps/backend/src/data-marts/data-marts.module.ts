@@ -60,6 +60,17 @@ import { DataMartPreviewController } from './controllers/data-mart-preview.contr
 import { SummarizeMcpDataCatalogService } from './use-cases/summarize-mcp-data-catalog.service';
 import { MCP_DATA_MARTS_FACADE } from './facades/mcp-data-marts.facade';
 import { MCP_CONTEXTS_FACADE } from './facades/mcp-contexts.facade';
+import { MCP_PROJECT_MEMBERS_FACADE } from './facades/mcp-project-members.facade';
+import { McpProjectMembersFacadeImpl } from './facades/mcp-project-members.facade.impl';
+import { MCP_DATA_MART_SETUP_FACADE } from './facades/mcp-data-mart-setup.facade';
+import { McpDataMartSetupFacadeImpl } from './facades/mcp-data-mart-setup.facade.impl';
+import { McpDataMartSetupMapper } from './mappers/mcp-data-mart-setup.mapper';
+import { MCP_DATA_MART_RELATIONSHIPS_FACADE } from './facades/mcp-data-mart-relationships.facade';
+import { McpDataMartRelationshipsFacadeImpl } from './facades/mcp-data-mart-relationships.facade.impl';
+import { McpDataMartRelationshipsMapper } from './mappers/mcp-data-mart-relationships.mapper';
+import { MCP_CONNECTORS_FACADE } from './facades/mcp-connectors.facade';
+import { McpConnectorsFacadeImpl } from './facades/mcp-connectors.facade.impl';
+import { McpConnectorsMapper } from './mappers/mcp-connectors.mapper';
 import { McpContextsFacadeImpl } from './facades/mcp-contexts.facade.impl';
 import { McpDataMartsFacadeImpl } from './facades/mcp-data-marts.facade.impl';
 import { MCP_DATA_DESTINATIONS_FACADE } from './facades/mcp-data-destinations.facade';
@@ -645,6 +656,13 @@ import { ConsentCredentialDefinitionService } from './credentials/use-cases/cons
     DataQualitySummaryService,
     McpDataCatalogSummaryService,
     { provide: MCP_CONTEXTS_FACADE, useClass: McpContextsFacadeImpl },
+    { provide: MCP_CONNECTORS_FACADE, useClass: McpConnectorsFacadeImpl },
+    McpConnectorsMapper,
+    { provide: MCP_PROJECT_MEMBERS_FACADE, useClass: McpProjectMembersFacadeImpl },
+    { provide: MCP_DATA_MART_SETUP_FACADE, useClass: McpDataMartSetupFacadeImpl },
+    { provide: MCP_DATA_MART_RELATIONSHIPS_FACADE, useClass: McpDataMartRelationshipsFacadeImpl },
+    McpDataMartSetupMapper,
+    McpDataMartRelationshipsMapper,
     CreateDataMartService,
     ListDataMartsService,
     GetModelCanvasDataMartsService,
@@ -1003,7 +1021,11 @@ import { ConsentCredentialDefinitionService } from './credentials/use-cases/cons
     ConsentCredentialDefinitionService,
   ],
   exports: [
+    MCP_CONNECTORS_FACADE,
+    MCP_DATA_MART_SETUP_FACADE,
+    MCP_DATA_MART_RELATIONSHIPS_FACADE,
     MCP_CONTEXTS_FACADE,
+    MCP_PROJECT_MEMBERS_FACADE,
     CREDENTIAL_CONSUMER_BINDING_FACADE,
     CredentialFetchService,
     CredentialAiService,

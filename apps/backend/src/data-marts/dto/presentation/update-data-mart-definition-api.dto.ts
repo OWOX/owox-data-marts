@@ -17,7 +17,11 @@ export class UpdateDataMartDefinitionApiDto {
   @IsUUID()
   sourceDataMartId?: string;
 
-  @ApiProperty({ required: false, description: 'Source configuration ID to copy from' })
+  @ApiProperty({
+    required: false,
+    description:
+      'Public configuration ID in sourceDataMartId. Requires a CONNECTOR definition with one configuration of overrides; [{}] copies unchanged. Source edit access is required.',
+  })
   @IsOptional()
   @IsString()
   sourceConfigurationId?: string;

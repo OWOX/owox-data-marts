@@ -33,7 +33,7 @@ const inputSchema = z
       .enum(['published', 'draft'])
       .optional()
       .describe(
-        'Catalog state filter. Defaults to published. Draft returns draft metadata only; only published Data Marts can be inspected or queried through MCP.'
+        'Catalog state filter. Defaults to published. Draft returns draft metadata; use get_data_mart_configuration to inspect or edit drafts with the configuration tools. Query and reporting tools require published Data Marts.'
       ),
   })
   .strict();
@@ -44,7 +44,7 @@ type ListDataMartsInput = z.infer<typeof inputSchema>;
 export class ListDataMartsTool implements McpToolDefinition<ListDataMartsInput> {
   readonly name = 'list_data_marts';
   readonly description =
-    'List data marts available to the current OWOX project member. Defaults to published data marts; use status=draft only to browse draft metadata, because other MCP data-mart tools accept published data marts only. Use only when the user explicitly asks to list or browse data marts; for a concrete analytical question use get_relevant_data_marts_by_prompt instead, and for open-ended orientation use summarize_data_catalog. Use get_project_context → list_contexts to discover business goals, then pass context_ids to restrict discovery to any selected context; omission preserves project-wide discovery within your existing access. Responses include all attached context IDs and names.';
+    'List data marts available to the current OWOX project member. Defaults to published data marts; use status=draft to find drafts, then get_data_mart_configuration to inspect their saved configuration before editing or publishing with the configuration tools. Query and reporting tools require published data marts. Use only when the user explicitly asks to list or browse data marts; for a concrete analytical question use get_relevant_data_marts_by_prompt instead, and for open-ended orientation use summarize_data_catalog. Use get_project_context → list_contexts to discover business goals, then pass context_ids to restrict discovery to any selected context; omission preserves project-wide discovery within your existing access. Responses include all attached context IDs and names.';
   readonly zodSchema = inputSchema.shape;
   readonly outputSchema = {
     project: z.object({ id: z.string(), title: z.string() }).optional(),

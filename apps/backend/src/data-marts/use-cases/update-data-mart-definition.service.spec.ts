@@ -524,6 +524,141 @@ describe('UpdateDataMartDefinitionService', () => {
     );
   });
 
+  describe('copying a configuration by public IDs', () => {
+    const createCopyCase = () => {
+      const fixture = createService();
+      const definition = {
+        connector: {
+          source: {
+            name: 'GoogleSheets',
+            configuration: [{ SpreadsheetId: 'new-sheet' }],
+            node: 'sheets',
+            fields: ['id'],
+          },
+          storage: { fullyQualifiedName: 'dataset.target' },
+        },
+      };
+      const sourceDefinition = {
+        connector: {
+          source: {
+            ...definition.connector.source,
+            configuration: [
+              { _id: 'other-config', SpreadsheetId: 'wrong-sheet' },
+              {
+                _id: 'source-config',
+                _secrets_id: 'source-secrets',
+                SpreadsheetId: 'old-sheet',
+                AuthType: { service_account: {} },
+              },
+            ],
+          },
+          storage: { fullyQualifiedName: 'dataset.source' },
+        },
+      };
+      fixture.dataMartService.getByIdAndProjectId
+        .mockResolvedValueOnce(fixture.dataMart)
+        .mockResolvedValueOnce({
+          ...fixture.dataMart,
+          id: 'source-mart',
+          definitionType: DataMartDefinitionType.CONNECTOR,
+          definition: sourceDefinition,
+        });
+      fixture.connectorSecretService.mergeDefinitionSecretsFromSource.mockImplementation(
+        async (_projectId: string, incoming: unknown) => incoming
+      );
+      fixture.connectorSecretService.mergeDefinitionSecrets.mockImplementation(
+        async (_projectId: string, incoming: unknown) => incoming
+      );
+      fixture.connectorSecretService.extractAndSaveSecrets.mockImplementation(
+        async (_id: string, _projectId: string, _name: string, incoming: unknown) => incoming
+      );
+      const command = new UpdateDataMartDefinitionCommand(
+        'dm-1',
+        'proj-1',
+        DataMartDefinitionType.CONNECTOR,
+        definition,
+        'source-mart',
+        'source-config',
+        'user-1',
+        ['editor']
+      );
+      return { ...fixture, command, definition, sourceDefinition };
+    };
+
+    it('selects the requested saved configuration and applies overrides without client bookkeeping', async () => {
+      const { service, command, dataMart, sourceDefinition } = createCopyCase();
+      const sourceBefore = JSON.stringify(sourceDefinition);
+      const inputBefore = JSON.stringify(command.definition);
+
+      await service.run(command);
+
+      expect(dataMart.definition.connector.source.configuration).toEqual([
+        {
+          _id: 'source-config',
+          _secrets_id: 'source-secrets',
+          SpreadsheetId: 'new-sheet',
+          AuthType: { service_account: {} },
+          _copiedFrom: { dataMartId: 'source-mart', configId: 'source-config' },
+        },
+      ]);
+      expect(JSON.stringify(sourceDefinition)).toBe(sourceBefore);
+      expect(JSON.stringify(command.definition)).toBe(inputBefore);
+    });
+
+    it.each(['missing-source', 'missing-configuration', 'wrong-connector', 'ambiguous-target'])(
+      'rejects %s before copying credentials or saving',
+      async scenario => {
+        const {
+          service,
+          command,
+          definition,
+          sourceDefinition,
+          connectorSecretService,
+          dataMartService,
+        } = createCopyCase();
+        if (scenario === 'wrong-connector') sourceDefinition.connector.source.name = 'Other';
+        if (scenario === 'ambiguous-target') {
+          definition.connector.source.configuration.push({ SpreadsheetId: 'another' });
+        }
+
+        await expect(
+          service.run({
+            ...command,
+            sourceDataMartId: scenario === 'missing-source' ? undefined : command.sourceDataMartId,
+            sourceConfigurationId:
+              scenario === 'missing-configuration' ? 'missing' : command.sourceConfigurationId,
+          })
+        ).rejects.toThrow(BadRequestException);
+        expect(connectorSecretService.mergeDefinitionSecretsFromSource).not.toHaveBeenCalled();
+        expect(connectorSecretService.extractAndSaveSecrets).not.toHaveBeenCalled();
+        expect(dataMartService.save).not.toHaveBeenCalled();
+      }
+    );
+
+    it('rejects source EDIT denial before reading or copying its configuration', async () => {
+      const { service, command, accessDecisionService, dataMartService, connectorSecretService } =
+        createCopyCase();
+      accessDecisionService.canAccess.mockResolvedValueOnce(true).mockResolvedValueOnce(false);
+      await expect(service.run(command)).rejects.toThrow(ForbiddenException);
+      expect(dataMartService.getByIdAndProjectId).toHaveBeenCalledTimes(1);
+      expect(connectorSecretService.extractAndSaveSecrets).not.toHaveBeenCalled();
+      expect(dataMartService.save).not.toHaveBeenCalled();
+    });
+
+    it('cannot resolve a source from another project', async () => {
+      const { service, command, dataMartService, connectorSecretService, dataMart } =
+        createCopyCase();
+      dataMartService.getByIdAndProjectId.mockReset();
+      dataMartService.getByIdAndProjectId
+        .mockResolvedValueOnce(dataMart)
+        .mockRejectedValueOnce(new NotFoundException('Data Mart not found'));
+      await expect(service.run(command)).rejects.toThrow(NotFoundException);
+      expect(dataMartService.getByIdAndProjectId).toHaveBeenLastCalledWith('source-mart', 'proj-1');
+      expect(connectorSecretService.extractAndSaveSecrets).not.toHaveBeenCalled();
+      expect(dataMartService.save).not.toHaveBeenCalled();
+    });
+  });
+
   describe('changing the input source type of an existing data mart', () => {
     const STATIC_TYPES = [
       DataMartDefinitionType.SQL,

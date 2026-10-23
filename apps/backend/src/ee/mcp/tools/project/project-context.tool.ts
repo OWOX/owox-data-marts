@@ -5,13 +5,13 @@ import type { McpScope } from '@owox/idp-protocol';
 import {
   MCP_PROJECT_CONTEXT_FACADE,
   type McpProjectContextFacade,
-} from '../../../idp/facades/mcp-project-context.facade';
+} from '../../../../idp/facades/mcp-project-context.facade';
 import {
   PROJECT_SETTINGS_FACADE,
   type ProjectSettingsFacade,
-} from '../../../project-settings/facades/project-settings.facade';
-import type { McpAuthContext } from '../auth/mcp-auth-context';
-import { jsonToolResult, type McpToolDefinition, type McpToolResult } from './mcp-tool.definition';
+} from '../../../../project-settings/facades/project-settings.facade';
+import type { McpAuthContext } from '../../auth/mcp-auth-context';
+import { jsonToolResult, type McpToolDefinition, type McpToolResult } from '../mcp-tool.definition';
 
 type GetProjectContextInput = Record<string, never>;
 

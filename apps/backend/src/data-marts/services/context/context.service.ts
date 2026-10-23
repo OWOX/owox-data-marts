@@ -66,7 +66,7 @@ export class ContextService {
     projectId: string,
     createdById: string,
     name: string,
-    description?: string
+    description?: string | null
   ): Promise<ContextDto> {
     await this.validateUniqueName(name, projectId);
 
@@ -138,14 +138,16 @@ export class ContextService {
     contextId: string,
     projectId: string,
     name: string,
-    description?: string
+    description?: string | null
   ): Promise<ContextDto> {
     const entity = await this.getByIdAndProject(contextId, projectId);
 
     await this.validateUniqueName(name, projectId, contextId);
 
     entity.name = name;
-    entity.description = description;
+    if (description !== undefined) {
+      entity.description = description;
+    }
 
     let saved: Context;
     try {

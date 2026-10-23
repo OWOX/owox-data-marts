@@ -3,21 +3,24 @@ import { DataStorageProvider } from '../../../features/data-storage/shared/model
 import { useProjectRoute } from '../../../shared/hooks';
 import { useDataMartPreset } from '../../../features/data-marts/shared/utils/useDataMartPreset';
 import { useConnectorNameParam } from '../../../features/data-marts/shared/utils/useConnectorNameParam';
+import { DataMartSetupAssistantActions } from '../../../features/data-marts/shared/components/DataMartSetupAssistantActions';
+import { useAuth } from '../../../features/idp';
 
 export default function CreateDataMartPage() {
   const preset = useDataMartPreset();
   const connectorName = useConnectorNameParam();
-  const { navigate } = useProjectRoute();
+  const { navigate, projectId } = useProjectRoute();
+  const { user } = useAuth();
 
   const handleSuccess = (response: { id: string }) => {
     // connectorName takes priority over preset when both are present (see the
     // matching effect in DataMartConnectorView), so it's carried forward first.
     const redirectUrl = connectorName
-      ? `/data-marts/${response.id}/data-setup?connectorName=${encodeURIComponent(connectorName)}`
+      ? `/data-marts/${response.id}/data-setup?preset=connector&connectorName=${encodeURIComponent(connectorName)}`
       : preset
         ? `/data-marts/${response.id}/data-setup?preset=${preset.key}`
         : `/data-marts/${response.id}/data-setup`;
-    navigate(redirectUrl);
+    navigate(redirectUrl, { state: { createdDataMartId: response.id } });
   };
 
   return (
@@ -36,6 +39,21 @@ export default function CreateDataMartPage() {
                 }}
                 onSuccess={handleSuccess}
               />
+              {projectId && (
+                <div className='mt-8 border-t pt-6 text-center'>
+                  <p className='mb-1 text-sm font-medium'>
+                    You can create a Data Mart with an AI assistant
+                  </p>
+                  <p className='text-muted-foreground mb-3 text-xs'>
+                    ChatGPT or Claude can help you with setup.
+                  </p>
+                  <DataMartSetupAssistantActions
+                    className='justify-center'
+                    projectId={projectId}
+                    mcpServerUrl={user?.mcpServerUrl}
+                  />
+                </div>
+              )}
             </DataMartProvider>
           </DataStorageProvider>
         </div>

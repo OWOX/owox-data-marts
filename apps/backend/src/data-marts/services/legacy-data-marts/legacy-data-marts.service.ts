@@ -117,7 +117,7 @@ export class LegacyDataMartsService {
     });
   }
 
-  public async updateDescription(dataMartId: string, description: string): Promise<void> {
+  public async updateDescription(dataMartId: string, description: string | null): Promise<void> {
     this.ensureConfigured();
 
     await this.fetchLegacyOdmApi(`${this.baseUrl}/odm/data-marts/${dataMartId}/description`, {

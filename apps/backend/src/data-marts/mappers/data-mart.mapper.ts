@@ -147,7 +147,7 @@ export class DataMartMapper {
       technicalOwnerUsers,
       entity.availableForReporting ?? true,
       entity.availableForMaintenance ?? true,
-      entity.blendedFieldsConfig,
+      entity.blendedFieldsConfig ?? undefined,
       extractContextSummaries(entity.contexts),
       entity.dataLastUpdated ?? null,
       entity.icon ?? null
@@ -480,7 +480,7 @@ export class DataMartMapper {
     return new UpdateBlendedFieldsConfigCommand(
       id,
       context.projectId,
-      dto.blendedFieldsConfig ?? null,
+      dto.blendedFieldsConfig,
       context.userId,
       context.roles ?? []
     );

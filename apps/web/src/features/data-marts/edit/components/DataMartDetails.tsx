@@ -11,7 +11,7 @@ import { cn } from '@owox/ui/lib/utils';
 import { ArrowLeft, CircleCheckBig, MoreVertical, Play, Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'react-hot-toast';
-import { NavLink, Outlet } from 'react-router';
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router';
 import { useFlags } from '../../../../app/store/hooks';
 import { Button } from '../../../../shared/components/Button';
 import { ConfirmationDialog } from '../../../../shared/components/ConfirmationDialog';
@@ -60,6 +60,8 @@ interface DataMartDetailsProps {
 
 export function DataMartDetails({ id }: DataMartDetailsProps) {
   const { navigate } = useProjectRoute();
+  const routerNavigate = useNavigate();
+  const location = useLocation();
   const { user } = useAuth();
   const { flags } = useFlags();
   const projectId = user?.projectId ?? '';
@@ -152,6 +154,27 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
   const shouldShowInsights = checkVisible('INSIGHTS_ENABLED', 'true', flags);
 
   const { showPromo, dismissAllPromos } = useDataMartNextStepPromo();
+
+  useEffect(() => {
+    const state = location.state as Record<string, unknown> | null;
+    if (!dataMartId || !projectId || state?.createdDataMartId !== dataMartId) return;
+
+    const remainingState = { ...state };
+    delete remainingState.createdDataMartId;
+    void routerNavigate(
+      { pathname: location.pathname, search: location.search, hash: location.hash },
+      { replace: true, state: remainingState }
+    );
+
+    if (isDraft) {
+      showPromo({
+        step: PromoStep.SETUP_DATA,
+        projectId,
+        dataMartId,
+        mcpServerUrl: user?.mcpServerUrl,
+      });
+    }
+  }, [dataMartId, projectId, isDraft, location, routerNavigate, showPromo, user?.mcpServerUrl]);
 
   // Show promo once a published data mart page is opened.
   // For CONNECTOR type — show SCHEDULE_DATA promo, for others — USE_DATA promo.

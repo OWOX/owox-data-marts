@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
-import { render, screen } from '@testing-library/react';
-import { MemoryRouter } from 'react-router';
+import { render, screen, waitFor } from '@testing-library/react';
+import { MemoryRouter, useLocation } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { DataMartDetails } from './DataMartDetails';
 
@@ -11,6 +11,8 @@ const mocks = vi.hoisted(() => ({
   registerSchemaGuard: vi.fn(),
   hasActiveRuns: false,
   qualitySummary: null as null | { state: string },
+  dataMartStatus: 'PUBLISHED',
+  dataMartLoaded: true,
 }));
 
 vi.mock('../../../../app/store/hooks', () => ({
@@ -22,11 +24,13 @@ vi.mock('../../../../shared/hooks', () => ({
 }));
 
 vi.mock('../../../idp', () => ({
-  useAuth: () => ({ user: { projectId: 'project-1' } }),
+  useAuth: () => ({
+    user: { projectId: 'project-1', mcpServerUrl: 'https://project-1.mcp.owox.com/mcp' },
+  }),
 }));
 
 vi.mock('../hooks/useDataMartNextStepPromo', () => ({
-  PromoStep: { SCHEDULE_DATA: 'SCHEDULE_DATA', USE_DATA: 'USE_DATA' },
+  PromoStep: { SCHEDULE_DATA: 'SCHEDULE_DATA', USE_DATA: 'USE_DATA', SETUP_DATA: 'SETUP_DATA' },
   useDataMartNextStepPromo: () => ({
     showPromo: mocks.showPromo,
     dismissAllPromos: mocks.dismissAllPromos,
@@ -58,17 +62,23 @@ vi.mock('../model', () => ({
     },
   }),
   useDataMart: () => ({
-    dataMart: {
-      id: 'data-mart-1',
-      title: 'Orders',
-      canPublish: false,
-      canActualizeSchema: false,
-      status: { code: 'PUBLISHED', displayName: 'Published', description: '' },
-      definition: null,
-      definitionType: 'SQL',
-      validationErrors: [],
-      storage: { id: 'storage-1', type: 'GOOGLE_BIGQUERY' },
-    },
+    dataMart: mocks.dataMartLoaded
+      ? {
+          id: 'data-mart-1',
+          title: 'Orders',
+          canPublish: false,
+          canActualizeSchema: false,
+          status: {
+            code: mocks.dataMartStatus,
+            displayName: mocks.dataMartStatus,
+            description: '',
+          },
+          definition: null,
+          definitionType: 'SQL',
+          validationErrors: [],
+          storage: { id: 'storage-1', type: 'GOOGLE_BIGQUERY' },
+        }
+      : null,
     deleteDataMart: vi.fn(),
     updateDataMartTitle: vi.fn(),
     updateDataMartDescription: vi.fn(),
@@ -112,6 +122,8 @@ describe('DataMartDetails navigation', () => {
     vi.clearAllMocks();
     mocks.hasActiveRuns = false;
     mocks.qualitySummary = null;
+    mocks.dataMartStatus = 'PUBLISHED';
+    mocks.dataMartLoaded = true;
   });
 
   it('labels the quality route as Data Quality', () => {
@@ -166,12 +178,83 @@ describe('DataMartDetails navigation', () => {
 
     expect(mocks.navigate).toHaveBeenCalledWith('/data-marts/data-mart-1/run-history');
   });
+
+  it('shows the setup promo for the freshly created draft and consumes only its state marker', async () => {
+    mocks.dataMartStatus = 'DRAFT';
+    renderDetails({ createdDataMartId: 'data-mart-1', other: 'keep' });
+
+    expect(mocks.showPromo).toHaveBeenCalledExactlyOnceWith({
+      step: 'SETUP_DATA',
+      projectId: 'project-1',
+      dataMartId: 'data-mart-1',
+      mcpServerUrl: 'https://project-1.mcp.owox.com/mcp',
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId('location')).toHaveTextContent('"state":{"other":"keep"}');
+    });
+    expect(screen.getByTestId('location')).toHaveTextContent(
+      '"search":"?preset=connector&connectorName=GoogleSheets"'
+    );
+    expect(screen.getByTestId('location')).toHaveTextContent('"hash":"#setup"');
+  });
+
+  it.each([undefined, { createdDataMartId: 'another-mart' }, { other: 'keep' }])(
+    'does not show the draft promo on direct MCP, ordinary, or unrelated entry: %j',
+    state => {
+      mocks.dataMartStatus = 'DRAFT';
+      renderDetails(state);
+      expect(mocks.showPromo).not.toHaveBeenCalled();
+    }
+  );
+
+  it('waits for the created draft to load before consuming the marker', async () => {
+    mocks.dataMartStatus = 'DRAFT';
+    mocks.dataMartLoaded = false;
+    const view = renderDetails({ createdDataMartId: 'data-mart-1' });
+    expect(mocks.showPromo).not.toHaveBeenCalled();
+    expect(screen.getByTestId('location')).toHaveTextContent('createdDataMartId');
+
+    mocks.dataMartLoaded = true;
+    view.rerender(detailsTree({ createdDataMartId: 'data-mart-1' }));
+    await waitFor(() => {
+      expect(mocks.showPromo).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it('keeps the existing published promo when a creation marker is stale', () => {
+    renderDetails({ createdDataMartId: 'data-mart-1' });
+    expect(mocks.showPromo).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({
+        step: 'USE_DATA',
+        showOnce: true,
+      })
+    );
+  });
 });
 
-function renderDetails() {
-  return render(
-    <MemoryRouter initialEntries={['/data-marts/data-mart-1/overview']}>
+function LocationProbe() {
+  const location = useLocation();
+  return <div data-testid='location'>{JSON.stringify(location)}</div>;
+}
+
+function detailsTree(state?: Record<string, unknown>) {
+  return (
+    <MemoryRouter
+      initialEntries={[
+        {
+          pathname: '/data-marts/data-mart-1/data-setup',
+          search: '?preset=connector&connectorName=GoogleSheets',
+          hash: '#setup',
+          state,
+        },
+      ]}
+    >
       <DataMartDetails id='data-mart-1' />
+      <LocationProbe />
     </MemoryRouter>
   );
+}
+
+function renderDetails(state?: Record<string, unknown>) {
+  return render(detailsTree(state));
 }

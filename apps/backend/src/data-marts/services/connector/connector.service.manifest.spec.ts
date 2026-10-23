@@ -35,6 +35,28 @@ describe('ConnectorService manifest helpers', () => {
     expect(names).toContain('name');
   });
 
+  it('resolves fields from the selected published custom manifest', async () => {
+    const tryResolveManifest = jest.fn().mockResolvedValue(manifest);
+    const customService = new ConnectorService({} as never, { tryResolveManifest } as never);
+
+    await expect(
+      customService.resolveConnectorFieldsSchema('project', 'MyCustom', 2)
+    ).resolves.toEqual([
+      {
+        name: 'items',
+        overview: '',
+        uniqueKeys: ['id'],
+        defaultFields: ['id', 'name'],
+        destinationName: 'items',
+        fields: [
+          { name: 'id', type: 'STRING' },
+          { name: 'name', type: 'STRING' },
+        ],
+      },
+    ]);
+    expect(tryResolveManifest).toHaveBeenCalledWith('project', 'MyCustom', 2);
+  });
+
   it('throws on an invalid manifest', () => {
     expect(() => service.getSpecificationFromManifest({ not: 'valid' } as never)).toThrow();
   });

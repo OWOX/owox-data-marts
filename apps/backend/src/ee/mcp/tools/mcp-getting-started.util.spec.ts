@@ -47,6 +47,9 @@ describe('MCP getting-started guidance', () => {
       instructions: expect.stringContaining('open create_data_mart_url'),
     });
     expect(guidance.instructions).toContain('publish');
+    expect(guidance.instructions).toContain('mcp:write');
+    expect(guidance.instructions).not.toMatch(/\bcreate_data_mart\b/);
+    expect(guidance.instructions).not.toMatch(/\bpublish_data_mart\b/);
     expect(guidance.instructions).toContain('Do not retry discovery tools');
     expect(guidance.instructions).not.toContain('draft_data_marts');
     expect(() => gettingStartedSchema.parse(guidance)).not.toThrow();
@@ -56,6 +59,50 @@ describe('MCP getting-started guidance', () => {
       roles: ['editor'],
       status: 'draft',
     });
+  });
+
+  it.each(['editor', 'admin'] as const)(
+    'guides a write-authorized %s through configuration and publication tools',
+    async role => {
+      const guidance = await buildGettingStarted(
+        { dataMarts: facadeWith({}), publicOrigin },
+        { ...baseContext, roles: [role], scopes: ['mcp:read', 'mcp:write'] }
+      );
+
+      expect(guidance.can_create_data_marts).toBe(true);
+      const workflow = [
+        'list_data_storages',
+        'create_data_mart',
+        'update_data_mart_definition',
+        'validate_data_mart_definition',
+        'actualize_data_mart_schema',
+        'update_data_mart_schema',
+        'publish_data_mart',
+      ];
+      let previousStep = -1;
+      for (const tool of workflow) {
+        const step = guidance.instructions.indexOf(tool);
+        expect(step).toBeGreaterThan(previousStep);
+        previousStep = step;
+      }
+      expect(guidance.instructions).toContain('credentials');
+      expect(guidance.instructions).toContain('OWOX Data Marts web app');
+      expect(guidance.instructions).not.toContain('MCP works only with published Data Marts');
+    }
+  );
+
+  it('keeps role permission separate from connection write scope', async () => {
+    const deps = { dataMarts: facadeWith({}), publicOrigin };
+    const readOnly = await buildGettingStarted(deps, baseContext);
+    const write = await buildGettingStarted(deps, {
+      ...baseContext,
+      scopes: ['mcp:read', 'mcp:write'],
+    });
+
+    expect(readOnly.can_create_data_marts).toBe(true);
+    expect(write.can_create_data_marts).toBe(true);
+    expect(readOnly.instructions).toContain('open create_data_mart_url');
+    expect(write.instructions).toMatch(/\bcreate_data_mart\b/);
   });
 
   it('tells a business user to ask a creator role instead of sending them to the create page', async () => {
@@ -70,11 +117,23 @@ describe('MCP getting-started guidance', () => {
     expect(guidance.instructions).not.toContain('open create_data_mart_url');
   });
 
+  it('keeps a viewer on the request-access path even with write scope', async () => {
+    const guidance = await buildGettingStarted(
+      { dataMarts: facadeWith({}), publicOrigin },
+      { ...baseContext, roles: ['viewer'], scopes: ['mcp:read', 'mcp:write'] }
+    );
+
+    expect(guidance.can_create_data_marts).toBe(false);
+    expect(guidance.instructions).toContain('Project Admin or a Data Owner');
+    expect(guidance.instructions).not.toMatch(/\bcreate_data_mart\b/);
+    expect(guidance.instructions).not.toMatch(/\bpublish_data_mart\b/);
+  });
+
   // The flag mirrors the STORAGE/USE gate of CreateDataMartService; these are the outcomes the
   // access matrix yields today, so a matrix change that alters them shows up here.
   it('derives creator roles from the access matrix', async () => {
     const dataMarts = facadeWith({});
-    const canCreate = async (roles: string[]) =>
+    const canCreate = async (roles: McpAuthContext['roles']) =>
       (await buildGettingStarted({ dataMarts, publicOrigin }, { ...baseContext, roles }))
         .can_create_data_marts;
 
@@ -117,7 +176,8 @@ describe('MCP getting-started guidance', () => {
       },
     ]);
     expect(guidance.instructions).toContain('1 draft Data Mart(s) listed in draft_data_marts');
-    expect(guidance.instructions).toContain('finished, and published');
+    expect(guidance.instructions).toContain('OWOX Data Marts web app');
+    expect(guidance.instructions).not.toMatch(/\bpublish_data_mart\b/);
   });
 
   it('asks a business user to have drafts published by someone else', async () => {
@@ -133,6 +193,30 @@ describe('MCP getting-started guidance', () => {
     );
 
     expect(guidance.instructions).toContain('published by a Project Admin or a Data Owner');
+  });
+
+  it('guides a write-authorized creator to read an existing draft configuration before editing', async () => {
+    const dataMarts = facadeWith({
+      draft: [
+        {
+          id: 'dm_draft',
+          title: 'Draft Orders',
+          description: null,
+          status: 'DRAFT',
+          updatedAt: '',
+        },
+      ],
+    });
+    const guidance = await buildGettingStarted(
+      { dataMarts, publicOrigin },
+      { ...baseContext, scopes: ['mcp:read', 'mcp:write'] }
+    );
+
+    expect(guidance.draft_data_marts[0].id).toBe('dm_draft');
+    expect(guidance.instructions).toContain('get_data_mart_configuration');
+    expect(guidance.instructions).toContain('publish_data_mart');
+    expect(guidance.instructions).not.toContain('Drafts are not available through MCP');
+    expect(guidance.instructions).toContain('Do not retry discovery tools');
   });
 
   it('keeps the links and steps when the draft lookup fails', async () => {

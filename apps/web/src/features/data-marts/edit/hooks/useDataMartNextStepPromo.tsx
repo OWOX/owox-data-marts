@@ -4,9 +4,10 @@ import { useCallback } from 'react';
 import { Link } from 'react-router';
 import { toast } from 'sonner';
 import { storageService } from '../../../../services';
+import { DataMartSetupAssistantActions } from '../../shared/components/DataMartSetupAssistantActions';
 
-// Set to track currently visible promo toasts
-const activePromoToasts = new Set<string>();
+// Track currently visible promo toasts and the step they promote.
+const activePromoToasts = new Map<string, PromoStep>();
 
 // Prefix for storing globally shown promos (per user, across all data marts)
 const SHOW_ONCE_KEY_PREFIX = 'promo_shown_once_';
@@ -15,6 +16,7 @@ const SHOW_ONCE_KEY_PREFIX = 'promo_shown_once_';
  * Next-step promo types shown after key data mart actions
  */
 export enum PromoStep {
+  SETUP_DATA = 'setup_data',
   /** Promote scheduling data: create scheduled trigger */
   SCHEDULE_DATA = 'schedule_data',
   /** Promote using data: create insights or reports */
@@ -42,6 +44,7 @@ interface ShowPromoOptions {
   projectId: string;
   /** Data mart ID for building URLs */
   dataMartId: string;
+  mcpServerUrl?: string;
   /** Whether insights feature is enabled */
   isInsightsEnabled?: boolean;
   /** Toast display duration in ms. Defaults to Infinity */
@@ -59,30 +62,65 @@ export function useDataMartNextStepPromo() {
       step,
       projectId,
       dataMartId,
+      mcpServerUrl,
       isInsightsEnabled,
       duration = Infinity,
       showOnce = false,
     }: ShowPromoOptions) => {
-      // Skip if this promo was already shown once globally
-      if (showOnce && isPromoShownOnce(step)) return;
-
       // Single ID per data mart to prevent multiple toasts for the same data mart
       const toastId = `promo_${dataMartId}`;
+      const replacesSetupPromo =
+        activePromoToasts.get(toastId) === PromoStep.SETUP_DATA && step !== PromoStep.SETUP_DATA;
 
-      // If a promo toast is already visible for this data mart — skip entirely
-      if (activePromoToasts.has(toastId)) return;
+      if (showOnce && isPromoShownOnce(step)) {
+        if (replacesSetupPromo) {
+          activePromoToasts.delete(toastId);
+          toast.dismiss(toastId);
+        }
+        return;
+      }
+
+      // Publication supersedes the draft's setup promo.
+      if (activePromoToasts.has(toastId) && !replacesSetupPromo) return;
 
       // Mark promo as shown to prevent future displays (one-time promo)
       if (showOnce) markPromoAsShownOnce(step);
 
       // Common toast lifecycle callbacks
-      const onDismiss = () => activePromoToasts.delete(toastId);
-      const onAutoClose = () => activePromoToasts.delete(toastId);
+      const onDismiss = () => {
+        if (activePromoToasts.get(toastId) === step) activePromoToasts.delete(toastId);
+      };
+      const onAutoClose = onDismiss;
 
       // Mark as active BEFORE calling toast()
-      activePromoToasts.add(toastId);
+      activePromoToasts.set(toastId, step);
 
       switch (step) {
+        case PromoStep.SETUP_DATA:
+          toast(
+            <div className='text-foreground text-sm'>
+              You can continue setup with an AI assistant
+            </div>,
+            {
+              id: toastId,
+              closeButton: true,
+              onDismiss,
+              onAutoClose,
+              description: (
+                <div className='mt-2 space-y-3'>
+                  <p>ChatGPT or Claude can help you configure this draft.</p>
+                  <DataMartSetupAssistantActions
+                    projectId={projectId}
+                    dataMartId={dataMartId}
+                    mcpServerUrl={mcpServerUrl}
+                  />
+                </div>
+              ),
+              duration,
+            }
+          );
+          break;
+
         case PromoStep.SCHEDULE_DATA:
           toast(<div className='text-foreground text-sm'>Keep your data fresh automatically</div>, {
             id: toastId,
@@ -154,7 +192,7 @@ export function useDataMartNextStepPromo() {
 
   // Dismiss all currently visible promo toasts
   const dismissAllPromos = useCallback(() => {
-    activePromoToasts.forEach(toastId => {
+    activePromoToasts.forEach((_step, toastId) => {
       toast.dismiss(toastId);
     });
     activePromoToasts.clear();

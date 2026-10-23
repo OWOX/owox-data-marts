@@ -1,15 +1,18 @@
 import { z } from 'zod-v4';
 import { ListContextsTool } from './list-contexts.tool';
-import { contextIdsSchema } from './context-input';
-import type { McpAuthContext } from '../auth/mcp-auth-context';
+import { contextIdsSchema } from '../context-input';
+import type { McpAuthContext } from '../../auth/mcp-auth-context';
+import type { McpContextsFacade } from '../../../../data-marts/facades/mcp-contexts.facade';
 
 describe('ListContextsTool', () => {
-  const facade = {
+  const facade: jest.Mocked<
+    Pick<McpContextsFacade, 'listContexts' | 'validateContextIds' | 'getDataMartContexts'>
+  > = {
     listContexts: jest.fn(),
     validateContextIds: jest.fn(),
     getDataMartContexts: jest.fn(),
   };
-  const tool = new ListContextsTool(facade);
+  const tool = new ListContextsTool(facade as unknown as McpContextsFacade);
   const context = { projectId: 'connected-project' } as McpAuthContext;
   it('returns the full Markdown description and null and rejects project overrides', async () => {
     const contexts = [

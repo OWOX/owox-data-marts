@@ -19,7 +19,7 @@ export class Context {
   name: string;
 
   @Column({ type: 'text', nullable: true })
-  description?: string;
+  description?: string | null;
 
   @Column()
   projectId: string;

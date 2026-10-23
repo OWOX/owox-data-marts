@@ -52,6 +52,43 @@ describe('useBlendedFieldsConfigEditor', () => {
     vi.clearAllMocks();
   });
 
+  it.each([null, undefined])(
+    'resets local overrides when the server returns %p',
+    async savedConfig => {
+      vi.mocked(dataMartRelationshipService.updateBlendedFieldsConfig).mockResolvedValue(
+        responseWith({ sources: [{ path: 'orders', alias: 'New orders' }] })
+      );
+      const onSaved = vi.fn();
+      const initialProps: { config: BlendedFieldsConfig | null | undefined } = {
+        config: { sources: [{ path: 'orders', alias: 'Old orders' }] },
+      };
+      const { result, rerender } = renderHook(
+        ({ config }: { config: BlendedFieldsConfig | null | undefined }) =>
+          useBlendedFieldsConfigEditor({
+            dataMartId: 'cleared-mart',
+            savedConfig: config,
+            onSaved,
+          }),
+        {
+          initialProps,
+          wrapper: withQueryClient(),
+        }
+      );
+      rerender({ config: savedConfig });
+      expect(result.current.localConfig).toEqual({ sources: [] });
+      act(() => {
+        result.current.onHideForReportingChange('orders', 'New orders', false);
+      });
+      await waitFor(() => {
+        expect(onSaved).toHaveBeenCalledOnce();
+      });
+      expect(result.current.localConfig).toEqual({
+        sources: [{ path: 'orders', alias: 'New orders' }],
+      });
+      expect(sentConfigs()).toEqual([{ sources: [{ path: 'orders', alias: 'New orders' }] }]);
+    }
+  );
+
   it('keeps an edit when a config fetched before its save arrives while the save is on the wire', async () => {
     let resolveSave: (response: SaveResponse) => void = () => undefined;
     vi.mocked(dataMartRelationshipService.updateBlendedFieldsConfig).mockImplementationOnce(

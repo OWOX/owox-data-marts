@@ -54,6 +54,17 @@ export class UpdateDataMartDefinitionService {
       }
     }
 
+    if (
+      command.sourceConfigurationId != null &&
+      (!command.sourceDataMartId ||
+        !command.sourceConfigurationId.trim() ||
+        command.definitionType !== DataMartDefinitionType.CONNECTOR)
+    ) {
+      throw new BadRequestException(
+        'A source configuration ID requires a source Data Mart and a connector definition'
+      );
+    }
+
     const previousDefinitionType = dataMart.definitionType;
     const definitionTypeWasEmpty = !previousDefinitionType;
     const definitionWasEmpty = !dataMart.definition;
@@ -83,7 +94,7 @@ export class UpdateDataMartDefinitionService {
     dataMart.definitionType = command.definitionType;
 
     if (command.definitionType === DataMartDefinitionType.CONNECTOR && command.definition) {
-      const connectorDefinition = command.definition as ConnectorDefinition;
+      let connectorDefinition = command.definition as ConnectorDefinition;
       const previousDefinition = dataMart.definition as ConnectorDefinition | undefined;
       let sourceDefinition: ConnectorDefinition | undefined;
       let mergedDefinition: ConnectorDefinition;
@@ -106,6 +117,15 @@ export class UpdateDataMartDefinitionService {
         }
 
         sourceDefinition = sourceDataMart.definition as ConnectorDefinition;
+
+        if (command.sourceConfigurationId) {
+          connectorDefinition = this.prepareConfigurationCopy(
+            connectorDefinition,
+            sourceDefinition,
+            command.sourceDataMartId,
+            command.sourceConfigurationId
+          );
+        }
       }
 
       this.validateSecretReferences(connectorDefinition, previousDefinition, sourceDefinition);
@@ -266,6 +286,45 @@ export class UpdateDataMartDefinitionService {
           'or enter the credentials manually.'
       );
     }
+  }
+
+  private prepareConfigurationCopy(
+    incoming: ConnectorDefinition,
+    source: ConnectorDefinition,
+    sourceDataMartId: string,
+    sourceConfigurationId: string
+  ): ConnectorDefinition {
+    if (incoming.connector.source.name !== source.connector.source.name) {
+      throw new BadRequestException('Source and target must use the same connector');
+    }
+    if (incoming.connector.source.configuration.length !== 1) {
+      throw new BadRequestException(
+        'Copying by source configuration ID requires exactly one target configuration'
+      );
+    }
+    const sourceConfiguration = source.connector.source.configuration.find(
+      configuration => configuration._id === sourceConfigurationId
+    );
+    if (!sourceConfiguration) {
+      throw new BadRequestException('Source connector configuration not found');
+    }
+
+    return {
+      ...incoming,
+      connector: {
+        ...incoming.connector,
+        source: {
+          ...incoming.connector.source,
+          configuration: [
+            {
+              ...sourceConfiguration,
+              ...incoming.connector.source.configuration[0],
+              _copiedFrom: { dataMartId: sourceDataMartId, configId: sourceConfigurationId },
+            },
+          ],
+        },
+      },
+    };
   }
 
   private validateSecretReferences(

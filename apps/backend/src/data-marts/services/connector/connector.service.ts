@@ -109,7 +109,7 @@ export class ConnectorService {
   }
 
   /**
-   * The bundled-then-custom-then-404 cascade the three `resolveConnector*` methods share.
+   * The bundled-then-custom-then-404 cascade the `resolveConnector*` methods share.
    *
    * Centralised because the ORDER is a security property, not a convenience: the bundled
    * check runs first so a custom connector can never shadow a bundled name (creation
@@ -196,6 +196,20 @@ export class ConnectorService {
     const fieldsSchema = mapConnectorFieldsSchema(sourceFieldsSchema);
 
     return ConnectorFieldsSchema.parse(fieldsSchema);
+  }
+
+  async resolveConnectorFieldsSchema(
+    projectId: string,
+    connectorName: string,
+    version?: number
+  ): Promise<ConnectorFieldsSchema> {
+    return this.resolveBundledOrCustom(
+      projectId,
+      connectorName,
+      version,
+      name => this.getConnectorFieldsSchema(name),
+      manifest => this.getFieldsSchemaFromManifest(manifest)
+    );
   }
 
   /**

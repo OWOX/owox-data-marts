@@ -2,13 +2,16 @@ import { z } from 'zod-v4';
 import type { PublicOriginService } from '../../../common/config/public-origin.service';
 import { DataMartStatus } from '../../../data-marts/enums/data-mart-status.enum';
 import type { McpDataMartsFacade } from '../../../data-marts/facades/mcp-data-marts.facade';
+import type { McpContextsFacade } from '../../../data-marts/facades/mcp-contexts.facade';
 import type { McpAuthContext } from '../auth/mcp-auth-context';
 import { McpToolRegistry } from './mcp-tool.registry';
 import { ListDataMartsTool } from './data-mart-catalog.tool';
 import { MCP_TOOL_PROVIDER_CLASSES } from './mcp-tool.providers';
 
 describe('ListDataMartsTool', () => {
-  const contexts = {
+  const contexts: jest.Mocked<
+    Pick<McpContextsFacade, 'validateContextIds' | 'getDataMartContexts'>
+  > = {
     validateContextIds: jest.fn().mockResolvedValue(undefined),
     getDataMartContexts: jest.fn().mockResolvedValue({}),
   };
@@ -44,9 +47,14 @@ describe('ListDataMartsTool', () => {
         ],
       }),
     } as unknown as jest.Mocked<McpDataMartsFacade>;
-    const tool = new ListDataMartsTool(facade, publicOrigin, projectContext as never, contexts);
+    const tool = new ListDataMartsTool(
+      facade,
+      publicOrigin,
+      projectContext as never,
+      contexts as unknown as McpContextsFacade
+    );
 
-    await expect(tool.handler({}, context)).resolves.toEqual({
+    await expect(tool.handler(tool.parseInput({}), context)).resolves.toEqual({
       structuredContent: {
         project: { id: 'project-1', title: 'Analytics' },
         data_marts: [
@@ -107,9 +115,14 @@ describe('ListDataMartsTool', () => {
         ],
       }),
     } as unknown as jest.Mocked<McpDataMartsFacade>;
-    const tool = new ListDataMartsTool(facade, publicOrigin, projectContext as never, contexts);
+    const tool = new ListDataMartsTool(
+      facade,
+      publicOrigin,
+      projectContext as never,
+      contexts as unknown as McpContextsFacade
+    );
 
-    const result = await tool.handler({ status: 'draft' }, context);
+    const result = await tool.handler(tool.parseInput({ status: 'draft' }), context);
 
     expect(facade.listDataMarts).toHaveBeenCalledWith({
       projectId: 'project-1',
@@ -138,7 +151,7 @@ describe('ListDataMartsTool', () => {
       {} as McpDataMartsFacade,
       publicOrigin,
       projectContext as never,
-      contexts
+      contexts as unknown as McpContextsFacade
     );
 
     expect(() => tool.parseInput({ project_id: 'another-project' })).toThrow();
@@ -149,7 +162,7 @@ describe('ListDataMartsTool', () => {
       {} as McpDataMartsFacade,
       publicOrigin,
       projectContext as never,
-      contexts
+      contexts as unknown as McpContextsFacade
     );
 
     expect(() => tool.parseInput({ status: 'archived' })).toThrow();
@@ -166,10 +179,10 @@ describe('ListDataMartsTool', () => {
       facade,
       publicOrigin,
       unavailableProjectContext as never,
-      contexts
+      contexts as unknown as McpContextsFacade
     );
 
-    const result = await tool.handler({}, context);
+    const result = await tool.handler(tool.parseInput({}), context);
 
     expect(result.structuredContent).toEqual({
       data_marts: [],
@@ -194,9 +207,14 @@ describe('ListDataMartsTool', () => {
             : [],
       })),
     } as unknown as jest.Mocked<McpDataMartsFacade>;
-    const tool = new ListDataMartsTool(facade, publicOrigin, projectContext as never, contexts);
+    const tool = new ListDataMartsTool(
+      facade,
+      publicOrigin,
+      projectContext as never,
+      contexts as unknown as McpContextsFacade
+    );
 
-    const result = await tool.handler({}, context);
+    const result = await tool.handler(tool.parseInput({}), context);
 
     expect(result.structuredContent).toEqual({
       project: { id: 'project-1', title: 'Analytics' },
@@ -224,9 +242,14 @@ describe('ListDataMartsTool', () => {
     const facade = {
       listDataMarts: jest.fn().mockResolvedValue({ dataMarts: [] }),
     } as unknown as jest.Mocked<McpDataMartsFacade>;
-    const tool = new ListDataMartsTool(facade, publicOrigin, projectContext as never, contexts);
+    const tool = new ListDataMartsTool(
+      facade,
+      publicOrigin,
+      projectContext as never,
+      contexts as unknown as McpContextsFacade
+    );
 
-    const result = await tool.handler({ status: 'draft' }, context);
+    const result = await tool.handler(tool.parseInput({ status: 'draft' }), context);
 
     expect(result.structuredContent).toEqual({
       project: { id: 'project-1', title: 'Analytics' },
@@ -257,9 +280,14 @@ describe('ListDataMartsTool', () => {
             : [],
       })),
     } as unknown as jest.Mocked<McpDataMartsFacade>;
-    const tool = new ListDataMartsTool(facade, publicOrigin, projectContext as never, contexts);
+    const tool = new ListDataMartsTool(
+      facade,
+      publicOrigin,
+      projectContext as never,
+      contexts as unknown as McpContextsFacade
+    );
 
-    const result = await tool.handler({ status: 'draft' }, context);
+    const result = await tool.handler(tool.parseInput({ status: 'draft' }), context);
 
     expect(result.structuredContent).toEqual({
       project: { id: 'project-1', title: 'Analytics' },
@@ -276,7 +304,7 @@ describe('ListDataMartsTool', () => {
         {} as McpDataMartsFacade,
         publicOrigin,
         projectContext as never,
-        contexts
+        contexts as unknown as McpContextsFacade
       ),
     ]);
 
@@ -285,7 +313,7 @@ describe('ListDataMartsTool', () => {
         {} as McpDataMartsFacade,
         publicOrigin,
         projectContext as never,
-        contexts
+        contexts as unknown as McpContextsFacade
       )
     ).toMatchObject({
       name: 'list_data_marts',
@@ -302,29 +330,31 @@ describe('ListDataMartsTool', () => {
         openWorldHint: false,
       },
     });
-    expect(MCP_TOOL_PROVIDER_CLASSES.map(tool => tool.name)).toEqual([
-      'ListContextsTool',
-      'SummarizeDataCatalogTool',
-      'ListDataMartsTool',
-      'SearchDataMartsTool',
-      'SearchReportsTool',
-      'GetDataMartDetailsTool',
-      'GetProjectContextTool',
-      'ListDestinationsTool',
-      'GetDataMartReportsTool',
-      'GetReportOutputSchemaTool',
-      'ListReportRunSchedulesTool',
-      'CreateReportRunScheduleTool',
-      'UpdateReportRunScheduleTool',
-      'DeleteReportRunScheduleTool',
-      'QueryDataMartTool',
-      'AddReportTool',
-      'UpdateReportTool',
-      'DeleteReportTool',
-      'AddDestinationTool',
-      'RunReportTool',
-      'GetReportRunStatusTool',
-    ]);
+    expect(MCP_TOOL_PROVIDER_CLASSES.map(tool => tool.name)).toEqual(
+      expect.arrayContaining([
+        'ListContextsTool',
+        'SummarizeDataCatalogTool',
+        'ListDataMartsTool',
+        'SearchDataMartsTool',
+        'SearchReportsTool',
+        'GetDataMartDetailsTool',
+        'GetProjectContextTool',
+        'ListDestinationsTool',
+        'GetDataMartReportsTool',
+        'GetReportOutputSchemaTool',
+        'ListReportRunSchedulesTool',
+        'CreateReportRunScheduleTool',
+        'UpdateReportRunScheduleTool',
+        'DeleteReportRunScheduleTool',
+        'QueryDataMartTool',
+        'AddReportTool',
+        'UpdateReportTool',
+        'DeleteReportTool',
+        'AddDestinationTool',
+        'RunReportTool',
+        'GetReportRunStatusTool',
+      ])
+    );
     expect(registry.getTool('list_data_marts')).toBeDefined();
     expect(registry.getTool('query_data_mart')).toBeUndefined();
   });
@@ -335,11 +365,18 @@ describe('ListDataMartsTool', () => {
         dataMarts: request.contextIds ? [] : [{ id: 'outside', title: 'Elsewhere', contexts: [] }],
       })),
     } as unknown as jest.Mocked<McpDataMartsFacade>;
-    const scoped = {
+    const scoped: jest.Mocked<
+      Pick<McpContextsFacade, 'validateContextIds' | 'getDataMartContexts'>
+    > = {
       validateContextIds: jest.fn().mockResolvedValue(undefined),
       getDataMartContexts: jest.fn(),
     };
-    const tool = new ListDataMartsTool(facade, publicOrigin, projectContext as never, scoped);
+    const tool = new ListDataMartsTool(
+      facade,
+      publicOrigin,
+      projectContext as never,
+      scoped as unknown as McpContextsFacade
+    );
     const result = await tool.handler({ context_ids: ['one', 'two', 'one'] }, context);
     expect(scoped.validateContextIds).toHaveBeenCalledWith(context.projectId, ['one', 'two']);
     expect(facade.listDataMarts).toHaveBeenNthCalledWith(

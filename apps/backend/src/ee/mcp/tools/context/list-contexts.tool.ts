@@ -4,9 +4,9 @@ import type { McpScope } from '@owox/idp-protocol';
 import {
   MCP_CONTEXTS_FACADE,
   type McpContextsFacade,
-} from '../../../data-marts/facades/mcp-contexts.facade';
-import type { McpAuthContext } from '../auth/mcp-auth-context';
-import { jsonToolResult, type McpToolDefinition } from './mcp-tool.definition';
+} from '../../../../data-marts/facades/mcp-contexts.facade';
+import type { McpAuthContext } from '../../auth/mcp-auth-context';
+import { jsonToolResult, type McpToolDefinition } from '../mcp-tool.definition';
 
 @Injectable()
 export class ListContextsTool implements McpToolDefinition<Record<string, never>> {

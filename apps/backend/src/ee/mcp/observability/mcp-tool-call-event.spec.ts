@@ -18,6 +18,66 @@ function baseParams(
 }
 
 describe('buildMcpToolCallEvent', () => {
+  it.each([
+    'update_data_mart_definition',
+    'preview_connector_fields',
+    'preview_connector_field_options',
+  ])('suppresses value-echoing error messages and result bodies for %s', toolName => {
+    const value = 'SYNTHETIC_PRIVATE_CONFIGURATION_VALUE';
+    const errorText = `Parameter is invalid: ${value}`;
+    for (const structuredError of [false, true]) {
+      const event = buildMcpToolCallEvent(
+        baseParams({
+          toolName,
+          input: { configuration: { HeaderRow: value } },
+          ...(structuredError
+            ? {
+                result: {
+                  isError: true,
+                  content: [{ type: 'text', text: errorText }],
+                  structuredContent: { message: errorText },
+                },
+              }
+            : { error: new TypeError(errorText) }),
+        })
+      );
+      expect(event.payload.error_message).toBe('Configuration tool failed');
+      expect(event.payload.error_type).toBe(structuredError ? 'ToolError' : 'TypeError');
+      expect(event.payload.mcp_tool_status).toBe('error');
+      expect(event.payload[OFFLOAD_KEY]).toMatchObject({ result: '[REDACTED]' });
+      expect(JSON.stringify(event)).not.toContain(value);
+    }
+  });
+
+  it.each(['preview_connector_fields', 'preview_connector_field_options'])(
+    'redacts arbitrary configuration parameter names for %s on success and error',
+    toolName => {
+      for (const error of [undefined, new Error('Preview failed')]) {
+        const event = buildMcpToolCallEvent(
+          baseParams({
+            toolName,
+            input: {
+              connector_name: 'GoogleSheets',
+              configuration: {
+                AuthType: { service_account: { ServiceAccountKey: 'private-value' } },
+              },
+              source_configuration_id: 'saved-config',
+            },
+            error,
+          })
+        );
+        expect(event.payload[OFFLOAD_KEY]).toMatchObject({
+          arguments: {
+            connector_name: 'GoogleSheets',
+            configuration: '[REDACTED]',
+            source_configuration_id: 'saved-config',
+          },
+        });
+        expect(JSON.stringify(event)).not.toContain('private-value');
+      }
+    }
+  );
+
   it('успіх: OTel-conv поля + status ok + context', () => {
     const ev = buildMcpToolCallEvent({
       methodName: 'tools/call',
@@ -257,6 +317,19 @@ describe('buildMcpToolCallEvent', () => {
     const offload = event.payload[OFFLOAD_KEY] as Record<string, unknown>;
     expect(JSON.stringify(offload['result'])).toContain('[REDACTED]');
     expect(JSON.stringify(offload['result'])).not.toContain('SECRET');
+  });
+
+  it('preserves non-secret configuration in other tools and keeps generic credential redaction', () => {
+    const event = buildMcpToolCallEvent(
+      baseParams({
+        toolName: 'other_tool',
+        input: { configuration: { displayName: 'Revenue', access_token: 'SYNTHETIC_TOKEN' } },
+      })
+    );
+    expect(event.payload[OFFLOAD_KEY]).toMatchObject({
+      arguments: { configuration: { displayName: 'Revenue', access_token: '[REDACTED]' } },
+    });
+    expect(JSON.stringify(event)).not.toContain('SYNTHETIC_TOKEN');
   });
 
   it('truncates oversized flattened _meta values', () => {

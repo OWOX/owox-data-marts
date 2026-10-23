@@ -3,6 +3,7 @@ import { renderHook } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { describe, it, expect } from 'vitest';
 import { useConnectorNameParam } from './useConnectorNameParam';
+import { useDataMartPreset } from './useDataMartPreset';
 
 function wrapperWithSearch(search: string) {
   return function Wrapper({ children }: { children: ReactNode }) {
@@ -15,6 +16,19 @@ function wrapperWithSearch(search: string) {
 }
 
 describe('useConnectorNameParam', () => {
+  it('resolves both the input type and connector selection for a new draft setup link', () => {
+    const { result } = renderHook(
+      () => ({
+        preset: useDataMartPreset(),
+        connectorName: useConnectorNameParam(),
+      }),
+      { wrapper: wrapperWithSearch('?preset=connector&connectorName=GoogleSheets') }
+    );
+
+    expect(result.current.preset?.definitionType).toBe('CONNECTOR');
+    expect(result.current.connectorName).toBe('GoogleSheets');
+  });
+
   it('returns the connectorName query param when present', () => {
     const { result } = renderHook(() => useConnectorNameParam(), {
       wrapper: wrapperWithSearch('?connectorName=FacebookMarketing'),

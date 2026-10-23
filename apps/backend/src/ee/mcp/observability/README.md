@@ -28,6 +28,13 @@ reach the handler are instrumented.
 logs by default — dropped when no bucket is set, or offloaded to GCS (`MCP_LOG_GCS_BUCKET`, ADC-gated) when it
 is. Only identity/status/duration/error stay inline. Set `MCP_LOG_INLINE_PAYLOADS=true` to opt into inlining
 small payloads into logs/OTLP (accepting client data in logs); `MCP_LOG_INLINE_MAX_BYTES` bounds that.
+Input `configuration` subtrees of `update_data_mart_definition`, `preview_connector_fields`, and
+`preview_connector_field_options` are always redacted before events are dispatched, on both success
+and failure. Connector credentials use provider-specific field names, so
+these subtrees are excluded as a whole rather than relying on secret-name patterns.
+For these tools, failure events also replace the free-text error message with a generic reason
+and redact error-result bodies, because validators and providers can echo configuration values.
+The error type and status remain available; the client still receives the original tool error.
 To enable OTLP export, set `MCP_OTEL_ENABLED=true` and `OTEL_EXPORTER_OTLP_ENDPOINT` (see root `.env.example`).
 
 These `MCP_*`/`OTEL_*` vars are read from `process.env` via a small zod schema in `mcp-bus-wiring.ts` (the

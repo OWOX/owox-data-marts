@@ -334,6 +334,45 @@ describe('ConnectorService', () => {
     });
   });
 
+  describe('resolveConnectorFieldsSchema', () => {
+    beforeEach(() => tryResolveManifest.mockReset());
+
+    it('uses bundled fields without looking up a project custom manifest', async () => {
+      const { service } = createService();
+
+      await expect(service.resolveConnectorFieldsSchema('p1', 'TestConnector')).resolves.toEqual([
+        {
+          name: 'ads',
+          overview: 'Ads data',
+          description: 'Advertising data',
+          documentation: 'https://docs.example.com',
+          uniqueKeys: ['id'],
+          destinationName: 'ads',
+          fields: [{ name: 'id', type: 'string', description: 'Ad ID' }],
+        },
+      ]);
+      expect(tryResolveManifest).not.toHaveBeenCalled();
+    });
+
+    it('does not fall back to another version when the selected custom version is unpublished', async () => {
+      const { service } = createService();
+      tryResolveManifest.mockRejectedValue(new Error('No published version 2'));
+
+      await expect(service.resolveConnectorFieldsSchema('p1', 'CustomApi', 2)).rejects.toThrow(
+        'No published version 2'
+      );
+    });
+
+    it('preserves the existing not-found response for an unknown connector', async () => {
+      const { service } = createService();
+      tryResolveManifest.mockResolvedValue(null);
+
+      await expect(service.resolveConnectorFieldsSchema('p1', 'Missing')).rejects.toThrow(
+        "Connector 'Missing' not found"
+      );
+    });
+  });
+
   describe('validateConnectorExists (via getConnectorSpecification)', () => {
     it('throws for unknown connector name', async () => {
       const { service } = createService();

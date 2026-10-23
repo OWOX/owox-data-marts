@@ -7,9 +7,14 @@ import { ForbiddenException, UnauthorizedException } from '@nestjs/common';
 import { UpdateBlendedFieldsConfigService } from './update-blended-fields-config.service';
 import { UpdateBlendedFieldsConfigCommand } from '../dto/domain/update-blended-fields-config.command';
 import { EntityType, Action } from '../services/access-decision';
+import type { BlendedFieldsConfig } from '../dto/schemas/blended-fields-config.schema';
 
 describe('UpdateBlendedFieldsConfigService', () => {
-  const dataMart = {
+  const dataMart: {
+    id: string;
+    projectId: string;
+    blendedFieldsConfig: BlendedFieldsConfig | null;
+  } = {
     id: 'dm-1',
     projectId: 'proj-1',
     blendedFieldsConfig: null,
@@ -60,14 +65,29 @@ describe('UpdateBlendedFieldsConfigService', () => {
     );
   });
 
-  it('should throw ForbiddenException when user lacks EDIT access', async () => {
+  it.each([null, undefined])('rejects a forbidden update even when config is %p', async config => {
     const { service } = createService(false);
 
-    const command = new UpdateBlendedFieldsConfigCommand('dm-1', 'proj-1', null, 'user-1', [
+    const command = new UpdateBlendedFieldsConfigCommand('dm-1', 'proj-1', config, 'user-1', [
       'viewer',
     ]);
 
     await expect(service.run(command)).rejects.toThrow(ForbiddenException);
+  });
+
+  it('preserves existing overrides and cache when the configuration is omitted', async () => {
+    const { service, dataMartService, reportDataCacheService } = createService();
+    const config = { sources: [{ path: 'orders', alias: 'Orders' }] };
+    const entity = { ...dataMart, blendedFieldsConfig: config };
+    dataMartService.getByIdAndProjectId.mockResolvedValue(entity);
+
+    await service.run(
+      new UpdateBlendedFieldsConfigCommand('dm-1', 'proj-1', undefined, 'user-1', ['editor'])
+    );
+
+    expect(entity.blendedFieldsConfig).toEqual(config);
+    expect(dataMartService.save).not.toHaveBeenCalled();
+    expect(reportDataCacheService.invalidateByDataMartId).not.toHaveBeenCalled();
   });
 
   it('throws UnauthorizedException when userId is empty', async () => {

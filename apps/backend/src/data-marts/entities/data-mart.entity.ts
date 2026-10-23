@@ -70,7 +70,7 @@ export class DataMart implements CreatorAwareEntity {
   status: DataMartStatus;
 
   @Column({ type: 'text', nullable: true })
-  description?: string;
+  description?: string | null;
 
   /** User-picked icon; null renders the default one. */
   @Column({ type: 'varchar', length: 64, nullable: true })
@@ -96,7 +96,7 @@ export class DataMart implements CreatorAwareEntity {
     transformer: createZodTransformer<BlendedFieldsConfig>(BlendedFieldsConfigSchema, false),
     nullable: true,
   })
-  blendedFieldsConfig?: BlendedFieldsConfig;
+  blendedFieldsConfig?: BlendedFieldsConfig | null;
 
   @Column({
     type: 'json',

@@ -21,7 +21,7 @@ export class DataMartDto {
     public readonly modifiedAt: Date,
     public readonly definitionType?: DataMartDefinitionType,
     public readonly definition?: DataMartDefinition,
-    public readonly description?: string,
+    public readonly description?: string | null,
     public readonly schema?: DataMartSchema,
     public readonly connectorState?: ConnectorStateData,
     public readonly triggersCount: number = 0,

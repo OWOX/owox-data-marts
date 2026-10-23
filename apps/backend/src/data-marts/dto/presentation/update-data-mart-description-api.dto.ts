@@ -15,11 +15,11 @@ import { MaxByteLength } from '../../../common/validators/max-byte-length.valida
 const MAX_TEXT_COLUMN_BYTES = 65535;
 
 export class UpdateDataMartDescriptionApiDto {
-  @ApiProperty({ required: false, nullable: true })
+  @ApiProperty({ type: String, required: false, nullable: true })
   @IsOptional()
   @ValidateIf(obj => obj.description !== null)
   @IsString()
   @MinLength(1)
   @MaxByteLength(MAX_TEXT_COLUMN_BYTES)
-  description: string;
+  description?: string | null;
 }
