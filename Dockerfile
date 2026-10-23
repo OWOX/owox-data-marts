@@ -1,7 +1,7 @@
 # Pinned to a specific patch: the floating `node:22-slim` tag shipped Node 22.23.0,
-# whose http.Agent regression (https://github.com/nodejs/node/issues/63989) breaks node-fetch@2/gaxios@6 with
-# "Premature close", taking down C2C auth. Bump deliberately after verifying the fix.
-FROM node:22.22.3-slim
+# whose http.Agent regression (https://github.com/nodejs/node/issues/63989) broke node-fetch@2/gaxios@6 with
+# "Premature close", taking down C2C auth. Fixed in 22.23.1; check every bump against that issue.
+FROM node:22.23.4-slim
 ARG version=unknown
 
 # Installed from tarballs packed by tools/pack-owox-image-packages.mjs instead of
