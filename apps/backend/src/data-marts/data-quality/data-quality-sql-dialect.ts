@@ -4,6 +4,7 @@ import { DataStorageType } from '../data-storage-types/enums/data-storage-type.e
 import { parseAthenaFieldType } from '../data-storage-types/athena/enums/athena-field-type.enum';
 import { parseBigQueryFieldType } from '../data-storage-types/bigquery/enums/bigquery-field-type.enum';
 import { parseSnowflakeFieldType } from '../data-storage-types/snowflake/enums/snowflake-field-type.enum';
+import { parseDuckDbFieldType } from '../data-storage-types/duckdb/schemas/duckdb-data-mart-schema.schema';
 import { isDataQualityFreshnessTypeSupported } from './data-quality-freshness-support';
 
 export enum DataQualityCanonicalType {
@@ -354,6 +355,45 @@ export class DatabricksDataQualitySqlDialect extends BaseDataQualitySqlDialect {
   }
 }
 
+@Injectable()
+export class DuckDbDataQualitySqlDialect extends BaseDataQualitySqlDialect {
+  readonly type: DataStorageType = DataStorageType.DUCKDB;
+  protected readonly identifierQuote = '"';
+
+  subtractHours(expression: string, hours: number): string {
+    // to_seconds() takes a plain integer, so the interval never goes through string
+    // parsing — and hoursToSeconds already rejects anything outside a safe integer.
+    return `${expression} - to_seconds(${hoursToSeconds(hours)})`;
+  }
+
+  safePercent(numerator: string, denominator: string): string {
+    return renderSafePercentCase(
+      denominator,
+      `CAST(${numerator} AS DOUBLE) * 100 / ${denominator}`
+    );
+  }
+
+  canonicalizeForGrouping(expression: string, type: DataQualityCanonicalType): string | null {
+    return this.scalarOrComplex(expression, type, value => `CAST(to_json(${value}) AS VARCHAR)`);
+  }
+
+  normalizeType(nativeType: string): DataQualityCanonicalType | null {
+    return normalizeDuckDbType(nativeType);
+  }
+
+  freshnessCurrent(nativeType: string): string | null {
+    return isDataQualityFreshnessTypeSupported(this.type, nativeType) ? 'current_timestamp' : null;
+  }
+
+  freshnessTimestamp(expression: string, nativeType: string): string | null {
+    return isDataQualityFreshnessTypeSupported(this.type, nativeType) ? expression : null;
+  }
+
+  typeIntrospectionExpression(fieldExpression: string): string {
+    return `typeof((SELECT any_value(${fieldExpression}) FROM dq_source))`;
+  }
+}
+
 export const DATA_QUALITY_SQL_DIALECTS = [
   BigQueryDataQualitySqlDialect,
   LegacyBigQueryDataQualitySqlDialect,
@@ -361,6 +401,7 @@ export const DATA_QUALITY_SQL_DIALECTS = [
   SnowflakeDataQualitySqlDialect,
   RedshiftDataQualitySqlDialect,
   DatabricksDataQualitySqlDialect,
+  DuckDbDataQualitySqlDialect,
 ] as const;
 
 export function createDataQualitySqlDialectRegistry(): TypeResolver<
@@ -374,6 +415,7 @@ export function createDataQualitySqlDialectRegistry(): TypeResolver<
     new SnowflakeDataQualitySqlDialect(),
     new RedshiftDataQualitySqlDialect(),
     new DatabricksDataQualitySqlDialect(),
+    new DuckDbDataQualitySqlDialect(),
   ]);
 }
 
@@ -393,6 +435,8 @@ export function normalizeDataQualityType(
       return normalizeRedshiftType(nativeType);
     case DataStorageType.DATABRICKS:
       return normalizeDatabricksType(nativeType);
+    case DataStorageType.DUCKDB:
+      return normalizeDuckDbType(nativeType);
   }
 }
 
@@ -431,6 +475,9 @@ function matchesProviderStorageType(
         normalizeDatabricksStorageType(actualNativeType),
         normalizeDatabricksStorageType(expectedNativeType)
       );
+    case DataStorageType.DUCKDB:
+      // The schema declares what parseDuckDbFieldType makes of a column, e.g. INTEGER as BIGINT.
+      return parseDuckDbFieldType(actualNativeType) === parseDuckDbFieldType(expectedNativeType);
   }
 }
 
@@ -647,6 +694,49 @@ function normalizeBigQueryType(nativeType: string): DataQualityCanonicalType | n
   if (matches(type, ['RECORD', 'STRUCT', 'ARRAY', 'RANGE']))
     return DataQualityCanonicalType.COMPLEX;
   if (matches(type, ['INTERVAL'])) return DataQualityCanonicalType.INTERVAL;
+  return null;
+}
+
+function normalizeDuckDbType(nativeType: string): DataQualityCanonicalType | null {
+  const type = typeHead(nativeType);
+  if (
+    matches(type, [
+      'TINYINT',
+      'SMALLINT',
+      'INTEGER',
+      'INT',
+      'BIGINT',
+      'HUGEINT',
+      'UTINYINT',
+      'USMALLINT',
+      'UINTEGER',
+      'UBIGINT',
+      'UHUGEINT',
+    ])
+  )
+    return DataQualityCanonicalType.INTEGER;
+  if (matches(type, ['FLOAT', 'REAL', 'DOUBLE'])) return DataQualityCanonicalType.FLOAT;
+  if (matches(type, ['DECIMAL', 'NUMERIC'])) return DataQualityCanonicalType.DECIMAL;
+  if (matches(type, ['VARCHAR', 'CHAR', 'BPCHAR', 'TEXT', 'STRING', 'UUID', 'ENUM']))
+    return DataQualityCanonicalType.STRING;
+  if (matches(type, ['BLOB', 'BYTEA', 'BINARY', 'VARBINARY', 'BIT']))
+    return DataQualityCanonicalType.BYTES;
+  if (matches(type, ['BOOLEAN', 'BOOL', 'LOGICAL'])) return DataQualityCanonicalType.BOOLEAN;
+  if (matches(type, ['DATE'])) return DataQualityCanonicalType.DATE;
+  if (matches(type, ['TIME', 'TIMETZ', 'TIME WITH TIME ZONE']))
+    return DataQualityCanonicalType.TIME;
+  // DuckDB's instant type is TIMESTAMPTZ; a bare TIMESTAMP carries no zone, so it maps to
+  // DATETIME the way BigQuery's DATETIME does (and stays out of freshness below).
+  if (matches(type, ['TIMESTAMPTZ', 'TIMESTAMP WITH TIME ZONE']))
+    return DataQualityCanonicalType.TIMESTAMP;
+  if (matches(type, ['TIMESTAMP', 'DATETIME', 'TIMESTAMP_S', 'TIMESTAMP_MS', 'TIMESTAMP_NS']))
+    return DataQualityCanonicalType.DATETIME;
+  if (matches(type, ['JSON'])) return DataQualityCanonicalType.JSON;
+  if (matches(type, ['STRUCT', 'MAP', 'LIST', 'UNION', 'ARRAY']))
+    return DataQualityCanonicalType.COMPLEX;
+  if (matches(type, ['INTERVAL'])) return DataQualityCanonicalType.INTERVAL;
+  // DuckDB renders list types as a suffix (`INTEGER[]`, `VARCHAR[3]`) rather than a head.
+  if (/\[\s*\d*\s*\]$/.test(type)) return DataQualityCanonicalType.COMPLEX;
   return null;
 }
 

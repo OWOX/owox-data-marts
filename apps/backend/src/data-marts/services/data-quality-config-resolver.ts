@@ -412,6 +412,8 @@ function storageTypeForSchema(schema: DataMartSchema | null | undefined): DataSt
       return DataStorageType.AWS_REDSHIFT;
     case 'databricks-data-mart-schema':
       return DataStorageType.DATABRICKS;
+    case 'duckdb-data-mart-schema':
+      return DataStorageType.DUCKDB;
   }
 
   return assertUnreachableSchema(schema);

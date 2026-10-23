@@ -27,6 +27,9 @@ export function isDataStorageConfigValid(storage: DataStorage): boolean {
     }
     case DataStorageType.DATABRICKS:
       return Boolean(storage.config.host && storage.config.httpPath);
+    case DataStorageType.DUCKDB:
+      // Empty config is always valid — DuckDB has nothing to configure.
+      return true;
     default:
       return false;
   }

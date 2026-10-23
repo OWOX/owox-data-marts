@@ -178,6 +178,52 @@ describe('QueryDataMartService', () => {
     expect(reader.finalize).toHaveBeenCalledTimes(1);
   });
 
+  it('hands the rows and the totals one table-reference memo, so a SQL view is created once', async () => {
+    const { service, composer, reportTotalsService } = createService();
+
+    await service.run(
+      new QueryDataMartCommand({
+        projectId: 'p1',
+        userId: 'u1',
+        roles: ['admin'],
+        dataMartId: 'dm1',
+        fields: ['channel', 'revenue'],
+        limit: 100,
+      })
+    );
+
+    const memo = composer.compose.mock.calls[0][4];
+    expect(memo).toBeInstanceOf(Map);
+    expect(reportTotalsService.computeTotals.mock.calls[0][5]).toBe(memo);
+  });
+
+  it('gives the rows reader back before waiting for totals, which may open a reader of their own', async () => {
+    const { service, reader, reportTotalsService } = createService();
+    let finishTotals!: (totals: null) => void;
+    reportTotalsService.computeTotals.mockReturnValue(
+      new Promise(resolve => (finishTotals = resolve))
+    );
+
+    const running = service.run(
+      new QueryDataMartCommand({
+        projectId: 'p1',
+        userId: 'u1',
+        roles: ['admin'],
+        dataMartId: 'dm1',
+        fields: ['channel', 'revenue'],
+        limit: 100,
+      })
+    );
+    try {
+      await new Promise(resolve => setImmediate(resolve));
+      expect(reader.finalize).toHaveBeenCalledTimes(1);
+    } finally {
+      finishTotals(null);
+      await running;
+    }
+    expect(reader.finalize).toHaveBeenCalledTimes(1);
+  });
+
   // Totals are best-effort so a failure never costs the caller its rows — but a null with no
   // reason is indistinguishable from "this report has no totals", which invites summing the
   // returned page instead (wrong for any non-additive metric). The whole reporting chain
@@ -391,7 +437,10 @@ describe('QueryDataMartService', () => {
 
     expect(composer.compose).toHaveBeenCalledWith(
       expect.objectContaining({ sortConfig: [{ column: 'revenue', direction: 'desc' }] }),
-      expect.anything()
+      expect.anything(),
+      undefined,
+      undefined,
+      expect.any(Map)
     );
   });
 
@@ -1843,7 +1892,10 @@ describe('QueryDataMartService', () => {
         expect.objectContaining({
           dateTruncConfig: [{ column: 'order_date', unit: 'MONTH' }],
         }),
-        expect.anything()
+        expect.anything(),
+        undefined,
+        undefined,
+        expect.any(Map)
       );
     });
 
@@ -1863,7 +1915,10 @@ describe('QueryDataMartService', () => {
 
       expect(composer.compose).toHaveBeenCalledWith(
         expect.objectContaining({ dateTruncConfig: null }),
-        expect.anything()
+        expect.anything(),
+        undefined,
+        undefined,
+        expect.any(Map)
       );
     });
   });
@@ -1896,7 +1951,8 @@ describe('QueryDataMartService', () => {
         expect.anything(),
         DataStorageType.GOOGLE_BIGQUERY,
         12_345,
-        expect.any(AbortSignal)
+        expect.any(AbortSignal),
+        expect.any(Map)
       );
     });
   });

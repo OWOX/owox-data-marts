@@ -37,12 +37,19 @@ export interface DatabricksDataStorageConfig {
   httpPath: string;
 }
 
+// DuckDB has no user-supplied configuration: the .duckdb file path is derived
+// at runtime from the storage id + DUCKDB_DATA_DIR. `Record<string, never>`
+// (rather than `interface DuckDbDataStorageConfig {}`) precisely types "no
+// properties allowed", matching the `config: z.object({})` schema in T3.
+export type DuckDbDataStorageConfig = Record<string, never>;
+
 export type DataStorageConfig =
   | GoogleBigQueryDataStorageConfig
   | AwsAthenaDataStorageConfig
   | SnowflakeDataStorageConfig
   | RedshiftDataStorageConfig
-  | DatabricksDataStorageConfig;
+  | DatabricksDataStorageConfig
+  | DuckDbDataStorageConfig;
 
 export function isGoogleBigQueryDataStorageConfig(
   config: DataStorageConfig

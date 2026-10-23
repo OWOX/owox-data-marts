@@ -2,6 +2,7 @@ import { IdpProtocolMiddleware, NullIdpProvider } from '@owox/idp-protocol';
 import { bootstrap } from './bootstrap';
 import express from 'express';
 import { Logger } from '@nestjs/common';
+import { isDuckDbStorageEnabled } from './data-marts/data-storage-types/duckdb/utils/duckdb-availability.utils';
 import { loadEnv } from './load-env';
 import { registerPluginCollectionsBodyParser } from './config/plugin-collections-body-parser.config';
 
@@ -25,7 +26,10 @@ export async function main() {
     app.set('trust proxy', 1);
     app.get('/api/flags', (_req, res) => {
       res.setHeader('Cache-Control', 'no-store');
-      res.json({ LICENSE_ISSUANCE_ENABLED: process.env.LICENSE_ISSUANCE_ENABLED });
+      res.json({
+        LICENSE_ISSUANCE_ENABLED: process.env.LICENSE_ISSUANCE_ENABLED,
+        DUCKDB_STORAGE_ENABLED: String(isDuckDbStorageEnabled(process.env)),
+      });
     });
     await setupIdp(app);
 

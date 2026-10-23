@@ -2,6 +2,7 @@ import { Injectable, Logger, ForbiddenException } from '@nestjs/common';
 import { castError } from '@owox/internal-helpers';
 import { DataStorageAccessValidatorFacade } from '../data-storage-types/facades/data-storage-access-validator-facade.service';
 import { DataStorageCredentialsResolver } from '../data-storage-types/data-storage-credentials-resolver.service';
+import { usesStoredCredentials } from '../data-storage-types/enums/data-storage-type.enum';
 import {
   ValidationResult,
   ValidationResultCode,
@@ -48,6 +49,14 @@ export class ValidateDataStorageAccessService {
 
     if (!dataStorage.config) {
       return ValidationResult.unconfigured('Complete setup to activate Storage');
+    }
+
+    if (!usesStoredCredentials(dataStorage.type)) {
+      return this.dataStorageValidationFacade.validateAccess(
+        dataStorage.type,
+        dataStorage.config,
+        await this.dataStorageCredentialsResolver.resolve(dataStorage)
+      );
     }
 
     if (await this.dataStorageCredentialsResolver.hasCredentials(dataStorage)) {

@@ -238,8 +238,8 @@ await page.getByTestId(TESTIDS.storageListPage);
 
 Tests the DataStorage creation flow, config sheet, form validation, and deletion.
 
-**Storage Type Creation (5 tests):**
-Creates each of the 5 active storage types (Google BigQuery, AWS Redshift, Snowflake, Databricks, AWS Athena) via the UI. Each test navigates to `/ui/0/data-storages`, clicks "New Storage", selects the type in the dialog, verifies the config sheet opens, dismisses it, and checks the storage table shows the new entry.
+**Storage Type Creation (6 tests):**
+Creates each of the 6 active storage types (Google BigQuery, AWS Redshift, Snowflake, Databricks, AWS Athena, DuckDB) via the UI. Each test navigates to `/ui/0/data-storages`, clicks "New Storage", selects the type in the dialog, verifies the config sheet opens, dismisses it, and checks the storage table shows the new entry.
 
 **Storage Config Sheet (1 test):**
 Opens a storage's config sheet via the 3-dot row menu "Edit" action. Verifies the sheet and edit form are visible, then dismisses via the Cancel button.

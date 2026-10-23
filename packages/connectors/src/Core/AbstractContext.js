@@ -23,7 +23,12 @@ const MIN_REDACTED_SECRET_LENGTH = 6;
 
 // Wired into the storage config by the host and the engine. A key of the same name in a Data
 // Mart's configuration must not send the write elsewhere; on main the storage config won.
-const STORAGE_WIRED_PARAMETERS = new Set(['DestinationTableName', 'DestinationTableNameOverride']);
+const STORAGE_WIRED_PARAMETERS = new Set([
+  'DestinationTableName',
+  'DestinationTableNameOverride',
+  'DatabasePath',
+  'DestinationSchemaName',
+]);
 
 export class AbstractContext {
   constructor({ source, storage, runConfig, env }) {

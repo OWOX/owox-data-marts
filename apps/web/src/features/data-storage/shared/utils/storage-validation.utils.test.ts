@@ -27,3 +27,18 @@ describe('isDataStorageConfigValid — Legacy BigQuery', () => {
     );
   });
 });
+
+describe('isDataStorageConfigValid — DuckDB', () => {
+  it('returns true for a DuckDB storage (empty config is always valid)', () => {
+    const storage: DataStorage = {
+      id: '1',
+      title: 'Local DuckDB',
+      type: DataStorageType.DUCKDB,
+      config: {},
+      createdAt: new Date(),
+      modifiedAt: new Date(),
+    };
+
+    expect(isDataStorageConfigValid(storage)).toBe(true);
+  });
+});

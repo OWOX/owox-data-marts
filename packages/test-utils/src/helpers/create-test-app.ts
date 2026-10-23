@@ -1,5 +1,6 @@
 import { INestApplication } from '@nestjs/common';
 import * as supertest from 'supertest';
+import { closeOpenHolidaysFixture } from './setup-connector-data-mart';
 
 /**
  * Creates a fully bootstrapped NestJS test application with SQLite :memory: database.
@@ -144,4 +145,5 @@ export async function createTestApp(
  */
 export async function closeTestApp(app: INestApplication): Promise<void> {
   await app.close();
+  await closeOpenHolidaysFixture();
 }

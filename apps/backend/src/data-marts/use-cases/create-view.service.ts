@@ -5,6 +5,7 @@ import { CreateViewCommand } from '../dto/domain/create-view.command';
 import { CreateViewResult } from '../data-storage-types/interfaces/create-view-executor.interface';
 import { isSqlDefinition } from '../dto/schemas/data-mart-table-definitions/data-mart-definition.guards';
 import { DataStorageCredentialsResolver } from '../data-storage-types/data-storage-credentials-resolver.service';
+import { usesStoredCredentials } from '../data-storage-types/enums/data-storage-type.enum';
 
 /**
  * Creates or replaces a view in the underlying storage using the provided SQL.
@@ -32,7 +33,10 @@ export class CreateViewService {
     if (!storage?.type || !storage.config) {
       throw new Error('Storage setup is not finished.');
     }
-    if (!(await this.credentialsResolver.hasCredentials(storage))) {
+    if (
+      usesStoredCredentials(storage.type) &&
+      !(await this.credentialsResolver.hasCredentials(storage))
+    ) {
       throw new Error('Storage setup is not finished.');
     }
 

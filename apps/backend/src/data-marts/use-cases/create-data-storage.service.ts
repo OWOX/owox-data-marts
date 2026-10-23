@@ -1,9 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Transactional } from 'typeorm-transactional';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
 import { OwoxEventDispatcher } from '../../common/event-dispatcher/owox-event-dispatcher';
+import { isDuckDbStorageEnabled } from '../data-storage-types/duckdb/utils/duckdb-availability.utils';
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
 import { CreateDataStorageCommand } from '../dto/domain/create-data-storage.command';
 import { DataStorageDto } from '../dto/domain/data-storage.dto';
@@ -31,6 +33,7 @@ export class CreateDataStorageService {
     private readonly userProjectionsFetcherService: UserProjectionsFetcherService,
     private readonly idpProjectionsFacade: IdpProjectionsFacade,
     private readonly eventDispatcher: OwoxEventDispatcher,
+    private readonly configService: ConfigService,
     private readonly advancedSearchIndexSync?: AdvancedSearchIndexSyncService
   ) {}
 
@@ -42,12 +45,23 @@ export class CreateDataStorageService {
       );
     }
 
+    const duckDbEnabled = isDuckDbStorageEnabled({
+      DUCKDB_STORAGE_ENABLED: this.configService.get<string>('DUCKDB_STORAGE_ENABLED'),
+      DB_TYPE: this.configService.get<string>('DB_TYPE'),
+    });
+    if (command.type === DataStorageType.DUCKDB && !duckDbEnabled) {
+      throw new BusinessViolationException(
+        'DuckDB storage is available only in self-hosted deployments that keep their data in SQLite.'
+      );
+    }
+
     const entity = this.dataStorageRepository.create({
       type: command.type,
       projectId: command.projectId,
       createdById: command.userId,
       availableForUse: true,
       availableForMaintenance: false,
+      ...(command.type === DataStorageType.DUCKDB && { config: {} }),
     });
 
     const savedEntity = await this.dataStorageRepository.save(entity);

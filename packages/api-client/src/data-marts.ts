@@ -30,6 +30,7 @@ const DATA_STORAGE_TYPE_VALUES = [
   'AWS_REDSHIFT',
   'DATABRICKS',
   'LEGACY_GOOGLE_BIGQUERY',
+  'DUCKDB',
 ] as const;
 export type OWOXDataMartStorageType = (typeof DATA_STORAGE_TYPE_VALUES)[number];
 

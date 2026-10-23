@@ -18,8 +18,8 @@
 //
 // All of these exercise `acquireLockAt` directly against throwaway lock
 // directories — never the real, shared `LOCK_PATH` — so this file is always
-// safe to run standalone or alongside the suites
-// that hold the real lock for actual builds.
+// safe to run standalone or alongside DuckDBStorage.test.js /
+// DuckDBStorage.engine.test.js, which hold the real lock for actual builds.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import * as fs from 'node:fs';

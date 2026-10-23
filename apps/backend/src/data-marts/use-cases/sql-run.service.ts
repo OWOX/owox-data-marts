@@ -4,6 +4,7 @@ import { SqlRunCommand } from '../dto/domain/sql-run.command';
 import { DataMartService } from '../services/data-mart.service';
 import { SqlRunBatch } from '../dto/domain/sql-run-batch.dto';
 import { DataStorageCredentialsResolver } from '../data-storage-types/data-storage-credentials-resolver.service';
+import { usesStoredCredentials } from '../data-storage-types/enums/data-storage-type.enum';
 
 @Injectable()
 export class SqlRunService {
@@ -29,7 +30,10 @@ export class SqlRunService {
     if (!storage?.type || !storage.config || !dataMart.definition) {
       throw new Error('Storage setup is not finished.');
     }
-    if (!(await this.credentialsResolver.hasCredentials(storage))) {
+    if (
+      usesStoredCredentials(storage.type) &&
+      !(await this.credentialsResolver.hasCredentials(storage))
+    ) {
       throw new Error('Storage setup is not finished.');
     }
 

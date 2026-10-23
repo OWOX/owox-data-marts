@@ -101,6 +101,13 @@ export const databricksSchema = baseSchema.extend({
   config: databricksConfigSchema,
 });
 
+export const duckDbSchema = baseSchema.extend({
+  type: z.literal(DataStorageType.DUCKDB),
+  // A DuckDB Storage is a local file and takes no Credential, so the field may stay empty.
+  reusableCredentialId: z.string(),
+  config: z.object({}),
+});
+
 export const dataStorageSchema = z.discriminatedUnion('type', [
   googleBigQuerySchema,
   legacyGoogleBigQuerySchema,
@@ -108,6 +115,7 @@ export const dataStorageSchema = z.discriminatedUnion('type', [
   snowflakeSchema,
   redshiftSchema,
   databricksSchema,
+  duckDbSchema,
 ]);
 
 export type DataStorageFormData = z.infer<typeof dataStorageSchema>;
@@ -117,3 +125,4 @@ export type AwsAthenaFormData = z.infer<typeof awsAthenaSchema>;
 export type SnowflakeFormData = z.infer<typeof snowflakeSchema>;
 export type RedshiftFormData = z.infer<typeof redshiftSchema>;
 export type DatabricksFormData = z.infer<typeof databricksSchema>;
+export type DuckDbFormData = z.infer<typeof duckDbSchema>;

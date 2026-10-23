@@ -20,6 +20,10 @@ import {
   DatabricksCredentials,
   DatabricksCredentialsSchema,
 } from './databricks/schemas/databricks-credentials.schema';
+import {
+  DuckDbCredentials,
+  DuckDbCredentialsSchema,
+} from './duckdb/schemas/duckdb-credentials.schema';
 
 export function isBigQueryOAuthCredentials(
   credentials: unknown
@@ -56,4 +60,8 @@ export function isDatabricksCredentials(
   credentials: unknown
 ): credentials is DatabricksCredentials {
   return DatabricksCredentialsSchema.safeParse(credentials).success;
+}
+
+export function isDuckDbCredentials(credentials: unknown): credentials is DuckDbCredentials {
+  return DuckDbCredentialsSchema.safeParse(credentials).success;
 }

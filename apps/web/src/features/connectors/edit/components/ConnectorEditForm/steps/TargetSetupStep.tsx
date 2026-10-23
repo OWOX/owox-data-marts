@@ -15,6 +15,7 @@ import {
   SnowflakeIcon,
   AwsRedshiftIcon,
   DatabricksIcon,
+  DuckDBIcon,
 } from '../../../../../../shared';
 import { quoteIdentifier, unquoteIdentifier } from '../../../utils/snowflake-identifier.utils';
 import RedshiftSchemaPermissionsDescription from '../../../../shared/components/FormDescriptions/RedshiftSchemaPermissionsDescription.tsx';
@@ -828,6 +829,76 @@ export function TargetSetupStep({
               </p>
               {tableError && (
                 <p id='databricks-table-name-error' className='text-destructive text-sm'>
+                  {tableError}
+                </p>
+              )}
+            </AppWizardStepItem>
+          </AppWizardStepSection>
+        </>
+      )}
+      {dataStorageType === DataStorageType.DUCKDB && (
+        <>
+          <AppWizardStepHero icon={<DuckDBIcon />} title='DuckDB' variant='compact' />
+          <AppWizardStepSection title='Choose where to store your data'>
+            <AppWizardStepItem>
+              <AppWizardStepLabel
+                required={true}
+                htmlFor='duckdb-schema-name'
+                tooltip='Enter schema name for DuckDB where the connector data will be stored.'
+              >
+                Schema name
+              </AppWizardStepLabel>
+              <Input
+                type='text'
+                id='duckdb-schema-name'
+                placeholder='main'
+                autoComplete='off'
+                className='box-border w-full'
+                value={datasetName}
+                aria-invalid={Boolean(datasetError)}
+                aria-describedby={datasetError ? 'duckdb-schema-name-error' : undefined}
+                onChange={e => {
+                  handleDatasetNameChange(e.target.value);
+                }}
+                required
+              />
+              <p className='text-muted-foreground text-sm'>
+                Schema is auto-created on first run if it doesn’t exist
+              </p>
+              {datasetError && (
+                <p id='duckdb-schema-name-error' className='text-destructive text-sm'>
+                  {datasetError}
+                </p>
+              )}
+            </AppWizardStepItem>
+
+            <AppWizardStepItem>
+              <AppWizardStepLabel
+                required={true}
+                htmlFor='duckdb-table-name'
+                tooltip='Enter table name where the connector data will be stored.'
+              >
+                Table name
+              </AppWizardStepLabel>
+              <Input
+                type='text'
+                id='duckdb-table-name'
+                placeholder='Enter table name'
+                autoComplete='off'
+                className='box-border w-full'
+                value={tableName}
+                aria-invalid={Boolean(tableError)}
+                aria-describedby={tableError ? 'duckdb-table-name-error' : undefined}
+                onChange={e => {
+                  handleTableNameChange(e.target.value);
+                }}
+                required
+              />
+              <p className='text-muted-foreground text-sm'>
+                Table is auto-created on first run if it doesn’t exist
+              </p>
+              {tableError && (
+                <p id='duckdb-table-name-error' className='text-destructive text-sm'>
                   {tableError}
                 </p>
               )}

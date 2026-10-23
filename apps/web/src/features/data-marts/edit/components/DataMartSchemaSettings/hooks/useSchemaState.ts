@@ -4,6 +4,7 @@ import type {
   BigQuerySchemaField,
   DatabricksSchemaField,
   DataMartSchema,
+  DuckDbSchemaField,
   RedshiftSchemaField,
   SnowflakeSchemaField,
 } from '../../../../shared/types/data-mart-schema.types';
@@ -14,6 +15,8 @@ import {
   isBigQuerySchema,
   isDatabricksField,
   isDatabricksSchema,
+  isDuckDbField,
+  isDuckDbSchema,
   isRedshiftField,
   isRedshiftSchema,
   isSnowflakeField,
@@ -113,6 +116,7 @@ export function useSchemaState(initialSchema: DataMartSchema | null | undefined)
         | SnowflakeSchemaField[]
         | RedshiftSchemaField[]
         | DatabricksSchemaField[]
+        | DuckDbSchemaField[]
     ) => {
       if (schema) {
         if (isBigQuerySchema(schema) && newFields.every(isBigQueryField)) {
@@ -140,6 +144,12 @@ export function useSchemaState(initialSchema: DataMartSchema | null | undefined)
           });
           setIsDirty(true);
         } else if (isDatabricksSchema(schema) && newFields.every(isDatabricksField)) {
+          setSchema({
+            ...schema,
+            fields: newFields,
+          });
+          setIsDirty(true);
+        } else if (isDuckDbSchema(schema) && newFields.every(isDuckDbField)) {
           setSchema({
             ...schema,
             fields: newFields,
@@ -177,6 +187,12 @@ export function useSchemaState(initialSchema: DataMartSchema | null | undefined)
             setSchema({
               type: 'databricks-data-mart-schema',
               fields: newFields as DatabricksSchemaField[],
+            });
+            setIsDirty(true);
+          } else if (isDuckDbField(newFields[0])) {
+            setSchema({
+              type: 'duckdb-data-mart-schema',
+              fields: newFields as DuckDbSchemaField[],
             });
             setIsDirty(true);
           }

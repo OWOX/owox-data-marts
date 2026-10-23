@@ -321,6 +321,35 @@ export function ConnectorConfigurationItem({
           </div>
         );
       }
+      case DataStorageType.DUCKDB: {
+        const fullyQualifiedName = connectorDef.connector.storage.fullyQualifiedName;
+        const fqnParts = fullyQualifiedName.split('.');
+        const schema = fqnParts.length === 3 ? fqnParts[1] : fqnParts[0];
+        const table = fqnParts.length === 3 ? fqnParts[2] : fqnParts[1];
+
+        return (
+          <div className='flex flex-wrap items-center gap-2'>
+            <span>
+              <span className='text-muted-foreground/75'>Schema:</span>{' '}
+              <span className='text-muted-foreground font-medium'>{schema}</span>
+            </span>
+            <span className='text-muted-foreground'>•</span>
+            <span>
+              <span className='text-muted-foreground/75'>Table:</span>{' '}
+              <span className='text-muted-foreground font-medium'>{table}</span>
+            </span>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Info className='h-4 w-4' />
+              </TooltipTrigger>
+              <TooltipContent>
+                The schema and table are automatically created during the first run of the data
+                mart, if they don't already exist
+              </TooltipContent>
+            </Tooltip>
+          </div>
+        );
+      }
       default:
         return 'Unknown storage type configuration';
     }

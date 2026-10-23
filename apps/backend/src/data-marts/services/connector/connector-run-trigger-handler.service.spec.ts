@@ -8,8 +8,10 @@ import { ConnectorRunTrigger } from '../../entities/connector-run-trigger.entity
 import { DataMartRun } from '../../entities/data-mart-run.entity';
 import { DataMart } from '../../entities/data-mart.entity';
 import { DataMartRunStatus } from '../../enums/data-mart-run-status.enum';
+import { DataMartRunType } from '../../enums/data-mart-run-type.enum';
 import { TriggerStatus } from '../../../common/scheduler/shared/entities/trigger-status';
 import { SchedulerFacade } from '../../../common/scheduler/shared/scheduler.facade';
+import { DataStorageType } from '../../data-storage-types/enums/data-storage-type.enum';
 describe('ConnectorRunTriggerHandlerService', () => {
   const createService = () => {
     const triggerRepository = {
@@ -86,6 +88,7 @@ describe('ConnectorRunTriggerHandlerService', () => {
   const mockDataMart = {
     id: 'dm-1',
     projectId: 'proj-1',
+    storage: { id: 's1', type: DataStorageType.GOOGLE_BIGQUERY },
     definition: {},
   } as unknown as DataMart;
 
@@ -145,6 +148,85 @@ describe('ConnectorRunTriggerHandlerService', () => {
           isActive: true,
         })
       );
+    });
+
+    const withCounts = (mockManager: EntityManager, counts: number[]) => {
+      const getCount = jest.fn();
+      counts.forEach(c => getCount.mockResolvedValueOnce(c));
+      const where = jest.fn().mockReturnThis();
+      const andWhere = jest.fn().mockReturnThis();
+      (mockManager.createQueryBuilder as jest.Mock).mockReturnValue({
+        innerJoin: jest.fn().mockReturnThis(),
+        where,
+        andWhere,
+        getCount,
+      });
+      return { getCount, where, andWhere };
+    };
+    const duckDbDataMart = {
+      ...mockDataMart,
+      storage: { id: 's1', type: DataStorageType.DUCKDB },
+    } as unknown as DataMart;
+
+    it('requeues a run when its DuckDB storage has a load, report or data quality run in progress', async () => {
+      const {
+        service,
+        dataMartService,
+        triggerRepository,
+        connectorExecutionService,
+        mockManager,
+      } = createService();
+      const trigger = { ...mockTrigger } as ConnectorRunTrigger;
+      (dataMartService.getByIdAndProjectId as jest.Mock).mockResolvedValue(duckDbDataMart);
+      const { where, andWhere } = withCounts(mockManager, [0, 1]);
+
+      await service.handleTrigger(trigger);
+
+      expect(where).toHaveBeenLastCalledWith('dm.storage = :storageId', { storageId: 's1' });
+      expect(andWhere).toHaveBeenCalledWith('run.status = :status', {
+        status: DataMartRunStatus.RUNNING,
+      });
+      expect(andWhere).toHaveBeenCalledWith('run.type IN (:...types)', {
+        types: [
+          DataMartRunType.CONNECTOR,
+          DataMartRunType.GOOGLE_SHEETS_EXPORT,
+          DataMartRunType.EMAIL,
+          DataMartRunType.SLACK,
+          DataMartRunType.MS_TEAMS,
+          DataMartRunType.GOOGLE_CHAT,
+          DataMartRunType.DATA_QUALITY,
+        ],
+      });
+      expect(andWhere).toHaveBeenLastCalledWith('run.id != :runId', {
+        runId: mockTrigger.dataMartRunId,
+      });
+
+      expect(trigger.status).toBe(TriggerStatus.IDLE);
+      expect(triggerRepository.save).toHaveBeenCalledWith(trigger);
+      expect(connectorExecutionService.executeExistingRun).not.toHaveBeenCalled();
+    });
+
+    it('starts a DuckDB run when the storage is free', async () => {
+      const { service, dataMartService, connectorExecutionService, mockManager } = createService();
+      (dataMartService.getByIdAndProjectId as jest.Mock).mockResolvedValue(duckDbDataMart);
+      (mockManager.findOneOrFail as jest.Mock).mockResolvedValue(mockRun);
+      const { getCount } = withCounts(mockManager, [0, 0]);
+
+      await service.handleTrigger({ ...mockTrigger } as ConnectorRunTrigger);
+
+      expect(getCount).toHaveBeenCalledTimes(2);
+      expect(connectorExecutionService.executeExistingRun).toHaveBeenCalled();
+    });
+
+    it('does not queue runs on other storages', async () => {
+      const { service, dataMartService, mockManager } = createService();
+      (dataMartService.getByIdAndProjectId as jest.Mock).mockResolvedValue(mockDataMart);
+      (mockManager.findOneOrFail as jest.Mock).mockResolvedValue(mockRun);
+      const { getCount } = withCounts(mockManager, [0]);
+
+      await service.handleTrigger({ ...mockTrigger } as ConnectorRunTrigger);
+
+      expect(getCount).toHaveBeenCalledTimes(1);
     });
 
     it('propagates non-concurrency errors', async () => {

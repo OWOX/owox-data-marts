@@ -39,6 +39,16 @@ const configSchema = z
     MAX_CONNECTOR_RUNS_PER_PROJECT: z.coerce.number().int().min(1).max(1000).default(3),
     MAX_REPORT_RUNS_PER_PROJECT: z.coerce.number().int().min(1).max(1000).default(1000),
 
+    DUCKDB_DATA_DIR: blankAsUnset(z.string().trim().optional()),
+    DUCKDB_STORAGE_ENABLED: blankAsUnset(
+      z
+        .string()
+        .trim()
+        .toLowerCase()
+        .pipe(z.enum(['true', 'false']))
+        .optional()
+    ),
+
     // Comma-separated short link domains allowlisted on top of the built-in ones. Parsed by the
     // connector runtime (packages/connectors, ShortLinksUtils); the backend only passes it on.
     CONNECTOR_SHORT_LINK_DOMAINS: z.string().trim().optional(),

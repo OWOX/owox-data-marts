@@ -3,9 +3,9 @@ import { SqlRunService } from './sql-run.service';
 describe('SqlRunService', () => {
   const storage = { id: 's1', type: 'GOOGLE_BIGQUERY', config: {}, credentialId: null };
 
-  function create(hasCredentials: boolean) {
+  function create(hasCredentials: boolean, onStorage: object = storage) {
     const dataMartService = {
-      getByIdAndProjectId: jest.fn().mockResolvedValue({ storage, definition: {} }),
+      getByIdAndProjectId: jest.fn().mockResolvedValue({ storage: onStorage, definition: {} }),
     };
     const executor = {
       executeBatches: jest.fn().mockImplementation(async function* () {
@@ -41,5 +41,17 @@ describe('SqlRunService', () => {
 
     await expect(service.runRows(command).next()).rejects.toThrow('Storage setup is not finished.');
     expect(executor.executeBatches).not.toHaveBeenCalled();
+  });
+
+  it('runs a DuckDB Storage, which has no Credential', async () => {
+    const duckDb = { id: 's2', type: 'DUCKDB', config: {}, credentialId: null };
+    const { service, resolver, executor } = create(false, duckDb);
+
+    const rows: unknown[] = [];
+    for await (const row of service.runRows(command)) rows.push(row);
+
+    expect(rows).toEqual([{ a: 1 }]);
+    expect(resolver.hasCredentials).not.toHaveBeenCalled();
+    expect(executor.executeBatches).toHaveBeenCalled();
   });
 });
