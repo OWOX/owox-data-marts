@@ -238,21 +238,20 @@ describe('DataMartSchedulesPage', () => {
 
     renderPage();
 
-    const openDocumentLink = await screen.findByRole('link', {
-      name: 'Open document: Daily Sales Report',
-    });
+    const openDocumentLink = await screen.findByRole('link', { name: /Daily Sales Report/ });
     expect(openDocumentLink).toHaveAttribute(
       'href',
       'https://docs.google.com/spreadsheets/d/spreadsheet-1/edit#gid=123'
     );
     expect(openDocumentLink).toHaveAttribute('target', '_blank');
+    expect(openDocumentLink).toHaveTextContent('(opens in a new tab)');
 
     fireEvent.click(openDocumentLink);
 
     expect(screen.queryByTestId('projectTriggerEditSheet')).not.toBeInTheDocument();
   });
 
-  it('does not render an Open document link for reports without a Google Sheets document', async () => {
+  it('does not link the report title for reports without a Google Sheets document', async () => {
     vi.mocked(scheduledTriggerService.getProjectScheduledTriggers).mockResolvedValueOnce({
       triggers: [buildProjectReportTrigger()],
     });
@@ -260,7 +259,7 @@ describe('DataMartSchedulesPage', () => {
     renderPage();
 
     expect(await screen.findByText('Daily Sales Report')).toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: /open document/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /Daily Sales Report/ })).not.toBeInTheDocument();
   });
 
   it('renders trigger row actions like the Data Mart triggers tab', async () => {

@@ -8,9 +8,8 @@
 
 Checking the results of a report-run schedule used to mean opening the row's info card and
 finding **Open in Google Sheets** tucked inside it — an action many people never discovered.
-Now the Schedules page, and each Data Mart's Triggers tab, shows an **Open document** icon
-right next to the scheduled report's run target, so one click opens that Google Sheet in a new
-tab.
+On the Schedules page and in each Data Mart's Triggers tab, the scheduled report's name is now
+a link, marked with an external-link arrow, that opens that Google Sheet in a new tab.
 
 - Shows only for report-run triggers whose destination is Google Sheets; connector runs, Data
   Quality checks, and other destination types are unaffected.

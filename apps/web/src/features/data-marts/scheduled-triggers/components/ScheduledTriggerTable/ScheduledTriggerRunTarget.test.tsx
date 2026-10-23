@@ -53,16 +53,16 @@ function makeReportRunTrigger(report?: DataMartReport): ScheduledTrigger {
 }
 
 describe('ScheduledTriggerRunTarget', () => {
-  it('renders an always-visible Open document link for a Google Sheets report', () => {
+  it('links the report title to its Google Sheet in a new tab', () => {
     renderRunTarget(makeReportRunTrigger(makeReport()));
 
-    const link = screen.getByRole('link', { name: 'Open document: Daily Sales Report' });
+    const link = screen.getByRole('link', { name: /Daily Sales Report/ });
     expect(link).toHaveAttribute('href', getGoogleSheetTabUrl('spreadsheet-1', '123'));
     expect(link).toHaveAttribute('target', '_blank');
-    expect(link.className).not.toMatch(/opacity-0/);
+    expect(link).toHaveTextContent('(opens in a new tab)');
   });
 
-  it('does not render an Open document link for a non-Google Sheets report', () => {
+  it('does not link the report title for a non-Google Sheets report', () => {
     renderRunTarget(
       makeReportRunTrigger(
         makeReport({
@@ -71,23 +71,23 @@ describe('ScheduledTriggerRunTarget', () => {
       )
     );
 
-    expect(screen.queryByRole('link', { name: /open document/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /Daily Sales Report/ })).not.toBeInTheDocument();
   });
 
-  it('does not render an Open document link when the report is not hydrated', () => {
+  it('does not link the report title when the report is not hydrated', () => {
     renderRunTarget(makeReportRunTrigger());
 
     expect(screen.getByText('Report')).toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: /open document/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /Daily Sales Report/ })).not.toBeInTheDocument();
   });
 
-  it('does not render an Open document link for non-report triggers', () => {
+  it('does not render a report link for non-report triggers', () => {
     renderRunTarget({
       id: 'trigger-2',
       type: ScheduledTriggerType.DATA_QUALITY_RUN,
       triggerConfig: null,
     } as unknown as ScheduledTrigger);
 
-    expect(screen.queryByRole('link', { name: /open document/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /Daily Sales Report/ })).not.toBeInTheDocument();
   });
 });
