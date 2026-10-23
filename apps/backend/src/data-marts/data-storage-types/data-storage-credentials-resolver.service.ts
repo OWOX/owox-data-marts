@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { DataStorageCredentials } from './data-storage-credentials.type';
@@ -19,6 +20,8 @@ import {
 } from '../exceptions/google-oauth.exceptions';
 import { StorageCredentialUnavailableException } from '../exceptions/storage-credential-unavailable.exception';
 import { toAdapterCredentials } from './storage-credential-definitions';
+import { DataStorageType } from './enums/data-storage-type.enum';
+import { resolveDuckDbDatabasePath } from './duckdb/utils/duckdb-path.utils';
 
 @Injectable()
 export class DataStorageCredentialsResolver {
@@ -26,7 +29,8 @@ export class DataStorageCredentialsResolver {
     @InjectRepository(DataStorage)
     private readonly dataStorageRepository: Repository<DataStorage>,
     private readonly storageCredentials: StorageCredentialBindingService,
-    private readonly legacy: LegacyStorageCredentialReader
+    private readonly legacy: LegacyStorageCredentialReader,
+    private readonly configService: ConfigService
   ) {}
 
   /** True when the Storage has a bound Credential or an old credentials row. */
@@ -69,6 +73,10 @@ export class DataStorageCredentialsResolver {
   }
 
   async resolve(storage: DataStorage): Promise<DataStorageCredentials> {
+    if (storage.type === DataStorageType.DUCKDB) {
+      // No Credential: a DuckDB storage is its file, derived from the storage id.
+      return { databasePath: resolveDuckDbDatabasePath(this.configService, storage.id) };
+    }
     const bound = await this.storageCredentials.resolveForStorage(storage);
     // A bound Storage never falls back to the old row, whatever happened to its Credential.
     if (!bound) return this.legacy.resolve(storage);

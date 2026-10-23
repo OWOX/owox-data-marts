@@ -160,6 +160,18 @@ export function getStorageFlowParams(
         hint: "The catalog, schema and table are automatically created during the first run of the data mart, if they don't already exist",
       };
     }
+    case DataStorageType.DUCKDB: {
+      const hasCatalog = parts.length === 3;
+      const [schema, table] = hasCatalog ? parts.slice(1) : parts;
+      return {
+        primary: [
+          { label: 'Schema', value: schema, copyValue: pathTo(hasCatalog ? 2 : 1) },
+          { label: 'Table', value: table, copyValue: fullyQualifiedName },
+        ],
+        secondary: [],
+        hint: "The schema and table are automatically created during the first run of the data mart, if they don't already exist",
+      };
+    }
     default:
       return {
         primary: [{ label: 'Table', value: fullyQualifiedName, copyValue: fullyQualifiedName }],

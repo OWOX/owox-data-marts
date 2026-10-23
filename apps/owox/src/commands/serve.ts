@@ -187,6 +187,7 @@ export default class Serve extends BaseCommand {
       bootstrap,
       configureTrustProxy,
       createHealthProbe,
+      isDuckDbStorageEnabled,
       registerPluginCollectionsBodyParser,
     } = await import('@owox/backend');
 
@@ -217,7 +218,17 @@ export default class Serve extends BaseCommand {
     currentIdp = idpProvider;
 
     // Register public route to expose whitelisted flags
-    registerPublicFlagsRoute(expressApp);
+    registerPublicFlagsRoute(expressApp, {
+      computed: {
+        DUCKDB_STORAGE_ENABLED: () =>
+          String(
+            isDuckDbStorageEnabled({
+              DB_TYPE: process.env.DB_TYPE,
+              DUCKDB_STORAGE_ENABLED: process.env.DUCKDB_STORAGE_ENABLED,
+            })
+          ),
+      },
+    });
 
     // Configure web static assets if web interface is enabled
     if (flags['web-enabled']) {

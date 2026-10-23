@@ -22,6 +22,7 @@ const validConfigByType = {
     workgroupName: 'my-workgroup',
   },
   [DataStorageType.DATABRICKS]: { host: 'my-host', httpPath: '/sql/1.0' },
+  [DataStorageType.DUCKDB]: {},
 };
 
 type SchemaBackedType = keyof typeof validConfigByType;
@@ -37,8 +38,13 @@ function buildValues(type: SchemaBackedType, reusableCredentialId = '') {
   } as unknown as DataStorageFormData;
 }
 
+// A DuckDB Storage is a local file and takes no Credential.
+const typesWithCredential = (Object.keys(validConfigByType) as SchemaBackedType[]).filter(
+  type => type !== DataStorageType.DUCKDB
+);
+
 describe('createDataStorageFormResolver', () => {
-  it.each(Object.keys(validConfigByType) as SchemaBackedType[])(
+  it.each(typesWithCredential)(
     'asks for a Credential on a %s Storage that has none',
     async type => {
       const resolver = createDataStorageFormResolver(false);
@@ -48,6 +54,14 @@ describe('createDataStorageFormResolver', () => {
       expect(result.errors.reusableCredentialId?.message).toBe('Select a Credential');
     }
   );
+
+  it('accepts a DuckDB Storage without a Credential', async () => {
+    const resolver = createDataStorageFormResolver(false);
+
+    const result = await resolver(buildValues(DataStorageType.DUCKDB), undefined, resolverOptions);
+
+    expect(result.errors).toEqual({});
+  });
 
   it('accepts a selected Credential', async () => {
     const resolver = createDataStorageFormResolver(false);

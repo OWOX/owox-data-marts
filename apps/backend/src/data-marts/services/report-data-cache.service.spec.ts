@@ -532,3 +532,123 @@ describe('ReportDataCacheService — cleanup finalize path', () => {
     expect(cacheRepository.delete).toHaveBeenCalled();
   });
 });
+
+describe('ReportDataCacheService — one reader per request', () => {
+  const reportOn = (type: DataStorageType) =>
+    ({
+      id: 'rep-1',
+      version: 1,
+      createdById: 'user-1',
+      destinationConfig: { type: 'GOOGLE_SHEETS' },
+      dataMart: { id: 'dm-1', projectId: 'proj-1', storage: { type } },
+    }) as unknown as Report;
+  const report = reportOn(DataStorageType.DUCKDB);
+  const accessor = { userId: 'user-1', roles: ['editor'] } as never;
+
+  const buildReader = (type = DataStorageType.DUCKDB) => ({
+    type,
+    prepareReportData: jest.fn().mockResolvedValue({ dataHeaders: [] }),
+    readReportDataBatch: jest.fn().mockResolvedValue({}),
+    getState: jest.fn().mockReturnValue({ type, sql: 'SELECT 1' }),
+    initFromState: jest.fn().mockResolvedValue(undefined),
+    finalize: jest.fn().mockResolvedValue(undefined),
+  });
+
+  const setup = (type = DataStorageType.DUCKDB) => {
+    let saved: Record<string, unknown> | null = null;
+    const cacheRepository = {
+      manager: {
+        connection: { options: { type: 'better-sqlite3' } },
+        findOne: jest.fn().mockResolvedValue({ id: 'rep-1' }),
+      },
+      findOne: jest.fn(async () => saved),
+      save: jest.fn(async (entry: Record<string, unknown>) => {
+        saved = entry;
+      }),
+    };
+    const readerResolver = { resolve: jest.fn(async () => buildReader(type)) };
+    const service = new ReportDataCacheService(
+      cacheRepository as never,
+      readerResolver as never,
+      { resolveBlendingDecision: jest.fn().mockResolvedValue({ needsBlending: false }) } as never,
+      {} as never
+    );
+    return { service, readerResolver, cacheRepository };
+  };
+
+  it('gives a request that waited for the cache its own reader, restored from the cache', async () => {
+    const { service, readerResolver } = setup();
+
+    const [first, second] = await Promise.all([
+      service.getOrCreateCachedReader(report, accessor),
+      service.getOrCreateCachedReader(report, accessor),
+    ]);
+
+    expect(second.reader).not.toBe(first.reader);
+    expect(first.fromCache).toBe(false);
+    expect(second.fromCache).toBe(true);
+    expect(readerResolver.resolve).toHaveBeenCalledTimes(2);
+    expect(second.reader.initFromState).toHaveBeenCalledWith(
+      { type: DataStorageType.DUCKDB, sql: 'SELECT 1' },
+      []
+    );
+  });
+
+  it('gives a request that waited for a non-DuckDB cache the same reader', async () => {
+    const { service, readerResolver } = setup(DataStorageType.GOOGLE_BIGQUERY);
+    const onBigQuery = reportOn(DataStorageType.GOOGLE_BIGQUERY);
+
+    const [first, second] = await Promise.all([
+      service.getOrCreateCachedReader(onBigQuery, accessor),
+      service.getOrCreateCachedReader(onBigQuery, accessor),
+    ]);
+
+    expect(second).toBe(first);
+    expect(second.fromCache).toBe(false);
+    expect(readerResolver.resolve).toHaveBeenCalledTimes(1);
+  });
+
+  it('releases a new reader whose first read fails', async () => {
+    const { service, readerResolver } = setup();
+    const reader = buildReader();
+    reader.readReportDataBatch.mockRejectedValue(new Error('Binder Error'));
+    readerResolver.resolve.mockResolvedValueOnce(reader);
+    (service as unknown as { logger: object }).logger = {
+      debug: jest.fn(),
+      error: jest.fn(),
+      warn: jest.fn(),
+    };
+
+    await expect(service.getOrCreateCachedReader(report, accessor)).rejects.toBeInstanceOf(
+      DataMartReadFailedException
+    );
+    expect(reader.finalize).toHaveBeenCalledTimes(1);
+  });
+
+  it('finalizes a released DuckDB reader only', async () => {
+    const { service } = setup();
+    const duckDb = buildReader();
+    const others = [
+      DataStorageType.GOOGLE_BIGQUERY,
+      DataStorageType.SNOWFLAKE,
+      DataStorageType.AWS_ATHENA,
+    ].map(buildReader);
+
+    await service.releaseReader(duckDb as never);
+    for (const reader of others) await service.releaseReader(reader as never);
+
+    expect(duckDb.finalize).toHaveBeenCalledTimes(1);
+    for (const reader of others) expect(reader.finalize).not.toHaveBeenCalled();
+  });
+
+  it('logs a finalize failure instead of throwing it', async () => {
+    const { service } = setup();
+    const reader = buildReader();
+    reader.finalize.mockRejectedValue(new Error('close failed'));
+    const warn = jest.fn();
+    (service as unknown as { logger: object }).logger = { warn };
+
+    await expect(service.releaseReader(reader as never)).resolves.toBeUndefined();
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('close failed'));
+  });
+});

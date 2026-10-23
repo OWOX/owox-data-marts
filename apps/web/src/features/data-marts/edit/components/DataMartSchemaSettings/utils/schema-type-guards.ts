@@ -6,6 +6,8 @@ import type {
   DatabricksDataMartSchema,
   DatabricksSchemaField,
   DataMartSchema,
+  DuckDbDataMartSchema,
+  DuckDbSchemaField,
   RedshiftDataMartSchema,
   RedshiftSchemaField,
   SnowflakeDataMartSchema,
@@ -95,6 +97,24 @@ export function isDatabricksSchema(schema: DataMartSchema): schema is Databricks
  * Uses structural typing similar to Athena, Snowflake, and Redshift (has isPrimaryKey).
  */
 export function isDatabricksField(field: unknown): field is DatabricksSchemaField {
+  return (
+    field !== null && typeof field === 'object' && 'isPrimaryKey' in field && !('mode' in field)
+  );
+}
+
+/**
+ * Type guard to check if a schema is a DuckDB schema.
+ * Replaces runtime type checks using string literals with proper TypeScript type guards.
+ */
+export function isDuckDbSchema(schema: DataMartSchema): schema is DuckDbDataMartSchema {
+  return schema.type === 'duckdb-data-mart-schema';
+}
+
+/**
+ * Type guard to check if a field is a DuckDB field.
+ * Uses structural typing similar to Athena, Snowflake, Redshift, and Databricks (has isPrimaryKey).
+ */
+export function isDuckDbField(field: unknown): field is DuckDbSchemaField {
   return (
     field !== null && typeof field === 'object' && 'isPrimaryKey' in field && !('mode' in field)
   );

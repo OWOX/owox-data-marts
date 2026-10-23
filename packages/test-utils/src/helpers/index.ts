@@ -1,6 +1,6 @@
 export { createTestApp, closeTestApp } from './create-test-app';
 export { setupPublishedDataMart } from './setup-published-data-mart';
-export { setupConnectorDataMart } from './setup-connector-data-mart';
+export { setupConnectorDataMart, OPEN_HOLIDAYS_FIXTURE_ROWS } from './setup-connector-data-mart';
 export {
   setupReportPrerequisites,
   EMAIL_REPORT_DESTINATION_CONFIG,

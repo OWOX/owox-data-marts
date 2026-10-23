@@ -65,6 +65,7 @@ describe('LookerStudioConnectorApiService', () => {
 
     cacheService = {
       getOrCreateCachedReader: jest.fn(),
+      releaseReader: jest.fn(),
     } as unknown as jest.Mocked<ReportDataCacheService>;
 
     reportService = {
@@ -203,6 +204,89 @@ describe('LookerStudioConnectorApiService', () => {
 
       await expect(service.getSchema(request)).rejects.toBe(queryError);
       expect((service as any).logger.error).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('reader release', () => {
+    const reader = { type: 'DUCKDB' };
+    const reportRun = {
+      markAsSuccess: jest.fn(),
+      markAsUnsuccessful: jest.fn(),
+      getReport: jest.fn().mockReturnValue(createMockReport()),
+      getReportId: jest.fn().mockReturnValue('report-1'),
+    };
+    const dataResult = {
+      response: { schema: [], rows: [], filtersApplied: [] },
+      meta: { limitExceeded: false, rowsSent: 0 },
+    };
+
+    beforeEach(() => {
+      reportService.getByIdAndLookerStudioSecret.mockResolvedValue(createMockReport());
+      cacheService.getOrCreateCachedReader.mockResolvedValue({
+        reader,
+        fromCache: true,
+        dataDescription: { dataHeaders: [] },
+      } as never);
+      reportRunService.create.mockResolvedValue(reportRun as never);
+      schemaService.getSchema.mockResolvedValue({ schema: [] });
+      dataService.getData.mockResolvedValue(dataResult as never);
+      dataService.prepareStreamingContext.mockResolvedValue({} as never);
+      dataService.streamData.mockResolvedValue({
+        rowCount: 0,
+        limitExceeded: false,
+        bytesWritten: 0,
+      } as never);
+    });
+
+    it.each([
+      ['a schema request', () => service.getSchema(createMockSchemaRequest())],
+      ['a sample', () => service.getData(createMockRequest(true))],
+      ['a full extraction', () => service.getData(createMockRequest(false))],
+      [
+        'a streamed full extraction',
+        () => {
+          process.env.LOOKER_STREAMING_ENABLED = 'true';
+          return service.getDataStreaming(
+            createMockRequest(false),
+            createMockResponse() as Response
+          );
+        },
+      ],
+    ])('releases the reader after %s', async (_, request) => {
+      await request();
+
+      expect(cacheService.releaseReader).toHaveBeenCalledTimes(1);
+      expect(cacheService.releaseReader).toHaveBeenCalledWith(reader);
+    });
+
+    it.each([
+      ['a full extraction', () => service.getData(createMockRequest(false))],
+      [
+        'a streamed full extraction',
+        () => {
+          process.env.LOOKER_STREAMING_ENABLED = 'true';
+          return service.getDataStreaming(
+            createMockRequest(false),
+            createMockResponse() as Response
+          );
+        },
+      ],
+    ])('releases the reader before saving the run of %s', async (_, request) => {
+      await request();
+
+      expect(reportRunService.finish).toHaveBeenCalledTimes(1);
+      expect(cacheService.releaseReader.mock.invocationCallOrder[0]).toBeLessThan(
+        reportRunService.finish.mock.invocationCallOrder[0]
+      );
+    });
+
+    it('releases the reader when the read fails', async () => {
+      const readError = new Error('read failed');
+      dataService.getData.mockRejectedValue(readError);
+
+      await expect(service.getData(createMockRequest(true))).rejects.toBe(readError);
+
+      expect(cacheService.releaseReader).toHaveBeenCalledWith(reader);
     });
   });
 

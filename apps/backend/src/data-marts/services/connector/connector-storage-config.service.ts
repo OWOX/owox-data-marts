@@ -28,6 +28,7 @@ import { ConnectorExecutionError } from '../../errors/connector-execution.error'
 import { DataStorageCredentialsResolver } from '../../data-storage-types/data-storage-credentials-resolver.service';
 import { DataStorageCredentials } from '../../data-storage-types/data-storage-credentials.type';
 import { GoogleOAuthConfigService } from '../google-oauth/google-oauth-config.service';
+import { isDuckDbCredentials } from '../../data-storage-types/data-storage-credentials.guards';
 
 @Injectable()
 export class ConnectorStorageConfigService {
@@ -54,6 +55,8 @@ export class ConnectorStorageConfigService {
         return this.createRedshiftStorageConfig(dataMart, connector, credentials);
       case DataStorageType.DATABRICKS:
         return this.createDatabricksStorageConfig(dataMart, connector, credentials);
+      case DataStorageType.DUCKDB:
+        return this.createDuckDBStorageConfig(connector, credentials);
       default:
         throw new ConnectorExecutionError(
           `Unsupported storage type: ${dataMart.storage.type}`,
@@ -330,6 +333,29 @@ export class ConnectorStorageConfigService {
         DatabricksCatalog: catalog,
         DatabricksSchema: schema,
         DestinationTableNameOverride: `${connector.source.node} ${tableName}`,
+      },
+    });
+  }
+
+  private createDuckDBStorageConfig(
+    connector: DataMartConnectorDefinition['connector'],
+    credentials: DataStorageCredentials
+  ): StorageConfigDto {
+    if (!isDuckDbCredentials(credentials)) throw new Error('DuckDB database path is not resolved');
+    const [schema, table] = (connector.storage?.fullyQualifiedName ?? '').split('.');
+    return new StorageConfigDto({
+      name: 'DuckDB', // MUST be 'DuckDB' → connector runtime resolves DuckDBStorage
+      config: {
+        DatabasePath: credentials.databasePath,
+        DestinationSchemaName: schema || 'main',
+        // NOTE: must be "...Override", not "DestinationTableName" — the runner's
+        // AbstractConnector.getStorageForNode() unconditionally recomputes
+        // DestinationTableName from AbstractSource.getDestinationName(), which reads
+        // *this* key (format "<node> <table>", same as every other storage type here)
+        // before falling back to the connector schema's own default. Setting
+        // DestinationTableName directly here would be silently clobbered.
+        DestinationTableNameOverride: `${connector.source.node} ${table ?? ''}`.trim(),
+        MaxBufferSize: 1000,
       },
     });
   }

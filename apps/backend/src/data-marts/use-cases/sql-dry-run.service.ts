@@ -19,6 +19,7 @@ import {
   sqlLexingOptionsFor,
 } from '../sql-references/data-mart-sql-reference';
 import { DataMart } from '../entities/data-mart.entity';
+import { usesStoredCredentials } from '../data-storage-types/enums/data-storage-type.enum';
 
 @Injectable()
 export class SqlDryRunService {
@@ -56,7 +57,10 @@ export class SqlDryRunService {
     if (!storage || !storage.type || !storage.config) {
       return SqlDryRunResult.failed('Storage setup is not finished…');
     }
-    if (!(await this.credentialsResolver.hasCredentials(storage))) {
+    if (
+      usesStoredCredentials(storage.type) &&
+      !(await this.credentialsResolver.hasCredentials(storage))
+    ) {
       return SqlDryRunResult.failed('Storage setup is not finished…');
     }
 

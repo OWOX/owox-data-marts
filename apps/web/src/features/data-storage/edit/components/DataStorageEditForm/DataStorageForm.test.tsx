@@ -7,6 +7,10 @@ import { DataStorageType, type StorageCredentialSummary } from '../../../shared'
 import type { DataStorage } from '../../../shared/model/types/data-storage';
 import { DataStorageForm } from './DataStorageForm';
 
+vi.mock('../../../../../app/store/hooks', () => ({
+  useFlags: () => ({ flags: { DUCKDB_STORAGE_ENABLED: 'false' } }),
+}));
+
 vi.mock('react-hot-toast', () => {
   const toastMock = { error: vi.fn(), success: vi.fn() };
   return { default: toastMock, toast: toastMock };
@@ -548,5 +552,45 @@ describe('DataStorageForm — a rejected save', () => {
     for (const [payload] of onSubmit.mock.calls as [Record<string, unknown>][]) {
       expect(payload.ownerIds).toEqual(['user-2']);
     }
+  });
+});
+
+describe('DataStorageForm — an existing DuckDB storage with the flag off', () => {
+  const databasePath = '/data/owox-duckdb/storage-1.duckdb';
+  const duckDb: DataStorage = {
+    id: 'storage-1',
+    type: DataStorageType.DUCKDB,
+    title: 'Local',
+    config: {},
+    databasePath,
+    createdAt: new Date('2026-06-09T10:00:00.000Z'),
+    modifiedAt: new Date('2026-06-09T10:00:00.000Z'),
+    reusableCredential: null,
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    localStorage.clear();
+  });
+
+  it('opens with its type and file path, and no Credential field', () => {
+    renderForm(vi.fn(), duckDb);
+
+    expect(screen.getAllByText('DuckDB').length).toBeGreaterThan(0);
+    expect(screen.getByText(databasePath)).toBeInTheDocument();
+    expect(screen.queryByText('Authentication')).toBeNull();
+  });
+
+  it('saves without a Credential', async () => {
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+    renderForm(onSubmit, duckDb);
+
+    await changeOwners();
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => {
+      expect(onSubmit).toHaveBeenCalled();
+    });
+    expect(submitted(onSubmit).reusableCredentialId).toBeFalsy();
   });
 });
