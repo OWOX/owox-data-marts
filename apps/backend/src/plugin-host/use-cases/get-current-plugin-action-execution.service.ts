@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { HttpException, Inject, Injectable } from '@nestjs/common';
 import {
   CREDENTIAL_CONSUMER_BINDING_FACADE,
   type CredentialConsumerBindingFacade,
@@ -49,18 +49,33 @@ export class GetCurrentPluginActionExecutionService {
       throw new ExecutionNotFoundError();
     }
 
-    const ready = await this.credentialBindings.assertConsumerReady({
+    const consumer = {
       projectId: context.projectId,
       userId: context.userId,
       roles: context.roles ?? [],
-      consumerType: 'plugin-installation',
+      consumerType: 'plugin-installation' as const,
       consumerId: execution.installationId,
-      // An SDK without AI support would get handles that only fail, so it keeps exact ones only.
-      requirements: (current.credentialRequirements ?? []).filter(
-        requirement =>
-          command.aiCredentials || normalizeCredentialRequirement(requirement).definitionId !== null
-      ),
+    };
+    const requirements = current.credentialRequirements ?? [];
+    const isExact = (requirement: (typeof requirements)[number]) =>
+      normalizeCredentialRequirement(requirement).definitionId !== null;
+    const ready = await this.credentialBindings.assertConsumerReady({
+      ...consumer,
+      requirements: requirements.filter(isExact),
     });
+    // AI Credentials never deny a backend its context: an unusable one is only left out. An SDK
+    // without AI support would get handles that only fail, so it gets none.
+    const readyAi = command.aiCredentials
+      ? await Promise.all(
+          requirements
+            .filter(requirement => !isExact(requirement))
+            .map(requirement =>
+              this.credentialBindings
+                .assertConsumerReady({ ...consumer, requirements: [requirement] })
+                .catch(skipUnusable)
+            )
+        )
+      : [];
 
     return {
       executionId: execution.id,
@@ -74,7 +89,13 @@ export class GetCurrentPluginActionExecutionService {
       installationId: execution.installationId,
       projectId: execution.projectId,
       userId: execution.userId,
-      credentialHandles: toCredentialHandles(ready),
+      credentialHandles: toCredentialHandles([...ready, ...readyAi.flat()]),
     };
   }
+}
+
+// Readiness refuses an unusable Credential with a 4xx; anything else is a real failure.
+function skipUnusable(error: unknown): [] {
+  if (error instanceof HttpException && error.getStatus() < 500) return [];
+  throw error;
 }

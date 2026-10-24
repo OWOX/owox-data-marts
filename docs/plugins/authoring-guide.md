@@ -621,9 +621,8 @@ works only while that action runs. It keeps the role the member had when the act
 the action ends, at most `timeoutSeconds`, even if the member leaves the project or gets another
 role meanwhile; the installation is checked on every request. Credential secrets stay in OWOX Data
 Marts; the backend uses Credentials through `ctx.credentials`, as the page does. AI Credentials need
-`@owox/plugin-sdk` 0.40.0 or later; a backend on an older SDK gets only exact ones. If a required
-Credential that the backend receives is not usable, the action ends with
-`EXECUTION_CONTEXT_UNAVAILABLE` before the handler runs.
+`@owox/plugin-sdk` 0.40.0 or later; a backend on an older SDK gets only exact ones. An AI Credential
+that is not usable is left out of `ctx.credentials` and does not stop the action.
 
 The [SDK README](../../packages/plugin-sdk/README.md) describes the same API in its "Backend
 actions" and "`@owox/plugin-sdk/server`" sections.
@@ -746,7 +745,7 @@ A failed action rejects with a `PluginActionError`. Find it by `error.name` and 
 | `HOST_NOT_ALLOWED`              | The calling host is not in `hosts` or, without `hosts`, not public HTTPS.                           |
 | `PLUGIN_MISMATCH`               | The execution belongs to a plugin other than the backend's `repositoryId`.                          |
 | `ACTION_NOT_IMPLEMENTED`        | The backend declares no handler for this action.                                                    |
-| `EXECUTION_CONTEXT_UNAVAILABLE` | The backend could not read the execution, for example a required Credential is not usable.          |
+| `EXECUTION_CONTEXT_UNAVAILABLE` | The backend could not read the execution from OWOX Data Marts.                                      |
 | any other                       | An OWOX refusal of the request, or the code your backend returned.                                  |
 
 A start from a plugin that is no longer installed is refused with `AUTHORIZATION_ERROR`. Refusals

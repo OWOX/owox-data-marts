@@ -94,12 +94,12 @@ describe('GetCurrentPluginActionExecutionService with the real consumer readines
     ]);
   });
 
-  it('refuses the context when the required AI Credential is disabled', async () => {
+  it('leaves a disabled AI Credential out and keeps the exact handle', async () => {
     const { service } = setup(['github', 'ai'], ['credential-ai']);
 
-    await expect(service.run({ context: CONTEXT, aiCredentials: true })).rejects.toThrow(
-      'The selected Credential is disabled or unavailable'
-    );
+    const current = await service.run({ context: CONTEXT, aiCredentials: true });
+
+    expect(current.credentialHandles).toEqual([{ name: 'github', kind: 'exact' }]);
   });
 
   it('gives an SDK without AI support its exact handle, whatever the AI Credential state', async () => {

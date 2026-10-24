@@ -115,12 +115,16 @@ describe('GetCurrentPluginActionExecutionService', () => {
       });
     });
 
+    const AI_READY = { key: 'ai', definitionId: null, optional: false, models: ['fast'] };
+
     it('answers AI Credential handles, as the plugin page gets them, to an SDK that asks', async () => {
       const { service, credentialBindings } = setup();
-      credentialBindings.assertConsumerReady.mockResolvedValue([
-        { key: 'github', definitionId: 'github', optional: false, models: [] },
-        { key: 'ai', definitionId: null, optional: false, models: ['fast'] },
-      ]);
+      credentialBindings.assertConsumerReady.mockImplementation(
+        async ({ requirements }: { requirements: string[] }) =>
+          requirements.includes('ai')
+            ? [AI_READY]
+            : [{ key: 'github', definitionId: 'github', optional: false, models: [] }]
+      );
 
       await expect(service.run({ context: CONTEXT, aiCredentials: true })).resolves.toMatchObject({
         credentialHandles: [
@@ -129,7 +133,10 @@ describe('GetCurrentPluginActionExecutionService', () => {
         ],
       });
       expect(credentialBindings.assertConsumerReady).toHaveBeenCalledWith(
-        expect.objectContaining({ requirements: ['github', 'ai'] })
+        expect.objectContaining({ requirements: ['github'] })
+      );
+      expect(credentialBindings.assertConsumerReady).toHaveBeenCalledWith(
+        expect.objectContaining({ requirements: ['ai'] })
       );
     });
 
@@ -144,14 +151,33 @@ describe('GetCurrentPluginActionExecutionService', () => {
       );
     });
 
-    it('refuses the context when the required AI Credential is not usable', async () => {
+    it('leaves an unusable AI Credential out and still answers the context', async () => {
       const { service, credentialBindings } = setup();
-      credentialBindings.assertConsumerReady.mockRejectedValue(
-        new NotFoundException('Credential ai is not configured')
+      credentialBindings.assertConsumerReady.mockImplementation(
+        async ({ requirements }: { requirements: string[] }) => {
+          if (requirements.includes('ai')) {
+            throw new NotFoundException('Credential ai is not configured');
+          }
+          return [{ key: 'github', definitionId: 'github', optional: false, models: [] }];
+        }
+      );
+
+      await expect(service.run({ context: CONTEXT, aiCredentials: true })).resolves.toMatchObject({
+        credentialHandles: [{ name: 'github', kind: 'exact' }],
+      });
+    });
+
+    it('still fails on an error that is not an unusable AI Credential', async () => {
+      const { service, credentialBindings } = setup();
+      credentialBindings.assertConsumerReady.mockImplementation(
+        async ({ requirements }: { requirements: string[] }) => {
+          if (requirements.includes('ai')) throw new Error('database is down');
+          return [];
+        }
       );
 
       await expect(service.run({ context: CONTEXT, aiCredentials: true })).rejects.toThrow(
-        'Credential ai is not configured'
+        'database is down'
       );
     });
   });
