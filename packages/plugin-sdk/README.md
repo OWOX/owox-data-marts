@@ -403,8 +403,7 @@ The handler's `ctx` provides:
   the plugin page, and from an older OWOX), `deadlineAt`, `pluginVersion` and `plugin`, with the
   plugin's `id` and `repositoryId`;
 - `host`: the OWOX origin that accepted the execution token, to build links to OWOX pages with;
-- `signal`, which aborts at the action's deadline; calls through `ctx`, AI calls included, stop
-  with it. When OWOX drops the call, Cloudflare Workers
+- `signal`, which aborts at the action's deadline. When OWOX drops the call, Cloudflare Workers
   cancels the whole invocation: the handler stops, code after an `await` does not run, and
   `request.signal` never fires. Do not rely on cleanup after an `await`. On Node with
   `@hono/node-server`, the handler keeps running and `signal` aborts.
