@@ -15,7 +15,7 @@ import { createPluginScheduleReader, type PluginScheduleReader } from '../schedu
 import { createServerRequester, GUARDED_FETCH } from './requester.js';
 
 export { exactCredential } from '../credentials.js';
-export type { CredentialHandle, PluginCredentials } from '../credentials.js';
+export type { AiCredentialHandle, CredentialHandle, PluginCredentials } from '../credentials.js';
 export type { PluginCollection } from '../collections.js';
 export type { PluginSchedule, PluginScheduleReader } from '../schedules.js';
 
@@ -43,7 +43,7 @@ export interface PluginActionExecutionContext {
 export interface BackendActionContext {
   /** Acts with the access of the member who installed the plugin, until the deadline. */
   readonly owox: OWOXApiClient;
-  /** Exact Credential handles; the secret stays in OWOX. */
+  /** Exact and logical AI Credential handles; the secret stays in OWOX. */
   readonly credentials: PluginCredentials;
   collections<T>(name: string): PluginCollection<T>;
   /** The installation's schedules, read-only: a backend action cannot change them. */
@@ -134,6 +134,8 @@ export function createBackend(options: {
         kind: 'api',
         method: 'GET',
         path: CURRENT_EXECUTION_PATH,
+        // Without it OWOX sends exact Credentials only, which an older SDK can use.
+        query: [['capabilities', 'ai']],
       });
       if (!current.ok) {
         // The path is fixed, so FORBIDDEN can only be server/node refusing the host's address.

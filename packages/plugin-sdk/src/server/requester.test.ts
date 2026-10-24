@@ -187,20 +187,111 @@ describe('createServerRequester', () => {
     const { fetchMock, requester } = setup();
 
     await expect(
-      requester.send({
-        kind: 'credentialAi',
-        version: 1,
-        handle: 'ai',
-        operation: 'generate',
-        model: 'fast',
-        options: {},
-      })
+      requester.send({ kind: 'openExternal', url: 'https://example.com' })
     ).resolves.toEqual({
       id: '',
       ok: false,
       error: { code: 'PROTOCOL_ERROR', message: 'Not available in a backend action' },
     });
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('serves the logical AI Credential through the credential AI routes', async () => {
+    const { fetchMock, requester } = setup(
+      jsonResponse(200, {
+        content: [{ type: 'text', text: 'hello' }],
+        finishReason: { unified: 'stop' },
+        usage: { inputTokens: { total: 1 }, outputTokens: { total: 1 } },
+        warnings: [],
+      })
+    );
+    const ai = createPluginCredentials(requester, [
+      { name: 'ai', kind: 'ai', models: ['fast'] },
+    ]).ai!;
+
+    await expect(ai.doGenerate({ prompt: [] })).resolves.toMatchObject({
+      content: [{ type: 'text', text: 'hello' }],
+    });
+    const [url, init] = fetchMock.mock.calls[0]!;
+    expect(String(url)).toBe(
+      'https://app.owox.test/api/plugins/runtime/credentials/ai/ai/generate'
+    );
+    expect(init).toMatchObject({ method: 'POST', redirect: 'manual' });
+    expect(JSON.parse(String(init?.body))).toEqual({
+      version: 1,
+      model: 'fast',
+      options: { prompt: [] },
+    });
+    expect(sentHeaders(init).get('x-owox-execution-token')).toBe(TOKEN);
+  });
+
+  it('streams the logical AI Credential as NDJSON', async () => {
+    const { fetchMock, requester } = setup(
+      new Response('{"type":"text-delta","id":"t1","delta":"hello"}\n', {
+        status: 200,
+        headers: { 'content-type': 'application/x-ndjson' },
+      })
+    );
+    const ai = createPluginCredentials(requester, [
+      { name: 'ai', kind: 'ai', models: ['fast'] },
+    ]).ai!;
+
+    const reader = (await ai.doStream({ prompt: [] })).stream.getReader();
+
+    await expect(reader.read()).resolves.toMatchObject({
+      value: { type: 'text-delta', delta: 'hello' },
+    });
+    await expect(reader.read()).resolves.toEqual({ done: true, value: undefined });
+    const [url, init] = fetchMock.mock.calls[0]!;
+    expect(String(url)).toBe('https://app.owox.test/api/plugins/runtime/credentials/ai/ai/stream');
+    expect(sentHeaders(init).get('accept')).toBe('application/x-ndjson');
+  });
+
+  it('embeds through the logical AI Credential', async () => {
+    const { fetchMock, requester } = setup(
+      jsonResponse(200, { embeddings: [[0.1, 0.2]], usage: { tokens: 2 }, warnings: [] })
+    );
+    const ai = createPluginCredentials(requester, [
+      { name: 'ai', kind: 'ai', models: ['embedding'] },
+    ]).ai!;
+
+    await expect(ai.embedding!.doEmbed({ values: ['hello'] })).resolves.toMatchObject({
+      embeddings: [[0.1, 0.2]],
+    });
+    expect(String(fetchMock.mock.calls[0]![0])).toBe(
+      'https://app.owox.test/api/plugins/runtime/credentials/ai/ai/embed'
+    );
+  });
+
+  it('passes an AI refusal through as the frame would see it', async () => {
+    const { requester } = setup(
+      jsonResponse(403, { code: 'CREDENTIAL_REJECTED', message: 'The provider rejected the key' })
+    );
+    const ai = createPluginCredentials(requester, [
+      { name: 'ai', kind: 'ai', models: ['fast'] },
+    ]).ai!;
+
+    await expect(ai.doGenerate({ prompt: [] })).rejects.toMatchObject({
+      name: 'PluginTransportError',
+      payload: {
+        code: 'HTTP_ERROR',
+        status: 403,
+        apiCode: 'CREDENTIAL_REJECTED',
+        message: 'The provider rejected the key',
+      },
+    });
+  });
+
+  it('answers an unreadable AI result as the frame does, not with a SyntaxError', async () => {
+    const { requester } = setup(new Response('<html>', { status: 200 }));
+    const ai = createPluginCredentials(requester, [
+      { name: 'ai', kind: 'ai', models: ['fast'] },
+    ]).ai!;
+
+    await expect(ai.doGenerate({ prompt: [] })).rejects.toMatchObject({
+      name: 'PluginTransportError',
+      payload: { code: 'NETWORK_ERROR', message: 'The request could not be completed' },
+    });
   });
 
   it('serves exact Credentials through the credential fetch route', async () => {

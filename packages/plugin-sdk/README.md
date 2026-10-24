@@ -392,8 +392,10 @@ For each request, `createBackend`:
 The handler's `ctx` provides:
 
 - `owox`: the API client, acting with the access of the member who installed the plugin;
-- `credentials`: exact Credential handles, used through
-  `exactCredential(ctx.credentials, name).asFetch()`. The secret stays in OWOX;
+- `credentials`: the handles the page gets. Exact ones work through
+  `exactCredential(ctx.credentials, name).asFetch()`, and the logical `ai` handle is a Vercel AI
+  SDK model. On an OWOX older than 0.40.0, `ctx.credentials.ai` is undefined. The secret stays in
+  OWOX;
 - `collections(name)`;
 - `schedules`: `list()` and `get(id)` of the installation's schedules, read-only. It is always
   defined; on an older OWOX without schedules its calls fail with a 404 transport error;
@@ -409,8 +411,7 @@ The handler's `ctx` provides:
 Return any JSON value of at most 1 MiB, nested at most 100 levels; any other result fails with
 `BACKEND_INVALID_RESPONSE`. To fail with your own code, throw an error whose `code` matches
 `^[A-Z][A-Z0-9_]{0,63}$`, for example `DOCUMENT_LOCKED`. Any other error ends the execution with
-`ACTION_FAILED`. Codes that start with `BACKEND_`, and the codes OWOX sets itself, are reserved. AI
-Credential handles are not available in a backend.
+`ACTION_FAILED`. Codes that start with `BACKEND_`, and the codes OWOX sets itself, are reserved.
 
 Deploy the backend, for example with `npx wrangler deploy` or to Cloud Run as the
 [authoring guide](https://docs.owox.com/docs/plugins/authoring-guide/) shows, and set

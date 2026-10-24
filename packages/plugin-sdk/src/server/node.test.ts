@@ -137,7 +137,7 @@ describe('server/node', () => {
 
     expect(await response.json()).toEqual({ result: { items: [] } });
     expect(vi.mocked(undiciFetch).mock.calls.map(([url]) => String(url))).toEqual([
-      `${HOST}/api/plugins/runtime/executions/current`,
+      `${HOST}/api/plugins/runtime/executions/current?capabilities=ai`,
       `${HOST}/api/data-marts`,
     ]);
     for (const [, init] of vi.mocked(undiciFetch).mock.calls) {

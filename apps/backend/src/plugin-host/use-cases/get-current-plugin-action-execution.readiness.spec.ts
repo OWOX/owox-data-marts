@@ -18,8 +18,8 @@ const CONTEXT: AuthorizationContext = {
   executionId: 'execution-1',
 };
 
-// The real readiness service, with every requirement bound to a usable Credential.
-function setup(credentialRequirements: string[]) {
+// The real readiness service, with every requirement bound to a Credential, usable unless disabled.
+function setup(credentialRequirements: string[], disabled: string[] = []) {
   const bindings = {
     findOneBy: jest.fn(({ requirementKey }: { requirementKey: string }) =>
       Promise.resolve({
@@ -32,7 +32,7 @@ function setup(credentialRequirements: string[]) {
     findOneBy: jest.fn(({ id }: { id: string }) =>
       Promise.resolve({
         id,
-        enabled: true,
+        enabled: !disabled.includes(id),
         definitionId: id === 'credential-ai' ? 'openai' : 'github',
         secret: { value: 'secret' },
         aiModelMappings: { fast: 'model-1' },
@@ -83,8 +83,27 @@ function setup(credentialRequirements: string[]) {
 }
 
 describe('GetCurrentPluginActionExecutionService with the real consumer readiness', () => {
-  it('lists the exact handle of a plugin that also requires an AI Credential, and no AI handle', async () => {
-    const { service, bindings } = setup(['github', 'ai']);
+  it('lists both the exact and the AI handle of a plugin that requires both', async () => {
+    const { service } = setup(['github', 'ai']);
+
+    const current = await service.run({ context: CONTEXT, aiCredentials: true });
+
+    expect(current.credentialHandles).toEqual([
+      { name: 'github', kind: 'exact' },
+      { name: 'ai', kind: 'ai', models: ['fast'] },
+    ]);
+  });
+
+  it('leaves a disabled AI Credential out and keeps the exact handle', async () => {
+    const { service } = setup(['github', 'ai'], ['credential-ai']);
+
+    const current = await service.run({ context: CONTEXT, aiCredentials: true });
+
+    expect(current.credentialHandles).toEqual([{ name: 'github', kind: 'exact' }]);
+  });
+
+  it('gives an SDK without AI support its exact handle, whatever the AI Credential state', async () => {
+    const { service, bindings } = setup(['github', 'ai'], ['credential-ai']);
 
     const current = await service.run({ context: CONTEXT });
 

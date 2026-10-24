@@ -78,6 +78,14 @@ describe('PluginActionRuntimeController OpenAPI', () => {
     );
   });
 
+  it('documents the capabilities an SDK sends for its execution context', () => {
+    const operation = document.paths['/api/plugins/runtime/executions/current']?.get;
+
+    expect(operation?.parameters).toContainEqual(
+      expect.objectContaining({ name: 'capabilities', in: 'query', required: false })
+    );
+  });
+
   it('documents a queued execution, the schedule trigger and the schedule id', () => {
     const schemas = document.components?.schemas;
 

@@ -620,7 +620,9 @@ backend, and gives it an execution token. The token acts with the installing mem
 works only while that action runs. It keeps the role the member had when the action started until
 the action ends, at most `timeoutSeconds`, even if the member leaves the project or gets another
 role meanwhile; the installation is checked on every request. Credential secrets stay in OWOX Data
-Marts; the backend uses exact Credentials through `ctx.credentials`. AI Credential handles are not available in a backend.
+Marts; the backend uses Credentials through `ctx.credentials`, as the page does. AI Credentials need
+`@owox/plugin-sdk` 0.40.0 or later; a backend on an older SDK gets only exact ones. An AI Credential
+that is not usable is left out of `ctx.credentials` and does not stop the action.
 
 The [SDK README](../../packages/plugin-sdk/README.md) describes the same API in its "Backend
 actions" and "`@owox/plugin-sdk/server`" sections.

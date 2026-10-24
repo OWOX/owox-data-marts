@@ -99,27 +99,87 @@ describe('GetCurrentPluginActionExecutionService', () => {
     });
   });
 
-  it('does not let a disconnected AI Credential deny the backend its context', async () => {
-    const { service, credentialBindings } = setup();
-    VERSIONS.set('version-2', {
-      id: 'version-2',
-      semver: '1.1.0',
-      credentialRequirements: ['github', 'ai'],
+  describe('for a release that also requires an AI Credential', () => {
+    beforeEach(() => {
+      VERSIONS.set('version-2', {
+        id: 'version-2',
+        semver: '1.1.0',
+        credentialRequirements: ['github', 'ai'],
+      });
     });
-    try {
+    afterEach(() => {
+      VERSIONS.set('version-2', {
+        id: 'version-2',
+        semver: '1.1.0',
+        credentialRequirements: ['github'],
+      });
+    });
+
+    const AI_READY = { key: 'ai', definitionId: null, optional: false, models: ['fast'] };
+
+    it('answers AI Credential handles, as the plugin page gets them, to an SDK that asks', async () => {
+      const { service, credentialBindings } = setup();
+      credentialBindings.assertConsumerReady.mockImplementation(
+        async ({ requirements }: { requirements: string[] }) =>
+          requirements.includes('ai')
+            ? [AI_READY]
+            : [{ key: 'github', definitionId: 'github', optional: false, models: [] }]
+      );
+
+      await expect(service.run({ context: CONTEXT, aiCredentials: true })).resolves.toMatchObject({
+        credentialHandles: [
+          { name: 'github', kind: 'exact' },
+          { name: 'ai', kind: 'ai', models: ['fast'] },
+        ],
+      });
+      expect(credentialBindings.assertConsumerReady).toHaveBeenCalledWith(
+        expect.objectContaining({ requirements: ['github'] })
+      );
+      expect(credentialBindings.assertConsumerReady).toHaveBeenCalledWith(
+        expect.objectContaining({ requirements: ['ai'] })
+      );
+    });
+
+    it('keeps an SDK without AI support to exact Credentials, as before', async () => {
+      const { service, credentialBindings } = setup();
+
       await expect(service.run({ context: CONTEXT })).resolves.toMatchObject({
         credentialHandles: [{ name: 'github', kind: 'exact' }],
       });
       expect(credentialBindings.assertConsumerReady).toHaveBeenCalledWith(
         expect.objectContaining({ requirements: ['github'] })
       );
-    } finally {
-      VERSIONS.set('version-2', {
-        id: 'version-2',
-        semver: '1.1.0',
-        credentialRequirements: ['github'],
+    });
+
+    it('leaves an unusable AI Credential out and still answers the context', async () => {
+      const { service, credentialBindings } = setup();
+      credentialBindings.assertConsumerReady.mockImplementation(
+        async ({ requirements }: { requirements: string[] }) => {
+          if (requirements.includes('ai')) {
+            throw new NotFoundException('Credential ai is not configured');
+          }
+          return [{ key: 'github', definitionId: 'github', optional: false, models: [] }];
+        }
+      );
+
+      await expect(service.run({ context: CONTEXT, aiCredentials: true })).resolves.toMatchObject({
+        credentialHandles: [{ name: 'github', kind: 'exact' }],
       });
-    }
+    });
+
+    it('still fails on an error that is not an unusable AI Credential', async () => {
+      const { service, credentialBindings } = setup();
+      credentialBindings.assertConsumerReady.mockImplementation(
+        async ({ requirements }: { requirements: string[] }) => {
+          if (requirements.includes('ai')) throw new Error('database is down');
+          return [];
+        }
+      );
+
+      await expect(service.run({ context: CONTEXT, aiCredentials: true })).rejects.toThrow(
+        'database is down'
+      );
+    });
   });
 
   it('passes on an unusable required credential', async () => {

@@ -4,7 +4,7 @@ import { createBackend, exactCredential, type BackendActionHandler } from './ind
 
 const HOST = 'https://app.owox.test';
 const TOKEN = 'execution-token';
-const CURRENT_URL = 'https://app.owox.test/api/plugins/runtime/executions/current';
+const CURRENT_URL = 'https://app.owox.test/api/plugins/runtime/executions/current?capabilities=ai';
 const REPOSITORY_ID = '987654321';
 
 function context(overrides: Record<string, unknown> = {}) {
@@ -271,7 +271,7 @@ describe('createBackend', () => {
 
     expect(await read(response)).toEqual({ status: 200, body: { result: 'ok' } });
     expect(String(fetchMock.mock.calls[0]![0])).toBe(
-      'https://odm.example.test/api/plugins/runtime/executions/current'
+      'https://odm.example.test/api/plugins/runtime/executions/current?capabilities=ai'
     );
     expect(handler.mock.calls[0]![1].host).toBe('https://odm.example.test');
   });
@@ -321,7 +321,7 @@ describe('createBackend', () => {
 
     expect(await read(response)).toEqual({ status: 200, body: { result: 'ok' } });
     expect(String(fetchMock.mock.calls[0]![0])).toBe(
-      'http://odm.internal:3000/api/plugins/runtime/executions/current'
+      'http://odm.internal:3000/api/plugins/runtime/executions/current?capabilities=ai'
     );
   });
 
