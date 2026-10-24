@@ -99,8 +99,12 @@ describe('GetCurrentPluginActionExecutionService', () => {
     });
   });
 
-  it('does not let a disconnected AI Credential deny the backend its context', async () => {
+  it('answers AI Credential handles as the plugin page gets them', async () => {
     const { service, credentialBindings } = setup();
+    credentialBindings.assertConsumerReady.mockResolvedValue([
+      { key: 'github', definitionId: 'github', optional: false, models: [] },
+      { key: 'ai', definitionId: null, optional: false, models: ['fast'] },
+    ]);
     VERSIONS.set('version-2', {
       id: 'version-2',
       semver: '1.1.0',
@@ -108,10 +112,13 @@ describe('GetCurrentPluginActionExecutionService', () => {
     });
     try {
       await expect(service.run({ context: CONTEXT })).resolves.toMatchObject({
-        credentialHandles: [{ name: 'github', kind: 'exact' }],
+        credentialHandles: [
+          { name: 'github', kind: 'exact' },
+          { name: 'ai', kind: 'ai', models: ['fast'] },
+        ],
       });
       expect(credentialBindings.assertConsumerReady).toHaveBeenCalledWith(
-        expect.objectContaining({ requirements: ['github'] })
+        expect.objectContaining({ requirements: ['github', 'ai'] })
       );
     } finally {
       VERSIONS.set('version-2', {

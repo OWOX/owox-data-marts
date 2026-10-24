@@ -9,7 +9,6 @@ jest.mock('../../idp', () => ({
 }));
 
 import type { AuthorizationContext } from '../../idp';
-import { ExecutionTokenNotAllowedError } from '../errors/plugin-action.errors';
 import { PluginCredentialRuntimeController } from './plugin-credential-runtime.controller';
 
 const context = {
@@ -58,51 +57,33 @@ describe('PluginCredentialRuntimeController in a backend action', () => {
   const AI = [{ id: 'ai', optional: false, models: ['fast', 'embedding'] }];
 
   it.each([
-    [
-      'generate',
-      (controller: PluginCredentialRuntimeController) =>
-        controller.generate('ai', { version: 1, model: 'fast', options: {} }, backend, {} as never),
-    ],
-    [
-      'embed',
-      (controller: PluginCredentialRuntimeController) =>
-        controller.embed(
-          'ai',
-          { version: 1, model: 'embedding', options: {} },
-          backend,
-          {} as never
-        ),
-    ],
-    [
-      'stream',
-      (controller: PluginCredentialRuntimeController) =>
-        controller.stream(
-          'ai',
-          { version: 1, model: 'fast', options: {} },
-          backend,
-          {} as never,
-          {} as never
-        ),
-    ],
-  ])('refuses AI %s to the execution token', async (_route, call) => {
-    const bindings = { resolveBinding: jest.fn() };
-    const controller = new PluginCredentialRuntimeController(
-      { findById: jest.fn().mockResolvedValue({ currentVersionId: 'version-1' }) } as never,
-      { findById: jest.fn().mockResolvedValue({ credentialRequirements: AI }) } as never,
-      {} as never,
-      {} as never,
-      bindings as never
-    );
+    ['generate', 'fast'],
+    ['embed', 'embedding'],
+  ] as const)(
+    'lets the execution token %s through a declared AI Credential',
+    async (route, model) => {
+      const binding = { credentialId: 'credential-1', requirement: { key: 'ai' } };
+      const bindings = {
+        resolveBinding: jest.fn().mockResolvedValue(binding),
+        markUsed: jest.fn().mockResolvedValue(undefined),
+      };
+      const aiService = { [route]: jest.fn().mockResolvedValue({ ok: true }) };
+      const controller = new PluginCredentialRuntimeController(
+        { findById: jest.fn().mockResolvedValue({ currentVersionId: 'version-1' }) } as never,
+        { findById: jest.fn().mockResolvedValue({ credentialRequirements: AI }) } as never,
+        {} as never,
+        aiService as never,
+        bindings as never
+      );
+      const request = Object.assign(new EventEmitter(), { res: new EventEmitter() });
 
-    const refusal = await call(controller).catch((error: unknown) => error);
-
-    expect(refusal).toBeInstanceOf(ExecutionTokenNotAllowedError);
-    expect(refusal).toMatchObject({
-      httpStatus: 403,
-      message: 'AI Credentials are not available in a backend action',
-    });
-    expect(bindings.resolveBinding).not.toHaveBeenCalled();
-  });
+      await expect(
+        controller[route]('ai', { version: 1, model, options: {} }, backend, request as never)
+      ).resolves.toEqual({ ok: true });
+      expect(aiService[route]).toHaveBeenCalledWith(binding, model, {}, expect.any(AbortSignal));
+      expect(bindings.markUsed).toHaveBeenCalled();
+    }
+  );
 
   it('still lets the execution token fetch through an exact Credential', async () => {
     const binding = { credentialId: 'credential-1', requirement: { key: 'github' } };

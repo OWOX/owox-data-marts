@@ -3,7 +3,6 @@ import {
   CREDENTIAL_CONSUMER_BINDING_FACADE,
   type CredentialConsumerBindingFacade,
 } from '../../data-marts/credentials/facades/credential-consumer-binding.facade';
-import { normalizeCredentialRequirement } from '../../data-marts/credentials/credential.types';
 import { GetCurrentPluginActionExecutionCommand } from '../dto/domain/plugin-action-execution.command';
 import type { PluginActionWorkerContext } from '../dto/domain/plugin-action-execution.dto';
 import {
@@ -15,7 +14,7 @@ import { PluginVersionService } from '../services/plugin-version.service';
 import { PluginService } from '../services/plugin.service';
 import { toCredentialHandles } from '../utils/credential-handles.util';
 
-/** Exact Credentials come from the plugin's current release, as frontend calls get them. */
+/** Credentials come from the plugin's current release, as frontend calls get them. */
 @Injectable()
 export class GetCurrentPluginActionExecutionService {
   constructor(
@@ -55,10 +54,7 @@ export class GetCurrentPluginActionExecutionService {
       roles: context.roles ?? [],
       consumerType: 'plugin-installation',
       consumerId: execution.installationId,
-      // AI Credentials are not available in a backend, so they must not deny it its context.
-      requirements: (current.credentialRequirements ?? []).filter(
-        requirement => normalizeCredentialRequirement(requirement).definitionId !== null
-      ),
+      requirements: current.credentialRequirements ?? [],
     });
 
     return {

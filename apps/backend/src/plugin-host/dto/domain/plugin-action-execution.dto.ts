@@ -41,6 +41,6 @@ export interface PluginActionWorkerContext {
   readonly installationId: string;
   readonly projectId: string;
   readonly userId: string;
-  /** The exact Credentials of the plugin's current release; AI Credentials are not available here. */
+  /** The Credentials of the plugin's current release, exact and AI. */
   readonly credentialHandles: PluginCredentialHandleDto[];
 }

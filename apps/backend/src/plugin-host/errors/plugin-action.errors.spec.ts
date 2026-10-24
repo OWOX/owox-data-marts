@@ -67,8 +67,8 @@ describe('plugin action errors', () => {
     ],
     [new ExecutionTokenNotAllowedError(), 'A backend action cannot start another action'],
     [
-      new ExecutionTokenNotAllowedError('AI Credentials are not available in a backend action'),
-      'AI Credentials are not available in a backend action',
+      new ExecutionTokenNotAllowedError('A backend action cannot change schedules'),
+      'A backend action cannot change schedules',
     ],
   ])('words %s', (error, message) => {
     expect(render(error).message).toBe(message);

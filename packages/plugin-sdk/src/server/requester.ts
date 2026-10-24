@@ -135,6 +135,42 @@ export function createServerRequester(options: {
       };
     }
 
+    if (request.kind === 'credentialAi') {
+      const stream = request.operation === 'stream';
+      const result = await call(
+        new URL(
+          `/api/plugins/runtime/credentials/${encodeURIComponent(request.handle)}/ai/${request.operation}`,
+          options.host
+        ),
+        {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            ...(stream ? { accept: 'application/x-ndjson' } : {}),
+          },
+          body: JSON.stringify({
+            version: request.version,
+            model: request.model,
+            options: request.options,
+          }),
+        },
+        signal
+      );
+      if (!result.ok) return { id: '', ok: false, error: result.error };
+      const { response } = result;
+      const headers = Object.fromEntries(response.headers);
+      if (stream) {
+        return {
+          id: '',
+          ok: true,
+          status: response.status,
+          headers,
+          stream: response.body ?? new ReadableStream<Uint8Array>(),
+        };
+      }
+      return { id: '', ok: true, status: response.status, headers, body: await response.json() };
+    }
+
     return {
       id: '',
       ok: false,

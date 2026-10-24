@@ -31,7 +31,6 @@ import {
   type CredentialAiModelKey,
 } from '../../data-marts/credentials/dto/credential-ai-api.dto';
 import type { StoredCredentialRequirement } from '../../data-marts/credentials/credential.types';
-import { ExecutionTokenNotAllowedError } from '../errors/plugin-action.errors';
 import { PluginHostExceptionFilter } from '../filters/plugin-host-exception.filter';
 import { PluginService } from '../services/plugin.service';
 import { PluginVersionService } from '../services/plugin-version.service';
@@ -184,11 +183,6 @@ export class PluginCredentialRuntimeController {
     context: AuthorizationContext,
     capability?: 'fetch' | CredentialAiModelKey
   ) {
-    if (context.executionId && capability !== 'fetch') {
-      throw new ExecutionTokenNotAllowedError(
-        'AI Credentials are not available in a backend action'
-      );
-    }
     if (!context.installationId || !context.pluginId) {
       throw new ForbiddenException('A plugin installation is required');
     }

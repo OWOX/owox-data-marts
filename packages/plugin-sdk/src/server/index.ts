@@ -43,7 +43,7 @@ export interface PluginActionExecutionContext {
 export interface BackendActionContext {
   /** Acts with the access of the member who installed the plugin, until the deadline. */
   readonly owox: OWOXApiClient;
-  /** Exact Credential handles; the secret stays in OWOX. */
+  /** Exact and logical AI Credential handles; the secret stays in OWOX. */
   readonly credentials: PluginCredentials;
   collections<T>(name: string): PluginCollection<T>;
   /** The installation's schedules, read-only: a backend action cannot change them. */

@@ -627,7 +627,7 @@ describe('Plugin backend actions (e2e)', () => {
       await asExecution('/api/data-marts', token).expect(401);
     });
 
-    it('refuses AI Credentials to the token', async () => {
+    it('lets the token reach the AI Credential routes, which check the declaration', async () => {
       const token = randomUUID();
       await seedExecution(token);
 
@@ -635,12 +635,9 @@ describe('Plugin backend actions (e2e)', () => {
         .post(`${RUNTIME}/credentials/ai/ai/generate`)
         .set('x-owox-execution-token', token)
         .send({ version: 1, model: 'fast', options: {} })
-        .expect(403);
+        .expect(404);
 
-      expect(res.body).toMatchObject({
-        code: 'EXECUTION_TOKEN_NOT_ALLOWED',
-        message: 'AI Credentials are not available in a backend action',
-      });
+      expect(res.body.message).toBe('Credential ai is not declared by this plugin');
     });
 
     it('refuses a runtime token on executions/current, which is not read as an id', async () => {

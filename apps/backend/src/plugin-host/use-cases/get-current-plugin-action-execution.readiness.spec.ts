@@ -83,14 +83,14 @@ function setup(credentialRequirements: string[]) {
 }
 
 describe('GetCurrentPluginActionExecutionService with the real consumer readiness', () => {
-  it('lists the exact handle of a plugin that also requires an AI Credential, and no AI handle', async () => {
-    const { service, bindings } = setup(['github', 'ai']);
+  it('lists both the exact and the AI handle of a plugin that requires both', async () => {
+    const { service } = setup(['github', 'ai']);
 
     const current = await service.run({ context: CONTEXT });
 
-    expect(current.credentialHandles).toEqual([{ name: 'github', kind: 'exact' }]);
-    expect(bindings.findOneBy).not.toHaveBeenCalledWith(
-      expect.objectContaining({ requirementKey: 'ai' })
-    );
+    expect(current.credentialHandles).toEqual([
+      { name: 'github', kind: 'exact' },
+      { name: 'ai', kind: 'ai', models: ['fast'] },
+    ]);
   });
 });
