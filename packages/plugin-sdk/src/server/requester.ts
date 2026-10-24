@@ -168,7 +168,16 @@ export function createServerRequester(options: {
           stream: response.body ?? new ReadableStream<Uint8Array>(),
         };
       }
-      return { id: '', ok: true, status: response.status, headers, body: await response.json() };
+      const body: unknown = await response.json().catch(() => undefined);
+      // The frame's bridge answers an unreadable body the same way.
+      if (body === undefined) {
+        return {
+          id: '',
+          ok: false,
+          error: { code: 'NETWORK_ERROR', message: 'The request could not be completed' },
+        };
+      }
+      return { id: '', ok: true, status: response.status, headers, body };
     }
 
     return {

@@ -15,7 +15,7 @@ import { createPluginScheduleReader, type PluginScheduleReader } from '../schedu
 import { createServerRequester, GUARDED_FETCH } from './requester.js';
 
 export { exactCredential } from '../credentials.js';
-export type { CredentialHandle, PluginCredentials } from '../credentials.js';
+export type { AiCredentialHandle, CredentialHandle, PluginCredentials } from '../credentials.js';
 export type { PluginCollection } from '../collections.js';
 export type { PluginSchedule, PluginScheduleReader } from '../schedules.js';
 

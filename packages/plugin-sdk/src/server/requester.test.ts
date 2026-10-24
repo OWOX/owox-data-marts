@@ -282,6 +282,18 @@ describe('createServerRequester', () => {
     });
   });
 
+  it('answers an unreadable AI result as the frame does, not with a SyntaxError', async () => {
+    const { requester } = setup(new Response('<html>', { status: 200 }));
+    const ai = createPluginCredentials(requester, [
+      { name: 'ai', kind: 'ai', models: ['fast'] },
+    ]).ai!;
+
+    await expect(ai.doGenerate({ prompt: [] })).rejects.toMatchObject({
+      name: 'PluginTransportError',
+      payload: { code: 'NETWORK_ERROR', message: 'The request could not be completed' },
+    });
+  });
+
   it('serves exact Credentials through the credential fetch route', async () => {
     const { fetchMock, requester } = setup(
       jsonResponse(200, { status: 200, headers: {}, bodyBase64: btoa('{"ok":true}') })
