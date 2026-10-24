@@ -10,7 +10,7 @@ import {
   type PluginCredentialHandleDescriptor,
   type PluginCredentials,
 } from '../credentials.js';
-import { createIframeTransport } from '../iframe-transport.js';
+import { createIframeTransport, type IframeRequester } from '../iframe-transport.js';
 import { createPluginScheduleReader, type PluginScheduleReader } from '../schedules.js';
 import { createServerRequester, GUARDED_FETCH } from './requester.js';
 
@@ -51,7 +51,7 @@ export interface BackendActionContext {
   readonly execution: PluginActionExecutionContext;
   /** The OWOX origin that accepted the execution token; build links to OWOX pages from it. */
   readonly host: string;
-  /** Aborts at the action's deadline. */
+  /** Aborts at the action's deadline; calls through this context stop with it. */
   readonly signal: AbortSignal;
 }
 
@@ -174,19 +174,24 @@ export function createBackend(options: {
       }
 
       const { credentialHandles = [], ...execution } = context;
-      const owox = new OWOXApiClient({ transport: createIframeTransport(requester) });
       try {
         const deadline = AbortSignal.timeout(
           Math.max(0, Date.parse(execution.deadlineAt) - Date.now())
         );
         // Not every runtime gives the incoming request a signal.
         const signal = request.signal ? AbortSignal.any([deadline, request.signal]) : deadline;
+        // A call through ctx, such as a paid AI call, stops at the deadline too.
+        const bounded: IframeRequester = {
+          send: (input, own) =>
+            requester.send(input, own ? AbortSignal.any([own, signal]) : signal),
+        };
+        const owox = new OWOXApiClient({ transport: createIframeTransport(bounded) });
         // An older OWOX sends no scheduleId.
         const result = await handler(execution.input, {
           owox,
-          credentials: createPluginCredentials(requester, credentialHandles),
+          credentials: createPluginCredentials(bounded, credentialHandles),
           collections: <T>(name: string) => createPluginCollection<T>(owox, name),
-          schedules: createPluginScheduleReader(requester),
+          schedules: createPluginScheduleReader(bounded),
           execution: { ...execution, scheduleId: execution.scheduleId ?? null },
           host: call.host,
           signal,

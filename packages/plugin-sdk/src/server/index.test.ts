@@ -597,4 +597,34 @@ describe('createBackend', () => {
 
     expect(await read(response)).toEqual({ status: 200, body: { result: true } });
   });
+
+  it('stops an AI call through ctx at the deadline', async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse(
+        200,
+        context({
+          deadlineAt: new Date(Date.now() + 30).toISOString(),
+          credentialHandles: [{ name: 'ai', kind: 'ai', models: ['fast'] }],
+        })
+      )
+    );
+    // The AI route never answers; only an abort ends the call.
+    fetchMock.mockImplementationOnce(
+      (_input, init) =>
+        new Promise((_resolve, reject) => {
+          init?.signal?.addEventListener('abort', () => reject(init.signal!.reason), {
+            once: true,
+          });
+        })
+    );
+
+    const response = await backend({
+      count: async (_input, ctx) => {
+        await ctx.credentials.ai!.doGenerate({ prompt: [] }).catch(() => undefined);
+        return ctx.signal.aborted;
+      },
+    }).fetch(actionRequest());
+
+    expect(await read(response)).toEqual({ status: 200, body: { result: true } });
+  });
 });
