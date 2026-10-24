@@ -394,7 +394,8 @@ The handler's `ctx` provides:
 - `owox`: the API client, acting with the access of the member who installed the plugin;
 - `credentials`: the handles the page gets. Exact ones work through
   `exactCredential(ctx.credentials, name).asFetch()`, and the logical `ai` handle is a Vercel AI
-  SDK model. The secret stays in OWOX;
+  SDK model. On an OWOX older than 0.40.0, `ctx.credentials.ai` is undefined. The secret stays in
+  OWOX;
 - `collections(name)`;
 - `schedules`: `list()` and `get(id)` of the installation's schedules, read-only. It is always
   defined; on an older OWOX without schedules its calls fail with a 404 transport error;

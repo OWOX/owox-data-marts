@@ -132,7 +132,8 @@ export class PluginActionWorkerContextApiDto {
 
   @ApiProperty({
     type: [Object],
-    description: "Handles for the exact and AI Credentials of the plugin's current release.",
+    description:
+      "Handles for the exact Credentials of the plugin's current release, and for its AI Credentials when the request sends `capabilities=ai`.",
   })
   credentialHandles: PluginCredentialHandleDto[];
 }

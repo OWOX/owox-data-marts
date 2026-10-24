@@ -28,5 +28,9 @@ export class CancelPluginActionExecutionCommand {
 }
 
 export class GetCurrentPluginActionExecutionCommand {
-  constructor(readonly context: AuthorizationContext) {}
+  constructor(
+    readonly context: AuthorizationContext,
+    /** The calling SDK can use AI Credential handles. */
+    readonly aiCredentials?: boolean
+  ) {}
 }

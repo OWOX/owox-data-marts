@@ -99,19 +99,30 @@ describe('GetCurrentPluginActionExecutionService', () => {
     });
   });
 
-  it('answers AI Credential handles as the plugin page gets them', async () => {
-    const { service, credentialBindings } = setup();
-    credentialBindings.assertConsumerReady.mockResolvedValue([
-      { key: 'github', definitionId: 'github', optional: false, models: [] },
-      { key: 'ai', definitionId: null, optional: false, models: ['fast'] },
-    ]);
-    VERSIONS.set('version-2', {
-      id: 'version-2',
-      semver: '1.1.0',
-      credentialRequirements: ['github', 'ai'],
+  describe('for a release that also requires an AI Credential', () => {
+    beforeEach(() => {
+      VERSIONS.set('version-2', {
+        id: 'version-2',
+        semver: '1.1.0',
+        credentialRequirements: ['github', 'ai'],
+      });
     });
-    try {
-      await expect(service.run({ context: CONTEXT })).resolves.toMatchObject({
+    afterEach(() => {
+      VERSIONS.set('version-2', {
+        id: 'version-2',
+        semver: '1.1.0',
+        credentialRequirements: ['github'],
+      });
+    });
+
+    it('answers AI Credential handles, as the plugin page gets them, to an SDK that asks', async () => {
+      const { service, credentialBindings } = setup();
+      credentialBindings.assertConsumerReady.mockResolvedValue([
+        { key: 'github', definitionId: 'github', optional: false, models: [] },
+        { key: 'ai', definitionId: null, optional: false, models: ['fast'] },
+      ]);
+
+      await expect(service.run({ context: CONTEXT, aiCredentials: true })).resolves.toMatchObject({
         credentialHandles: [
           { name: 'github', kind: 'exact' },
           { name: 'ai', kind: 'ai', models: ['fast'] },
@@ -120,13 +131,29 @@ describe('GetCurrentPluginActionExecutionService', () => {
       expect(credentialBindings.assertConsumerReady).toHaveBeenCalledWith(
         expect.objectContaining({ requirements: ['github', 'ai'] })
       );
-    } finally {
-      VERSIONS.set('version-2', {
-        id: 'version-2',
-        semver: '1.1.0',
-        credentialRequirements: ['github'],
+    });
+
+    it('keeps an SDK without AI support to exact Credentials, as before', async () => {
+      const { service, credentialBindings } = setup();
+
+      await expect(service.run({ context: CONTEXT })).resolves.toMatchObject({
+        credentialHandles: [{ name: 'github', kind: 'exact' }],
       });
-    }
+      expect(credentialBindings.assertConsumerReady).toHaveBeenCalledWith(
+        expect.objectContaining({ requirements: ['github'] })
+      );
+    });
+
+    it('refuses the context when the required AI Credential is not usable', async () => {
+      const { service, credentialBindings } = setup();
+      credentialBindings.assertConsumerReady.mockRejectedValue(
+        new NotFoundException('Credential ai is not configured')
+      );
+
+      await expect(service.run({ context: CONTEXT, aiCredentials: true })).rejects.toThrow(
+        'Credential ai is not configured'
+      );
+    });
   });
 
   it('passes on an unusable required credential', async () => {

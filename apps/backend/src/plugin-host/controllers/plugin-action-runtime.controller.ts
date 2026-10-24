@@ -12,7 +12,7 @@ import {
   UseFilters,
 } from '@nestjs/common';
 import type { Request } from 'express';
-import { ApiAcceptedResponse, ApiBody, ApiOkResponse, ApiTags } from '@nestjs/swagger';
+import { ApiAcceptedResponse, ApiBody, ApiOkResponse, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { Auth, AuthContext, RequirePluginAuth, type AuthorizationContext } from '../../idp';
 import { Role, Strategy } from '../../idp/types/role-config.types';
 import {
@@ -72,12 +72,24 @@ export class PluginActionRuntimeController {
 
   // Before 'executions/:id': Nest matches routes in declaration order.
   @Get('executions/current')
+  @ApiQuery({
+    name: 'capabilities',
+    required: false,
+    example: 'ai',
+    description: 'What the calling SDK supports. `ai` adds the AI Credential handles.',
+  })
   @ApiOkResponse({ type: PluginActionWorkerContextApiDto })
   async current(
-    @AuthContext() context: AuthorizationContext
+    @AuthContext() context: AuthorizationContext,
+    @Query('capabilities') capabilities?: string | string[]
   ): Promise<PluginActionWorkerContextApiDto> {
     const current = await this.getCurrentExecution.run(
-      new GetCurrentPluginActionExecutionCommand(context)
+      new GetCurrentPluginActionExecutionCommand(
+        context,
+        String(capabilities ?? '')
+          .split(',')
+          .includes('ai')
+      )
     );
     return this.mapper.toActionWorkerContextResponse(current);
   }

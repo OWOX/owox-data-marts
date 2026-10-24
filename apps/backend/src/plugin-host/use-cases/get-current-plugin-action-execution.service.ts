@@ -3,6 +3,7 @@ import {
   CREDENTIAL_CONSUMER_BINDING_FACADE,
   type CredentialConsumerBindingFacade,
 } from '../../data-marts/credentials/facades/credential-consumer-binding.facade';
+import { normalizeCredentialRequirement } from '../../data-marts/credentials/credential.types';
 import { GetCurrentPluginActionExecutionCommand } from '../dto/domain/plugin-action-execution.command';
 import type { PluginActionWorkerContext } from '../dto/domain/plugin-action-execution.dto';
 import {
@@ -54,7 +55,11 @@ export class GetCurrentPluginActionExecutionService {
       roles: context.roles ?? [],
       consumerType: 'plugin-installation',
       consumerId: execution.installationId,
-      requirements: current.credentialRequirements ?? [],
+      // An SDK without AI support would get handles that only fail, so it keeps exact ones only.
+      requirements: (current.credentialRequirements ?? []).filter(
+        requirement =>
+          command.aiCredentials || normalizeCredentialRequirement(requirement).definitionId !== null
+      ),
     });
 
     return {

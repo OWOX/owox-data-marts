@@ -134,6 +134,8 @@ export function createBackend(options: {
         kind: 'api',
         method: 'GET',
         path: CURRENT_EXECUTION_PATH,
+        // Without it OWOX sends exact Credentials only, which an older SDK can use.
+        query: [['capabilities', 'ai']],
       });
       if (!current.ok) {
         // The path is fixed, so FORBIDDEN can only be server/node refusing the host's address.
