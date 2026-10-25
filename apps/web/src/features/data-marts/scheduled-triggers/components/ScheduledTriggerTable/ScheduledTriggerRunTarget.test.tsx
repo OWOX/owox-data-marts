@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { ConnectorContextProvider } from '../../../../connectors/shared/model/context';
 import { DataDestinationType } from '../../../../data-destination';
@@ -53,16 +53,21 @@ function makeReportRunTrigger(report?: DataMartReport): ScheduledTrigger {
 }
 
 describe('ScheduledTriggerRunTarget', () => {
-  it('links the report title to its Google Sheet in a new tab', () => {
+  it('shows the report title as plain text, not a link', () => {
     renderRunTarget(makeReportRunTrigger(makeReport()));
 
-    const link = screen.getByRole('link', { name: /Daily Sales Report/ });
-    expect(link).toHaveAttribute('href', getGoogleSheetTabUrl('spreadsheet-1', '123'));
-    expect(link).toHaveAttribute('target', '_blank');
-    expect(link).toHaveTextContent('(opens in a new tab)');
+    expect(screen.getByText('Daily Sales Report').closest('a')).toBeNull();
   });
 
-  it('does not link the report title for a non-Google Sheets report', () => {
+  it('opens the Google Sheet from a separate document action in a new tab', () => {
+    renderRunTarget(makeReportRunTrigger(makeReport()));
+
+    const link = screen.getByRole('link', { name: 'Open document: Daily Sales Report' });
+    expect(link).toHaveAttribute('href', getGoogleSheetTabUrl('spreadsheet-1', '123'));
+    expect(link).toHaveAttribute('target', '_blank');
+  });
+
+  it('does not show the document action for a non-Google Sheets report', () => {
     renderRunTarget(
       makeReportRunTrigger(
         makeReport({
@@ -71,23 +76,37 @@ describe('ScheduledTriggerRunTarget', () => {
       )
     );
 
-    expect(screen.queryByRole('link', { name: /Daily Sales Report/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /Open document/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Report details' })).toBeInTheDocument();
   });
 
-  it('does not link the report title when the report is not hydrated', () => {
+  it('opens the report details on click, not on hover', () => {
+    renderRunTarget(makeReportRunTrigger(makeReport()));
+    const detailsButton = screen.getByRole('button', { name: 'Report details' });
+
+    fireEvent.pointerEnter(detailsButton);
+    expect(screen.queryByText('No runs, since Jun 1, 2026')).not.toBeInTheDocument();
+
+    fireEvent.click(detailsButton);
+    expect(screen.getByText('No runs, since Jun 1, 2026')).toBeInTheDocument();
+  });
+
+  it('does not show report actions when the report is not hydrated', () => {
     renderRunTarget(makeReportRunTrigger());
 
     expect(screen.getByText('Report')).toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: /Daily Sales Report/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /Open document/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Report details' })).not.toBeInTheDocument();
   });
 
-  it('does not render a report link for non-report triggers', () => {
+  it('does not render report actions for non-report triggers', () => {
     renderRunTarget({
       id: 'trigger-2',
       type: ScheduledTriggerType.DATA_QUALITY_RUN,
       triggerConfig: null,
     } as unknown as ScheduledTrigger);
 
-    expect(screen.queryByRole('link', { name: /Daily Sales Report/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /Open document/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Report details' })).not.toBeInTheDocument();
   });
 });

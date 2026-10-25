@@ -39,7 +39,8 @@ export const getScheduledTriggerColumns = ({
   {
     accessorKey: ScheduledTriggerColumnKey.TRIGGER_CONFIG,
     meta: { title: ScheduledTriggerColumnLabels[ScheduledTriggerColumnKey.TRIGGER_CONFIG] },
-    size: 220,
+    // Room for the title plus the row-hover details and open-document buttons
+    size: 280,
     header: ({ column }) => (
       <SortableHeader column={column}>
         {ScheduledTriggerColumnLabels[ScheduledTriggerColumnKey.TRIGGER_CONFIG]}
