@@ -83,6 +83,7 @@ const input = (semver: string, overrides: Record<string, unknown> = {}) => ({
     id: 'acme',
     displayName: 'Acme',
     description: '',
+    category: 'other' as const,
     auth: {
       type: 'header' as const,
       label: 'API key',
@@ -327,5 +328,24 @@ describe('CredentialExternalDefinitionRegistryService', () => {
 
     expect(registered).toEqual(error ? { error } : { contract: attempt.contract });
     expect(previewed).toEqual(registered);
+  });
+});
+
+describe('CredentialExternalDefinitionRegistryService.isPluginRequestable', () => {
+  it.each(['github', 'openai', 'google-service-account', 'ai', '@acme/credentials'])(
+    'lets a plugin require %s: a built-in definition with origins, ai or an external one',
+    id => {
+      expect(CredentialExternalDefinitionRegistryService.isPluginRequestable(id)).toBe(true);
+    }
+  );
+
+  it.each([
+    'google-oauth',
+    'aws-access-key',
+    'snowflake-password',
+    'snowflake-key-pair',
+    'databricks-token',
+  ])('keeps %s, which has no origins, for Storages', id => {
+    expect(CredentialExternalDefinitionRegistryService.isPluginRequestable(id)).toBe(false);
   });
 });

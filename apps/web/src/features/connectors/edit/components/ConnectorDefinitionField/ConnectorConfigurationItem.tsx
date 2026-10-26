@@ -22,7 +22,7 @@ import { spreadsheetUrlFrom } from '../../../../google-oauth';
 import { useEffect, useState } from 'react';
 import { RawBase64Icon } from '../../../../../shared/icons';
 import { unquoteIdentifier } from '../../utils/snowflake-identifier.utils';
-import { RedshiftConnectionType } from '../../../../data-storage/shared/model/types/credentials';
+import { RedshiftConnectionType } from '../../../../data-storage/shared/model/types/data-storage-config';
 
 interface ConnectorConfigurationItemProps {
   configIndex: number;

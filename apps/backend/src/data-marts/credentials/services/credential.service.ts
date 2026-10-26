@@ -1,9 +1,30 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { IsNull, Not, Repository } from 'typeorm';
+import { In, IsNull, Not, Repository } from 'typeorm';
+import type { QueryDeepPartialEntity } from 'typeorm/query-builder/QueryPartialEntity';
+import { Transactional } from 'typeorm-transactional';
+import type { AuthorizationContext } from '../../../idp';
+import { IdpProjectionsFacade } from '../../../idp/facades/idp-projections.facade';
+import { ContextService } from '../../services/context/context.service';
+import { syncOwners } from '../../utils/sync-owners';
 import { CredentialConsumerBinding } from '../entities/credential-consumer-binding.entity';
-import type { CredentialSecret, CredentialValidationResult } from '../credential.types';
+import { CredentialContext } from '../entities/credential-context.entity';
+import { CredentialOwner } from '../entities/credential-owner.entity';
+import {
+  secretValue,
+  type CredentialConsumerType,
+  type CredentialSecret,
+  type CredentialValidationResult,
+} from '../credential.types';
 import { Credential } from '../entities/credential.entity';
+
+/** Who a new Credential belongs to and which Contexts it joins. */
+export interface NewCredentialAccess {
+  /** The creating member, first owner, checked against the project; null saves copies unchecked. */
+  readonly createdBy: AuthorizationContext | null;
+  readonly ownerIds: readonly string[];
+  readonly contextIds: readonly string[];
+}
 
 @Injectable()
 export class CredentialService {
@@ -11,11 +32,52 @@ export class CredentialService {
     @InjectRepository(Credential)
     private readonly credentials: Repository<Credential>,
     @InjectRepository(CredentialConsumerBinding)
-    private readonly bindings: Repository<CredentialConsumerBinding>
+    private readonly bindings: Repository<CredentialConsumerBinding>,
+    @InjectRepository(CredentialOwner)
+    private readonly owners: Repository<CredentialOwner>,
+    @InjectRepository(CredentialContext)
+    private readonly credentialContexts: Repository<CredentialContext>,
+    private readonly idpProjections: IdpProjectionsFacade,
+    private readonly contexts: ContextService
   ) {}
 
   create(input: Partial<Credential>): Credential {
     return this.credentials.create(input);
+  }
+
+  /** Saves a new Credential with its owners and Contexts; the caller sets its sharing defaults. */
+  @Transactional()
+  async createWithAccess(
+    fields: Partial<Credential> & Pick<Credential, 'projectId'>,
+    access: NewCredentialAccess
+  ): Promise<Credential> {
+    const { createdBy } = access;
+    const credential = await this.credentials.save(
+      this.credentials.create({ ...fields, createdById: createdBy?.userId ?? null })
+    );
+    const ownerIds = [...new Set([...(createdBy ? [createdBy.userId] : []), ...access.ownerIds])];
+    const contextIds = [...new Set(access.contextIds)];
+    const toOwner = (userId: string) => this.owners.create({ credentialId: credential.id, userId });
+    if (createdBy) {
+      await syncOwners(
+        this.owners,
+        'credentialId',
+        credential.id,
+        credential.projectId,
+        ownerIds,
+        this.idpProjections,
+        toOwner
+      );
+      await this.contexts.validateContextIds(contextIds, credential.projectId);
+    } else {
+      await this.owners.save(ownerIds.map(toOwner));
+    }
+    await this.credentialContexts.save(
+      contextIds.map(contextId =>
+        this.credentialContexts.create({ credentialId: credential.id, contextId })
+      )
+    );
+    return credential;
   }
 
   save(credential: Credential): Promise<Credential> {
@@ -60,6 +122,11 @@ export class CredentialService {
     });
   }
 
+  /** Runtime lookup by id alone; the caller already resolved the project through its consumer. */
+  findById(id: string): Promise<Credential | null> {
+    return this.credentials.findOne({ where: { id } });
+  }
+
   listByProjectId(projectId: string): Promise<Credential[]> {
     return this.credentials.find({
       where: { projectId },
@@ -72,6 +139,11 @@ export class CredentialService {
     return this.bindings.find({ where: { credentialId, active: true } });
   }
 
+  listBindingsOf(credentialIds: readonly string[]): Promise<CredentialConsumerBinding[]> {
+    if (credentialIds.length === 0) return Promise.resolve([]);
+    return this.bindings.find({ where: { credentialId: In([...credentialIds]), active: true } });
+  }
+
   async getLastUsedAt(credentialId: string): Promise<Date | null> {
     const latest = await this.bindings.findOne({
       where: { credentialId, lastUsedAt: Not(IsNull()) },
@@ -81,8 +153,33 @@ export class CredentialService {
     return latest?.lastUsedAt ?? null;
   }
 
-  countActiveBindings(credentialId: string): Promise<number> {
-    return this.bindings.count({ where: { credentialId, active: true } });
+  /** On MySQL a locking read, so it counts bindings committed while the caller waited for a lock. */
+  countActiveBindings(credentialId: string, exceptBindingId?: string): Promise<number> {
+    const query = this.bindings
+      .createQueryBuilder('binding')
+      .where('binding.credentialId = :credentialId', { credentialId })
+      .andWhere('binding.active = :active', { active: true });
+    if (exceptBindingId) query.andWhere('binding.id <> :exceptBindingId', { exceptBindingId });
+    if (isMysql(this.bindings)) query.setLock('pessimistic_read');
+    return query.getCount();
+  }
+
+  /** The Credential an active binding names now; on MySQL a locking read that waits for a rebind. */
+  async lockBoundCredentialId(key: {
+    consumerType: CredentialConsumerType;
+    consumerId: string;
+    requirementKey: string;
+    projectId: string;
+  }): Promise<string | null> {
+    const query = this.bindings
+      .createQueryBuilder('binding')
+      .where(
+        'binding.consumerType = :consumerType AND binding.consumerId = :consumerId AND binding.requirementKey = :requirementKey AND binding.projectId = :projectId',
+        key
+      )
+      .andWhere('binding.active = :active', { active: true });
+    if (isMysql(this.bindings)) query.setLock('pessimistic_write');
+    return (await query.getOne())?.credentialId ?? null;
   }
 
   async softDelete(id: string, projectId: string): Promise<void> {
@@ -92,10 +189,10 @@ export class CredentialService {
   /** Writes a validation result only if the stored key is still the one that was checked. */
   async writeValidation(
     id: string,
-    checkedSecret: CredentialSecret,
+    checked: Pick<Credential, 'secret' | 'modifiedAt'>,
     result: CredentialValidationResult
   ): Promise<void> {
-    await this.updateValidationWhileSecret(id, checkedSecret, {
+    await this.updateWhileSecret(id, checked, {
       validationState: result.state,
       validationMessage: result.message.slice(0, 2000),
       validatedAt: result.validatedAt,
@@ -112,39 +209,66 @@ export class CredentialService {
     if (!stored || (stored.validationState === 'rejected' && stored.validationMessage === cut)) {
       return;
     }
-    await this.updateValidationWhileSecret(id, rejectedSecret, {
-      validationState: 'rejected',
-      validationMessage: cut,
-      validatedAt: new Date(),
-    });
+    await this.updateWhileSecret(
+      id,
+      { secret: rejectedSecret },
+      {
+        validationState: 'rejected',
+        validationMessage: cut,
+        validatedAt: new Date(),
+      }
+    );
   }
 
-  /** The key check is part of the UPDATE, so a key replaced meanwhile keeps its own validation. */
-  private async updateValidationWhileSecret(
+  /** A refresh keeps the grant, so modifiedAt stays and the grant's validation still applies. */
+  async saveRefreshedSecret(
     id: string,
-    secret: CredentialSecret,
-    values: Pick<Credential, 'validationState' | 'validationMessage' | 'validatedAt'>
+    checked: Pick<Credential, 'secret' | 'modifiedAt'>,
+    secret: CredentialSecret
   ): Promise<void> {
-    const type = this.credentials.manager.connection.options.type;
-    const storedValue =
-      type === 'mysql' || type === 'mariadb'
-        ? "JSON_UNQUOTE(JSON_EXTRACT(secret, '$.value'))"
-        : "JSON_EXTRACT(secret, '$.value')";
-    await this.credentials
+    await this.updateWhileSecret(id, checked, { secret, modifiedAt: () => 'modifiedAt' });
+  }
+
+  /** The key check is part of the UPDATE, so a key replaced meanwhile keeps its own values. */
+  private async updateWhileSecret(
+    id: string,
+    checked: { readonly secret: CredentialSecret; readonly modifiedAt?: Date },
+    values: QueryDeepPartialEntity<Credential>
+  ): Promise<void> {
+    const mysql = isMysql(this.credentials);
+    const query = this.credentials
       .createQueryBuilder()
       .update(Credential)
       .set(values)
       .where('id = :id', { id })
-      .andWhere('deletedAt IS NULL')
-      .andWhere(`${storedValue} = :secretValue`, { secretValue: secret.value })
-      .execute();
+      .andWhere('deletedAt IS NULL');
+    if ('value' in checked.secret || !checked.modifiedAt) {
+      const storedValue = mysql
+        ? "JSON_UNQUOTE(JSON_EXTRACT(secret, '$.value'))"
+        : "JSON_EXTRACT(secret, '$.value')";
+      query.andWhere(`${storedValue} = :secretValue`, {
+        secretValue: secretValue(checked.secret),
+      });
+    } else if (mysql) {
+      // Other kinds hold no single value; match the row version to the millisecond a Date keeps.
+      query.andWhere('modifiedAt >= :modifiedAtFrom AND modifiedAt < :modifiedAtTo', {
+        modifiedAtFrom: checked.modifiedAt,
+        modifiedAtTo: new Date(checked.modifiedAt.getTime() + 1),
+      });
+    } else {
+      query.andWhere(
+        "strftime('%Y-%m-%d %H:%M:%f', modifiedAt) = strftime('%Y-%m-%d %H:%M:%f', :modifiedAt)",
+        { modifiedAt: checked.modifiedAt.toISOString() }
+      );
+    }
+    await query.execute();
   }
 
   /** Best-effort and throttled: runtime success must never depend on usage telemetry. */
   async markLastUsed(
     input: {
       readonly credentialId: string;
-      readonly consumerType: 'plugin-installation';
+      readonly consumerType: CredentialConsumerType;
       readonly consumerId: string;
       readonly requirementKey: string;
     },
@@ -169,4 +293,8 @@ export class CredentialService {
       // Deliberately ignored: this field is informational and cannot break a consumer.
     }
   }
+}
+
+function isMysql(repository: Repository<object>): boolean {
+  return ['mysql', 'mariadb'].includes(repository.manager.connection.options.type);
 }

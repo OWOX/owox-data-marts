@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import type { UseFormReturn } from 'react-hook-form';
 import { Input } from '@owox/ui/components/input';
 import { Tabs, TabsList, TabsTrigger } from '@owox/ui/components/tabs';
@@ -17,25 +17,12 @@ import RedshiftRegionDescription from './FormDescriptions/RedshiftRegionDescript
 import RedshiftWorkgroupDescription from './FormDescriptions/RedshiftWorkgroupDescription.tsx';
 import RedshiftClusterDescription from './FormDescriptions/RedshiftClusterDescription.tsx';
 import RedshiftDatabaseDescription from './FormDescriptions/RedshiftDatabaseDescription.tsx';
-import RedshiftAccessKeyIdDescription from './FormDescriptions/RedshiftAccessKeyIdDescription.tsx';
-import RedshiftSecretAccessKeyDescription from './FormDescriptions/RedshiftSecretAccessKeyDescription.tsx';
-import { AuthenticationSectionHeader } from '../../../../../shared/components/AuthenticationSectionHeader';
-import { CopyStorageCredentialsButton } from '../CopyStorageCredentialsButton';
-import { useCopyCredentialContext } from '../../model/context/useCopyCredentialContext';
 
 interface RedshiftFieldsProps {
   form: UseFormReturn<DataStorageFormData>;
 }
 
 export const RedshiftFields = ({ form }: RedshiftFieldsProps) => {
-  const {
-    entityId: storageId,
-    onSourceSelect: onSourceStorageSelect,
-    selectedSource,
-    onSourceClear,
-  } = useCopyCredentialContext();
-  const [maskedSecretValue, setMaskedSecretValue] = useState<string>('');
-
   // Set default connectionType if not set
   useEffect(() => {
     const currentType = form.getValues('config.connectionType') as
@@ -49,186 +36,113 @@ export const RedshiftFields = ({ form }: RedshiftFieldsProps) => {
     }
   }, [form]);
 
-  useEffect(() => {
-    const accessKeyId = form.getValues('credentials.accessKeyId');
-
-    if (accessKeyId) {
-      const maskedValue = '_'.repeat(accessKeyId.length);
-      setMaskedSecretValue(maskedValue);
-      form.setValue('credentials.secretAccessKey', maskedValue, { shouldDirty: false });
-    }
-  }, [form]);
-
   if (form.watch('type') !== DataStorageType.AWS_REDSHIFT) {
     return null;
   }
 
   return (
-    <>
-      {/* Connection Settings */}
-      <FormSection title='Connection Settings'>
-        <FormField
-          control={form.control}
-          name='config.region'
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel tooltip='Enter the AWS region where your Redshift service is active'>
-                Region
-              </FormLabel>
-              <FormControl>
-                <Input {...field} placeholder='Enter a region' />
-              </FormControl>
-              <FormDescription>
-                <RedshiftRegionDescription />
-              </FormDescription>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
-        {(() => {
-          const connectionType =
-            (form.watch('config.connectionType') as RedshiftConnectionType | undefined) ??
-            RedshiftConnectionType.SERVERLESS;
-          const tabs = (
-            <Tabs
-              value={connectionType}
-              onValueChange={value => {
-                form.setValue('config.connectionType', value as RedshiftConnectionType, {
-                  shouldDirty: true,
-                });
-              }}
-            >
-              <TabsList>
-                <TabsTrigger value={RedshiftConnectionType.SERVERLESS}>Serverless</TabsTrigger>
-                <TabsTrigger value={RedshiftConnectionType.PROVISIONED}>Provisioned</TabsTrigger>
-              </TabsList>
-            </Tabs>
-          );
-          return connectionType === RedshiftConnectionType.SERVERLESS ? (
-            <FormField
-              control={form.control}
-              name='config.workgroupName'
-              render={({ field }) => (
-                <FormItem>
-                  <div className='flex items-center justify-between'>
-                    <FormLabel tooltip='Workgroup name for Redshift Serverless'>
-                      Workgroup Name
-                    </FormLabel>
-                    {tabs}
-                  </div>
-                  <FormControl>
-                    <Input {...field} placeholder='Enter workgroup name' />
-                  </FormControl>
-                  <FormDescription>
-                    <RedshiftWorkgroupDescription />
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          ) : (
-            <FormField
-              control={form.control}
-              name='config.clusterIdentifier'
-              render={({ field }) => (
-                <FormItem>
-                  <div className='flex items-center justify-between'>
-                    <FormLabel tooltip='Cluster identifier for provisioned Redshift cluster'>
-                      Cluster Identifier
-                    </FormLabel>
-                    {tabs}
-                  </div>
-                  <FormControl>
-                    <Input {...field} placeholder='Enter cluster identifier' />
-                  </FormControl>
-                  <FormDescription>
-                    <RedshiftClusterDescription />
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          );
-        })()}
-
-        <FormField
-          control={form.control}
-          name='config.database'
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel tooltip='The database name to connect to'>Database</FormLabel>
-              <FormControl>
-                <Input {...field} placeholder='Enter database name' />
-              </FormControl>
-              <FormDescription>
-                <RedshiftDatabaseDescription />
-              </FormDescription>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-      </FormSection>
-
-      {/* Authentication */}
-      <div className='mb-4 flex flex-col gap-2'>
-        <AuthenticationSectionHeader
-          itemType='storage'
-          copyButton={
-            <CopyStorageCredentialsButton
-              storageType={DataStorageType.AWS_REDSHIFT}
-              currentStorageId={storageId}
-              onSelect={onSourceStorageSelect}
-            />
-          }
-          selectedSource={selectedSource}
-          onSourceClear={onSourceClear}
-        />
-        {!selectedSource && (
-          <div className='flex flex-col gap-2'>
-            <FormField
-              control={form.control}
-              name='credentials.accessKeyId'
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel tooltip='Your AWS Access Key ID used for authentication'>
-                    Access Key ID
-                  </FormLabel>
-                  <FormControl>
-                    <Input {...field} placeholder='Enter an access key id' />
-                  </FormControl>
-                  <FormDescription>
-                    <RedshiftAccessKeyIdDescription />
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name='credentials.secretAccessKey'
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel tooltip='Your AWS Secret Access Key used for authentication'>
-                    Secret Access Key
-                  </FormLabel>
-                  <FormControl>
-                    <Input
-                      {...field}
-                      type='password'
-                      placeholder={maskedSecretValue || 'Enter a secret access key'}
-                    />
-                  </FormControl>
-                  <FormDescription>
-                    <RedshiftSecretAccessKeyDescription />
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </div>
+    <FormSection title='Connection Settings'>
+      <FormField
+        control={form.control}
+        name='config.region'
+        render={({ field }) => (
+          <FormItem>
+            <FormLabel tooltip='Enter the AWS region where your Redshift service is active'>
+              Region
+            </FormLabel>
+            <FormControl>
+              <Input {...field} placeholder='Enter a region' />
+            </FormControl>
+            <FormDescription>
+              <RedshiftRegionDescription />
+            </FormDescription>
+            <FormMessage />
+          </FormItem>
         )}
-      </div>
-    </>
+      />
+
+      {(() => {
+        const connectionType =
+          (form.watch('config.connectionType') as RedshiftConnectionType | undefined) ??
+          RedshiftConnectionType.SERVERLESS;
+        const tabs = (
+          <Tabs
+            value={connectionType}
+            onValueChange={value => {
+              form.setValue('config.connectionType', value as RedshiftConnectionType, {
+                shouldDirty: true,
+              });
+            }}
+          >
+            <TabsList>
+              <TabsTrigger value={RedshiftConnectionType.SERVERLESS}>Serverless</TabsTrigger>
+              <TabsTrigger value={RedshiftConnectionType.PROVISIONED}>Provisioned</TabsTrigger>
+            </TabsList>
+          </Tabs>
+        );
+        return connectionType === RedshiftConnectionType.SERVERLESS ? (
+          <FormField
+            control={form.control}
+            name='config.workgroupName'
+            render={({ field }) => (
+              <FormItem>
+                <div className='flex items-center justify-between'>
+                  <FormLabel tooltip='Workgroup name for Redshift Serverless'>
+                    Workgroup Name
+                  </FormLabel>
+                  {tabs}
+                </div>
+                <FormControl>
+                  <Input {...field} placeholder='Enter workgroup name' />
+                </FormControl>
+                <FormDescription>
+                  <RedshiftWorkgroupDescription />
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        ) : (
+          <FormField
+            control={form.control}
+            name='config.clusterIdentifier'
+            render={({ field }) => (
+              <FormItem>
+                <div className='flex items-center justify-between'>
+                  <FormLabel tooltip='Cluster identifier for provisioned Redshift cluster'>
+                    Cluster Identifier
+                  </FormLabel>
+                  {tabs}
+                </div>
+                <FormControl>
+                  <Input {...field} placeholder='Enter cluster identifier' />
+                </FormControl>
+                <FormDescription>
+                  <RedshiftClusterDescription />
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        );
+      })()}
+
+      <FormField
+        control={form.control}
+        name='config.database'
+        render={({ field }) => (
+          <FormItem>
+            <FormLabel tooltip='The database name to connect to'>Database</FormLabel>
+            <FormControl>
+              <Input {...field} placeholder='Enter database name' />
+            </FormControl>
+            <FormDescription>
+              <RedshiftDatabaseDescription />
+            </FormDescription>
+            <FormMessage />
+          </FormItem>
+        )}
+      />
+    </FormSection>
   );
 };

@@ -1,13 +1,8 @@
 import { z } from 'zod';
-import { DataStorageCredentials } from './data-storage-credentials.type';
 import { REPORT_AGGREGATE_FUNCTIONS } from '../dto/schemas/aggregate-function.schema';
 import type { DataMartSchemaField } from './data-mart-schema.type';
 import { BigQueryFieldMode } from './bigquery/enums/bigquery-field-mode.enum';
 import { DataMartSchemaFieldStatus } from './enums/data-mart-schema-field-status.enum';
-import { DataStorageType } from './enums/data-storage-type.enum';
-import { Injectable } from '@nestjs/common';
-import { DataStoragePublicCredentialsFactory } from './factories/data-storage-public-credentials.factory';
-import { DataStorageCredentialsPublic } from '../dto/presentation/data-storage-response-api.dto';
 import { isCalculatedField } from '../calculated-fields/calculated-field.utils';
 import { CALCULATED_FIELD_LEVELS } from '../calculated-fields/formula-level';
 import { isArrayFieldType } from './field-type-compatibility';
@@ -377,18 +372,4 @@ export function createBaseFieldSchemaForType<T extends z.ZodTypeAny>(schemaField
     .passthrough()
     .describe('Data mart schema field definition');
   return typedSchema;
-}
-
-@Injectable()
-export class DataStorageCredentialsUtils {
-  constructor(private readonly factory: DataStoragePublicCredentialsFactory) {}
-
-  getPublicCredentials(
-    type: DataStorageType,
-    credentials: DataStorageCredentials | undefined
-  ): DataStorageCredentialsPublic | undefined {
-    if (!credentials) return undefined;
-
-    return this.factory.create(type, credentials);
-  }
 }

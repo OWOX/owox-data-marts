@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { castError } from '@owox/internal-helpers';
 import { DataStorageType } from '../../enums/data-storage-type.enum';
 import { BigQueryConfigSchema } from '../schemas/bigquery-config.schema';
 import {
@@ -15,7 +16,7 @@ import { DataStorageCredentials } from '../../data-storage-credentials.type';
 import { BigQueryApiAdapter } from '../adapters/bigquery-api.adapter';
 
 const GOOGLE_OAUTH_REAUTH_MESSAGE =
-  'Google authorization could not be refreshed. Reconnect this Storage to restore access.';
+  'Google authorization could not be refreshed. Reconnect the Credential on the Credentials page to restore access.';
 
 interface GoogleAuthErrorBody {
   code?: number;
@@ -76,7 +77,7 @@ export class BigQueryAccessValidator implements DataStorageAccessValidator {
         await apiAdapter.checkAccess();
         return new ValidationResult(true);
       } catch (error) {
-        this.logger.warn('OAuth access validation failed', error);
+        this.logger.warn(`OAuth access validation failed: ${castError(error).message}`);
         if (isInvalidGoogleAuthError(error)) {
           return ValidationResult.oauthReauthRequired(GOOGLE_OAUTH_REAUTH_MESSAGE);
         }
@@ -88,7 +89,7 @@ export class BigQueryAccessValidator implements DataStorageAccessValidator {
 
     const credentialsOpt = BigQueryServiceAccountCredentialsSchema.safeParse(credentials);
     if (!credentialsOpt.success) {
-      this.logger.warn('Invalid credentials', credentialsOpt.error);
+      this.logger.warn(`Invalid credentials: ${credentialsOpt.error.message}`);
       return ValidationResult.invalidInput('credentials', credentialsOpt.error);
     }
 
@@ -97,7 +98,7 @@ export class BigQueryAccessValidator implements DataStorageAccessValidator {
       await apiAdapter.checkAccess();
       return new ValidationResult(true);
     } catch (error) {
-      this.logger.warn('Access validation failed', error);
+      this.logger.warn(`Access validation failed: ${castError(error).message}`);
       return new ValidationResult(false, 'Access validation failed', {
         error: error instanceof Error ? error.message : String(error),
       });

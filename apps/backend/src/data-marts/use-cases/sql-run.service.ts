@@ -29,7 +29,7 @@ export class SqlRunService {
     if (!storage?.type || !storage.config || !dataMart.definition) {
       throw new Error('Storage setup is not finished.');
     }
-    if (!storage.credentialId) {
+    if (!(await this.credentialsResolver.hasCredentials(storage))) {
       throw new Error('Storage setup is not finished.');
     }
 

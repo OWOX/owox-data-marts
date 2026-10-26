@@ -146,7 +146,6 @@ describe('UpdateDataDestinationService - credential copy (sourceDestinationId)',
     };
 
     const copyCredentialService = new CopyCredentialService(
-      {} as never,
       dataDestinationCredentialService as never
     );
 

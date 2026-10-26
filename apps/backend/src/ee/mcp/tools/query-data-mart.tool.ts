@@ -10,6 +10,7 @@ import {
 import { BusinessViolationException } from '../../../common/exceptions/business-violation.exception';
 import { ProjectOperationBlockedException } from '../../../common/exceptions/project-operation-blocked.exception';
 import { ProjectBlockedReason } from '../../../data-marts/enums/project-blocked-reason.enum';
+import { StorageCredentialUnavailableException } from '../../../data-marts/exceptions/storage-credential-unavailable.exception';
 import { ClsContextService } from '../../../common/logger/cls-context.service';
 import { PublicOriginService } from '../../../common/config/public-origin.service';
 import { MCP_TOOL_DIAGNOSTICS_KEY } from '../observability/mcp-tool-diagnostics';
@@ -440,6 +441,11 @@ If truncated is true, not all matching rows were returned: narrow the query (few
           'This OWOX Data Marts project is inactive. Activate the project to continue.'
         );
       }
+    }
+
+    if (err instanceof StorageCredentialUnavailableException) {
+      // Says who can fix the Credential and never names it, so it is forwarded as is.
+      return toStructuredToolError('storage_credential_unavailable', err.message);
     }
 
     if (err instanceof UnmatchedUniqueCountFieldError) {

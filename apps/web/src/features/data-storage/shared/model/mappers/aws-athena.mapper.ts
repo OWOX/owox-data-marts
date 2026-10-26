@@ -1,17 +1,12 @@
 import type { StorageMapper } from './storage-mapper.interface.ts';
-import type {
-  AwsAthenaConfigDto,
-  AwsAthenaCredentialsDto,
-  DataStorageResponseDto,
-} from '../../api/types';
+import type { AwsAthenaConfigDto, DataStorageResponseDto } from '../../api/types';
 import type { DataStorage } from '../types/data-storage.ts';
-import { type AwsAthenaCredentials, DataStorageType } from '../types';
+import { DataStorageType } from '../types';
 import type { DataStorageFormData } from '../../types/data-storage.schema.ts';
 
 export class AwsAthenaMapper implements StorageMapper {
   mapFromDto(dto: DataStorageResponseDto): DataStorage {
     const config = dto.config as AwsAthenaConfigDto | null;
-    const credentials = dto.credentials as AwsAthenaCredentialsDto | null;
 
     return {
       id: dto.id,
@@ -21,10 +16,6 @@ export class AwsAthenaMapper implements StorageMapper {
       modifiedAt: new Date(dto.modifiedAt),
       createdByUser: dto.createdByUser,
       ownerUsers: dto.ownerUsers ?? [],
-      credentials: {
-        accessKeyId: credentials?.accessKeyId ?? '',
-        secretAccessKey: credentials?.secretAccessKey ?? '',
-      },
       config: {
         region: config?.region ?? '',
         outputBucket: config?.outputBucket ?? '',
@@ -33,23 +24,11 @@ export class AwsAthenaMapper implements StorageMapper {
   }
 
   mapToUpdateRequest(formData: Partial<DataStorageFormData>) {
-    const result: {
-      credentials?: AwsAthenaCredentialsDto;
-      config: AwsAthenaConfigDto;
-    } = {
+    return {
       config: {
         region: (formData.config as AwsAthenaConfigDto).region,
         outputBucket: (formData.config as AwsAthenaConfigDto).outputBucket,
       },
     };
-
-    if (formData.credentials) {
-      result.credentials = {
-        accessKeyId: (formData.credentials as AwsAthenaCredentials).accessKeyId,
-        secretAccessKey: (formData.credentials as AwsAthenaCredentials).secretAccessKey,
-      };
-    }
-
-    return result;
   }
 }

@@ -22,6 +22,9 @@ import {
   toHumanReadable,
 } from '../../data-storage-types/enums/data-storage-type.enum';
 import { RoleScope } from '../../enums/role-scope.enum';
+import { STORAGE_CREDENTIAL_IDENTITIES_FACADE } from '../../facades/storage-credential-identities.facade';
+import { StorageCredentialIdentitiesFacadeImpl } from '../../facades/storage-credential-identities.facade.impl';
+import { LegacyStorageCredentialReader } from '../../services/storage-credential-conversion/legacy-storage-credential-reader.service';
 import { ContextAccessService } from '../../services/context/context-access.service';
 import { SearchableEntityType } from '../../../common/search/search.facade';
 import { toCursorTimestamp } from './indexable-source.port';
@@ -54,6 +57,7 @@ describe('DataStorageIndexableSource', () => {
   let storageRepo: Repository<DataStorage>;
   let contextRepo: Repository<Context>;
   const getRoleScope = jest.fn<Promise<RoleScope>, [string, string]>();
+  const identitiesForStorages = jest.fn();
 
   beforeAll(async () => {
     module = await Test.createTestingModule({
@@ -71,6 +75,16 @@ describe('DataStorageIndexableSource', () => {
         DataStorageIndexableSource,
         SearchIndexRepository,
         { provide: ContextAccessService, useValue: { getRoleScope } },
+        {
+          // Bound identities are stubbed; old key rows are read from the database.
+          provide: STORAGE_CREDENTIAL_IDENTITIES_FACADE,
+          inject: [getRepositoryToken(DataStorage)],
+          useFactory: (storages: Repository<DataStorage>) =>
+            new StorageCredentialIdentitiesFacadeImpl(
+              { identitiesForStorages } as never,
+              new LegacyStorageCredentialReader(storages, {} as never, {} as never, {} as never)
+            ),
+        },
       ],
     }).compile();
 
@@ -98,6 +112,8 @@ describe('DataStorageIndexableSource', () => {
   beforeEach(() => {
     getRoleScope.mockReset();
     getRoleScope.mockResolvedValue(RoleScope.ENTIRE_PROJECT);
+    identitiesForStorages.mockReset();
+    identitiesForStorages.mockResolvedValue(new Map());
   });
 
   async function seedStorage(
@@ -218,6 +234,17 @@ describe('DataStorageIndexableSource', () => {
       const [descriptor] = page.descriptors;
 
       expect(descriptor.atomicTokenSlots).toEqual([{ kind: 'field', text: 'user@example.com' }]);
+    });
+
+    it('emits the identity of a bound Credential', async () => {
+      const storage = await seedStorage({ title: 'Bound', type: DataStorageType.GOOGLE_BIGQUERY });
+      identitiesForStorages.mockResolvedValue(new Map([[storage.id, 'bound@example.com']]));
+
+      const page = await source.listSearchablePage('proj-1', null, 100);
+
+      expect(page.descriptors[0].atomicTokenSlots).toEqual([
+        { kind: 'field', text: 'bound@example.com' },
+      ]);
     });
 
     it('emits no email for non-Google storage types', async () => {
@@ -368,7 +395,7 @@ describe('DataStorageIndexableSource', () => {
       expect(new Set(allIds)).toEqual(new Set([s1.id, s2.id]));
     });
 
-    it('loads the keyset page before joining credential data', async () => {
+    it('loads the keyset page before hydrating it', async () => {
       await seedStorage({ title: 'S1' });
       await seedStorage({ title: 'S2' });
 
@@ -389,11 +416,9 @@ describe('DataStorageIndexableSource', () => {
         expect(findSpy.mock.calls[0][0]).not.toHaveProperty('relations');
         expect(findSpy).toHaveBeenNthCalledWith(
           2,
-          expect.objectContaining({
-            relations: { credential: true },
-            loadEagerRelations: false,
-          })
+          expect.objectContaining({ loadEagerRelations: false })
         );
+        expect(findSpy.mock.calls[1][0]).not.toHaveProperty('relations');
         expect(findSpy.mock.calls[1][0]).not.toHaveProperty('take');
         expect(findSpy.mock.calls[1][0]).not.toHaveProperty('order');
       } finally {

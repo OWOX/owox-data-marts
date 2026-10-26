@@ -305,6 +305,9 @@ function BulkCreateFromStorageDialogInner({
                     <DataStorageHealthIndicator
                       storageId={option.value}
                       storageTitle={option.label}
+                      credential={
+                        eligibleStorages.find(s => s.id === option.value)?.reusableCredential
+                      }
                       hovercardSide='left'
                       variant='compact'
                     />

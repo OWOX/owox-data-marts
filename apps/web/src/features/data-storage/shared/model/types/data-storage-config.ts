@@ -1,4 +1,7 @@
-import { RedshiftConnectionType } from './credentials';
+export enum RedshiftConnectionType {
+  SERVERLESS = 'SERVERLESS',
+  PROVISIONED = 'PROVISIONED',
+}
 
 export interface GoogleBigQueryDataStorageConfig {
   projectId: string;

@@ -41,7 +41,7 @@ export class SqlDryRunService {
     if (!storage || !storage.type || !storage.config) {
       return SqlDryRunResult.failed('Storage setup is not finished…');
     }
-    if (!storage.credentialId) {
+    if (!(await this.credentialsResolver.hasCredentials(storage))) {
       return SqlDryRunResult.failed('Storage setup is not finished…');
     }
 

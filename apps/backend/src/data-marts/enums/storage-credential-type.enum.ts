@@ -1,3 +1,4 @@
+// Legacy: the type of old storage key rows; remove with LegacyStorageCredentialReader.
 export enum StorageCredentialType {
   GOOGLE_SERVICE_ACCOUNT = 'google_service_account',
   GOOGLE_OAUTH = 'google_oauth',

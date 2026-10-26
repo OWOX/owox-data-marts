@@ -32,7 +32,7 @@ export class CreateViewService {
     if (!storage?.type || !storage.config) {
       throw new Error('Storage setup is not finished.');
     }
-    if (!storage.credentialId) {
+    if (!(await this.credentialsResolver.hasCredentials(storage))) {
       throw new Error('Storage setup is not finished.');
     }
 

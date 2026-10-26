@@ -27,6 +27,9 @@ export interface CredentialDto {
   readonly aiModelMappings: CredentialAiModelMappings | null;
   readonly aiModelMappingModes: CredentialAiModelMappingModes | null;
   readonly publicMetadata: CredentialPublicMetadata | null;
+  readonly identity: string | null;
+  readonly setSecretFieldKeys: string[];
+  readonly canUse: boolean;
   readonly ownerUsers: UserProjectionDto[];
   readonly contexts: ContextSummary[];
   readonly usedBy: CredentialConsumerReferenceApiDto[];

@@ -1,5 +1,6 @@
 export * from './github-icon';
 export * from './google-bigquery-icon';
+export * from './google-icon';
 export * from './legacy-google-bigquery-icon';
 export * from './aws-athena-icon';
 export * from './google-sheets-icon';
@@ -27,4 +28,6 @@ export * from './microsoft-excel-icon';
 export * from './email-icon';
 export * from './claude-icon';
 export * from './chat-gpt-icon';
+export * from './gemini-icon';
+export * from './openrouter-icon';
 export * from './icons.types';

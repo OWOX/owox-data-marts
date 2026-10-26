@@ -13,6 +13,7 @@ import { ContextAccessService } from '../services/context/context-access.service
 import { applyDataStorageVisibilityFilter } from '../utils/apply-data-storage-visibility-filter';
 import { UserProjectionsFetcherService } from '../services/user-projections-fetcher.service';
 import { resolveOwnerUsers } from '../utils/resolve-owner-users';
+import { DataStorageCredentialsResolver } from '../data-storage-types/data-storage-credentials-resolver.service';
 
 @Injectable()
 export class ListDataStoragesService {
@@ -23,7 +24,8 @@ export class ListDataStoragesService {
     private readonly dataMartRepo: Repository<DataMart>,
     private readonly mapper: DataStorageMapper,
     private readonly userProjectionsFetcherService: UserProjectionsFetcherService,
-    private readonly contextAccessService: ContextAccessService
+    private readonly contextAccessService: ContextAccessService,
+    private readonly credentialsResolver: DataStorageCredentialsResolver
   ) {}
 
   async run(command: ListDataStoragesCommand): Promise<DataStorageDto[]> {
@@ -94,6 +96,12 @@ export class ListDataStoragesService {
     ]);
     const userProjectionsList =
       await this.userProjectionsFetcherService.fetchUserProjectionsList(allUserIds);
+    const summaries = await this.credentialsResolver.summarize(
+      command.projectId,
+      command.userId,
+      command.roles,
+      dataStorages
+    );
 
     return dataStorages.map(s => {
       const counts = countMap.get(s.id);
@@ -102,7 +110,9 @@ export class ListDataStoragesService {
         counts?.published ?? 0,
         counts?.drafts ?? 0,
         s.createdById ? (userProjectionsList?.getByUserId(s.createdById) ?? null) : null,
-        resolveOwnerUsers(s.ownerIds, userProjectionsList)
+        resolveOwnerUsers(s.ownerIds, userProjectionsList),
+        undefined,
+        summaries.get(s.id) ?? null
       );
     });
   }

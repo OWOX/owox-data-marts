@@ -32,6 +32,7 @@ describe('parseExternalCredentialManifest', () => {
           headerName: 'Authorization',
           prefix: 'Bearer ',
         },
+        category: 'other',
         origins: ['https://api.acme.example'],
         validation: undefined,
         ai: undefined,
@@ -99,6 +100,25 @@ describe('parseExternalCredentialManifest', () => {
     ],
   ])('rejects %s', (_label, overrides) => {
     expect(parseExternalCredentialManifest(manifest(overrides))).toMatchObject({ ok: false });
+  });
+
+  it.each([
+    [
+      'a fields authentication',
+      (credential: Record<string, unknown>) =>
+        (credential.authentication = { type: 'fields', fields: [] }),
+    ],
+    [
+      'an oauth authentication',
+      (credential: Record<string, unknown>) =>
+        (credential.authentication = { type: 'oauth', provider: 'google', label: 'Google' }),
+    ],
+    ['no origins', (credential: Record<string, unknown>) => delete credential.origins],
+  ])('rejects a manifest declaring %s', (_label, mutate) => {
+    const source = JSON.parse(manifest()) as { credential: Record<string, unknown> };
+    mutate(source.credential);
+
+    expect(parseExternalCredentialManifest(JSON.stringify(source))).toMatchObject({ ok: false });
   });
 
   it('reserves then because the SDK proxy cannot expose that handle', () => {

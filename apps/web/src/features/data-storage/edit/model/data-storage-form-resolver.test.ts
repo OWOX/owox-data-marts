@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { DataStorageType, type DataStorageFormData } from '../../shared';
-import { RedshiftConnectionType } from '../../shared/model/types/credentials';
+import { RedshiftConnectionType } from '../../shared/model/types/data-storage-config';
 import { createDataStorageFormResolver } from './data-storage-form-resolver';
 
 const resolverOptions = {
@@ -26,31 +26,44 @@ const validConfigByType = {
 
 type SchemaBackedType = keyof typeof validConfigByType;
 
-function buildValues(type: SchemaBackedType) {
+function buildValues(type: SchemaBackedType, reusableCredentialId = '') {
   // The resolver receives raw form values at runtime, which may not yet
   // satisfy the schema (that is exactly what it validates).
   return {
     title: 'My storage',
     type,
-    credentials: {},
+    reusableCredentialId,
     config: validConfigByType[type],
   } as unknown as DataStorageFormData;
 }
 
 describe('createDataStorageFormResolver', () => {
   it.each(Object.keys(validConfigByType) as SchemaBackedType[])(
-    'passes validation for %s with empty credentials while copying from another storage',
+    'asks for a Credential on a %s Storage that has none',
     async type => {
-      const resolver = createDataStorageFormResolver(() => true);
+      const resolver = createDataStorageFormResolver(false);
 
       const result = await resolver(buildValues(type), undefined, resolverOptions);
 
-      expect(result.errors).toEqual({});
+      expect(result.errors.reusableCredentialId?.message).toBe('Select a Credential');
     }
   );
 
-  it('keeps requiring credentials when no copy source is selected', async () => {
-    const resolver = createDataStorageFormResolver(() => false);
+  it('accepts a selected Credential', async () => {
+    const resolver = createDataStorageFormResolver(false);
+
+    const result = await resolver(
+      buildValues(DataStorageType.SNOWFLAKE, 'cred-1'),
+      undefined,
+      resolverOptions
+    );
+
+    expect(result.errors).toEqual({});
+    expect(result.values).toMatchObject({ reusableCredentialId: 'cred-1' });
+  });
+
+  it('keeps the binding of a Storage whose Credential the member cannot see', async () => {
+    const resolver = createDataStorageFormResolver(true);
 
     const result = await resolver(
       buildValues(DataStorageType.AWS_REDSHIFT),
@@ -58,28 +71,12 @@ describe('createDataStorageFormResolver', () => {
       resolverOptions
     );
 
-    expect(result.errors).toHaveProperty('credentials');
+    expect(result.errors).toEqual({});
+    expect(result.values).not.toHaveProperty('reusableCredentialId');
   });
 
-  it('does not report credential errors for AZURE_SYNAPSE when copying from another storage', async () => {
-    const resolver = createDataStorageFormResolver(() => true);
-
-    const result = await resolver(
-      {
-        title: 'My storage',
-        type: DataStorageType.AZURE_SYNAPSE,
-        credentials: {},
-        config: {},
-      } as unknown as DataStorageFormData,
-      undefined,
-      resolverOptions
-    );
-
-    expect(result.errors).not.toHaveProperty('credentials');
-  });
-
-  it('still reports errors on non-credential fields while copying', async () => {
-    const resolver = createDataStorageFormResolver(() => true);
+  it('still reports errors on other fields of a bound Storage', async () => {
+    const resolver = createDataStorageFormResolver(true);
 
     const result = await resolver(
       { ...buildValues(DataStorageType.AWS_REDSHIFT), title: '' },
@@ -88,18 +85,6 @@ describe('createDataStorageFormResolver', () => {
     );
 
     expect(result.errors).toHaveProperty('title');
-    expect(result.errors).not.toHaveProperty('credentials');
-  });
-
-  it('strips credentials from returned values when copy source is selected', async () => {
-    const resolver = createDataStorageFormResolver(() => true);
-
-    const result = await resolver(
-      buildValues(DataStorageType.AWS_REDSHIFT),
-      undefined,
-      resolverOptions
-    );
-
-    expect(result.values).not.toHaveProperty('credentials');
+    expect(result.errors).not.toHaveProperty('reusableCredentialId');
   });
 });

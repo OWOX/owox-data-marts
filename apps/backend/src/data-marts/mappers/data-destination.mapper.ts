@@ -1,7 +1,7 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { ClsService } from 'nestjs-cls';
 import { AuthorizationContext } from '../../idp';
-import { AUTH_CONTEXT } from '../../idp/guards/idp.guard';
+import { isPluginRuntimeCall } from '../../idp/utils/is-plugin-runtime-call';
 import { UserProjectionsListDto } from '../../idp/dto/domain/user-projections-list.dto';
 import {
   CreateDataDestinationCommand,
@@ -68,11 +68,7 @@ export class DataDestinationMapper {
    * too, and a rule that only some call sites remember is the one that gets forgotten.
    */
   private isPluginRuntimeCall(): boolean {
-    if (!this.cls?.isActive()) {
-      return false;
-    }
-
-    return this.cls.get<{ authFlow?: string }>(AUTH_CONTEXT)?.authFlow === 'plugin';
+    return isPluginRuntimeCall(this.cls);
   }
 
   private buildCreateCommand(

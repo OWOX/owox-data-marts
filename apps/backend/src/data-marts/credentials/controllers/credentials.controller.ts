@@ -1,11 +1,22 @@
 import { Body, Controller, Delete, Get, HttpCode, Param, Post, Put } from '@nestjs/common';
 import { ApiNoContentResponse, ApiOkResponse, ApiTags } from '@nestjs/swagger';
-import { Auth, AuthContext, type AuthorizationContext, RejectPluginAuth } from '../../../idp';
-import { Role, Strategy } from '../../../idp/types/role-config.types';
 import {
+  Auth,
+  AuthContext,
+  type AuthorizationContext,
+  RejectApiKeyAuth,
+  RejectPluginAuth,
+} from '../../../idp';
+import { Role, Strategy } from '../../../idp/types/role-config.types';
+import { GoogleOAuthFlowService } from '../../services/google-oauth/google-oauth-flow.service';
+import {
+  AuthorizeGoogleOAuthCredentialApiDto,
+  ConnectGoogleOAuthCredentialApiDto,
   CreateCredentialApiDto,
   CredentialDefinitionApiDto,
   CredentialResponseApiDto,
+  GoogleOAuthCredentialAuthorizationApiDto,
+  GoogleOAuthCredentialSettingsApiDto,
   UpdateCredentialApiDto,
 } from '../dto/credential-api.dto';
 import { CredentialMapper, mapCredentialDefinitionToApiDto } from '../mappers/credential.mapper';
@@ -17,6 +28,8 @@ import { ListCredentialsService } from '../use-cases/list-credentials.service';
 import { UpdateCredentialService } from '../use-cases/update-credential.service';
 import { ValidateCredentialService } from '../use-cases/validate-credential.service';
 import { ConsentCredentialDefinitionService } from '../use-cases/consent-credential-definition.service';
+import { AuthorizeGoogleOAuthCredentialService } from '../use-cases/authorize-google-oauth-credential.service';
+import { ConnectGoogleOAuthCredentialService } from '../use-cases/connect-google-oauth-credential.service';
 
 @ApiTags('Credentials')
 @Controller('credentials')
@@ -31,7 +44,10 @@ export class CredentialsController {
     private readonly validateCredential: ValidateCredentialService,
     private readonly consentCredentialDefinition: ConsentCredentialDefinitionService,
     private readonly definitions: CredentialDefinitionService,
-    private readonly mapper: CredentialMapper
+    private readonly mapper: CredentialMapper,
+    private readonly authorizeGoogleOAuthCredential: AuthorizeGoogleOAuthCredentialService,
+    private readonly connectGoogleOAuthCredential: ConnectGoogleOAuthCredentialService,
+    private readonly googleOAuthFlow: GoogleOAuthFlowService
   ) {}
 
   @Auth(Role.viewer(Strategy.PARSE))
@@ -39,6 +55,41 @@ export class CredentialsController {
   @ApiOkResponse({ type: [CredentialDefinitionApiDto] })
   async listDefinitions(): Promise<CredentialDefinitionApiDto[]> {
     return (await this.definitions.list()).map(mapCredentialDefinitionToApiDto);
+  }
+
+  @Auth(Role.viewer())
+  @RejectApiKeyAuth()
+  @RejectPluginAuth()
+  @Get('oauth/google/settings')
+  @ApiOkResponse({ type: GoogleOAuthCredentialSettingsApiDto })
+  getGoogleOAuthSettings(): GoogleOAuthCredentialSettingsApiDto {
+    return { available: this.googleOAuthFlow.getSettingsForType('credential').available };
+  }
+
+  @Auth(Role.viewer())
+  @RejectApiKeyAuth()
+  @RejectPluginAuth()
+  @Post('oauth/google/authorize')
+  @HttpCode(200)
+  @ApiOkResponse({ type: GoogleOAuthCredentialAuthorizationApiDto })
+  async authorizeGoogleOAuth(
+    @AuthContext() context: AuthorizationContext,
+    @Body() input: AuthorizeGoogleOAuthCredentialApiDto
+  ): Promise<GoogleOAuthCredentialAuthorizationApiDto> {
+    return this.authorizeGoogleOAuthCredential.run(context, input);
+  }
+
+  @Auth(Role.viewer())
+  @RejectApiKeyAuth()
+  @RejectPluginAuth()
+  @Post('oauth/google/exchange')
+  @HttpCode(200)
+  @ApiOkResponse({ type: CredentialResponseApiDto })
+  async connectGoogleOAuth(
+    @AuthContext() context: AuthorizationContext,
+    @Body() input: ConnectGoogleOAuthCredentialApiDto
+  ): Promise<CredentialResponseApiDto> {
+    return this.mapper.toApiResponse(await this.connectGoogleOAuthCredential.run(context, input));
   }
 
   @Auth(Role.viewer(Strategy.INTROSPECT))

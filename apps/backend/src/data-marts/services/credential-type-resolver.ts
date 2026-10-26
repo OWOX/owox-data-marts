@@ -5,6 +5,7 @@ import type { CredentialIdentity } from '../entities/credential-identity.type';
 import type { StoredStorageCredentials } from '../entities/stored-storage-credentials.type';
 import type { StoredDestinationCredentials } from '../entities/stored-destination-credentials.type';
 
+// Legacy: types old storage key rows only; remove with LegacyStorageCredentialReader.
 export function resolveStorageCredentialType(
   storageType: DataStorageType,
   credentials: StoredStorageCredentials

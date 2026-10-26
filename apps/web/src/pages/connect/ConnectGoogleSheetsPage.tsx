@@ -181,7 +181,6 @@ export function ConnectGoogleSheetsPage() {
                 Connect with Google OAuth
               </FormLabel>
               <GoogleOAuthConnectButton
-                resourceType='destination'
                 onSuccess={connectedCredentialId => {
                   setCredentialId(connectedCredentialId);
                   void handleSave(connectedCredentialId);

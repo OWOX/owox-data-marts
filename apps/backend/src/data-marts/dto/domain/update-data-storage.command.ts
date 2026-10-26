@@ -1,5 +1,4 @@
 import { DataStorageConfig } from '../../data-storage-types/data-storage-config.type';
-import { DataStorageCredentials } from '../../data-storage-types/data-storage-credentials.type';
 
 export class UpdateDataStorageCommand {
   constructor(
@@ -7,9 +6,12 @@ export class UpdateDataStorageCommand {
     public readonly projectId: string,
     public readonly config: DataStorageConfig,
     public readonly title: string,
-    public readonly credentials?: DataStorageCredentials,
-    public readonly credentialId?: string | null,
-    public readonly sourceStorageId?: string,
+    /** Absent keeps the binding; null is rejected. */
+    public readonly reusableCredentialId?: string | null,
+    // Legacy: remove with LegacyStorageCredentialReader.
+    /** True when the request carries `credentials`, `credentialId` or `sourceStorageId`. */
+    public readonly sentOldCredentialFields: boolean = false,
+    public readonly isPluginAuth: boolean = false,
     public readonly ownerIds?: string[],
     public readonly userId: string = '',
     public readonly roles: string[] = [],
@@ -17,10 +19,6 @@ export class UpdateDataStorageCommand {
     public readonly availableForMaintenance?: boolean,
     public readonly contextIds?: string[]
   ) {}
-
-  hasCredentials(): boolean {
-    return this.credentials !== undefined;
-  }
 
   hasConfig(): boolean {
     return this.config !== undefined;

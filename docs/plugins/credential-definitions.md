@@ -50,12 +50,12 @@ to the write-only secret field. It must be a parseable absolute HTTPS URL withou
 or password. OWOX normalizes and exposes this metadata to the management UI, but the backend never
 fetches the documentation URL.
 
-## Built-in Google Service Account
+## Built-in BigQuery Service Account
 
-The built-in `google-service-account` definition stores a Google Cloud service account JSON key.
-OWOX Data Marts signs a token request with the key, exchanges it at
-`https://oauth2.googleapis.com/token`, and adds the access token to each proxied request. A plugin
-never receives the key or the token.
+The built-in `google-service-account` definition, shown as **BigQuery Service Account**, stores a
+Google Cloud service account JSON key. OWOX Data Marts signs a token request with the key, exchanges
+it at `https://oauth2.googleapis.com/token`, and adds the access token to each proxied request. A
+plugin never receives the key or the token.
 
 Its origin is `https://*.googleapis.com`: any HTTPS host under `googleapis.com` on the default
 port, such as `docs.googleapis.com` or `sheets.googleapis.com`, but not `googleapis.com` itself.

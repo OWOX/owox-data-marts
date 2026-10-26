@@ -1,4 +1,4 @@
-export { storageOAuthApi, destinationOAuthApi } from './google-oauth-api.service';
+export { destinationOAuthApi } from './google-oauth-api.service';
 export type {
   OAuthSettings,
   OAuthAuthorizationUrl,

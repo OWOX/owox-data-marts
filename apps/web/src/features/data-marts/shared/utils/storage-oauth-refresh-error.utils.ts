@@ -3,7 +3,11 @@ export interface StorageOAuthRefreshError {
   message?: string;
 }
 
-const STORAGE_OAUTH_REFRESH_ERROR_CODES = new Set(['TOKEN_REFRESH_FAILED', 'CREDENTIALS_EXPIRED']);
+const STORAGE_OAUTH_REFRESH_ERROR_CODES = new Set([
+  'TOKEN_REFRESH_FAILED',
+  'CREDENTIALS_EXPIRED',
+  'STORAGE_CREDENTIAL_UNAVAILABLE',
+]);
 
 export function isStorageOAuthRefreshError(error: StorageOAuthRefreshError): boolean {
   if (error.code && STORAGE_OAUTH_REFRESH_ERROR_CODES.has(error.code)) {

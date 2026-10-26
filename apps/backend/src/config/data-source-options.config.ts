@@ -10,8 +10,12 @@ export enum DbType {
   mysql = 'mysql',
 }
 
-/** Tables whose bound values hold plugin action input, results, schedule parameters or token hashes. */
-const REDACTED_PARAMETER_TABLES = ['plugin_action_execution', 'plugin_action_schedule'];
+/** Tables whose bound values hold secrets; `credential` also matches every credential table. */
+const REDACTED_PARAMETER_TABLES = [
+  'plugin_action_execution',
+  'plugin_action_schedule',
+  'credential',
+];
 
 /**
  * Custom DataSource logger that implements the Logger interface

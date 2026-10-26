@@ -36,7 +36,7 @@ export class DataMartDefinitionValidatorFacade {
       );
     }
 
-    if (!dataMart.storage.credentialId) {
+    if (!(await this.credentialsResolver.hasCredentials(dataMart.storage))) {
       return ValidationResult.authoredFailure(
         DataMartValidationCode.STORAGE_CREDENTIALS_NOT_FOUND,
         'DataMart storage credentials not found'

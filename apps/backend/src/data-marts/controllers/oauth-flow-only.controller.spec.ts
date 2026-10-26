@@ -64,25 +64,12 @@ jest.mock('../services/access-decision', () => ({
   EntityType: {},
 }));
 jest.mock('../use-cases/google-sheets/create-google-sheet-document.service', () => ({}));
-jest.mock('../use-cases/create-data-storage.service', () => ({}));
-jest.mock('../use-cases/delete-data-storage.service', () => ({}));
-jest.mock('../use-cases/get-data-storage.service', () => ({}));
-jest.mock('../use-cases/list-data-storages.service', () => ({}));
-jest.mock('../use-cases/update-data-storage.service', () => ({}));
-jest.mock('../use-cases/validate-data-storage-access.service', () => ({}));
-jest.mock('../use-cases/google-oauth/get-storage-oauth-status.service', () => ({}));
-jest.mock('../use-cases/google-oauth/generate-storage-oauth-url.service', () => ({}));
-jest.mock('../use-cases/google-oauth/revoke-storage-oauth.service', () => ({}));
-jest.mock('../use-cases/list-data-storages-by-type.service', () => ({}));
-jest.mock('../use-cases/list-storage-resources.service', () => ({}));
-jest.mock('../mappers/data-storage.mapper', () => ({}));
 
 import { RequestMethod, Type } from '@nestjs/common';
 import { METHOD_METADATA, PATH_METADATA } from '@nestjs/common/constants';
 import { REJECT_API_KEY_AUTH_METADATA } from '../../idp/decorators/reject-api-key-auth.decorator';
 import { ConnectorController } from './connector.controller';
 import { DataDestinationController } from './data-destination.controller';
-import { DataStorageController } from './data-storage.controller';
 
 type ControllerWithHandler = Type;
 
@@ -149,31 +136,6 @@ const oauthFlowOnlyRoutes: Array<{
     controller: DataDestinationController,
     handlerName: 'revokeOAuth',
     endpoint: 'DELETE /api/data-destinations/{id}/oauth',
-  },
-  {
-    controller: DataStorageController,
-    handlerName: 'getOAuthSettings',
-    endpoint: 'GET /api/data-storages/oauth/settings',
-  },
-  {
-    controller: DataStorageController,
-    handlerName: 'exchangeOAuthCode',
-    endpoint: 'POST /api/data-storages/oauth/exchange',
-  },
-  {
-    controller: DataStorageController,
-    handlerName: 'generateOAuthAuthorizationUrl',
-    endpoint: 'POST /api/data-storages/{id}/oauth/authorize',
-  },
-  {
-    controller: DataStorageController,
-    handlerName: 'getOAuthStatus',
-    endpoint: 'GET /api/data-storages/{id}/oauth/status',
-  },
-  {
-    controller: DataStorageController,
-    handlerName: 'revokeOAuth',
-    endpoint: 'DELETE /api/data-storages/{id}/oauth',
   },
 ];
 

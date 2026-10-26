@@ -25,6 +25,7 @@ const binding: ResolvedCredentialBinding = {
     id: 'github',
     displayName: 'GitHub',
     description: '',
+    category: 'other',
     auth: { type: 'header', label: 'API key', headerName: 'authorization', prefix: 'Bearer ' },
     origins: ['https://api.github.com'],
   },
@@ -43,8 +44,9 @@ const googleBinding: ResolvedCredentialBinding = {
   secret: { value: '{"type":"service_account"}' },
   definition: {
     id: 'google-service-account',
-    displayName: 'Google Service Account',
+    displayName: 'BigQuery Service Account',
     description: '',
+    category: 'other',
     auth: { type: 'google-service-account', label: 'Service account key (JSON)' },
     origins: ['https://*.googleapis.com'],
   },
@@ -96,6 +98,19 @@ describe('CredentialFetchService', () => {
     expect(response.headers).not.toHaveProperty('set-cookie');
     expect(Buffer.from(response.bodyBase64, 'base64').toString()).toContain('octocat');
     expect(JSON.stringify(response)).not.toContain('provider-secret');
+  });
+
+  it('answers 400 for a definition without origins without reaching the network', async () => {
+    const fetchMock = global.fetch as jest.Mock;
+    const { origins: _origins, ...withoutOrigins } = binding.definition;
+
+    await expect(
+      service().run(
+        { ...binding, definition: { ...withoutOrigins, category: 'snowflake' } },
+        { url: 'https://api.github.com/user', method: 'GET' }
+      )
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it('rejects an origin that is not declared without reaching the network', async () => {
@@ -197,7 +212,7 @@ describe('CredentialFetchService', () => {
     'https://docs.googleapis.com/v1/documents/d1',
     'https://a.b.googleapis.com/v1/x',
     'https://DOCS.GOOGLEAPIS.COM/v1/documents/d1',
-  ])('lets a Google Service Account reach %s', async url => {
+  ])('lets a BigQuery Service Account reach %s', async url => {
     (global.fetch as jest.Mock).mockResolvedValue(new Response('{}', { status: 200 }));
 
     await service().run(googleBinding, { url, method: 'GET' });
@@ -212,7 +227,7 @@ describe('CredentialFetchService', () => {
     'https://docs.googleapis.com.evil.example/v1/x',
     'http://docs.googleapis.com/v1/x',
     'https://api.github.com/user',
-  ])('refuses a Google Service Account request to %s', async url => {
+  ])('refuses a BigQuery Service Account request to %s', async url => {
     await expect(service().run(googleBinding, { url, method: 'GET' })).rejects.toBeInstanceOf(
       ForbiddenException
     );

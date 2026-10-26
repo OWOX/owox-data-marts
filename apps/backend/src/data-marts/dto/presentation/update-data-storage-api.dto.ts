@@ -1,4 +1,4 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   ArrayMaxSize,
   IsNotEmpty,
@@ -23,10 +23,24 @@ export class UpdateDataStorageApiDto {
   @IsString()
   @MaxLength(255, { message: 'Title must be 255 characters or less' })
   title: string;
+
   @ApiProperty({
+    type: 'string',
+    required: false,
+    description:
+      'Credential to use for this Storage. Absent keeps the current one; null is rejected. Needs EDIT on the Storage and USE on the Credential.',
+  })
+  @IsString()
+  @IsNotEmpty()
+  @IsOptional()
+  reusableCredentialId?: string | null;
+
+  // Legacy: rejected old credential field; remove with LegacyStorageCredentialReader.
+  @ApiPropertyOptional({
     type: 'object',
     additionalProperties: true,
-    description: 'Credentials required for the selected storage type',
+    deprecated: true,
+    description: 'Rejected. Select a Credential with reusableCredentialId.',
   })
   @IsObject()
   @IsOptional()
@@ -40,14 +54,23 @@ export class UpdateDataStorageApiDto {
   @IsObject()
   config: DataStorageConfig;
 
-  @ApiProperty({ type: 'string', nullable: true, required: false })
+  // Legacy: rejected old credential field; remove with LegacyStorageCredentialReader.
+  @ApiProperty({
+    type: 'string',
+    nullable: true,
+    required: false,
+    deprecated: true,
+    description: 'Rejected. Select a Credential with reusableCredentialId.',
+  })
   @IsUUID()
   @IsOptional()
   credentialId?: string | null;
 
+  // Legacy: rejected old credential field; remove with LegacyStorageCredentialReader.
   @ApiProperty({
     required: false,
-    description: 'Source Storage ID to copy credentials from (mutually exclusive with credentials)',
+    deprecated: true,
+    description: 'Rejected. Select a Credential with reusableCredentialId.',
     type: 'string',
   })
   @IsUUID()

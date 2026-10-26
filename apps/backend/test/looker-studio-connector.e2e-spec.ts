@@ -18,11 +18,14 @@ import { ReportDataBatch } from '../src/data-marts/dto/domain/report-data-batch.
 import { ReportDataDescription } from '../src/data-marts/dto/domain/report-data-description.dto';
 import { BlendingDecision } from '../src/data-marts/dto/domain/blending-decision.dto';
 import { BigQueryFieldType } from '../src/data-marts/data-storage-types/bigquery/enums/bigquery-field-type.enum';
+import { DataStorageType } from '../src/data-marts/data-storage-types/enums/data-storage-type.enum';
 import { AggregateFunction } from '../src/data-marts/dto/schemas/aggregate-function.schema';
 import { FieldDataType } from '../src/data-marts/data-destination-types/looker-studio-connector/enums/field-data-type.enum';
 import { FieldConceptType } from '../src/data-marts/data-destination-types/looker-studio-connector/enums/field-concept-type.enum';
 import { AggregationType } from '../src/data-marts/data-destination-types/looker-studio-connector/enums/aggregation-type.enum';
 import { DataMartReadFailedException } from '../src/data-marts/errors/data-mart-read-failed.error';
+import { serviceAccountKey } from './fixtures/google-service-account-key';
+import { bindStorageCredential, createCredential } from './fixtures/storage-credentials';
 
 // ---------------------------------------------------------------------------
 // Mock data for the in-memory reader
@@ -90,6 +93,7 @@ describe('Looker Studio Connector (e2e)', () => {
   let destinationSecretKey: string;
   let reportId: string;
   let dataMartId: string;
+  let dataSource: { query(sql: string, params?: unknown[]): Promise<unknown> };
 
   /** Send a signed JWT request to a Looker Studio endpoint. */
   function postLooker(path: string, payload: unknown): supertest.Test {
@@ -111,14 +115,13 @@ describe('Looker Studio Connector (e2e)', () => {
     dataMartId = prerequisites.dataMartId;
     destinationId = prerequisites.dataDestinationId;
 
-    // Seed storage credentials directly in DB (the Looker Studio queries use
-    // INNER JOIN on storage.credential which requires it to exist).
+    // Seed an old storage credentials row, as a Storage configured before Credentials has.
     /* eslint-disable @typescript-eslint/no-require-imports */
     const backendRoot = require.resolve('@owox/backend/package.json');
     const backendDir = require('path').dirname(backendRoot);
     const { DataSource } = require(require.resolve('typeorm', { paths: [backendDir] }));
     /* eslint-enable @typescript-eslint/no-require-imports */
-    const dataSource = app.get(DataSource);
+    dataSource = app.get(DataSource);
     const credentialId = crypto.randomUUID();
     await dataSource.query(
       `INSERT INTO data_storage_credentials (id, projectId, type, credentials, createdAt, modifiedAt)
@@ -550,6 +553,81 @@ describe('Looker Studio Connector (e2e)', () => {
       expect(res.body.schema[0].name).toBe('revenue');
       // Rows should contain only the revenue column values
       expect(res.body.rows[0].values).toEqual([42.5]);
+    });
+  });
+
+  describe('a Storage bound to a Credential, with no old credentials row', () => {
+    let boundDestinationId: string;
+    let boundSecretKey: string;
+    let boundReportId: string;
+
+    beforeAll(async () => {
+      const prerequisites = await setupReportPrerequisites(agent);
+      boundDestinationId = prerequisites.dataDestinationId;
+      await dataSource.query(`UPDATE data_storage SET config = ? WHERE id = ?`, [
+        JSON.stringify({ projectId: 'test-project', dataset: 'test_dataset' }),
+        prerequisites.storageId,
+      ]);
+      const credentialId = await createCredential(app, {
+        projectId: '0',
+        definitionId: 'google-service-account',
+        title: 'Analytics key',
+        secret: { value: serviceAccountKey() },
+        publicMetadata: null,
+        ownerIds: [],
+        contextIds: [],
+      });
+      await bindStorageCredential(app, {
+        projectId: '0',
+        storageId: prerequisites.storageId,
+        type: DataStorageType.GOOGLE_BIGQUERY,
+        credentialId,
+      });
+      await expect(
+        dataSource.query(`SELECT credentialId FROM data_storage WHERE id = ?`, [
+          prerequisites.storageId,
+        ])
+      ).resolves.toEqual([{ credentialId: null }]);
+
+      const destRes = await agent
+        .get(`/api/data-destinations/${boundDestinationId}`)
+        .set(AUTH_HEADER);
+      boundSecretKey = destRes.body.credentials.destinationSecretKey;
+      const reportRes = await agent
+        .post('/api/reports')
+        .set(AUTH_HEADER)
+        .send(
+          new ReportBuilder()
+            .withDataMartId(prerequisites.dataMartId)
+            .withDataDestinationId(boundDestinationId)
+            .build()
+        )
+        .expect(201);
+      boundReportId = reportRes.body.id;
+    });
+
+    it('lists its report and serves the report schema and data', async () => {
+      const connectionConfig = {
+        deploymentUrl: 'http://localhost',
+        destinationId: boundDestinationId,
+        destinationSecretKey: boundSecretKey,
+      };
+      const request = {
+        configParams: { destinationId: boundDestinationId, reportId: boundReportId },
+        fields: [{ name: 'date' }, { name: 'revenue' }],
+        scriptParams: { sampleExtraction: true },
+      };
+
+      const config = await postLooker('/api/external/looker/get-config', { connectionConfig });
+
+      expect(config.status).toBe(200);
+      expect(
+        config.body.configParams.find((p: { name: string }) => p.name === 'reportId').options
+      ).toEqual([expect.objectContaining({ value: boundReportId })]);
+      await postLooker('/api/external/looker/get-schema', { connectionConfig, request }).expect(
+        200
+      );
+      await postLooker('/api/external/looker/get-data', { connectionConfig, request }).expect(200);
     });
   });
 

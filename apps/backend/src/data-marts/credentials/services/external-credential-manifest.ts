@@ -161,6 +161,7 @@ export function parseExternalCredentialManifest(
       id: credential.name,
       displayName: name,
       description,
+      category: 'other',
       documentationUrl: credential.documentationUrl,
       auth: {
         type: 'header',

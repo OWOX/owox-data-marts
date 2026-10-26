@@ -8,6 +8,7 @@ import type { CredentialDefinitionContract } from '../credential.types';
 import type { ResolvedCredentialDefinition } from '../dto/credential-api.dto';
 import { CredentialDefinitionVersion } from '../entities/credential-definition-version.entity';
 import { CredentialExternalDefinition } from '../entities/credential-external-definition.entity';
+import { BUILTIN_CREDENTIAL_DEFINITIONS } from './builtin-credential-definitions';
 
 export interface RegisterExternalCredentialDefinitionInput {
   readonly githubRepoId: string;
@@ -26,6 +27,14 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 
 @Injectable()
 export class CredentialExternalDefinitionRegistryService {
+  /** Whether a plugin may require this definition: a built-in one only when it has origins. */
+  static isPluginRequestable(definitionId: string): boolean {
+    const builtin = BUILTIN_CREDENTIAL_DEFINITIONS.find(
+      definition => definition.id === definitionId
+    );
+    return builtin === undefined || builtin.origins !== undefined;
+  }
+
   constructor(
     @InjectRepository(CredentialExternalDefinition)
     private readonly definitions: Repository<CredentialExternalDefinition>,
@@ -217,7 +226,7 @@ export class CredentialExternalDefinitionRegistryService {
   }
 
   private async validateNetworkBoundary(contract: CredentialDefinitionContract): Promise<void> {
-    if (contract.auth.type !== 'header') {
+    if (contract.auth.type !== 'header' || !contract.origins) {
       throw new BadRequestException('An external Credential definition must use header auth');
     }
     try {
@@ -265,7 +274,7 @@ function isCompatibleWithinLine(
 ): boolean {
   return (
     previous.id === next.id &&
-    sameSet(previous.origins, next.origins) &&
+    sameSet(previous.origins ?? [], next.origins ?? []) &&
     previous.auth.type === 'header' &&
     next.auth.type === 'header' &&
     previous.auth.headerName.toLowerCase() === next.auth.headerName.toLowerCase() &&

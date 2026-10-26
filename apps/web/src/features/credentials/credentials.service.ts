@@ -3,6 +3,7 @@ import type {
   CreateCredentialRequest,
   Credential,
   CredentialDefinition,
+  GoogleOAuthExchangeRequest,
   UpdateCredentialRequest,
 } from './types';
 
@@ -37,6 +38,22 @@ class CredentialsService extends ApiService {
 
   consentDefinition(id: string): Promise<Credential> {
     return this.post<Credential>(`/${id}/definition-consent`);
+  }
+
+  getGoogleOAuthSettings(): Promise<{ available: boolean }> {
+    return this.get<{ available: boolean }>('/oauth/google/settings');
+  }
+
+  authorizeGoogleOAuth(body: {
+    redirectUri: string;
+    credentialId?: string;
+    definitionId?: string;
+  }): Promise<{ authorizationUrl: string }> {
+    return this.post<{ authorizationUrl: string }>('/oauth/google/authorize', body);
+  }
+
+  exchangeGoogleOAuth(body: GoogleOAuthExchangeRequest): Promise<Credential> {
+    return this.post<Credential>('/oauth/google/exchange', body);
   }
 
   remove(id: string): Promise<void> {

@@ -6,31 +6,13 @@ import { StorageCredentialType } from '../enums/storage-credential-type.enum';
 import type { CredentialIdentity } from '../entities/credential-identity.type';
 import type { StoredStorageCredentials } from '../entities/stored-storage-credentials.type';
 
+// Legacy: remove with LegacyStorageCredentialReader.
 @Injectable()
 export class DataStorageCredentialService {
   constructor(
     @InjectRepository(DataStorageCredential)
     private readonly repo: Repository<DataStorageCredential>
   ) {}
-
-  async create(params: {
-    projectId: string;
-    createdById?: string | null;
-    type: StorageCredentialType;
-    credentials: StoredStorageCredentials;
-    identity?: CredentialIdentity | null;
-    expiresAt?: Date | null;
-  }): Promise<DataStorageCredential> {
-    const entity = this.repo.create({
-      projectId: params.projectId,
-      createdById: params.createdById ?? null,
-      type: params.type,
-      credentials: params.credentials,
-      identity: params.identity ?? null,
-      expiresAt: params.expiresAt ?? null,
-    });
-    return this.repo.save(entity);
-  }
 
   async getById(id: string): Promise<DataStorageCredential | null> {
     return this.repo.findOne({ where: { id, deletedAt: IsNull() } });

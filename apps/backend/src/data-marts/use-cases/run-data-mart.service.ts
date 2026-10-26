@@ -1,4 +1,5 @@
 import { BadRequestException, ForbiddenException, Injectable, Logger } from '@nestjs/common';
+import { castError } from '@owox/internal-helpers';
 import { DataMartService } from '../services/data-mart.service';
 import { DataMartDefinitionType } from '../enums/data-mart-definition-type.enum';
 import { ConnectorExecutionService } from '../services/connector/connector-execution.service';
@@ -7,6 +8,7 @@ import { AccessDecisionService, EntityType, Action } from '../services/access-de
 import { RunType } from '../../common/scheduler/shared/types';
 import { DataMart } from '../entities/data-mart.entity';
 import { DataStorageAccessValidatorFacade } from '../data-storage-types/facades/data-storage-access-validator-facade.service';
+import { StorageCredentialUnavailableException } from '../exceptions/storage-credential-unavailable.exception';
 import { DataStorageCredentialsResolver } from '../data-storage-types/data-storage-credentials-resolver.service';
 import { ValidationResultCode } from '../data-storage-types/interfaces/data-storage-access-validator.interface';
 import { CredentialsExpiredException } from '../exceptions/google-oauth.exceptions';
@@ -71,18 +73,19 @@ export class RunDataMartService {
 
   /**
    * Pre-run guard that surfaces an expired Google OAuth authorization before a run is
-   * created, so the user gets a clear "Reconnect Storage" error instead of a run that
-   * fails mid-execution with an opaque 401.
+   * created, so the user gets a clear error instead of a run that fails mid-execution with
+   * an opaque 401. A bound Credential that is disabled, lost its grant or lacks scopes
+   * blocks the run with 400 and the Credential's message.
    *
    * Runs outside any DB transaction (resolving credentials may refresh and persist tokens).
-   * Only a definitive re-authorization condition blocks the run — transient problems
+   * Only a definitive condition blocks the run — transient problems
    * (network blips, rate limits, temporary API/token-endpoint failures) must not prevent a
    * run from starting, since those are surfaced during execution as they were before.
    */
   private async checkStorageAccess(dataMart: DataMart): Promise<void> {
     const { storage } = dataMart;
 
-    if (!storage.config || !storage.credentialId) {
+    if (!storage.config || !(await this.credentialsResolver.hasCredentials(storage))) {
       return;
     }
 
@@ -96,15 +99,21 @@ export class RunDataMartService {
       );
 
       if (!result.valid && result.code === ValidationResultCode.OAUTH_REAUTH_REQUIRED) {
-        throw new CredentialsExpiredException(storage.id, 'storage');
+        // A bound Storage names its Credential; a 401 here would sign the web user out.
+        throw (
+          (await this.credentialsResolver.lostGrantFor(storage)) ??
+          new CredentialsExpiredException(storage.id, 'storage')
+        );
       }
     } catch (error) {
-      if (error instanceof CredentialsExpiredException) {
+      if (
+        error instanceof CredentialsExpiredException ||
+        error instanceof StorageCredentialUnavailableException
+      ) {
         throw error;
       }
       this.logger.warn(
-        `Pre-run storage access check did not complete for storage ${storage.id}; proceeding with run`,
-        error
+        `Pre-run storage access check did not complete for storage ${storage.id}; proceeding with run: ${castError(error).message}`
       );
     }
   }

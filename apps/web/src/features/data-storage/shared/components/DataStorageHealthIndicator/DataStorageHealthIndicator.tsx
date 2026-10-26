@@ -16,12 +16,16 @@ import {
   DataStorageHealthStatus,
   UNCONFIGURED_STATUS_LABEL,
 } from '../../services/data-storage-health-status.service';
+import type { StorageCredentialSummary } from '../../model/types';
+import { credentialHealthMessage } from '../storage-credential-copy';
 import { DataStorageHealthStatusView } from './DataStorageHealthStatusView';
 import { DataStorageHealthDot } from './DataStorageHealthDot';
 
 interface DataStorageHealthIndicatorProps {
   storageId: string;
   storageTitle?: string;
+  /** The Storage's Credential as the member sees it; its state decides the failure copy. */
+  credential?: StorageCredentialSummary | null;
   hovercardSide?: 'top' | 'right' | 'bottom' | 'left';
   variant?: 'default' | 'compact';
 }
@@ -54,7 +58,7 @@ const HEALTH_STATUS_CONFIG: Record<DataStorageHealthStatus, HealthStatusDisplayC
     ringClass: 'ring-neutral-400/50 dark:ring-neutral-500/50',
   },
   [DataStorageHealthStatus.REAUTH_REQUIRED]: {
-    text: 'Reconnect Storage',
+    text: 'Reconnect the Credential',
     dotClass: 'bg-red-500',
     ringClass: 'ring-red-500/50',
   },
@@ -66,20 +70,34 @@ const HEALTH_STATUS_NOT_FETCHED: HealthStatusDisplayConfig = {
 };
 
 const COMPACT_INVALID_STATUS_LABEL = 'Storage access failed. Check Storage settings.';
-const COMPACT_REAUTH_REQUIRED_STATUS_LABEL = 'Reconnect Storage';
+const COMPACT_REAUTH_REQUIRED_STATUS_LABEL = 'Reconnect the Credential';
 
-function getTooltipText(params: { status: DataStorageHealthStatus; isLoading: boolean }): string {
-  const { status, isLoading } = params;
+function getTooltipText(params: {
+  status: DataStorageHealthStatus;
+  isLoading: boolean;
+  credentialMessage?: string;
+}): string {
+  const { status, isLoading, credentialMessage } = params;
 
   if (isLoading) return 'Validating storage access...';
+  const failed =
+    status === DataStorageHealthStatus.INVALID ||
+    status === DataStorageHealthStatus.REAUTH_REQUIRED;
+  if (failed && credentialMessage) return credentialMessage;
 
   return HEALTH_STATUS_CONFIG[status].text;
 }
 
 function getCompactStatusMessage(
   status: DataStorageHealthStatus,
-  errorMessage?: string
+  errorMessage?: string,
+  credentialMessage?: string
 ): string | undefined {
+  const failed =
+    status === DataStorageHealthStatus.INVALID ||
+    status === DataStorageHealthStatus.REAUTH_REQUIRED;
+  if (failed && credentialMessage) return credentialMessage;
+
   if (status === DataStorageHealthStatus.INVALID) {
     return COMPACT_INVALID_STATUS_LABEL;
   }
@@ -94,6 +112,7 @@ function getCompactStatusMessage(
 export function DataStorageHealthIndicator({
   storageId,
   storageTitle,
+  credential,
   hovercardSide = 'bottom',
   variant = 'default',
 }: DataStorageHealthIndicatorProps) {
@@ -118,7 +137,11 @@ export function DataStorageHealthIndicator({
               </TooltipTrigger>
 
               <TooltipContent side='top' align='center'>
-                {getTooltipText({ status, isLoading })}
+                {getTooltipText({
+                  status,
+                  isLoading,
+                  credentialMessage: credentialHealthMessage(credential, true, status),
+                })}
               </TooltipContent>
             </Tooltip>
           </div>
@@ -138,7 +161,11 @@ export function DataStorageHealthIndicator({
                 <HoverCardItemValue>
                   <DataStorageHealthStatusView
                     status={status}
-                    errorMessage={getCompactStatusMessage(status, errorMessage)}
+                    errorMessage={getCompactStatusMessage(
+                      status,
+                      errorMessage,
+                      credentialHealthMessage(credential, true, status)
+                    )}
                   />
                 </HoverCardItemValue>
               </HoverCardItem>
@@ -152,7 +179,12 @@ export function DataStorageHealthIndicator({
   return (
     <DataStorageHealthStatusView
       status={status}
-      errorMessage={errorMessage}
+      errorMessage={
+        status === DataStorageHealthStatus.INVALID ||
+        status === DataStorageHealthStatus.REAUTH_REQUIRED
+          ? (credentialHealthMessage(credential, false, status) ?? errorMessage)
+          : errorMessage
+      }
       isLoading={isLoading}
     />
   );

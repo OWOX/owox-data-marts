@@ -96,6 +96,16 @@ export class ConnectorStorageConfigService {
           { dataMartId: dataMart.id, projectId: dataMart.projectId }
         );
       }
+      const oauthClient = this.googleOAuthConfigService.getClientById(
+        oauthCredentials.oauthClientId
+      );
+      if (!oauthClient) {
+        throw new ConnectorExecutionError(
+          'Google OAuth client of the Storage credential is not configured',
+          undefined,
+          { dataMartId: dataMart.id, projectId: dataMart.projectId }
+        );
+      }
       const refreshToken = oauthCredentials.oauth2Client.credentials.refresh_token;
       const accessTokenExpiry = oauthCredentials.oauth2Client.credentials.expiry_date;
 
@@ -105,8 +115,8 @@ export class ConnectorStorageConfigService {
           ...baseConfig,
           OAuthAccessToken: accessToken,
           OAuthRefreshToken: refreshToken ?? '',
-          OAuthClientId: this.googleOAuthConfigService.getStorageClientId(),
-          OAuthClientSecret: this.googleOAuthConfigService.getStorageClientSecret(),
+          OAuthClientId: oauthClient.clientId,
+          OAuthClientSecret: oauthClient.clientSecret,
           // Lets the connector detect real token expiry mid-run (e.g. during a
           // long backfill) and refresh via the refresh token, instead of
           // resending a stale access token until BigQuery rejects it with 401.

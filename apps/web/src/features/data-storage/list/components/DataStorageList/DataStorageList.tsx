@@ -232,6 +232,7 @@ export const DataStorageList = ({
     availableForUse: storage.availableForUse,
     availableForMaintenance: storage.availableForMaintenance,
     contexts: storage.contexts ?? [],
+    reusableCredential: storage.reusableCredential,
   }));
 
   const columns = getDataStorageColumns({

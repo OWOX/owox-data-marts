@@ -1,19 +1,23 @@
 import { Injectable, Logger, BadRequestException, ForbiddenException } from '@nestjs/common';
-import { OAuth2Client } from 'google-auth-library';
+import { castError } from '@owox/internal-helpers';
+import type { OAuth2Client } from 'google-auth-library';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import * as jwt from 'jsonwebtoken';
 import { DataStorageCredentialService } from '../data-storage-credential.service';
 import { DataDestinationCredentialService } from '../data-destination-credential.service';
 import { GoogleOAuthConfigService } from './google-oauth-config.service';
-import { DataStorage } from '../../entities/data-storage.entity';
 import { DataDestination } from '../../entities/data-destination.entity';
-import { StorageCredentialType } from '../../enums/storage-credential-type.enum';
 import { DestinationCredentialType } from '../../enums/destination-credential-type.enum';
 import type { StoredStorageCredentials } from '../../entities/stored-storage-credentials.type';
 import type { StoredDestinationCredentials } from '../../entities/stored-destination-credentials.type';
+import type { CredentialOAuthAuth, GoogleOAuthClientKey } from '../../credentials/credential.types';
 import {
-  OAuthNotConfiguredException,
+  GOOGLE_OAUTH_DEFINITION_ID,
+  builtinOAuthAuth,
+} from '../../credentials/services/builtin-credential-definitions';
+import { isInvalidRefreshTokenError, newGoogleOAuthClient } from './google-oauth.utils';
+import {
   InvalidOAuthStateException,
   TokenExchangeFailedException,
   TokenRefreshFailedException,
@@ -22,7 +26,13 @@ import {
   GoogleApiException,
 } from '../../exceptions/google-oauth.exceptions';
 
-export type OAuthResourceType = 'storage' | 'destination';
+// Legacy: no caller issues 'storage' any more; remove it with LegacyStorageCredentialReader.
+/** A Credential is authorized with the client and scopes of its definition. */
+export type OAuthResourceType = 'storage' | 'destination' | 'credential';
+
+type GoogleOAuthTarget = Pick<CredentialOAuthAuth, 'client' | 'scopes'>;
+
+const DESTINATION_TARGET: GoogleOAuthTarget = { client: 'destination', scopes: 'sheets' };
 
 export interface GoogleOAuthUser {
   id?: string;
@@ -37,29 +47,6 @@ export interface GoogleOAuthTokens {
   token_type: string;
   scope: string;
   expiry_date?: number;
-}
-
-interface GoogleTokenRefreshError {
-  message?: unknown;
-  response?: {
-    data?: {
-      error?: unknown;
-      error_description?: unknown;
-    };
-  };
-}
-
-function isInvalidRefreshTokenError(error: unknown): boolean {
-  const tokenError = error as GoogleTokenRefreshError;
-  const googleError = tokenError.response?.data?.error;
-  const googleErrorDescription = tokenError.response?.data?.error_description;
-
-  return (
-    googleError === 'invalid_grant' ||
-    (typeof googleErrorDescription === 'string' &&
-      googleErrorDescription.includes('invalid_grant')) ||
-    (error instanceof Error && error.message.includes('invalid_grant'))
-  );
 }
 
 export interface GoogleAuthorizationUrlResult {
@@ -82,90 +69,84 @@ export interface GoogleOAuthSettingsResult {
   pickerApiKey?: string;
 }
 
-interface StateTokenPayload {
+export interface StateTokenPayload {
   projectId: string;
   resourceId?: string;
   type: OAuthResourceType;
   redirectUri: string;
+  /** The definition of the Credential a 'credential' grant connects. */
+  definitionId?: string;
+}
+
+export interface GoogleOAuthGrant {
+  state: StateTokenPayload;
+  tokens: GoogleOAuthTokens;
+  user: GoogleOAuthUser;
+  /** The OAuth client that issued the tokens; only it can refresh or revoke them. */
+  clientId: string;
 }
 
 @Injectable()
 export class GoogleOAuthFlowService {
   private readonly logger = new Logger(GoogleOAuthFlowService.name);
-  // Lazy-initialized separate clients per resource type
-  private _storageOAuth2Client: OAuth2Client | null = null;
-  private _destinationOAuth2Client: OAuth2Client | null = null;
+  // Lazy-initialized, one per configured OAuth client
+  private readonly oauth2Clients = new Map<GoogleOAuthClientKey, OAuth2Client>();
 
   constructor(
     private readonly dataStorageCredentialService: DataStorageCredentialService,
     private readonly dataDestinationCredentialService: DataDestinationCredentialService,
     private readonly googleOAuthConfigService: GoogleOAuthConfigService,
-    @InjectRepository(DataStorage)
-    private readonly dataStorageRepository: Repository<DataStorage>,
     @InjectRepository(DataDestination)
     private readonly dataDestinationRepository: Repository<DataDestination>
   ) {}
 
-  private getOAuth2Client(type: OAuthResourceType): OAuth2Client {
-    if (type === 'storage') {
-      if (!this._storageOAuth2Client) {
-        if (!this.googleOAuthConfigService.isStorageConfigured()) {
-          throw new OAuthNotConfiguredException();
-        }
-        this._storageOAuth2Client = new OAuth2Client(
-          this.googleOAuthConfigService.getStorageClientId(),
-          this.googleOAuthConfigService.getStorageClientSecret(),
-          this.googleOAuthConfigService.getRedirectUri()
-        );
-      }
-      return this._storageOAuth2Client;
-    } else {
-      if (!this._destinationOAuth2Client) {
-        if (!this.googleOAuthConfigService.isDestinationConfigured()) {
-          throw new OAuthNotConfiguredException();
-        }
-        this._destinationOAuth2Client = new OAuth2Client(
-          this.googleOAuthConfigService.getDestinationClientId(),
-          this.googleOAuthConfigService.getDestinationClientSecret(),
-          this.googleOAuthConfigService.getRedirectUri()
-        );
-      }
-      return this._destinationOAuth2Client;
+  private getOAuth2Client(client: GoogleOAuthClientKey): OAuth2Client {
+    let oauth2Client = this.oauth2Clients.get(client);
+    if (!oauth2Client) {
+      oauth2Client = newGoogleOAuthClient(
+        this.googleOAuthConfigService.getClient(client),
+        this.googleOAuthConfigService.getRedirectUri()
+      );
+      this.oauth2Clients.set(client, oauth2Client);
     }
+    return oauth2Client;
+  }
+
+  /** The destination's client and scopes, or those of the Credential definition. */
+  private target(type: OAuthResourceType, definitionId: string): GoogleOAuthTarget {
+    if (type === 'destination') return DESTINATION_TARGET;
+    const auth = builtinOAuthAuth(definitionId);
+    if (!auth) {
+      throw new BadRequestException(
+        `Credential definition ${definitionId} does not connect a Google account.`
+      );
+    }
+    return auth;
   }
 
   getSettingsForType(type: OAuthResourceType): GoogleOAuthSettingsResult {
-    if (type === 'storage') {
-      if (!this.googleOAuthConfigService.isStorageConfigured()) {
-        return { available: false };
-      }
-      return {
-        available: true,
-        authorizationEndpoint: 'https://accounts.google.com/o/oauth2/v2/auth',
-        clientId: this.googleOAuthConfigService.getStorageClientId(),
-        redirectUri: this.googleOAuthConfigService.getRedirectUri(),
-        availableScopes: this.googleOAuthConfigService.getBigQueryScopes(),
-      };
-    } else {
-      if (!this.googleOAuthConfigService.isDestinationConfigured()) {
-        return { available: false };
-      }
-      return {
-        available: true,
-        authorizationEndpoint: 'https://accounts.google.com/o/oauth2/v2/auth',
-        clientId: this.googleOAuthConfigService.getDestinationClientId(),
-        redirectUri: this.googleOAuthConfigService.getRedirectUri(),
-        availableScopes: this.googleOAuthConfigService.getSheetsScopes(),
-        pickerApiKey: this.googleOAuthConfigService.getPickerApiKey(),
-      };
+    const { client, scopes } = this.target(type, GOOGLE_OAUTH_DEFINITION_ID);
+    if (!this.googleOAuthConfigService.isClientConfigured(client)) {
+      return { available: false };
     }
+    return {
+      available: true,
+      authorizationEndpoint: 'https://accounts.google.com/o/oauth2/v2/auth',
+      clientId: this.googleOAuthConfigService.getClient(client).clientId,
+      redirectUri: this.googleOAuthConfigService.getRedirectUri(),
+      availableScopes: this.googleOAuthConfigService.getScopes(scopes),
+      ...(type === 'destination'
+        ? { pickerApiKey: this.googleOAuthConfigService.getPickerApiKey() }
+        : {}),
+    };
   }
 
   async generateAuthorizationUrl(
     type: OAuthResourceType,
     projectId: string,
     resourceId: string | undefined,
-    redirectUri: string
+    redirectUri: string,
+    definitionId = GOOGLE_OAUTH_DEFINITION_ID
   ): Promise<GoogleAuthorizationUrlResult> {
     const configuredRedirectUri = this.googleOAuthConfigService.getRedirectUri();
     if (redirectUri !== configuredRedirectUri) {
@@ -174,16 +155,18 @@ export class GoogleOAuthFlowService {
       );
     }
 
-    const state = this.generateStateToken({ projectId, resourceId, type, redirectUri });
+    const { client, scopes } = this.target(type, definitionId);
+    const state = this.generateStateToken({
+      projectId,
+      resourceId,
+      type,
+      redirectUri,
+      ...(type === 'destination' ? {} : { definitionId }),
+    });
 
-    const scopes =
-      type === 'storage'
-        ? this.googleOAuthConfigService.getBigQueryScopes()
-        : this.googleOAuthConfigService.getSheetsScopes();
-
-    const authorizationUrl = this.getOAuth2Client(type).generateAuthUrl({
+    const authorizationUrl = this.getOAuth2Client(client).generateAuthUrl({
       access_type: 'offline',
-      scope: scopes,
+      scope: this.googleOAuthConfigService.getScopes(scopes),
       state,
       redirect_uri: redirectUri,
       prompt: 'consent',
@@ -192,31 +175,38 @@ export class GoogleOAuthFlowService {
     return { authorizationUrl, state };
   }
 
-  async exchangeAuthorizationCode(
+  /** Exchanges the code and reads the account; the caller decides what to store. */
+  async exchangeCodeForGrant(
     code: string,
     state: string,
-    userId: string,
     callerProjectId: string
-  ): Promise<GoogleTokenExchangeResult> {
+  ): Promise<GoogleOAuthGrant> {
     const statePayload = this.validateStateToken(state);
 
     if (statePayload.projectId !== callerProjectId) {
       throw new ForbiddenException('OAuth state does not belong to your project');
     }
 
+    // Checked before the code is spent: the Credential connect refuses such a state anyway.
+    if (statePayload.type === 'credential' && !statePayload.definitionId) {
+      throw new InvalidOAuthStateException();
+    }
+    const { client } = this.target(
+      statePayload.type,
+      // Destination states and legacy Storage states carry no definition.
+      statePayload.definitionId ?? GOOGLE_OAUTH_DEFINITION_ID
+    );
     let tokens: GoogleOAuthTokens;
     try {
-      const { tokens: googleTokens } = await this.getOAuth2Client(statePayload.type).getToken({
+      const { tokens: googleTokens } = await this.getOAuth2Client(client).getToken({
         code,
         redirect_uri: statePayload.redirectUri,
       });
       tokens = googleTokens as GoogleOAuthTokens;
     } catch (error) {
-      this.logger.error('Failed to exchange authorization code', error);
-      throw new TokenExchangeFailedException(
-        'Failed to exchange authorization code for tokens',
-        error
-      );
+      // The message only: the error object carries the request with the code and client secret.
+      this.logger.error(`Failed to exchange authorization code: ${castError(error).message}`);
+      throw new TokenExchangeFailedException('Failed to exchange authorization code for tokens');
     }
 
     if (!tokens.access_token) {
@@ -233,49 +223,54 @@ export class GoogleOAuthFlowService {
       );
     }
 
+    const { clientId } = this.googleOAuthConfigService.getClient(client);
+    return { state: statePayload, tokens, user, clientId };
+  }
+
+  async exchangeAuthorizationCode(
+    code: string,
+    state: string,
+    userId: string,
+    callerProjectId: string
+  ): Promise<GoogleTokenExchangeResult> {
+    const {
+      state: statePayload,
+      tokens,
+      user,
+    } = await this.exchangeCodeForGrant(code, state, callerProjectId);
+    // Storages and Credentials connect through the Credential exchange.
+    if (statePayload.type !== 'destination') {
+      throw new InvalidOAuthStateException();
+    }
+
     const identity =
       user.email || user.name
         ? { email: user.email, name: user.name, picture: user.picture }
         : null;
 
-    if (statePayload.type === 'storage') {
-      const credential = await this.dataStorageCredentialService.create({
-        projectId: statePayload.projectId,
-        createdById: userId,
-        type: StorageCredentialType.GOOGLE_OAUTH,
-        credentials: tokens,
-        identity,
-      });
+    const credential = await this.dataDestinationCredentialService.create({
+      projectId: statePayload.projectId,
+      createdById: userId,
+      type: DestinationCredentialType.GOOGLE_OAUTH,
+      credentials: tokens,
+      identity,
+    });
 
-      if (statePayload.resourceId) {
-        await this.dataStorageRepository.update(
-          { id: statePayload.resourceId },
-          { credentialId: credential.id }
-        );
-      }
-
-      return { credentialId: credential.id, user };
-    } else {
-      const credential = await this.dataDestinationCredentialService.create({
-        projectId: statePayload.projectId,
-        createdById: userId,
-        type: DestinationCredentialType.GOOGLE_OAUTH,
-        credentials: tokens,
-        identity,
-      });
-
-      if (statePayload.resourceId) {
-        await this.dataDestinationRepository.update(
-          { id: statePayload.resourceId },
-          { credentialId: credential.id }
-        );
-      }
-
-      return { credentialId: credential.id, user };
+    if (statePayload.resourceId) {
+      await this.dataDestinationRepository.update(
+        { id: statePayload.resourceId },
+        { credentialId: credential.id }
+      );
     }
+
+    return { credentialId: credential.id, user };
   }
 
-  async refreshTokensByCredentialId(credentialId: string, type: OAuthResourceType): Promise<void> {
+  // Legacy: the 'storage' type refreshes old rows; remove it with LegacyStorageCredentialReader.
+  async refreshTokensByCredentialId(
+    credentialId: string,
+    type: 'storage' | 'destination'
+  ): Promise<void> {
     const credential =
       type === 'storage'
         ? await this.dataStorageCredentialService.getById(credentialId)
@@ -290,21 +285,10 @@ export class GoogleOAuthFlowService {
       throw new CredentialsExpiredException(credentialId, type);
     }
 
-    // Use the type-specific client_id/secret so tokens can be refreshed correctly
-    const clientId =
-      type === 'storage'
-        ? this.googleOAuthConfigService.getStorageClientId()
-        : this.googleOAuthConfigService.getDestinationClientId();
-    const clientSecret =
-      type === 'storage'
-        ? this.googleOAuthConfigService.getStorageClientSecret()
-        : this.googleOAuthConfigService.getDestinationClientSecret();
-
     // Create a per-call transient client to avoid mutating shared singleton state
     // across concurrent refresh calls, which would cause credential cross-contamination.
-    const refreshClient = new OAuth2Client(
-      clientId,
-      clientSecret,
+    const refreshClient = newGoogleOAuthClient(
+      this.googleOAuthConfigService.getClient(type),
       this.googleOAuthConfigService.getRedirectUri()
     );
     refreshClient.setCredentials({ refresh_token: refreshToken });
@@ -319,8 +303,11 @@ export class GoogleOAuthFlowService {
         throw new CredentialsExpiredException(credentialId, type);
       }
 
-      this.logger.error(`Failed to refresh tokens for ${type} credential ${credentialId}`, error);
-      throw new TokenRefreshFailedException(undefined, error);
+      // The message only: the error object carries the request with the refresh token.
+      this.logger.error(
+        `Failed to refresh tokens for ${type} credential ${credentialId}: ${castError(error).message}`
+      );
+      throw new TokenRefreshFailedException();
     }
 
     if (!newTokens.access_token) {
@@ -347,25 +334,15 @@ export class GoogleOAuthFlowService {
       this.logger.log(`Refreshed OAuth tokens for ${type} credential ${credentialId}`);
     } catch (error) {
       this.logger.error(
-        `Failed to save refreshed tokens for ${type} credential ${credentialId}`,
-        error
+        `Failed to save refreshed tokens for ${type} credential ${credentialId}: ${castError(error).message}`
       );
       throw new TokenRefreshFailedException(
-        'Google access was refreshed, but the updated tokens could not be saved. Please try again later.',
-        error
+        'Google access was refreshed, but the updated tokens could not be saved. Please try again later.'
       );
     }
   }
 
   // Legacy methods — delegate to new unified method
-  async refreshStorageTokens(storageId: string): Promise<void> {
-    const storage = await this.dataStorageRepository.findOne({ where: { id: storageId } });
-    if (!storage?.credentialId) {
-      throw new CredentialsNotFoundException(storageId, 'storage');
-    }
-    await this.refreshTokensByCredentialId(storage.credentialId, 'storage');
-  }
-
   async refreshDestinationTokens(destinationId: string): Promise<void> {
     const destination = await this.dataDestinationRepository.findOne({
       where: { id: destinationId },
@@ -374,16 +351,6 @@ export class GoogleOAuthFlowService {
       throw new CredentialsNotFoundException(destinationId, 'destination');
     }
     await this.refreshTokensByCredentialId(destination.credentialId, 'destination');
-  }
-
-  async revokeStorageOAuth(storageId: string): Promise<void> {
-    const storage = await this.dataStorageRepository.findOne({ where: { id: storageId } });
-    if (!storage?.credentialId) {
-      throw new CredentialsNotFoundException(storageId, 'storage');
-    }
-    await this.revokeCredential(storage.credentialId, 'storage');
-    await this.dataStorageRepository.update({ id: storageId }, { credentialId: null });
-    this.logger.log(`Revoked OAuth credentials for storage ${storageId}`);
   }
 
   async revokeDestinationOAuth(destinationId: string): Promise<void> {
@@ -404,14 +371,6 @@ export class GoogleOAuthFlowService {
     this.logger.log(`Revoked OAuth credentials for destination ${destinationId}`);
   }
 
-  async isStorageOAuthValid(storageId: string): Promise<boolean> {
-    const storage = await this.dataStorageRepository.findOne({
-      where: { id: storageId },
-    });
-    if (!storage?.credential) return false;
-    return this.isCredentialValid(storage.credential);
-  }
-
   async isDestinationOAuthValid(destinationId: string): Promise<boolean> {
     const destination = await this.dataDestinationRepository.findOne({
       where: { id: destinationId },
@@ -429,7 +388,11 @@ export class GoogleOAuthFlowService {
     return !!(credential.credentials as GoogleOAuthTokens).refresh_token;
   }
 
-  private async revokeCredential(credentialId: string, type: OAuthResourceType): Promise<void> {
+  // Legacy: the 'storage' type revokes old rows; remove it with LegacyStorageCredentialReader.
+  private async revokeCredential(
+    credentialId: string,
+    type: 'storage' | 'destination'
+  ): Promise<void> {
     const credService =
       type === 'storage'
         ? this.dataStorageCredentialService
@@ -444,25 +407,15 @@ export class GoogleOAuthFlowService {
         const tokenToRevoke = tokens.refresh_token || tokens.access_token;
         if (tokenToRevoke) {
           // Create a transient client to avoid mutating shared singleton state
-          const clientId =
-            type === 'storage'
-              ? this.googleOAuthConfigService.getStorageClientId()
-              : this.googleOAuthConfigService.getDestinationClientId();
-          const clientSecret =
-            type === 'storage'
-              ? this.googleOAuthConfigService.getStorageClientSecret()
-              : this.googleOAuthConfigService.getDestinationClientSecret();
-          const revokeClient = new OAuth2Client(
-            clientId,
-            clientSecret,
+          const revokeClient = newGoogleOAuthClient(
+            this.googleOAuthConfigService.getClient(type),
             this.googleOAuthConfigService.getRedirectUri()
           );
           await revokeClient.revokeToken(tokenToRevoke);
         }
       } catch (error) {
         this.logger.warn(
-          `Failed to revoke token with Google for ${type} credential ${credentialId}`,
-          error
+          `Failed to revoke token with Google for ${type} credential ${credentialId}: ${castError(error).message}`
         );
       }
       await credService.softDelete(credentialId);
@@ -482,7 +435,7 @@ export class GoogleOAuthFlowService {
       const data = await response.json();
       return { id: data.id, name: data.name, email: data.email, picture: data.picture };
     } catch (error) {
-      this.logger.error('Failed to fetch user info from Google', error);
+      this.logger.error(`Failed to fetch user info from Google: ${castError(error).message}`);
       throw new GoogleApiException('Failed to fetch user information', error);
     }
   }

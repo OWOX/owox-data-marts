@@ -9,28 +9,14 @@ import {
   googleBigQuerySchema,
   type GoogleBigQueryFormData,
 } from '../../../shared';
-import { CopyCredentialContext } from '../../model/context/copy-credential-context';
 import { GoogleBigQueryFields } from './GoogleBigQueryFields';
-
-vi.mock('../../../../../features/google-oauth', () => ({
-  GoogleOAuthConnectButton: () => <button type='button'>Connect with Google</button>,
-  storageOAuthApi: {
-    getSettings: vi.fn().mockResolvedValue({ available: true, redirectUri: undefined }),
-  },
-}));
-
-vi.mock('../CopyStorageCredentialsButton', () => ({
-  CopyStorageCredentialsButton: () => null,
-}));
 
 function TestForm({
   onValid,
   projectId = 'my-project',
-  credentialId,
 }: {
   onValid: (data: GoogleBigQueryFormData) => void;
   projectId?: string;
-  credentialId?: string;
 }) {
   const form = useForm<GoogleBigQueryFormData>({
     resolver: zodResolver(googleBigQuerySchema),
@@ -38,7 +24,7 @@ function TestForm({
       title: 'New Storage',
       type: DataStorageType.GOOGLE_BIGQUERY,
       config: { projectId, location: 'US' },
-      ...(credentialId && { credentials: { credentialId } }),
+      reusableCredentialId: '6f1c1b1e-8a43-4c5e-9a39-0d5b3c6f2a10',
     },
     mode: 'onTouched',
   });
@@ -46,16 +32,7 @@ function TestForm({
   return (
     <Form {...form}>
       <form onSubmit={e => void form.handleSubmit(onValid)(e)}>
-        <CopyCredentialContext.Provider
-          value={{
-            entityId: 'storage-1',
-            onSourceSelect: vi.fn(),
-            selectedSource: null,
-            onSourceClear: vi.fn(),
-          }}
-        >
-          <GoogleBigQueryFields form={form} />
-        </CopyCredentialContext.Provider>
+        <GoogleBigQueryFields form={form} />
         <button type='submit'>Save</button>
       </form>
     </Form>
@@ -63,30 +40,18 @@ function TestForm({
 }
 
 describe('GoogleBigQueryFields', () => {
-  it('shows a validation error in OAuth mode when saving without a Google connection', async () => {
-    const onValid = vi.fn();
-    render(<TestForm onValid={onValid} />);
+  it('holds connection settings only: the Credential is chosen elsewhere', () => {
+    render(<TestForm onValid={vi.fn()} />);
 
-    // OAuth settings load async; the OAuth tab is the default once available
-    expect(await screen.findByRole('button', { name: 'Connect with Google' })).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
-
-    expect(
-      await screen.findByText('Connect your Google account or provide a Service Account to save')
-    ).toBeInTheDocument();
-    expect(onValid).not.toHaveBeenCalled();
+    expect(screen.queryByText(/Authentication method/i)).toBeNull();
+    expect(screen.queryByText(/Service Account/i)).toBeNull();
+    expect(screen.queryByRole('button', { name: /Connect with Google/ })).toBeNull();
+    expect(screen.getByPlaceholderText('Enter a Project Id')).toBeInTheDocument();
   });
 
   it('highlights a Project ID that is a project name before anything is sent', async () => {
     const onValid = vi.fn();
-    render(
-      <TestForm
-        onValid={onValid}
-        projectId='BASE DE LEADS SAFETY'
-        credentialId='6f1c1b1e-8a43-4c5e-9a39-0d5b3c6f2a10'
-      />
-    );
+    render(<TestForm onValid={onValid} projectId='BASE DE LEADS SAFETY' />);
 
     fireEvent.click(await screen.findByRole('button', { name: 'Save' }));
 
@@ -100,13 +65,7 @@ describe('GoogleBigQueryFields', () => {
 
   it('saves a pasted Project ID without the surrounding whitespace', async () => {
     const onValid = vi.fn();
-    render(
-      <TestForm
-        onValid={onValid}
-        projectId='  my-project-123 '
-        credentialId='6f1c1b1e-8a43-4c5e-9a39-0d5b3c6f2a10'
-      />
-    );
+    render(<TestForm onValid={onValid} projectId='  my-project-123 ' />);
 
     fireEvent.click(await screen.findByRole('button', { name: 'Save' }));
 

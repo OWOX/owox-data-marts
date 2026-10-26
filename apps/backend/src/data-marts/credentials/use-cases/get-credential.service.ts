@@ -27,6 +27,6 @@ export class GetCredentialService {
     ) {
       throw new ForbiddenException('You do not have access to this Credential');
     }
-    return this.view.build(credential);
+    return this.view.build(credential, context);
   }
 }

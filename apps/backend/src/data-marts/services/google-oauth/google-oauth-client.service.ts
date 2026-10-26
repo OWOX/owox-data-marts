@@ -1,9 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { OAuth2Client, Credentials } from 'google-auth-library';
+import type { OAuth2Client, Credentials } from 'google-auth-library';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { GoogleOAuthConfigService } from './google-oauth-config.service';
 import { GoogleOAuthFlowService, type GoogleOAuthTokens } from './google-oauth-flow.service';
+import { newGoogleOAuthClient } from './google-oauth.utils';
 import { DataStorageCredentialService } from '../data-storage-credential.service';
 import { DataDestinationCredentialService } from '../data-destination-credential.service';
 import { DataStorage } from '../../entities/data-storage.entity';
@@ -34,6 +35,7 @@ export class GoogleOAuthClientService {
     private readonly dataDestinationRepository: Repository<DataDestination>
   ) {}
 
+  // Legacy: remove with LegacyStorageCredentialReader, its only caller.
   async getStorageOAuth2Client(storageId: string): Promise<OAuth2Client> {
     const storage = await this.dataStorageRepository.findOne({ where: { id: storageId } });
     if (!storage?.credentialId) {
@@ -122,17 +124,8 @@ export class GoogleOAuthClientService {
     credentials: GoogleOAuthTokens,
     type: 'storage' | 'destination'
   ): OAuth2Client {
-    const clientId =
-      type === 'storage'
-        ? this.googleOAuthConfigService.getStorageClientId()
-        : this.googleOAuthConfigService.getDestinationClientId();
-    const clientSecret =
-      type === 'storage'
-        ? this.googleOAuthConfigService.getStorageClientSecret()
-        : this.googleOAuthConfigService.getDestinationClientSecret();
-    const client = new OAuth2Client(
-      clientId,
-      clientSecret,
+    const client = newGoogleOAuthClient(
+      this.googleOAuthConfigService.getClient(type),
       this.googleOAuthConfigService.getRedirectUri()
     );
     client.setCredentials(credentials as Credentials);

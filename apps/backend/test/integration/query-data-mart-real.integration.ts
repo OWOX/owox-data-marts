@@ -1,6 +1,8 @@
 import { INestApplication } from '@nestjs/common';
 import * as supertest from 'supertest';
 import { AUTH_HEADER, closeTestApp, createTestApp } from '@owox/test-utils';
+import { DataStorageType } from 'src/data-marts/data-storage-types/enums/data-storage-type.enum';
+import { createStorageCredential } from './storage-credential-support';
 import { BigQueryApiAdapter } from 'src/data-marts/data-storage-types/bigquery/adapters/bigquery-api.adapter';
 import { BigQueryServiceAccountCredentialsSchema } from 'src/data-marts/data-storage-types/bigquery/schemas/bigquery-credentials.schema';
 import {
@@ -130,7 +132,11 @@ describeIfCredentials('QueryDataMartService — aggregated query on real BigQuer
       .send({
         title: 'bq-qry-dm-real',
         config: { projectId: BQ_PROJECT_ID! },
-        credentials: JSON.parse(BQ_SERVICE_ACCOUNT_KEY!),
+        reusableCredentialId: await createStorageCredential(
+          agent,
+          DataStorageType.GOOGLE_BIGQUERY,
+          JSON.parse(BQ_SERVICE_ACCOUNT_KEY!)
+        ),
       });
     if (storageUpdateRes.status !== 200) {
       console.error('BQ storage update failed:', JSON.stringify(storageUpdateRes.body, null, 2));

@@ -45,6 +45,7 @@ const binding = (adapter: 'openai' | 'anthropic' = 'openai'): ResolvedCredential
     id: adapter,
     displayName: adapter,
     description: '',
+    category: 'ai',
     auth: {
       type: 'header',
       label: 'API key',

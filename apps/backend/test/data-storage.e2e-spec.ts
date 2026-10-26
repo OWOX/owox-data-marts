@@ -54,7 +54,30 @@ describe('DataStorage API (e2e)', () => {
     expect(response.body).toMatchObject({
       id: createdStorageId,
       type: 'GOOGLE_BIGQUERY',
+      reusableCredential: null,
     });
+    expect(response.body).not.toHaveProperty('credentials');
+    expect(response.body).not.toHaveProperty('credentialId');
+  });
+
+  it('PUT /api/data-storages/:id - asks a tab loaded before the upgrade to reload', async () => {
+    const response = await agent
+      .put(`/api/data-storages/${createdStorageId}`)
+      .set(AUTH_HEADER)
+      .send({ title: 'Updated Title', config: {}, credentials: { type: 'service_account' } });
+
+    expect(response.status).toBe(400);
+    expect(response.body.message).toBe('This page is out of date. Reload it.');
+  });
+
+  it('PUT /api/data-storages/:id - rejects a null reusableCredentialId', async () => {
+    const response = await agent
+      .put(`/api/data-storages/${createdStorageId}`)
+      .set(AUTH_HEADER)
+      .send({ title: 'Updated Title', config: {}, reusableCredentialId: null });
+
+    expect(response.status).toBe(400);
+    expect(response.body.message).toBe('reusableCredentialId cannot be null.');
   });
 
   // API-04: Update -- the update endpoint validates cloud storage access (config + credentials).

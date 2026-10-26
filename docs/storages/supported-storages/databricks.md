@@ -86,7 +86,7 @@ Personal Access Tokens (PAT) provide secure authentication to Databricks.
    - **Title**: A friendly name for this storage (e.g., "Production Databricks")
    - **Host**: Your workspace URL from Step 1
    - **HTTP Path**: SQL warehouse path from Step 2
-   - **Personal Access Token**: Token generated in Step 3
+   - **Credential**: Select a **Databricks token** Credential, or click **+ Create new Credential** and paste the token generated in Step 3 as the **Personal access token**. See [Credentials](../../project/credentials.md)
 5. Click **Test Connection** to verify the connection
 6. Click **Save**
 

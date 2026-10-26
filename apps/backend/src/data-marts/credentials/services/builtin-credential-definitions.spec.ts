@@ -8,6 +8,42 @@ describe('built-in Credential definitions', () => {
     }
   });
 
+  it('groups every built-in definition by its provider', () => {
+    expect(
+      Object.fromEntries(BUILTIN_CREDENTIAL_DEFINITIONS.map(item => [item.id, item.category]))
+    ).toEqual({
+      openai: 'ai',
+      anthropic: 'ai',
+      gemini: 'ai',
+      openrouter: 'ai',
+      github: 'other',
+      'google-service-account': 'google',
+      'google-oauth': 'google',
+      'aws-access-key': 'aws',
+      'snowflake-password': 'snowflake',
+      'snowflake-key-pair': 'snowflake',
+      'databricks-token': 'databricks',
+    });
+  });
+
+  it('gives every built-in provider its icon', () => {
+    expect(
+      Object.fromEntries(BUILTIN_CREDENTIAL_DEFINITIONS.map(item => [item.id, item.icon]))
+    ).toEqual({
+      openai: 'openai',
+      anthropic: 'anthropic',
+      gemini: 'gemini',
+      openrouter: 'openrouter',
+      github: 'github',
+      'google-service-account': 'google',
+      'google-oauth': 'google',
+      'aws-access-key': 'aws',
+      'snowflake-password': 'snowflake',
+      'snowflake-key-pair': 'snowflake',
+      'databricks-token': 'databricks',
+    });
+  });
+
   it.each([
     ['openai', 'platform.openai.com'],
     ['anthropic', 'support.anthropic.com'],
@@ -33,13 +69,13 @@ describe('built-in Credential definitions', () => {
     });
   });
 
-  it('declares Google Service Account with the googleapis.com wildcard origin and no probe', () => {
+  it('declares BigQuery Service Account with the googleapis.com wildcard origin and no probe', () => {
     const definition = BUILTIN_CREDENTIAL_DEFINITIONS.find(
       item => item.id === 'google-service-account'
     );
 
     expect(definition).toMatchObject({
-      displayName: 'Google Service Account',
+      displayName: 'BigQuery Service Account',
       auth: { type: 'google-service-account', label: 'Service account key (JSON)' },
       origins: ['https://*.googleapis.com'],
     });

@@ -13,8 +13,9 @@ describe('ConnectorStorageConfigService', () => {
     } as unknown as DataStorageCredentialsResolver;
 
     const googleOAuthConfigService = {
-      getStorageClientId: jest.fn().mockReturnValue('client-id'),
-      getStorageClientSecret: jest.fn().mockReturnValue('client-secret'),
+      getClientById: jest.fn((id: string) =>
+        id === 'client-id' ? { clientId: 'client-id', clientSecret: 'client-secret' } : null
+      ),
     } as unknown as GoogleOAuthConfigService;
 
     const service = new ConnectorStorageConfigService(
@@ -56,6 +57,7 @@ describe('ConnectorStorageConfigService', () => {
     const { service, storageCredentialsResolver } = createService();
     const credentials = {
       type: 'bigquery_oauth',
+      oauthClientId: 'client-id',
       oauth2Client: {
         getAccessToken: jest.fn().mockResolvedValue({ token: 'access-token' }),
         credentials: { refresh_token: 'refresh-token', expiry_date: 1234567890 },
@@ -65,6 +67,8 @@ describe('ConnectorStorageConfigService', () => {
 
     const result = await service.buildStorageConfig(baseDataMart);
     expect(result).toBeDefined();
+    expect(result.config.OAuthClientId.value).toBe('client-id');
+    expect(result.config.OAuthClientSecret.value).toBe('client-secret');
     // The connector's own OAuth2Client rebuilds credentials from these values on
     // every query for the lifetime of a run (which can span hours during a
     // backfill); without expiry_date it can never tell the access token has
@@ -72,10 +76,27 @@ describe('ConnectorStorageConfigService', () => {
     expect(result.config.OAuthAccessTokenExpiry.value).toBe(1234567890);
   });
 
+  it('fails without naming a secret when the OAuth client is no longer configured', async () => {
+    const { service, storageCredentialsResolver } = createService();
+    (storageCredentialsResolver.resolve as jest.Mock).mockResolvedValue({
+      type: 'bigquery_oauth',
+      oauthClientId: 'gone',
+      oauth2Client: {
+        getAccessToken: jest.fn().mockResolvedValue({ token: 'access-token' }),
+        credentials: {},
+      },
+    });
+
+    await expect(service.buildStorageConfig(baseDataMart)).rejects.toThrow(
+      'Google OAuth client of the Storage credential is not configured'
+    );
+  });
+
   it('passes null OAuthAccessTokenExpiry when the OAuth token has no known expiry', async () => {
     const { service, storageCredentialsResolver } = createService();
     const credentials = {
       type: 'bigquery_oauth',
+      oauthClientId: 'client-id',
       oauth2Client: {
         getAccessToken: jest.fn().mockResolvedValue({ token: 'access-token' }),
         credentials: { refresh_token: 'refresh-token' },

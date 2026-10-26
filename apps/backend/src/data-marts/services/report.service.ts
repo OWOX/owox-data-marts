@@ -188,7 +188,8 @@ export class ReportService {
       .innerJoinAndSelect('report.dataDestination', 'dest')
       .innerJoinAndSelect('report.dataMart', 'dataMart')
       .innerJoinAndSelect('dataMart.storage', 'storage')
-      .innerJoinAndSelect('storage.credential', 'storageCredential')
+      // Legacy: remove with LegacyStorageCredentialReader.
+      .leftJoinAndSelect('storage.credential', 'storageCredential')
       .innerJoin(
         'data_destination_credentials',
         'cred',
@@ -219,7 +220,8 @@ export class ReportService {
         .innerJoinAndSelect('report.dataDestination', 'dest')
         .innerJoinAndSelect('report.dataMart', 'dataMart')
         .innerJoinAndSelect('dataMart.storage', 'storage')
-        .innerJoinAndSelect('storage.credential', 'storageCredential')
+        // Legacy: remove with LegacyStorageCredentialReader.
+        .leftJoinAndSelect('storage.credential', 'storageCredential')
         .innerJoin(
           'data_destination_credentials',
           'cred',

@@ -28,13 +28,13 @@ In OWOX Data Marts, open **Storages** from the main navigation pane, and click *
 
 Before you can configure the storage, you must provide valid authentication details. Without proper authentication, the setup cannot proceed. In this section, we’ll guide you through gathering and entering the required credentials for Snowflake.
 
-> **Note:** The authentication fields are located in the lower section of the storage configuration form. Be sure to scroll down to find and complete these fields.
+> **Note:** The storage form has a **Credential** field. Select an existing Snowflake Credential or click **+ Create new Credential**, as described below.
 
 Connection settings will be covered in the next steps.
 
-### Choose Authentication Method
+### Choose a Credential Provider
 
-Snowflake supports two authentication methods:
+Snowflake supports two Credential providers:
 
 - [Option 1: Username + Programmatic Access Token (PAT)](#option-1-username--programmatic-access-token-pat)
 - [Option 2: Key Pair Authentication](#option-2-key-pair-authentication)
@@ -87,10 +87,10 @@ The external IP address `34.38.103.182` is the **official and permanent address*
 Once the network policy is active:
 
 1. Return to the **OWOX Data Marts** interface and verify you are on the new storage configuration screen.
-2. Select **Username & PAT** as the authentication method.
-3. Enter the required credentials:
+2. In the **Credential** field, click **+ Create new Credential** and choose the **Snowflake password** provider, or select an existing Snowflake password Credential. Snowflake accepts the PAT in place of a password.
+3. Enter the required values in the Credential form:
    - In the **Username** field, enter the Snowflake login name for your dedicated user (e.g., `OWOX_SERVICE_USER`).
-   - In the **Personal Access Token** field, paste the **PAT** you generated in Step 1.
+   - In the **Password** field, paste the **PAT** you generated in Step 1.
 4. Go to the [Set General Settings and Connection Details](#3-set-general-settings-and-connection-details) section.
 
 ![Snowflake interface displaying the Enter PAT (Personal Access Token) screen, prompting the user to input their token for authentication. The screen features a text input field labeled Personal Access Token and a button labeled Continue. The environment is a clean, modern web application interface with a neutral, professional tone. No additional emotional cues are present.](../../res/screens/snowflake_enterpat.png)
@@ -157,7 +157,7 @@ This step enables key pair authentication for your user account.
 
 ##### Step 4. Configure Key Pair Authentication in OWOX Data Marts
 
-1. Choose **Key Pair** as the authentication method.
+1. In the **Credential** field, click **+ Create new Credential** and choose the **Snowflake key pair** provider, or select an existing Snowflake key pair Credential.
 
 2. Open the `rsa_key.p8` file in any text editor (for example, VS Code or Sublime Text).
 3. Copy the **entire contents**, including:
@@ -171,13 +171,13 @@ This step enables key pair authentication for your user account.
    > **Tip:** For key pair authentication, you must use your **private key** from the `.p8` file (not the `.pub` file).  
    > Open the `rsa_key.p8` file you generated earlier and copy its entire contents including the header and footer lines for this step.
 
-4. Enter the required credentials:
-   - In the **Private Key** field, paste the **private key**.
+4. Enter the required values in the Credential form:
+   - In the **Private key** field, paste the **private key**.
    - In the **Username** field, enter the Snowflake login name for your dedicated user (e.g., `OWOX_SERVICE_USER`).
 
 ![OWOX Data Marts web interface showing the Private Key input field in the Snowflake storage configuration screen. The field is highlighted, prompting the user to paste the contents of their private key file. The interface is clean and businesslike, with sidebar navigation and a main content area focused on authentication setup.](../../res/screens/snowflake_privatekey.png)
 
-**(Optional) Private Key Passphrase:**
+**(Optional) Private key passphrase:**
 
 - If your private key was created **with encryption**, enter the passphrase.
 - If you used the `-nocrypt` option, leave this field **empty**.
@@ -241,7 +241,7 @@ Enter the **warehouse name** in the storage form (use the exact name).
 1. Review all entered values.
 2. Click **Save** to add the Snowflake storage configuration.
 
-OWOX Data Marts will automatically validate the connection.
+OWOX Data Marts validates the connection with the selected Credential when you save the Storage. A Credential you create with **+ Create new Credential** is selected in the **Credential** field once you save it; see [Credentials](../../project/credentials.md).
 
 ## Next Steps
 
@@ -281,12 +281,12 @@ for programmatic authentication.
 ```
 
 **Cause:**  
-You entered a **password** instead of a PAT (for Option 1) or used the wrong authentication method.
+You entered a **password** instead of a PAT (for Option 1) or used the wrong Credential provider.
 
 **Solution:**
 
 For **Username + PAT** authentication: [generate a PAT](#option-1-username--programmatic-access-token-pat) and use it instead of a password.  
-For **Key Pair** authentication: ensure you selected **Key Pair** and pasted the private key from `rsa_key.p8`.
+For **Key Pair** authentication: ensure the Credential uses the **Snowflake key pair** provider and you pasted the private key from `rsa_key.p8`.
 
 ### ❌ Insufficient privileges error in the Snowflake interface
 

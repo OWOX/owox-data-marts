@@ -38,12 +38,10 @@ In OWOX Data Marts, go to **Storages**. Find the entry labeled **Google BigQuery
 
 Click on the storage entry to open its settings. Then:
 
-1. Under **Authentication Method**, choose **Service Account JSON** or **Connect with Google**.
-2. If using Service Account JSON, paste your [Service Account JSON key](https://docs.owox.com/docs/storages/supported-storages/google-bigquery-used-in-owox-extension/#step-3-add-a-service-account) into the **Service Account** field.
+1. In the **Credential** field, select a Credential, or click **+ Create new Credential** and choose **BigQuery Service Account** or **BigQuery Google account**.
+2. If using a service account, paste your [Service Account JSON key](https://docs.owox.com/docs/storages/supported-storages/google-bigquery-used-in-owox-extension/#step-3-add-a-service-account) into the **Service account key (JSON)** field of the Credential form.
 3. Leave **Auto-detect location** selected unless you experience region-specific query errors.
 4. Click **Save**.
-
-![Configure Storage Provider dialog with Location set to "Auto-detect location" and Authentication Method toggled to "Service Account JSON". The Service Account field shows a pasted JSON key with type, project_id, and private_key fields. An arrow points to the JSON key field. A Save button appears at the bottom.](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/0035e4e2-2ca2-49a2-e754-5d5eadcd1b00/public)
 
 ### Step 3: Publish Your Data Marts
 

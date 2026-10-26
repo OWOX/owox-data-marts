@@ -1,6 +1,7 @@
 import { BadRequestException, INestApplication } from '@nestjs/common';
 import * as supertest from 'supertest';
 import { AUTH_HEADER, closeTestApp, createTestApp } from '@owox/test-utils';
+import { createStorageCredential } from './storage-credential-support';
 import { AthenaApiAdapter } from 'src/data-marts/data-storage-types/athena/adapters/athena-api.adapter';
 import { S3ApiAdapter } from 'src/data-marts/data-storage-types/athena/adapters/s3-api.adapter';
 import { BigQueryApiAdapter } from 'src/data-marts/data-storage-types/bigquery/adapters/bigquery-api.adapter';
@@ -2325,7 +2326,11 @@ function registerSuite(storage: StorageCase): void {
         .send({
           title: `${storage.label.toLowerCase()}-row-level-calculated-field`,
           config: storage.storageConfig(),
-          credentials: storage.storageCredentials(),
+          reusableCredentialId: await createStorageCredential(
+            agent,
+            storage.storageType,
+            storage.storageCredentials()
+          ),
         });
       expect(storageUpdateRes.status).toBe(200);
 

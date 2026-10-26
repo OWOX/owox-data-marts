@@ -1,6 +1,7 @@
 import { INestApplication } from '@nestjs/common';
 import * as supertest from 'supertest';
 import { AUTH_HEADER, closeTestApp, createTestApp } from '@owox/test-utils';
+import { createStorageCredential } from './storage-credential-support';
 import { AthenaApiAdapter } from 'src/data-marts/data-storage-types/athena/adapters/athena-api.adapter';
 import { S3ApiAdapter } from 'src/data-marts/data-storage-types/athena/adapters/s3-api.adapter';
 import { AthenaCredentials } from 'src/data-marts/data-storage-types/athena/schemas/athena-credentials.schema';
@@ -192,10 +193,10 @@ AS SELECT * FROM (VALUES
       .send({
         title: 'athena-report-run-real',
         config: { region: ATHENA_REGION!, outputBucket: ATHENA_OUTPUT_BUCKET! },
-        credentials: {
+        reusableCredentialId: await createStorageCredential(agent, DataStorageType.AWS_ATHENA, {
           accessKeyId: AWS_ACCESS_KEY_ID!,
           secretAccessKey: AWS_SECRET_ACCESS_KEY!,
-        },
+        }),
       });
     expect(storageUpdateRes.status).toBe(200);
 

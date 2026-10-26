@@ -14,5 +14,6 @@ export type DataStorageListItemResponseDto = Pick<
   | 'contexts'
   | 'availableForUse'
   | 'availableForMaintenance'
+  | 'reusableCredential'
 >;
 export type DataStorageListResponseDto = DataStorageListItemResponseDto[];

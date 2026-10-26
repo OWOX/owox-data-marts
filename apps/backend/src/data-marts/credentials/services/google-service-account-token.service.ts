@@ -1,7 +1,11 @@
 import { Inject, Injectable, Optional } from '@nestjs/common';
 import { JWT, type JWTOptions } from 'google-auth-library';
 import { createHash } from 'node:crypto';
-import type { CredentialSecret, CredentialValidationResult } from '../credential.types';
+import {
+  secretValue,
+  type CredentialSecret,
+  type CredentialValidationResult,
+} from '../credential.types';
 import { parseGoogleServiceAccountKey } from './google-service-account-key';
 
 export const GOOGLE_TOKEN_TRANSPORTER = Symbol('GOOGLE_TOKEN_TRANSPORTER');
@@ -111,7 +115,7 @@ export class GoogleServiceAccountTokenService {
   private createClient(secret: CredentialSecret, scopes: readonly string[]): JWT {
     let key: ReturnType<typeof parseGoogleServiceAccountKey>['key'];
     try {
-      ({ key } = parseGoogleServiceAccountKey(secret.value));
+      ({ key } = parseGoogleServiceAccountKey(secretValue(secret)));
     } catch (error) {
       throw new GoogleTokenError(
         'rejected',
@@ -132,7 +136,7 @@ export class GoogleServiceAccountTokenService {
 }
 
 function cacheKey(input: GoogleTokenRequest): string {
-  const secretHash = createHash('sha256').update(input.secret.value).digest('hex');
+  const secretHash = createHash('sha256').update(secretValue(input.secret)).digest('hex');
   return `${input.credentialId}:${secretHash}:${input.scopes.join(' ')}`;
 }
 

@@ -1,5 +1,4 @@
-import type { DataStorageCredentialsDto } from '../data-storage-credentials.dto.ts';
-import type { DataStorageType } from '../../../model/types';
+import type { DataStorageType, StorageCredentialSummary } from '../../../model/types';
 import type { ContextSummary } from '../../../../../contexts/types/context.types';
 
 export interface GoogleBigQueryConfigDto {
@@ -42,13 +41,13 @@ export interface DataStorageResponseDto {
   id: string;
   title: string;
   type: DataStorageType;
-  credentials: DataStorageCredentialsDto | null;
   config: DataStorageConfigDto | null;
   createdAt: string;
   modifiedAt: string;
   publishedDataMartsCount: number;
   draftDataMartsCount: number;
-  credentialId?: string;
+  /** Absent where a Storage is embedded in another resource. */
+  reusableCredential?: StorageCredentialSummary | null;
   createdByUser?: import('../../../../../../shared/types').UserProjection | null;
   ownerUsers?: import('../../../../../../shared/types').UserProjection[];
   availableForUse?: boolean;

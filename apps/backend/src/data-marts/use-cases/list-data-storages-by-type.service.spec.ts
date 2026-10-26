@@ -1,6 +1,7 @@
 import { ListDataStoragesByTypeCommand } from '../dto/domain/list-data-storages-by-type.command';
 import { ListDataStoragesByTypeService } from './list-data-storages-by-type.service';
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
+import { LegacyStorageCredentialReader } from '../services/storage-credential-conversion/legacy-storage-credential-reader.service';
 
 describe('ListDataStoragesByTypeService', () => {
   const makeQbChain = (rawResults: unknown[]) => {
@@ -23,7 +24,11 @@ describe('ListDataStoragesByTypeService', () => {
     return qb;
   };
 
-  const createService = (storages: unknown[], dataMartRaw: unknown[]) => {
+  const createService = (
+    storages: unknown[],
+    dataMartRaw: unknown[],
+    bound: Record<string, string | null> = {}
+  ) => {
     const qb = makeQbChain(dataMartRaw);
 
     const dataStorageRepo = {
@@ -33,12 +38,28 @@ describe('ListDataStoragesByTypeService', () => {
       createQueryBuilder: jest.fn().mockReturnValue(qb),
     };
 
+    // A member who can see every bound Credential.
+    const storageCredentials = {
+      findBoundStorageIds: jest.fn().mockResolvedValue(new Set(Object.keys(bound))),
+      summarizeForStorages: jest
+        .fn()
+        .mockResolvedValue(
+          new Map(
+            Object.entries(bound).map(([id, identity]) => [
+              id,
+              { access: 'visible', id: `cred-${id}`, identity, state: 'ready' },
+            ])
+          )
+        ),
+    };
     const service = new ListDataStoragesByTypeService(
       dataStorageRepo as never,
-      dataMartRepo as never
+      dataMartRepo as never,
+      storageCredentials as never,
+      new LegacyStorageCredentialReader({} as never, {} as never, {} as never, {} as never)
     );
 
-    return { service, dataStorageRepo, dataMartRepo, qb };
+    return { service, dataStorageRepo, dataMartRepo, qb, storageCredentials };
   };
 
   const projectId = 'proj-1';
@@ -68,6 +89,90 @@ describe('ListDataStoragesByTypeService', () => {
       dataMartName: 'My Data Mart',
       identity: { clientEmail: 'sa@project.iam.gserviceaccount.com' },
     });
+  });
+
+  it('lists a bound Storage without an old row, with its identity from the Credential', async () => {
+    const storages = [
+      { id: 'bound', title: 'Bound', type, credentialId: null, credential: null },
+      { id: 'sa', title: 'Bound SA', type, credentialId: null, credential: null },
+      { id: 'unconfigured', title: 'Empty', type, credentialId: null, credential: null },
+    ];
+    const { service } = createService(storages, [], {
+      bound: 'me@example.com',
+      sa: 'robot@p.iam.gserviceaccount.com',
+    });
+
+    const result = await service.run(new ListDataStoragesByTypeCommand(projectId, type));
+
+    expect(result.map(r => [r.id, r.identity])).toEqual([
+      ['bound', { email: 'me@example.com' }],
+      ['sa', { clientEmail: 'robot@p.iam.gserviceaccount.com' }],
+    ]);
+  });
+
+  it('maps a bound Snowflake identity to { username } and an AWS one to { accessKeyId }', async () => {
+    const storages = [
+      { id: 'snow', title: 'Snow', type: DataStorageType.SNOWFLAKE, credentialId: null },
+      { id: 'athena', title: 'Athena', type: DataStorageType.AWS_ATHENA, credentialId: null },
+      { id: 'redshift', title: 'Redshift', type: DataStorageType.AWS_REDSHIFT, credentialId: null },
+    ];
+    const { service } = createService(storages, [], {
+      snow: 'LOADER',
+      athena: 'AKIA1',
+      redshift: 'AKIA2',
+    });
+
+    const result = await service.run(new ListDataStoragesByTypeCommand(projectId, type));
+
+    expect(result.map(r => [r.id, r.identity])).toEqual([
+      ['snow', { username: 'LOADER' }],
+      ['athena', { accessKeyId: 'AKIA1' }],
+      ['redshift', { accessKeyId: 'AKIA2' }],
+    ]);
+  });
+
+  it("returns a bound Credential's identity only to a member who can see it", async () => {
+    const storages = [
+      { id: 'seen', title: 'Seen', type, credentialId: null },
+      { id: 'hidden', title: 'Hidden', type, credentialId: null },
+    ];
+    const { service, storageCredentials } = createService(storages, []);
+    storageCredentials.summarizeForStorages.mockResolvedValue(
+      new Map([
+        ['seen', { access: 'visible', id: 'c1', identity: 'me@example.com', state: 'ready' }],
+        ['hidden', { access: 'restricted', state: 'ready' }],
+      ])
+    );
+    storageCredentials.findBoundStorageIds.mockResolvedValue(new Set(['seen', 'hidden']));
+
+    const result = await service.run(
+      new ListDataStoragesByTypeCommand(projectId, type, 'member-1', ['editor'])
+    );
+
+    expect(storageCredentials.summarizeForStorages).toHaveBeenCalledWith({
+      projectId,
+      userId: 'member-1',
+      roles: ['editor'],
+      storages,
+    });
+    expect(result.map(r => [r.id, r.identity])).toEqual([
+      ['seen', { email: 'me@example.com' }],
+      ['hidden', null],
+    ]);
+  });
+
+  it("never returns a bound Credential's identity to a plugin", async () => {
+    const storages = [{ id: 'bound', title: 'Bound', type, credentialId: null }];
+    const { service, storageCredentials } = createService(storages, [], {
+      bound: 'me@example.com',
+    });
+
+    const result = await service.run(
+      new ListDataStoragesByTypeCommand(projectId, type, 'member-1', ['editor'], true)
+    );
+
+    expect(result.map(r => [r.id, r.identity])).toEqual([['bound', null]]);
+    expect(storageCredentials.summarizeForStorages).not.toHaveBeenCalled();
   });
 
   it('returns empty array when no storages match', async () => {

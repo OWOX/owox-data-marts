@@ -1,8 +1,10 @@
-import type { CredentialDefinitionContract } from '../credential.types';
+import type { CredentialDefinitionContract, CredentialOAuthAuth } from '../credential.types';
 
 export const BUILTIN_CREDENTIAL_DEFINITIONS: readonly CredentialDefinitionContract[] = [
   {
     id: 'openai',
+    category: 'ai',
+    icon: 'openai',
     displayName: 'OpenAI',
     description: 'OpenAI API key',
     documentationUrl: 'https://platform.openai.com/docs/quickstart',
@@ -29,6 +31,8 @@ export const BUILTIN_CREDENTIAL_DEFINITIONS: readonly CredentialDefinitionContra
   },
   {
     id: 'anthropic',
+    category: 'ai',
+    icon: 'anthropic',
     displayName: 'Anthropic',
     description: 'Anthropic API key',
     documentationUrl:
@@ -60,6 +64,8 @@ export const BUILTIN_CREDENTIAL_DEFINITIONS: readonly CredentialDefinitionContra
   },
   {
     id: 'gemini',
+    category: 'ai',
+    icon: 'gemini',
     displayName: 'Google Gemini',
     description: 'Google Gemini API key',
     auth: { type: 'header', label: 'API key', headerName: 'x-goog-api-key' },
@@ -85,6 +91,8 @@ export const BUILTIN_CREDENTIAL_DEFINITIONS: readonly CredentialDefinitionContra
   },
   {
     id: 'openrouter',
+    category: 'ai',
+    icon: 'openrouter',
     displayName: 'OpenRouter',
     description: 'OpenRouter API key',
     auth: { type: 'header', label: 'API key', headerName: 'authorization', prefix: 'Bearer ' },
@@ -109,6 +117,8 @@ export const BUILTIN_CREDENTIAL_DEFINITIONS: readonly CredentialDefinitionContra
   },
   {
     id: 'github',
+    category: 'other',
+    icon: 'github',
     displayName: 'GitHub',
     description: 'GitHub token',
     documentationUrl:
@@ -131,14 +141,161 @@ export const BUILTIN_CREDENTIAL_DEFINITIONS: readonly CredentialDefinitionContra
   },
   {
     id: 'google-service-account',
-    displayName: 'Google Service Account',
+    category: 'google',
+    icon: 'google',
+    displayName: 'BigQuery Service Account',
     description: 'Google Cloud service account JSON key',
     documentationUrl: 'https://docs.cloud.google.com/iam/docs/keys-create-delete',
     auth: { type: 'google-service-account', label: 'Service account key (JSON)' },
     origins: ['https://*.googleapis.com'],
+  },
+  {
+    id: 'google-oauth',
+    category: 'google',
+    icon: 'google',
+    displayName: 'BigQuery Google account',
+    description: 'Google account access for BigQuery Storages.',
+    auth: {
+      type: 'oauth',
+      provider: 'google',
+      client: 'storage',
+      scopes: 'bigquery',
+      label: 'Google account',
+    },
+  },
+  {
+    id: 'aws-access-key',
+    category: 'aws',
+    icon: 'aws',
+    displayName: 'AWS access key',
+    description: 'Access key for Amazon Athena and Amazon Redshift Storages.',
+    auth: {
+      type: 'fields',
+      fields: [
+        {
+          key: 'accessKeyId',
+          label: 'Access key ID',
+          input: 'text',
+          secret: false,
+          required: true,
+          identity: true,
+        },
+        {
+          key: 'secretAccessKey',
+          label: 'Secret access key',
+          input: 'password',
+          secret: true,
+          required: true,
+          identity: false,
+        },
+        {
+          key: 'sessionToken',
+          label: 'Session token',
+          input: 'password',
+          secret: true,
+          required: false,
+          identity: false,
+        },
+      ],
+    },
+  },
+  {
+    id: 'snowflake-password',
+    category: 'snowflake',
+    icon: 'snowflake',
+    displayName: 'Snowflake password',
+    description: 'Username and password for Snowflake Storages.',
+    auth: {
+      type: 'fields',
+      fields: [
+        {
+          key: 'username',
+          label: 'Username',
+          input: 'text',
+          secret: false,
+          required: true,
+          identity: true,
+        },
+        {
+          key: 'password',
+          label: 'Password',
+          input: 'password',
+          secret: true,
+          required: true,
+          identity: false,
+        },
+      ],
+    },
+  },
+  {
+    id: 'snowflake-key-pair',
+    category: 'snowflake',
+    icon: 'snowflake',
+    displayName: 'Snowflake key pair',
+    description: 'Username and private key for Snowflake Storages.',
+    auth: {
+      type: 'fields',
+      fields: [
+        {
+          key: 'username',
+          label: 'Username',
+          input: 'text',
+          secret: false,
+          required: true,
+          identity: true,
+        },
+        {
+          key: 'privateKey',
+          label: 'Private key',
+          input: 'multiline',
+          secret: true,
+          required: true,
+          identity: false,
+        },
+        {
+          key: 'privateKeyPassphrase',
+          label: 'Private key passphrase',
+          input: 'password',
+          secret: true,
+          required: false,
+          identity: false,
+        },
+      ],
+    },
+  },
+  {
+    id: 'databricks-token',
+    category: 'databricks',
+    icon: 'databricks',
+    displayName: 'Databricks token',
+    description: 'Personal access token for Databricks Storages.',
+    auth: {
+      type: 'fields',
+      fields: [
+        {
+          key: 'token',
+          label: 'Personal access token',
+          input: 'password',
+          secret: true,
+          required: true,
+          identity: false,
+        },
+      ],
+    },
   },
 ] as const;
 
 export const BUILTIN_CREDENTIAL_DEFINITION_IDS: ReadonlySet<string> = new Set(
   BUILTIN_CREDENTIAL_DEFINITIONS.map(definition => definition.id)
 );
+
+/** The definition a BigQuery Google account Credential gets when none is named. */
+export const GOOGLE_OAUTH_DEFINITION_ID = 'google-oauth';
+
+/** The OAuth auth of a definition, or null; only built-in definitions connect through OAuth. */
+export function builtinOAuthAuth(definitionId: string): CredentialOAuthAuth | null {
+  const auth = BUILTIN_CREDENTIAL_DEFINITIONS.find(
+    definition => definition.id === definitionId
+  )?.auth;
+  return auth?.type === 'oauth' ? auth : null;
+}

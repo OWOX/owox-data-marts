@@ -10,6 +10,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { CredentialConsumerBindingFacadeImpl } from './credential-consumer-binding.facade.impl';
+import { CredentialBindingService } from '../services/credential-binding.service';
 import { normalizeCredentialRequirement } from '../credential.types';
 
 const credential = {
@@ -53,7 +54,13 @@ function setup() {
   return {
     facade: new CredentialConsumerBindingFacadeImpl(
       bindings as never,
-      credentials as never,
+      new CredentialBindingService(
+        bindings as never,
+        credentials as never,
+        {} as never,
+        access as never,
+        credentialService as never
+      ),
       definitions as never,
       access as never,
       credentialService as never
@@ -165,7 +172,11 @@ describe('CredentialConsumerBindingFacadeImpl', () => {
   describe('Google scopes at runtime', () => {
     const DOCS = 'https://www.googleapis.com/auth/documents';
     const SHEETS = 'https://www.googleapis.com/auth/spreadsheets';
-    const google = (scopes: string[]) => ({ id: 'google-service-account', scopes });
+    const google = (scopes: string[]) => ({
+      id: 'google-service-account',
+      optional: false,
+      scopes,
+    });
     const resolveRequest = (scopes: string[]) => ({
       projectId: 'project-1',
       userId: 'member-1',

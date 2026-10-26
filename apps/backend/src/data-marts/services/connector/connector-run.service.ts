@@ -109,6 +109,7 @@ export class ConnectorRunService {
   async getDataMartConnectorRunsByStatus(status: DataMartRunStatus): Promise<DataMartRun[]> {
     return this.dataMartRunRepository.find({
       where: { status, type: DataMartRunType.CONNECTOR },
+      // Legacy: remove with LegacyStorageCredentialReader.
       relations: ['dataMart', 'dataMart.storage', 'dataMart.storage.credential'],
     });
   }

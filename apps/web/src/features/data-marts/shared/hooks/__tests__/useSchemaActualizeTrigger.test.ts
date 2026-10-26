@@ -113,7 +113,7 @@ describe('useSchemaActualizeTrigger', () => {
         data: {
           code: 'CREDENTIALS_EXPIRED',
           error:
-            'Google authorization could not be refreshed. Reconnect this Storage to restore access.',
+            'Google authorization could not be refreshed. Reconnect the Credential on the Credentials page to restore access.',
         },
       },
     });
@@ -129,7 +129,7 @@ describe('useSchemaActualizeTrigger', () => {
     await waitFor(() => {
       expect(hook.current.isLoading).toBe(false);
       expect(hook.current.error).toBe(
-        'Google authorization could not be refreshed. Reconnect this Storage to restore access.'
+        'Google authorization could not be refreshed. Reconnect the Credential on the Credentials page to restore access.'
       );
     });
 

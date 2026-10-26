@@ -9,6 +9,16 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@owox/ui/components/dropdown-menu';
+import {
+  HoverCard,
+  HoverCardBody,
+  HoverCardContent,
+  HoverCardHeader,
+  HoverCardHeaderDescription,
+  HoverCardHeaderText,
+  HoverCardHeaderTitle,
+  HoverCardTrigger,
+} from '@owox/ui/components/hover-card';
 import { Input } from '@owox/ui/components/input';
 import {
   CircleCheckBig,
@@ -41,6 +51,8 @@ import {
   type CredentialFilterKey,
 } from './CredentialsTableFilters';
 import type { Credential } from './types';
+import { ProviderIcon } from './components/ProviderCombobox';
+import { CredentialConsumerList } from './components/CredentialUsedByList';
 
 interface CredentialsTableProps {
   credentials: Credential[];
@@ -206,6 +218,12 @@ function getCredentialColumns(actions: CredentialColumnActions): ColumnDef<Crede
       size: 180,
       meta: { title: 'Provider' },
       header: ({ column }) => <SortableHeader column={column}>Provider</SortableHeader>,
+      cell: ({ row }) => (
+        <div className='flex items-center gap-2'>
+          <ProviderIcon icon={row.original.definition.icon} />
+          {row.original.definition.displayName}
+        </div>
+      ),
     },
     {
       id: 'availability',
@@ -226,13 +244,7 @@ function getCredentialColumns(actions: CredentialColumnActions): ColumnDef<Crede
       size: 120,
       meta: { title: 'Used by' },
       header: ({ column }) => <SortableHeader column={column}>Used by</SortableHeader>,
-      cell: ({ row }) => (
-        <span title={usedByTitle(row.original)}>
-          {row.original.usedBy.length === 0
-            ? '—'
-            : `${row.original.usedBy.length} consumer${row.original.usedBy.length === 1 ? '' : 's'}`}
-        </span>
-      ),
+      cell: ({ row }) => <UsedByCell credential={row.original} />,
     },
     {
       id: 'lastUsedAt',
@@ -369,8 +381,38 @@ function formatDate(value: string | null): string {
   );
 }
 
-function usedByTitle(credential: Credential): string {
-  return credential.usedBy
-    .map(reference => `${reference.consumerType}: ${reference.requirementKey}`)
-    .join('\n');
+function UsedByCell({ credential }: { credential: Credential }) {
+  const count = credential.usedBy.length;
+  if (count === 0) return '—';
+  const label = `${count} consumer${count === 1 ? '' : 's'}`;
+  return (
+    <HoverCard openDelay={200}>
+      {/* Enter or Space on the focused button clicks it; that must not open the editor. */}
+      <HoverCardTrigger asChild>
+        <button
+          type='button'
+          className='cursor-default'
+          onClick={event => {
+            event.stopPropagation();
+          }}
+        >
+          {label}
+        </button>
+      </HoverCardTrigger>
+      <HoverCardContent align='start'>
+        <HoverCardHeader>
+          <HoverCardHeaderText>
+            <HoverCardHeaderTitle>Used by</HoverCardHeaderTitle>
+            <HoverCardHeaderDescription>{label}</HoverCardHeaderDescription>
+          </HoverCardHeaderText>
+        </HoverCardHeader>
+        <HoverCardBody className='pt-4'>
+          <CredentialConsumerList
+            consumers={credential.usedBy}
+            className='max-h-64 overflow-y-auto'
+          />
+        </HoverCardBody>
+      </HoverCardContent>
+    </HoverCard>
+  );
 }

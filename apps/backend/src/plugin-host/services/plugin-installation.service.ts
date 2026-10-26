@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { IsNull, MoreThan, Repository } from 'typeorm';
+import { In, IsNull, MoreThan, Repository } from 'typeorm';
 import { isUniqueConstraintViolation } from '../../common/typeorm/query-error.utils';
 import { PluginInstallation } from '../entities/plugin-installation.entity';
 
@@ -20,6 +20,10 @@ export class PluginInstallationService {
 
   findById(id: string): Promise<PluginInstallation | null> {
     return this.repository.findOneBy({ id });
+  }
+
+  findByIds(ids: readonly string[]): Promise<PluginInstallation[]> {
+    return ids.length === 0 ? Promise.resolve([]) : this.repository.findBy({ id: In([...ids]) });
   }
 
   findOne(pluginId: string, projectId: string, userId: string): Promise<PluginInstallation | null> {

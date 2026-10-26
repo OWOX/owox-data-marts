@@ -18,6 +18,7 @@ export const BIGQUERY_OAUTH_TYPE = 'bigquery_oauth' as const;
 export const BigQueryOAuthCredentialsSchema = z.object({
   type: z.literal(BIGQUERY_OAUTH_TYPE),
   oauth2Client: z.instanceof(OAuth2Client),
+  oauthClientId: z.string(),
 });
 
 export type BigQueryOAuthCredentials = z.infer<typeof BigQueryOAuthCredentialsSchema>;

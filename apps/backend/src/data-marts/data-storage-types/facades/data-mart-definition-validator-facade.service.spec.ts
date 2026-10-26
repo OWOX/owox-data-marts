@@ -6,13 +6,16 @@ import {
 } from '../interfaces/data-mart-validator.interface';
 
 describe('DataMartDefinitionValidatorFacade', () => {
-  const createFacade = (validatorResult: ValidationResult) => {
+  const createFacade = (validatorResult: ValidationResult, hasCredentials = true) => {
     const resolver = {
       resolve: jest
         .fn()
         .mockResolvedValue({ validate: jest.fn().mockResolvedValue(validatorResult) }),
     };
-    const credentialsResolver = { resolve: jest.fn().mockResolvedValue({}) };
+    const credentialsResolver = {
+      resolve: jest.fn().mockResolvedValue({}),
+      hasCredentials: jest.fn().mockResolvedValue(hasCredentials),
+    };
 
     const facade = new DataMartDefinitionValidatorFacade(
       resolver as never,
@@ -56,8 +59,19 @@ describe('DataMartDefinitionValidatorFacade', () => {
     expect(code).toBeUndefined();
   });
 
-  it('codes its own missing-credentials failure', async () => {
+  it('accepts a bound Storage without an old row', async () => {
     const { facade } = createFacade(ValidationResult.success());
+    const dataMart = {
+      id: 'dm-1',
+      definition: { fullyQualifiedName: 'p.d.t' },
+      storage: { id: 'storage-1', type: 'GOOGLE_BIGQUERY', config: {}, credentialId: null },
+    };
+
+    await expect(facade.checkIsValid(dataMart as never)).resolves.toBeUndefined();
+  });
+
+  it('codes its own missing-credentials failure', async () => {
+    const { facade } = createFacade(ValidationResult.success(), false);
     const dataMart = {
       id: 'dm-1',
       definition: { fullyQualifiedName: 'p.d.t' },

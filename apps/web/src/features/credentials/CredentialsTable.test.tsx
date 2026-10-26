@@ -1,8 +1,13 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { CredentialsTable } from './CredentialsTable';
 import type { Credential, CredentialDefinition } from './types';
+
+vi.mock('../../shared/hooks', async importOriginal => ({
+  ...(await importOriginal<typeof import('../../shared/hooks')>()),
+  useProjectRoute: () => ({ scope: (path: string) => `/ui/project-1${path}` }),
+}));
 
 const storage = new Map<string, string>();
 const localStorageMock: Storage = {
@@ -59,6 +64,114 @@ describe('CredentialsTable', () => {
 
     expect(screen.getByText('Primary AI')).toBeInTheDocument();
     expect(screen.queryByText('GitHub production')).not.toBeInTheDocument();
+  });
+
+  it('shows the icon of each provider', () => {
+    renderCredentials([
+      buildCredential({
+        definition: buildDefinition({
+          id: 'snowflake-password',
+          displayName: 'Snowflake password',
+          icon: 'snowflake',
+        }),
+      }),
+      buildCredential({ id: 'credential-2', title: 'Repo token' }),
+    ]);
+
+    const snowflake = screen.getByText('Snowflake password').querySelector('svg');
+    expect(snowflake).toHaveAttribute('width', '16');
+    expect(snowflake?.getAttribute('class') ?? '').not.toContain('lucide-key-round');
+    expect(screen.getByText('GitHub').querySelector('svg')).toHaveClass('lucide-key-round');
+  });
+
+  it('lists the consumers in a hover card instead of a raw title', async () => {
+    renderCredentials([
+      buildCredential({
+        usedBy: [
+          {
+            consumerType: 'storage',
+            consumerId: 'storage-1',
+            title: 'Warehouse',
+            requirementKey: 'storage',
+            lastUsedAt: null,
+          },
+          {
+            consumerType: 'storage',
+            consumerId: 'storage-2',
+            title: 'Lake',
+            requirementKey: 'storage',
+            lastUsedAt: null,
+          },
+        ],
+      }),
+    ]);
+    const count = screen.getByText('2 consumers');
+    expect(count).not.toHaveAttribute('title');
+
+    fireEvent.pointerEnter(count);
+    fireEvent.mouseEnter(count);
+    const card = within(
+      (await screen.findByRole('link', { name: 'Warehouse' })).closest<HTMLElement>(
+        "[data-slot='hover-card-content']"
+      )!
+    );
+
+    expect(card.getByText('Used by')).toBeInTheDocument();
+    expect(card.getByRole('link', { name: 'Lake' })).toHaveAttribute(
+      'href',
+      '/ui/project-1/data-storages?id=storage-2'
+    );
+  });
+
+  it('opens the consumers hover card on keyboard focus', async () => {
+    renderCredentials([
+      buildCredential({
+        usedBy: [
+          {
+            consumerType: 'storage',
+            consumerId: 'storage-1',
+            title: 'Warehouse',
+            requirementKey: 'storage',
+            lastUsedAt: null,
+          },
+        ],
+      }),
+    ]);
+
+    act(() => {
+      screen.getByRole('button', { name: '1 consumer' }).focus();
+    });
+
+    expect(await screen.findByRole('link', { name: 'Warehouse' })).toBeInTheDocument();
+  });
+
+  it('keeps the consumers button from opening the editor while the row still opens it', () => {
+    const onEdit = vi.fn();
+    const credential = buildCredential({
+      usedBy: [
+        {
+          consumerType: 'storage',
+          consumerId: 'storage-1',
+          title: 'Warehouse',
+          requirementKey: 'storage',
+          lastUsedAt: null,
+        },
+      ],
+    });
+    renderCredentials([credential], '/ui/project-1/credentials', { onEdit });
+
+    fireEvent.click(screen.getByRole('button', { name: '1 consumer' }));
+    expect(onEdit).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByText('GitHub key'));
+    expect(onEdit).toHaveBeenCalledWith(credential);
+  });
+
+  it('shows a dash and no hover card for a Credential nothing uses', () => {
+    renderCredentials([buildCredential({ usedBy: [] })]);
+
+    expect(screen.getByText('—')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /consumer/ })).toBeNull();
   });
 
   it('applies persistent Provider filters from the URL', async () => {

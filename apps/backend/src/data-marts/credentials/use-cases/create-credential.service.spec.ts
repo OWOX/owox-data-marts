@@ -2,11 +2,11 @@ jest.mock('typeorm-transactional', () => ({
   Transactional: () => (_target: unknown, _key: string, descriptor: PropertyDescriptor) =>
     descriptor,
 }));
-jest.mock('../../utils/sync-owners', () => ({ syncOwners: jest.fn() }));
 
 import { BadRequestException } from '@nestjs/common';
 import type { AuthorizationContext } from '../../../idp';
 import { serviceAccountKey } from '../../../../test/fixtures/google-service-account-key';
+import { BUILTIN_CREDENTIAL_DEFINITIONS } from '../services/builtin-credential-definitions';
 import { CreateCredentialService, normalizeAiConfiguration } from './create-credential.service';
 
 describe('normalizeAiConfiguration', () => {
@@ -136,17 +136,20 @@ const googleDefinition = {
   compatibilityLine: null,
   contract: {
     id: 'google-service-account',
-    displayName: 'Google Service Account',
+    displayName: 'BigQuery Service Account',
     description: '',
     origins: ['https://*.googleapis.com'],
     auth: { type: 'google-service-account', label: 'Service account key (JSON)' },
   },
 };
 
-function setupCreate(state = 'verified', message = 'Google issued a token for this key') {
+function setupCreate(
+  state = 'verified',
+  message = 'Google issued a token for this key',
+  definition: object = googleDefinition
+) {
   const credentials = {
-    create: jest.fn((value: object) => ({ id: 'credential-1', ...value })),
-    save: jest.fn((value: object) => Promise.resolve(value)),
+    createWithAccess: jest.fn((value: object) => Promise.resolve({ id: 'credential-1', ...value })),
     getByIdAndProjectId: jest.fn().mockResolvedValue({ id: 'credential-1' }),
   };
   const validationProbe = {
@@ -154,13 +157,9 @@ function setupCreate(state = 'verified', message = 'Google issued a token for th
   };
   const service = new CreateCredentialService(
     credentials as never,
-    { get: jest.fn().mockResolvedValue(googleDefinition) } as never,
+    { get: jest.fn().mockResolvedValue(definition) } as never,
     { build: jest.fn().mockResolvedValue({ id: 'credential-1' }) } as never,
-    validationProbe as never,
-    { validateContextIds: jest.fn() } as never,
-    {} as never,
-    { create: jest.fn() } as never,
-    { create: jest.fn(), save: jest.fn() } as never
+    validationProbe as never
   );
   const persist = jest.spyOn(
     service as unknown as { persist: (...args: unknown[]) => Promise<unknown> },
@@ -184,14 +183,15 @@ describe('CreateCredentialService with a Google service account key', () => {
     expect(state.validationProbe.run.mock.invocationCallOrder[0]).toBeLessThan(
       state.persist.mock.invocationCallOrder[0]
     );
-    expect(state.credentials.create).toHaveBeenCalledWith(
+    expect(state.credentials.createWithAccess).toHaveBeenCalledWith(
       expect.objectContaining({
         publicMetadata: {
           clientEmail: 'docs-writer@acme-docs.iam.gserviceaccount.com',
           projectId: 'acme-docs',
           privateKeyId: 'key-1',
         },
-      })
+      }),
+      { createdBy: context, ownerIds: [], contextIds: [] }
     );
   });
 
@@ -202,7 +202,7 @@ describe('CreateCredentialService with a Google service account key', () => {
       new BadRequestException('invalid_grant: Invalid JWT Signature.')
     );
     expect(state.persist).not.toHaveBeenCalled();
-    expect(state.credentials.save).not.toHaveBeenCalled();
+    expect(state.credentials.createWithAccess).not.toHaveBeenCalled();
   });
 
   it('refuses a value that is not a key before asking Google', async () => {
@@ -212,5 +212,114 @@ describe('CreateCredentialService with a Google service account key', () => {
       new BadRequestException('The key is not valid JSON')
     );
     expect(state.validationProbe.run).not.toHaveBeenCalled();
+  });
+});
+
+function builtin(id: string) {
+  const contract = BUILTIN_CREDENTIAL_DEFINITIONS.find(definition => definition.id === id);
+  return { definitionId: id, source: 'builtin', compatibilityLine: null, contract };
+}
+
+const headerDefinition = builtin('github');
+
+describe('CreateCredentialService with a field set', () => {
+  const aws = builtin('aws-access-key');
+  const fields = {
+    accessKeyId: 'key-id-1',
+    secretAccessKey: 'secret-access-key-1',
+    sessionToken: 'session-token-1',
+  };
+
+  it('stores secret fields only in the secret, unknown, without a provider check', async () => {
+    const state = setupCreate('verified', 'accepted', aws);
+
+    await state.service.run(context, { title: ' AWS ', definitionId: aws.definitionId, fields });
+
+    expect(state.validationProbe.run).not.toHaveBeenCalled();
+    expect(state.credentials.createWithAccess).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: 'AWS',
+        secret: {
+          fields: { secretAccessKey: 'secret-access-key-1', sessionToken: 'session-token-1' },
+        },
+        publicMetadata: { fields: { accessKeyId: 'key-id-1' } },
+        validationState: 'unknown',
+        validationMessage: null,
+        validatedAt: null,
+      }),
+      expect.anything()
+    );
+  });
+
+  it('refuses a secret value for a field set', async () => {
+    const state = setupCreate('verified', 'accepted', aws);
+
+    await expect(
+      state.service.run(context, {
+        title: 'AWS',
+        definitionId: aws.definitionId,
+        secret: { value: 'secret-access-key-1' },
+        fields,
+      })
+    ).rejects.toThrow(BadRequestException);
+    expect(state.credentials.createWithAccess).not.toHaveBeenCalled();
+  });
+
+  it('refuses fields for a header definition', async () => {
+    const state = setupCreate('verified', 'accepted', headerDefinition);
+
+    await expect(
+      state.service.run(context, {
+        title: 'GitHub',
+        definitionId: headerDefinition.definitionId,
+        secret: { value: 'provider-secret' },
+        fields: { token: 'provider-secret' },
+      })
+    ).rejects.toThrow(BadRequestException);
+    expect(state.validationProbe.run).not.toHaveBeenCalled();
+    expect(state.credentials.createWithAccess).not.toHaveBeenCalled();
+  });
+
+  it('refuses a header definition without a secret value', async () => {
+    const state = setupCreate('verified', 'accepted', headerDefinition);
+
+    await expect(
+      state.service.run(context, { title: 'GitHub', definitionId: headerDefinition.definitionId })
+    ).rejects.toThrow(BadRequestException);
+    expect(state.credentials.createWithAccess).not.toHaveBeenCalled();
+  });
+
+  it('sends an OAuth definition to the Google connection instead', async () => {
+    const state = setupCreate('verified', 'accepted', builtin('google-oauth'));
+
+    await expect(
+      state.service.run(context, {
+        title: 'Google',
+        definitionId: 'google-oauth',
+        secret: { value: 'token' },
+      })
+    ).rejects.toThrow(
+      new BadRequestException('Connect a Google account to create this Credential.')
+    );
+    expect(state.credentials.createWithAccess).not.toHaveBeenCalled();
+  });
+});
+
+describe('CreateCredentialService ownership', () => {
+  it('shares a new Credential for use by default and passes the chosen owners and Contexts', async () => {
+    const state = setupCreate('verified', 'accepted', headerDefinition);
+
+    await state.service.run(context, {
+      title: 'GitHub',
+      definitionId: headerDefinition.definitionId,
+      secret: { value: 'provider-secret' },
+      ownerIds: ['member-2'],
+      contextIds: ['ctx-1'],
+    });
+
+    expect(state.credentials.createWithAccess).toHaveBeenCalledWith(
+      expect.objectContaining({ availableForUse: true, availableForMaintenance: false }),
+      { createdBy: context, ownerIds: ['member-2'], contextIds: ['ctx-1'] }
+    );
   });
 });

@@ -3,6 +3,7 @@ import { DataStorageType } from '../../data-storage-types/enums/data-storage-typ
 import { UserProjectionDto } from '../../../idp/dto/domain/user-projection.dto';
 import { ContextSummary } from '../../utils/extract-context-summaries';
 import { ContextSummaryApiDto } from './context-summary-api.dto';
+import { StorageCredentialSummaryApiDto } from './storage-credential-summary-api.dto';
 
 export class DataStorageListResponseApiDto {
   @ApiProperty({ example: 'abc123e4-5678-90ab-cdef-1234567890ab' })
@@ -40,4 +41,12 @@ export class DataStorageListResponseApiDto {
 
   @ApiProperty({ example: true })
   availableForMaintenance?: boolean;
+
+  @ApiProperty({
+    type: StorageCredentialSummaryApiDto,
+    nullable: true,
+    description:
+      'The Credential the Storage uses, as the member sees it; pending while the Storage runs on its own key; null when it has neither',
+  })
+  reusableCredential: StorageCredentialSummaryApiDto | null;
 }

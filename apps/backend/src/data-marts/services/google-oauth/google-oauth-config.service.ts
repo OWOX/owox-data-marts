@@ -1,7 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { castError } from '@owox/internal-helpers';
 import { ConfigService } from '@nestjs/config';
 import { z } from 'zod';
 import { OAuthNotConfiguredException } from '../../exceptions/google-oauth.exceptions';
+import type { GoogleOAuthClientKey, GoogleOAuthScopeSet } from '../../credentials/credential.types';
+import { DEFAULT_BIGQUERY_SCOPES, scopeList } from './google-oauth-scopes';
 
 /**
  * Zod schema for a single OAuth client (storage or destination)
@@ -17,9 +20,7 @@ const GoogleOAuthClientSchema = z.object({
 const GoogleOAuthSharedSchema = z.object({
   redirectUri: z.string().url('OAUTH_GOOGLE_REDIRECT_URI must be a valid URL'),
   jwtSecret: z.string().min(1, 'OAUTH_GOOGLE_JWT_SECRET is required'),
-  bigQueryScopes: z
-    .array(z.string())
-    .default(['https://www.googleapis.com/auth/bigquery', 'openid', 'email', 'profile']),
+  bigQueryScopes: z.array(z.string()).default(() => [...DEFAULT_BIGQUERY_SCOPES]),
   sheetsScopes: z.array(z.string()).default([
     'https://www.googleapis.com/auth/spreadsheets',
     // drive.file is NON-restricted (no CASA assessment). It lets the app manage
@@ -90,21 +91,11 @@ export class GoogleOAuthConfigService {
     }
 
     try {
-      const bigQueryScopesStr = this.configService.get<string>('OAUTH_GOOGLE_BIGQUERY_SCOPE');
-      const bigQueryScopes = bigQueryScopesStr
-        ? bigQueryScopesStr.split(',').map(s => s.trim())
-        : undefined;
-
-      const sheetsScopesStr = this.configService.get<string>('OAUTH_GOOGLE_SHEETS_SCOPE');
-      const sheetsScopes = sheetsScopesStr
-        ? sheetsScopesStr.split(',').map(s => s.trim())
-        : undefined;
-
       this.sharedConfig = GoogleOAuthSharedSchema.parse({
         redirectUri,
         jwtSecret,
-        bigQueryScopes,
-        sheetsScopes,
+        bigQueryScopes: scopeList(this.configService.get<string>('OAUTH_GOOGLE_BIGQUERY_SCOPE')),
+        sheetsScopes: scopeList(this.configService.get<string>('OAUTH_GOOGLE_SHEETS_SCOPE')),
       });
 
       if (hasStorage) {
@@ -123,7 +114,7 @@ export class GoogleOAuthConfigService {
         this.logger.log('Google OAuth for destination (Sheets) configured successfully');
       }
     } catch (error) {
-      this.logger.error('Failed to parse Google OAuth configuration', error);
+      this.logger.error(`Failed to parse Google OAuth configuration: ${castError(error).message}`);
       throw error;
     }
   }
@@ -159,6 +150,31 @@ export class GoogleOAuthConfigService {
   getDestinationClientSecret(): string {
     this.ensureDestinationConfigured();
     return this.destinationConfig!.clientSecret;
+  }
+
+  isClientConfigured(client: GoogleOAuthClientKey): boolean {
+    return client === 'storage' ? this.isStorageConfigured() : this.isDestinationConfigured();
+  }
+
+  getClient(client: GoogleOAuthClientKey): GoogleOAuthClientConfig {
+    return client === 'storage'
+      ? { clientId: this.getStorageClientId(), clientSecret: this.getStorageClientSecret() }
+      : {
+          clientId: this.getDestinationClientId(),
+          clientSecret: this.getDestinationClientSecret(),
+        };
+  }
+
+  getScopes(scopes: GoogleOAuthScopeSet): string[] {
+    return scopes === 'bigquery' ? this.getBigQueryScopes() : this.getSheetsScopes();
+  }
+
+  /** The configured client that issued a stored grant, or null once it is removed from config. */
+  getClientById(clientId: string): GoogleOAuthClientConfig | null {
+    return (
+      [this.storageConfig, this.destinationConfig].find(client => client?.clientId === clientId) ??
+      null
+    );
   }
 
   getRedirectUri(): string {

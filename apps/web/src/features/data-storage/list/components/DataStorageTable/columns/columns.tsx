@@ -1,6 +1,11 @@
 import { type ColumnDef } from '@tanstack/react-table';
 import { SortableHeader, ToggleColumnsHeader } from '../../../../../../shared/components/Table';
-import { DataStorageHealthIndicator, DataStorageType } from '../../../../shared';
+import {
+  DataStorageHealthIndicator,
+  DataStorageType,
+  StorageCredentialStateMark,
+  type StorageCredentialSummary,
+} from '../../../../shared';
 import { DataStorageTypeModel } from '../../../../shared/types/data-storage-type.model';
 import { DataStorageActionsCell } from '../DataStorageActionsCell';
 import { DataStorageColumnKey } from './columnKeys';
@@ -24,6 +29,7 @@ export interface DataStorageTableItem {
   availableForUse?: boolean;
   availableForMaintenance?: boolean;
   contexts: ContextSummary[];
+  reusableCredential?: StorageCredentialSummary | null;
 }
 
 interface DataStorageColumnsProps {
@@ -53,6 +59,7 @@ export const getDataStorageColumns = ({
       <DataStorageHealthIndicator
         storageId={row.original.id}
         storageTitle={row.original.title}
+        credential={row.original.reusableCredential}
         hovercardSide='right'
         variant='compact'
       />
@@ -71,7 +78,12 @@ export const getDataStorageColumns = ({
     ),
     cell: ({ row }) => {
       const title = row.getValue<string>(DataStorageColumnKey.TITLE);
-      return <div>{title}</div>;
+      return (
+        <div className='flex flex-col gap-1'>
+          {title}
+          <StorageCredentialStateMark summary={row.original.reusableCredential} />
+        </div>
+      );
     },
   },
   {

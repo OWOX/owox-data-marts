@@ -1,5 +1,13 @@
 import { NotFoundException, BadRequestException } from '@nestjs/common';
 import { QueryDataMartTool } from './query-data-mart.tool';
+import { BigQueryApiAdapterFactory } from '../../../data-marts/data-storage-types/bigquery/adapters/bigquery-api-adapter.factory';
+import { DataStorageType } from '../../../data-marts/data-storage-types/enums/data-storage-type.enum';
+import { DataMartStatus } from '../../../data-marts/enums/data-mart-status.enum';
+import { BigQueryReportHeadersGenerator } from '../../../data-marts/data-storage-types/bigquery/services/bigquery-report-headers-generator.service';
+import { BigQueryReportReader } from '../../../data-marts/data-storage-types/bigquery/services/bigquery-report-reader.service';
+import { DataMartDefinitionType } from '../../../data-marts/enums/data-mart-definition-type.enum';
+import { McpDataMartsFacadeImpl } from '../../../data-marts/facades/mcp-data-marts.facade.impl';
+import { QueryDataMartService } from '../../../data-marts/use-cases/query-data-mart.service';
 import {
   hasUniqueCountFieldCandidate,
   UnsupportedOperatorError,
@@ -9,6 +17,7 @@ import {
 import { BusinessViolationException } from '../../../common/exceptions/business-violation.exception';
 import { ProjectOperationBlockedException } from '../../../common/exceptions/project-operation-blocked.exception';
 import { ProjectBlockedReason } from '../../../data-marts/enums/project-blocked-reason.enum';
+import { StorageCredentialUnavailableException } from '../../../data-marts/exceptions/storage-credential-unavailable.exception';
 import {
   QueryAbortedError,
   QueryTimeoutError,
@@ -1595,6 +1604,22 @@ describe('QueryDataMartTool', () => {
       expect(result.structuredContent).toMatchObject({ error_code: 'insufficient_credits' });
     });
 
+    it('passes the who-can-fix message of an unavailable Storage Credential through', async () => {
+      const message =
+        "This Storage's Credential is disabled. A Credential maintainer can enable it on the Credentials page.";
+      facade.queryDataMart.mockRejectedValue(
+        new StorageCredentialUnavailableException(message, false)
+      );
+
+      const result = await tool.handler({ data_mart_id: 'dm1', fields: ['f1'] }, AUTH_CTX as never);
+
+      expect(result.isError).toBe(true);
+      expect(result.structuredContent).toEqual({
+        error_code: 'storage_credential_unavailable',
+        message,
+      });
+    });
+
     it('routes unknown errors to a sanitized query_failed — never forwards the raw message', async () => {
       facade.queryDataMart.mockRejectedValue(
         new Error('Syntax error near SELECT revenue FROM `secret_project.dataset` at [1:42]')
@@ -1667,6 +1692,85 @@ describe('QueryDataMartTool', () => {
       const err = new UnsupportedAggregationError('BOGUS');
       expect(err instanceof UnsupportedAggregationError).toBe(true);
       expect(err instanceof Error).toBe(true);
+    });
+  });
+});
+
+describe('QueryDataMartTool on the real query path', () => {
+  it('maps an unavailable Storage Credential raised while resolving the key, unwrapped', async () => {
+    const message =
+      "This Storage's Credential lost Google authorization. A Credential maintainer can reconnect it on the Credentials page.";
+    const unavailable = new StorageCredentialUnavailableException(message, true);
+    const credentialsResolver = { resolve: jest.fn().mockRejectedValue(unavailable) };
+    const reader = new BigQueryReportReader(
+      new BigQueryApiAdapterFactory(credentialsResolver as never),
+      {} as never,
+      new BigQueryReportHeadersGenerator(),
+      credentialsResolver as never
+    );
+    const storage = {
+      id: 'storage-1',
+      projectId: 'p1',
+      type: DataStorageType.GOOGLE_BIGQUERY,
+      config: { projectId: 'my-project' },
+    };
+    const dataMart = {
+      id: 'dm1',
+      projectId: 'p1',
+      status: DataMartStatus.PUBLISHED,
+      storage,
+      definitionType: DataMartDefinitionType.SQL,
+      definition: { sqlQuery: 'SELECT 1 AS f1' },
+      schema: {
+        type: 'bigquery-data-mart-schema',
+        fields: [{ name: 'f1', type: 'STRING', mode: 'NULLABLE', status: 'CONNECTED' }],
+      },
+    };
+    const service = new QueryDataMartService(
+      { getByIdAndProjectId: jest.fn().mockResolvedValue(dataMart) } as never,
+      {
+        compose: jest.fn().mockResolvedValue({ sql: 'SELECT 1 AS f1', params: [] }),
+        inlineStaticSql: jest.fn(),
+      } as never,
+      { resolve: jest.fn().mockResolvedValue(reader) } as never,
+      { computeTotals: jest.fn().mockResolvedValue(null) } as never,
+      { resolveForSql: jest.fn(() => new Promise(() => undefined)) } as never,
+      { recordMcpQueryRun: jest.fn() } as never,
+      { canAccess: jest.fn().mockResolvedValue(true) } as never,
+      { verifyCanPerformOperations: jest.fn().mockResolvedValue(undefined) } as never
+    );
+    const facade = new McpDataMartsFacadeImpl(
+      {} as never,
+      {} as never,
+      {} as never,
+      service,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never
+    );
+    const tool = new QueryDataMartTool(
+      facade,
+      { update: jest.fn() } as never,
+      { getPublicOrigin: () => 'https://app.owox.com' } as never
+    );
+
+    await expect(
+      facade.queryDataMart({
+        projectId: 'p1',
+        userId: 'u1',
+        roles: ['admin'],
+        dataMartId: 'dm1',
+        fields: ['f1'],
+        limit: 10,
+      })
+    ).rejects.toBe(unavailable);
+    const result = await tool.handler({ data_mart_id: 'dm1', fields: ['f1'] }, AUTH_CTX as never);
+
+    expect(credentialsResolver.resolve).toHaveBeenCalledWith(storage);
+    expect(result.structuredContent).toEqual({
+      error_code: 'storage_credential_unavailable',
+      message,
     });
   });
 });

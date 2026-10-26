@@ -39,6 +39,7 @@ export class DataMartService {
       relations: [
         'connectorState',
         'storage',
+        // Legacy: remove with LegacyStorageCredentialReader.
         'storage.credential',
         'businessOwners',
         'technicalOwners',
@@ -314,6 +315,7 @@ export class DataMartService {
     }
     return this.dataMartRepository.find({
       where: { id: In(ids), projectId },
+      // Legacy: remove with LegacyStorageCredentialReader.
       relations: ['storage', 'storage.credential'],
       select: {
         id: true,

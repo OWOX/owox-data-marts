@@ -367,11 +367,6 @@ test('checked-in matrix excludes OAuth-flow-only business routes', () => {
     'POST /api/data-destinations/{id}/oauth/authorize',
     'GET /api/data-destinations/{id}/oauth/status',
     'DELETE /api/data-destinations/{id}/oauth',
-    'GET /api/data-storages/oauth/settings',
-    'POST /api/data-storages/oauth/exchange',
-    'POST /api/data-storages/{id}/oauth/authorize',
-    'GET /api/data-storages/{id}/oauth/status',
-    'DELETE /api/data-storages/{id}/oauth',
   ];
   const checkedInEndpoints = new Set(
     parseCoverageMatrix(checkedInMatrix).rows.map(row => row.endpoint)

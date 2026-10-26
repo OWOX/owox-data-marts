@@ -18,6 +18,7 @@ export function mapDataStorageListFromDto(
     availableForUse: dto.availableForUse,
     availableForMaintenance: dto.availableForMaintenance,
     contexts: dto.contexts ?? [],
+    reusableCredential: dto.reusableCredential,
   };
 }
 

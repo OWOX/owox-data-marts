@@ -35,9 +35,6 @@ describe('data-mart-validation', () => {
         projectId: 'project-id',
         location: 'EU',
       },
-      credentials: {
-        serviceAccount: '{}',
-      },
     },
     definitionType: DataMartDefinitionType.SQL,
     definition: { sqlQuery: 'SELECT * FROM table' },
@@ -91,9 +88,6 @@ describe('data-mart-validation', () => {
             projectId: '',
             location: 'EU',
           },
-          credentials: {
-            serviceAccount: '{}',
-          },
         },
       });
       const errors = validateDataMartForPublishing(dataMart);
@@ -111,10 +105,6 @@ describe('data-mart-validation', () => {
           config: {
             region: '',
             outputBucket: '',
-          },
-          credentials: {
-            accessKeyId: 'AKIA...',
-            secretAccessKey: 'SECRET',
           },
         },
       });

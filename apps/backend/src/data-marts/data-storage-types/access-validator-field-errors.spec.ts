@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 import { AthenaAccessValidator } from './athena/services/athena-access.validator';
 import { BigQueryAccessValidator } from './bigquery/services/bigquery-access.validator';
 import { DatabricksAccessValidator } from './databricks/services/databricks-access.validator';
@@ -43,6 +44,15 @@ const cases: [string, DataStorageAccessValidator, Record<string, unknown>][] = [
 const noCredentials = {} as DataStorageCredentials;
 
 describe.each(cases)('%s access validator', (_name, validator, validConfig) => {
+  // The validators log each schema failure with its ZodError.
+  beforeEach(() => {
+    for (const level of ['log', 'warn'] as const) {
+      jest.spyOn(Logger.prototype, level).mockImplementation(() => undefined);
+    }
+  });
+
+  afterEach(() => jest.restoreAllMocks());
+
   it('names each rejected config value under config.*', async () => {
     const result = await validator.validate({} as DataStorageConfig, noCredentials);
 

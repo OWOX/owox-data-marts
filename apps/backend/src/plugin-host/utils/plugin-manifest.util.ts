@@ -1,6 +1,7 @@
 import { castError } from '@owox/internal-helpers';
 import { z } from 'zod';
 import { BUILTIN_CREDENTIAL_DEFINITION_IDS } from '../../data-marts/credentials/services/builtin-credential-definitions';
+import { CredentialExternalDefinitionRegistryService } from '../../data-marts/credentials/services/credential-external-definition-registry.service';
 import { PLUGIN_ACTION_LIMITS } from '../constants/plugin-action-limits';
 import { ReleaseRejectionCode } from '../enums/release-rejection-code.enum';
 import { assertBoundedSchema } from './action-input-schema.util';
@@ -182,6 +183,14 @@ export const PluginManifestSchema = z
           code: z.ZodIssueCode.custom,
           path: ['credentials', index],
           message: `duplicate credential requirement "${key}"`,
+        });
+      }
+      if (!CredentialExternalDefinitionRegistryService.isPluginRequestable(key)) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path:
+            typeof requirement === 'string' ? ['credentials', index] : ['credentials', index, 'id'],
+          message: `Credential definition "${key}" cannot be required by a plugin`,
         });
       }
       credentialKeys.add(key);

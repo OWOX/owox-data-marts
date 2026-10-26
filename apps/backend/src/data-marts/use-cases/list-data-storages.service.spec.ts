@@ -55,16 +55,20 @@ describe('ListDataStoragesService', () => {
     const contextAccessService = {
       getRoleScope: jest.fn().mockResolvedValue(RoleScope.ENTIRE_PROJECT),
     };
+    const credentialsResolver = {
+      summarize: jest.fn().mockResolvedValue(new Map()),
+    };
 
     const service = new ListDataStoragesService(
       dataStorageRepo as never,
       dataMartRepo as never,
       mapper as never,
       userProjectionsFetcherService as never,
-      contextAccessService as never
+      contextAccessService as never,
+      credentialsResolver as never
     );
 
-    return { service, qb };
+    return { service, qb, mapper, credentialsResolver };
   };
 
   it('should add access filter for non-admin user', async () => {
@@ -93,5 +97,25 @@ describe('ListDataStoragesService', () => {
         typeof sql === 'string' && sql.includes('storage_owners') && sql.includes('availableForUse')
     );
     expect(hasAccessFilter).toBe(false);
+  });
+
+  it('maps each Storage with the Credential summary the member sees', async () => {
+    const storages = [
+      { id: 'bound', ownerIds: [], createdById: null },
+      { id: 'unbound', ownerIds: [], createdById: null },
+    ];
+    const { service, mapper, credentialsResolver } = createService(storages);
+    const summary = { access: 'restricted', state: 'ready' };
+    credentialsResolver.summarize.mockResolvedValue(new Map([['bound', summary]]));
+
+    await service.run(new ListDataStoragesCommand('proj-1', 'user-1', ['editor']));
+
+    expect(credentialsResolver.summarize).toHaveBeenCalledWith(
+      'proj-1',
+      'user-1',
+      ['editor'],
+      storages
+    );
+    expect(mapper.toDomainDto.mock.calls.map(call => call[6])).toEqual([summary, null]);
   });
 });

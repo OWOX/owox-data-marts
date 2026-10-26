@@ -1,4 +1,5 @@
 import type { AxiosRequestConfig } from '../../../../app/api';
+import { onCredentialSaved } from '../../../credentials/useCredentials';
 import {
   dataStorageApiService,
   type DataStorageValidationCode,
@@ -23,7 +24,7 @@ const OAUTH_REAUTH_REQUIRED_CODE: DataStorageValidationCode = 'OAUTH_REAUTH_REQU
 
 export const UNCONFIGURED_STATUS_LABEL = 'Complete setup to activate Storage';
 export const OAUTH_REAUTH_REQUIRED_STATUS_LABEL =
-  'Google authorization could not be refreshed. Reconnect this Storage to restore access.';
+  'Google authorization could not be refreshed. Reconnect the Credential on the Credentials page to restore access.';
 
 export interface CachedDataStorageHealthStatus {
   status: DataStorageHealthStatus;
@@ -167,3 +168,10 @@ export function fetchAndCacheDataStorageHealthStatus(storageId: string): void {
 
   processQueue();
 }
+
+// A changed Credential changes the health of the Storages that use it.
+onCredentialSaved(saved => {
+  saved.usedBy.forEach(consumer => {
+    if (consumer.consumerType === 'storage') invalidateDataStorageHealthStatus(consumer.consumerId);
+  });
+});

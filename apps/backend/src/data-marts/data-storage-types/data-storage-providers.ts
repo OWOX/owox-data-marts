@@ -62,7 +62,6 @@ import { RedshiftSourceDataLastUpdatedResolver } from './redshift/services/redsh
 import { AthenaSourceDataLastUpdatedResolver } from './athena/services/athena-source-data-last-updated.resolver';
 import { SnowflakeSourceDataLastUpdatedResolver } from './snowflake/services/snowflake-source-data-last-updated.resolver';
 import { DatabricksSourceDataLastUpdatedResolver } from './databricks/services/databricks-source-data-last-updated.resolver';
-import { DataStorageCredentialsUtils } from './data-mart-schema.utils';
 import { DatabricksApiAdapterFactory } from './databricks/adapters/databricks-api-adapter.factory';
 import { DatabricksAccessValidator } from './databricks/services/databricks-access.validator';
 import { DatabricksCreateViewExecutor } from './databricks/services/databricks-create-view.executor';
@@ -80,7 +79,6 @@ import { DatabricksClauseRenderer } from './databricks/services/databricks-claus
 import { DatabricksSqlRunExecutor } from './databricks/services/databricks-sql-run.executor';
 import { DatabricksStorageErrorMapper } from './databricks/services/databricks-storage-error.mapper';
 import { DataStorageType } from './enums/data-storage-type.enum';
-import { DataStoragePublicCredentialsFactory } from './factories/data-storage-public-credentials.factory';
 import { BlendedQueryBuilder } from './interfaces/blended-query-builder.interface';
 import { CreateViewExecutor } from './interfaces/create-view-executor.interface';
 import { IStorageResourceBrowserProvider } from './interfaces/storage-resource-browser.interface';
@@ -274,10 +272,6 @@ const sourceDataLastUpdatedProviders = [
   SnowflakeSourceDataLastUpdatedResolver,
   DatabricksSourceDataLastUpdatedResolver,
 ];
-const publicCredentialsProviders = [
-  DataStoragePublicCredentialsFactory,
-  DataStorageCredentialsUtils,
-];
 const legacyBigQueryProviders = [LegacyBigQuerySqlPreprocessor];
 const storageResourceBrowserProviders = [BigQueryStorageResourceBrowser];
 const blendedQueryBuilderProviders = [
@@ -309,7 +303,6 @@ export const dataStorageResolverProviders = [
   ...sqlRunExecutorProviders,
   ...createViewExecutorProviders,
   ...identifierEscaperProviders,
-  ...publicCredentialsProviders,
   ...legacyBigQueryProviders,
   ...blendedQueryBuilderProviders,
   ...storageResourceBrowserProviders,

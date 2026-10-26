@@ -127,6 +127,35 @@ function FormItem({ className = '', variant = 'default', ...props }: FormItemPro
 }
 
 /**
+ * The help icon of a label or section: shown while its group is hovered, with the tooltip on hover.
+ */
+function FormHelpTooltip({
+  tooltip,
+  ...props
+}: Omit<React.ComponentProps<typeof Tooltip>, 'children'> & { tooltip: React.ReactNode }) {
+  return (
+    <Tooltip {...props}>
+      <TooltipTrigger asChild>
+        <button
+          type='button'
+          tabIndex={-1}
+          className='pointer-events-none opacity-0 transition group-hover:pointer-events-auto group-hover:opacity-100'
+          aria-label='Help information'
+        >
+          <Info
+            className='text-muted-foreground/50 hover:text-muted-foreground size-4 shrink-0 transition-colors'
+            aria-hidden='true'
+          />
+        </button>
+      </TooltipTrigger>
+      <TooltipContent side='top' align='center' role='tooltip'>
+        {tooltip}
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
+/**
  * FormLabel with optional tooltip and custom styles.
  */
 interface FormLabelProps extends React.ComponentProps<typeof LabelPrimitive.Root> {
@@ -150,26 +179,7 @@ function FormLabel({ className = '', tooltip, tooltipProps, children, ...props }
       {...props}
     >
       <span>{children}</span>
-      {tooltip && (
-        <Tooltip {...tooltipProps}>
-          <TooltipTrigger asChild>
-            <button
-              type='button'
-              tabIndex={-1}
-              className='pointer-events-none opacity-0 transition group-hover:pointer-events-auto group-hover:opacity-100'
-              aria-label='Help information'
-            >
-              <Info
-                className='text-muted-foreground/50 hover:text-muted-foreground size-4 shrink-0 transition-colors'
-                aria-hidden='true'
-              />
-            </button>
-          </TooltipTrigger>
-          <TooltipContent side='top' align='center' role='tooltip'>
-            {tooltip}
-          </TooltipContent>
-        </Tooltip>
-      )}
+      {tooltip && <FormHelpTooltip tooltip={tooltip} {...tooltipProps} />}
     </Label>
   );
 }
@@ -307,29 +317,6 @@ interface FormSectionProps {
 
 const SECTION_STORAGE_PREFIX = 'form-section-';
 
-function FormSectionTooltip({ tooltip }: { tooltip: React.ReactNode | string }) {
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <button
-          type='button'
-          tabIndex={-1}
-          className='pointer-events-none opacity-0 transition group-hover:pointer-events-auto group-hover:opacity-100'
-          aria-label='Help information'
-        >
-          <Info
-            className='text-muted-foreground/50 hover:text-muted-foreground size-4 shrink-0 transition-colors'
-            aria-hidden='true'
-          />
-        </button>
-      </TooltipTrigger>
-      <TooltipContent side='top' align='center' role='tooltip'>
-        {tooltip}
-      </TooltipContent>
-    </Tooltip>
-  );
-}
-
 /**
  * Subscribes to the validation state of the given fields and reports it to
  * the enclosing FormSection. Rendered as a separate component so FormSection
@@ -447,7 +434,7 @@ function FormSection({
             {(actions || tooltip) && (
               <div className='flex items-center gap-1'>
                 {actions}
-                {tooltip && <FormSectionTooltip tooltip={tooltip} />}
+                {tooltip && <FormHelpTooltip tooltip={tooltip} />}
               </div>
             )}
           </div>
@@ -500,7 +487,7 @@ function FormSection({
           {(actions || tooltip) && (
             <div className='flex items-center gap-1'>
               {actions}
-              {tooltip && <FormSectionTooltip tooltip={tooltip} />}
+              {tooltip && <FormHelpTooltip tooltip={tooltip} />}
             </div>
           )}
         </div>
@@ -728,6 +715,7 @@ export {
   Form,
   FormItem,
   FormLabel,
+  FormHelpTooltip,
   FormControl,
   FormDescription,
   FormMessage,

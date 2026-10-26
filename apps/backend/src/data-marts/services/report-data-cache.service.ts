@@ -252,6 +252,7 @@ export class ReportDataCacheService {
     'report',
     'report.dataMart',
     'report.dataMart.storage',
+    // Legacy: remove with LegacyStorageCredentialReader.
     'report.dataMart.storage.credential',
   ];
 
