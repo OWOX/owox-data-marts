@@ -8,7 +8,6 @@ import { extractApiError } from '../../../app/api';
 import { ConnectorContextProvider } from '../../../features/connectors/shared/model/context';
 import { useConnector } from '../../../features/connectors/shared/model/hooks/useConnector';
 import type { ConnectorListItem } from '../../../features/connectors/shared/model/types/connector';
-import { DataMartContext } from '../../../features/data-marts/edit/model/context/context';
 import { ScheduledTriggerType } from '../../../features/data-marts/scheduled-triggers/enums';
 import { ScheduleDisplay } from '../../../features/data-marts/scheduled-triggers/components/ScheduleDisplay/ScheduleDisplay';
 import { ScheduledTriggerActionsCell } from '../../../features/data-marts/scheduled-triggers/components/ScheduledTriggerTable/ScheduledTriggerActionsCell';
@@ -41,7 +40,6 @@ import {
   buildProjectTableUserLabelMapper,
   matchesProjectTableSearch,
 } from '../shared/ProjectDataMartTableFilters.utils';
-import { buildProjectDataMartContextValue } from '../shared/projectDataMartContext';
 import { ProjectDataMartEmptyState } from '../shared/ProjectDataMartEmptyState';
 import { ProjectDataMartTitleLink } from '../shared/ProjectDataMartTitleLink';
 import { ProjectScheduledTriggerEditSheet } from './ProjectScheduledTriggerEditSheet';
@@ -276,11 +274,7 @@ function DataMartSchedulesPageContent() {
             {ScheduledTriggerColumnLabels[ScheduledTriggerColumnKey.TRIGGER_CONFIG]}
           </SortableHeader>
         ),
-        cell: ({ row }) => (
-          <DataMartContext.Provider value={buildProjectDataMartContextValue(row.original.dataMart)}>
-            <ScheduledTriggerRunTarget trigger={row.original} />
-          </DataMartContext.Provider>
-        ),
+        cell: ({ row }) => <ScheduledTriggerRunTarget trigger={row.original} />,
       },
       {
         accessorKey: ScheduledTriggerColumnKey.CRON_EXPRESSION,

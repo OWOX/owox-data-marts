@@ -1,4 +1,4 @@
-import { useMemo, useCallback, useState } from 'react';
+import { useMemo, useCallback, useContext, useState } from 'react';
 import React from 'react';
 import {
   HoverCardHeader,
@@ -14,7 +14,7 @@ import {
 } from '@owox/ui/components/hover-card';
 import { type ConnectorConfig } from '../../../../data-marts/edit';
 import { useConnector } from '../../model/hooks/useConnector.ts';
-import { useDataMartContext } from '../../../../data-marts/edit/model';
+import { DataMartContext, useDataMartContext } from '../../../../data-marts/edit/model';
 import { RawBase64Icon } from '../../../../../shared';
 import { DetailsPopover } from '../../../../../shared/components/DetailsPopover';
 import { Button } from '@owox/ui/components/button';
@@ -47,6 +47,9 @@ export const ConnectorHoverCard = React.memo(
 
     // Controlled so the context-dependent content only renders while the card is open
     const [isOpen, setIsOpen] = useState(false);
+    // Run stats and the storage button need a loaded Data Mart; the project-wide Triggers page has
+    // only the trigger's Data Mart id and title, so it shows the connector header alone
+    const hasDataMart = useContext(DataMartContext) !== undefined;
 
     const connectorIcon = useMemo(() => {
       if (connectorInfo?.logoBase64) {
@@ -175,7 +178,7 @@ export const ConnectorHoverCard = React.memo(
             <HoverCardHeaderDescription>{descriptionText}</HoverCardHeaderDescription>
           </HoverCardHeaderText>
         </HoverCardHeader>
-        {isOpen && <HoverCardContentInner />}
+        {isOpen && hasDataMart && <HoverCardContentInner />}
       </DetailsPopover>
     );
   },

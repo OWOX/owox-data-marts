@@ -366,6 +366,21 @@ describe('DataMartSchedulesPage', () => {
     expect(await screen.findByText('Facebook Marketing')).toBeInTheDocument();
   });
 
+  it('opens connector details without run stats or a storage button it cannot fill', async () => {
+    vi.mocked(scheduledTriggerService.getProjectScheduledTriggers).mockResolvedValueOnce({
+      triggers: [buildProjectConnectorTrigger()],
+    });
+
+    renderPage();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Connector details' }));
+
+    expect(await screen.findByRole('dialog')).toHaveTextContent('Facebook Marketing');
+    expect(screen.queryByText('No runs')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Open Storage' })).not.toBeInTheDocument();
+    expect(screen.queryByTestId('projectTriggerEditSheet')).not.toBeInTheDocument();
+  });
+
   it('renders and searches project-wide Data Quality schedules', async () => {
     vi.mocked(scheduledTriggerService.getProjectScheduledTriggers).mockResolvedValueOnce({
       triggers: [buildProjectDataQualityTrigger()],

@@ -37,6 +37,7 @@ export function DetailsPopover({
 }: DetailsPopoverProps) {
   const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
   const isOpen = open ?? uncontrolledOpen;
+  const [isTooltipOpen, setIsTooltipOpen] = useState(false);
 
   const handleOpenChange = (nextOpen: boolean) => {
     if (open === undefined) setUncontrolledOpen(nextOpen);
@@ -46,7 +47,7 @@ export function DetailsPopover({
   return (
     <Popover open={isOpen} onOpenChange={handleOpenChange}>
       <TooltipProvider>
-        <Tooltip open={isOpen ? false : undefined}>
+        <Tooltip open={isTooltipOpen && !isOpen} onOpenChange={setIsTooltipOpen}>
           <TooltipTrigger asChild>
             <PopoverTrigger asChild>
               <button
