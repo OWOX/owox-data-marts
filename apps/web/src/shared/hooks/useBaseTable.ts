@@ -13,6 +13,7 @@ import {
   getFilteredRowModel,
 } from '@tanstack/react-table';
 import { useTableStorage } from '../../hooks/useTableStorage';
+import { useSessionColumnFilters } from './useSessionColumnFilters';
 
 /**
  * Configuration options for useBaseTable hook
@@ -38,6 +39,8 @@ export interface UseBaseTableConfig<TData> {
   getRowId?: TableOptions<TData>['getRowId'];
   /** Stay on the current page when the data changes, such as on a poll (defaults to TanStack's reset to page 1) */
   keepPageOnDataChange?: boolean;
+  /** sessionStorage key that keeps column filters (the toolbar search) when the user leaves the page and comes back */
+  columnFiltersSessionKey?: string;
 }
 
 /**
@@ -84,6 +87,7 @@ export function useBaseTable<TData>({
   enableRowSelection = false,
   getRowId,
   keepPageOnDataChange = false,
+  columnFiltersSessionKey,
 }: UseBaseTableConfig<TData>): UseBaseTableReturn<TData> {
   // Initialize table storage (sorting, visibility, pagination, sizing)
   const {
@@ -104,8 +108,8 @@ export function useBaseTable<TData>({
     defaultPageSize,
   });
 
-  // Local state for column filters and row selection
-  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
+  // Column filters (kept for the browser tab when a session key is given) and row selection
+  const [columnFilters, setColumnFilters] = useSessionColumnFilters(columnFiltersSessionKey);
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
   const [pageIndex, setPageIndex] = useState(0);
 

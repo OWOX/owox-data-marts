@@ -37,6 +37,12 @@ Each Data Mart links to exactly one Storage. One Data Mart can feed many Destina
 2. Create a Data Mart of the type that fits your data. Start with the [Connector Data Mart guide](../getting-started/setup-guide/connector-data-mart.md).
 3. Publish it and add a [Report](../reports/) to deliver the output.
 
+## Find a Data Mart in the list
+
+Type part of a title in **Search** above the Data Marts list to narrow it. The search stays when you open a Data Mart and come back in the same browser tab, through the back arrow, the browser's Back button or the sidebar, so you can check several matches without typing it again. A new tab opens the full list. Click **×** in the search field to clear it.
+
+To narrow the list by status, input source, owners, contexts or relationships, use **Filters** next to the search. Filters stay for the project until you clear them.
+
 ## Learn more
 
 | Need | Read |

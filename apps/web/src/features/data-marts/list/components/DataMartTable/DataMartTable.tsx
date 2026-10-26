@@ -123,6 +123,8 @@ export function DataMartTable<TData, TValue>({
     data: filteredData,
     columns: columnsWithSelection,
     storageKeyPrefix: 'data-mart-list',
+    // Keep the search when the user opens a Data Mart and comes back to the list
+    columnFiltersSessionKey: `data-mart-list-column-filters:${projectId}`,
     defaultColumnVisibility: {
       triggersCount: false,
       reportsCount: false,
