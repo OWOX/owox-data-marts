@@ -47,7 +47,7 @@
     "@owox/eslint-config": "*",
     "@owox/prettier-config": "*",
     "@owox/typescript-config": "*",
-    "happy-dom": "^20.0.0",
+    "happy-dom": "^21.0.4",
     "vitest": "^4.1.10"
   },
   "files": [
