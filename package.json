@@ -101,7 +101,8 @@
     "thrift": "^0.23.0",
     "uuid": "^11.1.1",
     "esbuild": "^0.28.1",
-    "multer": "^2.4.0",
+    "multer": "^2.5.0",
+    "@azure/msal-node": "^7.1.1",
     "basic-ftp": "^6.2.2",
     "read-yaml-file": "^2.1.0",
     "@istanbuljs/load-nyc-config": {
