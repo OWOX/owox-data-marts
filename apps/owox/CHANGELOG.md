@@ -2,7 +2,7 @@
 
 ## 0.40.0
 
-### Minor Changes
+### Minor Changes 0.40.0
 
 - 9dc6e5f: **Warnings when a Count reads a joined Data Mart**
 
@@ -180,7 +180,7 @@
 
   See [Run code on your backend with actions](../../docs/plugins/authoring-guide.md#run-code-on-your-backend-with-actions).
 
-### Patch Changes
+### Patch Changes 0.40.0
 
 - @owox/internal-helpers@0.40.0
 - @owox/idp-protocol@0.40.0
