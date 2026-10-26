@@ -92,7 +92,7 @@ export function GetDataMartMemberAccessSpec() {
     ApiOperation({
       summary: 'List what each project member can do with a DataMart, and why',
       description:
-        "Returns every project member with three access levels to this DataMart — use (see it in the catalog and through MCP, build reports), maintain (edit, delete, manage triggers) and manage access (sharing, owners) — and the rule that decides each: role, ownership, sharing, or the member's contexts. MCP additionally lists only published DataMarts.",
+        "Returns every project member with their place in this DataMart's Ownership and whether they may take each group of actions on it — See and Use; Edit, Delete and Manage Triggers; Configure Sharing and Manage Owners — with the rule that decides each: role, ownership, sharing, or the member's contexts. MCP additionally lists only published DataMarts.",
     }),
     ApiParam({ name: 'id', description: 'DataMart ID' }),
     ApiOkResponse({ type: DataMartMemberAccessResponseApiDto })

@@ -1,18 +1,12 @@
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from '@owox/ui/components/accordion';
+import { Badge } from '@owox/ui/components/badge';
 import { Button } from '@owox/ui/components/button';
 import { Skeleton } from '@owox/ui/components/skeleton';
 import { cn } from '@owox/ui/lib/utils';
-import { CircleCheck, Info, Minus } from 'lucide-react';
+import { Info } from 'lucide-react';
 import { getRoleDisplayName } from '../../../../idp/utils/role-display-name';
 import { UserReference } from '../../../../../shared/components/UserReference/UserReference';
 import type { DataMartMemberAccessItemDto } from '../../../shared/types/api/response/data-mart-member-access.response.dto';
 import {
-  ACCESS_LEVELS,
   explainMemberAccess,
   formatMemberCount,
   sortMembersForAccess,
@@ -28,7 +22,8 @@ interface DataMartMemberAccessListProps {
   isDraft: boolean;
 }
 
-const GRID = 'grid grid-cols-[minmax(0,1fr)_repeat(3,7rem)] items-start gap-x-2';
+const GRID =
+  'grid grid-cols-[minmax(10rem,1fr)_7rem_minmax(11rem,1fr)_minmax(0,1.8fr)] items-start gap-x-4';
 
 export function DataMartMemberAccessList({
   members,
@@ -61,17 +56,19 @@ export function DataMartMemberAccessList({
     ) : null;
   }
 
-  const counts = ACCESS_LEVELS.map(level => members.filter(m => m[level.key].granted).length);
+  const canSee = members.filter(m => m.see.granted).length;
+  const canEdit = members.filter(m => m.edit.granted).length;
+  const canConfigureSharing = members.filter(m => m.configureSharing.granted).length;
 
   return (
     <div className='flex flex-col gap-3' data-testid='dataMartMemberAccess'>
       <div className='flex flex-col gap-1'>
         <p className='text-foreground text-sm font-medium'>
-          {formatMemberCount(members.length)}: {counts[0]} can use, {counts[1]} can maintain,{' '}
-          {counts[2]} can manage access
+          {formatMemberCount(members.length)}: {canSee} can see it, {canEdit} can edit it,{' '}
+          {canConfigureSharing} can change Sharing and Ownership
         </p>
         <p className='text-muted-foreground text-xs'>
-          Change Sharing, Contexts or Ownership above, or a member&apos;s role and contexts in
+          Change Ownership, Sharing or Contexts above, or a member&apos;s role and contexts in
           Project settings → Members.
         </p>
         {isDraft && (
@@ -89,15 +86,14 @@ export function DataMartMemberAccessList({
       >
         <div role='row' className={cn(GRID, 'text-muted-foreground py-2 text-xs')}>
           <span role='columnheader'>Member</span>
-          {ACCESS_LEVELS.map(level => (
-            <span key={level.key} role='columnheader' className='text-center'>
-              {level.label}
-            </span>
-          ))}
+          <span role='columnheader'>Role</span>
+          <span role='columnheader'>Access through</span>
+          <span role='columnheader'>Can do</span>
         </div>
         <div className='divide-border divide-y border-t'>
           {sortMembersForAccess(members).map(member => {
-            const { summary, next } = explainMemberAccess(member, dataMart);
+            const { accessThrough, canDo, next } = explainMemberAccess(member, dataMart);
+            const hasAccess = member.see.granted;
             return (
               <div
                 key={member.userId}
@@ -105,72 +101,39 @@ export function DataMartMemberAccessList({
                 className={cn(GRID, 'py-3')}
                 data-testid='dataMartMemberAccessRow'
               >
-                <div role='cell' className='flex min-w-0 flex-col gap-1'>
-                  <div className='flex min-w-0 items-center gap-2'>
-                    <UserReference
-                      userProjection={{
-                        userId: member.userId,
-                        fullName: member.displayName ?? null,
-                        email: member.email,
-                        avatar: member.avatarUrl ?? null,
-                      }}
-                    />
-                    <span className='text-muted-foreground shrink-0 text-xs'>
-                      {getRoleDisplayName(member.role)}
-                    </span>
-                  </div>
-                  <p className='text-foreground text-sm'>{summary}</p>
-                  {next && (
-                    <p className='text-muted-foreground text-xs'>
-                      To {next.verb}: {next.hint}
-                    </p>
-                  )}
+                <div role='cell' className='min-w-0'>
+                  <UserReference
+                    userProjection={{
+                      userId: member.userId,
+                      fullName: member.displayName ?? null,
+                      email: member.email,
+                      avatar: member.avatarUrl ?? null,
+                    }}
+                  />
                 </div>
-                {ACCESS_LEVELS.map(level => {
-                  const granted = member[level.key].granted;
-                  const label = `${granted ? 'Can' : "Can't"} ${level.verb}`;
-                  return (
-                    <div
-                      key={level.key}
-                      role='cell'
-                      className='flex justify-center pt-1'
-                      aria-label={label}
-                      title={label}
+                <div role='cell' className='text-muted-foreground pt-1 text-sm'>
+                  {getRoleDisplayName(member.role)}
+                </div>
+                <div role='cell' className='flex flex-wrap gap-1 pt-0.5'>
+                  {accessThrough.map(source => (
+                    <Badge
+                      key={source}
+                      variant={hasAccess ? 'secondary' : 'outline'}
+                      className={cn(!hasAccess && 'text-muted-foreground')}
                     >
-                      {granted ? (
-                        <CircleCheck
-                          className='size-4 text-green-500 dark:text-green-400'
-                          aria-hidden='true'
-                        />
-                      ) : (
-                        <Minus className='text-muted-foreground/60 size-4' aria-hidden='true' />
-                      )}
-                    </div>
-                  );
-                })}
+                      {source}
+                    </Badge>
+                  ))}
+                </div>
+                <div role='cell' className='flex min-w-0 flex-col gap-1 pt-0.5'>
+                  <p className='text-foreground text-sm'>{canDo}</p>
+                  {next && <p className='text-muted-foreground text-xs'>{next}</p>}
+                </div>
               </div>
             );
           })}
         </div>
       </div>
-
-      <Accordion variant='common' type='single' collapsible>
-        <AccordionItem value='member-access-help'>
-          <AccordionTrigger>What does each level allow?</AccordionTrigger>
-          <AccordionContent>
-            <p>
-              <strong>Use</strong> — see the Data Mart in the catalog and through MCP, and build
-              reports on it.
-            </p>
-            <p>
-              <strong>Maintain</strong> — edit and delete the Data Mart, and manage its triggers.
-            </p>
-            <p>
-              <strong>Manage access</strong> — change its Sharing and owners.
-            </p>
-          </AccordionContent>
-        </AccordionItem>
-      </Accordion>
     </div>
   );
 }

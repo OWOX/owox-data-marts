@@ -43,7 +43,7 @@ import type { ContextSummary } from '../../../features/contexts/types/context.ty
 import {
   DataMartMemberAccessList,
   MemberAccessWarning,
-  countMembersWhoCannotUse,
+  countMembersWhoCannotSee,
   useDataMartMemberAccess,
 } from '../../../features/data-marts/edit/components/DataMartMemberAccess';
 import type { DataMartStatusInfo } from '../../../features/data-marts/shared/types/data-mart-status.model';
@@ -403,7 +403,7 @@ export default function DataMartOverviewContent() {
               </div>
             </div>
             <MemberAccessWarning
-              count={countMembersWhoCannotUse(memberAccess.members, 'NOT_SHARED')}
+              count={countMembersWhoCannotSee(memberAccess.members, 'NOT_SHARED')}
               testId='dataMartSharingAccessWarning'
             >
               It isn&apos;t shared with them. Turn on Shared for reporting, or add them as owners.
@@ -434,7 +434,7 @@ export default function DataMartOverviewContent() {
             </div>
             {(dataMart.contexts ?? []).length === 0 && (
               <MemberAccessWarning
-                count={countMembersWhoCannotUse(memberAccess.members, 'DATA_MART_HAS_NO_CONTEXT')}
+                count={countMembersWhoCannotSee(memberAccess.members, 'DATA_MART_HAS_NO_CONTEXT')}
                 testId='dataMartContextsAccessWarning'
               >
                 They see only Data Marts in their contexts, and this one has none. Add a context to

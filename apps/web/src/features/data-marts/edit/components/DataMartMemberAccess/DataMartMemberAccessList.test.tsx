@@ -17,9 +17,10 @@ function member(overrides: Partial<DataMartMemberAccessItemDto>): DataMartMember
     role: 'viewer',
     roleScope: 'selected_contexts',
     contexts: [],
-    use: yes('PROJECT_WIDE_ACCESS'),
-    maintain: no('ROLE_REQUIRED'),
-    manageAccess: no('ROLE_REQUIRED'),
+    ownership: null,
+    see: yes('PROJECT_WIDE_ACCESS'),
+    edit: no('ROLE_REQUIRED'),
+    configureSharing: no('ROLE_REQUIRED'),
     ...overrides,
   };
 }
@@ -29,23 +30,23 @@ const members = [
     userId: 'admin',
     displayName: 'Ada',
     role: 'admin',
-    use: yes('PROJECT_ADMIN'),
-    maintain: yes('PROJECT_ADMIN'),
-    manageAccess: yes('PROJECT_ADMIN'),
+    see: yes('PROJECT_ADMIN'),
+    edit: yes('PROJECT_ADMIN'),
+    configureSharing: yes('PROJECT_ADMIN'),
   }),
   member({
     userId: 'ben',
     displayName: 'Ben',
     contexts: [{ id: 'ctx-paid', name: 'Paid ads' }],
-    use: no('NO_SHARED_CONTEXT'),
+    see: no('NO_SHARED_CONTEXT'),
   }),
   member({
     userId: 'tom',
     displayName: 'Tom',
     role: 'editor',
     roleScope: 'entire_project',
-    maintain: yes('PROJECT_WIDE_ACCESS'),
-    manageAccess: no('OWNER_REQUIRED'),
+    edit: yes('PROJECT_WIDE_ACCESS'),
+    configureSharing: no('OWNER_REQUIRED'),
   }),
 ];
 
@@ -58,39 +59,40 @@ const baseProps = {
 };
 
 describe('DataMartMemberAccessList', () => {
-  it('shows each member’s levels, how they get them and what to change next, least access first', () => {
+  it('shows each member’s role, where their access comes from and what they can do, least access first', () => {
     render(<DataMartMemberAccessList {...baseProps} members={members} />);
 
     expect(
-      screen.getByText('3 members: 2 can use, 2 can maintain, 1 can manage access')
+      screen.getByText('3 members: 2 can see it, 2 can edit it, 1 can change Sharing and Ownership')
     ).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Access through' })).toBeInTheDocument();
 
     const rows = screen.getAllByTestId('dataMartMemberAccessRow');
     expect(rows).toHaveLength(3);
 
     expect(within(rows[0]).getByText('Ben')).toBeInTheDocument();
-    expect(within(rows[0]).getByLabelText("Can't use")).toBeInTheDocument();
-    expect(within(rows[0]).getByLabelText("Can't maintain")).toBeInTheDocument();
+    expect(within(rows[0]).getByText('Business User')).toBeInTheDocument();
+    expect(within(rows[0]).getByText('No access')).toBeInTheDocument();
     expect(
       within(rows[0]).getByText(
         'Sees only their contexts (Paid ads), and none of them is on this Data Mart'
       )
     ).toBeInTheDocument();
     expect(
-      within(rows[0]).getByText(
-        'To use: Add one of them to this Data Mart, or assign the member to SEO'
-      )
+      within(rows[0]).getByText('To see it: add Paid ads in Contexts, or assign the member to SEO')
     ).toBeInTheDocument();
 
     expect(within(rows[1]).getByText('Tom')).toBeInTheDocument();
-    expect(within(rows[1]).getByLabelText('Can maintain')).toBeInTheDocument();
-    expect(within(rows[1]).getByLabelText("Can't manage access")).toBeInTheDocument();
+    expect(within(rows[1]).getByText('Data Owner')).toBeInTheDocument();
+    expect(within(rows[1]).getByText('Shared for maintenance')).toBeInTheDocument();
     expect(
-      within(rows[1]).getByText('To manage access: Add them as Data Owner in Ownership')
+      within(rows[1]).getByText(
+        "To change Sharing and Ownership: add them as this Data Mart's Data Owner in Ownership"
+      )
     ).toBeInTheDocument();
 
-    expect(within(rows[2]).getByText('Project Admins have full access')).toBeInTheDocument();
-    expect(within(rows[2]).getByLabelText('Can manage access')).toBeInTheDocument();
+    expect(within(rows[2]).getAllByText('Project Admin')).toHaveLength(2);
+    expect(within(rows[2]).getByText('Full access')).toBeInTheDocument();
   });
 
   it('notes that MCP lists only published Data Marts when this one is a draft', () => {

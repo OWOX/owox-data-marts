@@ -3,6 +3,7 @@ import { IdpProjectionsFacade } from '../../idp/facades/idp-projections.facade';
 import {
   DataMartAccessLevelDto,
   DataMartMemberAccessDto,
+  DataMartMemberOwnership,
   MemberContextDto,
 } from '../dto/domain/data-mart-member-access.dto';
 import { GetDataMartMemberAccessCommand } from '../dto/domain/get-data-mart-member-access.command';
@@ -19,9 +20,14 @@ import { DataMartService } from '../services/data-mart.service';
 /**
  * Lists what every project member can do with a Data Mart, and why — the answer an admin otherwise
  * assembles from the member's role and contexts, the Data Mart's owners, sharing and contexts.
- * Each level is the decision the product enforces for its actions: use (see it in the catalog and
- * through MCP, build reports), maintain (edit, delete, triggers), manage access (sharing, owners).
+ * Each action group is the decision the product enforces for those actions: See and Use; Edit,
+ * Delete and Manage Triggers; Configure Sharing and Manage Owners.
  */
+const OWNERSHIP_BY_STATUS: Partial<Record<OwnerStatus, DataMartMemberOwnership>> = {
+  [OwnerStatus.TECH_OWNER]: DataMartMemberOwnership.DATA_OWNER,
+  [OwnerStatus.BIZ_OWNER]: DataMartMemberOwnership.BUSINESS_OWNER,
+};
+
 @Injectable()
 export class GetDataMartMemberAccessService {
   constructor(
@@ -76,7 +82,7 @@ export class GetDataMartMemberAccessService {
         memberContextIds,
         dataMartContextIds,
       };
-      // One representative action per level; the actions of a level are granted together.
+      // One representative action per group; the actions of a group are granted together.
       const level = (action: Action) => {
         const { granted, reason } = this.accessDecisionService.explainDataMartAccess(facts, action);
         return new DataMartAccessLevelDto(granted, reason);
@@ -94,6 +100,7 @@ export class GetDataMartMemberAccessService {
             const name = contextNames.get(id);
             return name === undefined ? [] : [new MemberContextDto(id, name)];
           }),
+          OWNERSHIP_BY_STATUS[ownerStatus] ?? null,
           level(Action.SEE),
           level(Action.EDIT),
           level(Action.CONFIGURE_SHARING)

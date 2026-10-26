@@ -339,9 +339,13 @@ export class DataMartMapper {
         role: member.role,
         roleScope: member.roleScope,
         contexts: member.contexts.map(context => ({ id: context.id, name: context.name })),
-        use: { granted: member.use.granted, reason: member.use.reason },
-        maintain: { granted: member.maintain.granted, reason: member.maintain.reason },
-        manageAccess: { granted: member.manageAccess.granted, reason: member.manageAccess.reason },
+        ownership: member.ownership,
+        see: { granted: member.see.granted, reason: member.see.reason },
+        edit: { granted: member.edit.granted, reason: member.edit.reason },
+        configureSharing: {
+          granted: member.configureSharing.granted,
+          reason: member.configureSharing.reason,
+        },
       })),
     };
   }

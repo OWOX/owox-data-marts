@@ -173,15 +173,13 @@ The following actions can be granted or restricted by the combination of ownersh
 
 #### See who can work with a Data Mart
 
-Project Admins don't have to work this table out by hand for a specific Data Mart. The **Who can work with this Data Mart** section on the Data Mart's **Overview** tab lists every project member with three levels of access:
+Project Admins don't have to work this table out by hand for a specific Data Mart. The **Who can work with this Data Mart** section on the Data Mart's **Overview** tab lists every project member with:
 
-| Level | Actions | What the member can do |
-|---|---|---|
-| **Use** | See, Use | Find the Data Mart in the catalog and through MCP, and build reports on it |
-| **Maintain** | Edit, Delete, Manage Triggers | Change the Data Mart's definition, delete it, and manage its triggers |
-| **Manage access** | Configure Sharing, Manage Owners | Change the Data Mart's sharing and owners |
+- **Role** — Project Admin, Data Owner or Business User.
+- **Access through** — where their access comes from: Project Admin, Data Owner or Business Owner of this Data Mart, *Shared for reporting* or *Shared for maintenance* (with the context it reaches them through when their role scope is `Selected contexts only`), or *No access*.
+- **Can do** — what that access allows: see the Data Mart and build reports on it (See, Use); also edit, delete and manage its triggers (Edit, Delete, Manage Triggers); also change its Sharing and Ownership (Configure Sharing, Manage Owners).
 
-For each member, the section shows how they get their access — Project Admin, ownership, project-wide scope, or a shared context — and, for the first level they lack, what to change: a sharing toggle, a context on the Data Mart or the member, an ownership assignment, or the member's role. Members with the least access are listed first.
+For the first actions a member lacks, the section says what to change: a sharing toggle, a context on the Data Mart or the member, an ownership assignment, or the member's role. Members with the least access are listed first.
 
 The **Sharing** and **Contexts** sections also warn when a setting keeps members out: how many members can't see the Data Mart because it isn't shared with them, or because it has no context while they are limited to selected contexts.
 

@@ -8,7 +8,7 @@ export class MemberContextDto {
   ) {}
 }
 
-/** Whether a member has one level of access to a Data Mart, and the rule that decides it. */
+/** Whether a member may take a group of actions on a Data Mart, and the rule that decides it. */
 export class DataMartAccessLevelDto {
   constructor(
     public readonly granted: boolean,
@@ -16,7 +16,13 @@ export class DataMartAccessLevelDto {
   ) {}
 }
 
-/** What one project member can do with a Data Mart, level by level, and why. */
+/** Where the member stands in the Data Mart's Ownership: its Data Owner, its Business Owner, or neither. */
+export enum DataMartMemberOwnership {
+  DATA_OWNER = 'DATA_OWNER',
+  BUSINESS_OWNER = 'BUSINESS_OWNER',
+}
+
+/** What one project member can do with a Data Mart, action group by action group, and why. */
 export class DataMartMemberAccessDto {
   constructor(
     public readonly userId: string,
@@ -27,11 +33,12 @@ export class DataMartMemberAccessDto {
     public readonly roleScope: RoleScope,
     /** The member's contexts, without deleted ones. Only gate access for selected-contexts scope. */
     public readonly contexts: MemberContextDto[],
-    /** See it in the catalog and through MCP, build reports on it. */
-    public readonly use: DataMartAccessLevelDto,
-    /** Edit and delete it, manage its triggers. */
-    public readonly maintain: DataMartAccessLevelDto,
-    /** Change its sharing and owners. */
-    public readonly manageAccess: DataMartAccessLevelDto
+    public readonly ownership: DataMartMemberOwnership | null,
+    /** See and Use: find it in the catalog and through MCP, build reports on it. */
+    public readonly see: DataMartAccessLevelDto,
+    /** Edit, Delete and Manage Triggers. */
+    public readonly edit: DataMartAccessLevelDto,
+    /** Configure Sharing and Manage Owners. */
+    public readonly configureSharing: DataMartAccessLevelDto
   ) {}
 }

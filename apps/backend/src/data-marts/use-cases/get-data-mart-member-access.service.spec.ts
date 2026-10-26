@@ -6,6 +6,7 @@ import { GetDataMartMemberAccessService } from './get-data-mart-member-access.se
 import { GetDataMartMemberAccessCommand } from '../dto/domain/get-data-mart-member-access.command';
 import { AccessDecisionService, DataMartAccessReason } from '../services/access-decision';
 import { RoleScope } from '../enums/role-scope.enum';
+import { DataMartMemberOwnership } from '../dto/domain/data-mart-member-access.dto';
 
 describe('GetDataMartMemberAccessService', () => {
   const projectId = 'project-1';
@@ -113,7 +114,7 @@ describe('GetDataMartMemberAccessService', () => {
     const result = await run(service);
 
     expect(dataMartService.getByIdAndProjectId).toHaveBeenCalledWith('dm-1', projectId);
-    expect(result.map(m => [m.userId, m.use.granted, m.use.reason])).toEqual([
+    expect(result.map(m => [m.userId, m.see.granted, m.see.reason])).toEqual([
       ['admin-1', true, DataMartAccessReason.PROJECT_ADMIN],
       ['in-context', true, DataMartAccessReason.SHARED_CONTEXT],
       ['other-context', false, DataMartAccessReason.NO_SHARED_CONTEXT],
@@ -139,17 +140,19 @@ describe('GetDataMartMemberAccessService', () => {
     const [result] = await run(service);
 
     expect(result).toMatchObject({
-      use: { granted: false, reason: DataMartAccessReason.DATA_MART_HAS_NO_CONTEXT },
+      see: { granted: false, reason: DataMartAccessReason.DATA_MART_HAS_NO_CONTEXT },
+      ownership: null,
       contexts: [{ id: 'ctx-seo', name: 'SEO' }],
     });
   });
 
-  it('applies ownership, sharing and role to each level', async () => {
+  it('applies ownership, sharing and role to each action group', async () => {
     const { service } = setup({
       dataMart: {
         availableForReporting: false,
         availableForMaintenance: true,
         technicalOwnerIds: ['owner'],
+        businessOwnerIds: ['data-owner'],
       },
       members: [
         member('owner', 'viewer'),
@@ -168,26 +171,30 @@ describe('GetDataMartMemberAccessService', () => {
 
     const levels = result.map(m => [
       m.userId,
-      [m.use.granted, m.use.reason],
-      [m.maintain.granted, m.maintain.reason],
-      [m.manageAccess.granted, m.manageAccess.reason],
+      m.ownership,
+      [m.see.granted, m.see.reason],
+      [m.edit.granted, m.edit.reason],
+      [m.configureSharing.granted, m.configureSharing.reason],
     ]);
     expect(levels).toEqual([
       [
         'owner',
+        DataMartMemberOwnership.DATA_OWNER,
         [true, DataMartAccessReason.OWNER],
         [false, DataMartAccessReason.ROLE_REQUIRED],
         [false, DataMartAccessReason.ROLE_REQUIRED],
       ],
       [
         'business-user',
+        null,
         [false, DataMartAccessReason.NOT_SHARED],
         [false, DataMartAccessReason.ROLE_REQUIRED],
         [false, DataMartAccessReason.ROLE_REQUIRED],
       ],
       [
         'data-owner',
-        [true, DataMartAccessReason.PROJECT_WIDE_ACCESS],
+        DataMartMemberOwnership.BUSINESS_OWNER,
+        [true, DataMartAccessReason.OWNER],
         [true, DataMartAccessReason.PROJECT_WIDE_ACCESS],
         [false, DataMartAccessReason.OWNER_REQUIRED],
       ],

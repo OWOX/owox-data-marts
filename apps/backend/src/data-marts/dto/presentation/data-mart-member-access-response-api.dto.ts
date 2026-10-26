@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { DataMartAccessReason } from '../../services/access-decision';
 import { RoleScope } from '../../enums/role-scope.enum';
+import { DataMartMemberOwnership } from '../domain/data-mart-member-access.dto';
 
 export class DataMartMemberAccessContextApiDto {
   @ApiProperty({ example: 'f1b2c3d4-0000-4000-8000-000000000001' })
@@ -17,7 +18,7 @@ export class DataMartAccessLevelApiDto {
   @ApiProperty({
     enum: DataMartAccessReason,
     example: DataMartAccessReason.NO_SHARED_CONTEXT,
-    description: 'The rule that decides this level for the member',
+    description: 'The rule that decides these actions for the member',
   })
   reason: DataMartAccessReason;
 }
@@ -49,22 +50,32 @@ export class DataMartMemberAccessItemApiDto {
   contexts: DataMartMemberAccessContextApiDto[];
 
   @ApiProperty({
-    type: DataMartAccessLevelApiDto,
-    description: 'See the DataMart in the catalog and through MCP, and build reports on it',
+    enum: DataMartMemberOwnership,
+    nullable: true,
+    example: null,
+    description:
+      "The member's place in the DataMart's Ownership: Data Owner, Business Owner, or null",
   })
-  use: DataMartAccessLevelApiDto;
+  ownership: DataMartMemberOwnership | null;
 
   @ApiProperty({
     type: DataMartAccessLevelApiDto,
-    description: 'Edit and delete the DataMart, and manage its triggers',
+    description:
+      'See and Use: find the DataMart in the catalog and through MCP, build reports on it',
   })
-  maintain: DataMartAccessLevelApiDto;
+  see: DataMartAccessLevelApiDto;
 
   @ApiProperty({
     type: DataMartAccessLevelApiDto,
-    description: "Change the DataMart's sharing and owners",
+    description: 'Edit, Delete and Manage Triggers',
   })
-  manageAccess: DataMartAccessLevelApiDto;
+  edit: DataMartAccessLevelApiDto;
+
+  @ApiProperty({
+    type: DataMartAccessLevelApiDto,
+    description: 'Configure Sharing and Manage Owners',
+  })
+  configureSharing: DataMartAccessLevelApiDto;
 }
 
 export class DataMartMemberAccessResponseApiDto {

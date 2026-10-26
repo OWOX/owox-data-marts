@@ -130,11 +130,11 @@ describe('AccessDecisionService.explainDataMartAccess', () => {
     expect(mismatches).toEqual([]);
   });
 
-  // The member access list shows three levels, each standing for a group of actions. A matrix
-  // change that splits a group must fail here before the list starts to misreport.
-  it('grants the actions of each access level together', () => {
+  // The member access list reports three groups of actions, one decision each. A matrix change
+  // that splits a group must fail here before the list starts to misreport.
+  it('grants the actions of each group together', () => {
     const service = createService();
-    const levels = [
+    const groups = [
       [Action.SEE, Action.USE],
       [Action.EDIT, Action.DELETE, Action.MANAGE_TRIGGERS],
       [Action.CONFIGURE_SHARING, Action.MANAGE_OWNERS],
@@ -142,10 +142,10 @@ describe('AccessDecisionService.explainDataMartAccess', () => {
     const splits: string[] = [];
 
     for (const [label, facts] of everyCase()) {
-      for (const level of levels) {
-        const answers = level.map(action => service.explainDataMartAccess(facts, action).granted);
+      for (const group of groups) {
+        const answers = group.map(action => service.explainDataMartAccess(facts, action).granted);
         if (new Set(answers).size > 1) {
-          splits.push(`${label}: ${level.join('/')} = ${answers.join('/')}`);
+          splits.push(`${label}: ${group.join('/')} = ${answers.join('/')}`);
         }
       }
     }

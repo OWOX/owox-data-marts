@@ -15,20 +15,28 @@ export interface MemberAccessDataMart {
   availableForMaintenance: boolean;
 }
 
-export type AccessLevelKey = 'use' | 'maintain' | 'manageAccess';
-
-export const ACCESS_LEVELS: readonly { key: AccessLevelKey; label: string; verb: string }[] = [
-  { key: 'use', label: 'Use', verb: 'use' },
-  { key: 'maintain', label: 'Maintain', verb: 'maintain' },
-  { key: 'manageAccess', label: 'Manage access', verb: 'manage access' },
-];
-
+/**
+ * One member's access, told only in names the product already uses: the Ownership and Sharing
+ * settings on the Data Mart page, the project roles, and the actions those settings describe.
+ */
 export interface MemberAccessExplanation {
-  /** How the member gets the access they have, or why they have none. */
-  summary: string;
-  /** The first level they lack, and what to change to give it to them. */
-  next?: { verb: string; hint: string };
+  /** Where the access comes from: Project Admin, an Ownership slot, or a Sharing option. */
+  accessThrough: string[];
+  /** What the member can do, or why they cannot see the Data Mart. */
+  canDo: string;
+  /** What to change so they can take the next actions they lack. */
+  next?: string;
 }
+
+const ACTION_GROUPS = ['see', 'edit', 'configureSharing'] as const;
+
+const SEES_AND_REPORTS = 'Can see it and build reports';
+const EDITS = 'Can see it, build reports, edit, delete and manage triggers';
+const CONFIGURES_SHARING =
+  'Can see it, build reports, edit, delete, manage triggers, and change Sharing and Ownership';
+
+const ROLE_CHANGE = 'change their role to Data Owner in Project settings → Members';
+const DATA_OWNER_OF_THIS = "add them as this Data Mart's Data Owner in Ownership";
 
 const listNames = (contexts: readonly NamedContext[]) => contexts.map(c => c.name).join(', ');
 
@@ -36,8 +44,8 @@ export function memberDisplayName(member: DataMartMemberAccessItemDto): string {
   return member.displayName ?? member.email;
 }
 
-export function grantedLevelCount(member: DataMartMemberAccessItemDto): number {
-  return ACCESS_LEVELS.filter(level => member[level.key].granted).length;
+export function grantedActionGroupCount(member: DataMartMemberAccessItemDto): number {
+  return ACTION_GROUPS.filter(group => member[group].granted).length;
 }
 
 /** Least access first — those members are why an admin opens this list. */
@@ -46,17 +54,17 @@ export function sortMembersForAccess(
 ): DataMartMemberAccessItemDto[] {
   return [...members].sort(
     (a, b) =>
-      grantedLevelCount(a) - grantedLevelCount(b) ||
+      grantedActionGroupCount(a) - grantedActionGroupCount(b) ||
       memberDisplayName(a).localeCompare(memberDisplayName(b))
   );
 }
 
-/** Members who cannot use the Data Mart for the given reason — what a setting's warning counts. */
-export function countMembersWhoCannotUse(
+/** Members who cannot see the Data Mart for the given reason — what a setting's warning counts. */
+export function countMembersWhoCannotSee(
   members: readonly DataMartMemberAccessItemDto[] | null,
   reason: DataMartAccessReason
 ): number {
-  return (members ?? []).filter(member => !member.use.granted && member.use.reason === reason)
+  return (members ?? []).filter(member => !member.see.granted && member.see.reason === reason)
     .length;
 }
 
@@ -64,133 +72,142 @@ export function formatMemberCount(count: number): string {
   return count === 1 ? '1 member' : `${String(count)} members`;
 }
 
-/** Why the member's contexts keep them out, and what to change — the same for every level. */
-function explainContextGate(
+const isThroughSharing = (level: DataMartAccessLevelDto) =>
+  level.granted && (level.reason === 'PROJECT_WIDE_ACCESS' || level.reason === 'SHARED_CONTEXT');
+
+function sharedContexts(member: DataMartMemberAccessItemDto, dataMart: MemberAccessDataMart) {
+  const dataMartContextIds = new Set(dataMart.contexts.map(c => c.id));
+  return member.contexts.filter(c => dataMartContextIds.has(c.id));
+}
+
+function accessThrough(
+  member: DataMartMemberAccessItemDto,
+  dataMart: MemberAccessDataMart
+): string[] {
+  if (member.see.reason === 'PROJECT_ADMIN') {
+    return ['Project Admin'];
+  }
+
+  const sources: string[] = [];
+  if (member.ownership === 'DATA_OWNER') sources.push('Data Owner of this Data Mart');
+  if (member.ownership === 'BUSINESS_OWNER') sources.push('Business Owner of this Data Mart');
+
+  // The stronger Sharing option that actually reaches the member, with the context it reaches
+  // them through when their access is limited to selected contexts.
+  let sharing: { label: string; level: DataMartAccessLevelDto } | null = null;
+  if (isThroughSharing(member.edit)) {
+    sharing = { label: 'Shared for maintenance', level: member.edit };
+  } else if (isThroughSharing(member.see)) {
+    sharing = { label: 'Shared for reporting', level: member.see };
+  }
+  if (sharing) {
+    const viaContext =
+      sharing.level.reason === 'SHARED_CONTEXT'
+        ? ` · ${listNames(sharedContexts(member, dataMart))}`
+        : '';
+    sources.push(`${sharing.label}${viaContext}`);
+  }
+
+  return sources.length > 0 ? sources : ['No access'];
+}
+
+/** Why the member's contexts keep them out, and what to change — the same for every action. */
+function contextGate(
   reason: DataMartAccessReason,
   member: DataMartMemberAccessItemDto,
   dataMart: MemberAccessDataMart
-): { summary: string; hint: string } | null {
+): { why: string; change: string } | null {
+  const theirs = listNames(member.contexts);
   if (reason === 'DATA_MART_HAS_NO_CONTEXT') {
     return member.contexts.length > 0
       ? {
-          summary: `Sees only their contexts (${listNames(member.contexts)}), and this Data Mart has none`,
-          hint: 'Add one of their contexts to this Data Mart',
+          why: `Sees only their contexts (${theirs}), and this Data Mart has none`,
+          change: `add ${theirs} in Contexts`,
         }
       : {
-          summary: 'Sees only their contexts, but has none assigned, and this Data Mart has none',
-          hint: 'Add a context to this Data Mart and assign the member to it',
+          why: 'Sees only their contexts, has none assigned, and this Data Mart has none',
+          change: 'add a context in Contexts and assign the member to it',
         };
   }
   if (reason === 'NO_SHARED_CONTEXT') {
+    const ours = listNames(dataMart.contexts);
     return member.contexts.length > 0
       ? {
-          summary: `Sees only their contexts (${listNames(member.contexts)}), and none of them is on this Data Mart`,
-          hint: `Add one of them to this Data Mart, or assign the member to ${listNames(dataMart.contexts)}`,
+          why: `Sees only their contexts (${theirs}), and none of them is on this Data Mart`,
+          change: `add ${theirs} in Contexts, or assign the member to ${ours}`,
         }
       : {
-          summary: 'Sees only their contexts, but has none assigned',
-          hint: `Assign the member to ${listNames(dataMart.contexts)}`,
+          why: 'Sees only their contexts, and has none assigned',
+          change: `assign the member to ${ours}`,
         };
   }
   return null;
 }
 
-function explainNoUse(
+function cannotSee(
   member: DataMartMemberAccessItemDto,
   dataMart: MemberAccessDataMart
-): { summary: string; hint: string } {
-  const contextGate = explainContextGate(member.use.reason, member, dataMart);
-  if (contextGate) {
-    return contextGate;
+): { canDo: string; next: string } {
+  const gate = contextGate(member.see.reason, member, dataMart);
+  if (gate) {
+    return { canDo: gate.why, next: `To see it: ${gate.change}` };
   }
   return member.role === 'editor'
     ? {
-        summary: 'Not shared for reporting or maintenance',
-        hint: 'Turn on a Sharing option, or add them as an owner in Ownership',
+        canDo: 'Not shared for reporting or maintenance',
+        next: 'To see it: turn on Shared for reporting or Shared for maintenance, or add them in Ownership',
       }
     : {
-        summary: 'Not shared for reporting',
-        hint: 'Turn on Shared for reporting, or add them as an owner in Ownership',
+        canDo: 'Not shared for reporting',
+        next: 'To see it: turn on Shared for reporting, or add them as Business Owner in Ownership',
       };
 }
 
-function maintainHint(member: DataMartMemberAccessItemDto, dataMart: MemberAccessDataMart): string {
-  const { reason } = member.maintain;
+function toEdit(member: DataMartMemberAccessItemDto, dataMart: MemberAccessDataMart): string {
+  const { reason } = member.edit;
   if (reason === 'ROLE_REQUIRED') {
-    return dataMart.availableForMaintenance
-      ? 'Change their project role to Data Owner'
-      : 'Change their project role to Data Owner, then turn on Shared for maintenance or add them as Data Owner in Ownership';
+    // A Data Owner of this Data Mart only lacks the role; anyone else also needs a way in.
+    return member.ownership === 'DATA_OWNER' || dataMart.availableForMaintenance
+      ? `To edit it: ${ROLE_CHANGE}`
+      : `To edit it: ${ROLE_CHANGE}, then turn on Shared for maintenance or ${DATA_OWNER_OF_THIS}`;
   }
-  const contextGate = explainContextGate(reason, member, dataMart);
-  if (contextGate) {
-    return contextGate.hint;
+  const gate = contextGate(reason, member, dataMart);
+  if (gate) {
+    return `To edit it: ${gate.change}`;
   }
-  return 'Turn on Shared for maintenance, or add them as Data Owner in Ownership';
+  return `To edit it: turn on Shared for maintenance, or ${DATA_OWNER_OF_THIS}`;
 }
 
-function manageAccessHint(member: DataMartMemberAccessItemDto): string {
-  return member.manageAccess.reason === 'ROLE_REQUIRED'
-    ? 'Change their project role to Data Owner and add them as Data Owner in Ownership'
-    : 'Add them as Data Owner in Ownership';
-}
-
-/** How the member gets the highest level they have. */
-function explainGranted(
-  level: DataMartAccessLevelDto,
-  isMaintenance: boolean,
-  member: DataMartMemberAccessItemDto,
-  dataMart: MemberAccessDataMart
-): string {
-  const dataMartContextIds = new Set(dataMart.contexts.map(c => c.id));
-  const shared = listNames(member.contexts.filter(c => dataMartContextIds.has(c.id)));
-
-  switch (level.reason) {
-    case 'PROJECT_ADMIN':
-      return 'Project Admins have full access';
-    case 'OWNER':
-      return member.manageAccess.granted
-        ? 'Data Owner of this Data Mart'
-        : 'Owner of this Data Mart';
-    case 'PROJECT_WIDE_ACCESS':
-      return isMaintenance
-        ? 'Shared for maintenance, with access to the entire project'
-        : 'Has access to the entire project';
-    case 'SHARED_CONTEXT':
-      return isMaintenance
-        ? `Shared for maintenance, in context: ${shared}`
-        : `Shares context: ${shared}`;
-    default:
-      return 'Has access';
+function toConfigureSharing(member: DataMartMemberAccessItemDto): string {
+  if (member.configureSharing.reason === 'ROLE_REQUIRED') {
+    return member.ownership === 'DATA_OWNER'
+      ? `To change Sharing and Ownership: ${ROLE_CHANGE}`
+      : `To change Sharing and Ownership: ${ROLE_CHANGE}, and ${DATA_OWNER_OF_THIS}`;
   }
+  return `To change Sharing and Ownership: ${DATA_OWNER_OF_THIS}`;
 }
 
 /**
- * Turns the backend's per-level reasons into one line on how the member gets their access and one
- * on what to change for the next level, naming the contexts and settings involved so the admin
- * does not have to cross-check the member, the contexts and the Data Mart.
+ * Explains one member's access in the product's own terms: where it comes from (Project Admin,
+ * Ownership, Sharing), what it lets them do, and what to change for the next actions they lack.
  */
 export function explainMemberAccess(
   member: DataMartMemberAccessItemDto,
   dataMart: MemberAccessDataMart
 ): MemberAccessExplanation {
-  if (!member.use.granted) {
-    const { summary, hint } = explainNoUse(member, dataMart);
-    return { summary, next: { verb: 'use', hint } };
+  if (!member.see.granted) {
+    return { accessThrough: ['No access'], ...cannotSee(member, dataMart) };
   }
 
-  if (!member.maintain.granted) {
-    return {
-      summary: explainGranted(member.use, false, member, dataMart),
-      next: { verb: 'maintain', hint: maintainHint(member, dataMart) },
-    };
+  const through = accessThrough(member, dataMart);
+  if (!member.edit.granted) {
+    return { accessThrough: through, canDo: SEES_AND_REPORTS, next: toEdit(member, dataMart) };
   }
-
-  if (!member.manageAccess.granted) {
-    return {
-      summary: explainGranted(member.maintain, true, member, dataMart),
-      next: { verb: 'manage access', hint: manageAccessHint(member) },
-    };
+  if (!member.configureSharing.granted) {
+    return { accessThrough: through, canDo: EDITS, next: toConfigureSharing(member) };
   }
-
-  return { summary: explainGranted(member.manageAccess, false, member, dataMart) };
+  return {
+    accessThrough: through,
+    canDo: member.see.reason === 'PROJECT_ADMIN' ? 'Full access' : CONFIGURES_SHARING,
+  };
 }

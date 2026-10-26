@@ -1,4 +1,4 @@
-/** The rule that decides one level of a member's access to a Data Mart. */
+/** The rule that decides whether a member may take a group of actions on a Data Mart. */
 export type DataMartAccessReason =
   | 'PROJECT_ADMIN'
   | 'OWNER'
@@ -27,15 +27,17 @@ export interface DataMartMemberAccessItemDto {
   roleScope: 'entire_project' | 'selected_contexts';
   /** The member's contexts. They limit access only when `roleScope` is `selected_contexts`. */
   contexts: { id: string; name: string }[];
-  /** See it in the catalog and through MCP, build reports on it. */
-  use: DataMartAccessLevelDto;
-  /** Edit and delete it, manage its triggers. */
-  maintain: DataMartAccessLevelDto;
-  /** Change its sharing and owners. */
-  manageAccess: DataMartAccessLevelDto;
+  /** The member's place in the Data Mart's Ownership. */
+  ownership: 'DATA_OWNER' | 'BUSINESS_OWNER' | null;
+  /** See and Use: find it in the catalog and through MCP, build reports on it. */
+  see: DataMartAccessLevelDto;
+  /** Edit, Delete and Manage Triggers. */
+  edit: DataMartAccessLevelDto;
+  /** Configure Sharing and Manage Owners. */
+  configureSharing: DataMartAccessLevelDto;
 }
 
-/** What every project member can do with a Data Mart, level by level, and why. */
+/** What every project member can do with a Data Mart, and why. */
 export interface DataMartMemberAccessResponseDto {
   members: DataMartMemberAccessItemDto[];
 }
