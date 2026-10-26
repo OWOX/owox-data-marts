@@ -4,6 +4,15 @@
 
 ### Minor Changes 0.40.0
 
+<https://customer-4geatlj66rtkaxtz.cloudflarestream.com/d132489ce29b55b85e026569d05c1d84/iframe>
+
+[0:10](https://customer-4geatlj66rtkaxtz.cloudflarestream.com/d132489ce29b55b85e026569d05c1d84/iframe?startTime=10.3s) - Read and Copy Business Descriptions\
+[0:30](https://customer-4geatlj66rtkaxtz.cloudflarestream.com/d132489ce29b55b85e026569d05c1d84/iframe?startTime=30.7s) - Find Data Marts Missing a Context\
+[0:48](https://customer-4geatlj66rtkaxtz.cloudflarestream.com/d132489ce29b55b85e026569d05c1d84/iframe?startTime=48.5s) - Plugins Run on a Schedule\
+[1:08](https://customer-4geatlj66rtkaxtz.cloudflarestream.com/d132489ce29b55b85e026569d05c1d84/iframe?startTime=68.3s) - An Icon for Each Context\
+[1:25](https://customer-4geatlj66rtkaxtz.cloudflarestream.com/d132489ce29b55b85e026569d05c1d84/iframe?startTime=86.2s) - Readable Diagrams\
+[1:43](https://customer-4geatlj66rtkaxtz.cloudflarestream.com/d132489ce29b55b85e026569d05c1d84/iframe?startTime=103.5s) - And a Few More Things
+
 - 9dc6e5f: **Warnings when a Count reads a joined Data Mart**
 
   **Count** on a joined field counts the rows of the report's Data Mart that found a match, not the joined Data Mart's own rows. The aggregation popover in the report editor and in the Google Sheets extension now says so while **Count** is ticked: whether the number can come out higher, lower, or cannot be checked because a primary key is missing. It points to **Count Unique**, and to the joined Data Mart's **Unique Count** when that Data Mart offers one. Nothing is blocked, and no warning appears when every join on the way is keyed by a primary key on both sides.
