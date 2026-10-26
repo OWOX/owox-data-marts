@@ -51,5 +51,7 @@ When adding, removing, renaming, or changing the meaning of a deployed variable:
   in Google Secret Manager; `k8s` owns only their CSI configuration and pinned
   version references.
 
-Requests to deploy, release, roll out, or promote an existing ODM image belong
-to `k8s`; do not change application source merely to perform that operation.
+Requests to deploy, roll out, or promote an existing ODM image belong to `k8s`;
+do not change application source merely to perform that operation. A versioned
+release is the "Version Packages" merge described in
+[Cutting a Release](docs/contributing/repository/release-strategy.md#cutting-a-release).

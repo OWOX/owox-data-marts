@@ -121,6 +121,39 @@ On every push to `main`:
 2. **Release Build** (`publish.yml`): When the "Version Packages" PR is merged, the workflow publishes the new release version to the `latest` tag
 3. **Version PR** (`release-pr.yml`): Changesets bot creates/updates a "Version Packages" PR that collects all pending changesets
 
+## Cutting a Release
+
+A release is the merge of the "Version Packages" PR. The merge publishes the
+packages to npm and the container image to the `latest` tag. npm forbids
+unpublishing, so the merge is final. OWOX Cloud runs snapshots, so a release
+needs no deployment.
+
+1. **Announce it.** Tell the maintainers a release is coming and ask whether
+   anything blocks it. From this point nobody merges into `main` until step 6.
+   The releaser decides whether a reported blocker holds the release.
+2. **Run the checks.** The bot opens the PR from `changeset-release/main`, so
+   its workflow runs wait as `action_required`. Re-run Code Quality root, Code
+   Quality OWOX and Test and Build @owox/docs with `gh run rerun <run-id>`. The
+   PR changes only changelogs, package versions and `package-lock.json`, so Test
+   OWOX, the E2E suites and Audit all repeat what `main` already ran and can be
+   cancelled.
+3. **Read the changelog.** Read the new section of `apps/owox/CHANGELOG.md` in
+   the PR. The bot reformats the whole file with Prettier on every update. If an
+   inline code span wraps across lines, every pass indents the following lines
+   further, until markdownlint fails with MD046. Fix the original entry with a
+   regular PR to `main`; the bot then regenerates the release PR.
+4. **Merge.** Approve and merge the PR.
+5. **Wait for the publish.** `publish.yml` keeps only the newest pending run, so
+   a merge right behind the release can replace the release run. Wait until the
+   Snapshot run on the release commit succeeds, then check that
+   `npm view owox dist-tags.latest` prints the new version and that the
+   `<version>` and `latest` tags of `ghcr.io/owox/owox-data-marts` share one
+   digest (`docker buildx imagetools inspect`). If the image is missing, the run
+   logs a warning with the recovery: start Snapshot from `workflow_dispatch`
+   with `rebuild_latest_image`, from a ref whose HEAD is the release commit.
+6. **Announce that it is out.** Tell the maintainers the release is published
+   and `main` is open again.
+
 ## Security
 
 - Never commit API keys or sensitive configuration
