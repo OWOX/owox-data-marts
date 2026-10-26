@@ -14,6 +14,7 @@ import {
 import {
   BookOpenIcon,
   CalendarIcon,
+  Eye,
   Globe,
   History,
   Info,
@@ -39,6 +40,14 @@ import { dataMartService } from '../../../features/data-marts/shared/services/da
 import { DataLastUpdatedValue } from '../../../features/data-marts/shared/components/DataLastUpdatedValue';
 import type { DataLastUpdatedDto } from '../../../features/data-marts/shared/types/api/response/data-mart-data-last-updated.dto';
 import type { ContextSummary } from '../../../features/contexts/types/context.types';
+import {
+  DataMartMemberAccessList,
+  MemberAccessWarning,
+  countMembersWhoCannotUse,
+  useDataMartMemberAccess,
+} from '../../../features/data-marts/edit/components/DataMartMemberAccess';
+import type { DataMartStatusInfo } from '../../../features/data-marts/shared/types/data-mart-status.model';
+import { DataMartStatus } from '../../../features/data-marts/shared/enums/data-mart-status.enum';
 
 interface OutletContextType {
   dataMart: {
@@ -52,6 +61,7 @@ interface OutletContextType {
     availableForMaintenance?: boolean;
     contexts?: ContextSummary[];
     dataLastUpdated?: DataLastUpdatedDto | null;
+    status?: DataMartStatusInfo;
   };
   updateDataMartOwners: (
     id: string,
@@ -83,6 +93,17 @@ export default function DataMartOverviewContent() {
   const dataLastUpdated = refreshedDataLastUpdated ?? dataMart.dataLastUpdated ?? null;
 
   const isAdmin = useIsAdmin();
+
+  // Every input of the visibility decision that this page can change; a new key re-reads it.
+  const memberAccessRefreshKey = [
+    dataMart.availableForReporting,
+    dataMart.availableForMaintenance,
+    dataMart.status?.code,
+    (dataMart.contexts ?? []).map(c => c.id).join(','),
+    dataMart.technicalOwnerUsers.map(u => u.userId).join(','),
+    dataMart.businessOwnerUsers.map(u => u.userId).join(','),
+  ].join('|');
+  const memberAccess = useDataMartMemberAccess(dataMart.id, memberAccessRefreshKey, isAdmin);
 
   // Sync local state when dataMart props change (after refetch)
   useEffect(() => {
@@ -306,79 +327,87 @@ export default function DataMartOverviewContent() {
           </CollapsibleCardHeaderTitle>
         </CollapsibleCardHeader>
         <CollapsibleCardContent>
-          <div className='flex gap-4'>
-            <div className='group flex w-full flex-col gap-3 rounded-md border-b border-gray-200 bg-white p-4 transition-shadow duration-200 hover:shadow-xs dark:border-0 dark:bg-white/2'>
-              <div className='flex items-center gap-2'>
-                <Switch
-                  id='available-for-maintenance'
-                  checked={availableForMaintenance}
-                  onCheckedChange={v => {
-                    setAvailableForMaintenance(v);
-                    void handleAvailabilityChange(availableForReporting, v);
-                  }}
-                />
-                <label
-                  htmlFor='available-for-maintenance'
-                  className='text-foreground cursor-pointer text-sm font-medium select-none'
-                >
-                  Shared for maintenance
-                </label>
+          <div className='flex flex-col gap-4'>
+            <div className='flex gap-4'>
+              <div className='group flex w-full flex-col gap-3 rounded-md border-b border-gray-200 bg-white p-4 transition-shadow duration-200 hover:shadow-xs dark:border-0 dark:bg-white/2'>
+                <div className='flex items-center gap-2'>
+                  <Switch
+                    id='available-for-maintenance'
+                    checked={availableForMaintenance}
+                    onCheckedChange={v => {
+                      setAvailableForMaintenance(v);
+                      void handleAvailabilityChange(availableForReporting, v);
+                    }}
+                  />
+                  <label
+                    htmlFor='available-for-maintenance'
+                    className='text-foreground cursor-pointer text-sm font-medium select-none'
+                  >
+                    Shared for maintenance
+                  </label>
+                </div>
+                <p className='text-muted-foreground text-xs'>
+                  Members with the Data Owner role can edit, delete, and manage triggers for this
+                  Data Mart
+                </p>
+                <Accordion variant='common' type='single' collapsible>
+                  <AccordionItem value='maintenance-help'>
+                    <AccordionTrigger>
+                      What does &quot;Shared for maintenance&quot; mean?
+                    </AccordionTrigger>
+                    <AccordionContent>
+                      <p>
+                        When enabled, members with the Data Owner role who are not owners of this
+                        Data Mart can edit the Data Mart definition, delete it, and manage its
+                        scheduled triggers.
+                      </p>
+                      <p>Business Users are not affected by this setting.</p>
+                    </AccordionContent>
+                  </AccordionItem>
+                </Accordion>
               </div>
-              <p className='text-muted-foreground text-xs'>
-                Members with the Data Owner role can edit, delete, and manage triggers for this Data
-                Mart
-              </p>
-              <Accordion variant='common' type='single' collapsible>
-                <AccordionItem value='maintenance-help'>
-                  <AccordionTrigger>
-                    What does &quot;Shared for maintenance&quot; mean?
-                  </AccordionTrigger>
-                  <AccordionContent>
-                    <p>
-                      When enabled, members with the Data Owner role who are not owners of this Data
-                      Mart can edit the Data Mart definition, delete it, and manage its scheduled
-                      triggers.
-                    </p>
-                    <p>Business Users are not affected by this setting.</p>
-                  </AccordionContent>
-                </AccordionItem>
-              </Accordion>
-            </div>
-            <div className='group flex w-full flex-col gap-3 rounded-md border-b border-gray-200 bg-white p-4 transition-shadow duration-200 hover:shadow-xs dark:border-0 dark:bg-white/2'>
-              <div className='flex items-center gap-2'>
-                <Switch
-                  id='available-for-reporting'
-                  checked={availableForReporting}
-                  onCheckedChange={v => {
-                    setAvailableForReporting(v);
-                    void handleAvailabilityChange(v, availableForMaintenance);
-                  }}
-                />
-                <label
-                  htmlFor='available-for-reporting'
-                  className='text-foreground cursor-pointer text-sm font-medium select-none'
-                >
-                  Shared for reporting
-                </label>
+              <div className='group flex w-full flex-col gap-3 rounded-md border-b border-gray-200 bg-white p-4 transition-shadow duration-200 hover:shadow-xs dark:border-0 dark:bg-white/2'>
+                <div className='flex items-center gap-2'>
+                  <Switch
+                    id='available-for-reporting'
+                    checked={availableForReporting}
+                    onCheckedChange={v => {
+                      setAvailableForReporting(v);
+                      void handleAvailabilityChange(v, availableForMaintenance);
+                    }}
+                  />
+                  <label
+                    htmlFor='available-for-reporting'
+                    className='text-foreground cursor-pointer text-sm font-medium select-none'
+                  >
+                    Shared for reporting
+                  </label>
+                </div>
+                <p className='text-muted-foreground text-xs'>
+                  All project members can see this Data Mart and build reports on it
+                </p>
+                <Accordion variant='common' type='single' collapsible>
+                  <AccordionItem value='reporting-help'>
+                    <AccordionTrigger>
+                      What does &quot;Shared for reporting&quot; mean?
+                    </AccordionTrigger>
+                    <AccordionContent>
+                      <p>
+                        When enabled, all project members (both Data Owners and Business Users) can
+                        see this Data Mart in the catalog and use it to create reports.
+                      </p>
+                      <p>Owners always have access regardless of this setting.</p>
+                    </AccordionContent>
+                  </AccordionItem>
+                </Accordion>
               </div>
-              <p className='text-muted-foreground text-xs'>
-                All project members can see this Data Mart and build reports on it
-              </p>
-              <Accordion variant='common' type='single' collapsible>
-                <AccordionItem value='reporting-help'>
-                  <AccordionTrigger>
-                    What does &quot;Shared for reporting&quot; mean?
-                  </AccordionTrigger>
-                  <AccordionContent>
-                    <p>
-                      When enabled, all project members (both Data Owners and Business Users) can
-                      see this Data Mart in the catalog and use it to create reports.
-                    </p>
-                    <p>Owners always have access regardless of this setting.</p>
-                  </AccordionContent>
-                </AccordionItem>
-              </Accordion>
             </div>
+            <MemberAccessWarning
+              count={countMembersWhoCannotUse(memberAccess.members, 'NOT_SHARED')}
+              testId='dataMartSharingAccessWarning'
+            >
+              It isn&apos;t shared with them. Turn on Shared for reporting, or add them as owners.
+            </MemberAccessWarning>
           </div>
         </CollapsibleCardContent>
         <CollapsibleCardFooter></CollapsibleCardFooter>
@@ -403,6 +432,15 @@ export default function DataMartOverviewContent() {
                 {...inlineContext.pickerProps}
               />
             </div>
+            {(dataMart.contexts ?? []).length === 0 && (
+              <MemberAccessWarning
+                count={countMembersWhoCannotUse(memberAccess.members, 'DATA_MART_HAS_NO_CONTEXT')}
+                testId='dataMartContextsAccessWarning'
+              >
+                They see only Data Marts in their contexts, and this one has none. Add a context to
+                make it visible to them.
+              </MemberAccessWarning>
+            )}
             <Accordion variant='common' type='single' collapsible>
               <AccordionItem value='contexts-help'>
                 <AccordionTrigger>What are Contexts?</AccordionTrigger>
@@ -426,6 +464,33 @@ export default function DataMartOverviewContent() {
         </CollapsibleCardContent>
         <CollapsibleCardFooter></CollapsibleCardFooter>
       </CollapsibleCard>
+
+      {isAdmin && (
+        <CollapsibleCard collapsible name='dm-member-access'>
+          <CollapsibleCardHeader>
+            <CollapsibleCardHeaderTitle
+              icon={Eye}
+              tooltip='What each project member can do with this Data Mart, and what to change to give them more'
+            >
+              Who can work with this Data Mart
+            </CollapsibleCardHeaderTitle>
+          </CollapsibleCardHeader>
+          <CollapsibleCardContent>
+            <DataMartMemberAccessList
+              members={memberAccess.members}
+              isLoading={memberAccess.isLoading}
+              hasError={memberAccess.hasError}
+              onRetry={memberAccess.retry}
+              dataMart={{
+                contexts: dataMart.contexts ?? [],
+                availableForMaintenance: dataMart.availableForMaintenance !== false,
+              }}
+              isDraft={dataMart.status?.code === DataMartStatus.DRAFT}
+            />
+          </CollapsibleCardContent>
+          <CollapsibleCardFooter></CollapsibleCardFooter>
+        </CollapsibleCard>
+      )}
 
       <CollapsibleCard collapsible name='dm-details'>
         <CollapsibleCardHeader>

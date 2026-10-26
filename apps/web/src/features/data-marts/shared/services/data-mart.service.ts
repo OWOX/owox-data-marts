@@ -28,6 +28,7 @@ import type {
 import type { CreateSqlDryRunTaskResponseDto } from '../types/api/response/create-sql-dry-run-task.response.dto.ts';
 import type { TaskStatusResponseDto } from '../types/api/response/task-status.response.dto.ts';
 import type { DataMartInputSourceChangeImpactResponseDto } from '../types/api/response/data-mart-input-source-change-impact.response.dto.ts';
+import type { DataMartMemberAccessResponseDto } from '../types/api/response/data-mart-member-access.response.dto.ts';
 import type { BaseSchemaField, DataMartSchema } from '../types/data-mart-schema.types.ts';
 import type { DataMartIconValue } from '../enums/data-mart-icon.enum';
 
@@ -224,6 +225,16 @@ export class DataMartService extends ApiService {
       skipLoadingIndicator: true,
       ...config,
     } as AxiosRequestConfig);
+  }
+
+  /**
+   * Every project member with whether they can see this Data Mart, and why. Admin-only.
+   */
+  async getMemberAccess(
+    id: string,
+    config?: AxiosRequestConfig
+  ): Promise<DataMartMemberAccessResponseDto> {
+    return this.get<DataMartMemberAccessResponseDto>(`/${id}/member-access`, undefined, config);
   }
 
   /**

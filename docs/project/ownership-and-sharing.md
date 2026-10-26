@@ -171,6 +171,22 @@ The following actions can be granted or restricted by the combination of ownersh
 
 > ☝️ When a Data Mart is shared for maintenance, Business Users who are not owners still cannot access it — maintenance access is reserved for the Data Owner role.
 
+#### See who can work with a Data Mart
+
+Project Admins don't have to work this table out by hand for a specific Data Mart. The **Who can work with this Data Mart** section on the Data Mart's **Overview** tab lists every project member with three levels of access:
+
+| Level | Actions | What the member can do |
+|---|---|---|
+| **Use** | See, Use | Find the Data Mart in the catalog and through MCP, and build reports on it |
+| **Maintain** | Edit, Delete, Manage Triggers | Change the Data Mart's definition, delete it, and manage its triggers |
+| **Manage access** | Configure Sharing, Manage Owners | Change the Data Mart's sharing and owners |
+
+For each member, the section shows how they get their access — Project Admin, ownership, project-wide scope, or a shared context — and, for the first level they lack, what to change: a sharing toggle, a context on the Data Mart or the member, an ownership assignment, or the member's role. Members with the least access are listed first.
+
+The **Sharing** and **Contexts** sections also warn when a setting keeps members out: how many members can't see the Data Mart because it isn't shared with them, or because it has no context while they are limited to selected contexts.
+
+MCP lists only published Data Marts, so the section notes when the Data Mart is still a draft.
+
 ---
 
 ### Data Mart Trigger

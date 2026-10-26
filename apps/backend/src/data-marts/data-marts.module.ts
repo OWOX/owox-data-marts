@@ -74,6 +74,7 @@ import { ListProjectInsightTemplatesService } from './use-cases/list-project-ins
 import { ListProjectScheduledTriggersService } from './use-cases/list-project-scheduled-triggers.service';
 import { GetDataMartService } from './use-cases/get-data-mart.service';
 import { GetDataMartInputSourceChangeImpactService } from './use-cases/get-data-mart-input-source-change-impact.service';
+import { GetDataMartMemberAccessService } from './use-cases/get-data-mart-member-access.service';
 import { DataMartMapper } from './mappers/data-mart.mapper';
 import { McpDataCatalogSummaryMapper } from './mappers/mcp-data-catalog-summary.mapper';
 import { ScheduledTriggerMapper } from './mappers/scheduled-trigger.mapper';
@@ -671,6 +672,7 @@ import { ConsentCredentialDefinitionService } from './credentials/use-cases/cons
     ListDataMartsByConnectorNameService,
     GetDataMartService,
     GetDataMartInputSourceChangeImpactService,
+    GetDataMartMemberAccessService,
     ListDataMartRunsService,
     ListProjectDataMartRunsService,
     ListProjectInsightTemplatesService,

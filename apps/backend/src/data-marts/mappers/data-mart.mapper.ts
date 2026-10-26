@@ -95,6 +95,9 @@ import { RefreshDataMartDataLastUpdatedRequestApiDto } from '../dto/presentation
 import { HTTP_DATA_PARAMS_KEY } from '../services/http-data/http-data.constants';
 import { MCP_QUERY_PARAMS_KEY } from '../services/data-mart-run.service';
 import { DataQualityRunDetailsDto } from '../dto/domain/data-quality.dto';
+import { GetDataMartMemberAccessCommand } from '../dto/domain/get-data-mart-member-access.command';
+import type { DataMartMemberAccessDto } from '../dto/domain/data-mart-member-access.dto';
+import type { DataMartMemberAccessResponseApiDto } from '../dto/presentation/data-mart-member-access-response-api.dto';
 
 @Injectable()
 export class DataMartMapper {
@@ -317,6 +320,30 @@ export class DataMartMapper {
       context.userId,
       context.roles ?? []
     );
+  }
+
+  toGetMemberAccessCommand(
+    id: string,
+    context: AuthorizationContext
+  ): GetDataMartMemberAccessCommand {
+    return new GetDataMartMemberAccessCommand(id, context.projectId);
+  }
+
+  toMemberAccessResponse(members: DataMartMemberAccessDto[]): DataMartMemberAccessResponseApiDto {
+    return {
+      members: members.map(member => ({
+        userId: member.userId,
+        email: member.email,
+        displayName: member.displayName,
+        avatarUrl: member.avatarUrl,
+        role: member.role,
+        roleScope: member.roleScope,
+        contexts: member.contexts.map(context => ({ id: context.id, name: context.name })),
+        use: { granted: member.use.granted, reason: member.use.reason },
+        maintain: { granted: member.maintain.granted, reason: member.maintain.reason },
+        manageAccess: { granted: member.manageAccess.granted, reason: member.manageAccess.reason },
+      })),
+    };
   }
 
   toGetDataMartRunsCommand(

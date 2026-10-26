@@ -48,6 +48,8 @@ import { GetDataMartRunService } from '../use-cases/get-data-mart-run.service';
 import { GetDataMartService } from '../use-cases/get-data-mart.service';
 import { GetDataMartInputSourceChangeImpactService } from '../use-cases/get-data-mart-input-source-change-impact.service';
 import { DataMartInputSourceChangeImpactResponseApiDto } from '../dto/presentation/data-mart-input-source-change-impact-response-api.dto';
+import { GetDataMartMemberAccessService } from '../use-cases/get-data-mart-member-access.service';
+import { DataMartMemberAccessResponseApiDto } from '../dto/presentation/data-mart-member-access-response-api.dto';
 import { ListDataMartRunsService } from '../use-cases/list-data-mart-runs.service';
 import { ListDataMartsByConnectorNameService } from '../use-cases/list-data-marts-by-connector-name.service';
 import { ListDataMartsService } from '../use-cases/list-data-marts.service';
@@ -85,6 +87,7 @@ import {
   GetDataMartRunsSpec,
   GetDataMartSpec,
   GetDataMartInputSourceChangeImpactSpec,
+  GetDataMartMemberAccessSpec,
   ListDataMartsByConnectorNameSpec,
   ListDataMartsSpec,
   PublishDataMartSpec,
@@ -111,6 +114,7 @@ export class DataMartController {
     private readonly listDataMartsService: ListDataMartsService,
     private readonly getDataMartService: GetDataMartService,
     private readonly getInputSourceChangeImpactService: GetDataMartInputSourceChangeImpactService,
+    private readonly getMemberAccessService: GetDataMartMemberAccessService,
     private readonly updateDefinitionService: UpdateDataMartDefinitionService,
     private readonly updateTitleService: UpdateDataMartTitleService,
     private readonly updateDescriptionService: UpdateDataMartDescriptionService,
@@ -198,6 +202,19 @@ export class DataMartController {
   ): Promise<DataMartInputSourceChangeImpactResponseApiDto> {
     const command = this.mapper.toGetInputSourceChangeImpactCommand(id, context);
     return this.getInputSourceChangeImpactService.run(command);
+  }
+
+  // Admin-only: an admin is the one who can act on every answer, including a member's contexts.
+  @Auth(Role.admin(Strategy.INTROSPECT))
+  @Get(':id/member-access')
+  @GetDataMartMemberAccessSpec()
+  async getMemberAccess(
+    @AuthContext() context: AuthorizationContext,
+    @Param('id') id: string
+  ): Promise<DataMartMemberAccessResponseApiDto> {
+    const command = this.mapper.toGetMemberAccessCommand(id, context);
+    const members = await this.getMemberAccessService.run(command);
+    return this.mapper.toMemberAccessResponse(members);
   }
 
   @Auth(Role.viewer(Strategy.PARSE))
