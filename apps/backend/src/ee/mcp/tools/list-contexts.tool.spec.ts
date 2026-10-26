@@ -5,13 +5,20 @@ import type { McpAuthContext } from '../auth/mcp-auth-context';
 
 describe('ListContextsTool', () => {
   const facade = {
+    createContext: jest.fn(),
+    updateContextMetadata: jest.fn(),
+    getContextImpact: jest.fn(),
+    deleteContext: jest.fn(),
+    setContextMembers: jest.fn(),
     listContexts: jest.fn(),
     validateContextIds: jest.fn(),
     getDataMartContexts: jest.fn(),
   };
   const tool = new ListContextsTool(facade);
   const context = { projectId: 'connected-project' } as McpAuthContext;
-  it('returns the full Markdown description and null and rejects project overrides', async () => {
+  beforeEach(() => jest.resetAllMocks());
+
+  it('returns full descriptions and icons matching its output schema', async () => {
     const contexts = [
       {
         id: 'c',
@@ -19,16 +26,25 @@ describe('ListContextsTool', () => {
         description:
           '# Goal\n[Mart](https://app.owox.com/ui/p/data-marts/id/data-setup)\n' +
           'text'.repeat(5000),
+        icon: 'lucide:megaphone',
       },
-      { id: 'n', name: 'Empty', description: null },
+      { id: 'b', name: 'Purchases', description: null, icon: 'purchases' },
+      { id: 'n', name: 'Empty', description: null, icon: null },
     ];
     facade.listContexts.mockResolvedValue(contexts);
     const result = await tool.handler({}, context);
     expect(result.structuredContent).toEqual({ contexts });
-    expect(facade.listContexts).toHaveBeenCalledWith('connected-project');
-    await expect(tool.handler({ project_id: 'foreign' } as never, context)).rejects.toThrow();
+    expect(z.object(tool.outputSchema).parse(result.structuredContent)).toEqual({ contexts });
+    expect(facade.listContexts).toHaveBeenCalledWith(context.projectId);
     expect(tool.annotations.readOnlyHint).toBe(true);
     expect(tool.requiredScopes).toEqual(['mcp:read']);
+  });
+
+  it('rejects project overrides on direct handler calls before reading Contexts', async () => {
+    await expect(tool.handler({ project_id: 'foreign' } as never, context)).rejects.toThrow(
+      z.ZodError
+    );
+    expect(facade.listContexts).not.toHaveBeenCalled();
   });
   it('publishes a serializable optional context filter and preserves no-filter semantics', () => {
     const schema = z.object({ context_ids: contextIdsSchema });

@@ -1,5 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import type { Role as IdpRole } from '@owox/idp-protocol';
+import type { AuthorizationContext } from '../../idp';
+import { ListProjectMembersCommand } from '../dto/domain/list-project-members.command';
 import {
   MembershipRequestApiDto,
   ProjectMemberResponseApiDto,
@@ -16,6 +18,10 @@ import type { UserProvisioningSettingsDto } from '../dto/domain/user-provisionin
 
 @Injectable()
 export class ProjectMembersMapper {
+  toListCommand(actor: AuthorizationContext): ListProjectMembersCommand {
+    return new ListProjectMembersCommand(actor.projectId);
+  }
+
   toApiResponse(member: ProjectMemberWithScope): ProjectMemberResponseApiDto {
     return {
       userId: member.userId,

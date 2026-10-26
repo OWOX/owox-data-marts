@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { IdpProjectionsFacade } from '../../../idp/facades/idp-projections.facade';
+import { ListProjectMembersCommand } from '../../dto/domain/list-project-members.command';
 import { ProjectRole } from '../../enums/project-role.enum';
 import { RoleScope } from '../../enums/role-scope.enum';
 import { ContextAccessService } from '../../services/context/context-access.service';
@@ -21,7 +22,8 @@ export class ListProjectMembersService {
     private readonly contextAccessService: ContextAccessService
   ) {}
 
-  async run(projectId: string): Promise<ProjectMemberWithScope[]> {
+  async run(command: ListProjectMembersCommand): Promise<ProjectMemberWithScope[]> {
+    const { projectId } = command;
     const members = await this.idpProjectionsFacade.getProjectMembers(projectId);
     const result: ProjectMemberWithScope[] = [];
 

@@ -1,3 +1,4 @@
+import { ListProjectMembersCommand } from '../../dto/domain/list-project-members.command';
 import { RoleScope } from '../../enums/role-scope.enum';
 import { ListProjectMembersService } from './list-project-members.service';
 
@@ -44,8 +45,13 @@ describe('ListProjectMembersService', () => {
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce(['ctx-1', 'ctx-2']);
 
-    const result = await service.run(PROJECT_ID);
+    const result = await service.run(new ListProjectMembersCommand(PROJECT_ID));
 
+    expect(idpProjectionsFacade.getProjectMembers).toHaveBeenCalledWith(PROJECT_ID);
+    for (const userId of ['u1', 'u2']) {
+      expect(contextAccessService.getRoleScope).toHaveBeenCalledWith(userId, PROJECT_ID);
+      expect(contextAccessService.getMemberContextIds).toHaveBeenCalledWith(userId, PROJECT_ID);
+    }
     expect(result).toEqual([
       {
         userId: 'u1',
@@ -72,7 +78,7 @@ describe('ListProjectMembersService', () => {
     const { service, idpProjectionsFacade } = createService();
     idpProjectionsFacade.getProjectMembers.mockResolvedValue([]);
 
-    const result = await service.run(PROJECT_ID);
+    const result = await service.run(new ListProjectMembersCommand(PROJECT_ID));
 
     expect(result).toEqual([]);
   });
@@ -96,18 +102,20 @@ describe('ListProjectMembersService', () => {
       },
     ]);
 
-    const calls: string[] = [];
-    contextAccessService.getRoleScope.mockImplementation(async (userId: string) => {
-      calls.push(`scope:${userId}`);
-      return RoleScope.ENTIRE_PROJECT;
-    });
-    contextAccessService.getMemberContextIds.mockImplementation(async (userId: string) => {
-      calls.push(`contexts:${userId}`);
-      return [];
-    });
+    let activeReads = 0;
+    let maxConcurrentReads = 0;
+    const read = async <T>(value: T): Promise<T> => {
+      activeReads++;
+      maxConcurrentReads = Math.max(maxConcurrentReads, activeReads);
+      await Promise.resolve();
+      activeReads--;
+      return value;
+    };
+    contextAccessService.getRoleScope.mockImplementation(() => read(RoleScope.ENTIRE_PROJECT));
+    contextAccessService.getMemberContextIds.mockImplementation(() => read([]));
 
-    await service.run(PROJECT_ID);
+    await service.run(new ListProjectMembersCommand(PROJECT_ID));
 
-    expect(calls).toEqual(['scope:u1', 'contexts:u1', 'scope:u2', 'contexts:u2']);
+    expect(maxConcurrentReads).toBe(1);
   });
 });

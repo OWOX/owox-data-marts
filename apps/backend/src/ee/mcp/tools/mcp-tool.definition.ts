@@ -1,5 +1,5 @@
 import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/server';
-import type { McpScope } from '@owox/idp-protocol';
+import type { McpScope, Role } from '@owox/idp-protocol';
 import type { ZodRawShape } from 'zod-v4';
 import type { McpAuthContext } from '../auth/mcp-auth-context';
 
@@ -21,5 +21,6 @@ export interface McpToolDefinition<TInput = unknown> {
   readonly outputSchema?: ZodRawShape;
   readonly annotations?: ToolAnnotations;
   readonly requiredScopes: McpScope[];
+  readonly requiredRole?: Role;
   handler(input: TInput, context: McpAuthContext, signal?: AbortSignal): Promise<McpToolResult>;
 }

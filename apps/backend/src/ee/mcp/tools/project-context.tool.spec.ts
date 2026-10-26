@@ -71,7 +71,7 @@ describe('GetProjectContextTool', () => {
       projectId: 'project-1',
       roles: ['viewer'],
     });
-    expect(projectSettings.getDescription).toHaveBeenCalledWith('project-1');
+    expect(projectSettings.getDescription).toHaveBeenCalledWith(context.projectId);
   });
 
   it('returns a 10,000-character project description without truncation', async () => {

@@ -8,11 +8,15 @@ jest.mock('../../idp', () => {
   };
 });
 
-jest.mock('../../idp/facades/idp-projections.facade', () => ({
-  IdpProjectionsFacade: jest.fn(),
-}));
-
 import { ContextController } from './context.controller';
+import { ContextMapper } from '../mappers/context.mapper';
+import { CreateContextCommand } from '../dto/domain/create-context.command';
+import { UpdateContextMetadataCommand } from '../dto/domain/update-context-metadata.command';
+import { GetContextImpactCommand } from '../dto/domain/get-context-impact.command';
+import { DeleteContextCommand } from '../dto/domain/delete-context.command';
+import { ListContextsCommand } from '../dto/domain/list-contexts.command';
+import { SetContextMembersCommand } from '../dto/domain/set-context-members.command';
+
 import type { AuthorizationContext } from '../../idp/types/auth.types';
 import { ContextDto, ContextImpactDto } from '../dto/domain/context.dto';
 
@@ -30,56 +34,32 @@ describe('ContextController', () => {
     }) as AuthorizationContext;
 
   const createController = () => {
-    const contextService = {
-      create: jest.fn(),
-      list: jest.fn(),
-      update: jest.fn(),
-      updateIcon: jest.fn(),
-      getImpact: jest.fn(),
-      delete: jest.fn(),
-      validateContextIds: jest.fn().mockResolvedValue(undefined),
+    const useCases = {
+      create: { run: jest.fn() },
+      list: { run: jest.fn() },
+      update: { run: jest.fn() },
+      getImpact: { run: jest.fn() },
+      delete: { run: jest.fn() },
     };
-
-    const contextAccessService = {
-      getRoleScope: jest.fn(),
-      getMemberContextIds: jest.fn(),
-      updateDataMartContexts: jest.fn(),
-      updateStorageContexts: jest.fn(),
-      updateDestinationContexts: jest.fn(),
-      updateMember: jest.fn(),
-      removeMemberBindings: jest.fn(),
-      setContextMembers: jest.fn(),
-    };
-
-    const contextMapper = {
-      toApiResponse: jest.fn((dto: ContextDto) => ({
-        id: dto.id,
-        name: dto.name,
-        description: dto.description,
-        icon: dto.icon,
-        createdById: dto.createdById,
-        createdByUser: dto.createdByUser,
-        createdAt: dto.createdAt,
-        modifiedAt: dto.modifiedAt,
-      })),
-    };
+    const contextMapper = new ContextMapper();
 
     const setContextMembersService = {
       run: jest.fn().mockResolvedValue({ assignedUserIds: [], droppedAdminIds: [] }),
     };
 
     const controller = new ContextController(
-      contextService as never,
-      contextAccessService as never,
-      contextMapper as never,
+      useCases.create as never,
+      useCases.update as never,
+      useCases.getImpact as never,
+      useCases.delete as never,
+      useCases.list as never,
+      contextMapper,
       setContextMembersService as never
     );
 
     return {
       controller,
-      contextService,
-      contextAccessService,
-      contextMapper,
+      useCases,
       setContextMembersService,
     };
   };
@@ -97,44 +77,44 @@ describe('ContextController', () => {
 
   describe('create', () => {
     it('creates context and maps to response', async () => {
-      const { controller, contextService, contextMapper } = createController();
-      contextService.create.mockResolvedValue(sampleContextDto);
+      const { controller, useCases } = createController();
+      useCases.create.run.mockResolvedValue(sampleContextDto);
 
       const result = await controller.create(makeAuthContext(), {
         name: 'Marketing',
         description: 'Marketing ctx',
       });
 
-      expect(contextService.create).toHaveBeenCalledWith(
-        PROJECT_ID,
-        USER_ID,
-        'Marketing',
-        'Marketing ctx',
-        null
+      expect(useCases.create.run).toHaveBeenCalledWith(
+        new CreateContextCommand(PROJECT_ID, USER_ID, 'Marketing', 'Marketing ctx', undefined)
       );
-      expect(contextMapper.toApiResponse).toHaveBeenCalledWith(sampleContextDto);
-      expect(result.id).toBe(CONTEXT_ID);
+      expect(result).toEqual({
+        id: CONTEXT_ID,
+        name: sampleContextDto.name,
+        description: sampleContextDto.description,
+        icon: null,
+        createdById: USER_ID,
+        createdByUser: null,
+        createdAt: sampleContextDto.createdAt,
+        modifiedAt: sampleContextDto.modifiedAt,
+      });
     });
 
     it('passes the picked icon on create', async () => {
-      const { controller, contextService } = createController();
-      contextService.create.mockResolvedValue(sampleContextDto);
+      const { controller, useCases } = createController();
+      useCases.create.run.mockResolvedValue(sampleContextDto);
 
       await controller.create(makeAuthContext(), { name: 'Marketing', icon: 'lucide:megaphone' });
 
-      expect(contextService.create).toHaveBeenCalledWith(
-        PROJECT_ID,
-        USER_ID,
-        'Marketing',
-        undefined,
-        'lucide:megaphone'
+      expect(useCases.create.run).toHaveBeenCalledWith(
+        new CreateContextCommand(PROJECT_ID, USER_ID, 'Marketing', undefined, 'lucide:megaphone')
       );
     });
   });
 
   describe('updateIcon', () => {
     it('updates the icon in the caller project and maps to response', async () => {
-      const { controller, contextService, contextMapper } = createController();
+      const { controller, useCases } = createController();
       const withIcon = new ContextDto(
         CONTEXT_ID,
         'Marketing',
@@ -146,46 +126,53 @@ describe('ContextController', () => {
         new Date('2026-01-02T00:00:00Z'),
         'lucide:megaphone'
       );
-      contextService.updateIcon.mockResolvedValue(withIcon);
+      useCases.update.run.mockResolvedValue(withIcon);
 
       const result = await controller.updateIcon(makeAuthContext(), CONTEXT_ID, {
         icon: 'lucide:megaphone',
       });
 
-      expect(contextService.updateIcon).toHaveBeenCalledWith(
-        CONTEXT_ID,
-        PROJECT_ID,
-        'lucide:megaphone'
+      expect(useCases.update.run).toHaveBeenCalledWith(
+        new UpdateContextMetadataCommand(
+          CONTEXT_ID,
+          PROJECT_ID,
+          undefined,
+          undefined,
+          'lucide:megaphone'
+        )
       );
-      expect(contextMapper.toApiResponse).toHaveBeenCalledWith(withIcon);
       expect(result.icon).toBe('lucide:megaphone');
     });
 
     it('passes null through as a reset', async () => {
-      const { controller, contextService } = createController();
-      contextService.updateIcon.mockResolvedValue(sampleContextDto);
+      const { controller, useCases } = createController();
+      useCases.update.run.mockResolvedValue(sampleContextDto);
 
       await controller.updateIcon(makeAuthContext(), CONTEXT_ID, { icon: null });
 
-      expect(contextService.updateIcon).toHaveBeenCalledWith(CONTEXT_ID, PROJECT_ID, null);
+      expect(useCases.update.run).toHaveBeenCalledWith(
+        new UpdateContextMetadataCommand(CONTEXT_ID, PROJECT_ID, undefined, undefined, null)
+      );
     });
   });
 
   describe('list', () => {
     it('lists all contexts for project', async () => {
-      const { controller, contextService, contextMapper } = createController();
-      contextService.list.mockResolvedValue([sampleContextDto, sampleContextDto]);
+      const { controller, useCases } = createController();
+      useCases.list.run.mockResolvedValue([sampleContextDto, sampleContextDto]);
 
       const result = await controller.list(makeAuthContext());
 
-      expect(contextService.list).toHaveBeenCalledWith(PROJECT_ID);
+      expect(useCases.list.run).toHaveBeenCalledWith(new ListContextsCommand(PROJECT_ID));
       expect(result).toHaveLength(2);
-      expect(contextMapper.toApiResponse).toHaveBeenCalledTimes(2);
+      expect(result).toEqual(
+        expect.arrayContaining([expect.objectContaining({ id: CONTEXT_ID, icon: null })])
+      );
     });
 
     it('returns empty list when no contexts', async () => {
-      const { controller, contextService } = createController();
-      contextService.list.mockResolvedValue([]);
+      const { controller, useCases } = createController();
+      useCases.list.run.mockResolvedValue([]);
 
       const result = await controller.list(makeAuthContext());
 
@@ -195,28 +182,38 @@ describe('ContextController', () => {
 
   describe('update', () => {
     it('updates context and maps to response', async () => {
-      const { controller, contextService, contextMapper } = createController();
-      contextService.update.mockResolvedValue(sampleContextDto);
+      const { controller, useCases } = createController();
+      useCases.update.run.mockResolvedValue(sampleContextDto);
 
       const result = await controller.update(makeAuthContext(), CONTEXT_ID, {
         name: 'Marketing 2',
         description: 'Updated',
       });
 
-      expect(contextService.update).toHaveBeenCalledWith(
-        CONTEXT_ID,
-        PROJECT_ID,
-        'Marketing 2',
-        'Updated',
-        undefined
+      expect(useCases.update.run).toHaveBeenCalledWith(
+        new UpdateContextMetadataCommand(
+          CONTEXT_ID,
+          PROJECT_ID,
+          'Marketing 2',
+          'Updated',
+          undefined
+        )
       );
-      expect(contextMapper.toApiResponse).toHaveBeenCalledWith(sampleContextDto);
-      expect(result.id).toBe(CONTEXT_ID);
+      expect(result).toEqual({
+        id: CONTEXT_ID,
+        name: sampleContextDto.name,
+        description: sampleContextDto.description,
+        icon: null,
+        createdById: USER_ID,
+        createdByUser: null,
+        createdAt: sampleContextDto.createdAt,
+        modifiedAt: sampleContextDto.modifiedAt,
+      });
     });
 
     it('passes an icon sent with the update, null included', async () => {
-      const { controller, contextService } = createController();
-      contextService.update.mockResolvedValue(sampleContextDto);
+      const { controller, useCases } = createController();
+      useCases.update.run.mockResolvedValue(sampleContextDto);
 
       await controller.update(makeAuthContext(), CONTEXT_ID, {
         name: 'Marketing',
@@ -224,53 +221,50 @@ describe('ContextController', () => {
       });
       await controller.update(makeAuthContext(), CONTEXT_ID, { name: 'Marketing', icon: null });
 
-      expect(contextService.update).toHaveBeenNthCalledWith(
+      expect(useCases.update.run).toHaveBeenNthCalledWith(
         1,
-        CONTEXT_ID,
-        PROJECT_ID,
-        'Marketing',
-        undefined,
-        'lucide:megaphone'
+        new UpdateContextMetadataCommand(
+          CONTEXT_ID,
+          PROJECT_ID,
+          'Marketing',
+          undefined,
+          'lucide:megaphone'
+        )
       );
-      expect(contextService.update).toHaveBeenNthCalledWith(
+      expect(useCases.update.run).toHaveBeenNthCalledWith(
         2,
-        CONTEXT_ID,
-        PROJECT_ID,
-        'Marketing',
-        undefined,
-        null
+        new UpdateContextMetadataCommand(CONTEXT_ID, PROJECT_ID, 'Marketing', undefined, null)
       );
     });
   });
 
   describe('getImpact', () => {
     it('returns full impact dto', async () => {
-      const { controller, contextService } = createController();
+      const { controller, useCases } = createController();
       const impact = new ContextImpactDto(CONTEXT_ID, 'Marketing', 2, 1, 0, 3, 1, ['u1', 'u2']);
-      contextService.getImpact.mockResolvedValue(impact);
+      useCases.getImpact.run.mockResolvedValue(impact);
 
       const result = await controller.getImpact(makeAuthContext(), CONTEXT_ID);
 
-      expect(contextService.getImpact).toHaveBeenCalledWith(CONTEXT_ID, PROJECT_ID);
+      expect(useCases.getImpact.run).toHaveBeenCalledWith(
+        new GetContextImpactCommand(CONTEXT_ID, PROJECT_ID)
+      );
       expect(result).toEqual(impact);
     });
   });
 
   describe('delete', () => {
-    it('delegates to context service and returns void', async () => {
-      const { controller, contextService } = createController();
-      contextService.delete.mockResolvedValue(undefined);
+    it('deletes within the authenticated project and returns no body', async () => {
+      const { controller, useCases } = createController();
+      useCases.delete.run.mockResolvedValue(undefined);
 
       await expect(controller.delete(makeAuthContext(), CONTEXT_ID)).resolves.toBeUndefined();
 
-      expect(contextService.delete).toHaveBeenCalledWith(CONTEXT_ID, PROJECT_ID);
+      expect(useCases.delete.run).toHaveBeenCalledWith(
+        new DeleteContextCommand(CONTEXT_ID, PROJECT_ID)
+      );
     });
   });
-
-  // updateDataMartContexts moved to DataMartController (`PUT /data-marts/:id/contexts`)
-  // for path consistency with the rest of the data-mart sub-routes; behaviour
-  // is covered by ContextAccessService unit tests and the
-  // permissions-contexts.e2e suite.
 
   describe('setContextMembers', () => {
     it('forwards the request to SetContextMembersService and returns the result', async () => {
@@ -284,11 +278,9 @@ describe('ContextController', () => {
         assignedUserIds: ['0', '1', '2'],
       });
 
-      expect(setContextMembersService.run).toHaveBeenCalledWith(CONTEXT_ID, PROJECT_ID, [
-        '0',
-        '1',
-        '2',
-      ]);
+      expect(setContextMembersService.run).toHaveBeenCalledWith(
+        new SetContextMembersCommand(CONTEXT_ID, PROJECT_ID, ['0', '1', '2'])
+      );
       expect(result.assignedUserIds).toEqual(['1', '2']);
       expect(result.droppedAdminIds).toEqual(['0']);
     });

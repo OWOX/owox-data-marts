@@ -1,4 +1,5 @@
 import { INestApplication } from '@nestjs/common';
+import type { Application } from 'express';
 import { DataSource } from 'typeorm';
 import { randomUUID } from 'crypto';
 import * as supertest from 'supertest';
@@ -102,9 +103,7 @@ describe('Permissions Model Contexts & Role Scope (e2e)', () => {
     contextAccess = app.get(ContextAccessService);
     dataSource = app.get(DataSource);
 
-    const expressApp = (
-      app.getHttpAdapter() as { getInstance(): Express.Application }
-    ).getInstance();
+    const expressApp = (app.getHttpAdapter() as { getInstance(): Application }).getInstance();
     const idpProvider = expressApp.get('idp') as IdpProvider;
     jest
       .spyOn(idpProvider, 'introspectToken')
@@ -152,6 +151,7 @@ describe('Permissions Model Contexts & Role Scope (e2e)', () => {
     }));
     jest.spyOn(facade, 'removeMember').mockResolvedValue(undefined);
     jest.spyOn(facade, 'changeMemberRole').mockResolvedValue(undefined);
+    await app.listen(0);
   }, 120_000);
 
   afterAll(async () => {
@@ -1659,8 +1659,8 @@ describe('Permissions Model Contexts & Role Scope (e2e)', () => {
       const contexts = app.get<McpContextsFacade>(MCP_CONTEXTS_FACADE);
       expect(await contexts.listContexts(PROJECT_ID)).toEqual(
         expect.arrayContaining([
-          { id: marketing.body.id, name: 'MCP-marketing', description },
-          { id: sales.body.id, name: 'MCP-sales', description: null },
+          { id: marketing.body.id, name: 'MCP-marketing', description, icon: null },
+          { id: sales.body.id, name: 'MCP-sales', description: null, icon: null },
         ])
       );
       await expect(

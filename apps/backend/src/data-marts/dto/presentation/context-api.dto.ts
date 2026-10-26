@@ -29,10 +29,10 @@ export class CreateContextRequestApiDto {
   @MaxLength(255)
   name: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ type: String, nullable: true })
   @IsOptional()
   @IsString()
-  description?: string;
+  description?: string | null;
 
   @ApiProperty({
     type: String,
@@ -55,10 +55,10 @@ export class UpdateContextRequestApiDto {
   @MaxLength(255)
   name: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ type: String, nullable: true })
   @IsOptional()
   @IsString()
-  description?: string;
+  description?: string | null;
 
   @ApiProperty({
     type: String,

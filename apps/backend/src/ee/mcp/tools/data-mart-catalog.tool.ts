@@ -79,7 +79,8 @@ export class ListDataMartsTool implements McpToolDefinition<ListDataMartsInput> 
     private readonly publicOriginService: PublicOriginService,
     @Inject(MCP_PROJECT_CONTEXT_FACADE)
     private readonly projectContext: McpProjectContextFacade,
-    @Inject(MCP_CONTEXTS_FACADE) private readonly contexts: McpContextsFacade
+    @Inject(MCP_CONTEXTS_FACADE)
+    private readonly contexts: Pick<McpContextsFacade, 'validateContextIds' | 'getDataMartContexts'>
   ) {}
 
   parseInput(input: unknown): ListDataMartsInput {

@@ -21,9 +21,25 @@ import { SummarizeDataCatalogTool } from './summarize-data-catalog.tool';
 import { UpdateReportRunScheduleTool } from './update-report-run-schedule.tool';
 import { UpdateReportTool } from './update-report.tool';
 import { AddDestinationTool } from './add-destination.tool';
+import { CreateContextTool } from './context/create-context.tool';
+import { UpdateContextMetadataTool } from './context/update-context-metadata.tool';
+import { GetContextImpactTool } from './context/get-context-impact.tool';
+import { SetContextMembersTool } from './context/set-context-members.tool';
+import { DeleteContextTool } from './context/delete-context.tool';
+import { ListProjectMembersTool } from './project/list-project-members.tool';
+import { GetProjectSettingsTool } from './project/get-project-settings.tool';
+import { UpdateProjectDescriptionTool } from './project/update-project-description.tool';
 
 export const MCP_TOOL_PROVIDER_CLASSES: Array<Type<McpToolDefinition>> = [
   ListContextsTool,
+  CreateContextTool,
+  UpdateContextMetadataTool,
+  GetContextImpactTool,
+  SetContextMembersTool,
+  DeleteContextTool,
+  ListProjectMembersTool,
+  GetProjectSettingsTool,
+  UpdateProjectDescriptionTool,
   SummarizeDataCatalogTool,
   ListDataMartsTool,
   SearchDataMartsTool,

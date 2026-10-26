@@ -2,6 +2,7 @@ import { ConflictException, NotFoundException, BadRequestException } from '@nest
 import { UserProjectionDto } from '../../../idp/dto/domain/user-projection.dto';
 import { UserProjectionsListDto } from '../../../idp/dto/domain/user-projections-list.dto';
 import { Context } from '../../entities/context.entity';
+import { DataMartIcon } from '../../enums/data-mart-icon.enum';
 import { ContextMapper } from '../../mappers/context.mapper';
 import { ContextService } from './context.service';
 
@@ -254,7 +255,7 @@ describe('ContextService', () => {
 
     it('keeps the icon when the name and description are updated', async () => {
       const { service, contextRepository, userProjectionsFetcherService } = createService();
-      const existingEntity = createContextEntity({ icon: 'purchases' });
+      const existingEntity = createContextEntity({ icon: DataMartIcon.PURCHASES });
       contextRepository.findOne.mockResolvedValueOnce(existingEntity).mockResolvedValueOnce(null);
       contextRepository.save.mockImplementation((entity: Context) => Promise.resolve(entity));
       userProjectionsFetcherService.fetchUserProjectionsList.mockResolvedValue(
@@ -297,7 +298,7 @@ describe('ContextService', () => {
     it('resets the icon when the update sends null', async () => {
       const { service, contextRepository, userProjectionsFetcherService } = createService();
       contextRepository.findOne
-        .mockResolvedValueOnce(createContextEntity({ icon: 'purchases' }))
+        .mockResolvedValueOnce(createContextEntity({ icon: DataMartIcon.PURCHASES }))
         .mockResolvedValueOnce(null);
       contextRepository.save.mockImplementation((entity: Context) => Promise.resolve(entity));
       userProjectionsFetcherService.fetchUserProjectionsList.mockResolvedValue(
@@ -318,7 +319,13 @@ describe('ContextService', () => {
         new UserProjectionsListDto([])
       );
 
-      const result = await service.updateIcon(CONTEXT_ID, PROJECT_ID, 'lucide:megaphone');
+      const result = await service.update(
+        CONTEXT_ID,
+        PROJECT_ID,
+        undefined,
+        undefined,
+        'lucide:megaphone'
+      );
 
       expect(contextRepository.findOne).toHaveBeenCalledWith({
         where: { id: CONTEXT_ID, projectId: PROJECT_ID },
@@ -335,13 +342,15 @@ describe('ContextService', () => {
 
     it('resets the icon to the default with null', async () => {
       const { service, contextRepository, userProjectionsFetcherService } = createService();
-      contextRepository.findOne.mockResolvedValue(createContextEntity({ icon: 'purchases' }));
+      contextRepository.findOne.mockResolvedValue(
+        createContextEntity({ icon: DataMartIcon.PURCHASES })
+      );
       contextRepository.save.mockImplementation((entity: Context) => Promise.resolve(entity));
       userProjectionsFetcherService.fetchUserProjectionsList.mockResolvedValue(
         new UserProjectionsListDto([])
       );
 
-      const result = await service.updateIcon(CONTEXT_ID, PROJECT_ID, null);
+      const result = await service.update(CONTEXT_ID, PROJECT_ID, undefined, undefined, null);
 
       expect(contextRepository.save).toHaveBeenCalledWith(expect.objectContaining({ icon: null }));
       expect(result.icon).toBeNull();
@@ -351,14 +360,58 @@ describe('ContextService', () => {
       const { service, contextRepository } = createService();
       contextRepository.findOne.mockResolvedValue(null);
 
-      await expect(service.updateIcon(CONTEXT_ID, 'other-project', 'purchases')).rejects.toThrow(
-        NotFoundException
-      );
+      await expect(
+        service.update(CONTEXT_ID, 'other-project', undefined, undefined, DataMartIcon.PURCHASES)
+      ).rejects.toThrow(NotFoundException);
       expect(contextRepository.save).not.toHaveBeenCalled();
     });
   });
 
   describe('update', () => {
+    it.each([
+      {
+        description: 'Updated',
+        icon: undefined,
+        expectedDescription: 'Updated',
+        expectedIcon: 'purchases',
+      },
+      {
+        description: undefined,
+        icon: 'lucide:megaphone',
+        expectedDescription: 'Keep',
+        expectedIcon: 'lucide:megaphone',
+      },
+      { description: null, icon: null, expectedDescription: null, expectedIcon: null },
+    ] as const)(
+      'preserves the name and omitted metadata during a partial update: %p',
+      async ({ description, icon, expectedDescription, expectedIcon }) => {
+        const { service, contextRepository, userProjectionsFetcherService } = createService();
+        const entity = createContextEntity({ description: 'Keep', icon: DataMartIcon.PURCHASES });
+        contextRepository.findOne.mockResolvedValueOnce(entity).mockResolvedValueOnce(null);
+        contextRepository.save.mockImplementation(async saved => saved);
+        userProjectionsFetcherService.fetchUserProjectionsList.mockResolvedValue(
+          new UserProjectionsListDto([])
+        );
+
+        const result = await service.update(CONTEXT_ID, PROJECT_ID, undefined, description, icon);
+
+        expect(result).toMatchObject({
+          name: 'Test Context',
+          description: expectedDescription,
+          icon: expectedIcon,
+        });
+        expect(contextRepository.save).toHaveBeenCalledWith(
+          expect.objectContaining({
+            id: CONTEXT_ID,
+            projectId: PROJECT_ID,
+            name: 'Test Context',
+            description: expectedDescription,
+            icon: expectedIcon,
+          })
+        );
+      }
+    );
+
     it('should update name and description', async () => {
       const { service, contextRepository, userProjectionsFetcherService } = createService();
 

@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { IdpProjectionsFacade } from '../../../idp/facades/idp-projections.facade';
 import { ContextAccessService } from '../../services/context/context-access.service';
+import type { SetContextMembersCommand } from '../../dto/domain/set-context-members.command';
 
 export interface SetContextMembersResult {
   /** User ids actually persisted on the context (admins stripped). */
@@ -20,11 +21,8 @@ export class SetContextMembersService {
     private readonly contextAccessService: ContextAccessService
   ) {}
 
-  async run(
-    contextId: string,
-    projectId: string,
-    assignedUserIds: string[]
-  ): Promise<SetContextMembersResult> {
+  async run(command: SetContextMembersCommand): Promise<SetContextMembersResult> {
+    const { contextId, projectId, assignedUserIds } = command;
     const projectMembers = await this.idpProjectionsFacade.getProjectMembersOrThrow(projectId);
     const memberIds = new Set(projectMembers.map(m => m.userId));
     const adminIds = new Set(projectMembers.filter(m => m.role === 'admin').map(m => m.userId));

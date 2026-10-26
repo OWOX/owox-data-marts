@@ -7,16 +7,22 @@ import {
 } from '../../../data-marts/facades/mcp-contexts.facade';
 import type { McpAuthContext } from '../auth/mcp-auth-context';
 import { jsonToolResult, type McpToolDefinition } from './mcp-tool.definition';
+import { contextIconSchema } from './context/context.schemas';
 
 @Injectable()
 export class ListContextsTool implements McpToolDefinition<Record<string, never>> {
   readonly name = 'list_contexts';
   readonly description =
-    'List business contexts in the connected OWOX project, including IDs, names and complete descriptions (null when missing). Discovery flow: get_project_context → list_contexts → list_data_marts or get_relevant_data_marts_by_prompt with context_ids → get_data_mart_details_by_id. Read descriptions for business goals and Markdown links to specific Data Marts. Listing a context or following a reference never grants access to its resources; all Data Mart tools enforce existing access controls.';
+    'List business contexts in the connected OWOX project, including IDs, names, complete descriptions and icon keys (null when unset). Discovery flow: get_project_context → list_contexts → list_data_marts or get_relevant_data_marts_by_prompt with context_ids → get_data_mart_details_by_id. Read descriptions for business goals and Markdown links to specific Data Marts. Listing a context or following a reference never grants access to its resources; all Data Mart tools enforce existing access controls.';
   readonly zodSchema = {};
   readonly outputSchema = {
     contexts: z.array(
-      z.object({ id: z.string(), name: z.string(), description: z.string().nullable() })
+      z.object({
+        id: z.string(),
+        name: z.string(),
+        description: z.string().nullable(),
+        icon: contextIconSchema.nullable(),
+      })
     ),
   };
   readonly annotations = {

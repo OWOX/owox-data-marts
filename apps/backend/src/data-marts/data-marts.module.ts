@@ -60,6 +60,8 @@ import { DataMartPreviewController } from './controllers/data-mart-preview.contr
 import { SummarizeMcpDataCatalogService } from './use-cases/summarize-mcp-data-catalog.service';
 import { MCP_DATA_MARTS_FACADE } from './facades/mcp-data-marts.facade';
 import { MCP_CONTEXTS_FACADE } from './facades/mcp-contexts.facade';
+import { MCP_PROJECT_MEMBERS_FACADE } from './facades/mcp-project-members.facade';
+import { McpProjectMembersFacadeImpl } from './facades/mcp-project-members.facade.impl';
 import { McpContextsFacadeImpl } from './facades/mcp-contexts.facade.impl';
 import { McpDataMartsFacadeImpl } from './facades/mcp-data-marts.facade.impl';
 import { MCP_DATA_DESTINATIONS_FACADE } from './facades/mcp-data-destinations.facade';
@@ -432,6 +434,13 @@ import { ListMembershipRequestsService } from './use-cases/project-members/list-
 import { ApproveMembershipRequestService } from './use-cases/project-members/approve-membership-request.service';
 import { DeclineMembershipRequestService } from './use-cases/project-members/decline-membership-request.service';
 import { SetContextMembersService } from './use-cases/contexts/set-context-members.service';
+import { CreateContextService } from './use-cases/contexts/create-context.service';
+import { UpdateContextMetadataService } from './use-cases/contexts/update-context-metadata.service';
+import { GetContextImpactService } from './use-cases/contexts/get-context-impact.service';
+import { DeleteContextService } from './use-cases/contexts/delete-context.service';
+import { ListContextsService } from './use-cases/contexts/list-contexts.service';
+import { ValidateContextIdsService } from './use-cases/contexts/validate-context-ids.service';
+import { GetDataMartContextsService } from './use-cases/contexts/get-data-mart-contexts.service';
 import { ProjectMemberApiKeysController } from './controllers/project-member-api-keys.controller';
 import { ListProjectMemberApiKeysService } from './use-cases/project-member-api-keys/list-project-member-api-keys.service';
 import { CreateProjectMemberApiKeyService } from './use-cases/project-member-api-keys/create-project-member-api-key.service';
@@ -645,6 +654,7 @@ import { ConsentCredentialDefinitionService } from './credentials/use-cases/cons
     DataQualitySummaryService,
     McpDataCatalogSummaryService,
     { provide: MCP_CONTEXTS_FACADE, useClass: McpContextsFacadeImpl },
+    { provide: MCP_PROJECT_MEMBERS_FACADE, useClass: McpProjectMembersFacadeImpl },
     CreateDataMartService,
     ListDataMartsService,
     GetModelCanvasDataMartsService,
@@ -974,6 +984,13 @@ import { ConsentCredentialDefinitionService } from './credentials/use-cases/cons
     ApproveMembershipRequestService,
     DeclineMembershipRequestService,
     SetContextMembersService,
+    CreateContextService,
+    UpdateContextMetadataService,
+    GetContextImpactService,
+    DeleteContextService,
+    ListContextsService,
+    ValidateContextIdsService,
+    GetDataMartContextsService,
     ListProjectMemberApiKeysService,
     CreateProjectMemberApiKeyService,
     UpdateProjectMemberApiKeyService,
@@ -1004,6 +1021,7 @@ import { ConsentCredentialDefinitionService } from './credentials/use-cases/cons
   ],
   exports: [
     MCP_CONTEXTS_FACADE,
+    MCP_PROJECT_MEMBERS_FACADE,
     CREDENTIAL_CONSUMER_BINDING_FACADE,
     CredentialFetchService,
     CredentialAiService,

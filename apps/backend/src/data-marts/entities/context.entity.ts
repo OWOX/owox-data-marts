@@ -20,7 +20,7 @@ export class Context {
   name: string;
 
   @Column({ type: 'text', nullable: true })
-  description?: string;
+  description?: string | null;
 
   /** User-picked icon (same values as a Data Mart icon); null renders the default one. */
   @Column({ type: 'varchar', length: 64, nullable: true })

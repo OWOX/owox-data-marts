@@ -7,6 +7,12 @@ import { SearchDataMartsTool } from './search-data-marts.tool';
 
 describe('SearchDataMartsTool', () => {
   const contexts = {
+    createContext: jest.fn(),
+    updateContextMetadata: jest.fn(),
+    getContextImpact: jest.fn(),
+    deleteContext: jest.fn(),
+    setContextMembers: jest.fn(),
+    listContexts: jest.fn(),
     validateContextIds: jest.fn().mockResolvedValue(undefined),
     getDataMartContexts: jest.fn().mockResolvedValue({}),
   };
@@ -65,7 +71,9 @@ describe('SearchDataMartsTool', () => {
       contexts
     );
 
-    await expect(tool.handler({ prompt: 'orders revenue', limit: 5 }, context)).resolves.toEqual({
+    await expect(
+      tool.handler(tool.parseInput({ prompt: 'orders revenue', limit: 5 }), context)
+    ).resolves.toEqual({
       structuredContent: {
         project: { id: 'project-1', title: 'Analytics' },
         data_marts: [
@@ -125,7 +133,7 @@ describe('SearchDataMartsTool', () => {
       contexts
     );
 
-    await tool.handler({ prompt: 'orders' }, context);
+    await tool.handler(tool.parseInput({ prompt: 'orders' }), context);
 
     expect(facade.search).toHaveBeenCalledWith(
       'project-1',
@@ -149,7 +157,7 @@ describe('SearchDataMartsTool', () => {
       contexts
     );
 
-    const result = await tool.handler({ prompt: 'orders' }, context);
+    const result = await tool.handler(tool.parseInput({ prompt: 'orders' }), context);
 
     expect(result.structuredContent).toEqual({ data_marts: [] });
   });
@@ -166,7 +174,7 @@ describe('SearchDataMartsTool', () => {
       contexts
     );
 
-    const result = await tool.handler({ prompt: 'orders' }, context);
+    const result = await tool.handler(tool.parseInput({ prompt: 'orders' }), context);
 
     expect(result.structuredContent).toEqual({
       project: { id: 'project-1', title: 'Analytics' },
@@ -197,7 +205,7 @@ describe('SearchDataMartsTool', () => {
       contexts
     );
 
-    await tool.handler({ prompt: 'orders' }, context);
+    await tool.handler(tool.parseInput({ prompt: 'orders' }), context);
 
     expect(untouched.listDataMarts).not.toHaveBeenCalled();
   });
@@ -215,7 +223,7 @@ describe('SearchDataMartsTool', () => {
       contexts
     );
 
-    const result = await tool.handler({ prompt: 'orders' }, context);
+    const result = await tool.handler(tool.parseInput({ prompt: 'orders' }), context);
 
     expect(result.structuredContent).toEqual({
       project: { id: 'project-1', title: 'Analytics' },
@@ -289,6 +297,7 @@ describe('SearchDataMartsTool', () => {
       { id: 'two', name: 'Sales' },
     ];
     const scoped = {
+      ...contexts,
       validateContextIds: jest.fn().mockResolvedValue(undefined),
       getDataMartContexts: jest.fn().mockResolvedValue({ dm_1: attached }),
     };
@@ -299,7 +308,10 @@ describe('SearchDataMartsTool', () => {
       catalog,
       scoped
     );
-    const result = await tool.handler({ prompt: 'orders', context_ids: ['one'] }, context);
+    const result = await tool.handler(
+      tool.parseInput({ prompt: 'orders', context_ids: ['one'] }),
+      context
+    );
     expect(search.search).toHaveBeenCalledWith(
       context.projectId,
       'orders',
@@ -313,7 +325,7 @@ describe('SearchDataMartsTool', () => {
     expect(result.structuredContent).toMatchObject({ data_marts: [{ contexts: attached }] });
     scoped.validateContextIds.mockRejectedValueOnce(new Error('foreign project'));
     await expect(
-      tool.handler({ prompt: 'orders', context_ids: ['foreign'] }, context)
+      tool.handler(tool.parseInput({ prompt: 'orders', context_ids: ['foreign'] }), context)
     ).rejects.toThrow('foreign project');
     expect(search.search).toHaveBeenCalledTimes(1);
   });
