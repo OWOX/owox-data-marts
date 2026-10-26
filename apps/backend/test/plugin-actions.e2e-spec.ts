@@ -627,9 +627,19 @@ describe('Plugin backend actions (e2e)', () => {
       await asExecution('/api/data-marts', token).expect(401);
     });
 
-    it('lets the token reach the AI Credential routes, which check the declaration', async () => {
+    it('lets the token past the AI declaration and model checks to its installation binding', async () => {
+      const plugin = await installPlugin('actions-e2e-ai', '7139');
+      await app
+        .get<Repository<PluginVersion>>(getRepositoryToken(PluginVersion))
+        .update(plugin.versionId, {
+          credentialRequirements: [{ id: 'ai', optional: false, models: ['fast'] }],
+        });
       const token = randomUUID();
-      await seedExecution(token);
+      await seedExecution(token, {
+        pluginId: plugin.pluginId,
+        pluginVersionId: plugin.versionId,
+        installationId: plugin.installationId,
+      });
 
       const res = await agent
         .post(`${RUNTIME}/credentials/ai/ai/generate`)
@@ -637,7 +647,8 @@ describe('Plugin backend actions (e2e)', () => {
         .send({ version: 1, model: 'fast', options: {} })
         .expect(404);
 
-      expect(res.body.message).toBe('Credential ai is not declared by this plugin');
+      // The binding lookup is the first check after the declared model; no provider is needed.
+      expect(res.body.message).toBe('Credential ai is not configured');
     });
 
     it('refuses a runtime token on executions/current, which is not read as an id', async () => {

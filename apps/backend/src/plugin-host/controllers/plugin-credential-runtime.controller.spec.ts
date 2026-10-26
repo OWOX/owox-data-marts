@@ -85,6 +85,55 @@ describe('PluginCredentialRuntimeController in a backend action', () => {
     }
   );
 
+  it('lets the execution token stream through a declared AI Credential', async () => {
+    const binding = { credentialId: 'credential-1', requirement: { key: 'ai' } };
+    const bindings = {
+      resolveBinding: jest.fn().mockResolvedValue(binding),
+      markUsed: jest.fn().mockResolvedValue(undefined),
+    };
+    const aiService = {
+      stream: jest.fn().mockResolvedValue(
+        new ReadableStream({
+          start(controller) {
+            controller.enqueue({ type: 'text-delta', textDelta: 'hello' });
+            controller.close();
+          },
+        })
+      ),
+    };
+    const controller = new PluginCredentialRuntimeController(
+      { findById: jest.fn().mockResolvedValue({ currentVersionId: 'version-1' }) } as never,
+      { findById: jest.fn().mockResolvedValue({ credentialRequirements: AI }) } as never,
+      {} as never,
+      aiService as never,
+      bindings as never
+    );
+    const response = Object.assign(new EventEmitter(), {
+      status: jest.fn(),
+      setHeader: jest.fn(),
+      flushHeaders: jest.fn(),
+      write: jest.fn().mockReturnValue(true),
+      end: jest.fn(),
+      writableEnded: false,
+      destroyed: false,
+    });
+    const request = Object.assign(new EventEmitter(), { res: response });
+
+    await expect(
+      controller.stream(
+        'ai',
+        { version: 1, model: 'fast', options: {} },
+        backend,
+        request as never,
+        response as never
+      )
+    ).resolves.toBeUndefined();
+    expect(aiService.stream).toHaveBeenCalledWith(binding, 'fast', {}, expect.any(AbortSignal));
+    expect(bindings.markUsed).toHaveBeenCalled();
+    expect(response.write).toHaveBeenCalledWith('{"type":"text-delta","textDelta":"hello"}\n');
+    expect(response.end).toHaveBeenCalled();
+  });
+
   it('still lets the execution token fetch through an exact Credential', async () => {
     const binding = { credentialId: 'credential-1', requirement: { key: 'github' } };
     const bindings = {
