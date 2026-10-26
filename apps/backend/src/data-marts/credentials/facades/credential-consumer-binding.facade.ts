@@ -1,3 +1,9 @@
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
 import type {
   CredentialDefinitionContract,
   StoredCredentialRequirement,
@@ -6,6 +12,16 @@ import type {
 } from '../credential.types';
 
 export const CREDENTIAL_CONSUMER_BINDING_FACADE = Symbol('CREDENTIAL_CONSUMER_BINDING_FACADE');
+
+/** How readiness refuses a Credential that is not usable, as opposed to a real failure. */
+export function isExpectedUnusableCredentialError(error: unknown): boolean {
+  return (
+    error instanceof BadRequestException ||
+    error instanceof ConflictException ||
+    error instanceof ForbiddenException ||
+    error instanceof NotFoundException
+  );
+}
 
 export interface ReplaceCredentialBindingsRequest {
   readonly projectId: string;

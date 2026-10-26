@@ -1,4 +1,4 @@
-import { NotFoundException } from '@nestjs/common';
+import { Logger, NotFoundException } from '@nestjs/common';
 import type { AuthorizationContext } from '../../idp/types/auth.types';
 import { PluginActionExecutionStatus } from '../enums/plugin-action-execution-status.enum';
 import {
@@ -151,8 +151,9 @@ describe('GetCurrentPluginActionExecutionService', () => {
       );
     });
 
-    it('leaves an unusable AI Credential out and still answers the context', async () => {
+    it('leaves an unusable AI Credential out, says why in the log, and still answers the context', async () => {
       const { service, credentialBindings } = setup();
+      const warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
       credentialBindings.assertConsumerReady.mockImplementation(
         async ({ requirements }: { requirements: string[] }) => {
           if (requirements.includes('ai')) {
@@ -165,6 +166,10 @@ describe('GetCurrentPluginActionExecutionService', () => {
       await expect(service.run({ context: CONTEXT, aiCredentials: true })).resolves.toMatchObject({
         credentialHandles: [{ name: 'github', kind: 'exact' }],
       });
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringMatching(/AI Credential ai left out .*: Credential ai is not configured/)
+      );
+      warn.mockRestore();
     });
 
     it('still fails on an error that is not an unusable AI Credential', async () => {

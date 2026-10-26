@@ -1,6 +1,5 @@
 import {
   BadRequestException,
-  ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -20,13 +19,14 @@ import { CredentialConsumerBinding } from '../entities/credential-consumer-bindi
 import { Credential } from '../entities/credential.entity';
 import { CredentialDefinitionService } from '../services/credential-definition.service';
 import { CredentialService } from '../services/credential.service';
-import type {
-  CredentialConsumerBindingFacade,
-  MarkCredentialUsedRequest,
-  ReconcileCredentialBindingsRequest,
-  ReplaceCredentialBindingsRequest,
-  ResolveCredentialBindingRequest,
-  ResolvedCredentialBinding,
+import {
+  isExpectedUnusableCredentialError,
+  type CredentialConsumerBindingFacade,
+  type MarkCredentialUsedRequest,
+  type ReconcileCredentialBindingsRequest,
+  type ReplaceCredentialBindingsRequest,
+  type ResolveCredentialBindingRequest,
+  type ResolvedCredentialBinding,
 } from './credential-consumer-binding.facade';
 
 @Injectable()
@@ -301,15 +301,6 @@ export class CredentialConsumerBindingFacadeImpl implements CredentialConsumerBi
     }
     return { definition, aiModelMappings };
   }
-}
-
-function isExpectedUnusableCredentialError(error: unknown): boolean {
-  return (
-    error instanceof BadRequestException ||
-    error instanceof ConflictException ||
-    error instanceof ForbiddenException ||
-    error instanceof NotFoundException
-  );
 }
 
 function assertUniqueRequirementKeys(requirements: readonly NormalizedCredentialRequirement[]) {

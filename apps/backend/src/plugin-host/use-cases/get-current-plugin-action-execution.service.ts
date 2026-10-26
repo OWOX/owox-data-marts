@@ -1,6 +1,8 @@
-import { HttpException, Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
+import { castError } from '@owox/internal-helpers';
 import {
   CREDENTIAL_CONSUMER_BINDING_FACADE,
+  isExpectedUnusableCredentialError,
   type CredentialConsumerBindingFacade,
 } from '../../data-marts/credentials/facades/credential-consumer-binding.facade';
 import { normalizeCredentialRequirement } from '../../data-marts/credentials/credential.types';
@@ -18,6 +20,8 @@ import { toCredentialHandles } from '../utils/credential-handles.util';
 /** Credentials come from the plugin's current release, as frontend calls get them. */
 @Injectable()
 export class GetCurrentPluginActionExecutionService {
+  private readonly logger = new Logger(GetCurrentPluginActionExecutionService.name);
+
   constructor(
     private readonly executions: PluginActionExecutionService,
     private readonly plugins: PluginService,
@@ -72,7 +76,14 @@ export class GetCurrentPluginActionExecutionService {
             .map(requirement =>
               this.credentialBindings
                 .assertConsumerReady({ ...consumer, requirements: [requirement] })
-                .catch(skipUnusable)
+                .catch((error: unknown) => {
+                  if (!isExpectedUnusableCredentialError(error)) throw error;
+                  // The plugin sees only a missing handle; the reason stays here.
+                  this.logger.warn(
+                    `AI Credential ${normalizeCredentialRequirement(requirement).key} left out of execution ${execution.id}: ${castError(error).message}`
+                  );
+                  return [];
+                })
             )
         )
       : [];
@@ -92,10 +103,4 @@ export class GetCurrentPluginActionExecutionService {
       credentialHandles: toCredentialHandles([...ready, ...readyAi.flat()]),
     };
   }
-}
-
-// Readiness refuses an unusable Credential with a 4xx; anything else is a real failure.
-function skipUnusable(error: unknown): [] {
-  if (error instanceof HttpException && error.getStatus() < 500) return [];
-  throw error;
 }
