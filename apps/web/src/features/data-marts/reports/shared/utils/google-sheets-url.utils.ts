@@ -109,8 +109,9 @@ export function getReportGoogleSheetUrl(
 ): string | null {
   if (report.dataDestination.type !== DataDestinationType.GOOGLE_SHEETS) return null;
   if (!isGoogleSheetsDestinationConfig(report.destinationConfig)) return null;
-  const { spreadsheetId, sheetId } = report.destinationConfig;
-  return spreadsheetId && sheetId ? getGoogleSheetTabUrl(spreadsheetId, sheetId) : null;
+  // Only the spreadsheet can be missing: sheet ID 0 is its first tab, not an absent one
+  if (!report.destinationConfig.spreadsheetId) return null;
+  return getGoogleSheetsReportDocumentUrl(report.destinationConfig);
 }
 
 /**

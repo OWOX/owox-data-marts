@@ -39,6 +39,26 @@ describe('ReportOpenDocumentAction', () => {
     expect(link).toHaveAttribute('rel', 'noopener noreferrer');
   });
 
+  it('links to the first tab of a spreadsheet, whose sheet ID is 0', () => {
+    render(
+      <ReportOpenDocumentAction
+        report={makeReport({
+          destinationConfig: {
+            type: DestinationTypeConfigEnum.GOOGLE_SHEETS_CONFIG,
+            spreadsheetId: 'spreadsheet-123',
+            // The API sends sheetId as a number, and the first tab's ID is 0
+            sheetId: 0 as unknown as string,
+          },
+        })}
+      />
+    );
+
+    expect(screen.getByRole('link', { name: /open document: monthly revenue/i })).toHaveAttribute(
+      'href',
+      getGoogleSheetTabUrl('spreadsheet-123', 0)
+    );
+  });
+
   it('does not render for non-Google Sheets reports', () => {
     render(
       <ReportOpenDocumentAction

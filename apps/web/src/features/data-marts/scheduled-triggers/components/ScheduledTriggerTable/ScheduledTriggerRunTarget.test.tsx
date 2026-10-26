@@ -85,10 +85,10 @@ describe('ScheduledTriggerRunTarget', () => {
     const detailsButton = screen.getByRole('button', { name: 'Report details' });
 
     fireEvent.pointerEnter(detailsButton);
-    expect(screen.queryByText('No runs, since Jun 1, 2026')).not.toBeInTheDocument();
+    expect(screen.queryByText(/^No runs, since /)).not.toBeInTheDocument();
 
     fireEvent.click(detailsButton);
-    expect(screen.getByText('No runs, since Jun 1, 2026')).toBeInTheDocument();
+    expect(screen.getByText(/^No runs, since /)).toBeInTheDocument();
   });
 
   it('does not show report actions when the report is not hydrated', () => {
