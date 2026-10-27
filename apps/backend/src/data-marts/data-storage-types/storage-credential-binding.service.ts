@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import type { OAuth2Client } from 'google-auth-library';
 import {
   credentialIdentity,
@@ -16,6 +16,7 @@ import { CredentialDefinitionService } from '../credentials/services/credential-
 import { CredentialGoogleOAuthService } from '../credentials/services/credential-google-oauth.service';
 import { CredentialService } from '../credentials/services/credential.service';
 import type { DataStorage } from '../entities/data-storage.entity';
+import { StorageCredentialUnavailableException } from '../exceptions/storage-credential-unavailable.exception';
 import { AccessDecisionService, Action, EntityType } from '../services/access-decision';
 import { GoogleOAuthConfigService } from '../services/google-oauth/google-oauth-config.service';
 import {
@@ -142,7 +143,11 @@ export class StorageCredentialBindingService {
     });
     if (!bound) return null;
     if (!bound.credential) {
-      throw new NotFoundException(`The Credential of Storage ${storage.id} was not found`);
+      // The delete guard keeps a bound Credential; should it go anyway, runs fail as on any unusable one.
+      throw new StorageCredentialUnavailableException(
+        "This Storage's Credential no longer exists. Select another Credential for this Storage.",
+        false
+      );
     }
     return this.toResolved(bound.credential, this.requirement(storage.type));
   }

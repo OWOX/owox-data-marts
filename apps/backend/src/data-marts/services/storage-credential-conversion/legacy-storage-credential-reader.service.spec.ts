@@ -226,10 +226,12 @@ describe('LegacyStorageCredentialReader', () => {
     const orphaned = await givenStorage();
     await rows.softDelete(orphaned.rowId);
     const keyless = await givenStorage(false);
+    const deleted = await givenStorage();
+    await storages.softDelete(deleted.storageId);
     const unlisted = await givenStorage();
 
     const onOldKey = await reader.storageIdsOnOldKey(
-      [unbound, boundElsewhere, inactive, bound, orphaned, keyless].map(s => s.storageId)
+      [unbound, boundElsewhere, inactive, bound, orphaned, keyless, deleted].map(s => s.storageId)
     );
 
     expect([...onOldKey].sort()).toEqual(

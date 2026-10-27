@@ -510,14 +510,15 @@ describe('StorageCredentialBindingService', () => {
       await expect(storageCredentials.resolveForStorage(storage())).resolves.toBeNull();
     });
 
-    it('throws when the bound Credential is missing', async () => {
+    it('refuses a run, as for an unusable Credential, when the bound Credential is missing', async () => {
       const credential = await givenCredential();
       await bind(credential.id);
       await credentials.softDelete({ id: credential.id });
 
-      await expect(storageCredentials.resolveForStorage(storage())).rejects.toBeInstanceOf(
-        NotFoundException
-      );
+      await expect(storageCredentials.resolveForStorage(storage())).rejects.toMatchObject({
+        code: 'STORAGE_CREDENTIAL_UNAVAILABLE',
+        errorDetails: { reauthRequired: false },
+      });
     });
   });
 

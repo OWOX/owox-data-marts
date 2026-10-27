@@ -14,6 +14,7 @@ import { StorageCredentialType } from '../../enums/storage-credential-type.enum'
 import { DataStorageCredentialService } from '../data-storage-credential.service';
 import { GoogleOAuthClientService } from '../google-oauth/google-oauth-client.service';
 import { GoogleOAuthConfigService } from '../google-oauth/google-oauth-config.service';
+import { StorageCredentialUnavailableException } from '../../exceptions/storage-credential-unavailable.exception';
 import { ACTIVE_STORAGE_BINDING } from './legacy-storage-credential-sql';
 
 /** Every read of `data_storage_credentials` and `data_storage.credentialId`; removed with them. */
@@ -36,7 +37,10 @@ export class LegacyStorageCredentialReader {
     const credential = await this.loadOldRow(storage);
 
     if (!credential) {
-      throw new Error('Storage credentials are not configured');
+      throw new StorageCredentialUnavailableException(
+        'This Storage has no Credential. Select one in the Storage settings.',
+        false
+      );
     }
 
     if (credential.type === StorageCredentialType.GOOGLE_OAUTH) {

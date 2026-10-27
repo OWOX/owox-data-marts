@@ -20,6 +20,8 @@ import { StorageCredentialUnavailableException } from '../exceptions/storage-cre
 import { DataStorageType } from './enums/data-storage-type.enum';
 import { LegacyStorageCredentialReader } from '../services/storage-credential-conversion/legacy-storage-credential-reader.service';
 
+const NO_KEY = 'This Storage has no Credential. Select one in the Storage settings.';
+
 describe('DataStorageCredentialsResolver', () => {
   let resolver: DataStorageCredentialsResolver;
   let oauthClient: jest.Mocked<Pick<GoogleOAuthClientService, 'getStorageOAuth2Client'>>;
@@ -100,7 +102,7 @@ describe('DataStorageCredentialsResolver', () => {
     it('refetches credential when storage.credential is null but credentialId is set', async () => {
       // Reproduces the post-typeorm-0.3.29 hydration glitch: eager OneToOne + DeleteDateColumn
       // can leave `storage.credential` null even though the row exists. The resolver must
-      // refetch instead of throwing "Storage credentials are not configured".
+      // refetch instead of refusing the Storage as one without a key.
       const credential = makeServiceAccountCredential();
       const storage = makeStorage({ credential: null, credentialId: 'cred-1' });
       credentialService.getById.mockResolvedValue(credential);
@@ -111,11 +113,11 @@ describe('DataStorageCredentialsResolver', () => {
       expect(result).toEqual({ type: 'service_account', project_id: 'p1' });
     });
 
-    it('throws "Storage credentials are not configured" when credentialId is missing', async () => {
+    it('refuses a Storage with neither a Credential nor an old key', async () => {
       const storage = makeStorage({ credential: null, credentialId: null });
 
       await expect(resolver.resolve(storage)).rejects.toThrow(
-        'Storage credentials are not configured'
+        new StorageCredentialUnavailableException(NO_KEY, false)
       );
       expect(credentialService.getById).not.toHaveBeenCalled();
     });
@@ -125,7 +127,7 @@ describe('DataStorageCredentialsResolver', () => {
       credentialService.getById.mockResolvedValue(null);
 
       await expect(resolver.resolve(storage)).rejects.toThrow(
-        'Storage credentials are not configured'
+        new StorageCredentialUnavailableException(NO_KEY, false)
       );
       expect(credentialService.getById).toHaveBeenCalledWith('cred-deleted');
     });
@@ -303,13 +305,6 @@ describe('DataStorageCredentialsResolver', () => {
         code: 'STORAGE_CREDENTIAL_UNAVAILABLE',
         errorDetails: { reauthRequired: true },
       });
-    });
-
-    it('does not fail when recording the use fails', async () => {
-      facade.resolveForStorage.mockResolvedValue(bound());
-      facade.markStorageUsed.mockRejectedValue(new Error('db down'));
-
-      await expect(resolver.resolve(storage())).resolves.toMatchObject({ authMethod: 'KEY_PAIR' });
     });
 
     it('says the key could not be read, without quoting it, for a corrupt service account key', async () => {

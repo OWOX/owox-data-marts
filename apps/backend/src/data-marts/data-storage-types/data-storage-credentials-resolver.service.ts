@@ -73,11 +73,7 @@ export class DataStorageCredentialsResolver {
     // A bound Storage never falls back to the old row, whatever happened to its Credential.
     if (!bound) return this.legacy.resolve(storage);
     const result = await this.resolveCredential(storage, bound);
-    try {
-      await this.storageCredentials.markStorageUsed(storage.id, bound.credentialId);
-    } catch {
-      // Usage telemetry never fails a run.
-    }
+    await this.storageCredentials.markStorageUsed(storage.id, bound.credentialId);
     return result;
   }
 
