@@ -10,7 +10,7 @@ jest.mock('../../idp/facades/idp-projections.facade', () => ({
   IdpProjectionsFacade: jest.fn(),
 }));
 
-import { BadRequestException, ForbiddenException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { UpdateDataStorageCommand } from '../dto/domain/update-data-storage.command';
 import { UpdateDataStorageService } from './update-data-storage.service';
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
@@ -40,7 +40,11 @@ function makeService() {
   const summary: StorageCredentialSummary = { access: 'restricted', state: 'ready' };
   const candidate = { credentialId: 'cred-1', definitionId: 'google-service-account' };
   const bound = { credentialId: 'bound-cred', definitionId: 'google-service-account' };
-  const dataStorageRepository = { save: jest.fn().mockImplementation(async entity => entity) };
+  const dataStorageRepository = {
+    save: jest.fn().mockImplementation(async entity => entity),
+    findOne: jest.fn().mockImplementation(async () => storage),
+    manager: { connection: { options: { type: 'sqlite' } } },
+  };
   const dataStorageService = { getByProjectIdAndId: jest.fn().mockResolvedValue(storage) };
   const dataStorageMapper = { toDomainDto: jest.fn().mockReturnValue({ id: storageId }) };
   const dataStorageAccessFacade = { verifyAccess: jest.fn().mockResolvedValue(undefined) };
@@ -513,6 +517,35 @@ describe('UpdateDataStorageService - config change on a bound Storage', () => {
       service.run(makeCommand({ config: { projectId: 'my-valid-project-1', location: 'EU' } }))
     ).rejects.toThrow('db down');
     expect(dataStorageRepository.save).not.toHaveBeenCalled();
+  });
+
+  it('answers 404 and saves nothing when the Storage is deleted during the checks', async () => {
+    const { service, dataStorageRepository } = makeService();
+    dataStorageRepository.findOne.mockResolvedValue(null);
+
+    await expect(service.run(makeCommand())).rejects.toBeInstanceOf(NotFoundException);
+    expect(dataStorageRepository.save).not.toHaveBeenCalled();
+  });
+
+  it('saves onto the row read under the lock and checks the target against it', async () => {
+    const { service, storage, storageCredentials, dataStorageRepository } = makeService();
+    dataStorageRepository.manager.connection.options.type = 'mysql';
+    // Rebound to another Credential and target by another member after the first read.
+    const fresh = { ...storage, config: { projectId: 'other-project-1', location: 'US' } };
+    dataStorageRepository.findOne.mockResolvedValue(fresh);
+    storageCredentials.lockBoundCredentialId.mockResolvedValue('cred-2');
+
+    await service.run(makeCommand());
+
+    expect(dataStorageRepository.findOne).toHaveBeenCalledWith({
+      where: { id: storageId, projectId },
+      loadEagerRelations: false,
+      lock: { mode: 'pessimistic_write' },
+    });
+    expect(dataStorageRepository.save).toHaveBeenCalledWith(fresh);
+    expect(storageCredentials.assertCanUseCredential).toHaveBeenCalledWith(
+      expect.objectContaining({ credentialId: 'cred-2' })
+    );
   });
 
   it('checks USE again under the lock when the Storage was rebound meanwhile', async () => {

@@ -1,4 +1,9 @@
-import { Injectable, BadRequestException, ForbiddenException } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Transactional } from 'typeorm-transactional';
@@ -151,7 +156,7 @@ export class UpdateDataStorageService {
     const configWasEmpty = !dataStorageEntity.config;
     // No transaction yet: a token refresh or lost-grant mark commits even when the check fails.
     const redirected = await this.verifyCredential(command, dataStorageEntity);
-    const saved = await this.save(command, dataStorageEntity, redirected);
+    const saved = await this.save(command, redirected);
     // After the commit, so a save rolled back by its last checks sends nothing.
     if (configWasEmpty && saved.config) {
       await this.eventDispatcher.publishExternal(
@@ -229,9 +234,10 @@ export class UpdateDataStorageService {
   @Transactional()
   private async save(
     command: UpdateDataStorageCommand,
-    dataStorageEntity: DataStorage,
     redirected: string | null
   ): Promise<DataStorage> {
+    // The checks ran outside this transaction: saving that read would undo a delete or a move.
+    const dataStorageEntity = await this.lockStorage(command.projectId, command.id);
     const isLegacyStorage = dataStorageEntity.type === DataStorageType.LEGACY_GOOGLE_BIGQUERY;
     const targetChanged = changesConnectionTarget(
       dataStorageEntity.type,
@@ -312,6 +318,24 @@ export class UpdateDataStorageService {
       }
     }
     return updatedDataStorageEntity;
+  }
+
+  /** On MySQL a locking read, so a delete or a rebind committed meanwhile is seen and waits. */
+  private async lockStorage(projectId: string, id: string): Promise<DataStorage> {
+    const isMysql = ['mysql', 'mariadb'].includes(
+      String(this.dataStorageRepository.manager.connection.options.type)
+    );
+    const storage = await this.dataStorageRepository.findOne({
+      where: { id, projectId },
+      loadEagerRelations: false,
+      ...(isMysql ? { lock: { mode: 'pessimistic_write' as const } } : {}),
+    });
+    if (!storage) {
+      throw new NotFoundException(
+        `Data Storage with id ${id} and projectId ${projectId} not found`
+      );
+    }
+    return storage;
   }
 
   private async buildResponse(
