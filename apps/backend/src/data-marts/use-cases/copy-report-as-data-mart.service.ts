@@ -42,7 +42,13 @@ export class CopyReportAsDataMartService {
         id: command.reportId,
         dataMart: { projectId: command.projectId },
       },
-      relations: ['dataMart', 'dataMart.storage', 'dataMart.storage.credential', 'dataDestination'],
+      relations: [
+        'dataMart',
+        'dataMart.storage',
+        // Legacy: remove with LegacyStorageCredentialReader.
+        'dataMart.storage.credential',
+        'dataDestination',
+      ],
     });
 
     if (!report) {
