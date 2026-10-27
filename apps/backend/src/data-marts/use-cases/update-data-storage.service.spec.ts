@@ -344,6 +344,27 @@ describe('UpdateDataStorageService - reusableCredentialId', () => {
     expect(dataStorageAccessFacade.verifyAccess).not.toHaveBeenCalled();
   });
 
+  it('rejects a malformed config on an unconverted Storage without an access check', async () => {
+    const { service, storage, storageCredentials, dataStorageAccessFacade, dataStorageRepository } =
+      makeService();
+    storage.type = DataStorageType.DATABRICKS;
+    storage.config = { host: 'workspace.cloud.databricks.com', httpPath: '/sql/1' } as never;
+    storage.credentialId = 'old-row';
+    storageCredentials.resolveForStorage.mockResolvedValue(null);
+    const malformed = { host: 'workspace.cloud.databricks.com', httpPath: '' };
+    const expected = ValidationResult.invalidInput(
+      'config',
+      DatabricksConfigSchema.safeParse(malformed).error!
+    );
+
+    const error = await service.run(makeCommand({ config: malformed })).catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(AccessValidationException);
+    expect(error).toMatchObject({ message: expected.errorMessage, errorDetails: expected.reason });
+    expect(dataStorageAccessFacade.verifyAccess).not.toHaveBeenCalled();
+    expect(dataStorageRepository.save).not.toHaveBeenCalled();
+  });
+
   it('answers with the Credential summary the member sees', async () => {
     const { service, storage, summary, credentialsResolver, dataStorageMapper } = makeService();
 

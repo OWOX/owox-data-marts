@@ -188,14 +188,19 @@ export class UpdateDataStorageService {
     }
     const bound = await this.storageCredentials.resolveForStorage(storage);
     if (!bound) {
-      // With neither a Credential nor an old row to check, the validator rejects the save.
-      if (!this.legacy.hasOldKey(storage)) {
-        await this.dataStorageAccessFacade.verifyAccess(
-          storage.type,
-          command.config,
-          {} as DataStorageCredentials
-        );
+      // Legacy: no access check on the old key, as before the conversion; the config must still fit.
+      if (this.legacy.hasOldKey(storage)) {
+        if (!sameStorageConfig(storage.type, storage.config, command.config)) {
+          assertConfigFits(storage.type, command.config);
+        }
+        return null;
       }
+      // With neither a Credential nor an old row to check, the validator rejects the save.
+      await this.dataStorageAccessFacade.verifyAccess(
+        storage.type,
+        command.config,
+        {} as DataStorageCredentials
+      );
       return null;
     }
     if (sameStorageConfig(storage.type, storage.config, command.config)) return null;
@@ -214,8 +219,7 @@ export class UpdateDataStorageService {
     } catch (error) {
       if (!(error instanceof StorageCredentialUnavailableException)) throw error;
       // An unusable Credential must not block edits, but the config must still fit its schema.
-      const invalid = invalidStorageConfig(storage.type, command.config);
-      if (invalid) throw new AccessValidationException(invalid.errorMessage!, invalid.reason);
+      assertConfigFits(storage.type, command.config);
       return redirected;
     }
     await this.dataStorageAccessFacade.verifyAccess(storage.type, command.config, credentials);
@@ -360,4 +364,10 @@ function rejectCredentialFields(command: UpdateDataStorageCommand): void {
       'Send reusableCredentialId without credentials, credentialId or sourceStorageId.'
     );
   }
+}
+
+/** The validator's error for a config its Storage type's schema refuses. */
+function assertConfigFits(type: DataStorageType, config: UpdateDataStorageCommand['config']): void {
+  const invalid = invalidStorageConfig(type, config);
+  if (invalid) throw new AccessValidationException(invalid.errorMessage!, invalid.reason);
 }
