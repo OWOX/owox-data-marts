@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, EntityManager, In, Repository } from 'typeorm';
 import { SystemTimeService } from '../../common/scheduler/services/system-time.service';
@@ -88,7 +89,8 @@ export class RunDataQualityService {
     private readonly queryExecutor: DataQualityQueryExecutorService,
     private readonly resultParser: DataQualityResultParser,
     private readonly systemClock: SystemTimeService,
-    private readonly projectBillingService: ProjectBillingService
+    private readonly projectBillingService: ProjectBillingService,
+    private readonly configService: ConfigService
   ) {}
 
   async executeExistingRun(
@@ -271,7 +273,12 @@ export class RunDataQualityService {
         // A load holds the DuckDB file: the run stays PENDING and its trigger retries.
         const { storage } = dataMartRun.dataMart;
         if (storage.type === DataStorageType.DUCKDB) {
-          await holdBehindDuckDbLoads(manager, storage.id, dataMartRun);
+          await holdBehindDuckDbLoads(
+            manager,
+            storage,
+            dataMartRun,
+            this.configService.get<number>('MAX_CONNECTOR_RUNS_PER_PROJECT', 3)
+          );
         }
         const startedAt = this.systemClock.now();
         const claim = await runRepository.update(

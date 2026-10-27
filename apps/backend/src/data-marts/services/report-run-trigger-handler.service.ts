@@ -157,7 +157,12 @@ export class ReportRunTriggerHandlerService extends BaseRunTriggerHandlerService
       // A deleted Data Mart or storage is left to the report run, which reports it.
       const storage = run.dataMart?.storage;
       if (storage?.type === DataStorageType.DUCKDB) {
-        await holdBehindDuckDbLoads(manager, storage.id, run);
+        await holdBehindDuckDbLoads(
+          manager,
+          storage,
+          run,
+          this.configService.get<number>('MAX_CONNECTOR_RUNS_PER_PROJECT', 3)
+        );
       }
     });
   }
