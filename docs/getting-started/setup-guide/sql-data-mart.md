@@ -28,6 +28,33 @@ Wait until it’s validated, then click **Save** (and **Publish Data Mart**).
 
 You can reference any **table or view** available in your storage.
 
+### Reference another Data Mart
+
+When a Data Mart needs the logic of one you already have — the same orders, only retail ones — reference that Data Mart instead of copying its SQL. When its logic changes, every Data Mart built on it follows, and the two can't drift apart.
+
+Type `@` in the SQL editor and pick a published Data Mart from the same Storage. It's inserted where a table name would go:
+
+```sql
+SELECT *
+FROM [Orders](dm:96c33880-70e3-4151-9a07-ae379c994898) AS o
+WHERE o.order_type = 'Retail'
+  AND o.salesChannel != 'Draft Orders'
+```
+
+The ID after `dm:` decides which Data Mart is read. The title in brackets is only a label, refreshed from the referenced Data Mart each time you save.
+
+When the query runs, OWOX puts the referenced Data Mart's own SQL in place of the reference — or `SELECT * FROM` its table, for a Data Mart defined by a table, view, pattern or connector. The warehouse receives plain SQL, and **Preview SQL** of a report shows it down to the warehouse tables.
+
+What to know:
+
+- **Same Storage only.** A reference can't point to a Data Mart in another Storage. It isn't available for Legacy Google BigQuery storages.
+- **Published Data Marts only**, and only ones you can use in reports. People who read your Data Mart don't need access to the one it references, and its SQL is visible to them in **Preview SQL**.
+- **Columns come from the referenced Data Mart's source**: its query or its table. Its Calculated Fields aren't available.
+- **A referenced Data Mart must be a single query.** Its `ORDER BY` doesn't carry over to yours: sort in your own query or in the report.
+- **References can be nested up to 10 levels deep**, and a Data Mart can't reference itself, directly or through others.
+- **Changing or deleting a referenced Data Mart lists the Data Marts that reference it**, so you can check them first. Their Output Schema isn't refreshed automatically — refresh it after a change that adds or removes columns.
+- **Preview SQL can show a view name instead of SQL** where OWOX reads a Data Mart through a view it keeps in your storage: a referenced query that uses `WITH RECURSIVE`, and on AWS Redshift, a referenced query with `WITH` placed inside your own `WITH` clause, or a report with output controls or joins on a Data Mart that references others.
+
 ## Step 3: Define Output Schema
 
 Once the query is saved, the **Output Schema** will be generated automatically.  OWOX will attempt to auto-detect:
