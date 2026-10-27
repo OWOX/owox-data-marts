@@ -79,7 +79,9 @@ export class ProjectMembersController {
   @Get()
   @ListProjectMembersSpec()
   async list(@AuthContext() context: AuthorizationContext): Promise<ProjectMemberResponseApiDto[]> {
-    const members = await this.listProjectMembers.run(context.projectId);
+    const members = await this.listProjectMembers.run(
+      this.projectMembersMapper.toListCommand(context)
+    );
     return this.projectMembersMapper.toApiResponseList(members);
   }
 

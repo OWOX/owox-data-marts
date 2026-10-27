@@ -1,5 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
 import { SetContextMembersService } from './set-context-members.service';
+import { SetContextMembersCommand } from '../../dto/domain/set-context-members.command';
 
 describe('SetContextMembersService', () => {
   const PROJECT_ID = 'project-1';
@@ -27,7 +28,9 @@ describe('SetContextMembersService', () => {
       { userId: 'viewer-1', role: 'viewer' },
     ]);
 
-    const result = await service.run(CONTEXT_ID, PROJECT_ID, ['admin-1', 'editor-1', 'viewer-1']);
+    const result = await service.run(
+      new SetContextMembersCommand(CONTEXT_ID, PROJECT_ID, ['admin-1', 'editor-1', 'viewer-1'])
+    );
 
     expect(result.assignedUserIds).toEqual(['editor-1', 'viewer-1']);
     expect(result.droppedAdminIds).toEqual(['admin-1']);
@@ -43,7 +46,9 @@ describe('SetContextMembersService', () => {
       { userId: 'editor-1', role: 'editor' },
     ]);
 
-    const result = await service.run(CONTEXT_ID, PROJECT_ID, ['editor-1']);
+    const result = await service.run(
+      new SetContextMembersCommand(CONTEXT_ID, PROJECT_ID, ['editor-1'])
+    );
 
     expect(result.droppedAdminIds).toEqual([]);
     expect(contextAccessService.setContextMembers).toHaveBeenCalledWith(CONTEXT_ID, PROJECT_ID, [
@@ -55,7 +60,7 @@ describe('SetContextMembersService', () => {
     const { service, idpProjectionsFacade, contextAccessService } = createService();
     idpProjectionsFacade.getProjectMembersOrThrow.mockResolvedValue([]);
 
-    const result = await service.run(CONTEXT_ID, PROJECT_ID, []);
+    const result = await service.run(new SetContextMembersCommand(CONTEXT_ID, PROJECT_ID, []));
 
     expect(result.assignedUserIds).toEqual([]);
     expect(result.droppedAdminIds).toEqual([]);
@@ -69,21 +74,50 @@ describe('SetContextMembersService', () => {
     ]);
 
     await expect(
-      service.run(CONTEXT_ID, PROJECT_ID, ['editor-1', 'ghost-1', 'ghost-2'])
-    ).rejects.toBeInstanceOf(BadRequestException);
+      service.run(
+        new SetContextMembersCommand(CONTEXT_ID, PROJECT_ID, ['editor-1', 'ghost-1', 'ghost-2'])
+      )
+    ).rejects.toEqual(
+      new BadRequestException('User IDs are not members of this project: ghost-1, ghost-2')
+    );
 
     expect(contextAccessService.setContextMembers).not.toHaveBeenCalled();
   });
 
-  it('propagates IDP-outage errors instead of degrading to admin-strip miss', async () => {
-    // Documents the H2 fix: an IDP failure here used to be swallowed and
-    // returned as `[]`, letting admin user-ids slip past the admin filter.
+  it('rejects outbound members without changing assignments', async () => {
+    const { service, idpProjectionsFacade, contextAccessService } = createService();
+    idpProjectionsFacade.getProjectMembersOrThrow.mockResolvedValue([
+      { userId: 'former', role: 'editor', isOutbound: true },
+    ]);
+    await expect(
+      service.run(new SetContextMembersCommand(CONTEXT_ID, PROJECT_ID, ['former']))
+    ).rejects.toThrow('User IDs are not members of this project: former');
+    expect(contextAccessService.setContextMembers).not.toHaveBeenCalled();
+  });
+
+  it('returns each assigned or dropped member once', async () => {
+    const { service, idpProjectionsFacade, contextAccessService } = createService();
+    idpProjectionsFacade.getProjectMembersOrThrow.mockResolvedValue([
+      { userId: 'admin', role: 'admin' },
+      { userId: 'editor', role: 'editor' },
+    ]);
+    await expect(
+      service.run(
+        new SetContextMembersCommand(CONTEXT_ID, PROJECT_ID, ['admin', 'editor', 'admin', 'editor'])
+      )
+    ).resolves.toEqual({ assignedUserIds: ['editor'], droppedAdminIds: ['admin'] });
+    expect(contextAccessService.setContextMembers).toHaveBeenCalledWith(CONTEXT_ID, PROJECT_ID, [
+      'editor',
+    ]);
+  });
+
+  it('does not change assignments when project membership cannot be loaded', async () => {
     const { service, idpProjectionsFacade, contextAccessService } = createService();
     idpProjectionsFacade.getProjectMembersOrThrow.mockRejectedValue(new Error('IDP unreachable'));
 
-    await expect(service.run(CONTEXT_ID, PROJECT_ID, ['someone'])).rejects.toThrow(
-      'IDP unreachable'
-    );
+    await expect(
+      service.run(new SetContextMembersCommand(CONTEXT_ID, PROJECT_ID, ['someone']))
+    ).rejects.toThrow('IDP unreachable');
 
     expect(contextAccessService.setContextMembers).not.toHaveBeenCalled();
   });

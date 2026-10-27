@@ -6,7 +6,8 @@ import {
   type ToolAnnotations,
 } from '@modelcontextprotocol/server';
 import { castError } from '@owox/internal-helpers';
-import type { McpScope } from '@owox/idp-protocol';
+import { AuthorizationError, type McpScope, type Role } from '@owox/idp-protocol';
+import { satisfiesRole } from '../../../idp/utils/role-hierarchy';
 import type { ZodRawShape } from 'zod-v4';
 import type { McpAuthContext } from '../auth/mcp-auth-context';
 import { McpConfigService } from '../config/mcp.config';
@@ -21,7 +22,7 @@ type McpSdkToolRegistrar = {
     name: string,
     config: {
       description: string;
-      inputSchema: ZodRawShape;
+      inputSchema: ZodRawShape | StandardSchemaWithJSON;
       outputSchema?: StandardSchemaWithJSON;
       annotations?: ToolAnnotations;
     },
@@ -59,6 +60,7 @@ export class McpSdkServerFactory {
     for (const tool of this.toolRegistry.getTools()) {
       const wrapped = this.instrumentation.wrap(tool.name, async (input, ctx) => {
         this.assertScopes(mcpContext, tool.requiredScopes);
+        this.assertRole(mcpContext, tool.requiredRole);
         const notify =
           refreshOptions?.era === 'modern'
             ? refreshOptions.notifyToolsChanged
@@ -113,6 +115,12 @@ export class McpSdkServerFactory {
       if (!context.scopes.includes(scope)) {
         throw new Error(`Missing MCP scope: ${scope}`);
       }
+    }
+  }
+
+  private assertRole(context: McpAuthContext, requiredRole?: Role): void {
+    if (requiredRole && !satisfiesRole(context.roles, requiredRole)) {
+      throw new AuthorizationError(`Access denied. Required project role: ${requiredRole}`);
     }
   }
 }

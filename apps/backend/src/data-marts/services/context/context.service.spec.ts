@@ -1,8 +1,9 @@
 import { ConflictException, NotFoundException, BadRequestException } from '@nestjs/common';
-import { In } from 'typeorm';
+import { In, QueryFailedError } from 'typeorm';
 import { UserProjectionDto } from '../../../idp/dto/domain/user-projection.dto';
 import { UserProjectionsListDto } from '../../../idp/dto/domain/user-projections-list.dto';
 import { Context } from '../../entities/context.entity';
+import { DataMartIcon } from '../../enums/data-mart-icon.enum';
 import { RoleScope } from '../../enums/role-scope.enum';
 import { ContextMapper } from '../../mappers/context.mapper';
 import { ContextService } from './context.service';
@@ -27,6 +28,7 @@ describe('ContextService', () => {
     find: jest.fn(),
     create: jest.fn(),
     save: jest.fn(),
+    update: jest.fn(),
     softRemove: jest.fn(),
     delete: jest.fn(),
     count: jest.fn(),
@@ -280,140 +282,115 @@ describe('ContextService', () => {
       expect(result.icon).toBeNull();
     });
 
-    it('keeps the icon when the name and description are updated', async () => {
-      const { service, contextRepository, userProjectionsFetcherService } = createService();
-      const existingEntity = createContextEntity({ icon: 'purchases' });
-      contextRepository.findOne.mockResolvedValueOnce(existingEntity).mockResolvedValueOnce(null);
-      contextRepository.save.mockImplementation((entity: Context) => Promise.resolve(entity));
-      userProjectionsFetcherService.fetchUserProjectionsList.mockResolvedValue(
-        new UserProjectionsListDto([])
-      );
-
-      const result = await service.update(CONTEXT_ID, PROJECT_ID, 'Renamed', 'New description');
-
-      expect(contextRepository.save).toHaveBeenCalledWith(
-        expect.objectContaining({ name: 'Renamed', icon: 'purchases' })
-      );
-      expect(result.icon).toBe('purchases');
-    });
-
-    it('saves an icon sent with the name and description in the same update', async () => {
-      const { service, contextRepository, userProjectionsFetcherService } = createService();
-      contextRepository.findOne
-        .mockResolvedValueOnce(createContextEntity({ icon: null }))
-        .mockResolvedValueOnce(null);
-      contextRepository.save.mockImplementation((entity: Context) => Promise.resolve(entity));
-      userProjectionsFetcherService.fetchUserProjectionsList.mockResolvedValue(
-        new UserProjectionsListDto([])
-      );
-
-      const result = await service.update(
-        CONTEXT_ID,
-        PROJECT_ID,
-        'Renamed',
-        'New description',
-        'lucide:megaphone'
-      );
-
-      expect(contextRepository.save).toHaveBeenCalledTimes(1);
-      expect(contextRepository.save).toHaveBeenCalledWith(
-        expect.objectContaining({ name: 'Renamed', icon: 'lucide:megaphone' })
-      );
-      expect(result.icon).toBe('lucide:megaphone');
-    });
-
-    it('resets the icon when the update sends null', async () => {
-      const { service, contextRepository, userProjectionsFetcherService } = createService();
-      contextRepository.findOne
-        .mockResolvedValueOnce(createContextEntity({ icon: 'purchases' }))
-        .mockResolvedValueOnce(null);
-      contextRepository.save.mockImplementation((entity: Context) => Promise.resolve(entity));
-      userProjectionsFetcherService.fetchUserProjectionsList.mockResolvedValue(
-        new UserProjectionsListDto([])
-      );
-
-      const result = await service.update(CONTEXT_ID, PROJECT_ID, 'Test Context', undefined, null);
-
-      expect(result.icon).toBeNull();
-    });
-
-    it('sets the icon only', async () => {
-      const { service, contextRepository, userProjectionsFetcherService } = createService();
-      const existingEntity = createContextEntity({ description: 'Kept', icon: null });
-      contextRepository.findOne.mockResolvedValue(existingEntity);
-      contextRepository.save.mockImplementation((entity: Context) => Promise.resolve(entity));
-      userProjectionsFetcherService.fetchUserProjectionsList.mockResolvedValue(
-        new UserProjectionsListDto([])
-      );
-
-      const result = await service.updateIcon(CONTEXT_ID, PROJECT_ID, 'lucide:megaphone');
-
-      expect(contextRepository.findOne).toHaveBeenCalledWith({
-        where: { id: CONTEXT_ID, projectId: PROJECT_ID },
-      });
-      expect(contextRepository.save).toHaveBeenCalledWith(
-        expect.objectContaining({
-          name: 'Test Context',
-          description: 'Kept',
-          icon: 'lucide:megaphone',
-        })
-      );
-      expect(result.icon).toBe('lucide:megaphone');
-    });
-
-    it('resets the icon to the default with null', async () => {
-      const { service, contextRepository, userProjectionsFetcherService } = createService();
-      contextRepository.findOne.mockResolvedValue(createContextEntity({ icon: 'purchases' }));
-      contextRepository.save.mockImplementation((entity: Context) => Promise.resolve(entity));
-      userProjectionsFetcherService.fetchUserProjectionsList.mockResolvedValue(
-        new UserProjectionsListDto([])
-      );
-
-      const result = await service.updateIcon(CONTEXT_ID, PROJECT_ID, null);
-
-      expect(contextRepository.save).toHaveBeenCalledWith(expect.objectContaining({ icon: null }));
-      expect(result.icon).toBeNull();
-    });
-
     it('rejects an icon update for a context of another project', async () => {
       const { service, contextRepository } = createService();
       contextRepository.findOne.mockResolvedValue(null);
-
-      await expect(service.updateIcon(CONTEXT_ID, 'other-project', 'purchases')).rejects.toThrow(
-        NotFoundException
-      );
-      expect(contextRepository.save).not.toHaveBeenCalled();
+      await expect(
+        service.update(CONTEXT_ID, 'other-project', undefined, undefined, DataMartIcon.PURCHASES)
+      ).rejects.toThrow(NotFoundException);
+      expect(contextRepository.update).not.toHaveBeenCalled();
     });
   });
 
   describe('update', () => {
-    it('should update name and description', async () => {
-      const { service, contextRepository, userProjectionsFetcherService } = createService();
-
-      const existingEntity = createContextEntity();
-      // First call: getByIdAndProject
-      // Second call: duplicate name check (returns null - no duplicate)
-      contextRepository.findOne.mockResolvedValueOnce(existingEntity).mockResolvedValueOnce(null);
-
-      const updatedEntity = createContextEntity({
-        name: 'Updated Name',
+    it.each([
+      {
+        name: 'Renamed',
         description: 'New description',
-      });
-      contextRepository.save.mockResolvedValue(updatedEntity);
+        icon: undefined,
+        patch: { name: 'Renamed', description: 'New description' },
+      },
+      {
+        name: 'Renamed',
+        description: 'New description',
+        icon: 'lucide:megaphone',
+        patch: { name: 'Renamed', description: 'New description', icon: 'lucide:megaphone' },
+      },
+      {
+        name: undefined,
+        description: undefined,
+        icon: 'lucide:megaphone',
+        patch: { icon: 'lucide:megaphone' },
+      },
+      { name: undefined, description: undefined, icon: null, patch: { icon: null } },
+      {
+        name: undefined,
+        description: 'Updated',
+        icon: undefined,
+        patch: { description: 'Updated' },
+      },
+      { name: undefined, description: null, icon: null, patch: { description: null, icon: null } },
+    ] as const)(
+      'writes only supplied metadata and returns the persisted Context: %p',
+      async ({ name, description, icon, patch }) => {
+        const { service, contextRepository, userProjectionsFetcherService } = createService();
+        const entity = createContextEntity({ description: 'Keep', icon: DataMartIcon.PURCHASES });
+        contextRepository.findOne.mockImplementation(async ({ where }) =>
+          where.id === CONTEXT_ID ? { ...entity } : null
+        );
+        contextRepository.update.mockImplementation(async (_where, changes) => {
+          Object.assign(entity, changes);
+          return { affected: 1 };
+        });
+        userProjectionsFetcherService.fetchUserProjectionsList.mockResolvedValue(
+          new UserProjectionsListDto([])
+        );
+        const result = await service.update(CONTEXT_ID, PROJECT_ID, name, description, icon);
+        expect(contextRepository.update).toHaveBeenCalledWith(
+          { id: CONTEXT_ID, projectId: PROJECT_ID },
+          patch
+        );
+        expect(result).toMatchObject({
+          id: CONTEXT_ID,
+          name: entity.name,
+          description: entity.description,
+          icon: entity.icon,
+        });
+      }
+    );
 
+    it('preserves fields changed by another update after loading the Context', async () => {
+      const { service, contextRepository, userProjectionsFetcherService } = createService();
+      const stale = createContextEntity({ description: 'Old notes', icon: null });
+      const current = createContextEntity({ description: 'New notes', icon: null });
+      contextRepository.findOne
+        .mockResolvedValueOnce(stale)
+        .mockImplementation(async () => ({ ...current }));
+      contextRepository.update.mockImplementation(async (_where, patch) => {
+        Object.assign(current, patch);
+        return { affected: 1 };
+      });
       userProjectionsFetcherService.fetchUserProjectionsList.mockResolvedValue(
         new UserProjectionsListDto([])
       );
-
       const result = await service.update(
         CONTEXT_ID,
         PROJECT_ID,
-        'Updated Name',
-        'New description'
+        undefined,
+        undefined,
+        DataMartIcon.PURCHASES
       );
+      expect(result).toMatchObject({ description: 'New notes', icon: 'purchases' });
+      expect(current.description).toBe('New notes');
+    });
 
-      expect(result.name).toBe('Updated Name');
-      expect(result.description).toBe('New description');
+    it('translates a database uniqueness conflict during an update', async () => {
+      const { service, contextRepository } = createService();
+      contextRepository.findOne
+        .mockResolvedValueOnce(createContextEntity())
+        .mockResolvedValueOnce(null);
+      contextRepository.update.mockRejectedValue(
+        new QueryFailedError(
+          'UPDATE context',
+          [],
+          Object.assign(new Error('UNIQUE constraint failed: context.projectId, context.name'), {
+            code: 'SQLITE_CONSTRAINT',
+          })
+        )
+      );
+      await expect(service.update(CONTEXT_ID, PROJECT_ID, 'Duplicate')).rejects.toThrow(
+        'Context with name "Duplicate" already exists in this project'
+      );
     });
 
     it('should throw NotFoundException for missing context', async () => {

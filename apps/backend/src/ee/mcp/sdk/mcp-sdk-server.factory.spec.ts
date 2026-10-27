@@ -1,4 +1,5 @@
 import { z } from 'zod-v4';
+import type { Role } from '@owox/idp-protocol';
 import type { McpAuthContext } from '../auth/mcp-auth-context';
 import { McpConfigService } from '../config/mcp.config';
 import type { McpToolDefinition } from '../tools/mcp-tool.definition';
@@ -232,7 +233,8 @@ describe('McpSdkServerFactory', () => {
     const McpSdkServerFactory = await loadFactory();
     const factory = new McpSdkServerFactory(
       new McpConfigService({ get: jest.fn() } as never),
-      new McpToolRegistry([])
+      new McpToolRegistry([]),
+      passthroughInstrumentation
     );
 
     factory.create(context, 'OWOX instructions');
@@ -241,5 +243,79 @@ describe('McpSdkServerFactory', () => {
       { name: 'owox-mcp', version: '0.1.0' },
       { instructions: 'OWOX instructions' }
     );
+  });
+
+  it.each<{
+    requiredRole: Role | undefined;
+    roles: Role[];
+    allowed: boolean;
+  }>([
+    { requiredRole: undefined, roles: ['viewer'], allowed: true },
+    { requiredRole: 'viewer', roles: ['viewer'], allowed: true },
+    { requiredRole: 'viewer', roles: ['editor'], allowed: true },
+    { requiredRole: 'viewer', roles: ['admin'], allowed: true },
+    { requiredRole: 'editor', roles: ['viewer'], allowed: false },
+    { requiredRole: 'editor', roles: ['editor'], allowed: true },
+    { requiredRole: 'editor', roles: ['admin'], allowed: true },
+    { requiredRole: 'admin', roles: ['viewer'], allowed: false },
+    { requiredRole: 'admin', roles: ['editor'], allowed: false },
+    { requiredRole: 'admin', roles: ['admin'], allowed: true },
+    { requiredRole: 'admin', roles: ['viewer', 'admin'], allowed: true },
+    { requiredRole: 'admin', roles: [], allowed: false },
+  ])(
+    'checks requiredRole=$requiredRole against $roles (allowed=$allowed) before the handler or notifications',
+    async ({ requiredRole, roles, allowed }) => {
+      const tool: McpToolDefinition = {
+        name: 'protected_tool',
+        description: 'Protected tool',
+        zodSchema: {},
+        requiredScopes: ['mcp:read'],
+        requiredRole,
+        handler: jest.fn().mockResolvedValue({ content: [] }),
+      };
+      const McpSdkServerFactory = await loadFactory();
+      const factory = new McpSdkServerFactory(
+        new McpConfigService({ get: jest.fn() } as never),
+        new McpToolRegistry([tool]),
+        passthroughInstrumentation
+      );
+      factory.create({ ...context, roles });
+      const notify = jest.fn();
+      const call = mockRegisterTool.mock.calls[0][2]({}, { mcpReq: { notify } });
+
+      if (allowed) {
+        await expect(call).resolves.toEqual({ content: [] });
+        expect(tool.handler).toHaveBeenCalledTimes(1);
+      } else {
+        await expect(call).rejects.toMatchObject({
+          code: 'AUTHORIZATION_ERROR',
+          message: `Access denied. Required project role: ${requiredRole}`,
+        });
+        expect(tool.handler).not.toHaveBeenCalled();
+        expect(notify).not.toHaveBeenCalled();
+      }
+    }
+  );
+
+  it('requires the OAuth scope even when the project role is sufficient', async () => {
+    const tool: McpToolDefinition = {
+      name: 'admin_write',
+      description: 'Admin write',
+      zodSchema: {},
+      requiredScopes: ['mcp:write'],
+      requiredRole: 'admin',
+      handler: jest.fn(),
+    };
+    const McpSdkServerFactory = await loadFactory();
+    const factory = new McpSdkServerFactory(
+      new McpConfigService({ get: jest.fn() } as never),
+      new McpToolRegistry([tool]),
+      passthroughInstrumentation
+    );
+    factory.create(context);
+    await expect(mockRegisterTool.mock.calls[0][2]({})).rejects.toThrow(
+      'Missing MCP scope: mcp:write'
+    );
+    expect(tool.handler).not.toHaveBeenCalled();
   });
 });

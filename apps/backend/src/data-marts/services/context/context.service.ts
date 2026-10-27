@@ -70,7 +70,7 @@ export class ContextService {
     projectId: string,
     createdById: string,
     name: string,
-    description?: string,
+    description?: string | null,
     icon: DataMartIconValue | null = null
   ): Promise<ContextDto> {
     await this.validateUniqueName(name, projectId);
@@ -101,14 +101,6 @@ export class ContextService {
     );
 
     return this.contextMapper.toDomainDto(saved, userProjections);
-  }
-
-  async listForMcp(projectId: string) {
-    const entities = await this.contextRepository.find({
-      where: { projectId },
-      order: { name: 'ASC' },
-    });
-    return entities.map(entity => this.contextMapper.toMcpContext(entity));
   }
 
   async getDataMartContextSummaries(projectId: string, dataMartIds: string[]) {
@@ -144,46 +136,38 @@ export class ContextService {
   async update(
     contextId: string,
     projectId: string,
-    name: string,
-    description?: string,
+    name?: string,
+    description?: string | null,
     icon?: DataMartIconValue | null
   ): Promise<ContextDto> {
     const entity = await this.getByIdAndProject(contextId, projectId);
 
-    await this.validateUniqueName(name, projectId, contextId);
-
-    entity.name = name;
-    entity.description = description;
+    const patch: Partial<Context> = {};
+    if (name !== undefined) {
+      await this.validateUniqueName(name, projectId, contextId);
+      patch.name = name;
+    }
+    if (description !== undefined) {
+      patch.description = description;
+    }
     if (icon !== undefined) {
-      entity.icon = icon;
+      patch.icon = icon;
     }
 
     let saved: Context;
     try {
-      saved = await this.contextRepository.save(entity);
+      if (Object.keys(patch).length > 0) {
+        await this.contextRepository.update({ id: contextId, projectId }, patch);
+      }
+      saved = await this.getByIdAndProject(contextId, projectId);
     } catch (err) {
       if (isUniqueConstraintViolation(err)) {
-        throw new ConflictException(`Context with name "${name}" already exists in this project`);
+        throw new ConflictException(
+          `Context with name "${name ?? entity.name}" already exists in this project`
+        );
       }
       throw err;
     }
-
-    const userProjections = await this.userProjectionsFetcherService.fetchUserProjectionsList(
-      saved.createdById ? [saved.createdById] : []
-    );
-
-    return this.contextMapper.toDomainDto(saved, userProjections);
-  }
-
-  /** Sets or resets (null) the icon only; the name, description and links stay as they are. */
-  async updateIcon(
-    contextId: string,
-    projectId: string,
-    icon: DataMartIconValue | null
-  ): Promise<ContextDto> {
-    const entity = await this.getByIdAndProject(contextId, projectId);
-    entity.icon = icon;
-    const saved = await this.contextRepository.save(entity);
 
     const userProjections = await this.userProjectionsFetcherService.fetchUserProjectionsList(
       saved.createdById ? [saved.createdById] : []

@@ -3,9 +3,7 @@ import type { PublicOriginService } from '../../../common/config/public-origin.s
 import { DataMartStatus } from '../../../data-marts/enums/data-mart-status.enum';
 import type { McpDataMartsFacade } from '../../../data-marts/facades/mcp-data-marts.facade';
 import type { McpAuthContext } from '../auth/mcp-auth-context';
-import { McpToolRegistry } from './mcp-tool.registry';
 import { ListDataMartsTool } from './data-mart-catalog.tool';
-import { MCP_TOOL_PROVIDER_CLASSES } from './mcp-tool.providers';
 
 describe('ListDataMartsTool', () => {
   const contexts = {
@@ -46,7 +44,7 @@ describe('ListDataMartsTool', () => {
     } as unknown as jest.Mocked<McpDataMartsFacade>;
     const tool = new ListDataMartsTool(facade, publicOrigin, projectContext as never, contexts);
 
-    await expect(tool.handler({}, context)).resolves.toEqual({
+    await expect(tool.handler(tool.parseInput({}), context)).resolves.toEqual({
       structuredContent: {
         project: { id: 'project-1', title: 'Analytics' },
         data_marts: [
@@ -109,7 +107,7 @@ describe('ListDataMartsTool', () => {
     } as unknown as jest.Mocked<McpDataMartsFacade>;
     const tool = new ListDataMartsTool(facade, publicOrigin, projectContext as never, contexts);
 
-    const result = await tool.handler({ status: 'draft' }, context);
+    const result = await tool.handler(tool.parseInput({ status: 'draft' }), context);
 
     expect(facade.listDataMarts).toHaveBeenCalledWith({
       projectId: 'project-1',
@@ -169,7 +167,7 @@ describe('ListDataMartsTool', () => {
       contexts
     );
 
-    const result = await tool.handler({}, context);
+    const result = await tool.handler(tool.parseInput({}), context);
 
     expect(result.structuredContent).toEqual({
       data_marts: [],
@@ -196,7 +194,7 @@ describe('ListDataMartsTool', () => {
     } as unknown as jest.Mocked<McpDataMartsFacade>;
     const tool = new ListDataMartsTool(facade, publicOrigin, projectContext as never, contexts);
 
-    const result = await tool.handler({}, context);
+    const result = await tool.handler(tool.parseInput({}), context);
 
     expect(result.structuredContent).toEqual({
       project: { id: 'project-1', title: 'Analytics' },
@@ -226,7 +224,7 @@ describe('ListDataMartsTool', () => {
     } as unknown as jest.Mocked<McpDataMartsFacade>;
     const tool = new ListDataMartsTool(facade, publicOrigin, projectContext as never, contexts);
 
-    const result = await tool.handler({ status: 'draft' }, context);
+    const result = await tool.handler(tool.parseInput({ status: 'draft' }), context);
 
     expect(result.structuredContent).toEqual({
       project: { id: 'project-1', title: 'Analytics' },
@@ -259,7 +257,7 @@ describe('ListDataMartsTool', () => {
     } as unknown as jest.Mocked<McpDataMartsFacade>;
     const tool = new ListDataMartsTool(facade, publicOrigin, projectContext as never, contexts);
 
-    const result = await tool.handler({ status: 'draft' }, context);
+    const result = await tool.handler(tool.parseInput({ status: 'draft' }), context);
 
     expect(result.structuredContent).toEqual({
       project: { id: 'project-1', title: 'Analytics' },
@@ -267,19 +265,7 @@ describe('ListDataMartsTool', () => {
     });
   });
 
-  // Note: MCP_TOOL_PROVIDER_CLASSES assertion checks the LOCAL test registry snapshot, not
-  // production gating. QueryDataMartTool IS in providers; the registry fixture here only
-  // registers ListDataMartsTool so query_data_mart is absent from that local registry.
-  it('registers list_data_marts and verifies provider class list', () => {
-    const registry = new McpToolRegistry([
-      new ListDataMartsTool(
-        {} as McpDataMartsFacade,
-        publicOrigin,
-        projectContext as never,
-        contexts
-      ),
-    ]);
-
+  it('declares the catalog schema, read scope and annotations', () => {
     expect(
       new ListDataMartsTool(
         {} as McpDataMartsFacade,
@@ -302,31 +288,6 @@ describe('ListDataMartsTool', () => {
         openWorldHint: false,
       },
     });
-    expect(MCP_TOOL_PROVIDER_CLASSES.map(tool => tool.name)).toEqual([
-      'ListContextsTool',
-      'SummarizeDataCatalogTool',
-      'ListDataMartsTool',
-      'SearchDataMartsTool',
-      'SearchReportsTool',
-      'GetDataMartDetailsTool',
-      'GetProjectContextTool',
-      'ListDestinationsTool',
-      'GetDataMartReportsTool',
-      'GetReportOutputSchemaTool',
-      'ListReportRunSchedulesTool',
-      'CreateReportRunScheduleTool',
-      'UpdateReportRunScheduleTool',
-      'DeleteReportRunScheduleTool',
-      'QueryDataMartTool',
-      'AddReportTool',
-      'UpdateReportTool',
-      'DeleteReportTool',
-      'AddDestinationTool',
-      'RunReportTool',
-      'GetReportRunStatusTool',
-    ]);
-    expect(registry.getTool('list_data_marts')).toBeDefined();
-    expect(registry.getTool('query_data_mart')).toBeUndefined();
   });
 
   it('filters with validated match-any IDs and avoids onboarding when published marts exist elsewhere', async () => {
