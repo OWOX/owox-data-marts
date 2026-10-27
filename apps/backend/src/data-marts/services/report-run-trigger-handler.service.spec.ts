@@ -175,13 +175,24 @@ describe('ReportRunTriggerHandlerService', () => {
       const { service, triggerRepository, runReportService, mockManager } = createService();
       const trigger = { ...mockTrigger } as ReportRunTrigger;
       onStorage(mockManager, DataStorageType.DUCKDB);
-      withCounts(mockManager, [0, 0, 1]);
+      withCounts(mockManager, [0, 0, 1, 0]);
 
       await service.handleTrigger(trigger);
 
       expect(trigger.status).toBe(TriggerStatus.IDLE);
       expect(triggerRepository.save).toHaveBeenCalledWith(trigger);
       expect(runReportService.executeExistingRun).not.toHaveBeenCalled();
+    });
+
+    it('runs the report while the older load waits for a project connector slot', async () => {
+      const { service, runReportService, mockManager } = createService();
+      onStorage(mockManager, DataStorageType.DUCKDB);
+      // The config mock returns 1000 for MAX_CONNECTOR_RUNS_PER_PROJECT too.
+      withCounts(mockManager, [0, 0, 1, 1000]);
+
+      await service.handleTrigger({ ...mockTrigger } as ReportRunTrigger);
+
+      expect(runReportService.executeExistingRun).toHaveBeenCalled();
     });
 
     it('logs a storage hold at debug and a project limit at warn', async () => {

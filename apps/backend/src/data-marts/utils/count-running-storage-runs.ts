@@ -3,6 +3,7 @@ import { ConcurrencyLimitExceededException } from '../../common/exceptions/concu
 import { ConnectorRunTrigger } from '../entities/connector-run-trigger.entity';
 import { DataMart } from '../entities/data-mart.entity';
 import { DataMartRun } from '../entities/data-mart-run.entity';
+import { DataStorage } from '../entities/data-storage.entity';
 import { DataMartRunStatus } from '../enums/data-mart-run-status.enum';
 import { DataMartRunType } from '../enums/data-mart-run-type.enum';
 
@@ -32,9 +33,11 @@ export function countRunningStorageRuns(
  */
 export async function holdBehindDuckDbLoads(
   manager: EntityManager,
-  storageId: string,
-  run: Pick<DataMartRun, 'id' | 'createdAt'>
+  storage: Pick<DataStorage, 'id' | 'projectId'>,
+  run: Pick<DataMartRun, 'id' | 'createdAt'>,
+  maxConnectorRunsPerProject: number
 ): Promise<void> {
+  const storageId = storage.id;
   if (
     (await countRunningStorageRuns(manager, storageId, [DataMartRunType.CONNECTOR], run.id)) > 0
   ) {
@@ -55,7 +58,19 @@ export async function holdBehindDuckDbLoads(
     .andWhere('run.type = :type', { type: DataMartRunType.CONNECTOR })
     .andWhere('run.createdAt < :createdAt', { createdAt: run.createdAt })
     .getCount();
-  if (olderWaitingLoads > 0) {
+  if (olderWaitingLoads === 0) {
+    return;
+  }
+  // While the project has no free connector slot, the older load waits for the slot, not for
+  // this storage, and cannot start anyway.
+  const runningProjectLoads = await manager
+    .createQueryBuilder(DataMartRun, 'run')
+    .innerJoin(DataMart, 'dm', 'dm.id = run.dataMartId')
+    .where('dm.projectId = :projectId', { projectId: storage.projectId })
+    .andWhere('run.status = :status', { status: DataMartRunStatus.RUNNING })
+    .andWhere('run.type = :type', { type: DataMartRunType.CONNECTOR })
+    .getCount();
+  if (runningProjectLoads < maxConnectorRunsPerProject) {
     throw new DuckDbLoadHoldException(`DuckDB storage ${storageId} has an older load waiting`);
   }
 }
