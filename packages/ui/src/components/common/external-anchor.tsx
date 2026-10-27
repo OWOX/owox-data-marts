@@ -10,12 +10,13 @@ import { cn } from '@owox/ui/lib/utils';
  * @param {React.ReactNode} children - The link text or content.
  * @param {string} [className] - Additional CSS classes.
  * @param {object} [rest] - Other anchor tag props.
- * @param {ExternalAnchorVariant} [variant] - The variant of the external anchor.
+ * @param {ExternalAnchorVariant} [variant] - The variant of the external anchor. `inline` wraps
+ *   long values (identifiers, table names) inside running text instead of truncating them.
  * @example
  * <ExternalAnchor href='https://example.com'>Example</ExternalAnchor>
  */
 
-type ExternalAnchorVariant = 'default' | 'field';
+type ExternalAnchorVariant = 'default' | 'field' | 'inline';
 
 export function ExternalAnchor({
   href,
@@ -42,13 +43,21 @@ export function ExternalAnchor({
         variant === 'field' &&
           'text-foreground hover:bg-muted focus:ring-ring flex w-full justify-between rounded-md border px-4 py-2 text-sm font-normal no-underline focus:ring-2 focus:ring-offset-2 focus:outline-none',
 
+        variant === 'inline' &&
+          'decoration-border hover:text-primary hover:decoration-primary [overflow-wrap:anywhere] underline underline-offset-4 dark:decoration-white/25',
+
         className
       )}
       {...rest}
     >
-      <span className='truncate'>{children}</span>
-
-      <ExternalLink className='ml-2 h-3 w-3 shrink-0' aria-hidden='true' />
+      {variant === 'inline' ? (
+        children
+      ) : (
+        <>
+          <span className='truncate'>{children}</span>
+          <ExternalLink className='ml-2 h-3 w-3 shrink-0' aria-hidden='true' />
+        </>
+      )}
     </a>
   );
 }

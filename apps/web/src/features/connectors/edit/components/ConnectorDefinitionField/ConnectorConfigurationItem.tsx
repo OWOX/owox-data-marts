@@ -1,28 +1,21 @@
 import { Button } from '@owox/ui/components/button';
-import { ExternalAnchor } from '@owox/ui/components/common/external-anchor';
-import { Info, Trash2, ChevronRight } from 'lucide-react';
+import { Pencil, Trash2 } from 'lucide-react';
 import { DataMartConnectorView } from '../../DataMartConnectorView';
-import { DataStorageType } from '../../../../data-storage';
 import type { ConnectorConfig, ConnectorDefinitionConfig } from '../../../../data-marts/edit/model';
-import {
-  getBigQueryTableUrl,
-  getBigQueryDatasetUrl,
-  getRedshiftQueryEditorUrl,
-} from '../../../../data-storage/shared/utils/storage-url.utils';
 import { getStorageDisplayName } from './connector-definition.helpers';
-import { ListItemCard } from '../../../../../shared/components/ListItemCard';
+import { getSourceFlowParams, getStorageFlowParams } from './connector-flow.utils';
+import { DataFlowNode } from './DataFlow/DataFlowNode';
+import { DataFlowConnector } from './DataFlow/DataFlowConnector';
+import { DataFlowParams } from './DataFlow/DataFlowParams';
+import { InfoHint } from './DataFlow/DataFlowValueActions';
 import { DataStorageTypeModel } from '../../../../data-storage/shared/types/data-storage-type.model';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
 import { DataMartStatus } from '../../../../data-marts/shared/enums';
 import type { DataStorage } from '../../../../data-storage/shared/model/types/data-storage';
 import { useConnector } from '../../../shared/model/hooks/useConnector';
 import { getConnectorInfoByName } from '../../../shared/utils';
-import { GOOGLE_SHEETS_CONNECTOR_NAME } from '../../../shared/utils/google-sheets-fields.utils';
-import { spreadsheetUrlFrom } from '../../../../google-oauth';
 import { useEffect, useState } from 'react';
 import { RawBase64Icon } from '../../../../../shared/icons';
-import { unquoteIdentifier } from '../../utils/snowflake-identifier.utils';
-import { RedshiftConnectionType } from '../../../../data-storage/shared/model/types/data-storage-config';
 
 interface ConnectorConfigurationItemProps {
   configIndex: number;
@@ -34,6 +27,15 @@ interface ConnectorConfigurationItemProps {
   dataStorage: DataStorage;
 }
 
+// Action buttons are labelled on a narrow container and icon-only on a wide one.
+const actionButtonClassName =
+  'text-muted-foreground hover:text-foreground h-10 @2xl:size-8 @2xl:p-0';
+
+/**
+ * One connector configuration shown as a data flow: Source → Storage, with
+ * Edit and Delete actions for the whole configuration. Lays out by its own
+ * width (container queries): side by side when wide, stacked when narrow.
+ */
 export function ConnectorConfigurationItem({
   configIndex,
   connectorDef,
@@ -42,8 +44,8 @@ export function ConnectorConfigurationItem({
   totalConfigurations,
   dataStorage,
 }: ConnectorConfigurationItemProps) {
-  const dataStorageInfo = DataStorageTypeModel.getInfo(dataStorage.type);
   const { connectors, fetchAvailableConnectors } = useConnector();
+  const [isEditOpen, setIsEditOpen] = useState(false);
 
   useEffect(() => {
     void fetchAvailableConnectors();
@@ -54,7 +56,8 @@ export function ConnectorConfigurationItem({
   // absent from it (a custom connector) needs the project-scoped lookup. The technical
   // name shows until either lands, and stays if the lookup fails.
   const sourceName = connectorDef.connector.source.name;
-  const bundledTitle = connectors.find(c => c.name === sourceName)?.displayName;
+  const bundledConnector = connectors.find(c => c.name === sourceName);
+  const bundledTitle = bundledConnector?.displayName;
   const [customTitle, setCustomTitle] = useState<string | null>(null);
   useEffect(() => {
     if (bundledTitle || connectors.length === 0) return;
@@ -70,326 +73,112 @@ export function ConnectorConfigurationItem({
     };
   }, [bundledTitle, connectors.length, sourceName]);
 
-  const getConnectorIcon = (connectorName: string) => {
-    const connector = connectors.find(c => c.name === connectorName);
-    if (connector?.logoBase64) {
-      return () => <RawBase64Icon base64={connector.logoBase64} size={24} />;
-    }
-    return undefined;
-  };
+  const StorageIcon = DataStorageTypeModel.getInfo(dataStorage.type).icon;
+  const sourceParams = getSourceFlowParams(connectorDef, configIndex);
+  const storageParams = getStorageFlowParams(
+    dataStorage,
+    connectorDef.connector.storage.fullyQualifiedName
+  );
 
-  // For Google Sheets the node is always "sheet"; the sheet (tab) name is what tells
-  // one plan apart from another, so show it and link it to the spreadsheet.
-  const getGoogleSheetsSource = () => {
-    if (connectorDef.connector.source.name !== GOOGLE_SHEETS_CONNECTOR_NAME) return null;
-    const config = connectorDef.connector.source.configuration[configIndex];
-    const sheetName = typeof config.SheetName === 'string' ? config.SheetName.trim() : '';
-    const spreadsheet = typeof config.SpreadsheetId === 'string' ? config.SpreadsheetId.trim() : '';
-    if (!sheetName) return null;
-    return { sheetName, spreadsheetUrl: spreadsheet ? spreadsheetUrlFrom(spreadsheet) : null };
-  };
-
-  const getConnectorSubtitle = () => {
-    const node = connectorDef.connector.source.node || 'No node selected';
-    const googleSheetsSource = getGoogleSheetsSource();
-    return (
-      <div className='flex flex-wrap items-center gap-2'>
-        {googleSheetsSource ? (
-          googleSheetsSource.spreadsheetUrl ? (
-            formatLinkParam(
-              'Sheet',
-              googleSheetsSource.sheetName,
-              googleSheetsSource.spreadsheetUrl
-            )
-          ) : (
-            <>
-              <span className='text-muted-foreground/75'>Sheet:</span>{' '}
-              <span className='text-muted-foreground font-medium'>
-                {googleSheetsSource.sheetName}
-              </span>
-            </>
-          )
-        ) : (
-          <>
-            <span className='text-muted-foreground/75'>Data:</span>{' '}
-            <span className='text-muted-foreground font-medium'>{node}</span>
-          </>
-        )}
-        <span className='text-muted-foreground'>•</span>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <span className='text-muted-foreground flex items-center gap-1 font-medium'>
-              <span>Edit config</span>
-              <ChevronRight className='h-3 w-3' />
-            </span>
-          </TooltipTrigger>
-          <TooltipContent>Edit connector configuration</TooltipContent>
-        </Tooltip>
-      </div>
-    );
-  };
-
-  const formatLinkParam = (label: string, value: string, href: string) => {
-    return (
-      <span>
-        <span className='text-muted-foreground/75'>{label}:</span>{' '}
-        <ExternalAnchor
-          href={href}
-          onClick={e => {
-            e.stopPropagation();
-          }}
-        >
-          {value}
-        </ExternalAnchor>
-      </span>
-    );
-  };
-
-  const getStorageSubtitle = () => {
-    switch (dataStorage.type) {
-      case DataStorageType.GOOGLE_BIGQUERY: {
-        const projectId = dataStorage.config.projectId;
-        const fullyQualifiedName = connectorDef.connector.storage.fullyQualifiedName;
-        const dataset = fullyQualifiedName.split('.')[0];
-        const table = fullyQualifiedName.split('.')[1];
-        const datasetLink = getBigQueryDatasetUrl(projectId, dataset);
-
-        return (
-          <div className='flex flex-wrap items-center gap-2'>
-            {formatLinkParam('Dataset', dataset, datasetLink)}
-            <span className='text-muted-foreground'>•</span>
-            {formatLinkParam('Table', table, getBigQueryTableUrl(projectId, dataset, table))}
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Info className='h-4 w-4' />
-              </TooltipTrigger>
-              <TooltipContent>
-                The dataset and table are automatically created during the first run of the data
-                mart, if they don't already exist
-              </TooltipContent>
-            </Tooltip>
-          </div>
-        );
-      }
-      case DataStorageType.AWS_ATHENA: {
-        const region = dataStorage.config.region;
-        const fullyQualifiedName = connectorDef.connector.storage.fullyQualifiedName;
-        const [databaseName, table] = fullyQualifiedName.split('.');
-        const athenaConsoleLink = `https://console.aws.amazon.com/athena/home?region=${region}#/query-editor`;
-        return (
-          <div className='flex flex-wrap items-center gap-2'>
-            {formatLinkParam('Database', databaseName, athenaConsoleLink)}
-            <span className='text-muted-foreground'>•</span>
-            {formatLinkParam('Table', table, athenaConsoleLink)}
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Info className='h-4 w-4' />
-              </TooltipTrigger>
-              <TooltipContent>
-                The database and table are automatically created during the first run of the data
-                mart, if they don't already exist
-              </TooltipContent>
-            </Tooltip>
-          </div>
-        );
-      }
-      case DataStorageType.SNOWFLAKE: {
-        const account = dataStorage.config.account;
-        const fullyQualifiedName = connectorDef.connector.storage.fullyQualifiedName;
-        const parts = fullyQualifiedName.split('.');
-        const database = parts[0];
-        const schema = parts[1];
-        const table = parts[2];
-        const snowflakeConsoleLink = `https://${account}.snowflakecomputing.com`;
-        const databaseLink = `${snowflakeConsoleLink}/#/data/databases/${database}`;
-        const schemaLink = `${snowflakeConsoleLink}/#/data/databases/${database}/schemas/${schema}`;
-        const tableLink = `${snowflakeConsoleLink}/#/data/databases/${database}/schemas/${schema}/table/${table}`;
-        return (
-          <div className='flex flex-wrap items-center gap-2'>
-            {formatLinkParam('Database', database, databaseLink)}
-            <span className='text-muted-foreground'>•</span>
-            {formatLinkParam('Schema', unquoteIdentifier(schema), schemaLink)}
-            <span className='text-muted-foreground'>•</span>
-            {formatLinkParam('Table', unquoteIdentifier(table), tableLink)}
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Info className='h-4 w-4' />
-              </TooltipTrigger>
-              <TooltipContent>
-                The database, schema and table are automatically created during the first run of the
-                data mart, if they don't already exist
-              </TooltipContent>
-            </Tooltip>
-          </div>
-        );
-      }
-      case DataStorageType.AWS_REDSHIFT: {
-        const redshiftConfig = dataStorage.config;
-        const fullyQualifiedName = connectorDef.connector.storage.fullyQualifiedName;
-        const fqnParts = fullyQualifiedName.split('.');
-
-        let schema: string;
-        let table: string;
-
-        if (fqnParts.length === 3) {
-          schema = unquoteIdentifier(fqnParts[1]);
-          table = unquoteIdentifier(fqnParts[2]);
-        } else {
-          schema = unquoteIdentifier(fqnParts[0]);
-          table = unquoteIdentifier(fqnParts[1]);
-        }
-
-        const connectionInfo =
-          redshiftConfig.connectionType === RedshiftConnectionType.SERVERLESS
-            ? `Workgroup: ${redshiftConfig.workgroupName}`
-            : `Cluster: ${redshiftConfig.clusterIdentifier}`;
-
-        const redshiftConsoleLink = getRedshiftQueryEditorUrl(redshiftConfig.region);
-
-        return (
-          <div className='flex flex-wrap items-center gap-2'>
-            <span>
-              <span className='text-muted-foreground/75'>Region:</span>{' '}
-              <span className='text-muted-foreground font-medium'>{redshiftConfig.region}</span>
-            </span>
-            <span className='text-muted-foreground'>•</span>
-            <span>
-              <span className='text-muted-foreground/75'>Database:</span>{' '}
-              <span className='text-muted-foreground font-medium'>{redshiftConfig.database}</span>
-            </span>
-            <span className='text-muted-foreground'>•</span>
-            <span>
-              <span className='text-muted-foreground/75'>{connectionInfo.split(':')[0]}:</span>{' '}
-              <span className='text-muted-foreground font-medium'>
-                {connectionInfo.split(':')[1].trim()}
-              </span>
-            </span>
-            <span className='text-muted-foreground'>•</span>
-            {formatLinkParam('Schema', schema, redshiftConsoleLink)}
-            <span className='text-muted-foreground'>•</span>
-            {formatLinkParam('Table', table, redshiftConsoleLink)}
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Info className='h-4 w-4' />
-              </TooltipTrigger>
-              <TooltipContent>
-                The schema and table are automatically created during the first run of the data
-                mart, if they don't already exist
-              </TooltipContent>
-            </Tooltip>
-          </div>
-        );
-      }
-      case DataStorageType.DATABRICKS: {
-        const fullyQualifiedName = connectorDef.connector.storage.fullyQualifiedName;
-        const fqnParts = fullyQualifiedName.split('.');
-
-        let catalog: string;
-        let schema: string;
-        let table: string;
-
-        if (fqnParts.length === 3) {
-          catalog = fqnParts[0];
-          schema = fqnParts[1];
-          table = fqnParts[2];
-        } else {
-          // If only 2 parts, assume no catalog (using default catalog)
-          catalog = 'hive_metastore';
-          schema = fqnParts[0];
-          table = fqnParts[1];
-        }
-
-        const host = dataStorage.config.host;
-        const databricksConsoleLink = `https://${host}`;
-
-        return (
-          <div className='flex flex-wrap items-center gap-2'>
-            {formatLinkParam('Catalog', catalog, databricksConsoleLink)}
-            <span className='text-muted-foreground'>•</span>
-            {formatLinkParam('Schema', schema, databricksConsoleLink)}
-            <span className='text-muted-foreground'>•</span>
-            {formatLinkParam('Table', table, databricksConsoleLink)}
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Info className='h-4 w-4' />
-              </TooltipTrigger>
-              <TooltipContent>
-                The catalog, schema and table are automatically created during the first run of the
-                data mart, if they don't already exist
-              </TooltipContent>
-            </Tooltip>
-          </div>
-        );
-      }
-      default:
-        return 'Unknown storage type configuration';
-    }
-  };
-
-  const canRemoveConfiguration = () => {
-    // Can't remove the last configuration
-    if (totalConfigurations === 1) {
-      return false;
-    }
-    return true;
-  };
+  const configurationNumber = configIndex + 1;
+  // Can't remove the last configuration
+  const canRemoveConfiguration = totalConfigurations > 1;
 
   return (
-    <div className='border-border flex w-full items-center rounded-lg border-1 p-1 dark:bg-white/2'>
-      <div className='flex-grow'>
-        <div className='grid grid-cols-2 items-center gap-4'>
-          <DataMartConnectorView
-            dataStorageType={dataStorage.type}
-            onSubmit={onUpdateConfiguration(configIndex)}
-            configurationOnly={true}
-            existingConnector={{
-              source: {
-                ...connectorDef.connector.source,
-                configuration: [connectorDef.connector.source.configuration[configIndex]],
-              },
-              storage: connectorDef.connector.storage,
-            }}
+    <article
+      aria-label={`Configuration ${String(configurationNumber)}`}
+      className='bg-muted/70 @container rounded-lg dark:bg-white/4'
+    >
+      <div className='flex flex-col @2xl:flex-row'>
+        <div className='grid min-w-0 flex-1 grid-cols-1 p-2 @2xl:grid-cols-[minmax(0,1fr)_44px_minmax(0,1.3fr)]'>
+          <DataFlowNode
+            role='Source'
+            icon={<RawBase64Icon base64={bundledConnector?.logoBase64} size={28} />}
+            title={bundledTitle ?? customTitle ?? (sourceName || 'Connector')}
           >
-            <ListItemCard
-              icon={getConnectorIcon(sourceName)}
-              title={bundledTitle ?? customTitle ?? (sourceName || 'Connector')}
-              subtitle={getConnectorSubtitle()}
-              className='bg-background hover:bg-muted min-h-[80px] cursor-pointer border-0 transition-colors hover:shadow-none'
-            />
-          </DataMartConnectorView>
+            <DataFlowParams primary={sourceParams} />
+          </DataFlowNode>
 
-          <ListItemCard
+          <DataFlowConnector />
+
+          <DataFlowNode
+            role='Storage'
+            roleAddon={storageParams.hint ? <InfoHint text={storageParams.hint} /> : null}
+            icon={<StorageIcon size={28} />}
             title={getStorageDisplayName(dataStorage.type)}
-            icon={dataStorageInfo.icon}
-            subtitle={getStorageSubtitle()}
-            className='bg-background min-h-[80px] cursor-default border-0 hover:shadow-none dark:bg-white/2'
-          />
+          >
+            <DataFlowParams primary={storageParams.primary} secondary={storageParams.secondary} />
+          </DataFlowNode>
         </div>
-      </div>
 
-      <div className='shrink-0 px-4'>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <span>
+        {/* Wide: Edit sits level with the node icons (padding + overline + icon centre = 58px). */}
+        <div className='flex justify-end gap-1 pr-2 pb-1 @2xl:flex-col @2xl:justify-start @2xl:pt-[42px] @2xl:pb-3'>
+          <Tooltip>
+            <TooltipTrigger asChild>
               <Button
                 type='button'
                 variant='ghost'
+                size='sm'
+                aria-label={`Edit configuration ${String(configurationNumber)}`}
+                className={actionButtonClassName}
                 onClick={() => {
-                  if (canRemoveConfiguration()) {
-                    onRemoveConfiguration(configIndex);
-                  }
+                  setIsEditOpen(true);
                 }}
-                disabled={!canRemoveConfiguration()}
               >
-                <Trash2 className='h-4 w-4' />
+                <Pencil />
+                <span className='@2xl:sr-only'>Edit</span>
               </Button>
-            </span>
-          </TooltipTrigger>
-          {!canRemoveConfiguration() && (
-            <TooltipContent>Remove last configuration only after adding a new one.</TooltipContent>
-          )}
-        </Tooltip>
+            </TooltipTrigger>
+            <TooltipContent side='left' align='start'>
+              Edit connector configuration
+            </TooltipContent>
+          </Tooltip>
+
+          <Tooltip>
+            <TooltipTrigger asChild>
+              {/* Disabled buttons emit no pointer events, so the span keeps the tooltip working. */}
+              <span>
+                <Button
+                  type='button'
+                  variant='ghost'
+                  size='sm'
+                  aria-label={`Delete configuration ${String(configurationNumber)}`}
+                  className={actionButtonClassName}
+                  disabled={!canRemoveConfiguration}
+                  onClick={() => {
+                    onRemoveConfiguration(configIndex);
+                  }}
+                >
+                  <Trash2 />
+                  <span className='@2xl:sr-only'>Delete</span>
+                </Button>
+              </span>
+            </TooltipTrigger>
+            <TooltipContent side='left' align='start'>
+              {canRemoveConfiguration
+                ? 'Delete configuration'
+                : 'Remove last configuration only after adding a new one.'}
+            </TooltipContent>
+          </Tooltip>
+        </div>
       </div>
-    </div>
+
+      <DataMartConnectorView
+        dataStorageType={dataStorage.type}
+        onSubmit={onUpdateConfiguration(configIndex)}
+        configurationOnly={true}
+        isOpen={isEditOpen}
+        onClose={() => {
+          setIsEditOpen(false);
+        }}
+        existingConnector={{
+          source: {
+            ...connectorDef.connector.source,
+            configuration: [connectorDef.connector.source.configuration[configIndex]],
+          },
+          storage: connectorDef.connector.storage,
+        }}
+      />
+    </article>
   );
 }
