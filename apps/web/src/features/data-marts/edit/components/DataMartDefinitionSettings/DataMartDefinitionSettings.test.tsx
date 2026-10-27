@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { DataStorageType } from '../../../../data-storage/shared/model/types/data-storage-type.enum';
-import { DataMartDefinitionType } from '../../../shared';
+import { DataMartDefinitionType, DataMartStatus } from '../../../shared';
 import type { DataMartContextType } from '../../model/context/types';
 import { DataMartDefinitionSettings } from './DataMartDefinitionSettings';
 
@@ -20,6 +20,10 @@ vi.mock('react-router', async importOriginal => {
     useOutletContext: () => testState.outletContext,
   };
 });
+
+vi.mock('../../../../../shared/hooks/useProjectId', () => ({
+  useProjectId: () => 'project-1',
+}));
 
 vi.mock('../../../shared/utils/useDataMartPreset.ts', () => ({
   useDataMartPreset: () => undefined,
@@ -85,10 +89,12 @@ vi.mock('./form/DataMartDefinitionForm.tsx', async () => {
 
 const buildDataMart = (
   definitionType: DataMartDefinitionType | null,
-  storageType: DataStorageType = DataStorageType.GOOGLE_BIGQUERY
+  storageType: DataStorageType = DataStorageType.GOOGLE_BIGQUERY,
+  status: DataMartStatus = DataMartStatus.DRAFT
 ) => ({
   id: 'dm-1',
   title: 'Orders',
+  status: { code: status, displayName: status, description: '' },
   definitionType,
   definition:
     definitionType === DataMartDefinitionType.SQL
@@ -98,6 +104,7 @@ const buildDataMart = (
         : null,
   storage: {
     id: 'storage-1',
+    title: 'Main BigQuery',
     type: storageType,
     config: null,
   },
@@ -107,10 +114,11 @@ const renderSettings = (
   definitionType: DataMartDefinitionType | null,
   initialDefinitionType: DataMartDefinitionType | null,
   setDefinitionType = vi.fn(),
-  storageType: DataStorageType = DataStorageType.GOOGLE_BIGQUERY
+  storageType: DataStorageType = DataStorageType.GOOGLE_BIGQUERY,
+  status: DataMartStatus = DataMartStatus.DRAFT
 ) => {
   testState.outletContext = {
-    dataMart: buildDataMart(initialDefinitionType, storageType),
+    dataMart: buildDataMart(initialDefinitionType, storageType, status),
     updateDataMartDefinition: testState.updateDataMartDefinition,
     runSchemaActualization: testState.runSchemaActualization,
   } as unknown as DataMartContextType;
@@ -285,6 +293,101 @@ describe('DataMartDefinitionSettings — changing the input source type', () => 
       expect(testState.updateDataMartDefinition).toHaveBeenCalled();
     });
     expect(screen.queryByText(/Change input source from/)).not.toBeInTheDocument();
+  });
+
+  it('names the Data Marts that reference this one when its type changes', async () => {
+    testState.getInputSourceChangeImpact.mockResolvedValue({
+      outboundRelationshipsCount: 0,
+      inboundRelationshipsCount: 0,
+      reportsCount: 0,
+      referencingDataMartsCount: 2,
+      referencingDataMarts: [{ id: 'dm-retail', title: 'Retail orders' }],
+    });
+    renderSettings(DataMartDefinitionType.SQL, DataMartDefinitionType.VIEW);
+
+    fireEvent.change(screen.getByLabelText('SQL query'), { target: { value: 'select 1' } });
+    await clickSaveWhenEnabled();
+
+    expect(await screen.findByText('Referenced in the SQL of 2 Data Marts.')).toBeInTheDocument();
+    expect(screen.getByText('Retail orders')).toBeInTheDocument();
+    expect(screen.getByText('and 1 Data Mart you don’t have access to')).toBeInTheDocument();
+    expect(
+      screen.queryByText('Nothing else depends on this Data Mart yet.')
+    ).not.toBeInTheDocument();
+  });
+
+  describe('a published Data Mart other Data Marts reference', () => {
+    const renderPublishedSql = () => {
+      renderSettings(
+        DataMartDefinitionType.SQL,
+        DataMartDefinitionType.SQL,
+        vi.fn(),
+        DataStorageType.GOOGLE_BIGQUERY,
+        DataMartStatus.PUBLISHED
+      );
+    };
+
+    it('asks before saving a same-type edit, and saves on Save anyway', async () => {
+      testState.getInputSourceChangeImpact.mockResolvedValue({
+        outboundRelationshipsCount: 0,
+        inboundRelationshipsCount: 0,
+        reportsCount: 0,
+        referencingDataMartsCount: 1,
+        referencingDataMarts: [{ id: 'dm-retail', title: 'Retail orders' }],
+      });
+      renderPublishedSql();
+
+      fireEvent.change(screen.getByLabelText('SQL query'), { target: { value: 'select 2' } });
+      await clickSaveWhenEnabled();
+
+      expect(
+        await screen.findByText('Save changes to a referenced Data Mart?')
+      ).toBeInTheDocument();
+      expect(screen.getByText('Retail orders')).toBeInTheDocument();
+      expect(testState.updateDataMartDefinition).not.toHaveBeenCalled();
+
+      fireEvent.click(screen.getByRole('button', { name: 'Save anyway' }));
+
+      await waitFor(() => {
+        expect(testState.updateDataMartDefinition).toHaveBeenCalledWith(
+          'dm-1',
+          DataMartDefinitionType.SQL,
+          expect.objectContaining({ sqlQuery: 'select 2' })
+        );
+      });
+    });
+
+    it('saves directly when nothing references it', async () => {
+      testState.getInputSourceChangeImpact.mockResolvedValue({
+        outboundRelationshipsCount: 0,
+        inboundRelationshipsCount: 0,
+        reportsCount: 0,
+        referencingDataMartsCount: 0,
+        referencingDataMarts: [],
+      });
+      renderPublishedSql();
+
+      fireEvent.change(screen.getByLabelText('SQL query'), { target: { value: 'select 2' } });
+      await clickSaveWhenEnabled();
+
+      await waitFor(() => {
+        expect(testState.updateDataMartDefinition).toHaveBeenCalled();
+      });
+      expect(screen.queryByText('Save changes to a referenced Data Mart?')).not.toBeInTheDocument();
+    });
+
+    it('still saves when the check fails', async () => {
+      testState.getInputSourceChangeImpact.mockRejectedValue(new Error('Network Error'));
+      vi.spyOn(console, 'error').mockImplementation(() => undefined);
+      renderPublishedSql();
+
+      fireEvent.change(screen.getByLabelText('SQL query'), { target: { value: 'select 2' } });
+      await clickSaveWhenEnabled();
+
+      await waitFor(() => {
+        expect(testState.updateDataMartDefinition).toHaveBeenCalled();
+      });
+    });
   });
 
   it('keeps the entered definition and skips schema actualization when the backend rejects the change', async () => {

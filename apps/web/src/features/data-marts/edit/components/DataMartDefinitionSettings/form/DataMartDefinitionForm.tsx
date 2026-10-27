@@ -8,6 +8,7 @@ import { DefinitionFqnField } from './DefinitionFqnField.tsx';
 import { TablePatternDefinitionField } from './TablePatternDefinitionField.tsx';
 import { ConnectorDefinitionField } from './ConnectorDefinitionField.tsx';
 import type { DataMartDefinitionFormData } from '../../../model/schema/data-mart-definition.schema.ts';
+import type { SqlReferencesContext } from './SqlDataMartReferencePicker.tsx';
 
 interface DataMartDefinitionFormProps {
   definitionType: DataMartDefinitionType;
@@ -18,6 +19,8 @@ interface DataMartDefinitionFormProps {
   connectorName?: string | null;
   initialDefinitionType?: DataMartDefinitionType | null;
   saveDataMartDefinition?: (e?: React.SyntheticEvent<HTMLFormElement>) => void;
+  /** Lets a SQL query reference other Data Marts; absent where references are not supported. */
+  sqlReferences?: SqlReferencesContext;
 }
 
 export function DataMartDefinitionForm({
@@ -29,6 +32,7 @@ export function DataMartDefinitionForm({
   connectorName,
   initialDefinitionType,
   saveDataMartDefinition,
+  sqlReferences,
 }: DataMartDefinitionFormProps) {
   const { control } = useFormContext<DataMartDefinitionFormData>();
   const [shouldAutoOpenConnector, setShouldAutoOpenConnector] = useState(false);
@@ -59,7 +63,9 @@ export function DataMartDefinitionForm({
 
   return (
     <div className='space-y-2'>
-      {definitionType === DataMartDefinitionType.SQL && <SqlDefinitionField control={control} />}
+      {definitionType === DataMartDefinitionType.SQL && (
+        <SqlDefinitionField control={control} references={sqlReferences} />
+      )}
 
       {definitionType === DataMartDefinitionType.TABLE && (
         <DefinitionFqnField

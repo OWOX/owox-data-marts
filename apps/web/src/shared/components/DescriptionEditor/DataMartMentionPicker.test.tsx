@@ -136,6 +136,45 @@ describe('DataMartMentionPicker', () => {
     h.node.remove();
   });
 
+  it('inserts a caller-formatted reference in one step, with a note and an insert callback', async () => {
+    const h = harness('SELECT * FROM @');
+    const loadDataMarts = vi.fn().mockResolvedValue([{ id: 'orders', title: 'Store Orders' }]);
+    const onInsert = vi.fn();
+    render(
+      <DataMartMentionPicker
+        editor={h.editor}
+        projectId='project'
+        disabled={false}
+        findMention={prefix =>
+          prefix.endsWith('@') ? { query: '', start: prefix.length - 1 } : null
+        }
+        loadDataMarts={loadDataMarts}
+        formatReference={reference => `[${reference.title}](dm:${reference.id})`}
+        pickFields={false}
+        note='Only Data Marts from Main BigQuery can be referenced.'
+        onInsert={onInsert}
+      />
+    );
+    h.open();
+
+    expect(
+      await screen.findByText('Only Data Marts from Main BigQuery can be referenced.')
+    ).toBeInTheDocument();
+    fireEvent.click(await screen.findByText('Store Orders'));
+
+    expect(h.edits).toHaveBeenCalledWith('description-mention', [
+      {
+        range: { startLineNumber: 1, startColumn: 15, endLineNumber: 1, endColumn: 16 },
+        text: '[Store Orders](dm:orders)',
+        forceMoveMarkers: true,
+      },
+    ]);
+    expect(onInsert).toHaveBeenCalledWith({ id: 'orders', title: 'Store Orders' }, undefined);
+    expect(loaders.marts).not.toHaveBeenCalled();
+    expect(loaders.fields).not.toHaveBeenCalled();
+    h.node.remove();
+  });
+
   it('allows an entire Data Mart reference and closes with Escape without canceling the editor', async () => {
     const h = harness();
     const view = render(

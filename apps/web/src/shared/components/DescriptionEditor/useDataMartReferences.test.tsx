@@ -5,7 +5,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { User } from '../../../features/idp/types';
 import { dataMartService } from '../../../features/data-marts/shared/services/data-mart.service';
 import { DataMartStatus } from '../../../features/data-marts/shared/enums/data-mart-status.enum';
-import { useDataMartFieldReferences, useDataMartReferences } from './useDataMartReferences';
+import {
+  useDataMartFieldReferences,
+  useDataMartReferences,
+  useStorageDataMartReferences,
+} from './useDataMartReferences';
 
 const currentUser = vi.hoisted(() => ({ value: null as User | null }));
 vi.mock('../../../features/idp/hooks/useAuthState', () => ({ useUser: () => currentUser.value }));
@@ -53,6 +57,18 @@ describe('useDataMartReferences', () => {
       { id: 'beta', title: 'Beta' },
     ]);
     expect(dataMartService.getDataMarts).toHaveBeenCalledTimes(1);
+  });
+
+  it('asks for one Storage and offers its published Data Marts other than the current one', async () => {
+    const hook = renderHook(() => useStorageDataMartReferences('project', 'storage-1', 'beta'), {
+      wrapper: createWrapper(),
+    });
+
+    expect(await hook.result.current()).toEqual([{ id: 'alpha', title: 'Alpha' }]);
+    expect(dataMartService.getDataMarts).toHaveBeenCalledWith(
+      expect.objectContaining({ skipLoadingIndicator: true }),
+      { storageId: 'storage-1' }
+    );
   });
 
   it("does not reuse the previous user's cached references after a user switch", async () => {

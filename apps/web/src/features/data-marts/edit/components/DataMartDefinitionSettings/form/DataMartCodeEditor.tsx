@@ -1,10 +1,18 @@
+import { useState } from 'react';
 import { Editor } from '@monaco-editor/react';
+import type * as Monaco from 'monaco-editor';
 import { useTheme } from 'next-themes';
 import type { SqlDefinitionConfig } from '../../../model';
+import {
+  SqlDataMartReferencePicker,
+  type SqlReferencesContext,
+} from './SqlDataMartReferencePicker';
 
 interface DataMartCodeEditorProps {
   value?: SqlDefinitionConfig;
   onChange: (config: SqlDefinitionConfig) => void;
+  /** Lets the query reference other Data Marts of the same Storage via `@`. */
+  references?: SqlReferencesContext;
 }
 
 /**
@@ -12,8 +20,9 @@ interface DataMartCodeEditorProps {
  * drift — the editor showing text the form no longer holds, or the form pushing a stale query back
  * over what is being typed — and the drift is invisible until a save writes the wrong thing.
  */
-export function DataMartCodeEditor({ value, onChange }: DataMartCodeEditorProps) {
+export function DataMartCodeEditor({ value, onChange, references }: DataMartCodeEditorProps) {
   const { resolvedTheme } = useTheme();
+  const [editor, setEditor] = useState<Monaco.editor.IStandaloneCodeEditor | null>(null);
 
   function handleEditorChange(nextValue: string | undefined) {
     if (nextValue !== undefined) {
@@ -35,8 +44,16 @@ export function DataMartCodeEditor({ value, onChange }: DataMartCodeEditorProps)
         language='sql'
         value={value?.sqlQuery ?? ''}
         onChange={handleEditorChange}
+        onMount={mounted => {
+          setEditor(mounted);
+          mounted.onDidDispose(() => {
+            setEditor(current => (current === mounted ? null : current));
+          });
+        }}
         theme={resolvedTheme === 'dark' ? 'vs-dark' : 'light'}
         options={{
+          // The reference picker is a content widget; keep it from being clipped by this box.
+          fixedOverflowWidgets: true,
           selectOnLineNumbers: true,
           hideCursorInOverviewRuler: true,
           minimap: {
@@ -47,6 +64,7 @@ export function DataMartCodeEditor({ value, onChange }: DataMartCodeEditorProps)
           automaticLayout: true,
         }}
       />
+      {references && <SqlDataMartReferencePicker editor={editor} {...references} />}
     </div>
   );
 }

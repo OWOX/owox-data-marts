@@ -46,9 +46,13 @@ export class DataMartService extends ApiService {
   /**
    * Fetch all data marts with automatic pagination.
    * Pagination is handled internally — callers receive the full list.
+   * @param filters `storageId` limits the list to one Storage
    * @returns Promise with all data mart items
    */
-  async getDataMarts(config?: AxiosRequestConfig): Promise<DataMartListItemResponseDto[]> {
+  async getDataMarts(
+    config?: AxiosRequestConfig,
+    filters?: { storageId?: string }
+  ): Promise<DataMartListItemResponseDto[]> {
     const allItems: DataMartListItemResponseDto[] = [];
     let nextOffset: number | null = 0;
 
@@ -56,6 +60,9 @@ export class DataMartService extends ApiService {
       const params: Record<string, unknown> = {};
       if (nextOffset > 0) {
         params.offset = nextOffset;
+      }
+      if (filters?.storageId) {
+        params.storageId = filters.storageId;
       }
 
       const page = await this.get<DataMartListResponseDto>('/', params, config);

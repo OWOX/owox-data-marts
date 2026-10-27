@@ -7,6 +7,10 @@ export interface InputSourceChangeImpact {
   /** Relationships where another Data Mart joins this one. */
   inboundRelationships: number;
   reports: number;
+  /** SQL Data Marts that reference this one in their query, including ones the user cannot see. */
+  referencingDataMartsCount: number;
+  /** The referencing Data Marts the user can see. */
+  referencingDataMarts: { id: string; title: string }[];
 }
 
 interface UseInputSourceChangeImpactResult {
@@ -58,6 +62,8 @@ export function useInputSourceChangeImpact(
           outboundRelationships: response.outboundRelationshipsCount,
           inboundRelationships: response.inboundRelationshipsCount,
           reports: response.reportsCount,
+          referencingDataMartsCount: response.referencingDataMartsCount ?? 0,
+          referencingDataMarts: response.referencingDataMarts ?? [],
         });
       })
       .catch(() => {

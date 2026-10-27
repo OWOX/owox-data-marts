@@ -1,0 +1,37 @@
+import { render, screen } from '@testing-library/react';
+import { describe, expect, it } from 'vitest';
+import { ReferencingDataMartsNotice } from './ReferencingDataMartsNotice';
+
+describe('ReferencingDataMartsNotice', () => {
+  it('renders nothing when no Data Mart references this one', () => {
+    const { container } = render(
+      <ReferencingDataMartsNotice dataMarts={[]} total={0} action='delete' />
+    );
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it('names the visible Data Marts and counts the rest', () => {
+    render(
+      <ReferencingDataMartsNotice
+        dataMarts={[{ id: 'a', title: 'Retail orders' }]}
+        total={3}
+        action='delete'
+      />
+    );
+
+    expect(screen.getByText('Referenced in the SQL of 3 Data Marts.')).toBeInTheDocument();
+    expect(
+      screen.getByText('They will stop working once this Data Mart is deleted:')
+    ).toBeInTheDocument();
+    expect(screen.getByText('Retail orders')).toBeInTheDocument();
+    expect(screen.getByText('and 2 Data Marts you don’t have access to')).toBeInTheDocument();
+  });
+
+  it('says how many are hidden when none can be named', () => {
+    render(<ReferencingDataMartsNotice dataMarts={[]} total={1} action='change' />);
+
+    expect(screen.getByText('Referenced in the SQL of 1 Data Mart.')).toBeInTheDocument();
+    expect(screen.getByText('Changing this input source may break them:')).toBeInTheDocument();
+    expect(screen.getByText('1 Data Mart you don’t have access to')).toBeInTheDocument();
+  });
+});
