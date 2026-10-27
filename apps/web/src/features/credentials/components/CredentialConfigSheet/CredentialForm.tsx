@@ -214,9 +214,10 @@ function CredentialFormBody({
     [credential, selectedDefinition]
   );
   const isOAuth = auth?.type === 'oauth';
-  // An empty label (fields definitions) must fall back, so `||` is intended.
-  // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
-  const secretLabel = selectedDefinition?.secretLabel || 'Secret';
+  // Fields definitions have an empty label.
+  const secretLabel = selectedDefinition?.secretLabel.trim()
+    ? selectedDefinition.secretLabel
+    : 'Secret';
   const secretFieldChanged = definitionFields.some(
     ({ key, secret, identity }) =>
       (secret && ((fieldValues[key] ?? '') !== '' || clearedFields.includes(key))) ||

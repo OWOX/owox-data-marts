@@ -36,9 +36,8 @@ export function GoogleOAuthCredentialConnect({
     ? credential.publicMetadata.account
     : null;
   const email = account?.email ?? credential?.identity ?? null;
-  // A converted Credential may store an empty name and email, so `||` is intended.
-  // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
-  const accountLabel = account?.name || email || 'Google account';
+  // A converted Credential may store an empty name and email.
+  const accountLabel = [account?.name, email].find(Boolean) ?? 'Google account';
   // An OAuth Credential exists only with a grant; a rejected one offers Connect with Google again.
   const connected = Boolean(credential) && credential?.validationState !== 'rejected';
 
