@@ -8,7 +8,10 @@ import {
 import { BUILTIN_CREDENTIAL_DEFINITIONS } from '../../credentials/services/builtin-credential-definitions';
 import { materialKey } from '../../credentials/services/credential-material-key';
 import type { DataStorageType } from '../../data-storage-types/enums/data-storage-type.enum';
-import { storageCredentialRequirement } from '../../data-storage-types/storage-credential-state';
+import {
+  storageCredentialRequirement,
+  storageCredentialState,
+} from '../../data-storage-types/storage-credential-state';
 import type { CredentialIdentity } from '../../entities/credential-identity.type';
 import type { StoredStorageCredentials } from '../../entities/stored-storage-credentials.type';
 import { StorageCredentialType } from '../../enums/storage-credential-type.enum';
@@ -61,6 +64,8 @@ export interface ConversionPlan {
   readonly credentials: readonly PlannedCredential[];
   /** A skipped Storage keeps running on its old key. */
   readonly skipped: readonly { readonly storageId: string; readonly reason: string }[];
+  /** Converted Storages whose Google grant lacks a configured scope: they stop until a reconnect. */
+  readonly lackingScopes: readonly string[];
 }
 
 interface ConversionItem {
@@ -86,7 +91,22 @@ export function planStorageCredentialConversion(
     if (typeof item === 'string') skipped.push({ storageId: storage.id, reason: item });
     else items.push(item);
   }
-  return { credentials: groupConversionItems(items).map(toPlannedCredential), skipped };
+  const lackingScopes = items
+    .filter(
+      item =>
+        'oauth' in item.secret &&
+        storageCredentialState(
+          { enabled: true, validationState: 'unknown', publicMetadata: item.publicMetadata },
+          { auth: { type: 'oauth' } },
+          item.requirement.scopes
+        ) === 'reauthorize-required'
+    )
+    .map(item => item.storage.id);
+  return {
+    credentials: groupConversionItems(items).map(toPlannedCredential),
+    skipped,
+    lackingScopes,
+  };
 }
 
 /** The item, or why the Storage keeps its old key; a reason never quotes a key value. */

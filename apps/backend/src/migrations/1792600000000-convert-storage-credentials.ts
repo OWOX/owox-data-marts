@@ -79,6 +79,11 @@ export class ConvertStorageCredentials1792600000000 implements MigrationInterfac
     for (const { storageId, reason } of plan.skipped) {
       logger.warn(`Storage ${storageId} keeps its old key: ${reason}`);
     }
+    for (const storageId of plan.lackingScopes) {
+      logger.warn(
+        `Storage ${storageId} stops until its Credential is reconnected: its Google grant lacks a configured BigQuery scope`
+      );
+    }
     try {
       for (const credential of plan.credentials) {
         await insertCredential(queryRunner, credential);

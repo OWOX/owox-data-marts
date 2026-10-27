@@ -283,6 +283,27 @@ describe('planStorageCredentialConversion', () => {
     ]);
   });
 
+  it('lists the converted Storages whose Google grant lacks a configured scope', () => {
+    const oauth = storage(googleOAuth(), { type: DataStorageType.GOOGLE_BIGQUERY });
+    const serviceAccount = storage(
+      {
+        type: StorageCredentialType.GOOGLE_SERVICE_ACCOUNT,
+        credentials: serviceAccountKey(),
+        identity: null,
+      },
+      { type: DataStorageType.GOOGLE_BIGQUERY }
+    );
+    const wider = {
+      ...OPTIONS,
+      bigQueryScopes: [BIGQUERY_SCOPE, 'https://www.googleapis.com/auth/drive'],
+    };
+
+    expect(planStorageCredentialConversion([oauth, serviceAccount], wider).lackingScopes).toEqual([
+      oauth.id,
+    ]);
+    expect(planStorageCredentialConversion([oauth], OPTIONS).lackingScopes).toEqual([]);
+  });
+
   it('snapshots no BigQuery scopes for a binding while Google sign-in is not configured', () => {
     const plan = planStorageCredentialConversion(
       [
