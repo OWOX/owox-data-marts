@@ -40,6 +40,10 @@ Your Databricks workspace URL (host) is the hostname you see in your browser whe
 2. Look at the URL in your browser's address bar
 3. Copy the hostname (everything before the first `/`)
 
+OWOX accepts only a hostname in a Databricks workspace domain (`cloud.databricks.com`,
+`azuredatabricks.net`, `gcp.databricks.com`, and their government and China counterparts),
+because the token is sent to this host.
+
 ### Step 2: Get SQL Warehouse HTTP Path
 
 The HTTP path identifies which SQL warehouse will be used for query execution.
@@ -110,7 +114,7 @@ Unlike some other storages, Databricks catalog and schema are **not** configured
 Databricks Data Marts support the following Databricks SQL data types:
 
 | OWOX Type | Databricks Type |
-|-----------|-----------------|
+| --------- | --------------- |
 | string    | STRING          |
 | number    | DOUBLE          |
 | integer   | BIGINT          |
@@ -118,7 +122,7 @@ Databricks Data Marts support the following Databricks SQL data types:
 | date      | DATE            |
 | datetime  | TIMESTAMP       |
 | timestamp | TIMESTAMP       |
-| array     | ARRAY   |
+| array     | ARRAY           |
 | object    | STRUCT<>        |
 
 ### Operations

@@ -17,8 +17,12 @@ Credential or stop consumers that already use it. At least one owner must remain
 
 Owners and Project Admins can manage the Credential. The **Shared for use** and **Shared for
 maintenance** settings add access for other eligible project members, subject to their role scope
-and assigned contexts. Consumers re-check access, status, and definition compatibility whenever
-they use a Credential.
+and assigned contexts. Plugins re-check access, status, and definition compatibility whenever
+they use a Credential. Storages check access when a member selects the Credential or changes where
+the Storage connects; runs check only that the Credential is enabled and usable, because running
+needs access to the Storage only. Turning sharing off therefore leaves bound Storages running:
+disable the Credential to stop them, and members who can edit those Storages switch them to
+another Credential.
 
 ## Plugin use
 

@@ -1,6 +1,6 @@
 # Storage Management
 
-Storages are specialized Data Sources that provide an SQL interface for querying and caching data.  
+Storages are specialized Data Sources that provide an SQL interface for querying and caching data.
 
 _IMPORTANT: OWOX Data Marts does not retain your data, ensuring that data ownership, storage, and processing control remain under the control of the Data Analyst._
 
@@ -16,12 +16,12 @@ To configure a new **Storage**:
 
 1. Navigate to the **Storages** in the left sidebar and click on **+ New Storage**.
 2. Then select the **data warehouse** you want to add and follow the instructions for your platform:
-    - [Google BigQuery](supported-storages/google-bigquery.md)
-    - [AWS Athena](supported-storages/aws-athena.md)
-    - [AWS Redshift](supported-storages/aws-redshift.md)
-    - [Snowflake](supported-storages/snowflake.md)
-    - [Databricks](supported-storages/databricks.md)
-    - Azure Synapse (Coming soon)
+   - [Google BigQuery](supported-storages/google-bigquery.md)
+   - [AWS Athena](supported-storages/aws-athena.md)
+   - [AWS Redshift](supported-storages/aws-redshift.md)
+   - [Snowflake](supported-storages/snowflake.md)
+   - [Databricks](supported-storages/databricks.md)
+   - Azure Synapse (Coming soon)
 3. Fill in the required configuration fields based on the selected data warehouse. Follow the instructions for your platform.
    Select a **Credential** instead of entering a key: see [Credentials for Storages](#credentials-for-storages).
 4. Click **Save** to complete storage setup or **Cancel** to finish the configuration later.
@@ -64,9 +64,11 @@ Credential can serve several Storages, so a rotated key is replaced once.
   version (or when the operator runs migrations). Identical keys of Storages with the same owners
   become one Credential, which keeps the Contexts all its Storages shared. Every owner of those
   Storages, Business Users included, owns the Credential. Converted Credentials are Not shared:
-  members who run or maintain a Storage without owning it keep doing so, but reuse its key
-  elsewhere only after an owner shares the Credential. A Storage whose key cannot be converted
-  keeps running on its own key until you select a Credential.
+  members who run or maintain a Storage without owning it keep doing so, but an owner has to
+  share the Credential for use before they change where the Storage connects (project, region,
+  account or host) or reuse its key elsewhere, and for maintenance before they replace its key.
+  A Storage whose key cannot be converted keeps running on its own key until you select a
+  Credential.
 
 ---
 
