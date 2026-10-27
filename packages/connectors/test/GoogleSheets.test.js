@@ -109,13 +109,14 @@ function createSource({
   inferTypes = true,
   authType = null,
   outputSchemaFieldTypes,
+  sheetName = 'Data',
 } = {}) {
   const logs = [];
   const source = Object.create(GoogleSheetsSource.prototype);
   const parameters = {
     HeaderRow: { value: headerRow },
     Range: { value: range },
-    SheetName: { value: 'Data' },
+    SheetName: { value: sheetName },
     SpreadsheetId: { value: 'spreadsheet-id' },
     ImportAllColumns: { value: importAllColumns },
     Fields: { value: fields },
@@ -1303,7 +1304,7 @@ test('imports a declared DATE column with no date at all as before, instead of e
   assert.deepEqual(columnOf(rows, 'date'), ['Q4 2026', 'TBD']);
   assert.match(
     source.logs[0],
-    /but none of its cells is a date in the sheet, so it was imported as before/
+    /but none of its cells is a date in the sheet, so it was not imported as a date\. Format the cells as dates, then check that the field is still DATE in the Output Schema/
   );
 });
 
@@ -1392,6 +1393,78 @@ test('takes the dates from the latest read, with a warning, when the reads keep 
   assert.deepEqual(columnOf(rows, 'date'), ['2026-10-01', '2026-10-02']);
   assert.equal(calls.filter(call => call.url.includes('/values/')).length, 2);
   assert.match(source.logs.at(-1), /^The sheet changed while it was being read, so date columns/);
+});
+
+test('on the last attempt, a row inserted between the reads shifts the dates, and the run log says so', async () => {
+  // The values read never sees the new row; every date-column read does. The dates then come
+  // from the date-column read, one row off, rather than being emptied (see the README).
+  const SEP_30 = dateCell('9/30/2026', 46295);
+  const sheet = [
+    ['Date', 'Note'],
+    [OCT_1, 'a'],
+    [OCT_2, 'b'],
+  ];
+
+  const { fields, rows, calls, source } = await runSheet(
+    sheet,
+    { outputSchemaFieldTypes: outputSchemaTypes({ date: 'DATE', note: 'OTHER' }) },
+    { sheetForColumnRead: current => [current[0], [SEP_30, 'new'], ...current.slice(1)] }
+  );
+
+  assert.equal(fields.date.type, DATA_TYPES.DATE);
+  assert.deepEqual(columnOf(rows, 'date'), ['2026-09-30', '2026-10-01']);
+  assert.deepEqual(columnOf(rows, 'note'), ['a', 'b']);
+  assert.equal(calls.filter(call => call.url.includes('/values/')).length, 2);
+  assert.deepEqual(source.logs, [
+    'The sheet changed while it was being read; reading it again',
+    'The sheet changed while it was being read, so date columns were taken from the latest read. If rows were moved or inserted during the import, run it again.',
+  ]);
+});
+
+test('logs date warnings only for the attempt that is kept', async () => {
+  // Column A warns about row 3 on both attempts; column B changes during the first one only.
+  const sheet = [
+    ['A', 'B'],
+    [OCT_1, OCT_1],
+    ['TBD', OCT_2],
+  ];
+
+  const { fields, rows, source } = await runSheet(
+    sheet,
+    { outputSchemaFieldTypes: outputSchemaTypes({ a: 'DATE', b: 'DATE' }) },
+    {
+      sheetForColumnRead: (current, read) =>
+        read === 0 ? [current[0], [OCT_1, OCT_2], current[2]] : current,
+    }
+  );
+
+  assert.equal(fields.a.type, DATA_TYPES.DATE);
+  assert.deepEqual(columnOf(rows, 'b'), ['2026-10-01', '2026-10-02']);
+  assert.equal(source.logs.length, 2);
+  assert.equal(source.logs[0], 'The sheet changed while it was being read; reading it again');
+  assert.match(source.logs[1], /^Column 'A' is DATE in the Output Schema, but row 3 is not a date/);
+});
+
+test('splits date-column reads so a long encoded tab name keeps each request URL short', async () => {
+  const columnCount = 60;
+  const header = Array.from({ length: columnCount }, (_, index) => `d${index + 1}`);
+  const sheet = [header, header.map(() => OCT_1), header.map(() => OCT_2)];
+
+  const { fields, rows, calls } = await runSheet(sheet, {
+    sheetName: 'Планування зростання',
+    outputSchemaFieldTypes: outputSchemaTypes(
+      Object.fromEntries(header.map(name => [name, 'DATE']))
+    ),
+  });
+
+  const columnReads = calls.filter(call => !call.url.includes('/values/'));
+  assert.ok(columnReads.length > 1);
+  for (const call of columnReads) {
+    assert.ok(new URL(call.url).search.length < 4500, `${new URL(call.url).search.length}`);
+  }
+  assert.equal(columnReads.flatMap(requestedRanges).length, columnCount);
+  assert.equal(fields.d60.type, DATA_TYPES.DATE);
+  assert.deepEqual(columnOf(rows, 'd60'), ['2026-10-01', '2026-10-02']);
 });
 
 test('places cells by the start row the response reports', async () => {
@@ -1503,6 +1576,8 @@ test('converts a date serial to its calendar day', () => {
   assert.equal(source._serialToDate(46296), '2026-10-01');
   // A Date time cell keeps the day it shows.
   assert.equal(source._serialToDate(46296.99), '2026-10-01');
+  // Midnight a hair short, as time arithmetic can leave it, is the next day the cell shows.
+  assert.equal(source._serialToDate(46296.99999999999), '2026-10-02');
   assert.equal(source._serialToDate(-1), '1899-12-29');
   assert.equal(source._serialToDate('46296'), null);
   assert.equal(source._serialToDate(Number.NaN), null);
