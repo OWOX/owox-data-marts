@@ -5465,3 +5465,74 @@ describe('ReportColumnPicker automatic aggregation', () => {
     expect(within(row).getByRole('button', { name: 'Add aggregation' })).toBeInTheDocument();
   });
 });
+
+describe('ReportColumnPicker joined Count warning', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("names the report's Data Mart, the column and each joined Data Mart as the list shows them", async () => {
+    // Items is joined through Orders, and the rows collapse at Orders: the warning has to name
+    // that Data Mart by the alias its group header shows, not by its native title.
+    const schema = buildSchema({
+      blendedFields: [
+        buildBlendedField({
+          name: 'orders_items__sku',
+          aliasPath: 'orders.items',
+          targetAlias: 'items',
+          originalFieldName: 'sku',
+          alias: 'SKU',
+          sourceDataMartTitle: 'Items',
+          outputPrefix: 'Line items',
+        }),
+      ],
+      availableSources: [
+        buildAvailableSource({
+          aliasPath: 'orders',
+          title: 'Orders',
+          defaultAlias: 'Shop orders',
+          mainGrainMultiplication: 'none',
+          mainGrainCollapse: 'collapses',
+          mainGrainCollapsedAt: 'orders',
+        }),
+        buildAvailableSource({
+          aliasPath: 'orders.items',
+          title: 'Items',
+          defaultAlias: 'Line items',
+          depth: 2,
+          relationshipId: 'rel-2',
+          dataMartId: 'dm-2',
+          mainGrainMultiplication: 'none',
+          mainGrainCollapse: 'collapses',
+          mainGrainCollapsedAt: 'orders',
+        }),
+      ],
+    });
+
+    renderPicker(schema, ['native_one', 'orders_items__sku'], {
+      storageType: DataStorageType.GOOGLE_BIGQUERY,
+      outputConfig: {
+        filterConfig: [],
+        sortConfig: [],
+        limitConfig: null,
+        aggregationConfig: [],
+        dateTruncConfig: [],
+        uniqueCountConfig: [],
+      },
+      onOutputConfigChange: () => {},
+    });
+
+    const row = screen.getByText('SKU').closest('label') as HTMLElement;
+    fireEvent.click(within(row).getByRole('button', { name: 'Add aggregation' }));
+    fireEvent.click(await screen.findByRole('checkbox', { name: 'COUNT' }));
+
+    const lines = [...screen.getByTestId('joined-count-warning').querySelectorAll('p')].map(
+      line => line.textContent
+    );
+    expect(lines).toEqual([
+      'Counts Main Data Mart rows, not Line items rows',
+      'Several Shop orders rows can match one Main Data Mart row, so the count can be lower than the number of Line items rows.',
+      'Use Count Unique for distinct SKU values, or add Unique Count from Line items to count its rows.',
+    ]);
+  });
+});

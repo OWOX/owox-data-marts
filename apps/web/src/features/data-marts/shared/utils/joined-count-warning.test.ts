@@ -41,24 +41,24 @@ describe('joinedCountWarning', () => {
     expect(warn({ mainGrainMultiplication: 'none', mainGrainCollapse: 'none' })).toBeUndefined();
   });
 
-  it('titles every verdict with what the number is not', () => {
+  it('titles every verdict with what Count counts and what it does not', () => {
     expect(warn({ mainGrainMultiplication: 'multiplies', mainGrainCollapse: 'none' })?.title).toBe(
-      'May not match the number of Orders rows'
+      'Counts Sessions rows, not Orders rows'
     );
-    expect(warn({})?.title).toBe('May not match the number of Orders rows');
+    expect(warn({})?.title).toBe('Counts Sessions rows, not Orders rows');
   });
 
   it('explains a multiplying join', () => {
     const warning = warn({ mainGrainMultiplication: 'multiplies', mainGrainCollapse: 'none' });
     expect(reason(warning)).toBe(
-      'One [Orders] row can match several [Sessions] rows and is counted for each, so the result can be higher.'
+      'One [Orders] row can match several [Sessions] rows, so the count can be higher than the number of [Orders] rows.'
     );
     expect(advice(warning)).toBe(COUNT_UNIQUE);
   });
 
   it('explains a collapsing join', () => {
     expect(reason(warn({ mainGrainMultiplication: 'none', mainGrainCollapse: 'collapses' }))).toBe(
-      'Several [Orders] rows can match one [Sessions] row and are counted once, so the result can be lower.'
+      'Several [Orders] rows can match one [Sessions] row, so the count can be lower than the number of [Orders] rows.'
     );
   });
 
@@ -77,7 +77,7 @@ describe('joinedCountWarning', () => {
         )
       )
     ).toBe(
-      'Several [Orders] rows can match one [Sessions] row and are counted once, so the result can be lower.'
+      'Several [Orders] rows can match one [Sessions] row, so the count can be lower than the number of [Items] rows.'
     );
   });
 
@@ -85,11 +85,11 @@ describe('joinedCountWarning', () => {
     expect(
       reason(warn({ mainGrainMultiplication: 'multiplies', mainGrainCollapse: 'collapses' }))
     ).toBe(
-      'One [Orders] row can match several [Sessions] rows, and several [Orders] rows can match one, so the result can be higher or lower.'
+      'One [Orders] row can match several [Sessions] rows, and several [Orders] rows can match one [Sessions] row, so the count can be higher or lower than the number of [Orders] rows.'
     );
   });
 
-  it('names the Data Mart that has no primary key', () => {
+  it('names the Data Mart that has no primary key and how to settle it', () => {
     expect(
       reason(
         warn({
@@ -99,24 +99,24 @@ describe('joinedCountWarning', () => {
         })
       )
     ).toBe(
-      "[Sessions] has no primary key, so it's unclear how many [Sessions] rows each [Orders] row matches. The result can be higher."
+      "[Sessions] has no primary key, so it's unclear how many [Sessions] rows each [Orders] row matches. The count can be higher than the number of [Orders] rows. Set a primary key on [Sessions] to get a definite answer."
     );
-    expect(
-      reason(
-        warn({
-          mainGrainMultiplication: 'unknown',
-          mainGrainCollapse: 'none',
-          mainGrainUnprovenAt: 'orders',
-        })
-      )
-    ).toMatch(/^\[Orders\] has no primary key, so/);
+    const atOrders = reason(
+      warn({
+        mainGrainMultiplication: 'unknown',
+        mainGrainCollapse: 'none',
+        mainGrainUnprovenAt: 'orders',
+      })
+    );
+    expect(atOrders).toMatch(/^\[Orders\] has no primary key, so/);
+    expect(atOrders).toMatch(/ Set a primary key on \[Orders\] to get a definite answer\.$/);
   });
 
   it('adds "or lower" to an unknown multiplication that also collapses', () => {
     expect(
       reason(warn({ mainGrainMultiplication: 'unknown', mainGrainCollapse: 'collapses' }))
     ).toBe(
-      "Without a primary key, it's unclear how many [Sessions] rows each [Orders] row matches. The result can be higher or lower."
+      "Without a primary key, it's unclear how many [Sessions] rows each [Orders] row matches. The count can be higher or lower than the number of [Orders] rows."
     );
   });
 
@@ -126,15 +126,38 @@ describe('joinedCountWarning', () => {
     );
   });
 
-  it("falls back to a description when the report's Data Mart has no name", () => {
-    expect(
-      reason(
-        warn(
-          { mainGrainMultiplication: 'multiplies', mainGrainCollapse: 'none' },
-          { ...OPTIONS, mainName: ' ' }
+  describe("when the report's Data Mart has no name", () => {
+    const unnamed = { ...OPTIONS, mainName: ' ' };
+
+    it('describes it in place of the name, in words that still read as a sentence', () => {
+      expect(
+        warn({ mainGrainMultiplication: 'multiplies', mainGrainCollapse: 'collapses' }, unnamed)
+      ).toMatchObject({ title: "Counts rows of this report's Data Mart, not Orders rows" });
+      expect(
+        reason(
+          warn({ mainGrainMultiplication: 'multiplies', mainGrainCollapse: 'collapses' }, unnamed)
         )
-      )
-    ).toContain("several [this report's Data Mart] rows");
+      ).toBe(
+        "One [Orders] row can match several rows of this report's Data Mart, and several [Orders] rows can match one row of this report's Data Mart, so the count can be higher or lower than the number of [Orders] rows."
+      );
+    });
+
+    it('starts the no-primary-key sentence with a capital', () => {
+      expect(
+        reason(
+          warn(
+            {
+              mainGrainMultiplication: 'unknown',
+              mainGrainCollapse: 'none',
+              mainGrainUnprovenAt: '',
+            },
+            unnamed
+          )
+        )
+      ).toBe(
+        "This report's Data Mart has no primary key, so it's unclear how many rows of this report's Data Mart each [Orders] row matches. The count can be higher than the number of [Orders] rows. Set a primary key on this report's Data Mart to get a definite answer."
+      );
+    });
   });
 
   it('points to the joined Unique Count only when it is available', () => {

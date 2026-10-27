@@ -456,7 +456,7 @@ describe('AggregationEditorPopover — Apply gating', () => {
 
 describe('AggregationEditorPopover — joined count warning', () => {
   const WARNING: JoinedCountWarning = {
-    title: 'May not match the number of Orders rows',
+    title: 'Counts Sessions rows, not Orders rows',
     reason: ['Several ', { kind: 'dataMart', text: 'Orders' }, ' rows can match one row.'],
     advice: [
       'Use ',
@@ -490,7 +490,7 @@ describe('AggregationEditorPopover — joined count warning', () => {
 
     fireEvent.click(screen.getByLabelText('COUNT'));
     expect(screen.getByTestId('joined-count-warning').textContent).toContain(
-      'May not match the number of Orders rows'
+      'Counts Sessions rows, not Orders rows'
     );
 
     fireEvent.click(screen.getByLabelText('COUNT'));
@@ -511,7 +511,7 @@ describe('AggregationEditorPopover — joined count warning', () => {
     render_(WARNING, ['COUNT']);
     const lines = [...screen.getByTestId('joined-count-warning').querySelectorAll('p')];
     expect(lines.map(line => line.textContent)).toEqual([
-      'May not match the number of Orders rows',
+      'Counts Sessions rows, not Orders rows',
       'Several Orders rows can match one row.',
       'Use Count Unique for distinct order_id values.',
     ]);

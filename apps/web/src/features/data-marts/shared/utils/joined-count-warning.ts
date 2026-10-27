@@ -24,7 +24,7 @@ export type JoinedCountWarningPart =
   | { kind: 'dataMart' | 'aggregation' | 'field'; text: string };
 
 export interface JoinedCountWarning {
-  /** What the number is not, in a line. */
+  /** What the number counts, and what it does not. */
   title: string;
   /** Why it drifts, and which way. */
   reason: JoinedCountWarningPart[];
@@ -47,6 +47,20 @@ export interface JoinedCountWarningOptions {
 
 const dataMart = (text: string): JoinedCountWarningPart => ({ kind: 'dataMart', text });
 
+/** How the text names the report's own Data Mart when it has no title to show. */
+const REPORT_DATA_MART = "this report's Data Mart";
+
+/** `several Sessions rows`, or `several rows of this report's Data Mart` without a name. */
+function rowsOf(
+  mart: string | undefined,
+  quantity: string,
+  noun: 'row' | 'rows'
+): JoinedCountWarningPart[] {
+  return mart
+    ? [quantity, dataMart(mart), ` ${noun}`]
+    : [`${quantity}${noun} of ${REPORT_DATA_MART}`];
+}
+
 /** Why a COUNT over a joined column does not count the joined Data Mart's rows; undefined when it does. */
 export function joinedCountWarning(
   source: GrainSource | undefined,
@@ -57,51 +71,76 @@ export function joinedCountWarning(
   const collapses = (source.mainGrainCollapse ?? 'collapses') === 'collapses';
   if (multiplication === 'none' && !collapses) return undefined;
 
-  const main = mainName.trim() || "this report's Data Mart";
+  const main = mainName.trim() || undefined;
   const collapsedAt = source.mainGrainCollapsedAt;
   const collapsedName =
     collapsedAt && collapsedAt !== source.aliasPath ? (nameAt(collapsedAt) ?? name) : name;
-  const unprovenAt = source.mainGrainUnprovenAt;
-  const unprovenName =
-    unprovenAt === undefined ? undefined : unprovenAt === '' ? main : nameAt(unprovenAt);
+  const thanJoinedRows: JoinedCountWarningPart[] = [
+    ' than the number of ',
+    dataMart(name),
+    ' rows.',
+  ];
 
   let reason: JoinedCountWarningPart[];
   if (multiplication === 'unknown') {
+    // The Data Mart that declares no primary key: named, the report's own one without a name, or
+    // one the picker cannot name.
+    const unprovenAt = source.mainGrainUnprovenAt;
+    const unprovenName = unprovenAt === '' ? main : unprovenAt && nameAt(unprovenAt);
+    const unproven: JoinedCountWarningPart | undefined = unprovenName
+      ? dataMart(unprovenName)
+      : unprovenAt === ''
+        ? REPORT_DATA_MART
+        : undefined;
     reason = [
-      ...(unprovenName
-        ? [dataMart(unprovenName), ' has no primary key, so']
-        : ['Without a primary key,']),
+      ...(unproven === undefined
+        ? ['Without a primary key,']
+        : [
+            typeof unproven === 'string'
+              ? unproven.charAt(0).toUpperCase() + unproven.slice(1)
+              : unproven,
+            ' has no primary key, so',
+          ]),
       " it's unclear how many ",
-      dataMart(main),
-      ' rows each ',
+      ...rowsOf(main, '', 'rows'),
+      ' each ',
       dataMart(name),
-      ` row matches. The result can be higher${collapses ? ' or lower' : ''}.`,
+      ` row matches. The count can be higher${collapses ? ' or lower' : ''}`,
+      ...thanJoinedRows,
+      ...(unproven === undefined
+        ? []
+        : [' Set a primary key on ', unproven, ' to get a definite answer.']),
     ];
   } else if (multiplication === 'multiplies' && collapses) {
     reason = [
       'One ',
       dataMart(name),
-      ' row can match several ',
-      dataMart(main),
-      ' rows, and several ',
+      ' row can match ',
+      ...rowsOf(main, 'several ', 'rows'),
+      ', and several ',
       dataMart(collapsedName),
-      ' rows can match one, so the result can be higher or lower.',
+      ' rows can match ',
+      ...rowsOf(main, 'one ', 'row'),
+      ', so the count can be higher or lower',
+      ...thanJoinedRows,
     ];
   } else if (multiplication === 'multiplies') {
     reason = [
       'One ',
       dataMart(name),
-      ' row can match several ',
-      dataMart(main),
-      ' rows and is counted for each, so the result can be higher.',
+      ' row can match ',
+      ...rowsOf(main, 'several ', 'rows'),
+      ', so the count can be higher',
+      ...thanJoinedRows,
     ];
   } else {
     reason = [
       'Several ',
       dataMart(collapsedName),
-      ' rows can match one ',
-      dataMart(main),
-      ' row and are counted once, so the result can be lower.',
+      ' rows can match ',
+      ...rowsOf(main, 'one ', 'row'),
+      ', so the count can be lower',
+      ...thanJoinedRows,
     ];
   }
 
@@ -125,5 +164,6 @@ export function joinedCountWarning(
       ? ['Add ', ...addUniqueCount]
       : [];
 
-  return { title: `May not match the number of ${name} rows`, reason, advice };
+  const title = `Counts ${main ? `${main} rows` : `rows of ${REPORT_DATA_MART}`}, not ${name} rows`;
+  return { title, reason, advice };
 }
