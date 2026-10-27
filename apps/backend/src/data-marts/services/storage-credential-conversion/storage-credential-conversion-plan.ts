@@ -1,11 +1,9 @@
 // Imported by migration 1792600000000: keep it and its imports when the legacy code goes.
-import {
-  credentialIdentity,
-  type AcceptedCredentialRequirement,
-  type CredentialPublicMetadata,
-  type CredentialSecret,
+import type {
+  AcceptedCredentialRequirement,
+  CredentialPublicMetadata,
+  CredentialSecret,
 } from '../../credentials/credential.types';
-import { BUILTIN_CREDENTIAL_DEFINITIONS } from '../../credentials/services/builtin-credential-definitions';
 import { materialKey } from '../../credentials/services/credential-material-key';
 import type { DataStorageType } from '../../data-storage-types/enums/data-storage-type.enum';
 import {
@@ -15,8 +13,12 @@ import {
 import type { CredentialIdentity } from '../../entities/credential-identity.type';
 import type { StoredStorageCredentials } from '../../entities/stored-storage-credentials.type';
 import { StorageCredentialType } from '../../enums/storage-credential-type.enum';
-import type { GoogleOAuthTokens } from '../google-oauth/google-oauth-flow.service';
-import { groupConversionItems } from './grouping';
+import {
+  fromGoogleOAuthRow,
+  groupConversionItems,
+  mergeConversionGroup,
+  parsedJson,
+} from './grouping';
 import {
   definitionIdForStorageCredentialType,
   fromStoredStorageCredentials,
@@ -119,10 +121,15 @@ function toItem(storage: UnconvertedStorage, options: ConversionOptions): Conver
   }
   let converted: Pick<ConversionItem, 'definitionId' | 'secret' | 'publicMetadata'>;
   try {
-    const stored = parsed(storage.key.credentials) as StoredStorageCredentials;
+    const stored = parsedJson(storage.key.credentials) as StoredStorageCredentials;
     converted =
       type === StorageCredentialType.GOOGLE_OAUTH
-        ? fromOAuthRow(stored, parsed(storage.key.identity) as CredentialIdentity | null, clientId!)
+        ? fromGoogleOAuthRow(
+            definitionIdForStorageCredentialType(type, stored),
+            stored,
+            parsedJson(storage.key.identity) as CredentialIdentity | null,
+            clientId!
+          )
         : fromStoredStorageCredentials(type, stored);
   } catch {
     return 'unparseable credentials';
@@ -147,68 +154,9 @@ function toItem(storage: UnconvertedStorage, options: ConversionOptions): Conver
   };
 }
 
-function parsed(value: unknown): unknown {
-  return typeof value === 'string' ? JSON.parse(value) : value;
-}
-
-function fromOAuthRow(
-  stored: StoredStorageCredentials,
-  identity: CredentialIdentity | null,
-  clientId: string
-): Pick<ConversionItem, 'definitionId' | 'secret' | 'publicMetadata'> {
-  // Picked field by field so the id_token Google also returns is not kept.
-  const { access_token, refresh_token, token_type, scope, expiry_date } =
-    stored as GoogleOAuthTokens;
-  const email = identity?.email;
-  return {
-    definitionId: definitionIdForStorageCredentialType(StorageCredentialType.GOOGLE_OAUTH, stored),
-    secret: {
-      oauth: {
-        provider: 'google',
-        clientId,
-        tokens: { access_token, refresh_token, token_type, scope, expiry_date },
-      },
-    },
-    publicMetadata: {
-      // A row whose account lookup failed names no account; reconnecting may pick any.
-      account: email
-        ? { email, name: identity?.name ?? null, picture: identity?.picture ?? null }
-        : { email: '', name: null, picture: null },
-      scopes: (scope ?? '').split(' ').filter(Boolean),
-    },
-  };
-}
-
 function toPlannedCredential(group: readonly ConversionItem[]): PlannedCredential {
-  // A merged OAuth Credential takes the newest access token.
-  const [source] = [...group].sort((a, b) => expiryOf(b.secret) - expiryOf(a.secret));
-  const [earliest] = [...group].sort(
-    (a, b) => a.storage.createdAt.getTime() - b.storage.createdAt.getTime()
-  );
-  const contract = BUILTIN_CREDENTIAL_DEFINITIONS.find(
-    definition => definition.id === source.definitionId
-  )!;
-  const identityOf = (item: ConversionItem) => credentialIdentity(contract, item.publicMetadata);
-  const identified = group.find(identityOf);
   return {
-    projectId: source.projectId,
-    definitionId: source.definitionId,
-    // credential.title is varchar(255); a longer value would stop the migration on MySQL.
-    title: (
-      (identified && identityOf(identified)) ||
-      earliest.storage.title ||
-      contract.displayName
-    ).slice(0, 255),
-    secret: source.secret,
-    publicMetadata: (identified ?? source).publicMetadata,
-    ownerIds: source.ownerIds,
-    contextIds: group
-      .map(item => item.storage.contextIds)
-      .reduce((shared, ids) => shared.filter(id => ids.includes(id))),
+    ...mergeConversionGroup(group, item => item.storage),
     bindings: group.map(item => ({ storageId: item.storage.id, requirement: item.requirement })),
   };
-}
-
-function expiryOf(secret: CredentialSecret): number {
-  return 'oauth' in secret ? (secret.oauth.tokens.expiry_date ?? 0) : 0;
 }

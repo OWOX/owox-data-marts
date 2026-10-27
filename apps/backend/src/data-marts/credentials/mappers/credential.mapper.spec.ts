@@ -1,6 +1,7 @@
 import type { UserProjectionsFetcherService } from '../../services/user-projections-fetcher.service';
 import type { CredentialConsumerBinding } from '../entities/credential-consumer-binding.entity';
 import type { Credential } from '../entities/credential.entity';
+import { DataDestinationType } from '../../data-destination-types/enums/data-destination-type.enum';
 import { DataStorageType } from '../../data-storage-types/enums/data-storage-type.enum';
 import { BUILTIN_CREDENTIAL_DEFINITIONS } from '../services/builtin-credential-definitions';
 import { CredentialMapper, mapCredentialDefinitionToApiDto } from './credential.mapper';
@@ -89,6 +90,11 @@ describe('CredentialMapper', () => {
     ['snowflake-key-pair', 'snowflake', [DataStorageType.SNOWFLAKE]],
     ['databricks-token', 'databricks', [DataStorageType.DATABRICKS]],
     ['github', 'github', []],
+    [
+      'google-service-account',
+      'google-cloud',
+      [DataStorageType.GOOGLE_BIGQUERY, DataStorageType.LEGACY_GOOGLE_BIGQUERY],
+    ],
   ])('serves %s with its icon and the Storage types it fits', (id, icon, storageTypes) => {
     const contract = BUILTIN_CREDENTIAL_DEFINITIONS.find(definition => definition.id === id)!;
 
@@ -100,6 +106,40 @@ describe('CredentialMapper', () => {
         contract,
       })
     ).toMatchObject({ icon, storageTypes });
+  });
+
+  it.each([
+    ['google-service-account', [DataDestinationType.GOOGLE_SHEETS]],
+    ['google-sheets-oauth', [DataDestinationType.GOOGLE_SHEETS]],
+    ['google-chat-webhook', [DataDestinationType.GOOGLE_CHAT]],
+    ['google-oauth', []],
+  ])('serves %s with the Destination types it fits', (id, destinationTypes) => {
+    const contract = BUILTIN_CREDENTIAL_DEFINITIONS.find(definition => definition.id === id)!;
+
+    expect(
+      mapCredentialDefinitionToApiDto({
+        definitionId: id,
+        source: 'builtin',
+        compatibilityLine: null,
+        contract,
+      })
+    ).toMatchObject({ destinationTypes });
+  });
+
+  it.each([
+    ['google-oauth', 'storage'],
+    ['google-sheets-oauth', 'destination'],
+  ])('serves the OAuth client of %s', (id, client) => {
+    const contract = BUILTIN_CREDENTIAL_DEFINITIONS.find(definition => definition.id === id)!;
+
+    expect(
+      mapCredentialDefinitionToApiDto({
+        definitionId: id,
+        source: 'builtin',
+        compatibilityLine: null,
+        contract,
+      }).auth
+    ).toMatchObject({ type: 'oauth', client });
   });
 
   it('maps persisted validation state on an ordinary reload', async () => {

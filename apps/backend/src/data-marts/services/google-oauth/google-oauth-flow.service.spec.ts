@@ -8,10 +8,7 @@ import {
   stubGoogleConsent,
 } from '../../../../test/fixtures/google-oauth';
 import * as builtinDefinitions from '../../credentials/services/builtin-credential-definitions';
-import {
-  InvalidOAuthStateException,
-  TokenRefreshFailedException,
-} from '../../exceptions/google-oauth.exceptions';
+import { TokenRefreshFailedException } from '../../exceptions/google-oauth.exceptions';
 
 describe('GoogleOAuthFlowService for Credentials', () => {
   afterEach(() => jest.restoreAllMocks());
@@ -68,8 +65,35 @@ describe('GoogleOAuthFlowService for Credentials', () => {
     });
   });
 
+  it('authorizes google-sheets-oauth with the destination client and the Sheets scopes', async () => {
+    const { flow } = googleOAuthFlow();
+
+    const { authorizationUrl, state } = await flow.generateAuthorizationUrl(
+      'credential',
+      'project-1',
+      undefined,
+      REDIRECT_URI,
+      'google-sheets-oauth'
+    );
+    stubGoogleConsent();
+
+    const url = new URL(authorizationUrl);
+    expect(url.searchParams.get('client_id')).toBe('destination-client-id');
+    expect(url.searchParams.get('scope')).toContain('https://www.googleapis.com/auth/spreadsheets');
+    await expect(flow.exchangeCodeForGrant('code-1', state, 'project-1')).resolves.toMatchObject({
+      clientId: 'destination-client-id',
+    });
+  });
+
+  it('reports which OAuth clients are configured', () => {
+    expect(googleOAuthFlow().flow.getClientAvailability()).toEqual({
+      storage: true,
+      destination: true,
+    });
+  });
+
   it('exchanges a code for the grant and the account without writing anything', async () => {
-    const { flow, destinationCredentials, destinations } = googleOAuthFlow();
+    const { flow, destinationCredentials } = googleOAuthFlow();
     const { state } = await flow.generateAuthorizationUrl(
       'credential',
       'project-1',
@@ -87,38 +111,6 @@ describe('GoogleOAuthFlowService for Credentials', () => {
       clientId: 'storage-client-id',
     });
     expect(destinationCredentials.create).not.toHaveBeenCalled();
-    expect(destinations.update).not.toHaveBeenCalled();
-  });
-
-  it('does not let the Storage exchange store a Credential grant', async () => {
-    const { flow, destinationCredentials } = googleOAuthFlow();
-    const { state } = await flow.generateAuthorizationUrl(
-      'credential',
-      'project-1',
-      undefined,
-      REDIRECT_URI
-    );
-    stubGoogleConsent();
-
-    await expect(
-      flow.exchangeAuthorizationCode('code-1', state, 'member-1', 'project-1')
-    ).rejects.toThrow(InvalidOAuthStateException);
-    expect(destinationCredentials.create).not.toHaveBeenCalled();
-  });
-
-  it('does not let the old exchange store a Storage grant', async () => {
-    const { flow } = googleOAuthFlow();
-    const { state } = await flow.generateAuthorizationUrl(
-      'storage',
-      'project-1',
-      'storage-1',
-      REDIRECT_URI
-    );
-    stubGoogleConsent();
-
-    await expect(
-      flow.exchangeAuthorizationCode('code-1', state, 'member-1', 'project-1')
-    ).rejects.toThrow(InvalidOAuthStateException);
   });
 
   describe('refreshTokensByCredentialId', () => {

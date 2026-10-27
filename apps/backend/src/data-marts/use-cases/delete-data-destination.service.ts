@@ -1,6 +1,7 @@
 import { Injectable, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { Transactional } from 'typeorm-transactional';
 import { DataDestination } from '../entities/data-destination.entity';
 import { Report } from '../entities/report.entity';
 import { DeleteDataDestinationCommand } from '../dto/domain/delete-data-destination.command';
@@ -9,6 +10,7 @@ import { BusinessViolationException } from '../../common/exceptions/business-vio
 import { AccessDecisionService, EntityType, Action } from '../services/access-decision';
 import { AdvancedSearchIndexSyncService } from '../services/advanced-search-index-sync.service';
 import { SearchableEntityType } from '../../common/search/search.facade';
+import { DestinationCredentialBindingService } from '../data-destination-types/destination-credential-binding.service';
 
 @Injectable()
 export class DeleteDataDestinationService {
@@ -19,9 +21,11 @@ export class DeleteDataDestinationService {
     private readonly reportRepository: Repository<Report>,
     private readonly dataDestinationService: DataDestinationService,
     private readonly accessDecisionService: AccessDecisionService,
+    private readonly destinationCredentials: DestinationCredentialBindingService,
     private readonly advancedSearchIndexSync?: AdvancedSearchIndexSyncService
   ) {}
 
+  @Transactional()
   async run(command: DeleteDataDestinationCommand): Promise<void> {
     const destination = await this.dataDestinationService.getByIdAndProjectId(
       command.id,
@@ -60,6 +64,7 @@ export class DeleteDataDestinationService {
       id: command.id,
       projectId: command.projectId,
     });
+    await this.destinationCredentials.deactivateDestination(command.id);
     await this.advancedSearchIndexSync?.scheduleDelete(
       SearchableEntityType.DATA_DESTINATION,
       command.id,

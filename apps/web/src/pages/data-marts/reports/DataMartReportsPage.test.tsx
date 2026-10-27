@@ -839,10 +839,6 @@ function buildGoogleSheetsReportResponse(
       title: 'Google Sheets',
       type: DataDestinationType.GOOGLE_SHEETS,
       projectId: 'project-1',
-      credentials: {
-        type: DataDestinationCredentialsType.GOOGLE_SHEETS_CREDENTIALS,
-        serviceAccountKey: {},
-      },
       createdAt: new Date('2026-06-01T00:00:00.000Z'),
       modifiedAt: new Date('2026-06-01T00:00:00.000Z'),
     },

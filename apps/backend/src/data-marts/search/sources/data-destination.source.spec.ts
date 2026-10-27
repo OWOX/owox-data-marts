@@ -27,6 +27,7 @@ import {
 } from '../../data-destination-types/enums/data-destination-type.enum';
 import { RoleScope } from '../../enums/role-scope.enum';
 import { ContextAccessService } from '../../services/context/context-access.service';
+import { DESTINATION_CREDENTIAL_IDENTITIES_FACADE } from '../../facades/destination-credential-identities.facade';
 import { SearchableEntityType } from '../../../common/search/search.facade';
 import { toCursorTimestamp } from './indexable-source.port';
 import type { PageCursor, SourceAccessScope } from './indexable-source.port';
@@ -62,6 +63,7 @@ describe('DataDestinationIndexableSource', () => {
   let destinationRepo: Repository<DataDestination>;
   let contextRepo: Repository<Context>;
   const getRoleScope = jest.fn<Promise<RoleScope>, [string, string]>();
+  const identitiesForDestinations = jest.fn();
 
   beforeAll(async () => {
     module = await Test.createTestingModule({
@@ -79,6 +81,10 @@ describe('DataDestinationIndexableSource', () => {
         DataDestinationIndexableSource,
         SearchIndexRepository,
         { provide: ContextAccessService, useValue: { getRoleScope } },
+        {
+          provide: DESTINATION_CREDENTIAL_IDENTITIES_FACADE,
+          useValue: { identitiesForDestinations },
+        },
       ],
     }).compile();
 
@@ -107,6 +113,8 @@ describe('DataDestinationIndexableSource', () => {
   beforeEach(() => {
     getRoleScope.mockReset();
     getRoleScope.mockResolvedValue(RoleScope.ENTIRE_PROJECT);
+    identitiesForDestinations.mockReset();
+    identitiesForDestinations.mockResolvedValue(new Map());
   });
 
   async function seedDestination(
@@ -249,6 +257,56 @@ describe('DataDestinationIndexableSource', () => {
         kind: 'field',
         text: 'sa@proj.iam.gserviceaccount.com',
       });
+    });
+
+    it("emits a bound Credential's identity instead of the old row's", async () => {
+      const dest = await seedDestination({ title: 'Bound Sheets' });
+      const cred = dataSource.getRepository(DataDestinationCredential).create();
+      cred.projectId = 'proj-1';
+      cred.type = 'google-oauth' as never;
+      cred.credentials = {} as never;
+      cred.identity = { email: 'old@example.com' };
+      const savedCred = await dataSource.getRepository(DataDestinationCredential).save(cred);
+      await dataSource.query('UPDATE data_destination SET credentialId = ? WHERE id = ?', [
+        savedCred.id,
+        dest.id,
+      ]);
+      identitiesForDestinations.mockResolvedValue(new Map([[dest.id, 'bound@example.com']]));
+
+      const page = await source.listSearchablePage('proj-1', null, 100);
+      const one = await source.loadSearchableOne(dest.id);
+
+      expect(identitiesForDestinations).toHaveBeenCalledWith('proj-1', [dest.id]);
+      expect(page.descriptors[0].atomicTokenSlots).toEqual([
+        { kind: 'field', text: 'bound@example.com' },
+      ]);
+      expect(one?.atomicTokenSlots).toEqual([{ kind: 'field', text: 'bound@example.com' }]);
+    });
+
+    it("emits neither identity nor the old row's to[] for a bound Destination whose Credential names no one or was deleted", async () => {
+      const dest = await seedDestination({
+        title: 'Webhook',
+        type: DataDestinationType.GOOGLE_CHAT,
+      });
+      const cred = dataSource.getRepository(DataDestinationCredential).create();
+      cred.projectId = 'proj-1';
+      cred.type = 'email' as never;
+      cred.credentials = { type: 'email-credentials', to: ['old-space@example.com'] } as never;
+      cred.identity = { email: 'old@example.com' };
+      const savedCred = await dataSource.getRepository(DataDestinationCredential).save(cred);
+      await dataSource.query('UPDATE data_destination SET credentialId = ? WHERE id = ?', [
+        savedCred.id,
+        dest.id,
+      ]);
+      // The facade names a webhook Credential and a deleted one alike: null.
+      identitiesForDestinations.mockResolvedValue(new Map([[dest.id, null]]));
+
+      const page = await source.listSearchablePage('proj-1', null, 100);
+      const one = await source.loadSearchableOne(dest.id);
+
+      expect(page.descriptors[0].atomicTokenSlots).toEqual([]);
+      expect(page.descriptors[0].embeddingText).not.toContain('example.com');
+      expect(one?.atomicTokenSlots).toEqual([]);
     });
 
     it('emits to[] recipients for email-based destination (EMAIL type)', async () => {

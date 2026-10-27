@@ -31,8 +31,8 @@ export interface SetupGoogleSheetsReportResult {
  * sheet. Returns IDs the test can use to trigger runs and inspect state.
  *
  * Steps:
- *   1. POST /api/data-destinations — create GOOGLE_SHEETS destination with the
- *      service-account credentials.
+ *   1. POST /api/credentials — save the service account key as a Credential;
+ *      POST /api/data-destinations — create a GOOGLE_SHEETS destination that uses it.
  *   2. PUT  /api/data-destinations/:id/availability — flip availability flags.
  *   3. POST /api/reports — create report tied to the data mart and sheet,
  *      with optional `columnConfig` for the picker.
@@ -51,20 +51,26 @@ export async function setupGoogleSheetsReport(
     columnConfig,
   } = opts;
 
-  // Step 1: create Google Sheets destination.
+  // Step 1: create the Credential and a Google Sheets destination that uses it.
+  const credentialRes = await agent
+    .post('/api/credentials')
+    .set(AUTH_HEADER)
+    .send({
+      title: destinationTitle,
+      definitionId: 'google-service-account',
+      secret: { value: serviceAccountJson },
+    });
+  expect(credentialRes.status).toBe(201);
   const destRes = await agent
     .post('/api/data-destinations')
     .set(AUTH_HEADER)
-    .send(
-      new DataDestinationBuilder()
+    .send({
+      ...new DataDestinationBuilder()
         .withType(DataDestinationType.GOOGLE_SHEETS)
         .withTitle(destinationTitle)
-        .withCredentials({
-          type: 'google-sheets-credentials',
-          serviceAccountKey: JSON.parse(serviceAccountJson),
-        })
-        .build()
-    );
+        .build(),
+      reusableCredentialId: credentialRes.body.id,
+    });
   expect(destRes.status).toBe(201);
   const dataDestinationId = destRes.body.id;
 

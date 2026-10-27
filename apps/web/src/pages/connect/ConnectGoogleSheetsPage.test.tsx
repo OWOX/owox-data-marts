@@ -3,7 +3,6 @@ import { MemoryRouter, Route, Routes, useNavigate } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ConnectGoogleSheetsPage } from './ConnectGoogleSheetsPage';
 import { ConnectGoogleSheetsDonePage } from './ConnectGoogleSheetsDonePage';
-import { destinationOAuthApi } from '../../features/google-oauth';
 import { dataDestinationService } from '../../features/data-destination/shared';
 
 // Real react-router navigation (not just a recorder) so the assertions below can verify
@@ -21,21 +20,45 @@ vi.mock('../../shared/hooks', () => ({
   },
 }));
 
-vi.mock('../../features/google-oauth', () => ({
-  destinationOAuthApi: {
-    getSettings: vi.fn(),
-    getCredentialStatus: vi.fn(),
+const connectedAccount = (id: string, identity: string) => ({
+  id,
+  identity,
+  definition: { id: 'google-sheets-oauth' },
+});
+
+const oauth = vi.hoisted(() => ({
+  available: true as boolean | undefined,
+  connectProps: [] as Record<string, unknown>[],
+  // The Credential the next connect creates.
+  connected: null as unknown,
+}));
+
+const trackEvent = vi.hoisted(() => vi.fn());
+vi.mock('../../utils/data-layer', () => ({
+  trackEvent: (...args: unknown[]) => trackEvent(...args) as unknown,
+}));
+
+vi.mock('../../features/credentials', async () => ({
+  // The real report, so the event is the one the Destination form sends.
+  trackCredentialCreated: (
+    await vi.importActual<typeof import('../../features/credentials/track-credential-created')>(
+      '../../features/credentials/track-credential-created'
+    )
+  ).trackCredentialCreated,
+  useGoogleOAuthAvailable: (client?: string) => (client === 'destination' ? oauth.available : true),
+  GoogleOAuthCredentialConnect: (props: { onConnected: (credential: unknown) => void }) => {
+    oauth.connectProps.push(props);
+    return (
+      <button
+        type='button'
+        onClick={() => {
+          props.onConnected(oauth.connected);
+        }}
+      >
+        Connect with Google (mock)
+      </button>
+    );
   },
-  GoogleOAuthConnectButton: ({ onSuccess }: { onSuccess?: (credentialId: string) => void }) => (
-    <button
-      type='button'
-      onClick={() => {
-        onSuccess?.('credential-1');
-      }}
-    >
-      Connect with Google (mock)
-    </button>
-  ),
 }));
 
 vi.mock('../../features/data-destination/shared', async () => {
@@ -66,12 +89,9 @@ describe('ConnectGoogleSheetsPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.stubGlobal('close', vi.fn());
-    vi.mocked(destinationOAuthApi.getSettings).mockResolvedValue({ available: true });
-    vi.mocked(destinationOAuthApi.getCredentialStatus).mockResolvedValue({
-      isValid: true,
-      credentialId: 'credential-1',
-      user: { email: 'user@example.com' },
-    });
+    oauth.available = true;
+    oauth.connectProps = [];
+    oauth.connected = connectedAccount('credential-1', 'user@example.com');
     vi.mocked(dataDestinationService.createConnectGoogleSheetsDestination).mockResolvedValue({
       id: 'destination-1',
     } as never);
@@ -98,9 +118,42 @@ describe('ConnectGoogleSheetsPage', () => {
     await waitFor(() => {
       expect(dataDestinationService.createConnectGoogleSheetsDestination).toHaveBeenCalledWith({
         title: 'My Google Sheets',
-        credentialId: 'credential-1',
+        reusableCredentialId: 'credential-1',
       });
     });
+  });
+
+  it('connects a Sheets Google account Credential that is not shared', async () => {
+    renderPage();
+
+    await screen.findByText('Connect with Google (mock)');
+
+    expect(oauth.connectProps.at(-1)).toMatchObject({
+      credential: null,
+      definitionId: 'google-sheets-oauth',
+      client: 'destination',
+      draft: { availableForUse: false, availableForMaintenance: false },
+    });
+  });
+
+  it('keeps the quick-connect look of the page: no help, inline errors, authenticated email', async () => {
+    renderPage();
+
+    await screen.findByText('Connect with Google (mock)');
+
+    expect(oauth.connectProps[0]).toMatchObject({
+      variant: 'quick-connect',
+    });
+  });
+
+  it('explains that the page cannot be used without the Destination OAuth client', async () => {
+    oauth.available = false;
+    renderPage();
+
+    expect(
+      await screen.findByText(/Google OAuth isn.t configured for this OWOX instance/)
+    ).toBeInTheDocument();
+    expect(screen.queryByText('Connect with Google (mock)')).not.toBeInTheDocument();
   });
 
   it('appends the connected Google account email to the untouched default title', async () => {
@@ -172,7 +225,7 @@ describe('ConnectGoogleSheetsPage', () => {
     });
   });
 
-  it('ignores a second onSuccess firing while a save is already in flight', async () => {
+  it('ignores a second onConnected firing while a save is already in flight', async () => {
     let resolveCreate: (value: { id: string }) => void = () => undefined;
     vi.mocked(dataDestinationService.createConnectGoogleSheetsDestination).mockReturnValue(
       new Promise(resolve => {
@@ -197,7 +250,7 @@ describe('ConnectGoogleSheetsPage', () => {
     expect(dataDestinationService.createConnectGoogleSheetsDestination).toHaveBeenCalledTimes(1);
   });
 
-  it('shows an error and allows retrying by reconnecting when creation fails', async () => {
+  it('connects a new Credential after a failed creation, so another Google account can be used', async () => {
     vi.mocked(dataDestinationService.createConnectGoogleSheetsDestination).mockRejectedValueOnce(
       new Error('Duplicate title')
     );
@@ -208,15 +261,68 @@ describe('ConnectGoogleSheetsPage', () => {
     connectButton.click();
 
     expect(await screen.findByText('Duplicate title')).toBeInTheDocument();
+    // The kept Credential is shown as connected; the connect itself starts a new one.
+    expect(oauth.connectProps.at(-1)).toMatchObject({
+      credential: { id: 'credential-1' },
+      variant: 'quick-connect',
+    });
 
     vi.mocked(dataDestinationService.createConnectGoogleSheetsDestination).mockResolvedValue({
       id: 'destination-1',
     } as never);
+    oauth.connected = connectedAccount('credential-2', 'other@example.com');
     connectButton.click();
 
     await waitFor(() => {
       expect(dataDestinationService.createConnectGoogleSheetsDestination).toHaveBeenCalledTimes(2);
     });
+    expect(dataDestinationService.createConnectGoogleSheetsDestination).toHaveBeenLastCalledWith({
+      title: 'Google Sheets (other@example.com)',
+      reusableCredentialId: 'credential-2',
+    });
     expect(await screen.findByText(/was created successfully/i)).toBeInTheDocument();
+  });
+
+  it('reports each Credential it creates as the Destination form does', async () => {
+    renderPage();
+
+    (await screen.findByText('Connect with Google (mock)')).click();
+
+    await waitFor(() => {
+      expect(trackEvent).toHaveBeenCalledWith({
+        event: 'destination_credential_created',
+        category: 'DataDestination',
+        action: 'google-sheets-oauth',
+        label: 'GOOGLE_SHEETS',
+        context: null,
+        value: null,
+      });
+    });
+  });
+
+  it('retries a failed creation with the connected Credential, without asking Google again', async () => {
+    vi.mocked(dataDestinationService.createConnectGoogleSheetsDestination).mockRejectedValueOnce(
+      new Error('Duplicate title')
+    );
+
+    renderPage();
+
+    (await screen.findByText('Connect with Google (mock)')).click();
+    expect(await screen.findByText('Duplicate title')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+
+    await waitFor(() => {
+      expect(dataDestinationService.createConnectGoogleSheetsDestination).toHaveBeenCalledTimes(2);
+    });
+    expect(dataDestinationService.createConnectGoogleSheetsDestination).toHaveBeenLastCalledWith({
+      title: 'Google Sheets (user@example.com)',
+      reusableCredentialId: 'credential-1',
+    });
+    expect(await screen.findByText(/was created successfully/i)).toBeInTheDocument();
+    // Retry creates no Credential.
+    expect(
+      trackEvent.mock.calls.filter(([event]) => event.event === 'destination_credential_created')
+    ).toHaveLength(1);
   });
 });

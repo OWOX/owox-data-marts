@@ -1,27 +1,7 @@
 import { z } from 'zod';
+import { isGoogleChatWebhookUrl } from '../../../google-chat-webhook-url';
 
 export const GoogleChatCredentialsType = 'google-chat-credentials';
-
-const GOOGLE_CHAT_WEBHOOK_PATH = /^\/v1\/spaces\/[^/]+\/messages$/;
-
-export function isGoogleChatWebhookUrl(value: string): boolean {
-  try {
-    const url = new URL(value);
-    return (
-      url.protocol === 'https:' &&
-      url.hostname === 'chat.googleapis.com' &&
-      !url.port &&
-      !url.username &&
-      !url.password &&
-      !url.hash &&
-      GOOGLE_CHAT_WEBHOOK_PATH.test(url.pathname) &&
-      Boolean(url.searchParams.get('key')) &&
-      Boolean(url.searchParams.get('token'))
-    );
-  } catch {
-    return false;
-  }
-}
 
 export const GoogleChatCredentialsSchema = z.object({
   type: z.literal(GoogleChatCredentialsType),

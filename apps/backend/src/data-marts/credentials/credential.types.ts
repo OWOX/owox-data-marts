@@ -1,3 +1,4 @@
+// Imported by migration 1792700000000: keep it and its imports when the legacy code goes.
 import { z } from 'zod';
 
 export const CredentialDefinitionSourceSchema = z.enum(['builtin', 'external']);
@@ -25,6 +26,9 @@ export type CredentialCategory = z.infer<typeof CredentialCategorySchema>;
 
 export const CredentialIconSchema = z.enum([
   'google',
+  'google-cloud',
+  'google-sheets',
+  'google-chat',
   'aws',
   'snowflake',
   'databricks',
@@ -317,6 +321,19 @@ export type CredentialSecret =
       };
     };
 
+/** One consumer bound to a Credential, of any kind. */
+export interface CredentialConsumerRef {
+  readonly consumerType: string;
+  readonly consumerId: string;
+}
+
+/** Values a Credential would hold after an update, checked against its consumers first. */
+export interface CandidateCredentialValues {
+  readonly definitionId: string;
+  readonly secret: CredentialSecret;
+  readonly publicMetadata: CredentialPublicMetadata | null;
+}
+
 /** Non-secret facts read from a stored credential, shown so a member knows which account it is. */
 export interface GoogleServiceAccountPublicMetadata {
   readonly clientEmail: string;
@@ -380,6 +397,8 @@ export function resolveCredentialAiModelMappings(
 
 export const CREDENTIAL_CONSUMER_TYPE_PLUGIN_INSTALLATION = 'plugin-installation' as const;
 export const CREDENTIAL_CONSUMER_TYPE_STORAGE = 'storage' as const;
+export const CREDENTIAL_CONSUMER_TYPE_DESTINATION = 'destination' as const;
 export type CredentialConsumerType =
   | typeof CREDENTIAL_CONSUMER_TYPE_PLUGIN_INSTALLATION
-  | typeof CREDENTIAL_CONSUMER_TYPE_STORAGE;
+  | typeof CREDENTIAL_CONSUMER_TYPE_STORAGE
+  | typeof CREDENTIAL_CONSUMER_TYPE_DESTINATION;

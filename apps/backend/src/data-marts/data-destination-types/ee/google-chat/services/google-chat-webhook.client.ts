@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { isGoogleChatWebhookUrl } from '../schemas/google-chat-credentials.schema';
+import { isGoogleChatWebhookUrl } from '../../../google-chat-webhook-url';
 
 export interface GoogleChatMessagePayload {
   fallbackText: string;

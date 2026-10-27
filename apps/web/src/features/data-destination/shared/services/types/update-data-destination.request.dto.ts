@@ -1,5 +1,3 @@
-import { type GoogleServiceAccountCredentialsDto } from '../../../../../shared/types';
-import type { EmailCredentials } from '../../model/types/email-credentials.ts';
 import { DataDestinationCredentialsType } from '../../enums';
 
 /**
@@ -15,22 +13,13 @@ export interface UpdateDataDestinationRequestDto {
    * Credentials for the selected destination type
    */
   credentials?:
-    | GoogleServiceAccountCredentialsDto
-    | EmailCredentials
-    | {
-        type: DataDestinationCredentialsType.GOOGLE_CHAT_CREDENTIALS;
-        webhookUrl: string;
-      };
+    | { type: DataDestinationCredentialsType.EMAIL_CREDENTIALS; to: string[] }
+    | { type: DataDestinationCredentialsType.LOOKER_STUDIO_CREDENTIALS };
 
   /**
-   * Credential ID for OAuth-based authentication (null to disconnect)
+   * Binds this Credential (Google Sheets, Google Chat webhook); left out to keep the current one
    */
-  credentialId?: string | null;
-
-  /**
-   * Source destination ID for credential copy
-   */
-  sourceDestinationId?: string;
+  reusableCredentialId?: string;
 
   ownerIds?: string[];
 

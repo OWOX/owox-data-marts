@@ -3,6 +3,9 @@ import { DataDestinationType } from '../../data-destination-types/enums/data-des
 export class ListDataDestinationsByTypeCommand {
   constructor(
     public readonly projectId: string,
-    public readonly type: DataDestinationType
+    public readonly type: DataDestinationType,
+    public readonly userId: string = '',
+    public readonly roles: string[] = [],
+    public readonly isPluginCall: boolean = false
   ) {}
 }

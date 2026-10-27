@@ -7,29 +7,12 @@ import type {
   RedshiftDataStorageConfig,
   DatabricksDataStorageConfig,
 } from './data-storage-config.ts';
+import type { CredentialState, CredentialSummary } from '../../../../credentials/types';
 import type { ContextSummary } from '../../../../contexts/types/context.types';
 
-export type StorageCredentialState =
-  | 'ready'
-  | 'disabled'
-  | 'not-configured'
-  | 'reconnect-required'
-  | 'reauthorize-required';
+export type StorageCredentialState = CredentialState;
 
-/** The Credential a Storage uses, as the member sees it. */
-export type StorageCredentialSummary =
-  | {
-      access: 'visible';
-      id: string;
-      title: string;
-      definitionId: string;
-      providerName: string;
-      identity: string | null;
-      state: StorageCredentialState;
-    }
-  | { access: 'restricted'; state: StorageCredentialState }
-  // No Credential yet: the Storage runs on its own key until you select a Credential.
-  | { access: 'pending'; state: 'ready' };
+export type StorageCredentialSummary = CredentialSummary;
 
 export interface BaseDataStorage<C extends DataStorageConfig> {
   id: string;

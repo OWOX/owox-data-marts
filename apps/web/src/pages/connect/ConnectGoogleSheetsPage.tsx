@@ -1,19 +1,21 @@
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { Loader2 } from 'lucide-react';
+import { Button } from '@owox/ui/components/button';
 import { Input } from '@owox/ui/components/input';
-import { CopyableField } from '@owox/ui/components/common/copyable-field';
 import { Form, FormControl, FormItem, FormLabel, FormLayout } from '@owox/ui/components/form';
 import { useProjectRoute } from '../../shared/hooks';
 import {
-  GoogleOAuthConnectButton,
-  destinationOAuthApi,
-  type OAuthSettings,
-  type OAuthStatus,
-} from '../../features/google-oauth';
-import { dataDestinationService } from '../../features/data-destination';
+  GoogleOAuthCredentialConnect,
+  trackCredentialCreated,
+  useGoogleOAuthAvailable,
+  type Credential,
+} from '../../features/credentials';
+import { DataDestinationType, dataDestinationService } from '../../features/data-destination';
 
 const DEFAULT_TITLE = 'Google Sheets';
+// Not shared: only its owner uses the Credential until they share it.
+const CREDENTIAL_DRAFT = { title: '', availableForUse: false, availableForMaintenance: false };
 
 interface ConnectGoogleSheetsFormValues {
   title: string;
@@ -27,63 +29,19 @@ export function ConnectGoogleSheetsPage() {
     defaultValues: { title: DEFAULT_TITLE },
   });
 
-  const [oauthSettings, setOauthSettings] = useState<OAuthSettings | null>(null);
-  const [credentialId, setCredentialId] = useState<string | null>(null);
-  const [oauthEmail, setOauthEmail] = useState<string | null>(null);
+  const oauthAvailable = useGoogleOAuthAvailable('destination');
+  // Kept after a failed save for Retry; connecting again creates another, for any Google account.
+  const [credential, setCredential] = useState<Credential | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
-  // Guards handleSave itself (not just the UI overlay) against a second onSuccess firing
+  // Guards handleSave itself (not just the UI overlay) against a second onConnected firing
   // while a save is already in flight — the overlay's `pointer-events-none` blocks normal
   // clicks, but this is the actual correctness guarantee against a duplicate create call.
   const savingRef = useRef(false);
-  // Dedupes getCredentialStatus calls for the same credentialId: onSuccess fires the
-  // credentialId effect below AND handleSave in the same tick, both wanting the same
-  // status response — this cache lets them share a single in-flight request.
-  const credentialStatusRequests = useRef(new Map<string, Promise<OAuthStatus>>());
 
-  const fetchCredentialStatus = (id: string): Promise<OAuthStatus> => {
-    const cached = credentialStatusRequests.current.get(id);
-    if (cached) return cached;
-
-    const request = destinationOAuthApi.getCredentialStatus(id);
-    credentialStatusRequests.current.set(id, request);
-    request.catch(() => credentialStatusRequests.current.delete(id));
-    return request;
-  };
-
-  useEffect(() => {
-    destinationOAuthApi
-      .getSettings()
-      .then(setOauthSettings)
-      .catch((error: unknown) => {
-        console.error('Failed to load Google OAuth settings', error);
-        setOauthSettings({ available: false });
-      });
-  }, []);
-
-  useEffect(() => {
-    if (!credentialId) {
-      setOauthEmail(null);
-      return;
-    }
-    let cancelled = false;
-    fetchCredentialStatus(credentialId)
-      .then(status => {
-        if (!cancelled) setOauthEmail(status.user?.email ?? null);
-      })
-      .catch((error: unknown) => {
-        if (cancelled) return;
-        console.error('Failed to load the connected Google account', error);
-        setOauthEmail(null);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [credentialId]);
-
-  // Fires once per completed OAuth grant (not tied to credentialId state, so reconnecting
-  // after a failed save retries it even if the same Google account is reconnected).
-  const handleSave = async (connectedCredentialId: string) => {
+  // Fires once per completed OAuth grant and on Retry.
+  const handleSave = async (connected: Credential) => {
+    setCredential(connected);
     if (savingRef.current) return;
 
     let currentTitle = form.getValues('title').trim();
@@ -97,25 +55,14 @@ export function ConnectGoogleSheetsPage() {
 
     // Only the untouched default name gets the connected account appended — a title the
     // user typed by hand is used as-is.
-    const usedDefaultTitle = currentTitle === DEFAULT_TITLE;
-    if (usedDefaultTitle) {
-      try {
-        const status = await fetchCredentialStatus(connectedCredentialId);
-        if (status.user?.email) {
-          currentTitle = `${currentTitle} (${status.user.email})`;
-        }
-      } catch (error) {
-        console.error(
-          'Failed to resolve the connected Google account for the default title',
-          error
-        );
-      }
+    if (currentTitle === DEFAULT_TITLE && connected.identity) {
+      currentTitle = `${currentTitle} (${connected.identity})`;
     }
 
     try {
       await dataDestinationService.createConnectGoogleSheetsDestination({
         title: currentTitle,
-        credentialId: connectedCredentialId,
+        reusableCredentialId: connected.id,
       });
     } catch (error) {
       console.error('Failed to create the Google Sheets destination', error);
@@ -139,15 +86,15 @@ export function ConnectGoogleSheetsPage() {
     navigate('/connect/google-sheets/done', { replace: true });
   };
 
-  if (oauthSettings && !oauthSettings.available) {
+  if (oauthAvailable === false) {
     return (
       <div className='bg-card text-card-foreground w-full max-w-lg space-y-4 rounded-lg p-4 shadow-lg'>
         <h1 className='text-lg font-semibold'>Connect Google Sheets</h1>
         <p className='text-muted-foreground text-sm'>
           Google OAuth isn&apos;t configured for this OWOX instance, so this quick-connect page
           can&apos;t be used. Ask your admin to configure Google OAuth, or create a Google Sheets
-          destination manually from the OWOX web app (Destinations → Add destination) using a
-          Service Account key instead.
+          destination manually from the OWOX web app (Destinations → Add destination) and select a
+          Google Service Account Credential instead.
         </p>
       </div>
     );
@@ -176,28 +123,25 @@ export function ConnectGoogleSheetsPage() {
               </FormControl>
             </FormItem>
 
-            <FormItem>
-              <FormLabel tooltip='Authorize OWOX to access your Google Sheets'>
-                Connect with Google OAuth
-              </FormLabel>
-              <GoogleOAuthConnectButton
-                onSuccess={connectedCredentialId => {
-                  setCredentialId(connectedCredentialId);
-                  void handleSave(connectedCredentialId);
-                }}
-                onStatusChange={(isConnected, connectedCredentialId) => {
-                  setCredentialId(isConnected ? (connectedCredentialId ?? null) : null);
-                }}
-              />
-              {oauthEmail && (
-                <div className='mt-2 flex flex-col gap-1'>
-                  <FormLabel>Authenticated email</FormLabel>
-                  <CopyableField value={oauthEmail}>{oauthEmail}</CopyableField>
-                </div>
-              )}
-            </FormItem>
+            <GoogleOAuthCredentialConnect
+              credential={credential}
+              definitionId='google-sheets-oauth'
+              client='destination'
+              draft={CREDENTIAL_DRAFT}
+              onConnected={connected => {
+                trackCredentialCreated('destination', DataDestinationType.GOOGLE_SHEETS, connected);
+                void handleSave(connected);
+              }}
+              variant='quick-connect'
+            />
 
             {saveError && <p className='text-destructive text-sm'>{saveError}</p>}
+            {/* The connected Credential stays, so a retry needs no second Google consent. */}
+            {saveError && credential && (
+              <Button type='button' onClick={() => void handleSave(credential)}>
+                Retry
+              </Button>
+            )}
           </FormLayout>
         </div>
       </Form>

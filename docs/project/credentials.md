@@ -22,7 +22,8 @@ they use a Credential. Storages check access when a member selects the Credentia
 the Storage connects; runs check only that the Credential is enabled and usable, because running
 needs access to the Storage only. Turning sharing off therefore leaves bound Storages running:
 disable the Credential to stop them, and members who can edit those Storages switch them to
-another Credential.
+another Credential. Destinations work the same way: access is checked when a member selects
+the Credential, and runs check only that it is enabled and usable.
 
 ## Plugin use
 
@@ -33,34 +34,57 @@ raw secret never enters its frame.
 
 The **Used by** section shows active consumer bindings and when each binding last succeeded. The
 Credential list also shows aggregate last use. A Credential with active bindings cannot be deleted;
-disable it to stop use immediately, or first switch its Storages to another Credential and uninstall
-the plugins that use it. Replacing a secret keeps the bindings and consumers use the new value on
-their next request.
+disable it to stop use immediately, or first switch its Storages and Destinations to another
+Credential and uninstall the plugins that use it. Replacing a secret keeps the bindings and
+consumers use the new value on their next request.
 
-## Storage providers
+## Storage and Destination providers
 
-Storages select a Credential instead of holding a key; see
-[Credentials for Storages](../storages/manage-storages.md#credentials-for-storages). These
-providers fit Storages:
+Storages and Destinations select a Credential instead of holding a key; see
+[Credentials for Storages](../storages/manage-storages.md#credentials-for-storages) and the
+[Google Sheets](../destinations/supported-destinations/google-sheets.md) and
+[Google Chat](../destinations/supported-destinations/google-chat.md) Destinations. These
+providers fit them:
 
-| Provider                 | Fits Storage             | You enter                                                |
-| ------------------------ | ------------------------ | -------------------------------------------------------- |
-| BigQuery Service Account | Google BigQuery          | The JSON key                                             |
-| BigQuery Google account  | Google BigQuery          | Nothing; click **Connect with Google**                   |
-| AWS access key           | AWS Athena, AWS Redshift | Access key ID, Secret access key, optional Session token |
-| Snowflake password       | Snowflake                | Username, Password (or a Programmatic Access Token)      |
-| Snowflake key pair       | Snowflake                | Username, Private key, optional Private key passphrase   |
-| Databricks token         | Databricks               | Personal access token                                    |
+| Provider                | Fits                                               | You enter                                                |
+| ----------------------- | -------------------------------------------------- | -------------------------------------------------------- |
+| Google Service Account  | Google BigQuery Storage, Google Sheets Destination | The JSON key                                             |
+| BigQuery Google account | Google BigQuery                                    | Nothing; click **Connect with Google**                   |
+| Sheets Google account   | Google Sheets Destination                          | Nothing; click **Connect with Google**                   |
+| Google Chat webhook     | Google Chat Destination (webhook delivery)         | Webhook URL                                              |
+| AWS access key          | AWS Athena, AWS Redshift                           | Access key ID, Secret access key, optional Session token |
+| Snowflake password      | Snowflake                                          | Username, Password (or a Programmatic Access Token)      |
+| Snowflake key pair      | Snowflake                                          | Username, Private key, optional Private key passphrase   |
+| Databricks token        | Databricks                                         | Personal access token                                    |
 
 Secret fields are write-only like any secret. To replace one, enter a new value; fields you leave
-out keep theirs, and the form warns how many Storages the change applies to. Before saving, OWOX
-Data Marts checks the new values against each Storage that uses the Credential. If one of them
-cannot connect with the new values, nothing is saved; the error names that Storage if you can see
-it. A changed **Access key ID** or **Username** is checked the same way. Replacing values needs
-the right to maintain the Credential, not the right to edit the Storages that use it. A Credential
-created from a Storage form is not shared: only its owners and Project Admins can use it until an
-owner shares it. Plugins cannot request these providers, except BigQuery
+out keep theirs, and the form warns how many Storages and Destinations the change applies to. Before
+saving, OWOX Data Marts checks the new values against each Storage and Destination that uses the
+Credential where a check exists: a Storage must connect, Google Sheets must accept a service account
+key (the Drive folder is not checked), and a Google Chat webhook URL must be a Google Chat incoming
+webhook. If one of them fails, nothing is saved; the error names that Storage or Destination if you
+can see it. A changed **Access key ID** or **Username** is checked the same way. Replacing values
+needs the right to maintain the Credential, not the right to edit the Storages and Destinations that
+use it. A Credential created from a Storage or Destination form is not shared: only its owners and
+Project Admins can use it until an owner shares it. Plugins cannot request these providers, except Google
 Service Account.
+
+### Sheets Google account
+
+A **Sheets Google account** Credential connects a Google account for Google Sheets Destinations. It
+works like a [BigQuery Google account](#bigquery-google-account): click **Connect with Google**, and
+reconnect from the Credential when Google revokes the access. It is available only where the
+deployment has Google OAuth for Destinations set up; without it, Destinations that use one show
+**Google sign-in is not configured on this server** and do not run. The Google Drive permission
+(`drive.file`) is optional: without it, reports still write, and **Create document** puts the
+spreadsheet in the account's Drive root, outside the selected folder and not shared with you.
+
+### Google Chat webhook
+
+A **Google Chat webhook** Credential holds the incoming webhook URL of a Google Chat space. Paste it
+in the **Webhook URL** field; OWOX accepts only Google Chat incoming webhook URLs and never shows the
+URL again. Google Chat Destinations use it for webhook delivery; email delivery keeps its recipients on
+the Destination.
 
 ### BigQuery Google account
 
@@ -79,16 +103,17 @@ account granted, and neither does a refused connect. To remove the access, open 
 services](https://myaccount.google.com/connections) in that Google account and remove the app's
 access. This stops every Credential and Storage that uses that Google account.
 
-### Used by Storages
+### Used by Storages and Destinations
 
-**Used by** lists the Storages that use the Credential. A Credential used by a Storage cannot be
-deleted: switch those Storages to another Credential first. Disable the Credential to stop its
-Storages at once; they show **Credential disabled** until it is enabled again.
+**Used by** lists the Storages and Destinations that use the Credential. A Destination you cannot
+access appears as **A Destination you cannot access**. A Credential used by a Storage or a Destination
+cannot be deleted: switch those Storages and Destinations to another Credential first. Disable the
+Credential to stop them at once; they show **Credential disabled** until it is enabled again.
 
-## BigQuery Service Account
+## Google Service Account
 
-A BigQuery Service Account Credential lets a plugin call Google APIs, such as Google Docs and Google
-Sheets, as a service account, and lets a BigQuery Storage run queries as one:
+A Google Service Account Credential lets a plugin call Google APIs, such as Google Docs and Google
+Sheets, as a service account, and lets a BigQuery Storage run queries and a Google Sheets Destination write reports as one:
 
 1. In Google Cloud, create a service account and a JSON key for it; see
    [Create and delete service account keys](https://docs.cloud.google.com/iam/docs/keys-create-delete).
@@ -96,7 +121,7 @@ Sheets, as a service account, and lets a BigQuery Storage run queries as one:
    `iam.managed.disableServiceAccountKeyCreation`; an organization admin has to allow it.
 2. Enable the API the plugin uses, such as the Google Docs API or the Google Sheets API, in the
    project the key belongs to.
-3. Create a Credential with the **BigQuery Service Account** provider and paste the key or drop the
+3. Create a Credential with the **Google Service Account** provider and paste the key or drop the
    JSON file. OWOX Data Marts asks Google for a token before saving and refuses a key Google
    rejects. A new key can take about a minute to start working.
 4. Share each document or spreadsheet the plugin should change with the service account address

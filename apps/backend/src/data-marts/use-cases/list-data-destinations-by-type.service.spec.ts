@@ -23,7 +23,12 @@ describe('ListDataDestinationsByTypeService', () => {
     return qb;
   };
 
-  const createService = (destinations: unknown[], reportRaw: unknown[]) => {
+  // Bound Destinations and the public metadata of their Credentials; undefined: Credential deleted.
+  const createService = (
+    destinations: unknown[],
+    reportRaw: unknown[],
+    bound: Record<string, object | undefined> = {}
+  ) => {
     const qb = makeQbChain(reportRaw);
 
     const dataDestinationRepo = {
@@ -33,12 +38,20 @@ describe('ListDataDestinationsByTypeService', () => {
       createQueryBuilder: jest.fn().mockReturnValue(qb),
     };
 
+    const destinationCredentials = {
+      findBoundDestinationIds: jest.fn().mockResolvedValue(new Set(Object.keys(bound))),
+      publicOfDestinations: jest
+        .fn()
+        .mockResolvedValue(new Map(Object.entries(bound).map(([id, info]) => [id, info ?? null]))),
+    };
+
     const service = new ListDataDestinationsByTypeService(
       dataDestinationRepo as never,
-      reportRepo as never
+      reportRepo as never,
+      destinationCredentials as never
     );
 
-    return { service, dataDestinationRepo, reportRepo, qb };
+    return { service, dataDestinationRepo, reportRepo, qb, destinationCredentials };
   };
 
   const projectId = 'proj-1';
@@ -68,6 +81,76 @@ describe('ListDataDestinationsByTypeService', () => {
       dataMartName: 'My Data Mart',
       identity: { email: 'user@example.com' },
     });
+  });
+
+  const account = (email: string) => ({
+    definitionId: 'google-sheets-oauth',
+    publicMetadata: { account: { email, name: null, picture: null }, scopes: [] },
+  });
+  const key = (clientEmail: string) => ({
+    definitionId: 'google-service-account',
+    publicMetadata: { clientEmail, projectId: 'p', privateKeyId: 'k' },
+  });
+
+  it("lists bound Destinations with their Credential's identity, restricted ones too, never the old row's", async () => {
+    const oldRow = {
+      credentialId: 'old-row',
+      credential: { identity: { email: 'old@example.com' } },
+    };
+    const destinations = [
+      { id: 'account', title: 'Account', type, credentialId: null, credential: null },
+      { id: 'sa', title: 'Bound SA', type, ...oldRow },
+      { id: 'deleted', title: 'Deleted', type, ...oldRow },
+      { id: 'legacy', title: 'Legacy', type, ...oldRow },
+      { id: 'unconfigured', title: 'Empty', type, credentialId: null, credential: null },
+    ];
+    const { service, destinationCredentials } = createService(destinations, [], {
+      account: account('me@example.com'),
+      sa: key('robot@p.iam.gserviceaccount.com'),
+      deleted: undefined,
+    });
+
+    const result = await service.run(
+      new ListDataDestinationsByTypeCommand(projectId, type, 'member-1', ['editor'])
+    );
+
+    expect(destinationCredentials.publicOfDestinations).toHaveBeenCalledWith(projectId, [
+      'account',
+      'sa',
+      'deleted',
+    ]);
+    expect(result.map(r => [r.id, r.identity])).toEqual([
+      ['account', { email: 'me@example.com' }],
+      ['sa', { clientEmail: 'robot@p.iam.gserviceaccount.com' }],
+      ['deleted', null],
+      ['legacy', { email: 'old@example.com' }],
+    ]);
+  });
+
+  it('never returns an identity to a plugin, bound or not', async () => {
+    const destinations = [
+      { id: 'bound', title: 'Bound', type, credentialId: null },
+      {
+        id: 'legacy',
+        title: 'Legacy',
+        type,
+        credentialId: 'old-row',
+        credential: { identity: { email: 'old@example.com' } },
+      },
+    ];
+    const { service, destinationCredentials } = createService(destinations, [], {
+      bound: account('me@example.com'),
+    });
+
+    const result = await service.run(
+      new ListDataDestinationsByTypeCommand(projectId, type, 'member-1', ['editor'], true)
+    );
+
+    expect(result.map(r => [r.id, r.identity])).toEqual([
+      ['bound', null],
+      ['legacy', null],
+    ]);
+    expect(destinationCredentials.publicOfDestinations).not.toHaveBeenCalled();
   });
 
   it('returns empty array when no destinations match', async () => {

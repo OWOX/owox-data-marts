@@ -40,7 +40,7 @@ jest.mock('../utils/resolve-owner-users', () => ({
 
 import { CreateDataDestinationService } from './create-data-destination.service';
 import { CreateDataDestinationCommand } from '../dto/domain/create-data-destination.command';
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { DataDestinationType } from '../data-destination-types/enums/data-destination-type.enum';
 import { syncOwners } from '../utils/sync-owners';
 
@@ -69,15 +69,14 @@ describe('CreateDataDestinationService', () => {
     };
     const dataDestinationCredentialService = {
       create: jest.fn().mockResolvedValue({ id: 'cred-1' }),
-      getById: jest.fn(),
     };
-    const googleOAuthClientService = {
-      getDestinationOAuth2ClientByCredentialId: jest.fn().mockResolvedValue({
-        getAccessToken: jest.fn().mockResolvedValue(undefined),
-      }),
+    const candidate = { credentialId: 'credential-1', definitionId: 'google-service-account' };
+    const destinationCredentials = {
+      checkDestinationBinding: jest.fn().mockResolvedValue(candidate),
+      bindDestination: jest.fn().mockResolvedValue(undefined),
     };
-    const dataDestinationService = {};
-    const copyCredentialService = {};
+    const summaries = new Map([['dest-1', { access: 'visible', id: 'credential-1' }]]);
+    const credentialsResolver = { summarize: jest.fn().mockResolvedValue(summaries) };
     const userProjectionsFetcherService = {
       fetchUserProjectionsList: jest.fn().mockResolvedValue({
         getByUserId: jest.fn().mockReturnValue(null),
@@ -85,13 +84,11 @@ describe('CreateDataDestinationService', () => {
     };
     const destinationOwnerRepository = {};
     const idpProjectionsFacade = {};
-    const accessDecisionService = {
-      canAccess: jest.fn().mockResolvedValue(true),
-    };
 
     const eventDispatcher = { publishLocalOnCommit: jest.fn() };
 
     const folderValidator = { validateConfiguredFolder: jest.fn().mockResolvedValue(undefined) };
+    const advancedSearchIndexSync = { scheduleReindex: jest.fn().mockResolvedValue(undefined) };
 
     const service = new CreateDataDestinationService(
       repository as never,
@@ -99,24 +96,27 @@ describe('CreateDataDestinationService', () => {
       credentialsValidator as never,
       credentialsProcessor as never,
       dataDestinationCredentialService as never,
-      googleOAuthClientService as never,
-      dataDestinationService as never,
-      copyCredentialService as never,
+      destinationCredentials as never,
+      credentialsResolver as never,
       userProjectionsFetcherService as never,
       destinationOwnerRepository as never,
       idpProjectionsFacade as never,
-      accessDecisionService as never,
       eventDispatcher as never,
-      folderValidator as never
+      folderValidator as never,
+      advancedSearchIndexSync as never
     );
 
     return {
       service,
+      candidate,
       dataDestinationCredentialService,
-      googleOAuthClientService,
+      destinationCredentials,
+      credentialsResolver,
+      summaries,
+      mapper,
       repository,
-      accessDecisionService,
       folderValidator,
+      advancedSearchIndexSync,
     };
   };
 
@@ -203,7 +203,7 @@ describe('CreateDataDestinationService', () => {
     await service.run(command);
 
     expect(folderValidator.validateConfiguredFolder).toHaveBeenCalledTimes(1);
-    expect(folderValidator.validateConfiguredFolder).toHaveBeenCalledWith(savedEntity);
+    expect(folderValidator.validateConfiguredFolder).toHaveBeenCalledWith(savedEntity, undefined);
   });
 
   it('should call syncOwners with provided ownerIds', async () => {
@@ -248,19 +248,6 @@ describe('CreateDataDestinationService', () => {
       await expect(service.run(command)).rejects.toBeInstanceOf(BadRequestException);
     });
 
-    it('rejects a pre-created credentialId', async () => {
-      const { service } = createService();
-      const command = new CreateDataDestinationCommand({
-        projectId: 'proj-1',
-        title: 'Excel with OAuth credential',
-        type: DataDestinationType.EXCEL,
-        userId: 'user-0',
-        credentialId: 'cred-1',
-      });
-
-      await expect(service.run(command)).rejects.toBeInstanceOf(BadRequestException);
-    });
-
     it('still creates one when nothing credential-bearing is supplied', async () => {
       const { service } = createService();
       const command = new CreateDataDestinationCommand({
@@ -274,179 +261,197 @@ describe('CreateDataDestinationService', () => {
     });
   });
 
-  describe('credentialId ownership check', () => {
-    it('throws ForbiddenException when credentialId belongs to a different project', async () => {
-      const { service, dataDestinationCredentialService } = createService();
-      dataDestinationCredentialService.getById.mockResolvedValue({
-        id: 'cred-1',
-        projectId: 'other-project',
-      });
+  describe('inline-credential types', () => {
+    it.each([
+      [DataDestinationType.EMAIL, { type: 'email-credentials', to: ['team@example.com'] }],
+      [DataDestinationType.SLACK, { type: 'email-credentials', to: ['team@example.com'] }],
+      [DataDestinationType.MS_TEAMS, { type: 'email-credentials', to: ['team@example.com'] }],
+    ])(
+      'creates a %s Destination with its inline credentials and binds nothing',
+      async (type, credentials) => {
+        const { service, repository, destinationCredentials, dataDestinationCredentialService } =
+          createService();
 
-      const command = new CreateDataDestinationCommand({
+        await service.run(
+          new CreateDataDestinationCommand({
+            projectId: 'proj-1',
+            title: 'Inline',
+            type,
+            userId: 'user-0',
+            credentials: credentials as never,
+          })
+        );
+
+        expect(dataDestinationCredentialService.create).toHaveBeenCalled();
+        expect(repository.create).toHaveBeenCalledWith(
+          expect.objectContaining({ type, credentialId: 'cred-1' })
+        );
+        expect(destinationCredentials.checkDestinationBinding).not.toHaveBeenCalled();
+        expect(destinationCredentials.bindDestination).not.toHaveBeenCalled();
+      }
+    );
+  });
+
+  describe('Credentials', () => {
+    const sheets = (overrides: Record<string, unknown> = {}) =>
+      new CreateDataDestinationCommand({
         projectId: 'proj-1',
-        title: 'Test',
+        title: 'Sheets',
         type: DataDestinationType.GOOGLE_SHEETS,
         userId: 'user-0',
-        credentialId: 'cred-1',
+        roles: ['editor'],
+        reusableCredentialId: 'credential-1',
+        ...overrides,
       });
+    const chat = (overrides: Record<string, unknown> = {}) =>
+      sheets({ title: 'Chat', type: DataDestinationType.GOOGLE_CHAT, ...overrides });
 
-      await expect(service.run(command)).rejects.toThrow(
-        'Credential does not belong to this project'
-      );
-    });
-
-    it('throws ForbiddenException when credentialId does not exist', async () => {
-      const { service, dataDestinationCredentialService } = createService();
-      dataDestinationCredentialService.getById.mockResolvedValue(null);
-
-      const command = new CreateDataDestinationCommand({
-        projectId: 'proj-1',
-        title: 'Test',
-        type: DataDestinationType.GOOGLE_SHEETS,
-        userId: 'user-0',
-        credentialId: 'cred-missing',
-      });
-
-      await expect(service.run(command)).rejects.toThrow(
-        'Credential does not belong to this project'
-      );
-    });
-
-    it('creates destination when credentialId belongs to the same project and is not yet linked', async () => {
-      const { service, dataDestinationCredentialService, googleOAuthClientService } =
-        createService();
-      dataDestinationCredentialService.getById.mockResolvedValue({
-        id: 'cred-1',
-        projectId: 'proj-1',
-        createdById: 'user-0',
-      });
-
-      const command = new CreateDataDestinationCommand({
-        projectId: 'proj-1',
-        title: 'Test',
-        type: DataDestinationType.GOOGLE_SHEETS,
-        userId: 'user-0',
-        credentialId: 'cred-1',
-      });
-
-      const result = await service.run(command);
-
-      expect(
-        googleOAuthClientService.getDestinationOAuth2ClientByCredentialId
-      ).toHaveBeenCalledWith('cred-1');
-      expect(result).toEqual({ id: 'dest-1' });
-    });
-
-    it('persists availableForUse=false for the MCP connect Google Sheets command shape', async () => {
-      const { service, dataDestinationCredentialService, repository } = createService();
-      dataDestinationCredentialService.getById.mockResolvedValue({
-        id: 'cred-oauth-1',
-        projectId: 'proj-1',
-        createdById: 'user-0',
-      });
-
-      const command = new CreateDataDestinationCommand({
-        projectId: 'proj-1',
-        title: 'Google Sheets (user@example.com)',
-        type: DataDestinationType.GOOGLE_SHEETS,
-        userId: 'user-0',
-        credentialId: 'cred-oauth-1',
-        roles: ['viewer'],
-        availableForUse: false,
-      });
-
-      await service.run(command);
-
-      expect(repository.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          type: DataDestinationType.GOOGLE_SHEETS,
-          credentialId: 'cred-oauth-1',
-          availableForUse: false,
-          availableForMaintenance: false,
-        })
-      );
-    });
-
-    it('rejects an unlinked credential created by another same-project user', async () => {
-      const { service, dataDestinationCredentialService, repository } = createService();
-      dataDestinationCredentialService.getById.mockResolvedValue({
-        id: 'cred-1',
-        projectId: 'proj-1',
-        createdById: 'user-1',
-      });
-      repository.findOne.mockResolvedValue(null);
-
-      const command = new CreateDataDestinationCommand({
-        projectId: 'proj-1',
-        title: 'Test',
-        type: DataDestinationType.GOOGLE_SHEETS,
-        userId: 'user-0',
-        credentialId: 'cred-1',
-      });
-
-      await expect(service.run(command)).rejects.toThrow('Credential does not belong to this user');
-    });
-
-    it('rejects credential already linked to another destination when caller lacks COPY_CREDENTIALS', async () => {
-      const { service, dataDestinationCredentialService, repository, accessDecisionService } =
-        createService();
-      dataDestinationCredentialService.getById.mockResolvedValue({
-        id: 'cred-1',
-        projectId: 'proj-1',
-      });
-      repository.findOne.mockResolvedValue({ id: 'existing-dest', credentialId: 'cred-1' });
-      accessDecisionService.canAccess.mockResolvedValue(false);
-
-      const command = new CreateDataDestinationCommand({
-        projectId: 'proj-1',
-        title: 'Test',
-        type: DataDestinationType.GOOGLE_SHEETS,
-        userId: 'user-0',
-        credentialId: 'cred-1',
-      });
-
-      await expect(service.run(command)).rejects.toThrow(
-        'You do not have permission to copy credentials from this destination'
-      );
-      expect(accessDecisionService.canAccess).toHaveBeenCalledWith(
-        'user-0',
-        [],
-        'DESTINATION',
-        'existing-dest',
-        'COPY_CREDENTIALS',
-        'proj-1'
-      );
-    });
-
-    it('accepts credential already linked to another destination when caller has COPY_CREDENTIALS', async () => {
+    it('checks the Credential first, checks the folder with it, and binds last', async () => {
       const {
         service,
-        dataDestinationCredentialService,
+        candidate,
         repository,
-        accessDecisionService,
-        googleOAuthClientService,
+        destinationCredentials,
+        dataDestinationCredentialService,
+        credentialsResolver,
+        folderValidator,
       } = createService();
-      dataDestinationCredentialService.getById.mockResolvedValue({
-        id: 'cred-1',
+      const member = {
         projectId: 'proj-1',
-      });
-      repository.findOne.mockResolvedValue({ id: 'existing-dest', credentialId: 'cred-1' });
-      accessDecisionService.canAccess.mockResolvedValue(true);
-
-      const command = new CreateDataDestinationCommand({
-        projectId: 'proj-1',
-        title: 'Test',
-        type: DataDestinationType.GOOGLE_SHEETS,
         userId: 'user-0',
-        credentialId: 'cred-1',
+        roles: ['editor'],
+        credentialId: 'credential-1',
+        type: DataDestinationType.GOOGLE_SHEETS,
+      };
+
+      await service.run(sheets());
+
+      expect(repository.create).toHaveBeenCalledWith(
+        expect.objectContaining({ type: DataDestinationType.GOOGLE_SHEETS, credentialId: null })
+      );
+      expect(dataDestinationCredentialService.create).not.toHaveBeenCalled();
+      expect(destinationCredentials.checkDestinationBinding).toHaveBeenCalledWith(member);
+      expect(folderValidator.validateConfiguredFolder).toHaveBeenCalledWith(savedEntity, candidate);
+      expect(destinationCredentials.bindDestination).toHaveBeenCalledWith({
+        ...member,
+        destinationId: 'dest-1',
       });
+      const order = (mock: jest.Mock) => mock.mock.invocationCallOrder[0];
+      expect(order(destinationCredentials.checkDestinationBinding)).toBeLessThan(
+        order(repository.save)
+      );
+      expect(order(folderValidator.validateConfiguredFolder)).toBeLessThan(
+        order(destinationCredentials.bindDestination)
+      );
+      expect(order(syncOwners as jest.Mock)).toBeLessThan(
+        order(destinationCredentials.bindDestination)
+      );
+      expect(order(destinationCredentials.bindDestination)).toBeLessThan(
+        order(credentialsResolver.summarize)
+      );
+    });
 
-      const result = await service.run(command);
+    it('returns the bound Credential as the member sees it', async () => {
+      const { service, credentialsResolver, mapper, summaries } = createService();
 
-      expect(
-        googleOAuthClientService.getDestinationOAuth2ClientByCredentialId
-      ).toHaveBeenCalledWith('cred-1');
-      expect(result).toEqual({ id: 'dest-1' });
+      await service.run(sheets());
+
+      expect(credentialsResolver.summarize).toHaveBeenCalledWith(
+        'proj-1',
+        'user-0',
+        ['editor'],
+        [savedEntity]
+      );
+      expect(mapper.toDomainDto).toHaveBeenCalledWith(savedEntity, null, [], summaries);
+    });
+
+    it('creates nothing when the Credential check refuses', async () => {
+      const { service, repository, destinationCredentials, folderValidator } = createService();
+      destinationCredentials.checkDestinationBinding.mockRejectedValue(
+        new ForbiddenException('You cannot use this Credential.')
+      );
+
+      await expect(service.run(sheets())).rejects.toThrow('You cannot use this Credential.');
+      expect(repository.save).not.toHaveBeenCalled();
+      expect(folderValidator.validateConfiguredFolder).not.toHaveBeenCalled();
+      expect(destinationCredentials.bindDestination).not.toHaveBeenCalled();
+    });
+
+    it('binds nothing when the folder check fails', async () => {
+      const { service, destinationCredentials, folderValidator } = createService();
+      folderValidator.validateConfiguredFolder.mockRejectedValue(new Error('folder not usable'));
+
+      await expect(service.run(sheets())).rejects.toThrow('folder not usable');
+      expect(destinationCredentials.bindDestination).not.toHaveBeenCalled();
+    });
+
+    it('requires a Credential for a Google Sheets Destination', async () => {
+      const { service, repository } = createService();
+
+      await expect(service.run(sheets({ reusableCredentialId: undefined }))).rejects.toThrow(
+        'reusableCredentialId is required for Google Sheets destinations.'
+      );
+      expect(repository.save).not.toHaveBeenCalled();
+    });
+
+    it('tells an older page that sends a service account key to reload, saving nothing', async () => {
+      const { service, repository } = createService();
+
+      await expect(
+        service.run(
+          sheets({
+            reusableCredentialId: undefined,
+            credentials: { type: 'google-sheets-credentials', serviceAccountKey: {} },
+          })
+        )
+      ).rejects.toThrow('This page is out of date. Reload it.');
+      expect(repository.save).not.toHaveBeenCalled();
+    });
+
+    it('stores Google Chat email recipients on the Destination without a bind', async () => {
+      const { service, repository, destinationCredentials, dataDestinationCredentialService } =
+        createService();
+
+      await service.run(
+        chat({
+          reusableCredentialId: undefined,
+          credentials: { type: 'email-credentials', to: ['team@example.com'] },
+        })
+      );
+
+      expect(dataDestinationCredentialService.create).toHaveBeenCalled();
+      expect(repository.create).toHaveBeenCalledWith(
+        expect.objectContaining({ credentialId: 'cred-1' })
+      );
+      expect(destinationCredentials.bindDestination).not.toHaveBeenCalled();
+    });
+
+    it('binds a Google Chat webhook Credential', async () => {
+      const { service, destinationCredentials, dataDestinationCredentialService } = createService();
+
+      await service.run(chat());
+
+      expect(destinationCredentials.bindDestination).toHaveBeenCalledWith(
+        expect.objectContaining({ type: DataDestinationType.GOOGLE_CHAT, destinationId: 'dest-1' })
+      );
+      expect(dataDestinationCredentialService.create).not.toHaveBeenCalled();
+    });
+
+    it('requires a Credential or email recipients for a Google Chat Destination', async () => {
+      const { service } = createService();
+
+      await expect(service.run(chat({ reusableCredentialId: undefined }))).rejects.toThrow(
+        'Google Chat destinations need reusableCredentialId or email credentials.'
+      );
+    });
+
+    it('refuses a plugin that selects a Credential', async () => {
+      const { service, repository } = createService();
+
+      await expect(service.run(sheets({ isPluginCall: true }))).rejects.toBeInstanceOf(
+        ForbiddenException
+      );
+      expect(repository.save).not.toHaveBeenCalled();
     });
   });
 });

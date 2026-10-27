@@ -38,7 +38,7 @@ In OWOX Data Marts, go to **Storages**. Find the entry labeled **Google BigQuery
 
 Click on the storage entry to open its settings. Then:
 
-1. In the **Credential** field, select a Credential, or click **+ Create new Credential** and choose **BigQuery Service Account** or **BigQuery Google account**.
+1. In the **Credential** field, select a Credential, or click **+ Create new Credential** and choose **Google Service Account** or **BigQuery Google account**.
 2. If using a service account, paste your [Service Account JSON key](https://docs.owox.com/docs/storages/supported-storages/google-bigquery-used-in-owox-extension/#step-3-add-a-service-account) into the **Service account key (JSON)** field of the Credential form.
 3. Leave **Auto-detect location** selected unless you experience region-specific query errors.
 4. Click **Save**.

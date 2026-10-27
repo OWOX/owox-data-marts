@@ -15,27 +15,26 @@ import {
   DataDestinationType,
   requiresCredentials,
 } from '../data-destination-types/enums/data-destination-type.enum';
-import { DataDestinationCredentialsUtils } from '../data-destination-types/data-destination-credentials.utils';
 import { RotateSecretKeyCommand } from '../dto/domain/rotate-secret-key.command';
-import { GetDestinationOAuthStatusCommand } from '../dto/domain/google-oauth/get-destination-oauth-status.command';
-import { GetDestinationOAuthCredentialStatusCommand } from '../dto/domain/google-oauth/get-destination-oauth-credential-status.command';
-import { GenerateDestinationOAuthUrlCommand } from '../dto/domain/google-oauth/generate-destination-oauth-url.command';
-import { RevokeDestinationOAuthCommand } from '../dto/domain/google-oauth/revoke-destination-oauth.command';
-import { ExchangeOAuthCodeCommand } from '../dto/domain/google-oauth/exchange-oauth-code.command';
-import { ExchangeAuthorizationCodeRequestDto } from '../dto/presentation/google-oauth/exchange-authorization-code-request.dto';
-import { GenerateAuthorizationUrlRequestDto } from '../dto/presentation/google-oauth/generate-authorization-url-request.dto';
 import { UpdateDataDestinationCommand } from '../dto/domain/update-data-destination.command';
 import { CreateConnectGoogleSheetsDestinationApiDto } from '../dto/presentation/create-connect-google-sheets-destination-api.dto';
 import { CreateDataDestinationApiDto } from '../dto/presentation/create-data-destination-api.dto';
-import { DataDestinationResponseApiDto } from '../dto/presentation/data-destination-response-api.dto';
+import {
+  DataDestinationResponseApiDto,
+  DestinationResponseCredentials,
+} from '../dto/presentation/data-destination-response-api.dto';
+import { DestinationCredentialSummaryApiDto } from '../dto/presentation/destination-credential-summary-api.dto';
+import type { DestinationCredentialSummary } from '../data-destination-types/destination-credential-state';
 import { UpdateDataDestinationApiDto } from '../dto/presentation/update-data-destination-api.dto';
 import { DataDestination } from '../entities/data-destination.entity';
 import { PublicOriginService } from '../../common/config/public-origin.service';
+import { DataDestinationCredentialsResolver } from '../data-destination-types/data-destination-credentials-resolver.service';
 import { DataDestinationCredentialService } from '../services/data-destination-credential.service';
+import { DataDestinationCredential } from '../entities/data-destination-credential.entity';
 import { DestinationCredentialType } from '../enums/destination-credential-type.enum';
-import { DataDestinationCredentials } from '../data-destination-types/data-destination-credentials.type';
 import { DataDestinationByTypeResponseApiDto } from '../dto/presentation/data-destination-by-type-response-api.dto';
 import { ListDataDestinationsByTypeItemDto } from '../dto/domain/list-data-destinations-by-type-item.dto';
+import { ListDataDestinationsByTypeCommand } from '../dto/domain/list-data-destinations-by-type.command';
 import { UserProjectionDto } from '../../idp/dto/domain/user-projection.dto';
 import { OwnerFilter } from '../enums/owner-filter.enum';
 import { resolveOwnerUsers } from '../utils/resolve-owner-users';
@@ -49,10 +48,10 @@ export class DataDestinationMapper {
   private readonly logger = new Logger(DataDestinationMapper.name);
 
   constructor(
-    private readonly credentialsUtils: DataDestinationCredentialsUtils,
     private readonly publicOriginService: PublicOriginService,
     private readonly dataDestinationCredentialService: DataDestinationCredentialService,
-    private readonly cls: ClsService
+    private readonly cls: ClsService,
+    private readonly credentialsResolver: DataDestinationCredentialsResolver
   ) {}
 
   /**
@@ -73,13 +72,17 @@ export class DataDestinationMapper {
 
   private buildCreateCommand(
     context: AuthorizationContext,
-    options: Omit<CreateDataDestinationCommandProps, 'projectId' | 'userId' | 'roles'>
+    options: Omit<
+      CreateDataDestinationCommandProps,
+      'projectId' | 'userId' | 'roles' | 'isPluginCall'
+    >
   ): CreateDataDestinationCommand {
     return new CreateDataDestinationCommand({
       ...options,
       projectId: context.projectId,
       userId: context.userId,
       roles: context.roles ?? [],
+      isPluginCall: this.isPluginRuntimeCall(),
     });
   }
 
@@ -91,8 +94,9 @@ export class DataDestinationMapper {
       title: dto.title,
       type: dto.type,
       credentials: dto.credentials,
-      credentialId: dto.credentialId,
-      sourceDestinationId: dto.sourceDestinationId,
+      reusableCredentialId: dto.reusableCredentialId,
+      sentOldCredentialFields:
+        dto.credentialId !== undefined || dto.sourceDestinationId !== undefined,
       ownerIds: dto.ownerIds,
       config: this.normalizeDestinationConfig(dto.config),
     });
@@ -105,7 +109,8 @@ export class DataDestinationMapper {
     return this.buildCreateCommand(context, {
       title: dto.title,
       type: DataDestinationType.GOOGLE_SHEETS,
-      credentialId: dto.credentialId,
+      reusableCredentialId: dto.reusableCredentialId,
+      sentOldCredentialFields: dto.credentialId !== undefined,
       // MCP-driven connect flow — starts unshared; not client-controlled.
       availableForUse: false,
     });
@@ -121,15 +126,16 @@ export class DataDestinationMapper {
       context.projectId,
       dto.title,
       dto.credentials,
-      dto.credentialId,
-      dto.sourceDestinationId,
+      dto.reusableCredentialId,
+      dto.credentialId !== undefined || dto.sourceDestinationId !== undefined,
       dto.ownerIds,
       context.userId,
       context.roles ?? [],
       dto.availableForUse,
       dto.availableForMaintenance,
       dto.contextIds,
-      this.normalizeDestinationConfig(dto.config)
+      this.normalizeDestinationConfig(dto.config),
+      this.isPluginRuntimeCall()
     );
   }
 
@@ -158,11 +164,14 @@ export class DataDestinationMapper {
     return { folderUrl, folderId };
   }
 
+  /** With `summaries`, a Destination that selects a Credential carries its summary or null. */
   toDomainDto(
     dataDestination: DataDestination,
     createdByUser: UserProjectionDto | null = null,
-    ownerUsers: UserProjectionDto[] = []
+    ownerUsers: UserProjectionDto[] = [],
+    summaries?: ReadonlyMap<string, DestinationCredentialSummary>
   ): DataDestinationDto {
+    const summary = summaries?.get(dataDestination.id);
     return new DataDestinationDto(
       dataDestination.id,
       dataDestination.title,
@@ -176,13 +185,15 @@ export class DataDestinationMapper {
       dataDestination.availableForUse,
       dataDestination.availableForMaintenance,
       extractContextSummaries(dataDestination.contexts),
-      dataDestination.config ?? null
+      dataDestination.config ?? null,
+      summaries && selectsCredential(dataDestination, summary) ? (summary ?? null) : undefined
     );
   }
 
   toDomainDtoList(
     dataDestinations: DataDestination[],
-    userProjectionsList?: UserProjectionsListDto
+    userProjectionsList?: UserProjectionsListDto,
+    summaries?: ReadonlyMap<string, DestinationCredentialSummary>
   ): DataDestinationDto[] {
     return dataDestinations.map(dataDestination =>
       this.toDomainDto(
@@ -190,7 +201,8 @@ export class DataDestinationMapper {
         dataDestination.createdById
           ? (userProjectionsList?.getByUserId(dataDestination.createdById) ?? null)
           : null,
-        userProjectionsList ? resolveOwnerUsers(dataDestination.ownerIds, userProjectionsList) : []
+        userProjectionsList ? resolveOwnerUsers(dataDestination.ownerIds, userProjectionsList) : [],
+        summaries
       )
     );
   }
@@ -198,17 +210,47 @@ export class DataDestinationMapper {
   async toApiResponse(
     dataDestinationDto: DataDestinationDto
   ): Promise<DataDestinationResponseApiDto> {
-    const publicCredentials = await this.resolvePublicCredentials(dataDestinationDto);
+    const { reusableCredential } = dataDestinationDto;
+    const isPluginCall = this.isPluginRuntimeCall();
+    let selects =
+      reusableCredential !== undefined || selectsCredential(dataDestinationDto, undefined);
+    let credentials: DestinationResponseCredentials | undefined = isPluginCall ? {} : undefined;
+    if (!selects) {
+      const row = await this.findOwnCredential(dataDestinationDto);
+      // An old webhook row stands for a Credential the Destination selects.
+      selects = row?.type === DestinationCredentialType.GOOGLE_CHAT_WEBHOOK;
+      if (!isPluginCall) {
+        credentials = selects
+          ? await this.credentialsResolver.publicCredentials(dataDestinationDto, row)
+          : this.toPublicCredentials(dataDestinationDto, row);
+      }
+    } else if (!isPluginCall) {
+      credentials =
+        reusableCredential !== undefined
+          ? (reusableCredential?.credentials ?? {})
+          : await this.credentialsResolver.publicCredentials(
+              dataDestinationDto,
+              dataDestinationDto.credentialId
+                ? await this.dataDestinationCredentialService.getById(
+                    dataDestinationDto.credentialId
+                  )
+                : null
+            );
+    }
 
     return {
       id: dataDestinationDto.id,
       title: dataDestinationDto.title,
       type: dataDestinationDto.type,
       projectId: dataDestinationDto.projectId,
-      credentials: publicCredentials,
+      ...(credentials ? { credentials } : {}),
       createdAt: dataDestinationDto.createdAt,
       modifiedAt: dataDestinationDto.modifiedAt,
-      credentialId: dataDestinationDto.credentialId,
+      ...(selects ? {} : { credentialId: dataDestinationDto.credentialId }),
+      // A plugin acts as the member but never learns which Credential a Destination uses.
+      ...(reusableCredential !== undefined && !isPluginCall
+        ? { reusableCredential: toCredentialSummaryResponse(reusableCredential) }
+        : {}),
       createdByUser: dataDestinationDto.createdByUser,
       ownerUsers: dataDestinationDto.ownerUsers,
       availableForUse: dataDestinationDto.availableForUse,
@@ -255,37 +297,17 @@ export class DataDestinationMapper {
     return new RotateSecretKeyCommand(id, context.projectId, context.userId, context.roles ?? []);
   }
 
-  toGetOAuthStatusCommand(
-    id: string,
-    context: AuthorizationContext
-  ): GetDestinationOAuthStatusCommand {
-    return new GetDestinationOAuthStatusCommand(id, context.projectId);
-  }
-
-  toGetOAuthCredentialStatusCommand(
-    credentialId: string,
-    context: AuthorizationContext
-  ): GetDestinationOAuthCredentialStatusCommand {
-    return new GetDestinationOAuthCredentialStatusCommand(credentialId, context.projectId);
-  }
-
-  toGenerateOAuthUrlCommand(
+  toByTypeCommand(
     context: AuthorizationContext,
-    dto: GenerateAuthorizationUrlRequestDto,
-    destinationId?: string
-  ): GenerateDestinationOAuthUrlCommand {
-    return new GenerateDestinationOAuthUrlCommand(
+    type: DataDestinationType
+  ): ListDataDestinationsByTypeCommand {
+    return new ListDataDestinationsByTypeCommand(
       context.projectId,
-      dto.redirectUri,
-      destinationId
+      type,
+      context.userId,
+      context.roles ?? [],
+      this.isPluginRuntimeCall()
     );
-  }
-
-  toExchangeOAuthCodeCommand(
-    context: AuthorizationContext,
-    dto: ExchangeAuthorizationCodeRequestDto
-  ): ExchangeOAuthCodeCommand {
-    return new ExchangeOAuthCodeCommand(dto.code, dto.state, context.userId, context.projectId);
   }
 
   toByTypeResponse(
@@ -299,19 +321,9 @@ export class DataDestinationMapper {
     }));
   }
 
-  toRevokeOAuthCommand(id: string, context: AuthorizationContext): RevokeDestinationOAuthCommand {
-    return new RevokeDestinationOAuthCommand(id, context.projectId);
-  }
-
-  private async resolvePublicCredentials(
+  private async findOwnCredential(
     dto: DataDestinationDto
-  ): Promise<DataDestinationResponseApiDto['credentials']> {
-    // No stored credential of any type reaches a plugin. The same empty shape the
-    // orphaned-credential paths below already return, so every consumer handles it.
-    if (this.isPluginRuntimeCall()) {
-      return {} as DataDestinationResponseApiDto['credentials'];
-    }
-
+  ): Promise<DataDestinationCredential | null> {
     if (!dto.credentialId) {
       // Only a destination that should hold a secret is worth warning about. An Excel
       // destination never has one, and warning on every list request would train readers to
@@ -319,7 +331,7 @@ export class DataDestinationMapper {
       if (requiresCredentials(dto.type)) {
         this.logger.warn(`Destination ${dto.id} has no credentialId`);
       }
-      return {} as DataDestinationResponseApiDto['credentials'];
+      return null;
     }
 
     const credential = await this.dataDestinationCredentialService.getById(dto.credentialId);
@@ -327,52 +339,32 @@ export class DataDestinationMapper {
       this.logger.warn(
         `Credential ${dto.credentialId} not found for destination ${dto.id} (possibly orphaned after soft-delete)`
       );
-      return {} as DataDestinationResponseApiDto['credentials'];
     }
+    return credential;
+  }
+
+  private toPublicCredentials(
+    dto: DataDestinationDto,
+    credential: DataDestinationCredential | null
+  ): DestinationResponseCredentials {
+    if (!credential) return {};
 
     switch (credential.type) {
-      case DestinationCredentialType.GOOGLE_OAUTH:
+      case DestinationCredentialType.LOOKER_STUDIO:
         return {
-          type: 'google-sheets-oauth-credentials' as const,
-          identity: credential.identity ?? null,
-        };
-
-      case DestinationCredentialType.LOOKER_STUDIO: {
-        const creds = credential.credentials as Extract<
-          DataDestinationCredentials,
-          { type: 'looker-studio-credentials' }
-        >;
-        return {
-          ...creds,
+          ...(credential.credentials as Extract<
+            DestinationResponseCredentials,
+            { type: 'looker-studio-credentials' }
+          >),
           destinationId: dto.id,
           deploymentUrl: this.publicOriginService.getLookerStudioDeploymentUrl(),
         };
-      }
-
-      case DestinationCredentialType.GOOGLE_SERVICE_ACCOUNT: {
-        const creds = credential.credentials as DataDestinationCredentials;
-        const publicCreds = this.credentialsUtils.getPublicCredentials(dto.type, creds);
-        if (!publicCreds) {
-          throw new Error(
-            `Failed to resolve public credentials for destination ${dto.id} (type: ${dto.type})`
-          );
-        }
-        return publicCreds;
-      }
 
       case DestinationCredentialType.EMAIL:
         return credential.credentials as Extract<
-          DataDestinationCredentials,
+          DestinationResponseCredentials,
           { type: 'email-credentials' }
         >;
-
-      case DestinationCredentialType.GOOGLE_CHAT_WEBHOOK:
-        // Incoming webhook URLs include a secret token. The UI only needs to know that a
-        // webhook is configured; a replacement URL can be pasted without reading the old one.
-        return {
-          type: 'google-chat-credentials' as const,
-          configured: true as const,
-        };
 
       default:
         throw new Error(
@@ -380,4 +372,45 @@ export class DataDestinationMapper {
         );
     }
   }
+}
+
+/** Google Sheets and Google Chat by webhook select a Credential; Chat by email keeps its own row. */
+function selectsCredential(
+  destination: {
+    readonly type: DataDestinationType;
+    readonly credentialId?: string | null;
+    readonly credential?: { readonly type: DestinationCredentialType } | null;
+  },
+  summary: DestinationCredentialSummary | undefined
+): boolean {
+  if (summary || destination.type === DataDestinationType.GOOGLE_SHEETS) return true;
+  return (
+    destination.type === DataDestinationType.GOOGLE_CHAT &&
+    (!destination.credentialId ||
+      destination.credential?.type === DestinationCredentialType.GOOGLE_CHAT_WEBHOOK)
+  );
+}
+
+/** Built field by field so a restricted summary never carries the Credential's details. */
+function toCredentialSummaryResponse(
+  summary: DestinationCredentialSummary | null
+): DestinationCredentialSummaryApiDto | null {
+  if (!summary) return null;
+  if (summary.access !== 'visible') {
+    return {
+      access: summary.access,
+      state: summary.state,
+      ...(summary.identity !== undefined && { identity: summary.identity }),
+      ...(summary.definitionId !== undefined && { definitionId: summary.definitionId }),
+    };
+  }
+  return {
+    access: 'visible',
+    id: summary.id,
+    title: summary.title,
+    definitionId: summary.definitionId,
+    providerName: summary.providerName,
+    identity: summary.identity,
+    state: summary.state,
+  };
 }

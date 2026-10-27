@@ -64,7 +64,7 @@ export async function loadReconnectableCredential(
     throw new ForbiddenException('You do not have permission to reconnect this Credential');
   }
   if (!('oauth' in credential.secret)) {
-    throw new BadRequestException('Only a BigQuery Google account Credential can be reconnected.');
+    throw new BadRequestException('Only a Google account Credential can be reconnected.');
   }
   return credential;
 }

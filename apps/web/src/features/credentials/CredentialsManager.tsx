@@ -243,7 +243,7 @@ function ReplaceSecretDialog({
   const documentationUrl = safeCredentialDocumentationUrl(credential?.definition.documentationUrl);
   return (
     <Dialog open={credential !== null} onOpenChange={onOpenChange}>
-      <DialogContent className='max-h-[90vh] overflow-y-auto'>
+      <DialogContent className='flex max-h-[90vh] flex-col'>
         <DialogHeader>
           <DialogTitle>Replace secret</DialogTitle>
           <DialogDescription>
@@ -251,45 +251,48 @@ function ReplaceSecretDialog({
             request.
           </DialogDescription>
         </DialogHeader>
-        {credential && credential.usedBy.length > 0 && (
-          <CredentialUsedByList credential={credential} />
-        )}
-        {credential && <SecretReplacementWarning credential={credential} />}
-        <Field label='New secret'>
-          {credential?.definition.auth?.type === 'google-service-account' ? (
-            <FileDropTextarea
-              className='min-h-[150px] font-mono'
-              rows={8}
-              spellCheck={false}
-              autoComplete='off'
-              maxLength={32_768}
-              value={secret}
-              placeholder='Paste the service account JSON key or drop the file'
-              onChange={event => {
-                setSecret(event.target.value);
-              }}
-              onFileRead={setSecret}
-              onFileReject={message => {
-                toast.error(message);
-              }}
-            />
-          ) : (
-            <Input
-              type='password'
-              autoComplete='new-password'
-              value={secret}
-              onChange={event => {
-                setSecret(event.target.value);
-              }}
-              maxLength={32_768}
-            />
+        {/* Only the body scrolls, so the buttons stay in view in a short window. */}
+        <div className='-mx-6 -my-1 flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-6 py-1'>
+          {credential && credential.usedBy.length > 0 && (
+            <CredentialUsedByList credential={credential} />
           )}
-          {documentationUrl && (
-            <ExternalAnchor href={documentationUrl} className='w-fit text-sm'>
-              How to get this key
-            </ExternalAnchor>
-          )}
-        </Field>
+          {credential && <SecretReplacementWarning credential={credential} />}
+          <Field label='New secret'>
+            {credential?.definition.auth?.type === 'google-service-account' ? (
+              <FileDropTextarea
+                className='min-h-[150px] font-mono'
+                rows={8}
+                spellCheck={false}
+                autoComplete='off'
+                maxLength={32_768}
+                value={secret}
+                placeholder='Paste the service account JSON key or drop the file'
+                onChange={event => {
+                  setSecret(event.target.value);
+                }}
+                onFileRead={setSecret}
+                onFileReject={message => {
+                  toast.error(message);
+                }}
+              />
+            ) : (
+              <Input
+                type='password'
+                autoComplete='new-password'
+                value={secret}
+                onChange={event => {
+                  setSecret(event.target.value);
+                }}
+                maxLength={32_768}
+              />
+            )}
+            {documentationUrl && (
+              <ExternalAnchor href={documentationUrl} className='w-fit text-sm'>
+                How to get this key
+              </ExternalAnchor>
+            )}
+          </Field>
+        </div>
         <DialogFooter>
           <Button
             type='button'

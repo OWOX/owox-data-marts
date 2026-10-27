@@ -82,7 +82,7 @@ function renderSheet({
 const sheetsFormData = {
   type: DataDestinationType.GOOGLE_SHEETS,
   title: 'Sheets',
-  credentials: { serviceAccount: '', credentialId: null },
+  reusableCredentialId: 'sa-1',
 };
 
 const rejection = { response: { status: 400, data: { code: 'DESTINATION_FOLDER_ACCESS' } } };
@@ -174,7 +174,11 @@ describe('DataDestinationConfigSheet', () => {
 
     await expect(formProps.current?.onSubmit(sheetsFormData)).rejects.toBe(rejection);
 
-    expect(createDataDestination).toHaveBeenCalled();
+    expect(createDataDestination).toHaveBeenCalledWith({
+      title: 'Sheets',
+      type: DataDestinationType.GOOGLE_SHEETS,
+      reusableCredentialId: 'sa-1',
+    });
     expect(onClose).not.toHaveBeenCalled();
     expect(onSaveSuccess).not.toHaveBeenCalled();
   });
@@ -190,6 +194,43 @@ describe('DataDestinationConfigSheet', () => {
 
     expect(onClose).toHaveBeenCalled();
     expect(onSaveSuccess).toHaveBeenCalledWith(updated);
+  });
+
+  it('updates a Google Chat Destination to email recipients without a Credential', async () => {
+    const updateDataDestination = vi.fn().mockResolvedValue(dataDestination);
+    mockSave({ updateDataDestination });
+    renderSheet();
+
+    await formProps.current?.onSubmit({
+      type: DataDestinationType.GOOGLE_CHAT,
+      title: 'Chat',
+      credentials: { deliveryMethod: 'email', to: ['space@example.com'] },
+      reusableCredentialId: 'hook-1',
+    });
+
+    expect(updateDataDestination).toHaveBeenCalledWith('destination-1', {
+      title: 'Chat',
+      credentials: { type: 'email-credentials', to: ['space@example.com'] },
+    });
+  });
+
+  it('creates a Google Chat Destination for a webhook Credential', async () => {
+    const createDataDestination = vi.fn().mockResolvedValue(dataDestination);
+    mockSave({ createDataDestination });
+    renderSheet({ destination: null });
+
+    await formProps.current?.onSubmit({
+      type: DataDestinationType.GOOGLE_CHAT,
+      title: 'Chat',
+      credentials: { deliveryMethod: 'webhook' },
+      reusableCredentialId: 'hook-1',
+    });
+
+    expect(createDataDestination).toHaveBeenCalledWith({
+      title: 'Chat',
+      type: DataDestinationType.GOOGLE_CHAT,
+      reusableCredentialId: 'hook-1',
+    });
   });
 
   it('treats a fault in the caller after the save as a saved Destination, not a rejected one', async () => {

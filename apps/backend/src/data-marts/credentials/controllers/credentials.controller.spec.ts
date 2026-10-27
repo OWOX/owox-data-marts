@@ -115,7 +115,10 @@ describe('CredentialsController Google account routes', () => {
     });
     const credential = await controller.connectGoogleOAuth(context, { code: 'code-1', state });
 
-    expect(settings).toEqual({ available: true });
+    expect(settings).toEqual({
+      available: true,
+      clients: { storage: true, destination: true },
+    });
     expect(authorization.authorizationUrl).toContain('storage-client-id');
     expect(credential).toMatchObject({
       identity: 'analyst@example.com',

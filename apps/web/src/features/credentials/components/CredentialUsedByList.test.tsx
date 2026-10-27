@@ -49,6 +49,26 @@ describe('CredentialUsedByList', () => {
     expect(screen.getByText('Plugin · Never used')).toBeInTheDocument();
   });
 
+  it('links a Destination and hides one the member cannot see', () => {
+    render(
+      <MemoryRouter>
+        <CredentialUsedByList
+          credential={withUsedBy([
+            consumer('destination', 'destination-1', 'destination', 'Sales sheet'),
+            consumer('destination', 'destination-2'),
+          ])}
+        />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByRole('link', { name: 'Sales sheet' })).toHaveAttribute(
+      'href',
+      '/ui/project-1/data-destinations?id=destination-1'
+    );
+    expect(screen.getByText('A Destination you cannot access')).toBeInTheDocument();
+    expect(screen.getAllByText('Destination · Never used')).toHaveLength(2);
+  });
+
   it('names a plugin the member cannot access without a title', () => {
     render(
       <MemoryRouter>
@@ -146,5 +166,29 @@ describe('SecretReplacementWarning', () => {
       <SecretReplacementWarning credential={withUsedBy([consumer('plugin-installation', 'p')])} />
     );
     expect(container).toBeEmptyDOMElement();
+  });
+
+  it('counts Storages and Destinations separately', () => {
+    render(
+      <SecretReplacementWarning
+        credential={withUsedBy([
+          consumer('storage', 's-1'),
+          consumer('storage', 's-2'),
+          consumer('destination', 'd-1'),
+        ])}
+      />
+    );
+
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'The new secret applies to 2 Storages and 1 Destination that use this Credential.'
+    );
+  });
+
+  it('warns about Destinations alone', () => {
+    render(<SecretReplacementWarning credential={withUsedBy([consumer('destination', 'd-1')])} />);
+
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'The new secret applies to 1 Destination that uses this Credential.'
+    );
   });
 });

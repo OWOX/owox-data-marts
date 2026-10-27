@@ -42,18 +42,21 @@ describeIfConfigured('Google Sheets Integration Tests', () => {
     const prerequisites = await setupReportPrerequisites(agent);
     dataMartId = prerequisites.dataMartId;
 
-    // Create Google Sheets destination
-    const createDestRes = await agent
-      .post('/api/data-destinations')
+    // Create Google Sheets destination with the service account key as its Credential
+    const credentialRes = await agent
+      .post('/api/credentials')
       .set(AUTH_HEADER)
       .send({
-        title: 'Test Google Sheets Destination',
-        type: 'GOOGLE_SHEETS',
-        credentials: {
-          type: 'google-sheets-credentials',
-          serviceAccountKey: JSON.parse(serviceAccountJson!),
-        },
+        title: 'Test Google Sheets key',
+        definitionId: 'google-service-account',
+        secret: { value: serviceAccountJson },
       });
+    expect(credentialRes.status).toBe(201);
+    const createDestRes = await agent.post('/api/data-destinations').set(AUTH_HEADER).send({
+      title: 'Test Google Sheets Destination',
+      type: 'GOOGLE_SHEETS',
+      reusableCredentialId: credentialRes.body.id,
+    });
 
     expect(createDestRes.status).toBe(201);
     googleSheetsDestinationId = createDestRes.body.id;

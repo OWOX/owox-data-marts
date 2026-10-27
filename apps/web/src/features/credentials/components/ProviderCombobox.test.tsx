@@ -2,7 +2,16 @@ import { fireEvent, render, screen, within } from '@testing-library/react';
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@owox/ui/components/sheet';
 import type { ComponentType } from 'react';
 import { describe, expect, it, vi } from 'vitest';
-import { ChatGPTIcon, ClaudeIcon, GeminiIcon, GitHubIcon, OpenRouterIcon } from '../../../shared';
+import {
+  ChatGPTIcon,
+  ClaudeIcon,
+  GeminiIcon,
+  GitHubIcon,
+  GoogleChatIcon,
+  GoogleCloudIcon,
+  GoogleSheetsIcon,
+  OpenRouterIcon,
+} from '../../../shared';
 import type { CredentialIcon } from '../types';
 import { ProviderCombobox, type ProviderOption } from './ProviderCombobox';
 
@@ -114,6 +123,33 @@ describe('ProviderCombobox', () => {
     expect(
       screen.getByRole('option', { name: 'BigQuery Service Account' }).querySelector(hexagon)
     ).not.toBeNull();
+  });
+
+  it('shows the Google Cloud, Sheets and Chat icons of the Google providers', async () => {
+    const google = (id: string, displayName: string, icon: CredentialIcon) =>
+      ({ id, displayName, category: 'google', icon }) as const;
+    render(
+      <ProviderCombobox
+        definitions={[
+          google('google-service-account', 'Google Service Account', 'google-cloud'),
+          google('google-sheets-oauth', 'Sheets Google account', 'google-sheets'),
+          google('google-chat-webhook', 'Google Chat webhook', 'google-chat'),
+        ]}
+        value=''
+        onChange={vi.fn()}
+      />
+    );
+    fireEvent.mouseDown(screen.getByRole('combobox', { name: 'Provider' }), { button: 0 });
+
+    const expected = [GoogleCloudIcon, GoogleSheetsIcon, GoogleChatIcon].map(brandPath);
+    const names = ['Google Service Account', 'Sheets Google account', 'Google Chat webhook'];
+    const shown: (string | null | undefined)[] = [];
+    for (const name of names) {
+      const option = await screen.findByRole('option', { name });
+      shown.push(option.querySelector('path')?.getAttribute('d'));
+    }
+    expect(shown).toEqual(expected);
+    expect(new Set(expected).size).toBe(3);
   });
 
   it('shows the brand icon of each AI provider and GitHub', async () => {

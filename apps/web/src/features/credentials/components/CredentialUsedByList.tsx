@@ -1,23 +1,31 @@
 import RelativeTime from '@owox/ui/components/common/relative-time';
 import { FormItem } from '@owox/ui/components/form';
 import { cn } from '@owox/ui/lib/utils';
-import { DatabaseIcon, Puzzle } from 'lucide-react';
+import { ArchiveRestore, DatabaseIcon, Puzzle } from 'lucide-react';
 import { Link } from 'react-router';
 import { useProjectRoute } from '../../../shared/hooks';
 import type { Credential, CredentialConsumerReference } from '../types';
 
+// Storages and Destinations are pages the member can open; any other consumer is a plugin.
+const LINKED_CONSUMERS: Partial<
+  Record<string, { Icon: typeof DatabaseIcon; kind: string; path: string }>
+> = {
+  storage: { Icon: DatabaseIcon, kind: 'Storage', path: 'data-storages' },
+  destination: { Icon: ArchiveRestore, kind: 'Destination', path: 'data-destinations' },
+};
+
 function ConsumerRow({ consumer }: { consumer: CredentialConsumerReference }) {
   const { scope } = useProjectRoute();
-  const isStorage = consumer.consumerType === 'storage';
-  const Icon = isStorage ? DatabaseIcon : Puzzle;
-  const kind = isStorage ? 'Storage' : 'Plugin';
   const { title } = consumer;
+  const linked = LINKED_CONSUMERS[consumer.consumerType];
+  const Icon = linked?.Icon ?? Puzzle;
+  const kind = linked?.kind ?? 'Plugin';
 
   return (
     <li className='flex items-start gap-3 py-2.5 first:pt-0 last:pb-0'>
       <Icon className='text-muted-foreground mt-0.5 size-4 shrink-0' aria-hidden='true' />
       <div className='flex min-w-0 flex-col gap-0.5'>
-        {!isStorage ? (
+        {!linked ? (
           <span
             className={
               typeof title === 'string' ? 'truncate font-medium' : 'text-muted-foreground truncate'
@@ -28,14 +36,14 @@ function ConsumerRow({ consumer }: { consumer: CredentialConsumerReference }) {
           </span>
         ) : typeof title === 'string' ? (
           <Link
-            to={scope(`/data-storages?id=${consumer.consumerId}`)}
+            to={scope(`/${linked.path}?id=${consumer.consumerId}`)}
             className='truncate font-medium hover:underline'
             title={title || undefined}
           >
-            {title || 'Untitled Storage'}
+            {title || `Untitled ${kind}`}
           </Link>
         ) : (
-          <span className='text-muted-foreground truncate'>A Storage you cannot access</span>
+          <span className='text-muted-foreground truncate'>A {kind} you cannot access</span>
         )}
         <span className='text-muted-foreground text-xs'>
           {kind} ·{' '}

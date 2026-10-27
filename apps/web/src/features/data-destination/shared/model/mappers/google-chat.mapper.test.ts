@@ -5,66 +5,76 @@ import { GoogleChatMapper } from './google-chat.mapper';
 
 describe('GoogleChatMapper', () => {
   const mapper = new GoogleChatMapper();
+  const base = {
+    id: 'destination-1',
+    title: 'Marketing Chat',
+    type: DataDestinationType.GOOGLE_CHAT,
+    projectId: 'project-1',
+    createdAt: new Date('2026-07-17T12:00:00Z'),
+    modifiedAt: new Date('2026-07-17T12:00:00Z'),
+  };
 
-  it('maps a redacted API credential to a configured form state', () => {
+  it('reads a Destination with a webhook Credential as webhook delivery', () => {
     const destination = mapper.mapFromDto({
-      id: 'destination-1',
-      title: 'Marketing Chat',
-      type: DataDestinationType.GOOGLE_CHAT,
-      projectId: 'project-1',
+      ...base,
+      reusableCredential: { access: 'restricted', state: 'ready' },
+    } satisfies DataDestinationResponseDto);
+
+    expect(destination.credentials).toEqual({ deliveryMethod: 'webhook' });
+  });
+
+  it('reads the webhook marker a response carries as webhook delivery and never sends it back', () => {
+    const destination = mapper.mapFromDto({
+      ...base,
       credentials: {
         type: DataDestinationCredentialsType.GOOGLE_CHAT_CREDENTIALS,
         configured: true,
       },
-      createdAt: new Date('2026-07-17T12:00:00Z'),
-      modifiedAt: new Date('2026-07-17T12:00:00Z'),
+      reusableCredential: { access: 'restricted', state: 'ready' },
     } satisfies DataDestinationResponseDto);
 
-    expect(destination.credentials).toEqual({ deliveryMethod: 'webhook', configured: true });
+    expect(destination.credentials).toEqual({ deliveryMethod: 'webhook' });
+    expect(
+      mapper.mapToUpdateRequest({
+        title: destination.title,
+        type: DataDestinationType.GOOGLE_CHAT,
+        credentials: destination.credentials,
+      })
+    ).toEqual({ title: 'Marketing Chat' });
   });
 
-  it('sends a pasted webhook when creating a destination', () => {
-    const webhookUrl =
-      'https://chat.googleapis.com/v1/spaces/space-1/messages?key=key-1&token=token-1';
-
+  it('sends the webhook Credential when creating a destination', () => {
     expect(
       mapper.mapToCreateRequest({
         title: 'Marketing Chat',
         type: DataDestinationType.GOOGLE_CHAT,
-        credentials: { deliveryMethod: 'webhook', webhookUrl },
+        credentials: { deliveryMethod: 'webhook' },
+        reusableCredentialId: 'hook-1',
       })
     ).toEqual({
       title: 'Marketing Chat',
       type: DataDestinationType.GOOGLE_CHAT,
-      credentials: {
-        type: DataDestinationCredentialsType.GOOGLE_CHAT_CREDENTIALS,
-        webhookUrl,
-      },
+      reusableCredentialId: 'hook-1',
     });
   });
 
-  it('rejects a webhook create request without a URL', () => {
+  it('rejects a webhook create request without a Credential', () => {
     expect(() =>
       mapper.mapToCreateRequest({
         title: 'Marketing Chat',
         type: DataDestinationType.GOOGLE_CHAT,
         credentials: { deliveryMethod: 'webhook' },
       })
-    ).toThrow('Google Chat webhook URL is required');
+    ).toThrow('Select a Credential');
   });
 
   it('preserves an existing email-based Google Chat destination', () => {
     const destination = mapper.mapFromDto({
-      id: 'destination-1',
-      title: 'Legacy Chat',
-      type: DataDestinationType.GOOGLE_CHAT,
-      projectId: 'project-1',
+      ...base,
       credentials: {
         type: DataDestinationCredentialsType.EMAIL_CREDENTIALS,
         to: ['space@example.com'],
       },
-      createdAt: new Date('2026-07-17T12:00:00Z'),
-      modifiedAt: new Date('2026-07-17T12:00:00Z'),
     } satisfies DataDestinationResponseDto);
 
     expect(destination.credentials).toEqual({
@@ -79,6 +89,7 @@ describe('GoogleChatMapper', () => {
         title: 'Legacy delivery',
         type: DataDestinationType.GOOGLE_CHAT,
         credentials: { deliveryMethod: 'email', to: ['space@example.com'] },
+        reusableCredentialId: 'hook-1',
       })
     ).toEqual({
       title: 'Legacy delivery',
@@ -90,33 +101,33 @@ describe('GoogleChatMapper', () => {
     });
   });
 
-  it('does not overwrite a saved webhook when the hidden field remains blank', () => {
+  it('keeps the current Credential when the update does not name one', () => {
     expect(
       mapper.mapToUpdateRequest({
         title: 'Renamed Chat',
         type: DataDestinationType.GOOGLE_CHAT,
-        credentials: { deliveryMethod: 'webhook', configured: true },
+        credentials: { deliveryMethod: 'webhook' },
       })
     ).toEqual({ title: 'Renamed Chat' });
   });
 
+  it('switches to webhook delivery with a Credential and never sends a webhook URL', () => {
+    expect(
+      mapper.mapToUpdateRequest({
+        title: 'Chat',
+        type: DataDestinationType.GOOGLE_CHAT,
+        credentials: { deliveryMethod: 'webhook' },
+        reusableCredentialId: 'hook-2',
+      })
+    ).toEqual({ title: 'Chat', reusableCredentialId: 'hook-2' });
+  });
+
   it('defaults an existing empty email configuration to webhook delivery', () => {
     const destination = mapper.mapFromDto({
-      id: 'destination-1',
-      title: 'Empty Legacy Chat',
-      type: DataDestinationType.GOOGLE_CHAT,
-      projectId: 'project-1',
-      credentials: {
-        type: DataDestinationCredentialsType.EMAIL_CREDENTIALS,
-        to: [],
-      },
-      createdAt: new Date('2026-07-17T12:00:00Z'),
-      modifiedAt: new Date('2026-07-17T12:00:00Z'),
+      ...base,
+      credentials: { type: DataDestinationCredentialsType.EMAIL_CREDENTIALS, to: [] },
     } satisfies DataDestinationResponseDto);
 
-    expect(destination.credentials).toEqual({
-      deliveryMethod: 'webhook',
-      configured: false,
-    });
+    expect(destination.credentials).toEqual({ deliveryMethod: 'webhook' });
   });
 });

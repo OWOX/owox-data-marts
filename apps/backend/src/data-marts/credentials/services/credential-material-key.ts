@@ -1,3 +1,4 @@
+// Imported by migration 1792700000000: keep it and its imports when the legacy code goes.
 import { randomUUID } from 'node:crypto';
 import type { CredentialPublicMetadata, CredentialSecret } from '../credential.types';
 

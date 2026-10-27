@@ -1,4 +1,5 @@
 import { INestApplication } from '@nestjs/common';
+import * as crypto from 'crypto';
 import * as supertest from 'supertest';
 import {
   createTestApp,
@@ -157,5 +158,32 @@ describe('DataDestination API (e2e)', () => {
     const res = await agent.get('/api/data-destinations/by-type/INVALID_TYPE').set(AUTH_HEADER);
 
     expect(res.status).toBe(400);
+  });
+
+  it('POST /api/data-destinations - tells a page that copies credentials to reload', async () => {
+    const res = await agent.post('/api/data-destinations').set(AUTH_HEADER).send({
+      title: 'Copied',
+      type: DataDestinationType.GOOGLE_SHEETS,
+      sourceDestinationId: crypto.randomUUID(),
+    });
+
+    expect(res.status).toBe(400);
+    expect(res.body.message).toBe('This page is out of date. Reload it.');
+  });
+
+  it('POST /api/data-destinations/oauth/authorize - is gone', async () => {
+    const res = await agent
+      .post('/api/data-destinations/oauth/authorize')
+      .set(AUTH_HEADER)
+      .send({ redirectUri: 'https://app.example.com/oauth/callback' });
+
+    expect(res.status).toBe(404);
+  });
+
+  it('GET /api/data-destinations/oauth/settings - still answers for the folder picker', async () => {
+    const res = await agent.get('/api/data-destinations/oauth/settings').set(AUTH_HEADER);
+
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty('available');
   });
 });

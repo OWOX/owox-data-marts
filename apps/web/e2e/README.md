@@ -358,7 +358,7 @@ For each of Data Studio, Email, Microsoft Teams, and Google Chat:
 - Deletes destination via the 3-dot row menu with confirmation
 
 **Google Sheets (credential-gated, 3 tests):**
-Requires `GOOGLE_SHEETS_SERVICE_ACCOUNT_JSON`. Creates a Google Sheets destination via UI. Edit and delete tests are skipped (TODO).
+Requires `GOOGLE_SHEETS_SERVICE_ACCOUNT_JSON`. Creates a Google Service Account Credential from it, then a Google Sheets destination that selects it via UI. Edit and delete tests are skipped (TODO).
 
 ### `specs/report.spec.ts` -- Report Operations
 

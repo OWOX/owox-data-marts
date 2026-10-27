@@ -43,7 +43,8 @@ export function useCredentialDefinitions() {
   return { ...query, definitions: query.data ?? [] };
 }
 
-export function useGoogleOAuthAvailable() {
+/** Whether Google OAuth is set up, for one client when named. */
+export function useGoogleOAuthAvailable(client?: 'storage' | 'destination') {
   const projectId = useProjectId();
   const query = useQuery({
     queryKey: ['credential-google-oauth-settings', projectId],
@@ -53,7 +54,9 @@ export function useGoogleOAuthAvailable() {
     staleTime: 5 * 60 * 1000,
   });
   // undefined while the settings load, so callers can wait before choosing a provider.
-  return query.isPending ? undefined : (query.data?.available ?? false);
+  return query.isPending
+    ? undefined
+    : ((client && query.data?.clients?.[client]) ?? query.data?.available ?? false);
 }
 
 export function useCredentialActions() {
@@ -79,12 +82,23 @@ export function useCredentialActions() {
     onSuccess: invalidateWithListeners,
   });
   const authorizeGoogleOAuth = useMutation({
-    mutationFn: (input: { redirectUri: string; credentialId?: string; definitionId?: string }) =>
-      credentialsService.authorizeGoogleOAuth(input),
+    mutationFn: ({
+      skipErrorToast,
+      ...input
+    }: {
+      redirectUri: string;
+      credentialId?: string;
+      definitionId?: string;
+      /** The caller shows the failure itself. */
+      skipErrorToast?: boolean;
+    }) => credentialsService.authorizeGoogleOAuth(input, skipErrorToast),
   });
   const exchangeGoogleOAuth = useMutation({
-    mutationFn: (input: GoogleOAuthExchangeRequest) =>
-      credentialsService.exchangeGoogleOAuth(input),
+    mutationFn: ({
+      skipErrorToast,
+      ...input
+    }: GoogleOAuthExchangeRequest & { skipErrorToast?: boolean }) =>
+      credentialsService.exchangeGoogleOAuth(input, skipErrorToast),
     onSuccess: invalidateWithListeners,
   });
   const validate = useMutation({

@@ -19,6 +19,8 @@ describe('built-in Credential definitions', () => {
       github: 'other',
       'google-service-account': 'google',
       'google-oauth': 'google',
+      'google-sheets-oauth': 'google',
+      'google-chat-webhook': 'google',
       'aws-access-key': 'aws',
       'snowflake-password': 'snowflake',
       'snowflake-key-pair': 'snowflake',
@@ -35,8 +37,10 @@ describe('built-in Credential definitions', () => {
       gemini: 'gemini',
       openrouter: 'openrouter',
       github: 'github',
-      'google-service-account': 'google',
+      'google-service-account': 'google-cloud',
       'google-oauth': 'google',
+      'google-sheets-oauth': 'google-sheets',
+      'google-chat-webhook': 'google-chat',
       'aws-access-key': 'aws',
       'snowflake-password': 'snowflake',
       'snowflake-key-pair': 'snowflake',
@@ -69,17 +73,62 @@ describe('built-in Credential definitions', () => {
     });
   });
 
-  it('declares BigQuery Service Account with the googleapis.com wildcard origin and no probe', () => {
+  it('declares Google Service Account with the googleapis.com wildcard origin and no probe', () => {
     const definition = BUILTIN_CREDENTIAL_DEFINITIONS.find(
       item => item.id === 'google-service-account'
     );
 
     expect(definition).toMatchObject({
-      displayName: 'BigQuery Service Account',
+      icon: 'google-cloud',
+      displayName: 'Google Service Account',
+      description: expect.stringMatching(/BigQuery Storages.*Google Sheets Destinations/),
       auth: { type: 'google-service-account', label: 'Service account key (JSON)' },
       origins: ['https://*.googleapis.com'],
     });
     expect(definition?.validation).toBeUndefined();
     expect(new URL(definition!.documentationUrl!).hostname).toBe('docs.cloud.google.com');
+  });
+
+  it('declares the Sheets Google account on the destination client', () => {
+    expect(BUILTIN_CREDENTIAL_DEFINITIONS.find(item => item.id === 'google-sheets-oauth')).toEqual({
+      id: 'google-sheets-oauth',
+      category: 'google',
+      icon: 'google-sheets',
+      displayName: 'Sheets Google account',
+      description: expect.any(String),
+      auth: {
+        type: 'oauth',
+        provider: 'google',
+        client: 'destination',
+        scopes: 'sheets',
+        label: 'Google account',
+      },
+    });
+  });
+
+  it('declares the Google Chat webhook as one secret field', () => {
+    const definition = BUILTIN_CREDENTIAL_DEFINITIONS.find(
+      item => item.id === 'google-chat-webhook'
+    );
+
+    expect(definition).toMatchObject({
+      category: 'google',
+      icon: 'google-chat',
+      displayName: 'Google Chat webhook',
+      auth: {
+        type: 'fields',
+        fields: [
+          {
+            key: 'webhookUrl',
+            label: 'Webhook URL',
+            input: 'password',
+            secret: true,
+            required: true,
+            identity: false,
+          },
+        ],
+      },
+    });
+    expect(definition).not.toHaveProperty('origins');
   });
 });

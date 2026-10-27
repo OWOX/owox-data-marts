@@ -12,6 +12,7 @@ jest.mock('../adapters/google-sheets-api.adapter', () => {
 import { GoogleSheetsFolderValidator } from './google-sheets-folder-validator.service';
 import { DestinationCredentialType } from '../../../enums/destination-credential-type.enum';
 import { DestinationFolderAccessException } from '../../../exceptions/google-oauth.exceptions';
+import { DestinationCredentialUnavailableException } from '../../../exceptions/destination-credential-unavailable.exception';
 
 const VALID_SA_KEY = {
   type: 'service_account',
@@ -30,10 +31,24 @@ const SA_CREDENTIAL = {
 };
 
 describe('GoogleSheetsFolderValidator', () => {
-  const createValidator = (credential: unknown) => {
+  const createValidator = (credential: unknown, boundDefinitionId: string | null = null) => {
     const credentialService = { getById: jest.fn().mockResolvedValue(credential) };
-    const validator = new GoogleSheetsFolderValidator(credentialService as never);
-    return { validator, credentialService };
+    const credentialsResolver = {
+      boundDefinitionId: jest.fn().mockResolvedValue(boundDefinitionId),
+      resolve: jest.fn().mockResolvedValue({
+        type: 'google-sheets-credentials',
+        serviceAccountKey: { ...VALID_SA_KEY, client_email: 'bound@proj.iam.gserviceaccount.com' },
+      }),
+      candidateCredentials: jest.fn().mockReturnValue({
+        type: 'google-sheets-credentials',
+        serviceAccountKey: { ...VALID_SA_KEY, client_email: 'next@proj.iam.gserviceaccount.com' },
+      }),
+    };
+    const validator = new GoogleSheetsFolderValidator(
+      credentialService as never,
+      credentialsResolver as never
+    );
+    return { validator, credentialService, credentialsResolver };
   };
 
   const destination = (
@@ -83,6 +98,94 @@ describe('GoogleSheetsFolderValidator', () => {
       credentials: {},
     });
     await validator.validateConfiguredFolder(destination({ folderId: 'f1' }));
+    expect(mockGetFolderAccess).not.toHaveBeenCalled();
+  });
+
+  it("validates with a bound service account Credential's key, not the old row", async () => {
+    const { validator, credentialService } = createValidator(
+      SA_CREDENTIAL,
+      'google-service-account'
+    );
+    mockGetFolderAccess.mockResolvedValue({
+      accessible: true,
+      isFolder: true,
+      isSharedDrive: true,
+      canAddChildren: false,
+    });
+
+    await expect(
+      validator.validateConfiguredFolder(destination({ folderId: 'f1' }, null))
+    ).rejects.toThrow(/bound@proj\.iam\.gserviceaccount\.com/);
+    expect(credentialService.getById).not.toHaveBeenCalled();
+  });
+
+  it('reads the bound key without recording a use of the Credential', async () => {
+    const { validator, credentialsResolver } = createValidator(
+      SA_CREDENTIAL,
+      'google-service-account'
+    );
+    const saved = destination({ folderId: 'f1' }, null);
+
+    await validator.validateConfiguredFolder(saved);
+
+    expect(credentialsResolver.resolve).toHaveBeenCalledWith(saved, { markUsed: false });
+  });
+
+  it("hands a deleted bound Credential's error to the caller, never the old row", async () => {
+    const { validator, credentialService, credentialsResolver } = createValidator(SA_CREDENTIAL);
+    const deleted = new DestinationCredentialUnavailableException(
+      "This Destination's Credential was deleted. Select another Credential for this Destination.",
+      false
+    );
+    credentialsResolver.boundDefinitionId.mockRejectedValue(deleted);
+
+    await expect(validator.validateConfiguredFolder(destination({ folderId: 'f1' }))).rejects.toBe(
+      deleted
+    );
+    expect(credentialService.getById).not.toHaveBeenCalled();
+    expect(mockGetFolderAccess).not.toHaveBeenCalled();
+  });
+
+  it('checks with the Credential about to be bound, not the bound one or the old row', async () => {
+    const { validator, credentialService, credentialsResolver } = createValidator(
+      SA_CREDENTIAL,
+      'google-service-account'
+    );
+    const candidate = { credentialId: 'credential-2', definitionId: 'google-service-account' };
+    mockGetFolderAccess.mockResolvedValue({
+      accessible: true,
+      isFolder: true,
+      isSharedDrive: true,
+      canAddChildren: false,
+    });
+
+    await expect(
+      validator.validateConfiguredFolder(destination({ folderId: 'f1' }), candidate as never)
+    ).rejects.toThrow(/next@proj\.iam\.gserviceaccount\.com/);
+    expect(credentialsResolver.candidateCredentials).toHaveBeenCalledWith(candidate);
+    expect(credentialsResolver.boundDefinitionId).not.toHaveBeenCalled();
+    expect(credentialService.getById).not.toHaveBeenCalled();
+  });
+
+  it('is a no-op for a Google account Credential about to be bound', async () => {
+    const { validator, credentialsResolver } = createValidator(SA_CREDENTIAL);
+    credentialsResolver.candidateCredentials.mockReturnValue(null);
+
+    await validator.validateConfiguredFolder(destination({ folderId: 'f1' }), {} as never);
+
+    expect(mockGetFolderAccess).not.toHaveBeenCalled();
+  });
+
+  it('is a no-op for a bound Google account Credential', async () => {
+    const { validator, credentialService, credentialsResolver } = createValidator(
+      SA_CREDENTIAL,
+      'google-sheets-oauth'
+    );
+
+    await validator.validateConfiguredFolder(destination({ folderId: 'f1' }));
+
+    expect(credentialsResolver.resolve).not.toHaveBeenCalled();
+    expect(credentialService.getById).not.toHaveBeenCalled();
     expect(mockGetFolderAccess).not.toHaveBeenCalled();
   });
 

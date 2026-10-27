@@ -1,4 +1,3 @@
-import type { GoogleServiceAccountCredentialsDto } from '../../../../../shared/types';
 import { DataDestinationCredentialsType, DataDestinationType } from '../../enums';
 
 /**
@@ -10,12 +9,8 @@ export type CreateDataDestinationRequestDto =
       title: string;
       /** Type of the data destination */
       type: DataDestinationType.GOOGLE_SHEETS;
-      /** Credentials for Google Sheets (SA key or minimal type-only for OAuth flow) */
-      credentials:
-        | GoogleServiceAccountCredentialsDto
-        | { type: DataDestinationCredentialsType.GOOGLE_SHEETS_CREDENTIALS };
-      /** Pre-created OAuth credential ID from standalone OAuth flow */
-      credentialId?: string;
+      /** The Credential (Google Service Account or Sheets Google account) the Destination uses */
+      reusableCredentialId: string;
       ownerIds?: string[];
       /** Optional destination-level config: Drive folder for auto-created Sheets (send folderUrl; id derived server-side) */
       config?: { folderId?: string | null; folderUrl?: string | null };
@@ -60,24 +55,13 @@ export type CreateDataDestinationRequestDto =
   | {
       title: string;
       type: DataDestinationType.GOOGLE_CHAT;
-      credentials:
-        | {
-            type: DataDestinationCredentialsType.GOOGLE_CHAT_CREDENTIALS;
-            webhookUrl: string;
-          }
-        | {
-            type: DataDestinationCredentialsType.EMAIL_CREDENTIALS;
-            to: string[];
-          };
+      /** Webhook delivery: the Google Chat webhook Credential */
+      reusableCredentialId: string;
+      ownerIds?: string[];
+    }
+  | {
+      title: string;
+      type: DataDestinationType.GOOGLE_CHAT;
+      credentials: { type: DataDestinationCredentialsType.EMAIL_CREDENTIALS; to: string[] };
       ownerIds?: string[];
     };
-
-/**
- * Request to create a destination by copying credentials from another destination
- */
-export interface CreateDataDestinationCopyRequestDto {
-  title: string;
-  type: DataDestinationType;
-  sourceDestinationId: string;
-  ownerIds?: string[];
-}

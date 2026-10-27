@@ -5,6 +5,7 @@ import { Transactional } from 'typeorm-transactional';
 import { Repository } from 'typeorm';
 import type { AuthorizationContext } from '../../../idp';
 import { IdpProjectionsFacade } from '../../../idp/facades/idp-projections.facade';
+import { CredentialDestinationConsumersService } from '../../data-destination-types/credential-destination-consumers.service';
 import { CredentialStorageConsumersService } from '../../data-storage-types/credential-storage-consumers.service';
 import { AccessDecisionService, Action, EntityType } from '../../services/access-decision';
 import { ContextAccessService } from '../../services/context/context-access.service';
@@ -37,7 +38,8 @@ export class UpdateCredentialService {
     private readonly idpProjections: IdpProjectionsFacade,
     @InjectRepository(CredentialOwner)
     private readonly owners: Repository<CredentialOwner>,
-    private readonly storageConsumers: CredentialStorageConsumersService
+    private readonly storageConsumers: CredentialStorageConsumersService,
+    private readonly destinationConsumers: CredentialDestinationConsumersService
   ) {}
 
   async run(
@@ -83,44 +85,56 @@ export class UpdateCredentialService {
       if (validation.state === 'rejected') {
         throw new BadRequestException(validation.message);
       }
+      // A Google outage leaves the probe unknown; the save then goes on unchecked, as before.
+      if (
+        definition.contract.auth.type === 'google-service-account' &&
+        validation.state === 'verified'
+      ) {
+        await this.destinationConsumers.verifyCandidate(
+          context,
+          await this.credentials.listBindings(credential.id),
+          {
+            definitionId: credential.definitionId,
+            secret: { value: input.secret.value },
+            publicMetadata,
+          }
+        );
+      }
     }
     const { auth } = definition.contract;
     let checkedFields: CheckedFields | undefined;
     if (input.fields != null && auth.type === 'fields') {
-      const next = applyFieldsUpdate(auth, credential, input.fields);
+      const next = applyFieldsUpdate(auth, credential, input.fields, definition.definitionId);
       if (next.secretChanged) {
         checkedFields = { secret: next.secret, publicMetadata: next.publicMetadata };
-        validation = await this.checkBoundStorages(credential, context, checkedFields);
+        validation = await this.checkBoundConsumers(credential, context, checkedFields);
       }
     }
     return this.apply(id, context, input, definition, validation, publicMetadata, checkedFields);
   }
 
-  /** New field values must work wherever the current ones do; none bound leaves no result. */
-  private async checkBoundStorages(
+  /** New field values must work for the Storages where the current ones do and for every Destination; none bound leaves no result. */
+  private async checkBoundConsumers(
     credential: Credential,
     context: AuthorizationContext,
     next: CheckedFields
   ): Promise<CredentialValidationResult | undefined> {
-    // Outside the transaction, one Storage at a time: each check is a remote call.
-    const checked = await this.storageConsumers.verifyCandidate(
-      context,
-      await this.credentials.listBindings(credential.id),
-      {
-        definitionId: credential.definitionId,
-        secret: next.secret,
-        publicMetadata: next.publicMetadata,
-      },
-      {
-        definitionId: credential.definitionId,
-        secret: credential.secret,
-        publicMetadata: credential.publicMetadata,
-      }
-    );
+    const bindings = await this.credentials.listBindings(credential.id);
+    const definitionId = credential.definitionId;
+    const candidate = { definitionId, secret: next.secret, publicMetadata: next.publicMetadata };
+    const current = {
+      definitionId,
+      secret: credential.secret,
+      publicMetadata: credential.publicMetadata,
+    };
+    // Outside the transaction, one consumer at a time: each check is a remote call.
+    const checked =
+      (await this.storageConsumers.verifyCandidate(context, bindings, candidate, current)) +
+      (await this.destinationConsumers.verifyCandidate(context, bindings, candidate));
     if (checked === 0) return undefined;
     return {
       state: 'verified',
-      message: 'The Storages that use this Credential accepted the new values',
+      message: 'Everything that uses this Credential accepted the new values.',
       validatedAt: new Date(),
     };
   }
@@ -148,11 +162,11 @@ export class UpdateCredentialService {
     const { auth } = definition.contract;
     if (input.fields != null && auth.type === 'fields') {
       // Merged into the fresh read so a concurrent change to another field survives.
-      const next = applyFieldsUpdate(auth, credential, input.fields);
+      const next = applyFieldsUpdate(auth, credential, input.fields, definition.definitionId);
       credential.secret = next.secret;
       credential.publicMetadata = next.publicMetadata;
       if (next.secretChanged) {
-        // A concurrent edit changed what the Storages checked, so the saved values are unchecked.
+        // A concurrent edit changed what the Storages and Destinations checked, so the saved values are unchecked.
         const merged = { secret: next.secret, publicMetadata: next.publicMetadata };
         const result = isDeepStrictEqual(merged, checkedFields) ? validation : undefined;
         credential.validationState = result?.state ?? 'unknown';

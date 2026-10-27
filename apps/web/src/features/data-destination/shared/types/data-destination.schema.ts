@@ -1,6 +1,5 @@
 import { z } from 'zod';
 import { DataDestinationType } from '../enums';
-import { googleCredentialsWithOAuthSchema } from '../../../../shared';
 import { lookerStudioCredentialsSchema } from './looker-studio-credentials.schema.ts';
 import { emailCredentialsSchema } from './email-credentials.schema.ts';
 import { isValidGoogleDriveFolderUrl } from '../utils/drive-folder-url.utils.ts';
@@ -12,10 +11,14 @@ const baseDataDestinationSchema = z.object({
   type: z.nativeEnum(DataDestinationType),
 });
 
-// Google Sheets supports both Service Account and OAuth authentication
+const SELECT_CREDENTIAL = 'Select a Credential';
+
+// The key is a Credential (Google Service Account or Sheets Google account) the form selects.
 const googleSheetsDestinationSchema = baseDataDestinationSchema.extend({
   type: z.literal(DataDestinationType.GOOGLE_SHEETS),
-  credentials: googleCredentialsWithOAuthSchema,
+  credentials: z.object({}).optional(),
+  // Required, checked below together with Google Chat webhook delivery.
+  reusableCredentialId: z.string().optional(),
   // Optional destination-level config: Drive folder (by URL) for auto-created Sheets.
   config: z
     .object({
@@ -64,18 +67,34 @@ const msTeamsDestinationSchema = emailLikeBase.extend({
 const googleChatDestinationSchema = baseDataDestinationSchema.extend({
   type: z.literal(DataDestinationType.GOOGLE_CHAT),
   credentials: googleChatCredentialsSchema,
+  // Required for webhook delivery only, checked below: a union member cannot refine itself.
+  reusableCredentialId: z.string().optional(),
 });
 
 // Combined schema with conditional validation based on type
-export const dataDestinationSchema = z.discriminatedUnion('type', [
-  googleSheetsDestinationSchema,
-  lookerStudioDestinationSchema,
-  excelDestinationSchema,
-  emailDestinationSchema,
-  slackDestinationSchema,
-  msTeamsDestinationSchema,
-  googleChatDestinationSchema,
-]);
+export const dataDestinationSchema = z
+  .discriminatedUnion('type', [
+    googleSheetsDestinationSchema,
+    lookerStudioDestinationSchema,
+    excelDestinationSchema,
+    emailDestinationSchema,
+    slackDestinationSchema,
+    msTeamsDestinationSchema,
+    googleChatDestinationSchema,
+  ])
+  .superRefine((data, context) => {
+    const usesCredential =
+      data.type === DataDestinationType.GOOGLE_SHEETS ||
+      (data.type === DataDestinationType.GOOGLE_CHAT &&
+        data.credentials.deliveryMethod === 'webhook');
+    if (usesCredential && !data.reusableCredentialId) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['reusableCredentialId'],
+        message: SELECT_CREDENTIAL,
+      });
+    }
+  });
 
 // Type for the form data
 export type DataDestinationFormData = z.infer<typeof dataDestinationSchema>;

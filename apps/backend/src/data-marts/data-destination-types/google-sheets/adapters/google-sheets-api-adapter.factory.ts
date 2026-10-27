@@ -5,8 +5,16 @@ import {
   GoogleSheetsCredentialsSchema,
 } from '../schemas/google-sheets-credentials.schema';
 import { GoogleOAuthClientService } from '../../../services/google-oauth/google-oauth-client.service';
-import { DataDestinationCredentialsResolver } from '../../data-destination-credentials-resolver.service';
+import {
+  DataDestinationCredentialsResolver,
+  type DestinationAuth,
+} from '../../data-destination-credentials-resolver.service';
 import { DataDestination } from '../../../entities/data-destination.entity';
+
+const DRIVE_SCOPES: ReadonlySet<string> = new Set([
+  'https://www.googleapis.com/auth/drive',
+  'https://www.googleapis.com/auth/drive.file',
+]);
 
 @Injectable()
 export class GoogleSheetsApiAdapterFactory {
@@ -78,16 +86,17 @@ export class GoogleSheetsApiAdapterFactory {
   async createWithDriveScope(
     destination: DataDestination
   ): Promise<{ adapter: GoogleSheetsApiAdapter; driveCapable: boolean } | undefined> {
-    let resolvedCredentials: unknown;
-    try {
-      resolvedCredentials = await this.credentialsResolver.resolve(destination);
-    } catch {
-      this.logger.debug(`No credentials found for destination ${destination.id}, will try OAuth`);
+    const auth = await this.credentialsResolver.resolveAuth(destination);
+    if (auth.kind === 'google-account') {
+      return {
+        adapter: new GoogleSheetsApiAdapter(undefined, auth.client),
+        driveCapable: auth.scopes.some(scope => DRIVE_SCOPES.has(scope)),
+      };
     }
-    const parsed = GoogleSheetsCredentialsSchema.safeParse(resolvedCredentials);
-    if (parsed.success && parsed.data.serviceAccountKey) {
+    const credentials = this.serviceAccount(destination, auth);
+    if (credentials?.serviceAccountKey) {
       const jwt = GoogleSheetsApiAdapter.createServiceAccountClient(
-        parsed.data.serviceAccountKey,
+        credentials.serviceAccountKey,
         GoogleSheetsApiAdapter.SERVICE_ACCOUNT_DRIVE_CREATE_SCOPES
       );
       return { adapter: new GoogleSheetsApiAdapter(undefined, jwt), driveCapable: true };
@@ -99,27 +108,37 @@ export class GoogleSheetsApiAdapterFactory {
     const scopes =
       (destination.credential?.credentials as { scope?: string } | undefined)?.scope?.split(' ') ??
       [];
-    const driveCapable = scopes.some(
-      scope =>
-        scope === 'https://www.googleapis.com/auth/drive' ||
-        scope === 'https://www.googleapis.com/auth/drive.file'
-    );
-    return { adapter, driveCapable };
+    return { adapter, driveCapable: scopes.some(scope => DRIVE_SCOPES.has(scope)) };
   }
 
+  /** `markUsed: false` for checks and report upkeep: only a run counts as a use of the Credential. */
   async createFromDestination(
-    destination: DataDestination
+    destination: DataDestination,
+    { markUsed = true }: { markUsed?: boolean } = {}
   ): Promise<GoogleSheetsApiAdapter | undefined> {
-    let resolvedCredentials: unknown;
-    try {
-      resolvedCredentials = await this.credentialsResolver.resolve(destination);
-    } catch {
+    const auth = await this.credentialsResolver.resolveAuth(destination, { markUsed });
+    if (auth.kind === 'google-account') {
+      return new GoogleSheetsApiAdapter(undefined, auth.client);
+    }
+    const credentials = this.serviceAccount(destination, auth);
+    return credentials
+      ? new GoogleSheetsApiAdapter(credentials)
+      : this.createWithOAuth(undefined, destination.id);
+  }
+
+  /** A bound service account's key, else the old row's; undefined sends an unbound Destination to its own OAuth row. */
+  private serviceAccount(
+    destination: DataDestination,
+    auth: Exclude<DestinationAuth, { kind: 'google-account' }>
+  ): GoogleSheetsCredentials | undefined {
+    if (auth.kind === 'service-account') return auth.credentials;
+    if (auth.kind === 'webhook') {
+      throw new Error(`Destination ${destination.id} is bound to a Credential Sheets cannot use`);
+    }
+    if (!auth.credentials) {
       this.logger.debug(`No credentials found for destination ${destination.id}, will try OAuth`);
     }
-    const parsed = GoogleSheetsCredentialsSchema.safeParse(resolvedCredentials);
-    if (parsed.success) {
-      return new GoogleSheetsApiAdapter(parsed.data);
-    }
-    return this.createWithOAuth(undefined, destination.id);
+    const parsed = GoogleSheetsCredentialsSchema.safeParse(auth.credentials);
+    return parsed.success ? parsed.data : undefined;
   }
 }

@@ -1,36 +1,27 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import type { DestinationPublicCredentials } from '../../data-destination-types/destination-public-credentials';
 import { DataDestinationCredentials } from '../../data-destination-types/data-destination-credentials.type';
 import { DataDestinationType } from '../../data-destination-types/enums/data-destination-type.enum';
 import { UserProjectionDto } from '../../../idp/dto/domain/user-projection.dto';
-import { CredentialIdentity } from '../../entities/credential-identity.type';
 import { ContextSummary } from '../../utils/extract-context-summaries';
 import { ContextSummaryApiDto } from './context-summary-api.dto';
 import { DestinationConfig } from '../../entities/destination-config.type';
+import { DestinationCredentialSummaryApiDto } from './destination-credential-summary-api.dto';
 
-export type DataDestinationCredentialsPublic = {
-  type: 'google-sheets-credentials';
-  serviceAccountKey: {
-    type: 'service_account';
-    project_id: string;
-    client_email: string;
-    client_id: string;
-  };
-};
+export type {
+  GoogleChatCredentialsPublic,
+  GoogleSheetsOAuthCredentialsPublic,
+  GoogleSheetsServiceAccountCredentialsPublic,
+} from '../../data-destination-types/destination-public-credentials';
 
-export type GoogleSheetsOAuthCredentialsPublic = {
-  type: 'google-sheets-oauth-credentials';
-  identity: CredentialIdentity | null;
-};
-
-export type GoogleChatCredentialsPublic = {
-  type: 'google-chat-credentials';
-  configured: true;
-};
-
-type DataDestinationCredentialsWithoutGoogleChat = Exclude<
-  DataDestinationCredentials,
-  { type: 'google-chat-credentials' }
->;
+/** The key of a Destination as clients read it, never a secret; empty for a plugin or a missing key. */
+export type DestinationResponseCredentials =
+  | Extract<
+      DataDestinationCredentials,
+      { type: 'email-credentials' } | { type: 'looker-studio-credentials' }
+    >
+  | DestinationPublicCredentials
+  | Record<string, never>;
 
 export class DataDestinationResponseApiDto {
   @ApiProperty({ example: 'abc123e4-5678-90ab-cdef-1234567890ab' })
@@ -45,16 +36,13 @@ export class DataDestinationResponseApiDto {
   @ApiProperty({ example: 'my-project' })
   projectId!: string;
 
-  @ApiProperty({
+  @ApiPropertyOptional({
     type: 'object',
     additionalProperties: true,
-    description: 'Credentials without sensitive fields',
+    description:
+      'Credentials without sensitive fields; empty for a plugin or when the Destination has no key. Google Sheets and Google Chat webhook Destinations show only the account or that a webhook is configured.',
   })
-  credentials!:
-    | DataDestinationCredentialsWithoutGoogleChat
-    | DataDestinationCredentialsPublic
-    | GoogleSheetsOAuthCredentialsPublic
-    | GoogleChatCredentialsPublic;
+  credentials?: DestinationResponseCredentials;
 
   @ApiProperty({ example: '2024-01-01T12:00:00.000Z' })
   createdAt!: Date;
@@ -62,8 +50,23 @@ export class DataDestinationResponseApiDto {
   @ApiProperty({ example: '2024-01-02T15:30:00.000Z' })
   modifiedAt!: Date;
 
-  @ApiProperty({ example: 'abc123e4-5678-90ab-cdef-1234567890ab', nullable: true, required: false })
+  @ApiProperty({
+    example: 'abc123e4-5678-90ab-cdef-1234567890ab',
+    nullable: true,
+    required: false,
+    description:
+      'The id of the credentials above. Absent for Google Sheets and Google Chat webhook delivery.',
+  })
   credentialId?: string | null;
+
+  @ApiProperty({
+    type: DestinationCredentialSummaryApiDto,
+    nullable: true,
+    required: false,
+    description:
+      'The Credential a Google Sheets or Google Chat webhook Destination uses, as the member sees it; pending while it runs on its own key; null when it has neither. Absent for other types, Google Chat email delivery, plugins, and where a Destination is embedded in another resource.',
+  })
+  reusableCredential?: DestinationCredentialSummaryApiDto | null;
 
   @ApiProperty({ type: UserProjectionDto, required: false, nullable: true })
   createdByUser?: UserProjectionDto | null;

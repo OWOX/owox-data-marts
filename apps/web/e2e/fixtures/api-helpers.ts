@@ -242,10 +242,9 @@ export class ApiHelpers {
 
   /**
    * Returns the credential payload required by the backend for the given
-   * destination type. EMAIL and MS_TEAMS use email credentials;
-   * GOOGLE_CHAT uses a syntactically valid test webhook (creation does not
-   * call it); LOOKER_STUDIO has its own; GOOGLE_SHEETS requires
-   * OAuth/service-account and is left undefined here.
+   * destination type. EMAIL, MS_TEAMS and GOOGLE_CHAT use email credentials
+   * (a Chat webhook is a Credential, created separately); LOOKER_STUDIO has its
+   * own; GOOGLE_SHEETS requires a Credential and is left undefined here.
    */
   private getCredentialsForType(type: string): Record<string, unknown> | undefined {
     switch (type) {
@@ -256,11 +255,7 @@ export class ApiHelpers {
       case 'MS_TEAMS':
         return { type: 'email-credentials', to: ['test-teams@example.com'] };
       case 'GOOGLE_CHAT':
-        return {
-          type: 'google-chat-credentials',
-          webhookUrl:
-            'https://chat.googleapis.com/v1/spaces/e2e-space/messages?key=e2e-key&token=e2e-token',
-        };
+        return { type: 'email-credentials', to: ['test-chat@example.com'] };
       default:
         return undefined;
     }

@@ -23,8 +23,10 @@ import {
   CredentialDefinitionSource,
   CredentialPublicMetadata,
   CredentialValidationState,
+  type GoogleOAuthClientKey,
 } from '../credential.types';
 import type { UserProjectionDto } from '../../../idp/dto/domain/user-projection.dto';
+import { DataDestinationType } from '../../data-destination-types/enums/data-destination-type.enum';
 import { DataStorageType } from '../../data-storage-types/enums/data-storage-type.enum';
 import type { ContextSummary } from '../../utils/extract-context-summaries';
 import { ContextSummaryApiDto } from '../../dto/presentation/context-summary-api.dto';
@@ -193,6 +195,12 @@ export class UpdateCredentialApiDto {
 export class GoogleOAuthCredentialSettingsApiDto {
   @ApiProperty({ description: 'Whether this deployment can connect Google accounts.' })
   available: boolean;
+  @ApiProperty({
+    description: 'Whether each OAuth client is configured; a definition names the one it uses.',
+    type: 'object',
+    properties: { storage: { type: 'boolean' }, destination: { type: 'boolean' } },
+  })
+  clients: { storage: boolean; destination: boolean };
 }
 
 export class AuthorizeGoogleOAuthCredentialApiDto extends GenerateAuthorizationUrlRequestDto {
@@ -249,7 +257,7 @@ export class ConnectGoogleOAuthCredentialApiDto extends ExchangeAuthorizationCod
 export type CredentialDefinitionAuthApiDto =
   | { type: 'header' | 'google-service-account' }
   | { type: 'fields'; fields: CredentialFieldDefinition[] }
-  | { type: 'oauth'; provider: 'google'; label: string };
+  | { type: 'oauth'; provider: 'google'; client: GoogleOAuthClientKey; label: string };
 
 export class CredentialDefinitionApiDto {
   @ApiProperty() id: string;
@@ -270,6 +278,9 @@ export class CredentialDefinitionApiDto {
   /** The Storage types this definition fits; empty for a definition no Storage takes. */
   @ApiProperty({ enum: DataStorageType, isArray: true })
   storageTypes: DataStorageType[];
+  /** The Destination types this definition fits; empty for a definition no Destination takes. */
+  @ApiProperty({ enum: DataDestinationType, isArray: true })
+  destinationTypes: DataDestinationType[];
   @ApiProperty({
     type: 'object',
     properties: {
@@ -292,6 +303,7 @@ export class CredentialDefinitionApiDto {
         },
       },
       provider: { type: 'string', enum: ['google'] },
+      client: { type: 'string', enum: ['storage', 'destination'] },
       label: { type: 'string' },
     },
   })

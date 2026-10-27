@@ -7,163 +7,73 @@ import {
   FormLabel,
   FormMessage,
 } from '@owox/ui/components/form';
-import { FileDropTextarea } from '@owox/ui/components/file-drop-textarea';
 import { Input } from '@owox/ui/components/input';
 import { toast } from 'react-hot-toast';
-import { useState, useEffect } from 'react';
-import { useFormState, type UseFormReturn } from 'react-hook-form';
-import { type DataDestinationFormData, DataDestinationType } from '../../../shared';
-import GoogleSheetsServiceAccountDescription from './FormDescriptions/GoogleSheetsServiceAccountDescription';
-import GoogleSheetsOAuthDescription from './FormDescriptions/GoogleSheetsOAuthDescription';
-import GoogleSheetsAuthMethodDescription from './FormDescriptions/GoogleSheetsAuthMethodDescription';
-import { CopyableField } from '@owox/ui/components/common/copyable-field';
-import { FieldWithActions } from '@owox/ui/components/common/field-with-actions';
+import { useState, useEffect, type ReactNode } from 'react';
+import { type UseFormReturn } from 'react-hook-form';
+import { type DataDestinationFormData, type DestinationCredentialSummary } from '../../../shared';
 import { ExternalAnchor } from '@owox/ui/components/common/external-anchor';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
-import { getServiceAccountLink } from '../../../../../utils';
 import { ExternalLink } from 'lucide-react';
 import {
   isValidGoogleDriveFolderUrl,
   buildDriveFolderUrl,
 } from '../../../shared/utils/drive-folder-url.utils';
 import { useGoogleDrivePicker } from '../../../shared/hooks/useGoogleDrivePicker';
-import { GoogleOAuthConnectButton, destinationOAuthApi } from '../../../../google-oauth';
-import { Tabs, TabsList, TabsTrigger } from '@owox/ui/components/tabs';
 import { AuthenticationSectionHeader } from '../../../../../shared/components/AuthenticationSectionHeader';
-import { CopyDestinationCredentialsButton } from '../CopyDestinationCredentialsButton';
-import { useCopyCredentialContext } from '../../model/context/useCopyCredentialContext';
+import { destinationOAuthApi } from '../../../../google-oauth';
+import { useCredentials, type Credential } from '../../../../credentials';
 
 interface GoogleSheetsFieldsProps {
   form: UseFormReturn<DataDestinationFormData>;
+  /** The form's Credential field. */
+  credentialField: ReactNode;
+  /** The Credential the Destination is bound to, as the member sees it. */
+  summary: DestinationCredentialSummary | null;
+  /** A Credential just created from the field, until the refetched list holds it. */
+  created?: Credential | null;
 }
 
-export function GoogleSheetsFields({ form }: GoogleSheetsFieldsProps) {
-  const {
-    entityId: destinationId,
-    onSourceSelect: onSourceDestinationSelect,
-    selectedSource,
-    onSourceClear,
-  } = useCopyCredentialContext();
-  const [isEditing, setIsEditing] = useState(false);
-  const [isOAuthAvailable, setIsOAuthAvailable] = useState<boolean | null>(null);
-  const [oauthRedirectUri, setOauthRedirectUri] = useState<string | undefined>(undefined);
-  const [authMethod, setAuthMethod] = useState<'oauth' | 'service-account'>(() => {
-    const sa = form.getValues('credentials.serviceAccount');
-    return sa?.trim() ? 'service-account' : 'oauth';
-  });
-  const [stashedServiceAccount, setStashedServiceAccount] = useState<string | undefined>(undefined);
-  const [stashedCredentialId, setStashedCredentialId] = useState<string | null | undefined>(
-    undefined
-  );
-  const [oauthEmail, setOauthEmail] = useState<string | null>(null);
+export function GoogleSheetsFields({
+  form,
+  credentialField,
+  summary,
+  created,
+}: GoogleSheetsFieldsProps) {
   const [oauthClientId, setOauthClientId] = useState<string | undefined>(undefined);
   const [pickerApiKey, setPickerApiKey] = useState<string | undefined>(undefined);
   const [isPickingFolder, setIsPickingFolder] = useState(false);
   const { openPicker } = useGoogleDrivePicker();
+  const { credentials } = useCredentials();
+  // A Credential the member cannot see keeps the folder input the Destination already has.
+  const [hadFolder] = useState(() => Boolean(form.getValues('config.folderUrl')));
 
   useEffect(() => {
     destinationOAuthApi
       .getSettings()
       .then(s => {
-        setIsOAuthAvailable(s.available);
-        setOauthRedirectUri(s.redirectUri);
         setOauthClientId(s.clientId);
         setPickerApiKey(s.pickerApiKey);
-        if (!s.available) {
-          setAuthMethod('service-account');
-        }
       })
-      .catch(() => {
-        setIsOAuthAvailable(false);
-        setAuthMethod('service-account');
-      });
+      .catch(() => undefined);
   }, []);
 
-  const credentialIdValue = form.watch('credentials.credentialId');
-
-  useEffect(() => {
-    const abortController = new AbortController();
-    if (authMethod === 'oauth' && credentialIdValue) {
-      destinationOAuthApi
-        .getCredentialStatus(credentialIdValue, { signal: abortController.signal })
-        .then(status => {
-          setOauthEmail(status.user?.email ?? null);
-        })
-        .catch(() => {
-          setOauthEmail(null);
-        });
-    } else {
-      setOauthEmail(null);
-    }
-    return () => {
-      abortController.abort();
-    };
-  }, [authMethod, credentialIdValue]);
-
-  const handleOAuthStatusChange = (isConnected: boolean, credentialId?: string) => {
-    if (isConnected && credentialId) {
-      setAuthMethod('oauth');
-      form.setValue('credentials.credentialId', credentialId, {
-        shouldDirty: false,
-        shouldValidate: true,
-      });
-      form.setValue('credentials.serviceAccount', '');
-    }
-  };
-
-  const handleEdit = () => {
-    setIsEditing(true);
-    form.setValue('credentials.serviceAccount', '', {
-      shouldDirty: true,
-    });
-  };
-
-  const handleCancel = () => {
-    setIsEditing(false);
-    form.resetField('credentials.serviceAccount');
-  };
-
-  const serviceAccountValue = form.watch('credentials.serviceAccount');
-  const serviceAccountLink = serviceAccountValue
-    ? getServiceAccountLink(serviceAccountValue)
-    : null;
-  // A key the server rejected stays open for correction rather than collapsing into the
-  // saved-key summary, where it could be neither seen, focused nor fixed — and where Edit
-  // would wipe it.
-  const serviceAccountFormState = useFormState({
-    control: form.control,
-    name: 'credentials.serviceAccount',
-  });
-  const serviceAccountInvalid = form.getFieldState(
-    'credentials.serviceAccount',
-    serviceAccountFormState
-  ).invalid;
-  const showServiceAccountSummary = !isEditing && !serviceAccountInvalid && !!serviceAccountLink;
-
-  const handleOAuthSuccess = (credentialId: string) => {
-    form.setValue('credentials.credentialId', credentialId, {
-      shouldDirty: true,
-      shouldValidate: true,
-    });
-    form.setValue('credentials.serviceAccount', '');
-  };
-
-  const handleAuthMethodChange = (value: 'oauth' | 'service-account') => {
-    if (value === 'oauth') {
-      setStashedServiceAccount(form.getValues('credentials.serviceAccount'));
-      form.setValue('credentials.serviceAccount', '');
-      if (stashedCredentialId) {
-        form.setValue('credentials.credentialId', stashedCredentialId);
-      }
-    } else {
-      setStashedCredentialId(form.getValues('credentials.credentialId'));
-      form.setValue('credentials.credentialId', null);
-      if (stashedServiceAccount) {
-        form.setValue('credentials.serviceAccount', stashedServiceAccount);
-      }
-    }
-    setAuthMethod(value);
-  };
+  // The Drive folder follows the provider of the selected Credential.
+  const credentialId = form.watch('reusableCredentialId');
+  const selected =
+    credentials.find(credential => credential.id === credentialId) ??
+    (created?.id === credentialId ? created : undefined);
+  // A Credential the member cannot see, or the Destination's own key, names its provider too.
+  const keepsBinding =
+    summary !== null &&
+    (summary.access === 'visible' ? summary.id === credentialId : !credentialId);
+  const kept = keepsBinding ? summary : null;
+  const definitionId = selected?.definition.id ?? kept?.definitionId;
+  const identity = selected?.identity ?? kept?.identity ?? null;
+  let folderInput: 'url' | 'picker' | null = null;
+  if (definitionId === 'google-service-account') folderInput = 'url';
+  else if (definitionId === 'google-sheets-oauth') folderInput = 'picker';
+  else if (!credentialId && summary && hadFolder) folderInput = 'url';
 
   const folderUrl = form.watch('config.folderUrl');
   const isFolderConfigured = !!folderUrl?.trim() && isValidGoogleDriveFolderUrl(folderUrl.trim());
@@ -177,7 +87,7 @@ export function GoogleSheetsFields({ form }: GoogleSheetsFieldsProps) {
     void openPicker({
       apiKey: pickerApiKey,
       clientId: oauthClientId,
-      hintEmail: oauthEmail ?? undefined,
+      hintEmail: identity ?? undefined,
       onPicked: folder => {
         form.setValue('config.folderUrl', buildDriveFolderUrl(folder.id), {
           shouldDirty: true,
@@ -194,249 +104,116 @@ export function GoogleSheetsFields({ form }: GoogleSheetsFieldsProps) {
 
   return (
     <div className='mb-4 flex flex-col gap-2'>
-      <AuthenticationSectionHeader
-        itemType='destination'
-        copyButton={
-          <CopyDestinationCredentialsButton
-            destinationType={DataDestinationType.GOOGLE_SHEETS}
-            currentDestinationId={destinationId}
-            onSelect={onSourceDestinationSelect}
-          />
-        }
-        selectedSource={selectedSource}
-        onSourceClear={onSourceClear}
-      />
-      {!selectedSource && (
-        <div className='space-y-4'>
-          {isOAuthAvailable && (
-            <FormItem>
-              <div className='flex items-center justify-between'>
-                <FormLabel>Authentication Method</FormLabel>
-                <Tabs
-                  value={authMethod}
-                  onValueChange={v => {
-                    handleAuthMethodChange(v as 'oauth' | 'service-account');
-                  }}
-                >
-                  <TabsList>
-                    <TabsTrigger value='oauth'>Connect with Google</TabsTrigger>
-                    <TabsTrigger value='service-account'>Service Account JSON</TabsTrigger>
-                  </TabsList>
-                </Tabs>
-              </div>
-              <FormDescription>
-                <GoogleSheetsAuthMethodDescription />
-              </FormDescription>
-            </FormItem>
-          )}
+      <AuthenticationSectionHeader />
+      <div className='space-y-4'>
+        {credentialField}
 
-          {isOAuthAvailable && authMethod === 'oauth' && (
-            <FormField
-              control={form.control}
-              name='credentials.credentialId'
-              render={() => (
-                <FormItem>
-                  <div className='mb-4 flex items-center justify-between'>
-                    <FormLabel tooltip='Authorize OWOX to access your Google Sheets'>
-                      Connect with Google OAuth
-                    </FormLabel>
-                  </div>
-                  <GoogleOAuthConnectButton
-                    resourceId={destinationId}
-                    credentialId={credentialIdValue ?? undefined}
-                    redirectUri={oauthRedirectUri}
-                    onSuccess={handleOAuthSuccess}
-                    onStatusChange={handleOAuthStatusChange}
-                  />
-                  {oauthEmail && (
-                    <div className='mt-2 flex flex-col gap-1'>
-                      <FormLabel>Authenticated email</FormLabel>
-                      <CopyableField value={oauthEmail}>{oauthEmail}</CopyableField>
-                    </div>
-                  )}
-                  <FormDescription>
-                    <GoogleSheetsOAuthDescription />
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
+        {folderInput === 'picker' && canPickFolder && (
+          <FormItem>
+            <FormLabel tooltip='New documents created from chat or reports are placed in this Drive folder'>
+              Drive folder for auto-created documents (optional)
+            </FormLabel>
+            <div className='flex items-center gap-2'>
+              <Button
+                type='button'
+                variant='outline'
+                onClick={handlePickFolder}
+                disabled={isPickingFolder}
+              >
+                {isFolderConfigured ? 'Change folder' : 'Choose folder'}
+              </Button>
+              {isFolderConfigured && folderUrl && (
+                <ExternalAnchor href={folderUrl.trim()} variant='field' className='flex-1 truncate'>
+                  {folderUrl.trim()}
+                </ExternalAnchor>
               )}
-            />
-          )}
-
-          {isOAuthAvailable && authMethod === 'oauth' && credentialIdValue && canPickFolder && (
-            <FormItem>
-              <FormLabel tooltip='New documents created from chat or reports are placed in this Drive folder'>
-                Drive folder for auto-created documents (optional)
-              </FormLabel>
-              <div className='flex items-center gap-2'>
+              {isFolderConfigured && (
                 <Button
                   type='button'
-                  variant='outline'
-                  onClick={handlePickFolder}
-                  disabled={isPickingFolder}
+                  variant='ghost'
+                  size='sm'
+                  onClick={() => {
+                    form.setValue('config.folderUrl', '', {
+                      shouldDirty: true,
+                      shouldValidate: true,
+                    });
+                  }}
                 >
-                  {isFolderConfigured ? 'Change folder' : 'Choose folder'}
+                  Clear
                 </Button>
-                {isFolderConfigured && folderUrl && (
-                  <ExternalAnchor
-                    href={folderUrl.trim()}
-                    variant='field'
-                    className='flex-1 truncate'
-                  >
-                    {folderUrl.trim()}
-                  </ExternalAnchor>
-                )}
-                {isFolderConfigured && (
-                  <Button
-                    type='button'
-                    variant='ghost'
-                    size='sm'
-                    onClick={() => {
-                      form.setValue('config.folderUrl', '', {
-                        shouldDirty: true,
-                        shouldValidate: true,
-                      });
-                    }}
-                  >
-                    Clear
-                  </Button>
-                )}
-              </div>
-              <FormDescription>
-                New documents created with “Create document” are placed in this Google Drive folder.
-                Leave empty to create them in your Drive root.
-              </FormDescription>
-            </FormItem>
-          )}
+              )}
+            </div>
+            <FormDescription>
+              New documents created with “Create document” are placed in this Google Drive folder.
+              Leave empty to create them in your Drive root.
+            </FormDescription>
+          </FormItem>
+        )}
 
-          {authMethod === 'service-account' && (
-            <FormField
-              control={form.control}
-              name='credentials.serviceAccount'
-              render={({ field }) => (
+        {folderInput === 'url' && (
+          <FormField
+            control={form.control}
+            name='config.folderUrl'
+            render={({ field }) => {
+              const folderUrl = (field.value ?? '').trim();
+              const isValidFolderUrl = !!folderUrl && isValidGoogleDriveFolderUrl(folderUrl);
+              return (
                 <FormItem>
-                  <div className='flex items-center justify-between'>
-                    <FormLabel tooltip='Paste a JSON key from a service account that has access to the selected destination provider'>
-                      Service Account
-                    </FormLabel>
-                    {!isEditing && !serviceAccountInvalid && serviceAccountValue && (
-                      <Button variant='ghost' size='sm' onClick={handleEdit} type='button'>
-                        Edit
-                      </Button>
-                    )}
-                    {(isEditing || (serviceAccountInvalid && serviceAccountLink)) && (
-                      <Button variant='ghost' size='sm' onClick={handleCancel} type='button'>
-                        Cancel
-                      </Button>
-                    )}
-                  </div>
-                  <FormControl>
-                    {showServiceAccountSummary ? (
-                      <FieldWithActions
-                        value={serviceAccountLink.email}
-                        actions={[
-                          { type: 'copy', tooltip: 'Copy email' },
-                          {
-                            type: 'external-link',
-                            href: serviceAccountLink.url,
-                            tooltip: 'Open details',
-                          },
-                        ]}
-                      />
-                    ) : (
-                      <FileDropTextarea
+                  <FormLabel tooltip='New documents created from chat or reports are placed in this Shared Drive folder'>
+                    Drive folder for auto-created documents (required)
+                  </FormLabel>
+                  <div className='flex items-center gap-2'>
+                    {/* On the input itself, so a rejected folder marks and focuses the input
+                      and the label points at it — not at the row around it. */}
+                    <FormControl>
+                      <Input
+                        placeholder='https://drive.google.com/drive/folders/…'
+                        className='flex-1'
                         {...field}
-                        className='min-h-[150px] font-mono'
-                        rows={8}
-                        placeholder='Paste your service account JSON here or drag & drop the file'
-                        onFileRead={content => {
-                          form.setValue('credentials.serviceAccount', content, {
-                            shouldDirty: true,
-                            shouldValidate: true,
-                          });
-                        }}
-                        onFileReject={error => {
-                          toast.error(error);
-                        }}
+                        value={field.value ?? ''}
                       />
-                    )}
-                  </FormControl>
+                    </FormControl>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button
+                          type='button'
+                          className={`flex-shrink-0 rounded-md p-2 transition-all duration-200 ${
+                            isValidFolderUrl
+                              ? 'text-blue-600 hover:bg-blue-50 hover:text-blue-700 dark:text-blue-400 dark:hover:bg-blue-950/20 dark:hover:text-blue-300'
+                              : 'text-muted-foreground/30 cursor-not-allowed'
+                          }`}
+                          onClick={() => {
+                            if (isValidFolderUrl) {
+                              window.open(folderUrl, '_blank', 'noopener,noreferrer');
+                            }
+                          }}
+                          disabled={!isValidFolderUrl}
+                          aria-label={
+                            isValidFolderUrl ? 'Open folder in new tab' : 'Folder link is not valid'
+                          }
+                        >
+                          <ExternalLink className='h-4 w-4' aria-hidden='true' />
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent side='top' align='center' role='tooltip'>
+                        {isValidFolderUrl
+                          ? 'Open folder in new tab'
+                          : 'Paste a valid Drive folder URL to enable link'}
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
                   <FormDescription>
-                    <GoogleSheetsServiceAccountDescription />
+                    Paste a Google Drive folder URL. New documents created with “Create document”
+                    are placed here. A Shared Drive folder is required — add the service account
+                    email of the Credential as a member with the Content Manager role.
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
-              )}
-            />
-          )}
-
-          {authMethod === 'service-account' && (
-            <FormField
-              control={form.control}
-              name='config.folderUrl'
-              render={({ field }) => {
-                const folderUrl = (field.value ?? '').trim();
-                const isValidFolderUrl = !!folderUrl && isValidGoogleDriveFolderUrl(folderUrl);
-                return (
-                  <FormItem>
-                    <FormLabel tooltip='New documents created from chat or reports are placed in this Shared Drive folder'>
-                      Drive folder for auto-created documents (required)
-                    </FormLabel>
-                    <div className='flex items-center gap-2'>
-                      {/* On the input itself, so a rejected folder marks and focuses the input
-                          and the label points at it — not at the row around it. */}
-                      <FormControl>
-                        <Input
-                          placeholder='https://drive.google.com/drive/folders/…'
-                          className='flex-1'
-                          {...field}
-                          value={field.value ?? ''}
-                        />
-                      </FormControl>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <button
-                            type='button'
-                            className={`flex-shrink-0 rounded-md p-2 transition-all duration-200 ${
-                              isValidFolderUrl
-                                ? 'text-blue-600 hover:bg-blue-50 hover:text-blue-700 dark:text-blue-400 dark:hover:bg-blue-950/20 dark:hover:text-blue-300'
-                                : 'text-muted-foreground/30 cursor-not-allowed'
-                            }`}
-                            onClick={() => {
-                              if (isValidFolderUrl) {
-                                window.open(folderUrl, '_blank', 'noopener,noreferrer');
-                              }
-                            }}
-                            disabled={!isValidFolderUrl}
-                            aria-label={
-                              isValidFolderUrl
-                                ? 'Open folder in new tab'
-                                : 'Folder link is not valid'
-                            }
-                          >
-                            <ExternalLink className='h-4 w-4' aria-hidden='true' />
-                          </button>
-                        </TooltipTrigger>
-                        <TooltipContent side='top' align='center' role='tooltip'>
-                          {isValidFolderUrl
-                            ? 'Open folder in new tab'
-                            : 'Paste a valid Drive folder URL to enable link'}
-                        </TooltipContent>
-                      </Tooltip>
-                    </div>
-                    <FormDescription>
-                      Paste a Google Drive folder URL. New documents created with “Create document”
-                      are placed here. A Shared Drive folder is required — add the service account
-                      email above as a member with the Content Manager role.
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                );
-              }}
-            />
-          )}
-        </div>
-      )}
+              );
+            }}
+          />
+        )}
+      </div>
     </div>
   );
 }

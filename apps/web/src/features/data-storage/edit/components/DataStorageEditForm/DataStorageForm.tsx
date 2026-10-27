@@ -28,8 +28,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@owox/ui/components/select';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useForm } from 'react-hook-form';
+import { useEffect, useState } from 'react';
 import { OwnersSection } from '../../../../../shared/components/OwnersSection/OwnersSection';
 import { ContextPicker } from '../../../../../features/contexts/components/ContextPicker/ContextPicker';
 import { AddContextSheet } from '../../../../../features/contexts/components/AddContextSheet/AddContextSheet';
@@ -51,6 +50,7 @@ import { trackEvent } from '../../../../../utils/data-layer';
 import { toDataStorageFormField } from '../../model/data-storage-server-errors';
 import {
   type DataStorageFormData,
+  type StorageCredentialSummary,
   type GoogleBigQueryFormData,
   type LegacyGoogleBigQueryFormData,
   DataStorageHealthIndicator,
@@ -73,7 +73,7 @@ import { GoogleBigQueryFields } from './GoogleBigQueryFields';
 import { LegacyGoogleBigQueryFields } from './LegacyGoogleBigQueryFields';
 import { RedshiftFields } from './RedshiftFields';
 import { SnowflakeFields } from './SnowflakeFields';
-import { StorageCredentialField } from './StorageCredentialField';
+import { ConsumerCredentialField, useCredentialFormBinding } from '../../../../credentials';
 
 interface DataStorageFormProps {
   initialData?: DataStorage;
@@ -88,27 +88,19 @@ export function DataStorageForm({
   onCancel,
   onDirtyChange,
 }: DataStorageFormProps) {
-  // Fixed at mount, like the form's default values it is compared with.
-  const [initialCredential] = useState(() => initialData?.reusableCredential ?? null);
-  const initialCredentialId = initialCredential?.access === 'visible' ? initialCredential.id : null;
-  // A Storage still on its own key counts as bound: it keeps that key until the member picks one.
-  const hasBinding = initialCredential !== null;
-  const resolver = useMemo(() => createDataStorageFormResolver(hasBinding), [hasBinding]);
-  const form = useForm<DataStorageFormData>({
-    resolver,
-    defaultValues: { ...initialData, reusableCredentialId: initialCredentialId ?? '' },
-  });
-  const credentialSourceRef = useRef<'existing' | 'created' | 'auto'>('existing');
-  const handleCredentialChange = useCallback(
-    (id: string, source: 'existing' | 'created' | 'auto') => {
-      credentialSourceRef.current = source;
-      // A preselected Credential alone does not make the form dirty.
-      form.setValue('reusableCredentialId', id, {
-        shouldDirty: source !== 'auto',
-        shouldValidate: true,
-      });
-    },
-    [form]
+  const {
+    form,
+    initialCredential,
+    initialCredentialId,
+    hasBinding,
+    credentialSourceRef,
+    handleCredentialChange,
+  } = useCredentialFormBinding<DataStorageFormData, StorageCredentialSummary>(
+    initialData?.reusableCredential,
+    ({ hasBinding, initialCredentialId }) => ({
+      resolver: createDataStorageFormResolver(hasBinding),
+      defaultValues: { ...initialData, reusableCredentialId: initialCredentialId ?? '' },
+    })
   );
 
   const currentUser = useUser();
@@ -356,8 +348,9 @@ export function DataStorageForm({
                     Credential
                   </FormLabel>
                   <FormControl>
-                    <StorageCredentialField
-                      storageType={selectedType}
+                    <ConsumerCredentialField
+                      consumer='storage'
+                      consumerType={selectedType}
                       isNew={!hasBinding}
                       value={field.value || null}
                       summary={initialCredential}

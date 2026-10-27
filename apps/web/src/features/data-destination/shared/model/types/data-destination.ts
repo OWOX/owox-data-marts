@@ -1,11 +1,18 @@
 import { DataDestinationType } from '../../enums';
-import type { CredentialIdentity, UserProjection } from '../../../../../shared/types';
+import type { UserProjection } from '../../../../../shared/types';
+import type { CredentialSummary } from '../../../../credentials/types';
 import type { DataDestinationCredentials } from './credentials.ts';
 import type { EmailCredentials } from './email-credentials.ts';
 import type { LookerStudioCredentials } from './looker-studio-credentials.ts';
 import type { GoogleChatCredentials } from './google-chat-credentials.ts';
 import type { ExcelCredentials } from './excel-credentials.ts';
 import type { ContextSummary } from '../../../../contexts/types/context.types';
+
+/** A restricted or pending Google Sheets summary also names the address to share a sheet with and its provider. */
+export type DestinationCredentialSummary = CredentialSummary & {
+  identity?: string | null;
+  definitionId?: string;
+};
 
 export interface BaseDataDestination<T extends DataDestinationCredentials> {
   id: string;
@@ -20,21 +27,16 @@ export interface BaseDataDestination<T extends DataDestinationCredentials> {
   availableForUse?: boolean;
   availableForMaintenance?: boolean;
   contexts?: ContextSummary[];
+  /** Google Sheets and Chat webhook only; null when there is neither a Credential nor a key. */
+  reusableCredential?: DestinationCredentialSummary | null;
 }
 
-export interface GoogleSheetsCredentials {
-  serviceAccountKey: string;
-}
+/** The key is a Credential now; the Destination holds none. */
+export type GoogleSheetsCredentials = Record<string, never>;
 
-export interface GoogleSheetsOAuthCredentials {
-  serviceAccount?: string;
-  credentialId?: string | null;
-  identity?: CredentialIdentity | null;
-}
-
-export interface GoogleSheetsDataDestination extends BaseDataDestination<GoogleSheetsOAuthCredentials> {
+export interface GoogleSheetsDataDestination extends BaseDataDestination<GoogleSheetsCredentials> {
   type: DataDestinationType.GOOGLE_SHEETS;
-  credentials: GoogleSheetsOAuthCredentials;
+  credentials: GoogleSheetsCredentials;
   /** Optional destination-level config: Drive folder (URL + derived id) for auto-created Sheets. */
   config?: { folderId?: string; folderUrl?: string };
 }

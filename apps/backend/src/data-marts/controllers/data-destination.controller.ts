@@ -25,7 +25,6 @@ import { ListDataDestinationsByTypeService } from '../use-cases/list-data-destin
 import { ResolveExcelDestinationService } from '../use-cases/resolve-excel-destination.service';
 import { ResolveExcelDestinationCommand } from '../dto/domain/resolve-excel-destination.command';
 import { DataDestinationByTypeResponseApiDto } from '../dto/presentation/data-destination-by-type-response-api.dto';
-import { ListDataDestinationsByTypeCommand } from '../dto/domain/list-data-destinations-by-type.command';
 import { DataDestinationType } from '../data-destination-types/enums/data-destination-type.enum';
 import {
   Auth,
@@ -35,11 +34,6 @@ import {
   RejectPluginAuth,
 } from '../../idp';
 import { Role, Strategy } from '../../idp/types/role-config.types';
-import { GenerateAuthorizationUrlRequestDto } from '../dto/presentation/google-oauth/generate-authorization-url-request.dto';
-import { GenerateAuthorizationUrlResponseDto } from '../dto/presentation/google-oauth/generate-authorization-url-response.dto';
-import { ExchangeAuthorizationCodeRequestDto } from '../dto/presentation/google-oauth/exchange-authorization-code-request.dto';
-import { ExchangeAuthorizationCodeResponseDto } from '../dto/presentation/google-oauth/exchange-authorization-code-response.dto';
-import { GoogleOAuthStatusResponseDto } from '../dto/presentation/google-oauth/google-oauth-status-response.dto';
 import { GoogleOAuthSettingsResponseDto } from '../dto/presentation/google-oauth/oauth-settings-response.dto';
 
 import {
@@ -54,11 +48,6 @@ import {
   RotateSecretKeySpec,
   UpdateDataDestinationSpec,
   OAuthSettingsSpec,
-  OAuthAuthorizeSpec,
-  OAuthExchangeSpec,
-  OAuthCredentialStatusSpec,
-  OAuthStatusSpec,
-  OAuthRevokeSpec,
   UpdateDataDestinationAvailabilitySpec,
   CreateGoogleSheetDocumentSpec,
 } from './spec/data-destination.api';
@@ -68,11 +57,6 @@ import { GetDataDestinationImpactService } from '../use-cases/get-data-destinati
 import { DataDestinationImpactResponseApiDto } from '../dto/presentation/data-destination-impact-response-api.dto';
 import { RotateSecretKeyService } from '../use-cases/rotate-secret-key.service';
 import { GoogleOAuthFlowService } from '../services/google-oauth/google-oauth-flow.service';
-import { GetDestinationOAuthStatusService } from '../use-cases/google-oauth/get-destination-oauth-status.service';
-import { GetDestinationOAuthCredentialStatusService } from '../use-cases/google-oauth/get-destination-oauth-credential-status.service';
-import { GenerateDestinationOAuthUrlService } from '../use-cases/google-oauth/generate-destination-oauth-url.service';
-import { RevokeDestinationOAuthService } from '../use-cases/google-oauth/revoke-destination-oauth.service';
-import { ExchangeOAuthCodeService } from '../use-cases/google-oauth/exchange-oauth-code.service';
 import { UpdateAvailabilityService } from '../use-cases/update-availability.service';
 import { UpdateDestinationAvailabilityApiDto } from '../dto/presentation/update-availability-api.dto';
 import { AccessDecisionService, EntityType, Action } from '../services/access-decision';
@@ -94,11 +78,6 @@ export class DataDestinationController {
     private readonly rotateSecretKeyService: RotateSecretKeyService,
     private readonly mapper: DataDestinationMapper,
     private readonly googleOAuthFlowService: GoogleOAuthFlowService,
-    private readonly getOAuthStatusService: GetDestinationOAuthStatusService,
-    private readonly getOAuthCredentialStatusService: GetDestinationOAuthCredentialStatusService,
-    private readonly generateOAuthUrlService: GenerateDestinationOAuthUrlService,
-    private readonly revokeOAuthService: RevokeDestinationOAuthService,
-    private readonly exchangeOAuthCodeService: ExchangeOAuthCodeService,
     private readonly listByTypeService: ListDataDestinationsByTypeService,
     private readonly resolveExcelService: ResolveExcelDestinationService,
     private readonly updateAvailabilityService: UpdateAvailabilityService,
@@ -174,7 +153,7 @@ export class DataDestinationController {
     @AuthContext() context: AuthorizationContext,
     @Param('type', new ParseEnumPipe(DataDestinationType)) type: DataDestinationType
   ): Promise<DataDestinationByTypeResponseApiDto[]> {
-    const command = new ListDataDestinationsByTypeCommand(context.projectId, type);
+    const command = this.mapper.toByTypeCommand(context, type);
     const items = await this.listByTypeService.run(command);
     return this.mapper.toByTypeResponse(items);
   }
@@ -205,7 +184,7 @@ export class DataDestinationController {
     return await this.mapper.toResponseList(dataDestinationsDto);
   }
 
-  // --- OAuth endpoints (must be declared before parameterized :id routes) ---
+  // --- Declared before the parameterized :id routes ---
 
   @Auth(Role.viewer())
   @RejectApiKeyAuth()
@@ -214,47 +193,6 @@ export class DataDestinationController {
   @OAuthSettingsSpec()
   async getOAuthSettings(): Promise<GoogleOAuthSettingsResponseDto> {
     return this.googleOAuthFlowService.getSettingsForType('destination');
-  }
-
-  @Auth(Role.viewer())
-  @RejectApiKeyAuth()
-  @RejectPluginAuth()
-  @Get('oauth/credential-status/:credentialId')
-  @OAuthCredentialStatusSpec()
-  async getOAuthCredentialStatus(
-    @AuthContext() context: AuthorizationContext,
-    @Param('credentialId') credentialId: string
-  ): Promise<GoogleOAuthStatusResponseDto> {
-    const command = this.mapper.toGetOAuthCredentialStatusCommand(credentialId, context);
-    return this.getOAuthCredentialStatusService.run(command);
-  }
-
-  @Auth(Role.viewer())
-  @RejectApiKeyAuth()
-  @RejectPluginAuth()
-  @Post('oauth/authorize')
-  @HttpCode(200)
-  @OAuthAuthorizeSpec()
-  async generateOAuthAuthorizationUrlStandalone(
-    @AuthContext() context: AuthorizationContext,
-    @Body() body: GenerateAuthorizationUrlRequestDto
-  ): Promise<GenerateAuthorizationUrlResponseDto> {
-    const command = this.mapper.toGenerateOAuthUrlCommand(context, body);
-    return this.generateOAuthUrlService.run(command);
-  }
-
-  @Auth(Role.viewer())
-  @RejectApiKeyAuth()
-  @RejectPluginAuth()
-  @Post('oauth/exchange')
-  @HttpCode(200)
-  @OAuthExchangeSpec()
-  async exchangeOAuthCode(
-    @AuthContext() context: AuthorizationContext,
-    @Body() body: ExchangeAuthorizationCodeRequestDto
-  ): Promise<ExchangeAuthorizationCodeResponseDto> {
-    const command = this.mapper.toExchangeOAuthCodeCommand(context, body);
-    return this.exchangeOAuthCodeService.run(command);
   }
 
   // --- Parameterized :id routes ---
@@ -312,51 +250,6 @@ export class DataDestinationController {
     const command = this.mapper.toRotateSecretKeyCommand(id, context);
     const dataDestinationDto = await this.rotateSecretKeyService.run(command);
     return await this.mapper.toApiResponse(dataDestinationDto);
-  }
-
-  @Auth(Role.viewer())
-  @RejectApiKeyAuth()
-  @RejectPluginAuth()
-  @Post(':id/oauth/authorize')
-  @HttpCode(200)
-  @OAuthAuthorizeSpec(true)
-  async generateOAuthAuthorizationUrl(
-    @AuthContext() context: AuthorizationContext,
-    @Param('id') id: string,
-    @Body() body: GenerateAuthorizationUrlRequestDto
-  ): Promise<GenerateAuthorizationUrlResponseDto> {
-    await this.checkDestinationAccess(id, context, Action.EDIT);
-    const command = this.mapper.toGenerateOAuthUrlCommand(context, body, id);
-    return this.generateOAuthUrlService.run(command);
-  }
-
-  @Auth(Role.viewer())
-  @RejectApiKeyAuth()
-  @RejectPluginAuth()
-  @Get(':id/oauth/status')
-  @OAuthStatusSpec()
-  async getOAuthStatus(
-    @AuthContext() context: AuthorizationContext,
-    @Param('id') id: string
-  ): Promise<GoogleOAuthStatusResponseDto> {
-    await this.checkDestinationAccess(id, context, Action.SEE);
-    const command = this.mapper.toGetOAuthStatusCommand(id, context);
-    return this.getOAuthStatusService.run(command);
-  }
-
-  @Auth(Role.viewer())
-  @RejectApiKeyAuth()
-  @RejectPluginAuth()
-  @Delete(':id/oauth')
-  @HttpCode(204)
-  @OAuthRevokeSpec()
-  async revokeOAuth(
-    @AuthContext() context: AuthorizationContext,
-    @Param('id') id: string
-  ): Promise<void> {
-    await this.checkDestinationAccess(id, context, Action.EDIT);
-    const command = this.mapper.toRevokeOAuthCommand(id, context);
-    await this.revokeOAuthService.run(command);
   }
 
   @Auth(Role.viewer(Strategy.INTROSPECT))

@@ -1,39 +1,10 @@
 import { ApiService } from '../../../services';
-import type { AxiosRequestConfig } from 'axios';
 
 export interface OAuthSettings {
   available: boolean;
-  authorizationEndpoint?: string;
   clientId?: string;
-  redirectUri?: string;
-  availableScopes?: string[];
   /** Drive Picker API key (destination only) — enables the folder picker. */
   pickerApiKey?: string;
-}
-
-export interface OAuthAuthorizationUrl {
-  authorizationUrl: string;
-  state: string;
-}
-
-export interface OAuthExchangeResult {
-  credentialId: string;
-  user: {
-    id: string;
-    email: string;
-    name?: string;
-    picture?: string;
-  };
-}
-
-export interface OAuthStatus {
-  isValid: boolean;
-  credentialId?: string;
-  user?: {
-    email: string;
-    name?: string;
-    picture?: string;
-  };
 }
 
 class DestinationOAuthApiService extends ApiService {
@@ -43,26 +14,6 @@ class DestinationOAuthApiService extends ApiService {
 
   getSettings(): Promise<OAuthSettings> {
     return this.get<OAuthSettings>('/oauth/settings');
-  }
-
-  generateAuthUrl(destinationId: string, redirectUri: string): Promise<OAuthAuthorizationUrl> {
-    return this.post<OAuthAuthorizationUrl>(`/${destinationId}/oauth/authorize`, { redirectUri });
-  }
-
-  generateStandaloneAuthUrl(redirectUri: string): Promise<OAuthAuthorizationUrl> {
-    return this.post<OAuthAuthorizationUrl>('/oauth/authorize', { redirectUri });
-  }
-
-  exchangeOAuthCode(code: string, state: string): Promise<OAuthExchangeResult> {
-    return this.post<OAuthExchangeResult>('/oauth/exchange', { code, state });
-  }
-
-  getOAuthStatus(destinationId: string): Promise<OAuthStatus> {
-    return this.get<OAuthStatus>(`/${destinationId}/oauth/status`);
-  }
-
-  getCredentialStatus(credentialId: string, config?: AxiosRequestConfig): Promise<OAuthStatus> {
-    return this.get<OAuthStatus>(`/oauth/credential-status/${credentialId}`, undefined, config);
   }
 }
 

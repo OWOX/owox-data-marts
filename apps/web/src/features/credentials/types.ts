@@ -14,6 +14,9 @@ export type CredentialIcon =
   | 'anthropic'
   | 'gemini'
   | 'openrouter'
+  | 'google-cloud'
+  | 'google-sheets'
+  | 'google-chat'
   | 'github';
 
 export interface CredentialDefinitionField {
@@ -28,7 +31,7 @@ export interface CredentialDefinitionField {
 export type CredentialDefinitionAuth =
   | { type: 'header' | 'google-service-account' }
   | { type: 'fields'; fields: CredentialDefinitionField[] }
-  | { type: 'oauth'; provider: 'google' };
+  | { type: 'oauth'; provider: 'google'; client?: 'storage' | 'destination' };
 
 export interface CredentialDefinition {
   id: string;
@@ -45,6 +48,8 @@ export interface CredentialDefinition {
   icon?: CredentialIcon | null;
   /** Storage types that accept this definition. */
   storageTypes?: string[];
+  /** Destination types that accept this definition. */
+  destinationTypes?: string[];
   origins: string[];
   supportsAi: boolean;
   ai: {
@@ -60,6 +65,28 @@ export interface CredentialDefinition {
   /** Optional while a newer web build can still talk to an older backend during rollout. */
   auth?: CredentialDefinitionAuth;
 }
+
+export type CredentialState =
+  | 'ready'
+  | 'disabled'
+  | 'not-configured'
+  | 'reconnect-required'
+  | 'reauthorize-required';
+
+/** The Credential a Storage or Destination uses, as the member sees it. */
+export type CredentialSummary =
+  | {
+      access: 'visible';
+      id: string;
+      title: string;
+      definitionId: string;
+      providerName: string;
+      identity: string | null;
+      state: CredentialState;
+    }
+  | { access: 'restricted'; state: CredentialState }
+  // No Credential yet: the consumer runs on its own key until you select a Credential.
+  | { access: 'pending'; state: 'ready' };
 
 /** Non-secret facts from a stored Google service account key. */
 export interface CredentialPublicMetadata {

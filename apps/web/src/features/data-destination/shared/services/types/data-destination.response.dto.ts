@@ -1,14 +1,6 @@
 import { DataDestinationCredentialsType, DataDestinationType } from '../../enums';
-import type { CredentialIdentity, GoogleServiceAccount } from '../../../../../shared/types';
 import type { ContextSummary } from '../../../../contexts/types/context.types';
-
-/**
- * Google Sheets credentials response
- */
-export interface GoogleSheetsCredentialsResponse {
-  serviceAccountKey: GoogleServiceAccount;
-  type: DataDestinationCredentialsType.GOOGLE_SHEETS_CREDENTIALS;
-}
+import type { DestinationCredentialSummary } from '../../model/types/data-destination';
 
 /**
  * Looker Studio credentials response
@@ -20,19 +12,31 @@ export interface LookerStudioCredentialsResponse {
   type: DataDestinationCredentialsType.LOOKER_STUDIO_CREDENTIALS;
 }
 
-export interface GoogleSheetsOAuthCredentialsResponse {
-  type: DataDestinationCredentialsType.GOOGLE_SHEETS_OAUTH_CREDENTIALS;
-  identity: CredentialIdentity | null;
-}
-
 export interface EmailCredentialsResponse {
   to: string[];
   type: DataDestinationCredentialsType.EMAIL_CREDENTIALS;
 }
 
+/** Public details of a Google Sheets Destination's key, for the Sheets add-in; the web ignores them. */
+export type GoogleSheetsCredentialsResponse =
+  | {
+      type: 'google-sheets-credentials';
+      serviceAccountKey: {
+        type: 'service_account';
+        project_id: string;
+        client_email: string;
+        client_id?: string;
+      };
+    }
+  | {
+      type: 'google-sheets-oauth-credentials';
+      identity: { email: string; name?: string; picture?: string } | null;
+    };
+
+/** A Google Chat webhook Destination says only that it has a webhook; the web ignores it. */
 export interface GoogleChatCredentialsResponse {
-  configured: true;
   type: DataDestinationCredentialsType.GOOGLE_CHAT_CREDENTIALS;
+  configured: true;
 }
 
 /**
@@ -60,13 +64,12 @@ export interface DataDestinationResponseDto {
   projectId: string;
 
   /**
-   * Credentials for the destination
+   * Credentials for the destination; absent when a Google Sheets or Google Chat webhook key has none to show
    */
-  credentials:
-    | GoogleSheetsCredentialsResponse
-    | GoogleSheetsOAuthCredentialsResponse
+  credentials?:
     | LookerStudioCredentialsResponse
     | EmailCredentialsResponse
+    | GoogleSheetsCredentialsResponse
     | GoogleChatCredentialsResponse;
 
   /**
@@ -93,6 +96,9 @@ export interface DataDestinationResponseDto {
   availableForUse?: boolean;
   availableForMaintenance?: boolean;
   contexts?: ContextSummary[];
+
+  /** Google Sheets and Google Chat webhook delivery only; absent when embedded in a report. */
+  reusableCredential?: DestinationCredentialSummary | null;
 
   /**
    * Optional destination-level config (e.g. Drive folder for auto-created Google Sheets)

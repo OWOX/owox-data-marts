@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, IsNull, Repository } from 'typeorm';
 import { SearchableEntityType } from '../../../common/search/search.facade';
@@ -9,6 +9,10 @@ import {
   toHumanReadable,
 } from '../../data-destination-types/enums/data-destination-type.enum';
 import { EmailCredentialsSchema } from '../../data-destination-types/ee/email/schemas/email-credentials.schema';
+import {
+  DESTINATION_CREDENTIAL_IDENTITIES_FACADE,
+  type DestinationCredentialIdentitiesFacade,
+} from '../../facades/destination-credential-identities.facade';
 import { ContextAccessService } from '../../services/context/context-access.service';
 import { applyDataDestinationVisibilityFilter } from '../../utils/apply-data-destination-visibility-filter';
 import type {
@@ -28,8 +32,14 @@ import { buildKeysetWhere, nextPageCursor } from './indexable-source.port';
 
 const DESTINATION_JOIN_ALIAS = 'dd';
 
-function extractEmails(destination: DataDestination): string[] {
+/** `bound`: the bound Credential's identity; undefined for an unbound Destination, which keeps its old row's. */
+function extractEmails(destination: DataDestination, bound: string | null | undefined): string[] {
   const emails: string[] = [];
+
+  if (bound !== undefined) {
+    if (bound) emails.push(bound);
+    return emails;
+  }
 
   const identity = destination.credential?.identity;
   if (identity?.email) emails.push(identity.email);
@@ -46,14 +56,17 @@ function extractEmails(destination: DataDestination): string[] {
   return [...new Set(emails.filter(Boolean))];
 }
 
-function toDescriptor(destination: DataDestination): EntityScoringDescriptor {
+function toDescriptor(
+  destination: DataDestination,
+  bound: ReadonlyMap<string, string | null>
+): EntityScoringDescriptor {
   const typeLabel = toHumanReadable(destination.type as DataDestinationType);
   const richTextSlots: RichTextSlot[] = [
     { kind: 'title', text: destination.title },
     { kind: 'context', text: typeLabel },
   ];
 
-  const emails = extractEmails(destination);
+  const emails = extractEmails(destination, bound.get(destination.id));
   const atomicTokenSlots: AtomicTokenSlot[] = emails.map(email => ({ kind: 'field', text: email }));
 
   const embeddingText = [destination.title, typeLabel, ...emails].filter(Boolean).join('\n');
@@ -83,7 +96,9 @@ export class DataDestinationIndexableSource implements IndexableSource {
   constructor(
     @InjectRepository(DataDestination)
     private readonly destinationRepo: Repository<DataDestination>,
-    private readonly contextAccessService: ContextAccessService
+    private readonly contextAccessService: ContextAccessService,
+    @Inject(DESTINATION_CREDENTIAL_IDENTITIES_FACADE)
+    private readonly destinationCredentials: DestinationCredentialIdentitiesFacade
   ) {
     this.accessPredicateProvider = new EntityAccessPredicateProvider({
       repo: destinationRepo,
@@ -139,11 +154,12 @@ export class DataDestinationIndexableSource implements IndexableSource {
       relations: { credential: true },
       loadEagerRelations: false,
     });
+    const bound = await this.destinationCredentials.identitiesForDestinations(projectId, pageIds);
     const destinationById = new Map(destinations.map(destination => [destination.id, destination]));
     const descriptors = pageIds
       .map(id => destinationById.get(id))
       .filter((destination): destination is DataDestination => destination !== undefined)
-      .map(toDescriptor);
+      .map(destination => toDescriptor(destination, bound));
 
     return { descriptors, nextCursor: nextPageCursor(pageRows, limit) };
   }
@@ -166,6 +182,10 @@ export class DataDestinationIndexableSource implements IndexableSource {
       .getOne();
     if (!destination) return null;
 
-    return toDescriptor(destination);
+    const bound = await this.destinationCredentials.identitiesForDestinations(
+      destination.projectId,
+      [destination.id]
+    );
+    return toDescriptor(destination, bound);
   }
 }

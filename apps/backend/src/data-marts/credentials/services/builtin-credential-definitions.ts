@@ -1,4 +1,8 @@
+// Imported by migration 1792700000000: keep it and its imports when the legacy code goes.
 import type { CredentialDefinitionContract, CredentialOAuthAuth } from '../credential.types';
+
+export const GOOGLE_SHEETS_OAUTH_DEFINITION_ID = 'google-sheets-oauth';
+export const GOOGLE_CHAT_WEBHOOK_DEFINITION_ID = 'google-chat-webhook';
 
 export const BUILTIN_CREDENTIAL_DEFINITIONS: readonly CredentialDefinitionContract[] = [
   {
@@ -142,9 +146,10 @@ export const BUILTIN_CREDENTIAL_DEFINITIONS: readonly CredentialDefinitionContra
   {
     id: 'google-service-account',
     category: 'google',
-    icon: 'google',
-    displayName: 'BigQuery Service Account',
-    description: 'Google Cloud service account JSON key',
+    icon: 'google-cloud',
+    displayName: 'Google Service Account',
+    description:
+      'Google Cloud service account JSON key for BigQuery Storages and Google Sheets Destinations.',
     documentationUrl: 'https://docs.cloud.google.com/iam/docs/keys-create-delete',
     auth: { type: 'google-service-account', label: 'Service account key (JSON)' },
     origins: ['https://*.googleapis.com'],
@@ -161,6 +166,40 @@ export const BUILTIN_CREDENTIAL_DEFINITIONS: readonly CredentialDefinitionContra
       client: 'storage',
       scopes: 'bigquery',
       label: 'Google account',
+    },
+  },
+  {
+    id: GOOGLE_SHEETS_OAUTH_DEFINITION_ID,
+    category: 'google',
+    icon: 'google-sheets',
+    displayName: 'Sheets Google account',
+    description: 'Google account access for Google Sheets Destinations.',
+    auth: {
+      type: 'oauth',
+      provider: 'google',
+      client: 'destination',
+      scopes: 'sheets',
+      label: 'Google account',
+    },
+  },
+  {
+    id: GOOGLE_CHAT_WEBHOOK_DEFINITION_ID,
+    category: 'google',
+    icon: 'google-chat',
+    displayName: 'Google Chat webhook',
+    description: 'Incoming webhook URL for Google Chat Destinations.',
+    auth: {
+      type: 'fields',
+      fields: [
+        {
+          key: 'webhookUrl',
+          label: 'Webhook URL',
+          input: 'password',
+          secret: true,
+          required: true,
+          identity: false,
+        },
+      ],
     },
   },
   {

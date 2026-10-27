@@ -4,8 +4,10 @@ import AwsAccessKeyIdDescription from './AwsAccessKeyIdDescription';
 import AwsSecretAccessKeyDescription from './AwsSecretAccessKeyDescription';
 import DatabricksTokenDescription from './DatabricksTokenDescription';
 import GoogleBigQueryOAuthDescription from './GoogleBigQueryOAuthDescription';
+import GoogleChatWebhookDescription from './GoogleChatWebhookDescription';
 import GoogleProviderChoiceDescription from './GoogleProviderChoiceDescription';
 import GoogleServiceAccountDescription from './GoogleServiceAccountDescription';
+import GoogleSheetsOAuthDescription from './GoogleSheetsOAuthDescription';
 import SnowflakeKeyPairDescription from './SnowflakeKeyPairDescription';
 import SnowflakePassphraseDescription from './SnowflakePassphraseDescription';
 import SnowflakePasswordDescription from './SnowflakePasswordDescription';
@@ -88,11 +90,27 @@ const FIELD_HELP: Partial<Record<string, Partial<Record<string, CredentialFieldH
       Description: GoogleBigQueryOAuthDescription,
     },
   },
+  'google-sheets-oauth': {
+    account: {
+      tooltip: 'Authorize OWOX to write to your Google Sheets',
+      Description: GoogleSheetsOAuthDescription,
+    },
+  },
+  'google-chat-webhook': {
+    webhookUrl: {
+      tooltip: 'The incoming webhook URL of a Google Chat space',
+      placeholder: 'https://chat.googleapis.com/v1/spaces/...',
+      Description: GoogleChatWebhookDescription,
+    },
+  },
 };
 
-const PROVIDER_CHOICE_HELP: Partial<Record<CredentialCategory, CredentialFieldHelp>> = {
-  google: { Description: GoogleProviderChoiceDescription },
-  snowflake: { Description: SnowflakeProviderChoiceDescription },
+/** Explains the choice between the providers of a group that the form offers. */
+type ProviderChoiceDescription = ComponentType<{ definitionIds: readonly string[] }>;
+
+const PROVIDER_CHOICE_HELP: Partial<Record<CredentialCategory, ProviderChoiceDescription>> = {
+  google: GoogleProviderChoiceDescription,
+  snowflake: SnowflakeProviderChoiceDescription,
 };
 
 export function credentialFieldHelp(
@@ -104,6 +122,6 @@ export function credentialFieldHelp(
 
 export function providerChoiceHelp(
   category: CredentialCategory | undefined
-): CredentialFieldHelp | undefined {
+): ProviderChoiceDescription | undefined {
   return category && PROVIDER_CHOICE_HELP[category];
 }

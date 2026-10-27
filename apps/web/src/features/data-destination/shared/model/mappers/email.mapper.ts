@@ -65,7 +65,7 @@ export class EmailMapper<T extends DataDestination> implements DestinationMapper
   private extractCredentials(
     credentials: DataDestinationResponseDto['credentials']
   ): EmailCredentials {
-    if (credentials.type === DataDestinationCredentialsType.EMAIL_CREDENTIALS) {
+    if (credentials?.type === DataDestinationCredentialsType.EMAIL_CREDENTIALS) {
       return {
         to: credentials.to,
       };

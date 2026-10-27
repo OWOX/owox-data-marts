@@ -361,12 +361,6 @@ test('checked-in matrix excludes OAuth-flow-only business routes', () => {
     'GET /api/connectors/{connectorName}/oauth/status/{credentialId}',
     'POST /api/data-destinations/connect/google-sheets',
     'GET /api/data-destinations/oauth/settings',
-    'GET /api/data-destinations/oauth/credential-status/{credentialId}',
-    'POST /api/data-destinations/oauth/authorize',
-    'POST /api/data-destinations/oauth/exchange',
-    'POST /api/data-destinations/{id}/oauth/authorize',
-    'GET /api/data-destinations/{id}/oauth/status',
-    'DELETE /api/data-destinations/{id}/oauth',
   ];
   const checkedInEndpoints = new Set(
     parseCoverageMatrix(checkedInMatrix).rows.map(row => row.endpoint)

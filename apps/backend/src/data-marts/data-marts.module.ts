@@ -349,11 +349,6 @@ import { ListDataDestinationsByTypeService } from './use-cases/list-data-destina
 import { ResolveExcelDestinationService } from './use-cases/resolve-excel-destination.service';
 import { BatchDataMartHealthStatusService } from './use-cases/batch-data-mart-health-status.service';
 import { RefreshDataMartDataLastUpdatedService } from './use-cases/refresh-data-mart-data-last-updated.service';
-import { ExchangeOAuthCodeService } from './use-cases/google-oauth/exchange-oauth-code.service';
-import { GetDestinationOAuthStatusService } from './use-cases/google-oauth/get-destination-oauth-status.service';
-import { GetDestinationOAuthCredentialStatusService } from './use-cases/google-oauth/get-destination-oauth-credential-status.service';
-import { GenerateDestinationOAuthUrlService } from './use-cases/google-oauth/generate-destination-oauth-url.service';
-import { RevokeDestinationOAuthService } from './use-cases/google-oauth/revoke-destination-oauth.service';
 import { CreateGoogleSheetDocumentService } from './use-cases/google-sheets/create-google-sheet-document.service';
 import { ReconnectGoogleSheetService } from './use-cases/google-sheets/reconnect-google-sheet.service';
 import { AddGoogleSheetToSpreadsheetService } from './use-cases/google-sheets/add-google-sheet-to-spreadsheet.service';
@@ -361,11 +356,12 @@ import { DataStorageCredentialsResolver } from './data-storage-types/data-storag
 import { StorageCredentialBindingService } from './data-storage-types/storage-credential-binding.service';
 import { CredentialStorageConsumersService } from './data-storage-types/credential-storage-consumers.service';
 import { DataDestinationCredentialsResolver } from './data-destination-types/data-destination-credentials-resolver.service';
+import { DestinationCredentialBindingService } from './data-destination-types/destination-credential-binding.service';
+import { CredentialDestinationConsumersService } from './data-destination-types/credential-destination-consumers.service';
 import { DataStorageCredential } from './entities/data-storage-credential.entity';
 import { DataDestinationCredential } from './entities/data-destination-credential.entity';
 import { DataStorageCredentialService } from './services/data-storage-credential.service';
 import { DataDestinationCredentialService } from './services/data-destination-credential.service';
-import { CopyCredentialService } from './services/copy-credential.service';
 import { GoogleOAuthFlowService } from './services/google-oauth/google-oauth-flow.service';
 import { GoogleOAuthClientService } from './services/google-oauth/google-oauth-client.service';
 import { GoogleOAuthConfigService } from './services/google-oauth/google-oauth-config.service';
@@ -474,6 +470,8 @@ import { DataStorageType } from './data-storage-types/enums/data-storage-type.en
 import { PLUGIN_ENTITY_AUTHORIZATION_FACADE } from './facades/plugin-entity-authorization.facade';
 import { PluginEntityAuthorizationFacadeImpl } from './facades/plugin-entity-authorization.facade.impl';
 import { STORAGE_CREDENTIAL_IDENTITIES_FACADE } from './facades/storage-credential-identities.facade';
+import { DESTINATION_CREDENTIAL_IDENTITIES_FACADE } from './facades/destination-credential-identities.facade';
+import { DestinationCredentialIdentitiesFacadeImpl } from './facades/destination-credential-identities.facade.impl';
 import { StorageCredentialIdentitiesFacadeImpl } from './facades/storage-credential-identities.facade.impl';
 import { Credential } from './credentials/entities/credential.entity';
 import { CredentialOwner } from './credentials/entities/credential-owner.entity';
@@ -631,6 +629,11 @@ import { ConsentCredentialDefinitionService } from './credentials/use-cases/cons
     {
       provide: STORAGE_CREDENTIAL_IDENTITIES_FACADE,
       useExisting: StorageCredentialIdentitiesFacadeImpl,
+    },
+    DestinationCredentialIdentitiesFacadeImpl,
+    {
+      provide: DESTINATION_CREDENTIAL_IDENTITIES_FACADE,
+      useExisting: DestinationCredentialIdentitiesFacadeImpl,
     },
     ...dataStorageResolverProviders,
     ...dataStorageFacadesProviders,
@@ -938,17 +941,13 @@ import { ConsentCredentialDefinitionService } from './credentials/use-cases/cons
     StorageCredentialBindingService,
     CredentialStorageConsumersService,
     DataDestinationCredentialsResolver,
+    DestinationCredentialBindingService,
+    CredentialDestinationConsumersService,
     DataStorageCredentialService,
     DataDestinationCredentialService,
-    CopyCredentialService,
     GoogleOAuthFlowService,
     GoogleOAuthClientService,
     GoogleOAuthConfigService,
-    ExchangeOAuthCodeService,
-    GetDestinationOAuthStatusService,
-    GetDestinationOAuthCredentialStatusService,
-    GenerateDestinationOAuthUrlService,
-    RevokeDestinationOAuthService,
     CreateGoogleSheetDocumentService,
     ReconnectGoogleSheetService,
     AddGoogleSheetToSpreadsheetService,
@@ -1046,6 +1045,7 @@ import { ConsentCredentialDefinitionService } from './credentials/use-cases/cons
     CredentialConsumerTitlesService,
     PLUGIN_ENTITY_AUTHORIZATION_FACADE,
     STORAGE_CREDENTIAL_IDENTITIES_FACADE,
+    DESTINATION_CREDENTIAL_IDENTITIES_FACADE,
     InternalProjectBillingService,
     UserProjectionsFetcherService,
     MCP_DATA_MARTS_FACADE,

@@ -1,4 +1,5 @@
 import { Logger } from '@nestjs/common';
+import { castError } from '@owox/internal-helpers';
 import { JWT, OAuth2Client } from 'google-auth-library';
 import { google, sheets_v4, drive_v3 } from 'googleapis';
 import { GoogleServiceAccountKey } from '../../../../common/schemas/google-service-account-key.schema';
@@ -146,7 +147,10 @@ export class GoogleSheetsApiAdapter {
       await authClient.getAccessToken();
       return true;
     } catch (error) {
-      GoogleSheetsApiAdapter.LOGGER.warn('Failed to validate Google Sheets credentials', error);
+      // The message only: the error object carries the token request signed with the key.
+      GoogleSheetsApiAdapter.LOGGER.warn(
+        `Failed to validate Google Sheets credentials: ${castError(error).message}`
+      );
       return false;
     }
   }

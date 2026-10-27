@@ -1,3 +1,4 @@
+import type { AxiosRequestConfig } from 'axios';
 import { ApiService } from '../../services';
 import type {
   CreateCredentialRequest,
@@ -40,20 +41,38 @@ class CredentialsService extends ApiService {
     return this.post<Credential>(`/${id}/definition-consent`);
   }
 
-  getGoogleOAuthSettings(): Promise<{ available: boolean }> {
-    return this.get<{ available: boolean }>('/oauth/google/settings');
+  getGoogleOAuthSettings(): Promise<{
+    available: boolean;
+    /** Absent on an older backend. */
+    clients?: { storage: boolean; destination: boolean };
+  }> {
+    return this.get('/oauth/google/settings');
   }
 
-  authorizeGoogleOAuth(body: {
-    redirectUri: string;
-    credentialId?: string;
-    definitionId?: string;
-  }): Promise<{ authorizationUrl: string }> {
-    return this.post<{ authorizationUrl: string }>('/oauth/google/authorize', body);
+  authorizeGoogleOAuth(
+    body: {
+      redirectUri: string;
+      credentialId?: string;
+      definitionId?: string;
+    },
+    skipErrorToast = false
+  ): Promise<{ authorizationUrl: string }> {
+    return this.post<{ authorizationUrl: string }>(
+      '/oauth/google/authorize',
+      body,
+      skipErrorToast ? ({ skipErrorToast } as AxiosRequestConfig) : undefined
+    );
   }
 
-  exchangeGoogleOAuth(body: GoogleOAuthExchangeRequest): Promise<Credential> {
-    return this.post<Credential>('/oauth/google/exchange', body);
+  exchangeGoogleOAuth(
+    body: GoogleOAuthExchangeRequest,
+    skipErrorToast = false
+  ): Promise<Credential> {
+    return this.post<Credential>(
+      '/oauth/google/exchange',
+      body,
+      skipErrorToast ? ({ skipErrorToast } as AxiosRequestConfig) : undefined
+    );
   }
 
   remove(id: string): Promise<void> {

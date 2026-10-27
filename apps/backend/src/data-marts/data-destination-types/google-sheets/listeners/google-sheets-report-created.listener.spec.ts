@@ -110,11 +110,15 @@ describe('GoogleSheetsReportCreatedListener', () => {
   });
 
   it('should call createDeveloperMetadataRequest when no existing OWOX metadata', async () => {
-    const { listener, mockAdapter, metadataFormatter } = createListener();
+    const { listener, mockAdapter, metadataFormatter, adapterFactory } = createListener();
     mockAdapter.getDeveloperMetadata.mockResolvedValue([]);
     mockAdapter.findAllOwoxReportMetadataForSheet.mockReturnValue([]);
 
     await listener.handleReportCreatedEvent(makeEvent());
+
+    expect(adapterFactory.createFromDestination).toHaveBeenCalledWith(expect.anything(), {
+      markUsed: false,
+    });
 
     expect(metadataFormatter.createDeveloperMetadataRequest).toHaveBeenCalledWith(
       sheetId,

@@ -5,6 +5,9 @@ import { DestinationCredentialType } from '../../../enums/destination-credential
 import { FolderAccessFailure, GoogleSheetsApiAdapter } from '../adapters/google-sheets-api.adapter';
 import { GoogleSheetsCredentialsSchema } from '../schemas/google-sheets-credentials.schema';
 import { DestinationFolderAccessException } from '../../../exceptions/google-oauth.exceptions';
+import { GOOGLE_SHEETS_OAUTH_DEFINITION_ID } from '../../../credentials/services/builtin-credential-definitions';
+import { DataDestinationCredentialsResolver } from '../../data-destination-credentials-resolver.service';
+import type { ResolvedDestinationCredential } from '../../destination-credential-binding.service';
 
 /**
  * Validates, at destination save time, that a Google Sheets destination's
@@ -18,20 +21,26 @@ import { DestinationFolderAccessException } from '../../../exceptions/google-oau
  */
 @Injectable()
 export class GoogleSheetsFolderValidator {
-  constructor(private readonly credentialService: DataDestinationCredentialService) {}
+  constructor(
+    private readonly credentialService: DataDestinationCredentialService,
+    private readonly credentialsResolver: DataDestinationCredentialsResolver
+  ) {}
 
-  async validateConfiguredFolder(destination: DataDestination): Promise<void> {
+  /** With `candidate`, checks with the Credential about to be bound instead of the current one. */
+  async validateConfiguredFolder(
+    destination: DataDestination,
+    candidate?: ResolvedDestinationCredential
+  ): Promise<void> {
     const folderId = destination.config?.folderId?.trim();
-    if (!folderId || !destination.credentialId) {
+    if (!folderId) {
       return;
     }
 
-    const credential = await this.credentialService.getById(destination.credentialId);
-    if (!credential || credential.type !== DestinationCredentialType.GOOGLE_SERVICE_ACCOUNT) {
-      return;
-    }
-
-    const parsed = GoogleSheetsCredentialsSchema.safeParse(credential.credentials);
+    const parsed = GoogleSheetsCredentialsSchema.safeParse(
+      candidate
+        ? this.credentialsResolver.candidateCredentials(candidate)
+        : await this.serviceAccountCredentials(destination)
+    );
     const serviceAccountKey = parsed.success ? parsed.data.serviceAccountKey : undefined;
     if (!serviceAccountKey) {
       return;
@@ -73,6 +82,24 @@ export class GoogleSheetsFolderValidator {
         { folderId }
       );
     }
+  }
+
+  /** The bound service account Credential's key, else the old service account row's; none for a Google account. */
+  private async serviceAccountCredentials(destination: DataDestination): Promise<unknown> {
+    const definitionId = await this.credentialsResolver.boundDefinitionId(destination);
+    if (definitionId) {
+      // Saving a Destination is no use of its Credential, so its "Last used" stays.
+      return definitionId === GOOGLE_SHEETS_OAUTH_DEFINITION_ID
+        ? undefined
+        : this.credentialsResolver.resolve(destination, { markUsed: false });
+    }
+    if (!destination.credentialId) {
+      return undefined;
+    }
+    const credential = await this.credentialService.getById(destination.credentialId);
+    return credential?.type === DestinationCredentialType.GOOGLE_SERVICE_ACCOUNT
+      ? credential.credentials
+      : undefined;
   }
 
   /**

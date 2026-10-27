@@ -58,8 +58,8 @@ vi.mock('../../../shared/components/DataStorageHealthIndicator/DataStorageHealth
   DataStorageHealthIndicator: () => null,
 }));
 
-vi.mock('../DataStorageEditForm/StorageCredentialField', () => ({
-  StorageCredentialField: () => null,
+vi.mock('../../../../credentials/components/ConsumerCredentialField', () => ({
+  ConsumerCredentialField: () => null,
 }));
 
 vi.mock('@owox/ui/components/sheet', () => ({

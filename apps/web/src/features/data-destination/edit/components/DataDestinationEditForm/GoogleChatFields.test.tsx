@@ -18,9 +18,11 @@ type GoogleChatFormData = Extract<
 
 function TestForm({
   credentials,
+  reusableCredentialId = '',
   onValid,
 }: {
   credentials: GoogleChatFormData['credentials'];
+  reusableCredentialId?: string;
   onValid: (data: DataDestinationFormData) => void;
 }) {
   const form = useForm<DataDestinationFormData>({
@@ -29,6 +31,7 @@ function TestForm({
       title: 'Google Chat',
       type: DataDestinationType.GOOGLE_CHAT,
       credentials,
+      reusableCredentialId,
     },
     mode: 'onTouched',
   });
@@ -36,7 +39,7 @@ function TestForm({
   return (
     <Form {...form}>
       <form onSubmit={event => void form.handleSubmit(onValid)(event)}>
-        <GoogleChatFields form={form} />
+        <GoogleChatFields form={form} credentialField={<span>Credential field</span>} />
         <output data-testid='dirty'>{String(form.formState.isDirty)}</output>
         <button type='submit'>Save</button>
       </form>
@@ -61,7 +64,7 @@ describe('GoogleChatFields', () => {
     expect(screen.getByText('How does Channel Email delivery work?')).toBeInTheDocument();
     expect(screen.queryByText('How does Incoming Webhook delivery work?')).not.toBeInTheDocument();
     expect(screen.getByText('How do I get a Google Chat space email address?')).toBeInTheDocument();
-    expect(screen.queryByText('How do I get an incoming webhook URL?')).not.toBeInTheDocument();
+    expect(screen.queryByText('Credential field')).not.toBeInTheDocument();
     expect(screen.getByRole('textbox')).toHaveValue('space@example.com');
 
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
@@ -86,23 +89,39 @@ describe('GoogleChatFields', () => {
     });
     expect(screen.getByText('How does Incoming Webhook delivery work?')).toBeInTheDocument();
     expect(screen.queryByText('How does Channel Email delivery work?')).not.toBeInTheDocument();
-    expect(screen.getByText('How do I get an incoming webhook URL?')).toBeInTheDocument();
+    expect(screen.getByText('Credential field')).toBeInTheDocument();
     expect(
       screen.queryByText('How do I get a Google Chat space email address?')
     ).not.toBeInTheDocument();
     expect(screen.getByTestId('dirty')).toHaveTextContent('false');
-
-    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
-    expect(
-      await screen.findByText('Enter a valid Google Chat incoming webhook URL')
-    ).toBeInTheDocument();
-    expect(onValid).not.toHaveBeenCalled();
   });
 
-  it('marks method changes dirty and preserves a configured hidden webhook', async () => {
+  it('requires a Credential for webhook delivery only', () => {
+    const chat = { title: 'Google Chat', type: DataDestinationType.GOOGLE_CHAT };
+
+    const webhook = dataDestinationSchema.safeParse({
+      ...chat,
+      credentials: { deliveryMethod: 'webhook' },
+    });
+    expect(webhook.error?.issues).toEqual([
+      expect.objectContaining({ path: ['reusableCredentialId'], message: 'Select a Credential' }),
+    ]);
+    expect(
+      dataDestinationSchema.safeParse({
+        ...chat,
+        credentials: { deliveryMethod: 'email', to: ['space@example.com'] },
+      }).success
+    ).toBe(true);
+  });
+
+  it('marks method changes dirty and keeps webhook delivery free of recipients', async () => {
     const onValid = vi.fn();
     render(
-      <TestForm credentials={{ deliveryMethod: 'webhook', configured: true }} onValid={onValid} />
+      <TestForm
+        credentials={{ deliveryMethod: 'webhook' }}
+        reusableCredentialId='hook-1'
+        onValid={onValid}
+      />
     );
 
     fireEvent.mouseDown(screen.getByRole('tab', { name: 'Channel Email' }), {
@@ -117,17 +136,16 @@ describe('GoogleChatFields', () => {
     });
 
     expect(screen.getByTestId('dirty')).toHaveTextContent('true');
-    expect(
-      screen.getByPlaceholderText('Webhook configured — paste a new URL to replace it')
-    ).toHaveValue('');
+    expect(screen.getByText('Credential field')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
     await waitFor(() => {
       expect(onValid).toHaveBeenCalledTimes(1);
     });
-    expect(onValid.mock.calls[0][0].credentials).toEqual({
-      deliveryMethod: 'webhook',
-      configured: true,
+    expect(onValid.mock.calls[0][0]).toMatchObject({
+      credentials: { deliveryMethod: 'webhook' },
+      reusableCredentialId: 'hook-1',
     });
+    expect(onValid.mock.calls[0][0].credentials).not.toHaveProperty('to');
   });
 });

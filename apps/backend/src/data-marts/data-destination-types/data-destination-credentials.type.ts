@@ -1,3 +1,4 @@
+// Imported by migration 1792700000000: keep it and its imports when the legacy code goes.
 import { z } from 'zod';
 import { EmailCredentialsSchema } from './ee/email/schemas/email-credentials.schema';
 import { GoogleSheetsCredentialsSchema } from './google-sheets/schemas/google-sheets-credentials.schema';

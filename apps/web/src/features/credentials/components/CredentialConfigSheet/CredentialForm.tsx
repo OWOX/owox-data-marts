@@ -115,7 +115,12 @@ export interface CredentialFormProps {
 }
 
 export function CredentialForm(props: CredentialFormProps) {
-  const oauthAvailable = useGoogleOAuthAvailable();
+  const storageOAuth = useGoogleOAuthAvailable('storage');
+  const destinationOAuth = useGoogleOAuthAvailable('destination');
+  const oauthAvailable =
+    storageOAuth === undefined || destinationOAuth === undefined
+      ? undefined
+      : { storage: storageOAuth, destination: destinationOAuth };
   // A new Credential picks its provider once, so wait until OAuth availability is known.
   if (props.credential === null && oauthAvailable === undefined) {
     return (
@@ -124,7 +129,12 @@ export function CredentialForm(props: CredentialFormProps) {
       </div>
     );
   }
-  return <CredentialFormBody {...props} oauthAvailable={oauthAvailable ?? false} />;
+  return (
+    <CredentialFormBody
+      {...props}
+      oauthAvailable={oauthAvailable ?? { storage: false, destination: false }}
+    />
+  );
 }
 
 function CredentialFormBody({
@@ -142,13 +152,14 @@ function CredentialFormBody({
   canManageAccess = false,
   defaultSharing,
   oauthAvailable,
-}: CredentialFormProps & { oauthAvailable: boolean }) {
+}: CredentialFormProps & { oauthAvailable: { storage: boolean; destination: boolean } }) {
   const isEditMode = credential !== null;
   const [addedDefinition, setAddedDefinition] = useState<CredentialDefinition | null>(null);
   const [githubInstallationUrl, setGithubInstallationUrl] = useState<string | null>(null);
   const definitionOptions = useMemo(() => {
     const options = definitions.filter(
-      definition => oauthAvailable || definition.auth?.type !== 'oauth'
+      definition =>
+        definition.auth?.type !== 'oauth' || oauthAvailable[definition.auth.client ?? 'storage']
     );
     if (addedDefinition && !options.some(definition => definition.id === addedDefinition.id)) {
       options.push(addedDefinition);
@@ -193,9 +204,11 @@ function CredentialFormBody({
   const documentationUrl = safeCredentialDocumentationUrl(selectedDefinition?.documentationUrl);
   const secretHelp = credentialFieldHelp(selectedDefinition?.id, 'secret');
   // The choice is explained only when this form offers more than one provider of the group.
-  const providerChoice =
-    !credential &&
-    definitionOptions.filter(({ category }) => category === selectedDefinition?.category).length > 1
+  const offeredInGroup = definitionOptions
+    .filter(({ category }) => category === selectedDefinition?.category)
+    .map(({ id }) => id);
+  const ProviderChoice =
+    !credential && offeredInGroup.length > 1
       ? providerChoiceHelp(selectedDefinition?.category)
       : undefined;
   const aiMappingModes = form.watch('aiModelMappingModes');
@@ -428,9 +441,9 @@ function CredentialFormBody({
                       />
                     </FormControl>
                   )}
-                  {providerChoice?.Description && (
+                  {ProviderChoice && (
                     <FormDescription>
-                      <providerChoice.Description />
+                      <ProviderChoice definitionIds={offeredInGroup} />
                     </FormDescription>
                   )}
                   <FormMessage />
@@ -519,6 +532,7 @@ function CredentialFormBody({
                 <GoogleOAuthCredentialConnect
                   credential={credential}
                   definitionId={selectedDefinition?.id ?? ''}
+                  client={auth.client}
                   disabled={isEditMode && form.formState.isDirty}
                   draft={{
                     title: form.watch('title'),

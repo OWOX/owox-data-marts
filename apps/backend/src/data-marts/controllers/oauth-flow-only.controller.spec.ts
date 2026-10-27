@@ -53,11 +53,6 @@ jest.mock('../use-cases/get-data-destination-impact.service', () => ({}));
 jest.mock('../use-cases/rotate-secret-key.service', () => ({}));
 jest.mock('../mappers/data-destination.mapper', () => ({}));
 jest.mock('../services/google-oauth/google-oauth-flow.service', () => ({}));
-jest.mock('../use-cases/google-oauth/get-destination-oauth-status.service', () => ({}));
-jest.mock('../use-cases/google-oauth/get-destination-oauth-credential-status.service', () => ({}));
-jest.mock('../use-cases/google-oauth/generate-destination-oauth-url.service', () => ({}));
-jest.mock('../use-cases/google-oauth/revoke-destination-oauth.service', () => ({}));
-jest.mock('../use-cases/google-oauth/exchange-oauth-code.service', () => ({}));
 jest.mock('../use-cases/update-availability.service', () => ({}));
 jest.mock('../services/access-decision', () => ({
   Action: {},
@@ -106,36 +101,6 @@ const oauthFlowOnlyRoutes: Array<{
     controller: DataDestinationController,
     handlerName: 'getOAuthSettings',
     endpoint: 'GET /api/data-destinations/oauth/settings',
-  },
-  {
-    controller: DataDestinationController,
-    handlerName: 'getOAuthCredentialStatus',
-    endpoint: 'GET /api/data-destinations/oauth/credential-status/{credentialId}',
-  },
-  {
-    controller: DataDestinationController,
-    handlerName: 'generateOAuthAuthorizationUrlStandalone',
-    endpoint: 'POST /api/data-destinations/oauth/authorize',
-  },
-  {
-    controller: DataDestinationController,
-    handlerName: 'exchangeOAuthCode',
-    endpoint: 'POST /api/data-destinations/oauth/exchange',
-  },
-  {
-    controller: DataDestinationController,
-    handlerName: 'generateOAuthAuthorizationUrl',
-    endpoint: 'POST /api/data-destinations/{id}/oauth/authorize',
-  },
-  {
-    controller: DataDestinationController,
-    handlerName: 'getOAuthStatus',
-    endpoint: 'GET /api/data-destinations/{id}/oauth/status',
-  },
-  {
-    controller: DataDestinationController,
-    handlerName: 'revokeOAuth',
-    endpoint: 'DELETE /api/data-destinations/{id}/oauth',
   },
 ];
 

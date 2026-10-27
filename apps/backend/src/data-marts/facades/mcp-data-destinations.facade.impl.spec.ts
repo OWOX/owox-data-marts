@@ -9,7 +9,13 @@ import { UserProjectionDto } from '../../idp/dto/domain/user-projection.dto';
 import { ListDataDestinationsService } from '../use-cases/list-data-destinations.service';
 import { CreateDataDestinationService } from '../use-cases/create-data-destination.service';
 import { DataDestinationCredentialService } from '../services/data-destination-credential.service';
+import { DestinationCredentialBindingService } from '../data-destination-types/destination-credential-binding.service';
 import { McpDataDestinationsFacadeImpl } from './mcp-data-destinations.facade.impl';
+
+const noBindings = {
+  findBoundDestinationIds: jest.fn().mockResolvedValue(new Set()),
+  summarizeForDestinations: jest.fn().mockResolvedValue(new Map()),
+};
 
 function createFacade(
   listDataDestinationsService: Pick<ListDataDestinationsService, 'run'>
@@ -21,7 +27,8 @@ function createFacade(
   return new McpDataDestinationsFacadeImpl(
     listDataDestinationsService as unknown as ListDataDestinationsService,
     {} as unknown as CreateDataDestinationService,
-    dataDestinationCredentialService as unknown as DataDestinationCredentialService
+    dataDestinationCredentialService as unknown as DataDestinationCredentialService,
+    noBindings as unknown as DestinationCredentialBindingService
   );
 }
 
@@ -47,7 +54,8 @@ function createFacadeForCreate(
     facade: new McpDataDestinationsFacadeImpl(
       {} as unknown as ListDataDestinationsService,
       createDataDestinationService as unknown as CreateDataDestinationService,
-      dataDestinationCredentialService as unknown as DataDestinationCredentialService
+      dataDestinationCredentialService as unknown as DataDestinationCredentialService,
+      noBindings as unknown as DestinationCredentialBindingService
     ),
     createDataDestinationService,
     dataDestinationCredentialService,
@@ -169,7 +177,7 @@ describe('McpDataDestinationsFacadeImpl', () => {
       listDataDestinationsService as unknown as ListDataDestinationsService,
       {} as unknown as CreateDataDestinationService,
       dataDestinationCredentialService as unknown as DataDestinationCredentialService,
-      {} as unknown as PublicOriginService
+      noBindings as unknown as DestinationCredentialBindingService
     );
 
     const result = await facade.listDestinations({
@@ -186,6 +194,86 @@ describe('McpDataDestinationsFacadeImpl', () => {
     expect(result.destinations.map(d => [d.id, d.connectedGoogleAccount])).toEqual([
       ['dest_1', 'attacker@gmail.com'],
       ['dest_2', null],
+    ]);
+  });
+
+  it("reports a bound Destination's Google account only from a Credential the member can see", async () => {
+    const sheet = (id: string, credentialId: string | null) =>
+      new DataDestinationDto(
+        id,
+        id,
+        DataDestinationType.GOOGLE_SHEETS,
+        'project-1',
+        new Date('2026-06-01T10:00:00.000Z'),
+        new Date('2026-06-02T10:00:00.000Z'),
+        credentialId
+      );
+    const sheets = [
+      sheet('account', null),
+      sheet('sa', 'old-row'),
+      sheet('hidden', 'old-row'),
+      sheet('deleted', 'old-row'),
+      sheet('legacy', 'old-oauth-row'),
+    ];
+    const listDataDestinationsService = { run: jest.fn().mockResolvedValue(sheets) };
+    const dataDestinationCredentialService = {
+      getByIds: jest.fn().mockResolvedValue(
+        new Map([
+          ['old-row', { identity: { email: 'old@gmail.com' } }],
+          ['old-oauth-row', { identity: { email: 'legacy@gmail.com' } }],
+        ])
+      ),
+    };
+    const visible = (definitionId: string, identity: string) => ({
+      access: 'visible',
+      id: `cred-${definitionId}`,
+      definitionId,
+      identity,
+      state: 'ready',
+    });
+    const destinationCredentials = {
+      findBoundDestinationIds: jest
+        .fn()
+        .mockResolvedValue(new Set(['account', 'sa', 'hidden', 'deleted'])),
+      // A deleted Credential has no summary.
+      summarizeForDestinations: jest.fn().mockResolvedValue(
+        new Map([
+          ['account', visible('google-sheets-oauth', 'me@gmail.com')],
+          ['sa', visible('google-service-account', 'robot@p.iam.gserviceaccount.com')],
+          ['hidden', { access: 'restricted', state: 'ready' }],
+        ])
+      ),
+    };
+    const facade = new McpDataDestinationsFacadeImpl(
+      listDataDestinationsService as unknown as ListDataDestinationsService,
+      {} as unknown as CreateDataDestinationService,
+      dataDestinationCredentialService as unknown as DataDestinationCredentialService,
+      destinationCredentials as unknown as DestinationCredentialBindingService
+    );
+
+    const result = await facade.listDestinations({
+      projectId: 'project-1',
+      userId: 'user-1',
+      roles: ['viewer'],
+    });
+
+    expect(destinationCredentials.summarizeForDestinations).toHaveBeenCalledWith({
+      projectId: 'project-1',
+      userId: 'user-1',
+      roles: ['viewer'],
+      destinations: sheets.slice(0, 4),
+    });
+    expect(dataDestinationCredentialService.getByIds).toHaveBeenCalledWith(
+      ['old-oauth-row'],
+      'project-1'
+    );
+    // A service account completed no OAuth consent, as with its old row.
+    expect(result.destinations.map(d => [d.id, d.connectedGoogleAccount])).toEqual([
+      ['account', 'me@gmail.com'],
+      ['sa', null],
+      ['hidden', null],
+      ['deleted', null],
+      ['legacy', 'legacy@gmail.com'],
     ]);
   });
 
@@ -216,7 +304,7 @@ describe('McpDataDestinationsFacadeImpl', () => {
       listDataDestinationsService as unknown as ListDataDestinationsService,
       {} as unknown as CreateDataDestinationService,
       dataDestinationCredentialService as unknown as DataDestinationCredentialService,
-      {} as unknown as PublicOriginService
+      noBindings as unknown as DestinationCredentialBindingService
     );
 
     const result = await facade.listDestinations({
@@ -269,7 +357,7 @@ describe('McpDataDestinationsFacadeImpl', () => {
       listDataDestinationsService as unknown as ListDataDestinationsService,
       {} as unknown as CreateDataDestinationService,
       dataDestinationCredentialService as unknown as DataDestinationCredentialService,
-      {} as unknown as PublicOriginService
+      noBindings as unknown as DestinationCredentialBindingService
     );
 
     const result = await facade.listDestinations({

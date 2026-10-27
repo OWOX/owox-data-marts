@@ -16,12 +16,14 @@ function TestForm() {
     defaultValues: {
       title: 'New Destination',
       type: DataDestinationType.GOOGLE_SHEETS,
+      reusableCredentialId: 'sheets-key',
     },
   });
 
   return (
     <Form {...form}>
       <DestinationTypeField form={form} />
+      <output data-testid='credential'>{form.watch('reusableCredentialId')}</output>
     </Form>
   );
 }
@@ -63,5 +65,14 @@ describe('DestinationTypeField', () => {
       .getAllByRole('option')
       .map(option => option.textContent);
     expect(rendered.slice(0, 2)).toEqual(['Google Sheets', 'Microsoft Excel']);
+  });
+
+  it('drops the selected Credential when the type changes', async () => {
+    render(<TestForm />);
+
+    openTypeList();
+    fireEvent.click(await within(document.body).findByRole('option', { name: /Google Chat/ }));
+
+    expect(screen.getByTestId('credential')).toBeEmptyDOMElement();
   });
 });

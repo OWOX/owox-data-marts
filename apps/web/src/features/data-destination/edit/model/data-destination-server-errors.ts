@@ -25,25 +25,26 @@ export function extractDestinationFieldErrors(error: unknown): ApiFieldError[] {
  * Maps a value the server rejected — named by its path in the save request — to the Destination
  * form input that holds it, or `null` when no input does.
  *
- * Where request and form differ: Google Sheets sends the parsed key file under
- * `credentials.serviceAccountKey` while the form edits the whole file in one textarea, and sends
- * the folder as `config.folderId` while the form takes its URL. A list (`credentials.to.0`) is one
- * input, whichever entry was refused.
+ * Where request and form differ: Google Sheets sends the folder as `config.folderId` while the
+ * form takes its URL. A list (`credentials.to.0`) is one input, whichever entry was refused.
  */
 export function toDataDestinationFormField(
   type: DataDestinationType | undefined,
   field: string
 ): FieldPath<DataDestinationFormData> | null {
+  if (field === 'reusableCredentialId') return 'reusableCredentialId';
   const segments = field.split('.').filter(segment => !/^\d+$/.test(segment));
   const [scope, key] = segments;
   if ((scope !== 'config' && scope !== 'credentials') || !key) return null;
   // The credentials' own type tag is set by the form, never typed: nothing to mark for it.
   if (scope === 'credentials' && key === 'type') return null;
 
-  if (type === DataDestinationType.GOOGLE_SHEETS) {
-    if (scope === 'credentials' && key === 'serviceAccountKey') return 'credentials.serviceAccount';
-    if (scope === 'config' && (key === 'folderId' || key === 'folderUrl'))
-      return 'config.folderUrl';
+  if (
+    type === DataDestinationType.GOOGLE_SHEETS &&
+    scope === 'config' &&
+    (key === 'folderId' || key === 'folderUrl')
+  ) {
+    return 'config.folderUrl';
   }
 
   return `${scope}.${key}` as FieldPath<DataDestinationFormData>;

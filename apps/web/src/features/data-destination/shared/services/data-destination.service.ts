@@ -1,13 +1,10 @@
 import { ApiService } from '../../../../services';
 import type {
   CreateDataDestinationRequestDto,
-  CreateDataDestinationCopyRequestDto,
   DataDestinationResponseDto,
   UpdateDataDestinationRequestDto,
-  DataDestinationByTypeResponseDto,
   DataDestinationImpactResponseDto,
 } from './types';
-import type { DataDestinationType } from '../enums';
 
 /**
  * Identifiers of an auto-created Google Sheet, returned by the "Create document" flow.
@@ -59,18 +56,18 @@ export class DataDestinationService extends ApiService {
    * @returns Promise with created data destination
    */
   async createDataDestination(
-    data: CreateDataDestinationRequestDto | CreateDataDestinationCopyRequestDto
+    data: CreateDataDestinationRequestDto
   ): Promise<DataDestinationResponseDto> {
     return this.post<DataDestinationResponseDto>('', data);
   }
 
   /**
-   * MCP connect-flow: creates a Google Sheets destination after OAuth.
+   * MCP connect-flow: creates a Google Sheets destination bound to a just-connected Credential.
    * Sharing defaults are enforced server-side (not client-controlled).
    */
   async createConnectGoogleSheetsDestination(data: {
     title: string;
-    credentialId: string;
+    reusableCredentialId: string;
   }): Promise<DataDestinationResponseDto> {
     return this.post<DataDestinationResponseDto>('/connect/google-sheets', data);
   }
@@ -112,17 +109,6 @@ export class DataDestinationService extends ApiService {
    */
   async rotateSecretKey(id: string): Promise<DataDestinationResponseDto> {
     return this.post<DataDestinationResponseDto>(`/${id}/rotate-secret-key`);
-  }
-
-  /**
-   * Get data destinations by type
-   * @param type Data destination type
-   * @returns Promise with list of data destinations of the given type
-   */
-  async getDataDestinationsByType(
-    type: DataDestinationType
-  ): Promise<DataDestinationByTypeResponseDto> {
-    return this.get<DataDestinationByTypeResponseDto>(`/by-type/${type}`);
   }
 
   /**

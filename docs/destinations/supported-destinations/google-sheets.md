@@ -29,9 +29,14 @@ The Sheets API can read and write spreadsheets, but it cannot place a file into 
 
 > **Note:** After enabling, allow up to a minute for the change to propagate before retrying.
 
-#### 3. Create a Service Account and JSON Key
+#### 3. Choose how OWOX connects to Google
 
-A service account is required to authenticate OWOX Data Marts with Google Sheets.
+A Google Sheets Destination selects a [Credential](../../project/credentials.md) instead of holding a key. Two providers fit:
+
+- **Google Service Account** — a JSON key of a Google Cloud service account. Recommended for automated, unattended workflows.
+- **Sheets Google account** — a Google account you connect with OAuth. It appears only where your deployment has Google OAuth for Destinations set up.
+
+For a service account, create the JSON key:
 
 1. Navigate to **IAM & Admin** > **Service Accounts** in the [Google Cloud Console](https://console.cloud.google.com/iam-admin/serviceaccounts).
 2. Create a new service account or select an existing one.
@@ -56,23 +61,28 @@ Select **Google Sheets** from the **Destination Type** dropdown.
 
 - **Title**: Provide a unique name for this **Destination** (e.g., "Marketing Reports").
 
-#### 4. Choose Authentication Method
+#### 4. Select a Credential
 
-OWOX Data Marts supports two authentication methods for Google Sheets:
+In the **Credential** field, select a **Google Service Account** or **Sheets Google account** Credential that you can use. If exactly one fits, a new Destination selects it for you.
 
-##### Option A: Service Account (JSON Key)
+To add one without leaving the form, click **+ Create new Credential**:
 
-Paste the JSON key file from your Service Account into the **Service Account JSON** field. This method is recommended for automated, unattended workflows.
+- **Google Service Account**: paste the JSON key file or drop it. This is the recommended method for automated, unattended workflows.
+- **Sheets Google account**: click **Connect with Google** and grant access on Google's consent screen. The account's email becomes the Credential's identity.
 
-##### Option B: Google OAuth
+The new Credential is selected when you save it. A Credential created from the form is not shared: only its owners and Project Admins can use it until an owner shares it. Manage and share it on the [Credentials](../../project/credentials.md) page.
 
-Click **Connect Google Account** to authenticate using your personal Google account via OAuth. You will be redirected to Google's consent screen to grant access. Once authorized, your account will be linked to this Destination.
+> **Note:** OAuth tokens are automatically refreshed. If access is revoked or expires, the Destination shows that its Credential needs reconnecting; open the Credential and click **Connect with Google** again.
+>
+> The Google Drive permission (`drive.file`) is optional for a **Sheets Google account**. Without it, reports still write to spreadsheets, and **Create document** puts the new spreadsheet in the account's Drive root, outside the selected folder and not shared with you.
 
-> **Note:** OAuth tokens are automatically refreshed. If your session expires or access is revoked, you can reconnect at any time by clicking **Connect Google Account** again.
+To use the same key in several Destinations, select the same Credential in each one. To replace a leaked key, replace it once in the Credential; every Destination that uses it picks up the new value.
 
 #### 5. Finalize Setup
 
 Review your entries and click **Save** to integrate the **Destination**, or **Cancel** to discard changes.
+
+If you can edit a Destination but cannot see its Credential, the field shows **Restricted Credential**. You can still save the Destination; to change the key, select a Credential you can use.
 
 ---
 

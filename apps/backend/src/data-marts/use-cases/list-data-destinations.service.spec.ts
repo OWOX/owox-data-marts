@@ -10,11 +10,15 @@ describe('ListDataDestinationsService', () => {
   const makeQbChain = (results: unknown[]) => {
     const qb: Record<string, jest.Mock> = {
       leftJoinAndSelect: jest.fn(),
+      leftJoin: jest.fn(),
+      addSelect: jest.fn(),
       where: jest.fn(),
       andWhere: jest.fn(),
       getMany: jest.fn(),
     };
     qb.leftJoinAndSelect.mockReturnValue(qb);
+    qb.leftJoin.mockReturnValue(qb);
+    qb.addSelect.mockReturnValue(qb);
     qb.where.mockReturnValue(qb);
     qb.andWhere.mockReturnValue(qb);
     qb.getMany.mockResolvedValue(results);
@@ -38,15 +42,18 @@ describe('ListDataDestinationsService', () => {
     const contextAccessService = {
       getRoleScope: jest.fn().mockResolvedValue(RoleScope.ENTIRE_PROJECT),
     };
+    const summaries = new Map([['dest-1', { access: 'pending', state: 'ready' }]]);
+    const credentialsResolver = { summarize: jest.fn().mockResolvedValue(summaries) };
 
     const service = new ListDataDestinationsService(
       dataDestinationRepo as never,
       mapper as never,
       userProjectionsFetcherService as never,
-      contextAccessService as never
+      contextAccessService as never,
+      credentialsResolver as never
     );
 
-    return { service, qb };
+    return { service, qb, mapper, credentialsResolver, summaries };
   };
 
   it('should add access filter for non-admin user', async () => {
@@ -99,5 +106,29 @@ describe('ListDataDestinationsService', () => {
     expect(viewerFilter).toBeDefined();
     expect(editorFilter).toBeDefined();
     expect(viewerFilter).toBe(editorFilter);
+  });
+
+  it("summarizes each Destination's Credential as the member sees it, reading its old row", async () => {
+    const destinations = [{ id: 'dest-1', ownerIds: [] }];
+    const { service, qb, mapper, credentialsResolver, summaries } = createService(destinations);
+
+    await service.run(new ListDataDestinationsCommand('proj-1', 'user-1', ['editor']));
+
+    expect(qb.leftJoin).toHaveBeenCalledWith('d.credential', 'credential');
+    // The response shows only the account of the key; the key itself never leaves the service.
+    expect(qb.addSelect).toHaveBeenCalledWith([
+      'credential.id',
+      'credential.type',
+      'credential.identity',
+      'credential.credentials',
+    ]);
+    expect(qb.leftJoinAndSelect).not.toHaveBeenCalledWith('d.credential', 'credential');
+    expect(credentialsResolver.summarize).toHaveBeenCalledWith(
+      'proj-1',
+      'user-1',
+      ['editor'],
+      destinations
+    );
+    expect(mapper.toDomainDtoList).toHaveBeenCalledWith(destinations, expect.anything(), summaries);
   });
 });

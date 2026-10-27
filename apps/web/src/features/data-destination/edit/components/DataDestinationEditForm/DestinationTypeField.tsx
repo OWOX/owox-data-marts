@@ -38,7 +38,15 @@ export function DestinationTypeField({
       render={({ field }) => (
         <FormItem>
           <FormLabel tooltip='Select the destination to send your data'>Destination Type</FormLabel>
-          <Select onValueChange={field.onChange} defaultValue={field.value} disabled={!!isEditMode}>
+          <Select
+            onValueChange={value => {
+              // A Credential fits one type; the next type's field picks its own.
+              form.setValue('reusableCredentialId', '');
+              field.onChange(value);
+            }}
+            defaultValue={field.value}
+            disabled={!!isEditMode}
+          >
             <FormControl>
               <SelectTrigger className='w-full'>
                 <SelectValue placeholder='Select a destination type' />

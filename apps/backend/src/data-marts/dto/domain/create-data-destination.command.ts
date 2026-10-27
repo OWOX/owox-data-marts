@@ -8,8 +8,11 @@ export interface CreateDataDestinationCommandProps {
   type: DataDestinationType;
   userId: string;
   credentials?: DataDestinationCredentials;
-  credentialId?: string;
-  sourceDestinationId?: string;
+  /** The Credential to bind; null is rejected. */
+  reusableCredentialId?: string | null;
+  /** True when the request carries `credentialId` or `sourceDestinationId`. */
+  sentOldCredentialFields?: boolean;
+  isPluginCall?: boolean;
   ownerIds?: string[];
   roles?: string[];
   config?: DestinationConfig | null;
@@ -22,8 +25,9 @@ export class CreateDataDestinationCommand {
   public readonly type: DataDestinationType;
   public readonly userId: string;
   public readonly credentials?: DataDestinationCredentials;
-  public readonly credentialId?: string;
-  public readonly sourceDestinationId?: string;
+  public readonly reusableCredentialId?: string | null;
+  public readonly sentOldCredentialFields: boolean;
+  public readonly isPluginCall: boolean;
   public readonly ownerIds?: string[];
   public readonly roles: string[];
   public readonly config?: DestinationConfig | null;
@@ -35,15 +39,12 @@ export class CreateDataDestinationCommand {
     this.type = props.type;
     this.userId = props.userId;
     this.credentials = props.credentials;
-    this.credentialId = props.credentialId;
-    this.sourceDestinationId = props.sourceDestinationId;
+    this.reusableCredentialId = props.reusableCredentialId;
+    this.sentOldCredentialFields = props.sentOldCredentialFields ?? false;
+    this.isPluginCall = props.isPluginCall ?? false;
     this.ownerIds = props.ownerIds;
     this.roles = props.roles ?? [];
     this.config = props.config;
     this.availableForUse = props.availableForUse;
-  }
-
-  hasCredentials(): boolean {
-    return this.credentials !== undefined;
   }
 }

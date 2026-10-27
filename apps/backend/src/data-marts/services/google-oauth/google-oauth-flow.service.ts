@@ -1,16 +1,10 @@
 import { Injectable, Logger, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { castError } from '@owox/internal-helpers';
 import type { OAuth2Client } from 'google-auth-library';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
 import * as jwt from 'jsonwebtoken';
 import { DataStorageCredentialService } from '../data-storage-credential.service';
 import { DataDestinationCredentialService } from '../data-destination-credential.service';
 import { GoogleOAuthConfigService } from './google-oauth-config.service';
-import { DataDestination } from '../../entities/data-destination.entity';
-import { DestinationCredentialType } from '../../enums/destination-credential-type.enum';
-import type { StoredStorageCredentials } from '../../entities/stored-storage-credentials.type';
-import type { StoredDestinationCredentials } from '../../entities/stored-destination-credentials.type';
 import type { CredentialOAuthAuth, GoogleOAuthClientKey } from '../../credentials/credential.types';
 import {
   GOOGLE_OAUTH_DEFINITION_ID,
@@ -54,11 +48,6 @@ export interface GoogleAuthorizationUrlResult {
   state: string;
 }
 
-export interface GoogleTokenExchangeResult {
-  credentialId: string;
-  user?: GoogleOAuthUser;
-}
-
 export interface GoogleOAuthSettingsResult {
   available: boolean;
   authorizationEndpoint?: string;
@@ -95,9 +84,7 @@ export class GoogleOAuthFlowService {
   constructor(
     private readonly dataStorageCredentialService: DataStorageCredentialService,
     private readonly dataDestinationCredentialService: DataDestinationCredentialService,
-    private readonly googleOAuthConfigService: GoogleOAuthConfigService,
-    @InjectRepository(DataDestination)
-    private readonly dataDestinationRepository: Repository<DataDestination>
+    private readonly googleOAuthConfigService: GoogleOAuthConfigService
   ) {}
 
   private getOAuth2Client(client: GoogleOAuthClientKey): OAuth2Client {
@@ -122,6 +109,14 @@ export class GoogleOAuthFlowService {
       );
     }
     return auth;
+  }
+
+  /** Whether each OAuth client is configured, for definitions that name a client. */
+  getClientAvailability(): Record<GoogleOAuthClientKey, boolean> {
+    return {
+      storage: this.googleOAuthConfigService.isClientConfigured('storage'),
+      destination: this.googleOAuthConfigService.isClientConfigured('destination'),
+    };
   }
 
   getSettingsForType(type: OAuthResourceType): GoogleOAuthSettingsResult {
@@ -161,7 +156,7 @@ export class GoogleOAuthFlowService {
       resourceId,
       type,
       redirectUri,
-      ...(type === 'destination' ? {} : { definitionId }),
+      definitionId,
     });
 
     const authorizationUrl = this.getOAuth2Client(client).generateAuthUrl({
@@ -225,45 +220,6 @@ export class GoogleOAuthFlowService {
 
     const { clientId } = this.googleOAuthConfigService.getClient(client);
     return { state: statePayload, tokens, user, clientId };
-  }
-
-  async exchangeAuthorizationCode(
-    code: string,
-    state: string,
-    userId: string,
-    callerProjectId: string
-  ): Promise<GoogleTokenExchangeResult> {
-    const {
-      state: statePayload,
-      tokens,
-      user,
-    } = await this.exchangeCodeForGrant(code, state, callerProjectId);
-    // Storages and Credentials connect through the Credential exchange.
-    if (statePayload.type !== 'destination') {
-      throw new InvalidOAuthStateException();
-    }
-
-    const identity =
-      user.email || user.name
-        ? { email: user.email, name: user.name, picture: user.picture }
-        : null;
-
-    const credential = await this.dataDestinationCredentialService.create({
-      projectId: statePayload.projectId,
-      createdById: userId,
-      type: DestinationCredentialType.GOOGLE_OAUTH,
-      credentials: tokens,
-      identity,
-    });
-
-    if (statePayload.resourceId) {
-      await this.dataDestinationRepository.update(
-        { id: statePayload.resourceId },
-        { credentialId: credential.id }
-      );
-    }
-
-    return { credentialId: credential.id, user };
   }
 
   // Legacy: the 'storage' type refreshes old rows; remove it with LegacyStorageCredentialReader.
@@ -339,86 +295,6 @@ export class GoogleOAuthFlowService {
       throw new TokenRefreshFailedException(
         'Google access was refreshed, but the updated tokens could not be saved. Please try again later.'
       );
-    }
-  }
-
-  // Legacy methods — delegate to new unified method
-  async refreshDestinationTokens(destinationId: string): Promise<void> {
-    const destination = await this.dataDestinationRepository.findOne({
-      where: { id: destinationId },
-    });
-    if (!destination?.credentialId) {
-      throw new CredentialsNotFoundException(destinationId, 'destination');
-    }
-    await this.refreshTokensByCredentialId(destination.credentialId, 'destination');
-  }
-
-  async revokeDestinationOAuth(destinationId: string): Promise<void> {
-    const destination = await this.dataDestinationRepository.findOne({
-      where: { id: destinationId },
-    });
-    if (!destination?.credentialId) {
-      throw new CredentialsNotFoundException(destinationId, 'destination');
-    }
-    await this.revokeCredential(destination.credentialId, 'destination');
-    // Also clear the Drive folder config: an OAuth-selected folder's drive.file
-    // grant was tied to the now-revoked account, so it would be stale (and could
-    // point at a folder the next-connected account cannot access).
-    await this.dataDestinationRepository.update(
-      { id: destinationId },
-      { credentialId: null, config: null }
-    );
-    this.logger.log(`Revoked OAuth credentials for destination ${destinationId}`);
-  }
-
-  async isDestinationOAuthValid(destinationId: string): Promise<boolean> {
-    const destination = await this.dataDestinationRepository.findOne({
-      where: { id: destinationId },
-    });
-    if (!destination?.credential) return false;
-    return this.isCredentialValid(destination.credential);
-  }
-
-  // Private helpers
-
-  private isCredentialValid(
-    credential: { credentials: StoredStorageCredentials | StoredDestinationCredentials } | null
-  ): boolean {
-    if (!credential) return false;
-    return !!(credential.credentials as GoogleOAuthTokens).refresh_token;
-  }
-
-  // Legacy: the 'storage' type revokes old rows; remove it with LegacyStorageCredentialReader.
-  private async revokeCredential(
-    credentialId: string,
-    type: 'storage' | 'destination'
-  ): Promise<void> {
-    const credService =
-      type === 'storage'
-        ? this.dataStorageCredentialService
-        : this.dataDestinationCredentialService;
-
-    const credential = await credService.getById(credentialId);
-    if (credential) {
-      try {
-        const tokens = credential.credentials as GoogleOAuthTokens;
-        // Prefer revoking refresh_token (invalidates all associated access tokens).
-        // Fall back to access_token if no refresh_token is available.
-        const tokenToRevoke = tokens.refresh_token || tokens.access_token;
-        if (tokenToRevoke) {
-          // Create a transient client to avoid mutating shared singleton state
-          const revokeClient = newGoogleOAuthClient(
-            this.googleOAuthConfigService.getClient(type),
-            this.googleOAuthConfigService.getRedirectUri()
-          );
-          await revokeClient.revokeToken(tokenToRevoke);
-        }
-      } catch (error) {
-        this.logger.warn(
-          `Failed to revoke token with Google for ${type} credential ${credentialId}: ${castError(error).message}`
-        );
-      }
-      await credService.softDelete(credentialId);
     }
   }
 

@@ -99,7 +99,7 @@ describe('GoogleSheetsReportDeletedListener', () => {
 
   it('should call deleteDeveloperMetadata with correct metadataId', async () => {
     const metadataId = 777;
-    const { listener, mockAdapter } = createListener();
+    const { listener, mockAdapter, adapterFactory } = createListener();
     const existingEntry = {
       metadataKey: 'OWOX_REPORT_META',
       metadataId,
@@ -116,6 +116,9 @@ describe('GoogleSheetsReportDeletedListener', () => {
     await listener.handleReportDeletedEvent(makeEvent());
 
     expect(mockAdapter.deleteDeveloperMetadata).toHaveBeenCalledWith(spreadsheetId, [metadataId]);
+    expect(adapterFactory.createFromDestination).toHaveBeenCalledWith(expect.anything(), {
+      markUsed: false,
+    });
   });
 
   it('should delete ALL duplicate metadata entries for the same report when multiple exist', async () => {

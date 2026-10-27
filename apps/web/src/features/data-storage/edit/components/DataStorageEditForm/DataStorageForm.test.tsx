@@ -64,8 +64,8 @@ const fieldProps = vi.hoisted(() => ({
   credentials: [] as unknown[],
 }));
 
-vi.mock('../../../../credentials', async importOriginal => ({
-  ProviderIcon: (await importOriginal<typeof import('../../../../credentials')>()).ProviderIcon,
+vi.mock('../../../../credentials/useCredentials', async importOriginal => ({
+  ...(await importOriginal<typeof import('../../../../credentials/useCredentials')>()),
   useCredentials: () => ({
     credentials: fieldProps.credentials,
     isLoading: false,
@@ -78,16 +78,23 @@ vi.mock('../../../../credentials', async importOriginal => ({
     isError: false,
     refetch: () => undefined,
   }),
+}));
+
+vi.mock('../../../../credentials/components/CredentialConfigSheet', () => ({
   CredentialConfigSheet: () => null,
 }));
 
 // The field has its own spec; this stub reports a choice and shows the props the form hands it.
-vi.mock('./StorageCredentialField', async importOriginal => {
-  const actual = await importOriginal<typeof import('./StorageCredentialField')>();
+vi.mock('../../../../credentials/components/ConsumerCredentialField', async importOriginal => {
+  const actual =
+    await importOriginal<
+      typeof import('../../../../credentials/components/ConsumerCredentialField')
+    >();
   return {
-    StorageCredentialField: (props: Parameters<typeof actual.StorageCredentialField>[0]) => {
+    ...actual,
+    ConsumerCredentialField: (props: Parameters<typeof actual.ConsumerCredentialField>[0]) => {
       fieldProps.isNew = props.isNew;
-      if (fieldProps.real) return <actual.StorageCredentialField {...props} />;
+      if (fieldProps.real) return <actual.ConsumerCredentialField {...props} />;
       return <FieldStub {...props} />;
     },
   };

@@ -1,7 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { zodResolver } from '@hookform/resolvers/zod';
-import type { CredentialIdentity } from '../../../../../shared/types/credential-identity';
 import type { UserProjection } from '../../../../../shared/types';
 import type { UserProjectionDto } from '../../../../../shared/types/api';
 import { useOwnerState } from '../../../../../shared/hooks/useOwnerState';
@@ -12,9 +11,12 @@ import { useInlineContextCreate } from '../../../../../features/contexts/hooks/u
 import { UserReference } from '../../../../../shared/components/UserReference/UserReference';
 import { useUser } from '../../../../idp/hooks/useAuthState';
 import { useIsAdmin } from '../../../../idp/hooks/useRole';
-import { CopyCredentialContext } from '../../model/context/copy-credential-context';
+import {
+  ConsumerCredentialField,
+  useCredentialFormBinding,
+  type Credential,
+} from '../../../../credentials';
 import { Loader2 } from 'lucide-react';
-import { useForm } from 'react-hook-form';
 
 import { Button } from '@owox/ui/components/button';
 import {
@@ -43,6 +45,8 @@ import {
   applyServerFieldErrors,
   createFormPayload,
   focusFirstInvalidField,
+  keepBoundCredential,
+  trackEvent,
 } from '../../../../../utils';
 import { apiErrorMessage, wasErrorToastShown } from '../../../../../app/api';
 import toast from 'react-hot-toast';
@@ -50,11 +54,11 @@ import {
   extractDestinationFieldErrors,
   toDataDestinationFormField,
 } from '../../model/data-destination-server-errors';
-import { COPY_SOURCE_CREDENTIAL_PLACEHOLDER } from '../../../../../shared/utils/credential-identity-utils';
 import {
   DataDestinationType,
   dataDestinationSchema,
   type DataDestinationFormData,
+  type DestinationCredentialSummary,
 } from '../../../shared';
 import { DestinationTypeField } from './DestinationTypeField';
 import { EmailFields } from './EmailFields';
@@ -70,12 +74,10 @@ interface DataDestinationFormProps {
         createdAt?: Date;
         createdByUser?: UserProjection | null;
         contexts?: ContextSummary[];
+        reusableCredential?: DestinationCredentialSummary | null;
       })
     | null;
-  onSubmit: (
-    data: DataDestinationFormData,
-    source?: { id: string; title: string } | null
-  ) => Promise<void>;
+  onSubmit: (data: DataDestinationFormData) => Promise<void>;
   onCancel: () => void;
   onDirtyChange?: (isDirty: boolean) => void;
   isEditMode?: boolean;
@@ -92,14 +94,27 @@ export function DataDestinationForm({
   allowedDestinationTypes,
   destinationId,
 }: DataDestinationFormProps) {
-  const form = useForm<DataDestinationFormData>({
-    resolver: zodResolver(dataDestinationSchema),
-    defaultValues: initialData ?? {
-      title: 'New Destination',
-      type: DataDestinationType.GOOGLE_SHEETS,
-    },
-    mode: 'onTouched',
-  });
+  const {
+    form,
+    initialCredential,
+    initialCredentialId,
+    credentialSourceRef,
+    handleCredentialChange,
+  } = useCredentialFormBinding<DataDestinationFormData, DestinationCredentialSummary>(
+    initialData?.reusableCredential,
+    ({ hasBinding, initialCredentialId }) => ({
+      resolver: keepBoundCredential<DataDestinationFormData>(
+        zodResolver(dataDestinationSchema),
+        hasBinding
+      ),
+      defaultValues: {
+        ...(initialData ?? { title: 'New Destination', type: DataDestinationType.GOOGLE_SHEETS }),
+        reusableCredentialId: initialCredentialId ?? '',
+      },
+      mode: 'onTouched',
+    })
+  );
+  const [createdCredential, setCreatedCredential] = useState<Credential | null>(null);
 
   const currentUser = useUser();
   const initialOwnerUsers =
@@ -149,84 +164,30 @@ export function DataDestinationForm({
     },
   });
 
-  const [selectedSource, setSelectedSource] = useState<{
-    id: string;
-    title: string;
-    identity: CredentialIdentity | null;
-  } | null>(null);
-
-  const handleSourceSelect = useCallback(
-    (id: string, title: string, identity: CredentialIdentity | null) => {
-      setSelectedSource({ id, title, identity });
-      // Set placeholder credentialId so Zod validation passes.
-      // Credentials are copied server-side; this value is stripped from the payload
-      // because dirtyFields.credentials is not set (shouldDirty: false).
-      form.setValue('credentials.credentialId', COPY_SOURCE_CREDENTIAL_PLACEHOLDER, {
-        shouldDirty: false,
-        shouldValidate: true,
-      });
-    },
-    [form]
-  );
-
-  const handleSourceClear = useCallback(() => {
-    setSelectedSource(null);
-    // Restore the credential to its initial value. Set rather than resetField: the field is
-    // registered only on the OAuth tab, and resetField is a no-op for an unregistered field,
-    // which would leave the copy placeholder behind on the service-account tab.
-    const initialCredentialId =
-      (initialData?.credentials as { credentialId?: string | null } | undefined)?.credentialId ??
-      null;
-    form.setValue('credentials.credentialId', initialCredentialId, { shouldDirty: false });
-  }, [form, initialData]);
-
   // Get the current destination type
   const destinationType = form.watch('type');
 
-  // The copy-source picker lives inside the Google Sheets fields only, so once the type changes
-  // its clear button is gone while the selection would still ride along into the request as
-  // sourceDestinationId — which every other type rejects.
   useEffect(() => {
-    if (selectedSource) handleSourceClear();
-    // Only a type change should clear the selection, not the selection itself.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [destinationType]);
-
-  useEffect(() => {
-    onDirtyChange?.(
-      form.formState.isDirty ||
-        selectedSource !== null ||
-        ownersDirty ||
-        sharingDirty ||
-        contextsDirty
-    );
-  }, [
-    form.formState.isDirty,
-    selectedSource,
-    ownersDirty,
-    sharingDirty,
-    contextsDirty,
-    onDirtyChange,
-  ]);
-
-  const copyCredentialCtx = useMemo(
-    () => ({
-      entityId: destinationId,
-      onSourceSelect: handleSourceSelect,
-      selectedSource,
-      onSourceClear: handleSourceClear,
-    }),
-    [destinationId, selectedSource, handleSourceSelect, handleSourceClear]
-  );
+    onDirtyChange?.(form.formState.isDirty || ownersDirty || sharingDirty || contextsDirty);
+  }, [form.formState.isDirty, ownersDirty, sharingDirty, contextsDirty, onDirtyChange]);
 
   const handleSubmit = async (data: DataDestinationFormData, event?: { target?: unknown }) => {
     const { dirtyFields } = form.formState;
     const payload = createFormPayload(data);
 
-    // Strip credentials when copying from another source (server handles it via sourceDestinationId)
-    // or when no credential fields were touched by the user.
-    if (!dirtyFields.credentials || selectedSource) {
+    // Untouched credentials keep the saved ones; a new Destination has none, so it sends them.
+    if (isEditMode && !dirtyFields.credentials) {
       delete (payload as Partial<DataDestinationFormData>).credentials;
+    }
+    // Google Chat email delivery does not use a Credential.
+    const usesCredential =
+      data.type === DataDestinationType.GOOGLE_SHEETS ||
+      (data.type === DataDestinationType.GOOGLE_CHAT &&
+        data.credentials.deliveryMethod === 'webhook');
+    const credentialId = usesCredential ? data.reusableCredentialId : undefined;
+    const credentialChanged = Boolean(credentialId) && credentialId !== initialCredentialId;
+    if (!credentialChanged) {
+      delete (payload as { reusableCredentialId?: string }).reusableCredentialId;
     }
 
     // Read, not consumed: a rejected save keeps the owner change for the retry.
@@ -246,8 +207,18 @@ export function DataDestinationForm({
     }
 
     try {
-      await onSubmit(payload, selectedSource);
+      await onSubmit(payload);
       consumePendingOwnerIds();
+      if (credentialChanged) {
+        trackEvent({
+          event: 'destination_credential_selected',
+          category: 'DataDestination',
+          action: credentialSourceRef.current,
+          label: data.type,
+          context: null,
+          value: null,
+        });
+      }
     } catch (error) {
       // When the rejection names the values it refused, mark those inputs the same way
       // client-side validation does, so the user sees which field to fix instead of decoding
@@ -260,15 +231,47 @@ export function DataDestinationForm({
       if (highlighted) {
         focusFirstInvalidField(undefined, event);
       }
-      // Reported once whatever was marked: the marked input may not be on screen (another auth
-      // tab, a collapsed choice). The API interceptor toasts 400/403/404/5xx; a network failure,
-      // any other status or a throw while building the request is reported here.
+      // Reported once whatever was marked: the marked input may not be on screen (another
+      // delivery tab, a collapsed section). The API interceptor toasts 400/403/404/5xx; a
+      // network failure, any other status or a throw while building the request is reported here.
       if (!wasErrorToastShown(error)) {
         console.error(error);
         toast.error(apiErrorMessage(error, 'Failed to save the Destination'));
       }
     }
   };
+
+  const credentialField = (
+    <FormField
+      control={form.control}
+      name='reusableCredentialId'
+      render={({ field }) => (
+        <FormItem>
+          <FormLabel tooltip='Choose the Credential this Destination connects with'>
+            Credential
+          </FormLabel>
+          <FormControl>
+            <ConsumerCredentialField
+              consumer='destination'
+              consumerType={destinationType}
+              // Only a new Destination gets the only fitting Credential picked for it.
+              isNew={!isEditMode}
+              // An empty id means no Credential is selected, so `||` is intended.
+              // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
+              value={field.value || null}
+              summary={initialCredential}
+              onChange={handleCredentialChange}
+              onCreated={setCreatedCredential}
+            />
+          </FormControl>
+          {initialCredential?.access === 'pending' && !field.value && (
+            <FormDescription>Uses its own key until you select a Credential</FormDescription>
+          )}
+          <FormMessage />
+        </FormItem>
+      )}
+    />
+  );
 
   return (
     <Form {...form}>
@@ -300,11 +303,14 @@ export function DataDestinationForm({
             />
           </FormSection>
 
-          <CopyCredentialContext.Provider value={copyCredentialCtx}>
-            {destinationType === DataDestinationType.GOOGLE_SHEETS && (
-              <GoogleSheetsFields form={form} />
-            )}
-          </CopyCredentialContext.Provider>
+          {destinationType === DataDestinationType.GOOGLE_SHEETS && (
+            <GoogleSheetsFields
+              form={form}
+              credentialField={credentialField}
+              summary={initialCredential}
+              created={createdCredential}
+            />
+          )}
 
           {destinationType === DataDestinationType.LOOKER_STUDIO && (
             <LookerStudioFields form={form} />
@@ -325,7 +331,9 @@ export function DataDestinationForm({
             />
           )}
 
-          {destinationType === DataDestinationType.GOOGLE_CHAT && <GoogleChatFields form={form} />}
+          {destinationType === DataDestinationType.GOOGLE_CHAT && (
+            <GoogleChatFields form={form} credentialField={credentialField} />
+          )}
 
           <FormSection title='Ownership' defaultOpen={false} name='destination-ownership'>
             <FormItem>
@@ -339,9 +347,9 @@ export function DataDestinationForm({
                       <p>
                         Destination Owner is direct ownership of this Destination. When the
                         owner&apos;s project role is Data Owner or Project Admin, they may view,
-                        edit, delete, configure Sharing, and copy credentials from this Destination
-                        — regardless of Sharing settings. Assigning Owner to a Business User stores
-                        the assignment but grants no maintenance permissions until the role changes.
+                        edit, delete, and configure Sharing for this Destination — regardless of
+                        Sharing settings. Assigning Owner to a Business User stores the assignment
+                        but grants no maintenance permissions until the role changes.
                       </p>
                     </AccordionContent>
                   </AccordionItem>
@@ -422,8 +430,7 @@ export function DataDestinationForm({
                   />
                 </div>
                 <p className='text-muted-foreground text-sm'>
-                  Project members with access can copy credentials, edit, and delete this
-                  destination
+                  Project members with access can edit and delete this destination
                 </p>
                 <FormDescription>
                   <Accordion variant='common' type='single' collapsible>
@@ -431,9 +438,9 @@ export function DataDestinationForm({
                       <AccordionTrigger>What does "Shared for maintenance" mean?</AccordionTrigger>
                       <AccordionContent>
                         <p>
-                          When enabled, project members can copy credentials from this destination,
-                          edit its configuration, and delete it. Without this, only owners and
-                          admins can perform these actions.
+                          When enabled, project members can edit this destination&apos;s
+                          configuration and delete it. Without this, only owners and admins can
+                          perform these actions.
                         </p>
                       </AccordionContent>
                     </AccordionItem>
@@ -481,7 +488,6 @@ export function DataDestinationForm({
               form.formState.isSubmitting ||
               (isEditMode &&
                 !form.formState.isDirty &&
-                !selectedSource &&
                 !ownersDirty &&
                 !sharingDirty &&
                 !contextsDirty)

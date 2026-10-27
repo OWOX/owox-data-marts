@@ -3,9 +3,9 @@ import { SortableHeader, ToggleColumnsHeader } from '../../../../../../shared/co
 import {
   DataStorageHealthIndicator,
   DataStorageType,
-  StorageCredentialStateMark,
   type StorageCredentialSummary,
 } from '../../../../shared';
+import { CredentialStateMark } from '../../../../../credentials';
 import { DataStorageTypeModel } from '../../../../shared/types/data-storage-type.model';
 import { DataStorageActionsCell } from '../DataStorageActionsCell';
 import { DataStorageColumnKey } from './columnKeys';
@@ -81,7 +81,7 @@ export const getDataStorageColumns = ({
       return (
         <div className='flex flex-col gap-1'>
           {title}
-          <StorageCredentialStateMark summary={row.original.reusableCredential} />
+          <CredentialStateMark summary={row.original.reusableCredential} />
         </div>
       );
     },

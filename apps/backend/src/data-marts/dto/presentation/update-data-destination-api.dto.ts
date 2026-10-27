@@ -20,29 +20,45 @@ export class UpdateDataDestinationApiDto {
   @IsNotEmpty()
   title: string;
 
-  @ApiProperty({
+  @ApiPropertyOptional({
     type: 'object',
     additionalProperties: true,
-    description: 'Credentials required for the selected destination type',
+    description:
+      'Credentials for Data Studio, Email, Slack and Microsoft Teams, and the email recipients of a Google Chat Destination. Google Sheets and Google Chat webhook delivery select a Credential with reusableCredentialId instead.',
   })
   @IsObject()
   @IsOptional()
   credentials?: DataDestinationCredentials;
 
   @ApiProperty({
-    example: 'abc123e4-5678-90ab-cdef-1234567890ab',
+    type: 'string',
+    required: false,
+    description:
+      'Credential for a Google Sheets Destination, or a Google Chat Destination that delivers by webhook. Absent keeps the current one; null is rejected. Needs USE on the Credential and EDIT on the Destination.',
+  })
+  @IsString()
+  @IsNotEmpty()
+  @IsOptional()
+  reusableCredentialId?: string | null;
+
+  // Legacy: rejected old credential field; an older page still sends it.
+  @ApiProperty({
+    type: 'string',
     nullable: true,
     required: false,
-    description: 'Credential ID for OAuth-based authentication (null to disconnect)',
+    deprecated: true,
+    description: 'Rejected: "This page is out of date. Reload it."',
   })
   @IsUUID()
   @IsOptional()
   credentialId?: string | null;
 
+  // Legacy: rejected old credential field; an older page still sends it.
   @ApiProperty({
+    type: 'string',
     required: false,
-    description:
-      'Source Destination ID to copy credentials from (mutually exclusive with credentials)',
+    deprecated: true,
+    description: 'Rejected: "This page is out of date. Reload it."',
   })
   @IsUUID()
   @IsOptional()

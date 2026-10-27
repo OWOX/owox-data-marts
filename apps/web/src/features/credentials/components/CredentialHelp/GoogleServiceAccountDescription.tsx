@@ -37,8 +37,10 @@ export default function GoogleServiceAccountDescription() {
             <li>Create a new service account or select an existing one.</li>
             <li>
               For a BigQuery Storage, assign the <strong>bigquery.dataEditor</strong> and{' '}
-              <strong>bigquery.jobUser</strong> roles to this service account. For a plugin, use a
-              dedicated service account with no project roles.
+              <strong>bigquery.jobUser</strong> roles to this service account. For a Google Sheets
+              Destination, no project roles are needed: share the target spreadsheets with the
+              service account's email. For a plugin, use a dedicated service account with no project
+              roles.
             </li>
             <li>
               Open the Service Accounts page, go to the <strong>Keys</strong> tab, click{' '}

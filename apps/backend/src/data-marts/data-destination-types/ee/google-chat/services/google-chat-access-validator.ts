@@ -25,10 +25,10 @@ export class GoogleChatAccessValidator implements DataDestinationAccessValidator
     destinationConfig: DataDestinationConfig,
     dataDestination: DataDestination
   ): Promise<ValidationResult> {
-    let resolvedCredentials;
-    try {
-      resolvedCredentials = await this.credentialsResolver.resolve(dataDestination);
-    } catch {
+    // Not caught: a bound Credential's error says what a maintainer must do.
+    const auth = await this.credentialsResolver.resolveAuth(dataDestination, { markUsed: false });
+    const resolvedCredentials = 'credentials' in auth ? auth.credentials : null;
+    if (!resolvedCredentials) {
       return new ValidationResult(false, 'Credentials are not configured');
     }
 

@@ -60,7 +60,9 @@ export class GoogleSheetsReportCreatedListener {
       this.logger.debug(
         `[Metadata] Creating Google Sheets adapter for destination ${dataDestination.id}`
       );
-      const adapter = await this.adapterFactory.createFromDestination(dataDestination);
+      const adapter = await this.adapterFactory.createFromDestination(dataDestination, {
+        markUsed: false,
+      });
       if (!adapter) {
         this.logger.error(
           `[Metadata] Failed to create Google Sheets adapter for destination ${dataDestination.id} | ` +

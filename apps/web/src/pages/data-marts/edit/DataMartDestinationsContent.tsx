@@ -149,10 +149,6 @@ function DataMartDestinationsContentInner() {
         initialFormData={{
           title: 'New Google Sheets Destination',
           type: DataDestinationType.GOOGLE_SHEETS,
-          credentials: {
-            serviceAccount: '',
-            credentialId: null,
-          },
         }}
         allowedDestinationTypes={[DataDestinationType.GOOGLE_SHEETS]}
         onSaveSuccess={() => {

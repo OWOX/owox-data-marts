@@ -14,6 +14,7 @@ export function mapDataDestinationFromDto(dto: DataDestinationResponseDto): Data
     availableForUse: dto.availableForUse,
     availableForMaintenance: dto.availableForMaintenance,
     contexts: dto.contexts ?? [],
+    ...(dto.reusableCredential !== undefined && { reusableCredential: dto.reusableCredential }),
   };
 }
 

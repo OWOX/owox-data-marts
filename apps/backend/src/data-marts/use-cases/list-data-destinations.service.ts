@@ -10,6 +10,7 @@ import { RoleScope } from '../enums/role-scope.enum';
 import { ContextAccessService } from '../services/context/context-access.service';
 import { applyDataDestinationVisibilityFilter } from '../utils/apply-data-destination-visibility-filter';
 import { UserProjectionsFetcherService } from '../services/user-projections-fetcher.service';
+import { DataDestinationCredentialsResolver } from '../data-destination-types/data-destination-credentials-resolver.service';
 
 @Injectable()
 export class ListDataDestinationsService {
@@ -18,7 +19,8 @@ export class ListDataDestinationsService {
     private readonly dataDestinationRepo: Repository<DataDestination>,
     private readonly mapper: DataDestinationMapper,
     private readonly userProjectionsFetcherService: UserProjectionsFetcherService,
-    private readonly contextAccessService: ContextAccessService
+    private readonly contextAccessService: ContextAccessService,
+    private readonly credentialsResolver: DataDestinationCredentialsResolver
   ) {}
 
   async run(command: ListDataDestinationsCommand): Promise<DataDestinationDto[]> {
@@ -32,6 +34,14 @@ export class ListDataDestinationsService {
       .leftJoinAndSelect('d.owners', 'owners')
       .leftJoinAndSelect('d.contexts', 'dContexts')
       .leftJoinAndSelect('dContexts.context', 'dContext')
+      // Its own row's type tells which Destinations still run on their own key; the rest is what the response shows of it.
+      .leftJoin('d.credential', 'credential')
+      .addSelect([
+        'credential.id',
+        'credential.type',
+        'credential.identity',
+        'credential.credentials',
+      ])
       .where('d.projectId = :projectId', { projectId: command.projectId })
       .andWhere('d.deletedAt IS NULL');
 
@@ -60,6 +70,13 @@ export class ListDataDestinationsService {
     const userProjectionsList =
       await this.userProjectionsFetcherService.fetchUserProjectionsList(allUserIds);
 
-    return this.mapper.toDomainDtoList(dataDestinations, userProjectionsList);
+    const summaries = await this.credentialsResolver.summarize(
+      command.projectId,
+      command.userId,
+      command.roles,
+      dataDestinations
+    );
+
+    return this.mapper.toDomainDtoList(dataDestinations, userProjectionsList, summaries);
   }
 }

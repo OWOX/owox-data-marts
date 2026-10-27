@@ -46,7 +46,11 @@ export class CreateCredentialService {
     );
     if (auth.type === 'fields') {
       // A field set has no provider check, so it starts as unknown.
-      const { secret, publicMetadata } = parseFieldsForCreate(auth, input.fields);
+      const { secret, publicMetadata } = parseFieldsForCreate(
+        auth,
+        input.fields,
+        definition.definitionId
+      );
       return this.persist(context, input, definition, aiConfiguration, secret, publicMetadata);
     }
     if (input.secret == null) {

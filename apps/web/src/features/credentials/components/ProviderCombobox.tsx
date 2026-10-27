@@ -20,6 +20,9 @@ import {
   GeminiIcon,
   GitHubIcon,
   GoogleBigQueryIcon,
+  GoogleChatIcon,
+  GoogleCloudIcon,
+  GoogleSheetsIcon,
   OpenRouterIcon,
   SnowflakeIcon,
   type AppIcon,
@@ -49,6 +52,9 @@ const GROUPS: { category: CredentialCategory; label: string }[] = [
 
 const ICONS: Partial<Record<CredentialIcon, AppIcon>> = {
   google: GoogleBigQueryIcon,
+  'google-cloud': GoogleCloudIcon,
+  'google-sheets': GoogleSheetsIcon,
+  'google-chat': GoogleChatIcon,
   aws: AwsAthenaIcon,
   snowflake: SnowflakeIcon,
   databricks: DatabricksIcon,

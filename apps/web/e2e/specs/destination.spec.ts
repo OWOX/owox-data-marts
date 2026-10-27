@@ -144,6 +144,17 @@ describeIfCredentials(
   'Destinations - Google Sheets CRUD (DEST-04)',
   () => {
     test('creates Google Sheets destination via UI (DEST-04)', async ({ page }) => {
+      // The key is a Credential the Destination selects.
+      const credentialTitle = `GSheets Key ${Date.now()}`;
+      const credentialRes = await page.request.post('/api/credentials', {
+        data: {
+          title: credentialTitle,
+          definitionId: 'google-service-account',
+          secret: { value: process.env.GOOGLE_SHEETS_SERVICE_ACCOUNT_JSON },
+        },
+      });
+      expect(credentialRes.ok()).toBeTruthy();
+
       await page.goto('/ui/0/data-destinations');
       await expect(page.getByTestId(TESTIDS.destTab)).toBeVisible();
 
@@ -160,6 +171,9 @@ describeIfCredentials(
       await titleInput.fill(gsTitle);
 
       // Google Sheets is the default type, so no need to change type select
+
+      await sheet.getByRole('combobox', { name: 'Credential' }).click();
+      await page.getByRole('option', { name: new RegExp(credentialTitle) }).click();
 
       // Save
       await sheet.getByRole('button', { name: 'Save' }).click();

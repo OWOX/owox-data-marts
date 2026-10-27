@@ -10,6 +10,7 @@ import { UserReference } from '../../../../../../shared/components/UserReference
 import { UserAvatarGroup } from '../../../../../../shared/components/UserAvatarGroup/UserAvatarGroup';
 import { ContextBadges } from '../../../../../../features/contexts/components/ContextBadges/ContextBadges';
 import type { ContextSummary } from '../../../../../contexts/types/context.types';
+import { CredentialStateMark, type CredentialSummary } from '../../../../../credentials';
 
 export interface DataDestinationTableItem {
   id: string;
@@ -23,6 +24,7 @@ export interface DataDestinationTableItem {
   availableForUse?: boolean;
   availableForMaintenance?: boolean;
   contexts: ContextSummary[];
+  reusableCredential?: CredentialSummary | null;
 }
 
 interface DataDestinationColumnsProps {
@@ -49,7 +51,12 @@ export const getDataDestinationColumns = ({
     ),
     cell: ({ row }) => {
       const title = row.getValue<string>(DataDestinationColumnKey.TITLE);
-      return <div className='overflow-hidden text-ellipsis'>{title}</div>;
+      return (
+        <div className='flex min-w-0 flex-col gap-1'>
+          <div className='overflow-hidden text-ellipsis'>{title}</div>
+          <CredentialStateMark summary={row.original.reusableCredential} />
+        </div>
+      );
     },
   },
   {

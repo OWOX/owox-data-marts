@@ -37,7 +37,7 @@ By default, **Auto-detect location** is selected. We recommend keeping this sett
 
 ### Step 3. Add a Service Account
 
-To enable access to your BigQuery project, select a **Credential**, or click **+ Create new Credential** and choose the **BigQuery Service Account** or **BigQuery Google account** provider (see [Credentials](../../project/credentials.md)). The steps below cover the Service Account JSON key.
+To enable access to your BigQuery project, select a **Credential**, or click **+ Create new Credential** and choose the **Google Service Account** or **BigQuery Google account** provider (see [Credentials](../../project/credentials.md)). The steps below cover the Service Account JSON key.
 
 #### Required roles
 

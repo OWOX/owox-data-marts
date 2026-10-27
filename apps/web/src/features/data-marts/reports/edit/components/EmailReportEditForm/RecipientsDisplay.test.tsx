@@ -26,7 +26,7 @@ describe('RecipientsDisplay', () => {
       <RecipientsDisplay
         destination={{
           ...baseDestination,
-          credentials: { deliveryMethod: 'webhook', configured: true },
+          credentials: { deliveryMethod: 'webhook' },
         }}
       />
     );

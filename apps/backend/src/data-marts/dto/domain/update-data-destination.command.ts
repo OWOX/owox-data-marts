@@ -7,18 +7,17 @@ export class UpdateDataDestinationCommand {
     public readonly projectId: string,
     public readonly title: string,
     public readonly credentials?: DataDestinationCredentials,
-    public readonly credentialId?: string | null,
-    public readonly sourceDestinationId?: string,
+    /** Absent keeps the binding; null is rejected. */
+    public readonly reusableCredentialId?: string | null,
+    /** True when the request carries `credentialId` or `sourceDestinationId`. */
+    public readonly sentOldCredentialFields: boolean = false,
     public readonly ownerIds?: string[],
     public readonly userId: string = '',
     public readonly roles: string[] = [],
     public readonly availableForUse?: boolean,
     public readonly availableForMaintenance?: boolean,
     public readonly contextIds?: string[],
-    public readonly config?: DestinationConfig | null
+    public readonly config?: DestinationConfig | null,
+    public readonly isPluginCall: boolean = false
   ) {}
-
-  hasCredentials(): boolean {
-    return this.credentials !== undefined;
-  }
 }

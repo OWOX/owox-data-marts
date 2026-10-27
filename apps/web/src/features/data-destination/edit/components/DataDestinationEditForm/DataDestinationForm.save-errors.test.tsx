@@ -3,6 +3,7 @@ import toast from 'react-hot-toast';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { wasErrorToastShown } from '../../../../../app/api';
+import type { CredentialSummary } from '../../../../credentials';
 import { DataDestinationType, type DataDestinationFormData } from '../../../shared';
 import { DataDestinationForm } from './DataDestinationForm';
 
@@ -40,30 +41,38 @@ vi.mock('../../../../../shared/components/OwnersSection/OwnersSection', () => ({
   ),
 }));
 vi.mock('../../../../google-oauth', () => ({
-  GoogleOAuthConnectButton: () => null,
-  // No OAuth: the Sheets fields open on the Service Account tab, where the folder lives.
-  destinationOAuthApi: {
-    getSettings: vi.fn().mockResolvedValue({ available: false }),
-    getCredentialStatus: vi.fn().mockResolvedValue({ isValid: false }),
-  },
+  destinationOAuthApi: { getSettings: vi.fn().mockResolvedValue({ available: false }) },
 }));
-vi.mock('../CopyDestinationCredentialsButton', () => ({
-  CopyDestinationCredentialsButton: () => null,
+vi.mock('../../../../credentials/useCredentials', async importOriginal => ({
+  ...(await importOriginal<typeof import('../../../../credentials/useCredentials')>()),
+  useCredentials: () => ({ credentials: [], isLoading: false, isError: false, refetch: vi.fn() }),
+  useCredentialDefinitions: () => ({
+    definitions: [{ id: 'google-service-account', destinationTypes: ['GOOGLE_SHEETS'] }],
+    isLoading: false,
+    isError: false,
+    refetch: vi.fn(),
+  }),
+}));
+vi.mock('../../../../credentials/components/CredentialConfigSheet', () => ({
+  CredentialConfigSheet: () => null,
 }));
 
-const savedKey = JSON.stringify({
-  type: 'service_account',
-  project_id: 'my-project',
-  client_id: '1234567890',
-  client_email: 'sa@my-project.iam.gserviceaccount.com',
-});
-
+// A service account Credential: the Sheets fields ask for a Shared Drive folder URL.
 const sheetsDestination = {
   type: DataDestinationType.GOOGLE_SHEETS,
   title: 'Sheets',
-  credentials: { serviceAccount: savedKey, credentialId: '6f1c1b1e-8a43-4c5e-9a39-0d5b3c6f2a10' },
+  credentials: {},
+  reusableCredential: {
+    access: 'visible',
+    id: 'sa-1',
+    title: 'Sheets key',
+    definitionId: 'google-service-account',
+    providerName: 'Google Service Account',
+    identity: 'sa@my-project.iam.gserviceaccount.com',
+    state: 'ready',
+  },
   config: { folderUrl: 'https://drive.google.com/drive/folders/abc123' },
-} as DataDestinationFormData;
+} as DataDestinationFormData & { reusableCredential: CredentialSummary };
 
 const FOLDER_MESSAGE =
   'The folder must be located in a Shared Drive. My Drive folders are not supported for service-account auto-creation.';

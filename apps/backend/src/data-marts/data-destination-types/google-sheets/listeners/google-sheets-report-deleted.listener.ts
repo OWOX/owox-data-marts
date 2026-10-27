@@ -74,7 +74,9 @@ export class GoogleSheetsReportDeletedListener {
       this.logger.debug(
         `[Metadata] Creating Google Sheets adapter for destination ${dataDestinationId}`
       );
-      const adapter = await this.adapterFactory.createFromDestination(dataDestination);
+      const adapter = await this.adapterFactory.createFromDestination(dataDestination, {
+        markUsed: false,
+      });
       if (!adapter) {
         this.logger.error(
           `[Metadata] Failed to create Google Sheets adapter for destination ${dataDestinationId} | ` +

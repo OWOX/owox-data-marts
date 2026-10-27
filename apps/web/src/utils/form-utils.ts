@@ -1,4 +1,4 @@
-import type { FieldPath, FieldValues, UseFormSetError } from 'react-hook-form';
+import type { FieldPath, FieldValues, Resolver, UseFormSetError } from 'react-hook-form';
 
 /**
  * Creates a mutable copy of form data for safe manipulation.
@@ -79,4 +79,22 @@ function lastKeyOf(path: string): string {
       .filter(segment => !/^\d+$/.test(segment))
       .at(-1) ?? ''
   );
+}
+
+/**
+ * With a binding, an empty `reusableCredentialId` keeps it and is left out of the values:
+ * a Credential the member cannot see has no id in the form.
+ */
+export function keepBoundCredential<T extends FieldValues>(
+  resolver: Resolver<T>,
+  hasBinding: boolean
+): Resolver<T> {
+  return async (values, context, options) => {
+    if (!hasBinding || values.reusableCredentialId) return resolver(values, context, options);
+    const result = await resolver({ ...values, reusableCredentialId: 'kept' }, context, options);
+    if (Object.keys(result.errors).length > 0) return result;
+    const { reusableCredentialId: _kept, ...rest } = result.values as Record<string, unknown>;
+    void _kept;
+    return { values: rest as T, errors: {} };
+  };
 }

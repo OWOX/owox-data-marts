@@ -26,19 +26,26 @@ Choose **Google Chat** from the **Destination Type** dropdown.
 - **Delivery Method**:
   - **Incoming Webhook** (default): sends the report directly to the space as formatted Google Chat messages.
   - **Channel Email**: sends the report by email to the Google Chat space address.
-- For **Incoming Webhook**, provide a **Google Chat incoming webhook URL**:
+- For **Incoming Webhook**, select a **Google Chat webhook** [Credential](../../project/credentials.md) in the **Credential** field. If exactly one fits, a new Destination selects it for you. To add one without leaving the form, click **+ Create new Credential**, choose **Google Chat webhook**, and paste the **Webhook URL**:
   1. Open the target space in Google Chat.
   2. Next to the space title, open **Apps & integrations**.
   3. Click **Add webhooks**, enter a name, and save the webhook.
-  4. Copy its URL and paste it into OWOX.
+  4. Copy its URL and paste it into the **Webhook URL** field.
 - For **Channel Email**, enter one or more Google Chat channel email addresses.
 
 Existing Google Chat destinations with saved email addresses continue to open with **Channel Email**
 selected. If an existing destination has no email address, the form defaults to **Incoming Webhook**.
 
-> The webhook URL contains a secret token. Store it as a credential and do not share it in chat,
-> documentation, or source control. If **Add webhooks** is unavailable, ask your Google Workspace
-> administrator to allow incoming webhooks.
+> The webhook URL contains a secret token. OWOX stores it in the Credential, write-only: it is never
+> shown again, so do not share it in chat, documentation, or source control. If **Add webhooks** is
+> unavailable, ask your Google Workspace administrator to allow incoming webhooks. OWOX accepts only
+> Google Chat incoming webhook URLs.
+
+A Credential created from the form is not shared: only its owners and Project Admins can use it until an
+owner shares it. To send to the same space from several Destinations, select the same Credential in each
+one; replace the URL once in the Credential to update all of them. If you can edit a Destination but
+cannot see its Credential, the field shows **Restricted Credential**; select a Credential you can use to
+change it. **Channel Email** keeps its addresses on the Destination and uses no Credential.
 
 Incoming webhooks authenticate through the key and token in the URL, so this delivery method does
 not require a separate OAuth connection or service-account JSON.

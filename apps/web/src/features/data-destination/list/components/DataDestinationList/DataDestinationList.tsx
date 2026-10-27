@@ -185,6 +185,7 @@ export const DataDestinationList = ({
     availableForUse: destination.availableForUse,
     availableForMaintenance: destination.availableForMaintenance,
     contexts: destination.contexts ?? [],
+    reusableCredential: destination.reusableCredential,
   }));
 
   const onDeleteCallback = (id: string) => {

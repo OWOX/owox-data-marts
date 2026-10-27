@@ -5,6 +5,7 @@ import { LookerStudioConnectorCredentialsSchema } from '../../data-destination-t
 import { UserProjectionDto } from '../../../idp/dto/domain/user-projection.dto';
 import { ContextSummary } from '../../utils/extract-context-summaries';
 import { DestinationConfig } from '../../entities/destination-config.type';
+import type { DestinationCredentialSummary } from '../../data-destination-types/destination-credential-state';
 
 export const DataDestinationCredentialsDtoSchema = z.discriminatedUnion('type', [
   GoogleSheetsCredentialsSchema,
@@ -27,6 +28,8 @@ export class DataDestinationDto {
     public readonly availableForUse: boolean = true,
     public readonly availableForMaintenance: boolean = true,
     public readonly contexts: ContextSummary[] = [],
-    public readonly config: DestinationConfig | null = null
+    public readonly config: DestinationConfig | null = null,
+    /** Absent for a Destination that selects no Credential, or where none was summarized. */
+    public readonly reusableCredential?: DestinationCredentialSummary | null
   ) {}
 }

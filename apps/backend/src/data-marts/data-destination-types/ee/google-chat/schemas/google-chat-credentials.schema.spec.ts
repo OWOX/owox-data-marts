@@ -1,7 +1,5 @@
-import {
-  GoogleChatCredentialsSchema,
-  isGoogleChatWebhookUrl,
-} from './google-chat-credentials.schema';
+import { isGoogleChatWebhookUrl } from '../../../google-chat-webhook-url';
+import { GoogleChatCredentialsSchema } from './google-chat-credentials.schema';
 
 describe('GoogleChatCredentialsSchema', () => {
   const validUrl = 'https://chat.googleapis.com/v1/spaces/space-1/messages?key=key-1&token=token-1';

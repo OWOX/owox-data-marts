@@ -1,4 +1,4 @@
-import { type DataDestination, DataDestinationType } from '../../../shared';
+import { type DataDestination, type DataDestinationType } from '../../../shared';
 import { DataDestinationForm } from '../DataDestinationEditForm';
 import type { DataDestinationFormData } from '../../../shared';
 import { useEffect, useRef } from 'react';
@@ -66,35 +66,18 @@ export function DataDestinationConfigSheet({
 
   // A rejected save throws out of here and the sheet stays open: the form catches it to mark the
   // inputs the server refused, instead of the sheet closing on the user's unsaved values.
-  const onSave = async (
-    data: DataDestinationFormData,
-    source?: { id: string; title: string } | null
-  ) => {
+  const onSave = async (data: DataDestinationFormData) => {
     const mapper = DestinationMapperFactory.getMapper(data.type);
 
     if (!dataDestination) {
       const { ownerIds, ...formFields } = data as DataDestinationFormData & { ownerIds?: string[] };
-      // Copying replaces the whole request, so only take that path where the picker lives;
-      // for any other type a stale source would drop the typed fields and be rejected.
-      if (source && formFields.type === DataDestinationType.GOOGLE_SHEETS) {
-        const createData = {
-          title: formFields.title,
-          type: formFields.type,
-          sourceDestinationId: source.id,
-          ...(ownerIds !== undefined && { ownerIds }),
-        };
-        const newDestination = await createDataDestination(createData);
-        handleFormSubmitSuccess();
-        reportSaved(newDestination);
-      } else {
-        const createData = {
-          ...mapper.mapToCreateRequest(formFields),
-          ...(ownerIds !== undefined && { ownerIds }),
-        };
-        const newDestination = await createDataDestination(createData);
-        handleFormSubmitSuccess();
-        reportSaved(newDestination);
-      }
+      const createData = {
+        ...mapper.mapToCreateRequest(formFields),
+        ...(ownerIds !== undefined && { ownerIds }),
+      };
+      const newDestination = await createDataDestination(createData);
+      handleFormSubmitSuccess();
+      reportSaved(newDestination);
     } else {
       const { ownerIds, availableForUse, availableForMaintenance, contextIds, ...formFields } =
         data as DataDestinationFormData & {

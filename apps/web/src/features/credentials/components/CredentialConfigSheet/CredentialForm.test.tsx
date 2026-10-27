@@ -6,6 +6,7 @@ import { CredentialForm } from './CredentialForm';
 
 const mocks = vi.hoisted(() => ({
   oauthAvailable: true as boolean | undefined,
+  byClient: null as null | Record<string, boolean>,
   exchange: vi.fn(),
   authorize: vi.fn(),
   popup: vi.fn(),
@@ -27,7 +28,8 @@ vi.mock('../CredentialFieldsInputs', async importOriginal => {
 });
 
 vi.mock('../../useCredentials', () => ({
-  useGoogleOAuthAvailable: () => mocks.oauthAvailable,
+  useGoogleOAuthAvailable: (client?: string) =>
+    (client && mocks.byClient?.[client]) ?? mocks.oauthAvailable,
   useCredentialActions: () => ({
     authorizeGoogleOAuth: mocks.authorize,
     exchangeGoogleOAuth: mocks.exchange,
@@ -425,6 +427,31 @@ describe('CredentialForm', () => {
       expect(screen.getByText('Which provider should I choose?')).toBeInTheDocument();
     });
 
+    it('explains only the Google providers the form offers', () => {
+      renderForm({
+        definitions: [
+          googleDefinition,
+          googleOAuthDefinition,
+          {
+            ...googleOAuthDefinition,
+            id: 'google-sheets-oauth',
+            displayName: 'Sheets Google account',
+            auth: { type: 'oauth', provider: 'google', client: 'destination' },
+          },
+          { ...googleDefinition, id: 'google-chat-webhook', displayName: 'Google Chat webhook' },
+        ],
+        allowedDefinitionIds: ['google-service-account', 'google-sheets-oauth'],
+      });
+
+      fireEvent.click(screen.getByText('Which provider should I choose?'));
+
+      expect(screen.getByText('Google Service Account:')).toBeInTheDocument();
+      expect(screen.getByText('Sheets Google account (OAuth):')).toBeInTheDocument();
+      expect(screen.queryByText(/BigQuery Google account/)).toBeNull();
+      expect(screen.queryByText(/Google Chat webhook:/)).toBeNull();
+      expect(screen.queryByText(/BigQuery Data Editor/)).toBeNull();
+    });
+
     it('does not explain the provider choice when the sheet allows one Google provider', () => {
       renderForm({
         definitions: [googleDefinition, googleOAuthDefinition],
@@ -690,6 +717,36 @@ describe('CredentialForm', () => {
         availableForMaintenance: false,
       });
       expect(onSubmit).not.toHaveBeenCalled();
+    });
+
+    it('offers each Google account only when its own OAuth client is configured', async () => {
+      mocks.byClient = { storage: false, destination: true };
+      try {
+        renderForm({
+          definitions: [
+            googleDefinition,
+            googleOAuthDefinition,
+            {
+              ...googleOAuthDefinition,
+              id: 'google-sheets-oauth',
+              displayName: 'Sheets Google account',
+              auth: { type: 'oauth', provider: 'google', client: 'destination' },
+            },
+          ],
+          initialDefinitionId: 'google-sheets-oauth',
+        });
+
+        const input = screen.getByRole('combobox', { name: 'Provider' });
+        expect(input).toHaveValue('Sheets Google account');
+        fireEvent.mouseDown(input, { button: 0 });
+        const options = await within(document.body).findAllByRole('option');
+        expect(options.map(option => option.textContent)).toEqual([
+          'BigQuery Service Account',
+          'Sheets Google account',
+        ]);
+      } finally {
+        mocks.byClient = null;
+      }
     });
 
     it('does not offer Google account when Google sign-in is unavailable', async () => {

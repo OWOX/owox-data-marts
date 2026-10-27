@@ -12,7 +12,7 @@ import {
   FormMessage,
   FormSection,
 } from '@owox/ui/components/form';
-import { applyServerFieldErrors, focusFirstInvalidField } from './form-utils';
+import { applyServerFieldErrors, focusFirstInvalidField, keepBoundCredential } from './form-utils';
 import { extractApiFieldErrors } from '../app/api/extract-api-error.util';
 
 const schema = z.object({
@@ -293,5 +293,32 @@ describe('applyServerFieldErrors', () => {
     expect(screen.getByRole('button', { name: /connection settings/i })).not.toHaveTextContent(
       'This section contains validation errors'
     );
+  });
+});
+
+describe('keepBoundCredential', () => {
+  const bindingSchema = z.object({
+    title: z.string().min(1, 'Title is required'),
+    reusableCredentialId: z.string().min(1, 'Select a Credential'),
+  });
+  type BindingFormData = z.infer<typeof bindingSchema>;
+  const resolveBound = (values: BindingFormData) =>
+    keepBoundCredential<BindingFormData>(zodResolver(bindingSchema), true)(values, undefined, {
+      fields: {},
+      shouldUseNativeValidation: false,
+    });
+
+  it('keeps the binding on an empty id and leaves the id out of the values', async () => {
+    const result = await resolveBound({ title: 'Sheets', reusableCredentialId: '' });
+
+    expect(result.errors).toEqual({});
+    expect(result.values).toEqual({ title: 'Sheets' });
+  });
+
+  it('still returns the errors of other fields', async () => {
+    const result = await resolveBound({ title: '', reusableCredentialId: '' });
+
+    expect(result.errors).toMatchObject({ title: { message: 'Title is required' } });
+    expect(result.errors).not.toHaveProperty('reusableCredentialId');
   });
 });

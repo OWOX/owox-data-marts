@@ -1,32 +1,24 @@
-import {
-  FormControl,
-  FormDescription,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from '@owox/ui/components/form';
-import { Input } from '@owox/ui/components/input';
+import { FormDescription, FormItem, FormLabel } from '@owox/ui/components/form';
 import { Tabs, TabsList, TabsTrigger } from '@owox/ui/components/tabs';
-import { useEffect } from 'react';
+import { useEffect, type ReactNode } from 'react';
 import { type FieldPathValue, type Path, type UseFormReturn } from 'react-hook-form';
 import { type DataDestinationFormData } from '../../../shared';
 import { EmailFields } from './EmailFields';
 import GoogleChatChannelEmailDescription from './FormDescriptions/GoogleChatChannelEmailDescription';
 import GoogleChatDeliveryMethodDescription from './FormDescriptions/GoogleChatDeliveryMethodDescription';
-import GoogleChatWebhookDescription from './FormDescriptions/GoogleChatWebhookDescription';
 
-const WEBHOOK_FIELD_PATH = 'credentials.webhookUrl' as Path<DataDestinationFormData>;
 const DELIVERY_METHOD_FIELD_PATH = 'credentials.deliveryMethod' as Path<DataDestinationFormData>;
-const WEBHOOK_HELP =
-  'Paste the incoming webhook URL copied from Apps & integrations in your Google Chat space.';
 
-export function GoogleChatFields({ form }: { form: UseFormReturn<DataDestinationFormData> }) {
+export function GoogleChatFields({
+  form,
+  credentialField,
+}: {
+  form: UseFormReturn<DataDestinationFormData>;
+  /** The form's Credential field, for webhook delivery. */
+  credentialField: ReactNode;
+}) {
   const watchedDeliveryMethod = form.watch(DELIVERY_METHOD_FIELD_PATH) as string | undefined;
   const deliveryMethod = watchedDeliveryMethod === 'email' ? 'email' : 'webhook';
-  const configured = form.watch('credentials.configured' as Path<DataDestinationFormData>) as
-    | boolean
-    | undefined;
 
   useEffect(() => {
     if (watchedDeliveryMethod !== 'email' && watchedDeliveryMethod !== 'webhook') {
@@ -65,32 +57,7 @@ export function GoogleChatFields({ form }: { form: UseFormReturn<DataDestination
       </FormItem>
 
       {deliveryMethod === 'webhook' ? (
-        <FormField
-          control={form.control}
-          name={WEBHOOK_FIELD_PATH}
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel tooltip={WEBHOOK_HELP}>Google Chat incoming webhook URL</FormLabel>
-              <FormControl>
-                <Input
-                  {...field}
-                  type='password'
-                  autoComplete='off'
-                  value={typeof field.value === 'string' ? field.value : ''}
-                  placeholder={
-                    configured
-                      ? 'Webhook configured — paste a new URL to replace it'
-                      : 'https://chat.googleapis.com/v1/spaces/.../messages?key=...&token=...'
-                  }
-                />
-              </FormControl>
-              <FormDescription>
-                <GoogleChatWebhookDescription />
-              </FormDescription>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+        credentialField
       ) : (
         <EmailFields
           form={form}

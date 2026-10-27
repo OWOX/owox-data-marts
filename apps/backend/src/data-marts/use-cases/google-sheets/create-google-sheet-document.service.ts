@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { castError } from '@owox/internal-helpers';
+import type { OAuth2Client } from 'google-auth-library';
 import { CreateGoogleSheetDocumentCommand } from '../../dto/domain/google-sheets/create-google-sheet-document.command';
 import { CreateGoogleSheetDocumentResponseDto } from '../../dto/presentation/google-sheets/create-google-sheet-document-response.dto';
 import { DataDestinationService } from '../../services/data-destination.service';
@@ -76,14 +77,34 @@ export class CreateGoogleSheetDocumentService {
     const sheetTitle = toSheetTitle(title);
     const requesterEmail = await this.resolveRequesterEmail(command);
 
-    switch (destination.credential?.type) {
-      case DestinationCredentialType.GOOGLE_OAUTH:
-        return this.createViaOAuth(destination, title, sheetTitle, requesterEmail);
-      case DestinationCredentialType.GOOGLE_SERVICE_ACCOUNT:
-        return this.createViaServiceAccount(destination, title, sheetTitle, requesterEmail);
-      default:
-        throw new OAuthNotConnectedException(destination.id);
+    // Not caught: a bound Credential's error and a key store failure must surface, not read as "not connected".
+    const auth = await this.credentialsResolver.resolveAuth(destination);
+    if (auth.kind === 'google-account') {
+      return this.createViaOAuth(destination, auth, title, sheetTitle, requesterEmail);
     }
+    if (auth.kind === 'unbound') {
+      switch (destination.credential?.type) {
+        case DestinationCredentialType.GOOGLE_OAUTH:
+          return this.createViaOAuth(
+            destination,
+            await this.oldRowOAuth(destination),
+            title,
+            sheetTitle,
+            requesterEmail
+          );
+        case DestinationCredentialType.GOOGLE_SERVICE_ACCOUNT:
+          break;
+        default:
+          throw new OAuthNotConnectedException(destination.id);
+      }
+    }
+    return this.createViaServiceAccount(
+      destination,
+      auth.credentials,
+      title,
+      sheetTitle,
+      requesterEmail
+    );
   }
 
   /**
@@ -99,24 +120,16 @@ export class CreateGoogleSheetDocumentService {
    */
   private async createViaOAuth(
     destination: DataDestination,
+    oauth: { client: OAuth2Client; scopes: readonly string[] },
     title: string,
     sheetTitle: string,
     requesterEmail: string | undefined
   ): Promise<CreateGoogleSheetDocumentResponseDto> {
-    const oauth2Client = await this.googleOAuthClientService
-      .getDestinationOAuth2Client(destination.id)
-      .catch((error: unknown) => {
-        if (error instanceof CredentialsNotFoundException) {
-          throw new OAuthNotConnectedException(destination.id);
-        }
-        throw error;
-      });
-
-    const adapter = new GoogleSheetsApiAdapter(undefined, oauth2Client);
+    const adapter = new GoogleSheetsApiAdapter(undefined, oauth.client);
     // Drive-API create => isAppAuthorized => shareable under drive.file. Sheets-API
     // create does NOT reliably produce an app-authorized file, so permissions.create
     // on it would fail. Use Drive create only when the token actually has a Drive scope.
-    const canShare = this.oauthTokenHasDriveScope(destination);
+    const canShare = oauth.scopes.includes(DRIVE_FILE_SCOPE) || oauth.scopes.includes(DRIVE_SCOPE);
     // Folder placement is possible only with a Drive scope and a folder the user
     // granted via the Picker (drive.file gives access to picker-selected folders).
     const folderRequested = !!destination.config?.folderId?.trim();
@@ -164,6 +177,7 @@ export class CreateGoogleSheetDocumentService {
    */
   private async createViaServiceAccount(
     destination: DataDestination,
+    credentials: unknown,
     title: string,
     sheetTitle: string,
     requesterEmail: string | undefined
@@ -173,11 +187,7 @@ export class CreateGoogleSheetDocumentService {
       throw new ServiceAccountRequiresFolderException(destination.id);
     }
 
-    // Do NOT swallow resolver errors: a decryption/store failure is an
-    // infrastructure fault and must surface, not be misreported as "not
-    // configured". A wrong/missing key is still caught by the safeParse below.
-    const resolved = await this.credentialsResolver.resolve(destination);
-    const parsed = GoogleSheetsCredentialsSchema.safeParse(resolved);
+    const parsed = GoogleSheetsCredentialsSchema.safeParse(credentials);
     if (!parsed.success || !parsed.data.serviceAccountKey) {
       throw new BadRequestException(
         'Service account credentials are not configured for this destination'
@@ -296,11 +306,20 @@ export class CreateGoogleSheetDocumentService {
     }
   }
 
-  /** True when the destination's stored OAuth token already includes a Drive scope. */
-  private oauthTokenHasDriveScope(destination: DataDestination): boolean {
+  /** An unbound Destination's own OAuth row: its client and the scopes its token was granted. */
+  private async oldRowOAuth(
+    destination: DataDestination
+  ): Promise<{ client: OAuth2Client; scopes: readonly string[] }> {
+    const client = await this.googleOAuthClientService
+      .getDestinationOAuth2Client(destination.id)
+      .catch((error: unknown) => {
+        if (error instanceof CredentialsNotFoundException) {
+          throw new OAuthNotConnectedException(destination.id);
+        }
+        throw error;
+      });
     const credentials = destination.credential?.credentials as GoogleOAuthTokens | undefined;
-    const scopes = credentials?.scope?.split(' ') ?? [];
-    return scopes.includes(DRIVE_FILE_SCOPE) || scopes.includes(DRIVE_SCOPE);
+    return { client, scopes: credentials?.scope?.split(' ') ?? [] };
   }
 
   /**

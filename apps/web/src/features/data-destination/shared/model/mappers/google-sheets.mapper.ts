@@ -1,7 +1,7 @@
 import type { DestinationMapper } from './destination-mapper.interface.ts';
 import type { DataDestinationResponseDto } from '../../services/types';
 import type { GoogleSheetsDataDestination } from '../types';
-import { DataDestinationCredentialsType, DataDestinationType } from '../../enums';
+import { DataDestinationType } from '../../enums';
 import type { DataDestinationFormData } from '../../types';
 import type {
   UpdateDataDestinationRequestDto,
@@ -9,40 +9,14 @@ import type {
 } from '../../services/types';
 import { buildDriveFolderUrl } from '../../utils/drive-folder-url.utils.ts';
 
-interface GoogleSheetsFormCredentials {
-  serviceAccount?: string;
-  credentialId?: string | null;
-}
-
-interface GoogleSheetsFormConfig {
-  folderId?: string;
-  folderUrl?: string;
-}
-
 export class GoogleSheetsMapper implements DestinationMapper {
   mapFromDto(dto: DataDestinationResponseDto): GoogleSheetsDataDestination {
-    let serviceAccountJson = '';
-    try {
-      if (dto.credentials.type === DataDestinationCredentialsType.GOOGLE_SHEETS_CREDENTIALS) {
-        serviceAccountJson = JSON.stringify(dto.credentials.serviceAccountKey, null, 2);
-      }
-    } catch (error) {
-      console.error(error, 'Error parsing service account key');
-    }
-
     return {
       id: dto.id,
       title: dto.title,
       type: DataDestinationType.GOOGLE_SHEETS,
       projectId: dto.projectId,
-      credentials: {
-        serviceAccount: serviceAccountJson,
-        credentialId: dto.credentialId,
-        identity:
-          dto.credentials.type === DataDestinationCredentialsType.GOOGLE_SHEETS_OAUTH_CREDENTIALS
-            ? dto.credentials.identity
-            : null,
-      },
+      credentials: {},
       createdAt: new Date(dto.createdAt),
       modifiedAt: new Date(dto.modifiedAt),
       createdByUser: dto.createdByUser,
@@ -62,73 +36,31 @@ export class GoogleSheetsMapper implements DestinationMapper {
     const result: UpdateDataDestinationRequestDto = {
       title: formData.title ?? '',
     };
+    if (formData.type !== DataDestinationType.GOOGLE_SHEETS) return result;
 
-    if (formData.credentials) {
-      const creds = formData.credentials as GoogleSheetsFormCredentials;
-      const serviceAccount = creds.serviceAccount;
-      if (serviceAccount?.trim()) {
-        try {
-          result.credentials = {
-            serviceAccountKey: JSON.parse(serviceAccount.trim()) as Record<string, unknown>,
-            type: DataDestinationCredentialsType.GOOGLE_SHEETS_CREDENTIALS,
-          };
-        } catch {
-          throw new Error('Invalid Service Account JSON');
-        }
-      }
-      // null = user explicitly disconnected OAuth; pass it so backend can revoke
-      if (creds.credentialId === null) {
-        result.credentialId = null;
-      }
+    if (formData.reusableCredentialId) {
+      result.reusableCredentialId = formData.reusableCredentialId;
     }
-
-    const folderUrl = (formData as { config?: GoogleSheetsFormConfig }).config?.folderUrl;
+    const folderUrl = formData.config?.folderUrl;
     if (folderUrl !== undefined) {
       result.config = { folderUrl: folderUrl.trim() || null };
     }
-
     return result;
   }
 
   mapToCreateRequest(formData: DataDestinationFormData): CreateDataDestinationRequestDto {
-    const creds = formData.credentials as GoogleSheetsFormCredentials;
-    const serviceAccount = creds.serviceAccount;
-
-    // Narrowed to this mapper's own variant: the request union now includes a member without
-    // credentials, so indexing the whole union no longer names a single field.
-    let credentials: Extract<
-      CreateDataDestinationRequestDto,
-      { type: DataDestinationType.GOOGLE_SHEETS }
-    >['credentials'];
-    if (serviceAccount?.trim()) {
-      try {
-        credentials = {
-          serviceAccountKey: JSON.parse(serviceAccount.trim()) as Record<string, unknown>,
-          type: DataDestinationCredentialsType.GOOGLE_SHEETS_CREDENTIALS,
-        };
-      } catch {
-        throw new Error('Invalid Service Account JSON');
-      }
-    } else {
-      credentials = { type: DataDestinationCredentialsType.GOOGLE_SHEETS_CREDENTIALS };
+    if (formData.type !== DataDestinationType.GOOGLE_SHEETS) {
+      throw new Error('Invalid form data for Google Sheets destination');
     }
-
-    const result: CreateDataDestinationRequestDto = {
+    if (!formData.reusableCredentialId) {
+      throw new Error('Select a Credential');
+    }
+    const folderUrl = formData.config?.folderUrl?.trim();
+    return {
       title: formData.title,
       type: DataDestinationType.GOOGLE_SHEETS,
-      credentials,
+      reusableCredentialId: formData.reusableCredentialId,
+      ...(folderUrl && { config: { folderUrl } }),
     };
-
-    // Pass pre-created OAuth credential ID if available
-    if (creds.credentialId) {
-      result.credentialId = creds.credentialId;
-    }
-
-    const folderUrl = (formData as { config?: GoogleSheetsFormConfig }).config?.folderUrl?.trim();
-    if (folderUrl) {
-      result.config = { folderUrl };
-    }
-
-    return result;
   }
 }

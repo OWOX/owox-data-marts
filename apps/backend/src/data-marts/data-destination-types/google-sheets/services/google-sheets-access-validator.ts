@@ -9,6 +9,7 @@ import { GoogleSheetsConfigSchema } from '../schemas/google-sheets-config.schema
 import { DataDestination } from '../../../entities/data-destination.entity';
 import { GoogleSheetsApiAdapterFactory } from '../adapters/google-sheets-api-adapter.factory';
 import { sheetNotFoundSetupMessage } from '../../../errors/google-sheet-not-found.error';
+import { DestinationCredentialUnavailableException } from '../../../exceptions/destination-credential-unavailable.exception';
 
 /**
  * Validator for Google Sheets access
@@ -41,7 +42,9 @@ export class GoogleSheetsAccessValidator implements DataDestinationAccessValidat
     }
 
     try {
-      const adapter = await this.adapterFactory.createFromDestination(dataDestination);
+      const adapter = await this.adapterFactory.createFromDestination(dataDestination, {
+        markUsed: false,
+      });
       if (!adapter) {
         return new ValidationResult(
           false,
@@ -68,6 +71,8 @@ export class GoogleSheetsAccessValidator implements DataDestinationAccessValidat
         sheetTitle: sheet.properties?.title,
       });
     } catch (error) {
+      // Keeps its code and reauthRequired, as the Google Chat validator does.
+      if (error instanceof DestinationCredentialUnavailableException) throw error;
       const rawMessage = error instanceof Error ? error.message : '';
       this.logger.warn('Access check failed', error);
       const message = rawMessage.toLowerCase().includes('does not have permission')

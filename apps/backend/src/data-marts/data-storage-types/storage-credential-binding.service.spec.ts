@@ -598,7 +598,7 @@ describe('StorageCredentialBindingService', () => {
             id: credential.id,
             title: 'Warehouse key',
             definitionId: 'google-service-account',
-            providerName: 'BigQuery Service Account',
+            providerName: 'Google Service Account',
             identity: 'loader@warehouse.iam.gserviceaccount.com',
             state: 'ready',
           },

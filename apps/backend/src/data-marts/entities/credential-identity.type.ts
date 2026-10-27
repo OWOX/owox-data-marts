@@ -1,3 +1,4 @@
+// Imported by migration 1792700000000: keep it and its imports when the legacy code goes.
 /**
  * Identity information extracted from credentials for display purposes.
  * Stored as JSON in the `identity` column of credential tables.

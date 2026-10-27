@@ -65,7 +65,7 @@ export class CredentialGoogleOAuthService {
   private async load(id: string): Promise<{ credential: Credential; oauth: OAuthSecret }> {
     const credential = await this.credentials.findById(id);
     if (!credential || !('oauth' in credential.secret)) {
-      throw new NotFoundException(`BigQuery Google account Credential ${id} was not found`);
+      throw new NotFoundException(`Google account Credential ${id} was not found`);
     }
     return { credential, oauth: credential.secret.oauth };
   }

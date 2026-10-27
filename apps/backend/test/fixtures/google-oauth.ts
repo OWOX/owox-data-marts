@@ -30,14 +30,12 @@ export function googleOAuthConfig(): GoogleOAuthConfigService {
 export function googleOAuthFlow(config = googleOAuthConfig()) {
   const storageCredentials = { getById: jest.fn(), update: jest.fn() };
   const destinationCredentials = { create: jest.fn(), getById: jest.fn() };
-  const destinations = { update: jest.fn(), findOne: jest.fn() };
   const flow = new GoogleOAuthFlowService(
     storageCredentials as never,
     destinationCredentials as never,
-    config,
-    destinations as never
+    config
   );
-  return { flow, storageCredentials, destinationCredentials, destinations };
+  return { flow, storageCredentials, destinationCredentials };
 }
 
 /** Google answers the code exchange and the userinfo call for this account. */

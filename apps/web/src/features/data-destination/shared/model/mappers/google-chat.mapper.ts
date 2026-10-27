@@ -10,16 +10,12 @@ import type {
 
 export class GoogleChatMapper implements DestinationMapper {
   mapFromDto(dto: DataDestinationResponseDto): GoogleChatDataDestination {
+    // Webhook delivery returns no credentials; email delivery returns its recipients.
     const credentials: GoogleChatDataDestination['credentials'] =
-      dto.credentials.type === DataDestinationCredentialsType.EMAIL_CREDENTIALS &&
+      dto.credentials?.type === DataDestinationCredentialsType.EMAIL_CREDENTIALS &&
       dto.credentials.to.length > 0
         ? { deliveryMethod: 'email', to: dto.credentials.to }
-        : {
-            deliveryMethod: 'webhook',
-            configured:
-              dto.credentials.type === DataDestinationCredentialsType.GOOGLE_CHAT_CREDENTIALS &&
-              dto.credentials.configured,
-          };
+        : { deliveryMethod: 'webhook' };
 
     return {
       id: dto.id,
@@ -38,21 +34,17 @@ export class GoogleChatMapper implements DestinationMapper {
     const result: UpdateDataDestinationRequestDto = {
       title: formData.title ?? '',
     };
-    const credentials =
-      formData.type === DataDestinationType.GOOGLE_CHAT ? formData.credentials : undefined;
+    if (formData.type !== DataDestinationType.GOOGLE_CHAT) return result;
 
-    if (credentials?.deliveryMethod === 'email') {
+    // The backend refuses both together: email recipients switch to email, a Credential to webhook.
+    if (formData.credentials?.deliveryMethod === 'email') {
       result.credentials = {
         type: DataDestinationCredentialsType.EMAIL_CREDENTIALS,
-        to: credentials.to,
+        to: formData.credentials.to,
       };
-    } else if (credentials?.deliveryMethod === 'webhook' && credentials.webhookUrl?.trim()) {
-      result.credentials = {
-        type: DataDestinationCredentialsType.GOOGLE_CHAT_CREDENTIALS,
-        webhookUrl: credentials.webhookUrl.trim(),
-      };
+    } else if (formData.reusableCredentialId) {
+      result.reusableCredentialId = formData.reusableCredentialId;
     }
-
     return result;
   }
 
@@ -60,31 +52,23 @@ export class GoogleChatMapper implements DestinationMapper {
     if (formData.type !== DataDestinationType.GOOGLE_CHAT) {
       throw new Error('Invalid form data for Google Chat destination');
     }
-
-    let credentials: Extract<
-      CreateDataDestinationRequestDto,
-      { type: DataDestinationType.GOOGLE_CHAT }
-    >['credentials'];
     if (formData.credentials.deliveryMethod === 'email') {
-      credentials = {
-        type: DataDestinationCredentialsType.EMAIL_CREDENTIALS,
-        to: formData.credentials.to,
-      };
-    } else {
-      const webhookUrl = formData.credentials.webhookUrl?.trim();
-      if (!webhookUrl) {
-        throw new Error('Google Chat webhook URL is required');
-      }
-      credentials = {
-        type: DataDestinationCredentialsType.GOOGLE_CHAT_CREDENTIALS,
-        webhookUrl,
+      return {
+        title: formData.title,
+        type: DataDestinationType.GOOGLE_CHAT,
+        credentials: {
+          type: DataDestinationCredentialsType.EMAIL_CREDENTIALS,
+          to: formData.credentials.to,
+        },
       };
     }
-
+    if (!formData.reusableCredentialId) {
+      throw new Error('Select a Credential');
+    }
     return {
       title: formData.title,
       type: DataDestinationType.GOOGLE_CHAT,
-      credentials,
+      reusableCredentialId: formData.reusableCredentialId,
     };
   }
 }

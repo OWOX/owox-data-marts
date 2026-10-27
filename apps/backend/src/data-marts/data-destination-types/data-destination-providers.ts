@@ -19,8 +19,6 @@ import { GoogleSheetsFolderValidator } from './google-sheets/services/google-she
 import { GoogleSheetsReportWriter } from './google-sheets/services/google-sheets-report-writer';
 import { SheetHeaderFormatter } from './google-sheets/services/sheet-formatters/sheet-header-formatter';
 import { SheetMetadataFormatter } from './google-sheets/services/sheet-formatters/sheet-metadata-formatter';
-import { DataDestinationPublicCredentialsFactory } from './factories/data-destination-public-credentials.factory';
-import { DataDestinationCredentialsUtils } from './data-destination-credentials.utils';
 import { SheetValuesFormatter } from './google-sheets/services/sheet-formatters/sheet-values-formatter';
 import { DataDestinationAccessValidator } from './interfaces/data-destination-access-validator.interface';
 import { DataDestinationCredentialsValidator } from './interfaces/data-destination-credentials-validator.interface';
@@ -101,10 +99,6 @@ const googleSheetsUtilityProviders = [
   GoogleSheetsReportDeletedListener,
   GoogleSheetsFolderValidator,
 ];
-const publicCredentialsProviders = [
-  DataDestinationPublicCredentialsFactory,
-  DataDestinationCredentialsUtils,
-];
 
 export const dataDestinationResolverProviders = [
   ...accessValidatorProviders,
@@ -113,7 +107,6 @@ export const dataDestinationResolverProviders = [
   ...secretKeyRotatorProviders,
   ...reportWriterProviders,
   ...googleSheetsUtilityProviders,
-  ...publicCredentialsProviders,
   GoogleChatWebhookClient,
   GoogleSheetsApiAdapterFactory,
   LookerStudioConnectorApiConfigService,

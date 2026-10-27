@@ -1,4 +1,5 @@
 import { INestApplication } from '@nestjs/common';
+import * as crypto from 'crypto';
 import * as supertest from 'supertest';
 import {
   createTestApp,
@@ -45,7 +46,7 @@ function resolvePayload(token: string): Payload {
  * Permissions Model: Sub-entity access control.
  *
  * Verifies that Scheduled Triggers, Insights, InsightArtifacts, InsightTemplates,
- * AI Assistant sessions, trigger controllers, and Destination OAuth endpoints
+ * AI Assistant sessions, trigger controllers, and Destination Credential changes
  * enforce parent DataMart / Destination access checks.
  */
 describe('Permissions Model Sub-Entity Access Control (e2e)', () => {
@@ -384,10 +385,10 @@ describe('Permissions Model Sub-Entity Access Control (e2e)', () => {
   });
 
   // ═══════════════════════════════════════════════════════════════
-  // DESTINATION OAUTH — ownership check
+  // DESTINATION CREDENTIAL — ownership check
   // ═══════════════════════════════════════════════════════════════
 
-  describe('Destination OAuth — Not shared blocks OAuth operations', () => {
+  describe('Destination Credential — Not shared blocks changing it', () => {
     beforeAll(async () => {
       await agent
         .put(`/api/data-destinations/${dataDestinationId}/availability`)
@@ -402,26 +403,13 @@ describe('Permissions Model Sub-Entity Access Control (e2e)', () => {
         .send({ availableForUse: true, availableForMaintenance: true });
     });
 
-    it('GET /api/data-destinations/:id/oauth/status → 403 for non-owner TU', async () => {
+    it('PUT /api/data-destinations/:id with reusableCredentialId → 403 for non-owner TU', async () => {
       const res = await agent
-        .get(`/api/data-destinations/${dataDestinationId}/oauth/status`)
-        .set(EDITOR_AUTH_HEADER);
-      expect(res.status).toBe(403);
-    });
-
-    it('POST /api/data-destinations/:id/oauth/authorize → 403 for non-owner TU', async () => {
-      const res = await agent
-        .post(`/api/data-destinations/${dataDestinationId}/oauth/authorize`)
+        .put(`/api/data-destinations/${dataDestinationId}`)
         .set(EDITOR_AUTH_HEADER)
-        .send({ redirectUri: 'http://localhost' });
+        .send({ title: 'Not mine', reusableCredentialId: crypto.randomUUID() });
       expect(res.status).toBe(403);
-    });
-
-    it('DELETE /api/data-destinations/:id/oauth → 403 for non-owner TU', async () => {
-      const res = await agent
-        .delete(`/api/data-destinations/${dataDestinationId}/oauth`)
-        .set(EDITOR_AUTH_HEADER);
-      expect(res.status).toBe(403);
+      expect(res.body.message).toBe('You do not have permission to edit this Destination');
     });
   });
 

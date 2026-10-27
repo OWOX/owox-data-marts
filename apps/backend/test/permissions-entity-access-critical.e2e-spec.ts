@@ -420,10 +420,10 @@ describe('Permissions Model Entity Access — Storage, Destination, Report, DM s
   });
 
   // ═══════════════════════════════════════════════════════════════
-  // DESTINATION COPY CREDENTIALS — requires COPY_CREDENTIALS access
+  // DESTINATION COPY CREDENTIALS — removed; a Destination selects a Credential instead
   // ═══════════════════════════════════════════════════════════════
 
-  describe('Destination copy credentials — requires access to source', () => {
+  describe('Destination copy credentials — refused from a stale page', () => {
     let ownedDestinationId: string;
 
     beforeAll(async () => {
@@ -455,7 +455,7 @@ describe('Permissions Model Entity Access — Storage, Destination, Report, DM s
       await agent.delete(`/api/data-destinations/${ownedDestinationId}`).set(EDITOR_AUTH_HEADER);
     });
 
-    it('PUT /api/data-destinations/:id with sourceDestinationId → 403 (source not shared)', async () => {
+    it('PUT /api/data-destinations/:id with sourceDestinationId → 400 (page out of date)', async () => {
       const res = await agent
         .put(`/api/data-destinations/${ownedDestinationId}`)
         .set(EDITOR_AUTH_HEADER)
@@ -463,7 +463,8 @@ describe('Permissions Model Entity Access — Storage, Destination, Report, DM s
           title: 'Copy Should Fail',
           sourceDestinationId: dataDestinationId,
         });
-      expect(res.status).toBe(403);
+      expect(res.status).toBe(400);
+      expect(res.body.message).toBe('This page is out of date. Reload it.');
     });
   });
 });

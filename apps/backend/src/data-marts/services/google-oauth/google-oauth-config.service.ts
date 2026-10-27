@@ -4,7 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import { z } from 'zod';
 import { OAuthNotConfiguredException } from '../../exceptions/google-oauth.exceptions';
 import type { GoogleOAuthClientKey, GoogleOAuthScopeSet } from '../../credentials/credential.types';
-import { DEFAULT_BIGQUERY_SCOPES, scopeList } from './google-oauth-scopes';
+import { DEFAULT_BIGQUERY_SCOPES, DEFAULT_SHEETS_SCOPES, scopeList } from './google-oauth-scopes';
 
 /**
  * Zod schema for a single OAuth client (storage or destination)
@@ -21,17 +21,7 @@ const GoogleOAuthSharedSchema = z.object({
   redirectUri: z.string().url('OAUTH_GOOGLE_REDIRECT_URI must be a valid URL'),
   jwtSecret: z.string().min(1, 'OAUTH_GOOGLE_JWT_SECRET is required'),
   bigQueryScopes: z.array(z.string()).default(() => [...DEFAULT_BIGQUERY_SCOPES]),
-  sheetsScopes: z.array(z.string()).default([
-    'https://www.googleapis.com/auth/spreadsheets',
-    // drive.file is NON-restricted (no CASA assessment). It lets the app manage
-    // (incl. share via permissions.create) the files it CREATES — used to grant
-    // the requesting user access to an auto-created Sheet. Existing tokens need
-    // re-consent to gain it.
-    'https://www.googleapis.com/auth/drive.file',
-    'openid',
-    'email',
-    'profile',
-  ]),
+  sheetsScopes: z.array(z.string()).default(() => [...DEFAULT_SHEETS_SCOPES]),
 });
 
 export type GoogleOAuthClientConfig = z.infer<typeof GoogleOAuthClientSchema>;

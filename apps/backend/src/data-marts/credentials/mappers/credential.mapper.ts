@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { destinationTypesForDefinition } from '../../data-destination-types/destination-credential-definitions';
 import { storageTypesForDefinition } from '../../data-storage-types/storage-credential-state';
 import { UserProjectionsFetcherService } from '../../services/user-projections-fetcher.service';
 import { extractContextSummaries } from '../../utils/extract-context-summaries';
@@ -23,7 +24,8 @@ import {
 function mapAuth(auth: CredentialDefinitionContract['auth']): CredentialDefinitionApiDto['auth'] {
   if (auth.type === 'fields')
     return { type: 'fields', fields: auth.fields.map(field => ({ ...field })) };
-  if (auth.type === 'oauth') return { type: 'oauth', provider: auth.provider, label: auth.label };
+  if (auth.type === 'oauth')
+    return { type: 'oauth', provider: auth.provider, client: auth.client, label: auth.label };
   return { type: auth.type };
 }
 
@@ -39,6 +41,7 @@ export function mapCredentialDefinitionToApiDto(
     category: definition.contract.category,
     icon: definition.contract.icon ?? null,
     storageTypes: storageTypesForDefinition(definition.definitionId),
+    destinationTypes: destinationTypesForDefinition(definition.definitionId),
     secretLabel: 'label' in definition.contract.auth ? definition.contract.auth.label : '',
     auth: mapAuth(definition.contract.auth),
     origins: [...(definition.contract.origins ?? [])],

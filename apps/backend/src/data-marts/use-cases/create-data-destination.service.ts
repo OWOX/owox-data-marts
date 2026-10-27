@@ -1,13 +1,13 @@
 import {
+  DataDestinationType,
   requiresCredentials,
-  toHumanReadable,
 } from '../data-destination-types/enums/data-destination-type.enum';
 import { CreateDataDestinationCommand } from '../dto/domain/create-data-destination.command';
 import { Repository } from 'typeorm';
 import { Transactional } from 'typeorm-transactional';
 import { DataDestination } from '../entities/data-destination.entity';
 import { InjectRepository } from '@nestjs/typeorm';
-import { BadRequestException, ForbiddenException, Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { OwoxEventDispatcher } from '../../common/event-dispatcher/owox-event-dispatcher';
 import { DataDestinationDto } from '../dto/domain/data-destination.dto';
 import { DataDestinationMapper } from '../mappers/data-destination.mapper';
@@ -15,28 +15,36 @@ import { DataDestinationCreatedEvent } from '../events/data-destination-created.
 import { DataDestinationCredentialsValidatorFacade } from '../data-destination-types/facades/data-destination-credentials-validator.facade';
 import { DataDestinationCredentialsProcessorFacade } from '../data-destination-types/facades/data-destination-credentials-processor.facade';
 import { GoogleSheetsFolderValidator } from '../data-destination-types/google-sheets/services/google-sheets-folder-validator.service';
+import { DataDestinationCredentials } from '../data-destination-types/data-destination-credentials.type';
+import {
+  DestinationCredentialBindingService,
+  type ResolvedDestinationCredential,
+} from '../data-destination-types/destination-credential-binding.service';
+import { DataDestinationCredentialsResolver } from '../data-destination-types/data-destination-credentials-resolver.service';
 import { DataDestinationCredentialService } from '../services/data-destination-credential.service';
-import { GoogleOAuthClientService } from '../services/google-oauth/google-oauth-client.service';
 import {
   resolveDestinationCredentialType,
   extractDestinationIdentity,
 } from '../services/credential-type-resolver';
 import type { StoredDestinationCredentials } from '../entities/stored-destination-credentials.type';
-import { DataDestinationService } from '../services/data-destination.service';
-import { CopyCredentialService } from '../services/copy-credential.service';
-import { AccessDecisionService, EntityType, Action } from '../services/access-decision';
 import { UserProjectionsFetcherService } from '../services/user-projections-fetcher.service';
 import { DestinationOwner } from '../entities/destination-owner.entity';
 import { syncOwners } from '../utils/sync-owners';
 import { resolveOwnerUsers } from '../utils/resolve-owner-users';
+import { checkDestinationCredentialFields } from '../utils/destination-credential-fields';
 import { IdpProjectionsFacade } from '../../idp/facades/idp-projections.facade';
 import { AdvancedSearchIndexSyncService } from '../services/advanced-search-index-sync.service';
 import { SearchableEntityType } from '../../common/search/search.facade';
 
+const NO_CREDENTIAL_MESSAGES: Partial<Record<DataDestinationType, string>> = {
+  [DataDestinationType.GOOGLE_SHEETS]:
+    'reusableCredentialId is required for Google Sheets destinations.',
+  [DataDestinationType.GOOGLE_CHAT]:
+    'Google Chat destinations need reusableCredentialId or email credentials.',
+};
+
 @Injectable()
 export class CreateDataDestinationService {
-  private readonly logger = new Logger(CreateDataDestinationService.name);
-
   constructor(
     @InjectRepository(DataDestination)
     private readonly repository: Repository<DataDestination>,
@@ -44,14 +52,12 @@ export class CreateDataDestinationService {
     private readonly credentialsValidator: DataDestinationCredentialsValidatorFacade,
     private readonly credentialsProcessor: DataDestinationCredentialsProcessorFacade,
     private readonly dataDestinationCredentialService: DataDestinationCredentialService,
-    private readonly googleOAuthClientService: GoogleOAuthClientService,
-    private readonly dataDestinationService: DataDestinationService,
-    private readonly copyCredentialService: CopyCredentialService,
+    private readonly destinationCredentials: DestinationCredentialBindingService,
+    private readonly credentialsResolver: DataDestinationCredentialsResolver,
     private readonly userProjectionsFetcherService: UserProjectionsFetcherService,
     @InjectRepository(DestinationOwner)
     private readonly destinationOwnerRepository: Repository<DestinationOwner>,
     private readonly idpProjectionsFacade: IdpProjectionsFacade,
-    private readonly accessDecisionService: AccessDecisionService,
     private readonly eventDispatcher: OwoxEventDispatcher,
     private readonly folderValidator: GoogleSheetsFolderValidator,
     private readonly advancedSearchIndexSync?: AdvancedSearchIndexSyncService
@@ -59,201 +65,68 @@ export class CreateDataDestinationService {
 
   @Transactional()
   async run(command: CreateDataDestinationCommand): Promise<DataDestinationDto> {
-    const availableForUse = command.availableForUse ?? true;
-
-    // A type that holds no secret has nothing to attach one to. Refused before the three
-    // credential-bearing branches below, because each of them fails badly rather than clearly:
-    // inline credentials reach a validator that does not exist for such a type (a plain Error,
-    // surfaced as HTTP 500), and a credentialId would link someone else's OAuth grant to a
-    // destination whose whole point is that it stores nothing.
-    if (
-      !requiresCredentials(command.type) &&
-      (command.hasCredentials() || command.credentialId || command.sourceDestinationId)
-    ) {
+    const credentials = checkDestinationCredentialFields(command.type, command);
+    const { reusableCredentialId } = command;
+    if (requiresCredentials(command.type) && !credentials && !reusableCredentialId) {
       throw new BadRequestException(
-        `${toHumanReadable(command.type)} destinations do not use credentials`
+        NO_CREDENTIAL_MESSAGES[command.type] ?? 'Credentials are required.'
       );
     }
 
-    // Mutual exclusion: sourceDestinationId vs credentials/credentialId
-    if (command.sourceDestinationId && command.hasCredentials()) {
-      throw new BadRequestException(
-        'Cannot provide both sourceDestinationId and credentials in the same request'
-      );
-    }
-    if (command.sourceDestinationId && command.credentialId) {
-      throw new BadRequestException('Cannot provide both sourceDestinationId and credentialId');
-    }
+    // Checked without the Credential's lock, which the bind takes last to hold only until the commit.
+    const candidate = reusableCredentialId
+      ? await this.destinationCredentials.checkDestinationBinding({
+          projectId: command.projectId,
+          userId: command.userId,
+          roles: command.roles,
+          credentialId: reusableCredentialId,
+          type: command.type,
+        })
+      : undefined;
 
-    // Copy credentials from another destination — requires COPY_CREDENTIALS access
-    if (command.sourceDestinationId) {
-      const canCopy = await this.accessDecisionService.canAccess(
-        command.userId,
-        command.roles,
-        EntityType.DESTINATION,
-        command.sourceDestinationId,
-        Action.COPY_CREDENTIALS,
-        command.projectId
-      );
-      if (!canCopy) {
-        throw new ForbiddenException(
-          'You do not have permission to copy credentials from this destination'
-        );
-      }
-
-      const source = await this.dataDestinationService.getByIdAndProjectId(
-        command.sourceDestinationId,
-        command.projectId
-      );
-      if (!source.credentialId || !source.credential) {
-        throw new BadRequestException('Source destination has no credentials to copy');
-      }
-      if (source.type !== command.type) {
-        throw new BadRequestException(
-          `Cannot copy credentials from ${source.type} to ${command.type} destination`
-        );
-      }
-
-      const newCredId = await this.copyCredentialService.copyDestinationCredential(
-        command.projectId,
-        null,
-        source.credential
-      );
-
-      const entity = this.repository.create({
+    // A destination that holds no secret of its own gets no credential record.
+    const credentialId = credentials ? await this.storeCredentials(command, credentials) : null;
+    const savedEntity = await this.repository.save(
+      this.repository.create({
         title: command.title,
         type: command.type,
         projectId: command.projectId,
-        credentialId: newCredId,
+        credentialId,
         createdById: command.userId,
-        availableForUse,
+        availableForUse: command.availableForUse ?? true,
         availableForMaintenance: false,
         config: command.config ?? null,
-      });
+      })
+    );
 
-      const savedEntity = await this.repository.save(entity);
+    return this.saveOwnersAndBuildResponse(savedEntity, command, candidate);
+  }
 
-      return this.saveOwnersAndBuildResponse(savedEntity, command);
-    }
-
-    // If a pre-created OAuth credential ID is provided, validate ownership and verify token
-    if (command.credentialId) {
-      const credential = await this.dataDestinationCredentialService.getById(command.credentialId);
-      if (!credential || credential.projectId !== command.projectId) {
-        throw new ForbiddenException('Credential does not belong to this project');
-      }
-
-      // If the credential is already linked to another destination, require COPY_CREDENTIALS
-      // on that destination — re-linking a credential is semantically a credential copy.
-      const existingDestination = await this.repository.findOne({
-        where: { credentialId: command.credentialId },
-      });
-      if (existingDestination) {
-        const canCopy = await this.accessDecisionService.canAccess(
-          command.userId,
-          command.roles,
-          EntityType.DESTINATION,
-          existingDestination.id,
-          Action.COPY_CREDENTIALS,
-          command.projectId
-        );
-        if (!canCopy) {
-          throw new ForbiddenException(
-            'You do not have permission to copy credentials from this destination'
-          );
-        }
-      } else if (credential.createdById !== command.userId) {
-        throw new ForbiddenException('Credential does not belong to this user');
-      }
-
-      const oauth2Client =
-        await this.googleOAuthClientService.getDestinationOAuth2ClientByCredentialId(
-          command.credentialId
-        );
-      await oauth2Client.getAccessToken();
-
-      const entity = this.repository.create({
-        title: command.title,
-        type: command.type,
-        projectId: command.projectId,
-        credentialId: command.credentialId,
-        createdById: command.userId,
-        availableForUse,
-        availableForMaintenance: false,
-        config: command.config ?? null,
-      });
-
-      const savedEntity = await this.repository.save(entity);
-
-      return this.saveOwnersAndBuildResponse(savedEntity, command);
-    }
-
-    if (!command.credentials) {
-      if (requiresCredentials(command.type)) {
-        throw new BadRequestException('Credentials are required when not copying from a source');
-      }
-
-      // A destination that holds no secret gets no credential record: `credentialId` is
-      // nullable precisely so nothing has to stand in for one.
-      const entity = this.repository.create({
-        title: command.title,
-        type: command.type,
-        projectId: command.projectId,
-        credentialId: null,
-        createdById: command.userId,
-        availableForUse,
-        availableForMaintenance: false,
-        config: command.config ?? null,
-      });
-
-      const savedEntity = await this.repository.save(entity);
-
-      return this.saveOwnersAndBuildResponse(savedEntity, command);
-    }
-
-    await this.credentialsValidator.checkCredentials(command.type, command.credentials);
+  private async storeCredentials(
+    command: CreateDataDestinationCommand,
+    credentials: DataDestinationCredentials
+  ): Promise<string> {
+    await this.credentialsValidator.checkCredentials(command.type, credentials);
 
     // Process credentials before saving (generates backend-managed fields if needed)
-    const processedCredentials = await this.credentialsProcessor.processCredentials(
+    const processedCredentials = (await this.credentialsProcessor.processCredentials(
       command.type,
-      command.credentials
-    );
-
-    // Create credential record in the new table
-    const credentialType = resolveDestinationCredentialType(
-      processedCredentials as StoredDestinationCredentials
-    );
-    const identity = extractDestinationIdentity(
-      credentialType,
-      processedCredentials as StoredDestinationCredentials
-    );
-
+      credentials
+    )) as StoredDestinationCredentials;
+    const credentialType = resolveDestinationCredentialType(processedCredentials);
     const credentialRecord = await this.dataDestinationCredentialService.create({
       projectId: command.projectId,
       type: credentialType,
-      credentials: processedCredentials as StoredDestinationCredentials,
-      identity,
+      credentials: processedCredentials,
+      identity: extractDestinationIdentity(credentialType, processedCredentials),
     });
-
-    const entity = this.repository.create({
-      title: command.title,
-      type: command.type,
-      projectId: command.projectId,
-      credentialId: credentialRecord.id,
-      createdById: command.userId,
-      availableForUse,
-      availableForMaintenance: false,
-      config: command.config ?? null,
-    });
-
-    const savedEntity = await this.repository.save(entity);
-
-    return this.saveOwnersAndBuildResponse(savedEntity, command);
+    return credentialRecord.id;
   }
 
   private async saveOwnersAndBuildResponse(
     savedEntity: DataDestination,
-    command: CreateDataDestinationCommand
+    command: CreateDataDestinationCommand,
+    candidate: ResolvedDestinationCredential | undefined
   ): Promise<DataDestinationDto> {
     await this.advancedSearchIndexSync?.scheduleReindex(
       SearchableEntityType.DATA_DESTINATION,
@@ -263,7 +136,7 @@ export class CreateDataDestinationService {
 
     // Fail fast (and roll back) if a configured Drive folder is not usable for
     // service-account auto-creation.
-    await this.folderValidator.validateConfiguredFolder(savedEntity);
+    await this.folderValidator.validateConfiguredFolder(savedEntity, candidate);
 
     this.eventDispatcher.publishLocalOnCommit(
       new DataDestinationCreatedEvent(
@@ -296,14 +169,31 @@ export class CreateDataDestinationService {
       o.userId = uid;
       return o;
     });
+    if (candidate) {
+      await this.destinationCredentials.bindDestination({
+        projectId: command.projectId,
+        userId: command.userId,
+        roles: command.roles,
+        credentialId: candidate.credentialId,
+        type: command.type,
+        destinationId: savedEntity.id,
+      });
+    }
     const allUserIds = [command.userId, ...ownerIdsToSave];
     const userProjections =
       await this.userProjectionsFetcherService.fetchUserProjectionsList(allUserIds);
     const createdByUser = userProjections.getByUserId(command.userId) ?? null;
+    const summaries = await this.credentialsResolver.summarize(
+      command.projectId,
+      command.userId,
+      command.roles,
+      [savedEntity]
+    );
     return this.mapper.toDomainDto(
       savedEntity,
       createdByUser,
-      resolveOwnerUsers(ownerIdsToSave, userProjections)
+      resolveOwnerUsers(ownerIdsToSave, userProjections),
+      summaries
     );
   }
 }

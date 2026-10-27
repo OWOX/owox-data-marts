@@ -42,7 +42,7 @@ The **Credential** field selects the key this Storage uses. The list shows the C
 
 OWOX Data Marts supports two kinds of BigQuery Credential:
 
-#### Option A: BigQuery Service Account (JSON Key)
+#### Option A: Google Service Account (JSON Key)
 
 To get the JSON key, you'll need to create or use an existing service account in Google Cloud.
 
@@ -58,7 +58,7 @@ To get the JSON key, you'll need to create or use an existing service account in
   - `BigQuery Job User`
 - Go to the **Keys** tab, click **Add key → Create new key**
 - Choose **JSON**, click **Create**, and download the file
-- In the Credential form, choose the **BigQuery Service Account** provider, then copy the contents of the JSON file and paste it into the **Service account key (JSON)** field.
+- In the Credential form, choose the **Google Service Account** provider, then copy the contents of the JSON file and paste it into the **Service account key (JSON)** field.
   Paste the whole file: if the text is not valid JSON or has no `client_email`, the field is
   highlighted with the reason when you click **Save**.
 

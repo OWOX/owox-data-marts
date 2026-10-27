@@ -5,8 +5,8 @@ import { AccessValidationException } from '../../common/exceptions/access-valida
 import type { AuthorizationContext } from '../../idp';
 import {
   CREDENTIAL_CONSUMER_TYPE_STORAGE,
-  type CredentialPublicMetadata,
-  type CredentialSecret,
+  type CandidateCredentialValues,
+  type CredentialConsumerRef,
 } from '../credentials/credential.types';
 import { CredentialConsumerTitlesService } from '../credentials/services/credential-consumer-titles.service';
 import { DataStorage } from '../entities/data-storage.entity';
@@ -16,16 +16,7 @@ import type { DataStorageCredentials } from './data-storage-credentials.type';
 import { DataStorageAccessValidatorFacade } from './facades/data-storage-access-validator-facade.service';
 import { toAdapterCredentials } from './storage-credential-definitions';
 
-export interface CredentialConsumerRef {
-  readonly consumerType: string;
-  readonly consumerId: string;
-}
-
-export interface CandidateCredentialValues {
-  readonly definitionId: string;
-  readonly secret: CredentialSecret;
-  readonly publicMetadata: CredentialPublicMetadata | null;
-}
+export type { CandidateCredentialValues, CredentialConsumerRef };
 
 /** The Storages among a Credential's consumers, as the Credentials page needs them. */
 @Injectable()

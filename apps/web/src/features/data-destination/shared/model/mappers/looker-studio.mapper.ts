@@ -46,7 +46,7 @@ export class LookerStudioMapper implements DestinationMapper {
   private extractLookerStudioCredentials(
     credentials: DataDestinationResponseDto['credentials']
   ): LookerStudioCredentials {
-    if (credentials.type === DataDestinationCredentialsType.LOOKER_STUDIO_CREDENTIALS) {
+    if (credentials?.type === DataDestinationCredentialsType.LOOKER_STUDIO_CREDENTIALS) {
       return {
         deploymentUrl: credentials.deploymentUrl,
         destinationId: credentials.destinationId,

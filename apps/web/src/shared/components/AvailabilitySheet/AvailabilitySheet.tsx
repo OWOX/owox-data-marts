@@ -87,9 +87,9 @@ function getAvailabilityFields(
       key: 'availableForMaintenance',
       sectionTitle: 'Maintenance',
       label: 'Shared for maintenance',
-      description: `Project members with access can copy credentials, edit, and delete this ${entityName}`,
+      description: `Project members with access can edit and delete this ${entityName}`,
       helpTitle: 'What does "Shared for maintenance" mean?',
-      helpContent: `When enabled, project members can copy credentials from this ${entityName}, edit its configuration, and delete it. This is useful when multiple team members need to manage shared infrastructure. Without this, only owners and admins can perform these actions.`,
+      helpContent: `When enabled, project members can edit this ${entityName}'s configuration and delete it. This is useful when multiple team members need to manage shared infrastructure. Without this, only owners and admins can perform these actions.`,
     },
   ];
 }

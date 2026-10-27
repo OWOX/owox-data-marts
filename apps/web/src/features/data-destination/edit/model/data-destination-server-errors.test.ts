@@ -6,14 +6,12 @@ import {
 } from './data-destination-server-errors';
 
 describe('toDataDestinationFormField', () => {
-  it('maps any key of the Google Sheets key file to the Service Account textarea', () => {
-    expect(
-      toDataDestinationFormField(
-        DataDestinationType.GOOGLE_SHEETS,
-        'credentials.serviceAccountKey.private_key'
-      )
-    ).toBe('credentials.serviceAccount');
-  });
+  it.each([DataDestinationType.GOOGLE_SHEETS, DataDestinationType.GOOGLE_CHAT])(
+    'maps a refused Credential to the Credential field (%s)',
+    type => {
+      expect(toDataDestinationFormField(type, 'reusableCredentialId')).toBe('reusableCredentialId');
+    }
+  );
 
   it.each(['config.folderId', 'config.folderUrl'])(
     'maps the Google Sheets folder (%s) to the folder URL input',
@@ -32,8 +30,8 @@ describe('toDataDestinationFormField', () => {
 
   it('maps a value the form holds under the same path', () => {
     expect(
-      toDataDestinationFormField(DataDestinationType.GOOGLE_CHAT, 'credentials.webhookUrl')
-    ).toBe('credentials.webhookUrl');
+      toDataDestinationFormField(DataDestinationType.LOOKER_STUDIO, 'credentials.deploymentUrl')
+    ).toBe('credentials.deploymentUrl');
   });
 
   it.each(['credentials.type', 'credentials', 'title', ''])(

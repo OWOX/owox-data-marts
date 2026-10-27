@@ -50,6 +50,7 @@ import {
   ServiceAccountRequiresFolderException,
   SheetFolderCreateFailedException,
 } from '../../exceptions/google-oauth.exceptions';
+import { DestinationCredentialUnavailableException } from '../../exceptions/destination-credential-unavailable.exception';
 
 const VALID_SA_KEY = {
   type: 'service_account',
@@ -91,7 +92,9 @@ describe('CreateGoogleSheetDocumentService', () => {
       getDestinationOAuth2Client: jest.fn().mockResolvedValue({}),
     };
     const credentialsResolver = {
-      resolve: jest.fn().mockResolvedValue(resolverValue),
+      resolveAuth: jest
+        .fn()
+        .mockResolvedValue({ kind: 'unbound', credentials: resolverValue ?? null }),
     };
     const idpProjectionsFacade = {
       getUserProjection: jest
@@ -456,6 +459,104 @@ describe('CreateGoogleSheetDocumentService', () => {
     await expect(
       service.run(new CreateGoogleSheetDocumentCommand('dest-1', 'proj-1', 'X'))
     ).rejects.toThrow(BadRequestException);
+  });
+
+  describe('with a bound Credential', () => {
+    const boundClient = { bound: true };
+    const googleAccount = (scope: string) => ({
+      kind: 'google-account',
+      client: boundClient,
+      scopes: scope.split(' '),
+    });
+
+    it("creates via a bound Google account's client, Drive access from its granted scopes", async () => {
+      // The old row would say no Drive scope; the Credential's grant has drive.file.
+      const { service, googleOAuthClientService, credentialsResolver } = createService(
+        buildDestination(
+          DestinationCredentialType.GOOGLE_OAUTH,
+          { folderId: 'folder-1' },
+          OAUTH_SCOPE_NO_DRIVE
+        )
+      );
+      credentialsResolver.resolveAuth.mockResolvedValue(googleAccount(OAUTH_SCOPE_WITH_DRIVE_FILE));
+      const { GoogleSheetsApiAdapter } = jest.requireMock(
+        '../../data-destination-types/google-sheets/adapters/google-sheets-api.adapter'
+      );
+
+      const result = await service.run(
+        new CreateGoogleSheetDocumentCommand('dest-1', 'proj-1', 'R', 'user-2', 'bu@example.com')
+      );
+
+      expect(GoogleSheetsApiAdapter).toHaveBeenCalledWith(undefined, boundClient);
+      expect(credentialsResolver.resolveAuth).toHaveBeenCalledTimes(1);
+      expect(googleOAuthClientService.getDestinationOAuth2Client).not.toHaveBeenCalled();
+      expect(mockCreateSpreadsheetInFolder).toHaveBeenCalledWith('R', 'folder-1');
+      expect(result).toEqual({
+        spreadsheetId: 'sa-sheet-id',
+        sheetId: 0,
+        placedInRoot: false,
+        sharedWithRequester: true,
+      });
+    });
+
+    it('creates in the Drive root without sharing when the bound grant lacks drive.file', async () => {
+      const { service, credentialsResolver } = createService(
+        buildDestination(
+          DestinationCredentialType.GOOGLE_OAUTH,
+          { folderId: 'folder-1' },
+          OAUTH_SCOPE_WITH_DRIVE_FILE
+        )
+      );
+      credentialsResolver.resolveAuth.mockResolvedValue(googleAccount(OAUTH_SCOPE_NO_DRIVE));
+
+      const result = await service.run(
+        new CreateGoogleSheetDocumentCommand('dest-1', 'proj-1', 'R', 'user-2', 'bu@example.com')
+      );
+
+      expect(mockCreateSpreadsheet).toHaveBeenCalledWith('R', 'R');
+      expect(result).toEqual({
+        spreadsheetId: 'sheet-id',
+        sheetId: 0,
+        placedInRoot: true,
+        sharedWithRequester: false,
+      });
+    });
+
+    it('creates via a bound service account Credential on a Destination without an old row', async () => {
+      const { service, googleOAuthClientService, credentialsResolver } = createService(
+        buildDestination(undefined, { folderId: 'folder-1' })
+      );
+      credentialsResolver.resolveAuth.mockResolvedValue({
+        kind: 'service-account',
+        credentials: { type: 'google-sheets-credentials', serviceAccountKey: VALID_SA_KEY },
+      });
+
+      await service.run(new CreateGoogleSheetDocumentCommand('dest-1', 'proj-1', 'Report'));
+
+      expect(mockCreateSpreadsheetInFolder).toHaveBeenCalledWith('Report', 'folder-1');
+      expect(googleOAuthClientService.getDestinationOAuth2Client).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ['an unavailable', new DestinationCredentialUnavailableException('Reconnect it.', true)],
+      [
+        'a deleted',
+        new DestinationCredentialUnavailableException(
+          "This Destination's Credential was deleted. Select another Credential for this Destination.",
+          false
+        ),
+      ],
+    ])("hands %s bound Credential's error to the caller", async (_, error) => {
+      const { service, googleOAuthClientService, credentialsResolver } = createService(
+        buildDestination(DestinationCredentialType.GOOGLE_OAUTH)
+      );
+      credentialsResolver.resolveAuth.mockRejectedValue(error);
+
+      await expect(
+        service.run(new CreateGoogleSheetDocumentCommand('dest-1', 'proj-1', 'X'))
+      ).rejects.toBe(error);
+      expect(googleOAuthClientService.getDestinationOAuth2Client).not.toHaveBeenCalled();
+    });
   });
 
   it('throws OAuthNotConnected when the destination has no credential', async () => {

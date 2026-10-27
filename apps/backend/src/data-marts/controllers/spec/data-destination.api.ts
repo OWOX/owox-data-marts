@@ -16,11 +16,6 @@ import { UpdateDestinationAvailabilityApiDto } from '../../dto/presentation/upda
 import { DataDestinationResponseApiDto } from '../../dto/presentation/data-destination-response-api.dto';
 import { DataDestinationImpactResponseApiDto } from '../../dto/presentation/data-destination-impact-response-api.dto';
 import { DataDestinationByTypeResponseApiDto } from '../../dto/presentation/data-destination-by-type-response-api.dto';
-import { GenerateAuthorizationUrlRequestDto } from '../../dto/presentation/google-oauth/generate-authorization-url-request.dto';
-import { GenerateAuthorizationUrlResponseDto } from '../../dto/presentation/google-oauth/generate-authorization-url-response.dto';
-import { ExchangeAuthorizationCodeRequestDto } from '../../dto/presentation/google-oauth/exchange-authorization-code-request.dto';
-import { ExchangeAuthorizationCodeResponseDto } from '../../dto/presentation/google-oauth/exchange-authorization-code-response.dto';
-import { GoogleOAuthStatusResponseDto } from '../../dto/presentation/google-oauth/google-oauth-status-response.dto';
 import { GoogleOAuthSettingsResponseDto } from '../../dto/presentation/google-oauth/oauth-settings-response.dto';
 import { CreateGoogleSheetDocumentRequestDto } from '../../dto/presentation/google-sheets/create-google-sheet-document-request.dto';
 import { CreateGoogleSheetDocumentResponseDto } from '../../dto/presentation/google-sheets/create-google-sheet-document-response.dto';
@@ -29,7 +24,7 @@ import { OwnerFilter } from '../../enums/owner-filter.enum';
 
 export function ListDataDestinationsByTypeSpec() {
   return applyDecorators(
-    ApiOperation({ summary: 'List Data Destinations by type (for credential copy)' }),
+    ApiOperation({ summary: 'List Data Destinations by type' }),
     ApiParam({ name: 'type', description: 'Data Destination type', enum: DataDestinationType }),
     ApiOkResponse({ type: [DataDestinationByTypeResponseApiDto] })
   );
@@ -39,7 +34,18 @@ export function CreateDataDestinationSpec() {
   return applyDecorators(
     ApiOperation({ summary: 'Create a new Data Destination' }),
     ApiBody({ type: CreateDataDestinationApiDto }),
-    ApiCreatedResponse({ type: DataDestinationResponseApiDto })
+    ApiCreatedResponse({ type: DataDestinationResponseApiDto }),
+    ApiResponse({
+      status: 400,
+      description:
+        'reusableCredentialId is null, missing where the type needs it, sent with credentials or for a type that takes no Credential, or names a Credential that does not fit the type or is disabled; or the request sends credentialId, sourceDestinationId, a Google Sheets key or a Google Chat webhook URL ("This page is out of date. Reload it.")',
+    }),
+    ApiResponse({
+      status: 403,
+      description:
+        'no USE on the Credential ("You cannot use this Credential."), or a plugin-authenticated request that sends reusableCredentialId',
+    }),
+    ApiResponse({ status: 404, description: 'Credential not found' })
   );
 }
 
@@ -47,10 +53,16 @@ export function CreateConnectGoogleSheetsDestinationSpec() {
   return applyDecorators(
     ApiOperation({
       summary:
-        'Create a Google Sheets destination from the MCP connect flow (starts unshared internally)',
+        'Create a Google Sheets destination bound to a Credential from the MCP connect flow (starts unshared internally)',
     }),
     ApiBody({ type: CreateConnectGoogleSheetsDestinationApiDto }),
-    ApiCreatedResponse({ type: DataDestinationResponseApiDto })
+    ApiCreatedResponse({ type: DataDestinationResponseApiDto }),
+    ApiResponse({
+      status: 400,
+      description: 'The Credential does not fit Google Sheets or is disabled',
+    }),
+    ApiResponse({ status: 403, description: 'No USE on the Credential' }),
+    ApiResponse({ status: 404, description: 'Credential not found' })
   );
 }
 
@@ -76,7 +88,18 @@ export function UpdateDataDestinationSpec() {
     ApiOperation({ summary: 'Update Data Destination by ID' }),
     ApiParam({ name: 'id', description: 'Data Destination ID' }),
     ApiBody({ type: UpdateDataDestinationApiDto }),
-    ApiOkResponse({ type: DataDestinationResponseApiDto })
+    ApiOkResponse({ type: DataDestinationResponseApiDto }),
+    ApiResponse({
+      status: 400,
+      description:
+        'reusableCredentialId is null, missing where the type needs it, sent with credentials or for a type that takes no Credential, or names a Credential that does not fit the type or is disabled; or the request sends credentialId, sourceDestinationId, a Google Sheets key or a Google Chat webhook URL ("This page is out of date. Reload it.")',
+    }),
+    ApiResponse({
+      status: 403,
+      description:
+        'No EDIT on the Destination, no USE on the Credential ("You cannot use this Credential."), or a plugin-authenticated request that sends reusableCredentialId',
+    }),
+    ApiResponse({ status: 404, description: 'Destination or Credential not found' })
   );
 }
 
@@ -136,63 +159,6 @@ export function OAuthSettingsSpec() {
       type: GoogleOAuthSettingsResponseDto,
       description: 'OAuth configuration settings',
     })
-  );
-}
-
-export function OAuthAuthorizeSpec(withDestinationId = false) {
-  return applyDecorators(
-    ApiOperation({
-      summary: withDestinationId
-        ? 'Generate Google OAuth authorization URL for a Data Destination'
-        : 'Generate Google OAuth authorization URL for Data Destination credentials',
-    }),
-    ...(withDestinationId ? [ApiParam({ name: 'id', description: 'Data Destination ID' })] : []),
-    ApiBody({ type: GenerateAuthorizationUrlRequestDto }),
-    ApiOkResponse({
-      type: GenerateAuthorizationUrlResponseDto,
-      description: 'Authorization URL and state token',
-    }),
-    ApiResponse({ status: 400, description: 'Invalid redirect URI' }),
-    ApiResponse({ status: 503, description: 'Google OAuth is not configured' })
-  );
-}
-
-export function OAuthExchangeSpec() {
-  return applyDecorators(
-    ApiOperation({ summary: 'Exchange OAuth authorization code for tokens (Data Destination)' }),
-    ApiBody({ type: ExchangeAuthorizationCodeRequestDto }),
-    ApiOkResponse({
-      type: ExchangeAuthorizationCodeResponseDto,
-      description: 'OAuth credential created successfully',
-    }),
-    ApiResponse({ status: 400, description: 'Invalid authorization code or state' }),
-    ApiResponse({ status: 403, description: 'OAuth state does not belong to your project' }),
-    ApiResponse({ status: 503, description: 'Google OAuth is not configured' })
-  );
-}
-
-export function OAuthCredentialStatusSpec() {
-  return applyDecorators(
-    ApiOperation({ summary: 'Get OAuth credential status by credential ID' }),
-    ApiParam({ name: 'credentialId', description: 'OAuth Credential ID' }),
-    ApiOkResponse({ type: GoogleOAuthStatusResponseDto, description: 'OAuth credential status' }),
-    ApiResponse({ status: 403, description: 'Credential does not belong to your project' })
-  );
-}
-
-export function OAuthStatusSpec() {
-  return applyDecorators(
-    ApiOperation({ summary: 'Get OAuth status for a Data Destination' }),
-    ApiParam({ name: 'id', description: 'Data Destination ID' }),
-    ApiOkResponse({ type: GoogleOAuthStatusResponseDto, description: 'OAuth connection status' })
-  );
-}
-
-export function OAuthRevokeSpec() {
-  return applyDecorators(
-    ApiOperation({ summary: 'Revoke Google OAuth credentials for a Data Destination' }),
-    ApiParam({ name: 'id', description: 'Data Destination ID' }),
-    ApiNoContentResponse({ description: 'OAuth credentials revoked' })
   );
 }
 

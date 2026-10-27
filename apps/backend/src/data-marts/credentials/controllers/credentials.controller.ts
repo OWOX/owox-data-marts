@@ -63,7 +63,10 @@ export class CredentialsController {
   @Get('oauth/google/settings')
   @ApiOkResponse({ type: GoogleOAuthCredentialSettingsApiDto })
   getGoogleOAuthSettings(): GoogleOAuthCredentialSettingsApiDto {
-    return { available: this.googleOAuthFlow.getSettingsForType('credential').available };
+    return {
+      available: this.googleOAuthFlow.getSettingsForType('credential').available,
+      clients: this.googleOAuthFlow.getClientAvailability(),
+    };
   }
 
   @Auth(Role.viewer())

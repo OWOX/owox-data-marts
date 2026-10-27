@@ -58,6 +58,7 @@ function setup(definitionOverride?: object, credentialOverride: Record<string, u
     }),
   };
   const storageConsumers = { verifyCandidate: jest.fn().mockResolvedValue(0) };
+  const destinationConsumers = { verifyCandidate: jest.fn().mockResolvedValue(0) };
   const service = new UpdateCredentialService(
     credentials as never,
     definitions as never,
@@ -67,9 +68,18 @@ function setup(definitionOverride?: object, credentialOverride: Record<string, u
     validationProbe as never,
     {} as never,
     {} as never,
-    storageConsumers as never
+    storageConsumers as never,
+    destinationConsumers as never
   );
-  return { service, definitions, validationProbe, credentials, credential, storageConsumers };
+  return {
+    service,
+    definitions,
+    validationProbe,
+    credentials,
+    credential,
+    storageConsumers,
+    destinationConsumers,
+  };
 }
 
 describe('UpdateCredentialService', () => {
@@ -223,6 +233,124 @@ describe('UpdateCredentialService with a Google service account key', () => {
       state.service.run('credential-1', context, { secret: { value: serviceAccountKey() } })
     ).rejects.toThrow(new BadRequestException('invalid_grant: Invalid JWT Signature.'));
     expect(state.credentials.save).not.toHaveBeenCalled();
+  });
+
+  it('checks the replacement key on the Destinations that use it, after Google accepts it', async () => {
+    const state = setup(googleDefinition, {
+      definitionId: 'google-service-account',
+      publicMetadata: savedMetadata,
+    });
+    const bindings = [{ consumerType: 'destination', consumerId: 'destination-1' }];
+    state.credentials.listBindings.mockResolvedValue(bindings);
+    const key = serviceAccountKey({ private_key_id: 'key-2' });
+
+    await state.service.run('credential-1', context, { secret: { value: key } });
+
+    expect(state.destinationConsumers.verifyCandidate).toHaveBeenCalledWith(context, bindings, {
+      definitionId: 'google-service-account',
+      secret: { value: key },
+      publicMetadata: { ...savedMetadata, privateKeyId: 'key-2' },
+    });
+    expect(state.validationProbe.run.mock.invocationCallOrder[0]).toBeLessThan(
+      state.destinationConsumers.verifyCandidate.mock.invocationCallOrder[0]
+    );
+    expect(state.credentials.save).toHaveBeenCalledWith(
+      expect.objectContaining({ secret: { value: key }, validationState: 'verified' })
+    );
+  });
+
+  it('skips the Destination check when Google leaves the probe unknown', async () => {
+    const state = setup(googleDefinition, { publicMetadata: savedMetadata });
+    state.validationProbe.run.mockResolvedValue({
+      state: 'unknown',
+      message: 'Google is unreachable',
+      validatedAt: new Date(),
+    });
+    const key = serviceAccountKey();
+
+    await state.service.run('credential-1', context, { secret: { value: key } });
+
+    expect(state.destinationConsumers.verifyCandidate).not.toHaveBeenCalled();
+    expect(state.credentials.save).toHaveBeenCalledWith(
+      expect.objectContaining({ secret: { value: key }, validationState: 'unknown' })
+    );
+  });
+
+  it('saves nothing when a Destination refuses the replacement key', async () => {
+    const state = setup(googleDefinition, { publicMetadata: savedMetadata });
+    state.destinationConsumers.verifyCandidate.mockRejectedValue(
+      new AccessValidationException('The new values do not work for the Destinations')
+    );
+
+    await expect(
+      state.service.run('credential-1', context, { secret: { value: serviceAccountKey() } })
+    ).rejects.toBeInstanceOf(AccessValidationException);
+    expect(state.credentials.save).not.toHaveBeenCalled();
+  });
+});
+
+describe('UpdateCredentialService with a Google Chat webhook', () => {
+  const stored = {
+    definitionId: 'google-chat-webhook',
+    secret: {
+      fields: { webhookUrl: 'https://chat.googleapis.com/v1/spaces/A/messages?key=k&token=t' },
+    },
+    publicMetadata: { fields: {} },
+    validationState: 'unknown',
+  };
+
+  it('checks a replaced URL on the Destinations that use it and keeps the validation unknown', async () => {
+    const state = setup(builtin('google-chat-webhook'), stored);
+    const bindings = [
+      { consumerType: 'destination', consumerId: 'destination-1' },
+      { consumerType: 'destination', consumerId: 'destination-2' },
+    ];
+    state.credentials.listBindings.mockResolvedValue(bindings);
+    // A webhook check is format-only, so the Destinations count 0.
+    state.destinationConsumers.verifyCandidate.mockResolvedValue(0);
+    const webhookUrl = 'https://chat.googleapis.com/v1/spaces/B/messages?key=k&token=t';
+
+    await state.service.run('credential-1', context, { fields: { webhookUrl } });
+
+    const candidate = {
+      definitionId: 'google-chat-webhook',
+      secret: { fields: { webhookUrl } },
+      publicMetadata: { fields: {} },
+    };
+    expect(state.storageConsumers.verifyCandidate).toHaveBeenCalledWith(
+      context,
+      bindings,
+      candidate,
+      {
+        definitionId: stored.definitionId,
+        secret: stored.secret,
+        publicMetadata: stored.publicMetadata,
+      }
+    );
+    expect(state.destinationConsumers.verifyCandidate).toHaveBeenCalledWith(
+      context,
+      bindings,
+      candidate
+    );
+    expect(state.credentials.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        secret: { fields: { webhookUrl } },
+        validationState: 'unknown',
+        validationMessage: null,
+        validatedAt: null,
+      })
+    );
+  });
+
+  it('keeps the stored URL when only the title changes', async () => {
+    const state = setup(builtin('google-chat-webhook'), stored);
+
+    await state.service.run('credential-1', context, { title: 'Sales space' });
+
+    expect(state.destinationConsumers.verifyCandidate).not.toHaveBeenCalled();
+    expect(state.credentials.save).toHaveBeenCalledWith(
+      expect.objectContaining({ title: 'Sales space', secret: stored.secret })
+    );
   });
 });
 
@@ -413,6 +541,74 @@ describe('UpdateCredentialService with a field set', () => {
         validationMessage: null,
         validatedAt: null,
       })
+    );
+  });
+
+  describe('bound to a Storage and a Destination', () => {
+    const mixed = [
+      { consumerType: 'storage', consumerId: 'storage-1' },
+      { consumerType: 'destination', consumerId: 'destination-1' },
+    ];
+    const aws = {
+      definitionId: 'aws-access-key',
+      secret: { fields: { secretAccessKey: 'old-secret-access-key' } },
+      publicMetadata: { fields: { accessKeyId: 'key-id-1' } },
+      validationState: 'unknown',
+    };
+    const edit = { fields: { secretAccessKey: 'new-secret-access-key' } };
+
+    it('saves nothing when the Destination rejects after the Storage accepts', async () => {
+      const state = setup(builtin('aws-access-key'), aws);
+      state.credentials.listBindings.mockResolvedValue(mixed);
+      state.storageConsumers.verifyCandidate.mockResolvedValue(1);
+      state.destinationConsumers.verifyCandidate.mockRejectedValue(
+        new AccessValidationException('The new values do not work for the Destinations')
+      );
+
+      await expect(state.service.run('credential-1', context, edit)).rejects.toBeInstanceOf(
+        AccessValidationException
+      );
+      expect(state.credentials.save).not.toHaveBeenCalled();
+    });
+
+    it('does not reach the Destination when the Storage rejects', async () => {
+      const state = setup(builtin('aws-access-key'), aws);
+      state.credentials.listBindings.mockResolvedValue(mixed);
+      state.storageConsumers.verifyCandidate.mockRejectedValue(
+        new AccessValidationException('The new values do not work for Storage "Athena prod"')
+      );
+
+      await expect(state.service.run('credential-1', context, edit)).rejects.toBeInstanceOf(
+        AccessValidationException
+      );
+      expect(state.destinationConsumers.verifyCandidate).not.toHaveBeenCalled();
+      expect(state.credentials.save).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      [0, 0, 'unknown'],
+      [1, 0, 'verified'],
+      [0, 1, 'verified'],
+    ])(
+      'counts Storages %i and Destinations %i together: %s',
+      async (storageCount, destinationCount, validationState) => {
+        const state = setup(builtin('aws-access-key'), aws);
+        state.credentials.listBindings.mockResolvedValue(mixed);
+        state.storageConsumers.verifyCandidate.mockResolvedValue(storageCount);
+        state.destinationConsumers.verifyCandidate.mockResolvedValue(destinationCount);
+
+        await state.service.run('credential-1', context, edit);
+
+        expect(state.credentials.save).toHaveBeenCalledWith(
+          expect.objectContaining({
+            validationState,
+            validationMessage:
+              validationState === 'verified'
+                ? 'Everything that uses this Credential accepted the new values.'
+                : null,
+          })
+        );
+      }
     );
   });
 
