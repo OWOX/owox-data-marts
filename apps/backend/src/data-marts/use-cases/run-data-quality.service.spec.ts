@@ -244,7 +244,8 @@ describe('RunDataQualityService', () => {
       executor,
       parser,
       clock,
-      projectBilling
+      projectBilling,
+      { get: jest.fn().mockReturnValue(3) } as never
     );
   });
 
