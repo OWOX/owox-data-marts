@@ -10,6 +10,7 @@ import { UpdateDataMartDefinitionCommand } from '../dto/domain/update-data-mart-
 import { DataMartDefinitionType } from '../enums/data-mart-definition-type.enum';
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
+import { passThroughSqlReferenceValidator } from '../sql-references/__fixtures__/pass-through-sql-reference-resolver';
 
 describe('UpdateDataMartDefinitionService', () => {
   const createService = (
@@ -17,6 +18,7 @@ describe('UpdateDataMartDefinitionService', () => {
       definitionType?: DataMartDefinitionType;
       definition?: unknown;
       storageType?: DataStorageType;
+      sqlReferenceValidator?: { prepareForSave: jest.Mock };
     } = {}
   ) => {
     const dataMart = {
@@ -70,10 +72,12 @@ describe('UpdateDataMartDefinitionService', () => {
       accessDecisionService as any,
       definitionValidatorFacade as any,
       eventDispatcher as any,
-      connectorService as any
+      connectorService as any,
+      (overrides.sqlReferenceValidator ?? passThroughSqlReferenceValidator) as never
     );
 
     return {
+      legacyDataMartsService,
       service,
       dataMartService,
       accessDecisionService,
@@ -214,6 +218,65 @@ describe('UpdateDataMartDefinitionService', () => {
       previousDefinition
     );
     expect(dataMart.definition).toBe(savedDefinition);
+  });
+
+  describe('Data Mart references in SQL', () => {
+    const sqlWithReference = 'SELECT * FROM [Old title](dm:aaaaaaaa-0000-4000-8000-000000000002) o';
+
+    it('saves the query the reference check returns, against the previous query', async () => {
+      const sqlReferenceValidator = {
+        prepareForSave: jest.fn().mockResolvedValue('SELECT * FROM [Orders](dm:…) o'),
+      };
+      const { service, dataMartService, dataMart } = createService({
+        definitionType: DataMartDefinitionType.SQL,
+        definition: { sqlQuery: 'SELECT 1' },
+        sqlReferenceValidator,
+      });
+
+      await service.run(commandFor(DataMartDefinitionType.SQL, { sqlQuery: sqlWithReference }));
+
+      expect(sqlReferenceValidator.prepareForSave).toHaveBeenCalledWith({
+        dataMart,
+        sqlQuery: sqlWithReference,
+        previousSqlQuery: 'SELECT 1',
+        userId: 'user-1',
+        roles: ['editor'],
+      });
+      expect(dataMartService.save).toHaveBeenCalledWith(
+        expect.objectContaining({ definition: { sqlQuery: 'SELECT * FROM [Orders](dm:…) o' } })
+      );
+    });
+
+    it('refuses an unusable reference before a legacy storage receives the query', async () => {
+      const sqlReferenceValidator = {
+        prepareForSave: jest
+          .fn()
+          .mockRejectedValue(
+            new BusinessViolationException('Data Mart references are not supported')
+          ),
+      };
+      const { service, dataMartService, legacyDataMartsService } = createService({
+        definitionType: DataMartDefinitionType.SQL,
+        definition: { sqlQuery: 'SELECT 1' },
+        storageType: DataStorageType.LEGACY_GOOGLE_BIGQUERY,
+        sqlReferenceValidator,
+      });
+
+      await expect(
+        service.run(commandFor(DataMartDefinitionType.SQL, { sqlQuery: sqlWithReference }))
+      ).rejects.toThrow('Data Mart references are not supported');
+      expect(legacyDataMartsService.updateQuery).not.toHaveBeenCalled();
+      expect(dataMartService.save).not.toHaveBeenCalled();
+    });
+
+    it('does not check references for a non-SQL definition', async () => {
+      const sqlReferenceValidator = { prepareForSave: jest.fn() };
+      const { service } = createService({ sqlReferenceValidator });
+
+      await service.run(commandFor(DataMartDefinitionType.TABLE, { fullyQualifiedName: 'p.d.t' }));
+
+      expect(sqlReferenceValidator.prepareForSave).not.toHaveBeenCalled();
+    });
   });
 
   it('should throw ForbiddenException when user has no edit access to data mart', async () => {
@@ -792,7 +855,8 @@ describe('UpdateDataMartDefinitionService with the real ConnectorService', () =>
       { canAccess: jest.fn().mockResolvedValue(true) } as never,
       { checkIsValid: jest.fn().mockResolvedValue(undefined) } as never,
       { publishExternal: jest.fn() } as never,
-      connectorService
+      connectorService,
+      passThroughSqlReferenceValidator as never
     );
 
     return { service, dataMartService, dataMart, tryResolveManifest };

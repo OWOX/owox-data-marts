@@ -57,6 +57,8 @@ import {
   unavailableSourceDataLastUpdated,
 } from '../dto/schemas/source-data-last-updated.schema';
 import { SourceDataLastUpdatedService } from '../services/source-data-last-updated.service';
+import { DataMartSqlReferenceResolver } from '../services/data-mart-sql-reference-resolver.service';
+import { isSqlDefinition } from '../dto/schemas/data-mart-table-definitions/data-mart-definition.guards';
 
 const ERROR_NAMES = {
   ABORT: 'AbortError',
@@ -135,7 +137,8 @@ export class RunReportService {
     private readonly blendedReportDataService: BlendedReportDataService,
     private readonly reportSqlComposerService: ReportSqlComposerService,
     private readonly idpProjectionsFacade: IdpProjectionsFacade,
-    private readonly sourceDataLastUpdatedService: SourceDataLastUpdatedService
+    private readonly sourceDataLastUpdatedService: SourceDataLastUpdatedService,
+    private readonly sqlReferenceResolver: DataMartSqlReferenceResolver
   ) {}
 
   /**
@@ -372,6 +375,24 @@ export class RunReportService {
               sqlOverride,
               sqlOverrideParams
             );
+        } catch (error) {
+          this.logger.warn(
+            `Failed to record executionSqlQuery for report ${report.id}: ${
+              error instanceof Error ? error.message : String(error)
+            }`
+          );
+        }
+      } else if (
+        dataMartRun?.reportDefinition &&
+        this.sqlReferenceResolver.hasReferences(dataMart)
+      ) {
+        // A plain report runs its Data Mart's SQL, which differs from the saved text once the
+        // references in it are resolved — record what actually ran.
+        try {
+          const definition = await this.sqlReferenceResolver.resolveDefinition(dataMart);
+          if (definition && isSqlDefinition(definition)) {
+            dataMartRun.reportDefinition.executionSqlQuery = definition.sqlQuery;
+          }
         } catch (error) {
           this.logger.warn(
             `Failed to record executionSqlQuery for report ${report.id}: ${

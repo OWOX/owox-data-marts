@@ -15,6 +15,7 @@ import { ReportSqlComposerService } from '../services/report-sql-composer.servic
 import { BigQueryQueryBuilder } from '../data-storage-types/bigquery/services/bigquery-query.builder';
 import { BigQueryClauseRenderer } from '../data-storage-types/bigquery/services/bigquery-clause-renderer';
 import type { FormulaViolation } from './formula-violations';
+import { passThroughSqlReferenceResolver } from '../sql-references/__fixtures__/pass-through-sql-reference-resolver';
 
 interface FieldSpec {
   name: string;
@@ -2363,7 +2364,8 @@ describe('CalculatedFieldValidatorService', () => {
         { resolveTableName: jest.fn().mockResolvedValue('`proj`.`ds`.`view_x`') } as never,
         { isSupported: jest.fn().mockReturnValue(true) } as never,
         { computeBlendableSchema: jest.fn() } as never,
-        { validateForReport: jest.fn() } as never
+        { validateForReport: jest.fn() } as never,
+        passThroughSqlReferenceResolver as never
       );
       const dryRun = { execute: jest.fn().mockResolvedValue(SqlDryRunResult.success()) };
       return {
@@ -2502,7 +2504,8 @@ describe('CalculatedFieldValidatorService', () => {
         { resolveTableName: jest.fn().mockResolvedValue('`proj`.`ds`.`view_x`') } as never,
         { isSupported: jest.fn().mockReturnValue(true) } as never,
         { computeBlendableSchema: jest.fn() } as never,
-        { validateForReport: jest.fn() } as never
+        { validateForReport: jest.fn() } as never,
+        passThroughSqlReferenceResolver as never
       );
       const dryRun = { execute: jest.fn().mockResolvedValue(SqlDryRunResult.success()) };
       return {

@@ -3,21 +3,27 @@ import { BusinessViolationException } from '../../../common/exceptions/business-
 import { TypeResolver } from '../../../common/resolver/type-resolver';
 import { DataMart } from '../../entities/data-mart.entity';
 import { DataMartSchema } from '../data-mart-schema.type';
-import { DATA_MART_SCHEMA_PROVIDER_RESOLVER } from '../data-storage-providers';
+import {
+  DATA_MART_DEFINITION_RESOLVER,
+  DATA_MART_SCHEMA_PROVIDER_RESOLVER,
+} from '../data-storage-providers';
 import { DataStorageCredentialsResolver } from '../data-storage-credentials-resolver.service';
 import { DataStorageType } from '../enums/data-storage-type.enum';
 import { DataMartSchemaProvider } from '../interfaces/data-mart-schema-provider.interface';
+import { DataMartDefinitionResolver } from '../interfaces/data-mart-definition-resolver.interface';
 
 @Injectable()
 export class DataMartSchemaProviderFacade {
   constructor(
     @Inject(DATA_MART_SCHEMA_PROVIDER_RESOLVER)
     private readonly resolver: TypeResolver<DataStorageType, DataMartSchemaProvider>,
-    private readonly credentialsResolver: DataStorageCredentialsResolver
+    private readonly credentialsResolver: DataStorageCredentialsResolver,
+    @Inject(DATA_MART_DEFINITION_RESOLVER)
+    private readonly definitions: DataMartDefinitionResolver
   ) {}
 
   async getActualDataMartSchema(dataMart: DataMart): Promise<DataMartSchema> {
-    const definition = dataMart.definition;
+    const definition = await this.definitions.resolveDefinition(dataMart);
     if (!definition) {
       throw new BusinessViolationException('DataMart definition must be provided');
     }

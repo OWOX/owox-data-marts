@@ -415,7 +415,8 @@ export class BlendedReportDataService {
     const mainTableReference = await this.tableReferenceService.resolveTableName(
       dataMart.id,
       dataMart.projectId,
-      tableReferences
+      tableReferences,
+      { inlineSqlReferences: true }
     );
 
     const publicOrigin = this.publicOriginService.getPublicOrigin();
@@ -873,7 +874,8 @@ export class BlendedReportDataService {
       const targetTableReference = await this.tableReferenceService.resolveTableName(
         rel.targetDataMart.id,
         projectId,
-        tableReferences
+        tableReferences,
+        { inlineSqlReferences: true }
       );
       const targetDataMartUrl = buildDataMartUrl(
         publicOrigin,

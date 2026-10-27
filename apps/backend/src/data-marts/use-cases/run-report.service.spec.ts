@@ -31,6 +31,7 @@ import { RunReportService } from './run-report.service';
 import { RunType } from '../../common/scheduler/shared/types';
 import { ReportRun } from '../models/report-run.model';
 import { serializeFormulaReference } from '../calculated-fields/formula-reference';
+import { passThroughSqlReferenceResolver } from '../sql-references/__fixtures__/pass-through-sql-reference-resolver';
 
 jest.mock('../data-destination-types/data-destination-providers', () => ({
   DATA_DESTINATION_REPORT_WRITER_RESOLVER: 'DATA_DESTINATION_REPORT_WRITER_RESOLVER',
@@ -121,7 +122,8 @@ describe('RunReportService', () => {
       blendedReportDataService as never,
       reportSqlComposerService as never,
       idpProjectionsFacade as never,
-      sourceDataLastUpdatedService as never
+      sourceDataLastUpdatedService as never,
+      passThroughSqlReferenceResolver as never
     );
 
     return {

@@ -6,21 +6,43 @@ import {
   DataMartValidator,
   ValidationResult,
 } from '../interfaces/data-mart-validator.interface';
-import { DATA_MART_VALIDATOR_RESOLVER } from '../data-storage-providers';
+import {
+  DATA_MART_DEFINITION_RESOLVER,
+  DATA_MART_VALIDATOR_RESOLVER,
+} from '../data-storage-providers';
 import { DataMart } from '../../entities/data-mart.entity';
 import { BusinessViolationException } from '../../../common/exceptions/business-violation.exception';
 import { DataStorageCredentialsResolver } from '../data-storage-credentials-resolver.service';
+import { DataMartDefinitionResolver } from '../interfaces/data-mart-definition-resolver.interface';
+import { isDataMartSqlReferenceException } from '../../sql-references/data-mart-sql-reference.errors';
+import { DataMartDefinition } from '../../dto/schemas/data-mart-table-definitions/data-mart-definition';
 
 @Injectable()
 export class DataMartDefinitionValidatorFacade {
   constructor(
     @Inject(DATA_MART_VALIDATOR_RESOLVER)
     private readonly resolver: TypeResolver<DataStorageType, DataMartValidator>,
-    private readonly credentialsResolver: DataStorageCredentialsResolver
+    private readonly credentialsResolver: DataStorageCredentialsResolver,
+    @Inject(DATA_MART_DEFINITION_RESOLVER)
+    private readonly definitions: DataMartDefinitionResolver
   ) {}
 
   async validate(dataMart: DataMart): Promise<ValidationResult> {
-    const definition = dataMart.definition;
+    let definition: DataMartDefinition | undefined;
+    try {
+      definition = await this.definitions.resolveDefinition(dataMart);
+    } catch (error) {
+      // A reference to a Data Mart that is gone, in another Storage, or loops back: the message
+      // names the referenced Data Mart and was written for the person editing the SQL.
+      if (isDataMartSqlReferenceException(error)) {
+        return ValidationResult.authoredFailure(
+          DataMartValidationCode.DATA_MART_REFERENCE_INVALID,
+          error.message,
+          error.errorDetails
+        );
+      }
+      throw error;
+    }
     if (!definition) {
       return ValidationResult.authoredFailure(
         DataMartValidationCode.DEFINITION_NOT_FOUND,

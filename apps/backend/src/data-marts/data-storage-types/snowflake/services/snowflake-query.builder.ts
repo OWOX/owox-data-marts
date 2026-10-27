@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { DataMartDefinition } from '../../../dto/schemas/data-mart-table-definitions/data-mart-definition';
+import { resolvedSqlQueryOf } from '../../../sql-references/data-mart-sql-reference';
 import {
   isConnectorDefinition,
   isSqlDefinition,
@@ -172,10 +173,10 @@ export class SnowflakeQueryBuilder implements DataMartQueryBuilder {
     }
     if (isSqlDefinition(definition)) {
       if (queryOptions?.columns?.length) {
-        const cleanQuery = definition.sqlQuery.trim().replace(/;\s*$/, '');
+        const cleanQuery = resolvedSqlQueryOf(definition, this.type).trim().replace(/;\s*$/, '');
         return composeSelectFromClause(selectList, `(${cleanQuery})`);
       }
-      return definition.sqlQuery;
+      return resolvedSqlQueryOf(definition, this.type);
     }
     if (isTablePatternDefinition(definition)) {
       throw new Error('Table pattern definitions are not supported for Snowflake');
@@ -199,7 +200,7 @@ export class SnowflakeQueryBuilder implements DataMartQueryBuilder {
       if (options?.mainTableReference) {
         return options.mainTableReference;
       }
-      const cleanQuery = definition.sqlQuery.trim().replace(/;\s*$/, '');
+      const cleanQuery = resolvedSqlQueryOf(definition, this.type).trim().replace(/;\s*$/, '');
       return `(${cleanQuery})`;
     }
     if (isTablePatternDefinition(definition)) {

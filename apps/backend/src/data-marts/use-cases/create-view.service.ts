@@ -5,6 +5,7 @@ import { CreateViewCommand } from '../dto/domain/create-view.command';
 import { CreateViewResult } from '../data-storage-types/interfaces/create-view-executor.interface';
 import { isSqlDefinition } from '../dto/schemas/data-mart-table-definitions/data-mart-definition.guards';
 import { DataStorageCredentialsResolver } from '../data-storage-types/data-storage-credentials-resolver.service';
+import { DataMartSqlReferenceResolver } from '../services/data-mart-sql-reference-resolver.service';
 
 /**
  * Creates or replaces a view in the underlying storage using the provided SQL.
@@ -15,7 +16,8 @@ export class CreateViewService {
   constructor(
     private readonly dataMartService: DataMartService,
     private readonly createViewExecutorFacade: CreateViewExecutorFacade,
-    private readonly credentialsResolver: DataStorageCredentialsResolver
+    private readonly credentialsResolver: DataStorageCredentialsResolver,
+    private readonly sqlReferenceResolver: DataMartSqlReferenceResolver
   ) {}
 
   async run(command: CreateViewCommand): Promise<CreateViewResult> {
@@ -40,6 +42,12 @@ export class CreateViewService {
       throw new Error('Only SQL-based Data Mart definitions are supported for view creation.');
     }
 
+    // The view stands in for the Data Mart, so it holds the SQL with references resolved.
+    const definition = await this.sqlReferenceResolver.resolveDefinition(dataMart);
+    if (!definition || !isSqlDefinition(definition)) {
+      throw new Error('Only SQL-based Data Mart definitions are supported for view creation.');
+    }
+
     const credentials = await this.credentialsResolver.resolve(storage);
 
     return this.createViewExecutorFacade.createView(
@@ -47,7 +55,7 @@ export class CreateViewService {
       credentials,
       storage.config,
       command.viewName,
-      dataMart.definition.sqlQuery
+      definition.sqlQuery
     );
   }
 }

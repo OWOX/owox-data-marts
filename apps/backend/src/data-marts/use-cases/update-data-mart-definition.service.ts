@@ -21,6 +21,8 @@ import { AdvancedSearchIndexSyncService } from '../services/advanced-search-inde
 import { SearchableEntityType } from '../../common/search/search.facade';
 import { ConnectorService } from '../services/connector/connector.service';
 import type { ConnectorCapabilities } from '../connector-types/connector-capabilities';
+import { DataMartSqlReferenceValidator } from '../services/data-mart-sql-reference-validator.service';
+import { isSqlDefinition } from '../dto/schemas/data-mart-table-definitions/data-mart-definition.guards';
 
 @Injectable()
 export class UpdateDataMartDefinitionService {
@@ -33,6 +35,7 @@ export class UpdateDataMartDefinitionService {
     private readonly definitionValidatorFacade: DataMartDefinitionValidatorFacade,
     private readonly eventDispatcher: OwoxEventDispatcher,
     private readonly connectorService: ConnectorService,
+    private readonly sqlReferenceValidator: DataMartSqlReferenceValidator,
     private readonly advancedSearchIndexSync?: AdvancedSearchIndexSyncService
   ) {}
 
@@ -53,6 +56,22 @@ export class UpdateDataMartDefinitionService {
         throw new ForbiddenException('You do not have permission to edit this DataMart');
       }
     }
+
+    // Data Mart references in SQL are checked before anything is written or sent to a legacy
+    // storage; the query is saved with every reference's title refreshed.
+    const sqlQuery =
+      command.definitionType === DataMartDefinitionType.SQL && command.definition
+        ? await this.sqlReferenceValidator.prepareForSave({
+            dataMart,
+            sqlQuery: (command.definition as SqlDefinition).sqlQuery,
+            previousSqlQuery:
+              dataMart.definition && isSqlDefinition(dataMart.definition)
+                ? dataMart.definition.sqlQuery
+                : undefined,
+            userId: command.userId || undefined,
+            roles: command.roles,
+          })
+        : undefined;
 
     const previousDefinitionType = dataMart.definitionType;
     const definitionTypeWasEmpty = !previousDefinitionType;
@@ -144,6 +163,8 @@ export class UpdateDataMartDefinitionService {
         dataMart.definition as ConnectorDefinition,
         previousDefinition
       );
+    } else if (sqlQuery !== undefined) {
+      dataMart.definition = { ...(command.definition as SqlDefinition), sqlQuery };
     } else {
       dataMart.definition = command.definition;
     }
