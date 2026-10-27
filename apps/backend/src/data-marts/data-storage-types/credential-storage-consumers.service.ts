@@ -58,27 +58,28 @@ export class CredentialStorageConsumersService implements OnModuleInit {
     return this.titlesOf(context, await this.load(context.projectId, consumers));
   }
 
-  /** Checks the candidate on each Storage in turn; throws on a rejection; returns how many. */
+  /**
+   * Checks the candidate on each Storage in turn and throws when a Storage that works with the
+   * current values rejects it; returns how many accepted it.
+   */
   async verifyCandidate(
     context: AuthorizationContext,
     consumers: readonly CredentialConsumerRef[],
-    candidate: CandidateCredentialValues
+    candidate: CandidateCredentialValues,
+    current: CandidateCredentialValues
   ): Promise<number> {
     const storages = await this.load(context.projectId, consumers);
     if (storages.length === 0) return 0;
     const titles = await this.titlesOf(context, storages);
-    const credentials = toAdapterCredentials(
-      candidate.definitionId,
-      candidate.secret,
-      candidate.publicMetadata
-    ) as DataStorageCredentials;
+    let accepted = 0;
     for (const storage of storages) {
-      const result = await this.accessValidator.validateAccess(
-        storage.type,
-        storage.config ?? ({} as DataStorageConfig),
-        credentials
-      );
-      if (result.valid) continue;
+      const result = await this.check(storage, candidate);
+      if (result.valid) {
+        accepted += 1;
+        continue;
+      }
+      // A Storage already broken (a paused cluster, a dropped warehouse) must not block a rotation.
+      if (!(await this.check(storage, current)).valid) continue;
       const title = titles.get(storage.id);
       const storageName =
         title === undefined ? 'a Storage that uses this Credential' : `Storage "${title}"`;
@@ -92,7 +93,19 @@ export class CredentialStorageConsumersService implements OnModuleInit {
         title === undefined ? undefined : maskedReason(result.reason, secrets)
       );
     }
-    return storages.length;
+    return accepted;
+  }
+
+  private check(storage: DataStorage, values: CandidateCredentialValues) {
+    return this.accessValidator.validateAccess(
+      storage.type,
+      storage.config ?? ({} as DataStorageConfig),
+      toAdapterCredentials(
+        values.definitionId,
+        values.secret,
+        values.publicMetadata
+      ) as DataStorageCredentials
+    );
   }
 
   private async load(

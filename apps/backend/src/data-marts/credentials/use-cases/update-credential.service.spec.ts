@@ -253,11 +253,20 @@ describe('UpdateCredentialService with a field set', () => {
 
     expect(state.definitions.getForCredential).toHaveBeenCalled();
     expect(state.validationProbe.run).not.toHaveBeenCalled();
-    expect(state.storageConsumers.verifyCandidate).toHaveBeenCalledWith(context, [], {
-      definitionId: 'snowflake-password',
-      secret: { fields: { password: 'new-password' } },
-      publicMetadata: { fields: { username: 'loader' } },
-    });
+    expect(state.storageConsumers.verifyCandidate).toHaveBeenCalledWith(
+      context,
+      [],
+      {
+        definitionId: 'snowflake-password',
+        secret: { fields: { password: 'new-password' } },
+        publicMetadata: { fields: { username: 'loader' } },
+      },
+      {
+        definitionId: 'snowflake-password',
+        secret: { fields: { password: 'old-password' } },
+        publicMetadata: { fields: { username: 'loader' } },
+      }
+    );
     expect(state.credentials.save).toHaveBeenCalledWith(
       expect.objectContaining({
         secret: { fields: { password: 'new-password' } },
@@ -293,11 +302,20 @@ describe('UpdateCredentialService with a field set', () => {
 
     await state.service.run('credential-1', context, { fields: { username: 'reporter' } });
 
-    expect(state.storageConsumers.verifyCandidate).toHaveBeenCalledWith(context, bindings, {
-      definitionId: 'snowflake-password',
-      secret: { fields: { password: 'old-password' } },
-      publicMetadata: { fields: { username: 'reporter' } },
-    });
+    expect(state.storageConsumers.verifyCandidate).toHaveBeenCalledWith(
+      context,
+      bindings,
+      {
+        definitionId: 'snowflake-password',
+        secret: { fields: { password: 'old-password' } },
+        publicMetadata: { fields: { username: 'reporter' } },
+      },
+      {
+        definitionId: 'snowflake-password',
+        secret: { fields: { password: 'old-password' } },
+        publicMetadata: { fields: { username: 'loader' } },
+      }
+    );
     expect(state.credentials.save).toHaveBeenCalledWith(
       expect.objectContaining({
         publicMetadata: { fields: { username: 'reporter' } },
@@ -331,7 +349,8 @@ describe('UpdateCredentialService with a field set', () => {
       bindings,
       expect.objectContaining({
         secret: { fields: { secretAccessKey: 'typo-secret-access-key' } },
-      })
+      }),
+      expect.objectContaining({ secret: { fields: { secretAccessKey: 'old-secret-access-key' } } })
     );
     expect(state.credentials.save).not.toHaveBeenCalled();
   });

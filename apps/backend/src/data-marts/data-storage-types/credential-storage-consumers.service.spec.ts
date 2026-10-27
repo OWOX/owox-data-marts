@@ -30,6 +30,11 @@ const candidate = {
   publicMetadata: { fields: { accessKeyId: 'key-id-1' } },
 };
 
+const current = {
+  ...candidate,
+  secret: { fields: { secretAccessKey: 'old-secret-access-key' } },
+};
+
 const storageBinding = (consumerId: string) => ({ consumerType: 'storage', consumerId });
 
 function setup(visible: readonly string[] = [athena.id, redshift.id]) {
@@ -80,7 +85,8 @@ describe('CredentialStorageConsumersService.verifyCandidate', () => {
           { consumerType: 'plugin-installation', consumerId: 'installation-1' },
           storageBinding(redshift.id),
         ],
-        candidate
+        candidate,
+        current
       )
     ).resolves.toBe(2);
 
@@ -109,7 +115,8 @@ describe('CredentialStorageConsumersService.verifyCandidate', () => {
       state.service.verifyCandidate(
         context,
         [storageBinding(athena.id), storageBinding(redshift.id)],
-        candidate
+        candidate,
+        current
       )
     );
 
@@ -122,7 +129,36 @@ describe('CredentialStorageConsumersService.verifyCandidate', () => {
     expect(JSON.stringify({ message: error.message, details: error.errorDetails })).not.toContain(
       'new-secret-access-key'
     );
-    expect(state.validator.validateAccess).toHaveBeenCalledTimes(1);
+    expect(state.validator.validateAccess.mock.calls).toEqual([
+      [DataStorageType.AWS_ATHENA, athena.config, expect.objectContaining(candidate.secret.fields)],
+      [DataStorageType.AWS_ATHENA, athena.config, expect.objectContaining(current.secret.fields)],
+    ]);
+  });
+
+  it('skips a Storage that rejects the current values too and counts the ones that accept', async () => {
+    const state = setup();
+    state.validator.validateAccess
+      .mockResolvedValueOnce(ValidationResult.failure('Cluster paused'))
+      .mockResolvedValueOnce(ValidationResult.failure('Cluster paused'));
+
+    await expect(
+      state.service.verifyCandidate(
+        context,
+        [storageBinding(athena.id), storageBinding(redshift.id)],
+        candidate,
+        current
+      )
+    ).resolves.toBe(1);
+
+    expect(state.validator.validateAccess.mock.calls).toEqual([
+      [DataStorageType.AWS_ATHENA, athena.config, expect.objectContaining(candidate.secret.fields)],
+      [DataStorageType.AWS_ATHENA, athena.config, expect.objectContaining(current.secret.fields)],
+      [
+        DataStorageType.AWS_REDSHIFT,
+        redshift.config,
+        expect.objectContaining(candidate.secret.fields),
+      ],
+    ]);
   });
 
   it('masks every secret value of the candidate that the validator echoes', async () => {
@@ -135,11 +171,16 @@ describe('CredentialStorageConsumersService.verifyCandidate', () => {
     );
 
     const error = await rejection(
-      state.service.verifyCandidate(context, [storageBinding(athena.id)], {
-        definitionId: 'snowflake-key-pair',
-        secret: { fields: { privateKey, privateKeyPassphrase: 'pass-phrase-1' } },
-        publicMetadata: { fields: { username: 'loader' } },
-      })
+      state.service.verifyCandidate(
+        context,
+        [storageBinding(athena.id)],
+        {
+          definitionId: 'snowflake-key-pair',
+          secret: { fields: { privateKey, privateKeyPassphrase: 'pass-phrase-1' } },
+          publicMetadata: { fields: { username: 'loader' } },
+        },
+        current
+      )
     );
 
     expect(error.message).toBe(
@@ -155,12 +196,17 @@ describe('CredentialStorageConsumersService.verifyCandidate', () => {
     );
 
     const error = await rejection(
-      state.service.verifyCandidate(context, [storageBinding(athena.id)], {
-        ...candidate,
-        secret: {
-          fields: { secretAccessKey: 'new-secret-access-key', sessionToken: undefined as never },
+      state.service.verifyCandidate(
+        context,
+        [storageBinding(athena.id)],
+        {
+          ...candidate,
+          secret: {
+            fields: { secretAccessKey: 'new-secret-access-key', sessionToken: undefined as never },
+          },
         },
-      })
+        current
+      )
     );
 
     expect(error.message).toBe(
@@ -178,7 +224,7 @@ describe('CredentialStorageConsumersService.verifyCandidate', () => {
     );
 
     const error = await rejection(
-      state.service.verifyCandidate(context, [storageBinding(athena.id)], candidate)
+      state.service.verifyCandidate(context, [storageBinding(athena.id)], candidate, current)
     );
 
     expect(error.message).toBe(
@@ -202,7 +248,8 @@ describe('CredentialStorageConsumersService.verifyCandidate', () => {
       state.service.verifyCandidate(
         context,
         [{ consumerType: 'plugin-installation', consumerId: 'installation-1' }],
-        candidate
+        candidate,
+        current
       )
     ).resolves.toBe(0);
 

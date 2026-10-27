@@ -96,7 +96,7 @@ export class UpdateCredentialService {
     return this.apply(id, context, input, definition, validation, publicMetadata, checkedFields);
   }
 
-  /** New field values must work for every Storage they apply to; none bound leaves no result. */
+  /** New field values must work wherever the current ones do; none bound leaves no result. */
   private async checkBoundStorages(
     credential: Credential,
     context: AuthorizationContext,
@@ -110,6 +110,11 @@ export class UpdateCredentialService {
         definitionId: credential.definitionId,
         secret: next.secret,
         publicMetadata: next.publicMetadata,
+      },
+      {
+        definitionId: credential.definitionId,
+        secret: credential.secret,
+        publicMetadata: credential.publicMetadata,
       }
     );
     if (checked === 0) return undefined;
