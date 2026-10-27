@@ -14,11 +14,13 @@ import {
   CollapsibleCardContent,
   CollapsibleCardFooter,
   CollapsibleCardHeaderActions,
+  CollapsibleCardReveal,
 } from '../../../shared/components/CollapsibleCard';
 import { DatabaseIcon, CodeIcon, Columns3 } from 'lucide-react';
 import { DataMartRelationshipsContent } from '../../../features/data-marts/edit/components/DataMartRelationships/DataMartRelationshipsContent';
 import type { DataMartDefinitionType } from '../../../features/data-marts/shared';
 import { DataQualityCompactStatusLink } from '../../../features/data-marts/data-quality';
+import { OUTPUT_SCHEMA_SECTION } from '../../../features/data-marts/shared/utils/output-schema-link';
 
 export default function DataMartDataSetupContent() {
   const { dataMart, updateDataMartStorage } = useDataMartContext();
@@ -95,6 +97,13 @@ export default function DataMartDataSetupContent() {
           </CollapsibleCardHeaderTitle>
         </CollapsibleCardHeader>
         <CollapsibleCardContent>
+          <CollapsibleCardReveal
+            navigationKey={
+              dataMart && searchParams.get('section') === OUTPUT_SCHEMA_SECTION
+                ? `${dataMart.id}:${location.key}`
+                : undefined
+            }
+          />
           {dataMart && projectId && (
             <DataQualityCompactStatusLink projectId={projectId} dataMartId={dataMart.id} />
           )}

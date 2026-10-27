@@ -7,21 +7,28 @@ import {
 } from './joined-count-warning';
 
 const TITLES: Record<string, string> = { orders: 'Orders', 'orders.items': 'Items' };
+const IDS: Record<string, string> = { orders: 'dm-orders', 'orders.items': 'dm-items' };
 const OPTIONS: JoinedCountWarningOptions = {
   name: 'Orders',
   mainName: 'Sessions',
   fieldLabel: 'order_id',
   nameAt: path => TITLES[path],
+  mainDataMartId: 'dm-sessions',
+  dataMartIdAt: path => IDS[path],
   offersCountUnique: true,
 };
 const warn = (source: Parameters<typeof joinedCountWarning>[0], options = OPTIONS) =>
   joinedCountWarning(source, options);
 
-/** Names wrapped as the popover tells them apart: [Data Mart], {aggregation}, `field`. */
-const marked = (parts: JoinedCountWarningPart[]) =>
+/**
+ * Names wrapped as the popover tells them apart: [Data Mart], {aggregation}, `field`, and a link to
+ * a Data Mart's Output Schema as <id|text>.
+ */
+const marked = (parts: JoinedCountWarningPart[]): string =>
   parts
     .map(part => {
       if (typeof part === 'string') return part;
+      if (part.kind === 'outputSchemaLink') return `<${part.dataMartId}|${marked(part.parts)}>`;
       if (part.kind === 'dataMart') return `[${part.text}]`;
       if (part.kind === 'aggregation') return `{${part.text}}`;
       return `\`${part.text}\``;
@@ -99,7 +106,7 @@ describe('joinedCountWarning', () => {
         })
       )
     ).toBe(
-      "[Sessions] has no primary key, so it's unclear how many [Sessions] rows each [Orders] row matches. The count can be higher than the number of [Orders] rows. Set a primary key on [Sessions] to get a definite answer."
+      "[Sessions] has no primary key, so it's unclear how many [Sessions] rows each [Orders] row matches. The count can be higher than the number of [Orders] rows. <dm-sessions|Set a primary key on [Sessions]> to get a definite answer."
     );
     const atOrders = reason(
       warn({
@@ -109,7 +116,24 @@ describe('joinedCountWarning', () => {
       })
     );
     expect(atOrders).toMatch(/^\[Orders\] has no primary key, so/);
-    expect(atOrders).toMatch(/ Set a primary key on \[Orders\] to get a definite answer\.$/);
+    expect(atOrders).toMatch(
+      / <dm-orders\|Set a primary key on \[Orders\]> to get a definite answer\.$/
+    );
+  });
+
+  it('keeps the primary-key advice as text when the Data Mart has no known id', () => {
+    expect(
+      reason(
+        warn(
+          {
+            mainGrainMultiplication: 'unknown',
+            mainGrainCollapse: 'none',
+            mainGrainUnprovenAt: 'orders',
+          },
+          { ...OPTIONS, dataMartIdAt: () => undefined }
+        )
+      )
+    ).toMatch(/ Set a primary key on \[Orders\] to get a definite answer\.$/);
   });
 
   it('adds "or lower" to an unknown multiplication that also collapses', () => {
@@ -155,7 +179,7 @@ describe('joinedCountWarning', () => {
           )
         )
       ).toBe(
-        "This report's Data Mart has no primary key, so it's unclear how many rows of this report's Data Mart each [Orders] row matches. The count can be higher than the number of [Orders] rows. Set a primary key on this report's Data Mart to get a definite answer."
+        "This report's Data Mart has no primary key, so it's unclear how many rows of this report's Data Mart each [Orders] row matches. The count can be higher than the number of [Orders] rows. <dm-sessions|Set a primary key on this report's Data Mart> to get a definite answer."
       );
     });
   });

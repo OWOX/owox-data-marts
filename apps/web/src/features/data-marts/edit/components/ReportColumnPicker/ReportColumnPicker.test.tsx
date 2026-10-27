@@ -22,6 +22,10 @@ vi.mock('../../../shared/services/data-mart-relationship.service', () => ({
   },
 }));
 
+vi.mock('../../../../../shared/hooks/useProjectRoute', () => ({
+  useProjectRoute: () => ({ scope: (path: string) => path }),
+}));
+
 const DATA_MART_ID = 'dm-root';
 
 function buildAvailableSource(overrides: Partial<AvailableSource> = {}): AvailableSource {
@@ -5534,5 +5538,69 @@ describe('ReportColumnPicker joined Count warning', () => {
       'Several Shop orders rows can match one Main Data Mart row, so the count can be lower than the number of Line items rows.',
       'Use Count Unique for distinct SKU values, or add Unique Count from Line items to count its rows.',
     ]);
+  });
+  it('links the primary-key advice to the Output Schema of the Data Mart that lacks the key', async () => {
+    const outputConfig = {
+      filterConfig: [],
+      sortConfig: [],
+      limitConfig: null,
+      aggregationConfig: [],
+      dateTruncConfig: [],
+      uniqueCountConfig: [],
+    };
+    const openWarning = async (unprovenAt: string) => {
+      const schema = buildSchema({
+        blendedFields: [
+          buildBlendedField({
+            name: 'orders_items__sku',
+            aliasPath: 'orders.items',
+            targetAlias: 'items',
+            originalFieldName: 'sku',
+            alias: 'SKU',
+            sourceDataMartTitle: 'Items',
+            outputPrefix: 'Line items',
+          }),
+        ],
+        availableSources: [
+          buildAvailableSource({
+            aliasPath: 'orders',
+            title: 'Orders',
+            defaultAlias: 'Orders',
+            dataMartId: 'dm-orders',
+          }),
+          buildAvailableSource({
+            aliasPath: 'orders.items',
+            title: 'Items',
+            defaultAlias: 'Line items',
+            depth: 2,
+            relationshipId: 'rel-2',
+            dataMartId: 'dm-items',
+            mainGrainMultiplication: 'unknown',
+            mainGrainUnprovenAt: unprovenAt,
+            mainGrainCollapse: 'none',
+          }),
+        ],
+      });
+      const utils = renderPicker(schema, ['native_one', 'orders_items__sku'], {
+        storageType: DataStorageType.GOOGLE_BIGQUERY,
+        outputConfig,
+        onOutputConfigChange: () => {},
+      });
+      const row = screen.getByText('SKU').closest('label') as HTMLElement;
+      fireEvent.click(within(row).getByRole('button', { name: 'Add aggregation' }));
+      fireEvent.click(await screen.findByRole('checkbox', { name: 'COUNT' }));
+      return utils;
+    };
+
+    const atOrders = await openWarning('orders');
+    expect(
+      screen.getByRole('link', { name: 'Set a primary key on Orders' }).getAttribute('href')
+    ).toBe('/data-marts/dm-orders/data-setup?section=output-schema');
+    atOrders.unmount();
+
+    await openWarning('');
+    expect(
+      screen.getByRole('link', { name: 'Set a primary key on Main Data Mart' }).getAttribute('href')
+    ).toBe(`/data-marts/${DATA_MART_ID}/data-setup?section=output-schema`);
   });
 });

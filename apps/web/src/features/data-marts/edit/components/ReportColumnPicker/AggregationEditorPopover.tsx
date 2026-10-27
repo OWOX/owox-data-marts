@@ -18,6 +18,8 @@ import type {
   JoinedCountWarning,
   JoinedCountWarningPart,
 } from '../../../shared/utils/joined-count-warning';
+import { outputSchemaPath } from '../../../shared/utils/output-schema-link';
+import { useProjectRoute } from '../../../../../shared/hooks/useProjectRoute';
 import { isDateType, isTimestampType } from './output-controls-operators';
 
 /**
@@ -313,19 +315,39 @@ export function AggregationEditorPopover(props: AggregationEditorPopoverProps) {
   );
 }
 
-/** Sets a name apart from the prose the way the picker shows it: a field in mono, the rest bold. */
+/**
+ * Sets a name apart from the prose the way the picker shows it: a field in mono, the rest bold. A
+ * link to an Output Schema opens in a new tab, so the report being edited stays as it is.
+ */
 function WarningParts({ parts }: { parts: readonly JoinedCountWarningPart[] }) {
-  return parts.map((part, index) =>
-    typeof part === 'string' ? (
-      <Fragment key={index}>{part}</Fragment>
-    ) : part.kind === 'field' ? (
-      <span key={index} className='font-mono'>
+  return parts.map((part, index) => {
+    if (typeof part === 'string') return <Fragment key={index}>{part}</Fragment>;
+    if (part.kind === 'outputSchemaLink') {
+      return (
+        <OutputSchemaLink key={index} dataMartId={part.dataMartId}>
+          <WarningParts parts={part.parts} />
+        </OutputSchemaLink>
+      );
+    }
+    return (
+      <span key={index} className={part.kind === 'field' ? 'font-mono' : 'font-semibold'}>
         {part.text}
       </span>
-    ) : (
-      <span key={index} className='font-semibold'>
-        {part.text}
-      </span>
-    )
+    );
+  });
+}
+
+function OutputSchemaLink({ dataMartId, children }: { dataMartId: string; children: ReactNode }) {
+  const { scope } = useProjectRoute();
+  return (
+    <a
+      href={scope(outputSchemaPath(dataMartId))}
+      target='_blank'
+      rel='noopener noreferrer'
+      title='Open the Output Schema in a new tab'
+      className='underline underline-offset-2 hover:no-underline'
+    >
+      {children}
+    </a>
   );
 }

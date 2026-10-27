@@ -17,11 +17,12 @@ type GrainSource = Partial<
 /**
  * A run of the warning's text. Names are tagged so the popover can set them apart from the prose
  * the way the picker shows them: a Data Mart as its group header, an aggregation as its option, a
- * field as its row.
+ * field as its row. A link to a Data Mart's Output Schema wraps the runs it covers.
  */
 export type JoinedCountWarningPart =
   | string
-  | { kind: 'dataMart' | 'aggregation' | 'field'; text: string };
+  | { kind: 'dataMart' | 'aggregation' | 'field'; text: string }
+  | { kind: 'outputSchemaLink'; dataMartId: string; parts: JoinedCountWarningPart[] };
 
 export interface JoinedCountWarning {
   /** What the number counts, and what it does not. */
@@ -41,6 +42,10 @@ export interface JoinedCountWarningOptions {
   fieldLabel: string;
   /** The name of the joined Data Mart at another aliasPath of the same chain. */
   nameAt: (aliasPath: string) => string | undefined;
+  /** The report's own Data Mart's id, for a link to its Output Schema. */
+  mainDataMartId: string;
+  /** The id of the joined Data Mart at an aliasPath of the same chain. */
+  dataMartIdAt: (aliasPath: string) => string | undefined;
   /** Whether this column offers Count Unique. */
   offersCountUnique: boolean;
 }
@@ -64,7 +69,15 @@ function rowsOf(
 /** Why a COUNT over a joined column does not count the joined Data Mart's rows; undefined when it does. */
 export function joinedCountWarning(
   source: GrainSource | undefined,
-  { name, mainName, fieldLabel, nameAt, offersCountUnique }: JoinedCountWarningOptions
+  {
+    name,
+    mainName,
+    fieldLabel,
+    nameAt,
+    mainDataMartId,
+    dataMartIdAt,
+    offersCountUnique,
+  }: JoinedCountWarningOptions
 ): JoinedCountWarning | undefined {
   if (!source) return undefined;
   const multiplication = source.mainGrainMultiplication ?? 'unknown';
@@ -92,6 +105,10 @@ export function joinedCountWarning(
       : unprovenAt === ''
         ? REPORT_DATA_MART
         : undefined;
+    const unprovenId = unprovenAt === '' ? mainDataMartId : unprovenAt && dataMartIdAt(unprovenAt);
+    // Where the key is set, when the picker knows which Data Mart that is.
+    const setPrimaryKey: JoinedCountWarningPart[] =
+      unproven === undefined ? [] : ['Set a primary key on ', unproven];
     reason = [
       ...(unproven === undefined
         ? ['Without a primary key,']
@@ -109,7 +126,19 @@ export function joinedCountWarning(
       ...thanJoinedRows,
       ...(unproven === undefined
         ? []
-        : [' Set a primary key on ', unproven, ' to get a definite answer.']),
+        : [
+            ' ',
+            ...(unprovenId
+              ? [
+                  {
+                    kind: 'outputSchemaLink' as const,
+                    dataMartId: unprovenId,
+                    parts: setPrimaryKey,
+                  },
+                ]
+              : setPrimaryKey),
+            ' to get a definite answer.',
+          ]),
     ];
   } else if (multiplication === 'multiplies' && collapses) {
     reason = [

@@ -1685,6 +1685,8 @@ export function ReportColumnPicker({
             const source = availableSourceByPath.get(path);
             return source && joinedDataMartTitle(source.defaultAlias, source.title, path);
           },
+          mainDataMartId: dataMartId,
+          dataMartIdAt: path => availableSourceByPath.get(path)?.dataMartId,
           offersCountUnique: resolveColumnAllowedAggregations({
             type: f.type,
             allowedAggregations: f.allowedAggregations,
@@ -1701,7 +1703,7 @@ export function ReportColumnPicker({
       });
     }
     return cols;
-  }, [nativeFields, includedBlendedFields, availableSourceByPath, dataMartTitle]);
+  }, [nativeFields, includedBlendedFields, availableSourceByPath, dataMartTitle, dataMartId]);
 
   const selectedDropdownColumns = useMemo(
     () => dropdownColumns.filter(c => effectiveValueSet.has(c.name)),

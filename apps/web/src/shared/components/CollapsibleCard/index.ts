@@ -5,3 +5,4 @@ export * from './CollapsibleCardHeaderActions.tsx';
 export * from './CollapsibleCardContent.tsx';
 export * from './CollapsibleCardFooter.tsx';
 export * from './types.ts';
+export * from './CollapsibleCardReveal.tsx';

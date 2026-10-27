@@ -1,8 +1,12 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, within } from '@testing-library/react';
 import { AggregationEditorPopover, type AggregationDraft } from './AggregationEditorPopover';
 import type { ReportAggregateFunction } from '../../../shared/types/relationship.types';
 import type { JoinedCountWarning } from '../../../shared/utils/joined-count-warning';
+
+vi.mock('../../../../../shared/hooks/useProjectRoute', () => ({
+  useProjectRoute: () => ({ scope: (path: string) => `/ui/p1${path}` }),
+}));
 
 // Render popover content unconditionally — open state lives in the parent test,
 // and we assert on the inner controls without Radix portals.
@@ -518,6 +522,31 @@ describe('AggregationEditorPopover — joined count warning', () => {
     expect(screen.getByText('Orders').className).toContain('font-semibold');
     expect(screen.getByText('Count Unique').className).toContain('font-semibold');
     expect(screen.getByText('order_id').className).toContain('font-mono');
+  });
+
+  it("opens the Output Schema of the Data Mart to fix in a new tab, keeping the report's form", () => {
+    render_(
+      {
+        ...WARNING,
+        reason: [
+          'Orders has no primary key. ',
+          {
+            kind: 'outputSchemaLink',
+            dataMartId: 'dm-orders',
+            parts: ['Set a primary key on ', { kind: 'dataMart', text: 'Orders' }],
+          },
+          ' to get a definite answer.',
+        ],
+      },
+      ['COUNT']
+    );
+    const link = screen.getByRole('link', { name: 'Set a primary key on Orders' });
+    expect(link.getAttribute('href')).toBe(
+      '/ui/p1/data-marts/dm-orders/data-setup?section=output-schema'
+    );
+    expect(link.getAttribute('target')).toBe('_blank');
+    expect(link.getAttribute('rel')).toBe('noopener noreferrer');
+    expect(within(link).getByText('Orders').className).toContain('font-semibold');
   });
 
   it('leaves the advice line out when there is nothing to pick', () => {
