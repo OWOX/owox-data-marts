@@ -21,7 +21,7 @@ Text identifiers retain their text type and leading zeros. A sheet with headers 
 
 Columns of dates are stored as dates. When every filled cell of a column is a date in the sheet (formatted as Date), a new Data Mart stores the column as `DATE`. Dates typed as text, date-times, times, durations, and columns that mix dates with other values stay text.
 
-In an existing Data Mart, a column that was imported as text stays text until you change its type in the Output Schema to `DATE`. The next run then stores it as a date. In a column whose type is `DATE`, a cell that is not a date is imported as an empty value, and Run History lists the rows to fix.
+In an existing Data Mart, a column that was imported as text stays text until you change its type in the Output Schema to `DATE`. The next run then stores it as a date. In a column whose type is `DATE`, a cell that is not a date is imported as an empty value, and Run History lists the rows to fix. A column with no date at all stays text, and Run History says so.
 
 Use OAuth for quick user setup. Use Service Account JSON for scheduled imports that should not depend on a personal Google account; share the spreadsheet with the service account email before running the refresh.
 

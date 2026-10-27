@@ -1,6 +1,10 @@
 import type { DataMartSchema } from '../../data-storage-types/data-mart-schema.type';
 import { DataMartSchemaFieldStatus } from '../../data-storage-types/enums/data-mart-schema-field-status.enum';
-import { classifyOutputSchemaFieldTypes } from './output-schema-field-types';
+import {
+  buildOutputSchemaFieldTypesValue,
+  classifyOutputSchemaFieldTypes,
+  sourceReadsOutputSchemaFieldTypes,
+} from './output-schema-field-types';
 
 const schemaWith = (fields: Array<Record<string, unknown>>) =>
   ({ type: 'test-schema', fields }) as unknown as DataMartSchema;
@@ -55,5 +59,40 @@ describe('classifyOutputSchemaFieldTypes', () => {
         ])
       )
     ).toEqual({ date: 'DATE' });
+  });
+});
+
+describe('buildOutputSchemaFieldTypesValue', () => {
+  it('passes the field classes and infers unlisted columns when the Output Schema exists', () => {
+    expect(
+      JSON.parse(
+        buildOutputSchemaFieldTypesValue({
+          schema: schemaWith([{ name: 'date', type: 'DATE' }]),
+          hasImportedBefore: true,
+        }) as string
+      )
+    ).toEqual({ fields: { date: 'DATE' }, unlistedColumns: 'INFER' });
+  });
+
+  it('keeps every column as it is when a Data Mart imported before without an Output Schema', () => {
+    expect(
+      JSON.parse(
+        buildOutputSchemaFieldTypesValue({ schema: null, hasImportedBefore: true }) as string
+      )
+    ).toEqual({ fields: {}, unlistedColumns: 'KEEP' });
+  });
+
+  it('is unset for a new Data Mart', () => {
+    expect(
+      buildOutputSchemaFieldTypesValue({ schema: null, hasImportedBefore: false })
+    ).toBeUndefined();
+  });
+});
+
+describe('sourceReadsOutputSchemaFieldTypes', () => {
+  it('is true only for bundled sources that declare it', () => {
+    expect(sourceReadsOutputSchemaFieldTypes('GoogleSheets')).toBe(true);
+    expect(sourceReadsOutputSchemaFieldTypes('FacebookMarketing')).toBe(false);
+    expect(sourceReadsOutputSchemaFieldTypes('NoSuchConnector')).toBe(false);
   });
 });

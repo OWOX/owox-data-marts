@@ -32,8 +32,17 @@ const GOOGLE_SHEETS_OUTPUT_SCHEMA_DATE = 'DATE';
 const GOOGLE_SHEETS_DATE_CELL_FORMATS = new Set(['DATE', 'DATE_TIME']);
 // How many row numbers a run-log warning lists before it summarises the rest.
 const GOOGLE_SHEETS_MAX_LOGGED_ROWS = 10;
+// Cells per date-column read request. A cell with its text, serial and format is about 120
+// bytes of JSON, so a request stays far below the 50 MB response limit.
+const GOOGLE_SHEETS_MAX_CELLS_PER_DATE_READ = 200000;
+// The values read and the date-column read are two snapshots. When they disagree, the sheet
+// is read once more; if they still disagree, the dates are taken from the date-column read.
+const GOOGLE_SHEETS_DATE_READ_ATTEMPTS = 2;
 
 export class GoogleSheetsSource extends AbstractSource {
+  // Tells OWOX Data Marts to pass the Data Mart's Output Schema types in OutputSchemaFieldTypes.
+  static readsOutputSchemaFieldTypes = true;
+
   constructor(context) {
     super(context);
 
@@ -236,7 +245,7 @@ export class GoogleSheetsSource extends AbstractSource {
         requiredType: 'string',
         label: 'Output Schema Field Types',
         description:
-          'Set at run time: JSON object of field name to DATE or OTHER, taken from the Data Mart Output Schema',
+          'Set at run time from the Data Mart Output Schema: {"fields": {name: "DATE" | "OTHER"}, "unlistedColumns": "INFER" | "KEEP"}',
         attributes: [CONFIG_ATTRIBUTES.HIDE_IN_CONFIG_FORM],
       },
     };
@@ -347,21 +356,19 @@ export class GoogleSheetsSource extends AbstractSource {
         email: userInfo.email,
       };
 
-      return (
-        OauthCredentialsDto.builder()
-          .withUser(userData)
-          .withSecret({
-            refresh_token: data.refresh_token,
-            access_token: data.access_token,
-            client_id: variables.ClientId,
-            client_secret: variables.ClientSecret,
-          })
-          // The stored credential is backed by the refresh token. The access
-          // token's one-hour lifetime must not make the connection look expired.
-          .withExpiresIn(data.refresh_token_expires_in ?? null)
-          .build()
-          .toObject()
-      );
+      return OauthCredentialsDto.builder()
+        .withUser(userData)
+        .withSecret({
+          refresh_token: data.refresh_token,
+          access_token: data.access_token,
+          client_id: variables.ClientId,
+          client_secret: variables.ClientSecret,
+        })
+        // The stored credential is backed by the refresh token. The access
+        // token's one-hour lifetime must not make the connection look expired.
+        .withExpiresIn(data.refresh_token_expires_in ?? null)
+        .build()
+        .toObject();
     } catch (error) {
       if (error instanceof OauthFlowException) {
         throw error;
@@ -442,13 +449,25 @@ export class GoogleSheetsSource extends AbstractSource {
   }
 
   async fetchData() {
-    const values = await this._fetchSheetValues();
-    const snapshot = this._buildSheetSnapshot(values, true);
-    const columnTypes = await this._convertDateColumns(snapshot);
-    const schema = this._inferSchema(snapshot.columns, snapshot.rows, { columnTypes });
-    this._setDynamicFieldsSchema(schema);
+    for (let attempt = 1; ; attempt += 1) {
+      const values = await this._fetchSheetValues();
+      const snapshot = this._buildSheetSnapshot(values, true);
+      const isLastAttempt = attempt >= GOOGLE_SHEETS_DATE_READ_ATTEMPTS;
+      const { columnTypes, sheetChanged } = await this._convertDateColumns(snapshot, {
+        acceptSheetChanges: isLastAttempt,
+      });
+      if (sheetChanged && !isLastAttempt) {
+        this.context.log(
+          LOG_LEVEL.INFO,
+          'The sheet changed while it was being read; reading it again'
+        );
+        continue;
+      }
 
-    return snapshot.rows;
+      const schema = this._inferSchema(snapshot.columns, snapshot.rows, { columnTypes });
+      this._setDynamicFieldsSchema(schema);
+      return snapshot.rows;
+    }
   }
 
   async fetchFieldsSchema(signal) {
@@ -456,12 +475,29 @@ export class GoogleSheetsSource extends AbstractSource {
     const snapshot = this._buildSheetSnapshot(values, false, {
       returnedRangeStartRow: this._getHeaderRowNumber(),
     });
-    const columnTypes = await this._convertDateColumns(snapshot, { preview: true, signal });
+
+    // Preview types only describe the sheet, so a failed date check falls back to the types
+    // the values alone give instead of failing the whole preview.
+    let columnTypes = {};
+    try {
+      ({ columnTypes } = await this._convertDateColumns(snapshot, {
+        signal,
+        acceptSheetChanges: true,
+      }));
+    } catch (error) {
+      if (signal?.aborted) {
+        throw signal.reason || error;
+      }
+      this.context.log(
+        LOG_LEVEL.WARN,
+        `Could not check the sheet for date columns: ${error?.message ?? error}`
+      );
+    }
+
     const schema = this._inferSchema(snapshot.columns, snapshot.rows, {
       includeImportedAt: true,
       columnTypes,
     });
-
     return this._buildFieldsSchema(schema);
   }
 
@@ -481,94 +517,134 @@ export class GoogleSheetsSource extends AbstractSource {
   }
 
   /**
+   * Reads cell data for one or more A1 ranges of the selected sheet with `spreadsheets.get`.
+   *
+   * Every range comes back as its own block, in request order, with the zero-based row and
+   * column it starts at; those are used to place each cell instead of assuming the block starts
+   * at the requested row.
+   *
+   * @param {string[]} ranges - A1 ranges, sheet name included
+   * @param {string} cellFields - Field mask of the CellData fields to read
+   * @param {Object} options
+   * @param {AbortSignal} [options.signal]
+   * @param {string} options.oversizeMessage
+   * @returns {Promise<Array<{startRowNumber: number, startColumnNumber: number, rows: Array<Array<Object>>}>>}
+   *   One block per range; row and column numbers are one-based sheet coordinates.
+   */
+  async _fetchGridData(ranges, cellFields, { signal, oversizeMessage }) {
+    const spreadsheetId = this._extractSpreadsheetId(
+      this.context.getParameter('SpreadsheetId')?.value
+    );
+    const query = ranges.map(range => `ranges=${encodeURIComponent(range)}`).join('&');
+    const fields = `sheets(data(startRow,startColumn,rowData(values(${cellFields}))))`;
+    const url =
+      `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(spreadsheetId)}` +
+      `?${query}&fields=${encodeURIComponent(fields)}`;
+
+    const payload = await this._fetchSheetsApiJson(url, { signal, oversizeMessage });
+    const blocks = payload?.sheets?.[0]?.data;
+    return ranges.map((range, index) => {
+      const block = Array.isArray(blocks) ? blocks[index] : undefined;
+      const requested = this._parseA1GridRange(range.slice(range.lastIndexOf('!') + 1));
+      return {
+        // Zero-based in the response, and left out when zero.
+        startRowNumber: Number.isInteger(block?.startRow)
+          ? block.startRow + 1
+          : (requested?.startRow ?? 1),
+        startColumnNumber: Number.isInteger(block?.startColumn)
+          ? block.startColumn + 1
+          : (requested?.startColumn ?? 1),
+        rows: Array.isArray(block?.rowData)
+          ? block.rowData.map(row => (Array.isArray(row?.values) ? row.values : []))
+          : [],
+      };
+    });
+  }
+
+  /**
    * Reads the number format type of every cell in the preview sample: the header row and up to
    * 100 data rows below it, across the same columns as the preview read.
    *
    * @param {AbortSignal} [signal]
-   * @returns {Promise<Array<Array<string|null>>>} Rows aligned with the sample range; index 0 is
-   *   the header row. A cell without a number format is null.
+   * @returns {Promise<function(number, number): (string|null)>} Looks up the format type by
+   *   sheet row number and snapshot column index; null when the cell has none or was not read.
    */
   async _fetchSampleNumberFormatTypes(signal) {
-    const spreadsheetId = this._extractSpreadsheetId(
-      this.context.getParameter('SpreadsheetId')?.value
+    const [block] = await this._fetchGridData(
+      [this._buildA1Range({ preview: true })],
+      'effectiveFormat(numberFormat(type))',
+      {
+        signal,
+        oversizeMessage:
+          'Google Sheets response exceeds the 50 MB limit while reading cell formats. Narrow the Range and try again.',
+      }
     );
-    const range = this._buildA1Range({ preview: true });
-    const url =
-      `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(spreadsheetId)}` +
-      `?ranges=${encodeURIComponent(range)}` +
-      `&fields=${encodeURIComponent('sheets.data.rowData.values.effectiveFormat.numberFormat.type')}`;
-
-    const payload = await this._fetchSheetsApiJson(url, {
-      signal,
-      oversizeMessage:
-        'Google Sheets response exceeds the 50 MB limit while reading cell formats. Narrow the Range and try again.',
-    });
-    const rowData = payload?.sheets?.[0]?.data?.[0]?.rowData;
-    if (!Array.isArray(rowData)) {
-      return [];
-    }
-
-    return rowData.map(row =>
-      Array.isArray(row?.values)
-        ? row.values.map(cell => cell?.effectiveFormat?.numberFormat?.type ?? null)
-        : []
-    );
+    const firstColumnNumber = this._getConfiguredRangeBounds().startColumn || 1;
+    return (rowNumber, columnIndex) =>
+      block.rows[rowNumber - block.startRowNumber]?.[
+        firstColumnNumber + columnIndex - block.startColumnNumber
+      ]?.effectiveFormat?.numberFormat?.type ?? null;
   }
 
   /**
-   * Reads one column's data rows as the sheet stores them: each cell's displayed text, its date
-   * serial (dates, times and durations are numbers underneath), and its number format type.
+   * Reads the data rows of the given columns as the sheet stores them: each cell's displayed
+   * text, its date serial (dates, times and durations are numbers underneath), and its number
+   * format type. Columns are batched into as few requests as the response limit allows.
    *
-   * One request per column keeps the response small on a wide sheet and leaves every other
-   * column out of the read.
-   *
-   * @param {{index: number}} column - A column of the snapshot
+   * @param {Array<{index: number}>} columns - Columns of the snapshot
+   * @param {number} lastRowNumber - The last sheet row the snapshot holds
    * @param {Object} [options]
-   * @param {boolean} [options.preview] - Read only the rows of the preview sample
    * @param {AbortSignal} [options.signal]
-   * @returns {Promise<Array<{formattedValue: *, serial: *, formatType: (string|null)}>>} Index 0
-   *   is the first data row, the row below the header.
+   * @returns {Promise<Map<number, Map<number, {formattedValue: *, serial: *, formatType: (string|null)}>>>}
+   *   Column index to (sheet row number to cell)
    */
-  async _fetchDateColumnCells(column, { preview = false, signal } = {}) {
-    const spreadsheetId = this._extractSpreadsheetId(
-      this.context.getParameter('SpreadsheetId')?.value
-    );
-    const bounds = this._getConfiguredRangeBounds();
-    const headerRow = this._getHeaderRowNumber();
-    const columnLetters = this._columnNumberToLetters((bounds.startColumn || 1) + column.index);
-    const lastRow = preview
-      ? Math.min(
-          bounds.endRow || headerRow + GOOGLE_SHEETS_PREVIEW_SAMPLE_ROWS,
-          headerRow + GOOGLE_SHEETS_PREVIEW_SAMPLE_ROWS
-        )
-      : bounds.endRow || '';
-    const range =
-      `${this._quoteSheetName(this.context.getParameter('SheetName')?.value)}!` +
-      `${columnLetters}${headerRow + 1}:${columnLetters}${lastRow}`;
-    const fields =
-      'sheets.data.rowData.values(formattedValue,effectiveValue.numberValue,effectiveFormat.numberFormat.type)';
-    const url =
-      `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(spreadsheetId)}` +
-      `?ranges=${encodeURIComponent(range)}&fields=${encodeURIComponent(fields)}`;
-
-    const payload = await this._fetchSheetsApiJson(url, {
-      signal,
-      oversizeMessage:
-        'Google Sheets response exceeds the 50 MB limit while reading a date column. Narrow the Range and try again.',
-    });
-    const rowData = payload?.sheets?.[0]?.data?.[0]?.rowData;
-    if (!Array.isArray(rowData)) {
-      return [];
+  async _fetchDateColumnCells(columns, lastRowNumber, { signal } = {}) {
+    const cellsByColumn = new Map();
+    if (columns.length === 0) {
+      return cellsByColumn;
     }
 
-    return rowData.map(row => {
-      const cell = Array.isArray(row?.values) ? row.values[0] : undefined;
-      return {
-        formattedValue: cell?.formattedValue,
-        serial: cell?.effectiveValue?.numberValue,
-        formatType: cell?.effectiveFormat?.numberFormat?.type ?? null,
-      };
-    });
+    const sheetPrefix = `${this._quoteSheetName(this.context.getParameter('SheetName')?.value)}!`;
+    const firstColumnNumber = this._getConfiguredRangeBounds().startColumn || 1;
+    const firstRowNumber = this._getHeaderRowNumber() + 1;
+    const rowCount = Math.max(1, lastRowNumber - firstRowNumber + 1);
+    const columnsPerRequest = Math.max(
+      1,
+      Math.floor(GOOGLE_SHEETS_MAX_CELLS_PER_DATE_READ / rowCount)
+    );
+
+    for (let offset = 0; offset < columns.length; offset += columnsPerRequest) {
+      const batch = columns.slice(offset, offset + columnsPerRequest);
+      const ranges = batch.map(column => {
+        const letters = this._columnNumberToLetters(firstColumnNumber + column.index);
+        return `${sheetPrefix}${letters}${firstRowNumber}:${letters}${lastRowNumber}`;
+      });
+      const blocks = await this._fetchGridData(
+        ranges,
+        'formattedValue,effectiveValue(numberValue),effectiveFormat(numberFormat(type))',
+        {
+          signal,
+          oversizeMessage:
+            'Google Sheets response exceeds the 50 MB limit while reading date columns. Narrow the Range and try again.',
+        }
+      );
+
+      batch.forEach((column, index) => {
+        const block = blocks[index];
+        const cells = new Map();
+        block.rows.forEach((row, rowOffset) => {
+          const cell = row[0];
+          cells.set(block.startRowNumber + rowOffset, {
+            formattedValue: cell?.formattedValue,
+            serial: cell?.effectiveValue?.numberValue,
+            formatType: cell?.effectiveFormat?.numberFormat?.type ?? null,
+          });
+        });
+        cellsByColumn.set(column.index, cells);
+      });
+    }
+
+    return cellsByColumn;
   }
 
   /**
@@ -1411,83 +1487,113 @@ export class GoogleSheetsSource extends AbstractSource {
    * text keeps doing so until someone asks for a date:
    * - Output Schema says DATE: the column is DATE. A cell that is a date in the sheet (formatted
    *   as Date or Date time) becomes its calendar day; any other filled cell becomes empty, and the
-   *   run log lists those rows. The type never depends on the cells, so one stray value cannot
-   *   turn a date column back into text.
+   *   run log lists those rows, so one stray value cannot turn a date column back into text. Only
+   *   a column with no date at all is imported as before: it is not a date column (any more).
    * - Output Schema has no type for the column (a new Data Mart before its first run, a column
-   *   added to the sheet later, or a run outside OWOX Data Marts): the column becomes DATE when
-   *   Infer Types is on and every filled cell is a date formatted as Date. Otherwise it is
-   *   imported as before.
+   *   added to the sheet later, or a run outside OWOX Data Marts) and unlisted columns are
+   *   inferred: the column becomes DATE when Infer Types is on and every filled cell is a date
+   *   formatted as Date. Otherwise it is imported as before.
    * - Output Schema says any other type: the column is imported exactly as before.
    *
-   * The cell formats and date serials come from a second read, made after the values read. If
-   * the two disagree, the sheet changed in between, and the column is imported as text.
+   * The cell formats and serials come from a second read. Each cell's displayed text must match
+   * the values read; a difference means the sheet changed in between.
    *
    * @param {{columns: Array<Object>, rows: Array<Object>}} snapshot
    * @param {Object} [options]
-   * @param {boolean} [options.preview] - The snapshot came from the preview read
    * @param {AbortSignal} [options.signal]
-   * @returns {Promise<Object<string, string>>} Column name to DATA_TYPES.DATE for every column
-   *   imported as DATE
+   * @param {boolean} [options.acceptSheetChanges] - Take the dates from the second read even when
+   *   it disagrees with the values read, instead of stopping so the caller can read again
+   * @returns {Promise<{columnTypes: Object<string, string>, sheetChanged: boolean}>} Column name to
+   *   DATA_TYPES.DATE for every column imported as DATE, and whether the two reads disagreed
    */
-  async _convertDateColumns({ columns, rows }, { preview = false, signal } = {}) {
+  async _convertDateColumns({ columns, rows }, { signal, acceptSheetChanges } = {}) {
     const outputSchemaTypes = this._getOutputSchemaFieldTypes();
     if (!outputSchemaTypes) {
-      return {};
+      return { columnTypes: {}, sheetChanged: false };
     }
 
-    const inferTypes = Boolean(this.context.getParameter('InferTypes')?.value);
-    const declaredColumns = [];
-    const inferenceCandidates = [];
+    const inferUnlisted =
+      outputSchemaTypes.inferUnlisted && Boolean(this.context.getParameter('InferTypes')?.value);
+    const targets = [];
     for (const column of columns) {
+      const declaredType = outputSchemaTypes.fields[column.name];
+      const declared = declaredType === GOOGLE_SHEETS_OUTPUT_SCHEMA_DATE;
+      if (!declared && !(declaredType === undefined && inferUnlisted)) {
+        continue;
+      }
+
       const filledRows = rows.filter(row => row[column.name] !== null);
-      const declaredType = outputSchemaTypes.types[column.name];
-      if (declaredType === GOOGLE_SHEETS_OUTPUT_SCHEMA_DATE) {
-        declaredColumns.push({ column, filledRows });
-      } else if (
-        declaredType === undefined &&
-        inferTypes &&
-        filledRows.length > 0 &&
-        // A date arrives from the values read as text; a number or a boolean never is one.
-        filledRows.every(row => typeof row[column.name] === 'string')
+      // A date arrives from the values read as text; a number or a boolean never is one.
+      if (
+        declared ||
+        (filledRows.length > 0 && filledRows.every(row => typeof row[column.name] === 'string'))
       ) {
-        inferenceCandidates.push({ column, filledRows });
+        targets.push({ column, filledRows, declared });
       }
     }
+
+    const inferred = await this._selectDateLikeColumns(
+      targets.filter(target => !target.declared),
+      signal
+    );
+    const toConvert = [...targets.filter(target => target.declared), ...inferred];
+    const lastRowNumber = rows.length > 0 ? rows[rows.length - 1]._owox_row_number : 0;
+    const cellsByColumn = await this._fetchDateColumnCells(
+      toConvert.filter(target => target.filledRows.length > 0).map(target => target.column),
+      lastRowNumber,
+      { signal }
+    );
 
     const columnTypes = {};
-    for (const { column, filledRows } of declaredColumns) {
-      if (await this._convertDeclaredDateColumn(column, filledRows, { preview, signal })) {
-        columnTypes[column.name] = DATA_TYPES.DATE;
+    let sheetChanged = false;
+    for (const target of toConvert) {
+      const result = this._convertDateColumn(
+        target,
+        cellsByColumn.get(target.column.index) ?? new Map(),
+        { acceptSheetChanges }
+      );
+      sheetChanged = sheetChanged || result.sheetChanged;
+      if (result.sheetChanged && !acceptSheetChanges) {
+        return { columnTypes: {}, sheetChanged };
+      }
+      if (result.isDate) {
+        columnTypes[target.column.name] = DATA_TYPES.DATE;
       }
     }
 
-    const dateLikeColumns = await this._selectDateLikeColumns(inferenceCandidates, signal);
-    for (const { column, filledRows } of dateLikeColumns) {
-      if (await this._convertInferredDateColumn(column, filledRows, { preview, signal })) {
-        columnTypes[column.name] = DATA_TYPES.DATE;
-      }
+    if (sheetChanged) {
+      this.context.log(
+        LOG_LEVEL.WARN,
+        'The sheet changed while it was being read, so date columns were taken from the latest ' +
+          'read. If rows were moved or inserted during the import, run it again.'
+      );
     }
-
-    return columnTypes;
+    return { columnTypes, sheetChanged };
   }
 
   /**
    * Reads the Output Schema type classes the backend passes for this run.
    *
-   * @returns {{types: Object<string, string>}|null} Field name to class; empty when there is
-   *   no Output Schema yet. Null when the value cannot be read: then no column is converted,
-   *   because guessing could change a column that the Output Schema keeps as text.
+   * @returns {{fields: Object<string, string>, inferUnlisted: boolean}|null} Field name to class,
+   *   and whether columns the Output Schema does not list are inferred. With no value at all
+   *   (no Output Schema yet, or a run outside OWOX Data Marts) every column is unlisted and
+   *   inferred. Null when the value cannot be read: then no column is converted, because guessing
+   *   could change a column that the Output Schema keeps as text.
    */
   _getOutputSchemaFieldTypes() {
     const rawValue = this.context.getParameter('OutputSchemaFieldTypes')?.value;
     if (rawValue === undefined || rawValue === null || rawValue === '') {
-      return { types: {} };
+      return { fields: Object.create(null), inferUnlisted: true };
     }
 
     try {
       const parsed = typeof rawValue === 'string' ? JSON.parse(rawValue) : rawValue;
-      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-        return { types: Object.assign(Object.create(null), parsed) };
+      const fields = parsed?.fields;
+      if (fields && typeof fields === 'object' && !Array.isArray(fields)) {
+        return {
+          fields: Object.assign(Object.create(null), fields),
+          inferUnlisted: parsed.unlistedColumns !== 'KEEP',
+        };
       }
     } catch (_) {
       // Reported below, together with a value of the wrong shape.
@@ -1501,35 +1607,69 @@ export class GoogleSheetsSource extends AbstractSource {
   }
 
   /**
-   * Converts a column the Output Schema declares as DATE, in place.
-   *
-   * @returns {Promise<boolean>} False when the sheet changed between the reads; the column then
-   *   keeps the values read first and is imported as before
+   * Keeps the inference candidates whose cells in the preview sample are all formatted as Date.
+   * A cheap first pass: one small request for all candidates, so that only likely date columns
+   * are read cell by cell.
    */
-  async _convertDeclaredDateColumn(column, filledRows, options) {
-    if (filledRows.length === 0) {
-      return true;
+  async _selectDateLikeColumns(candidates, signal) {
+    if (candidates.length === 0) {
+      return [];
     }
 
-    const cells = await this._fetchDateColumnCells(column, options);
-    const firstDataRowNumber = this._getHeaderRowNumber() + 1;
+    const formatTypeAt = await this._fetchSampleNumberFormatTypes(signal);
+    const lastSampleRowNumber = this._getHeaderRowNumber() + GOOGLE_SHEETS_PREVIEW_SAMPLE_ROWS;
+    return candidates.filter(({ column, filledRows }) => {
+      const sampledRows = filledRows.filter(row => row._owox_row_number <= lastSampleRowNumber);
+      return (
+        sampledRows.length > 0 &&
+        sampledRows.every(row => formatTypeAt(row._owox_row_number, column.index) === 'DATE')
+      );
+    });
+  }
+
+  /**
+   * Converts one column, in place, from its cells in the date-column read.
+   *
+   * A column the Output Schema declares as DATE takes the day of every Date and Date time cell
+   * and empties the other cells; it stays text only when none of its cells is a date. An
+   * inferred column converts only when every filled cell is a date formatted as Date.
+   *
+   * @returns {{isDate: boolean, sheetChanged: boolean}}
+   */
+  _convertDateColumn({ column, filledRows, declared }, cells, { acceptSheetChanges }) {
+    if (filledRows.length === 0) {
+      return { isDate: declared, sheetChanged: false };
+    }
+
+    let sheetChanged = false;
     const dates = [];
     const notDateRowNumbers = [];
     for (const row of filledRows) {
-      const cell = cells[row._owox_row_number - firstDataRowNumber];
+      const cell = cells.get(row._owox_row_number);
       const sheetValue = row[column.name];
       if (typeof sheetValue === 'string' && cell?.formattedValue !== sheetValue) {
-        this._reportSheetChangedWhileRead(column, row._owox_row_number);
-        return false;
+        sheetChanged = true;
+        if (!acceptSheetChanges) {
+          return { isDate: false, sheetChanged };
+        }
       }
 
-      const date = GOOGLE_SHEETS_DATE_CELL_FORMATS.has(cell?.formatType)
-        ? this._serialToDate(cell.serial)
-        : null;
+      const isDateCell = declared
+        ? GOOGLE_SHEETS_DATE_CELL_FORMATS.has(cell?.formatType)
+        : cell?.formatType === 'DATE';
+      const date = isDateCell ? this._serialToDate(cell.serial) : null;
       if (date === null) {
+        if (!declared) {
+          return { isDate: false, sheetChanged };
+        }
         notDateRowNumbers.push(row._owox_row_number);
       }
       dates.push(date);
+    }
+
+    if (notDateRowNumbers.length === filledRows.length) {
+      this._reportNoDatesInDeclaredColumn(column);
+      return { isDate: false, sheetChanged };
     }
 
     filledRows.forEach((row, index) => {
@@ -1538,61 +1678,7 @@ export class GoogleSheetsSource extends AbstractSource {
     if (notDateRowNumbers.length > 0) {
       this._reportCellsImportedEmpty(column, notDateRowNumbers);
     }
-    return true;
-  }
-
-  /**
-   * Keeps the inference candidates whose cells in the preview sample are all formatted as Date.
-   * A cheap first pass: one small request for every candidate, so that only likely date columns
-   * are read cell by cell.
-   */
-  async _selectDateLikeColumns(candidates, signal) {
-    if (candidates.length === 0) {
-      return [];
-    }
-
-    const sampleFormatTypes = await this._fetchSampleNumberFormatTypes(signal);
-    const headerRowNumber = this._getHeaderRowNumber();
-    return candidates.filter(({ column, filledRows }) => {
-      const sampledRows = filledRows.filter(
-        row => row._owox_row_number - headerRowNumber < sampleFormatTypes.length
-      );
-      return (
-        sampledRows.length > 0 &&
-        sampledRows.every(
-          row =>
-            sampleFormatTypes[row._owox_row_number - headerRowNumber]?.[column.index] === 'DATE'
-        )
-      );
-    });
-  }
-
-  /**
-   * Converts a column without an Output Schema type, in place, when every filled cell is a date
-   * formatted as Date. Checks every row, including those below the preview sample.
-   *
-   * @returns {Promise<boolean>} Whether the column was converted
-   */
-  async _convertInferredDateColumn(column, filledRows, options) {
-    const cells = await this._fetchDateColumnCells(column, options);
-    const firstDataRowNumber = this._getHeaderRowNumber() + 1;
-    const dates = [];
-    for (const row of filledRows) {
-      const cell = cells[row._owox_row_number - firstDataRowNumber];
-      const date =
-        cell?.formattedValue === row[column.name] && cell.formatType === 'DATE'
-          ? this._serialToDate(cell.serial)
-          : null;
-      if (date === null) {
-        return false;
-      }
-      dates.push(date);
-    }
-
-    filledRows.forEach((row, index) => {
-      row[column.name] = dates[index];
-    });
-    return true;
+    return { isDate: true, sheetChanged };
   }
 
   /**
@@ -1628,21 +1714,23 @@ export class GoogleSheetsSource extends AbstractSource {
       rowNumbers.length > GOOGLE_SHEETS_MAX_LOGGED_ROWS
         ? ` and ${rowNumbers.length - GOOGLE_SHEETS_MAX_LOGGED_ROWS} more`
         : '';
-    const subject = rowNumbers.length === 1 ? `row ${listed} is` : `rows ${listed}${more} are`;
+    const finding =
+      rowNumbers.length === 1
+        ? `row ${listed} is not a date in the sheet, so it was imported as an empty value`
+        : `rows ${listed}${more} are not dates in the sheet, so they were imported as empty values`;
     this.context.log(
       LOG_LEVEL.WARN,
-      `Column '${this._getColumnLabel(column)}' is DATE in the Output Schema, but ${subject} ` +
-        'not a date in the sheet, so they were imported as empty values. ' +
+      `Column '${this._getColumnLabel(column)}' is DATE in the Output Schema, but ${finding}. ` +
         'Enter dates in those cells, or change the field type in the Output Schema.'
     );
   }
 
-  _reportSheetChangedWhileRead(column, rowNumber) {
+  _reportNoDatesInDeclaredColumn(column) {
     this.context.log(
       LOG_LEVEL.WARN,
-      `Column '${this._getColumnLabel(column)}' is DATE in the Output Schema, but the sheet ` +
-        `changed while it was being read (row ${rowNumber}), so this run imported the column as ` +
-        'text. Run the import again.'
+      `Column '${this._getColumnLabel(column)}' is DATE in the Output Schema, but none of its ` +
+        'cells is a date in the sheet, so it was imported as before. Format the cells as dates, ' +
+        'or change the field type in the Output Schema.'
     );
   }
 

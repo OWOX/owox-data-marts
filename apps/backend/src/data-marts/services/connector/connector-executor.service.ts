@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm';
+import { In, Not, Repository } from 'typeorm';
 import { Transactional } from 'typeorm-transactional';
 
 import { Core } from '@owox/connectors';
@@ -54,6 +54,7 @@ import { ConnectorDefinition as DataMartConnectorDefinition } from '../../dto/sc
 import { DataMart } from '../../entities/data-mart.entity';
 import { DataMartRun } from '../../entities/data-mart-run.entity';
 import { DataMartRunStatus } from '../../enums/data-mart-run-status.enum';
+import { DataMartRunType } from '../../enums/data-mart-run-type.enum';
 import { ProjectOperationBlockedException } from '../../../common/exceptions/project-operation-blocked.exception';
 import { ConnectorMessage } from '../../connector-types/connector-message/schemas/connector-message.schema';
 import { ConnectorOutputCaptureService } from '../../connector-types/connector-message/services/connector-output-capture.service';
@@ -73,6 +74,10 @@ import {
   unwrapRunPayload,
 } from '../../utils/manual-backfill-range';
 import { ConnectorStateService } from '../../connector-types/connector-message/services/connector-state.service';
+import {
+  OutputSchemaRunContext,
+  sourceReadsOutputSchemaFieldTypes,
+} from './output-schema-field-types';
 import { DataMartService } from '../data-mart.service';
 import { GracefulShutdownService } from '../../../common/scheduler/services/graceful-shutdown.service';
 import { SystemTimeService } from '../../../common/scheduler/services/system-time.service';
@@ -521,6 +526,35 @@ export class ConnectorExecutorService {
     }
   }
 
+  /**
+   * What a source that reads Output Schema types is told about the Data Mart's schema.
+   *
+   * A Data Mart without an Output Schema is new unless an earlier connector run succeeded: then
+   * its table exists (the schema actualization after that run failed), and inferring types would
+   * change columns that reports and queries already rely on.
+   */
+  private async resolveOutputSchemaRunContext(
+    dataMart: DataMart,
+    sourceName: string,
+    runId: string
+  ): Promise<OutputSchemaRunContext> {
+    const schema = dataMart.schema ?? null;
+    if (schema || !sourceReadsOutputSchemaFieldTypes(sourceName)) {
+      return { schema, hasImportedBefore: false };
+    }
+
+    const earlierImport = await this.dataMartRunRepository.findOne({
+      where: {
+        dataMartId: dataMart.id,
+        type: DataMartRunType.CONNECTOR,
+        status: DataMartRunStatus.SUCCESS,
+        id: Not(runId),
+      },
+      select: { id: true },
+    });
+    return { schema, hasImportedBefore: Boolean(earlierImport) };
+  }
+
   private async actualizeSchemaAfterConnectorExecution(
     dataMart: DataMart,
     runId: string
@@ -583,6 +617,11 @@ export class ConnectorExecutorService {
       connector.source.version
     );
     const manifestForRunner = customManifest ? this.stripManifestForRunner(customManifest) : null;
+    const outputSchema = await this.resolveOutputSchemaRunContext(
+      dataMart,
+      connector.source.name,
+      runId
+    );
 
     for (const [configIndex, config] of connector.source.configuration.entries()) {
       const configId = (config as Record<string, unknown>)._id as string;
@@ -824,7 +863,7 @@ export class ConnectorExecutorService {
             refreshedConfig,
             configId,
             configState,
-            dataMart.schema ?? null
+            outputSchema
           ),
           storage: await this.storageConfigService.buildStorageConfig(dataMart),
         });

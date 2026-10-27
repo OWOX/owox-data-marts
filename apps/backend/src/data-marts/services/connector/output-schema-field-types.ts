@@ -1,17 +1,37 @@
+import { Connectors } from '@owox/connectors';
 import { isCalculatedField } from '../../calculated-fields/calculated-field.utils';
 import { DataMartSchemaFieldStatus } from '../../data-storage-types/enums/data-mart-schema-field-status.enum';
 import type { DataMartSchema } from '../../data-storage-types/data-mart-schema.type';
 
-/**
- * Sources that read the Output Schema types of their Data Mart at run time. Google Sheets has
- * no column types of its own, so the Output Schema is where a user says a column holds dates.
- */
-export const SOURCES_READING_OUTPUT_SCHEMA_TYPES: ReadonlySet<string> = new Set(['GoogleSheets']);
-
-/** The run-time parameter that carries the classes, as a JSON object of field name to class. */
+/** The run-time parameter that carries the Output Schema type classes to a source. */
 export const OUTPUT_SCHEMA_FIELD_TYPES_PARAMETER = 'OutputSchemaFieldTypes';
 
 export type OutputSchemaFieldTypeClass = 'DATE' | 'OTHER';
+
+/** What a source is told about the Output Schema of the Data Mart it imports into. */
+export interface OutputSchemaRunContext {
+  /** The Data Mart's Output Schema, or null before it has one. */
+  schema: DataMartSchema | null;
+  /**
+   * Whether an earlier connector run of this Data Mart succeeded. Without an Output Schema, that
+   * means the table exists all the same, so its columns must keep the types they have.
+   */
+  hasImportedBefore: boolean;
+}
+
+/**
+ * Whether a bundled source asks for the Output Schema types of its Data Mart. A source opts in
+ * with a static `readsOutputSchemaFieldTypes` flag; custom connectors never do.
+ */
+export function sourceReadsOutputSchemaFieldTypes(sourceName: string): boolean {
+  const connectorModules = Connectors as
+    | Record<string, Record<string, unknown> | undefined>
+    | undefined;
+  const SourceClass = connectorModules?.[sourceName]?.[`${sourceName}Source`] as
+    | { readsOutputSchemaFieldTypes?: unknown }
+    | undefined;
+  return SourceClass?.readsOutputSchemaFieldTypes === true;
+}
 
 /**
  * Classifies each warehouse field of an Output Schema as DATE or OTHER.
@@ -34,4 +54,24 @@ export function classifyOutputSchemaFieldTypes(
     classes[field.name] = String(field.type).trim().toUpperCase() === 'DATE' ? 'DATE' : 'OTHER';
   }
   return classes;
+}
+
+/**
+ * The OutputSchemaFieldTypes value for a run: the field classes, and whether columns the
+ * Output Schema does not list are inferred ("INFER") or imported as they are ("KEEP").
+ *
+ * Undefined for a Data Mart that has neither an Output Schema nor a successful import: it is
+ * new, so every column is inferred.
+ */
+export function buildOutputSchemaFieldTypesValue({
+  schema,
+  hasImportedBefore,
+}: OutputSchemaRunContext): string | undefined {
+  if (schema) {
+    return JSON.stringify({
+      fields: classifyOutputSchemaFieldTypes(schema),
+      unlistedColumns: 'INFER',
+    });
+  }
+  return hasImportedBefore ? JSON.stringify({ fields: {}, unlistedColumns: 'KEEP' }) : undefined;
 }

@@ -8,7 +8,7 @@ A planner who keeps daily targets in Google Sheets got the date column in the wa
 
 - In a new Data Mart, a column of dates (cells formatted as Date in the sheet) is stored as `DATE` from the first run, with no setting to turn on.
 - Existing Data Marts keep their columns as they are. To store a column as a date, set its type in the Output Schema to `DATE`: the next run, or the next Upload from the Extension, writes dates and the warning goes away.
-- In a `DATE` column, a cell that is not a date is imported as an empty value, and Run History lists the rows to fix, so one stray value never turns the column back into text.
+- In a `DATE` column, a cell that is not a date is imported as an empty value, and Run History lists the rows to fix, so one stray value never turns the column back into text. A column with no date at all stays text, and Run History says so.
 - Dates typed as text, date-times, times, durations, and columns that mix dates with other values stay text.
 
 See the [Google Sheets source guide](../../packages/connectors/src/Sources/GoogleSheets/GETTING_STARTED.md).

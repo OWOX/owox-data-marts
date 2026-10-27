@@ -11,11 +11,11 @@ import { ConnectorDefinition as DataMartConnectorDefinition } from '../../dto/sc
 import { ConnectorStateItem } from '../../connector-types/interfaces/connector-state';
 import { ConnectorCredentialInjectorService } from './connector-credential-injector.service';
 import { unwrapRunPayload } from '../../utils/manual-backfill-range';
-import type { DataMartSchema } from '../../data-storage-types/data-mart-schema.type';
 import {
-  classifyOutputSchemaFieldTypes,
+  buildOutputSchemaFieldTypesValue,
   OUTPUT_SCHEMA_FIELD_TYPES_PARAMETER,
-  SOURCES_READING_OUTPUT_SCHEMA_TYPES,
+  OutputSchemaRunContext,
+  sourceReadsOutputSchemaFieldTypes,
 } from './output-schema-field-types';
 
 @Injectable()
@@ -32,8 +32,8 @@ export class ConnectorSourceConfigService {
     configId: string,
     state: ConnectorStateItem | undefined,
     // Required, not optional: a caller that left it out would read as "no Output Schema" and
-    // let Google Sheets infer types for a Data Mart whose columns are already fixed.
-    dataMartSchema: DataMartSchema | null
+    // let a source infer types for a Data Mart whose columns are already fixed.
+    outputSchema: OutputSchemaRunContext
   ): Promise<SourceConfigDto> {
     const fieldsConfig = connector.source.fields
       .map(field => `${connector.source.node} ${field}`)
@@ -61,7 +61,7 @@ export class ConnectorSourceConfigService {
         ...(state?.state?.date
           ? { LastRequestedDate: new Date(state.state.date as string).toISOString().split('T')[0] }
           : {}),
-        ...this.buildOutputSchemaParameters(connector.source.name, dataMartSchema),
+        ...this.buildOutputSchemaParameters(connector.source.name, outputSchema),
       },
     });
   }
@@ -69,22 +69,20 @@ export class ConnectorSourceConfigService {
   /**
    * The Output Schema type classes for a source that reads them, as a run-time parameter.
    *
-   * A Data Mart without an Output Schema (one that has never run) gets the parameter unset,
-   * overriding anything a saved configuration might hold: the source then knows there is no
-   * Output Schema to follow yet. Other sources get nothing.
+   * Always set for such a source, overriding anything a saved configuration might hold; it is
+   * unset (undefined) only for a new Data Mart, which tells the source there is nothing to
+   * follow yet. Other sources get nothing.
    */
   private buildOutputSchemaParameters(
     sourceName: string,
-    dataMartSchema: DataMartSchema | null
+    outputSchema: OutputSchemaRunContext
   ): Record<string, string | undefined> {
-    if (!SOURCES_READING_OUTPUT_SCHEMA_TYPES.has(sourceName)) {
+    if (!sourceReadsOutputSchemaFieldTypes(sourceName)) {
       return {};
     }
 
     return {
-      [OUTPUT_SCHEMA_FIELD_TYPES_PARAMETER]: dataMartSchema
-        ? JSON.stringify(classifyOutputSchemaFieldTypes(dataMartSchema))
-        : undefined,
+      [OUTPUT_SCHEMA_FIELD_TYPES_PARAMETER]: buildOutputSchemaFieldTypesValue(outputSchema),
     };
   }
 
