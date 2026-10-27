@@ -24,6 +24,11 @@ vi.mock('react-hot-toast', () => {
   return { default: toastMock, toast: toastMock };
 });
 
+const toasted = new Error('Request failed with status code 400');
+vi.mock('../../../app/api', () => ({
+  wasErrorToastShown: (error: unknown) => error === toasted,
+}));
+
 vi.mock('../../google-oauth/utils/open-google-oauth-popup', () => ({
   openGoogleOAuthPopup: mocks.popup,
   GoogleOAuthPopupClosedError: class extends Error {},
@@ -110,6 +115,25 @@ describe('GoogleOAuthCredentialConnect', () => {
         'Popup was blocked. Please allow popups for this site and try again.'
       );
     });
+  });
+
+  it('does not report again a failed exchange the API client already reported', async () => {
+    mocks.exchange.mockRejectedValue(toasted);
+    render(
+      <GoogleOAuthCredentialConnect
+        credential={null}
+        definitionId='google-oauth'
+        draft={draft}
+        onConnected={vi.fn()}
+      />
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Connect with Google' }));
+
+    await waitFor(() => {
+      expect(mocks.exchange).toHaveBeenCalled();
+    });
+    expect(toast.error).not.toHaveBeenCalled();
   });
 
   it('is hidden when Google sign-in is not set up', () => {

@@ -56,17 +56,19 @@ export function DataStorageConfigSheet({
   // The Storages page hands over the copy it just loaded; any other copy may be stale.
   const ownCopyId =
     isOpen && dataStorage && dataStorage !== currentDataStorage ? dataStorage.id : null;
-  const [load, setLoad] = useState<'loading' | 'loaded' | 'failed'>('loading');
+  const [load, setLoad] = useState<'loading' | 'loaded' | 'failed' | 'forbidden'>('loading');
   const [attempt, setAttempt] = useState(0);
   useEffect(() => {
     if (!ownCopyId) return;
     let current = true;
-    getDataStorageById(ownCopyId).then(
+    // The sheet says why it failed; a Data Mart's Storage card opens it for members without SEE.
+    getDataStorageById(ownCopyId, { skipErrorToast: true }).then(
       () => {
         if (current) setLoad('loaded');
       },
-      () => {
-        if (current) setLoad('failed');
+      (error: unknown) => {
+        const status = (error as { response?: { status?: number } }).response?.status;
+        if (current) setLoad(status === 403 ? 'forbidden' : 'failed');
       }
     );
     return () => {
@@ -84,6 +86,7 @@ export function DataStorageConfigSheet({
       load === 'loaded' && currentDataStorage?.id === ownCopyId ? currentDataStorage : null;
   }
   const loadFailed = ownCopyId !== null && load === 'failed';
+  const forbidden = ownCopyId !== null && load === 'forbidden';
 
   const onSave = async (data: DataStorageFormData) => {
     if (dataStorage) {
@@ -156,7 +159,12 @@ export function DataStorageConfigSheet({
             </Button>
           </FormItem>
         )}
-        {!loadFailed && ownCopyId && !formStorage && <CardSkeleton />}
+        {forbidden && (
+          <p role='status' className='text-muted-foreground text-sm'>
+            You don&apos;t have access to this Storage.
+          </p>
+        )}
+        {!loadFailed && !forbidden && ownCopyId && !formStorage && <CardSkeleton />}
         {(!ownCopyId || formStorage) && (
           <DataStorageForm
             initialData={formStorage ?? undefined}

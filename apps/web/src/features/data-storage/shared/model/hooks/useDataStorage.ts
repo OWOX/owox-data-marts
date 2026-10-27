@@ -11,7 +11,7 @@ import { dataStorageApiService } from '../../api';
 import { invalidateDataStorageHealthStatus } from '../../services/data-storage-health-status.service';
 import type { DataStorageFormData } from '../../types/data-storage.schema.ts';
 import { DataStorageType } from '../types';
-import { extractApiError } from '../../../../../app/api';
+import { extractApiError, type AxiosRequestConfig } from '../../../../../app/api';
 import toast from 'react-hot-toast';
 import { trackEvent } from '../../../../../utils/data-layer';
 import { useRefreshSetupProgress } from '../../../../../components/AppSidebar/SetupChecklist/useSetupProgress';
@@ -38,9 +38,9 @@ export function useDataStorage() {
   }, [dispatch]);
 
   const getDataStorageById = useCallback(
-    async (id: string) => {
+    async (id: string, config?: AxiosRequestConfig) => {
       try {
-        const response = await dataStorageApiService.getDataStorageById(id);
+        const response = await dataStorageApiService.getDataStorageById(id, config);
         const dataStorage = mapDataStorageFromDto(response);
         dispatch({ type: DataStorageActionType.FETCH_STORAGE_SUCCESS, payload: dataStorage });
       } catch (error) {

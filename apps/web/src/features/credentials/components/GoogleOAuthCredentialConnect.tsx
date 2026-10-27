@@ -1,6 +1,7 @@
 import { FormItem } from '@owox/ui/components/form';
 import { useState } from 'react';
 import toast from 'react-hot-toast';
+import { wasErrorToastShown } from '../../../app/api';
 import { apiErrorMessage } from '../../../app/api/extract-api-error.util';
 import { GoogleOAuthButton } from '../../google-oauth/components';
 import {
@@ -65,7 +66,7 @@ export function GoogleOAuthCredentialConnect({
       );
       onConnected(saved);
     } catch (caught) {
-      if (caught instanceof GoogleOAuthPopupClosedError) return;
+      if (caught instanceof GoogleOAuthPopupClosedError || wasErrorToastShown(caught)) return;
       toast.error(apiErrorMessage(caught, 'Could not connect your Google account'));
     } finally {
       setConnecting(false);

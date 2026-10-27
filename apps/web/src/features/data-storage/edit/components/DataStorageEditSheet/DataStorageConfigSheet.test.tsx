@@ -194,7 +194,7 @@ describe('DataStorageConfigSheet', () => {
     });
     const { rerender } = renderSheet(vi.fn(), vi.fn(), embedded as DataStorage);
 
-    expect(getDataStorageById).toHaveBeenCalledWith('storage-1');
+    expect(getDataStorageById).toHaveBeenCalledWith('storage-1', { skipErrorToast: true });
     expect(formProps.current).toBeNull();
 
     vi.mocked(useDataStorage).mockReturnValue({
@@ -239,6 +239,21 @@ describe('DataStorageConfigSheet', () => {
     await waitFor(() => {
       expect(getDataStorageById).toHaveBeenCalledTimes(2);
     });
+  });
+
+  it('says the member has no access when the Storage answers 403, without Retry', async () => {
+    const getDataStorageById = vi.fn().mockRejectedValue({ response: { status: 403 } });
+    vi.mocked(useDataStorage).mockReturnValue({
+      ...vi.mocked(useDataStorage)(),
+      currentDataStorage: null,
+      getDataStorageById,
+    });
+    renderSheet(vi.fn(), vi.fn(), { ...dataStorage });
+
+    expect(await screen.findByText("You don't have access to this Storage.")).toBeInTheDocument();
+    expect(screen.queryByText('This Storage could not be loaded.')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Retry' })).not.toBeInTheDocument();
+    expect(formProps.current).toBeNull();
   });
 
   it('edits the copy the Storages page just loaded as given', () => {
