@@ -24,7 +24,7 @@ export class CreateContextTool implements McpToolDefinition<CreateContextInput> 
   readonly name = 'create_context';
   readonly description =
     'Create a business Context in the connected OWOX project. Requires a project admin. Provide a name and optionally a description and icon. Omitted or null descriptions are empty; an omitted or null icon uses the default.';
-  readonly zodSchema = inputSchema.shape;
+  readonly zodSchema = inputSchema;
   readonly outputSchema = contextOutputSchema;
   readonly annotations = {
     title: 'Create Context',

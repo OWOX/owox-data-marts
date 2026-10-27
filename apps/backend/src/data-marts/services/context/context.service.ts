@@ -139,24 +139,28 @@ export class ContextService {
   ): Promise<ContextDto> {
     const entity = await this.getByIdAndProject(contextId, projectId);
 
+    const patch: Partial<Context> = {};
     if (name !== undefined) {
       await this.validateUniqueName(name, projectId, contextId);
-      entity.name = name;
+      patch.name = name;
     }
     if (description !== undefined) {
-      entity.description = description;
+      patch.description = description;
     }
     if (icon !== undefined) {
-      entity.icon = icon;
+      patch.icon = icon;
     }
 
     let saved: Context;
     try {
-      saved = await this.contextRepository.save(entity);
+      if (Object.keys(patch).length > 0) {
+        await this.contextRepository.update({ id: contextId, projectId }, patch);
+      }
+      saved = await this.getByIdAndProject(contextId, projectId);
     } catch (err) {
       if (isUniqueConstraintViolation(err)) {
         throw new ConflictException(
-          `Context with name "${entity.name}" already exists in this project`
+          `Context with name "${name ?? entity.name}" already exists in this project`
         );
       }
       throw err;

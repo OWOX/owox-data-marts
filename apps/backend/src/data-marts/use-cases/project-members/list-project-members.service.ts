@@ -24,12 +24,15 @@ export class ListProjectMembersService {
 
   async run(command: ListProjectMembersCommand): Promise<ProjectMemberWithScope[]> {
     const { projectId } = command;
-    const members = await this.idpProjectionsFacade.getProjectMembers(projectId);
+    const members = command.failOnLookupError
+      ? await this.idpProjectionsFacade.getProjectMembersOrThrow(projectId)
+      : await this.idpProjectionsFacade.getProjectMembers(projectId);
     const result: ProjectMemberWithScope[] = [];
 
     // getRoleScope() can materialize provisioning defaults inside a transaction.
     // Keep this sequential so SQLite does not receive concurrent BEGINs.
     for (const member of members) {
+      if (member.isOutbound) continue;
       const roleScope = await this.contextAccessService.getRoleScope(member.userId, projectId);
       const contextIds = await this.contextAccessService.getMemberContextIds(
         member.userId,

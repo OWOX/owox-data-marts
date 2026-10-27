@@ -16,7 +16,7 @@ export class GetProjectSettingsTool implements McpToolDefinition<GetProjectSetti
   readonly name = 'get_project_settings';
   readonly description =
     'Get settings for the current OWOX project selected for this MCP connection, including its full admin-maintained description (null when missing). Requires project viewer access.';
-  readonly zodSchema = inputSchema.shape;
+  readonly zodSchema = inputSchema;
   readonly outputSchema = { description: z.string().nullable() };
   readonly annotations = {
     title: 'Get Project Settings',

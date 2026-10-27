@@ -23,3 +23,11 @@ export const contextIconSchema = z
   .describe(
     'Built-in icon key or lucide:<kebab-case-name>, for example purchases or lucide:megaphone.'
   );
+
+export const contextIconOutputSchema = z
+  .string()
+  .max(DATA_MART_ICON_MAX_LENGTH)
+  .nullable()
+  .describe(
+    'Stored icon key, including keys from other application versions; null uses the default icon.'
+  );

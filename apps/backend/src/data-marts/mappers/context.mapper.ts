@@ -100,7 +100,7 @@ export class ContextMapper {
     return {
       id: entity.id,
       name: entity.name,
-      description: entity.description || null,
+      description: entity.description ?? null,
       icon: entity.icon,
     };
   }

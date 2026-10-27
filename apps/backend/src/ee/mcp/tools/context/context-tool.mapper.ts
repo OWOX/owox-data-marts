@@ -1,12 +1,12 @@
 import { z } from 'zod-v4';
 import type { ContextDto, ContextImpactDto } from '../../../../data-marts/dto/domain/context.dto';
-import { contextIconSchema } from './context.schemas';
+import { contextIconOutputSchema } from './context.schemas';
 
 export const contextOutputSchema = {
   id: z.string(),
   name: z.string(),
   description: z.string().nullable(),
-  icon: contextIconSchema.nullable(),
+  icon: contextIconOutputSchema,
   created_by_id: z.string().nullable(),
   created_by_user: z
     .object({
@@ -28,7 +28,11 @@ export const contextImpactOutputSchema = {
   destination_count: z.number(),
   member_count: z.number(),
   user_provisioning_defaults_count: z.number(),
-  affected_member_ids: z.array(z.string()),
+  affected_member_ids: z
+    .array(z.string())
+    .describe(
+      'Members with selected-context access whose only assigned Context is this one; removing the assignment leaves them without shared access through Contexts.'
+    ),
 };
 
 export class ContextToolMapper {

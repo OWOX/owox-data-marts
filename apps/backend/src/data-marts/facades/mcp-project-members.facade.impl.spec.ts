@@ -7,7 +7,7 @@ import { ProjectRole, RoleScope } from './mcp-project-members.facade';
 describe('McpProjectMembersFacadeImpl', () => {
   const createFacade = () => {
     const idp = {
-      getProjectMembers: jest.fn().mockResolvedValue([
+      getProjectMembersOrThrow: jest.fn().mockResolvedValue([
         {
           userId: 'member-1',
           email: 'analyst@example.test',
@@ -41,9 +41,18 @@ describe('McpProjectMembersFacadeImpl', () => {
         contextIds: ['context-1'],
       },
     ]);
-    expect(idp.getProjectMembers).toHaveBeenCalledWith('project-1');
+    expect(idp.getProjectMembersOrThrow).toHaveBeenCalledWith('project-1');
     expect(access.getRoleScope).toHaveBeenCalledWith('member-1', 'project-1');
     expect(access.getMemberContextIds).toHaveBeenCalledWith('member-1', 'project-1');
+  });
+
+  it('propagates membership lookup failures before reading member scopes', async () => {
+    const { facade, idp, access } = createFacade();
+    idp.getProjectMembersOrThrow.mockRejectedValue(new Error('Project membership unavailable'));
+    await expect(facade.listProjectMembers('project-1')).rejects.toThrow(
+      'Project membership unavailable'
+    );
+    expect(access.getRoleScope).not.toHaveBeenCalled();
   });
 
   it('propagates member-scope lookup errors instead of reporting an empty project', async () => {

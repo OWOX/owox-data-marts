@@ -8,6 +8,6 @@ export class McpProjectMembersFacadeImpl implements McpProjectMembersFacade {
   constructor(private readonly members: ListProjectMembersService) {}
 
   async listProjectMembers(projectId: string): Promise<McpProjectMember[]> {
-    return this.members.run(new ListProjectMembersCommand(projectId));
+    return this.members.run(new ListProjectMembersCommand(projectId, true));
   }
 }

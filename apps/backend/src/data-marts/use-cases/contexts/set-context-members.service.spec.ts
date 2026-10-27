@@ -84,6 +84,33 @@ describe('SetContextMembersService', () => {
     expect(contextAccessService.setContextMembers).not.toHaveBeenCalled();
   });
 
+  it('rejects outbound members without changing assignments', async () => {
+    const { service, idpProjectionsFacade, contextAccessService } = createService();
+    idpProjectionsFacade.getProjectMembersOrThrow.mockResolvedValue([
+      { userId: 'former', role: 'editor', isOutbound: true },
+    ]);
+    await expect(
+      service.run(new SetContextMembersCommand(CONTEXT_ID, PROJECT_ID, ['former']))
+    ).rejects.toThrow('User IDs are not members of this project: former');
+    expect(contextAccessService.setContextMembers).not.toHaveBeenCalled();
+  });
+
+  it('returns each assigned or dropped member once', async () => {
+    const { service, idpProjectionsFacade, contextAccessService } = createService();
+    idpProjectionsFacade.getProjectMembersOrThrow.mockResolvedValue([
+      { userId: 'admin', role: 'admin' },
+      { userId: 'editor', role: 'editor' },
+    ]);
+    await expect(
+      service.run(
+        new SetContextMembersCommand(CONTEXT_ID, PROJECT_ID, ['admin', 'editor', 'admin', 'editor'])
+      )
+    ).resolves.toEqual({ assignedUserIds: ['editor'], droppedAdminIds: ['admin'] });
+    expect(contextAccessService.setContextMembers).toHaveBeenCalledWith(CONTEXT_ID, PROJECT_ID, [
+      'editor',
+    ]);
+  });
+
   it('does not change assignments when project membership cannot be loaded', async () => {
     const { service, idpProjectionsFacade, contextAccessService } = createService();
     idpProjectionsFacade.getProjectMembersOrThrow.mockRejectedValue(new Error('IDP unreachable'));

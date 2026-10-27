@@ -29,7 +29,7 @@ export class SetContextMembersTool implements McpToolDefinition<SetContextMember
   readonly name = 'set_context_members';
   readonly description =
     'Replace the members assigned to a Context in the connected OWOX project. Requires a project admin. Supply user_id values from list_project_members; an empty list removes all assignments. Admin IDs are ignored because admins have project-wide access and are returned as dropped_admin_ids.';
-  readonly zodSchema = inputSchema.shape;
+  readonly zodSchema = inputSchema;
   readonly outputSchema = {
     assigned_user_ids: z.array(z.string()).describe('User IDs actually assigned to the Context.'),
     dropped_admin_ids: z

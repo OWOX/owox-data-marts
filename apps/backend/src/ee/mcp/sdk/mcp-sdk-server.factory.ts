@@ -22,7 +22,7 @@ type McpSdkToolRegistrar = {
     name: string,
     config: {
       description: string;
-      inputSchema: ZodRawShape;
+      inputSchema: ZodRawShape | StandardSchemaWithJSON;
       outputSchema?: StandardSchemaWithJSON;
       annotations?: ToolAnnotations;
     },

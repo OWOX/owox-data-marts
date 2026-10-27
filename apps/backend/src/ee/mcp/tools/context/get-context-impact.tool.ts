@@ -17,7 +17,7 @@ export class GetContextImpactTool implements McpToolDefinition<GetContextImpactI
   readonly name = 'get_context_impact';
   readonly description =
     'Inspect a Context before deleting it: return counts of attached Data Marts, Storages, Destinations, members and user provisioning defaults, plus affected member IDs. Requires a project admin.';
-  readonly zodSchema = inputSchema.shape;
+  readonly zodSchema = inputSchema;
   readonly outputSchema = contextImpactOutputSchema;
   readonly annotations = {
     title: 'Get Context Impact',

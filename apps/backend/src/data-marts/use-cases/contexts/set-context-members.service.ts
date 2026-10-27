@@ -22,8 +22,11 @@ export class SetContextMembersService {
   ) {}
 
   async run(command: SetContextMembersCommand): Promise<SetContextMembersResult> {
-    const { contextId, projectId, assignedUserIds } = command;
-    const projectMembers = await this.idpProjectionsFacade.getProjectMembersOrThrow(projectId);
+    const { contextId, projectId } = command;
+    const assignedUserIds = [...new Set(command.assignedUserIds)];
+    const projectMembers = (
+      await this.idpProjectionsFacade.getProjectMembersOrThrow(projectId)
+    ).filter(member => !member.isOutbound);
     const memberIds = new Set(projectMembers.map(m => m.userId));
     const adminIds = new Set(projectMembers.filter(m => m.role === 'admin').map(m => m.userId));
 

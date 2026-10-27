@@ -8,6 +8,7 @@ describe('ListProjectMembersService', () => {
   const createService = () => {
     const idpProjectionsFacade = {
       getProjectMembers: jest.fn(),
+      getProjectMembersOrThrow: jest.fn(),
     };
     const contextAccessService = {
       getRoleScope: jest.fn(),
@@ -72,6 +73,27 @@ describe('ListProjectMembersService', () => {
         contextIds: ['ctx-1', 'ctx-2'],
       },
     ]);
+  });
+
+  it('does not list or load access scopes for outbound members', async () => {
+    const { service, idpProjectionsFacade, contextAccessService } = createService();
+    idpProjectionsFacade.getProjectMembers.mockResolvedValue([
+      { userId: 'removed', isOutbound: true },
+    ]);
+    await expect(service.run(new ListProjectMembersCommand(PROJECT_ID))).resolves.toEqual([]);
+    expect(contextAccessService.getRoleScope).not.toHaveBeenCalled();
+    expect(contextAccessService.getMemberContextIds).not.toHaveBeenCalled();
+  });
+
+  it('can require membership lookup errors to propagate instead of using the display fallback', async () => {
+    const { service, idpProjectionsFacade, contextAccessService } = createService();
+    idpProjectionsFacade.getProjectMembersOrThrow.mockRejectedValue(new Error('IDP unavailable'));
+    idpProjectionsFacade.getProjectMembers.mockResolvedValue([]);
+    await expect(service.run(new ListProjectMembersCommand(PROJECT_ID, true))).rejects.toThrow(
+      'IDP unavailable'
+    );
+    expect(contextAccessService.getRoleScope).not.toHaveBeenCalled();
+    await expect(service.run(new ListProjectMembersCommand(PROJECT_ID))).resolves.toEqual([]);
   });
 
   it('returns empty list when project has no members', async () => {

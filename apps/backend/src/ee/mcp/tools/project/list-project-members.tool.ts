@@ -18,7 +18,7 @@ export class ListProjectMembersTool implements McpToolDefinition<ListProjectMemb
   readonly name = 'list_project_members';
   readonly description =
     'List members of the OWOX project selected for this MCP connection, including user IDs, names, emails, roles, access scopes, and assigned Context IDs. Use returned user_id values for set_context_members; match members by name or email instead of guessing IDs. Requires project viewer access.';
-  readonly zodSchema = inputSchema.shape;
+  readonly zodSchema = inputSchema;
   readonly outputSchema = {
     members: z.array(
       z.object({

@@ -1,4 +1,8 @@
-import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/server';
+import type {
+  CallToolResult,
+  StandardSchemaWithJSON,
+  ToolAnnotations,
+} from '@modelcontextprotocol/server';
 import type { McpScope, Role } from '@owox/idp-protocol';
 import type { ZodRawShape } from 'zod-v4';
 import type { McpAuthContext } from '../auth/mcp-auth-context';
@@ -17,7 +21,7 @@ export function jsonToolResult(structuredContent: Record<string, unknown>): McpT
 export interface McpToolDefinition<TInput = unknown> {
   readonly name: string;
   readonly description: string;
-  readonly zodSchema: ZodRawShape;
+  readonly zodSchema: ZodRawShape | StandardSchemaWithJSON;
   readonly outputSchema?: ZodRawShape;
   readonly annotations?: ToolAnnotations;
   readonly requiredScopes: McpScope[];

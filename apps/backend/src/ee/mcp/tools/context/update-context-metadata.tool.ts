@@ -43,7 +43,7 @@ export class UpdateContextMetadataTool implements McpToolDefinition<UpdateContex
   readonly name = 'update_context_metadata';
   readonly description =
     'Update the name, description and/or icon of a Context in the connected OWOX project. Supply at least one metadata field. Omitted fields are preserved; null clears description or resets icon, but name must be a non-empty string. Requires a project admin.';
-  readonly zodSchema = inputSchema.shape;
+  readonly zodSchema = inputSchema;
   readonly outputSchema = contextOutputSchema;
   readonly annotations = {
     title: 'Update Context Metadata',

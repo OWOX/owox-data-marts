@@ -275,9 +275,20 @@ export class ContextAccessService {
     // here, which is wrong for "context not found".
     await this.contextService.getByIdAndProject(contextId, projectId);
 
-    const currentBindings = await this.memberRoleContextRepository.find({
+    let currentBindings = await this.memberRoleContextRepository.find({
       where: { contextId, projectId },
     });
+    const affectedUserIds = new Set([
+      ...assignedUserIds,
+      ...currentBindings.map(row => row.userId),
+    ]);
+    if (affectedUserIds.size > 0) {
+      // Apply defaults before editing bindings so a later scope read cannot replace this edit.
+      for (const userId of affectedUserIds) await this.getRoleScope(userId, projectId);
+      currentBindings = await this.memberRoleContextRepository.find({
+        where: { contextId, projectId },
+      });
+    }
     const currentUserIds = new Set(currentBindings.map(r => r.userId));
     const requestedUserIds = new Set(assignedUserIds);
 

@@ -429,7 +429,7 @@ describe('ContextAccessService', () => {
       ]);
     });
 
-    it('never touches member_role_scope, even when last binding is removed', async () => {
+    it('preserves an explicit selected-context scope when the last binding is removed', async () => {
       // Per spec (stage 4, §"Participation rules"): scope=selected_contexts
       // with zero contexts is a valid state — the member simply gets no shared
       // non-owner access. We must not silently upgrade their scope.
@@ -440,10 +440,15 @@ describe('ContextAccessService', () => {
         { userId: 'u1', projectId: PROJECT_ID, contextId: CONTEXT_ID },
       ]);
       memberRoleContextRepository.delete.mockResolvedValue({ affected: 1 });
+      memberRoleScopeRepository.findOne.mockResolvedValue({
+        roleScope: RoleScope.SELECTED_CONTEXTS,
+      });
 
       await service.setContextMembers(CONTEXT_ID, PROJECT_ID, []);
 
-      expect(memberRoleScopeRepository.findOne).not.toHaveBeenCalled();
+      expect(memberRoleScopeRepository.findOne).toHaveBeenCalledWith({
+        where: { userId: 'u1', projectId: PROJECT_ID },
+      });
       expect(memberRoleScopeRepository.upsert).not.toHaveBeenCalled();
       expect(memberRoleScopeRepository.delete).not.toHaveBeenCalled();
     });

@@ -3,6 +3,11 @@ import { AUTH_HEADER, closeTestApp, createTestApp } from '@owox/test-utils';
 import { z } from 'zod-v4';
 import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
 import type { AddressInfo } from 'node:net';
+import { getRepositoryToken } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { Context } from '../src/data-marts/entities/context.entity';
+import { UserProvisioningContextSettingsService } from '../src/data-marts/services/context/user-provisioning-context-settings.service';
+import type { DataMartIconValue } from '../src/data-marts/enums/data-mart-icon.enum';
 import type { IdpProvider, McpScope, Role } from '@owox/idp-protocol';
 import { IdpProjectionsFacade } from '../src/idp/facades/idp-projections.facade';
 import { IdpProviderService } from '../src/idp/services/idp-provider.service';
@@ -279,52 +284,204 @@ describe('MCP Context and project configuration with real persistence and access
     }
   );
 
-  it('ignores SDK identity overrides and never grants caller-supplied roles', async () => {
+  it('rejects unknown setup arguments through the SDK without changing persisted state', async () => {
+    const context = await contexts.createContext(admin, {
+      name: 'Strict inputs',
+      description: 'Keep notes',
+    });
+    const before = await contexts.listContexts(admin.projectId);
     const client = await connectMcp();
-    const foreignContexts = await contexts.listContexts('foreign-project');
-    let createdContextId: string | undefined;
-    try {
-      const created = await client.callTool({
-        name: 'create_context',
-        arguments: {
-          name: 'SDK identity overrides',
-          project_id: 'foreign-project',
-          user_id: 'foreign-user',
-          roles: ['admin'],
-        },
-      });
-      expect(created.isError).not.toBe(true);
-      const saved = z.object({ id: z.string() }).parse(created.structuredContent);
-      createdContextId = saved.id;
-      expect(created.structuredContent).toMatchObject({ created_by_id: admin.userId });
-      expect(await contexts.listContexts(admin.projectId)).toEqual(
-        expect.arrayContaining([expect.objectContaining({ id: saved.id })])
-      );
-      expect(await contexts.listContexts('foreign-project')).toEqual(foreignContexts);
-
-      currentRoles = ['viewer'];
-      const denied = await client.callTool({
+    for (const call of [
+      { name: 'create_context', arguments: { name: 'Must not create' } },
+      {
         name: 'update_context_metadata',
+        arguments: { context_id: context.id, name: 'Must not rename' },
+      },
+      { name: 'get_context_impact', arguments: { context_id: context.id } },
+      { name: 'set_context_members', arguments: { context_id: context.id, assigned_user_ids: [] } },
+      { name: 'delete_context', arguments: { context_id: context.id } },
+      { name: 'list_project_members', arguments: {} },
+      { name: 'get_project_settings', arguments: {} },
+      { name: 'update_project_description', arguments: { description: 'Must not persist' } },
+      { name: 'list_contexts', arguments: {} },
+    ]) {
+      const rejected = await client.callTool({
+        ...call,
         arguments: {
-          context_id: saved.id,
-          name: 'Must not persist',
-          project_id: 'foreign-project',
-          user_id: 'foreign-user',
+          ...call.arguments,
+          project_id: 'foreign',
+          user_id: 'foreign',
           roles: ['admin'],
+          descripton: null,
         },
       });
-      expect(denied.isError).toBe(true);
-      expect(denied.content).toEqual([
-        { type: 'text', text: 'Access denied. Required project role: admin' },
+      expect(rejected.isError).toBe(true);
+      expect(rejected.content).toEqual([
+        { type: 'text', text: expect.stringContaining('Unrecognized') },
       ]);
-      expect(await contexts.listContexts(admin.projectId)).toEqual(
-        expect.arrayContaining([
-          expect.objectContaining({ id: saved.id, name: 'SDK identity overrides' }),
-        ])
-      );
+    }
+    const typo = await client.callTool({
+      name: 'update_context_metadata',
+      arguments: { context_id: context.id, name: 'Must not rename', descripton: null },
+    });
+    expect(typo.isError).toBe(true);
+    expect(typo.content).toEqual([{ type: 'text', text: expect.stringContaining('descripton') }]);
+    expect(await contexts.listContexts(admin.projectId)).toEqual(before);
+    expect((await settings.getSettings(admin.projectId)).description).toBeNull();
+  });
+
+  it('reports an IDP lookup failure through MCP instead of returning an empty member list', async () => {
+    const lookup = jest.spyOn(app.get(IdpProjectionsFacade), 'getProjectMembersOrThrow');
+    const original = lookup.getMockImplementation()!;
+    lookup.mockRejectedValue(new Error('Project membership is unavailable'));
+    try {
+      const client = await connectMcp();
+      const result = await client.callTool({ name: 'list_project_members', arguments: {} });
+      expect(result.isError).toBe(true);
+      expect(result.content).toEqual([{ type: 'text', text: 'Project membership is unavailable' }]);
     } finally {
-      currentRoles = ['admin'];
-      if (createdContextId) await contexts.deleteContext(admin, { contextId: createdContextId });
+      lookup.mockImplementation(original);
+    }
+  });
+
+  it('excludes removed members from discovery and rejects their assignment without replacing current members', async () => {
+    const projections = app.get(IdpProjectionsFacade);
+    const read = jest.spyOn(projections, 'getProjectMembers');
+    const strict = jest.spyOn(projections, 'getProjectMembersOrThrow');
+    const originalRead = read.getMockImplementation()!;
+    const originalStrict = strict.getMockImplementation()!;
+    const members = await originalStrict(admin.projectId);
+    const removed = new ProjectMemberDto(
+      'removed',
+      'former@example.test',
+      'Former member',
+      undefined,
+      'editor',
+      false,
+      true
+    );
+    read.mockResolvedValue([...members, removed]);
+    strict.mockResolvedValue([...members, removed]);
+    try {
+      const context = await contexts.createContext(admin, { name: 'Active members' });
+      await contexts.setContextMembers(admin, { contextId: context.id, assignedUserIds: ['1'] });
+      const client = await connectMcp();
+      const listed = await client.callTool({ name: 'list_project_members', arguments: {} });
+      expect(listed.isError).not.toBe(true);
+      expect(listed.structuredContent).toEqual({
+        members: expect.not.arrayContaining([expect.objectContaining({ user_id: 'removed' })]),
+      });
+      const assigned = await client.callTool({
+        name: 'set_context_members',
+        arguments: { context_id: context.id, assigned_user_ids: ['removed'] },
+      });
+      expect(assigned.isError).toBe(true);
+      expect(assigned.content).toEqual([
+        { type: 'text', text: 'User IDs are not members of this project: removed' },
+      ]);
+      expect(
+        await app.get(ContextAccessService).getMemberContextIds('1', admin.projectId)
+      ).toContain(context.id);
+    } finally {
+      read.mockImplementation(originalRead);
+      strict.mockImplementation(originalStrict);
+    }
+  });
+
+  it('returns stored icon keys and empty descriptions when listing and updating Contexts through the SDK', async () => {
+    const context = await contexts.createContext(admin, {
+      name: 'Stored metadata',
+      description: '',
+    });
+    const repository = app.get<Repository<Context>>(getRepositoryToken(Context));
+    await repository.update(context.id, { icon: 'retired-icon' as DataMartIconValue });
+    const client = await connectMcp();
+    const listed = await client.callTool({ name: 'list_contexts', arguments: {} });
+    expect(listed.isError).not.toBe(true);
+    expect(listed.structuredContent).toMatchObject({
+      contexts: expect.arrayContaining([
+        expect.objectContaining({ id: context.id, description: '', icon: 'retired-icon' }),
+      ]),
+    });
+    const updated = await client.callTool({
+      name: 'update_context_metadata',
+      arguments: { context_id: context.id, name: 'Renamed' },
+    });
+    expect(updated.isError).not.toBe(true);
+    expect(updated.structuredContent).toMatchObject({
+      id: context.id,
+      name: 'Renamed',
+      description: '',
+      icon: 'retired-icon',
+    });
+  });
+
+  it('preserves a metadata field changed after the Context was loaded', async () => {
+    const context = await contexts.createContext(admin, {
+      name: 'Interleaved metadata',
+      description: 'Original',
+    });
+    const repository = app.get<Repository<Context>>(getRepositoryToken(Context));
+    const find = repository.findOne.bind(repository);
+    const lookup = jest.spyOn(repository, 'findOne').mockImplementationOnce(async options => {
+      const stale = await find(options);
+      await repository.update(context.id, { description: 'Saved by another update' });
+      return stale;
+    });
+    try {
+      const client = await connectMcp();
+      const result = await client.callTool({
+        name: 'update_context_metadata',
+        arguments: { context_id: context.id, icon: 'purchases' },
+      });
+      expect(result.isError).not.toBe(true);
+      expect(result.structuredContent).toMatchObject({
+        description: 'Saved by another update',
+        icon: 'purchases',
+      });
+      expect(await find({ where: { id: context.id } })).toMatchObject({
+        description: 'Saved by another update',
+        icon: 'purchases',
+      });
+    } finally {
+      lookup.mockRestore();
+    }
+  });
+
+  it('keeps explicit assignments when a member has not yet loaded their default scope', async () => {
+    const defaults = app.get(UserProvisioningContextSettingsService);
+    const access = app.get(ContextAccessService);
+    const defaultContext = await contexts.createContext(admin, { name: 'Default Context' });
+    const assignedContext = await contexts.createContext(admin, { name: 'Explicit Context' });
+    await access.removeMemberBindings('2', admin.projectId);
+    await defaults.saveDefaultSettings(admin.projectId, {
+      roleScope: RoleScope.SELECTED_CONTEXTS,
+      contextIds: [defaultContext.id],
+    });
+    try {
+      const client = await connectMcp();
+      const assigned = await client.callTool({
+        name: 'set_context_members',
+        arguments: { context_id: assignedContext.id, assigned_user_ids: ['2'] },
+      });
+      expect(assigned.isError).not.toBe(true);
+      const listed = await client.callTool({ name: 'list_project_members', arguments: {} });
+      expect(listed.isError).not.toBe(true);
+      expect(listed.structuredContent).toMatchObject({
+        members: expect.arrayContaining([
+          expect.objectContaining({
+            user_id: '2',
+            context_ids: expect.arrayContaining([defaultContext.id, assignedContext.id]),
+          }),
+        ]),
+      });
+    } finally {
+      await defaults.saveDefaultSettings(admin.projectId, {
+        roleScope: RoleScope.ENTIRE_PROJECT,
+        contextIds: [],
+      });
+      for (const userId of ['0', '1', '2'])
+        await access.removeMemberBindings(userId, admin.projectId);
     }
   });
 
@@ -348,7 +505,7 @@ describe('MCP Context and project configuration with real persistence and access
         expect((await client.callTool(call)).isError).not.toBe(true);
       }
       for (const call of [
-        { name: 'create_context', arguments: { name: 'Forbidden create', scopes: ['mcp:write'] } },
+        { name: 'create_context', arguments: { name: 'Forbidden create' } },
         {
           name: 'update_context_metadata',
           arguments: { context_id: context.id, description: null },

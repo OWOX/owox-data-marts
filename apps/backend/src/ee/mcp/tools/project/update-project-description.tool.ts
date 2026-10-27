@@ -32,7 +32,7 @@ export class UpdateProjectDescriptionTool implements McpToolDefinition<UpdatePro
   readonly name = 'update_project_description';
   readonly description =
     'Update the description of the current OWOX project selected for this MCP connection. Requires a project admin. Provide 1–10000 characters or null to clear the description. Leading and trailing whitespace is trimmed using the existing project settings behavior.';
-  readonly zodSchema = inputSchema.shape;
+  readonly zodSchema = inputSchema;
   readonly outputSchema = { description: z.string().nullable() };
   readonly annotations = {
     title: 'Update Project Description',
