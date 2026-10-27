@@ -537,6 +537,9 @@ describe('MCP Context and project configuration with real persistence and access
 
   it('keeps persisted assignments when an SDK call includes a non-member', async () => {
     const context = await contexts.createContext(admin, { name: 'Invalid member assignment' });
+    const access = app.get(ContextAccessService);
+    // Only a Selected contexts member's assignment counts in the impact.
+    await access.updateMemberRoleScope('1', admin.projectId, RoleScope.SELECTED_CONTEXTS);
     await contexts.setContextMembers(admin, { contextId: context.id, assignedUserIds: ['1'] });
     const client = await connectMcp();
     try {
@@ -548,7 +551,6 @@ describe('MCP Context and project configuration with real persistence and access
       expect(denied.content).toEqual([
         { type: 'text', text: 'User IDs are not members of this project: foreign-member' },
       ]);
-      const access = app.get(ContextAccessService);
       expect(await access.getMemberContextIds('1', admin.projectId)).toContain(context.id);
       expect(await access.getMemberContextIds('2', admin.projectId)).not.toContain(context.id);
       expect(await contexts.getContextImpact(admin, { contextId: context.id })).toMatchObject({
@@ -557,6 +559,7 @@ describe('MCP Context and project configuration with real persistence and access
     } finally {
       await contexts.setContextMembers(admin, { contextId: context.id, assignedUserIds: [] });
       await contexts.deleteContext(admin, { contextId: context.id });
+      await access.updateMemberRoleScope('1', admin.projectId, RoleScope.ENTIRE_PROJECT);
     }
   });
 
@@ -734,52 +737,59 @@ describe('MCP Context and project configuration with real persistence and access
     const context = await contexts.createContext(admin, { name: 'Deletion lifecycle' });
     const client = await connectMcp();
     const input = { context_id: context.id };
-    const assigned = await client.callTool({
-      name: 'set_context_members',
-      arguments: { ...input, assigned_user_ids: ['0', '2'] },
-    });
-    expect(assigned.isError).not.toBe(true);
-    expect(assigned.structuredContent).toEqual({
-      assigned_user_ids: ['2'],
-      dropped_admin_ids: ['0'],
-    });
-    const impact = await client.callTool({ name: 'get_context_impact', arguments: input });
-    expect(impact.isError).not.toBe(true);
-    expect(impact.structuredContent).toMatchObject({ context_id: context.id, member_count: 1 });
-    const blocked = await client.callTool({ name: 'delete_context', arguments: input });
-    expect(blocked.isError).toBe(true);
-    expect(blocked.content).toEqual([
-      {
-        type: 'text',
-        text: 'Context is attached to resources, members, or user provisioning defaults. Detach it from all Data Marts, Storages, Destinations, Members and User Provisioning settings before deleting.',
-      },
-    ]);
-    expect(await contexts.listContexts(admin.projectId)).toEqual(
-      expect.arrayContaining([expect.objectContaining({ id: context.id })])
-    );
+    const access = app.get(ContextAccessService);
+    // Only a Selected contexts member's assignment blocks the delete.
+    await access.updateMemberRoleScope('2', admin.projectId, RoleScope.SELECTED_CONTEXTS);
+    try {
+      const assigned = await client.callTool({
+        name: 'set_context_members',
+        arguments: { ...input, assigned_user_ids: ['0', '2'] },
+      });
+      expect(assigned.isError).not.toBe(true);
+      expect(assigned.structuredContent).toEqual({
+        assigned_user_ids: ['2'],
+        dropped_admin_ids: ['0'],
+      });
+      const impact = await client.callTool({ name: 'get_context_impact', arguments: input });
+      expect(impact.isError).not.toBe(true);
+      expect(impact.structuredContent).toMatchObject({ context_id: context.id, member_count: 1 });
+      const blocked = await client.callTool({ name: 'delete_context', arguments: input });
+      expect(blocked.isError).toBe(true);
+      expect(blocked.content).toEqual([
+        {
+          type: 'text',
+          text: 'Context is attached to resources, members, or user provisioning defaults. Detach it from all Data Marts, Storages, Destinations, Members and User Provisioning settings before deleting.',
+        },
+      ]);
+      expect(await contexts.listContexts(admin.projectId)).toEqual(
+        expect.arrayContaining([expect.objectContaining({ id: context.id })])
+      );
 
-    const detached = await client.callTool({
-      name: 'set_context_members',
-      arguments: { ...input, assigned_user_ids: [] },
-    });
-    expect(detached.isError).not.toBe(true);
-    const emptyImpact = await client.callTool({ name: 'get_context_impact', arguments: input });
-    expect(emptyImpact.isError).not.toBe(true);
-    expect(emptyImpact.structuredContent).toMatchObject({ member_count: 0 });
-    const deleted = await client.callTool({ name: 'delete_context', arguments: input });
-    expect(deleted.isError).not.toBe(true);
-    expect(deleted.structuredContent).toEqual({ context_id: context.id, status: 'deleted' });
-    expect(await contexts.listContexts(admin.projectId)).not.toEqual(
-      expect.arrayContaining([expect.objectContaining({ id: context.id })])
-    );
-    const missing = await client.callTool({ name: 'get_context_impact', arguments: input });
-    expect(missing.isError).toBe(true);
-    expect(missing.content).toEqual([
-      {
-        type: 'text',
-        text: `Context with id ${context.id} not found in project ${admin.projectId}`,
-      },
-    ]);
+      const detached = await client.callTool({
+        name: 'set_context_members',
+        arguments: { ...input, assigned_user_ids: [] },
+      });
+      expect(detached.isError).not.toBe(true);
+      const emptyImpact = await client.callTool({ name: 'get_context_impact', arguments: input });
+      expect(emptyImpact.isError).not.toBe(true);
+      expect(emptyImpact.structuredContent).toMatchObject({ member_count: 0 });
+      const deleted = await client.callTool({ name: 'delete_context', arguments: input });
+      expect(deleted.isError).not.toBe(true);
+      expect(deleted.structuredContent).toEqual({ context_id: context.id, status: 'deleted' });
+      expect(await contexts.listContexts(admin.projectId)).not.toEqual(
+        expect.arrayContaining([expect.objectContaining({ id: context.id })])
+      );
+      const missing = await client.callTool({ name: 'get_context_impact', arguments: input });
+      expect(missing.isError).toBe(true);
+      expect(missing.content).toEqual([
+        {
+          type: 'text',
+          text: `Context with id ${context.id} not found in project ${admin.projectId}`,
+        },
+      ]);
+    } finally {
+      await access.updateMemberRoleScope('2', admin.projectId, RoleScope.ENTIRE_PROJECT);
+    }
   });
 
   it('rejects Context IDs outside the authenticated project without changing them', async () => {
