@@ -108,6 +108,7 @@ function createSource({
   fields = 'sheet _owox_row_number',
   inferTypes = true,
   authType = null,
+  outputSchemaFieldTypes,
 } = {}) {
   const logs = [];
   const source = Object.create(GoogleSheetsSource.prototype);
@@ -124,6 +125,9 @@ function createSource({
   };
   if (authType) {
     parameters.AuthType = { value: authType, items: {} };
+  }
+  if (outputSchemaFieldTypes !== undefined) {
+    parameters.OutputSchemaFieldTypes = { value: outputSchemaFieldTypes };
   }
   source.context = {
     getParameter: name => parameters[name] ?? null,
@@ -1063,4 +1067,271 @@ test('reports a missing credential item as a configuration error instead of a pr
 
   authType = { value: 'service_account', items: {} };
   await assert.rejects(source.getAccessToken(), /'AuthType\.ServiceAccountKey' is required/);
+});
+
+// --- Native date columns ---------------------------------------------------------------------
+//
+// One sheet covers every kind of column the date handling has to tell apart. The three reads
+// it answers are the ones a run makes: the usual FORMATTED_STRING read, the cell formats of the
+// sample, and the SERIAL_NUMBER read of the same range.
+const DATE_SHEET_FORMATTED = [
+  ['Date', 'Visitors', 'Note', 'When', 'Duration', 'Mixed'],
+  ['10/1/2026', 912.5, 'x', '10/1/2026 14:30:00', '36:00:00', '10/1/2026'],
+  ['10/2/2026', 1825, 'y', '10/2/2026 08:00:00', '12:00:00', 'TBD'],
+];
+const DATE_SHEET_SERIAL = [
+  ['Date', 'Visitors', 'Note', 'When', 'Duration', 'Mixed'],
+  [46296, 912.5, 'x', 46296.604166666664, 1.5, 46296],
+  [46297, 1825, 'y', 46297.333333333336, 0.5, 'TBD'],
+];
+const DATE_SHEET_FORMATS = [
+  [null, null, null, null, null, null],
+  ['DATE', 'NUMBER', null, 'DATE_TIME', 'TIME', 'DATE'],
+  ['DATE', 'NUMBER', null, 'DATE_TIME', 'TIME', null],
+];
+
+function formatsResponse(formatRows) {
+  return jsonResponse({
+    sheets: [
+      {
+        data: [
+          {
+            rowData: formatRows.map(row => ({
+              values: row.map(type =>
+                type ? { effectiveFormat: { numberFormat: { type } } } : {}
+              ),
+            })),
+          },
+        ],
+      },
+    ],
+  });
+}
+
+function dateSheetResponder({
+  formatted = DATE_SHEET_FORMATTED,
+  serial = DATE_SHEET_SERIAL,
+  formats = DATE_SHEET_FORMATS,
+} = {}) {
+  return url => {
+    if (url.includes('/values/')) {
+      return jsonResponse({
+        values: url.includes('dateTimeRenderOption=SERIAL_NUMBER') ? serial : formatted,
+      });
+    }
+    return formatsResponse(formats);
+  };
+}
+
+async function runDateSheet(sourceOptions, responderOptions) {
+  const source = createSource(sourceOptions);
+  source.getAccessToken = async () => 'token';
+  return withFetch(dateSheetResponder(responderOptions), async calls => {
+    const rows = await source.fetchData();
+    return {
+      source,
+      calls,
+      rows: plain(rows),
+      fields: plain(source.fieldsSchema.sheet.fields),
+    };
+  });
+}
+
+function columnOf(rows, name) {
+  return rows.map(row => row[name]);
+}
+
+test('imports native date and date-time columns as DATE and DATETIME when the Output Schema has no type yet', async () => {
+  const { rows, fields, calls } = await runDateSheet();
+
+  assert.deepEqual(columnOf(rows, 'date'), ['2026-10-01', '2026-10-02']);
+  assert.deepEqual(columnOf(rows, 'when'), ['2026-10-01 14:30:00', '2026-10-02 08:00:00']);
+  assert.equal(fields.date.type, DATA_TYPES.DATE);
+  assert.equal(fields.when.type, DATA_TYPES.DATETIME);
+
+  // Everything that is not a native date column is imported exactly as before.
+  assert.equal(fields.visitors.type, DATA_TYPES.NUMBER);
+  assert.deepEqual(columnOf(rows, 'note'), ['x', 'y']);
+  assert.equal(fields.note.type, DATA_TYPES.STRING);
+  assert.deepEqual(columnOf(rows, 'duration'), ['36:00:00', '12:00:00']);
+  assert.equal(fields.duration.type, DATA_TYPES.STRING);
+  assert.deepEqual(columnOf(rows, 'mixed'), ['10/1/2026', 'TBD']);
+  assert.equal(fields.mixed.type, DATA_TYPES.STRING);
+
+  assert.equal(calls.length, 3);
+  assert.match(calls[0].url, /dateTimeRenderOption=FORMATTED_STRING/);
+  assert.match(calls[1].url, /\?ranges=.*&fields=sheets\.data\.rowData\.values\.effectiveFormat/);
+  assert.match(calls[2].url, /dateTimeRenderOption=SERIAL_NUMBER/);
+});
+
+test('keeps date columns as text, without extra requests, when the Output Schema stores them as text', async () => {
+  const { rows, fields, calls, source } = await runDateSheet({
+    outputSchemaFieldTypes: JSON.stringify({
+      date: 'OTHER',
+      visitors: 'OTHER',
+      note: 'OTHER',
+      when: 'OTHER',
+      duration: 'OTHER',
+      mixed: 'OTHER',
+    }),
+  });
+
+  assert.deepEqual(columnOf(rows, 'date'), ['10/1/2026', '10/2/2026']);
+  assert.deepEqual(columnOf(rows, 'when'), ['10/1/2026 14:30:00', '10/2/2026 08:00:00']);
+  assert.equal(fields.date.type, DATA_TYPES.STRING);
+  assert.equal(fields.when.type, DATA_TYPES.STRING);
+  assert.equal(calls.length, 1);
+  assert.deepEqual(source.logs, []);
+});
+
+test('converts the columns the Output Schema declares as DATE or DATETIME', async () => {
+  const { rows, fields, source } = await runDateSheet({
+    outputSchemaFieldTypes: JSON.stringify({
+      date: 'DATETIME',
+      when: 'DATE',
+      note: 'OTHER',
+      mixed: 'OTHER',
+      duration: 'OTHER',
+      visitors: 'OTHER',
+    }),
+  });
+
+  assert.deepEqual(columnOf(rows, 'date'), ['2026-10-01 00:00:00', '2026-10-02 00:00:00']);
+  assert.deepEqual(columnOf(rows, 'when'), ['2026-10-01', '2026-10-02']);
+  assert.equal(fields.date.type, DATA_TYPES.DATETIME);
+  assert.equal(fields.when.type, DATA_TYPES.DATE);
+  assert.deepEqual(source.logs, []);
+});
+
+test('detects dates in a column the Output Schema does not list yet', async () => {
+  const { fields } = await runDateSheet({
+    outputSchemaFieldTypes: JSON.stringify({ date: 'OTHER', when: 'OTHER' }),
+  });
+
+  assert.equal(fields.date.type, DATA_TYPES.STRING);
+  assert.equal(fields.when.type, DATA_TYPES.STRING);
+  // `mixed` and `duration` are new to the Output Schema but hold no clean dates.
+  assert.equal(fields.mixed.type, DATA_TYPES.STRING);
+  assert.equal(fields.duration.type, DATA_TYPES.STRING);
+});
+
+test('imports a declared date column as text and names the row that is not a date', async () => {
+  const { rows, fields, source } = await runDateSheet({
+    outputSchemaFieldTypes: JSON.stringify({ mixed: 'DATE', duration: 'DATETIME', note: 'DATE' }),
+  });
+
+  assert.deepEqual(columnOf(rows, 'mixed'), ['10/1/2026', 'TBD']);
+  assert.equal(fields.mixed.type, DATA_TYPES.STRING);
+  assert.equal(fields.duration.type, DATA_TYPES.STRING);
+  assert.equal(fields.note.type, DATA_TYPES.STRING);
+  assert.equal(source.logs.length, 3);
+  assert.ok(
+    source.logs.some(message =>
+      message.startsWith(
+        `Column 'Mixed' is DATE in the Output Schema, but row 3 ("TBD") is not a date in the sheet.`
+      )
+    )
+  );
+  assert.ok(
+    source.logs.some(message =>
+      message.includes(
+        `Column 'Duration' is DATETIME in the Output Schema, but row 2 ("36:00:00") is formatted as a time or a duration`
+      )
+    )
+  );
+  assert.ok(source.logs.some(message => message.includes(`Column 'Note' is DATE`)));
+});
+
+test('keeps a date column as text when a cell below the format sample is not a date', async () => {
+  const formatted = [...DATE_SHEET_FORMATTED.map(row => row.slice(0, 1)), ['N/A']];
+  const serial = [...DATE_SHEET_SERIAL.map(row => row.slice(0, 1)), ['N/A']];
+  // The format sample ends before row 4, so only the serial read can catch it.
+  const formats = DATE_SHEET_FORMATS.map(row => row.slice(0, 1));
+
+  const { rows, fields } = await runDateSheet({}, { formatted, serial, formats });
+
+  assert.deepEqual(columnOf(rows, 'date'), ['10/1/2026', '10/2/2026', 'N/A']);
+  assert.equal(fields.date.type, DATA_TYPES.STRING);
+
+  const declared = await runDateSheet(
+    { outputSchemaFieldTypes: JSON.stringify({ date: 'DATE' }) },
+    { formatted, serial, formats }
+  );
+  assert.equal(declared.fields.date.type, DATA_TYPES.STRING);
+  assert.match(declared.source.logs[0], /row 4 \("N\/A"\) is not a date in the sheet/);
+});
+
+test('with Infer Types off converts only the columns the Output Schema declares as dates', async () => {
+  const undeclared = await runDateSheet({ inferTypes: false });
+  assert.equal(undeclared.fields.date.type, DATA_TYPES.STRING);
+  assert.deepEqual(columnOf(undeclared.rows, 'date'), ['10/1/2026', '10/2/2026']);
+  assert.equal(undeclared.calls.length, 1);
+
+  const declared = await runDateSheet({
+    inferTypes: false,
+    outputSchemaFieldTypes: JSON.stringify({ date: 'DATE' }),
+  });
+  assert.equal(declared.fields.date.type, DATA_TYPES.DATE);
+  assert.equal(declared.fields.when.type, DATA_TYPES.STRING);
+});
+
+test('converts no column when the Output Schema field types cannot be read', async () => {
+  const { fields, calls, source } = await runDateSheet({ outputSchemaFieldTypes: '{not json' });
+
+  assert.equal(fields.date.type, DATA_TYPES.STRING);
+  assert.equal(calls.length, 1);
+  assert.match(source.logs[0], /Could not read the Output Schema field types/);
+});
+
+test('reports native date columns as DATE in the field preview', async () => {
+  const source = createSource();
+  source.getAccessToken = async () => 'token';
+
+  await withFetch(dateSheetResponder(), async calls => {
+    const schema = plain(await source.fetchFieldsSchema());
+
+    assert.equal(schema.sheet.fields.date.type, DATA_TYPES.DATE);
+    assert.equal(schema.sheet.fields.when.type, DATA_TYPES.DATETIME);
+    assert.equal(schema.sheet.fields.mixed.type, DATA_TYPES.STRING);
+    assert.match(calls[2].url, /dateTimeRenderOption=SERIAL_NUMBER/);
+  });
+});
+
+test('converts date serials to warehouse literals', () => {
+  const source = createSource();
+
+  assert.equal(source._serialToWarehouseValue(46296, DATA_TYPES.DATE), '2026-10-01');
+  // DATE keeps the calendar day a Date-formatted cell shows, even with a time behind it.
+  assert.equal(source._serialToWarehouseValue(46296.99, DATA_TYPES.DATE), '2026-10-01');
+  assert.equal(
+    source._serialToWarehouseValue(46296.604166666664, DATA_TYPES.DATETIME),
+    '2026-10-01 14:30:00'
+  );
+  // Rounded to the second, not truncated: floating point puts 14:30 just below itself.
+  assert.equal(
+    source._serialToWarehouseValue(46296.60416666, DATA_TYPES.DATETIME),
+    '2026-10-01 14:30:00'
+  );
+  assert.equal(source._serialToWarehouseValue('46296', DATA_TYPES.DATE), null);
+  assert.equal(source._serialToWarehouseValue(Number.NaN, DATA_TYPES.DATE), null);
+  assert.equal(source._serialToWarehouseValue(3e6, DATA_TYPES.DATE), null);
+});
+
+test('creates an empty column the Output Schema declares as a date with that type', async () => {
+  const formatted = [['Date', 'Closed'], ['10/1/2026'], ['10/2/2026']];
+  const serial = [['Date', 'Closed'], [46296], [46297]];
+  const formats = [[null, null], ['DATE'], ['DATE']];
+
+  const { fields, rows } = await runDateSheet(
+    { outputSchemaFieldTypes: JSON.stringify({ date: 'OTHER', closed: 'DATE' }) },
+    { formatted, serial, formats }
+  );
+
+  assert.equal(fields.closed.type, DATA_TYPES.DATE);
+  assert.deepEqual(columnOf(rows, 'closed'), [null, null]);
+  assert.equal(fields.date.type, DATA_TYPES.STRING);
+
+  // Without a declared type an empty column keeps the type inference gives it.
+  const undeclared = await runDateSheet({}, { formatted, serial, formats });
+  assert.equal(undeclared.fields.closed.type, DATA_TYPES.STRING);
 });

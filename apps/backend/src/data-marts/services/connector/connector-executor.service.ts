@@ -823,7 +823,8 @@ export class ConnectorExecutorService {
             connector,
             refreshedConfig,
             configId,
-            configState
+            configState,
+            dataMart.schema
           ),
           storage: await this.storageConfigService.buildStorageConfig(dataMart),
         });

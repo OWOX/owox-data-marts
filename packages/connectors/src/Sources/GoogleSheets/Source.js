@@ -22,6 +22,16 @@ const GOOGLE_SHEETS_REQUIRED_OAUTH_SCOPES = [
   'https://www.googleapis.com/auth/drive.file',
   'https://www.googleapis.com/auth/userinfo.email',
 ];
+// Google Sheets counts date serials in days from 1899-12-30.
+const GOOGLE_SHEETS_SERIAL_EPOCH_MS = Date.UTC(1899, 11, 30);
+const GOOGLE_SHEETS_MS_PER_DAY = 24 * 60 * 60 * 1000;
+// Cell number formats a date column may carry. TIME (time of day and durations alike) is left
+// out on purpose: the Redshift storage cannot create a TIME column, and a duration is not a
+// point in time.
+const GOOGLE_SHEETS_DATE_FORMAT_TYPES = new Set(['DATE', 'DATE_TIME']);
+// Classes of Output Schema types the backend passes in OutputSchemaFieldTypes.
+const GOOGLE_SHEETS_OUTPUT_SCHEMA_DATE_TYPES = { DATE: 'DATE', DATETIME: 'DATETIME' };
+const GOOGLE_SHEETS_MAX_LOGGED_CELL_TEXT_LENGTH = 50;
 
 export class GoogleSheetsSource extends AbstractSource {
   constructor(context) {
@@ -220,6 +230,15 @@ export class GoogleSheetsSource extends AbstractSource {
         description: 'Generated at runtime from the selected sheet headers',
         attributes: [CONFIG_ATTRIBUTES.HIDE_IN_CONFIG_FORM],
       },
+      // No default on purpose: the setup form copies declared defaults into the saved
+      // configuration, and this value must only ever come from the backend at run time.
+      OutputSchemaFieldTypes: {
+        requiredType: 'string',
+        label: 'Output Schema Field Types',
+        description:
+          'Set at run time: JSON object of field name to DATE, DATETIME or OTHER, taken from the Data Mart Output Schema',
+        attributes: [CONFIG_ATTRIBUTES.HIDE_IN_CONFIG_FORM],
+      },
     };
 
     this._registerParameters();
@@ -328,19 +347,21 @@ export class GoogleSheetsSource extends AbstractSource {
         email: userInfo.email,
       };
 
-      return OauthCredentialsDto.builder()
-        .withUser(userData)
-        .withSecret({
-          refresh_token: data.refresh_token,
-          access_token: data.access_token,
-          client_id: variables.ClientId,
-          client_secret: variables.ClientSecret,
-        })
-        // The stored credential is backed by the refresh token. The access
-        // token's one-hour lifetime must not make the connection look expired.
-        .withExpiresIn(data.refresh_token_expires_in ?? null)
-        .build()
-        .toObject();
+      return (
+        OauthCredentialsDto.builder()
+          .withUser(userData)
+          .withSecret({
+            refresh_token: data.refresh_token,
+            access_token: data.access_token,
+            client_id: variables.ClientId,
+            client_secret: variables.ClientSecret,
+          })
+          // The stored credential is backed by the refresh token. The access
+          // token's one-hour lifetime must not make the connection look expired.
+          .withExpiresIn(data.refresh_token_expires_in ?? null)
+          .build()
+          .toObject()
+      );
     } catch (error) {
       if (error instanceof OauthFlowException) {
         throw error;
@@ -422,24 +443,47 @@ export class GoogleSheetsSource extends AbstractSource {
 
   async fetchData() {
     const values = await this._fetchSheetValues();
-    const { columns, rows } = this._buildSheetSnapshot(values, true);
-    const schema = this._inferSchema(columns, rows);
+    const snapshot = this._buildSheetSnapshot(values, true);
+    const columnTypes = await this._convertDateColumns(snapshot);
+    const schema = this._inferSchema(snapshot.columns, snapshot.rows, { columnTypes });
     this._setDynamicFieldsSchema(schema);
 
-    return rows;
+    return snapshot.rows;
   }
 
   async fetchFieldsSchema(signal) {
     const values = await this._fetchSheetValues({ preview: true, signal });
-    const { columns, rows } = this._buildSheetSnapshot(values, false, {
+    const snapshot = this._buildSheetSnapshot(values, false, {
       returnedRangeStartRow: this._getHeaderRowNumber(),
     });
-    const schema = this._inferSchema(columns, rows, { includeImportedAt: true });
+    const columnTypes = await this._convertDateColumns(snapshot, { preview: true, signal });
+    const schema = this._inferSchema(snapshot.columns, snapshot.rows, {
+      includeImportedAt: true,
+      columnTypes,
+    });
 
     return this._buildFieldsSchema(schema);
   }
 
-  async _fetchSheetValues({ preview = false, signal } = {}) {
+  /**
+   * Reads the configured range.
+   *
+   * The default FORMATTED_STRING read returns date and time cells as the text the sheet shows,
+   * which is what every column that is not converted to a date keeps. A SERIAL_NUMBER read of
+   * the same range returns those cells as day serials instead; with an identical range and
+   * render option for values, both reads have the same shape cell for cell.
+   *
+   * @param {Object} [options]
+   * @param {boolean} [options.preview] - Read only the header row and the preview sample
+   * @param {AbortSignal} [options.signal]
+   * @param {'FORMATTED_STRING'|'SERIAL_NUMBER'} [options.dateTimeRenderOption]
+   * @returns {Promise<Array<Array<*>>>}
+   */
+  async _fetchSheetValues({
+    preview = false,
+    signal,
+    dateTimeRenderOption = 'FORMATTED_STRING',
+  } = {}) {
     const spreadsheetId = this._extractSpreadsheetId(
       this.context.getParameter('SpreadsheetId')?.value
     );
@@ -448,10 +492,45 @@ export class GoogleSheetsSource extends AbstractSource {
     const encodedRange = encodeURIComponent(range);
     const url =
       `https://sheets.googleapis.com/v4/spreadsheets/${encodedSpreadsheetId}/values/${encodedRange}` +
-      '?majorDimension=ROWS&valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=FORMATTED_STRING';
+      `?majorDimension=ROWS&valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=${dateTimeRenderOption}`;
 
     const payload = await this._fetchSheetsApiJson(url, { signal });
     return Array.isArray(payload.values) ? payload.values : [];
+  }
+
+  /**
+   * Reads the number format type of every cell in the preview sample: the header row and up to
+   * 100 data rows below it, across the same columns as the preview read.
+   *
+   * @param {AbortSignal} [signal]
+   * @returns {Promise<Array<Array<string|null>>>} Rows aligned with the sample range; index 0 is
+   *   the header row. A cell without a number format is null.
+   */
+  async _fetchSampleNumberFormatTypes(signal) {
+    const spreadsheetId = this._extractSpreadsheetId(
+      this.context.getParameter('SpreadsheetId')?.value
+    );
+    const range = this._buildA1Range({ preview: true });
+    const url =
+      `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(spreadsheetId)}` +
+      `?ranges=${encodeURIComponent(range)}` +
+      `&fields=${encodeURIComponent('sheets.data.rowData.values.effectiveFormat.numberFormat.type')}`;
+
+    const payload = await this._fetchSheetsApiJson(url, {
+      signal,
+      oversizeMessage:
+        'Google Sheets response exceeds the 50 MB limit while reading cell formats. Narrow the Range and try again.',
+    });
+    const rowData = payload?.sheets?.[0]?.data?.[0]?.rowData;
+    if (!Array.isArray(rowData)) {
+      return [];
+    }
+
+    return rowData.map(row =>
+      Array.isArray(row?.values)
+        ? row.values.map(cell => cell?.effectiveFormat?.numberFormat?.type ?? null)
+        : []
+    );
   }
 
   /**
@@ -755,7 +834,9 @@ export class GoogleSheetsSource extends AbstractSource {
     const firstDataRowNumber = headerRowNumber + 1;
     const rows = this._buildRows(dataRows, columns, firstDataRowNumber, detectedColumns);
 
-    return { columns, rows };
+    // headerIndex locates the header inside `values`, so a second read of the same range can
+    // be matched to these rows: sheet row N sits at values[headerIndex + N - headerRowNumber].
+    return { columns, rows, headerIndex };
   }
 
   _assertImportSize(dataRows) {
@@ -1287,6 +1368,259 @@ export class GoogleSheetsSource extends AbstractSource {
     return value;
   }
 
+  /**
+   * Turns sheet columns of native date cells into DATE or DATETIME values, in place.
+   *
+   * Which columns are eligible follows the Data Mart Output Schema, so that a Data Mart that
+   * already imports a date column as text keeps doing so until someone asks for a date:
+   * - Output Schema says DATE or DATETIME: convert to that type.
+   * - Output Schema has no type for the column (a new Data Mart before its first run, a column
+   *   added to the sheet later, or a run outside OWOX Data Marts): convert when the cells are
+   *   native dates and Infer Types is on.
+   * - Output Schema says any other type: leave the column exactly as before.
+   *
+   * A native date is a cell the sheet stores as a date serial and formats as Date or Date time.
+   * Text that only looks like a date stays text. A column converts only when every non-empty
+   * cell converts; otherwise it keeps the text the sheet shows. When the Output Schema asked for
+   * a date, the run log says which row kept the column as text.
+   *
+   * @param {{columns: Array<Object>, rows: Array<Object>, headerIndex: number}} snapshot
+   * @param {Object} [options]
+   * @param {boolean} [options.preview] - The snapshot came from the preview read
+   * @param {AbortSignal} [options.signal]
+   * @returns {Promise<Object<string, string>>} Column name to DATA_TYPES.DATE or DATETIME, for
+   *   the converted columns only
+   */
+  async _convertDateColumns({ columns, rows, headerIndex }, { preview = false, signal } = {}) {
+    const outputSchemaTypes = this._getOutputSchemaFieldTypes();
+    if (!outputSchemaTypes) {
+      return {};
+    }
+
+    const inferTypes = Boolean(this.context.getParameter('InferTypes')?.value);
+    const columnTypes = {};
+    const candidates = [];
+    for (const column of columns) {
+      const target = this._getDateColumnTarget(column, outputSchemaTypes, inferTypes);
+      if (!target) {
+        continue;
+      }
+
+      const filledRows = rows.filter(row => row[column.name] !== null);
+      if (filledRows.length === 0) {
+        // Nothing to convert, so a declared date type can be kept as is: an empty column the
+        // Output Schema calls DATE would otherwise be created as text and flagged as a mismatch.
+        if (target.declared) {
+          columnTypes[column.name] = target.type;
+        }
+        continue;
+      }
+
+      // A native date arrives from the FORMATTED_STRING read as text; a number or a boolean
+      // here is a plain value, never a date.
+      const notText = filledRows.find(row => typeof row[column.name] !== 'string');
+      if (notText) {
+        this._reportDateColumnKeptAsText(column, target, notText, 'is not a date in the sheet');
+        continue;
+      }
+
+      candidates.push({ column, target, filledRows });
+    }
+
+    if (candidates.length === 0) {
+      return columnTypes;
+    }
+
+    const headerRowNumber = this._getHeaderRowNumber();
+    const sampleFormatTypes = await this._fetchSampleNumberFormatTypes(signal);
+    const dateColumns = candidates
+      .map(candidate => this._classifyDateColumn(candidate, sampleFormatTypes, headerRowNumber))
+      .filter(Boolean);
+
+    if (dateColumns.length === 0) {
+      return columnTypes;
+    }
+
+    const serialValues = await this._fetchSheetValues({
+      preview,
+      signal,
+      dateTimeRenderOption: 'SERIAL_NUMBER',
+    });
+    for (const { column, target, type, filledRows } of dateColumns) {
+      const converted = [];
+      let failedRow = null;
+      for (const row of filledRows) {
+        const serial =
+          serialValues[headerIndex + row._owox_row_number - headerRowNumber]?.[column.index];
+        const value = this._serialToWarehouseValue(serial, type);
+        if (value === null) {
+          failedRow = row;
+          break;
+        }
+        converted.push(value);
+      }
+
+      if (failedRow) {
+        this._reportDateColumnKeptAsText(column, target, failedRow, 'is not a date in the sheet');
+        continue;
+      }
+
+      filledRows.forEach((row, index) => {
+        row[column.name] = converted[index];
+      });
+      columnTypes[column.name] = type;
+    }
+
+    return columnTypes;
+  }
+
+  /**
+   * Reads the Output Schema type classes the backend passes for this run.
+   *
+   * @returns {{available: boolean, types: Object<string, string>}|null} `available` is false
+   *   when no Output Schema exists yet. Null when the value cannot be read: then no column is
+   *   converted, because guessing could change a column that the Output Schema keeps as text.
+   */
+  _getOutputSchemaFieldTypes() {
+    const rawValue = this.context.getParameter('OutputSchemaFieldTypes')?.value;
+    if (rawValue === undefined || rawValue === null || rawValue === '') {
+      return { available: false, types: {} };
+    }
+
+    try {
+      const parsed = typeof rawValue === 'string' ? JSON.parse(rawValue) : rawValue;
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        return { available: true, types: parsed };
+      }
+    } catch (_) {
+      // Reported below, together with a value of the wrong shape.
+    }
+
+    this.context.log(
+      LOG_LEVEL.WARN,
+      'Could not read the Output Schema field types for this run; date columns are imported as text'
+    );
+    return null;
+  }
+
+  /**
+   * @returns {{type: string|null, declared: boolean}|null} The date type a column should
+   *   become (null: decided by its cell formats), or null when the column keeps today's import.
+   */
+  _getDateColumnTarget(column, outputSchemaTypes, inferTypes) {
+    if (
+      outputSchemaTypes.available &&
+      Object.prototype.hasOwnProperty.call(outputSchemaTypes.types, column.name)
+    ) {
+      const declaredType = outputSchemaTypes.types[column.name];
+      if (declaredType === GOOGLE_SHEETS_OUTPUT_SCHEMA_DATE_TYPES.DATE) {
+        return { type: DATA_TYPES.DATE, declared: true };
+      }
+      if (declaredType === GOOGLE_SHEETS_OUTPUT_SCHEMA_DATE_TYPES.DATETIME) {
+        return { type: DATA_TYPES.DATETIME, declared: true };
+      }
+      return null;
+    }
+
+    return inferTypes ? { type: null, declared: false } : null;
+  }
+
+  /**
+   * Decides from the sampled cell formats whether a candidate column holds dates.
+   *
+   * Only cells with a value count: a column is often formatted as Date further down than it is
+   * filled. Cells below the sample are checked later, when their serials are converted.
+   *
+   * @returns {Object|null} The candidate with its resolved `type`, or null when it stays text
+   */
+  _classifyDateColumn(candidate, sampleFormatTypes, headerRowNumber) {
+    const { column, target, filledRows } = candidate;
+    const sampledFormats = [];
+    for (const row of filledRows) {
+      const sampleIndex = row._owox_row_number - headerRowNumber;
+      if (sampleIndex >= sampleFormatTypes.length) {
+        break;
+      }
+      sampledFormats.push({ row, formatType: sampleFormatTypes[sampleIndex]?.[column.index] });
+    }
+
+    if (sampledFormats.length === 0) {
+      this._reportDateColumnKeptAsText(
+        column,
+        target,
+        filledRows[0],
+        'is below the first 100 rows, where the date format is checked'
+      );
+      return null;
+    }
+
+    const notDate = sampledFormats.find(
+      ({ formatType }) => !GOOGLE_SHEETS_DATE_FORMAT_TYPES.has(formatType)
+    );
+    if (notDate) {
+      const reason =
+        notDate.formatType === 'TIME'
+          ? 'is formatted as a time or a duration, not a date'
+          : 'is not a date in the sheet';
+      this._reportDateColumnKeptAsText(column, target, notDate.row, reason);
+      return null;
+    }
+
+    const hasTime = sampledFormats.some(({ formatType }) => formatType === 'DATE_TIME');
+    const type = target.type ?? (hasTime ? DATA_TYPES.DATETIME : DATA_TYPES.DATE);
+    return { ...candidate, type };
+  }
+
+  /**
+   * Converts a Google Sheets date serial to the warehouse literal for DATE or DATETIME.
+   * DATE keeps the calendar day the cell shows; DATETIME keeps the wall-clock time, to the
+   * second, with no time zone (the sheet's own clock).
+   *
+   * @returns {string|null} Null when the value is not a serial or falls outside year 1-9999
+   */
+  _serialToWarehouseValue(serial, type) {
+    if (typeof serial !== 'number' || !Number.isFinite(serial)) {
+      return null;
+    }
+
+    const timestamp =
+      type === DATA_TYPES.DATE
+        ? GOOGLE_SHEETS_SERIAL_EPOCH_MS + Math.floor(serial) * GOOGLE_SHEETS_MS_PER_DAY
+        : GOOGLE_SHEETS_SERIAL_EPOCH_MS + Math.round(serial * 86400) * 1000;
+    const date = new Date(timestamp);
+    const year = date.getUTCFullYear();
+    if (!Number.isFinite(timestamp) || year < 1 || year > 9999) {
+      return null;
+    }
+
+    const isoString = date.toISOString();
+    return type === DATA_TYPES.DATE
+      ? isoString.slice(0, 10)
+      : `${isoString.slice(0, 10)} ${isoString.slice(11, 19)}`;
+  }
+
+  /**
+   * Tells the user why a column the Output Schema declares as a date was imported as text.
+   * Columns without a declared date type stay text silently: that is the import they had.
+   */
+  _reportDateColumnKeptAsText(column, target, row, reason) {
+    if (!target.declared) {
+      return;
+    }
+
+    const cellText = String(row[column.name]);
+    const shownText =
+      cellText.length > GOOGLE_SHEETS_MAX_LOGGED_CELL_TEXT_LENGTH
+        ? `${cellText.slice(0, GOOGLE_SHEETS_MAX_LOGGED_CELL_TEXT_LENGTH)}…`
+        : cellText;
+    this.context.log(
+      LOG_LEVEL.WARN,
+      `Column '${column.originalName || column.name}' is ${target.type} in the Output Schema, ` +
+        `but row ${row._owox_row_number} ("${shownText}") ${reason}. ` +
+        'The column was imported as text; fix the cell or change the field type in the Output Schema.'
+    );
+  }
+
   _inferSchema(columns, rows, options = {}) {
     const fields = {
       _owox_row_number: {
@@ -1305,11 +1639,15 @@ export class GoogleSheetsSource extends AbstractSource {
       const values = rows
         .map(row => row[column.name])
         .filter(value => value !== null && value !== undefined);
+      // Set by _convertDateColumns, whose values are ISO text that _inferType would call STRING.
+      const convertedDateType = options.columnTypes?.[column.name];
 
       fields[column.name] = {
-        type: this.context.getParameter('InferTypes')?.value
-          ? this._inferType(values)
-          : DATA_TYPES.STRING,
+        type:
+          convertedDateType ??
+          (this.context.getParameter('InferTypes')?.value
+            ? this._inferType(values)
+            : DATA_TYPES.STRING),
         description: this._buildFieldDescription(column),
       };
     }

@@ -10,7 +10,7 @@ On each refresh the connector:
 2. Uses the configured absolute, one-based `HeaderRow` as warehouse columns.
 3. Previews all supported columns and at most 100 sample rows in the setup wizard.
 4. Generates stable names for blank, duplicate, or warehouse-incompatible headers.
-5. Infers types only from unambiguous native boolean and numeric values.
+5. Infers types only from unambiguous native boolean, numeric, and date values.
 6. Performs a full refresh so the materialized table reflects the current sheet contents.
 
 ## Column selection
@@ -37,7 +37,21 @@ Blank header cells receive names such as `column_2`. A completely empty selected
 
 ## Values and empty snapshots
 
-Text remains text. Values such as `00123`, `true`, and `2026-01-01` are `STRING` when the Google Sheets API returns them as text. Only native JSON booleans and numbers can be inferred as `BOOLEAN`, `INTEGER`, or `NUMBER`; mixed columns use `STRING`. Disable `InferTypes` to make every user column `STRING`.
+Text remains text. Values such as `00123`, `true`, and `2026-01-01` are `STRING` when the Google Sheets API returns them as text. Only native JSON booleans and numbers can be inferred as `BOOLEAN`, `INTEGER`, or `NUMBER`, and only native dates as `DATE` or `DATETIME` (see Dates); mixed columns use `STRING`. Disable `InferTypes` to make every user column `STRING` unless the Output Schema declares it a date.
+
+## Dates
+
+A column whose cells are native dates (stored by the sheet as date serials and formatted as Date or Date time) is imported as `DATE` (`YYYY-MM-DD`) or `DATETIME` (`YYYY-MM-DD HH:MM:SS`, the sheet's own clock, no time zone). Dates typed as text, time-only and duration cells, and columns that mix dates with other values stay `STRING` with the text the sheet shows.
+
+Inside OWOX Data Marts the Data Mart Output Schema decides for every column it already lists. The backend passes the type classes in the hidden run-time parameter `OutputSchemaFieldTypes`, a JSON object of field name to `DATE`, `DATETIME`, or `OTHER`:
+
+- `DATE` or `DATETIME`: the column is converted to that type. If a cell is not a native date, the column stays `STRING` and the run log names the row. An empty column gets the declared type.
+- `OTHER`: the column is imported exactly as before, so an existing table keeps a text column until the user changes the field type.
+- No entry (a column the Output Schema does not list yet, or no Output Schema before the first run): native dates are detected when `InferTypes` is on.
+
+An unreadable `OutputSchemaFieldTypes` value converts no column. Detection reads the number formats of the preview sample (the header row and up to 100 data rows) with `spreadsheets.get`, and, only when a date column is found, the range a second time with `dateTimeRenderOption=SERIAL_NUMBER`. A column converts only when every non-empty cell, including those below the sample, is a date serial.
+
+## Limits
 
 The first iteration supports up to 100,000 data rows per sheet refresh. Larger sheets fail with a clear error and should be narrowed with `Range`; incremental and append imports are outside this connector's current full-refresh scope.
 

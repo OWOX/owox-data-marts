@@ -11,6 +11,12 @@ import { ConnectorDefinition as DataMartConnectorDefinition } from '../../dto/sc
 import { ConnectorStateItem } from '../../connector-types/interfaces/connector-state';
 import { ConnectorCredentialInjectorService } from './connector-credential-injector.service';
 import { unwrapRunPayload } from '../../utils/manual-backfill-range';
+import type { DataMartSchema } from '../../data-storage-types/data-mart-schema.type';
+import {
+  classifyOutputSchemaFieldTypes,
+  OUTPUT_SCHEMA_FIELD_TYPES_PARAMETER,
+  SOURCES_READING_OUTPUT_SCHEMA_TYPES,
+} from './output-schema-field-types';
 
 @Injectable()
 export class ConnectorSourceConfigService {
@@ -24,7 +30,8 @@ export class ConnectorSourceConfigService {
     connector: DataMartConnectorDefinition['connector'],
     config: Record<string, unknown>,
     configId: string,
-    state?: ConnectorStateItem
+    state?: ConnectorStateItem,
+    dataMartSchema?: DataMartSchema | null
   ): Promise<SourceConfigDto> {
     const fieldsConfig = connector.source.fields
       .map(field => `${connector.source.node} ${field}`)
@@ -52,8 +59,31 @@ export class ConnectorSourceConfigService {
         ...(state?.state?.date
           ? { LastRequestedDate: new Date(state.state.date as string).toISOString().split('T')[0] }
           : {}),
+        ...this.buildOutputSchemaParameters(connector.source.name, dataMartSchema),
       },
     });
+  }
+
+  /**
+   * The Output Schema type classes for a source that reads them, as a run-time parameter.
+   *
+   * A Data Mart without an Output Schema (one that has never run) gets the parameter unset,
+   * overriding anything a saved configuration might hold: the source then knows there is no
+   * Output Schema to follow yet. Other sources get nothing.
+   */
+  private buildOutputSchemaParameters(
+    sourceName: string,
+    dataMartSchema: DataMartSchema | null | undefined
+  ): Record<string, string | undefined> {
+    if (!SOURCES_READING_OUTPUT_SCHEMA_TYPES.has(sourceName)) {
+      return {};
+    }
+
+    return {
+      [OUTPUT_SCHEMA_FIELD_TYPES_PARAMETER]: dataMartSchema
+        ? JSON.stringify(classifyOutputSchemaFieldTypes(dataMartSchema))
+        : undefined,
+    };
   }
 
   buildRunConfig(

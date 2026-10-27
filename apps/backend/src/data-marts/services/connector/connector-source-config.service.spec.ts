@@ -1,6 +1,7 @@
 // connector-source-config.service.spec.ts
 import { ConnectorSourceConfigService } from './connector-source-config.service';
 import { ConnectorCredentialInjectorService } from './connector-credential-injector.service';
+import type { DataMartSchema } from '../../data-storage-types/data-mart-schema.type';
 
 describe('ConnectorSourceConfigService', () => {
   const createService = () => {
@@ -59,6 +60,75 @@ describe('ConnectorSourceConfigService', () => {
       );
 
       expect(result).toBeDefined();
+    });
+
+    describe('Output Schema field types', () => {
+      const sheetsConnector = {
+        ...connector,
+        source: { ...connector.source, name: 'GoogleSheets', node: 'sheet' },
+      };
+      const schema = {
+        type: 'bigquery-data-mart-schema',
+        fields: [
+          { name: 'date', type: 'DATE' },
+          { name: 'created_at', type: 'TIMESTAMP' },
+          { name: 'title', type: 'STRING' },
+          { name: 'margin', type: 'FLOAT', calculated: { formula: '1', level: 'row' } },
+        ],
+      } as unknown as DataMartSchema;
+
+      it('passes the class of every warehouse field to a Google Sheets run', async () => {
+        const { service } = createService();
+
+        const result = await service.buildSourceConfig(
+          'dm-1',
+          'proj-1',
+          sheetsConnector as any,
+          { SheetName: 'Growth' },
+          'cfg-1',
+          undefined,
+          schema
+        );
+
+        expect(JSON.parse(result.config.OutputSchemaFieldTypes.value)).toEqual({
+          date: 'DATE',
+          created_at: 'DATETIME',
+          title: 'OTHER',
+        });
+      });
+
+      it('leaves it unset for a Google Sheets Data Mart without an Output Schema, whatever the saved configuration holds', async () => {
+        const { service } = createService();
+
+        const result = await service.buildSourceConfig(
+          'dm-1',
+          'proj-1',
+          sheetsConnector as any,
+          { SheetName: 'Growth', OutputSchemaFieldTypes: '{"date":"DATE"}' },
+          'cfg-1',
+          undefined,
+          undefined
+        );
+
+        expect(result.config).toHaveProperty('OutputSchemaFieldTypes');
+        expect(result.config.OutputSchemaFieldTypes.value).toBeUndefined();
+      });
+
+      it('does not pass it to other sources', async () => {
+        const { service } = createService();
+
+        const result = await service.buildSourceConfig(
+          'dm-1',
+          'proj-1',
+          connector as any,
+          { param1: 'val1' },
+          'cfg-1',
+          undefined,
+          schema
+        );
+
+        expect(result.config).not.toHaveProperty('OutputSchemaFieldTypes');
+      });
     });
 
     it('calls credential injector for OAuth credentials', async () => {
