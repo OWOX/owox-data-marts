@@ -35,14 +35,14 @@ describe('changesConnectionTarget', () => {
     [DataStorageType.LEGACY_GOOGLE_BIGQUERY, { projectId: 'a' }, { projectId: 'b' }, true],
     [
       DataStorageType.DATABRICKS,
-      { host: 'a', httpPath: '/1' },
-      { host: 'b', httpPath: '/1' },
+      { host: 'a.cloud.databricks.com', httpPath: '/1' },
+      { host: 'b.cloud.databricks.com', httpPath: '/1' },
       true,
     ],
     [
       DataStorageType.DATABRICKS,
-      { host: 'a', httpPath: '/1' },
-      { host: 'a', httpPath: '/2' },
+      { host: 'a.cloud.databricks.com', httpPath: '/1' },
+      { host: 'a.cloud.databricks.com', httpPath: '/2' },
       false,
     ],
     [
@@ -212,9 +212,9 @@ describe('sameStorageConfig', () => {
     ],
     [
       DataStorageType.DATABRICKS,
-      { host: 'h', httpPath: '/p' },
-      { httpPath: '/p', host: 'h', extra: null },
-      { host: 'h', httpPath: '/q' },
+      { host: 'h.cloud.databricks.com', httpPath: '/p' },
+      { httpPath: '/p', host: 'h.cloud.databricks.com', extra: null },
+      { host: 'h.cloud.databricks.com', httpPath: '/q' },
     ],
   ])(
     '%s: treats a re-sent config as the same and a real change as a change',

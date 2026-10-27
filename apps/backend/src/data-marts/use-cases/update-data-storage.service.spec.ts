@@ -486,6 +486,25 @@ describe('UpdateDataStorageService - config change on a bound Storage', () => {
     expect(dataStorageRepository.save).not.toHaveBeenCalled();
   });
 
+  it('refuses a Databricks host outside Databricks workspaces while the Credential is disabled', async () => {
+    const { service, storage, credentialsResolver, dataStorageRepository } = makeService();
+    storage.type = DataStorageType.DATABRICKS;
+    storage.config = { host: 'workspace.cloud.databricks.com', httpPath: '/sql/1' } as never;
+    credentialsResolver.resolveCredential.mockRejectedValue(
+      new StorageCredentialUnavailableException("This Storage's Credential is disabled.", false)
+    );
+
+    const error = await service
+      .run(makeCommand({ config: { host: 'collector.vendor.example', httpPath: '/sql/1' } }))
+      .catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(AccessValidationException);
+    expect(error).toMatchObject({
+      errorDetails: { fieldErrors: [expect.objectContaining({ field: 'config.host' })] },
+    });
+    expect(dataStorageRepository.save).not.toHaveBeenCalled();
+  });
+
   it('still fails on any other error while resolving the bound Credential', async () => {
     const { service, credentialsResolver, dataStorageRepository } = makeService();
     credentialsResolver.resolveCredential.mockRejectedValue(new Error('db down'));

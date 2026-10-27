@@ -7,7 +7,7 @@ import { BUILTIN_CREDENTIAL_DEFINITIONS } from '../credentials/services/builtin-
 import { AthenaConfigSchema } from './athena/schemas/athena-config.schema';
 import { BigQueryConfigSchema } from './bigquery/schemas/bigquery-config.schema';
 import type { DataStorageConfig } from './data-storage-config.type';
-import { DatabricksConfigSchema } from './databricks/schemas/databricks-config.schema';
+import { DatabricksWorkspaceConfigSchema } from './databricks/schemas/databricks-config.schema';
 import { RedshiftConfigSchema } from './redshift/schemas/redshift-config.schema';
 import { SnowflakeConfigSchema } from './snowflake/schemas/snowflake-config.schema';
 import { DataStorageType } from './enums/data-storage-type.enum';
@@ -49,7 +49,7 @@ const CONFIG_SCHEMAS: Readonly<Record<DataStorageType, ZodTypeAny>> = {
   [DataStorageType.AWS_ATHENA]: AthenaConfigSchema,
   [DataStorageType.AWS_REDSHIFT]: RedshiftConfigSchema,
   [DataStorageType.SNOWFLAKE]: SnowflakeConfigSchema,
-  [DataStorageType.DATABRICKS]: DatabricksConfigSchema,
+  [DataStorageType.DATABRICKS]: DatabricksWorkspaceConfigSchema,
 };
 
 type MaybeConfig = DataStorageConfig | null | undefined;
