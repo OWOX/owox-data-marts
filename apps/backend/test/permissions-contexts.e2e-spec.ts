@@ -387,9 +387,16 @@ describe('Permissions Model Contexts & Role Scope (e2e)', () => {
       expect(res.status).toBe(409);
     });
 
-    it('DELETE → 409 when assigned to a member', async () => {
+    const setMemberScope = (roleScope: RoleScope, contextIds: string[]) =>
+      contextAccess.updateMember('1', PROJECT_ID, {
+        role: ProjectRole.EDITOR,
+        roleScope,
+        contextIds,
+      });
+
+    it('DELETE → 409 when assigned to a Selected contexts member', async () => {
       const ctx = await createContext('B-attached-member');
-      await contextAccess.updateMemberContexts('1', PROJECT_ID, [ctx.body.id]);
+      await setMemberScope(RoleScope.SELECTED_CONTEXTS, [ctx.body.id]);
 
       const impact = await agent.get(`/api/contexts/${ctx.body.id}/impact`).set(AUTH_HEADER);
       expect(impact.body.memberCount).toBe(1);
@@ -398,7 +405,24 @@ describe('Permissions Model Contexts & Role Scope (e2e)', () => {
       expect(res.status).toBe(409);
 
       // cleanup: detach from member
-      await contextAccess.updateMemberContexts('1', PROJECT_ID, []);
+      await setMemberScope(RoleScope.ENTIRE_PROJECT, []);
+    });
+
+    it('DELETE → 204 when only an Entire project member still holds the context', async () => {
+      const ctx = await createContext('B-project-wide-member');
+      // Switching to Entire project keeps the member's contexts.
+      await setMemberScope(RoleScope.ENTIRE_PROJECT, [ctx.body.id]);
+
+      const impact = await agent.get(`/api/contexts/${ctx.body.id}/impact`).set(AUTH_HEADER);
+      expect(impact.body.memberCount).toBe(0);
+
+      const res = await agent.delete(`/api/contexts/${ctx.body.id}`).set(AUTH_HEADER);
+      expect(res.status).toBe(204);
+      await expect(contextAccess.getMemberContextIds('1', PROJECT_ID)).resolves.not.toContain(
+        ctx.body.id
+      );
+
+      await setMemberScope(RoleScope.ENTIRE_PROJECT, []);
     });
 
     it('DELETE → 409 with multiple attachments across all entity kinds', async () => {
@@ -407,7 +431,7 @@ describe('Permissions Model Contexts & Role Scope (e2e)', () => {
       const storageId = await createStorage();
       await attachDataMartContexts(dataMartId, [ctx.body.id]);
       await updateStorageContexts(storageId, [ctx.body.id]);
-      await contextAccess.updateMemberContexts('1', PROJECT_ID, [ctx.body.id]);
+      await setMemberScope(RoleScope.SELECTED_CONTEXTS, [ctx.body.id]);
 
       const impact = await agent.get(`/api/contexts/${ctx.body.id}/impact`).set(AUTH_HEADER);
       expect(impact.body.dataMartCount).toBe(1);
@@ -417,7 +441,7 @@ describe('Permissions Model Contexts & Role Scope (e2e)', () => {
       const res = await agent.delete(`/api/contexts/${ctx.body.id}`).set(AUTH_HEADER);
       expect(res.status).toBe(409);
 
-      await contextAccess.updateMemberContexts('1', PROJECT_ID, []);
+      await setMemberScope(RoleScope.ENTIRE_PROJECT, []);
     });
 
     it('soft-delete + recreate same name → 201', async () => {

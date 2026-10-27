@@ -136,7 +136,10 @@ export class ContextImpactResponseApiDto {
   @ApiProperty()
   destinationCount: number;
 
-  @ApiProperty()
+  @ApiProperty({
+    description:
+      'Members with Selected contexts scope assigned to the context. Entire project members are not counted.',
+  })
   memberCount: number;
 
   @ApiProperty()

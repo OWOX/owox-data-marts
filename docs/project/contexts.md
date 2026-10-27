@@ -102,6 +102,8 @@ A context can only be deleted when it is **detached from every resource and memb
 
 Each entry links to the corresponding list, pre-filtered by the context, so you can detach attachments quickly.
 
+**Members** counts only members whose role scope is **Selected contexts only**. A member switched to **Entire project** keeps their context assignments, so they come back if you switch the member back. These kept assignments do not block the delete; they are removed together with the context.
+
 > ☝️ Deleting a context is final, but it does **not** delete the resources tagged with it. Resources stay; only the tag is removed.
 
 ![Delete context dialog blocked because the context is still attached to resources, listing Data Marts, Storages, Destinations, and Members with links to each filtered list](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/ca318fa5-faa5-408c-f2be-e9074d3b7e00/public)

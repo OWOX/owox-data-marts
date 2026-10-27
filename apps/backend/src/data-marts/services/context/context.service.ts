@@ -16,6 +16,7 @@ import { DestinationContext } from '../../entities/destination-context.entity';
 import { MemberRoleContext } from '../../entities/member-role-context.entity';
 import { MemberRoleScope } from '../../entities/member-role-scope.entity';
 import { UserProvisioningContextSettingsContext } from '../../entities/user-provisioning-context-settings-context.entity';
+import { UserProvisioningContextSettings } from '../../entities/user-provisioning-context-settings.entity';
 import { ContextMapper } from '../../mappers/context.mapper';
 import type { DataMartIconValue } from '../../enums/data-mart-icon.enum';
 import { UserProjectionsFetcherService } from '../user-projections-fetcher.service';
@@ -59,6 +60,8 @@ export class ContextService {
     private readonly memberRoleScopeRepository: Repository<MemberRoleScope>,
     @InjectRepository(UserProvisioningContextSettingsContext)
     private readonly userProvisioningContextSettingsContextRepository: Repository<UserProvisioningContextSettingsContext>,
+    @InjectRepository(UserProvisioningContextSettings)
+    private readonly userProvisioningContextSettingsRepository: Repository<UserProvisioningContextSettings>,
     private readonly contextMapper: ContextMapper,
     private readonly userProjectionsFetcherService: UserProjectionsFetcherService
   ) {}
@@ -192,19 +195,13 @@ export class ContextService {
   async getImpact(contextId: string, projectId: string): Promise<ContextImpactDto> {
     const entity = await this.getByIdAndProject(contextId, projectId);
 
-    const [
+    const {
       dataMartCount,
       storageCount,
       destinationCount,
       memberCount,
       userProvisioningDefaultsCount,
-    ] = await Promise.all([
-      this.dataMartContextRepository.count({ where: { contextId } }),
-      this.storageContextRepository.count({ where: { contextId } }),
-      this.destinationContextRepository.count({ where: { contextId } }),
-      this.memberRoleContextRepository.count({ where: { contextId } }),
-      this.userProvisioningContextSettingsContextRepository.count({ where: { contextId } }),
-    ]);
+    } = await this.countBlockingAttachments(contextId, projectId);
 
     // Find members with selected_contexts scope whose only context is the one being deleted
     const affectedMembers = await this.memberRoleContextRepository
@@ -242,11 +239,38 @@ export class ContextService {
    * Storages, and Destinations". The admin must manually detach first; we
    * refuse the delete here when any attachment exists. Counts are returned
    * in the conflict body so the UI can show what's blocking.
+   *
+   * Assignments kept by Entire project members are not role assignments in
+   * that sense: they grant nothing and the admin cannot see them, so they do
+   * not block. They are removed with the context, so a member switched back
+   * to Selected contexts later does not carry a deleted context.
    */
   @Transactional()
   async delete(contextId: string, projectId: string): Promise<void> {
     const entity = await this.getByIdAndProject(contextId, projectId);
 
+    const counts = await this.countBlockingAttachments(contextId, projectId);
+    const total =
+      counts.dataMartCount +
+      counts.storageCount +
+      counts.destinationCount +
+      counts.memberCount +
+      counts.userProvisioningDefaultsCount;
+
+    if (total > 0) {
+      throw new ConflictException({
+        message:
+          'Context is attached to resources, members, or user provisioning defaults. Detach it from all Data Marts, Storages, Destinations, Members and User Provisioning settings before deleting.',
+        ...counts,
+      });
+    }
+
+    // Only Entire project members can still hold this context here.
+    await this.memberRoleContextRepository.delete({ contextId, projectId });
+    await this.contextRepository.softRemove(entity);
+  }
+
+  private async countBlockingAttachments(contextId: string, projectId: string) {
     const [
       dataMartCount,
       storageCount,
@@ -257,30 +281,48 @@ export class ContextService {
       this.dataMartContextRepository.count({ where: { contextId } }),
       this.storageContextRepository.count({ where: { contextId } }),
       this.destinationContextRepository.count({ where: { contextId } }),
-      this.memberRoleContextRepository.count({ where: { contextId } }),
+      this.countMembersRestrictedByContext(contextId, projectId),
       this.userProvisioningContextSettingsContextRepository.count({ where: { contextId } }),
     ]);
 
-    if (
-      dataMartCount +
-        storageCount +
-        destinationCount +
-        memberCount +
-        userProvisioningDefaultsCount >
-      0
-    ) {
-      throw new ConflictException({
-        message:
-          'Context is attached to resources, members, or user provisioning defaults. Detach it from all Data Marts, Storages, Destinations, Members and User Provisioning settings before deleting.',
-        dataMartCount,
-        storageCount,
-        destinationCount,
-        memberCount,
-        userProvisioningDefaultsCount,
-      });
-    }
+    return {
+      dataMartCount,
+      storageCount,
+      destinationCount,
+      memberCount,
+      userProvisioningDefaultsCount,
+    };
+  }
 
-    await this.contextRepository.softRemove(entity);
+  /**
+   * Members whose access this context still decides: those the Members page
+   * shows with Selected contexts scope. Switching a member to Entire project
+   * keeps their context assignments, so they come back if the admin switches
+   * the member back; until then they grant nothing.
+   */
+  private async countMembersRestrictedByContext(
+    contextId: string,
+    projectId: string
+  ): Promise<number> {
+    const assignments = await this.memberRoleContextRepository.find({
+      where: { contextId, projectId },
+    });
+    if (assignments.length === 0) return 0;
+
+    const [storedScopes, provisioningSettings] = await Promise.all([
+      this.memberRoleScopeRepository.find({
+        where: { projectId, userId: In(assignments.map(a => a.userId)) },
+      }),
+      this.userProvisioningContextSettingsRepository.findOne({ where: { projectId } }),
+    ]);
+    // Same fallback as ContextAccessService.getRoleScope: a member with no
+    // stored scope gets the project's user provisioning default.
+    const defaultScope = provisioningSettings?.roleScope ?? RoleScope.ENTIRE_PROJECT;
+    const scopeByUserId = new Map(storedScopes.map(s => [s.userId, s.roleScope]));
+
+    return assignments.filter(
+      a => (scopeByUserId.get(a.userId) ?? defaultScope) !== RoleScope.ENTIRE_PROJECT
+    ).length;
   }
 
   async getByIdAndProject(contextId: string, projectId: string): Promise<Context> {

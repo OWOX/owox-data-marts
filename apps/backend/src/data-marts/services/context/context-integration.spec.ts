@@ -50,6 +50,7 @@ function buildServices() {
   const memberRoleContextRepo = createMockRepository();
   const memberRoleScopeRepo = createMockRepository();
   const userProvisioningContextSettingsContextRepo = createMockRepository();
+  const userProvisioningContextSettingsRepo = createMockRepository();
 
   // AccessDecision repos (entity + owner)
   const dataMartRepo = createMockRepository();
@@ -79,6 +80,7 @@ function buildServices() {
     memberRoleContextRepo as never,
     memberRoleScopeRepo as never,
     userProvisioningContextSettingsContextRepo as never,
+    userProvisioningContextSettingsRepo as never,
     contextMapper,
     userProjectionsFetcherService as never
   );
@@ -633,8 +635,23 @@ describe('Context Integration Tests', () => {
       s.dmContextRepo.count.mockResolvedValue(0);
       s.storageContextRepo.count.mockResolvedValue(0);
       s.destContextRepo.count.mockResolvedValue(0);
-      s.memberRoleContextRepo.count.mockResolvedValue(0);
+      s.memberRoleContextRepo.find.mockResolvedValue([]);
       s.userProvisioningContextSettingsContextRepo.count.mockResolvedValue(0);
+    };
+
+    /** `count` members with Selected contexts scope hold the context. */
+    const mockRestrictedMembers = (count: number) => {
+      const userIds = Array.from({ length: count }, (_, i) => `member-${i + 1}`);
+      s.memberRoleContextRepo.find.mockResolvedValue(
+        userIds.map(userId => ({ userId, projectId: PROJECT_ID, contextId: CONTEXT_ID }))
+      );
+      s.memberRoleScopeRepo.find.mockResolvedValue(
+        userIds.map(userId => ({
+          userId,
+          projectId: PROJECT_ID,
+          roleScope: RoleScope.SELECTED_CONTEXTS,
+        }))
+      );
     };
 
     // 22. Context delete throws ConflictException when still attached
@@ -647,7 +664,7 @@ describe('Context Integration Tests', () => {
       s.dmContextRepo.count.mockResolvedValue(2);
       s.storageContextRepo.count.mockResolvedValue(1);
       s.destContextRepo.count.mockResolvedValue(3);
-      s.memberRoleContextRepo.count.mockResolvedValue(4);
+      mockRestrictedMembers(4);
       s.userProvisioningContextSettingsContextRepo.count.mockResolvedValue(0);
 
       await expect(s.contextService.delete(CONTEXT_ID, PROJECT_ID)).rejects.toMatchObject({
@@ -682,7 +699,6 @@ describe('Context Integration Tests', () => {
 
       expect(s.contextRepo.softRemove).toHaveBeenCalledWith(entity);
       expect(s.dmContextRepo.delete).not.toHaveBeenCalled();
-      expect(s.memberRoleContextRepo.delete).not.toHaveBeenCalled();
     });
 
     // 24. Impact endpoint returns correct counts
@@ -695,7 +711,7 @@ describe('Context Integration Tests', () => {
       s.dmContextRepo.count.mockResolvedValue(5);
       s.storageContextRepo.count.mockResolvedValue(3);
       s.destContextRepo.count.mockResolvedValue(2);
-      s.memberRoleContextRepo.count.mockResolvedValue(7);
+      mockRestrictedMembers(7);
       s.userProvisioningContextSettingsContextRepo.count.mockResolvedValue(4);
       s.memberRoleContextRepo.createQueryBuilder.mockReturnValue({
         innerJoin: jest.fn().mockReturnThis(),
