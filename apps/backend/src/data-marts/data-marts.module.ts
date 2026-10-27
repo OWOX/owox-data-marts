@@ -291,6 +291,7 @@ import { ConnectorOauthService } from './services/connector/connector-oauth.serv
 import { DataMartTableReferenceService } from './services/data-mart-table-reference.service';
 import { DataMartSqlReferenceResolver } from './services/data-mart-sql-reference-resolver.service';
 import { DataMartSqlReferenceValidator } from './services/data-mart-sql-reference-validator.service';
+import { DataMartSchemaInheritanceService } from './services/data-mart-schema-inheritance.service';
 import { InsightTemplateSourceDataService } from './services/insight-template-source-data.service';
 import { InsightTemplateSourceService } from './services/insight-template-source.service';
 import { DataMartSqlTableService } from './services/data-mart-sql-table.service';
@@ -789,6 +790,7 @@ import { ConsentCredentialDefinitionService } from './credentials/use-cases/cons
     DataMartSqlReferenceResolver,
     { provide: DATA_MART_DEFINITION_RESOLVER, useExisting: DataMartSqlReferenceResolver },
     DataMartSqlReferenceValidator,
+    DataMartSchemaInheritanceService,
     DataMartSqlTableService,
     DataMartSampleDataService,
     GetDataMartRunService,

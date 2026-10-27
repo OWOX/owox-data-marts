@@ -29,6 +29,7 @@ import { renderFieldAliasAi, renderFieldDescriptionAi } from '../utils/render-fi
 import type { SchemaAiHelper } from '../types/ai-helper';
 import type { SchemaToolbar } from '../types/schema-toolbar';
 import type { SchemaField } from '../calculated/formula-reference-index';
+import { InheritedFieldMetadata } from '../components/InheritedFieldMetadata';
 
 /**
  * Props for the BigQuerySchemaTable component
@@ -287,6 +288,11 @@ export function BigQuerySchemaTable({
     }) => {
       const field = flattenedFields[row.index];
       const isTopLevel = (field.level ?? 0) === 0;
+      if (field.inheritedFrom) {
+        return (
+          <InheritedFieldMetadata value={field.description} inheritedFrom={field.inheritedFrom} />
+        );
+      }
       return (
         <SchemaFieldDescriptionText
           value={row.getValue('description')}
@@ -310,6 +316,9 @@ export function BigQuerySchemaTable({
     }) => {
       const field = flattenedFields[row.index];
       const isTopLevel = (field.level ?? 0) === 0;
+      if (field.inheritedFrom) {
+        return <InheritedFieldMetadata value={field.alias} inheritedFrom={field.inheritedFrom} />;
+      }
       return (
         <EditableText
           value={row.getValue('alias')}

@@ -22,6 +22,7 @@ describe('UpdateDataMartSchemaService', () => {
     parsedSchema?: unknown;
     dataMart?: Record<string, unknown>;
     resolveCredentials?: jest.Mock;
+    schemaInheritance?: { applyInheritance: jest.Mock; propagateFrom: jest.Mock };
   }) => {
     const parsedSchema = opts.parsedSchema ?? { type: 'bigquery-data-mart-schema', fields: [] };
     const dataMart = opts.dataMart ?? {
@@ -63,7 +64,8 @@ describe('UpdateDataMartSchemaService', () => {
       mapper as never,
       accessDecisionService as never,
       credentialsResolver as never,
-      searchIndexInvalidation as never
+      searchIndexInvalidation as never,
+      opts.schemaInheritance as never
     );
     return {
       service,
@@ -92,6 +94,33 @@ describe('UpdateDataMartSchemaService', () => {
     expect(searchIndexInvalidation.scheduleDataMartSchemaChanged).toHaveBeenCalledWith(
       'target-1',
       'project-1'
+    );
+  });
+
+  it('saves inherited field metadata over the edited one, then updates referencing Data Marts', async () => {
+    const validate = jest.fn().mockResolvedValue({ errors: [], warnings: [] });
+    const inheritedSchema = { type: 'bigquery-data-mart-schema', fields: [] };
+    const schemaInheritance = {
+      applyInheritance: jest.fn().mockResolvedValue({ schema: inheritedSchema, changed: true }),
+      propagateFrom: jest.fn().mockResolvedValue(undefined),
+    };
+    const { service, dataMartService, schemaParserFacade, dataMart } = buildService({
+      validate,
+      schemaInheritance,
+    });
+    const parsedSchema = await schemaParserFacade.validateAndParse();
+
+    await service.run(
+      new UpdateDataMartSchemaCommand('target-1', 'project-1', parsedSchema as never)
+    );
+
+    expect(schemaInheritance.applyInheritance).toHaveBeenCalledWith(dataMart, parsedSchema);
+    expect(dataMartService.save).toHaveBeenCalledWith(
+      expect.objectContaining({ schema: inheritedSchema })
+    );
+    expect(schemaInheritance.propagateFrom).toHaveBeenCalledWith(dataMart);
+    expect(schemaInheritance.propagateFrom.mock.invocationCallOrder[0]).toBeGreaterThan(
+      dataMartService.save.mock.invocationCallOrder[0]
     );
   });
 

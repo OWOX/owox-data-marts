@@ -1,4 +1,4 @@
-import { Injectable, ForbiddenException, BadRequestException } from '@nestjs/common';
+import { Injectable, ForbiddenException, BadRequestException, Optional } from '@nestjs/common';
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
 import { DataMartDto } from '../dto/domain/data-mart.dto';
 import { UpdateDataMartTitleCommand } from '../dto/domain/update-data-mart-title.command';
@@ -9,6 +9,7 @@ import { AccessDecisionService, EntityType, Action } from '../services/access-de
 import { containsNonBmpCharacters } from '../utils/contains-non-bmp-characters';
 import { AdvancedSearchIndexSyncService } from '../services/advanced-search-index-sync.service';
 import { SearchableEntityType } from '../../common/search/search.facade';
+import { DataMartSchemaInheritanceService } from '../services/data-mart-schema-inheritance.service';
 
 @Injectable()
 export class UpdateDataMartTitleService {
@@ -17,7 +18,9 @@ export class UpdateDataMartTitleService {
     private readonly mapper: DataMartMapper,
     private readonly legacyDataMartsService: LegacyDataMartsService,
     private readonly accessDecisionService: AccessDecisionService,
-    private readonly advancedSearchIndexSync?: AdvancedSearchIndexSyncService
+    private readonly advancedSearchIndexSync?: AdvancedSearchIndexSyncService,
+    @Optional()
+    private readonly schemaInheritance?: DataMartSchemaInheritanceService
   ) {}
 
   async run(command: UpdateDataMartTitleCommand): Promise<DataMartDto> {
@@ -49,6 +52,8 @@ export class UpdateDataMartTitleService {
 
     dataMart.title = command.title;
     await this.dataMartService.save(dataMart);
+    // Inherited fields of referencing Data Marts name their source by title.
+    if (titleChanged) await this.schemaInheritance?.propagateFrom(dataMart);
     await this.advancedSearchIndexSync?.scheduleReindex(
       SearchableEntityType.DATA_MART,
       dataMart.id,

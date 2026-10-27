@@ -15,6 +15,7 @@ import { OwnerFilter } from '../enums/owner-filter.enum';
 import { RoleScope } from '../enums/role-scope.enum';
 import { applyDataMartVisibilityFilter } from '../utils/apply-data-mart-visibility-filter';
 import { DataMartSearchIndexInvalidationService } from './data-mart-search-index-invalidation.service';
+import { DataMartSchemaInheritanceService } from './data-mart-schema-inheritance.service';
 
 @Injectable()
 export class DataMartService {
@@ -26,7 +27,9 @@ export class DataMartService {
     private readonly dataMartSchemaProviderFacade: DataMartSchemaProviderFacade,
     private readonly dataMartSchemaMergerFacade: DataMartSchemaMergerFacade,
     @Optional()
-    private readonly searchIndexInvalidation?: DataMartSearchIndexInvalidationService
+    private readonly searchIndexInvalidation?: DataMartSearchIndexInvalidationService,
+    @Optional()
+    private readonly schemaInheritance?: DataMartSchemaInheritanceService
   ) {}
 
   create(data: Partial<DataMart>): DataMart {
@@ -438,6 +441,22 @@ export class DataMartService {
       newSchema
     );
     dataMart.schemaActualizedAt = new Date();
+
+    // Fields that pass through from a Data Mart referenced in the SQL take its alias and
+    // description. Best-effort: actualization runs on every report run and must not fail on it.
+    if (this.schemaInheritance) {
+      try {
+        dataMart.schema = (
+          await this.schemaInheritance.applyInheritance(dataMart, dataMart.schema)
+        ).schema;
+      } catch (error) {
+        this.logger.warn(
+          `Could not apply inherited field metadata to data mart ${dataMart.id}: ${
+            error instanceof Error ? error.message : String(error)
+          }`
+        );
+      }
+    }
 
     return dataMart;
   }

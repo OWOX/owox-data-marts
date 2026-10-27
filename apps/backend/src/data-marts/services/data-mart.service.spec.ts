@@ -121,6 +121,53 @@ describe('DataMartService schema actualization', () => {
     warnSpy.mockRestore();
   });
 
+  it('saves the actualized schema with the metadata a referenced Data Mart passes down', async () => {
+    const dataMart = makeDataMart();
+    repository.findOne.mockResolvedValue(dataMart);
+    const inherited = { fields: [{ name: 'amount', alias: 'Amount', inheritedFrom: {} }] };
+    const schemaInheritance = {
+      applyInheritance: jest.fn().mockResolvedValue({ schema: inherited, changed: true }),
+    };
+    service = new DataMartService(
+      repository as any,
+      schemaProvider as any,
+      schemaMerger as any,
+      searchIndexInvalidation as any,
+      schemaInheritance as any
+    );
+
+    await service.actualizeSchema('dm-1', 'proj-1');
+
+    expect(schemaInheritance.applyInheritance).toHaveBeenCalledWith(dataMart, {
+      fields: [{ name: 'amount' }],
+    });
+    expect(repository.save).toHaveBeenCalledWith(expect.objectContaining({ schema: inherited }));
+  });
+
+  it('still actualizes the schema when inherited metadata cannot be loaded', async () => {
+    const dataMart = makeDataMart();
+    repository.findOne.mockResolvedValue(dataMart);
+    const schemaInheritance = {
+      applyInheritance: jest.fn().mockRejectedValue(new Error('database is down')),
+    };
+    service = new DataMartService(
+      repository as any,
+      schemaProvider as any,
+      schemaMerger as any,
+      searchIndexInvalidation as any,
+      schemaInheritance as any
+    );
+    const warnSpy = jest.spyOn(service['logger'], 'warn').mockImplementation(() => undefined);
+
+    await expect(service.actualizeSchema('dm-1', 'proj-1')).resolves.toBe(dataMart);
+
+    expect(repository.save).toHaveBeenCalledWith(
+      expect.objectContaining({ schema: { fields: [{ name: 'amount' }] } })
+    );
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('database is down'));
+    warnSpy.mockRestore();
+  });
+
   it('matches SQLite timestamps stored without milliseconds during the conditional update', async () => {
     const entitySchema = new EntitySchema<{ id: string; modifiedAt: Date; value: string }>({
       name: 'ConditionalUpdateTest',

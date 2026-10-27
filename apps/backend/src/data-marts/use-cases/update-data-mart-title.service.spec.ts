@@ -22,16 +22,18 @@ describe('UpdateDataMartTitleService', () => {
       scheduleTypeProjectSync: jest.fn().mockResolvedValue(undefined),
       scheduleReportsReindex: jest.fn().mockResolvedValue(undefined),
     };
+    const schemaInheritance = { propagateFrom: jest.fn().mockResolvedValue(undefined) };
 
     const service = new UpdateDataMartTitleService(
       dataMartService as never,
       mapper as never,
       legacyDataMartsService as never,
       accessDecisionService as never,
-      advancedSearchIndexSync as never
+      advancedSearchIndexSync as never,
+      schemaInheritance as never
     );
 
-    return { service, dataMartService, advancedSearchIndexSync };
+    return { service, dataMartService, advancedSearchIndexSync, schemaInheritance };
   };
 
   it('saves the new title and reindexes the data mart', async () => {
@@ -75,5 +77,30 @@ describe('UpdateDataMartTitleService', () => {
 
     expect(advancedSearchIndexSync.scheduleTypeProjectSync).not.toHaveBeenCalled();
     expect(advancedSearchIndexSync.scheduleReportsReindex).not.toHaveBeenCalled();
+  });
+
+  it('renames the source of inherited fields in the Data Marts that reference it', async () => {
+    const { service, dataMartService, schemaInheritance } = createService();
+
+    await service.run(
+      new UpdateDataMartTitleCommand('dm-1', 'proj-1', 'New title', 'user-1', ['editor'])
+    );
+
+    expect(schemaInheritance.propagateFrom).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'dm-1', title: 'New title' })
+    );
+    expect(schemaInheritance.propagateFrom.mock.invocationCallOrder[0]).toBeGreaterThan(
+      dataMartService.save.mock.invocationCallOrder[0]
+    );
+  });
+
+  it('leaves referencing Data Marts alone when the title is unchanged', async () => {
+    const { service, schemaInheritance } = createService();
+
+    await service.run(
+      new UpdateDataMartTitleCommand('dm-1', 'proj-1', 'Old title', 'user-1', ['editor'])
+    );
+
+    expect(schemaInheritance.propagateFrom).not.toHaveBeenCalled();
   });
 });

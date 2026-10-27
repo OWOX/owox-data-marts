@@ -22,6 +22,7 @@ import { asString } from '../utils';
 import { SchemaTable, type RowCellSpan } from './SchemaTable';
 import type { SchemaAiHelper } from '../types/ai-helper';
 import { renderFieldAliasAi, renderFieldDescriptionAi } from '../utils/render-field-ai';
+import { InheritedFieldMetadata } from '../components/InheritedFieldMetadata';
 import { AllowedAggregationsSelect } from '../AllowedAggregationsSelect';
 import { resolveFieldGovernance } from '../../../../shared/utils/aggregation-governance';
 import { isRowLevelCalculatedField } from '../../../../shared/utils/calculated-field-level';
@@ -464,6 +465,15 @@ export function BaseSchemaTable<T extends BaseSchemaField>({
             return aliasColumnCell({ row, updateField });
           }
           const fname = fields[row.index]?.name;
+          const inheritedFrom = fields[row.index]?.inheritedFrom;
+          if (inheritedFrom) {
+            return (
+              <InheritedFieldMetadata
+                value={asString(row.getValue('alias'))}
+                inheritedFrom={inheritedFrom}
+              />
+            );
+          }
           return (
             <EditableText
               value={row.getValue('alias')}
@@ -511,6 +521,15 @@ export function BaseSchemaTable<T extends BaseSchemaField>({
             return descriptionColumnCell({ row, updateField });
           }
           const fname = fields[row.index]?.name;
+          const inheritedFrom = fields[row.index]?.inheritedFrom;
+          if (inheritedFrom) {
+            return (
+              <InheritedFieldMetadata
+                value={asString(row.getValue('description'))}
+                inheritedFrom={inheritedFrom}
+              />
+            );
+          }
           return (
             <SchemaFieldDescriptionText
               value={row.getValue('description')}

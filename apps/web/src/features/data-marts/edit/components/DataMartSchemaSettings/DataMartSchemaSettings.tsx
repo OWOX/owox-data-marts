@@ -69,6 +69,8 @@ interface EditableMetadataField {
   name: string;
   alias?: string;
   description?: string;
+  /** Alias and description come from a referenced Data Mart and are not generated here. */
+  inheritedFrom?: unknown;
 }
 
 type GeneratedMetadata = Pick<EditableMetadataField, 'alias' | 'description'>;
@@ -115,7 +117,7 @@ function mergeGeneratedMetadata(
   let duplicateNamesSkipped = false;
   const fields = currentFields.map(field => {
     const gen = generatedByName.get(field.name);
-    if (!gen) return field;
+    if (!gen || field.inheritedFrom) return field;
     if (currentNameCounts.get(field.name) !== 1 || originalNameCounts.get(field.name) !== 1) {
       duplicateNamesSkipped = true;
       return field;
