@@ -39,20 +39,21 @@ Storages select a Credential instead of holding a key; see
 [Credentials for Storages](../storages/manage-storages.md#credentials-for-storages). These
 providers fit Storages:
 
-| Provider | Fits Storage | You enter |
-| --- | --- | --- |
-| BigQuery Service Account | Google BigQuery | The JSON key |
-| BigQuery Google account | Google BigQuery | Nothing; click **Connect with Google** |
-| AWS access key | AWS Athena, AWS Redshift | Access key ID, Secret access key, optional Session token |
-| Snowflake password | Snowflake | Username, Password (or a Programmatic Access Token) |
-| Snowflake key pair | Snowflake | Username, Private key, optional Private key passphrase |
-| Databricks token | Databricks | Personal access token |
+| Provider                 | Fits Storage             | You enter                                                |
+| ------------------------ | ------------------------ | -------------------------------------------------------- |
+| BigQuery Service Account | Google BigQuery          | The JSON key                                             |
+| BigQuery Google account  | Google BigQuery          | Nothing; click **Connect with Google**                   |
+| AWS access key           | AWS Athena, AWS Redshift | Access key ID, Secret access key, optional Session token |
+| Snowflake password       | Snowflake                | Username, Password (or a Programmatic Access Token)      |
+| Snowflake key pair       | Snowflake                | Username, Private key, optional Private key passphrase   |
+| Databricks token         | Databricks               | Personal access token                                    |
 
 Secret fields are write-only like any secret. To replace one, enter a new value; fields you leave
 out keep theirs, and the form warns how many Storages the change applies to. Before saving, OWOX
 Data Marts checks the new values against each Storage that uses the Credential. If one of them
 cannot connect with the new values, nothing is saved; the error names that Storage if you can see
-it. A changed **Access key ID** or **Username** is checked the same way. A Credential
+it. A changed **Access key ID** or **Username** is checked the same way. Replacing values needs
+the right to maintain the Credential, not the right to edit the Storages that use it. A Credential
 created from a Storage form is not shared: only its owners and Project Admins can use it until an
 owner shares it. Plugins cannot request these providers, except BigQuery
 Service Account.
