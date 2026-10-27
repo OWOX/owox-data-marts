@@ -35,7 +35,9 @@ describe('ConnectorSourceConfigService', () => {
         'proj-1',
         connector as any,
         config,
-        'cfg-1'
+        'cfg-1',
+        undefined,
+        null
       );
 
       expect(result).toBeDefined();
@@ -56,7 +58,8 @@ describe('ConnectorSourceConfigService', () => {
         connector as any,
         config,
         'cfg-1',
-        state
+        state,
+        null
       );
 
       expect(result).toBeDefined();
@@ -92,7 +95,7 @@ describe('ConnectorSourceConfigService', () => {
 
         expect(JSON.parse(result.config.OutputSchemaFieldTypes.value)).toEqual({
           date: 'DATE',
-          created_at: 'DATETIME',
+          created_at: 'OTHER',
           title: 'OTHER',
         });
       });
@@ -107,7 +110,7 @@ describe('ConnectorSourceConfigService', () => {
           { SheetName: 'Growth', OutputSchemaFieldTypes: '{"date":"DATE"}' },
           'cfg-1',
           undefined,
-          undefined
+          null
         );
 
         expect(result.config).toHaveProperty('OutputSchemaFieldTypes');
@@ -135,7 +138,15 @@ describe('ConnectorSourceConfigService', () => {
       const { service, credentialInjector } = createService();
       const config = { _source_credential_id: 'cred-1' };
 
-      await service.buildSourceConfig('dm-1', 'proj-1', connector as any, config, 'cfg-1');
+      await service.buildSourceConfig(
+        'dm-1',
+        'proj-1',
+        connector as any,
+        config,
+        'cfg-1',
+        undefined,
+        null
+      );
 
       expect(credentialInjector.injectOAuthCredentials).toHaveBeenCalledWith(
         config,

@@ -37,19 +37,21 @@ Blank header cells receive names such as `column_2`. A completely empty selected
 
 ## Values and empty snapshots
 
-Text remains text. Values such as `00123`, `true`, and `2026-01-01` are `STRING` when the Google Sheets API returns them as text. Only native JSON booleans and numbers can be inferred as `BOOLEAN`, `INTEGER`, or `NUMBER`, and only native dates as `DATE` or `DATETIME` (see Dates); mixed columns use `STRING`. Disable `InferTypes` to make every user column `STRING` unless the Output Schema declares it a date.
+Text remains text. Values such as `00123`, `true`, and `2026-01-01` are `STRING` when the Google Sheets API returns them as text. Only native JSON booleans and numbers can be inferred as `BOOLEAN`, `INTEGER`, or `NUMBER`, and only native dates as `DATE` (see Dates); mixed columns use `STRING`. Disable `InferTypes` to make every user column `STRING` unless the Output Schema declares it `DATE`.
 
 ## Dates
 
-A column whose cells are native dates (stored by the sheet as date serials and formatted as Date or Date time) is imported as `DATE` (`YYYY-MM-DD`) or `DATETIME` (`YYYY-MM-DD HH:MM:SS`, the sheet's own clock, no time zone). Dates typed as text, time-only and duration cells, and columns that mix dates with other values stay `STRING` with the text the sheet shows.
+A column of native dates (cells the sheet stores as date serials and formats as Date) can be imported as `DATE` (`YYYY-MM-DD`). Dates typed as text, Date time, time-only and duration cells, and columns that mix dates with other values are imported as before, as `STRING` with the text the sheet shows.
 
-Inside OWOX Data Marts the Data Mart Output Schema decides for every column it already lists. The backend passes the type classes in the hidden run-time parameter `OutputSchemaFieldTypes`, a JSON object of field name to `DATE`, `DATETIME`, or `OTHER`:
+Inside OWOX Data Marts the Data Mart Output Schema decides for every column it lists. The backend passes the type classes in the hidden run-time parameter `OutputSchemaFieldTypes`, a JSON object of field name to `DATE` or `OTHER` (calculated and disconnected fields are left out):
 
-- `DATE` or `DATETIME`: the column is converted to that type. If a cell is not a native date, the column stays `STRING` and the run log names the row. An empty column gets the declared type.
-- `OTHER`: the column is imported exactly as before, so an existing table keeps a text column until the user changes the field type.
-- No entry (a column the Output Schema does not list yet, or no Output Schema before the first run): native dates are detected when `InferTypes` is on.
+- `DATE`: the column is `DATE`, whatever its cells hold. A cell formatted as Date or Date time becomes its calendar day; any other filled cell is imported as an empty value, and the run log lists those rows (row numbers only, never cell contents). One stray cell therefore never changes the column type.
+- `OTHER`: the column is imported exactly as before, so an existing table keeps a text column until the user sets the field type to `DATE`. Date-time types are `OTHER` too: their names and time zone handling differ per storage.
+- No entry (a column the Output Schema does not list yet, or no Output Schema before the first run): the column becomes `DATE` when `InferTypes` is on and every filled cell is a date formatted as Date; otherwise it is imported as before.
 
-An unreadable `OutputSchemaFieldTypes` value converts no column. Detection reads the number formats of the preview sample (the header row and up to 100 data rows) with `spreadsheets.get`, and, only when a date column is found, the range a second time with `dateTimeRenderOption=SERIAL_NUMBER`. A column converts only when every non-empty cell, including those below the sample, is a date serial.
+An unreadable `OutputSchemaFieldTypes` value imports no column as a date.
+
+Reads: the values read is unchanged. For columns without an Output Schema type, one `spreadsheets.get` request reads the number formats of the preview sample (the header row and up to 100 data rows) to find likely date columns. Each date column is then read cell by cell with `spreadsheets.get` (`formattedValue`, `effectiveValue.numberValue`, `effectiveFormat.numberFormat.type`), one request per column, so every row is checked, including those below the sample. If a cell's displayed text differs from the values read, the sheet changed between the two reads: the column is imported as text for that run, with a run-log warning when the Output Schema declares it `DATE`.
 
 ## Limits
 

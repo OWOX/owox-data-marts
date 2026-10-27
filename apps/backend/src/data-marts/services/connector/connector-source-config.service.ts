@@ -30,8 +30,10 @@ export class ConnectorSourceConfigService {
     connector: DataMartConnectorDefinition['connector'],
     config: Record<string, unknown>,
     configId: string,
-    state?: ConnectorStateItem,
-    dataMartSchema?: DataMartSchema | null
+    state: ConnectorStateItem | undefined,
+    // Required, not optional: a caller that left it out would read as "no Output Schema" and
+    // let Google Sheets infer types for a Data Mart whose columns are already fixed.
+    dataMartSchema: DataMartSchema | null
   ): Promise<SourceConfigDto> {
     const fieldsConfig = connector.source.fields
       .map(field => `${connector.source.node} ${field}`)
@@ -73,7 +75,7 @@ export class ConnectorSourceConfigService {
    */
   private buildOutputSchemaParameters(
     sourceName: string,
-    dataMartSchema: DataMartSchema | null | undefined
+    dataMartSchema: DataMartSchema | null
   ): Record<string, string | undefined> {
     if (!SOURCES_READING_OUTPUT_SCHEMA_TYPES.has(sourceName)) {
       return {};

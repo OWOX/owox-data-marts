@@ -1,5 +1,5 @@
 import { isCalculatedField } from '../../calculated-fields/calculated-field.utils';
-import { DATE_TYPES } from '../../dto/schemas/field-type-category';
+import { DataMartSchemaFieldStatus } from '../../data-storage-types/enums/data-mart-schema-field-status.enum';
 import type { DataMartSchema } from '../../data-storage-types/data-mart-schema.type';
 
 /**
@@ -11,31 +11,27 @@ export const SOURCES_READING_OUTPUT_SCHEMA_TYPES: ReadonlySet<string> = new Set(
 /** The run-time parameter that carries the classes, as a JSON object of field name to class. */
 export const OUTPUT_SCHEMA_FIELD_TYPES_PARAMETER = 'OutputSchemaFieldTypes';
 
-export type OutputSchemaFieldTypeClass = 'DATE' | 'DATETIME' | 'OTHER';
+export type OutputSchemaFieldTypeClass = 'DATE' | 'OTHER';
 
 /**
- * Classifies each warehouse field of an Output Schema as DATE, DATETIME (a date with a time of
- * day, whatever the storage calls it) or OTHER.
+ * Classifies each warehouse field of an Output Schema as DATE or OTHER.
  *
- * Calculated fields have no warehouse column, so the source never writes them and they are
- * left out. Nested fields are left out too: a source writes top-level columns only.
+ * Only DATE is singled out: it is spelled the same in every storage, and the column a source
+ * creates for it is DATE everywhere, so the Output Schema and the table agree after a run.
+ * Date-time types differ per storage in name and time zone handling, so they stay OTHER.
+ *
+ * Calculated fields have no warehouse column and disconnected fields no longer have one, so
+ * both are left out, as are nested fields: a source writes top-level columns only.
  */
 export function classifyOutputSchemaFieldTypes(
   schema: DataMartSchema
 ): Record<string, OutputSchemaFieldTypeClass> {
   const classes: Record<string, OutputSchemaFieldTypeClass> = {};
   for (const field of schema.fields) {
-    if (isCalculatedField(field)) continue;
-    classes[field.name] = classifyFieldType(field.type);
+    if (isCalculatedField(field) || field.status === DataMartSchemaFieldStatus.DISCONNECTED) {
+      continue;
+    }
+    classes[field.name] = String(field.type).trim().toUpperCase() === 'DATE' ? 'DATE' : 'OTHER';
   }
   return classes;
-}
-
-function classifyFieldType(fieldType: unknown): OutputSchemaFieldTypeClass {
-  const normalized = String(fieldType).trim().toUpperCase();
-  if (normalized === 'DATE') return 'DATE';
-  // DATE_TYPES lists the date-time spellings the five storages share; Snowflake adds
-  // TIMESTAMP_LTZ and TIMESTAMP_TZ, which the prefix covers.
-  if (DATE_TYPES.has(normalized) || normalized.startsWith('TIMESTAMP')) return 'DATETIME';
-  return 'OTHER';
 }

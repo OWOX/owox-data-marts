@@ -310,6 +310,21 @@ describe('ConnectorExecutorService', () => {
     ).toBeLessThan((dataMartService.actualizeSchema as jest.Mock).mock.invocationCallOrder[0]);
   });
 
+  it('passes the Output Schema, or null when the Data Mart has none, to the source config', async () => {
+    const schema = { type: 'bigquery-data-mart-schema', fields: [{ name: 'date', type: 'DATE' }] };
+    const withSchema = createService();
+    await withSchema.service.executeInBackground(createDataMart({ schema }), createRun(), null);
+    expect((withSchema.sourceConfigService.buildSourceConfig as jest.Mock).mock.calls[0][6]).toBe(
+      schema
+    );
+
+    const withoutSchema = createService();
+    await withoutSchema.service.executeInBackground(createDataMart(), createRun(), null);
+    expect(
+      (withoutSchema.sourceConfigService.buildSourceConfig as jest.Mock).mock.calls[0][6]
+    ).toBeNull();
+  });
+
   it('persists sanitized fields emitted by a successful connector run', async () => {
     const {
       service,
