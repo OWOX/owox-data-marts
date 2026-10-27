@@ -13,7 +13,7 @@ The variable accepts `true` or `false` in any case; any other value stops OWOX D
 
 With `DB_TYPE=mysql`, set `DUCKDB_STORAGE_ENABLED=true` only when exactly one backend instance runs and `DUCKDB_DATA_DIR` is on a persistent disk: the files are local to that instance.
 
-Connector runs, SQL editing and data quality checks need no license key. Preview, Report Runs to any Destination, HTTP Data and MCP need one, as on any Storage: see [Configure a Self-Managed License Key](../../getting-started/deployment-guide/license-key-setup.md). Looker Studio needs one to read data.
+Connector runs, SQL editing and data quality checks need no license key. Preview, Report Runs to any Destination, HTTP Data and MCP need one, as on any Storage: see [Configure a Self-Managed License Key](../../getting-started/deployment-guide/license-key-setup.md). Data Studio needs one to read data.
 
 ---
 
@@ -56,7 +56,7 @@ A connector run reserves the Storage for the whole load. It loads its configurat
 - A run left **Running** after the server stopped unexpectedly blocks the Storage until it is cancelled in **Run History**.
 - A Report Run or data quality run that starts during a load, or while an earlier load waits for the Storage, stays **Pending** and starts after that load.
 - A connector run waits the same way for the Report Runs and data quality runs that read the Storage. A Report Run reads until its write to the Destination ends.
-- A preview, SQL run, HTTP Data, MCP or Looker Studio request does not wait for the whole load, only for the configuration that holds the file. It can see a load that is partly done. If the file stays busy for about 30 seconds, it fails with "DuckDB storage is busy (a load or query is in progress); retry shortly." A connector run that starts during such a read waits for it the same way.
+- A preview, SQL run, HTTP Data, MCP or Data Studio request does not wait for the whole load, only for the configuration that holds the file. It can see a load that is partly done. If the file stays busy for about 30 seconds, it fails with "DuckDB storage is busy (a load or query is in progress); retry shortly." A connector run that starts during such a read waits for it the same way.
 - A report on a SQL Data Mart with output controls, calculated fields or joins also waits for other reads of the same Storage, up to about 30 seconds.
 
 ---
