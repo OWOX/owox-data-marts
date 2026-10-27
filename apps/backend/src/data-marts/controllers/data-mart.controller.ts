@@ -156,7 +156,12 @@ export class DataMartController {
     @AuthContext() context: AuthorizationContext,
     @Query() query: ListDataMartsQueryApiDto
   ): Promise<PaginatedDataMartsResponseApiDto> {
-    const command = this.mapper.toListCommand(context, query.offset, query.ownerFilter);
+    const command = this.mapper.toListCommand(
+      context,
+      query.offset,
+      query.ownerFilter,
+      query.storageId
+    );
     const result = await this.listDataMartsService.run(command);
     return this.mapper.toPaginatedResponse(result);
   }

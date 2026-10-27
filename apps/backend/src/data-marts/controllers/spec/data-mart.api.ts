@@ -79,7 +79,7 @@ export function GetDataMartInputSourceChangeImpactSpec() {
     ApiOperation({
       summary: 'Count what depends on a DataMart before its input source is changed',
       description:
-        'Returns how many relationships reference this DataMart in each direction and how many reports are built on it, so the caller can show the blast radius of repointing it at another input source.',
+        'Returns how many relationships reference this DataMart in each direction, how many reports are built on it, and which SQL DataMarts reference it in their query, so the caller can show the blast radius of changing its input source or deleting it. Referencing DataMarts the caller cannot see are counted but not named.',
     }),
     ApiParam({ name: 'id', description: 'DataMart ID' }),
     ApiOkResponse({ type: DataMartInputSourceChangeImpactResponseApiDto })

@@ -36,7 +36,14 @@ function dataMart(
 }
 
 function createResolver(store: DataMart[]) {
+  const queryBuilder = {
+    where: jest.fn().mockReturnThis(),
+    andWhere: jest.fn().mockReturnThis(),
+    orderBy: jest.fn().mockReturnThis(),
+    getMany: jest.fn().mockResolvedValue(store),
+  };
   const repository = {
+    createQueryBuilder: jest.fn(() => queryBuilder),
     find: jest.fn(async ({ where }: { where: { id: FindOperator<string[]>; projectId: string } }) =>
       store.filter(dm => where.id.value.includes(dm.id) && dm.projectId === where.projectId)
     ),
@@ -61,7 +68,7 @@ function createResolver(store: DataMart[]) {
     createViewExecutorFacade as never,
     credentialsResolver as never
   );
-  return { resolver, repository, queryBuilderFacade, createViewExecutorFacade };
+  return { resolver, repository, queryBuilder, queryBuilderFacade, createViewExecutorFacade };
 }
 
 describe('DataMartSqlReferenceResolver', () => {
@@ -308,6 +315,32 @@ describe('DataMartSqlReferenceResolver', () => {
         '](dm:'
       );
       expect((original.definition as { sqlQuery: string }).sqlQuery).toContain('](dm:');
+    });
+  });
+
+  describe('findReferencingDataMarts', () => {
+    it('narrows by project, Storage and text, then keeps only real references', async () => {
+      const referencing = dataMart(ids.b, 'Retail orders', {
+        sqlQuery: `SELECT * FROM ${ref('Orders', ids.orders)} o`,
+      });
+      const onlyMentions = dataMart(ids.nested, 'Notes', {
+        sqlQuery: `SELECT 1 -- was ${ref('Orders', ids.orders)}`,
+      });
+      const { resolver, queryBuilder } = createResolver([referencing, onlyMentions]);
+
+      const found = await resolver.findReferencingDataMarts(orders);
+
+      expect(found).toEqual([referencing]);
+      expect(queryBuilder.where).toHaveBeenCalledWith('dm.projectId = :projectId', {
+        projectId: 'project-1',
+      });
+      expect(queryBuilder.andWhere).toHaveBeenCalledWith('dm.storage = :storageId', {
+        storageId: 'storage-1',
+      });
+      expect(queryBuilder.andWhere).toHaveBeenCalledWith(
+        `JSON_EXTRACT(dm.definition, '$.sqlQuery') LIKE :marker`,
+        { marker: `%(dm:${ids.orders})%` }
+      );
     });
   });
 });

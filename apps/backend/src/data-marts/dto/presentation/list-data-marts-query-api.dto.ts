@@ -1,6 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
-import { IsEnum, IsInt, IsOptional, Min } from 'class-validator';
+import { IsEnum, IsInt, IsOptional, IsUUID, Min } from 'class-validator';
 import { OwnerFilter } from '../../enums/owner-filter.enum';
 
 export class ListDataMartsQueryApiDto {
@@ -28,4 +28,12 @@ export class ListDataMartsQueryApiDto {
   @IsOptional()
   @IsEnum(OwnerFilter)
   ownerFilter?: OwnerFilter;
+
+  @ApiPropertyOptional({
+    format: 'uuid',
+    description: 'Only Data Marts in this Storage',
+  })
+  @IsOptional()
+  @IsUUID()
+  storageId?: string;
 }

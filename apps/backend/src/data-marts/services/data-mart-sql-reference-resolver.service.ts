@@ -8,6 +8,7 @@ import { DataMartQueryBuilderFacade } from '../data-storage-types/facades/data-m
 import { DataMartDefinition } from '../dto/schemas/data-mart-table-definitions/data-mart-definition';
 import { isSqlDefinition } from '../dto/schemas/data-mart-table-definitions/data-mart-definition.guards';
 import { DataMart } from '../entities/data-mart.entity';
+import { DataMartDefinitionType } from '../enums/data-mart-definition-type.enum';
 import { DataStorage } from '../entities/data-storage.entity';
 import {
   MAX_DATA_MART_REFERENCE_DEPTH,
@@ -146,6 +147,39 @@ export class DataMartSqlReferenceResolver implements DataMartDefinitionResolver 
       where: { id: In(uniqueIds), projectId },
       relations: ['storage'],
     });
+  }
+
+  /**
+   * SQL Data Marts whose query references `target`: same project and Storage (a reference cannot
+   * cross them), not deleted. The database narrows the candidates by text; the parser confirms
+   * each one, so a mention inside a comment or a string literal does not count.
+   */
+  async findReferencingDataMarts(
+    target: Pick<DataMart, 'id' | 'projectId' | 'storage'>
+  ): Promise<DataMart[]> {
+    const candidates = await this.dataMartRepository
+      .createQueryBuilder('dm')
+      .where('dm.projectId = :projectId', { projectId: target.projectId })
+      .andWhere('dm.storage = :storageId', { storageId: target.storage.id })
+      .andWhere('dm.definitionType = :definitionType', {
+        definitionType: DataMartDefinitionType.SQL,
+      })
+      .andWhere('dm.id != :id', { id: target.id })
+      .andWhere(`JSON_EXTRACT(dm.definition, '$.sqlQuery') LIKE :marker`, {
+        marker: `%(dm:${target.id})%`,
+      })
+      .orderBy('dm.title', 'ASC')
+      .getMany();
+
+    const options = sqlLexingOptionsFor(target.storage.type);
+    return candidates.filter(
+      candidate =>
+        candidate.definition &&
+        isSqlDefinition(candidate.definition) &&
+        parseDataMartReferences(candidate.definition.sqlQuery, options).some(
+          reference => reference.id === target.id
+        )
+    );
   }
 
   private scopeOf(dataMart: ResolvableDataMart): DataMartSqlReferenceScope {

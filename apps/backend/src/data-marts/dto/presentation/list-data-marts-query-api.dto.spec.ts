@@ -12,6 +12,7 @@ describe('ListDataMartsQueryApiDto', () => {
     ['an exponent offset', { offset: '1e2' }, 'offset'],
     ['a hexadecimal offset', { offset: '0x10' }, 'offset'],
     ['an unknown owner filter', { ownerFilter: 'all' }, 'ownerFilter'],
+    ['a storage id that is not a UUID', { storageId: 'storage-1' }, 'storageId'],
   ])('rejects %s', async (_label, input, expectedProperty) => {
     const query = plainToInstance(ListDataMartsQueryApiDto, input);
 
@@ -31,5 +32,13 @@ describe('ListDataMartsQueryApiDto', () => {
       offset: 25,
       ownerFilter: OwnerFilter.HAS_OWNERS,
     });
+  });
+
+  it('accepts a Storage id', async () => {
+    const query = plainToInstance(ListDataMartsQueryApiDto, {
+      storageId: '0b5d4c3a-9e1f-4a6b-8c9d-0e1f2a3b4c5d',
+    });
+
+    await expect(validate(query)).resolves.toHaveLength(0);
   });
 });

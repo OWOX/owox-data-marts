@@ -338,14 +338,19 @@ export class DataMartMapper {
   toListCommand(
     context: AuthorizationContext,
     offset?: number,
-    ownerFilter?: OwnerFilter
+    ownerFilter?: OwnerFilter,
+    storageId?: string
   ): ListDataMartsCommand {
     return new ListDataMartsCommand(
       context.projectId,
       context.userId,
       context.roles ?? [],
       offset,
-      ownerFilter
+      ownerFilter,
+      undefined,
+      undefined,
+      true,
+      storageId
     );
   }
 

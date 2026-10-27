@@ -78,6 +78,7 @@ export class DataMartService {
       roleScope?: RoleScope;
       status?: DataMartStatus;
       contextIds?: string[];
+      storageId?: string;
     }
   ): Promise<{ items: DataMart[]; total: number }> {
     const DM_ALIAS = 'dm';
@@ -124,6 +125,10 @@ export class DataMartService {
 
     if (options?.status) {
       qb.andWhere('dm.status = :status', { status: options.status });
+    }
+
+    if (options?.storageId) {
+      qb.andWhere('dm.storage = :storageId', { storageId: options.storageId });
     }
 
     if (options?.contextIds?.length) {

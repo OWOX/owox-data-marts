@@ -48,6 +48,7 @@ export class ListDataMartsService {
         roleScope,
         ...(command.contextIds?.length ? { contextIds: command.contextIds } : {}),
         ...(command.status ? { status: command.status } : {}),
+        ...(command.storageId ? { storageId: command.storageId } : {}),
       }
     );
 
