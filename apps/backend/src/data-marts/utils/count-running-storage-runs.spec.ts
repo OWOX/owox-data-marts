@@ -68,7 +68,13 @@ describe('holdBehindDuckDbLoads', () => {
   }
 
   const at = (minute: number) => new Date(Date.UTC(2026, 9, 23, 10, minute));
-  const hold = () => holdBehindDuckDbLoads(dataSource.manager, storageId, report);
+  const hold = (maxConnectorRunsPerProject = 3) =>
+    holdBehindDuckDbLoads(
+      dataSource.manager,
+      { id: storageId, projectId: 'p1' },
+      report,
+      maxConnectorRunsPerProject
+    );
 
   beforeEach(async () => {
     storageId = await saveStorage();
@@ -112,6 +118,21 @@ describe('holdBehindDuckDbLoads', () => {
     if (isActive !== undefined) await saveTrigger(load, isActive);
 
     await expect(hold()).resolves.toBeUndefined();
+  });
+
+  it('does not hold for an older load that waits for a project connector slot', async () => {
+    await saveTrigger(
+      await saveRun(storageId, DataMartRunType.CONNECTOR, DataMartRunStatus.PENDING, at(5))
+    );
+    await saveRun(otherStorageId, DataMartRunType.CONNECTOR, DataMartRunStatus.RUNNING, at(5));
+    const runningProjectLoads = await dataSource
+      .getRepository(DataMartRun)
+      .countBy({ type: DataMartRunType.CONNECTOR, status: DataMartRunStatus.RUNNING });
+
+    await expect(hold(runningProjectLoads)).resolves.toBeUndefined();
+    await expect(hold(runningProjectLoads + 1)).rejects.toThrow(
+      `DuckDB storage ${storageId} has an older load waiting`
+    );
   });
 
   it('does not hold for a newer waiting load', async () => {
