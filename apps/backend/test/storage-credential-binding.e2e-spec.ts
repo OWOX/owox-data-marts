@@ -471,8 +471,18 @@ describe('Binding a Credential to a Storage (e2e)', () => {
         .send({ fields: { secretAccessKey } });
     }
 
+    /** The Storage works with the stored secret and rejects every other one. */
+    function acceptOnlyStoredSecret(failure: ValidationResult) {
+      validateAccess.mockImplementation(
+        async (_type: unknown, _config: unknown, credentials: { secretAccessKey?: string }) =>
+          credentials.secretAccessKey === 'old-secret-access-key'
+            ? ValidationResult.success()
+            : failure
+      );
+    }
+
     it('saves nothing when the bound Storage rejects the new secret', async () => {
-      validateAccess.mockResolvedValue(
+      acceptOnlyStoredSecret(
         ValidationResult.failure('Access validation failed', {
           error: 'The security token included in the request is invalid.',
         })
@@ -495,7 +505,7 @@ describe('Binding a Credential to a Storage (e2e)', () => {
     });
 
     it('does not name the Storage to a maintainer who cannot see it', async () => {
-      validateAccess.mockResolvedValue(ValidationResult.failure('Access validation failed'));
+      acceptOnlyStoredSecret(ValidationResult.failure('Access validation failed'));
 
       const res = await replaceSecret(OTHER_AUTH_HEADER, 'typo-secret-access-key');
 
@@ -504,6 +514,15 @@ describe('Binding a Credential to a Storage (e2e)', () => {
         'The new values do not work for a Storage that uses this Credential: Access validation failed'
       );
       expect(await storedKey()).toMatchObject({ secretAccessKey: 'old-secret-access-key' });
+    });
+
+    it('saves the new secret when the bound Storage rejects the stored one too', async () => {
+      validateAccess.mockResolvedValue(ValidationResult.failure('Cluster paused'));
+
+      const res = await replaceSecret(AUTH_HEADER, 'new-secret-access-key');
+
+      expect(res.status).toBe(200);
+      expect(await storedKey()).toMatchObject({ secretAccessKey: 'new-secret-access-key' });
     });
 
     it('saves the new secret as verified when the bound Storage accepts it', async () => {
