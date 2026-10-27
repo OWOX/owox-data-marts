@@ -5,6 +5,7 @@ import { cn } from '@owox/ui/lib/utils';
 import type { AggregationRule } from '../../../shared/types/output-config';
 import type { ReportAggregateFunction } from '../../../shared/types/relationship.types';
 import { aggregateFunctionLabel } from '../../../shared/utils/aggregation-labels';
+import type { JoinedCountWarning } from '../../../shared/utils/joined-count-warning';
 import { AggregationEditorPopover, type AggregationDraft } from './AggregationEditorPopover';
 
 interface AggregationRowProps {
@@ -24,7 +25,7 @@ interface AggregationRowProps {
   /** Joined data mart name (muted second line); absent for home-mart fields. */
   dataMartName?: string;
   /** Passed straight to the editor: shown while Count is ticked. */
-  countWarning?: string;
+  countWarning?: JoinedCountWarning;
   /** Edit the whole column's aggregation/bucket selection at once. */
   onApplyDraft: (draft: AggregationDraft) => void;
   onRemove: () => void;

@@ -4,6 +4,7 @@ import { Pencil, X, AlertTriangle } from 'lucide-react';
 import { cn } from '@owox/ui/lib/utils';
 import type { DateTruncRule } from '../../../shared/types/output-config';
 import type { ReportAggregateFunction } from '../../../shared/types/relationship.types';
+import type { JoinedCountWarning } from '../../../shared/utils/joined-count-warning';
 import { AggregationEditorPopover, type AggregationDraft } from './AggregationEditorPopover';
 
 interface DateTruncRowProps {
@@ -18,7 +19,7 @@ interface DateTruncRowProps {
   allowBucketTimeZone?: boolean;
   displayLabel?: string;
   dataMartName?: string;
-  countWarning?: string;
+  countWarning?: JoinedCountWarning;
   /** Edit the whole column's bucket/aggregation selection at once. */
   onApplyDraft: (draft: AggregationDraft) => void;
   onRemove: () => void;

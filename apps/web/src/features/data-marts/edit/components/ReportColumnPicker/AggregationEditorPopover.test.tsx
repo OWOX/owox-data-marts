@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { AggregationEditorPopover, type AggregationDraft } from './AggregationEditorPopover';
 import type { ReportAggregateFunction } from '../../../shared/types/relationship.types';
+import type { JoinedCountWarning } from '../../../shared/utils/joined-count-warning';
 
 // Render popover content unconditionally — open state lives in the parent test,
 // and we assert on the inner controls without Radix portals.
@@ -454,7 +455,21 @@ describe('AggregationEditorPopover — Apply gating', () => {
 });
 
 describe('AggregationEditorPopover — joined count warning', () => {
-  const render_ = (countWarning?: string, initialFunctions: ReportAggregateFunction[] = []) =>
+  const WARNING: JoinedCountWarning = {
+    title: 'May not match the number of Orders rows',
+    reason: ['Several ', { kind: 'dataMart', text: 'Orders' }, ' rows can match one row.'],
+    advice: [
+      'Use ',
+      { kind: 'aggregation', text: 'Count Unique' },
+      ' for distinct ',
+      { kind: 'field', text: 'order_id' },
+      ' values.',
+    ],
+  };
+  const render_ = (
+    countWarning?: JoinedCountWarning,
+    initialFunctions: ReportAggregateFunction[] = []
+  ) =>
     render(
       <AggregationEditorPopover
         open
@@ -470,23 +485,43 @@ describe('AggregationEditorPopover — joined count warning', () => {
     );
 
   it('shows while Count is ticked and hides when it is unticked', () => {
-    render_('careful');
+    render_(WARNING);
     expect(screen.queryByTestId('joined-count-warning')).toBeNull();
 
     fireEvent.click(screen.getByLabelText('COUNT'));
-    expect(screen.getByTestId('joined-count-warning').textContent).toContain('careful');
+    expect(screen.getByTestId('joined-count-warning').textContent).toContain(
+      'May not match the number of Orders rows'
+    );
 
     fireEvent.click(screen.getByLabelText('COUNT'));
     expect(screen.queryByTestId('joined-count-warning')).toBeNull();
   });
 
   it('shows on open when the column already has Count', () => {
-    render_('careful', ['COUNT']);
+    render_(WARNING, ['COUNT']);
     expect(screen.getByTestId('joined-count-warning')).toBeTruthy();
   });
 
   it('stays hidden without countWarning', () => {
     render_(undefined, ['COUNT']);
     expect(screen.queryByTestId('joined-count-warning')).toBeNull();
+  });
+
+  it('reads as a title, a reason and the advice, with names set apart', () => {
+    render_(WARNING, ['COUNT']);
+    const lines = [...screen.getByTestId('joined-count-warning').querySelectorAll('p')];
+    expect(lines.map(line => line.textContent)).toEqual([
+      'May not match the number of Orders rows',
+      'Several Orders rows can match one row.',
+      'Use Count Unique for distinct order_id values.',
+    ]);
+    expect(screen.getByText('Orders').className).toContain('font-semibold');
+    expect(screen.getByText('Count Unique').className).toContain('font-semibold');
+    expect(screen.getByText('order_id').className).toContain('font-mono');
+  });
+
+  it('leaves the advice line out when there is nothing to pick', () => {
+    render_({ ...WARNING, advice: [] }, ['COUNT']);
+    expect(screen.getByTestId('joined-count-warning').querySelectorAll('p')).toHaveLength(2);
   });
 });

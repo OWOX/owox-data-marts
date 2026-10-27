@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import { Popover, PopoverContent, PopoverTrigger } from '@owox/ui/components/popover';
 import { Button } from '@owox/ui/components/button';
 import { Checkbox } from '@owox/ui/components/checkbox';
@@ -14,6 +14,10 @@ import {
 import { DATE_TRUNC_UNITS, type DateTruncUnit } from '../../../shared/types/output-config';
 import type { ReportAggregateFunction } from '../../../shared/types/relationship.types';
 import { aggregateFunctionLabel } from '../../../shared/utils/aggregation-labels';
+import type {
+  JoinedCountWarning,
+  JoinedCountWarningPart,
+} from '../../../shared/utils/joined-count-warning';
 import { isDateType, isTimestampType } from './output-controls-operators';
 
 /**
@@ -72,7 +76,7 @@ export interface AggregationEditorPopoverProps {
   /** Functions the column may be aggregated by (already resolved via governance). */
   allowedAggregations: readonly ReportAggregateFunction[];
   /** Shown below the function list while Count is ticked. */
-  countWarning?: string;
+  countWarning?: JoinedCountWarning;
   /**
    * Whether THIS column may be date-bucketed, for callers whose column is of a date type but is
    * still not bucketable — today the aggregate-level calculated field, which already aggregates
@@ -280,7 +284,17 @@ export function AggregationEditorPopover(props: AggregationEditorPopoverProps) {
                 className='bg-warning-bg text-warning flex gap-1.5 rounded p-1.5 text-[11px]'
               >
                 <TriangleAlert className='mt-0.5 size-3 shrink-0' />
-                <span>{props.countWarning}</span>
+                <div className='space-y-1'>
+                  <p className='font-semibold'>{props.countWarning.title}</p>
+                  <p>
+                    <WarningParts parts={props.countWarning.reason} />
+                  </p>
+                  {props.countWarning.advice.length > 0 && (
+                    <p>
+                      <WarningParts parts={props.countWarning.advice} />
+                    </p>
+                  )}
+                </div>
               </div>
             )}
           </div>
@@ -296,5 +310,22 @@ export function AggregationEditorPopover(props: AggregationEditorPopoverProps) {
         </div>
       </PopoverContent>
     </Popover>
+  );
+}
+
+/** Sets a name apart from the prose the way the picker shows it: a field in mono, the rest bold. */
+function WarningParts({ parts }: { parts: readonly JoinedCountWarningPart[] }) {
+  return parts.map((part, index) =>
+    typeof part === 'string' ? (
+      <Fragment key={index}>{part}</Fragment>
+    ) : part.kind === 'field' ? (
+      <span key={index} className='font-mono'>
+        {part.text}
+      </span>
+    ) : (
+      <span key={index} className='font-semibold'>
+        {part.text}
+      </span>
+    )
   );
 }

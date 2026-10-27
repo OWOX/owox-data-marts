@@ -18,6 +18,7 @@ import { resolveColumnAllowedAggregations } from '../../../shared/utils/aggregat
 import { applyAggregationDraft, bucketForColumn, functionsForColumn } from './aggregation-config';
 import { isDateType } from './output-controls-operators';
 import { REPORT_AGGREGATE_FUNCTION_LABELS } from '../../../shared/utils/aggregation-labels';
+import type { JoinedCountWarning } from '../../../shared/utils/joined-count-warning';
 
 function SectionHeader({ title, info }: { title: string; info: string }) {
   return (
@@ -56,7 +57,7 @@ export interface AggregationDropdownColumn {
   /** Joined data mart name; absent for home-mart fields. */
   dataMartName?: string;
   /** Why Count on this joined column is not the joined Data Mart's row count; absent otherwise. */
-  countWarning?: string;
+  countWarning?: JoinedCountWarning;
   /** Full path segments, shown as a tree on hover. */
   path?: string[];
   /** Aggregation governance (optional; absent → type-derived defaults). */

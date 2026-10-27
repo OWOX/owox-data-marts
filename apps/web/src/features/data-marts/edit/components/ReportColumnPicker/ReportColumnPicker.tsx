@@ -63,7 +63,10 @@ import {
 } from '../../../shared/utils/unique-count-availability';
 import { UniqueCountRow } from './UniqueCountRow';
 import { RowFilterIcon } from './RowFilterIcon';
-import { joinedCountWarning } from '../../../shared/utils/joined-count-warning';
+import {
+  joinedCountWarning,
+  type JoinedCountWarning,
+} from '../../../shared/utils/joined-count-warning';
 import { RowAggregationIcon } from './RowAggregationIcon';
 import { isArrayFieldType, isFilterableType } from './output-controls-operators';
 import { resolveColumnAllowedAggregations } from '../../../shared/utils/aggregation-governance';
@@ -207,7 +210,7 @@ interface ColumnAggregation {
   allowDateBucket: boolean;
   /** False for EITHER level of calculated field — see `dropdownColumns`. */
   allowBucketTimeZone: boolean;
-  countWarning?: string;
+  countWarning?: JoinedCountWarning;
 }
 
 function renderRowAggregationIcon(
@@ -1665,16 +1668,23 @@ export function ReportColumnPicker({
       // column.
       const isCalculated = f.isCalculated === true;
       const dataMartName = f.outputPrefix.trim() || f.sourceDataMartTitle;
+      const label = fieldDisplayLabel(f.alias, f.originalFieldName);
       cols.push({
         name: f.name,
         // Projection controls run on the post-join value. `sourceType` above is only the
         // array-value classifier; scalar joined values retain their effective type here.
         type: f.type,
-        label: fieldDisplayLabel(f.alias, f.originalFieldName),
+        label,
         dataMartName,
         countWarning: joinedCountWarning(availableSourceByPath.get(f.aliasPath), {
           name: dataMartName,
-          nameAt: path => availableSourceByPath.get(path)?.title,
+          mainName: dataMartTitle,
+          fieldLabel: label,
+          // The name its group header shows, so the warning and the list agree.
+          nameAt: path => {
+            const source = availableSourceByPath.get(path);
+            return source && joinedDataMartTitle(source.defaultAlias, source.title, path);
+          },
           offersCountUnique: resolveColumnAllowedAggregations({
             type: f.type,
             allowedAggregations: f.allowedAggregations,
@@ -1691,7 +1701,7 @@ export function ReportColumnPicker({
       });
     }
     return cols;
-  }, [nativeFields, includedBlendedFields, availableSourceByPath]);
+  }, [nativeFields, includedBlendedFields, availableSourceByPath, dataMartTitle]);
 
   const selectedDropdownColumns = useMemo(
     () => dropdownColumns.filter(c => effectiveValueSet.has(c.name)),

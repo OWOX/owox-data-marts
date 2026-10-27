@@ -4,6 +4,7 @@ import { cn } from '@owox/ui/lib/utils';
 import type { DateTruncUnit } from '../../../shared/types/output-config';
 import type { ReportAggregateFunction } from '../../../shared/types/relationship.types';
 import { REPORT_AGGREGATE_FUNCTION_LABELS } from '../../../shared/utils/aggregation-labels';
+import type { JoinedCountWarning } from '../../../shared/utils/joined-count-warning';
 import { AggregationEditorPopover, type AggregationDraft } from './AggregationEditorPopover';
 
 interface RowAggregationIconProps {
@@ -16,7 +17,7 @@ interface RowAggregationIconProps {
   /** Functions the column may be aggregated by (resolved via governance). */
   allowedAggregations: readonly ReportAggregateFunction[];
   /** Passed straight to the editor: shown while Count is ticked. */
-  countWarning?: string;
+  countWarning?: JoinedCountWarning;
   /** Functions currently assigned to this column. */
   activeFunctions: readonly ReportAggregateFunction[];
   /** Date-trunc bucket currently assigned to this column (date fields only). */
