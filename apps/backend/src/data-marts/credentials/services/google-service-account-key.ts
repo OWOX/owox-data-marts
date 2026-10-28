@@ -49,6 +49,7 @@ export function parseGoogleServiceAccountKey(value: string): {
       clientEmail: key.client_email,
       projectId: key.project_id,
       privateKeyId: key.private_key_id,
+      clientId: key.client_id,
     },
   };
 }

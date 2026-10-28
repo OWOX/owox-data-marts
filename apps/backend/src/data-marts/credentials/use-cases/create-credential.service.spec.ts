@@ -189,6 +189,7 @@ describe('CreateCredentialService with a Google service account key', () => {
           clientEmail: 'docs-writer@acme-docs.iam.gserviceaccount.com',
           projectId: 'acme-docs',
           privateKeyId: 'key-1',
+          clientId: '1234567890',
         },
       }),
       { createdBy: context, ownerIds: [], contextIds: [] }

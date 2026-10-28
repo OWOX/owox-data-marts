@@ -111,7 +111,7 @@ export class GoogleSheetsApiAdapterFactory {
     return { adapter, driveCapable: scopes.some(scope => DRIVE_SCOPES.has(scope)) };
   }
 
-  /** `markUsed: false` for checks and report upkeep: only a run counts as a use of the Credential. */
+  /** `markUsed: false` for checks and report upkeep; runs and member actions such as Create document count as a use. */
   async createFromDestination(
     destination: DataDestination,
     { markUsed = true }: { markUsed?: boolean } = {}

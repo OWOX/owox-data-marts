@@ -97,6 +97,11 @@ export class UpdateCredentialService {
             definitionId: credential.definitionId,
             secret: { value: input.secret.value },
             publicMetadata,
+          },
+          {
+            definitionId: credential.definitionId,
+            secret: credential.secret,
+            publicMetadata: credential.publicMetadata,
           }
         );
       }
@@ -113,7 +118,7 @@ export class UpdateCredentialService {
     return this.apply(id, context, input, definition, validation, publicMetadata, checkedFields);
   }
 
-  /** New field values must work for the Storages where the current ones do and for every Destination; none bound leaves no result. */
+  /** New field values must work for the Storages and Destinations where the current ones do; none bound leaves no result. */
   private async checkBoundConsumers(
     credential: Credential,
     context: AuthorizationContext,
@@ -130,7 +135,7 @@ export class UpdateCredentialService {
     // Outside the transaction, one consumer at a time: each check is a remote call.
     const checked =
       (await this.storageConsumers.verifyCandidate(context, bindings, candidate, current)) +
-      (await this.destinationConsumers.verifyCandidate(context, bindings, candidate));
+      (await this.destinationConsumers.verifyCandidate(context, bindings, candidate, current));
     if (checked === 0) return undefined;
     return {
       state: 'verified',

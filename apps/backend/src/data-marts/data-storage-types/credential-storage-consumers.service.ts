@@ -16,8 +16,6 @@ import type { DataStorageCredentials } from './data-storage-credentials.type';
 import { DataStorageAccessValidatorFacade } from './facades/data-storage-access-validator-facade.service';
 import { toAdapterCredentials } from './storage-credential-definitions';
 
-export type { CandidateCredentialValues, CredentialConsumerRef };
-
 /** The Storages among a Credential's consumers, as the Credentials page needs them. */
 @Injectable()
 export class CredentialStorageConsumersService implements OnModuleInit {

@@ -212,15 +212,13 @@ describe('DataDestinationMapper.toByTypeCommand', () => {
   it.each([
     ['a member', undefined, false],
     ['a plugin', 'plugin', true],
-  ])('carries the member and whether %s calls', (_who, authFlow, isPluginCall) => {
+  ])('carries the project and whether %s calls', (_who, authFlow, isPluginCall) => {
     const cls = { isActive: () => true, get: () => ({ authFlow }) };
     const mapper = new DataDestinationMapper(null as never, null as never, cls as never);
 
     expect(mapper.toByTypeCommand(context, DataDestinationType.GOOGLE_SHEETS)).toEqual({
       projectId: 'proj-1',
       type: DataDestinationType.GOOGLE_SHEETS,
-      userId: 'user-1',
-      roles: ['editor'],
       isPluginCall,
     });
   });

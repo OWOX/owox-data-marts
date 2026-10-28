@@ -216,6 +216,7 @@ describe('UpdateCredentialService with a Google service account key', () => {
           clientEmail: 'Docs-Writer@acme-docs.iam.gserviceaccount.com',
           projectId: 'acme-docs',
           privateKeyId: 'key-2',
+          clientId: '1234567890',
         },
       })
     );
@@ -246,11 +247,20 @@ describe('UpdateCredentialService with a Google service account key', () => {
 
     await state.service.run('credential-1', context, { secret: { value: key } });
 
-    expect(state.destinationConsumers.verifyCandidate).toHaveBeenCalledWith(context, bindings, {
-      definitionId: 'google-service-account',
-      secret: { value: key },
-      publicMetadata: { ...savedMetadata, privateKeyId: 'key-2' },
-    });
+    expect(state.destinationConsumers.verifyCandidate).toHaveBeenCalledWith(
+      context,
+      bindings,
+      {
+        definitionId: 'google-service-account',
+        secret: { value: key },
+        publicMetadata: { ...savedMetadata, privateKeyId: 'key-2', clientId: '1234567890' },
+      },
+      {
+        definitionId: 'google-service-account',
+        secret: { value: 'old-secret' },
+        publicMetadata: savedMetadata,
+      }
+    );
     expect(state.validationProbe.run.mock.invocationCallOrder[0]).toBeLessThan(
       state.destinationConsumers.verifyCandidate.mock.invocationCallOrder[0]
     );
@@ -330,7 +340,12 @@ describe('UpdateCredentialService with a Google Chat webhook', () => {
     expect(state.destinationConsumers.verifyCandidate).toHaveBeenCalledWith(
       context,
       bindings,
-      candidate
+      candidate,
+      {
+        definitionId: stored.definitionId,
+        secret: stored.secret,
+        publicMetadata: stored.publicMetadata,
+      }
     );
     expect(state.credentials.save).toHaveBeenCalledWith(
       expect.objectContaining({

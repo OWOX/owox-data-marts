@@ -492,6 +492,54 @@ describe('DataDestinationCredentialsResolver', () => {
       expect(summaries.get('chat')).not.toHaveProperty('definitionId');
     });
 
+    it("returns a bound service account's client_id when its Credential knows it, as before", async () => {
+      const visible = { access: 'visible', state: 'ready' } as const;
+      bindings.summarizeForDestinations.mockResolvedValue(
+        new Map([
+          ['known', visible],
+          ['older', visible],
+        ])
+      );
+      const metadata = {
+        clientEmail: 'docs@acme.iam.gserviceaccount.com',
+        projectId: 'acme',
+        privateKeyId: 'key-1',
+      };
+      bindings.publicOfDestinations.mockResolvedValue(
+        new Map([
+          [
+            'known',
+            {
+              definitionId: 'google-service-account',
+              publicMetadata: { ...metadata, clientId: '42' },
+            },
+          ],
+          ['older', { definitionId: 'google-service-account', publicMetadata: metadata }],
+        ])
+      );
+      const destinations = ['known', 'older'].map(id => ({
+        id,
+        type: DataDestinationType.GOOGLE_SHEETS,
+        credential: null,
+      })) as unknown as DataDestination[];
+
+      const summaries = await resolver.summarize('project-1', 'member-1', ['editor'], destinations);
+
+      const key = {
+        type: 'service_account',
+        project_id: 'acme',
+        client_email: 'docs@acme.iam.gserviceaccount.com',
+      };
+      expect(summaries.get('known')?.credentials).toEqual({
+        type: 'google-sheets-credentials',
+        serviceAccountKey: { ...key, client_id: '42' },
+      });
+      expect(summaries.get('older')?.credentials).toEqual({
+        type: 'google-sheets-credentials',
+        serviceAccountKey: key,
+      });
+    });
+
     it('hands a visible Credential its public credentials and a Google account its identity', async () => {
       const visible = {
         access: 'visible',

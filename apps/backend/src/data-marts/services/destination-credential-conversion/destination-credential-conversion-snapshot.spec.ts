@@ -2,6 +2,7 @@ import { serviceAccountKey } from '../../../../test/fixtures/google-service-acco
 import { DataDestinationType } from '../../data-destination-types/enums/data-destination-type.enum';
 import { destinationCredentialRequirement } from '../../data-destination-types/destination-credential-state';
 import { DestinationCredentialType } from '../../enums/destination-credential-type.enum';
+import { DEFAULT_SHEETS_SCOPES } from '../google-oauth/google-oauth-scopes';
 import { planDestinationCredentialConversion } from './destination-credential-conversion-plan';
 
 // Frozen on purpose: migration 1792700000000 writes these into stored bindings, so a change here
@@ -21,6 +22,7 @@ const NO_SIGN_IN = { isClientConfigured: () => false, getScopes: () => [] };
 
 describe('destination conversion snapshot', () => {
   it('pins the requirement a Destination binding stores', () => {
+    expect(SIGN_IN.getScopes()).toEqual(DEFAULT_SHEETS_SCOPES);
     expect(destinationCredentialRequirement(DataDestinationType.GOOGLE_SHEETS, SIGN_IN)).toEqual({
       definitionIds: ['google-service-account', 'google-sheets-oauth'],
       scopes: ['https://www.googleapis.com/auth/spreadsheets'],

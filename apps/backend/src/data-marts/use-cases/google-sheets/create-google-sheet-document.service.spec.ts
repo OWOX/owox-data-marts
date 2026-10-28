@@ -499,6 +499,21 @@ describe('CreateGoogleSheetDocumentService', () => {
       });
     });
 
+    it('counts a Create document as a use of the bound Credential', async () => {
+      const destination = buildDestination(DestinationCredentialType.GOOGLE_OAUTH, {
+        folderId: 'folder-1',
+      });
+      const { service, credentialsResolver } = createService(destination);
+      credentialsResolver.resolveAuth.mockResolvedValue(googleAccount(OAUTH_SCOPE_WITH_DRIVE_FILE));
+
+      await service.run(
+        new CreateGoogleSheetDocumentCommand('dest-1', 'proj-1', 'R', 'user-2', 'bu@example.com')
+      );
+
+      // No `markUsed: false`: the resolver records the use, as it does for a run.
+      expect(credentialsResolver.resolveAuth.mock.calls).toEqual([[destination]]);
+    });
+
     it('creates in the Drive root without sharing when the bound grant lacks drive.file', async () => {
       const { service, credentialsResolver } = createService(
         buildDestination(

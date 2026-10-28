@@ -21,6 +21,7 @@ describe('parseGoogleServiceAccountKey', () => {
       clientEmail: 'docs-writer@acme-docs.iam.gserviceaccount.com',
       projectId: 'acme-docs',
       privateKeyId: 'key-1',
+      clientId: '1234567890',
     });
     expect(parsed.key.private_key).toContain('BEGIN PRIVATE KEY');
   });

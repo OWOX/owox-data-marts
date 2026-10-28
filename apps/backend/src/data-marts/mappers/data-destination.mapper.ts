@@ -294,8 +294,6 @@ export class DataDestinationMapper {
     return new ListDataDestinationsByTypeCommand(
       context.projectId,
       type,
-      context.userId,
-      context.roles ?? [],
       this.isPluginRuntimeCall()
     );
   }

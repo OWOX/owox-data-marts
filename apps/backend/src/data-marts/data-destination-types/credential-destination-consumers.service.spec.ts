@@ -24,6 +24,13 @@ const webhook = (webhookUrl: string) => ({
 
 const destinationBinding = (consumerId: string) => ({ consumerType: 'destination', consumerId });
 
+const currentWebhook = webhook(WEBHOOK_URL);
+const serviceAccount = (key: string) => ({
+  definitionId: 'google-service-account',
+  secret: { value: key },
+  publicMetadata: null,
+});
+
 function setup(visible: readonly string[] = [sales.id, ops.id]) {
   const destinations = { find: jest.fn().mockResolvedValue([sales, ops]) };
   const access = {
@@ -55,7 +62,8 @@ describe('CredentialDestinationConsumersService.verifyCandidate', () => {
           { consumerType: 'storage', consumerId: 'storage-1' },
           destinationBinding(ops.id),
         ],
-        webhook(WEBHOOK_URL)
+        webhook(WEBHOOK_URL),
+        currentWebhook
       )
     ).resolves.toBe(0);
     expect(state.destinations.find).toHaveBeenCalledWith(
@@ -68,12 +76,12 @@ describe('CredentialDestinationConsumersService.verifyCandidate', () => {
     const url = 'https://example.com/hook?token=secret-token';
 
     const error = await state.service
-      .verifyCandidate(context, [destinationBinding(sales.id)], webhook(url))
+      .verifyCandidate(context, [destinationBinding(sales.id)], webhook(url), currentWebhook)
       .catch((thrown: unknown) => thrown);
 
     expect(error).toBeInstanceOf(AccessValidationException);
     expect((error as Error).message).toBe(
-      'The new values do not work for the Destinations that use this Credential: Enter a Google Chat incoming webhook URL.'
+      'The new values do not work for Destination "Sales": Enter a Google Chat incoming webhook URL.'
     );
     expect((error as Error).message).not.toContain('secret-token');
   });
@@ -89,7 +97,8 @@ describe('CredentialDestinationConsumersService.verifyCandidate', () => {
       state.service.verifyCandidate(
         context,
         [destinationBinding(sales.id), destinationBinding(ops.id)],
-        { definitionId: 'google-service-account', secret: { value: key }, publicMetadata: null }
+        serviceAccount(key),
+        serviceAccount(serviceAccountKey())
       )
     ).resolves.toBe(2);
     expect(validate).toHaveBeenCalledTimes(1);
@@ -99,21 +108,59 @@ describe('CredentialDestinationConsumersService.verifyCandidate', () => {
     });
   });
 
-  it('refuses a service account key Google Sheets does not accept', async () => {
-    const state = setup();
-    jest.spyOn(GoogleSheetsApiAdapter, 'validateCredentials').mockResolvedValue(false);
+  it('refuses a service account key Google Sheets does not accept while it accepts the current one', async () => {
+    const state = setup([ops.id]);
+    const candidate = serviceAccountKey({ private_key_id: 'key-2' });
+    jest
+      .spyOn(GoogleSheetsApiAdapter, 'validateCredentials')
+      .mockImplementation(async credentials =>
+        Promise.resolve(credentials.serviceAccountKey?.private_key_id !== 'key-2')
+      );
 
     await expect(
-      state.service.verifyCandidate(context, [destinationBinding(sales.id)], {
-        definitionId: 'google-service-account',
-        secret: { value: serviceAccountKey() },
-        publicMetadata: null,
-      })
+      state.service.verifyCandidate(
+        context,
+        [destinationBinding(sales.id), destinationBinding(ops.id)],
+        serviceAccount(candidate),
+        serviceAccount(serviceAccountKey())
+      )
     ).rejects.toThrow(
       new AccessValidationException(
-        'The new values do not work for the Destinations that use this Credential: Google Sheets did not accept the key.'
+        'The new values do not work for Destination "Ops": Google Sheets did not accept the key.'
       )
     );
+  });
+
+  it('names no Destination the member cannot see', async () => {
+    const state = setup([]);
+
+    await expect(
+      state.service.verifyCandidate(
+        context,
+        [destinationBinding(sales.id)],
+        webhook('https://example.com/hook'),
+        currentWebhook
+      )
+    ).rejects.toThrow(
+      'The new values do not work for a Destination that uses this Credential: Enter a Google Chat incoming webhook URL.'
+    );
+  });
+
+  it('saves unchecked when Google Sheets refuses the current key too: it was not reached', async () => {
+    const state = setup();
+    const validate = jest
+      .spyOn(GoogleSheetsApiAdapter, 'validateCredentials')
+      .mockResolvedValue(false);
+
+    await expect(
+      state.service.verifyCandidate(
+        context,
+        [destinationBinding(sales.id)],
+        serviceAccount(serviceAccountKey({ private_key_id: 'key-2' })),
+        serviceAccount(serviceAccountKey())
+      )
+    ).resolves.toBe(0);
+    expect(validate).toHaveBeenCalledTimes(2);
   });
 
   it('checks nothing without Destination consumers', async () => {
@@ -123,7 +170,8 @@ describe('CredentialDestinationConsumersService.verifyCandidate', () => {
       state.service.verifyCandidate(
         context,
         [{ consumerType: 'storage', consumerId: 'storage-1' }],
-        webhook('not a url')
+        webhook('not a url'),
+        currentWebhook
       )
     ).resolves.toBe(0);
     expect(state.destinations.find).not.toHaveBeenCalled();

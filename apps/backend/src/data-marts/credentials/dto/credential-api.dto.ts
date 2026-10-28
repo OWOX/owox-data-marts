@@ -363,6 +363,7 @@ export class CredentialResponseApiDto {
           clientEmail: { type: 'string' },
           projectId: { type: 'string' },
           privateKeyId: { type: 'string' },
+          clientId: { type: 'string' },
         },
       },
       {

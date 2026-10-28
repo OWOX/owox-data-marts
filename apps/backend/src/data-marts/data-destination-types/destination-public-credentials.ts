@@ -54,6 +54,7 @@ export function publicCredentialsOfBound(
         type: 'service_account',
         project_id: metadata.projectId,
         client_email: metadata.clientEmail,
+        ...(metadata.clientId && { client_id: metadata.clientId }),
       },
     };
   }

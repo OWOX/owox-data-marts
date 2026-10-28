@@ -110,9 +110,7 @@ describe('ListDataDestinationsByTypeService', () => {
       deleted: undefined,
     });
 
-    const result = await service.run(
-      new ListDataDestinationsByTypeCommand(projectId, type, 'member-1', ['editor'])
-    );
+    const result = await service.run(new ListDataDestinationsByTypeCommand(projectId, type));
 
     expect(destinationCredentials.publicOfDestinations).toHaveBeenCalledWith(projectId, [
       'account',
@@ -142,9 +140,7 @@ describe('ListDataDestinationsByTypeService', () => {
       bound: account('me@example.com'),
     });
 
-    const result = await service.run(
-      new ListDataDestinationsByTypeCommand(projectId, type, 'member-1', ['editor'], true)
-    );
+    const result = await service.run(new ListDataDestinationsByTypeCommand(projectId, type, true));
 
     expect(result.map(r => [r.id, r.identity])).toEqual([
       ['bound', null],

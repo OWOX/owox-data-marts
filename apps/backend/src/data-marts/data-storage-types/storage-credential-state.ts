@@ -11,10 +11,7 @@ import type { GoogleOAuthConfigService } from '../services/google-oauth/google-o
 import { DataStorageType } from './enums/data-storage-type.enum';
 import { STORAGE_CREDENTIAL_DEFINITION_IDS } from './storage-credential-definitions';
 
-export {
-  credentialConsumerState as storageCredentialState,
-  withoutSignInScopes,
-} from '../credentials/services/credential-consumer-state';
+export { credentialConsumerState as storageCredentialState } from '../credentials/services/credential-consumer-state';
 
 /** The one requirement key a Storage binds its Credential under. */
 export const STORAGE_REQUIREMENT_KEY = 'storage';

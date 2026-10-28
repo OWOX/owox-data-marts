@@ -42,7 +42,37 @@ export class CredentialDestinationConsumersService implements OnModuleInit {
     context: AuthorizationContext,
     consumers: readonly CredentialConsumerRef[]
   ): Promise<ReadonlyMap<string, string>> {
+    return this.titlesOf(context, await this.load(context.projectId, consumers));
+  }
+
+  /** Throws when the candidate fails where the current values pass; returns how many a provider accepted it for. */
+  async verifyCandidate(
+    context: AuthorizationContext,
+    consumers: readonly CredentialConsumerRef[],
+    candidate: CandidateCredentialValues,
+    current: CandidateCredentialValues
+  ): Promise<number> {
     const destinations = await this.load(context.projectId, consumers);
+    if (destinations.length === 0) return 0;
+    // The check reads the candidate alone, so one run covers every Destination.
+    const { problem, contacted } = await candidateCheck(candidate);
+    if (!problem) return contacted ? destinations.length : 0;
+    // A provider that fails the current values too was not reached; that must not block a rotation.
+    if (contacted && (await candidateCheck(current)).problem) return 0;
+    const titles = await this.titlesOf(context, destinations);
+    const title = destinations.map(({ id }) => titles.get(id)).find(name => name !== undefined);
+    const destinationName =
+      title === undefined ? 'a Destination that uses this Credential' : `Destination "${title}"`;
+    // Fixed texts only: neither check passes provider output or the values through.
+    throw new AccessValidationException(
+      `The new values do not work for ${destinationName}: ${problem}`
+    );
+  }
+
+  private async titlesOf(
+    context: AuthorizationContext,
+    destinations: readonly DataDestination[]
+  ): Promise<ReadonlyMap<string, string>> {
     if (destinations.length === 0) return new Map();
     const canSee = await this.access.canAccessMany(
       context.userId,
@@ -57,25 +87,6 @@ export class CredentialDestinationConsumersService implements OnModuleInit {
         .filter(destination => canSee.get(destination.id) === true)
         .map(destination => [destination.id, destination.title] as const)
     );
-  }
-
-  /** Checks the candidate for the Destinations that use it; throws on a rejection; returns how many it contacted a provider for. */
-  async verifyCandidate(
-    context: AuthorizationContext,
-    consumers: readonly CredentialConsumerRef[],
-    candidate: CandidateCredentialValues
-  ): Promise<number> {
-    const destinations = await this.load(context.projectId, consumers);
-    if (destinations.length === 0) return 0;
-    // The check reads the candidate alone, so one run covers every Destination.
-    const { problem, contacted } = await candidateCheck(candidate);
-    if (problem) {
-      // Fixed texts only: neither check passes provider output or the values through.
-      throw new AccessValidationException(
-        `The new values do not work for the Destinations that use this Credential: ${problem}`
-      );
-    }
-    return contacted ? destinations.length : 0;
   }
 
   private async load(

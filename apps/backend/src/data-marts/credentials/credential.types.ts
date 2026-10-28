@@ -339,6 +339,8 @@ export interface GoogleServiceAccountPublicMetadata {
   readonly clientEmail: string;
   readonly projectId: string;
   readonly privateKeyId: string;
+  /** Absent on Credentials saved before it was read from the key. */
+  readonly clientId?: string;
 }
 
 export type CredentialPublicMetadata =
