@@ -1,3 +1,5 @@
+import { ConnectorMapper } from '../mappers/connector.mapper';
+import { ListCustomConnectorsService } from '../use-cases/custom-connectors/list-custom-connectors.service';
 jest.mock('@owox/connectors', () => ({
   // An array, not an object: connector-definition.service builds a Set from it.
   AvailableConnectors: [],
@@ -106,10 +108,20 @@ describe('ConnectorDefinitionController list() cost', () => {
     // The real mapper, not a double: it is pure, and a double would stop these cases
     // exercising the projection the handler actually returns.
     const controller = new ConnectorDefinitionController(
-      service,
+      new ListCustomConnectorsService(service, new ConnectorDefinitionMapper()),
       {} as never,
       {} as never,
-      new ConnectorDefinitionMapper()
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      new ConnectorDefinitionMapper(),
+      new ConnectorMapper()
     );
 
     return { controller, versionQueries };

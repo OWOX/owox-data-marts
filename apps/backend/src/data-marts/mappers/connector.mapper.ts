@@ -5,15 +5,16 @@ import {
   ConnectorSpecificationSchema,
   ConnectorSpecificationItem,
 } from '../connector-types/connector-specification';
+import type {
+  ConnectorSpecificationDto,
+  ConnectorSpecificationItemDto,
+} from '../dto/domain/connector-specification.dto';
+import type { ConnectorFieldsDto } from '../dto/domain/connector-fields.dto';
 import { ConnectorFieldsSchema } from '../connector-types/connector-fields-schema';
 import { ConnectorFieldOptions } from '../connector-types/connector-field-options';
 import { ConnectorFieldOptionResponseApiDto } from '../dto/presentation/connector-field-option-response-api.dto';
 import { ConnectorDefinitionResponseApiDto } from '../dto/presentation/connector-definition-response-api.dto';
-import {
-  ConnectorSpecificationResponseApiDto,
-  ConnectorSpecificationItemResponseApiDto,
-  ConnectorSpecificationOneOfOptionResponseApiDto,
-} from '../dto/presentation/connector-specification-response-api.dto';
+import { ConnectorSpecificationResponseApiDto } from '../dto/presentation/connector-specification-response-api.dto';
 import { ConnectorFieldsResponseApiDto } from '../dto/presentation/connector-fields-response-api.dto';
 import { ConnectorOAuthStatusResponseApiDto } from '../dto/presentation/connector-oauth-credentials-status-response-api.dto';
 import { ConnectorOAuthCredentialsResponseApiDto } from '../dto/presentation/connector-oauth-credentials-response-api.dto';
@@ -43,12 +44,20 @@ export class ConnectorMapper {
   }
 
   toSpecificationResponse(
-    specification: ConnectorSpecification
+    specification: ConnectorSpecificationDto[]
   ): ConnectorSpecificationResponseApiDto[] {
-    return specification.map(item => this.specificationItemToResponse(item));
+    return this.toSpecificationDto(specification);
   }
 
-  toFieldsResponse(fields: ConnectorFieldsSchema): ConnectorFieldsResponseApiDto[] {
+  toSpecificationDto(specification: ConnectorSpecification): ConnectorSpecificationDto[] {
+    return specification.map(item => this.specificationItemToDto(item));
+  }
+
+  toFieldsResponse(fields: ConnectorFieldsDto[]): ConnectorFieldsResponseApiDto[] {
+    return this.toFieldsDto(fields);
+  }
+
+  toFieldsDto(fields: ConnectorFieldsSchema): ConnectorFieldsDto[] {
     return fields.map(field => ({
       name: field.name,
       overview: field.overview,
@@ -70,9 +79,7 @@ export class ConnectorMapper {
     return options.map(option => ({ value: option.value, label: option.label }));
   }
 
-  private mapSpecificationItem(
-    item: ConnectorSpecificationItem
-  ): ConnectorSpecificationItemResponseApiDto {
+  private mapSpecificationItem(item: ConnectorSpecificationItem): ConnectorSpecificationItemDto {
     return {
       name: item.name,
       title: item.title,
@@ -88,9 +95,7 @@ export class ConnectorMapper {
     };
   }
 
-  private specificationItemToResponse(
-    item: ConnectorSpecificationSchema
-  ): ConnectorSpecificationResponseApiDto {
+  private specificationItemToDto(item: ConnectorSpecificationSchema): ConnectorSpecificationDto {
     return {
       name: item.name,
       title: item.title,
@@ -103,21 +108,19 @@ export class ConnectorMapper {
       minimum: item.minimum,
       attributes: item.attributes,
       optionsDependsOn: item.optionsDependsOn,
-      oneOf: item.oneOf?.map(
-        (oneOf): ConnectorSpecificationOneOfOptionResponseApiDto => ({
-          label: oneOf.label,
-          value: oneOf.value,
-          requiredType: oneOf.requiredType,
-          attributes: oneOf.attributes,
-          items: Object.entries(oneOf.items).reduce(
-            (acc, [key, value]) => {
-              acc[key] = this.mapSpecificationItem(value);
-              return acc;
-            },
-            {} as Record<string, ConnectorSpecificationItemResponseApiDto>
-          ),
-        })
-      ),
+      oneOf: item.oneOf?.map(oneOf => ({
+        label: oneOf.label,
+        value: oneOf.value,
+        requiredType: oneOf.requiredType,
+        attributes: oneOf.attributes,
+        items: Object.entries(oneOf.items).reduce(
+          (acc, [key, value]) => {
+            acc[key] = this.mapSpecificationItem(value);
+            return acc;
+          },
+          {} as Record<string, ConnectorSpecificationItemDto>
+        ),
+      })),
     };
   }
 

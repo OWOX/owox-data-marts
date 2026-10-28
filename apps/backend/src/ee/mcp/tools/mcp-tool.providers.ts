@@ -30,8 +30,33 @@ import { ListProjectMembersTool } from './project/list-project-members.tool';
 import { GetProjectSettingsTool } from './project/get-project-settings.tool';
 import { UpdateProjectDescriptionTool } from './project/update-project-description.tool';
 
+import { ListCustomConnectorsTool } from './custom-connector/list-custom-connectors.tool';
+import { GetCustomConnectorTool } from './custom-connector/get-custom-connector.tool';
+import { CreateCustomConnectorTool } from './custom-connector/create-custom-connector.tool';
+import { UpdateCustomConnectorTool } from './custom-connector/update-custom-connector.tool';
+import { GetCustomConnectorVersionTool } from './custom-connector/get-custom-connector-version.tool';
+import { SaveCustomConnectorDraftTool } from './custom-connector/save-custom-connector-draft.tool';
+import { TestCustomConnectorTool } from './custom-connector/test-custom-connector.tool';
+import { PublishCustomConnectorTool } from './custom-connector/publish-custom-connector.tool';
+import { ActivateCustomConnectorVersionTool } from './custom-connector/activate-custom-connector-version.tool';
+import { DeleteCustomConnectorTool } from './custom-connector/delete-custom-connector.tool';
+import { GetCustomConnectorSpecificationTool } from './custom-connector/get-custom-connector-specification.tool';
+import { GetCustomConnectorFieldsTool } from './custom-connector/get-custom-connector-fields.tool';
+
 export const MCP_TOOL_PROVIDER_CLASSES: Array<Type<McpToolDefinition>> = [
   ListContextsTool,
+  ListCustomConnectorsTool,
+  GetCustomConnectorTool,
+  CreateCustomConnectorTool,
+  UpdateCustomConnectorTool,
+  GetCustomConnectorVersionTool,
+  SaveCustomConnectorDraftTool,
+  TestCustomConnectorTool,
+  PublishCustomConnectorTool,
+  ActivateCustomConnectorVersionTool,
+  DeleteCustomConnectorTool,
+  GetCustomConnectorSpecificationTool,
+  GetCustomConnectorFieldsTool,
   CreateContextTool,
   UpdateContextMetadataTool,
   GetContextImpactTool,

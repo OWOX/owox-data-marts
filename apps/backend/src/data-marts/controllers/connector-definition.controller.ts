@@ -16,9 +16,6 @@ import { RejectPluginAuth } from '../../idp/decorators';
 import { Role } from '../../idp/types/role-config.types';
 import { ConnectorFieldsResponseApiDto } from '../dto/presentation/connector-fields-response-api.dto';
 import { ConnectorSpecificationResponseApiDto } from '../dto/presentation/connector-specification-response-api.dto';
-import { ConnectorDefinitionService } from '../services/connector/connector-definition.service';
-import { ConnectorService } from '../services/connector/connector.service';
-import { ConnectorTestService } from '../services/connector/connector-test.service';
 import {
   CreateCustomConnectorRequestApiDto,
   SaveDraftRequestApiDto,
@@ -36,8 +33,6 @@ import {
   DeleteCustomConnectorResponseApiDto,
   PublishCustomConnectorResponseApiDto,
 } from '../dto/presentation/custom-connector-response.dto';
-import { ConnectorDefinitionMapper } from '../mappers/connector-definition.mapper';
-import { ConnectorMapper } from '../mappers/connector.mapper';
 import {
   ActivateCustomConnectorVersionSpec,
   CreateCustomConnectorSpec,
@@ -52,6 +47,21 @@ import {
   TestCustomConnectorSpec,
   UpdateCustomConnectorSpec,
 } from './spec/connector-definition.api';
+
+import { ListCustomConnectorsService } from '../use-cases/custom-connectors/list-custom-connectors.service';
+import { GetCustomConnectorService } from '../use-cases/custom-connectors/get-custom-connector.service';
+import { CreateCustomConnectorService } from '../use-cases/custom-connectors/create-custom-connector.service';
+import { UpdateCustomConnectorMetadataService } from '../use-cases/custom-connectors/update-custom-connector-metadata.service';
+import { GetCustomConnectorVersionService } from '../use-cases/custom-connectors/get-custom-connector-version.service';
+import { SaveCustomConnectorDraftService } from '../use-cases/custom-connectors/save-custom-connector-draft.service';
+import { PublishCustomConnectorService } from '../use-cases/custom-connectors/publish-custom-connector.service';
+import { ActivateCustomConnectorVersionService } from '../use-cases/custom-connectors/activate-custom-connector-version.service';
+import { DeleteCustomConnectorService } from '../use-cases/custom-connectors/delete-custom-connector.service';
+import { GetCustomConnectorSpecificationService } from '../use-cases/custom-connectors/get-custom-connector-specification.service';
+import { GetCustomConnectorFieldsService } from '../use-cases/custom-connectors/get-custom-connector-fields.service';
+import { TestCustomConnectorService } from '../use-cases/custom-connectors/test-custom-connector.service';
+import { ConnectorMapper } from '../mappers/connector.mapper';
+import { ConnectorDefinitionMapper } from '../mappers/connector-definition.mapper';
 
 /**
  * A manifest saved here is code: publishing one makes it executable server-side in a
@@ -71,9 +81,18 @@ import {
 @RejectPluginAuth()
 export class ConnectorDefinitionController {
   constructor(
-    private readonly definitionService: ConnectorDefinitionService,
-    private readonly connectorService: ConnectorService,
-    private readonly testService: ConnectorTestService,
+    private readonly listCustomConnectors: ListCustomConnectorsService,
+    private readonly getCustomConnector: GetCustomConnectorService,
+    private readonly createCustomConnector: CreateCustomConnectorService,
+    private readonly updateCustomConnectorMetadata: UpdateCustomConnectorMetadataService,
+    private readonly getCustomConnectorVersion: GetCustomConnectorVersionService,
+    private readonly saveCustomConnectorDraft: SaveCustomConnectorDraftService,
+    private readonly publishCustomConnector: PublishCustomConnectorService,
+    private readonly activateCustomConnectorVersion: ActivateCustomConnectorVersionService,
+    private readonly deleteCustomConnector: DeleteCustomConnectorService,
+    private readonly getCustomConnectorSpecification: GetCustomConnectorSpecificationService,
+    private readonly getCustomConnectorFields: GetCustomConnectorFieldsService,
+    private readonly testCustomConnector: TestCustomConnectorService,
     private readonly mapper: ConnectorDefinitionMapper,
     private readonly connectorMapper: ConnectorMapper
   ) {}
@@ -94,9 +113,8 @@ export class ConnectorDefinitionController {
   async list(
     @AuthContext() ctx: AuthorizationContext
   ): Promise<CustomConnectorListItemResponseApiDto[]> {
-    const defs = await this.definitionService.listByProject(ctx.projectId);
-    const activeVersionByDefId = await this.definitionService.getActiveVersionNumbersByDefId(defs);
-    return this.mapper.toListResponse(defs, activeVersionByDefId);
+    const result = await this.listCustomConnectors.run(this.mapper.toListCommand(ctx.projectId));
+    return this.mapper.toListApiResponse(result);
   }
 
   @Auth(Role.editor())
@@ -106,15 +124,8 @@ export class ConnectorDefinitionController {
     @AuthContext() ctx: AuthorizationContext,
     @Body() body: CreateCustomConnectorRequestApiDto
   ): Promise<CreateCustomConnectorResponseApiDto> {
-    const def = await this.definitionService.create(ctx.projectId, ctx.userId, {
-      name: body.name,
-      title: body.title,
-      description: body.description ?? null,
-      logo: body.logo ?? null,
-      docUrl: body.docUrl ?? null,
-      manifest: body.manifest,
-    });
-    return this.mapper.toCreateResponse(def);
+    const result = await this.createCustomConnector.run(this.mapper.toCreateCommand(ctx, body));
+    return this.mapper.toCreatedApiResponse(result);
   }
 
   @Auth(Role.editor())
@@ -124,14 +135,10 @@ export class ConnectorDefinitionController {
     @AuthContext() ctx: AuthorizationContext,
     @Body() body: TestConnectorRequestApiDto
   ): Promise<ConnectorTestResultResponseApiDto> {
-    return this.testService.runTest({
-      projectId: ctx.projectId,
-      manifest: body.manifest,
-      node: body.node,
-      configuration: body.configuration,
-      maxRows: body.maxRows,
-      maxPages: body.maxPages,
-    });
+    const result = await this.testCustomConnector.run(
+      this.mapper.toTestCommand(ctx.projectId, body)
+    );
+    return this.mapper.toTestApiResponse(result);
   }
 
   @Auth(Role.viewer())
@@ -141,10 +148,8 @@ export class ConnectorDefinitionController {
     @AuthContext() ctx: AuthorizationContext,
     @Param('id') id: string
   ): Promise<CustomConnectorDetailResponseApiDto> {
-    const def = await this.definitionService.getById(ctx.projectId, id);
-    const versions = await this.definitionService.listVersions(ctx.projectId, id);
-    const activeVersion = await this.definitionService.getActiveVersionNumberForDef(def);
-    return this.mapper.toDetailResponse(def, versions, activeVersion);
+    const result = await this.getCustomConnector.run(this.mapper.toGetCommand(ctx.projectId, id));
+    return this.mapper.toDetailApiResponse(result);
   }
 
   /**
@@ -164,10 +169,10 @@ export class ConnectorDefinitionController {
     @Param('id') id: string,
     @Body() body: UpdateCustomConnectorRequestApiDto
   ): Promise<CustomConnectorDetailResponseApiDto> {
-    const def = await this.definitionService.updateMetadata(ctx.projectId, id, body);
-    const versions = await this.definitionService.listVersions(ctx.projectId, id);
-    const activeVersion = await this.definitionService.getActiveVersionNumberForDef(def);
-    return this.mapper.toDetailResponse(def, versions, activeVersion);
+    const result = await this.updateCustomConnectorMetadata.run(
+      this.mapper.toUpdateMetadataCommand(ctx.projectId, id, body)
+    );
+    return this.mapper.toDetailApiResponse(result);
   }
 
   /**
@@ -207,8 +212,10 @@ export class ConnectorDefinitionController {
     @Param('id') id: string,
     @Param('version', ParseIntPipe) version: number
   ): Promise<CustomConnectorVersionResponseApiDto> {
-    const row = await this.definitionService.getVersion(ctx.projectId, id, version);
-    return this.mapper.toVersionResponse(row);
+    const result = await this.getCustomConnectorVersion.run(
+      this.mapper.toGetVersionCommand(ctx.projectId, id, version)
+    );
+    return this.mapper.toVersionApiResponse(result);
   }
 
   @Auth(Role.editor())
@@ -219,8 +226,10 @@ export class ConnectorDefinitionController {
     @Param('id') id: string,
     @Body() body: SaveDraftRequestApiDto
   ): Promise<CustomConnectorVersionStateResponseApiDto> {
-    const row = await this.definitionService.saveDraft(ctx.projectId, id, body.manifest);
-    return this.mapper.toVersionStateResponse(row);
+    const result = await this.saveCustomConnectorDraft.run(
+      this.mapper.toSaveDraftCommand(ctx.projectId, id, body.manifest)
+    );
+    return this.mapper.toVersionStateApiResponse(result);
   }
 
   @Auth(Role.editor())
@@ -230,11 +239,8 @@ export class ConnectorDefinitionController {
     @AuthContext() ctx: AuthorizationContext,
     @Param('id') id: string
   ): Promise<PublishCustomConnectorResponseApiDto> {
-    const { version: row, warnings } = await this.definitionService.publish(ctx.projectId, id, {
-      userId: ctx.userId,
-      roles: ctx.roles ?? [],
-    });
-    return this.mapper.toPublishResponse(row, warnings);
+    const result = await this.publishCustomConnector.run(this.mapper.toPublishCommand(ctx, id));
+    return this.mapper.toPublishedApiResponse(result);
   }
 
   @Auth(Role.editor())
@@ -245,11 +251,10 @@ export class ConnectorDefinitionController {
     @Param('id') id: string,
     @Param('version', ParseIntPipe) version: number
   ): Promise<ActivateCustomConnectorVersionResponseApiDto> {
-    const def = await this.definitionService.setActiveVersion(ctx.projectId, id, version, {
-      userId: ctx.userId,
-      roles: ctx.roles ?? [],
-    });
-    return this.mapper.toActivateResponse(def, version);
+    const result = await this.activateCustomConnectorVersion.run(
+      this.mapper.toActivateCommand(ctx, id, version)
+    );
+    return this.mapper.toActivatedApiResponse(result);
   }
 
   @Auth(Role.editor())
@@ -259,7 +264,7 @@ export class ConnectorDefinitionController {
     @AuthContext() ctx: AuthorizationContext,
     @Param('id') id: string
   ): Promise<DeleteCustomConnectorResponseApiDto> {
-    await this.definitionService.softDelete(ctx.projectId, id);
+    await this.deleteCustomConnector.run(this.mapper.toDeleteCommand(ctx.projectId, id));
     return { success: true };
   }
 
@@ -271,13 +276,10 @@ export class ConnectorDefinitionController {
     @Param('id') id: string,
     @Query('version', new ParseIntPipe({ optional: true })) version?: number
   ): Promise<ConnectorSpecificationResponseApiDto[]> {
-    const def = await this.definitionService.getById(ctx.projectId, id);
-    const manifest = await this.definitionService.resolveManifest(ctx.projectId, def.name, version);
-    // The bundled connector endpoint's mapper, so both come out in one shape: it leaves out
-    // what the form has no use for, a manifest author's oneOf[].oauthParams among it.
-    return this.connectorMapper.toSpecificationResponse(
-      this.connectorService.getSpecificationFromManifest(manifest)
+    const result = await this.getCustomConnectorSpecification.run(
+      this.mapper.toSpecificationCommand(ctx.projectId, id, version)
     );
+    return this.connectorMapper.toSpecificationResponse(result);
   }
 
   @Auth(Role.viewer())
@@ -288,10 +290,9 @@ export class ConnectorDefinitionController {
     @Param('id') id: string,
     @Query('version', new ParseIntPipe({ optional: true })) version?: number
   ): Promise<ConnectorFieldsResponseApiDto[]> {
-    const def = await this.definitionService.getById(ctx.projectId, id);
-    const manifest = await this.definitionService.resolveManifest(ctx.projectId, def.name, version);
-    return this.connectorMapper.toFieldsResponse(
-      this.connectorService.getFieldsSchemaFromManifest(manifest)
+    const result = await this.getCustomConnectorFields.run(
+      this.mapper.toFieldsCommand(ctx.projectId, id, version)
     );
+    return this.connectorMapper.toFieldsResponse(result);
   }
 }

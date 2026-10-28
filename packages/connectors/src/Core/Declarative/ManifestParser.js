@@ -1052,6 +1052,12 @@ export class ManifestParser {
     };
   }
 
+  getAuthenticationParameterNames(authentication) {
+    const names = new Set();
+    this._collectAuthParameterRefs(authentication, names);
+    return [...names];
+  }
+
   /**
    * Marks every declared parameter the manifest interpolates into a credential
    * position of `authentication` with CONFIG_ATTRIBUTES.SECRET.
@@ -1064,8 +1070,7 @@ export class ManifestParser {
    *   residue this pass cannot protect, which the host surfaces at publish time.
    */
   _applyAuthSecrets(auth, parameters) {
-    const referenced = new Set();
-    this._collectAuthParameterRefs(auth, referenced);
+    const referenced = this.getAuthenticationParameterNames(auth);
 
     const autoSecretAuthParameters = [];
     const undeclaredAuthParameters = [];
@@ -1114,8 +1119,7 @@ export class ManifestParser {
           `underscore and contain only letters, digits and underscores`
       );
     }
-    const fields =
-      node.fields && typeof node.fields === 'object' ? Object.keys(node.fields) : [];
+    const fields = node.fields && typeof node.fields === 'object' ? Object.keys(node.fields) : [];
     for (const field of fields) {
       if (!identifier.test(field)) {
         throw new Error(

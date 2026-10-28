@@ -1,4 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
+import type { CustomConnectorVersionStateDto } from '../domain/custom-connector.dto';
 import { ConnectorDefinitionVersionStatus } from '../../entities/connector-definition-version.entity';
 
 /**
@@ -59,7 +60,7 @@ export class CustomConnectorVersionStateResponseApiDto {
     enum: ConnectorDefinitionVersionStatus,
     example: ConnectorDefinitionVersionStatus.DRAFT,
   })
-  status: ConnectorDefinitionVersionStatus;
+  status: CustomConnectorVersionStateDto['status'];
 }
 
 export class CustomConnectorVersionSummaryResponseApiDto extends CustomConnectorVersionStateResponseApiDto {

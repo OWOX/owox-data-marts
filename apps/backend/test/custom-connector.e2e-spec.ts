@@ -123,6 +123,32 @@ describe('Custom Connector (e2e)', () => {
     },
   });
 
+  it('enforces Unicode column limits through HTTP and preserves a valid title on publish', async () => {
+    const name = 'UnicodeTitleApi';
+    const title = '😀'.repeat(255);
+    const manifest = { ...MANIFEST, name, title };
+    const invalid = await agent
+      .post('/api/connectors/custom')
+      .set(AUTH_HEADER)
+      .send({ name, title: '☕️'.repeat(128), manifest });
+    expect(invalid.status).toBe(400);
+    const created = await agent
+      .post('/api/connectors/custom')
+      .set(AUTH_HEADER)
+      .send({ name, title, manifest });
+    expect(created.status).toBe(201);
+    const id = created.body.id as string;
+    const patch = await agent
+      .patch(`/api/connectors/custom/${id}`)
+      .set(AUTH_HEADER)
+      .send({ docUrl: '☕️'.repeat(128) });
+    expect(patch.status).toBe(400);
+    const published = await agent.post(`/api/connectors/custom/${id}/publish`).set(AUTH_HEADER);
+    expect(published.status).toBe(201);
+    const detail = await agent.get(`/api/connectors/custom/${id}`).set(AUTH_HEADER);
+    expect(detail.body.title).toBe(title);
+  });
+
   it('create → list → publish → spec/fields end to end', async () => {
     const created = await agent
       .post('/api/connectors/custom')

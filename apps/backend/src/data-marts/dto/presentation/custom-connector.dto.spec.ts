@@ -1,6 +1,6 @@
 import 'reflect-metadata';
 import { plainToInstance, type ClassConstructor } from 'class-transformer';
-import { validate } from 'class-validator';
+import { validate, validateSync } from 'class-validator';
 import {
   CreateCustomConnectorRequestApiDto,
   SaveDraftRequestApiDto,
@@ -338,5 +338,23 @@ describe('UpdateCustomConnectorRequestApiDto', () => {
 
   it.each(['description', 'logo', 'docUrl'])('accepts a null %s, which clears it', async field => {
     await expect(errorsFor({ [field]: null })).resolves.toEqual([]);
+  });
+});
+
+describe('custom connector varchar Unicode limits', () => {
+  it.each([
+    [CreateCustomConnectorRequestApiDto, 'name'],
+    [CreateCustomConnectorRequestApiDto, 'title'],
+    [CreateCustomConnectorRequestApiDto, 'docUrl'],
+    [UpdateCustomConnectorRequestApiDto, 'title'],
+    [UpdateCustomConnectorRequestApiDto, 'docUrl'],
+  ] as const)('%p validates %s by Unicode code points', (Dto, field) => {
+    const dto = Object.assign(new Dto(), { name: 'Demo', title: 'Demo', manifest: {} });
+    Object.assign(dto, { [field]: '☕️'.repeat(128) });
+    expect(validateSync(dto).some(error => error.property === field)).toBe(true);
+    Object.assign(dto, { [field]: '😀'.repeat(255) });
+    expect(validateSync(dto)).toEqual([]);
+    Object.assign(dto, { [field]: '😀'.repeat(256) });
+    expect(validateSync(dto).some(error => error.property === field)).toBe(true);
   });
 });

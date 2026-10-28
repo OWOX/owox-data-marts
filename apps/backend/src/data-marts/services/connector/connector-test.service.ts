@@ -6,7 +6,7 @@ import { spawn } from 'cross-spawn';
 import { Core } from '@owox/connectors';
 import { castError } from '@owox/internal-helpers';
 import { ConcurrencyLimitExceededException } from '../../../common/exceptions/concurrency-limit-exceeded.exception';
-import { MAX_MANIFEST_SIZE_BYTES } from '../../dto/presentation/custom-connector.dto';
+import { MAX_MANIFEST_SIZE_BYTES } from '../../connector-types/custom-connector-limits';
 import { createCapturedLineBuffer, inheritConnectorEnv } from './connector-process-spawner.service';
 
 /**
@@ -500,6 +500,8 @@ export class ConnectorTestService {
         // flushing the stdout buffer could.
         stderrBuffer.flush();
         const captured = rows.slice(0, maxRows);
+        // Must stay in sync with boundTestLogsForMcp, which keeps the final diagnostics.
+        const diagnostics: string[] = [];
         // The runner exits 0 even when the run failed, so the run's verdict becomes the test
         // error whatever was captured: the engine writes one account's rows before the next
         // account fails, and reports that failure only after the last one. The first error
@@ -512,7 +514,7 @@ export class ConnectorTestService {
         // panel nor the Build-with-AI "Fix" flow (which is fed these logs) can
         // tell anything is wrong. Surface it explicitly.
         if (error === null && captured.length === 0) {
-          logs.push(
+          diagnostics.push(
             `Test produced 0 records: the request completed without error but recordSelector.recordPath matched no rows.` +
               (sample.length > 0
                 ? ` A raw response sample WAS received (${sample.length} record(s)), so recordPath is the likely culprit — compare it against the sample shape.`
@@ -527,7 +529,7 @@ export class ConnectorTestService {
           );
         }
         if (untestedNodeError) {
-          logs.push(
+          diagnostics.push(
             `This test ran only the node "${args.node}". Publishing validates every node, and ` +
               `another node in this manifest cannot be published: ${untestedNodeError}`
           );
@@ -535,16 +537,17 @@ export class ConnectorTestService {
         // In sample-only mode the cast rows are meaningless (no declared fields); the
         // raw `sample` is the payload. `captured` is left intact above so the 0-record
         // diagnostic still keys off the genuine record count.
-        const result: ConnectorTestResult = {
+        const result = {
           rows: sampleOnly ? [] : captured,
-          logs,
           error,
           sample,
         };
         // Resolve only once the child is gone. `runTest` releases the concurrency slot
         // when this promise settles, and that slot bounds child PROCESSES — releasing it
         // while one is still running makes the cap count something that no longer exists.
-        void this.stopChild(child).then(() => resolve(result));
+        void this.stopChild(child).then(() =>
+          resolve({ ...result, logs: [...logs, ...diagnostics] })
+        );
       };
       const timer = setTimeout(() => finish(`Test run timed out after ${timeoutMs}ms`), timeoutMs);
 

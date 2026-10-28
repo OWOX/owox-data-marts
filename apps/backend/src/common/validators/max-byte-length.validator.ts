@@ -8,7 +8,7 @@ import { registerDecorator, ValidationOptions, ValidationArguments } from 'class
  * however many characters that is, and a kernel argument or environment string is likewise
  * capped in bytes. A character count in those positions accepts a value up to three times
  * over the real limit, and the failure it buys is either a 500 or, worse, a silent
- * truncation. Use `@MaxLength` for `varchar(n)`, which MySQL does count in characters.
+ * truncation. Use `@MaxCodePointLength` for `varchar(n)`, which MySQL counts in code points.
  *
  * @param maxSizeBytes - Maximum UTF-8 size in bytes
  * @param validationOptions - Optional validation options

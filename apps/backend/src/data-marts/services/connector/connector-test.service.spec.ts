@@ -883,7 +883,7 @@ describe('ConnectorTestService.runTest (against a fake runner)', () => {
    * Driven through a stub child because where a pipe splits is the kernel's decision: a
    * real child cannot be asked to break a character in two.
    */
-  describe('output whose characters straddle a chunk boundary', () => {
+  describe('buffered child output', () => {
     /** Let the stream machinery deliver what was just written before writing more. */
     const settle = () => new Promise(resolve => setImmediate(resolve));
 
@@ -910,7 +910,8 @@ describe('ConnectorTestService.runTest (against a fake runner)', () => {
     }
 
     async function runAgainstStub(
-      write: (child: ReturnType<typeof makeStubChild>) => Promise<void>
+      write: (child: ReturnType<typeof makeStubChild>) => Promise<void>,
+      testManifest: Record<string, unknown> = manifest
     ) {
       const svc = makeService();
       const child = makeStubChild();
@@ -918,7 +919,7 @@ describe('ConnectorTestService.runTest (against a fake runner)', () => {
       try {
         const run = svc.runTest({
           projectId: 'p',
-          manifest,
+          manifest: testManifest,
           node: 'items',
           configuration: {},
           maxRows: 3,
@@ -931,6 +932,40 @@ describe('ConnectorTestService.runTest (against a fake runner)', () => {
         stubbedChild = undefined;
       }
     }
+
+    it('keeps final diagnostics after buffered logs when the row limit ends the test', async () => {
+      const before = Array.from({ length: 60 }, (_, i) => `before limit ${i}`);
+      const after = Array.from({ length: 60 }, (_, i) => `buffered after limit ${i}`);
+      const rows = [{ i: 0 }, { i: 1 }, { i: 2 }];
+      const res = await runAgainstStub(
+        async child => {
+          child.stdout.write(
+            [
+              ...before,
+              ...rows.map(row => `${String(Core.TEST_ROW_MARKER)}${JSON.stringify(row)}`),
+              ...after,
+              '',
+            ].join('\n')
+          );
+          await settle();
+        },
+        {
+          ...manifest,
+          nodes: {
+            ...manifest.nodes,
+            orders: { request: { method: 'GET', path: '/orders' } },
+          },
+        }
+      );
+
+      expect(res.rows).toEqual(rows);
+      expect(res.error).toBeNull();
+      expect(res.logs).toEqual([
+        ...before,
+        ...after,
+        expect.stringMatching(/another node.*cannot be published:.*orders/),
+      ]);
+    });
 
     it('keeps a two-byte character intact in a sample row split across stdout chunks', async () => {
       const line = Buffer.from(`${String(Core.TEST_ROW_MARKER)}{"city":"Kraków"}\n`, 'utf8');

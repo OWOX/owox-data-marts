@@ -1,4 +1,5 @@
 import { MCP_CONTEXTS_FACADE } from '../../../data-marts/facades/mcp-contexts.facade';
+import { MCP_CUSTOM_CONNECTORS_FACADE } from '../../../data-marts/facades/mcp-custom-connectors.facade';
 import { MCP_PROJECT_MEMBERS_FACADE } from '../../../data-marts/facades/mcp-project-members.facade';
 jest.mock(
   '../../../common/producer/producer.module.js',
@@ -56,6 +57,7 @@ describe('MCP tool providers', () => {
     expect(moduleMetadata(MODULE_METADATA.EXPORTS, DataMartsModule)).toEqual(
       expect.arrayContaining([
         MCP_CONTEXTS_FACADE,
+        MCP_CUSTOM_CONNECTORS_FACADE,
         MCP_PROJECT_MEMBERS_FACADE,
         MCP_DATA_MARTS_FACADE,
         MCP_DATA_DESTINATIONS_FACADE,
@@ -90,6 +92,7 @@ describe('MCP tool providers', () => {
         ...MCP_TOOL_PROVIDER_CLASSES,
         MCP_TOOL_DEFINITIONS_PROVIDER,
         { provide: MCP_CONTEXTS_FACADE, useValue: {} },
+        { provide: MCP_CUSTOM_CONNECTORS_FACADE, useValue: {} },
         { provide: MCP_PROJECT_MEMBERS_FACADE, useValue: membersFacade },
         { provide: MCP_DATA_MARTS_FACADE, useValue: {} },
         { provide: MCP_DATA_DESTINATIONS_FACADE, useValue: {} },
@@ -128,6 +131,18 @@ describe('MCP tool providers', () => {
           'list_project_members',
           'get_project_settings',
           'update_project_description',
+          'list_custom_connectors',
+          'get_custom_connector',
+          'create_custom_connector',
+          'update_custom_connector',
+          'get_custom_connector_version',
+          'save_custom_connector_draft',
+          'test_custom_connector',
+          'publish_custom_connector',
+          'activate_custom_connector_version',
+          'delete_custom_connector',
+          'get_custom_connector_specification',
+          'get_custom_connector_fields',
         ])
       );
       expect(new Set(toolNames).size).toBe(toolNames.length);

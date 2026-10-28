@@ -20,7 +20,22 @@ it only produces one MCP-domain event per call and puts bulky fields (SQL, resul
 changes the wrapped callback's result or error, and `emit()` swallows its own exceptions, so a logging failure
 can never surface as a tool-call failure.
 
-**Known gap:** the SDK validates a tool call's arguments against its input schema *before* the wrapped callback
+For custom connector payloads, telemetry masks the values of parameters marked
+`SECRET`. It also masks the values of credential parameters that the manifest
+parser identifies from `authentication`. The masking covers test `configuration` values and parameter
+`default`, `placeholder` and `options` values, even in incomplete drafts. Parameter
+definitions remain readable. The shared credential-key masking also applies to
+the rest of the manifest, including keys such as `Authorization`, `token` and
+`api_key`.
+
+The runner masks secrets in logs and errors. MCP retains these diagnostics, rows
+and samples. For a failed test, the inline `error_message` contains only the error
+text. Rows and samples remain in the offloaded result. Telemetry masking does not
+change the input or structured result of the handler.
+
+Supply credentials through secret parameters instead of literal values in a manifest.
+
+**Known gap:** the SDK validates a tool call's arguments against its input schema _before_ the wrapped callback
 runs, so calls rejected by schema validation emit no `mcp.tool_call` event (no t1/t2 trace). Only calls that
 reach the handler are instrumented.
 

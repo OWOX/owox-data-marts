@@ -60,6 +60,8 @@ import { DataMartPreviewController } from './controllers/data-mart-preview.contr
 import { SummarizeMcpDataCatalogService } from './use-cases/summarize-mcp-data-catalog.service';
 import { MCP_DATA_MARTS_FACADE } from './facades/mcp-data-marts.facade';
 import { MCP_CONTEXTS_FACADE } from './facades/mcp-contexts.facade';
+import { MCP_CUSTOM_CONNECTORS_FACADE } from './facades/mcp-custom-connectors.facade';
+import { McpCustomConnectorsFacadeImpl } from './facades/mcp-custom-connectors.facade.impl';
 import { MCP_PROJECT_MEMBERS_FACADE } from './facades/mcp-project-members.facade';
 import { McpProjectMembersFacadeImpl } from './facades/mcp-project-members.facade.impl';
 import { McpContextsFacadeImpl } from './facades/mcp-contexts.facade.impl';
@@ -434,6 +436,18 @@ import { ListMembershipRequestsService } from './use-cases/project-members/list-
 import { ApproveMembershipRequestService } from './use-cases/project-members/approve-membership-request.service';
 import { DeclineMembershipRequestService } from './use-cases/project-members/decline-membership-request.service';
 import { SetContextMembersService } from './use-cases/contexts/set-context-members.service';
+import { ListCustomConnectorsService } from './use-cases/custom-connectors/list-custom-connectors.service';
+import { GetCustomConnectorService } from './use-cases/custom-connectors/get-custom-connector.service';
+import { CreateCustomConnectorService } from './use-cases/custom-connectors/create-custom-connector.service';
+import { UpdateCustomConnectorMetadataService } from './use-cases/custom-connectors/update-custom-connector-metadata.service';
+import { GetCustomConnectorVersionService } from './use-cases/custom-connectors/get-custom-connector-version.service';
+import { SaveCustomConnectorDraftService } from './use-cases/custom-connectors/save-custom-connector-draft.service';
+import { PublishCustomConnectorService } from './use-cases/custom-connectors/publish-custom-connector.service';
+import { ActivateCustomConnectorVersionService } from './use-cases/custom-connectors/activate-custom-connector-version.service';
+import { DeleteCustomConnectorService } from './use-cases/custom-connectors/delete-custom-connector.service';
+import { GetCustomConnectorSpecificationService } from './use-cases/custom-connectors/get-custom-connector-specification.service';
+import { GetCustomConnectorFieldsService } from './use-cases/custom-connectors/get-custom-connector-fields.service';
+import { TestCustomConnectorService } from './use-cases/custom-connectors/test-custom-connector.service';
 import { CreateContextService } from './use-cases/contexts/create-context.service';
 import { UpdateContextMetadataService } from './use-cases/contexts/update-context-metadata.service';
 import { GetContextImpactService } from './use-cases/contexts/get-context-impact.service';
@@ -654,6 +668,7 @@ import { ConsentCredentialDefinitionService } from './credentials/use-cases/cons
     DataQualitySummaryService,
     McpDataCatalogSummaryService,
     { provide: MCP_CONTEXTS_FACADE, useClass: McpContextsFacadeImpl },
+    { provide: MCP_CUSTOM_CONNECTORS_FACADE, useClass: McpCustomConnectorsFacadeImpl },
     { provide: MCP_PROJECT_MEMBERS_FACADE, useClass: McpProjectMembersFacadeImpl },
     CreateDataMartService,
     ListDataMartsService,
@@ -984,6 +999,18 @@ import { ConsentCredentialDefinitionService } from './credentials/use-cases/cons
     ApproveMembershipRequestService,
     DeclineMembershipRequestService,
     SetContextMembersService,
+    ListCustomConnectorsService,
+    GetCustomConnectorService,
+    CreateCustomConnectorService,
+    UpdateCustomConnectorMetadataService,
+    GetCustomConnectorVersionService,
+    SaveCustomConnectorDraftService,
+    PublishCustomConnectorService,
+    ActivateCustomConnectorVersionService,
+    DeleteCustomConnectorService,
+    GetCustomConnectorSpecificationService,
+    GetCustomConnectorFieldsService,
+    TestCustomConnectorService,
     CreateContextService,
     UpdateContextMetadataService,
     GetContextImpactService,
@@ -1021,6 +1048,7 @@ import { ConsentCredentialDefinitionService } from './credentials/use-cases/cons
   ],
   exports: [
     MCP_CONTEXTS_FACADE,
+    MCP_CUSTOM_CONNECTORS_FACADE,
     MCP_PROJECT_MEMBERS_FACADE,
     CREDENTIAL_CONSUMER_BINDING_FACADE,
     CredentialFetchService,

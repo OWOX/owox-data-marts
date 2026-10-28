@@ -19,7 +19,7 @@ import {
   MAX_MANIFEST_SIZE_BYTES,
   MAX_TEXT_COLUMN_BYTES,
   MAX_VARCHAR_LENGTH,
-} from '../../dto/presentation/custom-connector.dto';
+} from '../../connector-types/custom-connector-limits';
 import { ConnectorDefinition as ConnectorSourceDefinition } from '../../dto/schemas/data-mart-table-definitions/connector-definition.schema';
 import { DataMartDefinitionType } from '../../enums/data-mart-definition-type.enum';
 import { ConnectorDefinition } from '../../entities/connector-definition.entity';
@@ -670,8 +670,12 @@ export class ConnectorDefinitionService {
       }
     }
     const tooLong = [
-      typeof fields.title === 'string' && fields.title.length > MAX_VARCHAR_LENGTH && 'title',
-      typeof fields.docUrl === 'string' && fields.docUrl.length > MAX_VARCHAR_LENGTH && 'docUrl',
+      typeof fields.title === 'string' &&
+        Array.from(fields.title).length > MAX_VARCHAR_LENGTH &&
+        'title',
+      typeof fields.docUrl === 'string' &&
+        Array.from(fields.docUrl).length > MAX_VARCHAR_LENGTH &&
+        'docUrl',
       typeof fields.description === 'string' &&
         Buffer.byteLength(fields.description) > MAX_TEXT_COLUMN_BYTES &&
         'description',

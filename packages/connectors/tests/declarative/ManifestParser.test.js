@@ -25,6 +25,40 @@ const valid = {
 };
 
 describe('ManifestParser', () => {
+  it('finds authentication credentials without validating or mutating a draft', () => {
+    const authentication = {
+      type: 'selective',
+      selectionParameter: 'Mode',
+      authenticators: {
+        bearer: {
+          type: 'bearer',
+          inject: { into: 'header', name: 'Authorization', format: 'Bearer {{ parameters.Pat }}' },
+        },
+        basic: {
+          type: 'basic',
+          username: '{{ parameters.User }}',
+          password: '{{ parameters.Pass }}',
+        },
+        key: { type: 'basic', username: '{{ parameters.Key }}' },
+        oauth: {
+          type: 'oauth2',
+          tokenUrl: '{{ parameters.Endpoint }}',
+          clientId: '{{ parameters.Client }}',
+          clientSecret: '{{ parameters.Value }}',
+        },
+      },
+    };
+    const before = JSON.stringify(authentication);
+    assert.deepStrictEqual(
+      new ManifestParser().getAuthenticationParameterNames(authentication).sort(),
+      ['Key', 'Pass', 'Pat', 'Value']
+    );
+    assert.strictEqual(JSON.stringify(authentication), before);
+    for (const auth of [undefined, null, 'unfinished', []]) {
+      assert.deepStrictEqual(new ManifestParser().getAuthenticationParameterNames(auth), []);
+    }
+  });
+
   it('parses a valid manifest and exposes allowedHosts', () => {
     const model = new ManifestParser().parse(JSON.stringify(valid));
     assert.strictEqual(model.name, 'Demo');

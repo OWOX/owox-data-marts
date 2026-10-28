@@ -2,7 +2,7 @@
 
 OWOX Data Marts exposes a Model Context Protocol (MCP) server. It lets AI assistants and MCP-compatible clients connect to your project data using standard OAuth authorization.
 
-Use the MCP server to explore your [data marts](../core-concepts.md) in plain language with an AI assistant like Claude or ChatGPT. You never have to leave the assistant. The assistant can summarize the available catalog and inspect data mart fields. It can run bounded queries, list destinations and reports, and set up report delivery. It can also manage report schedules and start report runs for supported push destinations. See [Available tools](#available-tools) for exactly what it can and cannot do.
+Use the MCP server to explore your [data marts](../core-concepts.md) in plain language with an AI assistant like Claude or ChatGPT. You never have to leave the assistant. The assistant can summarize the available catalog and inspect data mart fields. It can run bounded queries, list destinations and reports, and set up report delivery. It can also manage report schedules and start report runs for supported push destinations. Editors can also create, test, publish and maintain custom connectors. See [Available tools](#available-tools) for exactly what it can and cannot do.
 
 ## Prerequisites
 
@@ -99,10 +99,14 @@ To switch projects, disconnect, then reconnect and sign in again. If you use the
 
 ## Available tools
 
-Once connected, the MCP server exposes twenty-nine tools across two scopes:
+Once connected, the MCP server exposes forty-one tools across two scopes:
 
-- **`mcp:read`**: discovery and status tools — `summarize_data_catalog`, `get_project_context`, `list_contexts`, `get_context_impact`, `list_project_members`, `get_project_settings`, `list_data_marts`, `get_relevant_data_marts_by_prompt`, `get_data_mart_details_by_id`, `list_destinations`, `get_data_mart_reports`, `get_relevant_reports_by_prompt`, `get_report_output_schema`, `list_report_run_schedules`, `get_report_run_status`.
-- **`mcp:write`**: tools that create, change, run, or bill something — `create_context`, `update_context_metadata`, `set_context_members`, `delete_context`, `update_project_description`, `query_data_mart`, `add_destination`, `add_report`, `update_report`, `delete_report`, `create_report_run_schedule`, `update_report_run_schedule`, `delete_report_run_schedule`, `run_report`. `query_data_mart` and the report-run schedule mutation tools also require `mcp:read`. `query_data_mart` reads data rows, records each call in Run History, and costs [credits](../billing/consumption-units.md) per call. Your MCP client may ask you to confirm before it calls one of these.
+- **`mcp:read`**: discovery and status tools — `summarize_data_catalog`, `get_project_context`, `list_contexts`, `get_context_impact`, `list_project_members`, `get_project_settings`, `list_custom_connectors`, `get_custom_connector`, `get_custom_connector_version`, `get_custom_connector_specification`, `get_custom_connector_fields`, `list_data_marts`, `get_relevant_data_marts_by_prompt`, `get_data_mart_details_by_id`, `list_destinations`, `get_data_mart_reports`, `get_relevant_reports_by_prompt`, `get_report_output_schema`, `list_report_run_schedules`, `get_report_run_status`.
+- **`mcp:write`**: tools that create, change, run, or bill something — `create_context`, `update_context_metadata`, `set_context_members`, `delete_context`, `update_project_description`, `create_custom_connector`, `update_custom_connector`, `save_custom_connector_draft`, `test_custom_connector`, `publish_custom_connector`, `activate_custom_connector_version`, `delete_custom_connector`, `query_data_mart`, `add_destination`, `add_report`, `update_report`, `delete_report`, `create_report_run_schedule`, `update_report_run_schedule`, `delete_report_run_schedule`, `run_report`. `query_data_mart` and the report-run schedule mutation tools also require `mcp:read`. `query_data_mart` reads data rows, records each call in Run History, and costs [credits](../billing/consumption-units.md) per call. Your MCP client may ask you to confirm before it calls one of these.
+
+Custom connector metadata and schema reads require `mcp:read`. Reading a complete
+version manifest also requires editor access. Custom connector writes and live
+tests require `mcp:write`. See [Custom connector authoring](#custom-connector-authoring).
 
 ### `summarize_data_catalog`
 
@@ -172,6 +176,81 @@ Before assigning members, use `list_project_members` to identify the intended pe
 Removed project members are excluded from discovery and cannot be assigned. If member lookup is unavailable, the tool reports an error instead of an empty project. Configuration tools reject unknown input fields, including misspelled optional fields.
 
 Before deletion, `get_context_impact` reports the attachments that must be removed. Its `affected_member_ids` lists members with selected-context access whose only assigned Context is this one. With your approval, the assistant can remove member assignments using `set_context_members`; Data Marts, storages, destinations and user provisioning defaults must be detached in the OWOX web app. These detach operations are not available through MCP.
+
+### Custom connector authoring
+
+You can create and maintain [custom connectors](../../connectors/custom-connectors.md)
+through your assistant. This includes creating drafts, testing, publishing and
+rollback. Every operation uses the connected project. Use `list_custom_connectors`
+to find `connector_id`. Use `get_custom_connector` to find version numbers.
+
+| Tool                                 | Scope       | Minimum role | Inputs and behavior                                                                                                                                                                                                                                                |
+| ------------------------------------ | ----------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `list_custom_connectors`             | `mcp:read`  | Viewer       | This tool takes no inputs. The result contains `connectors` with metadata and active version numbers. It does not contain manifests.                                                                                                                               |
+| `get_custom_connector`               | `mcp:read`  | Viewer       | Provide `connector_id`. The result includes metadata, a Connector Builder `url` and `versions`. Versions appear oldest first, with status and publication date.                                                                                                    |
+| `create_custom_connector`            | `mcp:write` | Editor       | Provide `name`, `title` and `manifest`. Optional inputs are `description`, `logo` and `doc_url`. The tool creates version 1 as a draft. It returns `connector_id`, `name`, `title` and a Connector Builder `url`.                                                  |
+| `update_custom_connector`            | `mcp:write` | Editor       | Provide `connector_id` and any metadata fields to update. Omitted fields remain unchanged. Use `null` to clear `description`, `logo` or `doc_url`. The connector name cannot change.                                                                               |
+| `get_custom_connector_version`       | `mcp:read`  | Editor       | Provide `connector_id` and `version`. The tool returns the complete draft or published manifest. You must be an editor because manifests can contain credentials.                                                                                                  |
+| `save_custom_connector_draft`        | `mcp:write` | Editor       | Provide `connector_id` and the complete `manifest`. The tool replaces the current draft, or creates the next draft if none exists. Published versions remain unchanged.                                                                                            |
+| `test_custom_connector`              | `mcp:write` | Editor       | Provide `manifest`, `node` and a flat `configuration` map. Optional inputs are `max_rows` (1–1000, default 25) and `max_pages` (1–50, default 1). The test makes real upstream API requests without saving. It returns `rows`, `logs`, `error` and a raw `sample`. |
+| `publish_custom_connector`           | `mcp:write` | Editor       | Provide `connector_id`. The tool validates the latest draft and publishes it. This version becomes active immediately. The result contains version status, publication date, `warnings` and a Connector Builder `url`.                                             |
+| `activate_custom_connector_version`  | `mcp:write` | Editor       | Provide `connector_id` and a published `version`. The tool makes that version active. This includes rollback to an earlier published version.                                                                                                                      |
+| `delete_custom_connector`            | `mcp:write` | Editor       | Provide `connector_id`. The tool soft-deletes an unused connector and makes its name available for reuse. Deletion fails if any Data Mart references the connector.                                                                                                |
+| `get_custom_connector_specification` | `mcp:read`  | Viewer       | Provide `connector_id`. Optionally, provide a published `version`. The tool uses the active version by default. The result contains `specification` without secret parameter values or OAuth internals.                                                            |
+| `get_custom_connector_fields`        | `mcp:read`  | Viewer       | Provide `connector_id`. Optionally, provide a published `version`. The tool uses the active version by default. The result contains node and field schemas, including primary keys and default fields.                                                             |
+
+Use the [manifest reference](../../connectors/manifest-reference.md) to write a
+connector manifest:
+
+1. If a draft exists, read its latest version before editing. Saving replaces the whole document.
+2. Create or save the draft. Drafts can be incomplete.
+3. Test the relevant nodes.
+4. Review the test result before publishing. Publication validates the full manifest.
+
+Manifest JSON and test-configuration JSON each have a limit of 120 KiB. Live tests
+have a 20-second timeout and concurrency limits.
+
+The results of `create_custom_connector`, `get_custom_connector` and
+`publish_custom_connector` include a `url`. This URL opens the connector in the
+Connector Builder on your OWOX deployment.
+
+Test results include up to 50 recent log entries plus an omission notice. Each
+entry has at most 2000 characters. The total limit is 8000 characters, including
+notices. Truncation markers identify shortened entries. An omission notice gives
+the number of omitted earlier entries. Rows, raw samples and the test error remain
+unchanged.
+
+Check `logs` and `sample` even when `error` is null. Empty `rows` alone do not
+prove that the test succeeded.
+
+Publishing or activating changes future runs of every Data Mart that follows the
+active version. You must have edit access to each of these Data Marts. Otherwise,
+ask a project admin or request edit access. Data Marts pinned to a version keep
+that version. Publication warnings identify credential configuration that needs
+attention. Publishing and activating may also update display metadata from the
+manifest.
+
+If deletion fails because Data Marts reference the connector, reconfigure those
+Data Marts in the web app before retrying.
+
+Tool metadata uses `connector_id`, `doc_url`, `active_version_id`, `active_version`
+and `published_at`. The nested `manifest`, `specification` and `fields` keep their
+native connector JSON keys, including camelCase names. MCP metadata responses do
+not include base64 logos. Logos remain available in the Connector Builder.
+
+Do not put literal credentials in a manifest. Declare credential parameters with
+`attributes: ["SECRET"]`. Use parameter references in the manifest. Supply actual
+values in test `configuration` or when connecting the connector to a Data Mart.
+
+Manifests, test configuration, sample rows and logs pass through your AI client.
+The client may send this content to its provider.
+
+OWOX MCP tool-call telemetry masks `SECRET` parameter values in test configuration.
+It also masks their defaults, placeholders and options. The same masking applies
+to parameters that the manifest parser identifies as credentials from
+`authentication`. Telemetry also masks credential keys such as `Authorization`,
+`token` and `api_key` elsewhere in the manifest. Other manifest content and test
+diagnostics remain available. The connector runner masks secrets in logs and errors.
 
 ### `list_data_marts`
 
@@ -697,9 +776,9 @@ Once the OWOX server is connected, just ask your assistant in plain language. Yo
 - "Turn off the schedule you just created."
 - "Delete the old 'Test export' report from the Sales data mart."
 
-> **What these tools can and cannot do:** They let the assistant discover your project, summarize the published data mart catalog, inspect data mart metadata, list destinations, list reports and schedules, and check report-run status. With `query_data_mart`, the assistant can run a bounded structured query and read the resulting data rows and totals; this is billable and recorded in Run History. With your confirmation, the assistant can also create destinations (`add_destination`), create a report for a Google Sheets, Looker Studio, email, Slack, Microsoft Teams, or Google Chat destination — optionally with the same filters, slices, aggregations, date buckets, and sort as a `query_data_mart` call, so the export matches the numbers you saw (`add_report`). New push-destination reports run once by default and return a `run_id` to poll; `run_immediately: false` creates configuration only. Related Google Sheets exports can share one spreadsheet as separate sheets. The assistant can also rename a report, change which fields it exports, replace its output controls, or edit the message of email-family reports (`update_report`) — it does this, rather than creating a second report, when you ask to change one that exists — delete a report (`delete_report`), create, update, or delete report-run schedules, and start a later manual run for supported push-destination reports (`run_report`). They cannot run arbitrary SQL — only structured queries built from the fields, filters, and aggregations described above — and cannot edit a data mart, edit an existing destination, change project settings other than the description, retrieve destination secret keys, or run pull-based Looker Studio reports through `run_report`.
+> **What these tools can and cannot do:** They let the assistant discover your project, summarize the published data mart catalog, inspect data mart metadata, list destinations, list reports and schedules, and check report-run status. With `query_data_mart`, the assistant can run a bounded structured query and read the resulting data rows and totals; this is billable and recorded in Run History. With your confirmation, the assistant can also create destinations (`add_destination`), create a report for a Google Sheets, Looker Studio, email, Slack, Microsoft Teams, or Google Chat destination — optionally with the same filters, slices, aggregations, date buckets, and sort as a `query_data_mart` call, so the export matches the numbers you saw (`add_report`). New push-destination reports run once by default and return a `run_id` to poll; `run_immediately: false` creates configuration only. Related Google Sheets exports can share one spreadsheet as separate sheets. The assistant can also rename a report, change which fields it exports, replace its output controls, or edit the message of email-family reports (`update_report`) — it does this, rather than creating a second report, when you ask to change one that exists — delete a report (`delete_report`), create, update, or delete report-run schedules, and start a later manual run for supported push-destination reports (`run_report`). Editors can also create, test, publish, update and delete custom connectors, and activate earlier published versions. They cannot run arbitrary SQL — only structured queries built from the fields, filters, and aggregations described above — and cannot edit a data mart, edit an existing destination, change project settings other than the description, retrieve destination secret keys, or run pull-based Looker Studio reports through `run_report`.
 >
-> **What is shared with your AI provider:** To answer your prompts, the project description and other project metadata, data-mart metadata, destination metadata, report and schedule metadata, report-run status, and your project roles can be sent to the AI provider behind your client, such as Anthropic for Claude or OpenAI for ChatGPT. If you ask the assistant to create an email-based destination, the email addresses you provide are also sent through that client. Whenever the assistant runs `query_data_mart`, the **resulting data rows and totals are sent** to that provider so it can answer with the data — only data you are permitted to query. Connect OWOX only to clients your organization permits to receive this information.
+> **What is shared with your AI provider:** To answer your prompts, the project description and other project metadata, data-mart metadata, destination metadata, report and schedule metadata, report-run status, and your project roles can be sent to the AI provider behind your client, such as Anthropic for Claude or OpenAI for ChatGPT. If you ask the assistant to create an email-based destination, the email addresses you provide are also sent through that client. Whenever the assistant runs `query_data_mart`, the **resulting data rows and totals are sent** to that provider so it can answer with the data — only data you are permitted to query. Custom connector authoring can also send complete manifests, test configuration, upstream sample rows and logs to that provider. Connect OWOX only to clients your organization permits to receive this information.
 
 ## Troubleshooting
 

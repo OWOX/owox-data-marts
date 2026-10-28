@@ -2,6 +2,7 @@ import { BaseEvent, deriveTraceId, OFFLOAD_KEY } from '@owox/internal-helpers';
 import { createHash } from 'node:crypto';
 import type { McpToolResult } from '../tools/mcp-tool.definition';
 import type { McpLogContext } from './mcp-log-context';
+import { REDACTED, REDACT_KEYS, redactMcpTelemetry as redact } from './mcp-telemetry-redaction';
 
 export interface McpToolCallEventPayload {
   mcp_method_name: string;
@@ -46,14 +47,8 @@ export interface BuildMcpToolCallEventParams {
   meta?: Record<string, unknown>;
 }
 
-// Substring match (not exact) so compound secret keys — access_token, refresh_token, client_secret,
-// private_key, credentials — are caught, not just the bare names.
-const REDACT_KEYS =
-  /(authorization|bearer|cookie|token|secret|password|passwd|api[_-]?key|private[_-]?key|credential)/i;
-const REDACTED = '[REDACTED]';
 const MAX_META_VALUE_LEN = 1024;
 const MAX_META_KEYS = 64;
-const MAX_REDACT_DEPTH = 16;
 
 /** _meta keys that carry a stable conversation id, in priority order. */
 const CONVERSATION_ID_META_KEYS = ['openai/session'] as const;
@@ -100,21 +95,6 @@ function flattenMeta(meta?: Record<string, unknown>): Record<string, string | bo
   }
   if (entries.length > MAX_META_KEYS) out['meta_truncated'] = true;
   return out;
-}
-
-function redact(value: unknown, depth = 0): unknown {
-  if (depth > MAX_REDACT_DEPTH) return '[TRUNCATED]';
-  if (Array.isArray(value)) return value.map(v => redact(v, depth + 1));
-  if (value && typeof value === 'object') {
-    // Null-proto so a literal "__proto__" key becomes an own property that survives JSON.stringify
-    // instead of silently mutating the prototype.
-    const out: Record<string, unknown> = Object.create(null);
-    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
-      out[k] = REDACT_KEYS.test(k) ? REDACTED : redact(v, depth + 1);
-    }
-    return out;
-  }
-  return value;
 }
 
 function normalizeError(error: unknown): { type: string; message: string } {
