@@ -7,16 +7,21 @@ import { DataSource } from 'typeorm';
 import { DataDestinationType } from '../src/data-marts/data-destination-types/enums/data-destination-type.enum';
 import { GoogleSheetsFolderValidator } from '../src/data-marts/data-destination-types/google-sheets/services/google-sheets-folder-validator.service';
 import { DestinationFolderAccessException } from '../src/data-marts/exceptions/google-oauth.exceptions';
+import { GoogleOAuthConfigService } from '../src/data-marts/services/google-oauth/google-oauth-config.service';
 import { ProjectMemberDto } from '../src/idp/dto/domain/project-member.dto';
 import { IdpProjectionsFacade } from '../src/idp/facades/idp-projections.facade';
+import { PluginRuntimeAuthorizerService } from '../src/plugin-host/services/plugin-runtime-authorizer.service';
 import {
   boundDestinationCredentialId,
   createChatWebhookCredential,
   createServiceAccountCredential,
 } from './fixtures/destination-credentials';
+import { createCredential } from './fixtures/storage-credentials';
 
 const OWNER_AUTH_HEADER = { 'x-owox-authorization': 'owner-token' };
 const OTHER_AUTH_HEADER = { 'x-owox-authorization': 'other-token' };
+const PLUGIN_AUTH_HEADER = { 'x-owox-authorization': 'plugin-token' };
+const SHEETS_SCOPE = 'https://www.googleapis.com/auth/spreadsheets';
 const CLIENT_EMAIL = 'docs-writer@acme-docs.iam.gserviceaccount.com';
 
 function payload(userId: string, roles: Payload['roles']): Payload {
@@ -24,6 +29,15 @@ function payload(userId: string, roles: Payload['roles']): Payload {
 }
 
 function resolvePayload(token: string): Payload {
+  if (token.startsWith('plugin')) {
+    // A plugin acting for the owner, who may use every Credential below.
+    return {
+      ...payload('1', ['editor']),
+      authFlow: 'plugin',
+      pluginId: 'plugin-1',
+      installationId: 'installation-1',
+    };
+  }
   if (token.startsWith('owner')) return payload('1', ['editor']);
   if (token.startsWith('other')) return payload('3', ['editor']);
   return payload('0', ['admin']);
@@ -54,6 +68,15 @@ describe('Destinations select a Credential (e2e)', () => {
         new ProjectMemberDto('1', 'owner@localhost', 'Owner', undefined, 'editor', true, false),
         new ProjectMemberDto('3', 'other@localhost', 'Other', undefined, 'editor', true, false),
       ]);
+    jest
+      .spyOn(app.get(PluginRuntimeAuthorizerService), 'assertActiveInstallation')
+      .mockResolvedValue(undefined);
+    // Google sign-in for Destinations as configured on a server; no call reaches Google.
+    const oauthConfig = app.get(GoogleOAuthConfigService);
+    jest.spyOn(oauthConfig, 'isDestinationConfigured').mockReturnValue(true);
+    jest
+      .spyOn(oauthConfig, 'getSheetsScopes')
+      .mockReturnValue([SHEETS_SCOPE, 'openid', 'email', 'profile']);
 
     ownerKeyId = await createServiceAccountCredential(app, {
       projectId: '0',
@@ -378,5 +401,124 @@ describe('Destinations select a Credential (e2e)', () => {
 
     expect(res.status).toBe(400);
     expect(res.body.message).toBe('Data Studio destinations do not use a Credential.');
+  });
+  describe('with Sheets Google account Credentials', () => {
+    const FOLDER_URL = 'https://drive.google.com/drive/folders/folder-1';
+    let annId: string;
+    let bobId: string;
+
+    /** A Not shared Google account Credential as Connect with Google saves one, without its tokens. */
+    function givenGoogleAccount(email: string): Promise<string> {
+      return createCredential(app, {
+        projectId: '0',
+        definitionId: 'google-sheets-oauth',
+        title: email,
+        secret: {
+          oauth: {
+            provider: 'google',
+            clientId: 'destination-client',
+            tokens: {
+              access_token: 'access-token',
+              refresh_token: `refresh-token-${email}`,
+              token_type: 'Bearer',
+              scope: SHEETS_SCOPE,
+            },
+          },
+        },
+        publicMetadata: { account: { email, name: null, picture: null }, scopes: [SHEETS_SCOPE] },
+        ownerIds: ['1'],
+        contextIds: [],
+      });
+    }
+
+    beforeAll(async () => {
+      annId = await givenGoogleAccount('ann@example.com');
+      bobId = await givenGoogleAccount('bob@example.com');
+    });
+
+    const account = (credentialId: string, email: string) => ({
+      reusableCredential: {
+        access: 'visible',
+        id: credentialId,
+        title: email,
+        definitionId: 'google-sheets-oauth',
+        providerName: expect.any(String),
+        identity: email,
+        state: 'ready',
+      },
+      credentials: { type: 'google-sheets-oauth-credentials', identity: { email } },
+    });
+
+    const read = (id: string) =>
+      agent.get(`/api/data-destinations/${id}`).set(OWNER_AUTH_HEADER).expect(200);
+
+    it('keeps a folder the save sends for another account and drops one it leaves out', async () => {
+      const created = await create(OWNER_AUTH_HEADER, {
+        title: 'Sheets',
+        type: DataDestinationType.GOOGLE_SHEETS,
+        reusableCredentialId: annId,
+        config: { folderUrl: FOLDER_URL },
+      }).expect(201);
+      const id = created.body.id as string;
+      expect(created.body).toMatchObject({
+        ...account(annId, 'ann@example.com'),
+        config: { folderUrl: FOLDER_URL },
+      });
+
+      await put(id, { reusableCredentialId: bobId, config: { folderUrl: FOLDER_URL } }).expect(200);
+      const kept = await read(id);
+
+      expect(kept.body).toMatchObject({
+        ...account(bobId, 'bob@example.com'),
+        config: { folderUrl: FOLDER_URL },
+      });
+
+      await put(id, { reusableCredentialId: annId }).expect(200);
+      const cleared = await read(id);
+
+      expect(cleared.body).toMatchObject(account(annId, 'ann@example.com'));
+      expect(cleared.body.config).toBeNull();
+      expect(await boundDestinationCredentialId(app, id)).toBe(annId);
+      const bodies = JSON.stringify([created.body, kept.body, cleared.body]);
+      expect(bodies).not.toContain('refresh-token-');
+      expect(bodies).not.toContain('access-token');
+    });
+
+    it('keeps the folder when the save sends the bound Credential again', async () => {
+      const created = await create(OWNER_AUTH_HEADER, {
+        title: 'Sheets',
+        type: DataDestinationType.GOOGLE_SHEETS,
+        reusableCredentialId: bobId,
+        config: { folderUrl: FOLDER_URL },
+      }).expect(201);
+      const id = created.body.id as string;
+
+      await put(id, { reusableCredentialId: bobId }).expect(200);
+
+      expect((await read(id)).body).toMatchObject({
+        ...account(bobId, 'bob@example.com'),
+        config: { folderUrl: FOLDER_URL },
+      });
+    });
+
+    it('refuses a plugin that sends reusableCredentialId and keeps the binding', async () => {
+      const created = await create(OWNER_AUTH_HEADER, {
+        title: 'Sheets',
+        type: DataDestinationType.GOOGLE_SHEETS,
+        reusableCredentialId: annId,
+      }).expect(201);
+      const id = created.body.id as string;
+
+      for (const reusableCredentialId of [bobId, annId]) {
+        const res = await agent
+          .put(`/api/data-destinations/${id}`)
+          .set(PLUGIN_AUTH_HEADER)
+          .send({ title: 'Sheets', reusableCredentialId });
+
+        expect(res.status).toBe(403);
+        expect(res.body.message).toBe("Plugins cannot change a Destination's Credential.");
+      }
+      expect(await boundDestinationCredentialId(app, id)).toBe(annId);
+    });
   });
 });
