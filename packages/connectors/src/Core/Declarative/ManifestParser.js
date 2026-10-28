@@ -1054,7 +1054,10 @@ export class ManifestParser {
 
   getAuthenticationParameterNames(authentication) {
     const names = new Set();
-    this._collectAuthParameterRefs(authentication, names);
+    this.mapAuthenticationCredentials(authentication, value => {
+      this._collectParameterRefsDeep(value, names);
+      return value;
+    });
     return [...names];
   }
 
@@ -1144,50 +1147,63 @@ export class ManifestParser {
     }
   }
 
-  /**
-   * Walks an authenticator, collecting the parameter names referenced from
-   * credential-bearing positions. Recurses through `selective` branches.
-   */
-  _collectAuthParameterRefs(auth, into) {
-    if (!auth || typeof auth !== 'object' || Array.isArray(auth)) return;
+  /** Uses the same credential positions for parameter discovery and host-side masking. */
+  mapAuthenticationCredentials(auth, mapCredential, mapMetadata = value => value) {
+    if (!auth || typeof auth !== 'object' || Array.isArray(auth)) return mapMetadata(auth);
 
-    for (const [key, value] of Object.entries(auth)) {
-      // Basic auth without a password is an API key sent as the username (Stripe, Chargebee,
-      // Freshdesk), so there the username is the credential.
-      if (key === 'username' && auth.type === 'basic' && !auth.password) {
-        this._collectParameterRefsDeep(value, into);
-        continue;
-      }
-      if (NON_CREDENTIAL_AUTH_KEYS.has(key)) continue;
-
-      if (key === 'authenticators') {
-        // `selective`: each branch is a full authenticator with the same rules.
-        if (value && typeof value === 'object') {
-          for (const sub of Object.values(value)) this._collectAuthParameterRefs(sub, into);
+    return Object.fromEntries(
+      Object.entries(auth).map(([key, value]) => {
+        // Basic auth without a password sends an API key as the username.
+        if (key === 'username' && auth.type === 'basic' && !auth.password) {
+          return [key, mapCredential(value)];
         }
-        continue;
-      }
+        if (NON_CREDENTIAL_AUTH_KEYS.has(key)) return [key, mapMetadata(value)];
 
-      if (key === 'inject') {
-        if (value && typeof value === 'object') {
-          this._collectParameterRefsDeep(value[CREDENTIAL_INJECT_KEY], into);
+        if (key === 'authenticators') {
+          if (!value || typeof value !== 'object') return [key, mapMetadata(value)];
+          return [
+            key,
+            Array.isArray(value)
+              ? value.map(sub => this.mapAuthenticationCredentials(sub, mapCredential, mapMetadata))
+              : Object.fromEntries(
+                  Object.entries(value).map(([name, sub]) => [
+                    name,
+                    this.mapAuthenticationCredentials(sub, mapCredential, mapMetadata),
+                  ])
+                ),
+          ];
         }
-        continue;
-      }
 
-      if (key === 'exchange') {
-        if (value && typeof value === 'object') {
-          for (const [exKey, exValue] of Object.entries(value)) {
-            if (NON_CREDENTIAL_EXCHANGE_KEYS.has(exKey)) continue;
-            this._collectParameterRefsDeep(exValue, into);
-          }
+        if (key === 'inject') {
+          if (!value || typeof value !== 'object') return [key, mapMetadata(value)];
+          const { [CREDENTIAL_INJECT_KEY]: credential, ...metadata } = value;
+          return [
+            key,
+            {
+              ...mapMetadata(metadata),
+              ...(CREDENTIAL_INJECT_KEY in value
+                ? { [CREDENTIAL_INJECT_KEY]: mapCredential(credential) }
+                : {}),
+            },
+          ];
         }
-        continue;
-      }
 
-      // clientSecret, refreshToken, password, and any key the format grows later.
-      this._collectParameterRefsDeep(value, into);
-    }
+        if (key === 'exchange') {
+          if (!value || typeof value !== 'object') return [key, mapMetadata(value)];
+          return [
+            key,
+            Object.fromEntries(
+              Object.entries(value).map(([field, item]) => [
+                field,
+                NON_CREDENTIAL_EXCHANGE_KEYS.has(field) ? mapMetadata(item) : mapCredential(item),
+              ])
+            ),
+          ];
+        }
+
+        return [key, mapCredential(value)];
+      })
+    );
   }
 
   _collectParameterRefsDeep(value, into) {

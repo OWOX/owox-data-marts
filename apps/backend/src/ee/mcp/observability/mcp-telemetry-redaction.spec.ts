@@ -42,6 +42,98 @@ describe('redactMcpTelemetry for custom connectors', () => {
     expect(input).toEqual(original);
   });
 
+  it('masks credential keys inside parameter defaults while preserving ordinary values', () => {
+    const input = {
+      manifest: {
+        parameters: {
+          Settings: {
+            label: 'Request settings',
+            requiredType: 'object',
+            default: {
+              Authorization: 'private-header',
+              Region: 'eu',
+              endpoints: [{ path: '/items', api_key: 'private-key' }],
+            },
+          },
+          TokenCount: { default: 100 },
+        },
+      },
+    };
+    const original = structuredClone(input);
+
+    expect(redactMcpTelemetry(input)).toEqual({
+      manifest: {
+        parameters: {
+          Settings: {
+            label: 'Request settings',
+            requiredType: 'object',
+            default: {
+              Authorization: '[REDACTED]',
+              Region: 'eu',
+              endpoints: [{ path: '/items', api_key: '[REDACTED]' }],
+            },
+          },
+          TokenCount: { default: 100 },
+        },
+      },
+    });
+    expect(input).toEqual(original);
+  });
+
+  it.each([true, false])('masks oneOf credentials with nested items present: %s', withItems => {
+    const input = {
+      manifest: {
+        parameters: {
+          Auth: {
+            label: 'Authentication method',
+            oneOf: [
+              {
+                label: 'OAuth',
+                value: 'oauth',
+                oauthParams: { clientId: 'public-client', clientSecret: 'private-client-secret' },
+                ...(withItems
+                  ? {
+                      items: {
+                        AccessToken: { attributes: ['SECRET'], default: 'private-token' },
+                        Region: { default: 'eu' },
+                      },
+                    }
+                  : {}),
+              },
+            ],
+          },
+        },
+      },
+    };
+    const original = structuredClone(input);
+
+    expect(redactMcpTelemetry(input)).toEqual({
+      manifest: {
+        parameters: {
+          Auth: {
+            label: 'Authentication method',
+            oneOf: [
+              {
+                label: 'OAuth',
+                value: 'oauth',
+                oauthParams: { clientId: 'public-client', clientSecret: '[REDACTED]' },
+                ...(withItems
+                  ? {
+                      items: {
+                        AccessToken: { attributes: ['SECRET'], default: '[REDACTED]' },
+                        Region: { default: 'eu' },
+                      },
+                    }
+                  : {}),
+              },
+            ],
+          },
+        },
+      },
+    });
+    expect(input).toEqual(original);
+  });
+
   it('masks authentication secrets in incomplete drafts without hiding selectors or usernames', () => {
     const authentication = {
       type: 'selective',
@@ -114,6 +206,186 @@ describe('redactMcpTelemetry for custom connectors', () => {
     expect(JSON.stringify(result)).not.toContain('private-');
     expect(input).toEqual(original);
   });
+
+  it.each([
+    {
+      name: 'literal bearer credential',
+      authentication: {
+        type: 'bearer',
+        inject: { into: 'header', name: 'Authorization', format: 'Bearer private-value' },
+      },
+      expected: {
+        type: 'bearer',
+        inject: { into: 'header', name: 'Authorization', format: '[REDACTED]' },
+      },
+    },
+    {
+      name: 'Basic API key without a password',
+      authentication: { type: 'basic', username: 'private-value' },
+      expected: { type: 'basic', username: '[REDACTED]' },
+    },
+    {
+      name: 'Basic API key with an empty password',
+      authentication: { type: 'basic', username: 'private-value', password: '' },
+      expected: { type: 'basic', username: '[REDACTED]', password: '' },
+    },
+    {
+      name: 'Basic password with a public username',
+      authentication: { type: 'basic', username: 'public-user', password: 'private-value' },
+      expected: { type: 'basic', username: 'public-user', password: '[REDACTED]' },
+    },
+    {
+      name: 'OAuth credentials with public connection settings',
+      authentication: {
+        type: 'oauth2',
+        tokenUrl: 'https://example.com/oauth/token',
+        clientId: 'public-client',
+        clientSecret: 'private-client-secret',
+        refreshToken: 'private-refresh-token',
+        grantType: 'refresh_token',
+        scope: 'read:items',
+        ttlSeconds: 300,
+        inject: { into: 'header', name: 'Authorization', format: 'Bearer {{ auth.token }}' },
+      },
+      expected: {
+        type: 'oauth2',
+        tokenUrl: 'https://example.com/oauth/token',
+        clientId: 'public-client',
+        clientSecret: '[REDACTED]',
+        refreshToken: '[REDACTED]',
+        grantType: 'refresh_token',
+        scope: 'read:items',
+        ttlSeconds: 300,
+        inject: { into: 'header', name: 'Authorization', format: 'Bearer {{ auth.token }}' },
+      },
+    },
+    {
+      name: 'token exchange credentials with request and response metadata',
+      authentication: {
+        type: 'tokenExchange',
+        exchange: {
+          url: 'https://example.com/token',
+          method: 'POST',
+          tokenPath: ['data', 'access_token'],
+          ttlSeconds: 300,
+          body: { login: '{{ parameters.Login }}', values: ['private-value'] },
+        },
+        inject: { into: 'header', name: 'Authorization', format: 'Bearer {{ auth.token }}' },
+      },
+      expected: {
+        type: 'tokenExchange',
+        exchange: {
+          url: 'https://example.com/token',
+          method: 'POST',
+          tokenPath: ['data', 'access_token'],
+          ttlSeconds: 300,
+          body: { login: '{{ parameters.Login }}', values: ['[REDACTED]'] },
+        },
+        inject: { into: 'header', name: 'Authorization', format: 'Bearer {{ auth.token }}' },
+      },
+    },
+    {
+      name: 'selective branches with literal and parameter-based credentials',
+      authentication: {
+        type: 'selective',
+        selectionParameter: 'Mode',
+        authenticators: {
+          bearer: {
+            type: 'bearer',
+            inject: { into: 'header', name: 'Authorization', format: 'Bearer private-value' },
+          },
+          basic: { type: 'basic', username: 'private-key' },
+          apiKey: {
+            type: 'apiKey',
+            inject: { into: 'query', name: 'key', format: '{{ parameters.Value }}' },
+          },
+        },
+      },
+      expected: {
+        type: 'selective',
+        selectionParameter: 'Mode',
+        authenticators: {
+          bearer: {
+            type: 'bearer',
+            inject: { into: 'header', name: 'Authorization', format: '[REDACTED]' },
+          },
+          basic: { type: 'basic', username: '[REDACTED]' },
+          apiKey: {
+            type: 'apiKey',
+            inject: { into: 'query', name: 'key', format: '{{ parameters.Value }}' },
+          },
+        },
+      },
+    },
+  ])('masks $name', ({ authentication, expected }) => {
+    const input = { manifest: { authentication } };
+    const original = structuredClone(input);
+
+    expect(redactMcpTelemetry(input)).toEqual({ manifest: { authentication: expected } });
+    expect(input).toEqual(original);
+  });
+
+  it('masks credential keys in unfinished authentication metadata', () => {
+    const input = {
+      manifest: {
+        authentication: {
+          type: 'bearer',
+          inject: {
+            into: 'header',
+            name: 'Authorization',
+            format: 'Bearer {{ parameters.Value }}',
+            extra: { Authorization: 'private-header', Region: 'eu' },
+          },
+        },
+      },
+    };
+    const original = structuredClone(input);
+
+    expect(redactMcpTelemetry(input)).toEqual({
+      manifest: {
+        authentication: {
+          type: 'bearer',
+          inject: {
+            into: 'header',
+            name: 'Authorization',
+            format: 'Bearer {{ parameters.Value }}',
+            extra: { Authorization: '[REDACTED]', Region: 'eu' },
+          },
+        },
+      },
+    });
+    expect(input).toEqual(original);
+  });
+
+  it.each([
+    ['{{ parameters.Value }}', '{{ parameters.Value }}'],
+    ['Bearer {{ parameters.Value }}', 'Bearer {{ parameters.Value }}'],
+    ['ApiKey {{ parameters.Value }}', 'ApiKey {{ parameters.Value }}'],
+    ['Bearer private-value{{ parameters.Value }}', '[REDACTED]'],
+    ['{{ parameters.Value }}private-suffix', '[REDACTED]'],
+    ['{{ unsupported.Value }}', '[REDACTED]'],
+  ])(
+    'handles authentication template %s without exposing literal credentials',
+    (format, expected) => {
+      expect(
+        redactMcpTelemetry({
+          manifest: {
+            authentication: {
+              type: 'bearer',
+              inject: { into: 'header', name: 'Authorization', format },
+            },
+          },
+        })
+      ).toEqual({
+        manifest: {
+          authentication: {
+            type: 'bearer',
+            inject: { into: 'header', name: 'Authorization', format: expected },
+          },
+        },
+      });
+    }
+  );
 
   it('masks literal manifest credentials while preserving request paths and ordinary query values', () => {
     const input = {

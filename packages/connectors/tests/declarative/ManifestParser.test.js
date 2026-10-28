@@ -59,6 +59,60 @@ describe('ManifestParser', () => {
     }
   });
 
+  it('maps credential positions while preserving authentication metadata and the original object', () => {
+    const authentication = {
+      type: 'selective',
+      selectionParameter: 'Mode',
+      authenticators: {
+        basic: { type: 'basic', username: 'public-user', password: 'private-password' },
+        key: { type: 'basic', username: 'private-key' },
+        exchange: {
+          type: 'tokenExchange',
+          exchange: {
+            url: 'https://example.com/token',
+            method: 'POST',
+            tokenPath: ['access_token'],
+            ttlSeconds: 300,
+            body: { value: 'private-value' },
+          },
+          inject: { into: 'header', name: 'Authorization', format: 'Bearer {{ auth.token }}' },
+        },
+      },
+    };
+    const before = structuredClone(authentication);
+    const parser = new ManifestParser();
+
+    assert.deepStrictEqual(
+      parser.mapAuthenticationCredentials(authentication, () => '[MASKED]'),
+      {
+        type: 'selective',
+        selectionParameter: 'Mode',
+        authenticators: {
+          basic: { type: 'basic', username: 'public-user', password: '[MASKED]' },
+          key: { type: 'basic', username: '[MASKED]' },
+          exchange: {
+            type: 'tokenExchange',
+            exchange: {
+              url: 'https://example.com/token',
+              method: 'POST',
+              tokenPath: ['access_token'],
+              ttlSeconds: 300,
+              body: '[MASKED]',
+            },
+            inject: { into: 'header', name: 'Authorization', format: '[MASKED]' },
+          },
+        },
+      }
+    );
+    assert.deepStrictEqual(authentication, before);
+    for (const auth of [undefined, null, 'unfinished', []]) {
+      assert.deepStrictEqual(
+        parser.mapAuthenticationCredentials(auth, () => '[MASKED]'),
+        auth
+      );
+    }
+  });
+
   it('parses a valid manifest and exposes allowedHosts', () => {
     const model = new ManifestParser().parse(JSON.stringify(valid));
     assert.strictEqual(model.name, 'Demo');

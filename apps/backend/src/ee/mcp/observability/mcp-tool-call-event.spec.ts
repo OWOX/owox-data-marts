@@ -40,6 +40,54 @@ describe('buildMcpToolCallEvent', () => {
     expect(blob['result']).toEqual({ rows: 3 });
   });
 
+  it.each(['arguments', 'result'] as const)(
+    'masks custom connector credentials in offloaded %s',
+    field => {
+      const manifest = {
+        parameters: {
+          Settings: { default: { Authorization: 'private-header', Region: 'eu' } },
+          Auth: { oneOf: [{ value: 'oauth', oauthParams: { clientSecret: 'private-client' } }] },
+        },
+        authentication: {
+          type: 'bearer',
+          inject: { into: 'header', name: 'Authorization', format: 'Bearer private-value' },
+        },
+        nodes: { items: { request: { path: '/items' } } },
+      };
+      const original = structuredClone(manifest);
+      const event = buildMcpToolCallEvent({
+        methodName: 'tools/call',
+        toolName:
+          field === 'arguments' ? 'create_custom_connector' : 'get_custom_connector_version',
+        input: field === 'arguments' ? { manifest } : { connector_id: 'connector-1', version: 1 },
+        ...(field === 'result'
+          ? {
+              result: { content: [], structuredContent: { version: 1, status: 'draft', manifest } },
+            }
+          : {}),
+        durationMs: 1,
+        context: ctx,
+      });
+      const payload = event.payload[OFFLOAD_KEY] as Record<string, unknown>;
+
+      expect(payload[field]).toMatchObject({
+        manifest: {
+          parameters: {
+            Settings: { default: { Authorization: '[REDACTED]', Region: 'eu' } },
+            Auth: { oneOf: [{ value: 'oauth', oauthParams: { clientSecret: '[REDACTED]' } }] },
+          },
+          authentication: {
+            type: 'bearer',
+            inject: { into: 'header', name: 'Authorization', format: '[REDACTED]' },
+          },
+          nodes: { items: { request: { path: '/items' } } },
+        },
+      });
+      expect(JSON.stringify(payload)).not.toContain('private-');
+      expect(manifest).toEqual(original);
+    }
+  );
+
   it('offload blob is self-describing: identity fields match the top-level payload, plus occurred_at == event.occurredAt', () => {
     const ev = buildMcpToolCallEvent({
       methodName: 'tools/call',

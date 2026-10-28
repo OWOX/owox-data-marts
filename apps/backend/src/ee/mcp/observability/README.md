@@ -24,9 +24,11 @@ For custom connector payloads, telemetry masks the values of parameters marked
 `SECRET`. It also masks the values of credential parameters that the manifest
 parser identifies from `authentication`. The masking covers test `configuration` values and parameter
 `default`, `placeholder` and `options` values, even in incomplete drafts. Parameter
-definitions remain readable. The shared credential-key masking also applies to
-the rest of the manifest, including keys such as `Authorization`, `token` and
-`api_key`.
+definitions remain readable. Literal credentials in authentication fields are also
+masked. Parameter references with standard authentication prefixes remain readable,
+as do public usernames, OAuth client IDs and endpoint URLs. The shared credential-key
+masking also applies to definition values, option metadata and the rest of the
+manifest, including keys such as `Authorization`, `token` and `api_key`.
 
 The runner masks secrets in logs and errors. MCP retains these diagnostics, rows
 and samples. For a failed test, the inline `error_message` contains only the error
