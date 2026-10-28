@@ -9,6 +9,9 @@ import {
 import type { UiAuthProviders } from '../../types/index.js';
 import { resolveResourcePath } from '../../utils/template-paths.js';
 
+export const SIGN_IN_PAGE_TITLE = 'Sign In - OWOX Data Marts';
+export const SIGN_UP_PAGE_TITLE = 'Sign Up - OWOX Data Marts';
+
 /**
  * Loads and renders EJS templates for auth pages with layout composition.
  */
@@ -62,7 +65,7 @@ export class TemplateService {
     data: Record<string, unknown> & { providers: UiAuthProviders; gtmContainerId?: string }
   ): string {
     return this.renderWithLayout('pages/sign-in.ejs', 'layouts/auth.ejs', {
-      pageTitle: 'Sign In - OWOX Data Marts',
+      pageTitle: SIGN_IN_PAGE_TITLE,
       heading: 'Sign in to OWOX',
       ...data,
       providers: data.providers,
@@ -74,7 +77,7 @@ export class TemplateService {
     data: Record<string, unknown> & { providers: UiAuthProviders; gtmContainerId?: string }
   ): string {
     return this.renderWithLayout('pages/sign-up.ejs', 'layouts/auth.ejs', {
-      pageTitle: 'Sign Up - OWOX Data Marts',
+      pageTitle: SIGN_UP_PAGE_TITLE,
       heading: 'Create your OWOX account',
       magicLinkSignupIntent: MAGIC_LINK_INTENT.SIGNUP,
       ...data,

@@ -7,6 +7,7 @@ import type {
 import type { Request, Response } from 'express';
 import { OwoxBetterAuthIdp } from './owox-better-auth-idp.js';
 import { AUTH_BASE_PATH } from './core/constants.js';
+import { ServerEventsService } from './services/analytics/server-events-service.js';
 
 describe('OwoxBetterAuthIdp MCP OAuth methods', () => {
   const authorizationRequest: OAuthAuthorizationRequest = {
@@ -26,12 +27,14 @@ describe('OwoxBetterAuthIdp MCP OAuth methods', () => {
 
   const createProvider = (identityClient: Record<string, jest.Mock>) =>
     Object.assign(Object.create(OwoxBetterAuthIdp.prototype), {
+      serverEvents: new ServerEventsService(undefined),
       identityClient,
     }) as OwoxBetterAuthIdp;
 
   it('adds project-specific MCP server URL to user API payload', async () => {
     const projectId = '8c90f0b0f314bf5f5d6f69d24fd7ee3b';
     const provider = Object.assign(Object.create(OwoxBetterAuthIdp.prototype), {
+      serverEvents: new ServerEventsService(undefined),
       tokenFacade: {
         parseToken: jest.fn().mockResolvedValue({
           userId: 'user-1',
@@ -138,6 +141,7 @@ describe('OwoxBetterAuthIdp MCP OAuth methods', () => {
       setTokenToCookie: jest.fn(),
     };
     const provider = Object.assign(Object.create(OwoxBetterAuthIdp.prototype), {
+      serverEvents: new ServerEventsService(undefined),
       tokenFacade,
       config: {
         idpOwox: {
@@ -173,6 +177,7 @@ describe('OwoxBetterAuthIdp MCP OAuth methods', () => {
   it('redirects MCP OAuth continuation to Platform sign-in when there is no refresh cookie', async () => {
     const idpStartMiddleware = jest.fn().mockResolvedValue(undefined);
     const provider = Object.assign(Object.create(OwoxBetterAuthIdp.prototype), {
+      serverEvents: new ServerEventsService(undefined),
       authFlowMiddleware: {
         idpStartMiddleware,
       },
@@ -247,6 +252,7 @@ describe('OwoxBetterAuthIdp MCP OAuth methods', () => {
       }),
     };
     const provider = Object.assign(Object.create(OwoxBetterAuthIdp.prototype), {
+      serverEvents: new ServerEventsService(undefined),
       betterAuthProxyHandler: { setupBetterAuthHandler: jest.fn() },
       authErrorController: { registerRoutes: jest.fn() },
       onboardingController: { registerRoutes: jest.fn() },
@@ -331,6 +337,7 @@ describe('OwoxBetterAuthIdp MCP OAuth methods', () => {
       }),
     };
     const provider = Object.assign(Object.create(OwoxBetterAuthIdp.prototype), {
+      serverEvents: new ServerEventsService(undefined),
       betterAuthProxyHandler: { setupBetterAuthHandler: jest.fn() },
       authErrorController: { registerRoutes: jest.fn() },
       onboardingController: { registerRoutes: jest.fn() },

@@ -99,6 +99,28 @@ IDP_OWOX_SENDGRID_VERIFIED_SENDER_NAME=OWOX Data Marts
 | `IDP_OWOX_SENDGRID_VERIFIED_SENDER_EMAIL` | **Yes**  |                      –                      | Verified sender email in SendGrid                                                                             |
 | `IDP_OWOX_SENDGRID_VERIFIED_SENDER_NAME`  |    No    |                      –                      | Sender display name for auth emails                                                                           |
 | `GOOGLE_TAG_MANAGER_CONTAINER_ID`         |    No    |                      –                      | Google Tag Manager container ID (e.g., `GTM-XXXXXXX`). When set, GTM scripts are injected on all auth pages.  |
+| `IDP_OWOX_SERVER_EVENTS_COLLECT_URL`      |    No    |                      –                      | GA4-compatible `g/collect` URL for server-side auth page events. Unset disables them.                         |
+| `IDP_OWOX_SERVER_EVENTS_MEASUREMENT_ID`   | With URL |                      –                      | Measurement id sent as `tid`                                                                                  |
+| `IDP_OWOX_SERVER_EVENTS_VISITOR_COOKIE`   | With URL |                      –                      | Name of the first-party cookie whose value is the client id                                                   |
+
+## Server-side auth page events
+
+Disabled unless `IDP_OWOX_SERVER_EVENTS_COLLECT_URL` is set. Then the provider
+sends, in GA4 `g/collect` format:
+
+- `page_view` when it renders the sign-in or sign-up page;
+- `login` with `uid` = the user id after a completed sign-in (`/auth/callback`).
+
+The client id (`cid`) is the value of the cookie named by
+`IDP_OWOX_SERVER_EVENTS_VISITOR_COOKIE`, with `_` replaced by `.`, and the
+cookie itself is forwarded. The provider never sets this cookie: a visitor
+without it is not reported. The page URL keeps only campaign and click-id
+query parameters (`utm_*`, `gclid` and the like), the referrer is sent without
+its query, and every event carries the event parameter `event_source=server`.
+The visitor's IP, User-Agent, language and Client Hints are forwarded.
+
+Sending runs in the background with a 3-second timeout and never blocks or
+fails a page or a sign-in; a failed send is logged as a warning.
 
 ## Troubleshooting
 

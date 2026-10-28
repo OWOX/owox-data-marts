@@ -13,6 +13,7 @@ import type {
   UiAuthProviders,
 } from '../types/index.js';
 import { BETTER_AUTH_BASE_PATH } from '../core/constants.js';
+import type { ServerEventsConfig } from '../services/analytics/server-events-service.js';
 
 const zMsString = z
   .string()
@@ -328,6 +329,45 @@ const BetterAuthEnvSchema = z.object({
   GOOGLE_TAG_MANAGER_CONTAINER_ID: z.string().optional(),
 });
 
+const ServerEventsEnvSchema = z
+  .object({
+    IDP_OWOX_SERVER_EVENTS_COLLECT_URL: z
+      .string()
+      .url({ message: 'IDP_OWOX_SERVER_EVENTS_COLLECT_URL must be a valid URL' })
+      .optional(),
+    IDP_OWOX_SERVER_EVENTS_MEASUREMENT_ID: z.string().min(1).optional(),
+    IDP_OWOX_SERVER_EVENTS_VISITOR_COOKIE: z
+      .string()
+      .regex(/^[A-Za-z0-9_-]{1,64}$/, {
+        message: 'IDP_OWOX_SERVER_EVENTS_VISITOR_COOKIE must be a cookie name',
+      })
+      .optional(),
+  })
+  .refine(
+    e =>
+      !e.IDP_OWOX_SERVER_EVENTS_COLLECT_URL ||
+      (e.IDP_OWOX_SERVER_EVENTS_MEASUREMENT_ID && e.IDP_OWOX_SERVER_EVENTS_VISITOR_COOKIE),
+    {
+      message:
+        'IDP_OWOX_SERVER_EVENTS_MEASUREMENT_ID and IDP_OWOX_SERVER_EVENTS_VISITOR_COOKIE are required with IDP_OWOX_SERVER_EVENTS_COLLECT_URL',
+    }
+  );
+
+/**
+ * Server-side auth page events: off unless IDP_OWOX_SERVER_EVENTS_COLLECT_URL is set.
+ */
+export function loadServerEventsConfigFromEnv(
+  env: Env = process.env
+): ServerEventsConfig | undefined {
+  const parsed = ServerEventsEnvSchema.parse(env);
+  if (!parsed.IDP_OWOX_SERVER_EVENTS_COLLECT_URL) return undefined;
+  return {
+    collectUrl: parsed.IDP_OWOX_SERVER_EVENTS_COLLECT_URL,
+    measurementId: parsed.IDP_OWOX_SERVER_EVENTS_MEASUREMENT_ID as string,
+    visitorCookieName: parsed.IDP_OWOX_SERVER_EVENTS_VISITOR_COOKIE as string,
+  };
+}
+
 const SendgridEnvSchema = z.object({
   SENDGRID_API_KEY: z.string().min(1, 'SENDGRID_API_KEY is required'),
   IDP_OWOX_SENDGRID_VERIFIED_SENDER_EMAIL: z
@@ -438,6 +478,7 @@ export type BetterAuthProviderConfig = {
   };
   uiProviders: UiAuthProviders;
   gtmContainerId?: string;
+  serverEvents?: ServerEventsConfig;
 };
 
 /**
@@ -514,5 +555,6 @@ export function loadBetterAuthProviderConfigFromEnv(
       : {}),
     uiProviders,
     gtmContainerId: baEnv.GOOGLE_TAG_MANAGER_CONTAINER_ID,
+    serverEvents: loadServerEventsConfigFromEnv(env),
   };
 }

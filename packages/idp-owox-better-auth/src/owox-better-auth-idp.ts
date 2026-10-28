@@ -44,6 +44,7 @@ import { AUTH_BASE_PATH, CORE_REFRESH_TOKEN_COOKIE, SOURCE } from './core/consta
 import { AuthenticationException, IdpFailedException } from './core/exceptions.js';
 import { isPersonalEmailDomain } from './core/personal-email-domains.js';
 import { createServiceLogger } from './core/logger.js';
+import { ServerEventsService } from './services/analytics/server-events-service.js';
 import { OwoxTokenFacade, type TokenResponseWithContext } from './facades/owox-token-facade.js';
 import { BetterAuthSessionService } from './services/auth/better-auth-session-service.js';
 import { ExtensionAuthService } from './services/auth/extension-auth-service.js';
@@ -115,6 +116,7 @@ export class OwoxBetterAuthIdp implements IdpProvider {
   private readonly membershipRequestsService: MembershipRequestsService;
   private readonly onboardingService: OnboardingService;
   private readonly onboardingController: OnboardingController;
+  private readonly serverEvents: ServerEventsService;
 
   private constructor(
     auth: Awaited<ReturnType<typeof createBetterAuthConfig>>,
@@ -181,7 +183,12 @@ export class OwoxBetterAuthIdp implements IdpProvider {
     );
     this.betterAuthProxyHandler = new BetterAuthProxyHandler(this.auth, this.pkceFlowOrchestrator);
     this.authErrorController = new AuthErrorController(this.config.gtmContainerId);
-    this.pageController = new PageController(this.config.uiProviders, this.config.gtmContainerId);
+    this.serverEvents = new ServerEventsService(this.config.serverEvents);
+    this.pageController = new PageController(
+      this.config.uiProviders,
+      this.config.gtmContainerId,
+      this.serverEvents
+    );
     this.onboardingController = new OnboardingController(
       this.onboardingService,
       this.tokenFacade,
@@ -430,6 +437,7 @@ export class OwoxBetterAuthIdp implements IdpProvider {
 
         const callbackAuthFlowParams = response.authFlowParams ?? extractAuthFlowParams(req);
         const payload = await this.tokenFacade.parseToken(response.accessToken);
+        this.serverEvents.login(req, payload?.userId);
         const resolvedAuthFlowParams = this.resolveUserBoundProjectRedirect(
           callbackAuthFlowParams,
           payload?.userId
