@@ -45,6 +45,14 @@ describe('buildMcpToolCallEvent', () => {
     field => {
       const manifest = {
         parameters: {
+          Authorization: 'private-authorization',
+          ApiKey: {
+            label: 'API key',
+            default: 'private-key',
+            placeholder: 'private-placeholder',
+            options: ['private-option'],
+          },
+          TokenCount: { default: 100 },
           Settings: { default: { Authorization: 'private-header', Region: 'eu' } },
           Auth: { oneOf: [{ value: 'oauth', oauthParams: { clientSecret: 'private-client' } }] },
         },
@@ -73,6 +81,14 @@ describe('buildMcpToolCallEvent', () => {
       expect(payload[field]).toMatchObject({
         manifest: {
           parameters: {
+            Authorization: '[REDACTED]',
+            ApiKey: {
+              label: 'API key',
+              default: '[REDACTED]',
+              placeholder: '[REDACTED]',
+              options: '[REDACTED]',
+            },
+            TokenCount: { default: 100 },
             Settings: { default: { Authorization: '[REDACTED]', Region: 'eu' } },
             Auth: { oneOf: [{ value: 'oauth', oauthParams: { clientSecret: '[REDACTED]' } }] },
           },

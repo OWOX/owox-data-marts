@@ -42,6 +42,89 @@ describe('redactMcpTelemetry for custom connectors', () => {
     expect(input).toEqual(original);
   });
 
+  it('masks raw credential parameters in incomplete drafts without hiding ordinary values', () => {
+    const input = {
+      manifest: {
+        parameters: {
+          Authorization: 'private-authorization',
+          ApiKey: ['private-key'],
+          TokenCount: 100,
+          Region: 'eu',
+        },
+      },
+    };
+    const original = structuredClone(input);
+
+    expect(redactMcpTelemetry(input)).toEqual({
+      manifest: {
+        parameters: {
+          Authorization: '[REDACTED]',
+          ApiKey: '[REDACTED]',
+          TokenCount: 100,
+          Region: 'eu',
+        },
+      },
+    });
+    expect(input).toEqual(original);
+  });
+
+  it.each(['Authorization', 'ApiKey', 'api_key', 'API-KEY', 'AccessToken', 'client_secret'])(
+    'masks unflagged %s parameter values while preserving schema metadata',
+    name => {
+      const definition = {
+        label: 'Service credential',
+        description: 'Enter the credential for your account',
+        requiredType: 'string',
+        attributes: ['REQUIRED'],
+        default: 'private-default',
+        placeholder: 'private-placeholder',
+        options: ['private-option'],
+      };
+      const ordinaryParameters = {
+        TokenCount: { requiredType: 'number', default: 100 },
+        TokenUrl: { default: 'https://example.com/oauth/token' },
+        TokenPath: { default: 'access_token' },
+        PageToken: { default: 'next-page' },
+        SecretName: { default: 'service-credential' },
+        PasswordHint: { default: 'Use your service account' },
+        ClientId: { default: 'public-client' },
+      };
+      const input = {
+        manifest: { parameters: { [name]: definition, ...ordinaryParameters } },
+        configuration: { [name]: 'private-runtime', Region: 'eu' },
+      };
+      const original = structuredClone(input);
+
+      expect(redactMcpTelemetry(input)).toEqual({
+        manifest: {
+          parameters: {
+            [name]: {
+              ...definition,
+              default: '[REDACTED]',
+              placeholder: '[REDACTED]',
+              options: '[REDACTED]',
+            },
+            ...ordinaryParameters,
+          },
+        },
+        configuration: { [name]: '[REDACTED]', Region: 'eu' },
+      });
+      expect(input).toEqual(original);
+    }
+  );
+
+  it('masks raw parameters referenced by authentication even with an ordinary name', () => {
+    const authentication = { type: 'bearer', token: '{{ parameters.Value }}' };
+
+    expect(
+      redactMcpTelemetry({
+        manifest: { authentication, parameters: { Value: 'private-value', Region: 'eu' } },
+      })
+    ).toEqual({
+      manifest: { authentication, parameters: { Value: '[REDACTED]', Region: 'eu' } },
+    });
+  });
+
   it('masks credential keys inside parameter defaults while preserving ordinary values', () => {
     const input = {
       manifest: {
@@ -433,6 +516,9 @@ describe('redactMcpTelemetry for custom connectors', () => {
                 value: 'service',
                 items: {
                   Value: { attributes: ['SECRET'], default: 'private-default' },
+                  Authorization: 'private-header',
+                  ApiKey: { label: 'API key', default: 'private-key' },
+                  TokenCount: { default: 100 },
                   Region: { default: 'eu' },
                 },
               },
@@ -455,6 +541,9 @@ describe('redactMcpTelemetry for custom connectors', () => {
                 value: 'service',
                 items: {
                   Value: { attributes: ['SECRET'], default: '[REDACTED]' },
+                  Authorization: '[REDACTED]',
+                  ApiKey: { label: 'API key', default: '[REDACTED]' },
+                  TokenCount: { default: 100 },
                   Region: { default: 'eu' },
                 },
               },

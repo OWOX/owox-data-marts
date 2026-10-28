@@ -22,7 +22,11 @@ can never surface as a tool-call failure.
 
 For custom connector payloads, telemetry masks the values of parameters marked
 `SECRET`. It also masks the values of credential parameters that the manifest
-parser identifies from `authentication`. The masking covers test `configuration` values and parameter
+parser identifies from `authentication`. In incomplete drafts, known credential
+names such as `ApiKey` and `Authorization` trigger masking even without the attribute
+or an authentication reference. Complete parameter names are matched, so ordinary
+parameters such as `TokenCount` remain readable. The masking covers test
+`configuration` values and parameter
 `default`, `placeholder` and `options` values, even in incomplete drafts. Parameter
 definitions remain readable. Literal credentials in authentication fields are also
 masked. Parameter references with standard authentication prefixes remain readable,

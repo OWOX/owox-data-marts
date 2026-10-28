@@ -4,6 +4,8 @@ import { z } from 'zod-v4';
 export const REDACT_KEYS =
   /(authorization|bearer|cookie|token|secret|password|passwd|api[_-]?key|private[_-]?key|credential)/i;
 export const REDACTED = '[REDACTED]';
+const CREDENTIAL_PARAMETER_NAME =
+  /^(authorization|bearer|cookie|(?:(?:access|refresh|id|api|auth)[_-]?)?token|(?:client[_-]?)?secret|password|passwd|api[_-]?key|private[_-]?key|credentials?)$/i;
 const MAX_DEPTH = 16;
 const objectSchema = z.record(z.string(), z.unknown());
 const connectorPayloadSchema = z.object({ manifest: objectSchema }).loose();
@@ -28,8 +30,11 @@ function maskParameters(value: unknown, secretNames: Set<string>, depth = 0): un
   if (!parsed.success) return redact(value, new Set(), depth);
   return Object.fromEntries(
     Object.entries(parsed.data).map(([name, raw]) => {
+      if (CREDENTIAL_PARAMETER_NAME.test(name)) secretNames.add(name);
       const definition = objectSchema.safeParse(raw);
-      if (!definition.success) return [name, redact(raw, new Set(), depth + 1)];
+      if (!definition.success) {
+        return [name, secretNames.has(name) ? REDACTED : redact(raw, new Set(), depth + 1)];
+      }
       const { oneOf, ...fields } = definition.data;
       const parameter = redact(fields, new Set(), depth + 1) as Record<string, unknown>;
       if (
