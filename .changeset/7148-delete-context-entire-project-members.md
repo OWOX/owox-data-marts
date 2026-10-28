@@ -10,6 +10,8 @@ A Project Admin cleaning up Contexts could not delete one: the dialog said it wa
 - Assignments kept by Project Admins and Entire project members are removed together with the context.
 - The **Members** column in **Project Settings → Contexts** lists Project Admins and Entire project members on every context, as the context panel does, instead of only on contexts they kept from an earlier scope. In **Project Settings → Members**, Project Admins show no contexts.
 
+  ![Project Settings → Contexts with Finance, Marketing and Sales: every row's Members column shows the same admins and Entire project members, and the hover card on Finance's +3 lists Marco Rossi, Olivia Park and Tom Becker](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/d653b6aa-c687-4d76-9e44-faf8a101cf00/w=800)
+
 See [Deleting a Context](../../docs/project/contexts.md#deleting-a-context).
 
 <!-- markdownlint-disable-file MD041 MD036 -->
