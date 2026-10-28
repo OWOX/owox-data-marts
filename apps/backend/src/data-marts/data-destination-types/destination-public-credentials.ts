@@ -112,11 +112,11 @@ export function identityOf(metadata: CredentialPublicMetadata | null): string | 
   return 'account' in metadata ? metadata.account.email : null;
 }
 
-/** Whose grant a picked Drive folder rests on: a Google account by its email, a key by its kind. */
+/** Whose grant a picked Drive folder rests on: a Google account by its email, a key by its kind; undefined when unknown. */
 export function driveAccountOf(
   definitionId: string | undefined,
   email: string | null | undefined
 ): string | undefined {
   if (definitionId !== GOOGLE_SHEETS_OAUTH_DEFINITION_ID) return definitionId;
-  return `${definitionId}:${email?.toLowerCase() ?? ''}`;
+  return email ? `${definitionId}:${email.toLowerCase()}` : undefined;
 }

@@ -449,6 +449,33 @@ describe('UpdateDataDestinationService', () => {
       expect(dataDestinationRepository.save).not.toHaveBeenCalled();
     });
 
+    it('refuses a plugin whose email recipients would replace an old webhook row', async () => {
+      const {
+        service,
+        destinationCredentials,
+        dataDestinationCredentialService,
+        dataDestinationRepository,
+      } = createService(
+        makeTarget({
+          type: DataDestinationType.GOOGLE_CHAT,
+          credentialId: 'row-webhook',
+          credential: {
+            id: 'row-webhook',
+            type: DestinationCredentialType.GOOGLE_CHAT_WEBHOOK,
+            credentials: { type: 'google-chat-credentials', webhookUrl },
+          },
+        })
+      );
+      const credentials = { type: 'email-credentials' as const, to: ['space@example.com'] };
+
+      await expect(service.run(makeCommand({ credentials, isPluginCall: true }))).rejects.toThrow(
+        new ForbiddenException("Plugins cannot change a Destination's Credential.")
+      );
+      expect(destinationCredentials.deactivateDestination).not.toHaveBeenCalled();
+      expect(dataDestinationCredentialService.update).not.toHaveBeenCalled();
+      expect(dataDestinationRepository.save).not.toHaveBeenCalled();
+    });
+
     it('lets a plugin change the recipients of a Destination delivered by email', async () => {
       const { service, destinationCredentials, dataDestinationCredentialService } = createService(
         makeTarget({
@@ -690,6 +717,20 @@ describe('UpdateDataDestinationService', () => {
       );
     });
 
+    it('takes the lock before any other read, so later reads see what the lock saw', async () => {
+      const { service, dataDestinationRepository, dataDestinationService, accessDecisionService } =
+        createService();
+      dataDestinationRepository.manager.connection.options.type = 'mysql';
+
+      await service.run(makeCommand({ ownerIds: [], availableForUse: true }));
+
+      const lockOrder = dataDestinationRepository.findOne.mock.invocationCallOrder[0];
+      expect(lockOrder).toBeLessThan(accessDecisionService.canAccess.mock.invocationCallOrder[0]);
+      expect(lockOrder).toBeLessThan(
+        dataDestinationService.getByIdAndProjectId.mock.invocationCallOrder[0]
+      );
+    });
+
     it('answers 404 and binds nothing when the Destination was deleted meanwhile', async () => {
       const { service, dataDestinationRepository, destinationCredentials } = createService();
       dataDestinationRepository.manager.connection.options.type = 'mysql';
@@ -738,7 +779,7 @@ describe('UpdateDataDestinationService', () => {
     const rebind = async (
       before: object | null | undefined,
       chosen: object,
-      config: DestinationConfigOverride | undefined = folder,
+      sent: { config?: DestinationConfigOverride } = { config: folder },
       credential: object | null = null
     ) => {
       const created = createService(makeTarget({ config: folder, credential }));
@@ -747,7 +788,7 @@ describe('UpdateDataDestinationService', () => {
       }
       const candidate = candidateOf(chosen, 'credential-2');
       created.destinationCredentials.checkDestinationBinding.mockResolvedValue(candidate);
-      await created.service.run(makeCommand({ reusableCredentialId: 'credential-2', config }));
+      await created.service.run(makeCommand({ reusableCredentialId: 'credential-2', ...sent }));
       return { ...created, candidate };
     };
 
@@ -767,22 +808,31 @@ describe('UpdateDataDestinationService', () => {
         serviceAccountKey,
         googleAccount('ann@example.com'),
       ],
-    ])('clears the echoed folder from %s', async (_case, before, chosen) => {
-      const { dataDestinationRepository, folderValidator, candidate } = await rebind(
-        before,
-        chosen
-      );
+      ['a service account to a service account', serviceAccountKey, serviceAccountKey],
+      [
+        'the same Google account',
+        googleAccount('ann@example.com'),
+        googleAccount('Ann@example.com'),
+      ],
+      ['a bound Credential that is gone', null, googleAccount('bob@example.com')],
+    ])(
+      'keeps the folder the save sends from %s and checks it with the chosen Credential',
+      async (_case, before, chosen) => {
+        const { dataDestinationRepository, folderValidator, destinationCredentials, candidate } =
+          await rebind(before, chosen);
 
-      expect(dataDestinationRepository.save).toHaveBeenCalledWith(
-        expect.objectContaining({ config: null })
-      );
-      expect(folderValidator.validateConfiguredFolder).toHaveBeenCalledWith(
-        expect.objectContaining({ config: null }),
-        candidate
-      );
-    });
+        expect(destinationCredentials.lockedPublicOfDestination).not.toHaveBeenCalled();
+        expect(dataDestinationRepository.save).toHaveBeenCalledWith(
+          expect.objectContaining({ config: folder })
+        );
+        expect(folderValidator.validateConfiguredFolder).toHaveBeenCalledWith(
+          expect.objectContaining({ config: folder }),
+          candidate
+        );
+      }
+    );
 
-    it('saves a Google account to service account switch that the old folder would refuse', async () => {
+    it('refuses a service account that cannot use the folder the save sends', async () => {
       const created = createService(makeTarget({ config: folder }));
       created.destinationCredentials.lockedPublicOfDestination.mockResolvedValue(
         googleAccount('ann@example.com')
@@ -791,35 +841,47 @@ describe('UpdateDataDestinationService', () => {
         candidateOf(serviceAccountKey, 'credential-2')
       );
       // As the real check answers a My Drive folder picked by a Google account.
-      created.folderValidator.validateConfiguredFolder.mockImplementation(
-        async (destination: { config?: { folderId?: string } | null }) => {
-          if (destination.config?.folderId) throw new Error('My Drive folders are not supported.');
-        }
+      created.folderValidator.validateConfiguredFolder.mockRejectedValue(
+        new Error('My Drive folders are not supported.')
       );
 
       await expect(
         created.service.run(makeCommand({ reusableCredentialId: 'credential-2', config: folder }))
-      ).resolves.toBeDefined();
-      expect(created.destinationCredentials.bindDestination).toHaveBeenCalled();
+      ).rejects.toThrow('My Drive folders are not supported.');
+      expect(created.destinationCredentials.bindDestination).not.toHaveBeenCalled();
     });
 
-    it('clears the folder when the save does not send one', async () => {
-      const { dataDestinationRepository } = await rebind(
+    it.each([
+      [
+        'one Google account to another',
         googleAccount('ann@example.com'),
         googleAccount('bob@example.com'),
-        undefined
-      );
+      ],
+      [
+        'a Google account to a service account',
+        googleAccount('ann@example.com'),
+        serviceAccountKey,
+      ],
+    ])(
+      'clears the folder from %s when the save does not send one',
+      async (_case, before, chosen) => {
+        const { dataDestinationRepository, folderValidator } = await rebind(before, chosen, {});
 
-      expect(dataDestinationRepository.save).toHaveBeenCalledWith(
-        expect.objectContaining({ config: null })
-      );
-    });
+        expect(dataDestinationRepository.save).toHaveBeenCalledWith(
+          expect.objectContaining({ config: null })
+        );
+        expect(folderValidator.validateConfiguredFolder).toHaveBeenCalledWith(
+          expect.objectContaining({ config: null }),
+          expect.anything()
+        );
+      }
+    );
 
     it("compares with an unbound Destination's old Google account row", async () => {
       const { dataDestinationRepository, destinationCredentials } = await rebind(
         undefined,
         googleAccount('bob@example.com'),
-        folder,
+        {},
         {
           id: 'row-oauth',
           type: DestinationCredentialType.GOOGLE_OAUTH,
@@ -837,50 +899,58 @@ describe('UpdateDataDestinationService', () => {
     });
 
     it.each([
-      ['a service account to a service account', serviceAccountKey, serviceAccountKey],
-      [
-        'the same Credential again',
-        googleAccount('ann@example.com'),
-        googleAccount('ann@example.com'),
-      ],
+      ['a service account to a service account', serviceAccountKey, serviceAccountKey, null],
       [
         'the same Google account',
         googleAccount('ann@example.com'),
         googleAccount('Ann@example.com'),
+        null,
       ],
-      ['a bound Credential that is gone', null, googleAccount('bob@example.com')],
+      [
+        'a Google account whose email is unknown',
+        { definitionId: 'google-sheets-oauth', publicMetadata: null },
+        googleAccount('bob@example.com'),
+        null,
+      ],
+      [
+        'an old Google account row without an email',
+        undefined,
+        googleAccount('bob@example.com'),
+        { id: 'row-oauth', type: DestinationCredentialType.GOOGLE_OAUTH, identity: null },
+      ],
+      [
+        'a Google account to one whose email is unknown',
+        googleAccount('ann@example.com'),
+        { definitionId: 'google-sheets-oauth', publicMetadata: null },
+        null,
+      ],
     ])(
-      'keeps the folder from %s and checks it with the chosen Credential',
-      async (_case, before, chosen) => {
-        const { dataDestinationRepository, folderValidator, candidate } = await rebind(
-          before,
-          chosen
-        );
+      'keeps the folder from %s when the save does not send one',
+      async (_case, before, chosen, credential) => {
+        const { dataDestinationRepository } = await rebind(before, chosen, {}, credential);
 
         expect(dataDestinationRepository.save).toHaveBeenCalledWith(
           expect.objectContaining({ config: folder })
         );
-        expect(folderValidator.validateConfiguredFolder).toHaveBeenCalledWith(
-          expect.objectContaining({ config: folder }),
-          candidate
-        );
       }
     );
 
-    it('keeps the folder without a locked read when the same Credential is sent again', async () => {
+    it('takes the bound Credential sent again as no change', async () => {
       const created = createService(makeTarget({ config: folder }));
       created.destinationCredentials.boundCredentialIdOfDestination.mockResolvedValue(
         'credential-2'
       );
-      created.destinationCredentials.checkDestinationBinding.mockResolvedValue(
-        candidateOf(googleAccount('bob@example.com'), 'credential-2')
-      );
 
-      await created.service.run(
-        makeCommand({ reusableCredentialId: 'credential-2', config: folder })
-      );
+      await created.service.run(makeCommand({ reusableCredentialId: 'credential-2' }));
 
+      expect(created.destinationCredentials.boundCredentialIdOfDestination).toHaveBeenCalledWith(
+        projectId,
+        targetId
+      );
+      expect(created.destinationCredentials.checkDestinationBinding).not.toHaveBeenCalled();
       expect(created.destinationCredentials.lockedPublicOfDestination).not.toHaveBeenCalled();
+      expect(created.folderValidator.validateConfiguredFolder).not.toHaveBeenCalled();
+      expect(created.destinationCredentials.bindDestination).not.toHaveBeenCalled();
       expect(created.dataDestinationRepository.save).toHaveBeenCalledWith(
         expect.objectContaining({ config: folder })
       );
@@ -892,7 +962,7 @@ describe('UpdateDataDestinationService', () => {
         folderUrl: 'https://drive.google.com/drive/folders/folder-y',
       };
       const { dataDestinationRepository, folderValidator, destinationCredentials, candidate } =
-        await rebind(googleAccount('ann@example.com'), serviceAccountKey, next);
+        await rebind(googleAccount('ann@example.com'), serviceAccountKey, { config: next });
 
       expect(destinationCredentials.lockedPublicOfDestination).not.toHaveBeenCalled();
       expect(dataDestinationRepository.save).toHaveBeenCalledWith(

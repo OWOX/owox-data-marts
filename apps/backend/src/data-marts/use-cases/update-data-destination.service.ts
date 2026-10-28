@@ -67,6 +67,9 @@ export class UpdateDataDestinationService {
 
   @Transactional()
   async run(command: UpdateDataDestinationCommand): Promise<DataDestinationDto> {
+    // Locked before any other read: on MySQL a plain read first would pin an older snapshot.
+    const { entity, lockedConfig } = await this.lockDestination(command.projectId, command.id);
+
     // Permissions Model: if ownerIds are being changed, check MANAGE_OWNERS permission
     if (command.ownerIds !== undefined && command.userId) {
       const canManage = await this.accessDecisionService.canAccess(
@@ -104,7 +107,6 @@ export class UpdateDataDestinationService {
       }
     }
 
-    const { entity, lockedConfig } = await this.lockDestination(command.projectId, command.id);
     const titleChanged = entity.title !== command.title;
 
     // Only re-validate the Drive folder (a live Drive API round-trip inside the
@@ -140,9 +142,16 @@ export class UpdateDataDestinationService {
     const credentials = checkDestinationCredentialFields(entity.type, command);
 
     let candidate: ResolvedDestinationCredential | undefined;
-    // A picked folder's grant belongs to the account that picked it; a folder set by this save stays.
+    // A folder the save sends stays and is checked below; one it leaves out goes with the account that picked it.
     let clearFolder = false;
-    if (command.reusableCredentialId) {
+    if (
+      command.reusableCredentialId &&
+      command.reusableCredentialId !==
+        (await this.destinationCredentials.boundCredentialIdOfDestination(
+          command.projectId,
+          entity.id
+        ))
+    ) {
       // Checked without the Credential's lock, which the bind takes last to hold only until the commit.
       candidate = await this.destinationCredentials.checkDestinationBinding({
         projectId: command.projectId,
@@ -153,7 +162,9 @@ export class UpdateDataDestinationService {
       });
       credentialChanged = true;
       clearFolder =
-        !!existingFolderId && !folderChanged && (await this.changesDriveAccount(entity, candidate));
+        command.config === undefined &&
+        !!existingFolderId &&
+        (await this.changesDriveAccount(entity, candidate));
       // Google Chat by email kept its recipients on its own row; webhook delivery replaces them.
       if (entity.credential?.type === DestinationCredentialType.EMAIL) {
         await this.dataDestinationCredentialService.softDelete(entity.credential.id);
@@ -164,14 +175,15 @@ export class UpdateDataDestinationService {
     } else if (credentials) {
       credentialChanged = true;
       if (entity.type === DataDestinationType.GOOGLE_CHAT) {
-        // Email recipients replace a Google Chat webhook Credential, which a plugin cannot choose.
+        // Email recipients replace a webhook, bound or on its old row, which a plugin cannot choose.
         if (
           command.isPluginCall &&
-          (
-            await this.destinationCredentials.findBoundDestinationIds(command.projectId, [
-              entity.id,
-            ])
-          ).size > 0
+          (entity.credential?.type === DestinationCredentialType.GOOGLE_CHAT_WEBHOOK ||
+            (
+              await this.destinationCredentials.findBoundDestinationIds(command.projectId, [
+                entity.id,
+              ])
+            ).size > 0)
         ) {
           throw new ForbiddenException(PLUGIN_CREDENTIAL_CHANGE_MESSAGE);
         }
@@ -286,12 +298,6 @@ export class UpdateDataDestinationService {
     entity: DataDestination,
     candidate: ResolvedDestinationCredential
   ): Promise<boolean> {
-    // The same Credential is the same account; skipping the lock avoids a cycle with its deletion.
-    const boundId = await this.destinationCredentials.boundCredentialIdOfDestination(
-      entity.projectId,
-      entity.id
-    );
-    if (boundId === candidate.credentialId) return false;
     // Read under the Destination lock, so a save that waited compares with what the first one bound.
     const bound = await this.destinationCredentials.lockedPublicOfDestination(
       entity.projectId,
@@ -302,10 +308,8 @@ export class UpdateDataDestinationService {
       bound === undefined
         ? row && driveAccountOf(definitionIdOfRow(row.type), row.identity?.email)
         : bound && driveAccountOf(bound.definitionId, identityOf(bound.publicMetadata));
-    return (
-      !!before &&
-      before !== driveAccountOf(candidate.definitionId, identityOf(candidate.publicMetadata))
-    );
+    const after = driveAccountOf(candidate.definitionId, identityOf(candidate.publicMetadata));
+    return !!before && !!after && before !== after;
   }
 
   private async replaceOwnersAndBuildResponse(
