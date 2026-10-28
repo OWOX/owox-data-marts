@@ -260,7 +260,13 @@ export function DataDestinationForm({
               // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
               value={field.value || null}
               summary={initialCredential}
-              onChange={handleCredentialChange}
+              onChange={(id, source) => {
+                // A Drive folder belongs to the account that picked it; another Credential picks its own.
+                if (id !== field.value && form.getValues('config.folderUrl')) {
+                  form.setValue('config.folderUrl', '', { shouldDirty: true });
+                }
+                handleCredentialChange(id, source);
+              }}
               onCreated={setCreatedCredential}
             />
           </FormControl>

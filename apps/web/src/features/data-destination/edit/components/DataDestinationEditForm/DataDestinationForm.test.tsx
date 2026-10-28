@@ -9,6 +9,7 @@ import {
   type DataDestinationFormData,
 } from '../../../shared';
 import { GoogleChatMapper } from '../../../shared/model/mappers/google-chat.mapper';
+import { GoogleSheetsMapper } from '../../../shared/model/mappers/google-sheets.mapper';
 import { DataDestinationForm } from './DataDestinationForm';
 
 vi.mock('../../../../idp/hooks/useAuthState', () => ({ useUser: () => null }));
@@ -294,6 +295,41 @@ describe('DataDestinationForm', () => {
       action: 'existing',
       label: DataDestinationType.GOOGLE_CHAT,
     });
+  });
+
+  it('clears the Drive folder when another Google Sheets Credential is selected', async () => {
+    credentials.list = [
+      credential('sa-1', 'google-service-account'),
+      credential('sa-2', 'google-service-account'),
+    ];
+    const { onSubmit } = renderForm(
+      destination({
+        type: DataDestinationType.GOOGLE_SHEETS,
+        credentials: {},
+        config: { folderUrl: 'https://drive.google.com/drive/folders/abc123' },
+        reusableCredential: {
+          access: 'visible',
+          id: 'sa-1',
+          title: 'sa-1',
+          definitionId: 'google-service-account',
+          providerName: 'Google Service Account',
+          identity: null,
+          state: 'ready',
+        },
+      })
+    );
+    const folder = screen.getByPlaceholderText('https://drive.google.com/drive/folders/…');
+    expect(folder).toHaveValue('https://drive.google.com/drive/folders/abc123');
+
+    fireEvent.click(screen.getByRole('combobox', { name: 'Credential' }));
+    fireEvent.click(await within(document.body).findByRole('option', { name: /sa-2/ }));
+
+    expect(folder).toHaveValue('');
+    const payload = await save(onSubmit);
+    expect(payload).toMatchObject({ reusableCredentialId: 'sa-2' });
+    expect(
+      new GoogleSheetsMapper().mapToUpdateRequest(payload as Partial<DataDestinationFormData>)
+    ).toEqual({ title: 'Destination', reusableCredentialId: 'sa-2', config: { folderUrl: null } });
   });
 
   it('does not pick a Credential for an existing Destination whose Credential is gone', async () => {
