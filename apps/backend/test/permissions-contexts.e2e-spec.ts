@@ -425,6 +425,34 @@ describe('Permissions Model Contexts & Role Scope (e2e)', () => {
       await setMemberScope(RoleScope.ENTIRE_PROJECT, []);
     });
 
+    it('DELETE → 204 when only an admin with a leftover Selected contexts scope holds the context', async () => {
+      const ctx = await createContext('B-admin-leftover');
+      // Rows left from before the member was made an admin outside ODM.
+      await contextAccess.updateMember('0', PROJECT_ID, {
+        role: ProjectRole.EDITOR,
+        roleScope: RoleScope.SELECTED_CONTEXTS,
+        contextIds: [ctx.body.id],
+      });
+
+      try {
+        const impact = await agent.get(`/api/contexts/${ctx.body.id}/impact`).set(AUTH_HEADER);
+        expect(impact.body.memberCount).toBe(0);
+        expect(impact.body.affectedMemberIds).toEqual([]);
+
+        const res = await agent.delete(`/api/contexts/${ctx.body.id}`).set(AUTH_HEADER);
+        expect(res.status).toBe(204);
+        await expect(contextAccess.getMemberContextIds('0', PROJECT_ID)).resolves.not.toContain(
+          ctx.body.id
+        );
+      } finally {
+        await contextAccess.updateMember('0', PROJECT_ID, {
+          role: ProjectRole.ADMIN,
+          roleScope: RoleScope.ENTIRE_PROJECT,
+          contextIds: [],
+        });
+      }
+    });
+
     it('DELETE → 409 with multiple attachments across all entity kinds', async () => {
       const ctx = await createContext('B-multi-attached');
       const { dataMartId } = await createStorageAndDataMart();

@@ -453,7 +453,7 @@ describe('ContextService', () => {
       userProvisioningContextSettingsContextRepository.count.mockResolvedValue(5);
       mockAffectedMembers(memberRoleContextRepository);
 
-      const result = await service.getImpact(CONTEXT_ID, PROJECT_ID);
+      const result = await service.getImpact(CONTEXT_ID, PROJECT_ID, new Set(memberIds));
 
       expect(result.contextId).toBe(CONTEXT_ID);
       expect(result.contextName).toBe('Test Context');
@@ -477,7 +477,11 @@ describe('ContextService', () => {
       memberRoleScopeRepository.find.mockResolvedValue([restrictedScope('m-3')]);
       mockAffectedMembers(memberRoleContextRepository);
 
-      const result = await service.getImpact(CONTEXT_ID, PROJECT_ID);
+      const result = await service.getImpact(
+        CONTEXT_ID,
+        PROJECT_ID,
+        new Set(['m-1', 'm-2', 'm-3'])
+      );
 
       expect(result.memberCount).toBe(1);
       expect(memberRoleContextRepository.find).toHaveBeenCalledWith({
@@ -487,6 +491,31 @@ describe('ContextService', () => {
         where: {
           projectId: PROJECT_ID,
           userId: In(['m-1', 'm-2', 'm-3']),
+          roleScope: RoleScope.SELECTED_CONTEXTS,
+        },
+      });
+    });
+
+    it('ignores admins and former members even with a stored Selected contexts scope', async () => {
+      const { service, contextRepository, memberRoleContextRepository, memberRoleScopeRepository } =
+        createService();
+
+      contextRepository.findOne.mockResolvedValue(createContextEntity());
+      // admin-1's role changed to admin outside ODM; gone-1 left the project; m-3 is restricted.
+      memberRoleContextRepository.find.mockResolvedValue(
+        ['admin-1', 'gone-1', 'm-3'].map(memberAssignment)
+      );
+      memberRoleScopeRepository.find.mockResolvedValue([restrictedScope('m-3')]);
+      mockAffectedMembers(memberRoleContextRepository, ['admin-1', 'gone-1', 'm-3']);
+
+      const result = await service.getImpact(CONTEXT_ID, PROJECT_ID, new Set(['m-3', 'm-4']));
+
+      expect(result.memberCount).toBe(1);
+      expect(result.affectedMemberIds).toEqual(['m-3']);
+      expect(memberRoleScopeRepository.find).toHaveBeenCalledWith({
+        where: {
+          projectId: PROJECT_ID,
+          userId: In(['m-3']),
           roleScope: RoleScope.SELECTED_CONTEXTS,
         },
       });
@@ -516,7 +545,7 @@ describe('ContextService', () => {
       userProvisioningContextSettingsContextRepository.count.mockResolvedValue(0);
       mockAffectedMembers(memberRoleContextRepository, memberIds);
 
-      const result = await service.getImpact(CONTEXT_ID, PROJECT_ID);
+      const result = await service.getImpact(CONTEXT_ID, PROJECT_ID, new Set(memberIds));
 
       expect(result.memberCount).toBe(2);
       expect(result.userProvisioningDefaultsCount).toBe(0);
@@ -545,7 +574,7 @@ describe('ContextService', () => {
       destinationContextRepository.count.mockResolvedValue(0);
       userProvisioningContextSettingsContextRepository.count.mockResolvedValue(0);
 
-      await service.delete(CONTEXT_ID, PROJECT_ID);
+      await service.delete(CONTEXT_ID, PROJECT_ID, new Set());
 
       expect(contextRepository.softRemove).toHaveBeenCalledWith(existingEntity);
       expect(dataMartContextRepository.delete).not.toHaveBeenCalled();
@@ -576,7 +605,7 @@ describe('ContextService', () => {
       memberRoleContextRepository.find.mockResolvedValue(['m-1', 'm-2'].map(memberAssignment));
       memberRoleScopeRepository.find.mockResolvedValue([]);
 
-      await service.delete(CONTEXT_ID, PROJECT_ID);
+      await service.delete(CONTEXT_ID, PROJECT_ID, new Set(['m-1', 'm-2']));
 
       expect(memberRoleContextRepository.delete).toHaveBeenCalledWith({
         contextId: CONTEXT_ID,
@@ -587,6 +616,44 @@ describe('ContextService', () => {
       expect(memberRoleContextRepository.delete.mock.invocationCallOrder[0]).toBeLessThan(
         contextRepository.softRemove.mock.invocationCallOrder[0]
       );
+    });
+
+    it('deletes a context held by an admin or a former member, removing their assignments', async () => {
+      const {
+        service,
+        contextRepository,
+        dataMartContextRepository,
+        storageContextRepository,
+        destinationContextRepository,
+        memberRoleContextRepository,
+        memberRoleScopeRepository,
+        userProvisioningContextSettingsContextRepository,
+      } = createService();
+
+      const existingEntity = createContextEntity();
+      contextRepository.findOne.mockResolvedValue(existingEntity);
+      dataMartContextRepository.count.mockResolvedValue(0);
+      storageContextRepository.count.mockResolvedValue(0);
+      destinationContextRepository.count.mockResolvedValue(0);
+      userProvisioningContextSettingsContextRepository.count.mockResolvedValue(0);
+      // Both may still have a stored Selected contexts scope; it does not matter.
+      memberRoleContextRepository.find.mockResolvedValue(
+        ['admin-1', 'gone-1'].map(memberAssignment)
+      );
+      memberRoleScopeRepository.find.mockResolvedValue([
+        restrictedScope('admin-1'),
+        restrictedScope('gone-1'),
+      ]);
+
+      await service.delete(CONTEXT_ID, PROJECT_ID, new Set(['m-1']));
+
+      expect(memberRoleScopeRepository.find).not.toHaveBeenCalled();
+      expect(memberRoleContextRepository.delete).toHaveBeenCalledWith({
+        contextId: CONTEXT_ID,
+        projectId: PROJECT_ID,
+        userId: In(['admin-1', 'gone-1']),
+      });
+      expect(contextRepository.softRemove).toHaveBeenCalledWith(existingEntity);
     });
 
     it('blocks the delete while a Selected contexts member holds the context', async () => {
@@ -609,7 +676,9 @@ describe('ContextService', () => {
       memberRoleContextRepository.find.mockResolvedValue(['m-1', 'm-2'].map(memberAssignment));
       memberRoleScopeRepository.find.mockResolvedValue([restrictedScope('m-2')]);
 
-      await expect(service.delete(CONTEXT_ID, PROJECT_ID)).rejects.toMatchObject({
+      await expect(
+        service.delete(CONTEXT_ID, PROJECT_ID, new Set(['m-1', 'm-2']))
+      ).rejects.toMatchObject({
         response: expect.objectContaining({ memberCount: 1 }),
       });
 
@@ -636,7 +705,7 @@ describe('ContextService', () => {
       destinationContextRepository.count.mockResolvedValue(1);
       userProvisioningContextSettingsContextRepository.count.mockResolvedValue(0);
 
-      await expect(service.delete(CONTEXT_ID, PROJECT_ID)).rejects.toBeInstanceOf(
+      await expect(service.delete(CONTEXT_ID, PROJECT_ID, new Set())).rejects.toBeInstanceOf(
         ConflictException
       );
 
@@ -662,7 +731,7 @@ describe('ContextService', () => {
       destinationContextRepository.count.mockResolvedValue(0);
       userProvisioningContextSettingsContextRepository.count.mockResolvedValue(1);
 
-      await expect(service.delete(CONTEXT_ID, PROJECT_ID)).rejects.toMatchObject({
+      await expect(service.delete(CONTEXT_ID, PROJECT_ID, new Set())).rejects.toMatchObject({
         response: expect.objectContaining({
           userProvisioningDefaultsCount: 1,
         }),

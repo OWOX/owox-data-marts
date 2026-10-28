@@ -138,7 +138,7 @@ export class ContextImpactResponseApiDto {
 
   @ApiProperty({
     description:
-      'Members with Selected contexts scope assigned to the context. Entire project members are not counted.',
+      'Non-admin members with Selected contexts scope assigned to the context. Admins and Entire project members are not counted.',
   })
   memberCount: number;
 

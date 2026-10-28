@@ -637,8 +637,8 @@ describe('Context Integration Tests', () => {
       s.userProvisioningContextSettingsContextRepo.count.mockResolvedValue(0);
     };
 
-    /** `count` members with Selected contexts scope hold the context. */
-    const mockRestrictedMembers = (count: number) => {
+    /** `count` members with Selected contexts scope hold the context; returns their ids. */
+    const mockRestrictedMembers = (count: number): string[] => {
       const userIds = Array.from({ length: count }, (_, i) => `member-${i + 1}`);
       s.memberRoleContextRepo.find.mockResolvedValue(
         userIds.map(userId => ({ userId, projectId: PROJECT_ID, contextId: CONTEXT_ID }))
@@ -650,6 +650,7 @@ describe('Context Integration Tests', () => {
           roleScope: RoleScope.SELECTED_CONTEXTS,
         }))
       );
+      return userIds;
     };
 
     // 22. Context delete throws ConflictException when still attached
@@ -662,10 +663,12 @@ describe('Context Integration Tests', () => {
       s.dmContextRepo.count.mockResolvedValue(2);
       s.storageContextRepo.count.mockResolvedValue(1);
       s.destContextRepo.count.mockResolvedValue(3);
-      mockRestrictedMembers(4);
+      const memberIds = new Set(mockRestrictedMembers(4));
       s.userProvisioningContextSettingsContextRepo.count.mockResolvedValue(0);
 
-      await expect(s.contextService.delete(CONTEXT_ID, PROJECT_ID)).rejects.toMatchObject({
+      await expect(
+        s.contextService.delete(CONTEXT_ID, PROJECT_ID, memberIds)
+      ).rejects.toMatchObject({
         response: {
           message: expect.stringContaining('Context is attached'),
           dataMartCount: 2,
@@ -693,7 +696,7 @@ describe('Context Integration Tests', () => {
       s.contextRepo.softRemove.mockResolvedValue({ ...entity, deletedAt: new Date() });
       mockZeroCounts();
 
-      await s.contextService.delete(CONTEXT_ID, PROJECT_ID);
+      await s.contextService.delete(CONTEXT_ID, PROJECT_ID, new Set());
 
       expect(s.contextRepo.softRemove).toHaveBeenCalledWith(entity);
       expect(s.dmContextRepo.delete).not.toHaveBeenCalled();
@@ -709,7 +712,7 @@ describe('Context Integration Tests', () => {
       s.dmContextRepo.count.mockResolvedValue(5);
       s.storageContextRepo.count.mockResolvedValue(3);
       s.destContextRepo.count.mockResolvedValue(2);
-      mockRestrictedMembers(7);
+      const memberIds = new Set([...mockRestrictedMembers(7), 'affected-1', 'affected-2']);
       s.userProvisioningContextSettingsContextRepo.count.mockResolvedValue(4);
       s.memberRoleContextRepo.createQueryBuilder.mockReturnValue({
         innerJoin: jest.fn().mockReturnThis(),
@@ -723,7 +726,7 @@ describe('Context Integration Tests', () => {
           .mockResolvedValue([{ userId: 'affected-1' }, { userId: 'affected-2' }]),
       });
 
-      const impact = await s.contextService.getImpact(CONTEXT_ID, PROJECT_ID);
+      const impact = await s.contextService.getImpact(CONTEXT_ID, PROJECT_ID, memberIds);
 
       expect(impact.contextId).toBe(CONTEXT_ID);
       expect(impact.contextName).toBe('Impact Context');

@@ -318,8 +318,9 @@ describe('Permissions Model: Context query performance (benchmark)', () => {
   describe('context.getImpact', () => {
     it(`heavy context: p95 < ${String(THRESHOLD_MS.getContextImpact)}ms`, async () => {
       const ctxId = contextIds[0];
+      const nonAdminMemberIds = new Set([USER_TU_ENTIRE, USER_TU_SCOPED, USER_BU_ENTIRE]);
       await measure('contextImpact/heavy', THRESHOLD_MS.getContextImpact, () =>
-        contextService.getImpact(ctxId, PROJECT_ID)
+        contextService.getImpact(ctxId, PROJECT_ID, nonAdminMemberIds)
       );
     }, 120_000);
   });
