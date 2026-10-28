@@ -88,8 +88,8 @@ export function GoogleSheetsTargetSection({
           issues.push('it was not shared with you');
         }
         toast(
-          `Google Sheet created, but ${issues.join(', and ')}. Reconnect the destination’s ` +
-            'Google account with Drive access to fix this.',
+          `Google Sheet created, but ${issues.join(', and ')}. A Credential maintainer can ` +
+            'reconnect this Destination’s Credential on the Credentials page to grant Drive access.',
           { icon: '⚠️', duration: 8000 }
         );
       } else {
