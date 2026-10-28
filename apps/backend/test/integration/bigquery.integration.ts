@@ -26,6 +26,7 @@ import {
 import { DataStorageType } from 'src/data-marts/data-storage-types/enums/data-storage-type.enum';
 import { extractCteBody } from '@owox/test-utils';
 import { BigQueryReportReader } from 'src/data-marts/data-storage-types/bigquery/services/bigquery-report-reader.service';
+import { passThroughSqlReferenceResolver } from 'src/data-marts/sql-references/__fixtures__/pass-through-sql-reference-resolver';
 
 /**
  * BigQuery Integration Tests
@@ -2379,7 +2380,8 @@ describeIfCredentials(
         } as never,
         // The composer validates the REPORT's own config before deriving a Totals restriction from
         // its HAVING rules (that precondition used to hold by call order alone).
-        { validateForReport: jest.fn().mockResolvedValue(undefined) } as never
+        { validateForReport: jest.fn().mockResolvedValue(undefined) } as never,
+        passThroughSqlReferenceResolver as never
       );
 
       const report = {
