@@ -13,7 +13,7 @@ import type {
   CredentialFetchRequestApiDto,
   CredentialFetchResponseApiDto,
 } from '../dto/credential-fetch-api.dto';
-import type { CredentialDefinitionContract } from '../credential.types';
+import { secretValue, type CredentialDefinitionContract } from '../credential.types';
 import type { ResolvedCredentialBinding } from '../facades/credential-consumer-binding.facade';
 import { CredentialService } from './credential.service';
 import {
@@ -199,7 +199,7 @@ export class CredentialFetchService {
   ): Promise<{ readonly header: readonly [string, string]; readonly token?: string }> {
     const { auth } = binding.definition;
     if (auth.type === 'header') {
-      return { header: [auth.headerName, `${auth.prefix ?? ''}${binding.secret.value}`] };
+      return { header: [auth.headerName, `${auth.prefix ?? ''}${secretValue(binding.secret)}`] };
     }
     if (binding.requirement.scopes.length === 0) {
       throw new BadRequestException({
@@ -243,13 +243,17 @@ export class CredentialFetchService {
     rawUrl: string,
     definition: CredentialDefinitionContract
   ): Promise<string> {
+    const { origins } = definition;
+    if (!origins) {
+      throw new BadRequestException('This Credential definition does not allow HTTP requests');
+    }
     let url: URL;
     try {
       url = await assertPublicHttpUrl(rawUrl, { allowedProtocols: ['https:'] });
     } catch {
       throw new ForbiddenException('Credential request URL is not allowed');
     }
-    if (!definition.origins.some(origin => originAllows(origin, url, definition.auth.type))) {
+    if (!origins.some(origin => originAllows(origin, url, definition.auth.type))) {
       throw new ForbiddenException('Credential request origin is not declared by the definition');
     }
     return url.toString();
@@ -293,7 +297,7 @@ function googleTokenRequest(binding: ResolvedCredentialBinding) {
   };
 }
 
-/** `https://*.<domain>` is a host-suffix wildcard only for Google Service Account; otherwise a literal origin. */
+/** `https://*.<domain>` is a host-suffix wildcard only for `google-service-account`; otherwise a literal origin. */
 function originAllows(
   origin: string,
   url: URL,

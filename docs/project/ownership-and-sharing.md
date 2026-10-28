@@ -58,7 +58,7 @@ A Data Mart may have multiple Data Owners and multiple Business Owners. Ownershi
 A Business User can be assigned as a Data Mart Data Owner or Storage Owner, but the role does not support full ownership until it changes to Data Owner:
 
 - **Data Mart Data Owner (Business User role)** — can view and use the Data Mart, but cannot edit, delete, or manage it.
-- **Storage Owner (Business User)** — has no access to the Storage.
+- **Storage Owner (Business User)** — has no access to the Storage. When a Storage's key became a [Credential](credentials.md), its Business User owners became owners of that Credential, with every owner action on it.
 
 **Triggers do not have dedicated ownership.** Data Mart Triggers are managed under their parent Data Mart; [Report Triggers](../getting-started/setup-guide/report-triggers.md) are managed under their parent Report. Access to triggers follows the access rules of the parent entity.
 
@@ -116,7 +116,7 @@ The following actions can be granted or restricted by the combination of ownersh
 | **Use** | Link the resource to other entities (e.g. attach a Storage to a Data Mart) |
 | **Edit** | Modify the resource configuration |
 | **Delete** | Remove the resource |
-| **Copy Credentials** | Access connection credentials *(Storage, Destination)* |
+| **Copy Credentials** | Access connection credentials *(Destination)* |
 | **Configure Sharing** | Change the sharing settings of the resource |
 | **Manage Owners** | Assign or revoke ownership |
 | **Manage Triggers** | Create, edit, or delete triggers *(Data Mart)* |
@@ -143,7 +143,7 @@ The following actions can be granted or restricted by the combination of ownersh
 |---|---|---|---|---|
 | **Owner (Data Owner role)** | All actions | All actions | All actions | All actions |
 | **Owner (Business User)** | No access [1] | No access [1] | No access [1] | No access [1] |
-| **Non-owner with the Data Owner role** | No access | See, Use [2] | See, Use, Copy Credentials, Edit, Delete [2] | See, Use, Copy Credentials, Edit, Delete [2] |
+| **Non-owner with the Data Owner role** | No access | See, Use [2] | See, Use, Edit, Delete [2] | See, Use, Edit, Delete [2] |
 | **Any Business User (non-owner)** | No access | No access | No access | No access |
 
 [1] A Business User assigned as Storage Owner has no access until their role changes to Data Owner.

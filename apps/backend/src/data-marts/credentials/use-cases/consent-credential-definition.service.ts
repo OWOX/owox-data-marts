@@ -33,6 +33,6 @@ export class ConsentCredentialDefinitionService {
       credential.acceptedCompatibilityLine = definition.compatibilityLine;
       await this.credentials.save(credential);
     }
-    return this.view.build(credential);
+    return this.view.build(credential, context);
   }
 }

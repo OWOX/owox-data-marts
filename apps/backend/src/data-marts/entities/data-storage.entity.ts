@@ -33,6 +33,7 @@ export class DataStorage implements CreatorAwareEntity {
   @Column({ type: 'json', nullable: true })
   config?: DataStorageConfig;
 
+  // Legacy: read only by LegacyStorageCredentialReader.
   @Column({ type: 'varchar', nullable: true })
   credentialId?: string | null;
 

@@ -35,7 +35,7 @@ To interact with AWS Athena, you need an IAM user with appropriate permissions a
    - select **Third-party service** option
    - set the **Confirmation** checkbox in the bottom and click **Next**
    - set description tag (optional) and click **Create access key**
-   - Note down the **Access Key ID** and **Secret Access Key** (you’ll need to reveal the Secret Access Key by clicking "Show") and use them in Storage configuration
+   - Note down the **Access Key ID** and **Secret Access Key** (you’ll need to reveal the Secret Access Key by clicking "Show") and use them in an **AWS access key** Credential
 
 #### II. Identify an S3 bucket designated for storing query results
 
@@ -77,8 +77,7 @@ Click **AWS Athena** on the **New Storage** modal window appeared to create a ne
 - **Title**: Provide a unique name for this Storage (e.g., "Analytics Warehouse")
 - **Region**: Enter the AWS region hosting your Athena instance (e.g., us-east-1), available in the AWS Management Console
 - **Output Bucket**: Provide the S3 bucket for query results, e.g. `my-athena-results`, or a folder in it, e.g. `my-athena-results/owox/`. OWOX Data Marts deletes the results of the queries that read your data, for reports, previews and Insights, once it has read them. The small results of the queries that check access, validate SQL and look up when the data was last updated stay there, under `athena-check-access/`, `athena-dry-run/` and `athena-data-last-updated/`; an S3 lifecycle rule can remove them
-- **Access Key ID**: Enter the Access Key ID for an IAM user with Athena and S3 access
-- **Secret Access Key**: Provide the matching Secret Access Key
+- **Credential**: Select an **AWS access key** Credential, or click **+ Create new Credential** and enter the **Access key ID** and **Secret access key** of the IAM user with Athena and S3 access (add a **Session token** only for temporary keys). The new Credential is selected when you save it. See [Credentials](../../project/credentials.md)
 
 #### 4. Finalize Setup
 

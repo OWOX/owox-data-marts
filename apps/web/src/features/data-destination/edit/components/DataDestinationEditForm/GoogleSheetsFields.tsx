@@ -242,7 +242,6 @@ export function GoogleSheetsFields({ form }: GoogleSheetsFieldsProps) {
                     </FormLabel>
                   </div>
                   <GoogleOAuthConnectButton
-                    resourceType='destination'
                     resourceId={destinationId}
                     credentialId={credentialIdValue ?? undefined}
                     redirectUri={oauthRedirectUri}

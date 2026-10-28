@@ -11,7 +11,7 @@ import { dataStorageApiService } from '../../api';
 import { invalidateDataStorageHealthStatus } from '../../services/data-storage-health-status.service';
 import type { DataStorageFormData } from '../../types/data-storage.schema.ts';
 import { DataStorageType } from '../types';
-import { extractApiError } from '../../../../../app/api';
+import { extractApiError, type AxiosRequestConfig } from '../../../../../app/api';
 import toast from 'react-hot-toast';
 import { trackEvent } from '../../../../../utils/data-layer';
 import { useRefreshSetupProgress } from '../../../../../components/AppSidebar/SetupChecklist/useSetupProgress';
@@ -38,9 +38,9 @@ export function useDataStorage() {
   }, [dispatch]);
 
   const getDataStorageById = useCallback(
-    async (id: string) => {
+    async (id: string, config?: AxiosRequestConfig) => {
       try {
-        const response = await dataStorageApiService.getDataStorageById(id);
+        const response = await dataStorageApiService.getDataStorageById(id, config);
         const dataStorage = mapDataStorageFromDto(response);
         dispatch({ type: DataStorageActionType.FETCH_STORAGE_SUCCESS, payload: dataStorage });
       } catch (error) {
@@ -89,11 +89,7 @@ export function useDataStorage() {
   );
 
   const updateDataStorage = useCallback(
-    async (
-      id: DataStorage['id'],
-      data: DataStorageFormData,
-      source?: { id: string; title: string } | null
-    ) => {
+    async (id: DataStorage['id'], data: DataStorageFormData) => {
       dispatch({ type: DataStorageActionType.UPDATE_STORAGE_START });
       try {
         const { ownerIds, availableForUse, availableForMaintenance, contextIds, ...formData } =
@@ -103,7 +99,7 @@ export function useDataStorage() {
             availableForMaintenance?: boolean;
             contextIds?: string[];
           };
-        const request = mapToUpdateDataStorageRequest(formData, source?.id);
+        const request = mapToUpdateDataStorageRequest(formData);
         const requestWithExtras = {
           ...request,
           ...(ownerIds !== undefined && { ownerIds }),
@@ -124,10 +120,7 @@ export function useDataStorage() {
           label: updatedStorage.type,
           context: updatedStorage.id,
         });
-        const toastMessage = source
-          ? `Storage updated. Credentials copied from ${source.title}.`
-          : 'Storage updated';
-        toast.success(toastMessage);
+        toast.success('Storage updated');
         invalidateDataStorageHealthStatus(id);
         return updatedStorage;
       } catch (error) {

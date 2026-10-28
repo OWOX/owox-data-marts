@@ -17,6 +17,7 @@ import {
 } from '@owox/ui/components/form';
 import { FileDropTextarea } from '@owox/ui/components/file-drop-textarea';
 import { Input } from '@owox/ui/components/input';
+import { InputGroup, InputGroupAddon, InputGroupInput } from '@owox/ui/components/input-group';
 import {
   Select,
   SelectContent,
@@ -35,13 +36,29 @@ import { OwnersSection } from '../../../../shared/components/OwnersSection/Owner
 import type { UserProjectionDto } from '../../../../shared/types/api';
 import { focusFirstInvalidField } from '../../../../utils/form-utils';
 import { extractApiError } from '../../../../app/api/extract-api-error.util';
-import type {
-  CreateCredentialRequest,
-  Credential,
-  CredentialDefinition,
-  UpdateCredentialRequest,
+import {
+  isFieldsMetadata,
+  isServiceAccountMetadata,
+  type CreateCredentialRequest,
+  type Credential,
+  type CredentialDefinition,
+  type CredentialDefinitionField,
+  type UpdateCredentialRequest,
 } from '../../types';
 import { safeCredentialDocumentationUrl } from '../../credential-documentation-url';
+import {
+  buildFieldsCreatePayload,
+  buildFieldsUpdatePayload,
+  missingRequiredFields,
+  type CredentialFieldValues,
+} from '../../credential-fields';
+import { CredentialFieldsInputs } from '../CredentialFieldsInputs';
+import { credentialFieldHelp, providerChoiceHelp } from '../CredentialHelp';
+import { CredentialUsedByList } from '../CredentialUsedByList';
+import { GoogleOAuthCredentialConnect } from '../GoogleOAuthCredentialConnect';
+import { useGoogleOAuthAvailable } from '../../useCredentials';
+import { ProviderCombobox, ProviderIcon } from '../ProviderCombobox';
+import { SecretReplacementWarning } from '../SecretReplacementWarning';
 
 const GITHUB_DEFINITION_VALUE = '__github-credential-definition__';
 const GITHUB_REPOSITORY_PATTERN = /^@[^/]+\/[^/]+$/;
@@ -56,6 +73,8 @@ const credentialFormSchema = z.object({
   definitionId: z.string().min(1, 'Provider is required'),
   githubRepository: z.string().max(512, 'Repository is too long'),
   secret: z.string().max(32_768, 'Secret is too long'),
+  fields: z.record(z.string(), z.string()),
+  clearedFields: z.array(z.string()),
   enabled: z.boolean(),
   availableForUse: z.boolean(),
   availableForMaintenance: z.boolean(),
@@ -88,10 +107,27 @@ export interface CredentialFormProps {
   onDirtyChange?: (isDirty: boolean) => void;
   onRequestReplaceSecret?: (credential: Credential) => void;
   onRequestAddGithubDefinition?: (repository: string) => Promise<CredentialDefinition>;
+  /** Called after a Google account is connected; the Credential is already saved. */
+  onOAuthConnected?: (credential: Credential) => void;
   canManageAccess?: boolean;
+  /** Starts both sharing switches off for a new Credential. */
+  defaultSharing?: 'not-shared';
 }
 
-export function CredentialForm({
+export function CredentialForm(props: CredentialFormProps) {
+  const oauthAvailable = useGoogleOAuthAvailable();
+  // A new Credential picks its provider once, so wait until OAuth availability is known.
+  if (props.credential === null && oauthAvailable === undefined) {
+    return (
+      <div className='text-muted-foreground flex justify-center p-6'>
+        <Loader2 className='size-5 animate-spin' aria-label='Loading' />
+      </div>
+    );
+  }
+  return <CredentialFormBody {...props} oauthAvailable={oauthAvailable ?? false} />;
+}
+
+function CredentialFormBody({
   credential,
   definitions,
   initialDefinitionId,
@@ -102,20 +138,25 @@ export function CredentialForm({
   onDirtyChange,
   onRequestReplaceSecret,
   onRequestAddGithubDefinition,
+  onOAuthConnected,
   canManageAccess = false,
-}: CredentialFormProps) {
+  defaultSharing,
+  oauthAvailable,
+}: CredentialFormProps & { oauthAvailable: boolean }) {
   const isEditMode = credential !== null;
   const [addedDefinition, setAddedDefinition] = useState<CredentialDefinition | null>(null);
   const [githubInstallationUrl, setGithubInstallationUrl] = useState<string | null>(null);
   const definitionOptions = useMemo(() => {
-    const options = [...definitions];
+    const options = definitions.filter(
+      definition => oauthAvailable || definition.auth?.type !== 'oauth'
+    );
     if (addedDefinition && !options.some(definition => definition.id === addedDefinition.id)) {
       options.push(addedDefinition);
     }
     if (isEditMode || !allowedDefinitionIds) return options;
     const allowed = new Set(allowedDefinitionIds);
     return options.filter(definition => allowed.has(definition.id));
-  }, [addedDefinition, allowedDefinitionIds, definitions, isEditMode]);
+  }, [addedDefinition, allowedDefinitionIds, definitions, isEditMode, oauthAvailable]);
   const defaultDefinitionId = credential
     ? credential.definition.id
     : initialDefinitionId && definitionOptions.some(({ id }) => id === initialDefinitionId)
@@ -131,8 +172,10 @@ export function CredentialForm({
       definitionId: defaultDefinitionId,
       githubRepository: '',
       secret: '',
+      fields: initialFieldValues(credential, defaultDefinition),
+      clearedFields: [],
       enabled: credential?.enabled ?? true,
-      availableForUse: credential?.availableForUse ?? true,
+      availableForUse: credential?.availableForUse ?? defaultSharing !== 'not-shared',
       availableForMaintenance: credential?.availableForMaintenance ?? false,
       ownerIds: credential?.ownerUsers.map(owner => owner.userId) ?? [],
       contextIds: credential?.contexts.map(context => context.id) ?? [],
@@ -148,7 +191,38 @@ export function CredentialForm({
   const selectedDefinition =
     definitionOptions.find(definition => definition.id === definitionId) ?? credential?.definition;
   const documentationUrl = safeCredentialDocumentationUrl(selectedDefinition?.documentationUrl);
+  const secretHelp = credentialFieldHelp(selectedDefinition?.id, 'secret');
+  // The choice is explained only when this form offers more than one provider of the group.
+  const providerChoice =
+    !credential &&
+    definitionOptions.filter(({ category }) => category === selectedDefinition?.category).length > 1
+      ? providerChoiceHelp(selectedDefinition?.category)
+      : undefined;
   const aiMappingModes = form.watch('aiModelMappingModes');
+  const fieldValues = form.watch('fields');
+  const clearedFields = form.watch('clearedFields');
+  const fieldErrors = Object.fromEntries(
+    Object.entries(form.formState.errors.fields ?? {}).map(([key, error]) => [
+      key,
+      error?.message ?? '',
+    ])
+  );
+  const auth = selectedDefinition?.auth;
+  const definitionFields = auth?.type === 'fields' ? auth.fields : [];
+  const initialFields = useMemo(
+    () => initialFieldValues(credential, selectedDefinition),
+    [credential, selectedDefinition]
+  );
+  const isOAuth = auth?.type === 'oauth';
+  // Fields definitions have an empty label.
+  const secretLabel = selectedDefinition?.secretLabel.trim()
+    ? selectedDefinition.secretLabel
+    : 'Secret';
+  const secretFieldChanged = definitionFields.some(
+    ({ key, secret, identity }) =>
+      (secret && ((fieldValues[key] ?? '') !== '' || clearedFields.includes(key))) ||
+      (identity && (fieldValues[key] ?? '') !== (initialFields[key] ?? ''))
+  );
 
   useEffect(() => {
     onDirtyChange?.(form.formState.isDirty);
@@ -156,6 +230,8 @@ export function CredentialForm({
 
   const selectDefinition = (definition: CredentialDefinition) => {
     setGithubInstallationUrl(null);
+    form.clearErrors('fields');
+    form.setValue('fields', initialFieldValues(null, definition), { shouldDirty: true });
     form.setValue('definitionId', definition.id, {
       shouldDirty: true,
       shouldTouch: true,
@@ -177,6 +253,7 @@ export function CredentialForm({
       });
       form.setValue('aiModelMappings', emptyAiMappings(), { shouldDirty: true });
       form.setValue('aiModelMappingModes', {}, { shouldDirty: true });
+      form.setValue('fields', {}, { shouldDirty: true });
       return;
     }
     const definition = definitionOptions.find(candidate => candidate.id === value);
@@ -215,7 +292,7 @@ export function CredentialForm({
     }
   };
 
-  const handleSubmit = async (values: CredentialFormValues) => {
+  const handleSubmit = async (values: CredentialFormValues, event?: { target?: unknown }) => {
     if (!isEditMode && values.definitionId === GITHUB_DEFINITION_VALUE) {
       form.setError(
         'githubRepository',
@@ -225,7 +302,24 @@ export function CredentialForm({
       return;
     }
 
-    if (!isEditMode && values.secret.length === 0) {
+    const usesFields = selectedDefinition?.auth?.type === 'fields';
+    if (usesFields) {
+      // Saved secrets start empty, so an edit checks only the saved values the user cleared.
+      const checked = isEditMode
+        ? definitionFields.filter(({ key, secret }) => !secret && (initialFields[key] ?? '') !== '')
+        : definitionFields;
+      const missing = missingRequiredFields(checked, values.fields);
+      for (const key of missing) {
+        form.setError(`fields.${key}`, {
+          type: 'required',
+          message: `${fieldLabel(definitionFields, key)} is required`,
+        });
+      }
+      if (missing.length > 0) {
+        focusFirstInvalidField(undefined, event);
+        return;
+      }
+    } else if (!isEditMode && !isOAuth && values.secret.length === 0) {
       form.setError('secret', { type: 'required', message: 'Secret is required' });
       return;
     }
@@ -240,6 +334,15 @@ export function CredentialForm({
       if (dirty.availableForMaintenance) {
         input.availableForMaintenance = values.availableForMaintenance;
       }
+      if ((dirty.fields || dirty.clearedFields) && usesFields) {
+        const fieldsPayload = buildFieldsUpdatePayload(
+          definitionFields,
+          initialFields,
+          values.fields,
+          values.clearedFields
+        );
+        if (fieldsPayload) input.fields = fieldsPayload;
+      }
       if (dirty.ownerIds) input.ownerIds = values.ownerIds;
       if (dirty.contextIds) input.contextIds = values.contextIds;
       if (dirty.aiModelMappings || dirty.aiModelMappingModes) {
@@ -253,7 +356,9 @@ export function CredentialForm({
     await onSubmit({
       title: values.title,
       definitionId: values.definitionId,
-      secret: { value: values.secret },
+      ...(usesFields
+        ? { fields: buildFieldsCreatePayload(definitionFields, values.fields) }
+        : { secret: { value: values.secret } }),
       availableForUse: values.availableForUse,
       availableForMaintenance: values.availableForMaintenance,
       aiModelMappings: Object.keys(mappings).length > 0 ? mappings : undefined,
@@ -291,31 +396,42 @@ export function CredentialForm({
             <FormField
               control={form.control}
               name='definitionId'
-              render={({ fieldState }) => (
+              render={() => (
                 <FormItem>
                   <FormLabel tooltip='The definition controls how this Credential authorizes provider requests.'>
                     Provider
                   </FormLabel>
                   {credential ? (
-                    <Input value={credential.definition.displayName} disabled />
+                    <InputGroup data-disabled='true'>
+                      <InputGroupAddon align='inline-start'>
+                        <ProviderIcon icon={credential.definition.icon} />
+                      </InputGroupAddon>
+                      <InputGroupInput
+                        aria-label='Provider'
+                        value={credential.definition.displayName}
+                        disabled
+                      />
+                    </InputGroup>
                   ) : (
-                    <Select value={definitionId} onValueChange={handleDefinitionChange}>
-                      <FormControl>
-                        <SelectTrigger className='w-full' aria-invalid={fieldState.invalid}>
-                          <SelectValue placeholder='Select a provider' />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {definitionOptions.map(definition => (
-                          <SelectItem key={definition.id} value={definition.id}>
-                            {definition.displayName}
-                          </SelectItem>
-                        ))}
-                        {onRequestAddGithubDefinition && (
-                          <SelectItem value={GITHUB_DEFINITION_VALUE}>GitHub definition</SelectItem>
-                        )}
-                      </SelectContent>
-                    </Select>
+                    <FormControl>
+                      <ProviderCombobox
+                        definitions={
+                          onRequestAddGithubDefinition
+                            ? [
+                                ...definitionOptions,
+                                { id: GITHUB_DEFINITION_VALUE, displayName: 'GitHub definition' },
+                              ]
+                            : definitionOptions
+                        }
+                        value={definitionId}
+                        onChange={handleDefinitionChange}
+                      />
+                    </FormControl>
+                  )}
+                  {providerChoice?.Description && (
+                    <FormDescription>
+                      <providerChoice.Description />
+                    </FormDescription>
                   )}
                   <FormMessage />
                 </FormItem>
@@ -394,8 +510,69 @@ export function CredentialForm({
           </FormSection>
 
           {(credential ?? selectedDefinition) && (
-            <FormSection title='Authentication' name='credential-authentication'>
-              {credential ? (
+            <FormSection
+              title='Authentication'
+              name='credential-authentication'
+              fields={['fields']}
+            >
+              {isOAuth ? (
+                <GoogleOAuthCredentialConnect
+                  credential={credential}
+                  definitionId={selectedDefinition?.id ?? ''}
+                  disabled={isEditMode && form.formState.isDirty}
+                  draft={{
+                    title: form.watch('title'),
+                    availableForUse: form.watch('availableForUse'),
+                    availableForMaintenance: form.watch('availableForMaintenance'),
+                  }}
+                  onConnected={connected => {
+                    onOAuthConnected?.(connected);
+                  }}
+                />
+              ) : auth?.type === 'fields' ? (
+                <>
+                  <CredentialFieldsInputs
+                    definitionId={selectedDefinition?.id}
+                    fields={definitionFields}
+                    values={fieldValues}
+                    errors={fieldErrors}
+                    isEditing={isEditMode}
+                    clearedKeys={clearedFields}
+                    setSecretKeys={credential?.setSecretFieldKeys}
+                    onToggleRemove={key => {
+                      const cleared = form.getValues('clearedFields');
+                      form.setValue(
+                        'clearedFields',
+                        cleared.includes(key)
+                          ? cleared.filter(item => item !== key)
+                          : [...cleared, key],
+                        { shouldDirty: true }
+                      );
+                      form.setValue(`fields.${key}`, '', { shouldDirty: true });
+                    }}
+                    onChange={(key, value) => {
+                      const cleared = form.getValues('clearedFields');
+                      if (cleared.includes(key)) {
+                        form.setValue(
+                          'clearedFields',
+                          cleared.filter(item => item !== key),
+                          { shouldDirty: true }
+                        );
+                      }
+                      form.clearErrors(`fields.${key}`);
+                      form.setValue(`fields.${key}`, value, { shouldDirty: true });
+                    }}
+                  />
+                  {documentationUrl && (
+                    <ExternalAnchor href={documentationUrl} className='w-fit text-sm'>
+                      How to get this key
+                    </ExternalAnchor>
+                  )}
+                  {credential && secretFieldChanged && (
+                    <SecretReplacementWarning credential={credential} />
+                  )}
+                </>
+              ) : credential ? (
                 <>
                   <FormItem>
                     <div className='flex items-center justify-between gap-4'>
@@ -421,7 +598,7 @@ export function CredentialForm({
                       )}
                     </div>
                   </FormItem>
-                  {credential.publicMetadata && (
+                  {isServiceAccountMetadata(credential.publicMetadata) && (
                     <FormItem>
                       <FormLabel>Service account</FormLabel>
                       <FieldWithActions
@@ -438,7 +615,7 @@ export function CredentialForm({
                   name='secret'
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>{selectedDefinition?.secretLabel ?? 'Secret'}</FormLabel>
+                      <FormLabel tooltip={secretHelp?.tooltip}>{secretLabel}</FormLabel>
                       <FormControl>
                         {selectedDefinition?.auth?.type === 'google-service-account' ? (
                           <FileDropTextarea
@@ -468,13 +645,16 @@ export function CredentialForm({
                           />
                         )}
                       </FormControl>
-                      {documentationUrl && (
+                      {secretHelp?.Description || documentationUrl ? (
                         <FormDescription>
-                          <ExternalAnchor href={documentationUrl}>
-                            How to get this key
-                          </ExternalAnchor>
+                          {secretHelp?.Description && <secretHelp.Description />}
+                          {documentationUrl && (
+                            <ExternalAnchor href={documentationUrl}>
+                              How to get this key
+                            </ExternalAnchor>
+                          )}
                         </FormDescription>
-                      )}
+                      ) : null}
                       <FormMessage />
                     </FormItem>
                   )}
@@ -578,6 +758,12 @@ export function CredentialForm({
             </FormSection>
           )}
 
+          {credential && credential.usedBy.length > 0 && (
+            <FormSection title='Used by' defaultOpen={false} name='credential-used-by'>
+              <CredentialUsedByList credential={credential} inSection />
+            </FormSection>
+          )}
+
           {credential && (
             <FormSection title='Details' defaultOpen={false} name='credential-details'>
               <FormItem>
@@ -592,24 +778,25 @@ export function CredentialForm({
                   {formatDate(credential.modifiedAt)}
                 </span>
               </FormItem>
-              {credential.usedBy.length > 0 && <CredentialUsedByList credential={credential} />}
             </FormSection>
           )}
         </FormLayout>
 
         <FormActions>
-          <Button
-            type='submit'
-            className='w-full'
-            disabled={
-              isSaving || form.formState.isSubmitting || (isEditMode && !form.formState.isDirty)
-            }
-          >
-            {(isSaving || form.formState.isSubmitting) && (
-              <Loader2 className='mr-2 size-4 animate-spin' />
-            )}
-            Save
-          </Button>
+          {(isEditMode || !isOAuth) && (
+            <Button
+              type='submit'
+              className='w-full'
+              disabled={
+                isSaving || form.formState.isSubmitting || (isEditMode && !form.formState.isDirty)
+              }
+            >
+              {(isSaving || form.formState.isSubmitting) && (
+                <Loader2 className='mr-2 size-4 animate-spin' />
+              )}
+              Save
+            </Button>
+          )}
           <Button type='button' variant='outline' className='w-full' onClick={onCancel}>
             Cancel
           </Button>
@@ -701,20 +888,21 @@ function AiMappingField({
   );
 }
 
-export function CredentialUsedByList({ credential }: { credential: Credential }) {
-  return (
-    <div className='bg-muted/50 rounded-md border p-3 text-sm'>
-      <div className='mb-1 font-medium'>Used by</div>
-      {credential.usedBy.map(consumer => (
-        <div
-          key={`${consumer.consumerType}:${consumer.consumerId}:${consumer.requirementKey}`}
-          className='text-muted-foreground'
-        >
-          {consumer.consumerType} · {consumer.requirementKey} · last used{' '}
-          {formatDate(consumer.lastUsedAt)}
-        </div>
-      ))}
-    </div>
+function fieldLabel(fields: readonly CredentialDefinitionField[], key: string): string {
+  return fields.find(field => field.key === key)?.label ?? key;
+}
+
+/** Saved secrets are never returned, so they start empty; other fields start from their saved value. */
+function initialFieldValues(
+  credential: Credential | null,
+  definition: CredentialDefinition | undefined
+): CredentialFieldValues {
+  if (definition?.auth?.type !== 'fields') return {};
+  const saved = isFieldsMetadata(credential?.publicMetadata)
+    ? credential.publicMetadata.fields
+    : {};
+  return Object.fromEntries(
+    definition.auth.fields.map(({ key, secret }) => [key, secret ? '' : (saved[key] ?? '')])
   );
 }
 

@@ -4,6 +4,7 @@ export const RedshiftCredentialsSchema = z
   .object({
     accessKeyId: z.string().min(1, 'accessKeyId is required'),
     secretAccessKey: z.string().min(1, 'secretAccessKey is required'),
+    sessionToken: z.string().optional(),
   })
   .passthrough();
 

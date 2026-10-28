@@ -65,11 +65,7 @@ export interface ReconcileCredentialBindingsRequest {
 
 export interface CredentialConsumerBindingFacade {
   replaceBindings(request: ReplaceCredentialBindingsRequest): Promise<void>;
-  deactivateConsumer(
-    consumerType: 'plugin-installation',
-    consumerId: string,
-    projectId: string
-  ): Promise<void>;
+  deactivateConsumer(consumerType: 'plugin-installation', consumerId: string): Promise<void>;
   resolveBinding(request: ResolveCredentialBindingRequest): Promise<ResolvedCredentialBinding>;
   assertConsumerReady(request: {
     readonly projectId: string;

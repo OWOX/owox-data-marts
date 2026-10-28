@@ -12,6 +12,30 @@ export interface CredentialValidationResult {
   readonly validatedAt: Date;
 }
 
+/** The provider a definition belongs to; 'ai' groups the AI providers a member picks from. */
+export const CredentialCategorySchema = z.enum([
+  'google',
+  'aws',
+  'snowflake',
+  'databricks',
+  'ai',
+  'other',
+]);
+export type CredentialCategory = z.infer<typeof CredentialCategorySchema>;
+
+export const CredentialIconSchema = z.enum([
+  'google',
+  'aws',
+  'snowflake',
+  'databricks',
+  'openai',
+  'anthropic',
+  'gemini',
+  'openrouter',
+  'github',
+]);
+export type CredentialIcon = z.infer<typeof CredentialIconSchema>;
+
 export const CredentialAiAdapterSchema = z.enum([
   'openai',
   'anthropic',
@@ -57,7 +81,52 @@ const CredentialGoogleServiceAccountAuthSchema = z.object({
   label: z.string().trim().min(1).max(255),
 });
 
-export const CredentialDefinitionContractSchema = z.object({
+export interface CredentialFieldDefinition {
+  readonly key: string;
+  readonly label: string;
+  readonly input: 'text' | 'password' | 'multiline';
+  readonly secret: boolean;
+  readonly required: boolean;
+  readonly identity: boolean;
+}
+
+const CredentialFieldSchema = z.object({
+  key: z
+    .string()
+    .regex(/^[a-zA-Z][a-zA-Z0-9]{0,63}$/, 'field key must be alphanumeric and start with a letter'),
+  label: z.string().trim().min(1).max(255),
+  input: z.enum(['text', 'password', 'multiline']),
+  secret: z.boolean(),
+  required: z.boolean(),
+  identity: z.boolean(),
+});
+
+/** The Credential holds an ordered set of named values; secret ones are write-only. */
+const CredentialFieldsAuthSchema = z.object({
+  type: z.literal('fields'),
+  fields: z.array(CredentialFieldSchema).min(1).max(20),
+});
+
+/** A configured Google OAuth app, by its env key: OAUTH_GOOGLE_<STORAGE|DESTINATION>_CLIENT_*. */
+export const GoogleOAuthClientKeySchema = z.enum(['storage', 'destination']);
+export type GoogleOAuthClientKey = z.infer<typeof GoogleOAuthClientKeySchema>;
+
+/** A configured Google scope set: OAUTH_GOOGLE_BIGQUERY_SCOPE or OAUTH_GOOGLE_SHEETS_SCOPE. */
+export const GoogleOAuthScopeSetSchema = z.enum(['bigquery', 'sheets']);
+export type GoogleOAuthScopeSet = z.infer<typeof GoogleOAuthScopeSetSchema>;
+
+/** The Credential holds OAuth tokens that the named client issued for the named scope set. */
+const CredentialOAuthAuthSchema = z.object({
+  type: z.literal('oauth'),
+  provider: z.literal('google'),
+  client: GoogleOAuthClientKeySchema,
+  scopes: GoogleOAuthScopeSetSchema,
+  label: z.string().trim().min(1).max(255),
+});
+
+export type CredentialOAuthAuth = z.infer<typeof CredentialOAuthAuthSchema>;
+
+const CredentialDefinitionContractObjectSchema = z.object({
   id: z.string().trim().min(1).max(255),
   displayName: z.string().trim().min(1).max(255),
   description: z.string().trim().max(2000).default(''),
@@ -65,8 +134,12 @@ export const CredentialDefinitionContractSchema = z.object({
   auth: z.discriminatedUnion('type', [
     CredentialHeaderAuthSchema,
     CredentialGoogleServiceAccountAuthSchema,
+    CredentialFieldsAuthSchema,
+    CredentialOAuthAuthSchema,
   ]),
-  origins: z.array(z.string().url().startsWith('https://')).min(1).max(20),
+  category: CredentialCategorySchema.default('other'),
+  icon: CredentialIconSchema.optional(),
+  origins: z.array(z.string().url().startsWith('https://')).min(1).max(20).optional(),
   validation: z
     .object({
       method: z.enum(['GET', 'POST']).default('GET'),
@@ -103,6 +176,43 @@ export const CredentialDefinitionContractSchema = z.object({
     .optional(),
 });
 
+export const CredentialDefinitionContractSchema =
+  CredentialDefinitionContractObjectSchema.superRefine((contract, context) => {
+    if (contract.origins === undefined) {
+      if (contract.auth.type === 'header') {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['origins'],
+          message: 'origins are required for header auth',
+        });
+      }
+      if (contract.validation) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['origins'],
+          message: 'origins are required for a validation probe',
+        });
+      }
+    }
+    if (contract.auth.type !== 'fields') return;
+    const { fields } = contract.auth;
+    if (new Set(fields.map(field => field.key)).size !== fields.length) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['auth', 'fields'],
+        message: 'field keys must be unique',
+      });
+    }
+    const identities = fields.filter(field => field.identity);
+    if (identities.length > 1 || identities.some(field => field.secret)) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['auth', 'fields'],
+        message: 'at most one non-secret field can be the identity',
+      });
+    }
+  });
+
 export type CredentialDefinitionContract = z.infer<typeof CredentialDefinitionContractSchema>;
 
 export const CredentialRequirementSchema = z.union([
@@ -134,9 +244,20 @@ export interface NormalizedCredentialRequirement {
   readonly definitionId: string | null;
   readonly optional: boolean;
   readonly models: readonly string[];
-  /** OAuth scopes OWOX requests a token for; empty for every requirement but Google Service Account. */
+  /** OAuth scopes OWOX requests a token for; empty for every requirement but `google-service-account`. */
   readonly scopes: readonly string[];
 }
+
+/** Any of these definitions, with these scopes; null scopes when the server cannot grant them. */
+export interface AcceptedCredentialRequirement {
+  readonly definitionIds: readonly string[];
+  readonly scopes: readonly string[] | null;
+}
+
+/** What a binding was made for: a plugin's declared requirement, or what a consumer accepts. */
+export type CredentialRequirementSnapshot =
+  | NormalizedCredentialRequirement
+  | AcceptedCredentialRequirement;
 
 export function normalizeCredentialRequirement(
   requirement: StoredCredentialRequirement
@@ -176,15 +297,57 @@ export function normalizeCredentialRequirement(
   };
 }
 
-export interface CredentialSecret {
-  readonly value: string;
+export interface StoredOAuthTokens {
+  access_token: string;
+  refresh_token?: string;
+  token_type: string;
+  scope: string;
+  expiry_date?: number;
 }
 
-/** Non-secret facts read from a stored key, shown so a member knows which account to share files with. */
-export interface CredentialPublicMetadata {
+/** Rows saved before the other kinds existed carry only `value`. */
+export type CredentialSecret =
+  | { readonly value: string }
+  | { readonly fields: Readonly<Record<string, string>> }
+  | {
+      readonly oauth: {
+        readonly provider: 'google';
+        readonly clientId: string;
+        readonly tokens: StoredOAuthTokens;
+      };
+    };
+
+/** Non-secret facts read from a stored credential, shown so a member knows which account it is. */
+export interface GoogleServiceAccountPublicMetadata {
   readonly clientEmail: string;
   readonly projectId: string;
   readonly privateKeyId: string;
+}
+
+export type CredentialPublicMetadata =
+  | GoogleServiceAccountPublicMetadata
+  | { readonly fields: Readonly<Record<string, string>> }
+  | {
+      readonly account: { email: string; name: string | null; picture: string | null };
+      readonly scopes: readonly string[];
+    };
+
+export function secretValue(secret: CredentialSecret): string {
+  if ('value' in secret) return secret.value;
+  throw new Error('Credential does not hold a single secret value');
+}
+
+/** The account a Credential belongs to, for display; null when the definition names none. */
+export function credentialIdentity(
+  contract: CredentialDefinitionContract,
+  metadata: CredentialPublicMetadata | null
+): string | null {
+  if (!metadata) return null;
+  if ('clientEmail' in metadata) return metadata.clientEmail;
+  if ('account' in metadata) return metadata.account.email;
+  if (contract.auth.type !== 'fields') return null;
+  const identity = contract.auth.fields.find(field => field.identity);
+  return identity ? (metadata.fields[identity.key] ?? null) : null;
 }
 
 export type CredentialAiModelMappings = Record<string, string>;
@@ -216,4 +379,7 @@ export function resolveCredentialAiModelMappings(
 }
 
 export const CREDENTIAL_CONSUMER_TYPE_PLUGIN_INSTALLATION = 'plugin-installation' as const;
-export type CredentialConsumerType = typeof CREDENTIAL_CONSUMER_TYPE_PLUGIN_INSTALLATION;
+export const CREDENTIAL_CONSUMER_TYPE_STORAGE = 'storage' as const;
+export type CredentialConsumerType =
+  | typeof CREDENTIAL_CONSUMER_TYPE_PLUGIN_INSTALLATION
+  | typeof CREDENTIAL_CONSUMER_TYPE_STORAGE;

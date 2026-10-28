@@ -12,18 +12,10 @@ describe('toDataStorageFormField', () => {
     );
   });
 
-  it('maps a credential value to the input of the same path for non-BigQuery storages', () => {
-    expect(toDataStorageFormField(DataStorageType.SNOWFLAKE, 'credentials.privateKey')).toBe(
-      'credentials.privateKey'
-    );
-  });
-
-  it.each([DataStorageType.GOOGLE_BIGQUERY, DataStorageType.LEGACY_GOOGLE_BIGQUERY])(
-    'maps any key of the parsed key file to the Service Account textarea for %s',
-    type => {
-      expect(toDataStorageFormField(type, 'credentials.private_key')).toBe(
-        'credentials.serviceAccount'
-      );
+  it.each(['reusableCredentialId', 'credentials.privateKey', 'credentials.private_key'])(
+    'maps %j to the Credential field',
+    field => {
+      expect(toDataStorageFormField(DataStorageType.SNOWFLAKE, field)).toBe('reusableCredentialId');
     }
   );
 

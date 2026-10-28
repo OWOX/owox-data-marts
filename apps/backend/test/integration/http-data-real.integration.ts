@@ -1,6 +1,8 @@
 import { INestApplication } from '@nestjs/common';
 import * as supertest from 'supertest';
 import { AUTH_HEADER, closeTestApp, createTestApp } from '@owox/test-utils';
+import { DataStorageType } from 'src/data-marts/data-storage-types/enums/data-storage-type.enum';
+import { createStorageCredential } from './storage-credential-support';
 import { AthenaApiAdapter } from 'src/data-marts/data-storage-types/athena/adapters/athena-api.adapter';
 import { S3ApiAdapter } from 'src/data-marts/data-storage-types/athena/adapters/s3-api.adapter';
 import { AthenaCredentials } from 'src/data-marts/data-storage-types/athena/schemas/athena-credentials.schema';
@@ -285,10 +287,14 @@ AS SELECT * FROM (VALUES
       .send({
         title: 'athena-real-integration',
         config: { region: ATHENA_REGION!, outputBucket: ATHENA_OUTPUT_BUCKET! },
-        credentials: {
-          accessKeyId: AWS_ACCESS_KEY_ID!,
-          secretAccessKey: AWS_SECRET_ACCESS_KEY!,
-        },
+        reusableCredentialId: await createStorageCredential(
+          sharedAgent,
+          DataStorageType.AWS_ATHENA,
+          {
+            accessKeyId: AWS_ACCESS_KEY_ID!,
+            secretAccessKey: AWS_SECRET_ACCESS_KEY!,
+          }
+        ),
       });
     if (storageUpdateRes.status !== 200) {
       console.error('Storage update failed:', JSON.stringify(storageUpdateRes.body, null, 2));
@@ -509,7 +515,11 @@ describeIfBqCredentials('HTTP Data API real-data (live BigQuery)', () => {
       .send({
         title: 'bq-real',
         config: { projectId: BQ_PROJECT_ID! },
-        credentials: JSON.parse(BQ_SERVICE_ACCOUNT_KEY!),
+        reusableCredentialId: await createStorageCredential(
+          sharedAgent,
+          DataStorageType.GOOGLE_BIGQUERY,
+          JSON.parse(BQ_SERVICE_ACCOUNT_KEY!)
+        ),
       });
     if (storageUpdateRes.status !== 200) {
       console.error('BQ storage update failed:', JSON.stringify(storageUpdateRes.body, null, 2));
@@ -717,7 +727,14 @@ describeIfRsCredentials('HTTP Data API real-data (live Redshift)', () => {
           database: REDSHIFT_DATABASE!,
           workgroupName: REDSHIFT_WORKGROUP_NAME!,
         },
-        credentials: { accessKeyId: AWS_ACCESS_KEY_ID!, secretAccessKey: AWS_SECRET_ACCESS_KEY! },
+        reusableCredentialId: await createStorageCredential(
+          sharedAgent,
+          DataStorageType.AWS_REDSHIFT,
+          {
+            accessKeyId: AWS_ACCESS_KEY_ID!,
+            secretAccessKey: AWS_SECRET_ACCESS_KEY!,
+          }
+        ),
       });
     if (storageUpdateRes.status !== 200) {
       console.error('RS storage update failed:', JSON.stringify(storageUpdateRes.body, null, 2));
@@ -902,7 +919,14 @@ describeIfDbCredentials('HTTP Data API real-data (live Databricks)', () => {
       .send({
         title: 'db-real',
         config: { host: DATABRICKS_HOST!, httpPath: DATABRICKS_HTTP_PATH! },
-        credentials: { authMethod: 'PERSONAL_ACCESS_TOKEN', token: DATABRICKS_TOKEN! },
+        reusableCredentialId: await createStorageCredential(
+          sharedAgent,
+          DataStorageType.DATABRICKS,
+          {
+            authMethod: 'PERSONAL_ACCESS_TOKEN',
+            token: DATABRICKS_TOKEN!,
+          }
+        ),
       });
     if (storageUpdateRes.status !== 200) {
       console.error('DB storage update failed:', JSON.stringify(storageUpdateRes.body, null, 2));
@@ -1087,11 +1111,15 @@ describeIfSnowflakeCredentials('HTTP Data API real-data (live Snowflake)', () =>
           account: SNOWFLAKE_ACCOUNT!,
           warehouse: SNOWFLAKE_WAREHOUSE!,
         },
-        credentials: {
-          authMethod: SnowflakeAuthMethod.PASSWORD,
-          username: SNOWFLAKE_USERNAME!,
-          password: SNOWFLAKE_PASSWORD!,
-        },
+        reusableCredentialId: await createStorageCredential(
+          sharedAgent,
+          DataStorageType.SNOWFLAKE,
+          {
+            authMethod: SnowflakeAuthMethod.PASSWORD,
+            username: SNOWFLAKE_USERNAME!,
+            password: SNOWFLAKE_PASSWORD!,
+          }
+        ),
       });
     if (storageUpdateRes.status !== 200) {
       console.error('SF storage update failed:', JSON.stringify(storageUpdateRes.body, null, 2));
@@ -1295,10 +1323,14 @@ AS SELECT * FROM (VALUES
       .send({
         title: 'athena-real-sql-integration',
         config: { region: ATHENA_REGION!, outputBucket: ATHENA_OUTPUT_BUCKET! },
-        credentials: {
-          accessKeyId: AWS_ACCESS_KEY_ID!,
-          secretAccessKey: AWS_SECRET_ACCESS_KEY!,
-        },
+        reusableCredentialId: await createStorageCredential(
+          sharedAgent,
+          DataStorageType.AWS_ATHENA,
+          {
+            accessKeyId: AWS_ACCESS_KEY_ID!,
+            secretAccessKey: AWS_SECRET_ACCESS_KEY!,
+          }
+        ),
       });
     expect(storageUpdateRes.status).toBe(200);
 
@@ -1481,10 +1513,14 @@ FROM UNNEST(SEQUENCE(1, ${TOTAL_ROWS})) AS t (id)`;
       .send({
         title: 'athena-real-big-integration',
         config: { region: ATHENA_REGION!, outputBucket: ATHENA_OUTPUT_BUCKET! },
-        credentials: {
-          accessKeyId: AWS_ACCESS_KEY_ID!,
-          secretAccessKey: AWS_SECRET_ACCESS_KEY!,
-        },
+        reusableCredentialId: await createStorageCredential(
+          sharedAgent,
+          DataStorageType.AWS_ATHENA,
+          {
+            accessKeyId: AWS_ACCESS_KEY_ID!,
+            secretAccessKey: AWS_SECRET_ACCESS_KEY!,
+          }
+        ),
       });
     expect(storageUpdateRes.status).toBe(200);
 

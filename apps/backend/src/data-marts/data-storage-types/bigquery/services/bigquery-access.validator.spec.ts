@@ -47,6 +47,9 @@ describe('BigQueryAccessValidator (OAuth)', () => {
 
     expect(result.valid).toBe(false);
     expect(result.code).toBe(ValidationResultCode.OAUTH_REAUTH_REQUIRED);
+    expect(result.errorMessage).toBe(
+      'Google authorization could not be refreshed. Reconnect the Credential on the Credentials page to restore access.'
+    );
   });
 
   it('flags reauth when an invalid access token is rejected (message fallback)', async () => {

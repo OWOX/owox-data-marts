@@ -46,6 +46,24 @@ describe('CustomDataSourceLogger', () => {
     expect(sink.warn).toHaveBeenCalledWith(`[SLOW QUERY] (100ms): ${update}`);
   });
 
+  it('never prints the parameters of a query on a credential table', () => {
+    const { sink, logger: sinkLogger, output } = createSink();
+    const logger = new CustomDataSourceLogger(sinkLogger, ['error']);
+    const credential = 'INSERT INTO "credential"("id", "secret") VALUES (?, ?)';
+    const storageCredential =
+      'INSERT INTO "data_storage_credentials"("id", "credentials") VALUES (?, ?)';
+
+    logger.logQueryError('SQLITE_CONSTRAINT', credential, ['credential-1', 'super-secret']);
+    logger.logQueryError('SQLITE_CONSTRAINT', storageCredential, ['row-1', 'super-secret']);
+
+    expect(output()).not.toContain('super-secret');
+    expect(sink.error).toHaveBeenCalledWith(`[QUERY ERROR] ${credential}`, 'SQLITE_CONSTRAINT');
+    expect(sink.error).toHaveBeenCalledWith(
+      `[QUERY ERROR] ${storageCredential}`,
+      'SQLITE_CONSTRAINT'
+    );
+  });
+
   it('prints the parameters of a query on another table', () => {
     const { sink, logger: sinkLogger } = createSink();
     const logger = new CustomDataSourceLogger(sinkLogger, ['error']);

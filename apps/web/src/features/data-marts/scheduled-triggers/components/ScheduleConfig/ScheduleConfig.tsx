@@ -363,7 +363,7 @@ export function ScheduleConfig({
     return timezoneService.getTimezonesWithOffset().map(tz => ({
       value: tz.identifier,
       label: tz.displayName,
-      keywords: timezoneService.getTimezoneSearchKeywords(tz.identifier),
+      keywords: [tz.displayName, ...timezoneService.getTimezoneSearchKeywords(tz.identifier)],
       offset: tz.offsetString,
       isDST: tz.isDST,
     }));

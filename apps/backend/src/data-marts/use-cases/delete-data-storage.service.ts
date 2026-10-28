@@ -1,6 +1,7 @@
 import { Injectable, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { Transactional } from 'typeorm-transactional';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
 import { DeleteDataStorageCommand } from '../dto/domain/delete-data-storage.command';
@@ -10,6 +11,7 @@ import { DataStorageService } from '../services/data-storage.service';
 import { AccessDecisionService, EntityType, Action } from '../services/access-decision';
 import { AdvancedSearchIndexSyncService } from '../services/advanced-search-index-sync.service';
 import { SearchableEntityType } from '../../common/search/search.facade';
+import { StorageCredentialBindingService } from '../data-storage-types/storage-credential-binding.service';
 
 @Injectable()
 export class DeleteDataStorageService {
@@ -19,9 +21,11 @@ export class DeleteDataStorageService {
     private readonly dataStorageService: DataStorageService,
     private readonly dataMartService: DataMartService,
     private readonly accessDecisionService: AccessDecisionService,
+    private readonly storageCredentials: StorageCredentialBindingService,
     private readonly advancedSearchIndexSync?: AdvancedSearchIndexSyncService
   ) {}
 
+  @Transactional()
   async run(command: DeleteDataStorageCommand): Promise<void> {
     const dataStorage = await this.dataStorageService.getByProjectIdAndId(
       command.projectId,
@@ -61,6 +65,7 @@ export class DeleteDataStorageService {
       id: command.id,
       projectId: command.projectId,
     });
+    await this.storageCredentials.deactivateStorage(command.id);
     await this.advancedSearchIndexSync?.scheduleDelete(
       SearchableEntityType.DATA_STORAGE,
       command.id,

@@ -37,7 +37,7 @@ By default, **Auto-detect location** is selected. We recommend keeping this sett
 
 ### Step 3. Add a Service Account
 
-To enable access to your BigQuery project, choose **Service Account JSON** or **Connect with Google** under **Authentication Method**. The steps below cover the Service Account JSON key.
+To enable access to your BigQuery project, select a **Credential**, or click **+ Create new Credential** and choose the **BigQuery Service Account** or **BigQuery Google account** provider (see [Credentials](../../project/credentials.md)). The steps below cover the Service Account JSON key.
 
 #### Required roles
 
@@ -52,7 +52,7 @@ To enable access to your BigQuery project, choose **Service Account JSON** or **
 5. Open the **Keys** tab.
 6. Click **Add key → Create new key**.
 7. Choose **JSON** format and click **Create**.
-8. Open the downloaded file, copy its entire content, and paste it into the Service Account field in OWOX Data Marts.
+8. Open the downloaded file, copy its entire content, and paste it into the **Service account key (JSON)** field of the Credential form.
 
 Save the storage settings.
 

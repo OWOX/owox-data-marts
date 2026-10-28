@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { storageTypesForDefinition } from '../../data-storage-types/storage-credential-state';
 import { UserProjectionsFetcherService } from '../../services/user-projections-fetcher.service';
 import { extractContextSummaries } from '../../utils/extract-context-summaries';
 import { resolveOwnerUsers } from '../../utils/resolve-owner-users';
@@ -10,10 +11,21 @@ import type {
 import type { CredentialDto } from '../dto/credential.dto';
 import type { CredentialConsumerBinding } from '../entities/credential-consumer-binding.entity';
 import type { Credential } from '../entities/credential.entity';
+import type { CredentialConsumerTitles } from '../services/credential-consumer-titles.service';
+import { secretFieldKeysWithValue } from '../services/credential-fields';
 import {
+  credentialIdentity,
   resolveCredentialAiModelMappings,
+  type CredentialDefinitionContract,
   type CredentialValidationResult,
 } from '../credential.types';
+
+function mapAuth(auth: CredentialDefinitionContract['auth']): CredentialDefinitionApiDto['auth'] {
+  if (auth.type === 'fields')
+    return { type: 'fields', fields: auth.fields.map(field => ({ ...field })) };
+  if (auth.type === 'oauth') return { type: 'oauth', provider: auth.provider, label: auth.label };
+  return { type: auth.type };
+}
 
 export function mapCredentialDefinitionToApiDto(
   definition: ResolvedCredentialDefinition
@@ -24,9 +36,12 @@ export function mapCredentialDefinitionToApiDto(
     displayName: definition.contract.displayName,
     description: definition.contract.description,
     documentationUrl: definition.contract.documentationUrl ?? null,
-    secretLabel: definition.contract.auth.label,
-    auth: { type: definition.contract.auth.type },
-    origins: [...definition.contract.origins],
+    category: definition.contract.category,
+    icon: definition.contract.icon ?? null,
+    storageTypes: storageTypesForDefinition(definition.definitionId),
+    secretLabel: 'label' in definition.contract.auth ? definition.contract.auth.label : '',
+    auth: mapAuth(definition.contract.auth),
+    origins: [...(definition.contract.origins ?? [])],
     supportsAi: definition.contract.ai !== undefined,
     ai: definition.contract.ai ?? null,
     compatibilityLine: definition.compatibilityLine,
@@ -42,6 +57,9 @@ export class CredentialMapper {
     definition: ResolvedCredentialDefinition,
     bindings: readonly CredentialConsumerBinding[],
     lastUsedAt: Date | null,
+    canUse: boolean,
+    /** Titles of the consumers the member can see, by consumer type, then id. */
+    consumerTitles: CredentialConsumerTitles,
     validation?: CredentialValidationResult
   ): Promise<CredentialDto> {
     const users = await this.userProjections.fetchUserProjectionsList(credential.ownerIds);
@@ -67,11 +85,18 @@ export class CredentialMapper {
       ),
       aiModelMappingModes: credential.aiModelMappingModes,
       publicMetadata: credential.publicMetadata ?? null,
+      identity: credentialIdentity(definition.contract, credential.publicMetadata ?? null),
+      setSecretFieldKeys: secretFieldKeysWithValue(definition.contract.auth, {
+        secret: credential.secret,
+        publicMetadata: credential.publicMetadata ?? null,
+      }),
+      canUse,
       ownerUsers: resolveOwnerUsers(credential.ownerIds, users),
       contexts: extractContextSummaries(credential.contexts),
       usedBy: bindings.map(binding => ({
         consumerType: binding.consumerType,
         consumerId: binding.consumerId,
+        title: consumerTitles.get(binding.consumerType)?.get(binding.consumerId) ?? null,
         requirementKey: binding.requirementKey,
         lastUsedAt: binding.lastUsedAt,
       })),

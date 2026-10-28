@@ -1,4 +1,9 @@
-import { Injectable, BadRequestException, ForbiddenException } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Transactional } from 'typeorm-transactional';
@@ -17,14 +22,17 @@ import { StorageConfigSetEvent } from '../events/storage-config-set.event';
 import { DataStorageMapper } from '../mappers/data-storage.mapper';
 import { DataStorageService } from '../services/data-storage.service';
 import { DataStorageAccessValidatorFacade } from '../data-storage-types/facades/data-storage-access-validator-facade.service';
-import { DataStorageCredentialService } from '../services/data-storage-credential.service';
-import { StorageCredentialType } from '../enums/storage-credential-type.enum';
+import { DataStorageCredentialsResolver } from '../data-storage-types/data-storage-credentials-resolver.service';
 import {
-  resolveStorageCredentialType,
-  extractStorageIdentity,
-} from '../services/credential-type-resolver';
-import type { StoredStorageCredentials } from '../entities/stored-storage-credentials.type';
-import { CopyCredentialService } from '../services/copy-credential.service';
+  changesConnectionTarget,
+  invalidStorageConfig,
+  sameStorageConfig,
+  storableStorageConfig,
+} from '../data-storage-types/storage-credential-definitions';
+import { AccessValidationException } from '../../common/exceptions/access-validation.exception';
+import { StorageCredentialUnavailableException } from '../exceptions/storage-credential-unavailable.exception';
+import { StorageCredentialBindingService } from '../data-storage-types/storage-credential-binding.service';
+import { LegacyStorageCredentialReader } from '../services/storage-credential-conversion/legacy-storage-credential-reader.service';
 import { UserProjectionsFetcherService } from '../services/user-projections-fetcher.service';
 import { StorageOwner } from '../entities/storage-owner.entity';
 import { resolveOwnerUsers } from '../utils/resolve-owner-users';
@@ -43,8 +51,9 @@ export class UpdateDataStorageService {
     private readonly dataStorageService: DataStorageService,
     private readonly dataStorageMapper: DataStorageMapper,
     private readonly dataStorageAccessFacade: DataStorageAccessValidatorFacade,
-    private readonly dataStorageCredentialService: DataStorageCredentialService,
-    private readonly copyCredentialService: CopyCredentialService,
+    private readonly credentialsResolver: DataStorageCredentialsResolver,
+    private readonly storageCredentials: StorageCredentialBindingService,
+    private readonly legacy: LegacyStorageCredentialReader,
     private readonly userProjectionsFetcherService: UserProjectionsFetcherService,
     private readonly idpProjectionsFacade: IdpProjectionsFacade,
     @InjectRepository(StorageOwner)
@@ -55,8 +64,9 @@ export class UpdateDataStorageService {
     private readonly advancedSearchIndexSync?: AdvancedSearchIndexSyncService
   ) {}
 
-  @Transactional()
   async run(command: UpdateDataStorageCommand): Promise<DataStorageDto> {
+    rejectCredentialFields(command);
+
     // Permissions Model: if ownerIds are being changed, check MANAGE_OWNERS permission
     if (command.ownerIds !== undefined && command.userId) {
       const canManage = await this.accessDecisionService.canAccess(
@@ -114,131 +124,14 @@ export class UpdateDataStorageService {
       }
     }
 
-    const isLegacyStorage = dataStorageEntity.type === DataStorageType.LEGACY_GOOGLE_BIGQUERY;
-    const configWasEmpty = !dataStorageEntity.config;
-
-    if (command.sourceStorageId && command.hasCredentials()) {
-      throw new BadRequestException(
-        'Cannot provide both sourceStorageId and credentials in the same request'
-      );
-    }
-
-    if (command.sourceStorageId && command.credentialId) {
-      throw new BadRequestException('Cannot provide both sourceStorageId and credentialId');
-    }
-
-    if (command.sourceStorageId === command.id) {
-      throw new BadRequestException('Cannot copy credentials from a storage to itself');
-    }
-
-    if (command.sourceStorageId) {
-      // Permissions Model: copy credentials requires COPY_CREDENTIALS access to source storage
-      if (command.userId) {
-        const canCopy = await this.accessDecisionService.canAccess(
-          command.userId,
-          command.roles,
-          EntityType.STORAGE,
-          command.sourceStorageId,
-          Action.COPY_CREDENTIALS,
-          command.projectId
-        );
-        if (!canCopy) {
-          throw new ForbiddenException(
-            'You do not have permission to copy credentials from this storage'
-          );
-        }
-      }
-
-      const source = await this.dataStorageService.getByProjectIdAndId(
-        command.projectId,
-        command.sourceStorageId
-      );
-      if (!source.credentialId || !source.credential) {
-        throw new BadRequestException('Source storage has no credentials to copy');
-      }
-      if (source.type !== dataStorageEntity.type) {
-        throw new BadRequestException(
-          `Cannot copy credentials from ${source.type} to ${dataStorageEntity.type} storage`
-        );
-      }
-
-      const newCredId = await this.copyCredentialService.copyStorageCredential(
-        command.projectId,
-        dataStorageEntity.credentialId ?? null,
-        source.credential
-      );
-      if (newCredId) {
-        dataStorageEntity.credentialId = newCredId;
-        dataStorageEntity.credential = null;
-      }
-
-      dataStorageEntity.config = command.config;
-      if (!isLegacyStorage) {
-        dataStorageEntity.title = command.title;
-      }
-      if (command.availableForUse !== undefined) {
-        dataStorageEntity.availableForUse = command.availableForUse;
-      }
-      if (command.availableForMaintenance !== undefined) {
-        dataStorageEntity.availableForMaintenance = command.availableForMaintenance;
-      }
-      const updatedDataStorageEntity = await this.dataStorageRepository.save(dataStorageEntity);
-
-      if (configWasEmpty && updatedDataStorageEntity.config) {
-        await this.eventDispatcher.publishExternal(
-          new StorageConfigSetEvent(
-            updatedDataStorageEntity.id,
-            updatedDataStorageEntity.projectId,
-            updatedDataStorageEntity.createdById ?? ''
-          )
-        );
-      }
-
-      if (command.contextIds !== undefined) {
-        await this.contextAccessService.updateStorageContexts(
-          updatedDataStorageEntity.id,
-          command.projectId,
-          command.contextIds,
-          command.userId,
-          command.roles
-        );
-      }
-
-      await this.advancedSearchIndexSync?.scheduleReindex(
-        SearchableEntityType.DATA_STORAGE,
-        updatedDataStorageEntity.id,
-        command.projectId
-      );
-
-      return this.replaceOwnersAndBuildResponse(updatedDataStorageEntity, command.ownerIds);
-    }
-
-    let credentialsToCheck: DataStorageCredentials | undefined = command.credentials;
-    if (!command.hasCredentials() && dataStorageEntity.credential) {
-      credentialsToCheck = dataStorageEntity.credential.credentials as
-        | DataStorageCredentials
-        | undefined;
-    }
-    if (isLegacyStorage && command.hasConfig()) {
+    if (dataStorageEntity.type === DataStorageType.LEGACY_GOOGLE_BIGQUERY && command.hasConfig()) {
       (command.config as BigQueryConfig).projectId = (
         dataStorageEntity.config as BigQueryConfig
       ).projectId;
     }
 
-    // When credentialId is explicitly null, the user is disconnecting OAuth.
-    // Soft-delete the credential record and clear the entity field before access validation.
-    if (command.credentialId === null && dataStorageEntity.credential) {
-      if (dataStorageEntity.credential.type === StorageCredentialType.GOOGLE_OAUTH) {
-        await this.dataStorageCredentialService.softDelete(dataStorageEntity.credential.id);
-      }
-      dataStorageEntity.credentialId = null;
-      // Clear the eagerly-loaded relation so TypeORM save() does not
-      // overwrite credentialId with the stale (soft-deleted) relation id.
-      dataStorageEntity.credential = null;
-    }
-
     // Validate BigQuery config format regardless of credential type.
-    // The full verifyAccess below is skipped for OAuth storages, so without this
+    // The full verifyAccess below is skipped when nothing it checks changes, so without this
     // an invalid projectId would only surface during data mart execution.
     if (
       (dataStorageEntity.type === DataStorageType.GOOGLE_BIGQUERY ||
@@ -260,47 +153,100 @@ export class UpdateDataStorageService {
       }
     }
 
-    // Skip access validation for OAuth-configured storages (tokens are validated during OAuth exchange).
-    // Only skip when not submitting new service account credentials (which would indicate switching back to SA).
-    const isOAuthStorage = !!dataStorageEntity.credentialId && !command.hasCredentials();
-    if (!isOAuthStorage) {
+    const configWasEmpty = !dataStorageEntity.config;
+    // No transaction yet: a token refresh or lost-grant mark commits even when the check fails.
+    const redirected = await this.verifyCredential(command, dataStorageEntity);
+    const saved = await this.save(command, redirected);
+    // After the commit, so a save rolled back by its last checks sends nothing.
+    if (configWasEmpty && saved.config) {
+      await this.eventDispatcher.publishExternal(
+        new StorageConfigSetEvent(saved.id, saved.projectId, saved.createdById ?? '')
+      );
+    }
+    return this.buildResponse(saved, command);
+  }
+
+  /** Read-only checks and the access check; returns the Credential checked for USE, or null. */
+  private async verifyCredential(
+    command: UpdateDataStorageCommand,
+    storage: DataStorage
+  ): Promise<string | null> {
+    if (
+      command.isPluginAuth &&
+      changesConnectionTarget(storage.type, storage.config, command.config)
+    ) {
+      throw new ForbiddenException("Plugins cannot change where a Storage's key is sent.");
+    }
+    const member = { projectId: command.projectId, userId: command.userId, roles: command.roles };
+    if (typeof command.reusableCredentialId === 'string') {
+      const candidate = await this.storageCredentials.checkStorageBinding({
+        ...member,
+        credentialId: command.reusableCredentialId,
+        type: storage.type,
+      });
       await this.dataStorageAccessFacade.verifyAccess(
-        dataStorageEntity.type,
+        storage.type,
         command.config,
-        credentialsToCheck ?? ({} as DataStorageCredentials)
+        await this.credentialsResolver.resolveCredential(storage, candidate)
       );
+      return null;
     }
-
-    if (command.hasCredentials()) {
-      // Create or update credential record in the new table
-      const credentialType = resolveStorageCredentialType(
-        dataStorageEntity.type,
-        command.credentials as StoredStorageCredentials
-      );
-      const identity = extractStorageIdentity(
-        credentialType,
-        command.credentials as StoredStorageCredentials
-      );
-
-      if (dataStorageEntity.credentialId) {
-        await this.dataStorageCredentialService.update(dataStorageEntity.credentialId, {
-          type: credentialType,
-          credentials: command.credentials as StoredStorageCredentials,
-          identity,
-        });
-      } else {
-        const newCredential = await this.dataStorageCredentialService.create({
-          projectId: command.projectId,
-          type: credentialType,
-          credentials: command.credentials as StoredStorageCredentials,
-          identity,
-        });
-        dataStorageEntity.credentialId = newCredential.id;
-        dataStorageEntity.credential = null;
+    const bound = await this.storageCredentials.resolveForStorage(storage);
+    if (!bound) {
+      // Legacy: no access check on the old key, as before the conversion; the config must still fit.
+      if (this.legacy.hasOldKey(storage)) {
+        if (!sameStorageConfig(storage.type, storage.config, command.config)) {
+          assertConfigFits(storage.type, command.config);
+        }
+        return null;
       }
+      // With neither a Credential nor an old row to check, the validator rejects the save.
+      await this.dataStorageAccessFacade.verifyAccess(
+        storage.type,
+        command.config,
+        {} as DataStorageCredentials
+      );
+      return null;
     }
+    if (sameStorageConfig(storage.type, storage.config, command.config)) return null;
+    const redirected = changesConnectionTarget(storage.type, storage.config, command.config)
+      ? bound.credentialId
+      : null;
+    if (redirected) {
+      await this.storageCredentials.assertCanUseCredential({
+        ...member,
+        credentialId: redirected,
+      });
+    }
+    let credentials: DataStorageCredentials;
+    try {
+      credentials = await this.credentialsResolver.resolveCredential(storage, bound);
+    } catch (error) {
+      if (!(error instanceof StorageCredentialUnavailableException)) throw error;
+      // An unusable Credential must not block edits, but the config must still fit its schema.
+      assertConfigFits(storage.type, command.config);
+      return redirected;
+    }
+    await this.dataStorageAccessFacade.verifyAccess(storage.type, command.config, credentials);
+    return redirected;
+  }
 
-    dataStorageEntity.config = command.config;
+  @Transactional()
+  private async save(
+    command: UpdateDataStorageCommand,
+    redirected: string | null
+  ): Promise<DataStorage> {
+    // The checks ran outside this transaction: saving that read would undo a delete or a move.
+    const dataStorageEntity = await this.lockStorage(command.projectId, command.id);
+    const isLegacyStorage = dataStorageEntity.type === DataStorageType.LEGACY_GOOGLE_BIGQUERY;
+    const targetChanged = changesConnectionTarget(
+      dataStorageEntity.type,
+      dataStorageEntity.config,
+      command.config
+    );
+
+    // Keys the schema drops are not stored, so a later save cannot use them unchecked.
+    dataStorageEntity.config = storableStorageConfig(dataStorageEntity.type, command.config);
 
     if (!isLegacyStorage) {
       dataStorageEntity.title = command.title;
@@ -314,16 +260,6 @@ export class UpdateDataStorageService {
     }
 
     const updatedDataStorageEntity = await this.dataStorageRepository.save(dataStorageEntity);
-
-    if (configWasEmpty && updatedDataStorageEntity.config) {
-      await this.eventDispatcher.publishExternal(
-        new StorageConfigSetEvent(
-          updatedDataStorageEntity.id,
-          updatedDataStorageEntity.projectId,
-          updatedDataStorageEntity.createdById ?? ''
-        )
-      );
-    }
 
     if (command.contextIds !== undefined) {
       await this.contextAccessService.updateStorageContexts(
@@ -341,32 +277,79 @@ export class UpdateDataStorageService {
       command.projectId
     );
 
-    return this.replaceOwnersAndBuildResponse(updatedDataStorageEntity, command.ownerIds);
-  }
-
-  private async replaceOwnersAndBuildResponse(
-    entity: DataStorage,
-    ownerIds?: string[]
-  ): Promise<DataStorageDto> {
+    const { ownerIds } = command;
     if (ownerIds !== undefined) {
       await syncOwners(
         this.storageOwnerRepository,
         'storageId',
-        entity.id,
-        entity.projectId,
+        updatedDataStorageEntity.id,
+        updatedDataStorageEntity.projectId,
         ownerIds,
         this.idpProjectionsFacade,
         userId => {
           const o = new StorageOwner();
-          o.storageId = entity.id;
+          o.storageId = updatedDataStorageEntity.id;
           o.userId = userId;
           return o;
         }
       );
     }
 
+    // Re-checked under locks taken last, so they are held only until the commit.
+    const member = { projectId: command.projectId, userId: command.userId, roles: command.roles };
+    if (typeof command.reusableCredentialId === 'string') {
+      await this.storageCredentials.bindStorage({
+        ...member,
+        storageId: dataStorageEntity.id,
+        type: dataStorageEntity.type,
+        credentialId: command.reusableCredentialId,
+      });
+    } else if (targetChanged) {
+      // Also catches a Storage that was unbound at the first read and bound since.
+      const current = await this.storageCredentials.lockBoundCredentialId(
+        command.projectId,
+        dataStorageEntity.id
+      );
+      if (current && current !== redirected) {
+        await this.storageCredentials.assertCanUseCredential({
+          ...member,
+          credentialId: current,
+        });
+      }
+    }
+    return updatedDataStorageEntity;
+  }
+
+  /** On MySQL a locking read, so a delete or a rebind committed meanwhile is seen and waits. */
+  private async lockStorage(projectId: string, id: string): Promise<DataStorage> {
+    const isMysql = ['mysql', 'mariadb'].includes(
+      String(this.dataStorageRepository.manager.connection.options.type)
+    );
+    const storage = await this.dataStorageRepository.findOne({
+      where: { id, projectId },
+      loadEagerRelations: false,
+      ...(isMysql ? { lock: { mode: 'pessimistic_write' as const } } : {}),
+    });
+    if (!storage) {
+      throw new NotFoundException(
+        `Data Storage with id ${id} and projectId ${projectId} not found`
+      );
+    }
+    return storage;
+  }
+
+  private async buildResponse(
+    entity: DataStorage,
+    command: UpdateDataStorageCommand
+  ): Promise<DataStorageDto> {
     // Reload to get fresh owners
     const fresh = await this.dataStorageService.getByProjectIdAndId(entity.projectId, entity.id);
+    const summaries = await this.credentialsResolver.summarize(
+      fresh.projectId,
+      command.userId,
+      command.roles,
+      [fresh]
+    );
     const allUserIds = [...(fresh.createdById ? [fresh.createdById] : []), ...fresh.ownerIds];
     const userProjections =
       await this.userProjectionsFetcherService.fetchUserProjectionsList(allUserIds);
@@ -378,7 +361,37 @@ export class UpdateDataStorageService {
       0,
       0,
       createdByUser,
-      resolveOwnerUsers(fresh.ownerIds, userProjections)
+      resolveOwnerUsers(fresh.ownerIds, userProjections),
+      undefined,
+      summaries.get(fresh.id) ?? null
     );
   }
+}
+
+// Legacy: the sentOldCredentialFields checks go with LegacyStorageCredentialReader.
+/** Plugins first, then the shape of the request, before any lookup. */
+function rejectCredentialFields(command: UpdateDataStorageCommand): void {
+  if (command.reusableCredentialId === undefined) {
+    if (command.sentOldCredentialFields) {
+      throw new BadRequestException('This page is out of date. Reload it.');
+    }
+    return;
+  }
+  if (command.isPluginAuth) {
+    throw new ForbiddenException("Plugins cannot change a Storage's Credential.");
+  }
+  if (command.reusableCredentialId === null) {
+    throw new BadRequestException('reusableCredentialId cannot be null.');
+  }
+  if (command.sentOldCredentialFields) {
+    throw new BadRequestException(
+      'Send reusableCredentialId without credentials, credentialId or sourceStorageId.'
+    );
+  }
+}
+
+/** The validator's error for a config its Storage type's schema refuses. */
+function assertConfigFits(type: DataStorageType, config: UpdateDataStorageCommand['config']): void {
+  const invalid = invalidStorageConfig(type, config);
+  if (invalid) throw new AccessValidationException(invalid.errorMessage!, invalid.reason);
 }

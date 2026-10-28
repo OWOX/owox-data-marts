@@ -6,7 +6,7 @@ import {
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
-import type { CredentialConsumerType, NormalizedCredentialRequirement } from '../credential.types';
+import type { CredentialConsumerType, CredentialRequirementSnapshot } from '../credential.types';
 
 @Entity('credential_consumer_binding')
 @Index('UQ_credential_consumer_requirement', ['consumerType', 'consumerId', 'requirementKey'], {
@@ -34,7 +34,7 @@ export class CredentialConsumerBinding {
   requirementKey: string;
 
   @Column({ type: 'json' })
-  requirementSnapshot: NormalizedCredentialRequirement;
+  requirementSnapshot: CredentialRequirementSnapshot;
 
   @Column({ type: 'varchar', length: 64 })
   requirementRevision: string;

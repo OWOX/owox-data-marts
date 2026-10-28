@@ -20,14 +20,21 @@ import { useAuth } from '../idp';
 import { ConfirmationDialog } from '../../shared/components/ConfirmationDialog/ConfirmationDialog';
 import type { Credential } from './types';
 import { CredentialConfigSheet, CredentialUsedByList } from './components/CredentialConfigSheet';
+import { SecretReplacementWarning } from './components/SecretReplacementWarning';
 import { CredentialsTable } from './CredentialsTable';
+import { credentialDeleteBlockedMessage } from './credential-delete-message';
 import { safeCredentialDocumentationUrl } from './credential-documentation-url';
 import { useCredentialActions, useCredentialDefinitions, useCredentials } from './useCredentials';
 
 export function CredentialsManager() {
   const { user } = useAuth();
   const { credentials, isLoading, isError, refetch } = useCredentials();
-  const { definitions, isLoading: definitionsLoading } = useCredentialDefinitions();
+  const {
+    definitions,
+    isLoading: definitionsLoading,
+    isError: definitionsError,
+    refetch: refetchDefinitions,
+  } = useCredentialDefinitions();
   const actions = useCredentialActions();
   const [editor, setEditor] = useState<{ open: boolean; credential: Credential | null }>({
     open: false,
@@ -76,6 +83,19 @@ export function CredentialsManager() {
 
   return (
     <div className='flex flex-col gap-4'>
+      {definitionsError && (
+        <div role='alert' className='flex items-center gap-3 text-sm'>
+          <span className='text-muted-foreground'>Could not load providers.</span>
+          <Button
+            type='button'
+            variant='outline'
+            size='sm'
+            onClick={() => void refetchDefinitions()}
+          >
+            Try again
+          </Button>
+        </div>
+      )}
       {isLoading ? (
         <div className='text-muted-foreground py-12 text-center text-sm'>Loading Credentials…</div>
       ) : isError ? (
@@ -117,7 +137,17 @@ export function CredentialsManager() {
             setEditor({ open: true, credential: null });
           }}
           onValidate={credential => void validate(credential)}
-          onReplaceSecret={setRotating}
+          onReplaceSecret={credential => {
+            // Field sets and Google accounts are changed in the form, not as one secret.
+            if (
+              credential.definition.auth?.type === 'fields' ||
+              credential.definition.auth?.type === 'oauth'
+            ) {
+              setEditor({ open: true, credential });
+            } else {
+              setRotating(credential);
+            }
+          }}
           onEdit={credential => {
             setEditor({ open: true, credential });
           }}
@@ -174,7 +204,7 @@ export function CredentialsManager() {
         title='Delete this Credential?'
         description={
           deleting?.usedBy.length
-            ? `It is still used by ${deleting.usedBy.length} consumer(s). Remove those bindings first.`
+            ? credentialDeleteBlockedMessage(deleting.usedBy)
             : 'The stored secret and its sharing configuration will be deleted.'
         }
         confirmLabel={actions.isDeleting ? 'Deleting…' : 'Delete'}
@@ -213,7 +243,7 @@ function ReplaceSecretDialog({
   const documentationUrl = safeCredentialDocumentationUrl(credential?.definition.documentationUrl);
   return (
     <Dialog open={credential !== null} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className='max-h-[90vh] overflow-y-auto'>
         <DialogHeader>
           <DialogTitle>Replace secret</DialogTitle>
           <DialogDescription>
@@ -224,6 +254,7 @@ function ReplaceSecretDialog({
         {credential && credential.usedBy.length > 0 && (
           <CredentialUsedByList credential={credential} />
         )}
+        {credential && <SecretReplacementWarning credential={credential} />}
         <Field label='New secret'>
           {credential?.definition.auth?.type === 'google-service-account' ? (
             <FileDropTextarea

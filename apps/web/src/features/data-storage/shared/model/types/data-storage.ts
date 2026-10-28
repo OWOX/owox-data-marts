@@ -1,11 +1,3 @@
-import type {
-  AwsAthenaCredentials,
-  DataStorageCredentials,
-  GoogleBigQueryCredentials,
-  SnowflakeCredentials,
-  RedshiftCredentials,
-  DatabricksCredentials,
-} from './credentials.ts';
 import { DataStorageType } from './data-storage-type.enum.ts';
 import type {
   AwsAthenaDataStorageConfig,
@@ -17,11 +9,32 @@ import type {
 } from './data-storage-config.ts';
 import type { ContextSummary } from '../../../../contexts/types/context.types';
 
-export interface BaseDataStorage<T extends DataStorageCredentials, C extends DataStorageConfig> {
+export type StorageCredentialState =
+  | 'ready'
+  | 'disabled'
+  | 'not-configured'
+  | 'reconnect-required'
+  | 'reauthorize-required';
+
+/** The Credential a Storage uses, as the member sees it. */
+export type StorageCredentialSummary =
+  | {
+      access: 'visible';
+      id: string;
+      title: string;
+      definitionId: string;
+      providerName: string;
+      identity: string | null;
+      state: StorageCredentialState;
+    }
+  | { access: 'restricted'; state: StorageCredentialState }
+  // No Credential yet: the Storage runs on its own key until you select a Credential.
+  | { access: 'pending'; state: 'ready' };
+
+export interface BaseDataStorage<C extends DataStorageConfig> {
   id: string;
   title: string;
   type: DataStorageType;
-  credentials: T;
   config: C;
   createdAt: Date;
   modifiedAt: Date;
@@ -30,52 +43,36 @@ export interface BaseDataStorage<T extends DataStorageCredentials, C extends Dat
   availableForUse?: boolean;
   availableForMaintenance?: boolean;
   contexts?: ContextSummary[];
+  /** null when the Storage has neither a Credential nor its own key; absent on a Storage embedded in a Data Mart. */
+  reusableCredential?: StorageCredentialSummary | null;
 }
 
-export interface GoogleBigQueryDataStorage extends BaseDataStorage<
-  GoogleBigQueryCredentials,
-  GoogleBigQueryDataStorageConfig
-> {
+export interface GoogleBigQueryDataStorage extends BaseDataStorage<GoogleBigQueryDataStorageConfig> {
   type: DataStorageType.GOOGLE_BIGQUERY;
   config: GoogleBigQueryDataStorageConfig;
 }
 
-export interface LegacyGoogleBigQueryDataStorage extends BaseDataStorage<
-  GoogleBigQueryCredentials,
-  GoogleBigQueryDataStorageConfig
-> {
+export interface LegacyGoogleBigQueryDataStorage extends BaseDataStorage<GoogleBigQueryDataStorageConfig> {
   type: DataStorageType.LEGACY_GOOGLE_BIGQUERY;
   config: GoogleBigQueryDataStorageConfig;
 }
 
-export interface AwsAthenaDataStorage extends BaseDataStorage<
-  AwsAthenaCredentials,
-  AwsAthenaDataStorageConfig
-> {
+export interface AwsAthenaDataStorage extends BaseDataStorage<AwsAthenaDataStorageConfig> {
   type: DataStorageType.AWS_ATHENA;
   config: AwsAthenaDataStorageConfig;
 }
 
-export interface SnowflakeDataStorage extends BaseDataStorage<
-  SnowflakeCredentials,
-  SnowflakeDataStorageConfig
-> {
+export interface SnowflakeDataStorage extends BaseDataStorage<SnowflakeDataStorageConfig> {
   type: DataStorageType.SNOWFLAKE;
   config: SnowflakeDataStorageConfig;
 }
 
-export interface RedshiftDataStorage extends BaseDataStorage<
-  RedshiftCredentials,
-  RedshiftDataStorageConfig
-> {
+export interface RedshiftDataStorage extends BaseDataStorage<RedshiftDataStorageConfig> {
   type: DataStorageType.AWS_REDSHIFT;
   config: RedshiftDataStorageConfig;
 }
 
-export interface DatabricksDataStorage extends BaseDataStorage<
-  DatabricksCredentials,
-  DatabricksDataStorageConfig
-> {
+export interface DatabricksDataStorage extends BaseDataStorage<DatabricksDataStorageConfig> {
   type: DataStorageType.DATABRICKS;
   config: DatabricksDataStorageConfig;
 }

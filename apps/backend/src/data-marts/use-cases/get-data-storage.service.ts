@@ -6,6 +6,7 @@ import { GetDataStorageCommand } from '../dto/domain/get-data-storage.command';
 import { UserProjectionsFetcherService } from '../services/user-projections-fetcher.service';
 import { resolveOwnerUsers } from '../utils/resolve-owner-users';
 import { AccessDecisionService, EntityType, Action } from '../services/access-decision';
+import { DataStorageCredentialsResolver } from '../data-storage-types/data-storage-credentials-resolver.service';
 
 @Injectable()
 export class GetDataStorageService {
@@ -13,7 +14,8 @@ export class GetDataStorageService {
     private readonly dataStorageService: DataStorageService,
     private readonly dataStorageMapper: DataStorageMapper,
     private readonly userProjectionsFetcherService: UserProjectionsFetcherService,
-    private readonly accessDecisionService: AccessDecisionService
+    private readonly accessDecisionService: AccessDecisionService,
+    private readonly credentialsResolver: DataStorageCredentialsResolver
   ) {}
 
   async run(command: GetDataStorageCommand): Promise<DataStorageDto> {
@@ -46,13 +48,21 @@ export class GetDataStorageService {
     const createdByUser = dataStorageEntity.createdById
       ? (userProjections.getByUserId(dataStorageEntity.createdById) ?? null)
       : null;
+    const summaries = await this.credentialsResolver.summarize(
+      command.projectId,
+      command.userId,
+      command.roles,
+      [dataStorageEntity]
+    );
 
     return this.dataStorageMapper.toDomainDto(
       dataStorageEntity,
       0,
       0,
       createdByUser,
-      resolveOwnerUsers(dataStorageEntity.ownerIds, userProjections)
+      resolveOwnerUsers(dataStorageEntity.ownerIds, userProjections),
+      undefined,
+      summaries.get(dataStorageEntity.id) ?? null
     );
   }
 }

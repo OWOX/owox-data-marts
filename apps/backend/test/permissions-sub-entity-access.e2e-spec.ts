@@ -61,7 +61,7 @@ describe('Permissions Model Sub-Entity Access Control (e2e)', () => {
     agent = testApp.agent;
 
     const expressApp = (
-      app.getHttpAdapter() as { getInstance(): Express.Application }
+      app.getHttpAdapter() as { getInstance(): { get(name: string): unknown } }
     ).getInstance();
     const idpProvider = expressApp.get('idp') as IdpProvider;
     jest
@@ -507,10 +507,10 @@ describe('Permissions Model Sub-Entity Access Control (e2e)', () => {
   });
 
   // ═══════════════════════════════════════════════════════════════
-  // STORAGE OAUTH — ownership check
+  // STORAGE CREDENTIAL — EDIT on the Storage
   // ═══════════════════════════════════════════════════════════════
 
-  describe('Storage OAuth — Not shared blocks OAuth operations', () => {
+  describe('Storage Credential — Not shared blocks selecting a Credential', () => {
     beforeAll(async () => {
       await agent
         .put(`/api/data-storages/${storageId}/availability`)
@@ -525,25 +525,11 @@ describe('Permissions Model Sub-Entity Access Control (e2e)', () => {
         .send({ availableForUse: true, availableForMaintenance: true });
     });
 
-    it('GET /api/data-storages/:id/oauth/status → 403 for non-owner TU', async () => {
+    it('PUT /api/data-storages/:id with reusableCredentialId → 403 for non-owner TU', async () => {
       const res = await agent
-        .get(`/api/data-storages/${storageId}/oauth/status`)
-        .set(EDITOR_AUTH_HEADER);
-      expect(res.status).toBe(403);
-    });
-
-    it('POST /api/data-storages/:id/oauth/authorize → 403 for non-owner TU', async () => {
-      const res = await agent
-        .post(`/api/data-storages/${storageId}/oauth/authorize`)
+        .put(`/api/data-storages/${storageId}`)
         .set(EDITOR_AUTH_HEADER)
-        .send({ redirectUri: 'http://localhost' });
-      expect(res.status).toBe(403);
-    });
-
-    it('DELETE /api/data-storages/:id/oauth → 403 for non-owner TU', async () => {
-      const res = await agent
-        .delete(`/api/data-storages/${storageId}/oauth`)
-        .set(EDITOR_AUTH_HEADER);
+        .send({ title: 'Storage', config: {}, reusableCredentialId: 'credential-1' });
       expect(res.status).toBe(403);
     });
   });

@@ -3,6 +3,33 @@ import type { ContextSummary } from '../contexts/types/context.types';
 
 export type CredentialValidationState = 'unknown' | 'verified' | 'rejected';
 
+export type CredentialCategory = 'google' | 'aws' | 'snowflake' | 'databricks' | 'ai' | 'other';
+
+export type CredentialIcon =
+  | 'google'
+  | 'aws'
+  | 'snowflake'
+  | 'databricks'
+  | 'openai'
+  | 'anthropic'
+  | 'gemini'
+  | 'openrouter'
+  | 'github';
+
+export interface CredentialDefinitionField {
+  key: string;
+  label: string;
+  input: 'text' | 'password' | 'multiline';
+  secret: boolean;
+  required: boolean;
+  identity: boolean;
+}
+
+export type CredentialDefinitionAuth =
+  | { type: 'header' | 'google-service-account' }
+  | { type: 'fields'; fields: CredentialDefinitionField[] }
+  | { type: 'oauth'; provider: 'google' };
+
 export interface CredentialDefinition {
   id: string;
   source: 'builtin' | 'external';
@@ -10,7 +37,14 @@ export interface CredentialDefinition {
   description: string;
   /** Optional while a newer web build can still talk to an older backend during rollout. */
   documentationUrl?: string | null;
+  /** Empty for `fields` definitions. */
   secretLabel: string;
+  /** Optional while a newer web build can still talk to an older backend during rollout. */
+  category?: CredentialCategory;
+  /** Icon key of a Storage provider; null or missing falls back to a generic key icon. */
+  icon?: CredentialIcon | null;
+  /** Storage types that accept this definition. */
+  storageTypes?: string[];
   origins: string[];
   supportsAi: boolean;
   ai: {
@@ -24,7 +58,7 @@ export interface CredentialDefinition {
   } | null;
   compatibilityLine: string | null;
   /** Optional while a newer web build can still talk to an older backend during rollout. */
-  auth?: { type: 'header' | 'google-service-account' };
+  auth?: CredentialDefinitionAuth;
 }
 
 /** Non-secret facts from a stored Google service account key. */
@@ -34,9 +68,45 @@ export interface CredentialPublicMetadata {
   privateKeyId: string;
 }
 
+/** Non-secret fields of a `fields` Credential. */
+export interface CredentialFieldsMetadata {
+  fields: Record<string, string>;
+}
+
+/** The connected Google account of an `oauth` Credential. */
+export interface CredentialOAuthMetadata {
+  account: { email: string; name: string | null; picture: string | null };
+  scopes: string[];
+}
+
+export type CredentialPublicMetadataValue =
+  | CredentialPublicMetadata
+  | CredentialFieldsMetadata
+  | CredentialOAuthMetadata;
+
+export function isServiceAccountMetadata(
+  metadata: CredentialPublicMetadataValue | null | undefined
+): metadata is CredentialPublicMetadata {
+  return metadata != null && 'clientEmail' in metadata;
+}
+
+export function isFieldsMetadata(
+  metadata: CredentialPublicMetadataValue | null | undefined
+): metadata is CredentialFieldsMetadata {
+  return metadata != null && 'fields' in metadata;
+}
+
+export function isOAuthMetadata(
+  metadata: CredentialPublicMetadataValue | null | undefined
+): metadata is CredentialOAuthMetadata {
+  return metadata != null && 'account' in metadata;
+}
+
 export interface CredentialConsumerReference {
   consumerType: string;
   consumerId: string;
+  /** The consumer's title; null when the member cannot see it. */
+  title?: string | null;
   requirementKey: string;
   lastUsedAt: string | null;
 }
@@ -60,8 +130,12 @@ export interface Credential {
   ownerUsers: UserProjectionDto[];
   contexts: ContextSummary[];
   usedBy: CredentialConsumerReference[];
+  /** Keys of secret fields that hold a stored value; never the values. */
+  setSecretFieldKeys?: string[];
   /** Optional for the same rolling-deploy reason as CredentialDefinition.auth. */
-  publicMetadata?: CredentialPublicMetadata | null;
+  publicMetadata?: CredentialPublicMetadataValue | null;
+  identity?: string | null;
+  canUse?: boolean;
   createdAt: string;
   modifiedAt: string;
 }
@@ -69,7 +143,8 @@ export interface Credential {
 export interface CreateCredentialRequest {
   title: string;
   definitionId: string;
-  secret: { value: string };
+  secret?: { value: string };
+  fields?: Record<string, string>;
   ownerIds?: string[];
   contextIds?: string[];
   availableForUse?: boolean;
@@ -81,6 +156,8 @@ export interface CreateCredentialRequest {
 export interface UpdateCredentialRequest {
   title?: string;
   secret?: { value: string };
+  /** Omitted keeps a field, `null` clears an optional one. */
+  fields?: Record<string, string | null>;
   ownerIds?: string[];
   contextIds?: string[];
   enabled?: boolean;
@@ -138,4 +215,12 @@ export function isCredentialEligible(
   }
   if (!credential.definition.supportsAi) return false;
   return requirement.models.every(model => Boolean(credential.aiModelMappings?.[model]));
+}
+
+export interface GoogleOAuthExchangeRequest {
+  code: string;
+  state: string;
+  title?: string;
+  availableForUse?: boolean;
+  availableForMaintenance?: boolean;
 }

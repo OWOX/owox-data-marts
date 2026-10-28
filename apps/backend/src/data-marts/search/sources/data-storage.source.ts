@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, IsNull, Repository } from 'typeorm';
 import { SearchableEntityType } from '../../../common/search/search.facade';
@@ -7,6 +7,10 @@ import {
   DataStorageType,
   toHumanReadable,
 } from '../../data-storage-types/enums/data-storage-type.enum';
+import {
+  STORAGE_CREDENTIAL_IDENTITIES_FACADE,
+  type StorageCredentialIdentitiesFacade,
+} from '../../facades/storage-credential-identities.facade';
 import { ContextAccessService } from '../../services/context/context-access.service';
 import { applyDataStorageVisibilityFilter } from '../../utils/apply-data-storage-visibility-filter';
 import type {
@@ -31,12 +35,11 @@ const GOOGLE_STORAGE_TYPES = new Set<DataStorageType>([
   DataStorageType.LEGACY_GOOGLE_BIGQUERY,
 ]);
 
-function extractEmail(storage: DataStorage): string | null {
-  if (!GOOGLE_STORAGE_TYPES.has(storage.type)) return null;
-  return storage.credential?.identity?.clientEmail ?? storage.credential?.identity?.email ?? null;
+function extractEmail(storage: DataStorage, identity: string | null): string | null {
+  return GOOGLE_STORAGE_TYPES.has(storage.type) ? identity : null;
 }
 
-function toDescriptor(storage: DataStorage): EntityScoringDescriptor {
+function toDescriptor(storage: DataStorage, identity: string | null): EntityScoringDescriptor {
   const title = storage.title ?? '';
   const typeLabel = toHumanReadable(storage.type);
 
@@ -45,7 +48,7 @@ function toDescriptor(storage: DataStorage): EntityScoringDescriptor {
     { kind: 'context', text: typeLabel },
   ];
 
-  const email = extractEmail(storage);
+  const email = extractEmail(storage, identity);
   const atomicTokenSlots: AtomicTokenSlot[] = email ? [{ kind: 'field', text: email }] : [];
   const emails = email ? [email] : [];
 
@@ -75,7 +78,9 @@ export class DataStorageIndexableSource implements IndexableSource {
 
   constructor(
     @InjectRepository(DataStorage) private readonly dataStorageRepo: Repository<DataStorage>,
-    private readonly contextAccessService: ContextAccessService
+    private readonly contextAccessService: ContextAccessService,
+    @Inject(STORAGE_CREDENTIAL_IDENTITIES_FACADE)
+    private readonly storageCredentials: StorageCredentialIdentitiesFacade
   ) {
     this.accessPredicateProvider = new EntityAccessPredicateProvider({
       repo: dataStorageRepo,
@@ -120,21 +125,16 @@ export class DataStorageIndexableSource implements IndexableSource {
         type: true,
         projectId: true,
         title: true,
-        credentialId: true,
         modifiedAt: true,
-        credential: {
-          id: true,
-          identity: true,
-        },
       },
-      relations: { credential: true },
       loadEagerRelations: false,
     });
+    const identities = await this.storageCredentials.identitiesForStorages(projectId, pageIds);
     const storageById = new Map(storages.map(storage => [storage.id, storage]));
     const descriptors = pageIds
       .map(id => storageById.get(id))
       .filter((storage): storage is DataStorage => storage !== undefined)
-      .map(toDescriptor);
+      .map(storage => toDescriptor(storage, identities.get(storage.id) ?? null));
 
     return { descriptors, nextCursor: nextPageCursor(pageRows, limit) };
   }
@@ -151,11 +151,13 @@ export class DataStorageIndexableSource implements IndexableSource {
   async loadSearchableOne(entityId: string): Promise<EntityScoringDescriptor | null> {
     const storage = await this.dataStorageRepo
       .createQueryBuilder(STORAGE_JOIN_ALIAS)
-      .leftJoinAndSelect(`${STORAGE_JOIN_ALIAS}.credential`, 'sCred')
       .where(`${STORAGE_JOIN_ALIAS}.id = :id`, { id: entityId })
       .andWhere(`${STORAGE_JOIN_ALIAS}.deletedAt IS NULL`)
       .getOne();
     if (!storage) return null;
-    return toDescriptor(storage);
+    const identities = await this.storageCredentials.identitiesForStorages(storage.projectId, [
+      storage.id,
+    ]);
+    return toDescriptor(storage, identities.get(storage.id) ?? null);
   }
 }

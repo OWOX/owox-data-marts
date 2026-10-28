@@ -53,11 +53,7 @@ export class UninstallPluginService {
       await this.executions.cancelQueuedForInstallation(installation.id);
     }
 
-    await this.credentialBindings.deactivateConsumer(
-      'plugin-installation',
-      installation.id,
-      command.context.projectId
-    );
+    await this.credentialBindings.deactivateConsumer('plugin-installation', installation.id);
 
     await this.audit.record({
       pluginId: command.pluginId,

@@ -4,28 +4,7 @@ import { DataStorageType } from '../../data-storage-types/enums/data-storage-typ
 import { UserProjectionDto } from '../../../idp/dto/domain/user-projection.dto';
 import { ContextSummary } from '../../utils/extract-context-summaries';
 import { ContextSummaryApiDto } from './context-summary-api.dto';
-
-export type DataStorageCredentialsPublic =
-  | {
-      // BigQuery credentials
-      type: 'service_account';
-      project_id: string;
-      client_id: string;
-      client_email: string;
-    }
-  | {
-      // Athena credentials
-      accessKeyId: string;
-    }
-  | {
-      // Snowflake credentials
-      authMethod: string;
-      username: string;
-    }
-  | {
-      // Databricks credentials
-      authMethod: string;
-    };
+import { StorageCredentialSummaryApiDto } from './storage-credential-summary-api.dto';
 
 export class DataStorageResponseApiDto {
   @ApiProperty({ example: 'abc123e4-5678-90ab-cdef-1234567890ab' })
@@ -43,13 +22,6 @@ export class DataStorageResponseApiDto {
   @ApiProperty({
     type: 'object',
     additionalProperties: true,
-    description: 'Credentials without sensitive fields',
-  })
-  credentials: DataStorageCredentialsPublic | undefined;
-
-  @ApiProperty({
-    type: 'object',
-    additionalProperties: true,
   })
   config: DataStorageConfig | undefined;
 
@@ -59,8 +31,14 @@ export class DataStorageResponseApiDto {
   @ApiProperty({ example: '2024-01-02T15:30:00.000Z' })
   modifiedAt: Date;
 
-  @ApiProperty({ example: 'abc123e4-5678-90ab-cdef-1234567890ab', nullable: true, required: false })
-  credentialId?: string | null;
+  @ApiProperty({
+    type: StorageCredentialSummaryApiDto,
+    nullable: true,
+    required: false,
+    description:
+      'The Credential the Storage uses, as the member sees it; pending while the Storage runs on its own key; null when it has neither. Absent where a Storage is embedded in another resource.',
+  })
+  reusableCredential?: StorageCredentialSummaryApiDto | null;
 
   @ApiProperty({ type: UserProjectionDto, required: false, nullable: true })
   createdByUser?: UserProjectionDto | null;

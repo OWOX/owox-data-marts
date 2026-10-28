@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { DataStorageType } from '../../enums/data-storage-type.enum';
-import { DatabricksConfigSchema } from '../schemas/databricks-config.schema';
+import { DatabricksWorkspaceConfigSchema } from '../schemas/databricks-config.schema';
 import { DatabricksCredentialsSchema } from '../schemas/databricks-credentials.schema';
 import {
   DataStorageAccessValidator,
@@ -21,7 +21,7 @@ export class DatabricksAccessValidator implements DataStorageAccessValidator {
     config: DataStorageConfig,
     credentials: DataStorageCredentials
   ): Promise<ValidationResult> {
-    const configOpt = DatabricksConfigSchema.safeParse(config);
+    const configOpt = DatabricksWorkspaceConfigSchema.safeParse(config);
     if (!configOpt.success) {
       this.logger.log('Invalid config', configOpt.error);
       return ValidationResult.invalidInput('config', configOpt.error);

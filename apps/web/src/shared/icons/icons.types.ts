@@ -1,5 +1,6 @@
 import { type AwsAthenaIcon } from './aws-athena-icon';
 import { type GoogleBigQueryIcon } from './google-bigquery-icon';
+import { type GoogleIcon } from './google-icon';
 import { type GitHubIcon } from './github-icon';
 import { type GoogleSheetsIcon } from './google-sheets-icon';
 import { type ODataIcon } from './odata-icon';
@@ -25,11 +26,14 @@ import type { MicrosoftExcelIcon } from './microsoft-excel-icon';
 import { type EmailIcon } from './email-icon';
 import { type ClaudeIcon } from './claude-icon';
 import { type ChatGPTIcon } from './chat-gpt-icon';
+import { type GeminiIcon } from './gemini-icon';
+import { type OpenRouterIcon } from './openrouter-icon';
 import { type LucideIcon } from 'lucide-react';
 
 export type LocalIcon =
   | typeof AwsAthenaIcon
   | typeof GoogleBigQueryIcon
+  | typeof GoogleIcon
   | typeof GitHubIcon
   | typeof GoogleSheetsIcon
   | typeof ODataIcon
@@ -54,5 +58,7 @@ export type LocalIcon =
   | typeof EmailIcon
   | typeof ClaudeIcon
   | typeof ChatGPTIcon
+  | typeof GeminiIcon
+  | typeof OpenRouterIcon
   | typeof RawBase64Icon;
 export type AppIcon = LucideIcon | LocalIcon;

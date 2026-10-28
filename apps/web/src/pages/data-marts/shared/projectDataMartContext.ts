@@ -89,7 +89,6 @@ function buildFallbackStorage(fallbackDate: Date): DataStorage {
     id: '',
     title: '',
     type: DataStorageType.GOOGLE_BIGQUERY,
-    credentials: null,
     config: null,
     createdAt: fallbackDate,
     modifiedAt: fallbackDate,

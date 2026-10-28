@@ -12,7 +12,7 @@ import { getAuthTypeLabel, getIdentityDisplayString } from '../../utils/credenti
 
 interface AuthenticationSectionHeaderProps {
   copyButton?: ReactNode;
-  itemType: 'storage' | 'destination';
+  itemType: 'destination';
   selectedSource?: {
     id: string;
     title: string;

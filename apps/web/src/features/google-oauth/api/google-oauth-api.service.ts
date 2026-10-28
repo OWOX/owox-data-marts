@@ -36,28 +36,6 @@ export interface OAuthStatus {
   };
 }
 
-class StorageOAuthApiService extends ApiService {
-  constructor() {
-    super('/data-storages');
-  }
-
-  getSettings(): Promise<OAuthSettings> {
-    return this.get<OAuthSettings>('/oauth/settings');
-  }
-
-  generateAuthUrl(storageId: string, redirectUri: string): Promise<OAuthAuthorizationUrl> {
-    return this.post<OAuthAuthorizationUrl>(`/${storageId}/oauth/authorize`, { redirectUri });
-  }
-
-  exchangeOAuthCode(code: string, state: string): Promise<OAuthExchangeResult> {
-    return this.post<OAuthExchangeResult>('/oauth/exchange', { code, state });
-  }
-
-  getOAuthStatus(storageId: string): Promise<OAuthStatus> {
-    return this.get<OAuthStatus>(`/${storageId}/oauth/status`);
-  }
-}
-
 class DestinationOAuthApiService extends ApiService {
   constructor() {
     super('/data-destinations');
@@ -88,5 +66,4 @@ class DestinationOAuthApiService extends ApiService {
   }
 }
 
-export const storageOAuthApi = new StorageOAuthApiService();
 export const destinationOAuthApi = new DestinationOAuthApiService();

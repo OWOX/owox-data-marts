@@ -652,7 +652,6 @@ function buildDataStorageResponse(): ReportResponseDto['dataMart']['storage'] {
     id: 'storage-1',
     title: 'BigQuery Storage',
     type: DataStorageType.GOOGLE_BIGQUERY,
-    credentials: null,
     config: {
       projectId: 'test-project',
       location: 'US',

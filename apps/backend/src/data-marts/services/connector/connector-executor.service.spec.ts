@@ -55,6 +55,7 @@ jest.mock('@owox/connectors', () => ({
 import { Logger } from '@nestjs/common';
 
 import { CredentialsExpiredException } from '../../exceptions/google-oauth.exceptions';
+import { StorageCredentialUnavailableException } from '../../exceptions/storage-credential-unavailable.exception';
 import {
   ConnectorExecutorService,
   MAX_MERGED_RUN_OUTPUT_ENTRIES,
@@ -956,7 +957,8 @@ describe('ConnectorExecutorService', () => {
     await new ConnectorRunService(
       sweepRepository,
       connectorRunTriggerService,
-      service
+      service,
+      {} as SystemTimeService
     ).executeInterruptedRuns();
 
     expect(row.status).toBe(DataMartRunStatus.PENDING);
@@ -1198,7 +1200,44 @@ describe('ConnectorExecutorService', () => {
 
     const errors = finalUpdate![1].errors as string[];
     expect(errors[0]).toContain(ConnectorMessageType.WARNING);
-    expect(errors.join()).toContain('Reconnect this Storage');
+    expect(errors.join()).toContain('Reconnect the Credential on the Credentials page');
+  });
+
+  it('persists an unavailable storage Credential as a warning, not an error', async () => {
+    const { service, dataMartRunRepository, storageConfigService } = createService();
+    (storageConfigService.buildStorageConfig as jest.Mock).mockRejectedValue(
+      new StorageCredentialUnavailableException('The Credential is disabled.', false)
+    );
+
+    await service.executeInBackground(createDataMart(), createRun(), null);
+
+    const finalUpdate = (dataMartRunRepository.update as jest.Mock).mock.calls.find(
+      call => call[1]?.status === DataMartRunStatus.FAILED
+    );
+    const errors = finalUpdate![1].errors as string[];
+    expect(errors[0]).toContain(ConnectorMessageType.WARNING);
+    expect(errors.join()).toContain('The Credential is disabled.');
+  });
+
+  it('logs a schema actualization stopped by an unavailable Credential as a warning', async () => {
+    const { service, dataMartService } = createService();
+    (dataMartService.actualizeSchema as jest.Mock).mockRejectedValue(
+      new StorageCredentialUnavailableException('The Credential is disabled.', false)
+    );
+    const warnSpy = jest.spyOn(service['logger'], 'warn').mockImplementation(() => undefined);
+    const errorSpy = jest.spyOn(service['logger'], 'error').mockImplementation(() => undefined);
+
+    await service.executeInBackground(createDataMart(), createRun(), null);
+
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining('Error schema actualization'),
+      expect.anything()
+    );
+    expect(errorSpy).not.toHaveBeenCalledWith(
+      expect.stringContaining('Error schema actualization'),
+      expect.anything(),
+      expect.anything()
+    );
   });
 
   it('records a configuration missing its _id as a run error', async () => {
@@ -1445,7 +1484,8 @@ describe('ConnectorExecutorService', () => {
       const runService = new ConnectorRunService(
         sweepRepository,
         connectorRunTriggerService,
-        service
+        service,
+        {} as SystemTimeService
       );
 
       await runService.executeInterruptedRuns();

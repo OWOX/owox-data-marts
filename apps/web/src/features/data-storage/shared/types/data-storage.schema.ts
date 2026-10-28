@@ -1,34 +1,6 @@
 import { z } from 'zod';
 import { DataStorageType } from '../model/types';
-import { googleCredentialsWithOAuthSchema } from '../../../../shared';
-import {
-  SnowflakeAuthMethod,
-  RedshiftConnectionType,
-  DatabricksAuthMethod,
-} from '../model/types/credentials';
-
-const awsCredentialsSchema = z.object({
-  accessKeyId: z.string().min(1, 'Access Key ID is required'),
-  secretAccessKey: z.string().min(1, 'Secret Access Key is required'),
-});
-
-const snowflakePasswordCredentialsSchema = z.object({
-  authMethod: z.literal(SnowflakeAuthMethod.PASSWORD),
-  username: z.string().min(1, 'Username is required'),
-  password: z.string().min(1, 'Password is required'),
-});
-
-const snowflakeKeyPairCredentialsSchema = z.object({
-  authMethod: z.literal(SnowflakeAuthMethod.KEY_PAIR),
-  username: z.string().min(1, 'Username is required'),
-  privateKey: z.string().min(1, 'Private Key is required'),
-  privateKeyPassphrase: z.string().optional(),
-});
-
-const snowflakeCredentialsSchema = z.discriminatedUnion('authMethod', [
-  snowflakePasswordCredentialsSchema,
-  snowflakeKeyPairCredentialsSchema,
-]);
+import { RedshiftConnectionType } from '../model/types/data-storage-config';
 
 const googleConfigSchema = z.object({
   projectId: z.string().min(1, 'Project ID is required'),
@@ -89,11 +61,6 @@ const redshiftConfigSchema = z.discriminatedUnion('connectionType', [
   redshiftProvisionedConfigSchema,
 ]);
 
-const databricksCredentialsSchema = z.object({
-  authMethod: z.literal(DatabricksAuthMethod.PERSONAL_ACCESS_TOKEN),
-  token: z.string().min(1, 'Token is required'),
-});
-
 const databricksConfigSchema = z.object({
   host: z.string().min(1, 'Host is required'),
   httpPath: z.string().min(1, 'HTTP Path is required'),
@@ -101,43 +68,36 @@ const databricksConfigSchema = z.object({
 
 const baseSchema = z.object({
   title: z.string().min(1, 'Title is required').max(255, 'Title must be 255 characters or less'),
+  reusableCredentialId: z.string().min(1, 'Select a Credential'),
 });
 
-// Use OAuth-enabled schema for BigQuery (supports both Service Account and OAuth)
 export const googleBigQuerySchema = baseSchema.extend({
   type: z.literal(DataStorageType.GOOGLE_BIGQUERY),
-  credentials: googleCredentialsWithOAuthSchema,
   config: googleBigQueryConfigSchema,
 });
 
-// Legacy BigQuery uses the same OAuth-enabled schema as GOOGLE_BIGQUERY
 export const legacyGoogleBigQuerySchema = baseSchema.extend({
   type: z.literal(DataStorageType.LEGACY_GOOGLE_BIGQUERY),
-  credentials: googleCredentialsWithOAuthSchema,
   config: googleConfigSchema,
 });
 
 export const awsAthenaSchema = baseSchema.extend({
   type: z.literal(DataStorageType.AWS_ATHENA),
-  credentials: awsCredentialsSchema,
   config: awsConfigSchema,
 });
 
 export const snowflakeSchema = baseSchema.extend({
   type: z.literal(DataStorageType.SNOWFLAKE),
-  credentials: snowflakeCredentialsSchema,
   config: snowflakeConfigSchema,
 });
 
 export const redshiftSchema = baseSchema.extend({
   type: z.literal(DataStorageType.AWS_REDSHIFT),
-  credentials: awsCredentialsSchema,
   config: redshiftConfigSchema,
 });
 
 export const databricksSchema = baseSchema.extend({
   type: z.literal(DataStorageType.DATABRICKS),
-  credentials: databricksCredentialsSchema,
   config: databricksConfigSchema,
 });
 

@@ -1,12 +1,22 @@
+jest.mock('typeorm-transactional', () => ({
+  Transactional: () => (_target: unknown, _key: string, descriptor: PropertyDescriptor) =>
+    descriptor,
+}));
+
 import { Logger } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { DataSource } from 'typeorm';
-import { getDataSourceToken } from '@nestjs/typeorm';
+import { getDataSourceToken, getRepositoryToken } from '@nestjs/typeorm';
 import { DataStorage } from '../../entities/data-storage.entity';
 import { LegacyDataStorageService } from '../../services/legacy-data-marts/legacy-data-storage.service';
 import { AdvancedSearchIndexSyncService } from '../../services/advanced-search-index-sync.service';
 import { MoveLegacyDataStorageService } from './move-legacy-data-storage.service';
+import { StorageCredentialBindingService } from '../../data-storage-types/storage-credential-binding.service';
 import { SearchableEntityType } from '../../../common/search/search.facade';
+import { LegacyStorageCredentialReader } from '../../services/storage-credential-conversion/legacy-storage-credential-reader.service';
+import { DataStorageCredentialService } from '../../services/data-storage-credential.service';
+import { GoogleOAuthClientService } from '../../services/google-oauth/google-oauth-client.service';
+import { GoogleOAuthConfigService } from '../../services/google-oauth/google-oauth-config.service';
 
 describe('MoveLegacyDataStorageService', () => {
   let service: MoveLegacyDataStorageService;
@@ -17,6 +27,7 @@ describe('MoveLegacyDataStorageService', () => {
   >;
   let mockQueryBuilder: Record<string, jest.Mock>;
   let mockManager: Record<string, jest.Mock>;
+  let credentialStorage: { moveStorageCredential: jest.Mock };
 
   beforeEach(async () => {
     legacyDataStorageService = {
@@ -61,9 +72,8 @@ describe('MoveLegacyDataStorageService', () => {
       })),
     };
 
-    dataSource = {
-      transaction: jest.fn().mockImplementation(async cb => cb(mockManager)),
-    } as unknown as jest.Mocked<DataSource>;
+    dataSource = { manager: mockManager } as unknown as jest.Mocked<DataSource>;
+    credentialStorage = { moveStorageCredential: jest.fn().mockResolvedValue(undefined) };
 
     searchIndexSync = {
       scheduleReindex: jest.fn().mockResolvedValue(undefined),
@@ -75,8 +85,14 @@ describe('MoveLegacyDataStorageService', () => {
         MoveLegacyDataStorageService,
         { provide: LegacyDataStorageService, useValue: legacyDataStorageService },
         { provide: AdvancedSearchIndexSyncService, useValue: searchIndexSync },
+        { provide: StorageCredentialBindingService, useValue: credentialStorage },
         { provide: DataSource, useValue: dataSource },
         { provide: getDataSourceToken(), useValue: dataSource },
+        LegacyStorageCredentialReader,
+        { provide: getRepositoryToken(DataStorage), useValue: { manager: mockManager } },
+        { provide: DataStorageCredentialService, useValue: {} },
+        { provide: GoogleOAuthClientService, useValue: {} },
+        { provide: GoogleOAuthConfigService, useValue: {} },
       ],
     })
       .setLogger(new Logger()) // disable error logging in console
@@ -89,7 +105,7 @@ describe('MoveLegacyDataStorageService', () => {
     jest.clearAllMocks();
   });
 
-  it('should validate permission, clean up non-movable entities by storage directly, and update projectId for data marts and storage within a transaction', async () => {
+  it('should validate permission, clean up non-movable entities by storage directly, and update projectId for data marts and storage', async () => {
     // Arrange
     const storage = { id: 'st1', projectId: 'old_project' } as DataStorage;
     const newProjectId = 'new_project';
@@ -101,7 +117,6 @@ describe('MoveLegacyDataStorageService', () => {
     expect(legacyDataStorageService.validateSyncPermissionForProject).toHaveBeenCalledWith(
       newProjectId
     );
-    expect(dataSource.transaction).toHaveBeenCalled();
     expect(storage.projectId).toBe('old_project'); // input object should NOT be mutated
     expect(result.projectId).toBe(newProjectId);
   });
@@ -161,14 +176,15 @@ describe('MoveLegacyDataStorageService', () => {
 
     // Act & Assert
     await expect(service.run(storage, 'new_project')).rejects.toThrow(permissionError);
-    expect(dataSource.transaction).not.toHaveBeenCalled();
+    expect(mockManager.update).not.toHaveBeenCalled();
+    expect(credentialStorage.moveStorageCredential).not.toHaveBeenCalled();
   });
 
-  it('should propagate error and not update storage projectId if transaction fails', async () => {
+  it('propagates a failed storage update without mutating the input', async () => {
     // Arrange
     const storage = { id: 'st1', projectId: 'old_project' } as DataStorage;
     const dbError = new Error('DB connection lost');
-    dataSource.transaction.mockRejectedValue(dbError);
+    mockManager.update.mockRejectedValue(dbError);
 
     // Act & Assert
     await expect(service.run(storage, 'new_project')).rejects.toThrow(dbError);
@@ -200,6 +216,23 @@ describe('MoveLegacyDataStorageService', () => {
     expect(mockManager.update).toHaveBeenCalledTimes(2);
     expect(mockManager.findOneOrFail).toHaveBeenCalledTimes(1);
     expect(result.projectId).toBe(newProjectId);
+  });
+
+  it('moves the storage credential, and schedules no reindex when that move fails', async () => {
+    const storage = { id: 'st1', projectId: 'old_project' } as DataStorage;
+
+    await service.run(storage, 'new_project');
+
+    expect(credentialStorage.moveStorageCredential).toHaveBeenCalledWith({
+      storageId: 'st1',
+      fromProjectId: 'old_project',
+      toProjectId: 'new_project',
+    });
+
+    credentialStorage.moveStorageCredential.mockRejectedValue(new Error('boom'));
+    searchIndexSync.scheduleReindex.mockClear();
+    await expect(service.run(storage, 'new_project')).rejects.toThrow('boom');
+    expect(searchIndexSync.scheduleReindex).not.toHaveBeenCalled();
   });
 
   it('should not update credential when storage.credential is null', async () => {

@@ -6,34 +6,136 @@ import {
   BIGQUERY_OAUTH_TYPE,
   BigQueryOAuthCredentials,
 } from './bigquery/schemas/bigquery-credentials.schema';
-import { GoogleOAuthClientService } from '../services/google-oauth/google-oauth-client.service';
-import { StorageCredentialType } from '../enums/storage-credential-type.enum';
 import { DataStorage } from '../entities/data-storage.entity';
-import { DataStorageCredential } from '../entities/data-storage-credential.entity';
-import { DataStorageCredentialService } from '../services/data-storage-credential.service';
+import { LegacyStorageCredentialReader } from '../services/storage-credential-conversion/legacy-storage-credential-reader.service';
+import {
+  StorageCredentialBindingService,
+  type ResolvedStorageCredential,
+} from './storage-credential-binding.service';
+import type { StorageCredentialSummary } from './storage-credential-state';
+import {
+  CredentialsExpiredException,
+  GoogleOAuthException,
+} from '../exceptions/google-oauth.exceptions';
+import { StorageCredentialUnavailableException } from '../exceptions/storage-credential-unavailable.exception';
+import { toAdapterCredentials } from './storage-credential-definitions';
 
 @Injectable()
 export class DataStorageCredentialsResolver {
   constructor(
-    private readonly googleOAuthClientService: GoogleOAuthClientService,
     @InjectRepository(DataStorage)
     private readonly dataStorageRepository: Repository<DataStorage>,
-    private readonly dataStorageCredentialService: DataStorageCredentialService
+    private readonly storageCredentials: StorageCredentialBindingService,
+    private readonly legacy: LegacyStorageCredentialReader
   ) {}
 
+  /** True when the Storage has a bound Credential or an old credentials row. */
+  async hasCredentials(storage: DataStorage): Promise<boolean> {
+    if (this.legacy.hasOldKey(storage)) return true;
+    const bound = await this.storageCredentials.findBoundStorageIds(storage.projectId, [
+      storage.id,
+    ]);
+    return bound.has(storage.id);
+  }
+
+  /** Bound Storages' Credentials as the member sees them, `pending` for one on its old key. */
+  async summarize(
+    projectId: string,
+    userId: string,
+    roles: readonly string[],
+    storages: readonly Pick<DataStorage, 'id' | 'type' | 'credentialId'>[]
+  ): Promise<ReadonlyMap<string, StorageCredentialSummary>> {
+    const summaries = new Map(
+      await this.storageCredentials.summarizeForStorages({
+        projectId,
+        userId,
+        roles,
+        storages: storages.map(({ id, type }) => ({ id, type })),
+      })
+    );
+    const onOldKey = await this.legacy.storageIdsOnOldKey(
+      storages
+        .filter(storage => !summaries.has(storage.id) && this.legacy.hasOldKey(storage))
+        .map(storage => storage.id)
+    );
+    for (const id of onOldKey) summaries.set(id, { access: 'pending', state: 'ready' });
+    return summaries;
+  }
+
+  /** The lost-grant error for a bound Storage, or null when the Storage is unbound. */
+  async lostGrantFor(storage: DataStorage): Promise<StorageCredentialUnavailableException | null> {
+    const bound = await this.storageCredentials.resolveForStorage(storage);
+    return bound ? lostGrantException() : null;
+  }
+
   async resolve(storage: DataStorage): Promise<DataStorageCredentials> {
-    const credential = await this.loadCredential(storage);
+    const bound = await this.storageCredentials.resolveForStorage(storage);
+    // A bound Storage never falls back to the old row, whatever happened to its Credential.
+    if (!bound) return this.legacy.resolve(storage);
+    const result = await this.resolveCredential(storage, bound);
+    await this.storageCredentials.markStorageUsed(storage.id, bound.credentialId);
+    return result;
+  }
 
-    if (!credential) {
-      throw new Error('Storage credentials are not configured');
+  /** A Credential's adapter shape for this Storage, bound or about to be, once its state allows. */
+  async resolveCredential(
+    storage: DataStorage,
+    credential: ResolvedStorageCredential
+  ): Promise<DataStorageCredentials> {
+    const { state } = credential;
+    // Errors never name the Credential: callers may see only its restricted summary.
+    if (state === 'disabled') {
+      throw new StorageCredentialUnavailableException(
+        "This Storage's Credential is disabled. A Credential maintainer can enable it on the Credentials page.",
+        false
+      );
+    }
+    if (state === 'not-configured') {
+      throw new StorageCredentialUnavailableException(
+        'BigQuery Google account Credentials cannot be used because Google sign-in is not configured on this server.',
+        false
+      );
+    }
+    if (state === 'reconnect-required') throw lostGrantException();
+    if (state === 'reauthorize-required') {
+      throw new StorageCredentialUnavailableException(
+        "This Storage's Credential lacks the Google permissions this Storage needs. A Credential maintainer can reconnect it on the Credentials page to grant them.",
+        true
+      );
     }
 
-    if (credential.type === StorageCredentialType.GOOGLE_OAUTH) {
-      const oauth2Client = await this.googleOAuthClientService.getStorageOAuth2Client(storage.id);
-      return { type: BIGQUERY_OAUTH_TYPE, oauth2Client } satisfies BigQueryOAuthCredentials;
+    if ('oauth' in credential.secret) {
+      try {
+        const { client, clientId } = await this.storageCredentials.getGoogleOAuth2Client(
+          storage.projectId,
+          credential.credentialId
+        );
+        return {
+          type: BIGQUERY_OAUTH_TYPE,
+          oauth2Client: client,
+          oauthClientId: clientId,
+        } satisfies BigQueryOAuthCredentials;
+      } catch (error) {
+        // Google refused the refresh, or the grant's client was replaced; reconnecting fixes both.
+        if (
+          error instanceof CredentialsExpiredException ||
+          (error instanceof GoogleOAuthException && error.code === 'OAUTH_NOT_CONFIGURED')
+        ) {
+          throw lostGrantException();
+        }
+        throw error;
+      }
     }
-
-    return credential.credentials as DataStorageCredentials;
+    try {
+      return toAdapterCredentials(
+        credential.definitionId,
+        credential.secret,
+        credential.publicMetadata
+      ) as DataStorageCredentials;
+    } catch {
+      // The parse error can quote a fragment of the key, so it is dropped.
+      throw new Error("The stored key of this Storage's Credential could not be read");
+    }
   }
 
   async resolveById(storageId: string): Promise<DataStorageCredentials> {
@@ -45,18 +147,11 @@ export class DataStorageCredentialsResolver {
     }
     return this.resolve(storage);
   }
+}
 
-  // Reads `storage.credential` populated by the eager OneToOne; if it's missing while
-  // `credentialId` is set, refetches the credential explicitly. Guards against TypeORM
-  // hydration glitches where eager + manual `relations` overlap can leave the field null
-  // (observed after typeorm 0.3.29 / PR #11267 changed setValue to mergeDeep).
-  private async loadCredential(storage: DataStorage): Promise<DataStorageCredential | null> {
-    if (storage.credential) {
-      return storage.credential;
-    }
-    if (!storage.credentialId) {
-      return null;
-    }
-    return this.dataStorageCredentialService.getById(storage.credentialId);
-  }
+function lostGrantException(): StorageCredentialUnavailableException {
+  return new StorageCredentialUnavailableException(
+    "This Storage's Credential lost Google authorization. A Credential maintainer can reconnect it on the Credentials page.",
+    true
+  );
 }

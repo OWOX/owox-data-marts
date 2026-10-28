@@ -1,5 +1,5 @@
 import { DataStorageType } from '../model/types/data-storage-type.enum';
-import { RedshiftConnectionType } from '../model/types/credentials';
+import { RedshiftConnectionType } from '../model/types/data-storage-config';
 import type { DataStorage } from '../model/types/data-storage';
 
 /**
@@ -11,13 +11,8 @@ import type { DataStorage } from '../model/types/data-storage';
 export function isDataStorageConfigValid(storage: DataStorage): boolean {
   switch (storage.type) {
     case DataStorageType.GOOGLE_BIGQUERY:
-      return Boolean(storage.config.projectId && storage.config.location);
     case DataStorageType.LEGACY_GOOGLE_BIGQUERY:
-      return Boolean(
-        storage.config.projectId &&
-        storage.config.location &&
-        (storage.credentials.serviceAccount || storage.credentials.credentialId)
-      );
+      return Boolean(storage.config.projectId && storage.config.location);
     case DataStorageType.AWS_ATHENA:
       return Boolean(storage.config.region && storage.config.outputBucket);
     case DataStorageType.SNOWFLAKE:

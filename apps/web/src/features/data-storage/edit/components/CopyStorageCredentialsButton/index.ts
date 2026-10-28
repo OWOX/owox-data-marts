@@ -1,1 +1,0 @@
-export { CopyStorageCredentialsButton } from './CopyStorageCredentialsButton';

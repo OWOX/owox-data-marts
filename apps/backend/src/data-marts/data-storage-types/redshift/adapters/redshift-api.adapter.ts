@@ -49,6 +49,7 @@ export class RedshiftApiAdapter {
       credentials: {
         accessKeyId: credentials.accessKeyId,
         secretAccessKey: credentials.secretAccessKey,
+        sessionToken: credentials.sessionToken,
       },
     };
 

@@ -25,11 +25,17 @@ vi.mock('../../../../idp', () => ({
 
 // Captures what the sheet hands the form, so a test can drive a save the way the form does.
 const formProps = vi.hoisted(() => ({
-  current: null as null | { onSubmit: (data: unknown) => Promise<void> },
+  current: null as null | {
+    initialData?: DataStorage;
+    onSubmit: (data: unknown) => Promise<void>;
+  },
 }));
 
 vi.mock('../DataStorageEditForm', () => ({
-  DataStorageForm: (props: { onSubmit: (data: unknown) => Promise<void> }) => {
+  DataStorageForm: (props: {
+    initialData?: DataStorage;
+    onSubmit: (data: unknown) => Promise<void>;
+  }) => {
     formProps.current = props;
     return null;
   },
@@ -48,19 +54,19 @@ const dataStorage: DataStorage = {
   id: 'storage-1',
   title: 'BigQuery Storage',
   type: DataStorageType.GOOGLE_BIGQUERY,
-  credentials: { serviceAccount: '{}' },
   config: { projectId: 'gcp-project', location: 'US' },
   createdAt: new Date('2026-06-09T10:00:00.000Z'),
   modifiedAt: new Date('2026-06-09T10:00:00.000Z'),
+  reusableCredential: null,
 };
 
-function renderSheet(onSaveSuccess = vi.fn(), onClose = vi.fn()) {
+function renderSheet(onSaveSuccess = vi.fn(), onClose = vi.fn(), storage = dataStorage) {
   return render(
     <MemoryRouter initialEntries={['/ui/project-1/data-storages']}>
       <DataStorageConfigSheet
         isOpen
         onClose={onClose}
-        dataStorage={dataStorage}
+        dataStorage={storage}
         onSaveSuccess={onSaveSuccess}
       />
     </MemoryRouter>
@@ -70,15 +76,17 @@ function renderSheet(onSaveSuccess = vi.fn(), onClose = vi.fn()) {
 describe('DataStorageConfigSheet', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    formProps.current = null;
 
     Object.defineProperty(navigator, 'clipboard', {
       value: { writeText: vi.fn().mockResolvedValue(undefined) },
       configurable: true,
     });
 
+    // As on the Storages page: the sheet gets the copy its provider just loaded.
     vi.mocked(useDataStorage).mockReturnValue({
       dataStorages: [],
-      currentDataStorage: null,
+      currentDataStorage: dataStorage,
       loading: false,
       error: null,
       fetchDataStorages: vi.fn(),
@@ -171,5 +179,92 @@ describe('DataStorageConfigSheet', () => {
 
     expect(onClose).toHaveBeenCalled();
     consoleError.mockRestore();
+  });
+
+  // The Data Mart page passes the Storage embedded in the Data Mart, or one from an earlier open.
+  it('loads its own copy of a Storage passed from another page', async () => {
+    const { reusableCredential: _absent, ...embedded } = dataStorage;
+    void _absent;
+    const loaded = { ...dataStorage, reusableCredential: { access: 'restricted', state: 'ready' } };
+    const getDataStorageById = vi.fn().mockResolvedValue(undefined);
+    vi.mocked(useDataStorage).mockReturnValue({
+      ...vi.mocked(useDataStorage)(),
+      currentDataStorage: null,
+      getDataStorageById,
+    });
+    const { rerender } = renderSheet(vi.fn(), vi.fn(), embedded as DataStorage);
+
+    expect(getDataStorageById).toHaveBeenCalledWith('storage-1', { skipErrorToast: true });
+    expect(formProps.current).toBeNull();
+
+    vi.mocked(useDataStorage).mockReturnValue({
+      ...vi.mocked(useDataStorage)(),
+      getDataStorageById,
+      currentDataStorage: loaded as DataStorage,
+    });
+    rerender(
+      <MemoryRouter initialEntries={['/ui/project-1/data-storages']}>
+        <DataStorageConfigSheet
+          isOpen
+          onClose={vi.fn()}
+          dataStorage={embedded as DataStorage}
+          onSaveSuccess={vi.fn()}
+        />
+      </MemoryRouter>
+    );
+
+    await waitFor(() => {
+      expect(formProps.current?.initialData).toBe(loaded);
+    });
+  });
+
+  it('says when it could not load the Storage and loads it again on Retry', async () => {
+    const getDataStorageById = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('Network Error'))
+      .mockResolvedValueOnce(undefined);
+    vi.mocked(useDataStorage).mockReturnValue({
+      ...vi.mocked(useDataStorage)(),
+      currentDataStorage: null,
+      getDataStorageById,
+    });
+    const onClose = vi.fn();
+    renderSheet(vi.fn(), onClose, { ...dataStorage });
+
+    expect(await screen.findByText('This Storage could not be loaded.')).toBeInTheDocument();
+    expect(onClose).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+
+    await waitFor(() => {
+      expect(getDataStorageById).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  it('says the member has no access when the Storage answers 403, without Retry', async () => {
+    const getDataStorageById = vi.fn().mockRejectedValue({ response: { status: 403 } });
+    vi.mocked(useDataStorage).mockReturnValue({
+      ...vi.mocked(useDataStorage)(),
+      currentDataStorage: null,
+      getDataStorageById,
+    });
+    renderSheet(vi.fn(), vi.fn(), { ...dataStorage });
+
+    expect(await screen.findByText("You don't have access to this Storage.")).toBeInTheDocument();
+    expect(screen.queryByText('This Storage could not be loaded.')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Retry' })).not.toBeInTheDocument();
+    expect(formProps.current).toBeNull();
+  });
+
+  it('edits the copy the Storages page just loaded as given', () => {
+    const getDataStorageById = vi.fn();
+    vi.mocked(useDataStorage).mockReturnValue({
+      ...vi.mocked(useDataStorage)(),
+      getDataStorageById,
+    });
+    renderSheet();
+
+    expect(getDataStorageById).not.toHaveBeenCalled();
+    expect(formProps.current?.initialData).toBe(dataStorage);
   });
 });

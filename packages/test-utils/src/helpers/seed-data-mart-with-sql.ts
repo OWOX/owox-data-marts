@@ -33,7 +33,8 @@ export interface SeedDataMartResult {
  *
  * Steps:
  *   1. POST /api/data-storages — create empty BigQuery storage.
- *   2. PUT  /api/data-storages/:id — set credentials + projectId config.
+ *   2. POST /api/credentials, then PUT /api/data-storages/:id — select the
+ *      service-account Credential and set the projectId config.
  *   3. PUT  /api/data-storages/:id/availability — flip flags (storage is
  *      created "Not Available" by default; data marts cannot use it until
  *      flipped).
@@ -60,20 +61,27 @@ export async function seedDataMartWithSql(opts: SeedDataMartOptions): Promise<Se
   expect(storageRes.status).toBe(201);
   const storageId = storageRes.body.id;
 
-  // Step 2: install BigQuery credentials + projectId config.
-  // Schema notes (see `bigquery-credentials.schema.ts` and
-  // `bigquery-config.schema.ts`):
-  //   - `credentials` IS the parsed service-account key object directly;
-  //     there is no wrapper with `type` / `serviceAccountKey`.
+  // Step 2: select a service-account Credential and set the projectId config.
+  //   - The Credential secret is the raw service-account key JSON.
   //   - `config` has only `{ projectId, location? }`. `location` is
   //     optional; if omitted, it defaults to `AUTODETECT`. We pass it
   //     uppercase to match `BIGQUERY_AUTODETECT_LOCATION`.
+  const credentialRes = await agent
+    .post('/api/credentials')
+    .set(AUTH_HEADER)
+    .send({
+      title: `Integration Test Credential ${Date.now()}`,
+      definitionId: 'google-service-account',
+      secret: { value: bigQueryServiceAccountJson },
+    });
+  expect(credentialRes.status).toBe(201);
+
   const updateStorageRes = await agent
     .put(`/api/data-storages/${storageId}`)
     .set(AUTH_HEADER)
     .send({
       title: `Integration Test Storage ${Date.now()}`,
-      credentials: JSON.parse(bigQueryServiceAccountJson),
+      reusableCredentialId: credentialRes.body.id,
       config: {
         projectId: bigQueryProjectId,
         location: 'AUTODETECT',

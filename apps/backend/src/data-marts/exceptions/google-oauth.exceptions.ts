@@ -92,10 +92,20 @@ export class CredentialsNotFoundException extends GoogleOAuthException {
 }
 
 export class CredentialsExpiredException extends GoogleOAuthException {
-  constructor(entityId: string, entityType: 'storage' | 'destination', details?: unknown) {
-    const resourceLabel = entityType === 'storage' ? 'Storage' : 'Destination';
+  constructor(
+    entityId: string,
+    entityType: 'storage' | 'destination' | 'credential',
+    details?: unknown
+  ) {
+    const messages = {
+      credential: 'Google authorization expired or was revoked. Reconnect this Credential.',
+      storage:
+        'Google authorization could not be refreshed. Reconnect the Credential on the Credentials page to restore access.',
+      destination:
+        'Google authorization could not be refreshed. Reconnect this Destination to restore access.',
+    };
     super(
-      `Google authorization could not be refreshed. Reconnect this ${resourceLabel} to restore access.`,
+      messages[entityType],
       'CREDENTIALS_EXPIRED',
       HttpStatus.UNAUTHORIZED,
       details ? { entityId, entityType, details } : { entityId, entityType }

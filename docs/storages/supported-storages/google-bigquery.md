@@ -36,11 +36,13 @@ NOTE: BigQuery usage costs will be applied to this project.
 
 ![Select Your Storage - Step 3](../../res/screens/Storage-3.png)
 
-### Choose Authentication Method
+### Select a Credential
 
-OWOX Data Marts supports two authentication methods for BigQuery:
+The **Credential** field selects the key this Storage uses. The list shows the Credentials that fit BigQuery and that you can use. If exactly one fits a new Storage, it is selected for you. Click **+ Create new Credential** to add one without leaving the form; the new Credential is selected when you save it. See [Credentials](../../project/credentials.md).
 
-#### Option A: Service Account (JSON Key)
+OWOX Data Marts supports two kinds of BigQuery Credential:
+
+#### Option A: BigQuery Service Account (JSON Key)
 
 To get the JSON key, you'll need to create or use an existing service account in Google Cloud.
 
@@ -56,17 +58,17 @@ To get the JSON key, you'll need to create or use an existing service account in
   - `BigQuery Job User`
 - Go to the **Keys** tab, click **Add key → Create new key**
 - Choose **JSON**, click **Create**, and download the file
-- Copy the contents of the JSON file and paste it into the **Service Account JSON** field.
+- In the Credential form, choose the **BigQuery Service Account** provider, then copy the contents of the JSON file and paste it into the **Service account key (JSON)** field.
   Paste the whole file: if the text is not valid JSON or has no `client_email`, the field is
   highlighted with the reason when you click **Save**.
 
 ![BigQuery Service Account Setup](../../res/screens/Storage-4.png)
 
-#### Option B: Google OAuth
+#### Option B: BigQuery Google account (OAuth)
 
-Click **Connect Google Account** to authenticate using your personal Google account via OAuth. You will be redirected to Google's consent screen to grant BigQuery access. Once authorized, your account will be linked to this Storage.
+In the Credential form, choose the **BigQuery Google account** provider and click **Connect with Google**. You will be redirected to Google's consent screen to grant BigQuery access, and the Google account is linked to the Credential. The option appears only when Google OAuth is set up in your deployment.
 
-> **Note:** The authenticated Google account must have `BigQuery Data Editor` (`roles/bigquery.dataEditor`) and `BigQuery Job User` (`roles/bigquery.jobUser`) roles in the target project. Check or assign these roles in [IAM & Admin → IAM](https://console.cloud.google.com/iam-admin/iam). OAuth tokens are automatically refreshed. If your session expires or access is revoked, you can reconnect at any time.
+> **Note:** The authenticated Google account must have `BigQuery Data Editor` (`roles/bigquery.dataEditor`) and `BigQuery Job User` (`roles/bigquery.jobUser`) roles in the target project. Check or assign these roles in [IAM & Admin → IAM](https://console.cloud.google.com/iam-admin/iam). OAuth tokens are automatically refreshed. If your session expires or access is revoked, open the Credential and click its Google button, **Authenticated as** or **Connect with Google**; every Storage that uses it works again.
 
 ### Enable BigQuery API
 

@@ -17,7 +17,10 @@ import { cn } from '@owox/ui/lib/utils';
 export interface ComboboxOption {
   value: string;
   label: string;
+  /** What a search matches; the value and label when omitted. */
   keywords?: string[];
+  /** Keeps the item listed whatever the search says; it renders last, outside any group. */
+  forceMount?: boolean;
   group?: string;
   separator?: boolean;
 }
@@ -35,6 +38,7 @@ interface ComboboxProps {
   disabled?: boolean;
   ariaLabel?: string;
   ariaInvalid?: boolean;
+  ariaDescribedBy?: string;
   renderLabel?: (option: ComboboxOption, context: 'trigger' | 'item') => React.ReactNode;
 }
 
@@ -55,6 +59,7 @@ export function Combobox({
   disabled = false,
   ariaLabel,
   ariaInvalid,
+  ariaDescribedBy,
   renderLabel,
 }: ComboboxProps) {
   const [open, setOpen] = React.useState(false);
@@ -77,6 +82,7 @@ export function Combobox({
     const groups: Record<string, ComboboxOption[]> = {};
 
     options.forEach(option => {
+      if (option.forceMount) return;
       const groupName = option.group ?? '';
       if (!Object.prototype.hasOwnProperty.call(groups, groupName)) {
         groups[groupName] = [];
@@ -100,6 +106,35 @@ export function Combobox({
     [onValueChange]
   );
 
+  const renderItem = (option: ComboboxOption) => (
+    <React.Fragment key={option.value}>
+      {option.separator && <CommandSeparator />}
+      <CommandItem
+        value={option.value}
+        onSelect={() => {
+          handleSelect(option.value);
+        }}
+        keywords={option.keywords ?? [option.value, option.label]}
+        forceMount={option.forceMount}
+        className='min-w-0 justify-between'
+      >
+        {renderLabel ? (
+          renderLabel(option, 'item')
+        ) : (
+          <span className='min-w-0 flex-1 truncate'>{option.label}</span>
+        )}
+        <Check
+          className={cn(
+            'ml-2 h-4 w-4 shrink-0',
+            value === option.value ? 'opacity-100' : 'opacity-0'
+          )}
+        />
+      </CommandItem>
+    </React.Fragment>
+  );
+
+  const pinnedOptions = options.filter(option => option.forceMount);
+
   return (
     <Popover open={open} onOpenChange={handleOpenChange} modal={true}>
       <PopoverTrigger asChild>
@@ -110,6 +145,7 @@ export function Combobox({
           aria-label={ariaLabel}
           aria-expanded={open}
           aria-invalid={ariaInvalid}
+          aria-describedby={ariaDescribedBy}
           className={cn('w-full justify-between', !value && 'text-muted-foreground', className)}
           disabled={disabled}
         >
@@ -148,34 +184,13 @@ export function Combobox({
             {Object.entries(groupedOptions).map(([groupName, groupOptions]) => {
               return (
                 <CommandGroup key={groupName || 'default'} heading={groupName}>
-                  {groupOptions.map(option => (
-                    <React.Fragment key={option.value}>
-                      {option.separator && <CommandSeparator />}
-                      <CommandItem
-                        value={option.value}
-                        onSelect={() => {
-                          handleSelect(option.value);
-                        }}
-                        keywords={[option.value, option.label, ...(option.keywords ?? [])]}
-                        className='min-w-0 justify-between'
-                      >
-                        {renderLabel ? (
-                          renderLabel(option, 'item')
-                        ) : (
-                          <span className='min-w-0 flex-1 truncate'>{option.label}</span>
-                        )}
-                        <Check
-                          className={cn(
-                            'ml-2 h-4 w-4 shrink-0',
-                            value === option.value ? 'opacity-100' : 'opacity-0'
-                          )}
-                        />
-                      </CommandItem>
-                    </React.Fragment>
-                  ))}
+                  {groupOptions.map(renderItem)}
                 </CommandGroup>
               );
             })}
+            {pinnedOptions.length > 0 && (
+              <CommandGroup forceMount>{pinnedOptions.map(renderItem)}</CommandGroup>
+            )}
           </CommandList>
         </Command>
       </PopoverContent>

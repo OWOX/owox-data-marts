@@ -17,8 +17,12 @@ Credential or stop consumers that already use it. At least one owner must remain
 
 Owners and Project Admins can manage the Credential. The **Shared for use** and **Shared for
 maintenance** settings add access for other eligible project members, subject to their role scope
-and assigned contexts. Consumers re-check access, status, and definition compatibility whenever
-they use a Credential.
+and assigned contexts. Plugins re-check access, status, and definition compatibility whenever
+they use a Credential. Storages check access when a member selects the Credential or changes where
+the Storage connects; runs check only that the Credential is enabled and usable, because running
+needs access to the Storage only. Turning sharing off therefore leaves bound Storages running:
+disable the Credential to stop them, and members who can edit those Storages switch them to
+another Credential.
 
 ## Plugin use
 
@@ -29,13 +33,62 @@ raw secret never enters its frame.
 
 The **Used by** section shows active consumer bindings and when each binding last succeeded. The
 Credential list also shows aggregate last use. A Credential with active bindings cannot be deleted;
-disable it to stop use immediately, or first remove or replace the consumer bindings. Replacing a
-secret keeps the bindings and consumers use the new value on their next request.
+disable it to stop use immediately, or first switch its Storages to another Credential and uninstall
+the plugins that use it. Replacing a secret keeps the bindings and consumers use the new value on
+their next request.
 
-## Google Service Account
+## Storage providers
 
-A Google Service Account Credential lets a plugin call Google APIs, such as Google Docs and Google
-Sheets, as a service account:
+Storages select a Credential instead of holding a key; see
+[Credentials for Storages](../storages/manage-storages.md#credentials-for-storages). These
+providers fit Storages:
+
+| Provider                 | Fits Storage             | You enter                                                |
+| ------------------------ | ------------------------ | -------------------------------------------------------- |
+| BigQuery Service Account | Google BigQuery          | The JSON key                                             |
+| BigQuery Google account  | Google BigQuery          | Nothing; click **Connect with Google**                   |
+| AWS access key           | AWS Athena, AWS Redshift | Access key ID, Secret access key, optional Session token |
+| Snowflake password       | Snowflake                | Username, Password (or a Programmatic Access Token)      |
+| Snowflake key pair       | Snowflake                | Username, Private key, optional Private key passphrase   |
+| Databricks token         | Databricks               | Personal access token                                    |
+
+Secret fields are write-only like any secret. To replace one, enter a new value; fields you leave
+out keep theirs, and the form warns how many Storages the change applies to. Before saving, OWOX
+Data Marts checks the new values against each Storage that uses the Credential. If one of them
+cannot connect with the new values, nothing is saved; the error names that Storage if you can see
+it. A changed **Access key ID** or **Username** is checked the same way. Replacing values needs
+the right to maintain the Credential, not the right to edit the Storages that use it. A Credential
+created from a Storage form is not shared: only its owners and Project Admins can use it until an
+owner shares it. Plugins cannot request these providers, except BigQuery
+Service Account.
+
+### BigQuery Google account
+
+A **BigQuery Google account** Credential connects a Google account for BigQuery. Choose the provider
+and click **Connect with Google**; the account's email becomes the Credential's identity. When
+Google revokes the access or it expires, the Storages that use the Credential show that it needs
+reconnecting: open the Credential and click its Google button, **Authenticated as** or **Connect
+with Google**, to connect the account again. The button is disabled while the form has unsaved
+changes; save or discard them first. Reconnecting with a different Google account is refused; create
+a new Credential for that account. The provider is available only where the deployment has Google
+OAuth set up. Without that setup, Storages that use a BigQuery Google account Credential show
+**Google sign-in is not configured on this server** and do not run.
+
+Deleting or reconnecting a BigQuery Google account Credential does not revoke the access the Google
+account granted, and neither does a refused connect. To remove the access, open [Third-party apps &
+services](https://myaccount.google.com/connections) in that Google account and remove the app's
+access. This stops every Credential and Storage that uses that Google account.
+
+### Used by Storages
+
+**Used by** lists the Storages that use the Credential. A Credential used by a Storage cannot be
+deleted: switch those Storages to another Credential first. Disable the Credential to stop its
+Storages at once; they show **Credential disabled** until it is enabled again.
+
+## BigQuery Service Account
+
+A BigQuery Service Account Credential lets a plugin call Google APIs, such as Google Docs and Google
+Sheets, as a service account, and lets a BigQuery Storage run queries as one:
 
 1. In Google Cloud, create a service account and a JSON key for it; see
    [Create and delete service account keys](https://docs.cloud.google.com/iam/docs/keys-create-delete).
@@ -43,7 +96,7 @@ Sheets, as a service account:
    `iam.managed.disableServiceAccountKeyCreation`; an organization admin has to allow it.
 2. Enable the API the plugin uses, such as the Google Docs API or the Google Sheets API, in the
    project the key belongs to.
-3. Create a Credential with the **Google Service Account** provider and paste the key or drop the
+3. Create a Credential with the **BigQuery Service Account** provider and paste the key or drop the
    JSON file. OWOX Data Marts asks Google for a token before saving and refuses a key Google
    rejects. A new key can take about a minute to start working.
 4. Share each document or spreadsheet the plugin should change with the service account address

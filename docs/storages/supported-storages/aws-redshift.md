@@ -58,7 +58,7 @@ AWS Redshift supports two deployment types (one is required). It's based on your
 
 ### Authentication
 
-OWOX Data Marts uses AWS IAM credentials to authenticate with Redshift Data API.
+OWOX Data Marts uses AWS IAM credentials to authenticate with Redshift Data API. In the **Credential** field of the Storage form, select an **AWS access key** Credential, or click **+ Create new Credential** and enter the Access key ID and Secret access key there. The new Credential is selected when you save it. See [Credentials](../../project/credentials.md).
 
 #### Access Key ID and Secret Access Key
 
@@ -146,9 +146,7 @@ GRANT CREATE ON DATABASE dev TO "IAM:<USERNAME_IN_IAM>";
 
 Review your entries and click **Save** to add the **Storage configuration**, or **Cancel** to exit without saving.
 
-Once saved, OWOX Data Marts will validate the connection to ensure all credentials are correct.
-
-![OWOX Data Marts Configure Storage Provider dialog displaying the final configuration form. The form shows the region field set to eu-north-1, Workgroup Name field containing owox with Serverless and Provisioned tabs, Database field showing dev, and Authentication section with Access Key ID and Secret Access Key fields. A prominent blue Save button with a red arrow pointing to it is centered at the bottom of the dialog, alongside a Cancel button. The dialog has a dark background with professional layout and informational help icons throughout.](../../res/screens/redshift_saveconfig.png)
+Once saved, OWOX Data Marts will validate the connection to ensure the selected Credential is correct. Before you save, check that the region, workgroup or cluster, database and Credential fields are filled in.
 
 ## Next Steps
 

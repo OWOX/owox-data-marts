@@ -2,6 +2,7 @@ import { DataStorageType } from '../../data-storage-types/enums/data-storage-typ
 import { DataStorageConfig } from '../../data-storage-types/data-storage-config.type';
 import { UserProjectionDto } from '../../../idp/dto/domain/user-projection.dto';
 import { ContextSummary } from '../../utils/extract-context-summaries';
+import type { StorageCredentialSummary } from '../../data-storage-types/storage-credential-state';
 
 export class DataStorageDto {
   constructor(
@@ -14,11 +15,12 @@ export class DataStorageDto {
     public readonly modifiedAt: Date,
     public readonly dataMartsCount: number = 0,
     public readonly draftsCount: number = 0,
-    public readonly credentialId: string | null | undefined = undefined,
     public readonly createdByUser: UserProjectionDto | null = null,
     public readonly ownerUsers: UserProjectionDto[] = [],
     public readonly availableForUse: boolean = true,
     public readonly availableForMaintenance: boolean = true,
-    public readonly contexts: ContextSummary[] = []
+    public readonly contexts: ContextSummary[] = [],
+    /** Undefined where the member's view was not computed, as in a Data Mart's Storage. */
+    public readonly reusableCredential?: StorageCredentialSummary | null
   ) {}
 }

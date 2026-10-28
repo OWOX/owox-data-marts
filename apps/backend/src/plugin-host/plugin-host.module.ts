@@ -31,6 +31,7 @@ import { ExternalCredentialDefinitionSyncService } from './services/external-cre
 import { GithubAuthService } from './services/github-auth.service';
 import { PLUGIN_INSTALLATION_LOOKUP } from './facades/plugin-installation-lookup.facade';
 import { PluginInstallationLookupFacade } from './facades/plugin-installation-lookup.facade.impl';
+import { PluginCredentialConsumerTitlesService } from './services/plugin-credential-consumer-titles.service';
 import { ActionInputValidatorService } from './services/action-input-validator.service';
 import { PluginActionDispatcherService } from './services/plugin-action-dispatcher.service';
 import { PluginActionExecutionService } from './services/plugin-action-execution.service';
@@ -220,6 +221,7 @@ import { PutPluginCollectionDocumentService } from './collections/use-cases/put-
     IssuePluginRuntimeTokenService,
     PluginInstallationLookupFacade,
     { provide: PLUGIN_INSTALLATION_LOOKUP, useExisting: PluginInstallationLookupFacade },
+    PluginCredentialConsumerTitlesService,
     PluginRuntimeAuthorizerService,
     { provide: PLUGIN_RUNTIME_AUTHORIZER, useExisting: PluginRuntimeAuthorizerService },
   ],

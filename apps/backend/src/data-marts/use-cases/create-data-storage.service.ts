@@ -93,7 +93,9 @@ export class CreateDataStorageService {
       0,
       0,
       createdByUser,
-      resolveOwnerUsers(ownerIdsToSave, userProjections)
+      resolveOwnerUsers(ownerIdsToSave, userProjections),
+      undefined,
+      null
     );
   }
 }

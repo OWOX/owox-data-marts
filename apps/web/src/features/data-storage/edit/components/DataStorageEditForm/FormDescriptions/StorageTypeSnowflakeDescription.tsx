@@ -29,10 +29,6 @@ const StorageTypeSnowflakeDescription: React.FC = () => {
               Make sure you have the necessary privileges to create and access databases, schemas,
               and warehouses.
             </li>
-            <li>
-              Choose your authentication method: Username & PAT (Programmatic access token) for
-              quick setup, or Key Pair authentication for better security.
-            </li>
             <li>Fill in the connection details below (account identifier and warehouse).</li>
             <li>
               You can access tables using the full path format: database.schema.table (similar to

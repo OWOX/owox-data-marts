@@ -1,23 +1,17 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
 import { Transactional } from 'typeorm-transactional';
-import { Repository } from 'typeorm';
 import type { AuthorizationContext } from '../../../idp';
-import { IdpProjectionsFacade } from '../../../idp/facades/idp-projections.facade';
-import { ContextService } from '../../services/context/context.service';
-import { syncOwners } from '../../utils/sync-owners';
 import type {
   CreateCredentialApiDto,
   ResolvedCredentialDefinition,
 } from '../dto/credential-api.dto';
 import type { CredentialDto } from '../dto/credential.dto';
-import { CredentialContext } from '../entities/credential-context.entity';
-import { CredentialOwner } from '../entities/credential-owner.entity';
 import { CredentialDefinitionService } from '../services/credential-definition.service';
 import { CredentialService } from '../services/credential.service';
 import { parseGoogleServiceAccountKey } from '../services/google-service-account-key';
 import { CredentialViewService } from '../services/credential-view.service';
 import { CredentialValidationProbeService } from '../services/credential-validation-probe.service';
+import { parseFieldsForCreate } from '../services/credential-fields';
 import {
   isCredentialAiModelInCatalog,
   type CredentialAiModelMappingSources,
@@ -25,6 +19,7 @@ import {
   type CredentialAiModelMappings,
   type CredentialDefinitionContract,
   type CredentialPublicMetadata,
+  type CredentialSecret,
   type CredentialValidationResult,
 } from '../credential.types';
 
@@ -34,32 +29,48 @@ export class CreateCredentialService {
     private readonly credentials: CredentialService,
     private readonly definitions: CredentialDefinitionService,
     private readonly view: CredentialViewService,
-    private readonly validationProbe: CredentialValidationProbeService,
-    private readonly contexts: ContextService,
-    private readonly idpProjections: IdpProjectionsFacade,
-    @InjectRepository(CredentialOwner)
-    private readonly owners: Repository<CredentialOwner>,
-    @InjectRepository(CredentialContext)
-    private readonly credentialContexts: Repository<CredentialContext>
+    private readonly validationProbe: CredentialValidationProbeService
   ) {}
 
   async run(context: AuthorizationContext, input: CreateCredentialApiDto): Promise<CredentialDto> {
     const definition = await this.definitions.get(input.definitionId);
+    const { auth } = definition.contract;
+    if (auth.type === 'oauth') {
+      throw new BadRequestException('Connect a Google account to create this Credential.');
+    }
+    assertCredentialInputKind(auth, input);
     const aiConfiguration = normalizeAiConfiguration(
       input.aiModelMappings,
       input.aiModelMappingModes,
       definition.contract.ai
     );
+    if (auth.type === 'fields') {
+      // A field set has no provider check, so it starts as unknown.
+      const { secret, publicMetadata } = parseFieldsForCreate(auth, input.fields);
+      return this.persist(context, input, definition, aiConfiguration, secret, publicMetadata);
+    }
+    if (input.secret == null) {
+      throw new BadRequestException('This Credential definition requires a secret value');
+    }
+    const secret = { value: input.secret.value };
     const publicMetadata =
-      definition.contract.auth.type === 'google-service-account'
-        ? parseGoogleServiceAccountKey(input.secret.value).metadata
+      auth.type === 'google-service-account'
+        ? parseGoogleServiceAccountKey(secret.value).metadata
         : null;
     // Outside the transaction: the provider check can take seconds and must not hold a connection.
-    const validation = await this.validationProbe.run(definition, { value: input.secret.value });
+    const validation = await this.validationProbe.run(definition, secret);
     if (validation.state === 'rejected') {
       throw new BadRequestException(validation.message);
     }
-    return this.persist(context, input, definition, aiConfiguration, publicMetadata, validation);
+    return this.persist(
+      context,
+      input,
+      definition,
+      aiConfiguration,
+      secret,
+      publicMetadata,
+      validation
+    );
   }
 
   @Transactional()
@@ -68,60 +79,50 @@ export class CreateCredentialService {
     input: CreateCredentialApiDto,
     definition: ResolvedCredentialDefinition,
     aiConfiguration: ReturnType<typeof normalizeAiConfiguration>,
+    secret: CredentialSecret,
     publicMetadata: CredentialPublicMetadata | null,
-    validation: CredentialValidationResult
+    validation?: CredentialValidationResult
   ): Promise<CredentialDto> {
-    const credential = await this.credentials.save(
-      this.credentials.create({
+    const credential = await this.credentials.createWithAccess(
+      {
         projectId: context.projectId,
         title: input.title.trim(),
         definitionSource: definition.source,
         definitionId: input.definitionId,
         acceptedCompatibilityLine: definition.compatibilityLine,
-        secret: { value: input.secret.value },
+        secret,
         aiModelMappings: aiConfiguration.mappings,
         aiModelMappingModes: aiConfiguration.modes,
         aiModelMappingSources: aiConfiguration.sources,
         enabled: true,
         availableForUse: input.availableForUse ?? true,
         availableForMaintenance: input.availableForMaintenance ?? false,
-        validationState: validation.state,
-        validationMessage: validation.message,
-        validatedAt: validation.validatedAt,
+        validationState: validation?.state ?? 'unknown',
+        validationMessage: validation?.message ?? null,
+        validatedAt: validation?.validatedAt ?? null,
         publicMetadata,
-        createdById: context.userId,
-      })
+      },
+      { createdBy: context, ownerIds: input.ownerIds ?? [], contextIds: input.contextIds ?? [] }
     );
-
-    // Creator is always the first owner. `createdById` remains audit-only afterwards.
-    const ownerIds = [...new Set([context.userId, ...(input.ownerIds ?? [])])];
-    await syncOwners(
-      this.owners,
-      'credentialId',
-      credential.id,
-      context.projectId,
-      ownerIds,
-      this.idpProjections,
-      userId => this.owners.create({ credentialId: credential.id, userId })
-    );
-
-    const contextIds = [...new Set(input.contextIds ?? [])];
-    await this.contexts.validateContextIds(contextIds, context.projectId);
-    if (contextIds.length > 0) {
-      await this.credentialContexts.save(
-        contextIds.map(contextId =>
-          this.credentialContexts.create({
-            credentialId: credential.id,
-            contextId,
-          })
-        )
-      );
-    }
 
     return this.view.build(
       await this.credentials.getByIdAndProjectId(credential.id, context.projectId),
+      context,
       validation
     );
+  }
+}
+
+/** A field set takes `fields`, OAuth takes neither, and the other kinds take `secret`. */
+export function assertCredentialInputKind(
+  auth: CredentialDefinitionContract['auth'],
+  input: { readonly secret?: unknown; readonly fields?: unknown }
+): void {
+  if (input.fields != null && auth.type !== 'fields') {
+    throw new BadRequestException('This Credential definition does not take fields');
+  }
+  if (input.secret != null && (auth.type === 'fields' || auth.type === 'oauth')) {
+    throw new BadRequestException('This Credential definition does not take a secret value');
   }
 }
 

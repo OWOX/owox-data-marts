@@ -3,7 +3,6 @@ import { ApiService } from '../../../../services';
 import type { TaskStatus } from '../../../../shared/types/task-status.enum.ts';
 import type {
   CreateDataStorageRequestDto,
-  DataStorageByTypeResponseDto,
   DataStorageListResponseDto,
   DataStorageResponseDto,
   ListStorageResourcesResponseDto,
@@ -13,7 +12,6 @@ import type {
   StorageResourceLeafDto,
   UpdateDataStorageRequestDto,
 } from './types';
-import type { DataStorageType } from '../model/types';
 
 interface TaskStatusResponseDto {
   status: TaskStatus;
@@ -47,18 +45,11 @@ export class DataStorageApiService extends ApiService {
    * @param {string} id - The unique identifier of the data storage to retrieve.
    * @return {Promise<DataStorageResponseDto>} A promise resolving to the details of the requested data storage.
    */
-  async getDataStorageById(id: string): Promise<DataStorageResponseDto> {
-    return this.get<DataStorageResponseDto>(`/${id}`);
-  }
-
-  /**
-   * Retrieves all data storages of the specified type.
-   *
-   * @param {DataStorageType} type - The storage type to filter by.
-   * @return {Promise<DataStorageByTypeResponseDto>} A promise resolving to the list of storages of the given type.
-   */
-  async getDataStoragesByType(type: DataStorageType): Promise<DataStorageByTypeResponseDto> {
-    return this.get<DataStorageByTypeResponseDto>(`/by-type/${type}`);
+  async getDataStorageById(
+    id: string,
+    config?: AxiosRequestConfig
+  ): Promise<DataStorageResponseDto> {
+    return this.get<DataStorageResponseDto>(`/${id}`, undefined, config);
   }
 
   /**

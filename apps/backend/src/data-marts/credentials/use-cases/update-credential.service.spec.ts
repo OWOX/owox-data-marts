@@ -4,8 +4,10 @@ jest.mock('typeorm-transactional', () => ({
 }));
 
 import { BadRequestException } from '@nestjs/common';
+import { AccessValidationException } from '../../../common/exceptions/access-validation.exception';
 import type { AuthorizationContext } from '../../../idp';
 import { serviceAccountKey } from '../../../../test/fixtures/google-service-account-key';
+import { BUILTIN_CREDENTIAL_DEFINITIONS } from '../services/builtin-credential-definitions';
 import { UpdateCredentialService } from './update-credential.service';
 
 const context = {
@@ -42,6 +44,7 @@ function setup(definitionOverride?: object, credentialOverride: Record<string, u
   const credentials = {
     getByIdAndProjectId: jest.fn().mockResolvedValue(credential),
     save: jest.fn().mockImplementation(value => Promise.resolve(value)),
+    listBindings: jest.fn().mockResolvedValue([]),
   };
   const definitions = {
     getForCredential: jest.fn().mockResolvedValue(definitionOverride ?? definition),
@@ -54,6 +57,7 @@ function setup(definitionOverride?: object, credentialOverride: Record<string, u
       validatedAt: new Date(),
     }),
   };
+  const storageConsumers = { verifyCandidate: jest.fn().mockResolvedValue(0) };
   const service = new UpdateCredentialService(
     credentials as never,
     definitions as never,
@@ -62,9 +66,10 @@ function setup(definitionOverride?: object, credentialOverride: Record<string, u
     { build: jest.fn().mockResolvedValue({ id: credential.id }) } as never,
     validationProbe as never,
     {} as never,
-    {} as never
+    {} as never,
+    storageConsumers as never
   );
-  return { service, definitions, validationProbe, credentials, credential };
+  return { service, definitions, validationProbe, credentials, credential, storageConsumers };
 }
 
 describe('UpdateCredentialService', () => {
@@ -123,7 +128,7 @@ const googleDefinition = {
   compatibilityLine: null,
   contract: {
     id: 'google-service-account',
-    displayName: 'Google Service Account',
+    displayName: 'BigQuery Service Account',
     description: '',
     auth: { type: 'google-service-account', label: 'Service account key (JSON)' },
     origins: ['https://*.googleapis.com'],
@@ -217,6 +222,218 @@ describe('UpdateCredentialService with a Google service account key', () => {
     await expect(
       state.service.run('credential-1', context, { secret: { value: serviceAccountKey() } })
     ).rejects.toThrow(new BadRequestException('invalid_grant: Invalid JWT Signature.'));
+    expect(state.credentials.save).not.toHaveBeenCalled();
+  });
+});
+
+function builtin(id: string) {
+  const contract = BUILTIN_CREDENTIAL_DEFINITIONS.find(definition => definition.id === id);
+  return { definitionId: id, source: 'builtin', compatibilityLine: null, contract };
+}
+
+describe('UpdateCredentialService with a field set', () => {
+  const snowflake = builtin('snowflake-password');
+  const stored = {
+    definitionId: 'snowflake-password',
+    secret: { fields: { password: 'old-password' } },
+    publicMetadata: { fields: { username: 'loader' } },
+    validationState: 'verified',
+    validationMessage: 'accepted',
+    validatedAt: new Date('2026-10-01T00:00:00.000Z'),
+  };
+  const bindings = [
+    { consumerType: 'storage', consumerId: 'storage-1' },
+    { consumerType: 'storage', consumerId: 'storage-2' },
+  ];
+
+  it('resets the validation to unknown when no Storage uses the Credential', async () => {
+    const state = setup(snowflake, stored);
+
+    await state.service.run('credential-1', context, { fields: { password: 'new-password' } });
+
+    expect(state.definitions.getForCredential).toHaveBeenCalled();
+    expect(state.validationProbe.run).not.toHaveBeenCalled();
+    expect(state.storageConsumers.verifyCandidate).toHaveBeenCalledWith(
+      context,
+      [],
+      {
+        definitionId: 'snowflake-password',
+        secret: { fields: { password: 'new-password' } },
+        publicMetadata: { fields: { username: 'loader' } },
+      },
+      {
+        definitionId: 'snowflake-password',
+        secret: { fields: { password: 'old-password' } },
+        publicMetadata: { fields: { username: 'loader' } },
+      }
+    );
+    expect(state.credentials.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        secret: { fields: { password: 'new-password' } },
+        publicMetadata: { fields: { username: 'loader' } },
+        validationState: 'unknown',
+        validationMessage: null,
+        validatedAt: null,
+      })
+    );
+  });
+
+  it('keeps the validation when the identity is sent again unchanged', async () => {
+    const state = setup(snowflake, stored);
+
+    await state.service.run('credential-1', context, { fields: { username: 'loader' } });
+
+    expect(state.storageConsumers.verifyCandidate).not.toHaveBeenCalled();
+    expect(state.credentials.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        secret: { fields: { password: 'old-password' } },
+        publicMetadata: { fields: { username: 'loader' } },
+        validationState: 'verified',
+        validationMessage: 'accepted',
+        validatedAt: stored.validatedAt,
+      })
+    );
+  });
+
+  it('checks a new identity against every bound Storage and resets the validation', async () => {
+    const state = setup(snowflake, stored);
+    state.credentials.listBindings.mockResolvedValue(bindings);
+    state.storageConsumers.verifyCandidate.mockResolvedValue(2);
+
+    await state.service.run('credential-1', context, { fields: { username: 'reporter' } });
+
+    expect(state.storageConsumers.verifyCandidate).toHaveBeenCalledWith(
+      context,
+      bindings,
+      {
+        definitionId: 'snowflake-password',
+        secret: { fields: { password: 'old-password' } },
+        publicMetadata: { fields: { username: 'reporter' } },
+      },
+      {
+        definitionId: 'snowflake-password',
+        secret: { fields: { password: 'old-password' } },
+        publicMetadata: { fields: { username: 'loader' } },
+      }
+    );
+    expect(state.credentials.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        publicMetadata: { fields: { username: 'reporter' } },
+        validationState: 'verified',
+        validatedAt: expect.any(Date),
+      })
+    );
+    expect(state.credentials.save.mock.calls[0][0].validatedAt).not.toBe(stored.validatedAt);
+  });
+
+  it('saves nothing when a bound Storage rejects a replaced AWS secret', async () => {
+    const state = setup(builtin('aws-access-key'), {
+      definitionId: 'aws-access-key',
+      secret: { fields: { secretAccessKey: 'old-secret-access-key' } },
+      publicMetadata: { fields: { accessKeyId: 'key-id-1' } },
+    });
+    state.credentials.listBindings.mockResolvedValue(bindings);
+    state.storageConsumers.verifyCandidate.mockRejectedValue(
+      new AccessValidationException(
+        'The new values do not work for Storage "Athena prod": Access validation failed'
+      )
+    );
+
+    const error = await state.service
+      .run('credential-1', context, { fields: { secretAccessKey: 'typo-secret-access-key' } })
+      .catch((thrown: unknown) => thrown);
+
+    expect(error).toBeInstanceOf(AccessValidationException);
+    expect(state.storageConsumers.verifyCandidate).toHaveBeenCalledWith(
+      context,
+      bindings,
+      expect.objectContaining({
+        secret: { fields: { secretAccessKey: 'typo-secret-access-key' } },
+      }),
+      expect.objectContaining({ secret: { fields: { secretAccessKey: 'old-secret-access-key' } } })
+    );
+    expect(state.credentials.save).not.toHaveBeenCalled();
+  });
+
+  it('marks the Credential verified when every bound Storage accepts the new values, before the transaction', async () => {
+    const state = setup(builtin('aws-access-key'), {
+      definitionId: 'aws-access-key',
+      secret: { fields: { secretAccessKey: 'old-secret-access-key' } },
+      publicMetadata: { fields: { accessKeyId: 'key-id-1' } },
+      validationState: 'unknown',
+    });
+    state.credentials.listBindings.mockResolvedValue(bindings);
+    state.storageConsumers.verifyCandidate.mockResolvedValue(2);
+    const apply = jest.spyOn(
+      state.service as unknown as { apply: (...args: unknown[]) => Promise<unknown> },
+      'apply'
+    );
+
+    await state.service.run('credential-1', context, {
+      fields: { secretAccessKey: 'new-secret-access-key' },
+    });
+
+    expect(state.storageConsumers.verifyCandidate.mock.invocationCallOrder[0]).toBeLessThan(
+      apply.mock.invocationCallOrder[0]
+    );
+    expect(state.credentials.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        secret: { fields: { secretAccessKey: 'new-secret-access-key' } },
+        validationState: 'verified',
+        validationMessage: expect.any(String),
+        validatedAt: expect.any(Date),
+      })
+    );
+  });
+
+  it('saves unknown, not verified, when a concurrent edit changed the checked values', async () => {
+    const stored = {
+      definitionId: 'aws-access-key',
+      secret: { fields: { secretAccessKey: 'old-secret-access-key' } },
+      publicMetadata: { fields: { accessKeyId: 'key-id-1' } },
+      validationState: 'verified',
+    };
+    const state = setup(builtin('aws-access-key'), stored);
+    state.credentials.getByIdAndProjectId.mockResolvedValueOnce(stored).mockResolvedValueOnce({
+      ...stored,
+      publicMetadata: { fields: { accessKeyId: 'key-id-2' } },
+    });
+    state.credentials.listBindings.mockResolvedValue(bindings);
+    state.storageConsumers.verifyCandidate.mockResolvedValue(2);
+
+    await state.service.run('credential-1', context, {
+      fields: { secretAccessKey: 'new-secret-access-key' },
+    });
+
+    expect(state.credentials.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        secret: { fields: { secretAccessKey: 'new-secret-access-key' } },
+        publicMetadata: { fields: { accessKeyId: 'key-id-2' } },
+        validationState: 'unknown',
+        validationMessage: null,
+        validatedAt: null,
+      })
+    );
+  });
+
+  it('refuses a secret value for a field set', async () => {
+    const state = setup(snowflake, stored);
+
+    await expect(
+      state.service.run('credential-1', context, { secret: { value: 'new-password' } })
+    ).rejects.toThrow(BadRequestException);
+    expect(state.credentials.save).not.toHaveBeenCalled();
+  });
+
+  it('refuses a secret value that would overwrite OAuth tokens', async () => {
+    const state = setup(builtin('google-oauth'), {
+      secret: { oauth: { provider: 'google', clientId: 'client-1', tokens: {} } },
+    });
+
+    await expect(
+      state.service.run('credential-1', context, { secret: { value: 'token' } })
+    ).rejects.toThrow(BadRequestException);
+    expect(state.validationProbe.run).not.toHaveBeenCalled();
     expect(state.credentials.save).not.toHaveBeenCalled();
   });
 });

@@ -10,6 +10,7 @@ import { StorageCredentialType } from '../enums/storage-credential-type.enum';
 import type { CredentialIdentity } from '../entities/credential-identity.type';
 import type { StoredStorageCredentials } from '../entities/stored-storage-credentials.type';
 
+// Legacy: read only by LegacyStorageCredentialReader.
 @Entity('data_storage_credentials')
 export class DataStorageCredential {
   @PrimaryGeneratedColumn('uuid')

@@ -4,12 +4,12 @@ import {
   GoogleServiceAccountKeySchema,
   type GoogleServiceAccountKey,
 } from '../../../common/schemas/google-service-account-key.schema';
-import type { CredentialPublicMetadata } from '../credential.types';
+import type { GoogleServiceAccountPublicMetadata } from '../credential.types';
 
 /** Messages name the failing field, never its value: the value is a private key. */
 export function parseGoogleServiceAccountKey(value: string): {
   readonly key: GoogleServiceAccountKey;
-  readonly metadata: CredentialPublicMetadata;
+  readonly metadata: GoogleServiceAccountPublicMetadata;
 } {
   let raw: unknown;
   try {

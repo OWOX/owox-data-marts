@@ -10,20 +10,15 @@ export function mapDataStorageFromDto(dto: DataStorageResponseDto): DataStorage 
     availableForUse: dto.availableForUse,
     availableForMaintenance: dto.availableForMaintenance,
     contexts: dto.contexts ?? [],
+    ...(dto.reusableCredential !== undefined && { reusableCredential: dto.reusableCredential }),
   };
 }
 
-export function mapToUpdateDataStorageRequest(
-  formData: DataStorageFormData,
-  sourceStorageId?: string
-) {
+export function mapToUpdateDataStorageRequest(formData: DataStorageFormData) {
   const mapper = StorageMapperFactory.getMapper(formData.type);
-  const base = {
+  return {
     title: formData.title,
     ...mapper.mapToUpdateRequest(formData),
+    ...(formData.reusableCredentialId && { reusableCredentialId: formData.reusableCredentialId }),
   };
-  if (sourceStorageId) {
-    return { ...base, sourceStorageId };
-  }
-  return base;
 }

@@ -351,7 +351,7 @@ describe('InstallPluginDialog', () => {
 
   it('lists the scopes a Google Service Account requirement declares', () => {
     credentialState.definitions = [
-      definition({ id: 'google-service-account', displayName: 'Google Service Account' }),
+      definition({ id: 'google-service-account', displayName: 'BigQuery Service Account' }),
     ];
 
     render(

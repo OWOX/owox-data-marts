@@ -5,6 +5,7 @@ describe('isStorageOAuthRefreshError', () => {
   it('matches OAuth refresh error codes', () => {
     expect(isStorageOAuthRefreshError({ code: 'CREDENTIALS_EXPIRED' })).toBe(true);
     expect(isStorageOAuthRefreshError({ code: 'TOKEN_REFRESH_FAILED' })).toBe(true);
+    expect(isStorageOAuthRefreshError({ code: 'STORAGE_CREDENTIAL_UNAVAILABLE' })).toBe(true);
   });
 
   it('keeps legacy message fallback for older backend responses', () => {

@@ -83,6 +83,7 @@ import { GracefulShutdownService } from '../../../common/scheduler/services/grac
 import { SystemTimeService } from '../../../common/scheduler/services/system-time.service';
 import { ConnectorExecutionError } from '../../errors/connector-execution.error';
 import { CredentialsExpiredException } from '../../exceptions/google-oauth.exceptions';
+import { StorageCredentialUnavailableException } from '../../exceptions/storage-credential-unavailable.exception';
 import { OwoxEventDispatcher } from '../../../common/event-dispatcher/owox-event-dispatcher';
 import { ConnectorRunEvent } from '../../events/connector-run.event';
 import { ProjectBillingService, RunKind } from '../project-billing/project-billing.service';
@@ -108,6 +109,14 @@ import { createRunLogSnapshotReader, RunLogFlusher, RunLogSnapshot } from './run
  */
 function addBoundedMessage(array: ConnectorMessage[], message: ConnectorMessage): void {
   addMessageToArray(array, message, MAX_RUN_BUFFER_ENTRIES);
+}
+
+/** A storage key the customer must fix (reconnect, enable or replace); nothing for ops to act on. */
+function isCustomerCredentialError(error: unknown): boolean {
+  return (
+    error instanceof CredentialsExpiredException ||
+    error instanceof StorageCredentialUnavailableException
+  );
 }
 
 interface ConfigurationExecutionResult {
@@ -575,7 +584,7 @@ export class ConnectorExecutorService {
         runId,
         error: schemaError,
       };
-      if (error instanceof CredentialsExpiredException) {
+      if (isCustomerCredentialError(error)) {
         // Customer must reconnect their storage — not ops-actionable, don't page
         this.logger.warn(`Error schema actualization: ${schemaError}`, logMeta);
       } else {
@@ -968,7 +977,7 @@ export class ConnectorExecutorService {
         // Neither is ops-actionable, so it is a warning in run history as well as in
         // monitoring — deciding here keeps the persisted type and the log severity
         // from drifting apart.
-        const isWarning = signal?.aborted === true || error instanceof CredentialsExpiredException;
+        const isWarning = signal?.aborted === true || isCustomerCredentialError(error);
         const summary = `Configuration ${configIndex + 1} failed: ${errorMessage}`;
         const at = this.systemTimeService.now().toISOString();
         const logMeta = {

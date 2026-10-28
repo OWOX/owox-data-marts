@@ -5,6 +5,7 @@ jest.mock('typeorm-transactional', () => ({
 
 import { normalizeCredentialRequirement } from '../../data-marts/credentials/credential.types';
 import { CredentialConsumerBindingFacadeImpl } from '../../data-marts/credentials/facades/credential-consumer-binding.facade.impl';
+import { CredentialBindingService } from '../../data-marts/credentials/services/credential-binding.service';
 import type { AuthorizationContext } from '../../idp/types/auth.types';
 import { GetCurrentPluginActionExecutionService } from './get-current-plugin-action-execution.service';
 
@@ -49,7 +50,13 @@ function setup(credentialRequirements: string[], disabled: string[] = []) {
   const access = { canAccess: jest.fn().mockResolvedValue(true) };
   const facade = new CredentialConsumerBindingFacadeImpl(
     bindings as never,
-    credentials as never,
+    new CredentialBindingService(
+      bindings as never,
+      credentials as never,
+      {} as never,
+      access as never,
+      {} as never
+    ),
     definitions as never,
     access as never,
     {} as never

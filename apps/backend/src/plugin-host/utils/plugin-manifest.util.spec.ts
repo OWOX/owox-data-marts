@@ -83,7 +83,7 @@ describe('parsePluginManifest', () => {
 
   const DOCS = 'https://www.googleapis.com/auth/documents';
 
-  it('accepts a Google Service Account requirement with scopes', () => {
+  it('accepts a BigQuery Service Account requirement with scopes', () => {
     expect(
       parsePluginManifest(raw({ credentials: [{ id: 'google-service-account', scopes: [DOCS] }] }))
     ).toMatchObject({
@@ -145,6 +145,21 @@ describe('parsePluginManifest', () => {
       ok: false,
       code: ReleaseRejectionCode.MANIFEST_SCHEMA,
     });
+  });
+
+  it.each(['aws-access-key', 'google-oauth', 'snowflake-password', 'databricks-token'])(
+    'rejects the Storage-only built-in definition %s',
+    id => {
+      const result = parsePluginManifest(raw({ credentials: [id] }));
+      expect(result).toMatchObject({ ok: false, code: ReleaseRejectionCode.MANIFEST_SCHEMA });
+      expect(JSON.stringify(result)).toContain(id);
+    }
+  );
+
+  it("rejects { id: 'snowflake-key-pair' }", () => {
+    const result = parsePluginManifest(raw({ credentials: [{ id: 'snowflake-key-pair' }] }));
+    expect(result).toMatchObject({ ok: false, code: ReleaseRejectionCode.MANIFEST_SCHEMA });
+    expect(JSON.stringify(result)).toContain('snowflake-key-pair');
   });
 
   it('rejects an exact Credential requirement that is neither built-in nor a GitHub locator', () => {

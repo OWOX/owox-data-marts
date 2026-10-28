@@ -166,6 +166,7 @@
     "moduleFileExtensions": ["js", "json", "ts"],
     "rootDir": "src",
     "testRegex": ".*\\.spec\\.ts$",
+    "setupFiles": ["<rootDir>/../test/disable-platform-detection.setup.ts"],
     "transform": {
       "^.+\\.(t|j)s$": [
         "ts-jest",

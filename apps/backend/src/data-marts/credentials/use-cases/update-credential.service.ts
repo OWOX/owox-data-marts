@@ -1,9 +1,11 @@
 import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { isDeepStrictEqual } from 'node:util';
 import { Transactional } from 'typeorm-transactional';
 import { Repository } from 'typeorm';
 import type { AuthorizationContext } from '../../../idp';
 import { IdpProjectionsFacade } from '../../../idp/facades/idp-projections.facade';
+import { CredentialStorageConsumersService } from '../../data-storage-types/credential-storage-consumers.service';
 import { AccessDecisionService, Action, EntityType } from '../../services/access-decision';
 import { ContextAccessService } from '../../services/context/context-access.service';
 import { syncOwners } from '../../utils/sync-owners';
@@ -18,8 +20,10 @@ import { CredentialService } from '../services/credential.service';
 import { parseGoogleServiceAccountKey } from '../services/google-service-account-key';
 import { CredentialViewService } from '../services/credential-view.service';
 import { CredentialValidationProbeService } from '../services/credential-validation-probe.service';
+import type { Credential } from '../entities/credential.entity';
 import type { CredentialPublicMetadata, CredentialValidationResult } from '../credential.types';
-import { normalizeAiConfiguration } from './create-credential.service';
+import { applyFieldsUpdate } from '../services/credential-fields';
+import { assertCredentialInputKind, normalizeAiConfiguration } from './create-credential.service';
 
 @Injectable()
 export class UpdateCredentialService {
@@ -32,7 +36,8 @@ export class UpdateCredentialService {
     private readonly validationProbe: CredentialValidationProbeService,
     private readonly idpProjections: IdpProjectionsFacade,
     @InjectRepository(CredentialOwner)
-    private readonly owners: Repository<CredentialOwner>
+    private readonly owners: Repository<CredentialOwner>,
+    private readonly storageConsumers: CredentialStorageConsumersService
   ) {}
 
   async run(
@@ -53,19 +58,20 @@ export class UpdateCredentialService {
 
     const credential = await this.credentials.getByIdAndProjectId(id, context.projectId);
     const changesRuntimeContract =
-      input.secret !== undefined ||
+      input.secret != null ||
+      input.fields != null ||
       input.aiModelMappings !== undefined ||
       input.aiModelMappingModes !== undefined;
     const definition = changesRuntimeContract
       ? await this.definitions.getForCredential(credential)
       : await this.definitions.getForView(credential);
+    assertCredentialInputKind(definition.contract.auth, input);
     let validation: CredentialValidationResult | undefined;
     let publicMetadata = credential.publicMetadata;
-    if (input.secret !== undefined) {
+    if (input.secret != null) {
       if (definition.contract.auth.type === 'google-service-account') {
         publicMetadata = parseGoogleServiceAccountKey(input.secret.value).metadata;
-        const savedEmail =
-          credential.publicMetadata?.clientEmail ?? storedClientEmail(credential.secret.value);
+        const savedEmail = savedClientEmail(credential);
         if (savedEmail && publicMetadata.clientEmail.toLowerCase() !== savedEmail.toLowerCase()) {
           throw new BadRequestException(
             `The replacement key must belong to ${savedEmail}. Create another Credential for a different service account.`
@@ -78,7 +84,45 @@ export class UpdateCredentialService {
         throw new BadRequestException(validation.message);
       }
     }
-    return this.apply(id, context, input, definition, validation, publicMetadata);
+    const { auth } = definition.contract;
+    let checkedFields: CheckedFields | undefined;
+    if (input.fields != null && auth.type === 'fields') {
+      const next = applyFieldsUpdate(auth, credential, input.fields);
+      if (next.secretChanged) {
+        checkedFields = { secret: next.secret, publicMetadata: next.publicMetadata };
+        validation = await this.checkBoundStorages(credential, context, checkedFields);
+      }
+    }
+    return this.apply(id, context, input, definition, validation, publicMetadata, checkedFields);
+  }
+
+  /** New field values must work wherever the current ones do; none bound leaves no result. */
+  private async checkBoundStorages(
+    credential: Credential,
+    context: AuthorizationContext,
+    next: CheckedFields
+  ): Promise<CredentialValidationResult | undefined> {
+    // Outside the transaction, one Storage at a time: each check is a remote call.
+    const checked = await this.storageConsumers.verifyCandidate(
+      context,
+      await this.credentials.listBindings(credential.id),
+      {
+        definitionId: credential.definitionId,
+        secret: next.secret,
+        publicMetadata: next.publicMetadata,
+      },
+      {
+        definitionId: credential.definitionId,
+        secret: credential.secret,
+        publicMetadata: credential.publicMetadata,
+      }
+    );
+    if (checked === 0) return undefined;
+    return {
+      state: 'verified',
+      message: 'The Storages that use this Credential accepted the new values',
+      validatedAt: new Date(),
+    };
   }
 
   @Transactional()
@@ -88,17 +132,33 @@ export class UpdateCredentialService {
     input: UpdateCredentialApiDto,
     definition: ResolvedCredentialDefinition,
     validation: CredentialValidationResult | undefined,
-    publicMetadata: CredentialPublicMetadata | null
+    publicMetadata: CredentialPublicMetadata | null,
+    checkedFields: CheckedFields | undefined
   ): Promise<CredentialDto> {
     // Fresh read: the provider check took seconds and another request may have saved meanwhile.
     const credential = await this.credentials.getByIdAndProjectId(id, context.projectId);
     if (input.title !== undefined) credential.title = input.title.trim();
-    if (input.secret !== undefined && validation) {
+    if (input.secret != null && validation) {
       credential.secret = { value: input.secret.value };
       credential.publicMetadata = publicMetadata;
       credential.validationState = validation.state;
       credential.validationMessage = validation.message;
       credential.validatedAt = validation.validatedAt;
+    }
+    const { auth } = definition.contract;
+    if (input.fields != null && auth.type === 'fields') {
+      // Merged into the fresh read so a concurrent change to another field survives.
+      const next = applyFieldsUpdate(auth, credential, input.fields);
+      credential.secret = next.secret;
+      credential.publicMetadata = next.publicMetadata;
+      if (next.secretChanged) {
+        // A concurrent edit changed what the Storages checked, so the saved values are unchecked.
+        const merged = { secret: next.secret, publicMetadata: next.publicMetadata };
+        const result = isDeepStrictEqual(merged, checkedFields) ? validation : undefined;
+        credential.validationState = result?.state ?? 'unknown';
+        credential.validationMessage = result?.message ?? null;
+        credential.validatedAt = result?.validatedAt ?? null;
+      }
     }
     if (input.enabled !== undefined) credential.enabled = input.enabled;
     if (input.availableForUse !== undefined) credential.availableForUse = input.availableForUse;
@@ -146,6 +206,7 @@ export class UpdateCredentialService {
 
     return this.view.build(
       await this.credentials.getByIdAndProjectId(id, context.projectId),
+      context,
       validation
     );
   }
@@ -170,10 +231,15 @@ export class UpdateCredentialService {
   }
 }
 
+type CheckedFields = Pick<Credential, 'secret' | 'publicMetadata'>;
+
 /** Rows saved without public metadata still carry the key, which names its account. */
-function storedClientEmail(secretValue: string): string | undefined {
+function savedClientEmail(credential: Credential): string | undefined {
+  const { publicMetadata, secret } = credential;
+  if (publicMetadata && 'clientEmail' in publicMetadata) return publicMetadata.clientEmail;
+  if (!('value' in secret)) return undefined;
   try {
-    return parseGoogleServiceAccountKey(secretValue).metadata.clientEmail;
+    return parseGoogleServiceAccountKey(secret.value).metadata.clientEmail;
   } catch {
     return undefined;
   }

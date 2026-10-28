@@ -7,16 +7,18 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Transactional } from 'typeorm-transactional';
 import { In, Repository } from 'typeorm';
-import { createHash } from 'node:crypto';
 import { AccessDecisionService, Action, EntityType } from '../../services/access-decision';
 import {
   isCredentialAiModelInCatalog,
   normalizeCredentialRequirement,
   resolveCredentialAiModelMappings,
+  type CredentialRequirementSnapshot,
   type NormalizedCredentialRequirement,
 } from '../credential.types';
 import { CredentialConsumerBinding } from '../entities/credential-consumer-binding.entity';
 import { Credential } from '../entities/credential.entity';
+import { boundValues, CredentialBindingService } from '../services/credential-binding.service';
+import { requirementRevision } from '../services/credential-requirement-revision';
 import { CredentialDefinitionService } from '../services/credential-definition.service';
 import { CredentialService } from '../services/credential.service';
 import {
@@ -34,8 +36,7 @@ export class CredentialConsumerBindingFacadeImpl implements CredentialConsumerBi
   constructor(
     @InjectRepository(CredentialConsumerBinding)
     private readonly bindings: Repository<CredentialConsumerBinding>,
-    @InjectRepository(Credential)
-    private readonly credentials: Repository<Credential>,
+    private readonly binder: CredentialBindingService,
     private readonly definitions: CredentialDefinitionService,
     private readonly access: AccessDecisionService,
     private readonly credentialService: CredentialService
@@ -130,43 +131,31 @@ export class CredentialConsumerBindingFacadeImpl implements CredentialConsumerBi
           requirementKey: requirement.key,
         });
       if (binding.credentialId !== credential.id) binding.lastUsedAt = null;
-      binding.credentialId = credential.id;
-      binding.requirementSnapshot = requirement;
-      binding.requirementRevision = requirementRevision(requirement);
-      binding.configuredById = request.userId;
-      binding.active = true;
+      Object.assign(binding, boundValues(credential.id, requirement, request.userId));
       byKey.set(requirement.key, binding);
     }
     await this.bindings.save([...byKey.values()]);
   }
 
-  async deactivateConsumer(
-    consumerType: 'plugin-installation',
-    consumerId: string,
-    projectId: string
-  ): Promise<void> {
-    await this.bindings.update({ consumerType, consumerId, projectId }, { active: false });
+  async deactivateConsumer(consumerType: 'plugin-installation', consumerId: string): Promise<void> {
+    await this.binder.deactivate({ consumerType, consumerId });
   }
 
   async resolveBinding(
     request: ResolveCredentialBindingRequest
   ): Promise<ResolvedCredentialBinding> {
     const requirement = normalizeCredentialRequirement(request.requirement);
-    const binding = await this.bindings.findOneBy({
+    const bound = await this.binder.resolve({
       consumerType: request.consumerType,
       consumerId: request.consumerId,
-      projectId: request.projectId,
       requirementKey: requirement.key,
-      active: true,
+      projectId: request.projectId,
     });
-    if (!binding || !sameRequirement(binding.requirementSnapshot, requirement)) {
+    if (!bound || !sameRequirement(bound.binding.requirementSnapshot, requirement)) {
       throw new NotFoundException(`Credential ${requirement.key} is not configured`);
     }
 
-    const credential = await this.credentials.findOneBy({
-      id: binding.credentialId,
-      projectId: request.projectId,
-    });
+    const { credential } = bound;
     if (!credential || !credential.enabled) {
       throw new ForbiddenException('The selected Credential is disabled or unavailable');
     }
@@ -263,7 +252,7 @@ export class CredentialConsumerBindingFacadeImpl implements CredentialConsumerBi
   }
 
   markUsed(request: MarkCredentialUsedRequest): Promise<void> {
-    return this.credentialService.markLastUsed(request);
+    return this.binder.markUsed(request);
   }
 
   private async assertRequirementMatches(
@@ -314,9 +303,10 @@ function assertUniqueRequirementKeys(requirements: readonly NormalizedCredential
 }
 
 function sameRequirement(
-  left: NormalizedCredentialRequirement,
+  left: CredentialRequirementSnapshot,
   right: NormalizedCredentialRequirement
 ): boolean {
+  if (!('key' in left)) return false;
   // Snapshots saved before scopes existed have no scopes key.
   const leftScopes = left.scopes ?? [];
   const rightScopes = right.scopes ?? [];
@@ -329,19 +319,4 @@ function sameRequirement(
     leftScopes.length === rightScopes.length &&
     leftScopes.every((scope, index) => scope === rightScopes[index])
   );
-}
-
-function requirementRevision(requirement: NormalizedCredentialRequirement): string {
-  return createHash('sha256')
-    .update(
-      JSON.stringify({
-        key: requirement.key,
-        definitionId: requirement.definitionId,
-        optional: requirement.optional,
-        models: requirement.models,
-        // Added only when present, so every revision saved before scopes existed stays the same.
-        ...(requirement.scopes?.length ? { scopes: requirement.scopes } : {}),
-      })
-    )
-    .digest('hex');
 }

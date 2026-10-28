@@ -1,20 +1,14 @@
 import type { StorageMapper } from './storage-mapper.interface.ts';
-import type {
-  DataStorageResponseDto,
-  RedshiftConfigDto,
-  RedshiftCredentialsDto,
-} from '../../api/types';
+import type { DataStorageResponseDto, RedshiftConfigDto } from '../../api/types';
 import type { RedshiftDataStorage } from '../types/data-storage.ts';
-import type { RedshiftCredentials } from '../types/credentials';
 import { DataStorageType } from '../types/data-storage-type.enum';
-import { RedshiftConnectionType } from '../types/credentials';
+import { RedshiftConnectionType } from '../types/data-storage-config';
 import type { DataStorageFormData } from '../../types/data-storage.schema.ts';
 import type { RedshiftDataStorageConfig } from '../types/data-storage-config.ts';
 
 export class RedshiftMapper implements StorageMapper {
   mapFromDto(dto: DataStorageResponseDto): RedshiftDataStorage {
     const config = dto.config as RedshiftConfigDto | null;
-    const credentials = dto.credentials as RedshiftCredentialsDto | null;
 
     let inferredConnectionType = RedshiftConnectionType.SERVERLESS;
     if (config?.clusterIdentifier) {
@@ -32,15 +26,6 @@ export class RedshiftMapper implements StorageMapper {
       modifiedAt: new Date(dto.modifiedAt),
       createdByUser: dto.createdByUser,
       ownerUsers: dto.ownerUsers ?? [],
-      credentials: credentials
-        ? {
-            accessKeyId: credentials.accessKeyId ?? '',
-            secretAccessKey: credentials.secretAccessKey ?? '',
-          }
-        : {
-            accessKeyId: '',
-            secretAccessKey: '',
-          },
       config: config
         ? connectionType === RedshiftConnectionType.SERVERLESS
           ? {
@@ -67,10 +52,7 @@ export class RedshiftMapper implements StorageMapper {
   mapToUpdateRequest(formData: Partial<DataStorageFormData>) {
     const config = formData.config as RedshiftDataStorageConfig;
 
-    const result: {
-      credentials?: RedshiftCredentialsDto;
-      config: RedshiftConfigDto;
-    } = {
+    return {
       config: {
         connectionType: config.connectionType,
         region: config.region,
@@ -80,14 +62,5 @@ export class RedshiftMapper implements StorageMapper {
           : { clusterIdentifier: config.clusterIdentifier }),
       },
     };
-
-    if (formData.credentials) {
-      result.credentials = {
-        accessKeyId: (formData.credentials as RedshiftCredentials).accessKeyId,
-        secretAccessKey: (formData.credentials as RedshiftCredentials).secretAccessKey,
-      };
-    }
-
-    return result;
   }
 }

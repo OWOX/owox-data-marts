@@ -31,6 +31,8 @@ export interface CredentialConfigSheetProps {
   onRequestAddGithubDefinition?: (repository: string) => Promise<CredentialDefinition>;
   canManageAccess?: boolean;
   canAddGithubDefinition?: boolean;
+  /** Starts both sharing switches off for a new Credential. */
+  defaultSharing?: 'not-shared';
 }
 
 export function CredentialConfigSheet({
@@ -46,6 +48,7 @@ export function CredentialConfigSheet({
   onRequestAddGithubDefinition,
   canManageAccess,
   canAddGithubDefinition = false,
+  defaultSharing,
 }: CredentialConfigSheetProps) {
   const actions = useCredentialActions();
   const {
@@ -57,21 +60,26 @@ export function CredentialConfigSheet({
     handleFormSubmitSuccess,
   } = useUnsavedGuard(onClose);
 
+  const finishSave = (saved: Credential, wasEdit: boolean) => {
+    if (wasEdit) {
+      toast.success('Credential updated');
+    } else {
+      reportSavedValidation(saved, 'Credential created');
+    }
+
+    // Before closing, so a caller can tell a finished create from one whose Sheet was closed.
+    if (!wasEdit) onCreated?.(saved);
+    handleFormSubmitSuccess();
+    onSaveSuccess?.(saved);
+  };
+
   const save = async (input: CreateCredentialRequest | UpdateCredentialRequest) => {
     try {
       const saved = credential
         ? await actions.update({ id: credential.id, input: input as UpdateCredentialRequest })
         : await actions.create(input as CreateCredentialRequest);
 
-      if (credential) {
-        toast.success('Credential updated');
-      } else {
-        reportSavedValidation(saved, 'Credential created');
-      }
-
-      handleFormSubmitSuccess();
-      if (!credential) onCreated?.(saved);
-      onSaveSuccess?.(saved);
+      finishSave(saved, Boolean(credential));
     } catch (caught) {
       const apiError = extractApiError(caught) as { message?: string } | undefined;
       toast.error(apiError?.message ?? 'Could not save the Credential');
@@ -106,6 +114,10 @@ export function CredentialConfigSheet({
           onDirtyChange={handleFormDirtyChange}
           onRequestReplaceSecret={onRequestReplaceSecret}
           canManageAccess={canManageAccess}
+          defaultSharing={defaultSharing}
+          onOAuthConnected={saved => {
+            finishSave(saved, Boolean(credential));
+          }}
           onRequestAddGithubDefinition={
             onRequestAddGithubDefinition ??
             (allowedDefinitionIds === undefined && canAddGithubDefinition

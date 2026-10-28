@@ -205,6 +205,9 @@ export function DataMartCreateForm({ initialData, onSuccess }: DataMartFormProps
                               <DataStorageHealthIndicator
                                 storageId={option.value}
                                 storageTitle={option.label}
+                                credential={
+                                  dataStorages.find(s => s.id === option.value)?.reusableCredential
+                                }
                                 hovercardSide='left'
                                 variant='compact'
                               />
