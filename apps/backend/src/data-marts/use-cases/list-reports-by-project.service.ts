@@ -10,6 +10,7 @@ import { RoleScope } from '../enums/role-scope.enum';
 import { ContextAccessService } from '../services/context/context-access.service';
 import { UserProjectionsFetcherService } from '../services/user-projections-fetcher.service';
 import { ReportAccessService } from '../services/report-access.service';
+import { DataDestinationCredentialsResolver } from '../data-destination-types/data-destination-credentials-resolver.service';
 import { resolveOwnerUsers } from '../utils/resolve-owner-users';
 import { applyDataMartVisibilityFilter } from '../utils/apply-data-mart-visibility-filter';
 
@@ -21,7 +22,8 @@ export class ListReportsByProjectService {
     private readonly mapper: ReportMapper,
     private readonly userProjectionsFetcherService: UserProjectionsFetcherService,
     private readonly contextAccessService: ContextAccessService,
-    private readonly reportAccessService: ReportAccessService
+    private readonly reportAccessService: ReportAccessService,
+    private readonly credentialsResolver: DataDestinationCredentialsResolver
   ) {}
 
   async run(command: ListReportsByProjectCommand): Promise<ReportDto[]> {
@@ -74,6 +76,7 @@ export class ListReportsByProjectService {
       .leftJoinAndSelect('r.dataMart', 'dataMart')
       .leftJoinAndSelect('dataMart.storage', 'storage')
       .leftJoinAndSelect('r.dataDestination', 'dataDestination')
+      .leftJoinAndSelect('dataDestination.credential', 'dataDestinationCredential')
       .leftJoinAndSelect('r.owners', 'owners')
       .where('r.id IN (:...reportIds)', { reportIds })
       .getMany();
@@ -89,6 +92,12 @@ export class ListReportsByProjectService {
     ]);
     const userProjectionsList =
       await this.userProjectionsFetcherService.fetchUserProjectionsList(allUserIds);
+    const destinationSummaries = await this.credentialsResolver.summarize(
+      command.projectId,
+      command.userId,
+      command.roles,
+      orderedReports.map(report => report.dataDestination)
+    );
 
     const reportsWithCaps = await Promise.all(
       orderedReports.map(async report => {
@@ -105,7 +114,8 @@ export class ListReportsByProjectService {
             ? (userProjectionsList?.getByUserId(report.createdById) ?? null)
             : null,
           userProjectionsList ? resolveOwnerUsers(report.ownerIds, userProjectionsList) : [],
-          capabilities
+          capabilities,
+          destinationSummaries
         );
       })
     );

@@ -130,6 +130,7 @@ describe('UpdateReportService', () => {
       reportDataCacheService as never,
       outputControlsValidator as never,
       accessDecisionService as never,
+      { summarize: jest.fn().mockResolvedValue(new Map()) } as never,
       advancedSearchIndexSync as never
     );
 

@@ -8,6 +8,7 @@ import { ReportDto } from '../dto/domain/report.dto';
 import { UserProjectionsFetcherService } from '../services/user-projections-fetcher.service';
 import { AccessDecisionService, EntityType, Action } from '../services/access-decision';
 import { ReportAccessService } from '../services/report-access.service';
+import { DataDestinationCredentialsResolver } from '../data-destination-types/data-destination-credentials-resolver.service';
 import { resolveOwnerUsers } from '../utils/resolve-owner-users';
 
 @Injectable()
@@ -18,7 +19,8 @@ export class ListReportsByDataMartService {
     private readonly mapper: ReportMapper,
     private readonly userProjectionsFetcherService: UserProjectionsFetcherService,
     private readonly accessDecisionService: AccessDecisionService,
-    private readonly reportAccessService: ReportAccessService
+    private readonly reportAccessService: ReportAccessService,
+    private readonly credentialsResolver: DataDestinationCredentialsResolver
   ) {}
 
   async run(command: ListReportsByDataMartCommand): Promise<ReportDto[]> {
@@ -51,6 +53,12 @@ export class ListReportsByDataMartService {
     ]);
     const userProjectionsList =
       await this.userProjectionsFetcherService.fetchUserProjectionsList(allUserIds);
+    const destinationSummaries = await this.credentialsResolver.summarize(
+      command.projectId,
+      command.userId,
+      command.roles,
+      reports.map(report => report.dataDestination)
+    );
 
     const reportsWithCaps = await Promise.all(
       reports.map(async report => {
@@ -67,7 +75,8 @@ export class ListReportsByDataMartService {
             ? (userProjectionsList?.getByUserId(report.createdById) ?? null)
             : null,
           userProjectionsList ? resolveOwnerUsers(report.ownerIds, userProjectionsList) : [],
-          capabilities
+          capabilities,
+          destinationSummaries
         );
       })
     );

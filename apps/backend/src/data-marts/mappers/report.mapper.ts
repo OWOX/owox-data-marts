@@ -22,6 +22,7 @@ import { ReportOutputSchemaFieldApiDto } from '../dto/presentation/report-output
 import { AuthorizationContext } from '../../idp';
 import { DataMartMapper } from './data-mart.mapper';
 import { DataDestinationMapper } from './data-destination.mapper';
+import type { DestinationCredentialSummary } from '../data-destination-types/destination-credential-state';
 import { RunType } from '../../common/scheduler/shared/types';
 import { UserProjectionDto } from '../../idp/dto/domain/user-projection.dto';
 import { OwnerFilter } from '../enums/owner-filter.enum';
@@ -85,13 +86,19 @@ export class ReportMapper {
       canRun: false,
       canManageTriggers: false,
       canEditConfig: false,
-    }
+    },
+    destinationSummaries?: ReadonlyMap<string, DestinationCredentialSummary>
   ): ReportDto {
     return new ReportDto(
       entity.id,
       entity.title,
       this.dataMartMapper.toDomainDto(entity.dataMart),
-      this.dataDestinationMapper.toDomainDto(entity.dataDestination),
+      this.dataDestinationMapper.toDomainDto(
+        entity.dataDestination,
+        null,
+        [],
+        destinationSummaries
+      ),
       entity.destinationConfig,
       entity.createdAt,
       entity.modifiedAt,

@@ -128,6 +128,7 @@ describe('CreateReportService', () => {
       outputControlsValidator as never,
       reportAccessService as never,
       lookerStudioReportService as never,
+      { summarize: jest.fn().mockResolvedValue(new Map()) } as never,
       advancedSearchIndexSync as never
     );
 

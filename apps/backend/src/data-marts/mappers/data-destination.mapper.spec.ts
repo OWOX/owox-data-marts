@@ -1,15 +1,8 @@
 import { BadRequestException } from '@nestjs/common';
 import { DataDestinationMapper } from './data-destination.mapper';
 import { DataDestinationType } from '../data-destination-types/enums/data-destination-type.enum';
-import { DataDestinationCredentialsResolver } from '../data-destination-types/data-destination-credentials-resolver.service';
 import { DataDestinationDto } from '../dto/domain/data-destination.dto';
 import { DestinationCredentialType } from '../enums/destination-credential-type.enum';
-
-/** The resolver over a binding that knows the public metadata of the given bound Destinations. */
-const resolverWith = (bound: Map<string, unknown> = new Map()) =>
-  new DataDestinationCredentialsResolver({
-    publicOfDestinations: jest.fn().mockResolvedValue(bound),
-  } as never) as never;
 
 /**
  * `normalizeDestinationConfig` is exercised through the public `toCreateCommand`.
@@ -17,12 +10,7 @@ const resolverWith = (bound: Map<string, unknown> = new Map()) =>
  * mapper can be constructed with stub dependencies.
  */
 describe('DataDestinationMapper - destination config normalization', () => {
-  const mapper = new DataDestinationMapper(
-    null as never,
-    null as never,
-    null as never,
-    null as never
-  );
+  const mapper = new DataDestinationMapper(null as never, null as never, null as never);
   const context = { projectId: 'proj-1', userId: 'user-1', roles: [] } as never;
   const dtoWithConfig = (config: unknown) =>
     ({ title: 'Dest', type: DataDestinationType.GOOGLE_SHEETS, config }) as never;
@@ -59,12 +47,7 @@ describe('DataDestinationMapper - destination config normalization', () => {
 });
 
 describe('DataDestinationMapper - MCP connect Google Sheets flow', () => {
-  const mapper = new DataDestinationMapper(
-    null as never,
-    null as never,
-    null as never,
-    null as never
-  );
+  const mapper = new DataDestinationMapper(null as never, null as never, null as never);
   const context = {
     projectId: 'proj-1',
     userId: 'user-1',
@@ -129,8 +112,7 @@ describe('DataDestinationMapper - credentials withheld from a plugin runtime', (
     return new DataDestinationMapper(
       { getLookerStudioDeploymentUrl: () => 'https://owox.example/looker' } as never,
       { getById: async () => LOOKER_CREDENTIAL } as never,
-      cls as never,
-      resolverWith()
+      cls as never
     );
   };
 
@@ -166,8 +148,7 @@ describe('DataDestinationMapper - credentials withheld from a plugin runtime', (
     const mapper = new DataDestinationMapper(
       { getLookerStudioDeploymentUrl: () => 'https://owox.example/looker' } as never,
       { getById: async () => LOOKER_CREDENTIAL } as never,
-      { isActive: () => false, get: () => undefined } as never,
-      resolverWith()
+      { isActive: () => false, get: () => undefined } as never
     );
 
     await expect(mapper.toApiResponse(destination)).resolves.toMatchObject({
@@ -187,12 +168,11 @@ describe('DataDestinationMapper - a Google Chat Destination inside a report', ()
       new Date('2026-07-17T12:00:00Z'),
       credentialId
     );
-  const mapperWith = (row: unknown, authFlow?: string, bound = new Map()) =>
+  const mapperWith = (row: unknown, authFlow?: string) =>
     new DataDestinationMapper(
       null as never,
       { getById: jest.fn().mockResolvedValue(row) } as never,
-      { isActive: () => true, get: () => ({ authFlow }) } as never,
-      resolverWith(bound)
+      { isActive: () => true, get: () => ({ authFlow }) } as never
     );
 
   it('returns only that a webhook is configured, and no id, for an old webhook row', async () => {
@@ -234,12 +214,7 @@ describe('DataDestinationMapper.toByTypeCommand', () => {
     ['a plugin', 'plugin', true],
   ])('carries the member and whether %s calls', (_who, authFlow, isPluginCall) => {
     const cls = { isActive: () => true, get: () => ({ authFlow }) };
-    const mapper = new DataDestinationMapper(
-      null as never,
-      null as never,
-      cls as never,
-      null as never
-    );
+    const mapper = new DataDestinationMapper(null as never, null as never, cls as never);
 
     expect(mapper.toByTypeCommand(context, DataDestinationType.GOOGLE_SHEETS)).toEqual({
       projectId: 'proj-1',
@@ -260,8 +235,7 @@ describe('DataDestinationMapper - commands carry the Credential fields', () => {
       {
         isActive: () => true,
         get: () => ({ authFlow }),
-      } as never,
-      null as never
+      } as never
     );
 
   it('flags the fields an older page sends and a plugin call on create', () => {
@@ -308,12 +282,11 @@ describe('DataDestinationMapper - the Credential a Destination selects', () => {
     credentials: { type: 'email-credentials', to: ['space@example.com'] },
   };
 
-  const mapperFor = (authFlow?: string, row: unknown = emailRow, bound = new Map()) =>
+  const mapperFor = (authFlow?: string, row: unknown = emailRow) =>
     new DataDestinationMapper(
       null as never,
       { getById: jest.fn().mockResolvedValue(row) } as never,
-      { isActive: () => true, get: () => ({ authFlow }) } as never,
-      resolverWith(bound)
+      { isActive: () => true, get: () => ({ authFlow }) } as never
     );
 
   const entity = (
@@ -337,10 +310,9 @@ describe('DataDestinationMapper - the Credential a Destination selects', () => {
     type: DataDestinationType,
     credentialId: string | null,
     summaries?: Map<string, unknown>,
-    authFlow?: string,
-    bound = new Map()
+    authFlow?: string
   ) {
-    const mapper = mapperFor(authFlow, emailRow, bound);
+    const mapper = mapperFor(authFlow, emailRow);
     return mapper.toApiResponse(
       mapper.toDomainDto(entity(type, credentialId), null, [], summaries as never)
     );
@@ -428,12 +400,6 @@ describe('DataDestinationMapper - the Credential a Destination selects', () => {
     expect(pending.reusableCredential).toMatchObject({ definitionId: 'google-sheets-oauth' });
   });
 
-  it('returns {} for a Sheets Destination whose bound Credential is gone', async () => {
-    const response = await respond(DataDestinationType.GOOGLE_SHEETS, null, new Map());
-
-    expect(response.credentials).toEqual({});
-  });
-
   it('names only the address to share a sheet with for a restricted Credential', async () => {
     const response = await respond(
       DataDestinationType.GOOGLE_SHEETS,
@@ -473,10 +439,12 @@ describe('DataDestinationMapper - the Credential a Destination selects', () => {
     });
   });
 
-  it('returns null for a Google Sheets Destination with neither a Credential nor a key', async () => {
-    const response = await respond(DataDestinationType.GOOGLE_SHEETS, null, new Map());
+  it('returns null and {} for a Google Sheets Destination without a summary: its Credential is gone, or it has neither', async () => {
+    const response = await respond(DataDestinationType.GOOGLE_SHEETS, 'row-old', new Map());
 
     expect(response.reusableCredential).toBeNull();
+    expect(response.credentials).toEqual({});
+    expect(response).not.toHaveProperty('credentialId');
   });
 
   it('returns a Google Chat webhook Credential with only that it is configured', async () => {
@@ -545,52 +513,29 @@ describe('DataDestinationMapper - the Credential a Destination selects', () => {
     expect(response).not.toHaveProperty('reusableCredential');
   });
 
-  it('reads the public credentials of a bound Sheets Destination inside a report', async () => {
-    const response = await respond(
-      DataDestinationType.GOOGLE_SHEETS,
-      'row-old',
-      undefined,
-      undefined,
-      new Map([
-        [
-          'dest-1',
-          {
-            definitionId: 'google-service-account',
-            publicMetadata: { clientEmail: visible.identity, projectId: 'acme', privateKeyId: 'k' },
-          },
-        ],
-      ])
+  it('reads neither a Credential nor an old row for a Destination its caller summarized', async () => {
+    const getById = jest.fn();
+    const mapper = new DataDestinationMapper(
+      null as never,
+      { getById } as never,
+      { isActive: () => true, get: () => ({}) } as never
+    );
+    const summaries = new Map([['dest-1', { ...visible, credentials: serviceAccount }]]);
+
+    const sheets = await mapper.toApiResponse(
+      mapper.toDomainDto(
+        entity(DataDestinationType.GOOGLE_SHEETS, 'row-old'),
+        null,
+        [],
+        summaries as never
+      )
+    );
+    await mapper.toApiResponse(
+      mapper.toDomainDto(entity(DataDestinationType.GOOGLE_CHAT), null, [], new Map())
     );
 
-    expect(response.credentials).toEqual(serviceAccount);
-    expect(response).not.toHaveProperty('reusableCredential');
-  });
-
-  it('falls back to the old row for an unbound Sheets Destination inside a report', async () => {
-    const row = {
-      type: DestinationCredentialType.GOOGLE_SERVICE_ACCOUNT,
-      credentials: {
-        type: 'google-sheets-credentials',
-        serviceAccountKey: {
-          type: 'service_account',
-          project_id: 'acme',
-          client_email: visible.identity,
-          client_id: '42',
-          private_key: 'never',
-        },
-      },
-    };
-    const mapper = mapperFor(undefined, row);
-
-    const response = await mapper.toApiResponse(
-      mapper.toDomainDto(entity(DataDestinationType.GOOGLE_SHEETS, 'row-old'))
-    );
-
-    expect(response.credentials).toEqual({
-      ...serviceAccount,
-      serviceAccountKey: { ...serviceAccount.serviceAccountKey, client_id: '42' },
-    });
-    expect(JSON.stringify(response)).not.toContain('never');
+    expect(sheets.credentials).toEqual(serviceAccount);
+    expect(getById).not.toHaveBeenCalled();
   });
 
   it('adds no Credential to other types', async () => {

@@ -27,6 +27,7 @@ import { selectedAutoAggregationOptOut } from '../dto/schemas/auto-aggregation-o
 import { AdvancedSearchIndexSyncService } from '../services/advanced-search-index-sync.service';
 import { SearchableEntityType } from '../../common/search/search.facade';
 import { LookerStudioReportService } from '../services/looker-studio-report.service';
+import { DataDestinationCredentialsResolver } from '../data-destination-types/data-destination-credentials-resolver.service';
 
 @Injectable()
 export class CreateReportService {
@@ -46,6 +47,7 @@ export class CreateReportService {
     private readonly outputControlsValidator: OutputControlsValidatorService,
     private readonly reportAccessService: ReportAccessService,
     private readonly lookerStudioReportService: LookerStudioReportService,
+    private readonly credentialsResolver: DataDestinationCredentialsResolver,
     private readonly advancedSearchIndexSync?: AdvancedSearchIndexSyncService
   ) {}
 
@@ -192,12 +194,19 @@ export class CreateReportService {
       newReport,
       command.projectId
     );
+    const destinationSummaries = await this.credentialsResolver.summarize(
+      command.projectId,
+      command.userId,
+      command.roles,
+      [dataDestination]
+    );
 
     return this.mapper.toDomainDto(
       newReport,
       createdByUser,
       resolveOwnerUsers(newReport.ownerIds, userProjections),
-      capabilities
+      capabilities,
+      destinationSummaries
     );
   }
 }

@@ -16,6 +16,7 @@ import { ReportService } from '../services/report.service';
 import { ScheduledTriggerService } from '../services/scheduled-trigger.service';
 import { UserProjectionsFetcherService } from '../services/user-projections-fetcher.service';
 import { AccessDecisionService, Action } from '../services/access-decision';
+import { DataDestinationCredentialsResolver } from '../data-destination-types/data-destination-credentials-resolver.service';
 
 const ScheduledConnectorRunConfigType = 'scheduled-connector-run-config';
 
@@ -30,7 +31,8 @@ export class ListProjectScheduledTriggersService {
     private readonly reportMapper: ReportMapper,
     private readonly connectorSecretService: ConnectorSecretService,
     private readonly reportAccessService: ReportAccessService,
-    private readonly accessDecisionService: AccessDecisionService
+    private readonly accessDecisionService: AccessDecisionService,
+    private readonly credentialsResolver: DataDestinationCredentialsResolver
   ) {}
 
   async run(command: ListProjectScheduledTriggersCommand): Promise<ProjectScheduledTriggerDto[]> {
@@ -52,7 +54,7 @@ export class ListProjectScheduledTriggersService {
     const userProjections =
       await this.userProjectionsFetcherService.fetchRelevantUserProjections(triggers);
 
-    const triggersWithRunTargets = await this.enrichRunTargets(triggers, command.projectId);
+    const triggersWithRunTargets = await this.enrichRunTargets(triggers, command);
 
     return Promise.all(
       triggersWithRunTargets.map(async trigger => {
@@ -113,7 +115,7 @@ export class ListProjectScheduledTriggersService {
 
   private async enrichRunTargets(
     triggers: DataMartScheduledTrigger[],
-    projectId: string
+    { projectId, userId, roles }: ListProjectScheduledTriggersCommand
   ): Promise<DataMartScheduledTrigger[]> {
     const reportIds = [
       ...new Set(
@@ -130,9 +132,21 @@ export class ListProjectScheduledTriggersService {
       projectId,
       dataMartIds
     );
+    const destinationSummaries = await this.credentialsResolver.summarize(
+      projectId,
+      userId,
+      roles,
+      reports.map(report => report.dataDestination)
+    );
     const reportResponseEntries = await Promise.all(
       reports.map(async report => {
-        const reportDto = this.reportMapper.toDomainDto(report);
+        const reportDto = this.reportMapper.toDomainDto(
+          report,
+          null,
+          [],
+          undefined,
+          destinationSummaries
+        );
         const reportResponse = await this.reportMapper.toResponse(reportDto);
         return [report.id, reportResponse] as const;
       })

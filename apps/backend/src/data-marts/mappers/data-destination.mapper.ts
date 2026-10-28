@@ -28,7 +28,7 @@ import type { DestinationCredentialSummary } from '../data-destination-types/des
 import { UpdateDataDestinationApiDto } from '../dto/presentation/update-data-destination-api.dto';
 import { DataDestination } from '../entities/data-destination.entity';
 import { PublicOriginService } from '../../common/config/public-origin.service';
-import { DataDestinationCredentialsResolver } from '../data-destination-types/data-destination-credentials-resolver.service';
+import { publicCredentialsOfRow } from '../data-destination-types/destination-public-credentials';
 import { DataDestinationCredentialService } from '../services/data-destination-credential.service';
 import { DataDestinationCredential } from '../entities/data-destination-credential.entity';
 import { DestinationCredentialType } from '../enums/destination-credential-type.enum';
@@ -50,8 +50,7 @@ export class DataDestinationMapper {
   constructor(
     private readonly publicOriginService: PublicOriginService,
     private readonly dataDestinationCredentialService: DataDestinationCredentialService,
-    private readonly cls: ClsService,
-    private readonly credentialsResolver: DataDestinationCredentialsResolver
+    private readonly cls: ClsService
   ) {}
 
   /**
@@ -207,6 +206,7 @@ export class DataDestinationMapper {
     );
   }
 
+  /** A Destination that selects a Credential shows its summary's public credentials; callers summarize. */
   async toApiResponse(
     dataDestinationDto: DataDestinationDto
   ): Promise<DataDestinationResponseApiDto> {
@@ -214,28 +214,18 @@ export class DataDestinationMapper {
     const isPluginCall = this.isPluginRuntimeCall();
     let selects =
       reusableCredential !== undefined || selectsCredential(dataDestinationDto, undefined);
-    let credentials: DestinationResponseCredentials | undefined = isPluginCall ? {} : undefined;
+    let credentials: DestinationResponseCredentials = {};
     if (!selects) {
       const row = await this.findOwnCredential(dataDestinationDto);
       // An old webhook row stands for a Credential the Destination selects.
       selects = row?.type === DestinationCredentialType.GOOGLE_CHAT_WEBHOOK;
       if (!isPluginCall) {
         credentials = selects
-          ? await this.credentialsResolver.publicCredentials(dataDestinationDto, row)
+          ? ((row && publicCredentialsOfRow(row)) ?? {})
           : this.toPublicCredentials(dataDestinationDto, row);
       }
     } else if (!isPluginCall) {
-      credentials =
-        reusableCredential !== undefined
-          ? (reusableCredential?.credentials ?? {})
-          : await this.credentialsResolver.publicCredentials(
-              dataDestinationDto,
-              dataDestinationDto.credentialId
-                ? await this.dataDestinationCredentialService.getById(
-                    dataDestinationDto.credentialId
-                  )
-                : null
-            );
+      credentials = reusableCredential?.credentials ?? {};
     }
 
     return {
@@ -243,7 +233,7 @@ export class DataDestinationMapper {
       title: dataDestinationDto.title,
       type: dataDestinationDto.type,
       projectId: dataDestinationDto.projectId,
-      ...(credentials ? { credentials } : {}),
+      credentials,
       createdAt: dataDestinationDto.createdAt,
       modifiedAt: dataDestinationDto.modifiedAt,
       ...(selects ? {} : { credentialId: dataDestinationDto.credentialId }),

@@ -36,13 +36,13 @@ export class DataDestinationResponseApiDto {
   @ApiProperty({ example: 'my-project' })
   projectId!: string;
 
-  @ApiPropertyOptional({
+  @ApiProperty({
     type: 'object',
     additionalProperties: true,
     description:
       'Credentials without sensitive fields; empty for a plugin or when the Destination has no key. Google Sheets and Google Chat webhook Destinations show only the account or that a webhook is configured.',
   })
-  credentials?: DestinationResponseCredentials;
+  credentials!: DestinationResponseCredentials;
 
   @ApiProperty({ example: '2024-01-01T12:00:00.000Z' })
   createdAt!: Date;
@@ -64,7 +64,7 @@ export class DataDestinationResponseApiDto {
     nullable: true,
     required: false,
     description:
-      'The Credential a Google Sheets or Google Chat webhook Destination uses, as the member sees it; pending while it runs on its own key; null when it has neither. Absent for other types, Google Chat email delivery, plugins, and where a Destination is embedded in another resource.',
+      'The Credential a Google Sheets or Google Chat webhook Destination uses, as the member sees it; pending while it runs on its own key; null when it has neither. Absent for other types, Google Chat email delivery and plugins.',
   })
   reusableCredential?: DestinationCredentialSummaryApiDto | null;
 

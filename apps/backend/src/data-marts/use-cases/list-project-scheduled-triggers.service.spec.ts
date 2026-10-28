@@ -39,7 +39,7 @@ describe('ListProjectScheduledTriggersService', () => {
     const mapper = {
       toDomainDto: jest.fn().mockReturnValue(triggerDto),
     };
-    const report = { id: 'report-1' };
+    const report = { id: 'report-1', dataDestination: { id: 'destination-1' } };
     const reportDto = { id: 'report-1', title: 'Report target' };
     const reportResponse = { id: 'report-1', title: 'Report target' };
     const reportService = {
@@ -67,6 +67,9 @@ describe('ListProjectScheduledTriggersService', () => {
         ),
     };
 
+    const summaries = new Map([['destination-1', { access: 'restricted', state: 'ready' }]]);
+    const credentialsResolver = { summarize: jest.fn().mockResolvedValue(summaries) };
+
     const service = new ListProjectScheduledTriggersService(
       scheduledTriggerService as never,
       contextAccessService as never,
@@ -76,7 +79,8 @@ describe('ListProjectScheduledTriggersService', () => {
       reportMapper as never,
       connectorSecretService as never,
       reportAccessService as never,
-      accessDecisionService as never
+      accessDecisionService as never,
+      credentialsResolver as never
     );
 
     return {
@@ -91,6 +95,9 @@ describe('ListProjectScheduledTriggersService', () => {
       reportAccessService,
       accessDecisionService,
       reportResponse,
+      report,
+      credentialsResolver,
+      summaries,
     };
   };
 
@@ -175,9 +182,26 @@ describe('ListProjectScheduledTriggersService', () => {
   });
 
   it('adds hydrated report data to project report-run trigger configs', async () => {
-    const { service, mapper, reportService, reportMapper, reportResponse } = createService();
+    const {
+      service,
+      mapper,
+      reportService,
+      reportMapper,
+      reportResponse,
+      report,
+      credentialsResolver,
+      summaries,
+    } = createService();
 
     await service.run(new ListProjectScheduledTriggersCommand('project-1', 20, 0, 'user-1', []));
+
+    expect(credentialsResolver.summarize).toHaveBeenCalledWith(
+      'project-1',
+      'user-1',
+      [],
+      [report.dataDestination]
+    );
+    expect(reportMapper.toDomainDto).toHaveBeenCalledWith(report, null, [], undefined, summaries);
 
     expect(reportService.getByIdsAndProjectIdAndDataMartIds).toHaveBeenCalledWith(
       ['report-1'],

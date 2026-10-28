@@ -462,6 +462,22 @@ describe('DataDestinationCredentialsResolver', () => {
       ]);
     });
 
+    it('gives a Destination whose bound Credential is gone no summary, never its old row', async () => {
+      bindings.findBoundDestinationIds.mockResolvedValue(new Set(['gone']));
+      const destinations = [
+        {
+          id: 'gone',
+          type: DataDestinationType.GOOGLE_SHEETS,
+          ...row(DestinationCredentialType.GOOGLE_SERVICE_ACCOUNT),
+        },
+      ] as unknown as DataDestination[];
+
+      const summaries = await resolver.summarize('project-1', 'member-1', ['editor'], destinations);
+
+      expect(summaries.has('gone')).toBe(false);
+      expect(bindings.findBoundDestinationIds).toHaveBeenCalledWith('project-1', ['gone']);
+    });
+
     it('gives a restricted Chat Destination no identity and no provider', async () => {
       const restricted = { access: 'restricted', state: 'ready' } as const;
       bindings.summarizeForDestinations.mockResolvedValue(new Map([['chat', restricted]]));

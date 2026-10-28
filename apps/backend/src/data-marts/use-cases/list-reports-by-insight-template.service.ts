@@ -9,6 +9,7 @@ import { EmailConfigType } from '../data-destination-types/ee/email/schemas/emai
 import { TemplateSourceTypeEnum } from '../enums/template-source-type.enum';
 import { UserProjectionsFetcherService } from '../services/user-projections-fetcher.service';
 import { ReportAccessService } from '../services/report-access.service';
+import { DataDestinationCredentialsResolver } from '../data-destination-types/data-destination-credentials-resolver.service';
 import { resolveOwnerUsers } from '../utils/resolve-owner-users';
 
 @Injectable()
@@ -18,7 +19,8 @@ export class ListReportsByInsightTemplateService {
     private readonly reportRepository: Repository<Report>,
     private readonly mapper: ReportMapper,
     private readonly userProjectionsFetcherService: UserProjectionsFetcherService,
-    private readonly reportAccessService: ReportAccessService
+    private readonly reportAccessService: ReportAccessService,
+    private readonly credentialsResolver: DataDestinationCredentialsResolver
   ) {}
 
   async run(command: ListReportsByInsightTemplateCommand): Promise<ReportDto[]> {
@@ -27,6 +29,7 @@ export class ListReportsByInsightTemplateService {
       .leftJoinAndSelect('report.dataMart', 'dataMart')
       .leftJoinAndSelect('dataMart.storage', 'storage')
       .leftJoinAndSelect('report.dataDestination', 'dataDestination')
+      .leftJoinAndSelect('dataDestination.credential', 'dataDestinationCredential')
       .where('dataMart.id = :dataMartId', { dataMartId: command.dataMartId })
       .andWhere('dataMart.projectId = :projectId', { projectId: command.projectId })
       .andWhere(`JSON_EXTRACT(report.destinationConfig, '$.type') = :type`, {
@@ -45,6 +48,12 @@ export class ListReportsByInsightTemplateService {
 
     const userProjectionsList =
       await this.userProjectionsFetcherService.fetchRelevantUserProjections(reports);
+    const destinationSummaries = await this.credentialsResolver.summarize(
+      command.projectId,
+      command.userId,
+      command.roles,
+      reports.map(report => report.dataDestination)
+    );
 
     return Promise.all(
       reports.map(async report => {
@@ -59,7 +68,8 @@ export class ListReportsByInsightTemplateService {
           report,
           report.createdById ? (userProjectionsList.getByUserId(report.createdById) ?? null) : null,
           resolveOwnerUsers(report.ownerIds, userProjectionsList),
-          capabilities
+          capabilities,
+          destinationSummaries
         );
       })
     );

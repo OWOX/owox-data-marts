@@ -47,16 +47,22 @@ describe('ListReportsByProjectService', () => {
       }),
     };
 
+    const summaries = new Map([['destination-1', { access: 'restricted', state: 'ready' }]]);
+    const credentialsResolver = { summarize: jest.fn().mockResolvedValue(summaries) };
+
     const service = new ListReportsByProjectService(
       reportRepository as never,
       mapper as never,
       userProjectionsFetcherService as never,
       contextAccessService as never,
-      reportAccessService as never
+      reportAccessService as never,
+      credentialsResolver as never
     );
 
     return {
       service,
+      credentialsResolver,
+      summaries,
       qb,
       rowsQb,
       contextAccessService,
@@ -131,6 +137,34 @@ describe('ListReportsByProjectService', () => {
     });
     expect(rowsQb.orderBy).not.toHaveBeenCalled();
     expect(mapper.toDomainDto.mock.calls.map(call => call[0].id)).toEqual(['report-1', 'report-2']);
+  });
+
+  it("summarizes the page's Destinations once, with their own rows, for every report", async () => {
+    const first = buildReport({ id: 'report-1', dataDestination: { id: 'destination-1' } });
+    const second = buildReport({ id: 'report-2', dataDestination: { id: 'destination-1' } });
+    const { service, qb, rowsQb, mapper, credentialsResolver, summaries } = createService([
+      first,
+      second,
+    ]);
+    qb.getRawMany.mockResolvedValue([{ id: 'report-1' }, { id: 'report-2' }]);
+
+    await service.run(new ListReportsByProjectCommand('project-1', 'user-1', ['viewer']));
+
+    expect(rowsQb.leftJoinAndSelect).toHaveBeenCalledWith(
+      'dataDestination.credential',
+      'dataDestinationCredential'
+    );
+    expect(credentialsResolver.summarize).toHaveBeenCalledTimes(1);
+    expect(credentialsResolver.summarize).toHaveBeenCalledWith(
+      'project-1',
+      'user-1',
+      ['viewer'],
+      [first.dataDestination, second.dataDestination]
+    );
+    expect(mapper.toDomainDto.mock.calls.map(call => (call as unknown[])[4])).toEqual([
+      summaries,
+      summaries,
+    ]);
   });
 });
 

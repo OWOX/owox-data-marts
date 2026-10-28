@@ -5,7 +5,6 @@ import { GOOGLE_CHAT_WEBHOOK_DEFINITION_ID } from '../credentials/services/built
 import { DataDestinationCredentials } from './data-destination-credentials.type';
 import { GoogleSheetsCredentialsSchema } from './google-sheets/schemas/google-sheets-credentials.schema';
 import { DataDestination } from '../entities/data-destination.entity';
-import type { DataDestinationCredential } from '../entities/data-destination-credential.entity';
 import { DestinationCredentialType } from '../enums/destination-credential-type.enum';
 import {
   CredentialsExpiredException,
@@ -23,7 +22,6 @@ import {
   identityOf,
   publicCredentialsOfBound,
   publicCredentialsOfRow,
-  type DestinationPublicCredentials,
 } from './destination-public-credentials';
 import { DataDestinationType } from './enums/data-destination-type.enum';
 
@@ -137,23 +135,6 @@ export class DataDestinationCredentialsResolver {
     if ('oauth' in candidate.secret) return null;
     assertUsable(candidate);
     return keyAuth(candidate).credentials;
-  }
-
-  /** One Destination's public credentials without a summary; `{}` once its bound Credential is gone. */
-  async publicCredentials(
-    destination: Pick<DataDestination, 'id' | 'projectId' | 'type'>,
-    row: DataDestinationCredential | null
-  ): Promise<DestinationPublicCredentials | Record<string, never>> {
-    if (!hasPublicCredentials(destination.type)) return {};
-    const bound = (
-      await this.destinationCredentials.publicOfDestinations(destination.projectId, [
-        destination.id,
-      ])
-    ).get(destination.id);
-    if (bound !== undefined) {
-      return (bound && publicCredentialsOfBound(bound.definitionId, bound.publicMetadata)) || {};
-    }
-    return (row && publicCredentialsOfRow(row)) || {};
   }
 
   /** Bound Destinations' Credentials as the member sees them, `pending` for one on its old row. */

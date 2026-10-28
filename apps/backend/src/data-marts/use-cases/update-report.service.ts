@@ -33,6 +33,7 @@ import {
 } from '../dto/schemas/auto-aggregation-opt-out.schema';
 import { AdvancedSearchIndexSyncService } from '../services/advanced-search-index-sync.service';
 import { SearchableEntityType } from '../../common/search/search.facade';
+import { DataDestinationCredentialsResolver } from '../data-destination-types/data-destination-credentials-resolver.service';
 
 @Injectable()
 export class UpdateReportService {
@@ -50,6 +51,7 @@ export class UpdateReportService {
     private readonly reportDataCacheService: ReportDataCacheService,
     private readonly outputControlsValidator: OutputControlsValidatorService,
     private readonly accessDecisionService: AccessDecisionService,
+    private readonly credentialsResolver: DataDestinationCredentialsResolver,
     private readonly advancedSearchIndexSync?: AdvancedSearchIndexSyncService
   ) {}
 
@@ -268,12 +270,19 @@ export class UpdateReportService {
       fresh,
       command.projectId
     );
+    const destinationSummaries = await this.credentialsResolver.summarize(
+      command.projectId,
+      command.userId,
+      command.roles,
+      [fresh.dataDestination]
+    );
 
     return this.mapper.toDomainDto(
       fresh,
       createdByUser,
       resolveOwnerUsers(fresh.ownerIds, userProjections),
-      capabilities
+      capabilities,
+      destinationSummaries
     );
   }
 }
