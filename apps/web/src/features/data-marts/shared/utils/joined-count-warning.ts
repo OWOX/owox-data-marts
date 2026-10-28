@@ -106,40 +106,55 @@ export function joinedCountWarning(
         ? REPORT_DATA_MART
         : undefined;
     const unprovenId = unprovenAt === '' ? mainDataMartId : unprovenAt && dataMartIdAt(unprovenAt);
-    // Where the key is set, when the picker knows which Data Mart that is.
+    // "Set a primary key on X", linked to X's Output Schema when the picker knows which one it is.
     const setPrimaryKey: JoinedCountWarningPart[] =
       unproven === undefined ? [] : ['Set a primary key on ', unproven];
-    reason = [
-      ...(unproven === undefined
-        ? ['Without a primary key,']
+    const setPrimaryKeyLink: JoinedCountWarningPart[] = unprovenId
+      ? [{ kind: 'outputSchemaLink', dataMartId: unprovenId, parts: setPrimaryKey }]
+      : setPrimaryKey;
+    const hasNoPrimaryKey: JoinedCountWarningPart[] =
+      unproven === undefined
+        ? []
         : [
             typeof unproven === 'string'
               ? unproven.charAt(0).toUpperCase() + unproven.slice(1)
               : unproven,
-            ' has no primary key, so',
-          ]),
-      " it's unclear how many ",
-      ...rowsOf(main, '', 'rows'),
-      ' each ',
-      dataMart(name),
-      ` row matches. The count can be higher${collapses ? ' or lower' : ''}`,
-      ...thanJoinedRows,
-      ...(unproven === undefined
-        ? []
-        : [
-            ' ',
-            ...(unprovenId
-              ? [
-                  {
-                    kind: 'outputSchemaLink' as const,
-                    dataMartId: unprovenId,
-                    parts: setPrimaryKey,
-                  },
-                ]
-              : setPrimaryKey),
-            ' to get a definite answer.',
-          ]),
-    ];
+            ' has no primary key',
+          ];
+    if (collapses) {
+      // The collapse is known, so the count can be lower whatever the key says. The missing key
+      // only leaves "higher" open, and setting it answers that part, not the whole question.
+      reason = [
+        'Several ',
+        dataMart(collapsedName),
+        ' rows can match ',
+        ...rowsOf(main, 'one ', 'row'),
+        ', so the count can be lower',
+        ...thanJoinedRows,
+        ...(unproven === undefined
+          ? [' Without a primary key, it may also be higher.']
+          : [
+              ' ',
+              ...hasNoPrimaryKey,
+              ', so it may also be higher. ',
+              ...setPrimaryKeyLink,
+              ' to find out.',
+            ]),
+      ];
+    } else {
+      reason = [
+        ...(unproven === undefined ? ['Without a primary key,'] : [...hasNoPrimaryKey, ', so']),
+        " it's unclear how many ",
+        ...rowsOf(main, '', 'rows'),
+        ' each ',
+        dataMart(name),
+        ' row matches. The count can be higher',
+        ...thanJoinedRows,
+        ...(unproven === undefined
+          ? []
+          : [' ', ...setPrimaryKeyLink, ' to get a definite answer.']),
+      ];
+    }
   } else if (multiplication === 'multiplies' && collapses) {
     reason = [
       'One ',

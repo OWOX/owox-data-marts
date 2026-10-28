@@ -2,7 +2,7 @@ import { Fragment, type ReactNode, useEffect, useMemo, useRef, useState } from '
 import { Popover, PopoverContent, PopoverTrigger } from '@owox/ui/components/popover';
 import { Button } from '@owox/ui/components/button';
 import { Checkbox } from '@owox/ui/components/checkbox';
-import { TriangleAlert } from 'lucide-react';
+import { ExternalLink, TriangleAlert } from 'lucide-react';
 import { Label } from '@owox/ui/components/label';
 import {
   Select,
@@ -20,6 +20,7 @@ import type {
 } from '../../../shared/utils/joined-count-warning';
 import { outputSchemaPath } from '../../../shared/utils/output-schema-link';
 import { useProjectRoute } from '../../../../../shared/hooks/useProjectRoute';
+import { useInvalidateBlendableSchema } from '../../../shared/hooks/useInvalidateBlendableSchema';
 import { isDateType, isTimestampType } from './output-controls-operators';
 
 /**
@@ -337,17 +338,35 @@ function WarningParts({ parts }: { parts: readonly JoinedCountWarningPart[] }) {
   });
 }
 
+/**
+ * Opens the Output Schema in a new tab. Once the person comes back to this tab, the picker's
+ * schema is fetched again, so a primary key set there ends the warning without reopening the
+ * report.
+ */
 function OutputSchemaLink({ dataMartId, children }: { dataMartId: string; children: ReactNode }) {
   const { scope } = useProjectRoute();
+  const invalidateBlendableSchema = useInvalidateBlendableSchema();
+  const refreshOnReturn = () => {
+    const refresh = () => {
+      if (document.visibilityState !== 'visible' || !document.hasFocus()) return;
+      window.removeEventListener('focus', refresh);
+      document.removeEventListener('visibilitychange', refresh);
+      invalidateBlendableSchema();
+    };
+    window.addEventListener('focus', refresh);
+    document.addEventListener('visibilitychange', refresh);
+  };
   return (
     <a
       href={scope(outputSchemaPath(dataMartId))}
       target='_blank'
       rel='noopener noreferrer'
-      title='Open the Output Schema in a new tab'
-      className='underline underline-offset-2 hover:no-underline'
+      onClick={refreshOnReturn}
+      className='focus-visible:ring-ring/50 rounded-sm underline underline-offset-2 outline-none hover:no-underline focus-visible:ring-[3px]'
     >
       {children}
+      <ExternalLink className='ml-0.5 inline size-3 align-[-1px]' aria-hidden='true' />
+      <span className='sr-only'> (opens in a new tab)</span>
     </a>
   );
 }

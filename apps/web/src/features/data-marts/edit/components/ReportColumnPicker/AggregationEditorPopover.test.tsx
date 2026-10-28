@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent, within } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AggregationEditorPopover, type AggregationDraft } from './AggregationEditorPopover';
 import type { ReportAggregateFunction } from '../../../shared/types/relationship.types';
 import type { JoinedCountWarning } from '../../../shared/utils/joined-count-warning';
@@ -472,21 +473,37 @@ describe('AggregationEditorPopover — joined count warning', () => {
   };
   const render_ = (
     countWarning?: JoinedCountWarning,
-    initialFunctions: ReportAggregateFunction[] = []
+    initialFunctions: ReportAggregateFunction[] = [],
+    client = new QueryClient()
   ) =>
     render(
-      <AggregationEditorPopover
-        open
-        onOpenChange={() => undefined}
-        trigger={<button>open</button>}
-        column='orders.id'
-        fieldType='INTEGER'
-        allowedAggregations={['COUNT', 'SUM']}
-        initialFunctions={initialFunctions}
-        countWarning={countWarning}
-        onApply={vi.fn()}
-      />
+      <QueryClientProvider client={client}>
+        <AggregationEditorPopover
+          open
+          onOpenChange={() => undefined}
+          trigger={<button>open</button>}
+          column='orders.id'
+          fieldType='INTEGER'
+          allowedAggregations={['COUNT', 'SUM']}
+          initialFunctions={initialFunctions}
+          countWarning={countWarning}
+          onApply={vi.fn()}
+        />
+      </QueryClientProvider>
     );
+  const NO_KEY: JoinedCountWarning = {
+    ...WARNING,
+    reason: [
+      'Orders has no primary key. ',
+      {
+        kind: 'outputSchemaLink',
+        dataMartId: 'dm-orders',
+        parts: ['Set a primary key on ', { kind: 'dataMart', text: 'Orders' }],
+      },
+      ' to get a definite answer.',
+    ],
+  };
+  const LINK_NAME = 'Set a primary key on Orders (opens in a new tab)';
 
   it('shows while Count is ticked and hides when it is unticked', () => {
     render_(WARNING);
@@ -525,28 +542,46 @@ describe('AggregationEditorPopover — joined count warning', () => {
   });
 
   it("opens the Output Schema of the Data Mart to fix in a new tab, keeping the report's form", () => {
-    render_(
-      {
-        ...WARNING,
-        reason: [
-          'Orders has no primary key. ',
-          {
-            kind: 'outputSchemaLink',
-            dataMartId: 'dm-orders',
-            parts: ['Set a primary key on ', { kind: 'dataMart', text: 'Orders' }],
-          },
-          ' to get a definite answer.',
-        ],
-      },
-      ['COUNT']
-    );
-    const link = screen.getByRole('link', { name: 'Set a primary key on Orders' });
+    render_(NO_KEY, ['COUNT']);
+    const link = screen.getByRole('link', { name: LINK_NAME });
     expect(link.getAttribute('href')).toBe(
       '/ui/p1/data-marts/dm-orders/data-setup?section=output-schema'
     );
     expect(link.getAttribute('target')).toBe('_blank');
     expect(link.getAttribute('rel')).toBe('noopener noreferrer');
     expect(within(link).getByText('Orders').className).toContain('font-semibold');
+  });
+
+  it('marks the link as opening a new tab and shows where the keyboard focus is', () => {
+    render_(NO_KEY, ['COUNT']);
+    const link = screen.getByRole('link', { name: LINK_NAME });
+    expect(link.querySelector('svg')?.getAttribute('aria-hidden')).toBe('true');
+    expect(link.className).toContain('focus-visible:ring-[3px]');
+  });
+
+  it('fetches the schema again once the person comes back from the Output Schema', () => {
+    const client = new QueryClient();
+    const invalidate = vi.spyOn(client, 'invalidateQueries');
+    const hasFocus = vi.spyOn(document, 'hasFocus').mockReturnValue(false);
+    try {
+      render_(NO_KEY, ['COUNT'], client);
+      fireEvent.click(screen.getByRole('link', { name: LINK_NAME }));
+
+      // Still away: the new tab has focus.
+      fireEvent(document, new Event('visibilitychange'));
+      expect(invalidate).not.toHaveBeenCalled();
+
+      hasFocus.mockReturnValue(true);
+      fireEvent(window, new Event('focus'));
+      expect(invalidate).toHaveBeenCalledTimes(1);
+      expect(invalidate).toHaveBeenCalledWith({ queryKey: ['blendable-schema'] });
+
+      // Once per visit to the Output Schema, not on every later focus.
+      fireEvent(window, new Event('focus'));
+      expect(invalidate).toHaveBeenCalledTimes(1);
+    } finally {
+      hasFocus.mockRestore();
+    }
   });
 
   it('leaves the advice line out when there is nothing to pick', () => {

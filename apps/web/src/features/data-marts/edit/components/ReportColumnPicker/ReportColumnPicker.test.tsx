@@ -5594,13 +5594,17 @@ describe('ReportColumnPicker joined Count warning', () => {
 
     const atOrders = await openWarning('orders');
     expect(
-      screen.getByRole('link', { name: 'Set a primary key on Orders' }).getAttribute('href')
+      screen
+        .getByRole('link', { name: 'Set a primary key on Orders (opens in a new tab)' })
+        .getAttribute('href')
     ).toBe('/data-marts/dm-orders/data-setup?section=output-schema');
     atOrders.unmount();
 
     await openWarning('');
     expect(
-      screen.getByRole('link', { name: 'Set a primary key on Main Data Mart' }).getAttribute('href')
+      screen
+        .getByRole('link', { name: 'Set a primary key on Main Data Mart (opens in a new tab)' })
+        .getAttribute('href')
     ).toBe(`/data-marts/${DATA_MART_ID}/data-setup?section=output-schema`);
   });
 });

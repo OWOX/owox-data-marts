@@ -136,11 +136,47 @@ describe('joinedCountWarning', () => {
     ).toMatch(/ Set a primary key on \[Orders\] to get a definite answer\.$/);
   });
 
-  it('adds "or lower" to an unknown multiplication that also collapses', () => {
+  it('explains a missing key together with a collapse, and how far the key answers it', () => {
+    expect(
+      reason(
+        warn({
+          mainGrainMultiplication: 'unknown',
+          mainGrainCollapse: 'collapses',
+          mainGrainUnprovenAt: '',
+        })
+      )
+    ).toBe(
+      'Several [Orders] rows can match one [Sessions] row, so the count can be lower than the number of [Orders] rows. [Sessions] has no primary key, so it may also be higher. <dm-sessions|Set a primary key on [Sessions]> to find out.'
+    );
+  });
+
+  it('names the Data Mart a collapse happens at when a key is missing too', () => {
+    expect(
+      reason(
+        warn(
+          {
+            aliasPath: 'orders.items',
+            mainGrainMultiplication: 'unknown',
+            mainGrainCollapse: 'collapses',
+            mainGrainCollapsedAt: 'orders',
+            mainGrainUnprovenAt: 'orders',
+          },
+          { ...OPTIONS, name: 'Items' }
+        )
+      )
+    ).toBe(
+      'Several [Orders] rows can match one [Sessions] row, so the count can be lower than the number of [Items] rows. [Orders] has no primary key, so it may also be higher. <dm-orders|Set a primary key on [Orders]> to find out.'
+    );
+  });
+
+  it('says a key is missing without naming one it cannot', () => {
     expect(
       reason(warn({ mainGrainMultiplication: 'unknown', mainGrainCollapse: 'collapses' }))
     ).toBe(
-      "Without a primary key, it's unclear how many [Sessions] rows each [Orders] row matches. The count can be higher or lower than the number of [Orders] rows."
+      'Several [Orders] rows can match one [Sessions] row, so the count can be lower than the number of [Orders] rows. Without a primary key, it may also be higher.'
+    );
+    expect(reason(warn({ mainGrainMultiplication: 'unknown', mainGrainCollapse: 'none' }))).toBe(
+      "Without a primary key, it's unclear how many [Sessions] rows each [Orders] row matches. The count can be higher than the number of [Orders] rows."
     );
   });
 
