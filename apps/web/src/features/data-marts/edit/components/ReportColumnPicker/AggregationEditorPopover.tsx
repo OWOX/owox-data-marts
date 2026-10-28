@@ -20,7 +20,7 @@ import type {
 } from '../../../shared/utils/joined-count-warning';
 import { outputSchemaPath } from '../../../shared/utils/output-schema-link';
 import { useProjectRoute } from '../../../../../shared/hooks/useProjectRoute';
-import { useInvalidateBlendableSchema } from '../../../shared/hooks/useInvalidateBlendableSchema';
+import { useRefreshBlendableSchemaOnReturn } from '../../../shared/hooks/useRefreshBlendableSchemaOnReturn';
 import { isDateType, isTimestampType } from './output-controls-operators';
 
 /**
@@ -339,29 +339,21 @@ function WarningParts({ parts }: { parts: readonly JoinedCountWarningPart[] }) {
 }
 
 /**
- * Opens the Output Schema in a new tab. Once the person comes back to this tab, the picker's
- * schema is fetched again, so a primary key set there ends the warning without reopening the
- * report.
+ * Opens the Output Schema in a new tab. Every return to this tab after that refetches the picker's
+ * schema while the link is shown, so a primary key saved there ends the warning without reopening
+ * the report. A middle click or the context menu's "Open link in new tab" counts as using it too.
  */
 function OutputSchemaLink({ dataMartId, children }: { dataMartId: string; children: ReactNode }) {
   const { scope } = useProjectRoute();
-  const invalidateBlendableSchema = useInvalidateBlendableSchema();
-  const refreshOnReturn = () => {
-    const refresh = () => {
-      if (document.visibilityState !== 'visible' || !document.hasFocus()) return;
-      window.removeEventListener('focus', refresh);
-      document.removeEventListener('visibilitychange', refresh);
-      invalidateBlendableSchema();
-    };
-    window.addEventListener('focus', refresh);
-    document.addEventListener('visibilitychange', refresh);
-  };
+  const refreshOnReturn = useRefreshBlendableSchemaOnReturn();
   return (
     <a
       href={scope(outputSchemaPath(dataMartId))}
       target='_blank'
       rel='noopener noreferrer'
       onClick={refreshOnReturn}
+      onAuxClick={refreshOnReturn}
+      onContextMenu={refreshOnReturn}
       className='focus-visible:ring-ring/50 rounded-sm underline underline-offset-2 outline-none hover:no-underline focus-visible:ring-[3px]'
     >
       {children}

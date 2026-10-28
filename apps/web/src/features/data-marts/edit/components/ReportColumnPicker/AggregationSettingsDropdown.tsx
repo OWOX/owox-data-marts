@@ -308,7 +308,10 @@ function AggregationSection({
             displayLabel={pendingColumn.label}
             dataMartName={pendingColumn.dataMartName}
             allowedAggregations={allowedAggregationsFor(pendingColumn)}
-            countWarning={pendingColumn.countWarning}
+            // The live column, not the snapshot taken when the field was picked: the schema can be
+            // refetched while this popover is open (a primary key set from the warning's link), and
+            // a warning that went away must go away here too.
+            countWarning={(columnByName.get(pendingColumn.name) ?? pendingColumn).countWarning}
             allowDateBucket={!pendingColumn.isAggregateLevelCalculated}
             allowBucketTimeZone={!pendingColumn.isCalculated}
             activeFunctions={functionsForColumn(pendingColumn.name, aggregations)}

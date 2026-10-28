@@ -122,8 +122,9 @@ export function joinedCountWarning(
             ' has no primary key',
           ];
     if (collapses) {
-      // The collapse is known, so the count can be lower whatever the key says. The missing key
-      // only leaves "higher" open, and setting it answers that part, not the whole question.
+      // Rows can collapse, so the count can be lower, and the missing key leaves "higher" open as
+      // well. When the collapse comes from that same Data Mart having no key, setting the key can
+      // settle "lower" too, so the advice says "to find out" and promises neither.
       reason = [
         'Several ',
         dataMart(collapsedName),

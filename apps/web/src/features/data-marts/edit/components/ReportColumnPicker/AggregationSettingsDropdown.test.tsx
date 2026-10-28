@@ -340,3 +340,44 @@ describe('AggregationSettingsDropdown — a calculated bucket carries no time zo
     expect(await screen.findByLabelText('Time zone')).toBeInTheDocument();
   });
 });
+
+describe('AggregationSettingsDropdown — the add picker follows the live joined Count warning', () => {
+  const warned = (title: string): AggregationDropdownColumn => ({
+    name: 'orders__status',
+    type: 'STRING',
+    label: 'Status',
+    dataMartName: 'Orders',
+    countWarning: { title, reason: ['Orders has no primary key.'], advice: [] },
+  });
+  const renderDropdown = (column: AggregationDropdownColumn) => (
+    <AggregationSettingsDropdown
+      value={EMPTY_CONFIG}
+      onChange={() => {}}
+      selectedColumns={[column]}
+    />
+  );
+
+  it('shows the warning the picker has now, not the one it had when the field was picked', async () => {
+    const { rerender } = render(renderDropdown(warned('Counts Sessions rows, not Orders rows')));
+    fireEvent.click(
+      screen
+        .getAllByRole('button', { name: /Add aggregation/ })
+        .find(b => b.getAttribute('aria-haspopup') === 'listbox')!
+    );
+    fireEvent.click(within(await screen.findByRole('listbox')).getByText('Status'));
+    fireEvent.click(await screen.findByLabelText('COUNT'));
+    expect(screen.getByTestId('joined-count-warning').textContent).toContain(
+      'Counts Sessions rows, not Orders rows'
+    );
+
+    // The schema came back with another verdict while the popover stayed open.
+    rerender(renderDropdown(warned('Counts Sessions rows, not Line items rows')));
+    expect(screen.getByTestId('joined-count-warning').textContent).toContain(
+      'Counts Sessions rows, not Line items rows'
+    );
+
+    // The key was set: the warning goes away instead of staying from the snapshot.
+    rerender(renderDropdown({ ...warned(''), countWarning: undefined }));
+    expect(screen.queryByTestId('joined-count-warning')).toBeNull();
+  });
+});

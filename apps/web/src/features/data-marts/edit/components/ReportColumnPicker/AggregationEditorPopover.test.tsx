@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AggregationEditorPopover, type AggregationDraft } from './AggregationEditorPopover';
@@ -559,29 +559,68 @@ describe('AggregationEditorPopover — joined count warning', () => {
     expect(link.className).toContain('focus-visible:ring-[3px]');
   });
 
-  it('fetches the schema again once the person comes back from the Output Schema', () => {
-    const client = new QueryClient();
-    const invalidate = vi.spyOn(client, 'invalidateQueries');
-    const hasFocus = vi.spyOn(document, 'hasFocus').mockReturnValue(false);
-    try {
-      render_(NO_KEY, ['COUNT'], client);
-      fireEvent.click(screen.getByRole('link', { name: LINK_NAME }));
-
-      // Still away: the new tab has focus.
-      fireEvent(document, new Event('visibilitychange'));
-      expect(invalidate).not.toHaveBeenCalled();
-
+  describe('after the link is used', () => {
+    let hasFocus: ReturnType<typeof vi.spyOn>;
+    const leave = () => {
+      hasFocus.mockReturnValue(false);
+      fireEvent(window, new Event('blur'));
+    };
+    const comeBack = () => {
       hasFocus.mockReturnValue(true);
       fireEvent(window, new Event('focus'));
+    };
+    const setup = () => {
+      const client = new QueryClient();
+      const invalidate = vi.spyOn(client, 'invalidateQueries');
+      const view = render_(NO_KEY, ['COUNT'], client);
+      return { invalidate, view, link: screen.getByRole('link', { name: LINK_NAME }) };
+    };
+
+    beforeEach(() => {
+      hasFocus = vi.spyOn(document, 'hasFocus').mockReturnValue(true);
+    });
+    afterEach(() => {
+      hasFocus.mockRestore();
+    });
+
+    it('fetches the schema again on every return while the link is shown', () => {
+      const { invalidate, link } = setup();
+      leave();
+      comeBack();
+      expect(invalidate).not.toHaveBeenCalled();
+
+      fireEvent.click(link);
+      leave();
+      comeBack();
       expect(invalidate).toHaveBeenCalledTimes(1);
       expect(invalidate).toHaveBeenCalledWith({ queryKey: ['blendable-schema'] });
 
-      // Once per visit to the Output Schema, not on every later focus.
-      fireEvent(window, new Event('focus'));
+      // A focus without having left first is not a return.
+      comeBack();
       expect(invalidate).toHaveBeenCalledTimes(1);
-    } finally {
-      hasFocus.mockRestore();
-    }
+
+      // Back before saving the key, then away again to save it: the next return fetches again.
+      leave();
+      comeBack();
+      expect(invalidate).toHaveBeenCalledTimes(2);
+    });
+
+    it('counts a middle click on the link as using it', () => {
+      const { invalidate, link } = setup();
+      fireEvent(link, new MouseEvent('auxclick', { bubbles: true, button: 1 }));
+      leave();
+      comeBack();
+      expect(invalidate).toHaveBeenCalledTimes(1);
+    });
+
+    it('stops listening once the link is gone', () => {
+      const { invalidate, link, view } = setup();
+      fireEvent.click(link);
+      view.unmount();
+      leave();
+      comeBack();
+      expect(invalidate).not.toHaveBeenCalled();
+    });
   });
 
   it('leaves the advice line out when there is nothing to pick', () => {
