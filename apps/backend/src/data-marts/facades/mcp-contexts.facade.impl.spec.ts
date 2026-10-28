@@ -27,8 +27,8 @@ describe('McpContextsFacadeImpl', () => {
   const facade = new McpContextsFacadeImpl(
     new CreateContextService(domain),
     new UpdateContextMetadataService(domain),
-    new GetContextImpactService(domain),
-    new DeleteContextService(domain),
+    new GetContextImpactService(domain, members as never),
+    new DeleteContextService(domain, members as never),
     new SetContextMembersService(members as never, members as never),
     new ListContextsService(domain),
     new ValidateContextIdsService(domain),
@@ -115,18 +115,25 @@ describe('McpContextsFacadeImpl', () => {
 
     it('returns the project-scoped impact DTO', async () => {
       const impact = new ContextImpactDto('context', 'Marketing', 1, 2, 3, 4, 5, ['member']);
+      members.getProjectMembersOrThrow.mockResolvedValue([
+        { userId: 'admin-user', role: 'admin', isOutbound: false },
+        { userId: 'member', role: 'editor', isOutbound: false },
+      ]);
       service.getImpact.mockResolvedValue(impact);
 
       await expect(facade.getContextImpact(ctx, { contextId: 'context' })).resolves.toBe(impact);
-      expect(service.getImpact).toHaveBeenCalledWith('context', 'project');
+      expect(service.getImpact).toHaveBeenCalledWith('context', 'project', new Set(['member']));
     });
 
     it('propagates the conflict when deleting an attached Context', async () => {
       const conflict = new ConflictException({ message: 'Detach first', dataMartCount: 1 });
+      members.getProjectMembersOrThrow.mockResolvedValue([
+        { userId: 'member', role: 'viewer', isOutbound: false },
+      ]);
       service.delete.mockRejectedValueOnce(conflict);
 
       await expect(facade.deleteContext(ctx, { contextId: 'context' })).rejects.toBe(conflict);
-      expect(service.delete).toHaveBeenCalledWith('context', 'project');
+      expect(service.delete).toHaveBeenCalledWith('context', 'project', new Set(['member']));
 
       await expect(facade.deleteContext(ctx, { contextId: 'context' })).resolves.toBeUndefined();
     });
