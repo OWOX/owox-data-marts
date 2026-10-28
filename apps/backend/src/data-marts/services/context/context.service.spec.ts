@@ -43,12 +43,10 @@ describe('ContextService', () => {
     const memberRoleContextRepository = createMockRepository();
     const memberRoleScopeRepository = createMockRepository();
     const userProvisioningContextSettingsContextRepository = createMockRepository();
-    const userProvisioningContextSettingsRepository = createMockRepository();
 
-    // No member holds the context and no provisioning default is saved unless a test says otherwise.
+    // No member holds the context unless a test says otherwise.
     memberRoleContextRepository.find.mockResolvedValue([]);
     memberRoleScopeRepository.find.mockResolvedValue([]);
-    userProvisioningContextSettingsRepository.findOne.mockResolvedValue(null);
 
     const contextMapper = new ContextMapper();
 
@@ -67,7 +65,6 @@ describe('ContextService', () => {
       memberRoleContextRepository as never,
       memberRoleScopeRepository as never,
       userProvisioningContextSettingsContextRepository as never,
-      userProvisioningContextSettingsRepository as never,
       contextMapper,
       userProjectionsFetcherService as never
     );
@@ -81,7 +78,6 @@ describe('ContextService', () => {
       memberRoleContextRepository,
       memberRoleScopeRepository,
       userProvisioningContextSettingsContextRepository,
-      userProvisioningContextSettingsRepository,
       contextMapper,
       userProjectionsFetcherService,
     };
@@ -105,12 +101,7 @@ describe('ContextService', () => {
     contextId: CONTEXT_ID,
   });
 
-  const projectWideScope = (userId: string) => ({
-    userId,
-    projectId: PROJECT_ID,
-    roleScope: RoleScope.ENTIRE_PROJECT,
-  });
-
+  /** A stored Selected contexts scope row, as `memberRoleScopeRepository.find` returns it. */
   const restrictedScope = (userId: string) => ({
     userId,
     projectId: PROJECT_ID,
@@ -474,19 +465,16 @@ describe('ContextService', () => {
       expect(result.affectedMemberIds).toEqual([]);
     });
 
-    it('does not count members whose scope is Entire project', async () => {
+    it('counts only members with a stored Selected contexts scope', async () => {
       const { service, contextRepository, memberRoleContextRepository, memberRoleScopeRepository } =
         createService();
 
       contextRepository.findOne.mockResolvedValue(createContextEntity());
+      // m-1 was switched to Entire project, m-2 has no stored scope, m-3 is restricted.
       memberRoleContextRepository.find.mockResolvedValue(
         ['m-1', 'm-2', 'm-3'].map(memberAssignment)
       );
-      memberRoleScopeRepository.find.mockResolvedValue([
-        projectWideScope('m-1'),
-        projectWideScope('m-2'),
-        restrictedScope('m-3'),
-      ]);
+      memberRoleScopeRepository.find.mockResolvedValue([restrictedScope('m-3')]);
       mockAffectedMembers(memberRoleContextRepository);
 
       const result = await service.getImpact(CONTEXT_ID, PROJECT_ID);
@@ -496,32 +484,11 @@ describe('ContextService', () => {
         where: { contextId: CONTEXT_ID, projectId: PROJECT_ID },
       });
       expect(memberRoleScopeRepository.find).toHaveBeenCalledWith({
-        where: { projectId: PROJECT_ID, userId: In(['m-1', 'm-2', 'm-3']) },
-      });
-    });
-
-    it('treats a member with no stored scope as the user provisioning default says', async () => {
-      const {
-        service,
-        contextRepository,
-        memberRoleContextRepository,
-        userProvisioningContextSettingsRepository,
-      } = createService();
-
-      contextRepository.findOne.mockResolvedValue(createContextEntity());
-      memberRoleContextRepository.find.mockResolvedValue(['m-1', 'm-2'].map(memberAssignment));
-      mockAffectedMembers(memberRoleContextRepository);
-
-      // No saved default: new members get Entire project.
-      expect((await service.getImpact(CONTEXT_ID, PROJECT_ID)).memberCount).toBe(0);
-
-      userProvisioningContextSettingsRepository.findOne.mockResolvedValue({
-        projectId: PROJECT_ID,
-        roleScope: RoleScope.SELECTED_CONTEXTS,
-      });
-      expect((await service.getImpact(CONTEXT_ID, PROJECT_ID)).memberCount).toBe(2);
-      expect(userProvisioningContextSettingsRepository.findOne).toHaveBeenCalledWith({
-        where: { projectId: PROJECT_ID },
+        where: {
+          projectId: PROJECT_ID,
+          userId: In(['m-1', 'm-2', 'm-3']),
+          roleScope: RoleScope.SELECTED_CONTEXTS,
+        },
       });
     });
 
@@ -565,6 +532,7 @@ describe('ContextService', () => {
         dataMartContextRepository,
         storageContextRepository,
         destinationContextRepository,
+        memberRoleContextRepository,
         userProvisioningContextSettingsContextRepository,
       } = createService();
 
@@ -583,9 +551,10 @@ describe('ContextService', () => {
       expect(dataMartContextRepository.delete).not.toHaveBeenCalled();
       expect(storageContextRepository.delete).not.toHaveBeenCalled();
       expect(destinationContextRepository.delete).not.toHaveBeenCalled();
+      expect(memberRoleContextRepository.delete).not.toHaveBeenCalled();
     });
 
-    it('deletes a context held only by Entire project members and removes their assignments', async () => {
+    it('deletes a context held only by members it does not restrict, removing just those assignments', async () => {
       const {
         service,
         contextRepository,
@@ -603,15 +572,16 @@ describe('ContextService', () => {
       storageContextRepository.count.mockResolvedValue(0);
       destinationContextRepository.count.mockResolvedValue(0);
       userProvisioningContextSettingsContextRepository.count.mockResolvedValue(0);
-      // m-1 was switched to Entire project; m-2 has no stored scope and gets the default.
+      // m-1 was switched to Entire project; m-2 has no stored scope. Neither is restricted.
       memberRoleContextRepository.find.mockResolvedValue(['m-1', 'm-2'].map(memberAssignment));
-      memberRoleScopeRepository.find.mockResolvedValue([projectWideScope('m-1')]);
+      memberRoleScopeRepository.find.mockResolvedValue([]);
 
       await service.delete(CONTEXT_ID, PROJECT_ID);
 
       expect(memberRoleContextRepository.delete).toHaveBeenCalledWith({
         contextId: CONTEXT_ID,
         projectId: PROJECT_ID,
+        userId: In(['m-1', 'm-2']),
       });
       expect(contextRepository.softRemove).toHaveBeenCalledWith(existingEntity);
       expect(memberRoleContextRepository.delete.mock.invocationCallOrder[0]).toBeLessThan(
@@ -637,10 +607,7 @@ describe('ContextService', () => {
       destinationContextRepository.count.mockResolvedValue(0);
       userProvisioningContextSettingsContextRepository.count.mockResolvedValue(0);
       memberRoleContextRepository.find.mockResolvedValue(['m-1', 'm-2'].map(memberAssignment));
-      memberRoleScopeRepository.find.mockResolvedValue([
-        projectWideScope('m-1'),
-        restrictedScope('m-2'),
-      ]);
+      memberRoleScopeRepository.find.mockResolvedValue([restrictedScope('m-2')]);
 
       await expect(service.delete(CONTEXT_ID, PROJECT_ID)).rejects.toMatchObject({
         response: expect.objectContaining({ memberCount: 1 }),

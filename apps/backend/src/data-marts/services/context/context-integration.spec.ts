@@ -50,7 +50,6 @@ function buildServices() {
   const memberRoleContextRepo = createMockRepository();
   const memberRoleScopeRepo = createMockRepository();
   const userProvisioningContextSettingsContextRepo = createMockRepository();
-  const userProvisioningContextSettingsRepo = createMockRepository();
 
   // AccessDecision repos (entity + owner)
   const dataMartRepo = createMockRepository();
@@ -80,7 +79,6 @@ function buildServices() {
     memberRoleContextRepo as never,
     memberRoleScopeRepo as never,
     userProvisioningContextSettingsContextRepo as never,
-    userProvisioningContextSettingsRepo as never,
     contextMapper,
     userProjectionsFetcherService as never
   );
