@@ -45,8 +45,9 @@ test.describe('DataMart Full Lifecycle', () => {
     await page.getByRole('link', { name: 'Overview' }).click();
     await expect(page).toHaveURL(new RegExp(`/data-marts/${datamartId}/overview`));
 
-    // Verify the Published status label is visible
-    await expect(page.getByText('Published')).toBeVisible();
+    // Verify the Published status label is visible. Exact match: the SQL editor's hint on the
+    // Data Setup page also mentions published Data Marts and can still be on screen here.
+    await expect(page.getByText('Published', { exact: true })).toBeVisible();
 
     // Verify the Publish button is no longer shown (only visible for DRAFT status)
     await expect(page.getByTestId('datamartPublishButton')).not.toBeVisible();
