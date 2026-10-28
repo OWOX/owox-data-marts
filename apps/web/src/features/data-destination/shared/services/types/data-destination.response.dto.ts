@@ -85,7 +85,7 @@ export interface DataDestinationResponseDto {
   /**
    * Credential ID (references data_destination_credentials table)
    */
-  credentialId?: string;
+  credentialId?: string | null;
 
   /**
    * Details about the user who created this destination
@@ -97,7 +97,7 @@ export interface DataDestinationResponseDto {
   availableForMaintenance?: boolean;
   contexts?: ContextSummary[];
 
-  /** Google Sheets and Google Chat webhook delivery only; absent when embedded in a report. */
+  /** Google Sheets and Google Chat webhook delivery only. */
   reusableCredential?: DestinationCredentialSummary | null;
 
   /**

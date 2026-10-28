@@ -63,6 +63,18 @@ describe('extractDestinationFieldErrors', () => {
     expect(extractDestinationFieldErrors(error)).toEqual(fieldErrors);
   });
 
+  it.each([
+    [403, 'You cannot use this Credential.'],
+    [400, 'This Credential is disabled.'],
+    [400, 'This Credential cannot be used with this Destination type.'],
+  ])('puts a refused Credential (%i %s) under the Credential field', (status, message) => {
+    const error = { response: { status, data: { statusCode: status, message } } };
+
+    expect(extractDestinationFieldErrors(error)).toEqual([
+      { field: 'reusableCredentialId', message },
+    ]);
+  });
+
   it('names nothing for any other failure', () => {
     expect(extractDestinationFieldErrors(new Error('Network Error'))).toEqual([]);
   });

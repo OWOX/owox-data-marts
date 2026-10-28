@@ -119,6 +119,24 @@ describe('DataDestinationForm — a rejected save', () => {
     });
   });
 
+  it('marks the Credential field when the save refuses the Credential', async () => {
+    const onSubmit = vi.fn().mockRejectedValue({
+      response: { status: 403, data: { message: 'You cannot use this Credential.' } },
+    });
+    renderForm(onSubmit);
+
+    fireEvent.change(await screen.findByPlaceholderText('Enter title'), {
+      target: { value: 'Renamed' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    expect(await screen.findByText('You cannot use this Credential.')).toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: 'Credential' })).toHaveAttribute(
+      'aria-invalid',
+      'true'
+    );
+  });
+
   it('still reports a rejection whose field is not on screen', async () => {
     vi.mocked(wasErrorToastShown).mockReturnValue(false);
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
