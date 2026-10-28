@@ -113,8 +113,9 @@ export const getMembersColumns = ({
     cell: ({ row }) => {
       // Members with project-wide scope (admins and any other entire_project
       // member) implicitly belong to every context — render a dash to avoid
-      // suggesting they are constrained by the context bindings.
-      if (row.original.roleScope === 'entire_project') {
+      // suggesting they are constrained by the context bindings. An admin can
+      // still have a Selected contexts scope stored from before the role change.
+      if (row.original.role === 'admin' || row.original.roleScope === 'entire_project') {
         return <span className='text-muted-foreground'>—</span>;
       }
       if (row.original.contextsDetailed.length === 0) {

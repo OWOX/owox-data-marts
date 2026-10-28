@@ -28,13 +28,13 @@ Only Project Admins can create, rename, or delete contexts. Other roles can view
 
 Open **Project Settings → Contexts** to see all contexts in the project. Each row shows:
 
-| Column          | Description                                                           |
-| --------------- | --------------------------------------------------------------------- |
-| **Name**        | The context label shown on resources, with its icon                   |
-| **Members**     | Members assigned to this context                                      |
-| **Description** | Optional Markdown description with business goals and Data Mart links |
-| **Created by**  | The Project Admin who created the context                             |
-| **Created at**  | Creation date                                                         |
+| Column          | Description                                                                                                            |
+| --------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| **Name**        | The context label shown on resources, with its icon                                                                    |
+| **Members**     | Project Admins and **Entire project** members on every context, plus **Selected contexts only** members assigned to it |
+| **Description** | Optional Markdown description with business goals and Data Mart links                                                  |
+| **Created by**  | The Project Admin who created the context                                                                              |
+| **Created at**  | Creation date                                                                                                          |
 
 ![Project Settings → Contexts table listing three example contexts with their names, member counts, descriptions, and creation details](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/64e04505-faa3-4121-96b4-1092d57c2800/public)
 
@@ -102,7 +102,7 @@ A context can only be deleted when it is **detached from every resource and memb
 
 Each entry links to the corresponding list, pre-filtered by the context, so you can detach attachments quickly.
 
-**Members** counts only members whose role scope is **Selected contexts only**. A member switched to **Entire project** keeps their context assignments, so they come back if you switch the member back. These kept assignments do not block the delete; they are removed together with the context.
+**Members** counts only members whose role scope is **Selected contexts only**: the members that show this context in **Project Settings → Members**. Project Admins are never counted. A member switched to **Entire project** keeps their context assignments, so they come back if you switch the member back; a member who becomes a Project Admin can keep them too. These kept assignments do not block the delete; they are removed together with the context.
 
 > ☝️ Deleting a context is final, but it does **not** delete the resources tagged with it. Resources stay; only the tag is removed.
 

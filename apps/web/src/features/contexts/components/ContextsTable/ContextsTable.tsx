@@ -3,8 +3,8 @@ import type { Row } from '@tanstack/react-table';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
 import { BaseTable, TableColumnSearch, TableCTAButton } from '../../../../shared/components/Table';
 import { useBaseTable } from '../../../../shared/hooks/useBaseTable';
-import type { UserProjection } from '../../../../shared/types';
 import { getContextsColumns, ContextsColumnKey, type ContextsTableItem } from './columns';
+import { buildContextsTableItems } from './buildContextsTableItems';
 import type { ContextDto, MemberWithScopeDto } from '../../types/context.types';
 
 const ADMIN_ONLY_HINT = 'You need the Project Admin role to manage contexts.';
@@ -28,42 +28,10 @@ export function ContextsTable({
   onDeleteContext,
   onAddContext,
 }: ContextsTableProps) {
-  const data: ContextsTableItem[] = useMemo(() => {
-    const toProjection = (m: MemberWithScopeDto): UserProjection => ({
-      userId: m.userId,
-      fullName: m.displayName ?? null,
-      email: m.email,
-      avatar: m.avatarUrl ?? null,
-    });
-
-    const adminProjections = members.filter(m => m.role === 'admin').map(toProjection);
-
-    const scopedByContext = new Map<string, UserProjection[]>();
-    for (const m of members) {
-      if (m.role === 'admin') continue;
-      const projection = toProjection(m);
-      for (const cid of m.contextIds) {
-        const bucket = scopedByContext.get(cid);
-        if (bucket) {
-          bucket.push(projection);
-        } else {
-          scopedByContext.set(cid, [projection]);
-        }
-      }
-    }
-
-    return contexts.map(c => {
-      const scoped = scopedByContext.get(c.id) ?? [];
-      const seen = new Set<string>();
-      const memberUsers: UserProjection[] = [];
-      for (const u of [...adminProjections, ...scoped]) {
-        if (seen.has(u.userId)) continue;
-        seen.add(u.userId);
-        memberUsers.push(u);
-      }
-      return { ...c, memberCount: memberUsers.length, memberUsers };
-    });
-  }, [contexts, members]);
+  const data: ContextsTableItem[] = useMemo(
+    () => buildContextsTableItems(contexts, members),
+    [contexts, members]
+  );
 
   const columns = useMemo(
     () => getContextsColumns({ onEdit: onEditContext, onDelete: onDeleteContext, isAdmin }),

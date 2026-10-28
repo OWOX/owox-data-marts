@@ -4,10 +4,11 @@
 
 **Deleting a context no longer gets stuck on members with Entire project scope**
 
-A Project Admin cleaning up Contexts could not delete one: the dialog said it was attached to several Members, yet in **Project Settings → Members** all of them had **Entire project** scope and no contexts, so there was nothing to detach. The only way out was to switch each of those members to **Selected contexts only**, untick the context, and switch them back. This happened because a member switched to Entire project keeps their context assignments, so they come back if the admin switches the member back. Now those kept assignments no longer block the delete.
+A Project Admin cleaning up Contexts could not delete one: the dialog said it was attached to several Members, yet in **Project Settings → Members** all of them had **Entire project** scope and no contexts, so there was nothing to detach. The only way out was to switch each of those members to **Selected contexts only**, untick the context, and switch them back. This happened because a member switched to Entire project keeps their context assignments, so they come back if the admin switches the member back. A member who became a Project Admin could keep them too. Now the delete counts only the members that show the context in Members.
 
-- **Members** in the delete dialog, and `memberCount` in `GET /api/contexts/{id}/impact`, count only members with Selected contexts only scope.
-- Assignments kept by Entire project members are removed together with the context.
+- **Members** in the delete dialog, and `memberCount` in `GET /api/contexts/{id}/impact`, count only non-admin members with Selected contexts only scope.
+- Assignments kept by Project Admins and Entire project members are removed together with the context.
+- The **Members** column in **Project Settings → Contexts** lists Project Admins and Entire project members on every context, as the context panel does, instead of only on contexts they kept from an earlier scope. In **Project Settings → Members**, Project Admins show no contexts.
 
 See [Deleting a Context](../../docs/project/contexts.md#deleting-a-context).
 
