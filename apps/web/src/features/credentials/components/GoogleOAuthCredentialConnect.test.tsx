@@ -226,13 +226,14 @@ describe('GoogleOAuthCredentialConnect', () => {
     expect(screen.getByText('ann@example.com')).toBeInTheDocument();
   });
 
-  it('on the quick-connect page, connects a new Credential even while one is shown as connected', async () => {
+  it('on the quick-connect page, reconnects the Credential it shows instead of creating another', async () => {
     const onConnected = vi.fn();
     const kept = {
       id: 'credential-9',
       identity: 'ann@example.com',
       publicMetadata: { account: { email: 'ann@example.com', name: 'Ann Lee' }, scopes: [] },
     } as unknown as Credential;
+    mocks.exchange.mockResolvedValue(kept);
     render(
       <GoogleOAuthCredentialConnect
         credential={kept}
@@ -246,19 +247,17 @@ describe('GoogleOAuthCredentialConnect', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Authenticated as Ann Lee' }));
 
     await waitFor(() => {
-      expect(onConnected).toHaveBeenCalledWith(created);
+      expect(onConnected).toHaveBeenCalledWith(kept);
     });
     expect(mocks.authorize).toHaveBeenCalledWith({
       redirectUri: `${window.location.origin}/oauth/google/callback`,
       definitionId: 'google-sheets-oauth',
+      credentialId: 'credential-9',
       skipErrorToast: true,
     });
     expect(mocks.exchange).toHaveBeenCalledWith({
       code: 'code-1',
       state: 's',
-      title: 'Team BigQuery',
-      availableForUse: false,
-      availableForMaintenance: false,
       skipErrorToast: true,
     });
   });

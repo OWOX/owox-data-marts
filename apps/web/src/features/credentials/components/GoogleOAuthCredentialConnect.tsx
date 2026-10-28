@@ -53,9 +53,6 @@ export function GoogleOAuthCredentialConnect({
   // An OAuth Credential exists only with a grant; a rejected one offers Connect with Google again.
   const connected = Boolean(credential) && credential?.validationState !== 'rejected';
 
-  // The quick-connect page connects a new Credential each time, so another account can be chosen.
-  const reconnecting = quick ? null : credential;
-
   const connect = async () => {
     setConnecting(true);
     setConnectError(null);
@@ -64,13 +61,14 @@ export function GoogleOAuthCredentialConnect({
       const { authorizationUrl } = await actions.authorizeGoogleOAuth({
         redirectUri,
         definitionId,
-        ...(reconnecting ? { credentialId: reconnecting.id } : {}),
+        // A shown Credential is reconnected, never connected again as another one.
+        ...(credential ? { credentialId: credential.id } : {}),
         ...(quick ? { skipErrorToast: true } : {}),
       });
       const { code, state } = await openGoogleOAuthPopup(authorizationUrl);
       const title = draft.title.trim();
       const saved = await actions.exchangeGoogleOAuth({
-        ...(reconnecting
+        ...(credential
           ? { code, state }
           : {
               code,

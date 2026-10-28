@@ -250,7 +250,7 @@ describe('ConnectGoogleSheetsPage', () => {
     expect(dataDestinationService.createConnectGoogleSheetsDestination).toHaveBeenCalledTimes(1);
   });
 
-  it('connects a new Credential after a failed creation, so another Google account can be used', async () => {
+  it('reconnects the kept Credential after a failed creation instead of creating another', async () => {
     vi.mocked(dataDestinationService.createConnectGoogleSheetsDestination).mockRejectedValueOnce(
       new Error('Duplicate title')
     );
@@ -261,26 +261,26 @@ describe('ConnectGoogleSheetsPage', () => {
     connectButton.click();
 
     expect(await screen.findByText('Duplicate title')).toBeInTheDocument();
-    // The kept Credential is shown as connected; the connect itself starts a new one.
+    // The connect component reconnects the Credential it is given.
     expect(oauth.connectProps.at(-1)).toMatchObject({
       credential: { id: 'credential-1' },
       variant: 'quick-connect',
     });
 
-    vi.mocked(dataDestinationService.createConnectGoogleSheetsDestination).mockResolvedValue({
-      id: 'destination-1',
-    } as never);
-    oauth.connected = connectedAccount('credential-2', 'other@example.com');
     connectButton.click();
 
     await waitFor(() => {
       expect(dataDestinationService.createConnectGoogleSheetsDestination).toHaveBeenCalledTimes(2);
     });
     expect(dataDestinationService.createConnectGoogleSheetsDestination).toHaveBeenLastCalledWith({
-      title: 'Google Sheets (other@example.com)',
-      reusableCredentialId: 'credential-2',
+      title: 'Google Sheets (user@example.com)',
+      reusableCredentialId: 'credential-1',
     });
     expect(await screen.findByText(/was created successfully/i)).toBeInTheDocument();
+    // A reconnect creates no Credential.
+    expect(
+      trackEvent.mock.calls.filter(([event]) => event.event === 'destination_credential_created')
+    ).toHaveLength(1);
   });
 
   it('shows the server sentence of a failed creation, not the transport message', async () => {

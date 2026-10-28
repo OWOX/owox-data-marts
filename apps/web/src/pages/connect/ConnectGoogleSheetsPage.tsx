@@ -31,7 +31,7 @@ export function ConnectGoogleSheetsPage() {
   });
 
   const oauthAvailable = useGoogleOAuthAvailable('destination');
-  // Kept after a failed save for Retry; connecting again creates another, for any Google account.
+  // Kept after a failed save for Retry; connecting again reconnects it rather than adding another.
   const [credential, setCredential] = useState<Credential | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -126,7 +126,13 @@ export function ConnectGoogleSheetsPage() {
               client='destination'
               draft={CREDENTIAL_DRAFT}
               onConnected={connected => {
-                trackCredentialCreated('destination', DataDestinationType.GOOGLE_SHEETS, connected);
+                if (connected.id !== credential?.id) {
+                  trackCredentialCreated(
+                    'destination',
+                    DataDestinationType.GOOGLE_SHEETS,
+                    connected
+                  );
+                }
                 void handleSave(connected);
               }}
               variant='quick-connect'
