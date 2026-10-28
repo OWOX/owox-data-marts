@@ -283,6 +283,21 @@ describe('ConnectGoogleSheetsPage', () => {
     expect(await screen.findByText(/was created successfully/i)).toBeInTheDocument();
   });
 
+  it('shows the server sentence of a failed creation, not the transport message', async () => {
+    vi.mocked(dataDestinationService.createConnectGoogleSheetsDestination).mockRejectedValueOnce(
+      Object.assign(new Error('Request failed with status code 403'), {
+        response: { status: 403, data: { message: 'You cannot use this Credential.' } },
+      })
+    );
+
+    renderPage();
+
+    (await screen.findByText('Connect with Google (mock)')).click();
+
+    expect(await screen.findByText('You cannot use this Credential.')).toBeInTheDocument();
+    expect(screen.queryByText('Request failed with status code 403')).not.toBeInTheDocument();
+  });
+
   it('reports each Credential it creates as the Destination form does', async () => {
     renderPage();
 

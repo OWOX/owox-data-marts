@@ -4,6 +4,7 @@ import { Loader2 } from 'lucide-react';
 import { Button } from '@owox/ui/components/button';
 import { Input } from '@owox/ui/components/input';
 import { Form, FormControl, FormItem, FormLabel, FormLayout } from '@owox/ui/components/form';
+import { apiErrorMessage } from '../../app/api';
 import { useProjectRoute } from '../../shared/hooks';
 import {
   GoogleOAuthCredentialConnect,
@@ -66,11 +67,7 @@ export function ConnectGoogleSheetsPage() {
       });
     } catch (error) {
       console.error('Failed to create the Google Sheets destination', error);
-      setSaveError(
-        error instanceof Error
-          ? error.message
-          : 'Failed to create the destination. Please try again.'
-      );
+      setSaveError(apiErrorMessage(error, 'Failed to create the destination. Please try again.'));
       setIsSaving(false);
       savingRef.current = false;
       return;
