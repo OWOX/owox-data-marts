@@ -23,9 +23,15 @@ export const contextOutputSchema = {
 export const contextImpactOutputSchema = {
   context_id: z.string(),
   context_name: z.string(),
-  data_mart_count: z.number(),
-  storage_count: z.number(),
-  destination_count: z.number(),
+  data_mart_count: z
+    .number()
+    .describe('Data Marts attached to this Context. Deleted Data Marts are not counted.'),
+  storage_count: z
+    .number()
+    .describe('Storages attached to this Context. Deleted Storages are not counted.'),
+  destination_count: z
+    .number()
+    .describe('Destinations attached to this Context. Deleted Destinations are not counted.'),
   member_count: z
     .number()
     .describe(

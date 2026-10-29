@@ -37,13 +37,15 @@ describe('ContextService', () => {
 
   /**
    * The context's links to Data Marts, Storages or Destinations: `liveCount`
-   * links to existing resources plus one link per id in `deletedIds`, whose
-   * resource was deleted.
+   * links to existing resources of the project, one link per id in
+   * `deletedIds`, whose resource was deleted, and one per id in
+   * `otherProjectIds`, whose resource now belongs to another project.
    */
   const mockResourceLinks = (
     linkRepository: ReturnType<typeof createMockRepository>,
     liveCount: number,
-    deletedIds: string[] = []
+    deletedIds: string[] = [],
+    otherProjectIds: string[] = []
   ) => {
     const queryBuilder = {
       withDeleted: jest.fn().mockReturnThis(),
@@ -54,9 +56,19 @@ describe('ContextService', () => {
       getRawMany: jest.fn().mockResolvedValue([
         ...Array.from({ length: liveCount }, (_, i) => ({
           resourceId: `live-${i + 1}`,
+          projectId: PROJECT_ID,
           deletedAt: null,
         })),
-        ...deletedIds.map(resourceId => ({ resourceId, deletedAt: new Date('2026-10-01') })),
+        ...deletedIds.map(resourceId => ({
+          resourceId,
+          projectId: PROJECT_ID,
+          deletedAt: new Date('2026-10-01'),
+        })),
+        ...otherProjectIds.map(resourceId => ({
+          resourceId,
+          projectId: 'project-2',
+          deletedAt: null,
+        })),
       ]),
     };
     linkRepository.createQueryBuilder.mockReturnValue(queryBuilder);
@@ -552,6 +564,20 @@ describe('ContextService', () => {
       });
     });
 
+    it('does not count links of resources that moved to another project', async () => {
+      const { service, contextRepository, storageContextRepository, memberRoleContextRepository } =
+        createService();
+
+      contextRepository.findOne.mockResolvedValue(createContextEntity());
+      const storageLinks = mockResourceLinks(storageContextRepository, 1, [], ['storage-moved']);
+      mockAffectedMembers(memberRoleContextRepository);
+
+      const result = await service.getImpact(CONTEXT_ID, PROJECT_ID, new Set());
+
+      expect(result.storageCount).toBe(1);
+      expect(storageLinks.addSelect).toHaveBeenCalledWith('resource.projectId', 'projectId');
+    });
+
     it('does not count links of deleted Data Marts, Storages and Destinations', async () => {
       const {
         service,
@@ -773,7 +799,7 @@ describe('ContextService', () => {
       expect(contextRepository.softRemove).not.toHaveBeenCalled();
     });
 
-    it('deletes a context held only by deleted resources, removing their links', async () => {
+    it('deletes a context held only by deleted or moved resources, removing their links', async () => {
       const {
         service,
         contextRepository,
@@ -787,7 +813,7 @@ describe('ContextService', () => {
       const existingEntity = createContextEntity();
       contextRepository.findOne.mockResolvedValue(existingEntity);
       mockResourceLinks(dataMartContextRepository, 0, ['dm-deleted']);
-      mockResourceLinks(storageContextRepository, 0, ['storage-deleted']);
+      mockResourceLinks(storageContextRepository, 0, ['storage-deleted'], ['storage-moved']);
       mockResourceLinks(destinationContextRepository, 0, ['destination-deleted']);
       userProvisioningContextSettingsContextRepository.count.mockResolvedValue(0);
 
@@ -799,7 +825,7 @@ describe('ContextService', () => {
       });
       expect(storageContextRepository.delete).toHaveBeenCalledWith({
         contextId: CONTEXT_ID,
-        storageId: In(['storage-deleted']),
+        storageId: In(['storage-deleted', 'storage-moved']),
       });
       expect(destinationContextRepository.delete).toHaveBeenCalledWith({
         contextId: CONTEXT_ID,

@@ -237,9 +237,9 @@ export class ContextService {
    * `splitMemberAssignments`) are not role assignments in that sense: they
    * grant nothing and the admin cannot see them, so they do not block. They
    * are removed with the context, so a member switched back to Selected
-   * contexts later does not carry a deleted context. Links of deleted Data
-   * Marts, Storages and Destinations (see `splitResourceLinks`) do not block
-   * either and are removed the same way.
+   * contexts later does not carry a deleted context. Links of Data Marts,
+   * Storages and Destinations the admin cannot see in this project (see
+   * `splitResourceLinks`) do not block either and are removed the same way.
    *
    * @param nonAdminMemberIds current project members other than admins.
    */
@@ -251,8 +251,11 @@ export class ContextService {
   ): Promise<void> {
     const entity = await this.getByIdAndProject(contextId, projectId);
 
-    const { counts, nonBlockingMemberIds, deletedResourceIds } =
-      await this.countBlockingAttachments(contextId, projectId, nonAdminMemberIds);
+    const { counts, nonBlockingMemberIds, staleResourceIds } = await this.countBlockingAttachments(
+      contextId,
+      projectId,
+      nonAdminMemberIds
+    );
     const total =
       counts.dataMartCount +
       counts.storageCount +
@@ -277,22 +280,22 @@ export class ContextService {
         userId: In(nonBlockingMemberIds),
       });
     }
-    if (deletedResourceIds.dataMartIds.length > 0) {
+    if (staleResourceIds.dataMartIds.length > 0) {
       await this.dataMartContextRepository.delete({
         contextId,
-        dataMartId: In(deletedResourceIds.dataMartIds),
+        dataMartId: In(staleResourceIds.dataMartIds),
       });
     }
-    if (deletedResourceIds.storageIds.length > 0) {
+    if (staleResourceIds.storageIds.length > 0) {
       await this.storageContextRepository.delete({
         contextId,
-        storageId: In(deletedResourceIds.storageIds),
+        storageId: In(staleResourceIds.storageIds),
       });
     }
-    if (deletedResourceIds.destinationIds.length > 0) {
+    if (staleResourceIds.destinationIds.length > 0) {
       await this.destinationContextRepository.delete({
         contextId,
-        destinationId: In(deletedResourceIds.destinationIds),
+        destinationId: In(staleResourceIds.destinationIds),
       });
     }
     await this.contextRepository.softRemove(entity);
@@ -310,13 +313,26 @@ export class ContextService {
       memberAssignments,
       userProvisioningDefaultsCount,
     ] = await Promise.all([
-      this.splitResourceLinks(this.dataMartContextRepository, 'dataMart', 'dataMartId', contextId),
-      this.splitResourceLinks(this.storageContextRepository, 'storage', 'storageId', contextId),
+      this.splitResourceLinks(
+        this.dataMartContextRepository,
+        'dataMart',
+        'dataMartId',
+        contextId,
+        projectId
+      ),
+      this.splitResourceLinks(
+        this.storageContextRepository,
+        'storage',
+        'storageId',
+        contextId,
+        projectId
+      ),
       this.splitResourceLinks(
         this.destinationContextRepository,
         'destination',
         'destinationId',
-        contextId
+        contextId,
+        projectId
       ),
       this.splitMemberAssignments(contextId, projectId, nonAdminMemberIds),
       this.userProvisioningContextSettingsContextRepository.count({ where: { contextId } }),
@@ -331,37 +347,43 @@ export class ContextService {
         userProvisioningDefaultsCount,
       },
       nonBlockingMemberIds: memberAssignments.nonBlockingUserIds,
-      deletedResourceIds: {
-        dataMartIds: dataMartLinks.deletedIds,
-        storageIds: storageLinks.deletedIds,
-        destinationIds: destinationLinks.deletedIds,
+      staleResourceIds: {
+        dataMartIds: dataMartLinks.staleIds,
+        storageIds: storageLinks.staleIds,
+        destinationIds: destinationLinks.staleIds,
       },
     };
   }
 
   /**
    * Splits a context's Data Mart, Storage or Destination links by whether the
-   * linked resource still exists. Deleting a resource only marks it deleted
-   * and keeps its links, but a deleted resource is not listed anywhere, so the
-   * admin could not detach it.
+   * admin can see the linked resource: it exists and belongs to the context's
+   * project. Deleting a resource only marks it deleted and keeps its links, and
+   * a Storage the legacy sync moved to another project keeps its old project's
+   * contexts. Neither is listed in this project, so the admin could not detach
+   * them; such stale links are returned in `staleIds`.
    */
-  private async splitResourceLinks(
-    linkRepository: Repository<ObjectLiteral>,
-    resourceRelation: string,
-    resourceIdProperty: string,
-    contextId: string
-  ): Promise<{ liveCount: number; deletedIds: string[] }> {
+  private async splitResourceLinks<Link extends ObjectLiteral>(
+    linkRepository: Repository<Link>,
+    resourceRelation: keyof Link & string,
+    resourceIdProperty: keyof Link & string,
+    contextId: string,
+    projectId: string
+  ): Promise<{ liveCount: number; staleIds: string[] }> {
     const links = await linkRepository
       .createQueryBuilder('link')
       .withDeleted()
       .innerJoin(`link.${resourceRelation}`, 'resource')
       .select(`link.${resourceIdProperty}`, 'resourceId')
+      .addSelect('resource.projectId', 'projectId')
       .addSelect('resource.deletedAt', 'deletedAt')
       .where('link.contextId = :contextId', { contextId })
-      .getRawMany<{ resourceId: string; deletedAt: Date | string | null }>();
+      .getRawMany<{ resourceId: string; projectId: string; deletedAt: Date | string | null }>();
 
-    const deletedIds = links.filter(link => link.deletedAt != null).map(link => link.resourceId);
-    return { liveCount: links.length - deletedIds.length, deletedIds };
+    const staleIds = links
+      .filter(link => link.deletedAt != null || link.projectId !== projectId)
+      .map(link => link.resourceId);
+    return { liveCount: links.length - staleIds.length, staleIds };
   }
 
   /**

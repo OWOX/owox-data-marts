@@ -174,6 +174,7 @@ function stubResourceLinks(repo: ReturnType<typeof createMockRepository>, liveCo
     getRawMany: jest.fn().mockResolvedValue(
       Array.from({ length: liveCount }, (_, i) => ({
         resourceId: `resource-${i + 1}`,
+        projectId: PROJECT_ID,
         deletedAt: null,
       }))
     ),
