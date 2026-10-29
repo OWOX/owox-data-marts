@@ -21,6 +21,23 @@ export interface SqlToken {
   unterminated?: true;
 }
 
+/**
+ * Comments and literals of one warehouse that the scanner does not read by default. All are off
+ * for formulas, which the analyzer refuses outright when they hold `#` or a backslash in a literal.
+ */
+export interface SqlScanOptions {
+  /** `#` starts a line comment, as on BigQuery. */
+  hashLineComments?: boolean;
+  /** `//` starts a line comment, as on Snowflake. */
+  slashLineComments?: boolean;
+  /** `'''…'''` and `"""…"""` are one string literal, as on BigQuery. */
+  tripleQuotedStrings?: boolean;
+  /** `$$…$$` is one string literal, as on Snowflake. */
+  dollarQuotedStrings?: boolean;
+  /** A backslash escapes nothing, as in AWS Athena literals: `'C:\'` ends at its second quote. */
+  backslashIsLiteral?: boolean;
+}
+
 const WORD_START = /[A-Za-z_]/;
 const WORD_BODY = /[A-Za-z0-9_$]/;
 
@@ -29,8 +46,9 @@ const WORD_BODY = /[A-Za-z0-9_$]/;
  * and punctuation — no precedence, no syntax validation, no dialect reimplementation. Validating
  * that the SQL is actually well-formed is the warehouse dry run's job.
  */
-export function scanSql(sql: string): SqlToken[] {
+export function scanSql(sql: string, options: SqlScanOptions = {}): SqlToken[] {
   const tokens: SqlToken[] = [];
+  const backslashEscapes = !options.backslashIsLiteral;
   let i = 0;
 
   while (i < sql.length) {
@@ -41,7 +59,11 @@ export function scanSql(sql: string): SqlToken[] {
       continue;
     }
 
-    if (c === '-' && sql[i + 1] === '-') {
+    if (
+      (c === '-' && sql[i + 1] === '-') ||
+      (options.hashLineComments && c === '#') ||
+      (options.slashLineComments && c === '/' && sql[i + 1] === '/')
+    ) {
       const end = indexOfLineTerminator(sql, i);
       tokens.push({ kind: 'comment', value: sql.slice(i, end), start: i, end });
       i = end;
@@ -62,16 +84,25 @@ export function scanSql(sql: string): SqlToken[] {
       continue;
     }
 
+    if (options.tripleQuotedStrings && (c === `'` || c === '"') && sql.startsWith(c + c + c, i)) {
+      i = readDelimited(sql, i, c + c + c, true, tokens);
+      continue;
+    }
+    if (options.dollarQuotedStrings && c === '$' && sql[i + 1] === '$') {
+      i = readDelimited(sql, i, '$$', false, tokens);
+      continue;
+    }
+
     if (c === `'`) {
-      i = readQuoted(sql, i, `'`, 'string', tokens);
+      i = readQuoted(sql, i, `'`, 'string', tokens, backslashEscapes);
       continue;
     }
     if (c === '"') {
-      i = readQuoted(sql, i, '"', 'quotedIdentifier', tokens);
+      i = readQuoted(sql, i, '"', 'quotedIdentifier', tokens, backslashEscapes);
       continue;
     }
     if (c === '`') {
-      i = readQuoted(sql, i, '`', 'quotedIdentifier', tokens);
+      i = readQuoted(sql, i, '`', 'quotedIdentifier', tokens, backslashEscapes);
       continue;
     }
 
@@ -106,8 +137,9 @@ export function scanSql(sql: string): SqlToken[] {
 // and a comment marker alike — while the warehouse, which ends the literal at the escaped quote,
 // executed the tail as code.
 //
-// The remaining divergence (Athena/Trino does NOT escape on backslash) is unreachable: the
-// analyzer refuses a backslash inside a literal outright, for the same reason it refuses `#`.
+// The remaining divergence (Athena/Trino does NOT escape on backslash) is unreachable for
+// formulas: the analyzer refuses a backslash inside a literal outright, for the same reason it
+// refuses `#`. Data Mart SQL written for Athena is scanned with `backslashIsLiteral`.
 //
 // An unterminated literal (no closing delimiter before end of input) still yields one token that
 // runs to the end of the string, so the scanner always terminates instead of looping forever. It
@@ -119,12 +151,13 @@ function readQuoted(
   start: number,
   delim: string,
   kind: SqlTokenKind,
-  out: SqlToken[]
+  out: SqlToken[],
+  backslashEscapes: boolean
 ): number {
   let j = start + 1;
   let terminated = false;
   while (j < sql.length) {
-    if (sql[j] === '\\') {
+    if (backslashEscapes && sql[j] === '\\') {
       j += 2;
       continue;
     }
@@ -147,6 +180,39 @@ function readQuoted(
     ...(terminated ? {} : { unterminated: true as const }),
   });
   return j;
+}
+
+// A string literal that only `delimiter` closes: BigQuery `'''…'''` and `"""…"""`, where a
+// backslash still escapes (so `\'''` does not close it, even in a raw `r'''…'''`), and Snowflake
+// `$$…$$`, where nothing does.
+function readDelimited(
+  sql: string,
+  start: number,
+  delimiter: string,
+  backslashEscapes: boolean,
+  out: SqlToken[]
+): number {
+  let j = start + delimiter.length;
+  while (j < sql.length) {
+    if (backslashEscapes && sql[j] === '\\') {
+      j += 2;
+      continue;
+    }
+    if (sql.startsWith(delimiter, j)) {
+      const end = j + delimiter.length;
+      out.push({ kind: 'string', value: sql.slice(start, end), start, end });
+      return end;
+    }
+    j++;
+  }
+  out.push({
+    kind: 'string',
+    value: sql.slice(start),
+    start,
+    end: sql.length,
+    unterminated: true,
+  });
+  return sql.length;
 }
 
 // A line comment ends at ANY line terminator, not at `\n` alone. Measured on all five warehouses:
