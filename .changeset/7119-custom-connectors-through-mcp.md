@@ -10,6 +10,8 @@ publish connectors in their connected AI assistant through MCP. The tools also
 support metadata updates, version inspection and rollback to an earlier published
 version.
 
+<https://customer-4geatlj66rtkaxtz.cloudflarestream.com/21c0555ee23b8f2a88a37ed130194e13/iframe>
+
 These tools are currently available through the custom MCP connection flow.
 They will become available in public agent directories soon.
 
