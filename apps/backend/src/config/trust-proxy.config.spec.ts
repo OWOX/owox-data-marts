@@ -2,7 +2,10 @@ import express from 'express';
 import * as supertest from 'supertest';
 import { configureTrustProxy } from './trust-proxy.config';
 
-async function clientIp(env: NodeJS.ProcessEnv, forwardedFor: string): Promise<string> {
+async function seenAs(
+  env: NodeJS.ProcessEnv,
+  forwardedFor: string
+): Promise<{ ip: string; protocol: string }> {
   const app = express();
   configureTrustProxy(app, env);
   app.get('/', (req, res) => {
@@ -13,8 +16,13 @@ async function clientIp(env: NodeJS.ProcessEnv, forwardedFor: string): Promise<s
     .get('/')
     .set('X-Forwarded-For', forwardedFor)
     .set('X-Forwarded-Proto', 'https');
-  expect(response.body.protocol).toBe('https');
-  return response.body.ip;
+  return response.body;
+}
+
+async function clientIp(env: NodeJS.ProcessEnv, forwardedFor: string): Promise<string> {
+  const { ip, protocol } = await seenAs(env, forwardedFor);
+  expect(protocol).toBe('https');
+  return ip;
 }
 
 describe('configureTrustProxy', () => {
@@ -28,6 +36,12 @@ describe('configureTrustProxy', () => {
 
   it('takes the client address behind the configured number of proxies', async () => {
     await expect(clientIp({ TRUST_PROXY_HOPS: '2' }, forwardedFor)).resolves.toBe('203.0.113.7');
+  });
+
+  it('with 0 trusts no proxy, so X-Forwarded-Proto is ignored too', async () => {
+    const { ip, protocol } = await seenAs({ TRUST_PROXY_HOPS: '0' }, forwardedFor);
+    expect(ip).toMatch(/127\.0\.0\.1$/);
+    expect(protocol).toBe('http');
   });
 
   it('refuses anything but a whole number from 0 to 10', () => {
