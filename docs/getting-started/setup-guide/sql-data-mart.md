@@ -45,12 +45,17 @@ The ID after `dm:` decides which Data Mart is read. The title in brackets is onl
 
 When the query runs, OWOX puts the referenced Data Mart's own SQL in place of the reference — or `SELECT * FROM` its table, for a Data Mart defined by a table, view, pattern or connector. The warehouse receives plain SQL, and **Preview SQL** of a report shows it down to the warehouse tables.
 
+![The Report SQL dialog of a report on a Data Mart that references Shop orders: the referenced SQL appears in place of the reference as a block labelled "-- Data Mart: Shop orders", with its WITH query down to the bigquery-public-data.thelook_ecommerce.orders table](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/9c2e64cc-7722-4588-b173-760feab70f00/public)
+
 What to know:
 
 - **Same Storage only.** A reference can't point to a Data Mart in another Storage. It isn't available for Legacy Google BigQuery storages.
 - **Published Data Marts only**, and only ones you can use in reports. This is checked for every reference each time the query is saved, so to save a query you need access to every Data Mart it references, including ones someone else added. People who read your Data Mart don't need that access, and the referenced SQL is visible to them in **Preview SQL**. Losing access to a referenced Data Mart later doesn't stop the Data Marts already saved with a reference to it.
 - **Columns come from the referenced Data Mart's source**: its query or its table. Its Calculated Fields aren't available.
 - **A column that keeps its name takes the referenced Data Mart's alias and description.** In your Output Schema they're read-only and change only in the Data Mart they come from, so a business name is written once. To give a column your own alias and description, rename it in your query (`o.amount AS retail_amount`). When several referenced Data Marts have a column of that name, it keeps its own. Primary keys aren't taken over: mark them in your Data Mart.
+
+  ![The Output Schema of a Data Mart built on Shop orders: the aliases and descriptions of order_id, user_id, created_at and num_of_item are read-only with a link icon, and a tooltip on one of them reads "From Data Mart “Shop orders”. Change it there."](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/f5c785b5-1a9b-4bdb-1efc-89e952d0ed00/public)
+
 - **A referenced Data Mart must be a single query.** A script with `DECLARE`, `SET` or several statements can't be referenced. If a referenced Data Mart becomes one later, the Data Marts that reference it fail to run until it's a single query again. Its `ORDER BY` doesn't carry over to yours: sort in your own query or in the report.
 - **References can be nested up to 10 levels deep**, and a Data Mart can't reference itself, directly or through others.
 - **Each reference adds the referenced Data Mart's whole SQL to your query**, and nested references add theirs. A long chain can reach your storage's limit on query length: 256 KB on AWS Athena, 1 MB on Google BigQuery. OWOX stops with an error once the query would grow past 1,000,000 characters.
