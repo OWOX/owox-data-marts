@@ -78,15 +78,7 @@ export class DataMartSchemaInheritanceService {
     schema: DataMartSchema | undefined
   ): Promise<{ schema: DataMartSchema | undefined; changed: boolean }> {
     if (!schema) return { schema, changed: false };
-
-    const index = buildSourceIndex(await this.loadSources(dataMart));
-    const fields = schema.fields as SchemaFieldLike[];
-    const nextFields = applyToFields(fields, index);
-    const changed = JSON.stringify(nextFields) !== JSON.stringify(fields);
-    return {
-      schema: changed ? ({ ...schema, fields: nextFields } as DataMartSchema) : schema,
-      changed,
-    };
+    return applyIndex(schema, buildSourceIndex(await this.loadSources(dataMart)));
   }
 
   /**
@@ -126,7 +118,16 @@ export class DataMartSchemaInheritanceService {
     for (const dependent of await this.sqlReferenceResolver.findReferencingDataMarts(source)) {
       // Referencing Data Marts share the source's Storage; the lookup does not load the relation.
       const inheriting = { ...dependent, storage: source.storage } as InheritingDataMart;
-      const { schema, changed } = await this.applyInheritance(inheriting, dependent.schema);
+      const index = buildSourceIndex(await this.loadSources(inheriting));
+      // The schema as saved now, not as the lookup above loaded it: the Data Marts ahead of this one
+      // were updated and walked first, and a save of this one's own fields in the meantime must
+      // not be written back out of existence.
+      const persisted = await this.dataMartRepository.findOne({
+        where: { id: dependent.id },
+        select: { id: true, schema: true },
+      });
+      if (!persisted?.schema) continue;
+      const { schema, changed } = applyIndex(persisted.schema, index);
       if (!changed) continue;
       // The repository, not DataMartService.save: DataMartService applies inheritance itself.
       await this.dataMartRepository.update(dependent.id, {
@@ -153,6 +154,19 @@ export class DataMartSchemaInheritanceService {
     const found = await this.sqlReferenceResolver.findReferencedDataMarts(ids, dataMart.projectId);
     return found.filter(source => source.storage?.id === dataMart.storage.id && source.schema);
   }
+}
+
+function applyIndex(
+  schema: DataMartSchema,
+  index: SourceIndex
+): { schema: DataMartSchema; changed: boolean } {
+  const fields = schema.fields as SchemaFieldLike[];
+  const nextFields = applyToFields(fields, index);
+  const changed = JSON.stringify(nextFields) !== JSON.stringify(fields);
+  return {
+    schema: changed ? ({ ...schema, fields: nextFields } as DataMartSchema) : schema,
+    changed,
+  };
 }
 
 function buildSourceIndex(sources: DataMart[]): SourceIndex {
@@ -184,9 +198,13 @@ function isInheritable(field: SchemaFieldLike): boolean {
 // serializes identically — `applyInheritance` decides "changed" by comparing serializations.
 function applyToFields(fields: SchemaFieldLike[], index: SourceIndex): SchemaFieldLike[] {
   return fields.map(field => {
-    if (field.calculated) return field;
-    const source = index.get(field.name);
     const next: SchemaFieldLike = { ...field };
+    if (field.calculated) {
+      // `inheritedFrom` is server-owned, and a calculated field never inherits.
+      delete next.inheritedFrom;
+      return next;
+    }
+    const source = index.get(field.name);
 
     if (source && source !== AMBIGUOUS) {
       if (source.alias !== undefined) next.alias = source.alias;

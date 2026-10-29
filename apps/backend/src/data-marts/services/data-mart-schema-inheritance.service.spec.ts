@@ -52,7 +52,16 @@ function createService(store: DataMart[], referencing: Record<string, DataMart[]
       (referencing[source.id] ?? []).map(dm => ({ ...dm, storage: undefined }) as never)
     ),
   };
-  const repository = { update: jest.fn().mockResolvedValue(undefined) };
+  // The rows as saved: each Data Mart that references another, before propagation updates it.
+  const saved = new Map(
+    Object.values(referencing)
+      .flat()
+      .map(dm => [dm.id, dm])
+  );
+  const repository = {
+    update: jest.fn().mockResolvedValue(undefined),
+    findOne: jest.fn(async ({ where }: { where: { id: string } }) => saved.get(where.id) ?? null),
+  };
   const service = new DataMartSchemaInheritanceService(resolver as never, repository as never);
   return { service, resolver, repository };
 }
@@ -172,6 +181,19 @@ describe('DataMartSchemaInheritanceService.applyInheritance', () => {
     expect(resolver.findReferencedDataMarts).not.toHaveBeenCalled();
   });
 
+  it('drops an inheritedFrom a client put on a calculated field', async () => {
+    const { service } = createService([orders]);
+    const b = dataMart(ids.b, 'B', `SELECT * FROM ${ref('Orders', ids.orders)} o`);
+    const forged = field('margin', {
+      calculated: { formula: 'SUM(x)' },
+      inheritedFrom: { dataMartId: ids.orders, dataMartTitle: 'Orders' },
+    });
+
+    const { schema } = await service.applyInheritance(b, schemaOf([forged]));
+
+    expect(schema?.fields[0]).not.toHaveProperty('inheritedFrom');
+  });
+
   it('reports no change when the inherited values are already in place', async () => {
     const { service } = createService([orders]);
     const b = dataMart(ids.b, 'B', `SELECT * FROM ${ref('Orders', ids.orders)} o`);
@@ -219,6 +241,22 @@ describe('DataMartSchemaInheritanceService.propagateFrom', () => {
             inheritedFrom: { dataMartId: ids.b, dataMartTitle: 'B' },
           }),
         ],
+      }),
+    });
+  });
+
+  it('writes onto the schema as saved now, keeping a field added after the lookup', async () => {
+    const sql = `SELECT * FROM ${ref('Orders', ids.orders)} o`;
+    const b = dataMart(ids.b, 'B', sql, [field('channel')]);
+    const { service, repository } = createService([orders], { [ids.orders]: [b] });
+    const mine = field('margin_pct', { calculated: { formula: 'x / y' }, alias: 'Margin %' });
+    repository.findOne.mockResolvedValueOnce(dataMart(ids.b, 'B', sql, [field('channel'), mine]));
+
+    await service.propagateFrom(orders);
+
+    expect(repository.update).toHaveBeenCalledWith(ids.b, {
+      schema: expect.objectContaining({
+        fields: [expect.objectContaining({ name: 'channel', alias: 'Sales channel' }), mine],
       }),
     });
   });
