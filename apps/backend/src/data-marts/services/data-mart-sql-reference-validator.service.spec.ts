@@ -93,26 +93,28 @@ describe('DataMartSqlReferenceValidator.prepareForSave', () => {
       })
     ).rejects.toMatchObject({
       code: DataMartSqlReferenceErrorCode.ACCESS_DENIED,
-      message: 'You do not have access to Data Mart "Orders", so you cannot reference it.',
+      message:
+        'You do not have access to Data Mart "Orders", so you cannot save SQL that references it. ' +
+        'Ask its owner to share it with you.',
     });
   });
 
-  it('keeps a reference saved before without re-checking access', async () => {
+  // The saved query reads the referenced Data Mart for everyone who reads this one, so a
+  // reference an earlier version had is checked against whoever saves it now.
+  it('refuses a co-editor who cannot use a Data Mart the query already referenced', async () => {
     const { validator, accessDecisionService } = createValidator(
       [dataMart(ids.orders, 'Orders')],
       false
     );
-    const sqlQuery = `SELECT * FROM ${ref('Orders', ids.orders)} o WHERE x = 2`;
 
     await expect(
       validator.prepareForSave({
         dataMart: b,
-        sqlQuery,
-        previousSqlQuery: `SELECT * FROM ${ref('Orders', ids.orders)} o`,
+        sqlQuery: `SELECT * FROM ${ref('Orders', ids.orders)} o WHERE x = 2`,
         userId: 'co-editor',
       })
-    ).resolves.toBe(sqlQuery);
-    expect(accessDecisionService.canAccess).not.toHaveBeenCalled();
+    ).rejects.toMatchObject({ code: DataMartSqlReferenceErrorCode.ACCESS_DENIED });
+    expect(accessDecisionService.canAccess).toHaveBeenCalledTimes(1);
   });
 
   it.each([

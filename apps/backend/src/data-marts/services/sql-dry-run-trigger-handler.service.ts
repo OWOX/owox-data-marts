@@ -49,6 +49,8 @@ export class SqlDryRunTriggerHandlerService
         sql: trigger.sql,
         userId: '',
         roles: [],
+        // Checked as the requesting user when the trigger was created.
+        referenceAccessChecked: true,
       });
 
       // Save result in trigger

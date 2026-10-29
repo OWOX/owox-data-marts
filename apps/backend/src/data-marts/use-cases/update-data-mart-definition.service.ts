@@ -22,7 +22,6 @@ import { SearchableEntityType } from '../../common/search/search.facade';
 import { ConnectorService } from '../services/connector/connector.service';
 import type { ConnectorCapabilities } from '../connector-types/connector-capabilities';
 import { DataMartSqlReferenceValidator } from '../services/data-mart-sql-reference-validator.service';
-import { isSqlDefinition } from '../dto/schemas/data-mart-table-definitions/data-mart-definition.guards';
 
 @Injectable()
 export class UpdateDataMartDefinitionService {
@@ -64,10 +63,6 @@ export class UpdateDataMartDefinitionService {
         ? await this.sqlReferenceValidator.prepareForSave({
             dataMart,
             sqlQuery: (command.definition as SqlDefinition).sqlQuery,
-            previousSqlQuery:
-              dataMart.definition && isSqlDefinition(dataMart.definition)
-                ? dataMart.definition.sqlQuery
-                : undefined,
             userId: command.userId || undefined,
             roles: command.roles,
           })

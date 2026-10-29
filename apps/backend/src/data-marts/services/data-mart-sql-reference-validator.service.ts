@@ -21,8 +21,6 @@ export interface PrepareSqlReferencesForSaveInput {
   /** The Data Mart whose SQL is being saved. */
   dataMart: Pick<DataMart, 'id' | 'projectId' | 'storage'>;
   sqlQuery: string;
-  /** The SQL saved before this edit, when the Data Mart was already defined by SQL. */
-  previousSqlQuery?: string;
   /** Who saves. Without one (system calls) access is not checked. */
   userId?: string;
   roles?: string[];
@@ -31,11 +29,14 @@ export interface PrepareSqlReferencesForSaveInput {
 /**
  * Checks the Data Mart references in a SQL query before it is saved.
  *
- * Every reference must point at a Data Mart of the same project and Storage, other than the one
- * being saved, and must not lead back to it. A reference added in this edit must also point at a
- * published Data Mart the saving user can use in reports. References kept from the previous
- * version are not re-checked for access, so a co-editor without access to the referenced Data
- * Mart can still edit the rest of the query.
+ * Every reference must point at a published Data Mart of the same project and Storage, other than
+ * the one being saved, that the saving user can use in reports, and must not lead back to it.
+ *
+ * Every save checks every reference, the ones an earlier version already had included: the query
+ * reads the referenced Data Mart for everyone who reads this one, so whoever saves it vouches for
+ * that access. A co-editor without access to a referenced Data Mart cannot save the query, and the
+ * error names the Data Mart to ask access for. Access is checked only on save: a Data Mart that
+ * stops being shared keeps feeding the Data Marts already saved with a reference to it.
  */
 @Injectable()
 export class DataMartSqlReferenceValidator {
@@ -67,10 +68,7 @@ export class DataMartSqlReferenceValidator {
       ).map(target => [target.id, target])
     );
 
-    const previousIds = new Set(
-      parseDataMartReferences(input.previousSqlQuery ?? '', options).map(reference => reference.id)
-    );
-    const checkedForAccess = new Set<string>();
+    const checked = new Set<string>();
 
     for (const reference of references) {
       if (reference.id === dataMart.id) {
@@ -96,8 +94,8 @@ export class DataMartSqlReferenceValidator {
           { dataMartId: target.id }
         );
       }
-      if (previousIds.has(target.id) || checkedForAccess.has(target.id)) continue;
-      checkedForAccess.add(target.id);
+      if (checked.has(target.id)) continue;
+      checked.add(target.id);
 
       if (target.status !== DataMartStatus.PUBLISHED) {
         throw new DataMartSqlReferenceException(
@@ -109,7 +107,8 @@ export class DataMartSqlReferenceValidator {
       if (input.userId && !(await this.canUse(input.userId, input.roles ?? [], target))) {
         throw new DataMartSqlReferenceException(
           DataMartSqlReferenceErrorCode.ACCESS_DENIED,
-          `You do not have access to Data Mart "${target.title}", so you cannot reference it.`,
+          `You do not have access to Data Mart "${target.title}", so you cannot save SQL that ` +
+            'references it. Ask its owner to share it with you.',
           { dataMartId: target.id }
         );
       }

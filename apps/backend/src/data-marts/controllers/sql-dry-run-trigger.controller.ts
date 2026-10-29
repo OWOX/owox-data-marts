@@ -13,6 +13,8 @@ import {
   GetSqlDryRunTriggerStatusSpec,
 } from './spec/sql-dry-run-trigger.api';
 import { AccessDecisionService, EntityType, Action } from '../services/access-decision';
+import { SqlDryRunService } from '../use-cases/sql-dry-run.service';
+import { SqlDryRunCommand } from '../dto/domain/sql-dry-run.command';
 
 /**
  * Controller for SQL dry run triggers.
@@ -28,7 +30,8 @@ import { AccessDecisionService, EntityType, Action } from '../services/access-de
 export class SqlDryRunTriggerController extends UiTriggerController<SqlDryRunResponseApiDto> {
   constructor(
     triggerService: SqlDryRunTriggerService,
-    private readonly accessDecisionService: AccessDecisionService
+    private readonly accessDecisionService: AccessDecisionService,
+    private readonly sqlDryRunService: SqlDryRunService
   ) {
     super(triggerService);
   }
@@ -60,6 +63,16 @@ export class SqlDryRunTriggerController extends UiTriggerController<SqlDryRunRes
       );
       if (!canEdit)
         throw new ForbiddenException('You do not have permission to edit this DataMart');
+      // The trigger keeps no roles, so the user's access to referenced Data Marts is checked now.
+      await this.sqlDryRunService.checkReferences(
+        new SqlDryRunCommand(
+          dataMartId,
+          context.projectId,
+          dto.sql,
+          context.userId,
+          context.roles ?? []
+        )
+      );
     }
     const triggerId = await (this.triggerService as SqlDryRunTriggerService).createTrigger(
       context.userId,

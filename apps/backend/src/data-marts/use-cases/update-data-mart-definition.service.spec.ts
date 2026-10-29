@@ -223,7 +223,7 @@ describe('UpdateDataMartDefinitionService', () => {
   describe('Data Mart references in SQL', () => {
     const sqlWithReference = 'SELECT * FROM [Old title](dm:aaaaaaaa-0000-4000-8000-000000000002) o';
 
-    it('saves the query the reference check returns, against the previous query', async () => {
+    it('saves the query the reference check returns', async () => {
       const sqlReferenceValidator = {
         prepareForSave: jest.fn().mockResolvedValue('SELECT * FROM [Orders](dm:…) o'),
       };
@@ -238,7 +238,6 @@ describe('UpdateDataMartDefinitionService', () => {
       expect(sqlReferenceValidator.prepareForSave).toHaveBeenCalledWith({
         dataMart,
         sqlQuery: sqlWithReference,
-        previousSqlQuery: 'SELECT 1',
         userId: 'user-1',
         roles: ['editor'],
       });
