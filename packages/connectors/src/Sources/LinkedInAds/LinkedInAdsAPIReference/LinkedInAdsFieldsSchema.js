@@ -51,5 +51,41 @@ var LinkedInAdsFieldsSchema = {
     "defaultFields": ["actionClicks", "adUnitClicks", "approximateMemberReach", "clicks", "commentLikes", "comments", "companyPageClicks", "conversionValueInLocalCurrency", "costInLocalCurrency", "costInUsd", "externalWebsiteConversions", "externalWebsitePostClickConversions", "externalWebsitePostViewConversions", "follows", "impressions", "landingPageClicks", "leadGenerationMailContactInfoShares", "leadGenerationMailInterestedClicks", "likes", "oneClickLeadFormOpens", "oneClickLeads", "opens", "otherEngagements", "reactions", "sends", "shares", "textUrlClicks", "totalEngagements", "viralClicks", "viralCommentLikes", "viralComments", "viralCompanyPageClicks", "viralExternalWebsiteConversions", "viralExternalWebsitePostClickConversions", "viralFollows", "viralImpressions", "viralLandingPageClicks", "viralLikes", "viralOneClickLeadFormOpens", "viralOneClickLeads", "viralOtherEngagements", "viralReactions", "viralShares", "viralTotalEngagements"],
     "destinationName": "linkedin_ads_ad_analytics",
     "isTimeSeries": true
+  },
+  "adAnalyticsByCountry": {
+    "overview": "Ad Analytics by Country",
+    "description": "Daily campaign performance by the country of the members who saw your ads — impressions, clicks, spend, and conversions per country.",
+    "documentation": "https://learn.microsoft.com/en-us/linkedin/marketing/integrations/ads-reporting/ads-reporting",
+    "fields": buildAdAnalyticsByGeoFields("country"),
+    "uniqueKeys": ["dateRangeStart", "dateRangeEnd", "campaign", "country"],
+    "defaultFields": ["account", "countryName", "impressions", "clicks", "costInLocalCurrency", "costInUsd", "landingPageClicks", "totalEngagements", "externalWebsiteConversions", "oneClickLeads"],
+    "destinationName": "linkedin_ads_ad_analytics_by_country",
+    "isTimeSeries": true,
+    "geoPivot": "MEMBER_COUNTRY_V2",
+    "geoField": "country"
+  },
+  "adAnalyticsByRegion": {
+    "overview": "Ad Analytics by Region",
+    "description": "Daily campaign performance by the region of the members who saw your ads — impressions, clicks, spend, and conversions per region.",
+    "documentation": "https://learn.microsoft.com/en-us/linkedin/marketing/integrations/ads-reporting/ads-reporting",
+    "fields": buildAdAnalyticsByGeoFields("region"),
+    "uniqueKeys": ["dateRangeStart", "dateRangeEnd", "campaign", "region"],
+    "defaultFields": ["account", "regionName", "impressions", "clicks", "costInLocalCurrency", "costInUsd", "landingPageClicks", "totalEngagements", "externalWebsiteConversions", "oneClickLeads"],
+    "destinationName": "linkedin_ads_ad_analytics_by_region",
+    "isTimeSeries": true,
+    "geoPivot": "MEMBER_REGION_V2",
+    "geoField": "region"
+  },
+  "adAnalyticsByCounty": {
+    "overview": "Ad Analytics by County",
+    "description": "Daily campaign performance by the county of the members who saw your ads — impressions, clicks, spend, and conversions per county.",
+    "documentation": "https://learn.microsoft.com/en-us/linkedin/marketing/integrations/ads-reporting/ads-reporting",
+    "fields": buildAdAnalyticsByGeoFields("county"),
+    "uniqueKeys": ["dateRangeStart", "dateRangeEnd", "campaign", "county"],
+    "defaultFields": ["account", "countyName", "impressions", "clicks", "costInLocalCurrency", "costInUsd", "landingPageClicks", "totalEngagements", "externalWebsiteConversions", "oneClickLeads"],
+    "destinationName": "linkedin_ads_ad_analytics_by_county",
+    "isTimeSeries": true,
+    "geoPivot": "MEMBER_COUNTY",
+    "geoField": "county"
   }
 }

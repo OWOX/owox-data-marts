@@ -74,6 +74,28 @@ The process is complete when the **Run history** tab shows the message:
 
 ## FAQ
 
+### How do I see spend by country, region, or county?
+
+Choose one of these endpoints:
+
+- **Ad Analytics by Country** – table `linkedin_ads_ad_analytics_by_country`
+- **Ad Analytics by Region** – table `linkedin_ads_ad_analytics_by_region`
+- **Ad Analytics by County** – table `linkedin_ads_ad_analytics_by_county`
+
+Each row holds one campaign's metrics for one location on one day. The location comes as a LinkedIn URN (for example `urn:li:geo:103644278`) and as its English name (for example `United States`). The `campaign` column holds the campaign URN; its number is the `id` in the **Campaigns** endpoint.
+
+LinkedIn reports one location level at a time, so country, region, and county are separate endpoints and separate tables.
+
+What to expect from these endpoints:
+
+- **More API requests than Ad Analytics.** LinkedIn breaks location down only for one campaign at a time. For every day, the connector first reads which campaigns ran, then asks for each of those campaigns separately.
+- **Totals can be lower than in Ad Analytics.** LinkedIn drops a location with fewer than 3 events and returns location data only for ads that reached enough members, to protect member privacy.
+- **Data arrives 12–24 hours late.** The default **Reimport Lookback Window** of 2 days re-imports those days on the next run.
+- **Two years of history.** LinkedIn keeps location breakdowns for two years, so a backfill further back returns no rows.
+- **Some metrics are missing.** LinkedIn does not break down `approximateMemberReach`, `audiencePenetration`, `conversionValueInLocalCurrency`, or the carousel card metrics by location, so these endpoints do not offer them.
+
+If LinkedIn does not return location names, the run imports the metrics and the location URNs, leaves the names empty, and finishes with a **Warning** status.
+
 ### Why does my Ad Analytics run finish with a Warning status?
 
 LinkedIn's `adAnalytics` endpoint does not support pagination and caps each response at **15,000 rows**. To avoid silently losing data on long date ranges, the connector fetches analytics **one day at a time**. A single day can still exceed the limit, for example an account with more than 15,000 active creatives. The run then finishes with a **Warning** status and lists the affected days in the log. Data for those days may be incomplete.

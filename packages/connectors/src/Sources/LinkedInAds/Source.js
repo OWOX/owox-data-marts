@@ -201,6 +201,12 @@ export class LinkedInAdsSource extends AbstractSource {
     // Account id -> the days whose adAnalytics response reached MAX_RESPONSE_ELEMENTS, reported
     // once when the account completes: every WARN line becomes one of the run's warnings.
     this.truncatedAnalyticsDays = new Map();
+    // Location names asked of adTargetingEntities in one request; LinkedIn documents no limit,
+    // this keeps the URL well short of one.
+    this.GEO_NAMES_PER_REQUEST = 50;
+    // Geo URN -> name for the whole run: every day and campaign repeats the same locations.
+    this.geoNames = new Map();
+    this.geoNamesUnavailable = false;
     this.BASE_URL = 'https://api.linkedin.com/rest/';
   }
 
@@ -214,8 +220,9 @@ export class LinkedInAdsSource extends AbstractSource {
    * each response far below the cap, and the engine's per-day checkpoint makes an
    * interrupted range resumable instead of restarting it.
    *
-   * adAnalytics is the only isTimeSeries node here, so it is the only node this is
-   * consulted for; the catalog nodes are planned as plain nodes and never see a date.
+   * The geo breakdowns share the cap and ask once per campaign, so a day keeps them small
+   * too. Only the analytics nodes are isTimeSeries, so only they consult this; the catalog
+   * nodes are planned as plain nodes and never see a date.
    */
   getDateStrategy(nodeName) {
     return DATE_STRATEGY.DAY_BY_DAY;
@@ -368,6 +375,9 @@ export class LinkedInAdsSource extends AbstractSource {
       case 'adAnalytics':
         return await this.fetchAdAnalytics({ urn, fields, startDate, endDate });
       default:
+        if (this.fieldsSchema[nodeName]?.geoPivot) {
+          return await this.fetchAdAnalyticsByGeo({ nodeName, urn, fields, startDate, endDate });
+        }
         throw new Error(`Unknown node: ${nodeName}`);
     }
   }
@@ -431,12 +441,161 @@ export class LinkedInAdsSource extends AbstractSource {
     // than counting. The rows already fetched are still returned: they are real, there
     // are simply more of them than LinkedIn would hand over.
     if (isTruncated) {
-      const days = this.truncatedAnalyticsDays.get(urn) ?? [];
-      days.push(start.toISOString().slice(0, 10));
-      this.truncatedAnalyticsDays.set(urn, days);
+      this.recordTruncatedDay(urn, start);
     }
 
     return this.transformAnalyticsDateRanges(allResults);
+  }
+
+  recordTruncatedDay(urn, start) {
+    const days = this.truncatedAnalyticsDays.get(urn) ?? [];
+    const day = start.toISOString().slice(0, 10);
+    if (!days.includes(day)) days.push(day);
+    this.truncatedAnalyticsDays.set(urn, days);
+  }
+
+  /**
+   * One geo breakdown (country, region or county) of a day's analytics, per campaign.
+   *
+   * LinkedIn returns a member pivot such as MEMBER_COUNTRY_V2 only from the analytics
+   * finder, which takes that one pivot and nothing else. Rows can therefore only carry the
+   * campaign when each request is narrowed to one campaign. To ask only for campaigns that
+   * ran, the day's campaigns are read first, in one request.
+   *
+   * pivotValues holds the location URN; it becomes the node's location column, and its
+   * name is looked up through adTargetingEntities.
+   */
+  async fetchAdAnalyticsByGeo({ nodeName, urn, fields, startDate, endDate }) {
+    const { geoPivot, geoField } = this.fieldsSchema[nodeName];
+    const geoNameField = `${geoField}Name`;
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    const accountUrn = `urn:li:sponsoredAccount:${urn}`;
+
+    // The account, campaign and location columns are filled here, not asked of LinkedIn.
+    const filledHere = ['account', 'campaign', geoField, geoNameField];
+    const apiFields = this.convertFieldsForApi(fields.filter(field => !filledHere.includes(field)));
+    const fieldChunks = this.prepareAnalyticsFieldChunks(apiFields);
+
+    const campaignUrns = await this.fetchActiveCampaignUrns({ accountUrn, start, end });
+    const rows = [];
+
+    for (const campaignUrn of campaignUrns) {
+      let campaignRows = [];
+
+      for (const fieldChunk of fieldChunks) {
+        const url = this.buildAdAnalyticsByGeoUrl({
+          startDate: start,
+          endDate: end,
+          pivot: geoPivot,
+          campaignUrn,
+          fields: fieldChunk,
+        });
+        const res = await this.makeRequest(url);
+        const elements = res.elements || [];
+
+        if (elements.length >= this.MAX_RESPONSE_ELEMENTS) {
+          this.recordTruncatedDay(urn, start);
+        }
+
+        campaignRows = this.mergeAnalyticsResults(campaignRows, elements);
+      }
+
+      rows.push(...campaignRows.map(row => ({ ...row, account: accountUrn, campaign: campaignUrn })));
+    }
+
+    const geoUrns = rows.map(row => row.pivotValues?.[0]).filter(Boolean);
+    const names = await this.resolveGeoNames(geoUrns);
+
+    return this.transformAnalyticsDateRanges(rows).map(row => {
+      const { pivotValues, ...rest } = row;
+      const geoUrn = pivotValues?.[0] ?? null;
+      return { ...rest, [geoField]: geoUrn, [geoNameField]: names.get(geoUrn) ?? null };
+    });
+  }
+
+  /**
+   * The campaigns of an account that have analytics in the range, as URNs.
+   *
+   * Remembered for the last account and range asked: when one import selects several geo
+   * nodes, they run back to back for an account and day, and each would repeat it.
+   */
+  async fetchActiveCampaignUrns({ accountUrn, start, end }) {
+    const key = `${accountUrn}|${this.formatDateForUrl(start)}|${this.formatDateForUrl(end)}`;
+    if (this.activeCampaigns?.key === key) return this.activeCampaigns.urns;
+
+    const url =
+      `${this.BASE_URL}adAnalytics?q=analytics` +
+      `&dateRange=(start:${this.formatDateForUrl(start)},end:${this.formatDateForUrl(end)})` +
+      `&pivot=CAMPAIGN` +
+      `&timeGranularity=ALL` +
+      `&accounts=List(${encodeURIComponent(accountUrn)})` +
+      `&fields=${this.formatFields(['pivotValues', 'impressions'])}`;
+    const res = await this.makeRequest(url);
+    const urns = [...new Set((res.elements || []).map(element => element.pivotValues?.[0]))].filter(
+      Boolean
+    );
+
+    this.activeCampaigns = { key, urns };
+    return urns;
+  }
+
+  buildAdAnalyticsByGeoUrl({ startDate, endDate, pivot, campaignUrn, fields }) {
+    return (
+      `${this.BASE_URL}adAnalytics?q=analytics` +
+      `&dateRange=(start:${this.formatDateForUrl(startDate)},` +
+      `end:${this.formatDateForUrl(endDate)})` +
+      `&pivot=${pivot}` +
+      `&timeGranularity=DAILY` +
+      `&campaigns=List(${encodeURIComponent(campaignUrn)})` +
+      `&fields=${this.formatFields(fields)}`
+    );
+  }
+
+  /**
+   * Names for geo URNs, from LinkedIn's URN-to-name resolver (adTargetingEntities, q=urns).
+   *
+   * Each URN is asked once per run. A URN LinkedIn does not name stays empty rather than
+   * being asked again. When the lookup fails, the run still imports the metrics and the
+   * location URNs: names are then left empty and a single warning says so.
+   *
+   * @param {string[]} geoUrns - location URNs such as urn:li:geo:103644278
+   * @returns {Promise<Map<string, string|null>>} URN -> name, for every URN resolved so far
+   */
+  async resolveGeoNames(geoUrns) {
+    if (this.geoNamesUnavailable) return this.geoNames;
+
+    const unknown = [...new Set(geoUrns)].filter(geoUrn => !this.geoNames.has(geoUrn));
+
+    for (let i = 0; i < unknown.length; i += this.GEO_NAMES_PER_REQUEST) {
+      const batch = unknown.slice(i, i + this.GEO_NAMES_PER_REQUEST);
+      const url =
+        `${this.BASE_URL}adTargetingEntities?q=urns&queryVersion=QUERY_USES_URNS` +
+        `&urns=List(${batch.map(geoUrn => encodeURIComponent(geoUrn)).join(',')})` +
+        `&locale=(language:en,country:US)`;
+
+      let res;
+      try {
+        res = await this.makeRequest(url);
+      } catch (error) {
+        this.geoNamesUnavailable = true;
+        this.context.log(
+          LOG_LEVEL.WARN,
+          `LinkedIn did not return location names (${error.message}); ` +
+            'location names are left empty, and the location URNs and metrics are imported'
+        );
+        return this.geoNames;
+      }
+
+      for (const element of res.elements || []) {
+        if (element?.urn) this.geoNames.set(element.urn, element.name ?? null);
+      }
+      for (const geoUrn of batch) {
+        if (!this.geoNames.has(geoUrn)) this.geoNames.set(geoUrn, null);
+      }
+    }
+
+    return this.geoNames;
   }
 
   /**
