@@ -18,8 +18,8 @@ function blankAsUnset<T extends z.ZodTypeAny>(schema: T) {
 
 /**
  * Number of reverse proxies in front of the app that append to X-Forwarded-For; applied by
- * configureTrustProxy before bootstrap. Whole numbers only, and bounded: Express trusts every
- * X-Forwarded-For entry for a count larger than the chain, so the client could choose req.ip.
+ * configureTrustProxy before bootstrap. Any count larger than the real chain lets the client
+ * choose req.ip, so it must match the deployment; the bound only rejects absurd values.
  */
 export const trustProxyHopsSchema = blankAsUnset(z.coerce.number().int().min(0).max(10).default(1));
 

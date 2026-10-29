@@ -194,12 +194,13 @@ owox serve --env-file custom.env --port 3030
 ## Reverse proxy
 
 - **TRUST_PROXY_HOPS**: Number of reverse proxies in front of the application that append to `X-Forwarded-For`.
-  - The client address is taken that many entries from the right of `X-Forwarded-For`; entries further left come from the client and are ignored.
-  - Example: `2` behind a Google Cloud HTTP(S) load balancer, which appends both the client address and its own.
-  - Whole numbers from `0` to `10`; any other value stops the application at startup. A blank value means the default.
+  - The application's client address (Express `req.ip`) is taken that many entries from the right of `X-Forwarded-For`; entries further left come from the client and are ignored.
+  - Count the entries your proxies append. Example: `2` behind a Google Cloud external Application Load Balancer, which appends both the client address and its own.
+  - A number from `0` to `10`, read like the other numeric settings; a value outside that range or not a whole number stops the application at startup. A blank value means the default.
   - Default: `1`.
-  - `0` trusts no proxy at all: besides the client address, the protocol and host come from the connection instead of `X-Forwarded-Proto` and `X-Forwarded-Host`. Use it only when clients connect to the application directly; behind a proxy that terminates TLS the application would see `http` and stop marking auth cookies `Secure`.
+  - `0` trusts no proxy at all: the protocol (and `req.hostname`) also come from the connection instead of `X-Forwarded-Proto` and `X-Forwarded-Host`. Use it only when clients connect to the application directly; behind a proxy that terminates TLS the application would see `http` and stop marking auth cookies `Secure`.
   - A value larger than the real number of proxies lets clients set their own address through `X-Forwarded-For`.
+  - Better Auth reads `X-Forwarded-For` itself for its rate limits and is not affected by this setting.
 
 ## CORS
 
