@@ -205,6 +205,43 @@ describe('DataMartSqlReferenceResolver', () => {
       });
     });
 
+    it('refuses a loop between two referenced Data Marts instead of waiting forever', async () => {
+      // B and C both sit under the root: each one's expansion reaches the other.
+      const b = dataMart(ids.b, 'B', { sqlQuery: `SELECT * FROM ${ref('C', ids.costs)} c` });
+      const c = dataMart(ids.costs, 'C', { sqlQuery: `SELECT * FROM ${ref('B', ids.b)} b` });
+      const { resolver } = createResolver([b, c]);
+
+      await expect(
+        resolver.expandSql(
+          `SELECT * FROM ${ref('B', ids.b)} b JOIN ${ref('C', ids.costs)} c USING (d)`,
+          { projectId: 'project-1', storage: b.storage }
+        )
+      ).rejects.toMatchObject({ code: DataMartSqlReferenceErrorCode.CYCLE });
+    });
+
+    it('refuses SQL that grows past the length limit, naming the Data Mart', async () => {
+      const wide = dataMart(ids.orders, 'Wide', {
+        sqlQuery: `SELECT '${'x'.repeat(300_000)}' AS s`,
+      });
+      const fourTimes = [0, 1, 2, 3].map(n => `${ref('Wide', ids.orders)} w${n}`).join(', ');
+      const fanOut = dataMart(ids.nested, 'Fan-out', { sqlQuery: `SELECT * FROM ${fourTimes}` });
+      const { resolver } = createResolver([wide, fanOut]);
+      const scope = { projectId: 'project-1', storage: wide.storage };
+
+      await expect(
+        resolver.expandSql(`SELECT * FROM ${ref('Fan-out', ids.nested)} f`, scope)
+      ).rejects.toMatchObject({
+        code: DataMartSqlReferenceErrorCode.TOO_LONG,
+        message: expect.stringContaining(
+          'The SQL of Data Mart "Fan-out" becomes longer than 1,000,000 characters'
+        ),
+      });
+      await expect(resolver.expandSql(`SELECT * FROM ${fourTimes}`, scope)).rejects.toMatchObject({
+        code: DataMartSqlReferenceErrorCode.TOO_LONG,
+        message: expect.stringMatching(/^This SQL becomes longer/),
+      });
+    });
+
     it('uses the technical view for a recursive query', async () => {
       const tree = dataMart(ids.orders, 'Tree', {
         sqlQuery: 'WITH RECURSIVE t AS (SELECT 1 AS n) SELECT * FROM t',

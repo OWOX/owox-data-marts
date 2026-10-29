@@ -13,6 +13,7 @@ import { DataMartDefinitionType } from '../enums/data-mart-definition-type.enum'
 import { DataStorage } from '../entities/data-storage.entity';
 import {
   MAX_DATA_MART_REFERENCE_DEPTH,
+  MAX_RESOLVED_SQL_LENGTH,
   maskDataMartReferences,
   parseDataMartReferences,
   replaceDataMartReferences,
@@ -208,11 +209,20 @@ export class DataMartSqlReferenceResolver implements DataMartDefinitionResolver 
     };
   }
 
+  /**
+   * `sql` with its references resolved. `path` holds the Data Marts being expanded, outermost
+   * first; `memo` holds each SQL Data Mart's expansion, shared by every reference to it.
+   *
+   * References are expanded one at a time, depth first. So a memo entry is either finished or
+   * belongs to a Data Mart on `path`, which is reported as a cycle before the memo is read. Expanded
+   * side by side, two branches could each wait for the other's entry: A → {B, C}, B → C, C → B.
+   */
   private async expand(
     sql: string,
     scope: DataMartSqlReferenceScope,
     path: readonly string[],
-    memo: Map<string, Promise<string>>
+    memo: Map<string, Promise<string>>,
+    owner?: Pick<DataMart, 'title'>
   ): Promise<string> {
     const options = sqlLexingOptionsFor(scope.storage.type);
     const references = parseDataMartReferences(sql, options);
@@ -228,7 +238,7 @@ export class DataMartSqlReferenceResolver implements DataMartDefinitionResolver 
 
     const targets = await this.loadTargets(references, scope);
 
-    // Decided up front, in order, so concurrent rendering below cannot reorder aliases.
+    // Decided up front from the original text, so the inserted SQL cannot shift them.
     const masked = maskDataMartReferences(sql, references);
     const cteBodies =
       scope.storage.type === DataStorageType.AWS_REDSHIFT ? topLevelCteBodies(masked, options) : [];
@@ -240,6 +250,7 @@ export class DataMartSqlReferenceResolver implements DataMartDefinitionResolver 
         : nextAlias(reference.id, aliasesUsed),
     }));
 
+    let length = sql.length;
     return replaceDataMartReferences(sql, references, async (reference, index) => {
       const target = targets.get(reference.id)!;
       if (path.includes(target.id)) {
@@ -251,7 +262,11 @@ export class DataMartSqlReferenceResolver implements DataMartDefinitionResolver 
       }
       const { insideCte, alias } = placements[index];
       const source = await this.sourceFor(target, scope, [...path, target.id], memo, insideCte);
-      return alias ? `${source} AS ${alias}` : source;
+      const rendered = alias ? `${source} AS ${alias}` : source;
+      // Checked as each reference is written in, so an oversized query is never built.
+      length += rendered.length;
+      if (length > MAX_RESOLVED_SQL_LENGTH) throw tooLong(owner);
+      return rendered;
     });
   }
 
@@ -278,7 +293,7 @@ export class DataMartSqlReferenceResolver implements DataMartDefinitionResolver 
 
     let pending = memo.get(target.id);
     if (!pending) {
-      pending = this.expand(definition.sqlQuery, scope, path, memo);
+      pending = this.expand(definition.sqlQuery, scope, path, memo, target);
       memo.set(target.id, pending);
     }
     const options = sqlLexingOptionsFor(scope.storage.type);
@@ -385,6 +400,17 @@ export class DataMartSqlReferenceResolver implements DataMartDefinitionResolver 
     }
     return byId;
   }
+}
+
+function tooLong(owner?: Pick<DataMart, 'title'>): DataMartSqlReferenceException {
+  const limit = MAX_RESOLVED_SQL_LENGTH.toLocaleString('en-US');
+  const subject = owner?.title ? `The SQL of Data Mart "${owner.title}"` : 'This SQL';
+  return new DataMartSqlReferenceException(
+    DataMartSqlReferenceErrorCode.TOO_LONG,
+    `${subject} becomes longer than ${limit} characters once the Data Marts it references are ` +
+      'written into it. Reference fewer Data Marts, or reference them fewer times.',
+    { maxLength: MAX_RESOLVED_SQL_LENGTH }
+  );
 }
 
 function labelOf(dataMart: Partial<Pick<DataMart, 'title'>> & Pick<DataMart, 'id'>): string {

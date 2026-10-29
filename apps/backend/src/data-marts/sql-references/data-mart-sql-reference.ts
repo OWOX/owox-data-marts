@@ -95,14 +95,18 @@ export function serializeDataMartReference(reference: { id: string; title: strin
 
 /**
  * Replaces each reference with the text `render` returns for it. References must come from
- * {@link parseDataMartReferences} on the same `sql`.
+ * {@link parseDataMartReferences} on the same `sql`. They are rendered one at a time, in order:
+ * a renderer that fails stops the rest.
  */
 export async function replaceDataMartReferences(
   sql: string,
   references: readonly DataMartSqlReference[],
   render: (reference: DataMartSqlReference, index: number) => Promise<string> | string
 ): Promise<string> {
-  const rendered = await Promise.all(references.map((ref, index) => render(ref, index)));
+  const rendered: string[] = [];
+  for (const [index, ref] of references.entries()) {
+    rendered.push(await render(ref, index));
+  }
   let result = sql;
   // From the end, so earlier offsets stay valid.
   for (let index = references.length - 1; index >= 0; index--) {
@@ -147,6 +151,14 @@ function escapeTitle(title: string): string {
  * level adds the referenced query's full text to the one the warehouse receives.
  */
 export const MAX_DATA_MART_REFERENCE_DEPTH = 10;
+
+/**
+ * The longest SQL resolving may produce, in characters. Each reference adds the referenced query's
+ * full text, so a few references per level grow it exponentially with depth. The strictest
+ * warehouse limits are 256 KB (AWS Athena) and 1 MB (Google BigQuery, Snowflake): a longer query
+ * fails there anyway, and building one could exhaust the server's memory first.
+ */
+export const MAX_RESOLVED_SQL_LENGTH = 1_000_000;
 
 /**
  * A SQL definition's query for storage code to run, checked for unresolved references. Storage
