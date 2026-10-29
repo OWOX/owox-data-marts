@@ -3,6 +3,8 @@ import { Report } from '../../../entities/report.entity';
 import { DataStorageType } from '../../enums/data-storage-type.enum';
 import { DataMartSchemaFieldStatus } from '../../enums/data-mart-schema-field-status.enum';
 import { AthenaFieldType } from '../enums/athena-field-type.enum';
+import { AthenaClauseRenderer } from './athena-clause-renderer';
+import { AthenaQueryBuilder } from './athena-query.builder';
 import { AthenaReportReader } from './athena-report-reader.service';
 
 describe('AthenaReportReader', () => {
@@ -103,6 +105,43 @@ describe('AthenaReportReader', () => {
       expect.any(String),
       overrideParams
     );
+  });
+
+  // Output controls, joins, preview and totals hand the reader final SQL with every reference
+  // resolved, while the definition still holds the reference.
+  it('runs the override without building from a definition that references a Data Mart', async () => {
+    const overrideSql = 'SELECT channel FROM (SELECT 1 AS channel)';
+    const athenaAdapter = {
+      executeQuery: jest.fn().mockResolvedValue({ queryExecutionId: 'q1' }),
+      waitForQueryToComplete: jest.fn().mockResolvedValue(undefined),
+      getQueryResults: jest.fn().mockResolvedValue({
+        ResultSet: {
+          Rows: [{ Data: [{ VarCharValue: 'channel' }] }, { Data: [{ VarCharValue: '1' }] }],
+          ResultSetMetadata: { ColumnInfo: [{ Name: 'channel' }] },
+        },
+      }),
+    };
+    const reader = new AthenaReportReader(
+      { createFromStorage: jest.fn().mockResolvedValue(athenaAdapter) } as never,
+      { createFromStorage: jest.fn().mockResolvedValue({}) } as never,
+      new AthenaQueryBuilder(new AthenaClauseRenderer()),
+      { generateHeaders: jest.fn().mockReturnValue([new ReportDataHeader('channel')]) } as never
+    );
+    const report = createReport();
+    report.dataMart.definition = {
+      sqlQuery: 'SELECT * FROM [Orders](dm:96c33880-70e3-4151-9a07-ae379c994898)',
+    } as never;
+
+    await reader.prepareReportData(report, { sqlOverride: overrideSql });
+    const batch = await reader.readReportDataBatch(undefined, 10);
+
+    expect(athenaAdapter.executeQuery).toHaveBeenCalledWith(
+      overrideSql,
+      'my-bucket',
+      expect.any(String),
+      undefined
+    );
+    expect(batch.dataRows).toEqual([['1']]);
   });
 
   describe('maxDataRows means DATA rows, not Athena result rows', () => {
