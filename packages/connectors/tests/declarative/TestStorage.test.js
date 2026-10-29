@@ -12,7 +12,11 @@ test('TestStorage.saveData writes one marker-prefixed NDJSON line per record', a
     return true;
   };
   try {
-    const s = new TestStorage({}, ['id'], { id: {} }, 'dest');
+    const context = new AbstractContext({
+      source: { name: 'Test', config: {} },
+      storage: { name: 'Test', config: {} },
+    });
+    const s = new TestStorage(context, ['id'], { id: {} }, 'dest');
     await s.init();
     await s.saveData([
       { id: 1, name: 'a' },
@@ -26,6 +30,47 @@ test('TestStorage.saveData writes one marker-prefixed NDJSON line per record', a
   assert.deepEqual(JSON.parse(lines[0].slice(TEST_ROW_MARKER.length)), { id: 1, name: 'a' });
   assert.deepEqual(JSON.parse(lines[1].slice(TEST_ROW_MARKER.length)), { id: 2, name: 'b' });
 });
+
+for (const { name, secret } of [
+  { name: 'quoted', secret: 'private/"escaped secret"' },
+  { name: 'numeric-looking', secret: '123456' },
+  { name: 'trailing-backslash', secret: 'abcdef\\' },
+]) {
+  test(`TestStorage masks a ${name} secret without corrupting rows or changing ordinary data`, async () => {
+    const context = new AbstractContext({
+      source: { name: 'Test', config: { Value: { value: secret }, Region: { value: 'eu' } } },
+      storage: { name: 'Test', config: {} },
+    });
+    context.registerParameters({ Value: { attributes: ['SECRET'] }, Region: {} });
+    const rows = [
+      {
+        id: 123456,
+        nested: { value: secret },
+        path: `/items/${encodeURIComponent(secret)}`,
+        region: 'eu',
+      },
+    ];
+    const before = structuredClone(rows);
+    const written = [];
+    const original = process.stdout.write;
+    process.stdout.write = chunk => {
+      written.push(String(chunk));
+      return true;
+    };
+    try {
+      await new TestStorage(context, ['id'], { id: {} }, 'dest').saveData(rows);
+    } finally {
+      process.stdout.write = original;
+    }
+    assert.deepEqual(JSON.parse(written[0].slice(TEST_ROW_MARKER.length)), {
+      id: 123456,
+      nested: { value: '***' },
+      path: '/items/***',
+      region: 'eu',
+    });
+    assert.deepEqual(rows, before);
+  });
+}
 
 // Note: there is no src/index.js — the package uses a vite-based build (vite.config.js)
 // that auto-discovers all src/Core/**/*.js files and assembles the Core object at build time.

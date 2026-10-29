@@ -118,6 +118,19 @@ describe('ConnectorTestService.runTest (against a fake runner)', () => {
     expect(res.logs.join(' ')).toContain('starting fake run');
   });
 
+  it('consumes credential updates without exposing tokens or discarding useful test output', async () => {
+    const result = await makeService().runTest(
+      { projectId: 'p', manifest, node: 'items', configuration: {}, maxRows: 3 },
+      { env: { FAKE_CREDENTIALS: '1' } }
+    );
+
+    expect(result).toMatchObject({ rows: [{ i: 1 }], sample: [{ i: 1 }], error: null });
+    expect(result.logs).toContain('ordinary diagnostic');
+    expect(result.logs.join(' ')).toMatch(/credentials.*not stored/);
+    expect(JSON.stringify(result)).not.toContain('private-rotated-token');
+    expect(result.logs.some(line => line.includes('CREDENTIALS'))).toBe(false);
+  });
+
   it('forwards a Fields selection for the node so the connector fetches it', async () => {
     const svc = makeService();
     const res = await svc.runTest({

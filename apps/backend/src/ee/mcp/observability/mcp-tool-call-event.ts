@@ -102,24 +102,16 @@ function normalizeError(error: unknown): { type: string; message: string } {
     error instanceof Error
       ? { type: error.name, message: error.message }
       : { type: 'Error', message: String(error) };
-  // Cap length so a tool that throws a raw, verbose error (e.g. a DB dump) can't flood logs/OTLP.
-  const capped =
-    message.length > MAX_META_VALUE_LEN
-      ? `${message.slice(0, MAX_META_VALUE_LEN)}…[truncated]`
-      : message;
-  return { type, message: capped };
+  return { type, message };
 }
 
-/** Short reason for a structured tool error (result.isError, no thrown error) — first text part, capped. */
+/** The first text part is the error reason; later parts can contain diagnostic data. */
 function extractResultErrorMessage(result?: McpToolResult): string {
   const textPart = result?.content?.find(
     (c): c is { type: 'text'; text: string } => c?.type === 'text' && typeof c.text === 'string'
   );
   const text = textPart?.text ?? '';
-  if (!text) return 'tool returned isError';
-  return text.length > MAX_META_VALUE_LEN
-    ? `${text.slice(0, MAX_META_VALUE_LEN)}…[truncated]`
-    : text;
+  return text || 'tool returned isError';
 }
 
 export function buildMcpToolCallEvent(p: BuildMcpToolCallEventParams): McpToolCallEvent {
@@ -167,6 +159,12 @@ export function buildMcpToolCallEvent(p: BuildMcpToolCallEventParams): McpToolCa
       payload.error_type = 'ToolError';
       payload.error_message = extractResultErrorMessage(p.result);
     }
+    // Mask before truncation so a cut token cannot escape value-based masking.
+    const message = redact(payload.error_message, p.input) as string;
+    payload.error_message =
+      message.length > MAX_META_VALUE_LEN
+        ? `${message.slice(0, MAX_META_VALUE_LEN)}…[truncated]`
+        : message;
   }
 
   Object.assign(payload as unknown as Record<string, unknown>, flattenMeta(p.meta));
@@ -183,7 +181,7 @@ export function buildMcpToolCallEvent(p: BuildMcpToolCallEventParams): McpToolCa
     occurred_at: occurredAt.toISOString(),
     // Bulky (heterogeneous per tool → load into BQ JSON-typed columns).
     arguments: redact(p.input),
-    result: redact(p.result?.structuredContent ?? p.result?.content),
+    result: redact(p.result?.structuredContent ?? p.result?.content, p.input),
   };
   if (p.executedSql) offload.sql = p.executedSql;
   payload[OFFLOAD_KEY] = offload;

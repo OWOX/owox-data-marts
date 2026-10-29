@@ -20,24 +20,29 @@ it only produces one MCP-domain event per call and puts bulky fields (SQL, resul
 changes the wrapped callback's result or error, and `emit()` swallows its own exceptions, so a logging failure
 can never surface as a tool-call failure.
 
-For custom connector payloads, telemetry masks the values of parameters marked
-`SECRET`. It also masks the values of credential parameters that the manifest
-parser identifies from `authentication`. In incomplete drafts, known credential
-names such as `ApiKey` and `Authorization` trigger masking even without the attribute
-or an authentication reference. Complete parameter names are matched, so ordinary
-parameters such as `TokenCount` remain readable. The masking covers test
-`configuration` values and parameter
-`default`, `placeholder` and `options` values, even in incomplete drafts. Parameter
-definitions remain readable. Literal credentials in authentication fields are also
-masked. Parameter references with standard authentication prefixes remain readable,
-as do public usernames, OAuth client IDs and endpoint URLs. The shared credential-key
-masking also applies to definition values, option metadata and the rest of the
-manifest, including keys such as `Authorization`, `token` and `api_key`.
+For custom connector payloads, telemetry masks parameter values identified by the
+`SECRET` attribute, authentication references, or credential names such as
+`DeveloperToken` and `AppSecret`. The masking covers `default`, `placeholder`,
+`options`, `value`, test configuration, and secret variables in `oauthParams.vars`.
+Parameter definitions and ordinary settings such as `TokenCount`, `PageToken`,
+public client IDs, and endpoint URLs remain readable. Unrecognized shapes inside
+credential-bearing branches have their literal values masked.
 
-The runner masks secrets in logs and errors. MCP retains these diagnostics, rows
-and samples. For a failed test, the inline `error_message` contains only the error
-text. Rows and samples remain in the offloaded result. Telemetry masking does not
-change the input or structured result of the handler.
+The shared manifest parser identifies authentication credential positions.
+Literal credentials in those positions, request headers, and URL query parameters
+are masked. Parameter references remain readable. Credentials found in the request
+are also masked when echoed in result rows, samples, logs, or errors, including
+URL-encoded and JSON-escaped copies. Error masking runs before length truncation.
+
+The runner masks declared secrets in logs, errors, and test rows. The test service
+consumes credential-update events and returns a notice without the credentials.
+It does not store credentials rotated during a test.
+
+MCP retains the other diagnostics, rows, and samples. A failed test returns the
+error as its first text part and the diagnostic JSON as its second text part.
+The inline `error_message` contains only the masked error text. Rows and samples
+remain in the offloaded result. Telemetry masking does not change the handler's
+input or structured result.
 
 Supply credentials through secret parameters instead of literal values in a manifest.
 

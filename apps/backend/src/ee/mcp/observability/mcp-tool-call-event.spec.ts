@@ -104,6 +104,50 @@ describe('buildMcpToolCallEvent', () => {
     }
   );
 
+  it.each(['thrown', 'structured'] as const)(
+    'masks request credentials before truncating a %s error and storing results',
+    mode => {
+      const secret = `private-${'long-credential-'.repeat(200)}`;
+      const error = `Rejected ${secret} at /items?api_key=private-query&page=2`;
+      const input = {
+        manifest: { parameters: { Value: { attributes: ['SECRET'] } } },
+        configuration: { Value: secret },
+      };
+      const event = buildMcpToolCallEvent(
+        baseParams({
+          toolName: 'test_custom_connector',
+          input,
+          ...(mode === 'thrown'
+            ? { error: new Error(error) }
+            : {
+                result: {
+                  isError: true,
+                  content: [
+                    { type: 'text', text: error },
+                    { type: 'text', text: 'diagnostic data' },
+                  ],
+                  structuredContent: {
+                    error,
+                    logs: [`upstream rejected ${secret}`],
+                    rows: [{ note: secret, total: 7 }],
+                  },
+                },
+              }),
+        })
+      );
+      expect(event.payload.error_message).toBe(
+        'Rejected [REDACTED] at /items?api_key=[REDACTED]&page=2'
+      );
+      expect(JSON.stringify(event)).not.toContain('private-');
+      if (mode === 'structured') {
+        expect((event.payload[OFFLOAD_KEY] as Record<string, unknown>).result).toMatchObject({
+          logs: ['upstream rejected [REDACTED]'],
+          rows: [{ note: '[REDACTED]', total: 7 }],
+        });
+      }
+    }
+  );
+
   it('offload blob is self-describing: identity fields match the top-level payload, plus occurred_at == event.occurredAt', () => {
     const ev = buildMcpToolCallEvent({
       methodName: 'tools/call',

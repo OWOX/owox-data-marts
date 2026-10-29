@@ -43,16 +43,18 @@ export class TestCustomConnectorTool implements McpToolDefinition<Input> {
       maxRows: parsed.max_rows,
       maxPages: parsed.max_pages,
     });
-    return {
-      ...jsonToolResult({
-        rows: result.rows,
-        logs: boundTestLogsForMcp(result.logs),
-        error: result.error,
-        sample: result.sample,
-      }),
-      ...(result.error
-        ? { isError: true, content: [{ type: 'text' as const, text: result.error }] }
-        : {}),
-    };
+    const response = jsonToolResult({
+      rows: result.rows,
+      logs: boundTestLogsForMcp(result.logs),
+      error: result.error,
+      sample: result.sample,
+    });
+    return result.error
+      ? {
+          ...response,
+          isError: true,
+          content: [{ type: 'text', text: result.error }, ...response.content],
+        }
+      : response;
   }
 }

@@ -108,8 +108,23 @@ describe('ManifestParser', () => {
     for (const auth of [undefined, null, 'unfinished', []]) {
       assert.deepStrictEqual(
         parser.mapAuthenticationCredentials(auth, () => '[MASKED]'),
-        auth
+        auth == null ? auth : '[MASKED]'
       );
+    }
+  });
+
+  it('sends malformed authentication values through credential masking', () => {
+    const parser = new ManifestParser();
+    for (const auth of [
+      'private-value',
+      ['private-value'],
+      { inject: 'private-value' },
+      { inject: ['private-value'] },
+      { exchange: 'private-value' },
+      { authenticators: ['private-value'] },
+    ]) {
+      const result = parser.mapAuthenticationCredentials(auth, () => '[MASKED]');
+      assert.ok(!JSON.stringify(result).includes('private-value'));
     }
   });
 

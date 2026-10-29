@@ -19,6 +19,16 @@ if (process.env.FAKE_IGNORE_SIGTERM === '1') {
     process.stdout.write(`${MARKER}${JSON.stringify({ i })}\n`);
   }
   process.exit(exitCode);
+} else if (process.env.FAKE_CREDENTIALS === '1') {
+  process.stdout.write(
+    JSON.stringify({
+      type: 'CREDENTIALS',
+      credentials: { generated_refresh_token: 'private-rotated-token' },
+    }) + '\n'
+  );
+  process.stdout.write('ordinary diagnostic\n');
+  process.stdout.write(JSON.stringify({ type: 'SAMPLE', records: [{ i: 1 }] }) + '\n');
+  process.stdout.write(`${MARKER}${JSON.stringify({ i: 1 })}\n`);
 } else if (process.env.FAKE_ERROR_LOG === '1') {
   // A hard per-account failure is LOGGED at error level; the runner still exits 0 with
   // 0 rows — the misleading "success, 0 rows" case.

@@ -590,6 +590,12 @@ export class ConnectorTestService {
             error?: unknown;
             records?: Record<string, unknown>[];
           };
+          if (evt && evt.type === 'CREDENTIALS') {
+            logs.push(
+              'The provider issued new credentials during this test; they were not stored.'
+            );
+            return;
+          }
           if (evt && evt.type === 'SAMPLE') {
             // engine emits at most one SAMPLE event per run; if more arrive, last wins
             sample = Array.isArray(evt.records) ? evt.records : [];

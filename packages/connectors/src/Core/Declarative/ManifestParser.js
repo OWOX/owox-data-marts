@@ -1149,7 +1149,8 @@ export class ManifestParser {
 
   /** Uses the same credential positions for parameter discovery and host-side masking. */
   mapAuthenticationCredentials(auth, mapCredential, mapMetadata = value => value) {
-    if (!auth || typeof auth !== 'object' || Array.isArray(auth)) return mapMetadata(auth);
+    if (auth == null) return mapMetadata(auth);
+    if (typeof auth !== 'object' || Array.isArray(auth)) return mapCredential(auth);
 
     return Object.fromEntries(
       Object.entries(auth).map(([key, value]) => {
@@ -1160,7 +1161,7 @@ export class ManifestParser {
         if (NON_CREDENTIAL_AUTH_KEYS.has(key)) return [key, mapMetadata(value)];
 
         if (key === 'authenticators') {
-          if (!value || typeof value !== 'object') return [key, mapMetadata(value)];
+          if (!value || typeof value !== 'object') return [key, mapCredential(value)];
           return [
             key,
             Array.isArray(value)
@@ -1175,7 +1176,9 @@ export class ManifestParser {
         }
 
         if (key === 'inject') {
-          if (!value || typeof value !== 'object') return [key, mapMetadata(value)];
+          if (!value || typeof value !== 'object' || Array.isArray(value)) {
+            return [key, mapCredential(value)];
+          }
           const { [CREDENTIAL_INJECT_KEY]: credential, ...metadata } = value;
           return [
             key,
@@ -1189,7 +1192,9 @@ export class ManifestParser {
         }
 
         if (key === 'exchange') {
-          if (!value || typeof value !== 'object') return [key, mapMetadata(value)];
+          if (!value || typeof value !== 'object' || Array.isArray(value)) {
+            return [key, mapCredential(value)];
+          }
           return [
             key,
             Object.fromEntries(

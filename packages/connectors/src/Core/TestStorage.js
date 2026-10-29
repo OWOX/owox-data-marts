@@ -55,7 +55,10 @@ export class TestStorage {
 
   async saveData(data) {
     for (const row of data) {
-      process.stdout.write(`${TEST_ROW_MARKER}${JSON.stringify(row)}\n`);
+      const serialized = JSON.stringify(row, (_key, value) =>
+        typeof value === 'string' ? this.context.redactSecrets(value) : value
+      );
+      process.stdout.write(`${TEST_ROW_MARKER}${serialized}\n`);
     }
   }
 

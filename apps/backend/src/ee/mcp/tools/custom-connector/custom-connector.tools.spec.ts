@@ -328,7 +328,12 @@ describe('custom connector tools through the MCP SDK', () => {
       arguments: { manifest, node: 'items', configuration: { Value: 'runtime-secret' } },
     });
     expect(result.isError).toBe(true);
-    expect(result.content).toEqual([{ type: 'text', text: 'Request failed using ***' }]);
+    expect(result.content).toHaveLength(2);
+    expect(result.content[0]).toEqual({ type: 'text', text: 'Request failed using ***' });
+    expect(result.content[1]).toMatchObject({ type: 'text' });
+    expect(JSON.parse((result.content[1] as { text: string }).text)).toEqual(
+      result.structuredContent
+    );
     expect(result.structuredContent).toEqual({
       rows: [{ email: 'private@example.test', password: 'private-password' }],
       sample: [{ access_token: 'private-sample-token' }],
