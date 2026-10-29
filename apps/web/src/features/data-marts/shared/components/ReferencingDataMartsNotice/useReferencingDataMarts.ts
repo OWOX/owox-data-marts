@@ -4,7 +4,7 @@ import type { ReferencingDataMarts } from './ReferencingDataMartsNotice';
 
 interface UseReferencingDataMartsResult extends ReferencingDataMarts {
   isLoading: boolean;
-  /** The check failed: the references are unknown, not absent. */
+  /** The check failed for some of the Data Marts: their references are unknown, not absent. */
   hasError: boolean;
 }
 
@@ -20,10 +20,15 @@ const NONE: ReferencingDataMarts = { dataMarts: [], total: 0 };
 // A bulk delete on the canvas can cover dozens of Data Marts; ask about a few at a time.
 const BATCH_SIZE = 5;
 
-async function loadInBatches<T>(ids: string[], load: (id: string) => Promise<T>): Promise<T[]> {
-  const results: T[] = [];
+// Each id settles on its own: a selection can include a Data Mart the user may not check, and that
+// must not hide what the others found.
+async function loadInBatches<T>(
+  ids: string[],
+  load: (id: string) => Promise<T>
+): Promise<PromiseSettledResult<T>[]> {
+  const results: PromiseSettledResult<T>[] = [];
   for (let index = 0; index < ids.length; index += BATCH_SIZE) {
-    results.push(...(await Promise.all(ids.slice(index, index + BATCH_SIZE).map(load))));
+    results.push(...(await Promise.allSettled(ids.slice(index, index + BATCH_SIZE).map(load))));
   }
   return results;
 }
@@ -55,10 +60,16 @@ export function useReferencingDataMarts(
         skipLoadingIndicator: true,
       })
     )
-      .then(responses => {
+      .then(results => {
         const visible = new Map<string, { id: string; title: string }>();
         let hidden = 0;
-        for (const response of responses) {
+        let failed = false;
+        for (const result of results) {
+          if (result.status === 'rejected') {
+            failed = true;
+            continue;
+          }
+          const response = result.value;
           const named = (response.referencingDataMarts ?? []).filter(dm => !selected.has(dm.id));
           named.forEach(dm => visible.set(dm.id, dm));
           hidden += Math.max(
@@ -71,7 +82,7 @@ export function useReferencingDataMarts(
           setSettled({
             key,
             result: { dataMarts, total: dataMarts.length + hidden },
-            hasError: false,
+            hasError: failed,
           });
         }
       })

@@ -46,6 +46,24 @@ describe('ReferencingDataMartsNotice', () => {
     ).toBeInTheDocument();
   });
 
+  it('lists what was found and says the rest could not be checked', () => {
+    render(
+      <ReferencingDataMartsNotice
+        dataMarts={[{ id: 'x', title: 'Retail orders' }]}
+        total={1}
+        action='delete'
+        hasError
+      />
+    );
+
+    expect(screen.getByText('Retail orders')).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'Some of the selected Data Marts could not be checked, so more may be affected.'
+      )
+    ).toBeInTheDocument();
+  });
+
   it('says how many are hidden when none can be named', () => {
     render(<ReferencingDataMartsNotice dataMarts={[]} total={1} action='change' />);
 

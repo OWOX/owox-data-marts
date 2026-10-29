@@ -98,4 +98,22 @@ describe('useReferencingDataMarts', () => {
     });
     expect(result.current.total).toBe(0);
   });
+
+  it('keeps what the other checks found when one of them fails', async () => {
+    getInputSourceChangeImpact.mockImplementation(async (id: string) => {
+      if (id === 'shared-for-reporting') throw new Error('Forbidden');
+      return impact([{ id: 'x', title: 'Retail orders' }]);
+    });
+
+    const { result } = renderHook(() =>
+      useReferencingDataMarts(['a', 'shared-for-reporting', 'b'], true)
+    );
+
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false);
+    });
+    expect(getInputSourceChangeImpact).toHaveBeenCalledTimes(3);
+    expect(result.current.dataMarts).toEqual([{ id: 'x', title: 'Retail orders' }]);
+    expect(result.current.hasError).toBe(true);
+  });
 });

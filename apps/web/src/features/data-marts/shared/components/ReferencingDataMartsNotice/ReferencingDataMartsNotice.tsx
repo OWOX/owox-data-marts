@@ -21,7 +21,10 @@ interface ReferencingDataMartsNoticeProps extends ReferencingDataMarts {
   action: keyof typeof CONSEQUENCE;
   /** The check is still running. */
   isLoading?: boolean;
-  /** The check failed, so it is unknown whether any Data Mart references this one. */
+  /**
+   * The check failed, for this Data Mart or some of the selected ones, so it is unknown whether
+   * (more) Data Marts reference them.
+   */
   hasError?: boolean;
 }
 
@@ -48,7 +51,7 @@ export function ReferencingDataMartsNotice({
       </p>
     );
   }
-  if (hasError) {
+  if (hasError && total <= 0) {
     return (
       <div
         role='status'
@@ -88,6 +91,11 @@ export function ReferencingDataMartsNotice({
           </li>
         )}
       </ul>
+      {hasError && (
+        <p className='text-muted-foreground mt-1'>
+          Some of the selected Data Marts could not be checked, so more may be affected.
+        </p>
+      )}
     </div>
   );
 }
