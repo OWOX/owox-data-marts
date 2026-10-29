@@ -1,6 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { TypeResolver } from '../../../common/resolver/type-resolver';
-import { DataStorageType } from '../enums/data-storage-type.enum';
+import { DataStorageType, usesStoredCredentials } from '../enums/data-storage-type.enum';
 import {
   DataMartValidationCode,
   DataMartValidator,
@@ -36,7 +36,10 @@ export class DataMartDefinitionValidatorFacade {
       );
     }
 
-    if (!(await this.credentialsResolver.hasCredentials(dataMart.storage))) {
+    if (
+      usesStoredCredentials(dataMart.storage.type) &&
+      !(await this.credentialsResolver.hasCredentials(dataMart.storage))
+    ) {
       return ValidationResult.authoredFailure(
         DataMartValidationCode.STORAGE_CREDENTIALS_NOT_FOUND,
         'DataMart storage credentials not found'

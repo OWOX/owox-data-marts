@@ -948,8 +948,27 @@ describe('StreamHttpDataService', () => {
     expect(sqlComposer.compose).toHaveBeenCalledWith(
       expect.objectContaining({ limitConfig: 5 }),
       expect.anything(),
-      expect.anything()
+      expect.anything(),
+      undefined,
+      expect.any(Map)
     );
+  });
+
+  it('hands the decision, the rows and the totals one table-reference memo, so a SQL view is created once', async () => {
+    requestValidator.validate.mockReturnValueOnce({
+      columnSelector: { mode: 'explicit' as const, explicit: ['date', 'revenue'] },
+      filter: undefined,
+      sort: undefined,
+      aggregation: undefined,
+      dateTrunc: undefined,
+      limit: 5,
+    });
+    await service.stream(fakeCommand(), mockResponse());
+
+    const memo = (blended.resolveBlendingDecision as jest.Mock).mock.calls[0][3];
+    expect(memo).toBeInstanceOf(Map);
+    expect((sqlComposer.compose as jest.Mock).mock.calls[0][4]).toBe(memo);
+    expect((reportTotals.computeTotals as jest.Mock).mock.calls[0][5]).toBe(memo);
   });
 
   it('does not compose SQL when no filter/sort/limit is requested', async () => {
@@ -1046,7 +1065,9 @@ describe('StreamHttpDataService', () => {
     expect(sqlComposer.compose).toHaveBeenCalledWith(
       expect.objectContaining({ aggregationConfig: aggregation }),
       expect.anything(),
-      expect.anything()
+      expect.anything(),
+      undefined,
+      expect.any(Map)
     );
   });
 
@@ -1066,7 +1087,9 @@ describe('StreamHttpDataService', () => {
     expect(sqlComposer.compose).toHaveBeenCalledWith(
       expect.objectContaining({ dateTruncConfig: dateTrunc }),
       expect.anything(),
-      expect.anything()
+      expect.anything(),
+      undefined,
+      expect.any(Map)
     );
   });
 
@@ -1427,7 +1450,7 @@ describe('StreamHttpDataService', () => {
       expect.objectContaining({ columnConfig: ['date', 'orders__cost'] }),
       { userId: 'user-1', roles: ['viewer'] },
       undefined,
-      undefined,
+      expect.any(Map),
       undefined
     );
   });
@@ -1805,7 +1828,9 @@ describe('StreamHttpDataService', () => {
       expect(sqlComposer.compose).toHaveBeenCalledWith(
         expect.objectContaining({ limitConfig: 7 }),
         expect.anything(),
-        expect.anything()
+        expect.anything(),
+        undefined,
+        expect.any(Map)
       );
     });
 
@@ -1828,7 +1853,9 @@ describe('StreamHttpDataService', () => {
       expect(sqlComposer.compose).toHaveBeenCalledWith(
         expect.objectContaining({ limitConfig: 50 }),
         expect.anything(),
-        expect.anything()
+        expect.anything(),
+        undefined,
+        expect.any(Map)
       );
     });
 
@@ -1851,7 +1878,9 @@ describe('StreamHttpDataService', () => {
       expect(sqlComposer.compose).toHaveBeenCalledWith(
         expect.objectContaining({ limitConfig: null }),
         expect.anything(),
-        expect.anything()
+        expect.anything(),
+        undefined,
+        expect.any(Map)
       );
     });
 

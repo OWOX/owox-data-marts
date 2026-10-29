@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { ClsService } from 'nestjs-cls';
 import { AuthorizationContext } from '../../idp';
 import { isPluginRuntimeCall } from '../../idp/utils/is-plugin-runtime-call';
@@ -6,6 +7,7 @@ import {
   DataStorageType,
   toHumanReadable,
 } from '../data-storage-types/enums/data-storage-type.enum';
+import { resolveDuckDbDatabasePath } from '../data-storage-types/duckdb/utils/duckdb-path.utils';
 import { ValidationResult } from '../data-storage-types/interfaces/data-storage-access-validator.interface';
 import { CreateDataStorageCommand } from '../dto/domain/create-data-storage.command';
 import { DataStorageDto } from '../dto/domain/data-storage.dto';
@@ -36,7 +38,10 @@ import { extractContextSummaries, ContextSummary } from '../utils/extract-contex
 
 @Injectable()
 export class DataStorageMapper {
-  constructor(private readonly cls: ClsService) {}
+  constructor(
+    private readonly cls: ClsService,
+    private readonly configService: ConfigService
+  ) {}
 
   toCreateCommand(
     context: AuthorizationContext,
@@ -105,6 +110,10 @@ export class DataStorageMapper {
       type: dataStorageDto.type,
       projectId: dataStorageDto.projectId,
       config: dataStorageDto.config,
+      databasePath:
+        dataStorageDto.type === DataStorageType.DUCKDB
+          ? resolveDuckDbDatabasePath(this.configService, dataStorageDto.id)
+          : undefined,
       createdAt: dataStorageDto.createdAt,
       modifiedAt: dataStorageDto.modifiedAt,
       createdByUser: dataStorageDto.createdByUser,

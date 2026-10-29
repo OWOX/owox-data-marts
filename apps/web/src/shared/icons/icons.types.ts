@@ -11,6 +11,7 @@ import { type SnowflakeIcon } from './snowflake-icon';
 import { type DatabricksIcon } from './databricks-icon';
 import { type AwsRedshiftIcon } from './aws-redshift-icon';
 import { type AzureSynapseIcon } from './azure-synapse-icon';
+import { type DuckDBIcon } from './duckdb-icon';
 import { type RawBase64Icon } from './raw-base64-icon';
 import { type OWOXBIIcon } from './owox-bi-icon';
 import { type SlackIcon } from './slack-icon';
@@ -45,6 +46,7 @@ export type LocalIcon =
   | typeof DatabricksIcon
   | typeof AwsRedshiftIcon
   | typeof AzureSynapseIcon
+  | typeof DuckDBIcon
   | typeof OWOXBIIcon
   | typeof SlackIcon
   | typeof DataMartPlusIcon

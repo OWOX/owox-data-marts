@@ -78,6 +78,7 @@ import { DataMartRun } from '../../entities/data-mart-run.entity';
 import { ProjectBlockedReason } from '../../enums/project-blocked-reason.enum';
 import { ConnectorRunService } from './connector-run.service';
 import { ConnectorRunTriggerService } from './connector-run-trigger.service';
+import { DataStorageType } from '../../data-storage-types/enums/data-storage-type.enum';
 import { Repository } from 'typeorm';
 
 describe('ConnectorExecutorService', () => {
@@ -521,6 +522,25 @@ describe('ConnectorExecutorService', () => {
         expect.stringContaining('source field list could not be synchronized'),
       ])
     );
+  });
+
+  it('actualizes schema for DuckDB storage on a successful run', async () => {
+    // SP-B2: the DuckDB DataMartSchemaProvider is now registered (see
+    // DuckDbDataMartSchemaProvider), so the SP-B1 skip is gone and schema
+    // actualization runs unconditionally, DuckDB included, with no spurious
+    // ERROR-level log on an otherwise-successful run.
+    const { service, dataMartService } = createService();
+    const errorSpy = jest.spyOn(Logger.prototype, 'error');
+
+    const duckDbDataMart = createDataMart({
+      storage: { type: DataStorageType.DUCKDB, config: {} },
+    });
+    await service.executeInBackground(duckDbDataMart, createRun(), null);
+
+    expect(dataMartService.actualizeSchema).toHaveBeenCalledWith('dm-1', 'proj-1');
+    expect(errorSpy).not.toHaveBeenCalled();
+
+    errorSpy.mockRestore();
   });
 
   // One trace per request filled the run's log buffer on a long run, and the buffer keeps

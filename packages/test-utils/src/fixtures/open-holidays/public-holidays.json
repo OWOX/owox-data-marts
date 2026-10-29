@@ -1,0 +1,41 @@
+[
+  {
+    "id": "6a1f0f3c-2b7e-4f0a-9c1d-000000000001",
+    "startDate": "2024-01-01",
+    "endDate": "2024-01-01",
+    "type": "Public",
+    "name": [
+      { "language": "EN", "text": "New Year's Day" },
+      { "language": "DE", "text": "Neujahr" }
+    ],
+    "regionalScope": "National",
+    "temporalScope": "FullDay",
+    "nationwide": true
+  },
+  {
+    "id": "6a1f0f3c-2b7e-4f0a-9c1d-000000000002",
+    "startDate": "2024-08-01",
+    "endDate": "2024-08-01",
+    "type": "Public",
+    "name": [
+      { "language": "EN", "text": "Swiss National Day" },
+      { "language": "DE", "text": "Bundesfeier" }
+    ],
+    "regionalScope": "National",
+    "temporalScope": "FullDay",
+    "nationwide": true
+  },
+  {
+    "id": "6a1f0f3c-2b7e-4f0a-9c1d-000000000003",
+    "startDate": "2024-12-25",
+    "endDate": "2024-12-25",
+    "type": "Public",
+    "name": [
+      { "language": "EN", "text": "Christmas Day" },
+      { "language": "DE", "text": "Weihnachten" }
+    ],
+    "regionalScope": "National",
+    "temporalScope": "FullDay",
+    "nationwide": true
+  }
+]

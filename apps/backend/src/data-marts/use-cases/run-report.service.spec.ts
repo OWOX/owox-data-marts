@@ -11,6 +11,7 @@ jest.mock('../report-run-logging/log-blended-sql', () => ({
   logBlendedSqlIfNeeded: jest.fn(),
 }));
 
+import { Logger } from '@nestjs/common';
 import { logBlendedSqlIfNeeded } from '../report-run-logging/log-blended-sql';
 import { DataDestinationType } from '../data-destination-types/enums/data-destination-type.enum';
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
@@ -516,6 +517,56 @@ describe('RunReportService', () => {
     expect(reportRunService.finish).toHaveBeenCalled();
     expect(projectBilling.registerSheetsReportRunConsumption).not.toHaveBeenCalled();
     expect(reportRun.getDataMartRun().status).toBe(DataMartRunStatus.SUCCESS);
+  });
+
+  it('finalizes the reader when the writer finalization fails, and fails with the writer error', async () => {
+    const { service, reportReaderResolver, reportWriterResolver, reportRunService } =
+      createService();
+    const report = createReport(DataDestinationType.GOOGLE_SHEETS);
+    const reader = createReader();
+    const writer = createWriter(DataDestinationType.GOOGLE_SHEETS);
+    const reportRun = ReportRun.create(report, createDataMartRun(report));
+
+    reader.readReportDataBatch.mockResolvedValue(new ReportDataBatch([], null));
+    writer.finalize.mockRejectedValue(new Error('writer finalize failed'));
+    reportReaderResolver.resolve.mockResolvedValue(reader);
+    reportWriterResolver.resolve.mockResolvedValue(writer);
+    reportRunService.loadByDataMartRunId.mockResolvedValue(reportRun);
+
+    await service.executeExistingRun('data-mart-run-1', 'project-1', 'user-1');
+
+    expect(reader.finalize).toHaveBeenCalledTimes(1);
+    expect(reportRun.getDataMartRun().status).toBe(DataMartRunStatus.FAILED);
+    expect(reportRun.getDataMartRun().errors).toEqual([
+      expect.stringContaining('writer finalize failed'),
+    ]);
+  });
+
+  it('fails with the writer error and warns of the reader error when both finalizations fail', async () => {
+    const { service, reportReaderResolver, reportWriterResolver, reportRunService } =
+      createService();
+    const report = createReport(DataDestinationType.GOOGLE_SHEETS);
+    const reader = createReader();
+    const writer = createWriter(DataDestinationType.GOOGLE_SHEETS);
+    const reportRun = ReportRun.create(report, createDataMartRun(report));
+    const warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+
+    reader.readReportDataBatch.mockResolvedValue(new ReportDataBatch([], null));
+    writer.finalize.mockRejectedValue(new Error('writer finalize failed'));
+    reader.finalize.mockRejectedValue(new Error('reader finalize failed'));
+    reportReaderResolver.resolve.mockResolvedValue(reader);
+    reportWriterResolver.resolve.mockResolvedValue(writer);
+    reportRunService.loadByDataMartRunId.mockResolvedValue(reportRun);
+
+    await service.executeExistingRun('data-mart-run-1', 'project-1', 'user-1');
+
+    expect(reader.finalize).toHaveBeenCalledTimes(1);
+    expect(reportRun.getDataMartRun().status).toBe(DataMartRunStatus.FAILED);
+    expect(reportRun.getDataMartRun().errors).toEqual([
+      expect.stringContaining('writer finalize failed'),
+    ]);
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('reader finalize failed'));
+    warn.mockRestore();
   });
 
   it('does not register Google Sheets consumption when reader finalization fails after writer finalization', async () => {

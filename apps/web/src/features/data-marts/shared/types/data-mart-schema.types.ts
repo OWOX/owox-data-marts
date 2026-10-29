@@ -222,6 +222,21 @@ export enum DatabricksFieldType {
 }
 
 /**
+ * DuckDB field type enum — mirrors backend DuckdbFieldType
+ * (apps/backend/.../duckdb/enums/duckdb-field-type.enum.ts).
+ */
+export enum DuckDbFieldType {
+  BIGINT = 'BIGINT',
+  DOUBLE = 'DOUBLE',
+  BOOLEAN = 'BOOLEAN',
+  DATE = 'DATE',
+  TIMESTAMP = 'TIMESTAMP',
+  TIMESTAMPTZ = 'TIMESTAMPTZ',
+  TIME = 'TIME',
+  VARCHAR = 'VARCHAR',
+}
+
+/**
  * A calculated field's level, as the backend DERIVES it from the formula: 'metric' when the
  * formula aggregates, 'column' when it is row-level. Never chosen here.
  */
@@ -336,6 +351,21 @@ export interface DatabricksDataMartSchema {
 }
 
 /**
+ * DuckDB schema field interface
+ */
+export interface DuckDbSchemaField extends BaseSchemaField {
+  type: DuckDbFieldType;
+}
+
+/**
+ * DuckDB data mart schema
+ */
+export interface DuckDbDataMartSchema {
+  type: 'duckdb-data-mart-schema';
+  fields: DuckDbSchemaField[];
+}
+
+/**
  * Data mart schema type
  */
 export type DataMartSchema =
@@ -343,4 +373,5 @@ export type DataMartSchema =
   | AthenaDataMartSchema
   | SnowflakeDataMartSchema
   | RedshiftDataMartSchema
-  | DatabricksDataMartSchema;
+  | DatabricksDataMartSchema
+  | DuckDbDataMartSchema;

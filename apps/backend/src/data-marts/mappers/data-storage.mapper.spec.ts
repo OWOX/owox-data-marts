@@ -38,8 +38,15 @@ function clsWith(authFlow?: string) {
   } as never;
 }
 
+/** DUCKDB_DATA_DIR as the deployment sets it. */
+function configWith(dataDir = '/data/owox-duckdb') {
+  return {
+    get: (key: string) => (key === 'DUCKDB_DATA_DIR' ? dataDir : undefined),
+  } as never;
+}
+
 describe('DataStorageMapper', () => {
-  const mapper = new DataStorageMapper(clsWith());
+  const mapper = new DataStorageMapper(clsWith(), configWith());
 
   describe('toApiResponse', () => {
     it('carries the Credential summary and no key data', async () => {
@@ -93,7 +100,7 @@ describe('DataStorageMapper', () => {
   });
 
   it('hides which Credential a Storage uses from a plugin request', async () => {
-    const pluginMapper = new DataStorageMapper(clsWith('plugin'));
+    const pluginMapper = new DataStorageMapper(clsWith('plugin'), configWith());
     const dto = pluginMapper.toDomainDto(storage, 0, 0, null, [], undefined, visible);
 
     expect((await pluginMapper.toApiResponse(dto)).reusableCredential).toEqual({
@@ -109,7 +116,7 @@ describe('DataStorageMapper', () => {
   it('says a Storage still runs on its own key, to members and plugins alike', async () => {
     const pending: StorageCredentialSummary = { access: 'pending', state: 'ready' };
     for (const authFlow of [undefined, 'plugin']) {
-      const flowMapper = new DataStorageMapper(clsWith(authFlow));
+      const flowMapper = new DataStorageMapper(clsWith(authFlow), configWith());
       const dto = flowMapper.toDomainDto(storage, 0, 0, null, [], undefined, pending);
 
       expect((await flowMapper.toApiResponse(dto)).reusableCredential).toEqual(pending);
@@ -118,7 +125,7 @@ describe('DataStorageMapper', () => {
   });
 
   it('shows the Credential to a member request, whatever its auth flow', async () => {
-    const apiKeyMapper = new DataStorageMapper(clsWith('api_key'));
+    const apiKeyMapper = new DataStorageMapper(clsWith('api_key'), configWith());
     const dto = apiKeyMapper.toDomainDto(storage, 0, 0, null, [], undefined, visible);
 
     expect((await apiKeyMapper.toApiResponse(dto)).reusableCredential).toEqual(visible);
@@ -166,7 +173,7 @@ describe('DataStorageMapper', () => {
       ['a member', undefined, false],
       ['a plugin', 'plugin', true],
     ])('carries the member and whether %s calls', (_who, authFlow, isPluginCall) => {
-      const command = new DataStorageMapper(clsWith(authFlow)).toByTypeCommand(
+      const command = new DataStorageMapper(clsWith(authFlow), configWith()).toByTypeCommand(
         context as AuthorizationContext,
         DataStorageType.SNOWFLAKE
       );
@@ -178,6 +185,22 @@ describe('DataStorageMapper', () => {
         roles: ['editor'],
         isPluginCall,
       });
+    });
+  });
+
+  describe('toApiResponse databasePath', () => {
+    it('computes <DUCKDB_DATA_DIR>/<id>.duckdb for a DuckDB storage', async () => {
+      const duckDb = { ...storage, id: 'abc-123', type: DataStorageType.DUCKDB } as DataStorage;
+
+      const response = await mapper.toApiResponse(mapper.toDomainDto(duckDb));
+
+      expect(response.databasePath).toBe('/data/owox-duckdb/abc-123.duckdb');
+    });
+
+    it('omits databasePath for a non-DuckDB storage', async () => {
+      const response = await mapper.toApiResponse(mapper.toDomainDto(storage));
+
+      expect(response.databasePath).toBeUndefined();
     });
   });
 });

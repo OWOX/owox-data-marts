@@ -220,6 +220,15 @@ owox serve --env-file custom.env --port 3030
 
 See also: mysql2 official SSL documentation — <https://sidorares.github.io/node-mysql2/docs/documentation/ssl>
 
+## DuckDB storage
+
+| Variable                 | Purpose                                                                                                                                                             |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `DUCKDB_DATA_DIR`        | Directory for DuckDB storage files. Default `<SQLite directory>/duckdb`, next to the SQLite database. Only used by DuckDB storages. Keep it on a persistent volume. |
+| `DUCKDB_STORAGE_ENABLED` | Offers DuckDB as a storage type. `true` or `false`, case-insensitive. Default `true` when `DB_TYPE=sqlite`, otherwise `false`.                                      |
+
+With `DB_TYPE=mysql`, set `DUCKDB_STORAGE_ENABLED=true` only when exactly one backend instance runs and `DUCKDB_DATA_DIR` is on a persistent disk: DuckDB files are local to the instance that writes them.
+
 ## Connectors
 
 Ads connectors can resolve short links in landing URL fields to the address their service points to.

@@ -361,7 +361,8 @@ export class ReportSqlComposerService {
    */
   async composeTotals(
     report: ReportLike,
-    accessor: BlendableSchemaAccessor
+    accessor: BlendableSchemaAccessor,
+    tableReferences?: TableReferenceMemo
   ): Promise<{
     sql: string;
     params?: SqlParameter[];
@@ -498,7 +499,8 @@ export class ReportSqlComposerService {
       totalsPlan,
       accessor,
       undefined,
-      blendableSchema
+      blendableSchema,
+      tableReferences
     );
 
     // A joined numeric column is absent from the native headers, so its base type must travel

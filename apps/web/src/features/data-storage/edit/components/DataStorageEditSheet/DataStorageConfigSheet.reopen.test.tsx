@@ -15,6 +15,10 @@ vi.mock('../../../shared/api/data-storage-api.service', () => ({
 }));
 
 const trackEvent = vi.hoisted(() => vi.fn());
+vi.mock('../../../../../app/store/hooks', () => ({
+  useFlags: () => ({ flags: { DUCKDB_STORAGE_ENABLED: 'false' } }),
+}));
+
 vi.mock('../../../../../utils/data-layer', () => ({
   trackEvent: (...args: unknown[]) => trackEvent(...args) as unknown,
 }));

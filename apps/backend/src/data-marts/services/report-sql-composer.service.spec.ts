@@ -11,6 +11,7 @@ import { BusinessViolationException } from '../../common/exceptions/business-vio
 import { ReportDataHeader } from '../dto/domain/report-data-header.dto';
 import { BlendingDecision } from '../dto/domain/blending-decision.dto';
 import { BlendedReportDataService } from './blended-report-data.service';
+import { DataMartTableReferenceService } from './data-mart-table-reference.service';
 import { OutputControlsValidatorService } from './output-controls-validator.service';
 import { OutputControlsCapabilityService } from './output-controls-capability.service';
 import { BigQueryBlendedQueryBuilder } from '../data-storage-types/bigquery/services/bigquery-blended-query-builder';
@@ -182,6 +183,50 @@ describe('ReportSqlComposerService', () => {
     expect(outputControlsValidator.validateForReport).toHaveBeenCalledWith(
       expect.objectContaining({ filterConfig: report.filterConfig, sortConfig: null })
     );
+  });
+
+  it('creates the view of a SQL Data Mart once when rows and totals share a memo', async () => {
+    const report = buildReport({
+      columnConfig: ['country', 'revenue'],
+      aggregationConfig: [{ column: 'revenue', function: 'SUM' }],
+      dataMart: {
+        id: 'dm-1',
+        projectId: 'project-1',
+        definition: { sqlQuery: 'SELECT 1' },
+        storage: { id: 'storage-1', type: 'DUCKDB' },
+        schema: {
+          fields: [
+            { name: 'country', type: 'VARCHAR', status: 'CONNECTED' },
+            { name: 'revenue', type: 'DOUBLE', status: 'CONNECTED' },
+          ],
+        },
+      },
+    } as unknown as Partial<Report>);
+    const createViewService = {
+      run: jest.fn().mockResolvedValue({ fullyQualifiedName: 'main.view_dm_1' }),
+    };
+    const service = new ReportSqlComposerService(
+      {
+        resolveBlendingDecision: jest
+          .fn()
+          .mockResolvedValue({ needsBlending: false, columnFilter: ['country', 'revenue'] }),
+      } as never,
+      { buildQuery: jest.fn().mockResolvedValue('SELECT built') } as never,
+      new DataMartTableReferenceService(
+        { getByIdAndProjectId: jest.fn().mockResolvedValue(report.dataMart) } as never,
+        createViewService as never
+      ),
+      { isSupported: jest.fn().mockReturnValue(true) } as never,
+      { computeBlendableSchema: jest.fn() } as never,
+      { validateForReport: jest.fn() } as never
+    );
+    const accessor = { userId: 'user-1', roles: ['admin'] };
+    const memo = new Map<string, Promise<string>>();
+
+    await service.compose(report, accessor, undefined, undefined, memo);
+    await service.composeTotals(report, accessor, memo);
+
+    expect(createViewService.run).toHaveBeenCalledTimes(1);
   });
 
   it('propagates validator rejection thrown by resolveBlendingDecision', async () => {

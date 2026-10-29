@@ -21,6 +21,7 @@ To configure a new **Storage**:
    - [AWS Redshift](supported-storages/aws-redshift.md)
    - [Snowflake](supported-storages/snowflake.md)
    - [Databricks](supported-storages/databricks.md)
+   - [DuckDB](supported-storages/duckdb.md) (self-managed only)
    - Azure Synapse (Coming soon)
 3. Fill in the required configuration fields based on the selected data warehouse. Follow the instructions for your platform.
    Select a **Credential** instead of entering a key: see [Credentials for Storages](#credentials-for-storages).
@@ -37,7 +38,8 @@ To configure a new **Storage**:
 ## Credentials for Storages
 
 A Storage does not hold its own key. It selects a [Credential](../project/credentials.md), and one
-Credential can serve several Storages, so a rotated key is replaced once.
+Credential can serve several Storages, so a rotated key is replaced once. A
+[DuckDB](supported-storages/duckdb.md) Storage is a local file and takes no Credential.
 
 - The **Credential** field lists the Credentials that fit the Storage type, that you can use and that
   are enabled (a disabled one stays shown only on the Storage already using it).

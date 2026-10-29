@@ -22,12 +22,13 @@ jest.mock('../utils/resolve-owner-users', () => ({
 import { CreateDataStorageService } from './create-data-storage.service';
 import { CreateDataStorageCommand } from '../dto/domain/create-data-storage.command';
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
+import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
 import { syncOwners } from '../utils/sync-owners';
 
 describe('CreateDataStorageService', () => {
   const savedEntity = { id: 'storage-1', type: DataStorageType.GOOGLE_BIGQUERY, owners: [] };
 
-  const createService = () => {
+  const createService = (env: Record<string, string> = {}) => {
     const dataStorageRepository = {
       create: jest.fn().mockReturnValue(savedEntity),
       save: jest.fn().mockResolvedValue(savedEntity),
@@ -44,6 +45,7 @@ describe('CreateDataStorageService', () => {
     const idpProjectionsFacade = {};
 
     const eventDispatcher = { publishLocalOnCommit: jest.fn() };
+    const configService = { get: (key: string) => env[key] };
 
     const service = new CreateDataStorageService(
       dataStorageRepository as never,
@@ -51,7 +53,8 @@ describe('CreateDataStorageService', () => {
       dataStorageMapper as never,
       userProjectionsFetcherService as never,
       idpProjectionsFacade as never,
-      eventDispatcher as never
+      eventDispatcher as never,
+      configService as never
     );
 
     return { service, dataStorageRepository, storageOwnerRepository, idpProjectionsFacade };
@@ -59,6 +62,40 @@ describe('CreateDataStorageService', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+  });
+
+  it.each([{ DUCKDB_STORAGE_ENABLED: 'false' }, { DB_TYPE: 'mysql' }])(
+    'refuses DUCKDB when the config gives %j',
+    async env => {
+      const { service, dataStorageRepository } = createService(env);
+      const command = new CreateDataStorageCommand('proj-1', DataStorageType.DUCKDB, 'user-0');
+
+      await expect(service.run(command)).rejects.toThrow(BusinessViolationException);
+      expect(dataStorageRepository.save).not.toHaveBeenCalled();
+    }
+  );
+
+  it.each([{ DUCKDB_STORAGE_ENABLED: 'true' }, {}])(
+    'creates a DuckDB storage with an empty config when the config gives %j',
+    async env => {
+      const { service, dataStorageRepository } = createService(env);
+
+      await service.run(new CreateDataStorageCommand('proj-1', DataStorageType.DUCKDB, 'user-0'));
+
+      expect(dataStorageRepository.create).toHaveBeenCalledWith(
+        expect.objectContaining({ config: {} })
+      );
+    }
+  );
+
+  it('creates other storage types without a config', async () => {
+    const { service, dataStorageRepository } = createService();
+
+    await service.run(
+      new CreateDataStorageCommand('proj-1', DataStorageType.GOOGLE_BIGQUERY, 'user-0')
+    );
+
+    expect(dataStorageRepository.create.mock.calls[0][0]).not.toHaveProperty('config');
   });
 
   it('should call syncOwners with creator userId when ownerIds not provided', async () => {
