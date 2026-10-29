@@ -81,6 +81,28 @@ describe('parseDataMartReferences', () => {
     expect(sqlLexingOptionsFor(DataStorageType.GOOGLE_BIGQUERY).slashLineComments).toBe(false);
   });
 
+  it.each([
+    [
+      'a backslash on AWS Athena, where it ends no literal',
+      DataStorageType.AWS_ATHENA,
+      String.raw`SELECT 'C:\' AS path, '[Old](dm:${ORDERS})' AS s FROM [New](dm:${COSTS}) n`,
+    ],
+    [
+      'a triple-quoted string on Google BigQuery',
+      DataStorageType.GOOGLE_BIGQUERY,
+      `SELECT '''don't [Old](dm:${ORDERS})''' AS s FROM [New](dm:${COSTS}) n WHERE n.x = 'y'`,
+    ],
+    [
+      'a dollar-quoted string on Snowflake',
+      DataStorageType.SNOWFLAKE,
+      `SELECT $$it's [Old](dm:${ORDERS})$$ AS s FROM [New](dm:${COSTS}) n WHERE n.x = 'y'`,
+    ],
+  ])('reads %s as one literal', (_case, storageType, sql) => {
+    expect(
+      parseDataMartReferences(sql, sqlLexingOptionsFor(storageType)).map(r => r.title)
+    ).toEqual(['New']);
+  });
+
   it('ignores look-alikes that are not references', () => {
     expect(parseDataMartReferences('SELECT arr[1](dm:not-an-id) FROM t')).toEqual([]);
     expect(parseDataMartReferences(`SELECT [Orders](${ORDERS}) FROM t`)).toEqual([]);

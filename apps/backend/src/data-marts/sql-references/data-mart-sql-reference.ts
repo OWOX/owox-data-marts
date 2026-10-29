@@ -35,11 +35,17 @@ export type ParseDataMartReferencesOptions = SqlLexingOptions;
 
 /** Lexing rules for SQL written for `storageType`. */
 export function sqlLexingOptionsFor(storageType: DataStorageType): SqlLexingOptions {
-  const hashLineComments =
+  const bigQuery =
     storageType === DataStorageType.GOOGLE_BIGQUERY ||
     storageType === DataStorageType.LEGACY_GOOGLE_BIGQUERY;
-  const slashLineComments = storageType === DataStorageType.SNOWFLAKE;
-  return { hashLineComments, slashLineComments };
+  const snowflake = storageType === DataStorageType.SNOWFLAKE;
+  return {
+    hashLineComments: bigQuery,
+    tripleQuotedStrings: bigQuery,
+    slashLineComments: snowflake,
+    dollarQuotedStrings: snowflake,
+    backslashIsLiteral: storageType === DataStorageType.AWS_ATHENA,
+  };
 }
 
 /**
