@@ -1,5 +1,5 @@
 import express from 'express';
-import type { AddressInfo } from 'net';
+import * as supertest from 'supertest';
 import { configureTrustProxy } from './trust-proxy.config';
 
 async function clientIp(env: NodeJS.ProcessEnv, forwardedFor: string): Promise<string> {
@@ -8,18 +8,13 @@ async function clientIp(env: NodeJS.ProcessEnv, forwardedFor: string): Promise<s
   app.get('/', (req, res) => {
     res.json({ ip: req.ip, protocol: req.protocol });
   });
-  const server = app.listen(0);
-  try {
-    const { port } = server.address() as AddressInfo;
-    const response = await fetch(`http://127.0.0.1:${port}/`, {
-      headers: { 'x-forwarded-for': forwardedFor, 'x-forwarded-proto': 'https' },
-    });
-    const body = (await response.json()) as { ip: string; protocol: string };
-    expect(body.protocol).toBe('https');
-    return body.ip;
-  } finally {
-    server.close();
-  }
+  const response = await supertest
+    .default(app)
+    .get('/')
+    .set('X-Forwarded-For', forwardedFor)
+    .set('X-Forwarded-Proto', 'https');
+  expect(response.body.protocol).toBe('https');
+  return response.body.ip;
 }
 
 describe('configureTrustProxy', () => {
