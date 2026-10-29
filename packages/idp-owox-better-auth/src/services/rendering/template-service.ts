@@ -67,6 +67,7 @@ export class TemplateService {
     return this.renderWithLayout('pages/sign-in.ejs', 'layouts/auth.ejs', {
       pageTitle: SIGN_IN_PAGE_TITLE,
       heading: 'Sign in to OWOX',
+      accountLinkingNotice: true,
       ...data,
       providers: data.providers,
       gtmContainerId: data.gtmContainerId,
@@ -80,6 +81,7 @@ export class TemplateService {
       pageTitle: SIGN_UP_PAGE_TITLE,
       heading: 'Create your OWOX account',
       magicLinkSignupIntent: MAGIC_LINK_INTENT.SIGNUP,
+      accountLinkingNotice: true,
       ...data,
       providers: data.providers,
       gtmContainerId: data.gtmContainerId,

@@ -59,4 +59,34 @@ describe('TemplateService', () => {
       "microsoftButton?.addEventListener('click', () => alwaysGetFreshStateThenRun('microsoft'));"
     );
   });
+
+  it('shows the account linking notice once, under the options, on the sign-in and sign-up pages', () => {
+    const data = {
+      providers: { email: true, google: true, microsoft: true },
+      errorMessage: undefined,
+      infoMessage: undefined,
+    };
+    for (const html of [TemplateService.renderSignIn(data), TemplateService.renderSignUp(data)]) {
+      expect(html.match(/we link them to your account/g)).toHaveLength(1);
+      expect(html).toContain('https://www.owox.com/policies/control-your-data');
+      expect(html).toContain(
+        'https://www.owox.com/policies/privacy#9-cookies-or-other-tracking-technologies'
+      );
+      expect(html).not.toContain('acknowledge our');
+      expect(html.indexOf('we link them to your account')).toBeGreaterThan(
+        html.indexOf('Continue with Google')
+      );
+    }
+  });
+
+  it('keeps the short line on the other auth pages', () => {
+    const html = TemplateService.renderMagicLinkConfirm({
+      intent: 'signup',
+      token: 'token',
+      callbackURL: '/',
+    });
+
+    expect(html).toContain('acknowledge our');
+    expect(html).not.toContain('we link them to your account');
+  });
 });
