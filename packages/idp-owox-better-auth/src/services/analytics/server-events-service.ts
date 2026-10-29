@@ -19,6 +19,11 @@ type Send = (url: string, init: RequestInit) => Promise<Response>;
 // A visitor id as a cookie may hold it; anything else is not sent.
 const VISITOR_ID = /^[A-Za-z0-9._-]{1,128}$/;
 
+// The Google Analytics client id cookie, `GA1.<n>.<random>.<timestamp>`; its
+// last two parts are the client id gtag sends as `cid`.
+const GA_COOKIE = '_ga';
+const GA_CLIENT_ID = /^GA\d\.\d+\.(\d+\.\d+)$/;
+
 // Query parameters kept in the page URL: campaign and click identifiers. Auth
 // pages also carry flow state (state, error, tokens), which must not leave.
 const KEPT_QUERY = /^(utm_[a-z_]+|gclid|gbraid|wbraid|dclid|fbclid|msclkid|ttclid|li_fat_id)$/i;
@@ -39,7 +44,8 @@ const SEND_TIMEOUT_MS = 3000;
  * in GA4 `g/collect` format, keyed on the visitor's first-party cookie.
  *
  * Off unless configured. Nothing is sent for a visitor without that cookie,
- * and the product never sets it. Sending never blocks or fails the request
+ * and the product never sets it. `cid` is the Google Analytics client id from
+ * `_ga`, the same as the page's own tag sends, and is left out without it. Sending never blocks or fails the request
  * that triggered it: errors are only logged.
  */
 export class ServerEventsService {
@@ -84,7 +90,8 @@ export class ServerEventsService {
     const query = url.searchParams;
     query.set('v', '2');
     query.set('tid', config.measurementId);
-    query.set('cid', visitorId.replace(/_/g, '.'));
+    const clientId = GA_CLIENT_ID.exec(getCookie(req, GA_COOKIE) ?? '')?.[1];
+    if (clientId) query.set('cid', clientId);
     query.set('en', name);
     query.set('dl', pageUrl(req));
     const referrer = withoutQuery(req.headers.referer);

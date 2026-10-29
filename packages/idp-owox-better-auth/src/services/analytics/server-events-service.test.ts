@@ -14,7 +14,7 @@ function createRequest(overrides: Partial<Request> = {}, headers: Record<string,
     originalUrl: '/auth/sign-up?utm_source=newsletter&state=secret&error=x',
     get: (name: string) => (name === 'host' ? 'app.example.com' : undefined),
     ip: '203.0.113.7',
-    cookies: { vid: '123_456', other: 'x' },
+    cookies: { vid: '123_456', _ga: 'GA1.1.111.222', other: 'x' },
     headers: {
       referer: 'https://www.example.com/pricing?ref=1',
       'accept-language': 'uk-UA,uk;q=0.9',
@@ -49,7 +49,7 @@ describe('ServerEventsService', () => {
     expect(Object.fromEntries(url.searchParams)).toEqual({
       v: '2',
       tid: 'G-TEST',
-      cid: '123.456',
+      cid: '111.222',
       en: 'page_view',
       dl: 'https://app.example.com/auth/sign-up?utm_source=newsletter',
       dr: 'https://www.example.com/pricing',
@@ -88,15 +88,27 @@ describe('ServerEventsService', () => {
     expect(send).not.toHaveBeenCalled();
   });
 
-  it('reads the visitor cookie from the header when cookies are not parsed', async () => {
+  it('reads the cookies from the header when they are not parsed', async () => {
     const { calls, send } = createSend();
     new ServerEventsService(config, send).pageView(
-      createRequest({ cookies: undefined }, { cookie: 'a=1; vid=7_8' }),
+      createRequest({ cookies: undefined }, { cookie: 'a=1; vid=7_8; _ga=GA1.2.333.444' }),
       'Sign In'
     );
     await flush();
 
-    expect(calls[0].url.searchParams.get('cid')).toBe('7.8');
+    expect(calls[0].url.searchParams.get('cid')).toBe('333.444');
+    expect(new Headers(calls[0].init.headers).get('cookie')).toBe('vid=7_8');
+  });
+
+  it('leaves cid out without a valid Google Analytics cookie', async () => {
+    const { calls, send } = createSend();
+    const service = new ServerEventsService(config, send);
+    service.pageView(createRequest({ cookies: { vid: '123_456' } }), 'Sign In');
+    service.pageView(createRequest({ cookies: { vid: '123_456', _ga: 'bad' } }), 'Sign In');
+    await flush();
+
+    expect(calls).toHaveLength(2);
+    for (const { url } of calls) expect(url.searchParams.has('cid')).toBe(false);
   });
 
   it('keeps a query already in the collect URL', async () => {
