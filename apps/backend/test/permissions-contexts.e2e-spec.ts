@@ -1518,6 +1518,29 @@ describe('Permissions Model Contexts & Role Scope (e2e)', () => {
       expect(res.status).toBe(400);
     });
 
+    it('K3. Cross-project isolation — cannot rewrite the contexts of a foreign or deleted Data Mart', async () => {
+      const ctx = await createContext('K3-own');
+      const foreign = await createStorageAndDataMart();
+      await expect(attachDataMartContexts(foreign.dataMartId, [ctx.body.id])).resolves.toBe(200);
+      await dataSource
+        .getRepository(DataMart)
+        .update(foreign.dataMartId, { projectId: 'other-project' });
+
+      await expect(attachDataMartContexts(foreign.dataMartId, [])).resolves.toBe(404);
+      await expect(
+        dataSource
+          .getRepository(DataMartContext)
+          .count({ where: { dataMartId: foreign.dataMartId } })
+      ).resolves.toBe(1);
+
+      const deleted = await createStorageAndDataMart();
+      const deleteRes = await agent
+        .delete(`/api/data-marts/${deleted.dataMartId}`)
+        .set(AUTH_HEADER);
+      expect(deleteRes.status).toBe(200);
+      await expect(attachDataMartContexts(deleted.dataMartId, [ctx.body.id])).resolves.toBe(404);
+    });
+
     it('K3. PUT /members/:id with 101 contextIds → 400 (ArrayMaxSize)', async () => {
       const many = Array.from({ length: 101 }, () => NONEXISTENT_UUID);
       const res = await agent.put('/api/members/1').set(AUTH_HEADER).send({

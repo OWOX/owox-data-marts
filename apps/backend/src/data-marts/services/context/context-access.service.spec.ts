@@ -1,4 +1,5 @@
-import { ForbiddenException } from '@nestjs/common';
+import { ForbiddenException, NotFoundException } from '@nestjs/common';
+import { DataMart } from '../../entities/data-mart.entity';
 import { OwnerStatus, EntityType } from '../access-decision/access-decision.types';
 import { ProjectRole } from '../../enums/project-role.enum';
 import { RoleScope } from '../../enums/role-scope.enum';
@@ -32,6 +33,8 @@ describe('ContextAccessService', () => {
     create: jest.fn(),
     createQueryBuilder: jest.fn(),
     upsert: jest.fn(),
+    // Data Marts the tests write links for exist in the project.
+    manager: { exists: jest.fn().mockResolvedValue(true) },
   });
 
   const createService = () => {
@@ -94,6 +97,23 @@ describe('ContextAccessService', () => {
       expect(contextService.validateContextIds).toHaveBeenCalledWith(CONTEXT_IDS, PROJECT_ID);
       expect(dataMartContextRepository.delete).toHaveBeenCalledWith({ dataMartId: DATA_MART_ID });
       expect(dataMartContextRepository.save).toHaveBeenCalled();
+    });
+
+    it("refuses a Data Mart outside the caller's project, or deleted, before any write", async () => {
+      const { service, accessDecisionService, dataMartContextRepository } = createService();
+
+      dataMartContextRepository.manager.exists.mockResolvedValue(false);
+
+      await expect(
+        service.updateDataMartContexts(DATA_MART_ID, PROJECT_ID, [], USER_ID, ['admin'])
+      ).rejects.toThrow(NotFoundException);
+
+      expect(dataMartContextRepository.manager.exists).toHaveBeenCalledWith(DataMart, {
+        where: { id: DATA_MART_ID, projectId: PROJECT_ID },
+      });
+      expect(accessDecisionService.getOwnerStatus).not.toHaveBeenCalled();
+      expect(dataMartContextRepository.delete).not.toHaveBeenCalled();
+      expect(dataMartContextRepository.save).not.toHaveBeenCalled();
     });
 
     it('should allow tech owner with editor role to assign contexts', async () => {

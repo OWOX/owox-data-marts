@@ -38,6 +38,8 @@ const createMockRepository = () => ({
   count: jest.fn(),
   createQueryBuilder: jest.fn(),
   upsert: jest.fn(),
+  // Data Marts the tests write links for exist in the project.
+  manager: { exists: jest.fn().mockResolvedValue(true) },
 });
 
 // ─── Build entire service graph with mocked repos ───────────────────────────

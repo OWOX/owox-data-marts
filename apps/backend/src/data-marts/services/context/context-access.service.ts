@@ -1,7 +1,15 @@
-import { Injectable, ForbiddenException, Inject, forwardRef, Optional } from '@nestjs/common';
+import {
+  Injectable,
+  ForbiddenException,
+  Inject,
+  NotFoundException,
+  forwardRef,
+  Optional,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Transactional } from 'typeorm-transactional';
+import { DataMart } from '../../entities/data-mart.entity';
 import { DataMartContext } from '../../entities/data-mart-context.entity';
 import { StorageContext } from '../../entities/storage-context.entity';
 import { DestinationContext } from '../../entities/destination-context.entity';
@@ -45,6 +53,15 @@ export class ContextAccessService {
     userId: string,
     roles: string[]
   ): Promise<void> {
+    // The id comes from the URL: never touch the links of a Data Mart that is
+    // deleted or belongs to another project, whatever the caller's role.
+    const dataMartExists = await this.dataMartContextRepository.manager.exists(DataMart, {
+      where: { id: dataMartId, projectId },
+    });
+    if (!dataMartExists) {
+      throw new NotFoundException(`Data Mart with id ${dataMartId} not found`);
+    }
+
     const isAdmin = roles.includes('admin');
 
     if (!isAdmin) {
