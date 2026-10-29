@@ -25,6 +25,9 @@ import {
   type McpContextsFacade,
 } from '../src/data-marts/facades/mcp-contexts.facade';
 import { DataMart } from '../src/data-marts/entities/data-mart.entity';
+import { DataMartContext } from '../src/data-marts/entities/data-mart-context.entity';
+import { StorageContext } from '../src/data-marts/entities/storage-context.entity';
+import { DestinationContext } from '../src/data-marts/entities/destination-context.entity';
 import { DataMartStatus } from '../src/data-marts/enums/data-mart-status.enum';
 import { ProjectRole } from '../src/data-marts/enums/project-role.enum';
 import { RoleScope } from '../src/data-marts/enums/role-scope.enum';
@@ -451,6 +454,36 @@ describe('Permissions Model Contexts & Role Scope (e2e)', () => {
           contextIds: [],
         });
       }
+    });
+
+    it('DELETE → 204 when only deleted Data Marts, Storages and Destinations still hold the context', async () => {
+      const ctx = await createContext('B-deleted-resources');
+      const { dataMartId } = await createStorageAndDataMart();
+      const storageId = await createStorage();
+      const destinationId = await createDestination();
+      await expect(attachDataMartContexts(dataMartId, [ctx.body.id])).resolves.toBe(200);
+      await updateStorageContexts(storageId, [ctx.body.id]);
+      await updateDestinationContexts(destinationId, [ctx.body.id]);
+
+      // Deleting a resource keeps its context links.
+      for (const path of [
+        `/api/data-marts/${dataMartId}`,
+        `/api/data-storages/${storageId}`,
+        `/api/data-destinations/${destinationId}`,
+      ]) {
+        const deleted = await agent.delete(path).set(AUTH_HEADER);
+        expect(deleted.status).toBe(200);
+      }
+
+      const impact = await agent.get(`/api/contexts/${ctx.body.id}/impact`).set(AUTH_HEADER);
+      expect(impact.body).toMatchObject({ dataMartCount: 0, storageCount: 0, destinationCount: 0 });
+
+      const res = await agent.delete(`/api/contexts/${ctx.body.id}`).set(AUTH_HEADER);
+      expect(res.status).toBe(204);
+      const where = { contextId: ctx.body.id };
+      await expect(dataSource.getRepository(DataMartContext).count({ where })).resolves.toBe(0);
+      await expect(dataSource.getRepository(StorageContext).count({ where })).resolves.toBe(0);
+      await expect(dataSource.getRepository(DestinationContext).count({ where })).resolves.toBe(0);
     });
 
     it('DELETE → 409 with multiple attachments across all entity kinds', async () => {

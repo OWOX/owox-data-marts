@@ -72,7 +72,7 @@ export function DeleteContextSpec() {
     ApiOperation({
       summary: 'Delete a Context by ID',
       description:
-        'Soft-deletes the context. Returns 409 with impact counts if it is still attached to any Data Mart, Storage, Destination, User Provisioning default or non-admin member with Selected contexts scope — caller must detach first. Assignments kept by admins or Entire project members do not block and are removed with the context.',
+        'Soft-deletes the context. Returns 409 with impact counts if it is still attached to any Data Mart, Storage, Destination, User Provisioning default or non-admin member with Selected contexts scope — caller must detach first. Assignments kept by admins or Entire project members, and links of deleted Data Marts, Storages and Destinations, do not block and are removed with the context.',
     }),
     ApiParam({ name: 'id', description: 'Context ID' }),
     ApiNoContentResponse({ description: 'Context deleted' }),

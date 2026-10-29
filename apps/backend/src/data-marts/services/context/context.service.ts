@@ -5,7 +5,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Not, Repository } from 'typeorm';
+import { In, Not, ObjectLiteral, Repository } from 'typeorm';
 import { Transactional } from 'typeorm-transactional';
 import { ContextDto, ContextImpactDto } from '../../dto/domain/context.dto';
 import { RoleScope } from '../../enums/role-scope.enum';
@@ -237,7 +237,9 @@ export class ContextService {
    * `splitMemberAssignments`) are not role assignments in that sense: they
    * grant nothing and the admin cannot see them, so they do not block. They
    * are removed with the context, so a member switched back to Selected
-   * contexts later does not carry a deleted context.
+   * contexts later does not carry a deleted context. Links of deleted Data
+   * Marts, Storages and Destinations (see `splitResourceLinks`) do not block
+   * either and are removed the same way.
    *
    * @param nonAdminMemberIds current project members other than admins.
    */
@@ -249,11 +251,8 @@ export class ContextService {
   ): Promise<void> {
     const entity = await this.getByIdAndProject(contextId, projectId);
 
-    const { counts, nonBlockingMemberIds } = await this.countBlockingAttachments(
-      contextId,
-      projectId,
-      nonAdminMemberIds
-    );
+    const { counts, nonBlockingMemberIds, deletedResourceIds } =
+      await this.countBlockingAttachments(contextId, projectId, nonAdminMemberIds);
     const total =
       counts.dataMartCount +
       counts.storageCount +
@@ -278,6 +277,24 @@ export class ContextService {
         userId: In(nonBlockingMemberIds),
       });
     }
+    if (deletedResourceIds.dataMartIds.length > 0) {
+      await this.dataMartContextRepository.delete({
+        contextId,
+        dataMartId: In(deletedResourceIds.dataMartIds),
+      });
+    }
+    if (deletedResourceIds.storageIds.length > 0) {
+      await this.storageContextRepository.delete({
+        contextId,
+        storageId: In(deletedResourceIds.storageIds),
+      });
+    }
+    if (deletedResourceIds.destinationIds.length > 0) {
+      await this.destinationContextRepository.delete({
+        contextId,
+        destinationId: In(deletedResourceIds.destinationIds),
+      });
+    }
     await this.contextRepository.softRemove(entity);
   }
 
@@ -287,29 +304,64 @@ export class ContextService {
     nonAdminMemberIds: ReadonlySet<string>
   ) {
     const [
-      dataMartCount,
-      storageCount,
-      destinationCount,
+      dataMartLinks,
+      storageLinks,
+      destinationLinks,
       memberAssignments,
       userProvisioningDefaultsCount,
     ] = await Promise.all([
-      this.dataMartContextRepository.count({ where: { contextId } }),
-      this.storageContextRepository.count({ where: { contextId } }),
-      this.destinationContextRepository.count({ where: { contextId } }),
+      this.splitResourceLinks(this.dataMartContextRepository, 'dataMart', 'dataMartId', contextId),
+      this.splitResourceLinks(this.storageContextRepository, 'storage', 'storageId', contextId),
+      this.splitResourceLinks(
+        this.destinationContextRepository,
+        'destination',
+        'destinationId',
+        contextId
+      ),
       this.splitMemberAssignments(contextId, projectId, nonAdminMemberIds),
       this.userProvisioningContextSettingsContextRepository.count({ where: { contextId } }),
     ]);
 
     return {
       counts: {
-        dataMartCount,
-        storageCount,
-        destinationCount,
+        dataMartCount: dataMartLinks.liveCount,
+        storageCount: storageLinks.liveCount,
+        destinationCount: destinationLinks.liveCount,
         memberCount: memberAssignments.blockingUserIds.length,
         userProvisioningDefaultsCount,
       },
       nonBlockingMemberIds: memberAssignments.nonBlockingUserIds,
+      deletedResourceIds: {
+        dataMartIds: dataMartLinks.deletedIds,
+        storageIds: storageLinks.deletedIds,
+        destinationIds: destinationLinks.deletedIds,
+      },
     };
+  }
+
+  /**
+   * Splits a context's Data Mart, Storage or Destination links by whether the
+   * linked resource still exists. Deleting a resource only marks it deleted
+   * and keeps its links, but a deleted resource is not listed anywhere, so the
+   * admin could not detach it.
+   */
+  private async splitResourceLinks(
+    linkRepository: Repository<ObjectLiteral>,
+    resourceRelation: string,
+    resourceIdProperty: string,
+    contextId: string
+  ): Promise<{ liveCount: number; deletedIds: string[] }> {
+    const links = await linkRepository
+      .createQueryBuilder('link')
+      .withDeleted()
+      .innerJoin(`link.${resourceRelation}`, 'resource')
+      .select(`link.${resourceIdProperty}`, 'resourceId')
+      .addSelect('resource.deletedAt', 'deletedAt')
+      .where('link.contextId = :contextId', { contextId })
+      .getRawMany<{ resourceId: string; deletedAt: Date | string | null }>();
+
+    const deletedIds = links.filter(link => link.deletedAt != null).map(link => link.resourceId);
+    return { liveCount: links.length - deletedIds.length, deletedIds };
   }
 
   /**

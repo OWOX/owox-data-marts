@@ -127,13 +127,15 @@ export class ContextImpactResponseApiDto {
   @ApiProperty()
   contextName: string;
 
-  @ApiProperty()
+  @ApiProperty({ description: 'Data Marts attached to the context. Deleted ones are not counted.' })
   dataMartCount: number;
 
-  @ApiProperty()
+  @ApiProperty({ description: 'Storages attached to the context. Deleted ones are not counted.' })
   storageCount: number;
 
-  @ApiProperty()
+  @ApiProperty({
+    description: 'Destinations attached to the context. Deleted ones are not counted.',
+  })
   destinationCount: number;
 
   @ApiProperty({
