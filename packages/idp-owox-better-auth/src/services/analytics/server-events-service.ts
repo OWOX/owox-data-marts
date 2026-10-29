@@ -1,5 +1,7 @@
+import { castError } from '@owox/internal-helpers';
 import type { Request } from 'express';
 import { createServiceLogger } from '../../core/logger.js';
+import { getCookie } from '../../utils/request-utils.js';
 
 /**
  * Where server-side events go: a GA4-compatible `g/collect` endpoint, the
@@ -64,7 +66,7 @@ export class ServerEventsService {
     try {
       this.post(req, this.config, name, params);
     } catch (error) {
-      this.logger.warn('Server event not sent', { event: name, error: String(error) });
+      this.logger.warn('Server event not sent', { event: name, error: castError(error).message });
     }
   }
 
@@ -74,16 +76,17 @@ export class ServerEventsService {
     name: string,
     params: Record<string, string>
   ): void {
-    const visitorId = readCookie(req, config.visitorCookieName);
+    const visitorId = getCookie(req, config.visitorCookieName);
     if (!visitorId || !VISITOR_ID.test(visitorId)) return;
 
-    const query = new URLSearchParams({
-      v: '2',
-      tid: config.measurementId,
-      cid: visitorId.replace(/_/g, '.'),
-      en: name,
-      dl: pageUrl(req),
-    });
+    const url = new URL(config.collectUrl);
+    url.hash = '';
+    const query = url.searchParams;
+    query.set('v', '2');
+    query.set('tid', config.measurementId);
+    query.set('cid', visitorId.replace(/_/g, '.'));
+    query.set('en', name);
+    query.set('dl', pageUrl(req));
     const referrer = withoutQuery(req.headers.referer);
     if (referrer) query.set('dr', referrer);
     const language = firstHeader(req, 'accept-language')?.split(',')[0]?.trim().toLowerCase();
@@ -98,7 +101,7 @@ export class ServerEventsService {
     }
     if (req.ip) headers.set('x-forwarded-for', req.ip);
 
-    void this.send(`${config.collectUrl}?${query}`, {
+    void this.send(url.toString(), {
       method: 'POST',
       headers,
       redirect: 'manual',
@@ -111,21 +114,9 @@ export class ServerEventsService {
         }
       })
       .catch(error => {
-        this.logger.warn('Server event failed', { event: name, error: String(error) });
+        this.logger.warn('Server event failed', { event: name, error: castError(error).message });
       });
   }
-}
-
-function readCookie(req: Request, name: string): string | undefined {
-  const parsed = (req.cookies as Record<string, unknown> | undefined)?.[name];
-  if (typeof parsed === 'string') return parsed;
-  for (const pair of (req.headers.cookie ?? '').split(';')) {
-    const separator = pair.indexOf('=');
-    if (separator > 0 && pair.slice(0, separator).trim() === name) {
-      return pair.slice(separator + 1).trim();
-    }
-  }
-  return undefined;
 }
 
 function firstHeader(req: Request, name: string): string | undefined {

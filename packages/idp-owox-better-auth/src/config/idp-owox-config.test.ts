@@ -84,6 +84,28 @@ describe('loadBetterAuthProviderConfigFromEnv', () => {
     ).toThrow();
   });
 
+  it('treats blank server events settings as unset', () => {
+    const config = loadBetterAuthProviderConfigFromEnv({
+      ...baseEnv(),
+      IDP_OWOX_SERVER_EVENTS_COLLECT_URL: '',
+      IDP_OWOX_SERVER_EVENTS_MEASUREMENT_ID: ' ',
+      IDP_OWOX_SERVER_EVENTS_VISITOR_COOKIE: '',
+    });
+
+    expect(config.serverEvents).toBeUndefined();
+  });
+
+  it('refuses a server events collect URL that is not https', () => {
+    expect(() =>
+      loadBetterAuthProviderConfigFromEnv({
+        ...baseEnv(),
+        IDP_OWOX_SERVER_EVENTS_COLLECT_URL: 'http://collector.owox.test/g/collect',
+        IDP_OWOX_SERVER_EVENTS_MEASUREMENT_ID: 'G-TEST',
+        IDP_OWOX_SERVER_EVENTS_VISITOR_COOKIE: 'vid',
+      })
+    ).toThrow();
+  });
+
   it('refuses to enable Microsoft NAA without deployment-owned audience and scope', () => {
     expect(() =>
       loadBetterAuthProviderConfigFromEnv({

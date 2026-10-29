@@ -241,4 +241,15 @@ describe('PageController server-side page views', () => {
     expect(pageView).toHaveBeenNthCalledWith(1, signIn, SIGN_IN_PAGE_TITLE);
     expect(pageView).toHaveBeenNthCalledWith(2, signUp, SIGN_UP_PAGE_TITLE);
   });
+
+  it('does not report the auto-submitting leg of a social sign-in', async () => {
+    const pageView = jest.fn();
+    const serverEvents = { pageView } as unknown as ServerEventsService;
+    const controller = new PageController(providers, undefined, serverEvents);
+    const req = createRequest({ state: 'fresh-state' }, socialIntentCookieHeader('google'));
+
+    await controller.signInPage(req, createResponse());
+
+    expect(pageView).not.toHaveBeenCalled();
+  });
 });

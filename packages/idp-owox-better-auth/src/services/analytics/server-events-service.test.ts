@@ -99,6 +99,19 @@ describe('ServerEventsService', () => {
     expect(calls[0].url.searchParams.get('cid')).toBe('7.8');
   });
 
+  it('keeps a query already in the collect URL', async () => {
+    const { calls, send } = createSend();
+    new ServerEventsService(
+      { ...config, collectUrl: 'https://collector.example.com/g/collect?env=prod#x' },
+      send
+    ).pageView(createRequest(), 'Sign In');
+    await flush();
+
+    expect(calls[0].url.hash).toBe('');
+    expect(calls[0].url.searchParams.get('env')).toBe('prod');
+    expect(calls[0].url.searchParams.get('en')).toBe('page_view');
+  });
+
   it('never throws when sending fails', async () => {
     const send = jest.fn(async () => {
       throw new Error('network down');

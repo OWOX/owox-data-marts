@@ -87,7 +87,8 @@ export class PageController {
         autoSubmitProvider,
       })
     );
-    this.serverEvents?.pageView(req, SIGN_IN_PAGE_TITLE);
+    // An auto-submitting page is a redirect leg, not a view.
+    if (!autoSubmitProvider) this.serverEvents?.pageView(req, SIGN_IN_PAGE_TITLE);
   }
 
   async signUpPage(req: ExpressRequest, res: ExpressResponse): Promise<void> {
@@ -111,7 +112,8 @@ export class PageController {
         autoSubmitProvider,
       })
     );
-    this.serverEvents?.pageView(req, SIGN_UP_PAGE_TITLE);
+    // An auto-submitting page is a redirect leg, not a view.
+    if (!autoSubmitProvider) this.serverEvents?.pageView(req, SIGN_UP_PAGE_TITLE);
   }
 
   private sanitizeCallbackURL(rawCallbackURL: string, req: ExpressRequest): string {

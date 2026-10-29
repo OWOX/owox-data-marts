@@ -329,19 +329,26 @@ const BetterAuthEnvSchema = z.object({
   GOOGLE_TAG_MANAGER_CONTAINER_ID: z.string().optional(),
 });
 
+// A blank or whitespace-only value counts as unset.
+const optionalEnv = <T extends z.ZodTypeAny>(schema: T) =>
+  z.preprocess(v => (typeof v === 'string' ? v.trim() || undefined : v), schema.optional());
+
 const ServerEventsEnvSchema = z
   .object({
-    IDP_OWOX_SERVER_EVENTS_COLLECT_URL: z
-      .string()
-      .url({ message: 'IDP_OWOX_SERVER_EVENTS_COLLECT_URL must be a valid URL' })
-      .optional(),
-    IDP_OWOX_SERVER_EVENTS_MEASUREMENT_ID: z.string().min(1).optional(),
-    IDP_OWOX_SERVER_EVENTS_VISITOR_COOKIE: z
-      .string()
-      .regex(/^[A-Za-z0-9_-]{1,64}$/, {
+    IDP_OWOX_SERVER_EVENTS_COLLECT_URL: optionalEnv(
+      z
+        .string()
+        .url({ message: 'IDP_OWOX_SERVER_EVENTS_COLLECT_URL must be a valid URL' })
+        .startsWith('https://', {
+          message: 'IDP_OWOX_SERVER_EVENTS_COLLECT_URL must use https',
+        })
+    ),
+    IDP_OWOX_SERVER_EVENTS_MEASUREMENT_ID: optionalEnv(z.string()),
+    IDP_OWOX_SERVER_EVENTS_VISITOR_COOKIE: optionalEnv(
+      z.string().regex(/^[A-Za-z0-9_-]{1,64}$/, {
         message: 'IDP_OWOX_SERVER_EVENTS_VISITOR_COOKIE must be a cookie name',
       })
-      .optional(),
+    ),
   })
   .refine(
     e =>
