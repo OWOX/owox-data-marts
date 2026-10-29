@@ -26,16 +26,17 @@ describe('configureTrustProxy', () => {
   // A client-forged entry, then what a load balancer appends: the client and itself.
   const forwardedFor = '198.51.100.9, 203.0.113.7, 192.0.2.1';
 
-  it('trusts one proxy by default', async () => {
+  it('trusts one proxy by default, and when the value is blank', async () => {
     await expect(clientIp({}, forwardedFor)).resolves.toBe('192.0.2.1');
+    await expect(clientIp({ TRUST_PROXY_HOPS: ' ' }, forwardedFor)).resolves.toBe('192.0.2.1');
   });
 
   it('takes the client address behind the configured number of proxies', async () => {
     await expect(clientIp({ TRUST_PROXY_HOPS: '2' }, forwardedFor)).resolves.toBe('203.0.113.7');
   });
 
-  it('refuses anything but a whole number', () => {
-    for (const value of ['true', '-1', '1.5', 'loopback']) {
+  it('refuses anything but a whole number from 0 to 10', () => {
+    for (const value of ['true', '-1', '1.5', 'loopback', '11', '99999999999999999999']) {
       expect(() => configureTrustProxy(express(), { TRUST_PROXY_HOPS: value })).toThrow(
         'TRUST_PROXY_HOPS'
       );

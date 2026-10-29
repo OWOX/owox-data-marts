@@ -196,7 +196,7 @@ owox serve --env-file custom.env --port 3030
 - **TRUST_PROXY_HOPS**: Number of reverse proxies in front of the application that append to `X-Forwarded-For`.
   - The client address is taken that many entries from the right of `X-Forwarded-For`; entries further left come from the client and are ignored.
   - Example: `2` behind a Google Cloud HTTP(S) load balancer, which appends both the client address and its own.
-  - Whole numbers only; any other value stops the application at startup.
+  - Whole numbers from `0` to `10`; any other value stops the application at startup. A blank value means the default.
   - Default: `1`.
   - A value larger than the real number of proxies lets clients set their own address through `X-Forwarded-For`.
 

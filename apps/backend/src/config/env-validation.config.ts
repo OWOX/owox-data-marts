@@ -17,6 +17,13 @@ function blankAsUnset<T extends z.ZodTypeAny>(schema: T) {
 }
 
 /**
+ * Number of reverse proxies in front of the app that append to X-Forwarded-For; applied by
+ * configureTrustProxy before bootstrap. Whole numbers only, and bounded: Express trusts every
+ * X-Forwarded-For entry for a count larger than the chain, so the client could choose req.ip.
+ */
+export const trustProxyHopsSchema = blankAsUnset(z.coerce.number().int().min(0).max(10).default(1));
+
+/**
  * Configuration schema for environment variables validation.
  * Validates and transforms specified environment variables while
  * passing through all other fields as-is for backwards compatibility.
@@ -35,6 +42,8 @@ const configSchema = z
     SERVER_TIMEOUT_MS: z.coerce.number().default(DEFAULT_SERVER_TIMEOUT_MS),
     KEEP_ALIVE_TIMEOUT_MS: z.coerce.number().default(DEFAULT_KEEP_ALIVE_TIMEOUT_MS),
     HEADERS_TIMEOUT_MS: z.coerce.number().default(DEFAULT_HEADERS_TIMEOUT_MS),
+
+    TRUST_PROXY_HOPS: trustProxyHopsSchema,
 
     MAX_CONNECTOR_RUNS_PER_PROJECT: z.coerce.number().int().min(1).max(1000).default(3),
     MAX_REPORT_RUNS_PER_PROJECT: z.coerce.number().int().min(1).max(1000).default(1000),
