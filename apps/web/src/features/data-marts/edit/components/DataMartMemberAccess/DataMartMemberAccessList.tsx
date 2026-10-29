@@ -3,14 +3,20 @@ import { Button } from '@owox/ui/components/button';
 import { Skeleton } from '@owox/ui/components/skeleton';
 import { cn } from '@owox/ui/lib/utils';
 import { Info } from 'lucide-react';
+import { Link } from 'react-router';
 import { getRoleDisplayName } from '../../../../idp/utils/role-display-name';
 import { UserReference } from '../../../../../shared/components/UserReference/UserReference';
+import { useProjectRoute } from '../../../../../shared/hooks';
 import type { DataMartMemberAccessItemDto } from '../../../shared/types/api/response/data-mart-member-access.response.dto';
 import {
+  MEMBERS_LINK_TEXT,
   explainMemberAccess,
   formatMemberCount,
+  memberAccessPath,
+  plainText,
   sortMembersForAccess,
   type MemberAccessDataMart,
+  type MemberAccessText,
 } from './member-access.utils';
 
 interface DataMartMemberAccessListProps {
@@ -25,6 +31,28 @@ interface DataMartMemberAccessListProps {
 const GRID =
   'grid grid-cols-[minmax(10rem,1fr)_7rem_minmax(11rem,1fr)_minmax(0,1.8fr)] items-start gap-x-4';
 
+/** Explanation text whose linked parts open the screen where that setting changes. */
+function AccessText({ text }: { text: MemberAccessText }) {
+  const { scope } = useProjectRoute();
+  return (
+    <>
+      {text.map((part, index) =>
+        typeof part === 'string' ? (
+          part
+        ) : (
+          <Link
+            key={`${String(index)}-${part.text}`}
+            to={scope(memberAccessPath(part.target))}
+            className='hover:text-foreground underline decoration-dotted underline-offset-2'
+          >
+            {part.text}
+          </Link>
+        )
+      )}
+    </>
+  );
+}
+
 export function DataMartMemberAccessList({
   members,
   isLoading,
@@ -37,7 +65,7 @@ export function DataMartMemberAccessList({
     return (
       <div className='flex items-center justify-between gap-4 p-4' role='alert'>
         <p className='text-muted-foreground text-sm'>
-          Couldn&apos;t load who can work with this Data Mart.
+          Couldn&apos;t load who has access to this Data Mart.
         </p>
         <Button variant='outline' size='sm' onClick={onRetry}>
           Try again
@@ -68,8 +96,13 @@ export function DataMartMemberAccessList({
           {canConfigureSharing} can change Sharing and Ownership
         </p>
         <p className='text-muted-foreground text-xs'>
-          Change Ownership, Sharing or Contexts above, or a member&apos;s role and contexts in
-          Project settings → Members.
+          <AccessText
+            text={[
+              "Change Ownership, Sharing or Contexts above, or a member's role and contexts in ",
+              { text: MEMBERS_LINK_TEXT, target: { kind: 'members' } },
+              '.',
+            ]}
+          />
         </p>
         {isDraft && (
           <p className='text-muted-foreground flex items-center gap-1 text-xs'>
@@ -117,17 +150,23 @@ export function DataMartMemberAccessList({
                 <div role='cell' className='flex flex-wrap gap-1 pt-0.5'>
                   {accessThrough.map(source => (
                     <Badge
-                      key={source}
+                      key={plainText(source)}
                       variant={hasAccess ? 'secondary' : 'outline'}
                       className={cn(!hasAccess && 'text-muted-foreground')}
                     >
-                      {source}
+                      <AccessText text={source} />
                     </Badge>
                   ))}
                 </div>
                 <div role='cell' className='flex min-w-0 flex-col gap-1 pt-0.5'>
-                  <p className='text-foreground text-sm'>{canDo}</p>
-                  {next && <p className='text-muted-foreground text-xs'>{next}</p>}
+                  <p className='text-foreground text-sm'>
+                    <AccessText text={canDo} />
+                  </p>
+                  {next && (
+                    <p className='text-muted-foreground text-xs'>
+                      <AccessText text={next} />
+                    </p>
+                  )}
                 </div>
               </div>
             );

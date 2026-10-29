@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { toast } from 'react-hot-toast';
+import { useSearchParams } from 'react-router';
 import { MembersTable } from '../../features/project-settings/members/components/MembersTable/MembersTable';
 import { MemberDetailsSheet } from '../../features/project-settings/members/components/MemberDetailsSheet/MemberDetailsSheet';
 import { PendingRequestsSection } from '../../features/project-settings/members/components/PendingRequestsSection/PendingRequestsSection';
@@ -22,6 +23,24 @@ export function MembersTab() {
   const [selected, setSelected] = useState<MemberWithScopeDto | null>(null);
   const [pendingRemove, setPendingRemove] = useState<MemberWithScopeDto | null>(null);
   const [removing, setRemoving] = useState(false);
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // `?member=<userId>` (from a Data Mart's access list) opens that member's details once, as soon
+  // as the members have loaded; the parameter is dropped so closing the sheet leaves it closed.
+  const linkedMemberId = searchParams.get('member');
+  useEffect(() => {
+    if (!linkedMemberId || !isAdmin) return;
+    const member = members.find(m => m.userId === linkedMemberId);
+    if (!member) return;
+    setSelected(member);
+    setSearchParams(
+      params => {
+        params.delete('member');
+        return params;
+      },
+      { replace: true }
+    );
+  }, [linkedMemberId, isAdmin, members, setSearchParams]);
 
   const openMemberSheet = (userId: string) => {
     const member = members.find(m => m.userId === userId);

@@ -7,7 +7,11 @@ import {
   countMembersWhoCannotSee,
   explainMemberAccess,
   formatMemberCount,
+  memberAccessPath,
+  plainText,
   sortMembersForAccess,
+  type MemberAccessDataMart,
+  type MemberAccessText,
 } from './member-access.utils';
 
 const yes = (reason: DataMartAccessLevelDto['reason']): DataMartAccessLevelDto => ({
@@ -43,10 +47,26 @@ const dataMart = {
   availableForMaintenance: true,
 };
 
+/** The explanation as the admin reads it, links flattened to their text. */
+function explain(member: DataMartMemberAccessItemDto, onDataMart: MemberAccessDataMart) {
+  const { accessThrough, canDo, next } = explainMemberAccess(member, onDataMart);
+  return {
+    accessThrough: accessThrough.map(plainText),
+    canDo: plainText(canDo),
+    ...(next && { next: plainText(next) }),
+  };
+}
+
+/** The linked parts of a text: what they say and where they lead. */
+const links = (text: MemberAccessText | undefined) =>
+  (text ?? []).flatMap(part =>
+    typeof part === 'string' ? [] : [[part.text, memberAccessPath(part.target)]]
+  );
+
 describe('explainMemberAccess', () => {
   it('names the Sharing option and context a Business User sees it through, and the role to edit it', () => {
     expect(
-      explainMemberAccess(
+      explain(
         member({
           contexts: [
             { id: 'ctx-paid', name: 'Paid ads' },
@@ -63,16 +83,14 @@ describe('explainMemberAccess', () => {
   });
 
   it('also asks for maintenance sharing when the Data Mart is not shared for it', () => {
-    expect(
-      explainMemberAccess(member(), { ...dataMart, availableForMaintenance: false }).next
-    ).toBe(
+    expect(explain(member(), { ...dataMart, availableForMaintenance: false }).next).toBe(
       "To edit it: change their role to Data Owner in Project settings → Members, then turn on Shared for maintenance or add them as this Data Mart's Data Owner in Ownership"
     );
   });
 
   it('asks only for the role when the member is already the Data Owner of this Data Mart', () => {
     expect(
-      explainMemberAccess(member({ ownership: 'DATA_OWNER', see: yes('OWNER') }), {
+      explain(member({ ownership: 'DATA_OWNER', see: yes('OWNER') }), {
         ...dataMart,
         availableForMaintenance: false,
       })
@@ -90,25 +108,23 @@ describe('explainMemberAccess', () => {
       see: yes('PROJECT_WIDE_ACCESS'),
       configureSharing: no('OWNER_REQUIRED'),
     };
-    expect(
-      explainMemberAccess(member({ ...projectWide, edit: no('NOT_SHARED') }), dataMart)
-    ).toEqual({
+    expect(explain(member({ ...projectWide, edit: no('NOT_SHARED') }), dataMart)).toEqual({
       accessThrough: ['Shared for reporting'],
       canDo: 'Can see it and build reports',
       next: "To edit it: turn on Shared for maintenance, or add them as this Data Mart's Data Owner in Ownership",
     });
-    expect(
-      explainMemberAccess(member({ ...projectWide, edit: yes('PROJECT_WIDE_ACCESS') }), dataMart)
-    ).toEqual({
-      accessThrough: ['Shared for maintenance'],
-      canDo: 'Can see it, build reports, edit, delete and manage triggers',
-      next: "To change Sharing and Ownership: add them as this Data Mart's Data Owner in Ownership",
-    });
+    expect(explain(member({ ...projectWide, edit: yes('PROJECT_WIDE_ACCESS') }), dataMart)).toEqual(
+      {
+        accessThrough: ['Shared for maintenance'],
+        canDo: 'Can see it, build reports, edit, delete and manage triggers',
+        next: "To change Sharing and Ownership: add them as this Data Mart's Data Owner in Ownership",
+      }
+    );
   });
 
   it('lists a Business Owner who also edits through maintenance sharing', () => {
     expect(
-      explainMemberAccess(
+      explain(
         member({
           role: 'editor',
           ownership: 'BUSINESS_OWNER',
@@ -123,7 +139,7 @@ describe('explainMemberAccess', () => {
 
   it('describes full access without a next step', () => {
     expect(
-      explainMemberAccess(
+      explain(
         member({
           role: 'admin',
           see: yes('PROJECT_ADMIN'),
@@ -134,7 +150,7 @@ describe('explainMemberAccess', () => {
       )
     ).toEqual({ accessThrough: ['Project Admin'], canDo: 'Full access' });
     expect(
-      explainMemberAccess(
+      explain(
         member({
           role: 'editor',
           ownership: 'DATA_OWNER',
@@ -152,7 +168,7 @@ describe('explainMemberAccess', () => {
   });
 
   it('asks for Shared for reporting when a Business User cannot see the Data Mart', () => {
-    expect(explainMemberAccess(member({ see: no('NOT_SHARED') }), dataMart)).toEqual({
+    expect(explain(member({ see: no('NOT_SHARED') }), dataMart)).toEqual({
       accessThrough: ['No access'],
       canDo: 'Not shared for reporting',
       next: 'To see it: turn on Shared for reporting, or add them as Business Owner in Ownership',
@@ -161,7 +177,7 @@ describe('explainMemberAccess', () => {
 
   it('says the Data Mart has no context and which of the member’s contexts to add', () => {
     expect(
-      explainMemberAccess(member({ see: no('DATA_MART_HAS_NO_CONTEXT') }), {
+      explain(member({ see: no('DATA_MART_HAS_NO_CONTEXT') }), {
         ...dataMart,
         contexts: [],
       })
@@ -174,7 +190,7 @@ describe('explainMemberAccess', () => {
 
   it('lists both sides when the contexts do not meet', () => {
     expect(
-      explainMemberAccess(
+      explain(
         member({ contexts: [{ id: 'ctx-social', name: 'Social' }], see: no('NO_SHARED_CONTEXT') }),
         dataMart
       )
@@ -183,6 +199,28 @@ describe('explainMemberAccess', () => {
       canDo: 'Sees only their contexts (Social), and none of them is on this Data Mart',
       next: 'To see it: add Social in Contexts, or assign the member to Paid ads, SEO',
     });
+  });
+
+  it('links settings on other screens: contexts to their pages, roles to the member in Members', () => {
+    const blocked = explainMemberAccess(
+      member({ contexts: [{ id: 'ctx-social', name: 'Social' }], see: no('NO_SHARED_CONTEXT') }),
+      dataMart
+    );
+    expect(links(blocked.canDo)).toEqual([
+      ['Social', '/project-settings/contexts?context=ctx-social'],
+    ]);
+    expect(links(blocked.next)).toEqual([
+      ['Paid ads', '/project-settings/contexts?context=ctx-paid'],
+      ['SEO', '/project-settings/contexts?context=ctx-seo'],
+    ]);
+
+    const businessUser = explainMemberAccess(member(), dataMart);
+    expect(links(businessUser.accessThrough[0])).toEqual([
+      ['Paid ads', '/project-settings/contexts?context=ctx-paid'],
+    ]);
+    expect(links(businessUser.next)).toEqual([
+      ['Project settings → Members', '/project-settings/members?member=user-1'],
+    ]);
   });
 });
 

@@ -470,9 +470,9 @@ export default function DataMartOverviewContent() {
           <CollapsibleCardHeader>
             <CollapsibleCardHeaderTitle
               icon={Eye}
-              tooltip='What each project member can do with this Data Mart, and what to change to give them more'
+              tooltip="Who has access to this Data Mart, who doesn't, and why"
             >
-              Who can work with this Data Mart
+              Who has access to this Data Mart
             </CollapsibleCardHeaderTitle>
           </CollapsibleCardHeader>
           <CollapsibleCardContent>

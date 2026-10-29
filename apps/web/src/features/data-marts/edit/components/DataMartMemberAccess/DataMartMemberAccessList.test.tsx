@@ -1,11 +1,23 @@
 import { describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import type { ReactElement } from 'react';
+import { fireEvent, render as renderInDom, screen, within } from '@testing-library/react';
+import { MemoryRouter } from 'react-router';
 import type {
   DataMartAccessLevelDto,
   DataMartMemberAccessItemDto,
 } from '../../../shared/types/api/response/data-mart-member-access.response.dto';
 import { DataMartMemberAccessList } from './DataMartMemberAccessList';
 import { MemberAccessWarning } from './MemberAccessWarning';
+
+vi.mock('../../../../../shared/hooks', () => ({
+  useProjectRoute: () => ({ scope: (path: string) => `/ui/project${path}` }),
+}));
+
+const render = (ui: ReactElement) => renderInDom(<MemoryRouter>{ui}</MemoryRouter>);
+
+/** A paragraph by its whole text, which links split into several elements. */
+const paragraph = (text: string) => (_: string, element: Element | null) =>
+  element?.tagName === 'P' && element.textContent === text;
 
 const yes = (reason: DataMartAccessLevelDto['reason']) => ({ granted: true, reason });
 const no = (reason: DataMartAccessLevelDto['reason']) => ({ granted: false, reason });
@@ -75,11 +87,13 @@ describe('DataMartMemberAccessList', () => {
     expect(within(rows[0]).getByText('No access')).toBeInTheDocument();
     expect(
       within(rows[0]).getByText(
-        'Sees only their contexts (Paid ads), and none of them is on this Data Mart'
+        paragraph('Sees only their contexts (Paid ads), and none of them is on this Data Mart')
       )
     ).toBeInTheDocument();
     expect(
-      within(rows[0]).getByText('To see it: add Paid ads in Contexts, or assign the member to SEO')
+      within(rows[0]).getByText(
+        paragraph('To see it: add Paid ads in Contexts, or assign the member to SEO')
+      )
     ).toBeInTheDocument();
 
     expect(within(rows[1]).getByText('Tom')).toBeInTheDocument();
@@ -93,6 +107,24 @@ describe('DataMartMemberAccessList', () => {
 
     expect(within(rows[2]).getAllByText('Project Admin')).toHaveLength(2);
     expect(within(rows[2]).getByText('Full access')).toBeInTheDocument();
+  });
+
+  it('links to the screens where the hints say a setting changes', () => {
+    render(<DataMartMemberAccessList {...baseProps} members={members} />);
+
+    const rows = screen.getAllByTestId('dataMartMemberAccessRow');
+    expect(within(rows[0]).getByRole('link', { name: 'Paid ads' })).toHaveAttribute(
+      'href',
+      '/ui/project/project-settings/contexts?context=ctx-paid'
+    );
+    expect(within(rows[0]).getByRole('link', { name: 'SEO' })).toHaveAttribute(
+      'href',
+      '/ui/project/project-settings/contexts?context=ctx-seo'
+    );
+    expect(screen.getAllByRole('link', { name: 'Project settings → Members' })[0]).toHaveAttribute(
+      'href',
+      '/ui/project/project-settings/members'
+    );
   });
 
   it('notes that MCP lists only published Data Marts when this one is a draft', () => {
