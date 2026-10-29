@@ -19,6 +19,12 @@ export interface InheritedFrom {
   dataMartTitle: string;
 }
 
+/** A Data Mart whose stored schema propagation changed. */
+export interface UpdatedDataMart {
+  id: string;
+  projectId: string;
+}
+
 interface SchemaFieldLike {
   name: string;
   alias?: string;
@@ -85,11 +91,20 @@ export class DataMartSchemaInheritanceService {
 
   /**
    * Re-applies inheritance on every SQL Data Mart that references `source`, and on through the
-   * ones that changed. Best-effort: a failure is logged and never fails the save that triggered it.
+   * ones that changed. Called after a referenced Data Mart's schema or title is saved, and after
+   * it is deleted, when its fields stop being inherited. Best-effort: a failure is logged and
+   * never fails the operation that triggered it.
+   *
+   * Returns the Data Marts whose stored schema changed. Their schema was written directly, so a
+   * caller that changed aliases or descriptions refreshes what depends on them (cached report
+   * data, the search index), as a save of their own would.
    */
-  async propagateFrom(source: Pick<DataMart, 'id' | 'projectId' | 'storage'>): Promise<void> {
+  async propagateFrom(
+    source: Pick<DataMart, 'id' | 'projectId' | 'storage'>
+  ): Promise<UpdatedDataMart[]> {
+    const updated: UpdatedDataMart[] = [];
     try {
-      await this.propagate(source, new Set());
+      await this.propagate(source, new Set(), updated);
     } catch (error) {
       this.logger.warn(
         `Could not update the Data Marts that reference ${source.id}: ${
@@ -97,11 +112,13 @@ export class DataMartSchemaInheritanceService {
         }`
       );
     }
+    return updated;
   }
 
   private async propagate(
     source: Pick<DataMart, 'id' | 'projectId' | 'storage'>,
-    visited: Set<string>
+    visited: Set<string>,
+    updated: UpdatedDataMart[]
   ): Promise<void> {
     if (visited.has(source.id) || visited.size > MAX_DATA_MART_REFERENCE_DEPTH * 10) return;
     visited.add(source.id);
@@ -111,10 +128,12 @@ export class DataMartSchemaInheritanceService {
       const inheriting = { ...dependent, storage: source.storage } as InheritingDataMart;
       const { schema, changed } = await this.applyInheritance(inheriting, dependent.schema);
       if (!changed) continue;
+      // The repository, not DataMartService.save: DataMartService applies inheritance itself.
       await this.dataMartRepository.update(dependent.id, {
         schema,
       } as QueryDeepPartialEntity<DataMart>);
-      await this.propagate(inheriting, visited);
+      updated.push({ id: dependent.id, projectId: dependent.projectId });
+      await this.propagate(inheriting, visited, updated);
     }
   }
 

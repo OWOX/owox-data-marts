@@ -72,6 +72,15 @@ describe('parseDataMartReferences', () => {
     expect(sqlLexingOptionsFor(DataStorageType.SNOWFLAKE).hashLineComments).toBe(false);
   });
 
+  it('skips // comments on Snowflake, where an apostrophe in one would hide what follows', () => {
+    const sql = `// don't count drafts [Old](dm:${ORDERS})\nSELECT * FROM [New](dm:${COSTS}) n WHERE n.x = 'y'`;
+
+    expect(
+      parseDataMartReferences(sql, sqlLexingOptionsFor(DataStorageType.SNOWFLAKE)).map(r => r.title)
+    ).toEqual(['New']);
+    expect(sqlLexingOptionsFor(DataStorageType.GOOGLE_BIGQUERY).slashLineComments).toBe(false);
+  });
+
   it('ignores look-alikes that are not references', () => {
     expect(parseDataMartReferences('SELECT arr[1](dm:not-an-id) FROM t')).toEqual([]);
     expect(parseDataMartReferences(`SELECT [Orders](${ORDERS}) FROM t`)).toEqual([]);

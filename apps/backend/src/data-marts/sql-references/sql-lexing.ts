@@ -6,6 +6,8 @@ export interface SqlLexingOptions {
    * without this an apostrophe after a `#` would open a "string" that swallows the next lines.
    */
   hashLineComments?: boolean;
+  /** Treat `//` as the start of a line comment, as Snowflake does, for the same reason. */
+  slashLineComments?: boolean;
 }
 
 export interface LexedSql {
@@ -25,15 +27,21 @@ const NON_CODE_KINDS: ReadonlySet<SqlToken['kind']> = new Set([
 export function lexSql(sql: string, options: SqlLexingOptions = {}): LexedSql {
   const nonCode: Array<[number, number]> = [];
   let text = sql;
-  if (options.hashLineComments) {
-    // Blank each `#` comment out, left to right, rescanning after each one: the scan before the
-    // first `#` is the only one that can be trusted.
+  if (options.hashLineComments || options.slashLineComments) {
+    // Blank each such comment out, left to right, rescanning after each one: the scan before the
+    // first comment marker is the only one that can be trusted.
+    const startsComment = (token: SqlToken, source: string): boolean =>
+      token.kind === 'punct' &&
+      ((options.hashLineComments === true && token.value === '#') ||
+        (options.slashLineComments === true &&
+          token.value === '/' &&
+          source[token.start + 1] === '/'));
     for (;;) {
-      const hash = scanSql(text).find(token => token.kind === 'punct' && token.value === '#');
-      if (!hash) break;
-      const end = lineEndFrom(text, hash.start);
-      nonCode.push([hash.start, end]);
-      text = blank(text, hash.start, end);
+      const marker = scanSql(text).find(token => startsComment(token, text));
+      if (!marker) break;
+      const end = lineEndFrom(text, marker.start);
+      nonCode.push([marker.start, end]);
+      text = blank(text, marker.start, end);
     }
   }
   const tokens: SqlToken[] = [];

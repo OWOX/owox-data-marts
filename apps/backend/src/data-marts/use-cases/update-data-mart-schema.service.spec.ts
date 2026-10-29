@@ -124,6 +124,53 @@ describe('UpdateDataMartSchemaService', () => {
     );
   });
 
+  it('drops cached report data and reindexes the Data Marts that inherited a change', async () => {
+    const validate = jest.fn().mockResolvedValue({ errors: [], warnings: [] });
+    const schemaInheritance = {
+      applyInheritance: jest.fn(async (_dataMart: unknown, schema: unknown) => ({
+        schema,
+        changed: false,
+      })),
+      propagateFrom: jest.fn().mockResolvedValue([{ id: 'retail-orders', projectId: 'project-1' }]),
+    };
+    const { service, schemaParserFacade, reportDataCacheService, searchIndexInvalidation } =
+      buildService({ validate, schemaInheritance });
+    const parsedSchema = await schemaParserFacade.validateAndParse();
+
+    await service.run(
+      new UpdateDataMartSchemaCommand('target-1', 'project-1', parsedSchema as never)
+    );
+
+    expect(reportDataCacheService.invalidateByDataMartId).toHaveBeenCalledWith('retail-orders');
+    expect(searchIndexInvalidation.scheduleDataMartSchemaChanged).toHaveBeenCalledWith(
+      'retail-orders',
+      'project-1'
+    );
+  });
+
+  it('keeps a saved schema saved when refreshing an inheriting Data Mart fails', async () => {
+    const validate = jest.fn().mockResolvedValue({ errors: [], warnings: [] });
+    const schemaInheritance = {
+      applyInheritance: jest.fn(async (_dataMart: unknown, schema: unknown) => ({
+        schema,
+        changed: false,
+      })),
+      propagateFrom: jest.fn().mockResolvedValue([{ id: 'retail-orders', projectId: 'project-1' }]),
+    };
+    const { service, schemaParserFacade, reportDataCacheService } = buildService({
+      validate,
+      schemaInheritance,
+    });
+    reportDataCacheService.invalidateByDataMartId.mockImplementation(async (id: string) => {
+      if (id === 'retail-orders') throw new Error('cache is down');
+    });
+    const parsedSchema = await schemaParserFacade.validateAndParse();
+
+    await expect(
+      service.run(new UpdateDataMartSchemaCommand('target-1', 'project-1', parsedSchema as never))
+    ).resolves.toBeDefined();
+  });
+
   describe('field connection status', () => {
     it('keeps the persisted status for an existing native field', async () => {
       const persistedSchema = {

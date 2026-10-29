@@ -38,7 +38,8 @@ export function sqlLexingOptionsFor(storageType: DataStorageType): SqlLexingOpti
   const hashLineComments =
     storageType === DataStorageType.GOOGLE_BIGQUERY ||
     storageType === DataStorageType.LEGACY_GOOGLE_BIGQUERY;
-  return { hashLineComments };
+  const slashLineComments = storageType === DataStorageType.SNOWFLAKE;
+  return { hashLineComments, slashLineComments };
 }
 
 /**

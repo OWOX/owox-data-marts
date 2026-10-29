@@ -1,4 +1,4 @@
-import { Injectable, ForbiddenException, Logger } from '@nestjs/common';
+import { Injectable, ForbiddenException, Logger, Optional } from '@nestjs/common';
 import { Transactional } from 'typeorm-transactional';
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
 import { DataMartDefinitionType } from '../enums/data-mart-definition-type.enum';
@@ -11,6 +11,7 @@ import { DataMartRelationshipService } from '../services/data-mart-relationship.
 import { ConnectorSourceCredentialsService } from '../services/connector/connector-source-credentials.service';
 import { AccessDecisionService, EntityType, Action } from '../services/access-decision';
 import { DataMartSearchIndexInvalidationService } from '../services/data-mart-search-index-invalidation.service';
+import { DataMartSchemaInheritanceService } from '../services/data-mart-schema-inheritance.service';
 
 @Injectable()
 export class DeleteDataMartService {
@@ -24,7 +25,9 @@ export class DeleteDataMartService {
     private readonly connectorSourceCredentialsService: ConnectorSourceCredentialsService,
     private readonly relationshipService: DataMartRelationshipService,
     private readonly accessDecisionService: AccessDecisionService,
-    private readonly searchIndexInvalidation?: DataMartSearchIndexInvalidationService
+    private readonly searchIndexInvalidation?: DataMartSearchIndexInvalidationService,
+    @Optional()
+    private readonly schemaInheritance?: DataMartSchemaInheritanceService
   ) {}
 
   @Transactional()
@@ -78,6 +81,9 @@ export class DeleteDataMartService {
       command.projectId,
       inboundSourceDataMartIds
     );
+    // Fields that SQL Data Marts inherited from this one keep their alias and description, but
+    // become their own again, editable: there is no longer a Data Mart to change them in.
+    await this.schemaInheritance?.propagateFrom(dataMart);
   }
 
   /**

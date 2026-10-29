@@ -27,6 +27,25 @@ describe('ReferencingDataMartsNotice', () => {
     expect(screen.getByText('and 2 Data Marts you don’t have access to')).toBeInTheDocument();
   });
 
+  it('says the check is running instead of showing nothing', () => {
+    render(<ReferencingDataMartsNotice dataMarts={[]} total={0} action='delete' isLoading />);
+
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'Checking which Data Marts reference this one in their SQL…'
+    );
+  });
+
+  it('shows a failed check as unknown, not as no references', () => {
+    render(<ReferencingDataMartsNotice dataMarts={[]} total={0} action='delete' hasError />);
+
+    expect(
+      screen.getByText('Could not check whether other Data Marts reference this one in their SQL.')
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText('If any do, they will stop working once it is deleted.')
+    ).toBeInTheDocument();
+  });
+
   it('says how many are hidden when none can be named', () => {
     render(<ReferencingDataMartsNotice dataMarts={[]} total={1} action='change' />);
 

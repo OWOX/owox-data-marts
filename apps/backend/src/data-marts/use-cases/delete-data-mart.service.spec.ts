@@ -70,6 +70,41 @@ describe('DeleteDataMartService', () => {
     );
   });
 
+  it('releases inherited fields of the Data Marts that referenced it, once it is deleted', async () => {
+    const dataMart = {
+      id: 'target-1',
+      projectId: 'project-1',
+      storage: { type: DataStorageType.GOOGLE_BIGQUERY },
+    };
+    const dataMartService = {
+      getByIdAndProjectId: jest.fn().mockResolvedValue(dataMart),
+      softDeleteByIdAndProjectId: jest.fn().mockResolvedValue(undefined),
+    };
+    const schemaInheritance = { propagateFrom: jest.fn().mockResolvedValue([]) };
+
+    const service = new DeleteDataMartService(
+      dataMartService as never,
+      { deleteAllByDataMartIdAndProjectId: jest.fn() } as never,
+      { deleteAllByDataMartIdAndProjectId: jest.fn() } as never,
+      { deleteDataMart: jest.fn() } as never,
+      {
+        getSecretsByDataMart: jest.fn().mockResolvedValue([]),
+        deleteSecretsByDataMart: jest.fn(),
+      } as never,
+      { deleteAllByDataMartId: jest.fn() } as never,
+      { canAccess: jest.fn().mockResolvedValue(true) } as never,
+      undefined,
+      schemaInheritance as never
+    );
+
+    await service.run(new DeleteDataMartCommand('target-1', 'project-1'));
+
+    expect(schemaInheritance.propagateFrom).toHaveBeenCalledWith(dataMart);
+    expect(schemaInheritance.propagateFrom.mock.invocationCallOrder[0]).toBeGreaterThan(
+      dataMartService.softDeleteByIdAndProjectId.mock.invocationCallOrder[0]
+    );
+  });
+
   it('hands over credentials still referenced by another Data Mart instead of deleting them', async () => {
     const dataMart = {
       id: 'target-1',

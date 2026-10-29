@@ -226,6 +226,53 @@ describe('DataMartSqlReferenceResolver', () => {
       expect(sql).toBe('SELECT * FROM internal.view_aaaaaaaa_0000_4000_8000_000000000002 t');
     });
 
+    describe('technical view refresh', () => {
+      const recursive = 'WITH RECURSIVE t AS (SELECT 1 AS n) SELECT * FROM t';
+      const scopeOf = (tree: DataMart) => ({ projectId: 'project-1', storage: tree.storage });
+      const twoReferences = `SELECT * FROM ${ref('Tree', ids.orders)} a JOIN ${ref('Tree', ids.orders)} b USING (n)`;
+
+      it('runs the DDL once for repeated references and repeated resolves of the same SQL', async () => {
+        const tree = dataMart(ids.orders, 'Tree', { sqlQuery: recursive });
+        const { resolver, createViewExecutorFacade } = createResolver([tree]);
+
+        await resolver.expandSql(twoReferences, scopeOf(tree));
+        await resolver.expandSql(`SELECT * FROM ${ref('Tree', ids.orders)} t`, scopeOf(tree));
+
+        expect(createViewExecutorFacade.createView).toHaveBeenCalledTimes(1);
+      });
+
+      it('refreshes the view again once the referenced SQL changes', async () => {
+        const tree = dataMart(ids.orders, 'Tree', { sqlQuery: recursive });
+        const { resolver, createViewExecutorFacade } = createResolver([tree]);
+
+        await resolver.expandSql(`SELECT * FROM ${ref('Tree', ids.orders)} t`, scopeOf(tree));
+        tree.definition = { sqlQuery: `${recursive} WHERE n > 0` };
+        await resolver.expandSql(`SELECT * FROM ${ref('Tree', ids.orders)} t`, scopeOf(tree));
+
+        expect(createViewExecutorFacade.createView).toHaveBeenCalledTimes(2);
+        expect(createViewExecutorFacade.createView).toHaveBeenLastCalledWith(
+          DataStorageType.GOOGLE_BIGQUERY,
+          {},
+          {},
+          'view_aaaaaaaa_0000_4000_8000_000000000002',
+          `${recursive} WHERE n > 0`
+        );
+      });
+
+      it('tries again after a failed refresh', async () => {
+        const tree = dataMart(ids.orders, 'Tree', { sqlQuery: recursive });
+        const { resolver, createViewExecutorFacade } = createResolver([tree]);
+        createViewExecutorFacade.createView.mockRejectedValueOnce(new Error('Access Denied'));
+
+        await expect(
+          resolver.expandSql(`SELECT * FROM ${ref('Tree', ids.orders)} t`, scopeOf(tree))
+        ).rejects.toThrow('Access Denied');
+        await resolver.expandSql(`SELECT * FROM ${ref('Tree', ids.orders)} t`, scopeOf(tree));
+
+        expect(createViewExecutorFacade.createView).toHaveBeenCalledTimes(2);
+      });
+    });
+
     describe('on Redshift', () => {
       const redshift = storageOf(DataStorageType.AWS_REDSHIFT);
       const withCte = dataMart(

@@ -200,8 +200,12 @@ describe('DataMartSchemaInheritanceService.propagateFrom', () => {
       [ids.b]: [c],
     });
 
-    await service.propagateFrom(orders);
+    const updated = await service.propagateFrom(orders);
 
+    expect(updated).toEqual([
+      { id: ids.b, projectId: 'project-1' },
+      { id: ids.costs, projectId: 'project-1' },
+    ]);
     expect(repository.update).toHaveBeenCalledWith(ids.b, {
       schema: expect.objectContaining({
         fields: [expect.objectContaining({ alias: 'Sales channel' })],
@@ -223,6 +227,24 @@ describe('DataMartSchemaInheritanceService.propagateFrom', () => {
     const { service, resolver } = createService([orders]);
     resolver.findReferencingDataMarts.mockRejectedValue(new Error('database is down'));
 
-    await expect(service.propagateFrom(orders)).resolves.toBeUndefined();
+    await expect(service.propagateFrom(orders)).resolves.toEqual([]);
+  });
+
+  it('releases the fields of the Data Marts that referenced a deleted one', async () => {
+    const inherited = field('channel', {
+      alias: 'Sales channel',
+      inheritedFrom: { dataMartId: ids.orders, dataMartTitle: 'Orders' },
+    });
+    const b = dataMart(ids.b, 'B', `SELECT * FROM ${ref('Orders', ids.orders)} o`, [inherited]);
+    // Orders is deleted: the lookup of referenced Data Marts no longer returns it.
+    const { service, repository } = createService([], { [ids.orders]: [b] });
+
+    await service.propagateFrom(orders);
+
+    expect(repository.update).toHaveBeenCalledWith(ids.b, {
+      schema: expect.objectContaining({
+        fields: [field('channel', { alias: 'Sales channel' })],
+      }),
+    });
   });
 });

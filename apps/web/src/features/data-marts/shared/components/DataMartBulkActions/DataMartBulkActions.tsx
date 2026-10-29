@@ -272,7 +272,8 @@ export function DataMartBulkActions({
               onClick={() => {
                 void handleBatchDelete();
               }}
-              disabled={isDeleting}
+              // Held until the user has seen which Data Marts reference the selection.
+              disabled={isDeleting || referencingDataMarts.isLoading}
               className='bg-destructive hover:bg-destructive/90'
             >
               {isDeleting ? 'Deleting...' : 'Delete'}

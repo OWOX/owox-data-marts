@@ -638,6 +638,8 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
         confirmLabel='Delete'
         cancelLabel='Cancel'
         variant='destructive'
+        // Held until the user has seen which Data Marts reference this one.
+        confirmDisabled={referencingDataMarts.isLoading}
         onConfirm={() => {
           trackReferencedDeleteConfirmed(dataMartId, referencingDataMarts.total);
           // Deleting destroys the whole data mart (schema included), so guarding

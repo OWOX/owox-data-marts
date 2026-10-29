@@ -163,7 +163,7 @@ export class UpdateDataMartSchemaService {
       command.projectId
     );
     // Data Marts that reference this one inherit its aliases and descriptions.
-    await this.schemaInheritance?.propagateFrom(dataMart);
+    await this.refreshDataMartsThatInherit(dataMart);
 
     this.logger.debug(`Data mart ${command.id} schema updated`);
     // Compared AFTER `validate`, which rewrites each new formula into the canonical spelling the
@@ -200,6 +200,31 @@ export class UpdateDataMartSchemaService {
   private async saveAndInvalidate(dataMart: DataMart): Promise<void> {
     await this.dataMartService.save(dataMart);
     await this.reportDataCacheService.invalidateByDataMartId(dataMart.id);
+  }
+
+  /**
+   * Pushes this Data Mart's aliases and descriptions to the Data Marts that inherit them, then
+   * drops their cached report data and reindexes them, as their own schema save would: a cached
+   * reader would otherwise keep serving the old headers. Best-effort, like the propagation: the
+   * save already succeeded.
+   */
+  private async refreshDataMartsThatInherit(dataMart: DataMart): Promise<void> {
+    const updated = (await this.schemaInheritance?.propagateFrom(dataMart)) ?? [];
+    for (const dependent of updated) {
+      try {
+        await this.reportDataCacheService.invalidateByDataMartId(dependent.id);
+        await this.searchIndexInvalidation?.scheduleDataMartSchemaChanged(
+          dependent.id,
+          dependent.projectId
+        );
+      } catch (error) {
+        this.logger.warn(
+          `Could not refresh data mart ${dependent.id} after inheriting from ${dataMart.id}: ${
+            error instanceof Error ? error.message : String(error)
+          }`
+        );
+      }
+    }
   }
 }
 

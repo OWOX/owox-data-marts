@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
@@ -45,6 +46,20 @@ type ResolvableDataMart = Pick<DataMart, 'id' | 'storage' | 'definition'> &
   Partial<Pick<DataMart, 'projectId' | 'title'>>;
 
 /**
+ * How long a technical view refreshed for a reference stays trusted for the same SQL. Resolving
+ * runs on every report run, preview, schema actualization and SQL editor dry run; without this,
+ * each of them would send the warehouse a CREATE OR REPLACE VIEW for an unchanged query.
+ */
+const TECHNICAL_VIEW_FRESH_MS = 5 * 60 * 1000;
+
+interface RefreshedTechnicalView {
+  /** What the view was created from: the storage config and the referenced SQL. */
+  fingerprint: string;
+  name: Promise<string>;
+  expiresAt: number;
+}
+
+/**
  * Turns Data Mart references (`[Title](dm:<id>)`) in a SQL Data Mart's query into SQL the
  * warehouse can run. A referenced SQL Data Mart becomes a derived table holding its own resolved
  * SQL; any other Data Mart becomes `(SELECT * FROM <its table>)`. So the resolved query reads
@@ -61,6 +76,9 @@ type ResolvableDataMart = Pick<DataMart, 'id' | 'storage' | 'definition'> &
  */
 @Injectable()
 export class DataMartSqlReferenceResolver implements DataMartDefinitionResolver {
+  /** Technical views refreshed recently, by storage and referenced Data Mart. */
+  private readonly refreshedViews = new Map<string, RefreshedTechnicalView>();
+
   // The repository, not DataMartService: DataMartService depends on the schema provider facade,
   // which depends on this resolver.
   constructor(
@@ -285,7 +303,40 @@ export class DataMartSqlReferenceResolver implements DataMartDefinitionResolver 
     return renderDerivedTable(body, labelOf(target));
   }
 
-  private async technicalView(
+  /**
+   * The referenced Data Mart's technical view, refreshed with `sql`. A view refreshed from the same
+   * SQL within the last few minutes is reused, so two references to one Data Mart, or the SQL
+   * editor's dry runs while typing, do not each run DDL. A failed refresh is not remembered.
+   */
+  private technicalView(target: DataMart, sql: string, storage: DataStorage): Promise<string> {
+    const key = `${storage.id}␟${target.id}`;
+    const fingerprint = createHash('sha256')
+      .update(JSON.stringify(storage.config ?? null))
+      .update('\0')
+      .update(sql)
+      .digest('hex');
+    const now = Date.now();
+    const refreshed = this.refreshedViews.get(key);
+    if (refreshed && refreshed.fingerprint === fingerprint && refreshed.expiresAt > now) {
+      return refreshed.name;
+    }
+
+    for (const [staleKey, entry] of this.refreshedViews) {
+      if (entry.expiresAt <= now) this.refreshedViews.delete(staleKey);
+    }
+    const entry: RefreshedTechnicalView = {
+      fingerprint,
+      name: this.refreshTechnicalView(target, sql, storage),
+      expiresAt: now + TECHNICAL_VIEW_FRESH_MS,
+    };
+    this.refreshedViews.set(key, entry);
+    entry.name.catch(() => {
+      if (this.refreshedViews.get(key) === entry) this.refreshedViews.delete(key);
+    });
+    return entry.name;
+  }
+
+  private async refreshTechnicalView(
     target: DataMart,
     sql: string,
     storage: DataStorage

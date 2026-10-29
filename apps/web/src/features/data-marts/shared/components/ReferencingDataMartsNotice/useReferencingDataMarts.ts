@@ -8,6 +8,13 @@ interface UseReferencingDataMartsResult extends ReferencingDataMarts {
   hasError: boolean;
 }
 
+interface SettledCheck {
+  /** The Data Marts the answer is for. */
+  key: string;
+  result: ReferencingDataMarts;
+  hasError: boolean;
+}
+
 const NONE: ReferencingDataMarts = { dataMarts: [], total: 0 };
 
 // A bulk delete on the canvas can cover dozens of Data Marts; ask about a few at a time.
@@ -25,14 +32,15 @@ async function loadInBatches<T>(ids: string[], load: (id: string) => Promise<T>)
  * The SQL Data Marts that reference any of `dataMartIds`, other than those Data Marts themselves
  * (deleting several at once removes references between them too). Loads only while `enabled`, so
  * the check runs when a confirmation is on screen rather than on every visit.
+ *
+ * `isLoading` is true from the first render with `enabled` until the answer for these ids
+ * arrives, so a confirmation can hold its action until the user has seen the answer.
  */
 export function useReferencingDataMarts(
   dataMartIds: readonly string[],
   enabled: boolean
 ): UseReferencingDataMartsResult {
-  const [result, setResult] = useState<ReferencingDataMarts>(NONE);
-  const [isLoading, setIsLoading] = useState(false);
-  const [hasError, setHasError] = useState(false);
+  const [settled, setSettled] = useState<SettledCheck | null>(null);
   const key = useMemo(() => [...dataMartIds].sort().join(','), [dataMartIds]);
 
   useEffect(() => {
@@ -40,9 +48,6 @@ export function useReferencingDataMarts(
     const ids = key.split(',');
     const selected = new Set(ids);
     const abortController = new AbortController();
-    setIsLoading(true);
-    setHasError(false);
-    setResult(NONE);
 
     loadInBatches(ids, id =>
       dataMartService.getInputSourceChangeImpact(id, {
@@ -62,20 +67,31 @@ export function useReferencingDataMarts(
           );
         }
         const dataMarts = [...visible.values()].sort((a, b) => a.title.localeCompare(b.title));
-        setResult({ dataMarts, total: dataMarts.length + hidden });
+        if (!abortController.signal.aborted) {
+          setSettled({
+            key,
+            result: { dataMarts, total: dataMarts.length + hidden },
+            hasError: false,
+          });
+        }
       })
       .catch(() => {
         if (abortController.signal.aborted) return;
-        setHasError(true);
-      })
-      .finally(() => {
-        if (!abortController.signal.aborted) setIsLoading(false);
+        setSettled({ key, result: NONE, hasError: true });
       });
 
     return () => {
       abortController.abort();
+      // A closed confirmation drops its answer: reopened, it checks again.
+      setSettled(null);
     };
   }, [key, enabled]);
 
-  return { ...result, isLoading, hasError };
+  const active = enabled && key !== '';
+  const current = active && settled?.key === key ? settled : null;
+  return {
+    ...(current?.result ?? NONE),
+    isLoading: active && current === null,
+    hasError: current?.hasError ?? false,
+  };
 }

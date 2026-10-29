@@ -22,9 +22,46 @@ describe('useReferencingDataMarts', () => {
   });
 
   it('loads nothing until enabled', () => {
-    renderHook(() => useReferencingDataMarts(['a'], false));
+    const { result } = renderHook(() => useReferencingDataMarts(['a'], false));
 
     expect(getInputSourceChangeImpact).not.toHaveBeenCalled();
+    expect(result.current.isLoading).toBe(false);
+  });
+
+  it('is loading from the first enabled render, so a confirmation can wait for the answer', () => {
+    getInputSourceChangeImpact.mockReturnValue(new Promise(() => {}));
+
+    const { result } = renderHook(() => useReferencingDataMarts(['a'], true));
+
+    expect(result.current.isLoading).toBe(true);
+    expect(result.current.total).toBe(0);
+  });
+
+  it('is not loading when there is nothing to check', () => {
+    const { result } = renderHook(() => useReferencingDataMarts([], true));
+
+    expect(result.current.isLoading).toBe(false);
+    expect(getInputSourceChangeImpact).not.toHaveBeenCalled();
+  });
+
+  it('checks again when reopened, instead of showing the old answer', async () => {
+    getInputSourceChangeImpact.mockResolvedValue(impact([{ id: 'x', title: 'Retail orders' }]));
+    const { result, rerender } = renderHook(
+      ({ enabled }) => useReferencingDataMarts(['a'], enabled),
+      { initialProps: { enabled: true } }
+    );
+    await waitFor(() => {
+      expect(result.current.total).toBe(1);
+    });
+
+    rerender({ enabled: false });
+    rerender({ enabled: true });
+
+    expect(result.current.isLoading).toBe(true);
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false);
+    });
+    expect(getInputSourceChangeImpact).toHaveBeenCalledTimes(2);
   });
 
   it('merges the answers, skipping the Data Marts being checked and counting hidden ones', async () => {

@@ -109,6 +109,8 @@ export const DataMartActionsCell = ({ row, onDeleteSuccess }: DataMartActionsCel
         }
         confirmLabel='Delete'
         cancelLabel='Cancel'
+        // Held until the user has seen which Data Marts reference this one.
+        confirmDisabled={referencingDataMarts.isLoading}
         onConfirm={() => void handleDelete()}
         variant='destructive'
       />
