@@ -191,6 +191,15 @@ owox serve --env-file custom.env --port 3030
   - Project-specific MCP URLs are derived from this value. For `MCP_PUBLIC_BASE_URL=https://mcp.owox.com`, the project URL format is `https://{projectId}.mcp.owox.com/mcp`.
   - Do not configure a separate project-domain environment variable. The deployment must route both `mcp.owox.com` and `*.mcp.owox.com` to the same MCP backend and preserve `Host`, `X-Forwarded-Host`, and `X-Forwarded-Proto`.
 
+## Reverse proxy
+
+- **TRUST_PROXY_HOPS**: Number of reverse proxies in front of the application that append to `X-Forwarded-For`.
+  - The client address is taken that many entries from the right of `X-Forwarded-For`; entries further left come from the client and are ignored.
+  - Example: `2` behind a Google Cloud HTTP(S) load balancer, which appends both the client address and its own.
+  - Whole numbers only; any other value stops the application at startup.
+  - Default: `1`.
+  - A value larger than the real number of proxies lets clients set their own address through `X-Forwarded-For`.
+
 ## CORS
 
 - **CORS_ALLOWED_HEADERS**: Additional comma-separated request headers allowed by the

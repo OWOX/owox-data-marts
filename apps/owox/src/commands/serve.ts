@@ -166,7 +166,7 @@ export default class Serve extends BaseCommand {
    * Starts the OWOX Data Marts application server.
    *
    * This method:
-   * 1. Configures Express server with trust proxy
+   * 1. Configures Express server with trust proxy (TRUST_PROXY_HOPS)
    * 2. Initializes and registers IDP (Identity Provider) middleware
    * 3. Sets up web static assets if web interface is enabled
    * 4. Bootstraps the NestJS application
@@ -183,14 +183,18 @@ export default class Serve extends BaseCommand {
 
     this.log(`Starting server on port ${port} with ${logFormat} logs...`);
 
-    const { bootstrap, createHealthProbe, registerPluginCollectionsBodyParser } =
-      await import('@owox/backend');
+    const {
+      bootstrap,
+      configureTrustProxy,
+      createHealthProbe,
+      registerPluginCollectionsBodyParser,
+    } = await import('@owox/backend');
 
     const expressApp = express();
     // Must precede IDP middleware: some providers install Express's default 100 KiB
     // JSON parser globally, while plugin collection documents are allowed up to 1 MiB.
     registerPluginCollectionsBodyParser(expressApp);
-    expressApp.set('trust proxy', 1);
+    configureTrustProxy(expressApp);
 
     const corsConfig = buildCorsConfig();
     expressApp.use(cors(corsConfig));
