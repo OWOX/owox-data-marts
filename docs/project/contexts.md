@@ -104,6 +104,8 @@ Each entry links to the corresponding list, pre-filtered by the context, so you 
 
 **Members** counts only members whose role scope is **Selected contexts only**: the members that show this context in **Project Settings → Members**. Project Admins are never counted. A member switched to **Entire project** keeps their context assignments, so they come back if you switch the member back; a member who becomes a Project Admin can keep them too. These kept assignments do not block the delete; they are removed together with the context.
 
+**Data Marts**, **Storages** and **Destinations** do not count deleted ones. A deleted resource keeps its contexts, but it is no longer listed anywhere, so there is nothing to detach; its link is removed together with the context.
+
 > ☝️ Deleting a context is final, but it does **not** delete the resources tagged with it. Resources stay; only the tag is removed.
 
 ![Delete context dialog blocked because the context is still attached to resources, listing Data Marts, Storages, Destinations, and Members with links to each filtered list](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/ca318fa5-faa5-408c-f2be-e9074d3b7e00/public)
