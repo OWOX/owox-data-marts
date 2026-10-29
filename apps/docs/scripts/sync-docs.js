@@ -334,7 +334,9 @@ function processDocumentLinks(fileContent, filePaths) {
   const baseURL = getConfig().base;
   const rootContentIndexFile = path.join(CONTENT_DEST_PATH, 'index.md');
 
-  const linkRegex = /(?<!!)\[([^\]]*?)\]\((?!https?:\/\/)([^)]*?)\)/g;
+  // A target with a URL scheme (`https:`, `mailto:`, the `dm:` of a Data Mart reference in a SQL
+  // example) is not a path to another document.
+  const linkRegex = /(?<!!)\[([^\]]*?)\]\((?![a-zA-Z][a-zA-Z0-9+.-]*:)([^)]*?)\)/g;
 
   return fileContent.replace(linkRegex, (fullMatch, linkText, originalLinkPath) => {
     let normalizedLinkPath;
