@@ -1,5 +1,7 @@
 # Snowflake
 
+> Evaluating OWOX for Snowflake? [See what OWOX does on Snowflake](https://www.owox.com/data-storages/snowflake) or [book a demo](https://www.owox.com/book-a-call).
+
 Use this guide to configure **Snowflake as a storage** in **OWOX Data Marts**. The steps below walk you through creating a storage record, completing authentication, and finishing validation.
 
 ## Before you begin
