@@ -1,5 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
+import type { UnavailableCredentialDto } from './credential.dto';
 import {
   ArrayMaxSize,
   IsArray,
@@ -501,7 +502,7 @@ export interface ResolvedCredentialDefinition {
   readonly contract: CredentialDefinitionContract;
 }
 
-export class UnavailableCredentialResponseApiDto {
+export class UnavailableCredentialResponseApiDto implements UnavailableCredentialDto {
   @ApiProperty() id: string;
   @ApiProperty() projectId: string;
   @ApiProperty() title: string;
