@@ -19,6 +19,7 @@ export function mapDataStorageListFromDto(
     availableForMaintenance: dto.availableForMaintenance,
     contexts: dto.contexts ?? [],
     reusableCredential: dto.reusableCredential,
+    ...(dto.owoxStorage && { owoxStorage: dto.owoxStorage }),
   };
 }
 

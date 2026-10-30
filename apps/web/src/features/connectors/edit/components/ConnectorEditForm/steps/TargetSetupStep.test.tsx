@@ -134,4 +134,25 @@ describe('TargetSetupStep', () => {
     expect(datasetInput).not.toHaveAttribute('readonly');
     expect(screen.getByText(/dataset is auto-created/i)).toBeInTheDocument();
   });
+
+  it('replaces the dataset of an existing target with the fixed one', () => {
+    const onTargetChange = vi.fn();
+    render(
+      <MemoryRouter>
+        <TargetSetupStep
+          dataStorageType={DataStorageType.GOOGLE_BIGQUERY}
+          fixedDatasetName='owox_abc'
+          destinationName='ad_insights'
+          connectorName='TikTok Ads'
+          target={{ fullyQualifiedName: 'old_ds.ad_insights', isValid: true }}
+          onTargetChange={onTargetChange}
+        />
+      </MemoryRouter>
+    );
+
+    expect(onTargetChange).toHaveBeenCalledWith({
+      fullyQualifiedName: 'owox_abc.ad_insights',
+      isValid: true,
+    });
+  });
 });
