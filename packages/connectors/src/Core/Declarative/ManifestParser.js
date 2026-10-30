@@ -197,6 +197,8 @@ export const RESERVED_PARAMETER_NAMES = new Set([
   'OAuthAccessTokenExpiry',
   'OAuthClientId',
   'OAuthClientSecret',
+  'ImpersonateServiceAccount',
+  'DestinationDatasetExists',
   // AWS Athena and Redshift
   'AWSRegion',
   'AWSAccessKeyId',
