@@ -443,6 +443,7 @@ export class LinkedInAdsSource extends AbstractSource {
    * @returns {Promise<object[]>} merged elements, with dateRange still in LinkedIn's shape
    */
   async fetchAnalyticsRows({ urn, nodeName, pivots, facet, start, end, fieldChunks, timeGranularity }) {
+    const memberPivot = pivots.some(pivot => pivot.startsWith('MEMBER_'));
     let rows = [];
 
     for (const fields of fieldChunks) {
@@ -454,17 +455,56 @@ export class LinkedInAdsSource extends AbstractSource {
         fields,
         timeGranularity,
       });
-      const res = await this.makeRequest(url);
-      const elements = res.elements || [];
+      const seen = new Set();
+      let pageUrl = url;
 
-      if (elements.length >= this.MAX_RESPONSE_ELEMENTS) {
-        this.recordTruncatedDay(urn, nodeName, start);
+      while (pageUrl) {
+        const res = await this.makeRequest(pageUrl);
+        const elements = res.elements || [];
+
+        if (elements.length >= this.MAX_RESPONSE_ELEMENTS) {
+          this.recordTruncatedDay(urn, nodeName, start);
+        }
+
+        rows = this.mergeAnalyticsResults(rows, elements);
+        pageUrl = memberPivot ? this.nextAnalyticsPage(url, res, elements, seen) : null;
       }
-
-      rows = this.mergeAnalyticsResults(rows, elements);
     }
 
     return rows;
+  }
+
+  /**
+   * The next page of a member-pivot answer, or null.
+   *
+   * LinkedIn says adAnalytics does not paginate, yet documents every member-pivot response
+   * with `paging.count` 10 and a `next` link. Ignoring a real next page would drop all but
+   * the first ten locations without a word, so a full page that links onward is followed.
+   * Should LinkedIn ignore `start`, the next page only repeats rows already read, which ends
+   * it; a page shorter than `paging.count` is the last one.
+   *
+   * @param {string} url - the request without paging parameters
+   * @param {{paging?: {start?: number, count?: number, links?: object[]}}} res - this page
+   * @param {object[]} elements - this page's elements
+   * @param {Set<string>} seen - row keys read so far for this request, updated here
+   * @returns {string|null} the next page's URL
+   */
+  nextAnalyticsPage(url, res, elements, seen) {
+    const fresh = elements.filter(element => !seen.has(LinkedInAdsSource.analyticsRowKey(element)));
+    for (const element of fresh) seen.add(LinkedInAdsSource.analyticsRowKey(element));
+
+    const { paging } = res;
+    const isFull = paging?.count > 0 && elements.length === paging.count;
+    const linksOn = paging?.links?.some(link => link.rel === 'next');
+    if (!isFull || !linksOn || fresh.length === 0) return null;
+
+    const next = (paging.start ?? 0) + elements.length;
+    return next < this.MAX_RESPONSE_ELEMENTS ? `${url}&start=${next}&count=${paging.count}` : null;
+  }
+
+  /** dateRange and pivotValues identify an adAnalytics row. */
+  static analyticsRowKey(element) {
+    return JSON.stringify([element.dateRange, element.pivotValues]);
   }
 
   recordTruncatedDay(urn, nodeName, start) {
@@ -808,8 +848,8 @@ export class LinkedInAdsSource extends AbstractSource {
   }
 
   mergeAnalyticsResults(existingResults, newElements) {
-    // dateRange and pivotValues identify a row; the same row from another field chunk is combined.
-    const keyOf = element => JSON.stringify([element.dateRange, element.pivotValues]);
+    // The same row from another field chunk or page is combined.
+    const keyOf = LinkedInAdsSource.analyticsRowKey;
     const mergedByKey = new Map(existingResults.map(element => [keyOf(element), element]));
 
     for (const newElement of newElements) {

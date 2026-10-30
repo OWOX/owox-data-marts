@@ -856,6 +856,83 @@ describe('fetchAdAnalyticsByGeo', () => {
     ]);
   });
 
+  describe('pages of a member-pivot answer', () => {
+    const regions = Array.from({ length: 25 }, (_, i) => `urn:li:geo:${i + 1}`);
+    const next = { rel: 'next', href: '/adAnalytics?start=10&count=10', type: 'application/json' };
+
+    /** LinkedIn answering the breakdown with `answer(start)`; everything else as usual. */
+    const pagedLinkedIn = answer => {
+      const linkedIn = buildLinkedIn({ campaigns: [CAMPAIGN_1], names: {} });
+      const geoRequests = [];
+      const makeRequest = vi.fn(async url => {
+        if (!url.includes('pivot=MEMBER_')) return linkedIn.makeRequest(url);
+        geoRequests.push(url);
+        return answer(Number(/[?&]start=(\d+)/.exec(url)?.[1] ?? 0));
+      });
+      return { makeRequest, geoRequests };
+    };
+    const page = (start, count = 10) => ({
+      elements: regions.slice(start, start + count).map(urn => geoRow(1, urn, { impressions: 1 })),
+      paging: { start, count, links: start + count < regions.length ? [next] : [] },
+    });
+
+    /**
+     * LinkedIn's docs say adAnalytics does not paginate, yet show member-pivot answers with
+     * a next link. Were they real, reading the first page alone would drop most locations.
+     */
+    it('reads every page when LinkedIn really pages the answer', async () => {
+      const { makeRequest, geoRequests } = pagedLinkedIn(start => page(start));
+      const { self } = buildSource({ makeRequest });
+
+      const rows = await fetchGeoDay(self, 1, 'adAnalyticsByRegion');
+
+      expect(rows).toHaveLength(25);
+      expect(geoRequests).toHaveLength(3);
+      expect(geoRequests[1]).toBe(`${geoRequests[0]}&start=10&count=10`);
+      expect(geoRequests[2]).toBe(`${geoRequests[0]}&start=20&count=10`);
+    });
+
+    it('takes a page shorter than paging.count for the whole answer, as in the docs', async () => {
+      const { makeRequest, geoRequests } = pagedLinkedIn(() => ({
+        elements: regions.slice(0, 3).map(urn => geoRow(1, urn, { impressions: 1 })),
+        paging: { start: 0, count: 10, links: [next] },
+      }));
+      const { self } = buildSource({ makeRequest });
+
+      const rows = await fetchGeoDay(self, 1, 'adAnalyticsByRegion');
+
+      expect(rows).toHaveLength(3);
+      expect(geoRequests).toHaveLength(1);
+    });
+
+    it('stops when LinkedIn ignores start and repeats the page', async () => {
+      const { makeRequest, geoRequests } = pagedLinkedIn(() => page(0));
+      const { self } = buildSource({ makeRequest });
+
+      const rows = await fetchGeoDay(self, 1, 'adAnalyticsByRegion');
+
+      expect(rows).toHaveLength(10);
+      expect(geoRequests).toHaveLength(2);
+    });
+
+    it('never pages a request without a member pivot', async () => {
+      const requests = [];
+      const { self } = buildSource({
+        makeRequest: vi.fn(async url => {
+          requests.push(url);
+          return {
+            elements: Array.from({ length: 10 }, (_, i) => buildRow(1, [String(i)])),
+            paging: { start: 0, count: 10, links: [next] },
+          };
+        }),
+      });
+
+      await fetchDay(self, 1);
+
+      expect(requests).toHaveLength(1);
+    });
+  });
+
   it('is what fetchData runs for a geo node', async () => {
     const { makeRequest } = buildLinkedIn();
     const { self } = buildSource({ makeRequest });
