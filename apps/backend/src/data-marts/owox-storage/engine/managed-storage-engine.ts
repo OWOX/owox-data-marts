@@ -11,10 +11,18 @@ export interface ProvisionedManagedStorage {
   serviceAccountEmail: string;
 }
 
+export interface ManagedTable {
+  name: string;
+  sizeBytes: number;
+  rowCount: number;
+}
+
 export interface ManagedStorageEngine {
   provision(input: {
     projectId: string;
     location: OwoxStorageLocation;
   }): Promise<ProvisionedManagedStorage>;
   deprovision(target: ProvisionedManagedStorage): Promise<void>;
+  listTables(target: ProvisionedManagedStorage): Promise<ManagedTable[]>;
+  dropTable(target: ProvisionedManagedStorage, tableName: string): Promise<void>;
 }
