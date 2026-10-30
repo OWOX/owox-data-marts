@@ -111,6 +111,51 @@ describe('ConnectorStorageConfigService', () => {
     expect(result.config.OAuthAccessTokenExpiry).toBeNull();
   });
 
+  it('passes the account email and the managed dataset, never a key', async () => {
+    const { service, storageCredentialsResolver } = createService();
+    // Stands in for the live impersonated client, which holds ODM's own cached token.
+    const authClient = {
+      credentials: { access_token: 'odm-own-access' },
+      getAccessToken: jest.fn(),
+    };
+    (storageCredentialsResolver.resolve as jest.Mock).mockResolvedValue({
+      type: 'bigquery_managed',
+      authClient,
+      serviceAccountEmail: 'owox-st-abc@p.iam.gserviceaccount.com',
+      datasetId: 'owox_abc',
+      internalDatasetId: 'owox_abc_internal',
+      scanBudget: { remainingBytes: jest.fn() },
+    });
+    const dm = {
+      ...baseDataMart,
+      definition: {
+        connector: {
+          ...(baseDataMart.definition as unknown as { connector: Record<string, unknown> })
+            .connector,
+          storage: { fullyQualifiedName: 'other.table' },
+        },
+      },
+      storage: {
+        type: DataStorageType.GOOGLE_BIGQUERY,
+        config: { projectId: 'p', location: 'US' },
+      },
+    } as unknown as DataMart;
+
+    const { config } = await service.buildStorageConfig(dm);
+
+    expect(config.DestinationDatasetName.value).toBe('owox_abc');
+    expect(config.DestinationDatasetID.value).toBe('p.owox_abc');
+    expect(config.DestinationTableNameOverride.value).toBe('test_node table');
+    expect(config.ImpersonateServiceAccount.value).toBe('owox-st-abc@p.iam.gserviceaccount.com');
+    expect(config.DestinationDatasetExists.value).toBe(true);
+    expect(config).not.toHaveProperty('ServiceAccountJson');
+    expect(Object.keys(config).filter(key => key.startsWith('OAuth'))).toEqual([]);
+    const serialized = JSON.stringify(config);
+    expect(serialized).not.toContain('odm-own-access');
+    expect(serialized).not.toMatch(/token/i);
+    expect(authClient.getAccessToken).not.toHaveBeenCalled();
+  });
+
   it('builds Athena storage config', async () => {
     const { service, storageCredentialsResolver } = createService();
     const dm = {

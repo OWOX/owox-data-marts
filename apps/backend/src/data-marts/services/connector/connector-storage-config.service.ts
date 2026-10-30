@@ -27,6 +27,7 @@ import { DatabricksCredentials } from '../../data-storage-types/databricks/schem
 import { ConnectorExecutionError } from '../../errors/connector-execution.error';
 import { DataStorageCredentialsResolver } from '../../data-storage-types/data-storage-credentials-resolver.service';
 import { DataStorageCredentials } from '../../data-storage-types/data-storage-credentials.type';
+import { isBigQueryManagedCredentials } from '../../data-storage-types/data-storage-credentials.guards';
 import { GoogleOAuthConfigService } from '../google-oauth/google-oauth-config.service';
 
 @Injectable()
@@ -74,7 +75,9 @@ export class ConnectorStorageConfigService {
   ): Promise<StorageConfigDto> {
     const storageConfig = dataMart.storage.config as BigQueryConfig;
     const bqCredentials = credentials as BigQueryCredentials;
-    const datasetId = connector.storage?.fullyQualifiedName.split('.')[0];
+    const managed = isBigQueryManagedCredentials(credentials) ? credentials : null;
+    // An OWOX Storage writes only into its own dataset, whatever the definition names.
+    const datasetId = managed?.datasetId ?? connector.storage?.fullyQualifiedName.split('.')[0];
 
     const baseConfig = {
       DestinationLocation: storageConfig?.location,
@@ -84,6 +87,18 @@ export class ConnectorStorageConfigService {
       DestinationTableNameOverride: `${connector.source.node} ${connector.storage?.fullyQualifiedName.split('.')[1]}`,
       ProjectID: storageConfig.projectId,
     };
+
+    // Ahead of the key branch: the credentials hold a live client and must never be serialised.
+    if (managed) {
+      return new StorageConfigDto({
+        name: DataStorageType.GOOGLE_BIGQUERY,
+        config: {
+          ...baseConfig,
+          ImpersonateServiceAccount: managed.serviceAccountEmail,
+          DestinationDatasetExists: true,
+        },
+      });
+    }
 
     if (bqCredentials.type === BIGQUERY_OAUTH_TYPE) {
       const oauthCredentials = bqCredentials as BigQueryOAuthCredentials;
