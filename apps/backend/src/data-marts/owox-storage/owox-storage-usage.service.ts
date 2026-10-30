@@ -34,6 +34,7 @@ export class OwoxStorageUsageService {
 
   async getUsage(record: ManagedStorage): Promise<OwoxStorageUsage> {
     const plan = await this.plans.planFor(record.projectId);
+    if (!plan) throw new Error('The plan of the project cannot be read');
     return this.measure(record, plan);
   }
 
@@ -42,6 +43,12 @@ export class OwoxStorageUsageService {
     const record = await this.managedStorages.findByStorageId(storageId);
     if (!record) return;
     const plan = await this.plans.planFor(record.projectId);
+    if (!plan) {
+      this.logger.warn(
+        `Could not read the plan of the project for OWOX Storage ${record.datasetId}; the connector run goes ahead.`
+      );
+      return;
+    }
     if (plan === ProjectPlanType.PAID) return;
 
     let usage: OwoxStorageUsage;
