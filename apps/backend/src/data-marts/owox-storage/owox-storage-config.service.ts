@@ -17,7 +17,7 @@ export class OwoxStorageConfigService {
 
   constructor(configService: ConfigService) {
     this.settings = readOwoxStorageSettings(
-      Object.fromEntries(ENV_NAMES.map(name => [name, configService.get<string>(name)]))
+      Object.fromEntries(ENV_NAMES.map(name => [name, configService.get(name)]))
     );
   }
 
