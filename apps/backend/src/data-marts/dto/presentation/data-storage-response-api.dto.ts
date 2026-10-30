@@ -4,6 +4,7 @@ import { DataStorageType } from '../../data-storage-types/enums/data-storage-typ
 import { UserProjectionDto } from '../../../idp/dto/domain/user-projection.dto';
 import { ContextSummary } from '../../utils/extract-context-summaries';
 import { ContextSummaryApiDto } from './context-summary-api.dto';
+import type { OwoxStorageLocation } from '../../owox-storage/owox-storage-settings';
 import { StorageCredentialSummaryApiDto } from './storage-credential-summary-api.dto';
 
 export class DataStorageResponseApiDto {
@@ -54,4 +55,12 @@ export class DataStorageResponseApiDto {
 
   @ApiProperty({ type: [ContextSummaryApiDto] })
   contexts: ContextSummary[];
+
+  @ApiProperty({
+    required: false,
+    description: 'Present only for an OWOX Storage: where it runs and its fixed dataset',
+    example: { location: 'US', datasetId: 'owox_0123456789ab' },
+    type: Object,
+  })
+  owoxStorage?: { location: OwoxStorageLocation; datasetId: string };
 }
