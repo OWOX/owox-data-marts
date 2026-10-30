@@ -19,6 +19,7 @@ import { UpdateStorageAvailabilityApiDto } from '../../dto/presentation/update-a
 import { DataStorageType } from '../../data-storage-types/enums/data-storage-type.enum';
 import { OwnerFilter } from '../../enums/owner-filter.enum';
 import { ListStorageResourcesResponseDto } from '../../dto/presentation/storage-resources/list-storage-resources-response.dto';
+import { OwoxStorageUsageResponseApiDto } from '../../dto/presentation/owox-storage-usage-response-api.dto';
 import { StorageResourceLevel } from '../../dto/domain/list-storage-resources.command';
 
 export function ListDataStoragesByTypeSpec() {
@@ -98,6 +99,23 @@ export function DeleteDataStorageSpec() {
     ApiOperation({ summary: 'Delete Data Storage by ID' }),
     ApiParam({ name: 'id', description: 'Data Storage ID' }),
     ApiOkResponse({ description: 'Data Storage successfully deleted' })
+  );
+}
+
+export function GetOwoxStorageUsageSpec() {
+  return applyDecorators(
+    ApiOperation({ summary: 'Get OWOX Storage usage and its tables' }),
+    ApiParam({ name: 'id', description: 'Data Storage ID' }),
+    ApiOkResponse({ type: OwoxStorageUsageResponseApiDto })
+  );
+}
+
+export function DeleteOwoxStorageTableSpec() {
+  return applyDecorators(
+    ApiOperation({ summary: 'Delete a table of an OWOX Storage' }),
+    ApiParam({ name: 'id', description: 'Data Storage ID' }),
+    ApiParam({ name: 'tableName', description: 'Table name as listed in the OWOX Storage' }),
+    ApiNoContentResponse({ description: 'Table successfully deleted' })
   );
 }
 
