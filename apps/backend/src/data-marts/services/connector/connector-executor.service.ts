@@ -88,6 +88,7 @@ import { CredentialService } from '../../credentials/services/credential.service
 import { OwoxEventDispatcher } from '../../../common/event-dispatcher/owox-event-dispatcher';
 import { ConnectorRunEvent } from '../../events/connector-run.event';
 import { ProjectBillingService, RunKind } from '../project-billing/project-billing.service';
+import { OwoxStorageUsageService } from '../../owox-storage/owox-storage-usage.service';
 import { ConnectorDefinitionService } from './connector-definition.service';
 import { ConnectorRunTriggerService } from './connector-run-trigger.service';
 import { buildSegmentMarker, createNextSegmentRun, SegmentChainEnd } from './backfill-segment';
@@ -172,7 +173,8 @@ export class ConnectorExecutorService {
     private readonly configService: ConfigService,
     private readonly connectorRunTriggerService: ConnectorRunTriggerService,
     private readonly credentialService: CredentialService,
-    private readonly sourceCredentialInjector: SourceCredentialInjectorService
+    private readonly sourceCredentialInjector: SourceCredentialInjectorService,
+    private readonly owoxStorageUsageService: OwoxStorageUsageService
   ) {}
 
   async executeInBackground(
@@ -229,6 +231,7 @@ export class ConnectorExecutorService {
         dataMart.projectId,
         RunKind.CONNECTOR_RUN
       );
+      await this.owoxStorageUsageService.assertCanLoad(dataMart.storage.id);
 
       // Guarded like the terminal write below: a cancel can land in the window
       // between claimRunSlotAtomically and here (e.g. during the awaited balance
