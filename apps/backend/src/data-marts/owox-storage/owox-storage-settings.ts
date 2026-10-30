@@ -12,10 +12,12 @@ export interface OwoxStorageSettings {
 const GIB = 2 ** 30;
 
 /** Returns null when OWOX Storage is off; a partial or unknown configuration throws. */
-export function readOwoxStorageSettings(
-  env: Record<string, string | undefined>
-): OwoxStorageSettings | null {
-  const read = (name: string) => env[name]?.trim() || undefined;
+export function readOwoxStorageSettings(env: Record<string, unknown>): OwoxStorageSettings | null {
+  // ConfigService returns validated values, so a limit can already be a number.
+  const read = (name: string) => {
+    const value = env[name];
+    return (value == null ? undefined : String(value).trim()) || undefined;
+  };
 
   const engine = read('OWOX_STORAGE_ENGINE');
   if (!engine) return null;
