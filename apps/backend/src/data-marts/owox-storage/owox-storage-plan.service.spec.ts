@@ -38,10 +38,10 @@ describe('OwoxStoragePlanService', () => {
     }
   });
 
-  it('falls back to FREE when billing throws', async () => {
+  it('returns null when billing throws', async () => {
     billing.getBalance.mockRejectedValue(new Error('balance API down'));
 
-    await expect(service.planFor('p1')).resolves.toBe(ProjectPlanType.FREE);
+    await expect(service.planFor('p1')).resolves.toBeNull();
     expect(warn).toHaveBeenCalledTimes(1);
   });
 });
