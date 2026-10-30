@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 import { OwoxStorageProvisioningException } from '../owox-storage.exceptions';
 import { BigQueryManagedStorageEngine } from './bigquery-managed-storage.engine';
 import type { GcpProvisioningClient } from './gcp-provisioning.client';
@@ -91,6 +92,7 @@ describe('BigQueryManagedStorageEngine', () => {
     );
   });
 
+  const DS = ['deleteDataset:owox_abcdef012345_internal', 'deleteDataset:owox_abcdef012345'];
   const failures: [string, (c: ReturnType<typeof setup>['client']) => void, string[]][] = [
     [
       'the second dataset',
@@ -98,58 +100,92 @@ describe('BigQueryManagedStorageEngine', () => {
         c.createDataset
           .mockImplementationOnce(() => Promise.resolve())
           .mockRejectedValueOnce(new Error('x')),
-      ['deleteDataset:owox_abcdef012345'],
+      DS,
     ],
     [
       'the service account',
       c => c.createServiceAccount.mockRejectedValue(new Error('x')),
-      ['deleteDataset:owox_abcdef012345_internal', 'deleteDataset:owox_abcdef012345'],
+      ['deleteServiceAccount', ...DS],
     ],
     [
       'the dataset grant',
       c => c.grantDatasetWriter.mockRejectedValue(new Error('x')),
-      [
-        'deleteServiceAccount',
-        'deleteDataset:owox_abcdef012345_internal',
-        'deleteDataset:owox_abcdef012345',
-      ],
+      ['deleteServiceAccount', ...DS],
     ],
     [
       'the project role grant',
       c => c.grantProjectRole.mockRejectedValue(new Error('x')),
-      [
-        'deleteServiceAccount',
-        'deleteDataset:owox_abcdef012345_internal',
-        'deleteDataset:owox_abcdef012345',
-      ],
+      ['revokeProjectRole', 'deleteServiceAccount', ...DS],
     ],
   ];
 
-  it.each(failures)(
-    'undoes the earlier steps in reverse when %s fails',
-    async (_n, fail, undone) => {
-      const { engine, client } = setup();
-      fail(client);
-      const log: string[] = [];
-      client.deleteDataset.mockImplementation((_p: unknown, id: unknown) => {
-        log.push(`deleteDataset:${String(id)}`);
-        return Promise.resolve();
-      });
-      client.deleteServiceAccount.mockImplementation(() => {
-        log.push('deleteServiceAccount');
-        return Promise.resolve();
-      });
+  it.each(failures)('undoes the steps in reverse when %s fails', async (_n, fail, undone) => {
+    const { engine, client } = setup();
+    fail(client);
+    const log: string[] = [];
+    client.deleteDataset.mockImplementation((_p: unknown, id: unknown) => {
+      log.push(`deleteDataset:${String(id)}`);
+      return Promise.resolve();
+    });
+    client.deleteServiceAccount.mockImplementation(() => {
+      log.push('deleteServiceAccount');
+      return Promise.resolve();
+    });
+    client.revokeProjectRole.mockImplementation(() => {
+      log.push('revokeProjectRole');
+      return Promise.resolve();
+    });
 
-      await expect(engine.provision({ projectId: 'p1', location: 'US' })).rejects.toBeInstanceOf(
-        OwoxStorageProvisioningException
-      );
-      expect(log).toEqual(undone);
+    await expect(engine.provision({ projectId: 'p1', location: 'US' })).rejects.toBeInstanceOf(
+      OwoxStorageProvisioningException
+    );
+    expect(log).toEqual(undone);
+  });
+
+  it('rolls back an account whose create errored, by its derived email', async () => {
+    const { engine, client } = setup();
+    client.createServiceAccount.mockRejectedValue(new Error('timeout'));
+    await expect(engine.provision({ projectId: 'p1', location: 'US' })).rejects.toBeInstanceOf(
+      OwoxStorageProvisioningException
+    );
+    expect(client.deleteServiceAccount).toHaveBeenCalledWith(EMAIL);
+  });
+
+  it('logs the failed step and the code, not the email or project ids, and keeps the cause', async () => {
+    const { engine, client } = setup();
+    const cause = Object.assign(new Error(`denied for ${EMAIL} in data-project`), {
+      code: 403,
+      response: { data: { error: { status: 'PERMISSION_DENIED' } } },
+    });
+    client.grantProjectRole.mockRejectedValue(cause);
+    const logged: string[] = [];
+    const spy = jest
+      .spyOn(Logger.prototype, 'error')
+      .mockImplementation((m: unknown) => void logged.push(String(m)));
+
+    const error = await engine
+      .provision({ projectId: 'p1', location: 'US' })
+      .catch((e: unknown) => e);
+    spy.mockRestore();
+
+    expect(error).toBeInstanceOf(OwoxStorageProvisioningException);
+    expect((error as Error).cause).toBe(cause);
+    const line = logged.find(l => l.includes('provisioning failed')) ?? '';
+    expect(line).toContain('grantProjectRole');
+    expect(line).toContain('403');
+    expect(line).toContain('PERMISSION_DENIED');
+    expect(line).toContain('abcdef012345');
+    for (const l of logged) {
+      expect(l).not.toContain(EMAIL);
+      expect(l).not.toContain('data-project');
+      expect(l).not.toContain('sa-project');
     }
-  );
+  });
 
   it('keeps undoing when an undo step fails', async () => {
     const { engine, client } = setup();
     client.createServiceAccount.mockRejectedValue(new Error('x'));
+    client.deleteServiceAccount.mockResolvedValue(undefined);
     client.deleteDataset.mockRejectedValueOnce(new Error('y')).mockResolvedValue(undefined);
 
     await expect(engine.provision({ projectId: 'p1', location: 'US' })).rejects.toBeInstanceOf(
