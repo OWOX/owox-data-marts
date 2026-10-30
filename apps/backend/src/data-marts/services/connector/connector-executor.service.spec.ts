@@ -79,6 +79,7 @@ import { ConnectorStateService } from '../../connector-types/connector-message/s
 import { GracefulShutdownService } from '../../../common/scheduler/services/graceful-shutdown.service';
 import { SystemTimeService } from '../../../common/scheduler/services/system-time.service';
 import { ProjectBillingService } from '../project-billing/project-billing.service';
+import { OwoxStorageUsageService } from '../../owox-storage/owox-storage-usage.service';
 import { DataMartService } from '../data-mart.service';
 import { DataMartRunStatus } from '../../enums/data-mart-run-status.enum';
 import { DataMartRunType } from '../../enums/data-mart-run-type.enum';
@@ -232,6 +233,10 @@ describe('ConnectorExecutorService', () => {
       markRefreshTokenStatic: jest.fn().mockResolvedValue(undefined),
     } as unknown as CredentialService;
 
+    const owoxStorageUsage = {
+      assertCanLoad: jest.fn().mockResolvedValue(undefined),
+    } as unknown as OwoxStorageUsageService;
+
     const service = new ConnectorExecutorService(
       dataMartRunRepository,
       processSpawner,
@@ -250,12 +255,14 @@ describe('ConnectorExecutorService', () => {
       configService,
       connectorRunTriggerService,
       credentialService,
-      sourceCredentialInjector
+      sourceCredentialInjector,
+      owoxStorageUsage
     );
 
     return {
       service,
       credentialService,
+      owoxStorageUsage,
       connectorRunTriggerService,
       dataMartRunRepository,
       processSpawner,
@@ -295,7 +302,7 @@ describe('ConnectorExecutorService', () => {
           storage: { fullyQualifiedName: 'dataset.table' },
         },
       },
-      storage: { type: 'GOOGLE_BIGQUERY', config: {} },
+      storage: { id: 'storage-1', type: 'GOOGLE_BIGQUERY', config: {} },
       ...overrides,
     }) as unknown as DataMart;
 
@@ -797,6 +804,36 @@ describe('ConnectorExecutorService', () => {
       { id: 'run-1', status: expect.anything() },
       expect.objectContaining({ status: DataMartRunStatus.RESTRICTED })
     );
+  });
+
+  it('restricts a run on a full OWOX Storage', async () => {
+    const { service, owoxStorageUsage, processSpawner, dataMartRunRepository } = createService();
+    const { ProjectOperationBlockedException } =
+      await import('../../../common/exceptions/project-operation-blocked.exception');
+    const blocked = new ProjectOperationBlockedException([ProjectBlockedReason.OWOX_STORAGE_FULL]);
+    (owoxStorageUsage.assertCanLoad as jest.Mock).mockRejectedValue(blocked);
+
+    await service.executeInBackground(createDataMart(), createRun(), null);
+
+    expect(processSpawner.spawnConnector).not.toHaveBeenCalled();
+    expect(dataMartRunRepository.update).toHaveBeenCalledWith(
+      { id: 'run-1', status: expect.anything() },
+      expect.objectContaining({
+        status: DataMartRunStatus.RESTRICTED,
+        errors: expect.arrayContaining([expect.stringContaining(blocked.message)]),
+      })
+    );
+  });
+
+  it('checks the storage after the billing check', async () => {
+    const { service, projectBilling, owoxStorageUsage } = createService();
+
+    await service.executeInBackground(createDataMart(), createRun(), null);
+
+    expect(owoxStorageUsage.assertCanLoad).toHaveBeenCalledWith('storage-1');
+    expect(
+      (projectBilling.verifyCanPerformOperations as jest.Mock).mock.invocationCallOrder[0]
+    ).toBeLessThan((owoxStorageUsage.assertCanLoad as jest.Mock).mock.invocationCallOrder[0]);
   });
 
   it('skips configuration without _id', async () => {
