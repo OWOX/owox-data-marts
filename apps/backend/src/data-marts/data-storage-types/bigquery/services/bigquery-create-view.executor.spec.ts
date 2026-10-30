@@ -298,4 +298,47 @@ describe('BigQueryCreateViewExecutor', () => {
       fullyQualifiedName: 'test-project.owox_internal_us.my_view',
     });
   });
+
+  describe('managed credentials', () => {
+    const managed = {
+      type: 'bigquery_managed',
+      authClient: {},
+      serviceAccountEmail: 'sa@p.iam.gserviceaccount.com',
+      datasetId: 'owox_abc',
+      internalDatasetId: 'owox_abc_internal',
+      scanBudget: {},
+    } as unknown as DataStorageCredentials;
+    const config: BigQueryConfig = { projectId: 'proj-abc', location: 'US' };
+    const executeViewDdl = jest.fn();
+
+    beforeEach(() => {
+      executeViewDdl.mockReset().mockResolvedValue(undefined);
+      (mockAdapterFactory.create as jest.Mock).mockReturnValue({ ...mockAdapter, executeViewDdl });
+      mockAdapter.executeDryRunQuery.mockResolvedValue({ statementType: 'SELECT' });
+    });
+
+    it("builds a managed storage's view in its internal dataset without CREATE SCHEMA", async () => {
+      const result = await service.createView(managed, config, 'v', sql);
+
+      expect(executeViewDdl).toHaveBeenCalledWith(
+        'CREATE OR REPLACE VIEW `proj-abc.owox_abc_internal.v` AS SELECT 1'
+      );
+      expect(mockAdapter.executeQuery).not.toHaveBeenCalled();
+      expect(result).toEqual({ fullyQualifiedName: 'proj-abc.owox_abc_internal.v' });
+    });
+
+    it('refuses a view over a script', async () => {
+      mockAdapter.executeDryRunQuery.mockResolvedValue({ statementType: 'SCRIPT' });
+
+      await expect(
+        service.createView(managed, config, 'v', 'SELECT 1; DROP TABLE t')
+      ).rejects.toThrow('SELECT queries only');
+      expect(executeViewDdl).not.toHaveBeenCalled();
+    });
+
+    it('refuses a qualified view name', async () => {
+      await expect(service.createView(managed, config, 'a.b.c', sql)).rejects.toThrow(Error);
+      expect(executeViewDdl).not.toHaveBeenCalled();
+    });
+  });
 });
