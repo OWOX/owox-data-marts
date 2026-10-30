@@ -1,4 +1,3 @@
-import { useCallback, useEffect, useState } from 'react';
 import { Trash2 } from 'lucide-react';
 import { Button } from '@owox/ui/components/button';
 import { Skeleton } from '@owox/ui/components/skeleton';
@@ -12,46 +11,15 @@ import {
 } from '@owox/ui/components/table';
 import { ConfirmationDialog } from '../../../../../shared/components/ConfirmationDialog';
 import { formatBytes } from '../../../../../utils/format-bytes';
-import { dataStorageApiService } from '../../api';
-import type { OwoxStorageUsageResponseDto } from '../../api/types';
+import { useOwoxStorageUsage } from '../../hooks/useOwoxStorageUsage';
 
 export function OwoxStorageUsage({ storageId }: { storageId: string }) {
-  const [usage, setUsage] = useState<OwoxStorageUsageResponseDto | null>(null);
-  const [failed, setFailed] = useState(false);
-  const [tableToDelete, setTableToDelete] = useState<string | null>(null);
-  const [deleting, setDeleting] = useState(false);
-
-  const load = useCallback(async () => {
-    setFailed(false);
-    try {
-      setUsage(await dataStorageApiService.getOwoxStorageUsage(storageId));
-    } catch {
-      setUsage(null);
-      setFailed(true);
-    }
-  }, [storageId]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
-
-  const confirmDelete = async () => {
-    if (!tableToDelete) return;
-    setDeleting(true);
-    try {
-      await dataStorageApiService.deleteOwoxStorageTable(storageId, tableToDelete);
-      setTableToDelete(null);
-      await load();
-    } catch {
-      // The default error toast has already reported it; keep the dialog open to retry.
-    } finally {
-      setDeleting(false);
-    }
-  };
+  const { usage, failed, load, tableToDelete, setTableToDelete, deleting, confirmDelete } =
+    useOwoxStorageUsage(storageId);
 
   if (failed) {
     return (
-      <div className='flex items-center gap-3 text-sm'>
+      <div role='alert' className='text-destructive flex items-center gap-3 text-sm'>
         <span>Storage usage could not be loaded.</span>
         <Button type='button' variant='outline' size='sm' onClick={() => void load()}>
           Try again
@@ -128,6 +96,8 @@ export function OwoxStorageUsage({ storageId }: { storageId: string }) {
         confirmLabel='Delete table'
         cancelLabel='Cancel'
         confirmDisabled={deleting}
+        cancelDisabled={deleting}
+        showCloseButton={!deleting}
         onConfirm={() => void confirmDelete()}
       />
     </div>

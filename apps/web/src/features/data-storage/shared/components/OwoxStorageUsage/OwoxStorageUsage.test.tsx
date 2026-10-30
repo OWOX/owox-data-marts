@@ -107,6 +107,22 @@ describe('OwoxStorageUsage', () => {
     });
   });
 
+  it('disables cancel while deleting', async () => {
+    getOwoxStorageUsage.mockResolvedValue(
+      usage({ tables: [{ name: 'holidays', sizeBytes: 225, rowCount: 8 }] })
+    );
+    deleteOwoxStorageTable.mockReturnValue(new Promise(() => undefined));
+    render(<OwoxStorageUsage storageId='s1' />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete table holidays' }));
+    await screen.findByRole('dialog');
+    fireEvent.click(screen.getByRole('button', { name: 'Delete table' }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Cancel' })).toBeDisabled();
+    });
+  });
+
   it('does not submit the enclosing form', async () => {
     getOwoxStorageUsage.mockResolvedValue(
       usage({ tables: [{ name: 'holidays', sizeBytes: 225, rowCount: 8 }] })
