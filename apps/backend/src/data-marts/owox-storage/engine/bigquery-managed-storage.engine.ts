@@ -10,6 +10,19 @@ const JOB_USER_ROLE = 'roles/bigquery.jobUser';
 // IAM needs a moment to see a new service account.
 const GRANT_DELAYS_MS = [2000, 4000, 8000, 16000];
 
+type GoogleError = {
+  code?: number | string;
+  errors?: { reason?: string }[];
+  response?: { data?: { error?: { status?: string } } };
+};
+
+/** HTTP code and Google status/reason only: messages can carry emails and project ids. */
+function describe(error: unknown): string {
+  const e = (error ?? {}) as GoogleError;
+  const status = e.response?.data?.error?.status ?? e.errors?.[0]?.reason;
+  return ` (code ${e.code ?? 'unknown'}${status ? `, ${status}` : ''})`;
+}
+
 @Injectable()
 export class BigQueryManagedStorageEngine implements ManagedStorageEngine {
   private readonly logger = new Logger(BigQueryManagedStorageEngine.name);
@@ -31,25 +44,53 @@ export class BigQueryManagedStorageEngine implements ManagedStorageEngine {
     const shortId = this.newShortId();
     const datasetId = `owox_${shortId}`;
     const internalDatasetId = `${datasetId}_internal`;
-    const undo: (() => Promise<void>)[] = [];
+    const email = `owox-st-${shortId}@${serviceAccountProjectId}.iam.gserviceaccount.com`;
+    // Registered before each create: a create that commits but errors must still be rolled back.
+    const undo: { name: string; run: () => Promise<void> }[] = [];
+    let step = '';
+    const run = async <T>(name: string, fn: () => Promise<T>, undoStep?: (typeof undo)[number]) => {
+      step = name;
+      if (undoStep) undo.push(undoStep);
+      return fn();
+    };
 
     try {
       for (const id of [datasetId, internalDatasetId]) {
-        await this.client.createDataset(gcpProjectId, id, input.location);
-        undo.push(() => this.client.deleteDataset(gcpProjectId, id));
+        await run(
+          'createDataset',
+          () => this.client.createDataset(gcpProjectId, id, input.location),
+          {
+            name: 'deleteDataset',
+            run: () => this.client.deleteDataset(gcpProjectId, id),
+          }
+        );
       }
-      const email = await this.client.createServiceAccount(
-        serviceAccountProjectId,
-        `owox-st-${shortId}`,
-        `OWOX Storage for project ${input.projectId}`
+      const created = await run(
+        'createServiceAccount',
+        () =>
+          this.client.createServiceAccount(
+            serviceAccountProjectId,
+            `owox-st-${shortId}`,
+            `OWOX Storage for project ${input.projectId}`
+          ),
+        { name: 'deleteServiceAccount', run: () => this.client.deleteServiceAccount(email) }
       );
-      undo.push(() => this.client.deleteServiceAccount(email));
 
       for (const id of [datasetId, internalDatasetId]) {
-        await this.withGrantRetry(() => this.client.grantDatasetWriter(gcpProjectId, id, email));
+        await run('grantDatasetWriter', () =>
+          this.withGrantRetry(() => this.client.grantDatasetWriter(gcpProjectId, id, created))
+        );
       }
-      await this.withGrantRetry(() =>
-        this.client.grantProjectRole(gcpProjectId, JOB_USER_ROLE, email)
+      await run(
+        'grantProjectRole',
+        () =>
+          this.withGrantRetry(() =>
+            this.client.grantProjectRole(gcpProjectId, JOB_USER_ROLE, created)
+          ),
+        {
+          name: 'revokeProjectRole',
+          run: () => this.client.revokeProjectRole(gcpProjectId, JOB_USER_ROLE, email),
+        }
       );
 
       return {
@@ -58,22 +99,22 @@ export class BigQueryManagedStorageEngine implements ManagedStorageEngine {
         location: input.location,
         datasetId,
         internalDatasetId,
-        serviceAccountEmail: email,
+        serviceAccountEmail: created,
       };
     } catch (error) {
-      this.logger.error(
-        `OWOX Storage ${shortId} provisioning failed: ${error instanceof Error ? error.name : 'unknown error'}`
-      );
-      for (const step of undo.reverse()) {
+      this.logger.error(`OWOX Storage ${shortId} provisioning failed at ${step}${describe(error)}`);
+      for (const undoStep of undo.reverse()) {
         try {
-          await step();
+          await undoStep.run();
         } catch (undoError) {
           this.logger.error(
-            `OWOX Storage ${shortId} undo failed: ${undoError instanceof Error ? undoError.name : 'unknown error'}`
+            `OWOX Storage ${shortId} undo failed at ${undoStep.name}${describe(undoError)}`
           );
         }
       }
-      throw new OwoxStorageProvisioningException();
+      const exception = new OwoxStorageProvisioningException();
+      exception.cause = error;
+      throw exception;
     }
   }
 
