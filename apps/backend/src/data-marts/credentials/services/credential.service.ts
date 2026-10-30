@@ -24,6 +24,12 @@ import { CUSTOM_CONNECTOR_DEFINITION_ID } from './builtin-credential-definitions
 /** A rotation lease older than this is free again, so a crashed holder blocks no one for longer. */
 export const ROTATION_LEASE_STALE_MS = 60_000;
 
+/** What a source sign-in stores on a Credential. */
+export type ConnectedValues = Pick<
+  Credential,
+  'secret' | 'publicMetadata' | 'validationState' | 'validationMessage' | 'validatedAt'
+>;
+
 /** Who a new Credential belongs to and which Contexts it joins. */
 export interface NewCredentialAccess {
   /** The creating member, first owner, checked against the project; null saves copies unchecked. */
@@ -129,6 +135,12 @@ export class CredentialService {
       where: { id, projectId },
       relations: ['owners', 'contexts', 'contexts.context'],
     });
+  }
+
+  /** Writes only the sign-in, so a concurrent change to flags, sharing or owners survives. */
+  async replaceSignIn(id: string, values: ConnectedValues): Promise<void> {
+    // A new grant drops any rotated token, so the static marker goes with it.
+    await this.credentials.update({ id }, { ...values, refreshTokenStaticAt: null });
   }
 
   /** Runtime lookup by id alone; the caller already resolved the project through its consumer. */
