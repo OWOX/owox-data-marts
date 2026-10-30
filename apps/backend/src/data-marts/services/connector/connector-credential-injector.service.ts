@@ -8,6 +8,9 @@ import { Core } from '@owox/connectors';
 
 const { GENERATED_REFRESH_TOKEN_CREDENTIAL_FIELD, GENERATED_REFRESH_TOKEN_CONFIG_FIELD } = Core;
 
+const GENERATED_REFRESH_TOKEN_MAX_LENGTH = 4096;
+
+/** Old key rows (`_secrets_id`, `_source_credential_id`); removed when none remain. */
 @Injectable()
 export class ConnectorCredentialInjectorService {
   private readonly logger = new Logger(ConnectorCredentialInjectorService.name);
@@ -295,4 +298,61 @@ export class ConnectorCredentialInjectorService {
     }
     return mappingConfig;
   }
+}
+
+/** The credential updates a run may store: a rotated refresh token of sane length, nothing else. */
+export function allowedCredentialUpdates(
+  credentials: Record<string, unknown>
+): Record<string, string> {
+  const generatedRefreshToken = credentials[GENERATED_REFRESH_TOKEN_CREDENTIAL_FIELD];
+
+  if (
+    typeof generatedRefreshToken !== 'string' ||
+    generatedRefreshToken.length === 0 ||
+    generatedRefreshToken.length > GENERATED_REFRESH_TOKEN_MAX_LENGTH
+  ) {
+    return {};
+  }
+
+  return { [GENERATED_REFRESH_TOKEN_CREDENTIAL_FIELD]: generatedRefreshToken };
+}
+
+/** The old key row a configuration names: its `_source_credential_id`, else its `_secrets_id`. */
+export function legacyCredentialIdOf(config: Record<string, unknown>): string | undefined {
+  const secretsId = config._secrets_id;
+  return (
+    findSourceCredentialId(config) ??
+    (typeof secretsId === 'string' && secretsId ? secretsId : undefined)
+  );
+}
+
+function findSourceCredentialId(value: unknown): string | undefined {
+  if (!value || typeof value !== 'object') {
+    return undefined;
+  }
+
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const credentialId = findSourceCredentialId(item);
+      if (credentialId) {
+        return credentialId;
+      }
+    }
+    return undefined;
+  }
+
+  const obj = value as Record<string, unknown>;
+  const credentialId = obj._source_credential_id;
+  if (typeof credentialId === 'string' && credentialId) {
+    return credentialId;
+  }
+
+  for (const item of Object.values(obj)) {
+    const nestedCredentialId = findSourceCredentialId(item);
+    if (nestedCredentialId) {
+      return nestedCredentialId;
+    }
+  }
+
+  return undefined;
 }

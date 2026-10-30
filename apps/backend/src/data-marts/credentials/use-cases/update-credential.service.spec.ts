@@ -8,6 +8,7 @@ import { AccessValidationException } from '../../../common/exceptions/access-val
 import type { AuthorizationContext } from '../../../idp';
 import { serviceAccountKey } from '../../../../test/fixtures/google-service-account-key';
 import { BUILTIN_CREDENTIAL_DEFINITIONS } from '../services/builtin-credential-definitions';
+import { sourceCredentialDefinitions } from '../../connector-types/source-credential-definitions';
 import { UpdateCredentialService } from './update-credential.service';
 
 const context = {
@@ -438,19 +439,34 @@ describe('UpdateCredentialService with a field set', () => {
     );
   });
 
+  it('refuses a changed username without the password before checking Storages or saving', async () => {
+    const state = setup(snowflake, stored);
+    state.credentials.listBindings.mockResolvedValue(bindings);
+
+    await expect(
+      state.service.run('credential-1', context, { fields: { username: 'reporter' } })
+    ).rejects.toThrow(new BadRequestException('Enter Password again to change Username'));
+
+    expect(state.storageConsumers.verifyCandidate).not.toHaveBeenCalled();
+    expect(state.validationProbe.run).not.toHaveBeenCalled();
+    expect(state.credentials.save).not.toHaveBeenCalled();
+  });
+
   it('checks a new identity against every bound Storage and resets the validation', async () => {
     const state = setup(snowflake, stored);
     state.credentials.listBindings.mockResolvedValue(bindings);
     state.storageConsumers.verifyCandidate.mockResolvedValue(2);
 
-    await state.service.run('credential-1', context, { fields: { username: 'reporter' } });
+    await state.service.run('credential-1', context, {
+      fields: { username: 'reporter', password: 'new-password' },
+    });
 
     expect(state.storageConsumers.verifyCandidate).toHaveBeenCalledWith(
       context,
       bindings,
       {
         definitionId: 'snowflake-password',
-        secret: { fields: { password: 'old-password' } },
+        secret: { fields: { password: 'new-password' } },
         publicMetadata: { fields: { username: 'reporter' } },
       },
       {
@@ -646,5 +662,174 @@ describe('UpdateCredentialService with a field set', () => {
     ).rejects.toThrow(BadRequestException);
     expect(state.validationProbe.run).not.toHaveBeenCalled();
     expect(state.credentials.save).not.toHaveBeenCalled();
+  });
+});
+
+describe('UpdateCredentialService with a connected Source type', () => {
+  it('updating fields keeps the OAuth connection metadata', async () => {
+    const contract = sourceCredentialDefinitions().definitions.find(
+      definition => definition.id === 'source:GoogleAds:oauth2'
+    );
+    const connection = {
+      account: { id: '42', name: 'ads@example.com', email: null },
+      expiresAt: '2030-01-01T00:00:00.000Z',
+    };
+    const state = setup(
+      { definitionId: contract?.id, source: 'builtin', compatibilityLine: null, contract },
+      {
+        definitionId: contract?.id,
+        secret: {
+          fields: { RefreshToken: 'old', ClientSecret: 'secret', DeveloperToken: 'token' },
+        },
+        publicMetadata: { fields: { ClientId: 'client-id' }, connection },
+      }
+    );
+
+    await state.service.run('credential-1', context, { fields: { DeveloperToken: 'new-token' } });
+
+    expect(state.credentials.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        secret: {
+          fields: { RefreshToken: 'old', ClientSecret: 'secret', DeveloperToken: 'new-token' },
+        },
+        publicMetadata: { fields: { ClientId: 'client-id' }, connection },
+      })
+    );
+  });
+
+  it('a changed secret field clears the marker of a refresh token that does not rotate; the same value keeps it', async () => {
+    const contract = sourceCredentialDefinitions().definitions.find(
+      definition => definition.id === 'source:MicrosoftAds:oauth2'
+    );
+    const refreshTokenStaticAt = new Date('2026-10-30T00:00:00.000Z');
+    const given = () =>
+      setup(
+        { definitionId: contract?.id, source: 'builtin', compatibilityLine: null, contract },
+        {
+          definitionId: contract?.id,
+          secret: { fields: { RefreshToken: 'old', ClientSecret: 's', DeveloperToken: 'd' } },
+          publicMetadata: { fields: { ClientId: 'client-id' } },
+          refreshTokenStaticAt,
+        }
+      );
+
+    const changed = given();
+    await changed.service.run('credential-1', context, { fields: { RefreshToken: 'new' } });
+    const same = given();
+    await same.service.run('credential-1', context, { fields: { RefreshToken: 'old' } });
+
+    expect(changed.credentials.save).toHaveBeenCalledWith(
+      expect.objectContaining({ refreshTokenStaticAt: null })
+    );
+    expect(same.credentials.save).toHaveBeenCalledWith(
+      expect.objectContaining({ refreshTokenStaticAt })
+    );
+  });
+});
+
+describe('UpdateCredentialService with a custom connector', () => {
+  const custom = BUILTIN_CREDENTIAL_DEFINITIONS.find(item => item.id === 'custom-connector');
+  const fieldList = [
+    { key: 'apiKey', label: 'API key', secret: true },
+    { key: 'accountId', label: 'Account', secret: false },
+  ];
+  const stored = {
+    secret: { fields: { apiKey: 'old-key' } },
+    publicMetadata: { hosts: ['api.acme.example'], fieldList, fields: { accountId: 'acc-1' } },
+  };
+  const setupCustom = () =>
+    setup(
+      {
+        definitionId: 'custom-connector',
+        source: 'builtin',
+        compatibilityLine: null,
+        contract: custom,
+      },
+      structuredClone(stored)
+    );
+
+  it('replacing a secret value keeps hosts', async () => {
+    const state = setupCustom();
+
+    await state.service.run('credential-1', context, { fields: { apiKey: 'new-key' } } as never);
+
+    expect(state.credentials.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        secret: { fields: { apiKey: 'new-key' } },
+        publicMetadata: stored.publicMetadata,
+      })
+    );
+  });
+
+  it('a replaced secret value clears the marker of a refresh token that does not rotate; a public one keeps it', async () => {
+    const refreshTokenStaticAt = new Date('2026-10-30T00:00:00.000Z');
+    const given = () =>
+      setup(
+        {
+          definitionId: 'custom-connector',
+          source: 'builtin',
+          compatibilityLine: null,
+          contract: custom,
+        },
+        // Not cloned: structuredClone's objects come from another realm, which isDeepStrictEqual tells apart.
+        {
+          secret: { fields: { apiKey: 'old-key' } },
+          publicMetadata: { ...stored.publicMetadata, fields: { accountId: 'acc-1' } },
+          refreshTokenStaticAt,
+        }
+      );
+
+    const secret = given();
+    await secret.service.run('credential-1', context, { fields: { apiKey: 'new-key' } } as never);
+    const visible = given();
+    await visible.service.run('credential-1', context, {
+      fields: { accountId: 'acc-2' },
+    } as never);
+
+    expect(secret.credentials.save).toHaveBeenCalledWith(
+      expect.objectContaining({ refreshTokenStaticAt: null })
+    );
+    expect(visible.credentials.save).toHaveBeenCalledWith(
+      expect.objectContaining({ refreshTokenStaticAt })
+    );
+  });
+
+  it('replaces a non-secret value and keeps the untouched secret', async () => {
+    const state = setupCustom();
+
+    await state.service.run('credential-1', context, { fields: { accountId: 'acc-2' } } as never);
+
+    expect(state.credentials.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        secret: { fields: { apiKey: 'old-key' } },
+        publicMetadata: { ...stored.publicMetadata, fields: { accountId: 'acc-2' } },
+      })
+    );
+  });
+
+  it('refuses to change hosts on update', async () => {
+    const state = setupCustom();
+    await expect(
+      state.service.run('credential-1', context, { hosts: ['evil.example'] } as never)
+    ).rejects.toThrow(BadRequestException);
+    expect(state.credentials.save).not.toHaveBeenCalled();
+  });
+
+  it('refuses to change the field list on update', async () => {
+    const state = setupCustom();
+    await expect(
+      state.service.run('credential-1', context, { fieldList: [] } as never)
+    ).rejects.toThrow(BadRequestException);
+    expect(state.credentials.save).not.toHaveBeenCalled();
+  });
+
+  it('refuses a value for a key not in the field list, without quoting it', async () => {
+    const state = setupCustom();
+    const error = await state.service
+      .run('credential-1', context, { fields: { other: 'top-secret' } } as never)
+      .catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(BadRequestException);
+    expect((error as Error).message).not.toContain('top-secret');
   });
 });

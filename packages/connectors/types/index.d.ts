@@ -34,3 +34,19 @@ export const AvailableConnectors: string[];
 
 /** Map of bundled connector classes/factories, keyed by name. */
 export const Connectors: Record<string, any>;
+
+/** A place outside a request where a manifest reads a key parameter or an `auth.*` value. */
+export interface KeyParameterMisuse {
+  parameter: string;
+  /** null for `accounts.from`, which belongs to no node. */
+  node: string | null;
+  position: 'transformations.add' | 'accounts.from' | 'recordFilter' | 'valueList';
+}
+
+/** What `Core.ManifestParser().parse()` reports about the parameters a Credential carries. */
+export interface ManifestKeyParameters {
+  keyParameters: string[];
+  /** Per `selective` branch; null for any other authentication. */
+  keyParameterBranches: Record<string, string[]> | null;
+  keyParameterMisuse: KeyParameterMisuse[];
+}

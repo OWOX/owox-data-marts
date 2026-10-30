@@ -9,7 +9,6 @@ import { castError } from '@owox/internal-helpers';
 
 const { ConfigDto, GENERATED_REFRESH_TOKEN_CREDENTIAL_FIELD } = Core;
 type ConfigDto = InstanceType<typeof Core.ConfigDto>;
-const GENERATED_REFRESH_TOKEN_MAX_LENGTH = 4096;
 
 /**
  * Bounds on logs/errors carried across resumed attempts of the same run.
@@ -84,6 +83,8 @@ import { SystemTimeService } from '../../../common/scheduler/services/system-tim
 import { ConnectorExecutionError } from '../../errors/connector-execution.error';
 import { CredentialsExpiredException } from '../../exceptions/google-oauth.exceptions';
 import { StorageCredentialUnavailableException } from '../../exceptions/storage-credential-unavailable.exception';
+import { SourceCredentialUnavailableException } from '../../exceptions/source-credential-unavailable.exception';
+import { CredentialService } from '../../credentials/services/credential.service';
 import { OwoxEventDispatcher } from '../../../common/event-dispatcher/owox-event-dispatcher';
 import { ConnectorRunEvent } from '../../events/connector-run.event';
 import { ProjectBillingService, RunKind } from '../project-billing/project-billing.service';
@@ -93,7 +94,15 @@ import { buildSegmentMarker, createNextSegmentRun, SegmentChainEnd } from './bac
 import { ConnectorProcessSpawnerService } from './connector-process-spawner.service';
 import { ConnectorStorageConfigService } from './connector-storage-config.service';
 import { ConnectorSourceConfigService } from './connector-source-config.service';
-import { ConnectorCredentialInjectorService } from './connector-credential-injector.service';
+import {
+  allowedCredentialUpdates,
+  ConnectorCredentialInjectorService,
+  legacyCredentialIdOf,
+} from './connector-credential-injector.service';
+import {
+  BoundSourceConfig,
+  SourceCredentialInjectorService,
+} from './source-credential-injector.service';
 import { ConnectorSourceCredentialsService } from './connector-source-credentials.service';
 import { addMessageToArray } from './connector-message.utils';
 import { NON_TERMINAL_DATA_MART_RUN_STATUSES } from '../../utils/data-mart-run-cancellation';
@@ -111,11 +120,12 @@ function addBoundedMessage(array: ConnectorMessage[], message: ConnectorMessage)
   addMessageToArray(array, message, MAX_RUN_BUFFER_ENTRIES);
 }
 
-/** A storage key the customer must fix (reconnect, enable or replace); nothing for ops to act on. */
+/** A key the customer must fix (reconnect, enable or replace); nothing for ops to act on. */
 function isCustomerCredentialError(error: unknown): boolean {
   return (
     error instanceof CredentialsExpiredException ||
-    error instanceof StorageCredentialUnavailableException
+    error instanceof StorageCredentialUnavailableException ||
+    error instanceof SourceCredentialUnavailableException
   );
 }
 
@@ -160,7 +170,9 @@ export class ConnectorExecutorService {
     private readonly connectorDefinitionService: ConnectorDefinitionService,
     private readonly connectorSourceCredentialsService: ConnectorSourceCredentialsService,
     private readonly configService: ConfigService,
-    private readonly connectorRunTriggerService: ConnectorRunTriggerService
+    private readonly connectorRunTriggerService: ConnectorRunTriggerService,
+    private readonly credentialService: CredentialService,
+    private readonly sourceCredentialInjector: SourceCredentialInjectorService
   ) {}
 
   async executeInBackground(
@@ -698,6 +710,43 @@ export class ConnectorExecutorService {
       let fieldsUpdate: ConfigurationExecutionResult['fieldsUpdate'];
       let configForCredentialUpdates = config as Record<string, unknown>;
       let expectedCredentialValues: Record<string, unknown> | undefined;
+      let bound: BoundSourceConfig | null = null;
+      // A bound run stores each rotated token when reported, in turn; a lost (false) or failed write stops the rest.
+      let rotationWrite: Promise<boolean> = Promise.resolve(true);
+      let rotationExpected: BoundSourceConfig['expected'] | undefined;
+      let rotationLeaseReleased = false;
+      // Another run on this Credential may redeem once this run's token is stored or its write lost.
+      const releaseRotationLease = async ({ rotationLease }: BoundSourceConfig) => {
+        if (!rotationLease || rotationLeaseReleased) return;
+        rotationLeaseReleased = true;
+        await this.credentialService.releaseRotation(
+          rotationLease.credentialId,
+          rotationLease.leaseId
+        );
+      };
+      const storeRotation = (target: BoundSourceConfig, credentials: Record<string, unknown>) => {
+        rotationWrite = rotationWrite.then(async stored => {
+          if (!stored) return false;
+          const expected = rotationExpected ?? target.expected;
+          const updates = allowedCredentialUpdates(credentials);
+          const written = await this.saveConnectorCredentials(
+            configForCredentialUpdates,
+            credentials,
+            undefined,
+            dataMart,
+            runId,
+            configId,
+            { credentialId: target.credentialId, expected }
+          );
+          // A message with no storable token stores nothing, so it keeps the lease.
+          if (!written || Object.keys(updates).length > 0) await releaseRotationLease(target);
+          // A later rotation in this run redeems the token just stored.
+          if (written) rotationExpected = { ...expected, ...updates };
+          return written;
+        });
+        // Only keeps a failed write from being unhandled until the `finally` awaits it.
+        rotationWrite.catch(() => undefined);
+      };
 
       const logCaptureConfig = this.connectorOutputCaptureService.createCapture(
         (message: ConnectorMessage) => {
@@ -766,7 +815,8 @@ export class ConnectorExecutorService {
               break;
             }
             case ConnectorMessageType.CREDENTIALS_UPDATE:
-              credentialUpdates = { ...(credentialUpdates ?? {}), ...message.credentials };
+              if (bound) storeRotation(bound, message.credentials);
+              else credentialUpdates = { ...(credentialUpdates ?? {}), ...message.credentials };
               break;
             case ConnectorMessageType.FIELDS_UPDATE:
               fieldsUpdate = {
@@ -847,18 +897,31 @@ export class ConnectorExecutorService {
       );
 
       try {
-        const refreshedConfig = await this.credentialInjector.refreshCredentialsForConfig(
+        bound = await this.sourceCredentialInjector.resolveBoundConfig(
           dataMart.projectId,
+          dataMart.id,
           connector.source.name,
-          config as Record<string, unknown>
+          configId,
+          config as Record<string, unknown>,
+          customManifest
         );
-        configForCredentialUpdates = refreshedConfig;
-        expectedCredentialValues = await this.getExpectedCredentialValues(
-          refreshedConfig,
-          dataMart,
-          runId,
-          configId
-        );
+        // An unbound configuration runs on its old key row, as before.
+        const refreshedConfig =
+          bound?.config ??
+          (await this.credentialInjector.refreshCredentialsForConfig(
+            dataMart.projectId,
+            connector.source.name,
+            config as Record<string, unknown>
+          ));
+        if (!bound) {
+          configForCredentialUpdates = refreshedConfig;
+          expectedCredentialValues = await this.getExpectedCredentialValues(
+            refreshedConfig,
+            dataMart,
+            runId,
+            configId
+          );
+        }
 
         const configState = await this.connectorStateService.getState(dataMart.id, configId);
 
@@ -912,7 +975,8 @@ export class ConnectorExecutorService {
           runConfig,
           logCaptureConfig,
           signal,
-          manifestForRunner
+          manifestForRunner,
+          bound?.keyParameters
         );
 
         // IMPORT_DONE is the engine's verdict and it is not second-guessed from log severity,
@@ -1018,16 +1082,20 @@ export class ConnectorExecutorService {
         await progressWrite;
         await stateWrite;
 
-        if (credentialUpdates) {
+        if (bound || credentialUpdates) {
           try {
-            const credentialsPersisted = await this.saveConnectorCredentials(
-              configForCredentialUpdates,
-              credentialUpdates,
-              expectedCredentialValues,
-              dataMart,
-              runId,
-              configId
-            );
+            // An unbound configuration writes its old key row once, at the end.
+            const credentialsPersisted = bound
+              ? await rotationWrite
+              : await this.saveConnectorCredentials(
+                  configForCredentialUpdates,
+                  credentialUpdates ?? {},
+                  expectedCredentialValues,
+                  dataMart,
+                  runId,
+                  configId,
+                  null
+                );
             if (!credentialsPersisted) {
               // Logs, not errors: the import itself completed, and the run's errors are
               // what went wrong with it. It belongs in run history all the same — it is
@@ -1055,6 +1123,13 @@ export class ConnectorExecutorService {
               toFormattedString: () => `[ERROR] ${credentialErrorMessage}`,
             });
           }
+        }
+        if (bound) {
+          // Still leased after a good run: no rotated token came, so this provider keeps its token.
+          if (success && bound.rotationLease && !rotationLeaseReleased) {
+            await this.credentialService.markRefreshTokenStatic(bound.rotationLease.credentialId);
+          }
+          await releaseRotationLease(bound);
         }
         configurationResults.push({
           configIndex,
@@ -1124,10 +1199,11 @@ export class ConnectorExecutorService {
     expectedCredentialValues: Record<string, unknown> | undefined,
     dataMart: DataMart,
     runId: string,
-    configId: string
+    configId: string,
+    bound: Pick<BoundSourceConfig, 'credentialId' | 'expected'> | null
   ): Promise<boolean> {
     try {
-      const credentialUpdates = this.getAllowedCredentialUpdates(credentials);
+      const credentialUpdates = allowedCredentialUpdates(credentials);
       const droppedCredentialKeys = Object.keys(credentials).filter(
         key => !(key in credentialUpdates)
       );
@@ -1146,7 +1222,7 @@ export class ConnectorExecutorService {
         return true;
       }
 
-      const credentialId = this.getCredentialIdForConfig(config);
+      const credentialId = bound?.credentialId ?? legacyCredentialIdOf(config);
       if (!credentialId) {
         this.logger.warn(
           `Rotated credential was not persisted: this connector has no stored credential. ` +
@@ -1162,18 +1238,25 @@ export class ConnectorExecutorService {
         return false;
       }
 
-      const result = expectedCredentialValues
-        ? await this.connectorSourceCredentialsService.updateCredentialFields(
+      const result = bound
+        ? await this.credentialService.updateSecretFields(
             credentialId,
             dataMart.projectId,
             credentialUpdates,
-            expectedCredentialValues
+            bound.expected
           )
-        : await this.connectorSourceCredentialsService.updateCredentialFields(
-            credentialId,
-            dataMart.projectId,
-            credentialUpdates
-          );
+        : expectedCredentialValues
+          ? await this.connectorSourceCredentialsService.updateCredentialFields(
+              credentialId,
+              dataMart.projectId,
+              credentialUpdates,
+              expectedCredentialValues
+            )
+          : await this.connectorSourceCredentialsService.updateCredentialFields(
+              credentialId,
+              dataMart.projectId,
+              credentialUpdates
+            );
 
       if (!result.updated) {
         this.logger.warn(`Rotated connector credential was not persisted`, {
@@ -1210,7 +1293,7 @@ export class ConnectorExecutorService {
     runId: string,
     configId: string
   ): Promise<Record<string, unknown> | undefined> {
-    const credentialId = this.getCredentialIdForConfig(config);
+    const credentialId = legacyCredentialIdOf(config);
     if (!credentialId) {
       return undefined;
     }
@@ -1239,67 +1322,6 @@ export class ConnectorExecutorService {
       });
       return undefined;
     }
-  }
-
-  private getAllowedCredentialUpdates(
-    credentials: Record<string, unknown>
-  ): Record<string, string> {
-    const generatedRefreshToken = credentials[GENERATED_REFRESH_TOKEN_CREDENTIAL_FIELD];
-
-    if (
-      typeof generatedRefreshToken !== 'string' ||
-      generatedRefreshToken.length === 0 ||
-      generatedRefreshToken.length > GENERATED_REFRESH_TOKEN_MAX_LENGTH
-    ) {
-      return {};
-    }
-
-    return { [GENERATED_REFRESH_TOKEN_CREDENTIAL_FIELD]: generatedRefreshToken };
-  }
-
-  private getCredentialIdForConfig(config: Record<string, unknown>): string | undefined {
-    const sourceCredentialId = this.findSourceCredentialId(config);
-    if (sourceCredentialId) {
-      return sourceCredentialId;
-    }
-
-    const secretsId = config._secrets_id;
-    if (typeof secretsId === 'string' && secretsId) {
-      return secretsId;
-    }
-
-    return undefined;
-  }
-
-  private findSourceCredentialId(value: unknown): string | undefined {
-    if (!value || typeof value !== 'object') {
-      return undefined;
-    }
-
-    if (Array.isArray(value)) {
-      for (const item of value) {
-        const credentialId = this.findSourceCredentialId(item);
-        if (credentialId) {
-          return credentialId;
-        }
-      }
-      return undefined;
-    }
-
-    const obj = value as Record<string, unknown>;
-    const credentialId = obj._source_credential_id;
-    if (typeof credentialId === 'string' && credentialId) {
-      return credentialId;
-    }
-
-    for (const item of Object.values(obj)) {
-      const nestedCredentialId = this.findSourceCredentialId(item);
-      if (nestedCredentialId) {
-        return nestedCredentialId;
-      }
-    }
-
-    return undefined;
   }
 
   /**

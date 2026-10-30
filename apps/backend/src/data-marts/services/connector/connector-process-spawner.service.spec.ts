@@ -389,6 +389,50 @@ describe('ConnectorProcessSpawnerService', () => {
     expect(capturedEnv.OW_MANIFEST).toBeUndefined();
   });
 
+  describe('OW_KEY_PARAMETERS', () => {
+    const spawnWithKeys = async (keyParameters?: string[]) => {
+      const { service } = createService();
+      const mockProcess = createMockProcess();
+      let capturedEnv: Record<string, string | undefined> = {};
+      (spawn as unknown as jest.Mock).mockImplementation((_cmd, _args, opts) => {
+        capturedEnv = opts.env;
+        return mockProcess;
+      });
+      const previous = process.env.OW_KEY_PARAMETERS;
+      process.env.OW_KEY_PARAMETERS = '["Inherited"]';
+      try {
+        const promise = service.spawnConnector(
+          'dm-1',
+          'run-1',
+          { toObject: () => ({ name: 'GitHub' }) } as never,
+          { toObject: () => ({}) } as never,
+          {},
+          undefined,
+          null,
+          keyParameters
+        );
+        mockProcess.emit('close', 0, null);
+        await promise;
+      } finally {
+        if (previous === undefined) delete process.env.OW_KEY_PARAMETERS;
+        else process.env.OW_KEY_PARAMETERS = previous;
+      }
+      return capturedEnv;
+    };
+
+    it('lists the key parameters it is given, not an inherited value', async () => {
+      const env = await spawnWithKeys(['ApiKey', 'GeneratedRefreshToken']);
+
+      expect(env.OW_KEY_PARAMETERS).toBe('["ApiKey","GeneratedRefreshToken"]');
+    });
+
+    it('is unset without key parameters, even when the backend has one', async () => {
+      const env = await spawnWithKeys();
+
+      expect(env.OW_KEY_PARAMETERS).toBeUndefined();
+    });
+  });
+
   describe('child env', () => {
     const spawnWith = async (manifest?: Record<string, unknown>) => {
       const { service } = createService();

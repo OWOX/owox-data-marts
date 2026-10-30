@@ -1,4 +1,5 @@
 import { Logger } from '@nestjs/common';
+import { Core } from '@owox/connectors';
 import { ConnectorMessageParserService } from './connector-message-parser.service';
 import { ConnectorMessageType } from '../../enums/connector-message-type-enum';
 
@@ -304,6 +305,34 @@ describe('ConnectorMessageParserService', () => {
       );
       expect(result!.type).toBe(ConnectorMessageType.STATE_UPDATE);
       expect((result as unknown as { state: unknown }).state).toEqual({ shortLinks });
+    });
+
+    it('reads a STATE the engine emitted with a key value as a number and as a string', () => {
+      const context = new Core.AbstractContext({
+        source: { name: 'S', config: { ClientId: { value: '123456' } } },
+        storage: { name: 'unused', config: {} },
+        runConfig: {},
+        env: { datamartId: null, runId: null },
+        keyParameters: ['ClientId'],
+      });
+      context.registerParameters({ ClientId: { requiredType: 'string' } });
+      const write = jest.spyOn(process.stdout, 'write').mockImplementation(() => true);
+      let line: string;
+      try {
+        context.updateState({ accountId: 123456, owner: 'account 123456', cursor: 'next' });
+        line = String(write.mock.calls[0][0]);
+      } finally {
+        write.mockRestore();
+      }
+
+      const result = service.parse(line.trim());
+
+      expect(result!.type).toBe(ConnectorMessageType.STATE_UPDATE);
+      expect((result as unknown as { state: unknown }).state).toEqual({
+        accountId: 123456,
+        owner: 'account ***',
+        cursor: 'next',
+      });
     });
 
     it('translates an empty STATE to the LOG fallback', () => {

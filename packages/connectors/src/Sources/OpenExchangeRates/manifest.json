@@ -1,5 +1,6 @@
 {
   "title": "Open Exchange Rates",
+  "category": "currencies",
   "logo": "logo.svg",
   "docUrl": "https://docs.owox.com/packages/connectors/src/sources/open-exchange-rates/readme/"
 }

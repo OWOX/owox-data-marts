@@ -1,4 +1,5 @@
 import {
+  isCustomConnectorMetadata,
   CredentialDefinitionContractSchema,
   CredentialDocumentationUrlSchema,
   credentialIdentity,
@@ -162,5 +163,42 @@ describe('fields and oauth definitions', () => {
         })
       ).toBeNull();
     });
+  });
+});
+
+describe('custom-connector credentials', () => {
+  const metadata = {
+    hosts: ['api.a.example', 'api.b.example'],
+    fieldList: [{ key: 'token', label: 'Token', secret: true }],
+    fields: {},
+  };
+
+  it('accepts a custom-connector definition without origins', () => {
+    const parsed = CredentialDefinitionContractSchema.safeParse({
+      id: 'custom-connector',
+      displayName: 'Custom connector',
+      auth: { type: 'custom-connector' },
+      category: 'custom-connectors',
+    });
+    expect(parsed.success).toBe(true);
+  });
+
+  it('defaults connectors to an empty list', () => {
+    expect(CredentialDefinitionContractSchema.parse(definition).connectors).toEqual([]);
+  });
+
+  it('credentialIdentity of custom-connector metadata is its hosts', () => {
+    const contract = CredentialDefinitionContractSchema.parse({
+      id: 'custom-connector',
+      displayName: 'Custom connector',
+      auth: { type: 'custom-connector' },
+    });
+    expect(credentialIdentity(contract, metadata)).toBe('api.a.example, api.b.example');
+  });
+
+  it('isCustomConnectorMetadata does not match fields metadata', () => {
+    expect(isCustomConnectorMetadata({ fields: { a: 'b' } })).toBe(false);
+    expect(isCustomConnectorMetadata(null)).toBe(false);
+    expect(isCustomConnectorMetadata(metadata)).toBe(true);
   });
 });

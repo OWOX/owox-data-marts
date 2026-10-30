@@ -1,8 +1,10 @@
+import { randomUUID } from 'node:crypto';
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, IsNull, Not, Repository } from 'typeorm';
 import type { QueryDeepPartialEntity } from 'typeorm/query-builder/QueryPartialEntity';
 import { Transactional } from 'typeorm-transactional';
+import { Core } from '@owox/connectors';
 import type { AuthorizationContext } from '../../../idp';
 import { IdpProjectionsFacade } from '../../../idp/facades/idp-projections.facade';
 import { ContextService } from '../../services/context/context.service';
@@ -17,6 +19,10 @@ import {
   type CredentialValidationResult,
 } from '../credential.types';
 import { Credential } from '../entities/credential.entity';
+import { CUSTOM_CONNECTOR_DEFINITION_ID } from './builtin-credential-definitions';
+
+/** A rotation lease older than this is free again, so a crashed holder blocks no one for longer. */
+export const ROTATION_LEASE_STALE_MS = 60_000;
 
 /** Who a new Credential belongs to and which Contexts it joins. */
 export interface NewCredentialAccess {
@@ -28,6 +34,9 @@ export interface NewCredentialAccess {
 
 @Injectable()
 export class CredentialService {
+  /** The last pending secret write of each Credential, so writes on one Credential run in turn. */
+  private readonly secretWrites = new Map<string, Promise<void>>();
+
   constructor(
     @InjectRepository(Credential)
     private readonly credentials: Repository<Credential>,
@@ -135,6 +144,17 @@ export class CredentialService {
     });
   }
 
+  /** The enabled custom connector Credentials of a project, with no secret column read. */
+  listEnabledCustomConnectorPublic(
+    projectId: string
+  ): Promise<Pick<Credential, 'id' | 'title' | 'definitionId' | 'publicMetadata'>[]> {
+    return this.credentials.find({
+      where: { projectId, definitionId: CUSTOM_CONNECTOR_DEFINITION_ID, enabled: true },
+      select: { id: true, title: true, definitionId: true, publicMetadata: true },
+      order: { createdAt: 'DESC' },
+    });
+  }
+
   listBindings(credentialId: string): Promise<CredentialConsumerBinding[]> {
     return this.bindings.find({ where: { credentialId, active: true } });
   }
@@ -229,6 +249,73 @@ export class CredentialService {
     await this.updateWhileSecret(id, checked, { secret, modifiedAt: () => 'modifiedAt' });
   }
 
+  /** Merges `updates` into a fields secret while each `expected` value (undefined: absent) holds. */
+  async updateSecretFields(
+    credentialId: string,
+    projectId: string,
+    updates: Readonly<Record<string, string>>,
+    expected?: Readonly<Record<string, string | undefined>>,
+    connectionExpiresAt?: Date
+  ): Promise<{ updated: boolean }> {
+    const write = (this.secretWrites.get(credentialId) ?? Promise.resolve()).then(() =>
+      this.writeSecretFields(credentialId, projectId, updates, expected, connectionExpiresAt)
+    );
+    const settled = write.then(
+      () => undefined,
+      () => undefined
+    );
+    this.secretWrites.set(credentialId, settled);
+    try {
+      return await write;
+    } finally {
+      if (this.secretWrites.get(credentialId) === settled) this.secretWrites.delete(credentialId);
+    }
+  }
+
+  /** Reads under a row lock on MySQL, so the loser of a race sees the winner's values. */
+  @Transactional()
+  private async writeSecretFields(
+    id: string,
+    projectId: string,
+    updates: Readonly<Record<string, string>>,
+    expected: Readonly<Record<string, string | undefined>> = {},
+    connectionExpiresAt?: Date
+  ): Promise<{ updated: boolean }> {
+    const query = this.credentials
+      .createQueryBuilder('credential')
+      .where('credential.id = :id AND credential.projectId = :projectId', { id, projectId });
+    if (isMysql(this.credentials)) query.setLock('pessimistic_write');
+    const credential = await query.getOne();
+    if (!credential || !('fields' in credential.secret)) return { updated: false };
+    const { fields } = credential.secret;
+    const holds = Object.entries(expected).every(
+      ([key, value]) => (Object.hasOwn(fields, key) ? fields[key] : undefined) === value
+    );
+    if (!holds) return { updated: false };
+
+    const metadata = credential.publicMetadata;
+    const connection = metadata && 'connection' in metadata ? metadata.connection : undefined;
+    await this.credentials.update(
+      { id },
+      {
+        secret: { fields: { ...fields, ...updates } },
+        // A stored rotated token shows the provider rotates after all.
+        ...(Object.hasOwn(updates, Core.GENERATED_REFRESH_TOKEN_CREDENTIAL_FIELD) && {
+          refreshTokenStaticAt: null,
+        }),
+        ...(connection && connectionExpiresAt
+          ? {
+              publicMetadata: {
+                ...metadata,
+                connection: { ...connection, expiresAt: connectionExpiresAt.toISOString() },
+              },
+            }
+          : {}),
+      }
+    );
+    return { updated: true };
+  }
+
   /** The key check is part of the UPDATE, so a key replaced meanwhile keeps its own values. */
   private async updateWhileSecret(
     id: string,
@@ -262,6 +349,52 @@ export class CredentialService {
       );
     }
     await query.execute();
+  }
+
+  /** A cross-pod lease, null while another run holds it; modifiedAt stays for the key checks and the rollout. */
+  async claimRotation(id: string): Promise<string | null> {
+    const now = new Date();
+    const leaseId = randomUUID();
+    const claim = await this.credentials
+      .createQueryBuilder()
+      .update(Credential)
+      .set({ rotationLeaseId: leaseId, rotationLeaseAt: now, modifiedAt: () => 'modifiedAt' })
+      .where('id = :id', { id })
+      .andWhere('(rotationLeaseAt IS NULL OR rotationLeaseAt <= :stale)', {
+        stale: new Date(now.getTime() - ROTATION_LEASE_STALE_MS),
+      })
+      .execute();
+    return claim.affected === 1 ? leaseId : null;
+  }
+
+  /** Clears the lease only for its holder. Best-effort: a lease left behind goes stale. */
+  async releaseRotation(id: string, leaseId: string): Promise<void> {
+    try {
+      await this.credentials
+        .createQueryBuilder()
+        .update(Credential)
+        .set({ rotationLeaseId: null, rotationLeaseAt: null, modifiedAt: () => 'modifiedAt' })
+        .where('id = :id', { id })
+        .andWhere('rotationLeaseId = :leaseId', { leaseId })
+        .execute();
+    } catch {
+      // Deliberately ignored: the lease frees itself after ROTATION_LEASE_STALE_MS.
+    }
+  }
+
+  /** Records that a leased run ended without a rotated token; best-effort, and modifiedAt stays as for a lease. */
+  async markRefreshTokenStatic(id: string): Promise<void> {
+    try {
+      await this.credentials
+        .createQueryBuilder()
+        .update(Credential)
+        .set({ refreshTokenStaticAt: new Date(), modifiedAt: () => 'modifiedAt' })
+        .where('id = :id', { id })
+        .andWhere('refreshTokenStaticAt IS NULL')
+        .execute();
+    } catch {
+      // Deliberately ignored: without the marker the next run only takes the lease again.
+    }
   }
 
   /** Best-effort and throttled: runtime success must never depend on usage telemetry. */

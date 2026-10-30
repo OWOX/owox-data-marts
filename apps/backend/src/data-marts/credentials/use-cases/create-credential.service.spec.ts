@@ -7,6 +7,7 @@ import { BadRequestException } from '@nestjs/common';
 import type { AuthorizationContext } from '../../../idp';
 import { serviceAccountKey } from '../../../../test/fixtures/google-service-account-key';
 import { BUILTIN_CREDENTIAL_DEFINITIONS } from '../services/builtin-credential-definitions';
+import { sourceCredentialDefinitions } from '../../connector-types/source-credential-definitions';
 import { CreateCredentialService, normalizeAiConfiguration } from './create-credential.service';
 
 describe('normalizeAiConfiguration', () => {
@@ -302,6 +303,51 @@ describe('CreateCredentialService with a field set', () => {
     ).rejects.toThrow(
       new BadRequestException('Connect a Google account to create this Credential.')
     );
+    expect(state.credentials.createWithAccess).not.toHaveBeenCalled();
+  });
+});
+
+describe('CreateCredentialService with a type the previous release cannot read', () => {
+  const refusal = new BadRequestException(
+    'This Credential type cannot be created in this version.'
+  );
+
+  it('refuses a custom connector Credential and writes nothing', async () => {
+    const state = setupCreate('verified', 'accepted', builtin('custom-connector'));
+
+    await expect(
+      state.service.run(context, {
+        title: 'Acme',
+        definitionId: 'custom-connector',
+        customConnector: {
+          hosts: ['api.acme.example'],
+          fieldList: [{ key: 'apiKey', label: 'API key', secret: true }],
+          fields: { apiKey: 'key-1' },
+        },
+      } as never)
+    ).rejects.toThrow(refusal);
+    expect(state.credentials.createWithAccess).not.toHaveBeenCalled();
+  });
+
+  it('refuses a generated Source Credential and writes nothing', async () => {
+    const contract = sourceCredentialDefinitions().definitions.find(
+      definition => definition.id === 'source:OpenExchangeRates:default'
+    );
+    const state = setupCreate('verified', 'accepted', {
+      definitionId: contract?.id,
+      source: 'builtin',
+      compatibilityLine: null,
+      contract,
+    });
+
+    await expect(
+      state.service.run(context, {
+        title: 'Rates key',
+        definitionId: 'source:OpenExchangeRates:default',
+        fields: { AppId: 'app-id-1' },
+      })
+    ).rejects.toThrow(refusal);
+    expect(state.validationProbe.run).not.toHaveBeenCalled();
     expect(state.credentials.createWithAccess).not.toHaveBeenCalled();
   });
 });

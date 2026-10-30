@@ -67,10 +67,11 @@ export class Requester {
 
     await this.rateLimiter.acquire();
 
+    // A header or query parameter may read `{{ auth.token }}`.
+    await this.auth.prepare(scope, this.httpClient);
     const query = this._renderOptionalMap(requestSpec.queryParameters, scope);
     const headers = this._renderOptionalMap(requestSpec.headers, scope);
     const req = { query, headers };
-    await this.auth.prepare(scope, this.httpClient);
     this.auth.apply(req, scope);
 
     let urlObj;
@@ -107,9 +108,11 @@ export class Requester {
       if (path && !path.startsWith('/')) {
         // Redacted: an opaque path is the next page the API sent back, query string and
         // any credential echoed into it included, and this message reaches the run's error.
-        throw new Error(
-          `Requester: rendered path must start with "/", got "${redactUrl(path).slice(0, 40)}"`
-        );
+        // A Credential run names the base's origin: the path itself may parse as another host.
+        const shown = this.context?.keyParameters?.size
+          ? redactUrl(this.baseUrl, this.context)
+          : redactUrl(path).slice(0, 40);
+        throw new Error(`Requester: rendered path must start with "/", got "${shown}"`);
       }
       urlObj = new URL(this.baseUrl + path);
     }
@@ -174,7 +177,7 @@ export class Requester {
    * would carry a warning for the configured behaviour. An author who wants a
    * status to end the run already has `action: "FAIL"`.
    *
-   * The target is REDACTED (origin + path only). This is a run log, persisted
+   * The target is REDACTED (see redactUrl). This is a run log, persisted
    * and readable by anyone who can see run history including viewers — and with
    * `authentication.inject.into: "query"` the credential is in the query string
    * of the very URL named here: a next page arrives as the link the API sent
@@ -182,15 +185,16 @@ export class Requester {
    * (Graph's `paging.next` carries `access_token`). Redacting the whole query
    * rather than just `authentication.inject.name` is deliberate: this string is
    * upstream-authored, so it can also carry signatures and signed cursors the
-   * manifest never declared and the engine cannot enumerate. Origin + path still
-   * names the endpoint, which is all this message needs.
+   * manifest never declared and the engine cannot enumerate. Origin + path (the
+   * origin only in a Credential run) still names the endpoint, which is all this
+   * message needs.
    */
   _reportIgnored(error, requestSpec) {
     if (!this.context?.log) return;
     const status = error.statusCode ? `HTTP ${error.statusCode}` : 'a request error';
     const where = this.nodeName ? `node "${this.nodeName}"` : 'the request';
     const raw = unwrapOpaque(requestSpec.url) || unwrapOpaque(requestSpec.path) || '';
-    const target = raw ? redactUrl(raw) : '';
+    const target = raw ? redactUrl(raw, this.context) || redactUrl(this.baseUrl, this.context) : '';
     this.context.log(
       LOG_LEVEL.INFO,
       `${status} on ${where} (${target}) matched an errorHandler IGNORE filter: this response was ` +
