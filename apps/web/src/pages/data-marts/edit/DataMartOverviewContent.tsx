@@ -510,6 +510,7 @@ export default function DataMartOverviewContent() {
           </CollapsibleCardHeader>
           <CollapsibleCardContent>
             <DataMartMemberAccessList
+              dataMartId={dataMart.id}
               members={memberAccess.members}
               isLoading={memberAccess.isLoading}
               hasError={memberAccess.hasError}

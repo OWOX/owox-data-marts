@@ -10,6 +10,11 @@ import { DataMartMemberAccessList } from './DataMartMemberAccessList';
 import { MemberAccessWarning } from './MemberAccessWarning';
 import { MemberAvatars } from './MemberAvatars';
 
+const trackEvent = vi.fn();
+vi.mock('../../../../../utils/data-layer', () => ({
+  trackEvent: (...args: unknown[]) => trackEvent(...args) as unknown,
+}));
+
 vi.mock('../../../../../shared/hooks', () => ({
   useProjectRoute: () => ({ scope: (path: string) => `/ui/project${path}` }),
 }));
@@ -64,6 +69,7 @@ const members = [
 ];
 
 const baseProps = {
+  dataMartId: 'dm-1',
   isLoading: false,
   hasError: false,
   onRetry: vi.fn(),
@@ -126,6 +132,25 @@ describe('DataMartMemberAccessList', () => {
       'href',
       '/ui/project/project-settings/members'
     );
+  });
+
+  it('reports which link a hint led to, and never whose row it was in', () => {
+    trackEvent.mockReset();
+    render(<DataMartMemberAccessList {...baseProps} members={members} />);
+
+    const rows = screen.getAllByTestId('dataMartMemberAccessRow');
+    fireEvent.click(within(rows[0]).getByRole('link', { name: 'SEO' }));
+
+    expect(trackEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event: 'data_mart_member_access_link_clicked',
+        label: 'dm-1',
+        destination: 'context',
+        place: 'hint',
+        memberHasAccess: false,
+      })
+    );
+    expect(JSON.stringify(trackEvent.mock.calls)).not.toMatch(/ben|ctx-seo|seo/i);
   });
 
   it('notes that MCP lists only published Data Marts when this one is a draft', () => {
