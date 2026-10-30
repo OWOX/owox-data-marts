@@ -115,6 +115,9 @@ import { StorageOwner } from './entities/storage-owner.entity';
 import { ManagedStorage } from './entities/managed-storage.entity';
 import { ManagedStorageService } from './owox-storage/managed-storage.service';
 import { OwoxStorageIdentity } from './owox-storage/owox-storage-identity.service';
+import { GcpProvisioningClient } from './owox-storage/engine/gcp-provisioning.client';
+import { BigQueryManagedStorageEngine } from './owox-storage/engine/bigquery-managed-storage.engine';
+import { MANAGED_STORAGE_ENGINE } from './owox-storage/engine/managed-storage-engine';
 import { OwoxStorageScanBudgetService } from './owox-storage/owox-storage-scan-budget.service';
 import { OWOX_STORAGE_SCAN_BUDGET } from './owox-storage/owox-storage-scan-budget.token';
 import { DestinationOwner } from './entities/destination-owner.entity';
@@ -648,6 +651,8 @@ import { ConsentCredentialDefinitionService } from './credentials/use-cases/cons
   providers: [
     ManagedStorageService,
     OwoxStorageIdentity,
+    GcpProvisioningClient,
+    { provide: MANAGED_STORAGE_ENGINE, useClass: BigQueryManagedStorageEngine },
     OwoxStorageScanBudgetService,
     { provide: OWOX_STORAGE_SCAN_BUDGET, useExisting: OwoxStorageScanBudgetService },
     CredentialConsumerBindingFacadeImpl,
