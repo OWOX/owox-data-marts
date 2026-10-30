@@ -1,5 +1,5 @@
 import { maxLength } from 'class-validator';
-import { z } from 'zod-v4';
+import { z } from 'zod';
 import {
   DATA_MART_ICON_MAX_LENGTH,
   DataMartIcon,

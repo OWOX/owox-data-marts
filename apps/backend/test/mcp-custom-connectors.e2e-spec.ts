@@ -10,7 +10,7 @@ import {
 } from '@owox/test-utils';
 import type { AddressInfo } from 'node:net';
 import { join } from 'node:path';
-import { z } from 'zod-v4';
+import { z } from 'zod';
 import { IdpProviderService } from '../src/idp/services/idp-provider.service';
 import { ConnectorTestService } from '../src/data-marts/services/connector/connector-test.service';
 import { DataMartDefinitionValidatorFacade } from '../src/data-marts/data-storage-types/facades/data-mart-definition-validator-facade.service';

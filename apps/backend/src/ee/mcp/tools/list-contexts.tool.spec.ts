@@ -1,4 +1,4 @@
-import { z } from 'zod-v4';
+import { z } from 'zod';
 import { ListContextsTool } from './list-contexts.tool';
 import { contextIdsSchema } from './context-input';
 import type { McpAuthContext } from '../auth/mcp-auth-context';

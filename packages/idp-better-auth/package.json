@@ -32,7 +32,7 @@
   "keywords": ["idp", "better-auth", "authentication", "owox"],
   "peerDependencies": {
     "express": "^5",
-    "zod": "^3.23"
+    "zod": "^4.6.6"
   },
   "dependencies": {
     "@owox/idp-protocol": "*",

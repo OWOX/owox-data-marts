@@ -73,7 +73,7 @@ function registerTool(params: {
       properties: {},
       additionalProperties: true,
     },
-    inputZod: z.record(z.unknown()),
+    inputZod: z.record(z.string(), z.unknown()),
     execute: async args => execute(args),
     isFinal: false,
   });

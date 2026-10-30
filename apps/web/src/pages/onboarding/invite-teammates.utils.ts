@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { isSafePath } from '../../features/idp/services/redirect-storage.service';
 import { isOnboardingStepPath } from '../../features/idp/utils/post-auth-redirect';
 
-const emailSchema = z.string().email().max(320);
+const emailSchema = z.email().max(320);
 
 /** Upper bound for one batch, so a pasted mailing list can't fan out into hundreds of invites. */
 export const MAX_INVITE_EMAILS = 20;

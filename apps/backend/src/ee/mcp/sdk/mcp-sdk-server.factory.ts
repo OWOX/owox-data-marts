@@ -8,7 +8,7 @@ import {
 import { castError } from '@owox/internal-helpers';
 import { AuthorizationError, type McpScope, type Role } from '@owox/idp-protocol';
 import { satisfiesRole } from '../../../idp/utils/role-hierarchy';
-import type { ZodRawShape } from 'zod-v4';
+import type { ZodRawShape } from 'zod';
 import type { McpAuthContext } from '../auth/mcp-auth-context';
 import { McpConfigService } from '../config/mcp.config';
 import { McpCallInstrumentation } from '../observability/mcp-call-instrumentation';

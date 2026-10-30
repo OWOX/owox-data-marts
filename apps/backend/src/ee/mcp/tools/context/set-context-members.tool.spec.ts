@@ -1,5 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
-import { z } from 'zod-v4';
+import { z } from 'zod';
 import { adminMcpContext, mcpProjectActor } from '../../../../../test/fixtures/mcp-auth-context';
 import type { McpContextsFacade } from '../../../../data-marts/facades/mcp-contexts.facade';
 import { SetContextMembersTool } from './set-context-members.tool';

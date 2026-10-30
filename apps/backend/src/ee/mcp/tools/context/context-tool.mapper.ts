@@ -1,4 +1,4 @@
-import { z } from 'zod-v4';
+import { z } from 'zod';
 import type { ContextDto, ContextImpactDto } from '../../../../data-marts/dto/domain/context.dto';
 import { contextIconOutputSchema } from './context.schemas';
 

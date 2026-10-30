@@ -30,7 +30,7 @@ export class ExcelAccessValidator implements DataDestinationAccessValidator {
     if (!configOpt.success) {
       this.logger.warn('Invalid configuration format', configOpt.error);
       return new ValidationResult(false, 'Invalid configuration', {
-        errors: configOpt.error.errors,
+        errors: configOpt.error.issues,
       });
     }
 

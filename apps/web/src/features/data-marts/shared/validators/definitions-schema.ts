@@ -17,12 +17,9 @@ export const createFullyQualifiedNameSchema = (storageType: DataStorageType) => 
     fullyQualifiedName: z
       .string()
       .min(1, 'Fully qualified name is required')
-      .refine(
-        value => isValidFullyQualifiedName(value, storageType),
-        value => ({
-          message: getFullyQualifiedNameError(value, storageType),
-        })
-      ),
+      .refine(value => isValidFullyQualifiedName(value, storageType), {
+        error: issue => getFullyQualifiedNameError(issue.input as string, storageType),
+      }),
   });
 };
 
@@ -36,11 +33,8 @@ export const createTablePatternSchema = (storageType: DataStorageType) => {
     pattern: z
       .string()
       .min(1, 'Table pattern is required')
-      .refine(
-        value => isValidTablePattern(value, storageType),
-        value => ({
-          message: getTablePatternError(value, storageType),
-        })
-      ),
+      .refine(value => isValidTablePattern(value, storageType), {
+        error: issue => getTablePatternError(issue.input as string, storageType),
+      }),
   });
 };

@@ -44,13 +44,13 @@ export const ConnectorOAuthStatusSchema = z.object({
   isValid: z.boolean(),
   expiresAt: z.date().nullable().optional(),
   user: ConnectorOAuthUser.optional(),
-  additional: z.record(z.unknown()).optional(),
+  additional: z.record(z.string(), z.unknown()).optional(),
 });
 
 export type ConnectorOAuthStatusSchema = z.infer<typeof ConnectorOAuthStatusSchema>;
 
 export const ConnectorOAuthSettingsSchema = z.object({
-  vars: z.record(z.unknown()),
+  vars: z.record(z.string(), z.unknown()),
   isEnabled: z.boolean(),
 });
 
@@ -60,7 +60,7 @@ export const ConnectorOAuthExchangeResultSchema = z.object({
   success: z.boolean(),
   credentialId: z.string(),
   user: ConnectorOAuthUser.optional(),
-  additional: z.record(z.unknown()).optional(),
+  additional: z.record(z.string(), z.unknown()).optional(),
   reasons: z.array(z.string()).optional(),
 });
 

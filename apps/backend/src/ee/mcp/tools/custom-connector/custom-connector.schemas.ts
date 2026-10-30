@@ -1,5 +1,5 @@
 import { maxCodePointLength } from '../../../../common/validators/max-code-point-length.validator';
-import { z } from 'zod-v4';
+import { z } from 'zod';
 import {
   MAX_MANIFEST_SIZE_BYTES,
   MAX_TEXT_COLUMN_BYTES,

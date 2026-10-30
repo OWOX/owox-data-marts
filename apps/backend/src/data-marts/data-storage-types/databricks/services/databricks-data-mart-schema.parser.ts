@@ -15,8 +15,8 @@ export class DatabricksDataMartSchemaParser implements DataMartSchemaParser {
     const result = DatabricksDataMartSchemaSchema.safeParse(schema);
     if (!result.success) {
       throw new BusinessViolationException(
-        `Failed to validate Databricks schema:\n${result.error.errors[0].message}`,
-        { zodErrors: result.error.errors }
+        `Failed to validate Databricks schema:\n${result.error.issues[0].message}`,
+        { zodErrors: result.error.issues }
       );
     }
     return result.data;

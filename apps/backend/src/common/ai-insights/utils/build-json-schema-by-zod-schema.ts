@@ -1,10 +1,6 @@
-import zodToJsonSchemaOriginal from 'zod-to-json-schema';
-import { ZodTypeAny } from 'zod';
+import { z } from 'zod';
 
-const zodToJsonSchema: (schema: ZodTypeAny) => unknown = zodToJsonSchemaOriginal as unknown as (
-  schema: ZodTypeAny
-) => unknown;
-
-export function buildJsonSchema(schema: ZodTypeAny): unknown {
-  return zodToJsonSchema(schema);
+// The model writes what the schema then parses, so describe its input side.
+export function buildJsonSchema(schema: z.ZodType): unknown {
+  return z.toJSONSchema(schema, { target: 'draft-7', io: 'input' });
 }

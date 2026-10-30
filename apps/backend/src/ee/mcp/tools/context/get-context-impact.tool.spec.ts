@@ -1,5 +1,5 @@
 import { NotFoundException } from '@nestjs/common';
-import { z } from 'zod-v4';
+import { z } from 'zod';
 import { adminMcpContext, mcpProjectActor } from '../../../../../test/fixtures/mcp-auth-context';
 import { ContextImpactDto } from '../../../../data-marts/dto/domain/context.dto';
 import type { McpContextsFacade } from '../../../../data-marts/facades/mcp-contexts.facade';

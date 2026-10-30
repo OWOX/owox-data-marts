@@ -33,7 +33,7 @@ export class LookerStudioConnectorAccessValidator implements DataDestinationAcce
     if (!credentialsOpt.success) {
       this.logger.warn('Invalid credentials format', credentialsOpt.error);
       return new ValidationResult(false, 'Invalid credentials', {
-        errors: credentialsOpt.error.errors,
+        errors: credentialsOpt.error.issues,
       });
     }
 
@@ -41,7 +41,7 @@ export class LookerStudioConnectorAccessValidator implements DataDestinationAcce
     if (!configOpt.success) {
       this.logger.warn('Invalid configuration format', configOpt.error);
       return new ValidationResult(false, 'Invalid configuration', {
-        errors: configOpt.error.errors,
+        errors: configOpt.error.issues,
       });
     }
 

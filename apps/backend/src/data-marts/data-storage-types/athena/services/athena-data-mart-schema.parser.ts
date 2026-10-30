@@ -15,8 +15,8 @@ export class AthenaDataMartSchemaParser implements DataMartSchemaParser {
     const result = AthenaDataMartSchemaSchema.safeParse(schema);
     if (!result.success) {
       throw new BusinessViolationException(
-        `Failed to validate Athena schema:\n${result.error.errors[0].message}`,
-        { zodErrors: result.error.errors }
+        `Failed to validate Athena schema:\n${result.error.issues[0].message}`,
+        { zodErrors: result.error.issues }
       );
     }
     return result.data;

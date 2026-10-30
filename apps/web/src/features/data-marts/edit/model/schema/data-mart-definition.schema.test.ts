@@ -28,12 +28,12 @@ describe('connector definition schema preserves source.version', () => {
         },
       },
     };
-    const parsed = schema.parse(input) as typeof input;
+    const parsed = schema.parse(input) as unknown as typeof input;
     expect(parsed.definition.connector.source.version).toBe(3);
   });
 
   it('parses follow-active (no version) without error', () => {
-    const parsed = schema.parse(base) as typeof base & {
+    const parsed = schema.parse(base) as unknown as typeof base & {
       definition: { connector: { source: { version?: number } } };
     };
     expect(parsed.definition.connector.source.version).toBeUndefined();

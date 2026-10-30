@@ -1,5 +1,5 @@
 import { Core } from '@owox/connectors';
-import { z } from 'zod-v4';
+import { z } from 'zod';
 
 export const REDACT_KEYS =
   /(authorization|bearer|cookie|token|secret|password|passwd|api[_-]?key|private[_-]?key|credential)/i;
