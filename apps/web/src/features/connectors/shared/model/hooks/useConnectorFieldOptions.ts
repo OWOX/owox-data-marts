@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { ConnectorApiService } from '../../api/connector-api.service';
 import { extractApiError } from '../../../../../app/api';
+import { DataMartContext } from '../../../../data-marts/edit/model/context/context';
 import type { ConnectorFieldOptionResponseApiDto } from '../../api/types/response';
 import {
   areDynamicOptionDependenciesReady,
@@ -38,6 +39,7 @@ export function useConnectorFieldOptions({
   configuration,
   dependsOn,
 }: UseConnectorFieldOptionsParams): ConnectorFieldOptionsState {
+  const dataMartId = useContext(DataMartContext)?.dataMart?.id;
   const dependencyKey = getDynamicOptionsDependencyKey(configuration, dependsOn);
   const dependenciesReady = areDynamicOptionDependenciesReady(configuration, dependsOn);
 
@@ -79,13 +81,19 @@ export function useConnectorFieldOptions({
       abortControllerRef.current = abortController;
 
       void new ConnectorApiService()
-        .previewConnectorFieldOptions(connectorName, field, configurationRef.current, {
-          signal: abortController.signal,
-          // The field renders the failure inline; a background lookup must not
-          // toast or flash the global loading indicator while the user types.
-          skipErrorToast: true,
-          skipLoadingIndicator: true,
-        })
+        .previewConnectorFieldOptions(
+          connectorName,
+          field,
+          configurationRef.current,
+          {
+            signal: abortController.signal,
+            // The field renders the failure inline; a background lookup must not
+            // toast or flash the global loading indicator while the user types.
+            skipErrorToast: true,
+            skipLoadingIndicator: true,
+          },
+          dataMartId
+        )
         .then(response => {
           if (requestId !== requestIdRef.current) return;
           setOptions(response);
@@ -114,7 +122,7 @@ export function useConnectorFieldOptions({
     };
     // `configuration` is intentionally read through a ref: only the dependency
     // values (folded into `dependencyKey`) may trigger a new request.
-  }, [connectorName, field, dependencyKey, dependenciesReady, reloadToken]);
+  }, [connectorName, field, dependencyKey, dependenciesReady, reloadToken, dataMartId]);
 
   useEffect(
     () => () => {

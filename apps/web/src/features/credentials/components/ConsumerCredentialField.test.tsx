@@ -624,3 +624,88 @@ describe('ConsumerCredentialField for a Destination', () => {
     });
   });
 });
+
+describe('ConsumerCredentialField for a Data Mart configuration', () => {
+  beforeEach(() => {
+    credentialsState.credentials = [];
+    credentialsState.isLoading = false;
+    credentialsState.isError = false;
+    definitionsState.definitions = [
+      { id: 'source:FacebookMarketing:oauth2', connectors: ['FacebookMarketing'] },
+      { id: 'source:TikTokAds:oauth2', connectors: ['TikTokAds'] },
+      { id: 'custom-connector', connectors: [], auth: { type: 'custom-connector' } },
+    ];
+    definitionsState.isLoading = false;
+    definitionsState.isError = false;
+    sheet.props = null;
+    trackEvent.mockReset();
+  });
+
+  it('creating from a Data Mart tracks consumer connector-config', async () => {
+    const onChange = renderField({
+      consumer: 'connector-config',
+      consumerType: 'FacebookMarketing',
+      createdFrom: 'data-mart',
+    });
+
+    fireEvent.click((await openOptions()).at(-1)!);
+
+    expect(sheet.props).toMatchObject({
+      allowedDefinitionIds: ['source:FacebookMarketing:oauth2'],
+      initialDefinitionId: 'source:FacebookMarketing:oauth2',
+    });
+    act(() => {
+      sheet.props?.onCreated?.(
+        credential({ id: 'new', definitionId: 'source:FacebookMarketing:oauth2' })
+      );
+    });
+
+    expect(onChange).toHaveBeenCalledWith('new', 'created');
+    expect(trackEvent).toHaveBeenCalledWith({
+      event: 'connector_credential_created',
+      category: 'Connector',
+      action: 'source:FacebookMarketing:oauth2',
+      label: 'FacebookMarketing',
+      context: 'data-mart',
+      value: null,
+    });
+  });
+
+  it('offers no Source provider when an older backend sends no connectors', async () => {
+    definitionsState.definitions = [{ id: 'source:FacebookMarketing:oauth2' }];
+    renderField({ consumer: 'connector-config', consumerType: 'FacebookMarketing' });
+
+    expect(() => screen.getByRole('combobox', { name: 'Credential' })).not.toThrow();
+    expect(await openOptions()).toHaveLength(1);
+  });
+
+  it('offers a custom connector only the fitting Credentials and prefills the create form', async () => {
+    credentialsState.credentials = [
+      credential({ id: 'fits', title: 'Fits', definitionId: 'custom-connector' }),
+      credential({ id: 'other-host', title: 'Other host', definitionId: 'custom-connector' }),
+    ];
+    const prefill = {
+      hosts: ['api.example.com'],
+      fieldList: [{ key: 'apiKey', label: 'API key', secret: true }],
+    };
+    renderField({
+      consumer: 'connector-config',
+      consumerType: 'custom-weather',
+      allowedCredentialIds: ['fits'],
+      customConnectorPrefill: prefill,
+    });
+
+    const options = await openOptions();
+    expect(options.map(option => option.textContent)).toEqual([
+      expect.stringContaining('Fits'),
+      '+ Create new Credential',
+    ]);
+    fireEvent.click(options.at(-1)!);
+
+    expect(sheet.props).toMatchObject({
+      allowedDefinitionIds: ['custom-connector'],
+      initialDefinitionId: 'custom-connector',
+      customConnectorPrefill: prefill,
+    });
+  });
+});

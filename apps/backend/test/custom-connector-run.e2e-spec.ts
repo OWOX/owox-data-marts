@@ -9,8 +9,10 @@ import { createTestApp, closeTestApp, AUTH_HEADER, StorageBuilder } from '@owox/
 import { Core } from '@owox/connectors';
 
 import { DataStorageType } from '../src/data-marts/data-storage-types/enums/data-storage-type.enum';
+import { SourceCredentialBindingService } from '../src/data-marts/connector-types/source-credential-binding.service';
 import { ConnectorProcessSpawnerService } from '../src/data-marts/services/connector/connector-process-spawner.service';
 import type { GracefulShutdownService } from '../src/common/scheduler/services/graceful-shutdown.service';
+import { createCredential } from './fixtures/storage-credentials';
 
 /**
  * A published CUSTOM connector, driven end to end until rows come out.
@@ -92,16 +94,28 @@ type SpawnStdio = {
 class RowCapturingSpawner extends ConnectorProcessSpawnerService {
   /** Rows handed to `storage.saveData()`, keyed by run id. */
   readonly rowsByRun = new Map<string, Record<string, unknown>[]>();
+  /** The OW_KEY_PARAMETERS each run's child received. */
+  readonly keyParametersByRun = new Map<string, string | undefined>();
 
   protected buildChildEnv(
     datamartId: string,
     runId: string,
     configuration: ConfigDto,
     runConfig: RunConfigDto,
-    manifest?: Record<string, unknown> | null
+    manifest?: Record<string, unknown> | null,
+    keyParameters?: readonly string[]
   ): Record<string, string | undefined> {
+    const env = super.buildChildEnv(
+      datamartId,
+      runId,
+      configuration,
+      runConfig,
+      manifest,
+      keyParameters
+    );
+    this.keyParametersByRun.set(runId, env.OW_KEY_PARAMETERS);
     return {
-      ...super.buildChildEnv(datamartId, runId, configuration, runConfig, manifest),
+      ...env,
       // Swap only the storage class; see "WHAT THIS DOES NOT PROVE" above.
       OW_TEST: '1',
       // Production never forwards this name, so the suite sets it on its own child only.
@@ -116,7 +130,8 @@ class RowCapturingSpawner extends ConnectorProcessSpawnerService {
     runConfig: RunConfigDto,
     stdio: SpawnStdio,
     signal?: AbortSignal,
-    manifest?: Record<string, unknown> | null
+    manifest?: Record<string, unknown> | null,
+    keyParameters?: readonly string[]
   ): Promise<void> {
     const rows: Record<string, unknown>[] = this.rowsByRun.get(runId) ?? [];
     this.rowsByRun.set(runId, rows);
@@ -147,7 +162,8 @@ class RowCapturingSpawner extends ConnectorProcessSpawnerService {
       runConfig,
       tapped,
       signal,
-      manifest
+      manifest,
+      keyParameters
     );
   }
 }
@@ -164,9 +180,16 @@ describe('Custom Connector run (e2e)', () => {
   let upstream: Server;
   let upstreamUrl: string;
   let upstreamHits = 0;
+  const keyedRequests: { url: string; authorization: string | undefined }[] = [];
 
   beforeAll(async () => {
     upstream = createServer((req, res) => {
+      if ((req.url ?? '').startsWith('/keyed-items')) {
+        keyedRequests.push({ url: req.url ?? '', authorization: req.headers.authorization });
+        res.writeHead(200, { 'content-type': 'application/json' });
+        res.end(JSON.stringify({ data: UPSTREAM_ROWS }));
+        return;
+      }
       if ((req.url ?? '').startsWith('/items')) {
         upstreamHits += 1;
         res.writeHead(200, { 'content-type': 'application/json' });
@@ -440,4 +463,123 @@ describe('Custom Connector run (e2e)', () => {
     expect(spawner.rowsByRun.get(runId) ?? []).toHaveLength(UPSTREAM_ROWS.length);
     expect(finished.status).toBe('SUCCESS');
   }, 180_000);
+
+  it('custom connector run with a bound Credential sends the key only to the manifest host', async () => {
+    const KEY = `bound-key-${randomUUID()}`;
+    const MISFIT =
+      "This Data Mart's Credential no longer fits its connector. Select a fitting Credential.";
+    const connectorName = `BoundKeyApi${Date.now()}`;
+    const manifest = {
+      ...manifestFor(connectorName),
+      authentication: {
+        type: 'bearer',
+        inject: { into: 'header', name: 'Authorization', format: 'Bearer {{ parameters.Token }}' },
+      },
+      parameters: { Token: { requiredType: 'string', isRequired: true } },
+    };
+    manifest.nodes.items.request.path = '/keyed-items';
+
+    const created = await agent
+      .post('/api/connectors/custom')
+      .set(AUTH_HEADER)
+      .send({ name: connectorName, title: 'Bound Key API', manifest });
+    expect(created.status).toBe(201);
+    expect(
+      (await agent.post(`/api/connectors/custom/${created.body.id}/publish`).set(AUTH_HEADER))
+        .status
+    ).toBe(201);
+
+    const storageId = await createStorage();
+    const martRes = await agent
+      .post('/api/data-marts')
+      .set(AUTH_HEADER)
+      .send({ title: `Bound Key ${Date.now()}`, storageId });
+    expect(martRes.status).toBe(201);
+    const dataMartId = martRes.body.id as string;
+    const [{ projectId }] = await app
+      .get(DataSource)
+      .query(`SELECT projectId FROM data_mart WHERE id = ?`, [dataMartId]);
+    const credentialFor = (hosts: string[]) =>
+      createCredential(app, {
+        projectId,
+        definitionId: 'custom-connector',
+        title: `Bound Key ${hosts[0]}`,
+        secret: { fields: { Token: KEY } },
+        publicMetadata: {
+          hosts,
+          fieldList: [{ key: 'Token', label: 'Token', secret: true }],
+          fields: {},
+        },
+        ownerIds: [],
+        contextIds: [],
+      });
+    const fitting = await credentialFor(['127.0.0.1']);
+    const saved = await agent
+      .put(`/api/data-marts/${dataMartId}/definition`)
+      .set(AUTH_HEADER)
+      .send({
+        definitionType: 'CONNECTOR',
+        definition: {
+          connector: {
+            source: {
+              name: connectorName,
+              configuration: [{ _credential_id: fitting }],
+              node: 'items',
+              fields: ['id', 'name'],
+            },
+            storage: { fullyQualifiedName: 'test_dataset.items' },
+          },
+        },
+      });
+    expect(saved.status).toBe(200);
+    const configId = saved.body.definition.connector.source.configuration[0]._id as string;
+    const bindings = app.get(SourceCredentialBindingService);
+    const run = async (): Promise<{ runId: string; finished: Record<string, unknown> }> => {
+      const manualRun = await agent
+        .post(`/api/data-marts/${dataMartId}/manual-run`)
+        .set(AUTH_HEADER)
+        .send({});
+      expect(manualRun.status).toBe(201);
+      const runId = manualRun.body.runId as string;
+      return { runId, finished: await waitForTerminalRun(dataMartId, runId) };
+    };
+
+    // A Credential for another host, as after a version moved its host, never reaches a child.
+    await bindings.bindConfig(
+      projectId,
+      dataMartId,
+      configId,
+      await credentialFor(['api.acme.example'])
+    );
+    expect((await agent.put(`/api/data-marts/${dataMartId}/publish`).set(AUTH_HEADER)).status).toBe(
+      200
+    );
+    await settlePublishRun(dataMartId);
+    const refused = await run();
+    expect(refused.finished.status).toBe('FAILED');
+    expect(JSON.stringify(refused.finished.errors)).toContain(MISFIT);
+    expect(spawner.rowsByRun.has(refused.runId)).toBe(false);
+    expect(keyedRequests).toHaveLength(0);
+
+    await bindings.bindConfig(projectId, dataMartId, configId, fitting);
+    const { runId, finished } = await run();
+
+    expect(spawner.rowsByRun.get(runId) ?? []).toHaveLength(UPSTREAM_ROWS.length);
+    expect(finished.status).toBe('SUCCESS');
+    expect(spawner.keyParametersByRun.get(runId)).toBe('["Token"]');
+    expect(keyedRequests.length).toBeGreaterThan(0);
+    for (const request of keyedRequests) {
+      expect(request.authorization).toBe(`Bearer ${KEY}`);
+      expect(request.url).not.toContain(KEY);
+    }
+    expect(JSON.stringify(finished)).not.toContain(KEY);
+    expect(JSON.stringify(spawner.rowsByRun.get(runId))).not.toContain(KEY);
+    const [binding] = await app
+      .get(DataSource)
+      .query(
+        `SELECT lastUsedAt FROM credential_consumer_binding WHERE consumerId = ? AND requirementKey = ?`,
+        [dataMartId, configId]
+      );
+    expect(binding.lastUsedAt).not.toBeNull();
+  }, 240_000);
 });

@@ -13,7 +13,9 @@ describe('DataMartMapper run params, by run shape', () => {
     undefined as never,
     {
       mask: jest.fn(),
-    } as never
+    } as never,
+    {} as never,
+    {} as never
   );
 
   function runOfType(type: DataMartRunType): DataMartRunDto {

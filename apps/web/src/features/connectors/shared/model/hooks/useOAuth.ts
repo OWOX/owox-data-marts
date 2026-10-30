@@ -1,15 +1,22 @@
 import { useRef, useCallback } from 'react';
 import { ConnectorApiService } from '../../api';
+import type { OAuthExchangeCredentialTarget } from '../../api/types/request';
 import type { OAuthStatusResponseDto, OAuthSettingsResponseDto } from '../../api/types/response';
 
 export function useOAuth() {
   const apiService = useRef(new ConnectorApiService());
 
   const exchangeCredentials = useCallback(
-    async (connectorName: string, payload: Record<string, unknown>, fieldPath: string) => {
+    async (
+      connectorName: string,
+      payload: Record<string, unknown>,
+      fieldPath: string,
+      credential?: OAuthExchangeCredentialTarget
+    ) => {
       return await apiService.current.exchangeCredentials(connectorName, {
         fieldPath,
         payload,
+        credential,
       });
     },
     []

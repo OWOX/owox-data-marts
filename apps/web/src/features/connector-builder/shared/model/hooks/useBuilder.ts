@@ -6,7 +6,28 @@ import { ConnectorBuilderApiService } from '../../api/connector-builder-api.serv
 import { createEmptyManifest, createEmptyNode, type BuilderManifest } from '../manifest.types';
 import { firstNonEmpty } from '../asText';
 import { apiErrorMessage } from '../../../../../app/api/extract-api-error.util';
+import type { StoppingReport } from '../../api/types';
 import { describeApiFailure, trackCustomConnectorEvent } from '../analytics';
+
+const STOPPING_SHOWN = 5;
+
+/** Tells which Data Marts a new version leaves without a fitting Credential; nothing when none. */
+function noticeStopping({
+  stoppingDataMarts = [],
+  hiddenStoppingCount = 0,
+}: Partial<StoppingReport>): void {
+  const shown = stoppingDataMarts.slice(0, STOPPING_SHOWN).map(({ title }) => title);
+  const more = stoppingDataMarts.length - shown.length + hiddenStoppingCount;
+  if (shown.length === 0 && more === 0) return;
+  const rest = more === 0 ? '' : shown.length ? ` and ${more} more` : `${more} you cannot see`;
+  toast(
+    `These Data Marts stop until a fitting Credential is selected: ${shown.join(', ')}${rest}`,
+    {
+      icon: '⚠️',
+      duration: 20000,
+    }
+  );
+}
 
 /**
  * The draft version a save from here would destroy, or null when nothing is at risk.
@@ -301,7 +322,7 @@ export function useBuilder() {
           ? await persistDraft(sent)
           : state.id;
       if (!id) return false;
-      const { version, warnings } = await api.publish(id);
+      const { version, warnings, ...stopping } = await api.publish(id);
       published = true;
       trackCustomConnectorEvent(
         'custom_connector_published',
@@ -323,6 +344,7 @@ export function useBuilder() {
       // Publishing does not refuse a manifest over these, chiefly a credential it could not
       // mark SECRET, so this is the only place the author learns of them.
       for (const warning of warnings) toast(warning, { id: warning, icon: '⚠️', duration: 20000 });
+      noticeStopping(stopping);
       return true;
     } catch (e) {
       const msg = apiErrorMessage(e, 'Failed to publish');
@@ -396,6 +418,7 @@ export function useBuilder() {
           },
         });
         toast.success(`Version ${version} is now active`);
+        noticeStopping(res);
         trackCustomConnectorEvent(
           'custom_connector_version_activated',
           { id: state.id, manifest: state.manifest },

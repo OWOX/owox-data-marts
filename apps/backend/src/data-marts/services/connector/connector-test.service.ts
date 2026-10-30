@@ -72,6 +72,12 @@ export const CONNECTOR_TEST_CONCURRENCY_LIMIT_CODE = 'CONNECTOR_TEST_CONCURRENCY
  */
 const CHILD_EXIT_GRACE_MS = 1000;
 
+/**
+ * The runner's MIN_REDACTED_SECRET_LENGTH. A shorter value is masked only as a whole field:
+ * masking it as a substring would mangle ordinary words.
+ */
+const MIN_REDACTED_VALUE_LENGTH = 6;
+
 export interface ConnectorTestResult {
   rows: Record<string, unknown>[];
   logs: string[];
@@ -87,6 +93,17 @@ export interface ConnectorTestRequest {
   maxRows?: number;
   maxPages?: number;
   timeoutMs?: number;
+  /** Set when `configuration` carries a Credential's values. */
+  credential?: ConnectorTestCredential;
+}
+
+export interface ConnectorTestCredential {
+  /** The parameters the Credential filled, for OW_KEY_PARAMETERS. */
+  readonly keyParameters: readonly string[];
+  /** The Credential's values, removed from everything the test returns. */
+  readonly values: readonly string[];
+  /** Receives what the run rotated; that line never reaches the logs. */
+  readonly onRotated: (credentials: Record<string, unknown>) => void;
 }
 
 /**
@@ -119,6 +136,26 @@ function readRunFailureEnvelope(line: string): string | null {
     return envelope.error.split('\n')[0].replace(/^\w*Error: /, '');
   }
   return null;
+}
+
+/** `result` without `values`: whole strings, keys and numbers, else long values in text. */
+function redactValues(result: ConnectorTestResult, values: readonly string[]): ConnectorTestResult {
+  const whole = new Set(values.filter(value => value.length > 0));
+  const forms = [
+    ...new Set(
+      values
+        .filter(value => value.length >= MIN_REDACTED_VALUE_LENGTH)
+        .flatMap(value => [value, encodeURIComponent(value), JSON.stringify(value).slice(1, -1)])
+    ),
+  ].sort((a, b) => b.length - a.length);
+  const strip = (text: string) =>
+    whole.has(text) ? '***' : forms.reduce((out, form) => out.split(form).join('***'), text);
+  return JSON.parse(JSON.stringify(result), (_key, value: unknown) => {
+    if (typeof value === 'number') return whole.has(String(value)) ? '***' : value;
+    if (typeof value === 'string') return strip(value);
+    if (value === null || typeof value !== 'object' || Array.isArray(value)) return value;
+    return Object.fromEntries(Object.entries(value).map(([key, item]) => [strip(key), item]));
+  }) as ConnectorTestResult;
 }
 
 @Injectable()
@@ -471,6 +508,7 @@ export class ConnectorTestService {
       }),
       OW_RUN_CONFIG: JSON.stringify({ type: 'INCREMENTAL', data: [], state: {} }),
     };
+    if (args.credential) env.OW_KEY_PARAMETERS = JSON.stringify(args.credential.keyParameters);
     if (hooks.hang) env.FAKE_HANG = '1';
     if (hooks.env) Object.assign(env, hooks.env);
 
@@ -483,6 +521,7 @@ export class ConnectorTestService {
     // accounts were all skipped for a 401/403, which is logged at WARN only.
     let runFailure: string | null = null;
     let sample: Record<string, unknown>[] = [];
+    const hidden = [...(args.credential?.values ?? [])];
 
     return new Promise<ConnectorTestResult>(resolve => {
       const child = spawn('node', ['--no-deprecation', this.runnerPath()], {
@@ -545,9 +584,10 @@ export class ConnectorTestService {
         // Resolve only once the child is gone. `runTest` releases the concurrency slot
         // when this promise settles, and that slot bounds child PROCESSES — releasing it
         // while one is still running makes the cap count something that no longer exists.
-        void this.stopChild(child).then(() =>
-          resolve({ ...result, logs: [...logs, ...diagnostics] })
-        );
+        void this.stopChild(child).then(() => {
+          const shown: ConnectorTestResult = { ...result, logs: [...logs, ...diagnostics] };
+          resolve(args.credential ? redactValues(shown, hidden) : shown);
+        });
       };
       const timer = setTimeout(() => finish(`Test run timed out after ${timeoutMs}ms`), timeoutMs);
 
@@ -589,7 +629,18 @@ export class ConnectorTestService {
             action?: string;
             error?: unknown;
             records?: Record<string, unknown>[];
+            credentials?: Record<string, unknown>;
           };
+          if (evt && evt.type === 'CREDENTIALS' && args.credential) {
+            const rotated = evt.credentials ?? {};
+            hidden.push(
+              ...Object.values(rotated).filter(
+                (value): value is string => typeof value === 'string'
+              )
+            );
+            args.credential.onRotated(rotated);
+            return;
+          }
           if (evt && evt.type === 'CREDENTIALS') {
             logs.push(
               'The provider issued new credentials during this test; they were not stored.'

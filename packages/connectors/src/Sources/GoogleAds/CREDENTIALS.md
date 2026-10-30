@@ -141,7 +141,7 @@ At this point, you should have the following credentials:
 | **Client Secret** | In Google Cloud Console → **Google Auth Platform → Clients**, displayed when creating an OAuth client or in the downloaded JSON |
 | **Refresh Token** | Generated via **OAuth Playground** after authorizing the Google Ads API with your Client ID and Client Secret |
 
-You can continue with the setup described in the [GETTING_STARTED](GETTING_STARTED) guide.
+Enter the Client ID, Client Secret, Refresh Token and Developer Token in a **Google Ads** Credential, on the **Credentials** page or with **+ Create new Credential** beside the **Credential** field of the Data Mart's connector configuration. The Customer IDs that pick the data stay in the configuration. Then continue with the setup described in the [GETTING_STARTED](GETTING_STARTED) guide.
 If you prefer to use Service Account authentication instead of OAuth2, follow the steps below.
 
 ## Option 2. Service Account Authentication
@@ -195,4 +195,4 @@ At this point, you should have the following credentials:
 | **Login Customer ID** | At the top-right corner of your **Manager (MCC)** account |
 
 ✅ **You’re all set!**  
-You can now use your credentials to access and import data from Google Ads via OWOX Data Marts.
+Enter the key and the Developer Token in a **Google Ads service account** Credential, select it in the Data Mart's connector configuration, and import data from Google Ads via OWOX Data Marts.

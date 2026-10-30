@@ -173,7 +173,7 @@ export const BUILTIN_CREDENTIAL_DEFINITIONS: readonly CredentialDefinitionContra
     id: GOOGLE_SHEETS_OAUTH_DEFINITION_ID,
     category: 'google',
     icon: 'google-sheets',
-    displayName: 'Sheets Google account',
+    displayName: 'Sheets Destination Google account',
     description: 'Google account access for Google Sheets Destinations.',
     auth: {
       type: 'oauth',

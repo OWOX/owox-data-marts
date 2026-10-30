@@ -477,15 +477,6 @@ export class DataMartService extends ApiService {
   }
 
   /**
-   * Get data marts by connector name
-   * @param connectorName Connector name
-   * @returns Promise with data mart list response
-   */
-  async getDataMartsByConnectorName(connectorName: string): Promise<DataMartResponseDto[]> {
-    return this.get<DataMartResponseDto[]>(`/by-connector/${connectorName}`);
-  }
-
-  /**
    * Batch get health status for multiple data marts
    * @param ids Array of Data Mart IDs
    * @param config Optional Axios request config

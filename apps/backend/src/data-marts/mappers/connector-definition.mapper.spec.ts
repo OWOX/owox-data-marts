@@ -49,4 +49,53 @@ describe('ConnectorDefinitionMapper commands', () => {
     });
     expect(mapper.toActivateCommand(actor, 'connector', 1).roles).toEqual([]);
   });
+
+  it('builds a test command without a credential unless the caller selects one', () => {
+    const input = { manifest: { name: 'CustomApi' }, node: 'items', configuration: { a: 1 } };
+    const command = mapper.toTestCommand('project', input);
+    expect(command.credential).toBeUndefined();
+    expect(command.input).toMatchObject(input);
+    expect(mapper.toTestCommand('project', input, { userId: 'editor' }).credential).toBeUndefined();
+    expect(
+      mapper.toTestCommand('project', input, { credentialId: 'cred', userId: 'editor' }).credential
+    ).toEqual({ credentialId: 'cred', userId: 'editor', roles: [] });
+  });
+
+  it('builds the fitting command from the body and the caller', () => {
+    const body = {
+      connectorName: 'CustomApi',
+      version: 2,
+      node: 'items',
+      selection: 'a',
+      extra: 1,
+    };
+    expect(
+      mapper.toFittingCredentialsCommand({ projectId: 'project', userId: 'editor' }, body)
+    ).toEqual({
+      projectId: 'project',
+      userId: 'editor',
+      roles: [],
+      query: { connectorName: 'CustomApi', version: 2, node: 'items', selection: 'a' },
+    });
+  });
+
+  it('keeps the fitting and requirement response shapes', () => {
+    const withExtra = { id: 'c', title: 'T', hosts: ['h'], fieldKeys: ['k'], extra: 1 };
+    expect(mapper.toFittingCredentialsApiResponse([withExtra])).toEqual([
+      { id: 'c', title: 'T', hosts: ['h'], fieldKeys: ['k'] },
+    ]);
+    expect(
+      mapper.toCredentialRequirementApiResponse({
+        hosts: ['h'],
+        fieldList: [{ key: 'K', label: 'L', secret: true, required: false }],
+        keyParameters: ['K'],
+        misuse: ['M'],
+      })
+    ).toEqual({
+      hosts: ['h'],
+      fieldList: [{ key: 'K', label: 'L', secret: true, required: false }],
+      keyParameters: ['K'],
+      misuse: ['M'],
+    });
+  });
 });

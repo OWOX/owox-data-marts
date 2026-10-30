@@ -1,5 +1,258 @@
-import { describe, it, expect } from 'vitest';
-import { displayRecords, deriveColumns, followNode, testFailureMessage } from './ResultsDock';
+import { afterEach, describe, it, expect, vi } from 'vitest';
+import { useEffect } from 'react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { trackEvent } from '../../../../utils/data-layer';
+import { BuilderProvider } from '../../shared/model/context/BuilderProvider';
+import { useBuilder } from '../../shared/model/hooks/useBuilder';
+import { ConnectorBuilderApiService } from '../../shared/api/connector-builder-api.service';
+import { createEmptyManifest, createEmptyNode } from '../../shared/model/manifest.types';
+import {
+  ResultsDock,
+  displayRecords,
+  deriveColumns,
+  followNode,
+  testFailureMessage,
+} from './ResultsDock';
+
+vi.mock('../../../../utils/data-layer', async importActual => ({
+  ...(await importActual<typeof import('../../../../utils/data-layer')>()),
+  trackEvent: vi.fn(),
+}));
+
+vi.mock('../../../credentials', () => ({
+  ConsumerCredentialField: (props: {
+    onChange: (id: string) => void;
+    onCreated?: (credential: { id: string }) => void;
+  }) => (
+    <>
+      <button
+        onClick={() => {
+          props.onChange('c1');
+        }}
+      >
+        Pick Credential
+      </button>
+      <button
+        onClick={() => {
+          props.onCreated?.({ id: 'c2' });
+          props.onChange('c2');
+        }}
+      >
+        Create Credential
+      </button>
+      <button
+        onClick={() => {
+          props.onCreated?.({ id: 'c2' });
+        }}
+      >
+        Refresh list
+      </button>
+    </>
+  ),
+}));
+
+function Seed() {
+  const { setManifest } = useBuilder();
+  useEffect(() => {
+    setManifest({
+      ...createEmptyManifest(),
+      name: 'MyApi',
+      parameters: {
+        Token: { requiredType: 'string', isRequired: true, attributes: ['SECRET'] },
+        Region: { requiredType: 'string', isRequired: false },
+      },
+      nodes: { items: createEmptyNode() },
+    });
+  }, [setManifest]);
+  return null;
+}
+
+const builderTests = () =>
+  vi
+    .mocked(trackEvent)
+    .mock.calls.map(([payload]) => payload)
+    .filter(payload => payload.event === 'connector_builder_test');
+
+describe('ResultsDock test with a Credential', () => {
+  afterEach(() => {
+    vi.mocked(trackEvent).mockClear();
+    vi.restoreAllMocks();
+  });
+
+  it('a test with a Credential sends credentialId and no key values', async () => {
+    vi.spyOn(ConnectorBuilderApiService.prototype, 'fittingCredentials').mockResolvedValue([
+      { id: 'c1', title: 'Key', hosts: [], fieldKeys: [] },
+    ]);
+    vi.spyOn(ConnectorBuilderApiService.prototype, 'credentialRequirement').mockResolvedValue({
+      hosts: ['api.example.com'],
+      fieldList: [],
+      keyParameters: ['Token'],
+    });
+    const test = vi
+      .spyOn(ConnectorBuilderApiService.prototype, 'test')
+      .mockResolvedValue({ rows: [], logs: [], error: null });
+    render(
+      <BuilderProvider>
+        <Seed />
+        <ResultsDock open onToggleOpen={vi.fn()} />
+      </BuilderProvider>
+    );
+    fireEvent.click(await screen.findByTestId('test-settings-gear'));
+    fireEvent.change(await screen.findByTestId('test-param-Token'), {
+      target: { value: 'typed-key' },
+    });
+    fireEvent.change(screen.getByTestId('test-param-Region'), { target: { value: 'eu' } });
+    fireEvent.click(screen.getByRole('tab', { name: 'Use a Credential' }));
+    fireEvent.click(await screen.findByText('Pick Credential'));
+    fireEvent.click(screen.getByTestId('run-test-settings'));
+    await waitFor(() => {
+      expect(test).toHaveBeenCalledTimes(1);
+    });
+    expect(test.mock.calls[0][0]).toMatchObject({
+      credentialId: 'c1',
+      node: 'items',
+      configuration: { Region: 'eu' },
+    });
+    expect(test.mock.calls[0][0].configuration).not.toHaveProperty('Token');
+  });
+
+  it('runs from the dock with the chosen Credential after the settings close', async () => {
+    vi.spyOn(ConnectorBuilderApiService.prototype, 'fittingCredentials').mockResolvedValue([
+      { id: 'c1', title: 'Key', hosts: [], fieldKeys: [] },
+    ]);
+    vi.spyOn(ConnectorBuilderApiService.prototype, 'credentialRequirement').mockResolvedValue({
+      hosts: [],
+      fieldList: [],
+      keyParameters: ['Token'],
+    });
+    const test = vi
+      .spyOn(ConnectorBuilderApiService.prototype, 'test')
+      .mockResolvedValue({ rows: [], logs: [], error: null });
+    render(
+      <BuilderProvider>
+        <Seed />
+        <ResultsDock open onToggleOpen={vi.fn()} />
+      </BuilderProvider>
+    );
+    fireEvent.click(await screen.findByTestId('test-settings-gear'));
+    fireEvent.change(await screen.findByTestId('test-param-Token'), {
+      target: { value: 'typed-key' },
+    });
+    fireEvent.click(screen.getByRole('tab', { name: 'Use a Credential' }));
+    fireEvent.click(await screen.findByText('Pick Credential'));
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' });
+    await waitFor(() => {
+      expect(screen.queryByTestId('test-settings')).not.toBeInTheDocument();
+    });
+    const run = screen.getByTestId('run-test');
+    expect(run).toBeEnabled();
+    fireEvent.click(run);
+    await waitFor(() => {
+      expect(test).toHaveBeenCalledTimes(1);
+    });
+    expect(test.mock.calls[0][0]).toMatchObject({ credentialId: 'c1' });
+    expect(test.mock.calls[0][0].configuration).not.toHaveProperty('Token');
+    expect(builderTests()).toEqual([expect.objectContaining({ action: 'credential' })]);
+  });
+
+  const item = (id: string) => ({ id, title: id, hosts: [], fieldKeys: [] });
+  const renderDockWithLists = (...lists: string[][]) => {
+    const fitting = vi.spyOn(ConnectorBuilderApiService.prototype, 'fittingCredentials');
+    lists.forEach((ids, index) => {
+      if (index === lists.length - 1) fitting.mockResolvedValue(ids.map(item));
+      else fitting.mockResolvedValueOnce(ids.map(item));
+    });
+    vi.spyOn(ConnectorBuilderApiService.prototype, 'credentialRequirement').mockResolvedValue({
+      hosts: [],
+      fieldList: [],
+      keyParameters: ['Token'],
+    });
+    const test = vi
+      .spyOn(ConnectorBuilderApiService.prototype, 'test')
+      .mockResolvedValue({ rows: [], logs: [], error: null });
+    render(
+      <BuilderProvider>
+        <Seed />
+        <ResultsDock open onToggleOpen={vi.fn()} />
+      </BuilderProvider>
+    );
+    return { fitting, test };
+  };
+  const closeSettings = async () => {
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' });
+    await waitFor(() => {
+      expect(screen.queryByTestId('test-settings')).not.toBeInTheDocument();
+    });
+  };
+
+  it('keeps a Credential created from the builder once the refreshed list holds it', async () => {
+    const { test } = renderDockWithLists(['c1'], ['c1', 'c2']);
+    fireEvent.click(await screen.findByTestId('test-settings-gear'));
+    fireEvent.click(screen.getByRole('tab', { name: 'Use a Credential' }));
+    fireEvent.click(await screen.findByText('Create Credential'));
+    await closeSettings();
+    const run = screen.getByTestId('run-test');
+    await waitFor(() => {
+      expect(run).toBeEnabled();
+    });
+    fireEvent.click(run);
+    await waitFor(() => {
+      expect(test).toHaveBeenCalledTimes(1);
+    });
+    expect(test.mock.calls[0][0]).toMatchObject({ credentialId: 'c2' });
+  });
+
+  it('drops a created choice the refreshed list lacks and does not bring it back', async () => {
+    const { fitting } = renderDockWithLists(['c1'], ['c1'], ['c1', 'c2']);
+    fireEvent.click(await screen.findByTestId('test-settings-gear'));
+    fireEvent.click(screen.getByRole('tab', { name: 'Use a Credential' }));
+    fireEvent.click(await screen.findByText('Create Credential'));
+    await waitFor(() => {
+      expect(fitting).toHaveBeenCalledTimes(2);
+    });
+    // The third list holds c2, but the choice was cleared by the second one.
+    fireEvent.click(screen.getByText('Refresh list'));
+    await waitFor(() => {
+      expect(fitting).toHaveBeenCalledTimes(3);
+    });
+    // Nothing to await: the choice must stay cleared, so give a late restore time to show.
+    await new Promise(resolve => setTimeout(resolve, 50));
+    await closeSettings();
+    expect(screen.getByTestId('run-test')).toBeDisabled();
+  });
+
+  it('Enter values sends the typed values and no credentialId', async () => {
+    const test = vi
+      .spyOn(ConnectorBuilderApiService.prototype, 'test')
+      .mockResolvedValue({ rows: [], logs: [], error: null });
+    render(
+      <BuilderProvider>
+        <Seed />
+        <ResultsDock open onToggleOpen={vi.fn()} />
+      </BuilderProvider>
+    );
+    fireEvent.click(await screen.findByTestId('test-settings-gear'));
+    fireEvent.change(await screen.findByTestId('test-param-Token'), {
+      target: { value: 'typed-key' },
+    });
+    fireEvent.click(screen.getByTestId('run-test-settings'));
+    await waitFor(() => {
+      expect(test).toHaveBeenCalledTimes(1);
+    });
+    expect(test.mock.calls[0][0].configuration).toEqual({ Token: 'typed-key' });
+    expect(test.mock.calls[0][0]).not.toHaveProperty('credentialId');
+    expect(builderTests()).toEqual([
+      {
+        event: 'connector_builder_test',
+        category: 'Connector',
+        action: 'values',
+        label: null,
+        context: null,
+        value: null,
+      },
+    ]);
+  });
+});
 
 describe('displayRecords', () => {
   it('returns the cast rows when present', () => {

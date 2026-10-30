@@ -102,6 +102,7 @@ describe('ConnectorDefinitionController list() cost', () => {
       definitionRepo as never,
       versionRepo as never,
       { findByProjectIdAndDefinitionType: jest.fn().mockResolvedValue([]) } as never,
+      {} as never,
       {} as never
     );
 
@@ -121,7 +122,8 @@ describe('ConnectorDefinitionController list() cost', () => {
       {} as never,
       {} as never,
       new ConnectorDefinitionMapper(),
-      new ConnectorMapper()
+      new ConnectorMapper(),
+      {} as never
     );
 
     return { controller, versionQueries };

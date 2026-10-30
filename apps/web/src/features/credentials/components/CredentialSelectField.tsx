@@ -1,10 +1,16 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Button } from '@owox/ui/components/button';
 import { Combobox, type ComboboxOption } from '../../../shared/components/Combobox/combobox';
-import type { Credential, CredentialIcon, CredentialSummary } from '../types';
+import type {
+  Credential,
+  CredentialIcon,
+  CredentialSummary,
+  CustomConnectorFieldSpec,
+} from '../types';
 import { useCredentialDefinitions, useCredentials } from '../useCredentials';
 import { CredentialConfigSheet } from './CredentialConfigSheet';
 import { ProviderIcon } from './ProviderCombobox';
+import { servedConnector } from '../served-connector';
 
 const CREATE_VALUE = '__create_credential__';
 
@@ -14,11 +20,16 @@ interface CredentialItem {
   identity: string | null;
   providerName: string;
   icon?: CredentialIcon | null;
+  connector?: string;
 }
 
 export interface CredentialSelectFieldProps {
   /** Definitions the field offers and the create form allows. */
   allowedDefinitionIds: readonly string[];
+  /** Narrows the offered Credentials to these, as the custom connector fit rule decides. */
+  allowedCredentialIds?: readonly string[];
+  /** Hosts and field list a new custom connector Credential takes from the manifest. */
+  customConnectorPrefill?: { hosts: string[]; fieldList: CustomConnectorFieldSpec[] };
   isNew: boolean;
   value: string | null;
   summary: CredentialSummary | null | undefined;
@@ -39,10 +50,13 @@ const toItem = (credential: Credential): CredentialItem => ({
   identity: credential.identity ?? null,
   providerName: credential.definition.displayName,
   icon: credential.definition.icon,
+  connector: servedConnector(credential.definition),
 });
 
 export function CredentialSelectField({
   allowedDefinitionIds: allowedIds,
+  allowedCredentialIds,
+  customConnectorPrefill,
   isNew,
   value,
   summary: summaryProp,
@@ -78,6 +92,7 @@ export function CredentialSelectField({
   const fitting = credentials.filter(
     credential =>
       allowedIds.includes(credential.definition.id) &&
+      (allowedCredentialIds?.includes(credential.id) ?? true) &&
       credential.enabled &&
       credential.canUse !== false
   );
@@ -85,8 +100,12 @@ export function CredentialSelectField({
   if (created && !items.some(item => item.id === created.id)) items.push(toItem(created));
   // The bound Credential stays shown even when it is no longer offered (e.g. disabled).
   if (summary?.access === 'visible' && !items.some(item => item.id === summary.id)) {
-    const icon = definitions.find(definition => definition.id === summary.definitionId)?.icon;
-    items.unshift({ ...summary, icon });
+    const definition = definitions.find(({ id }) => id === summary.definitionId);
+    items.unshift({
+      ...summary,
+      icon: definition?.icon,
+      connector: definition && servedConnector(definition),
+    });
   }
   const itemsById = new Map(items.map(item => [item.id, item]));
 
@@ -148,14 +167,14 @@ export function CredentialSelectField({
           const details = [item.identity, item.providerName].filter(Boolean).join(' · ');
           return context === 'trigger' ? (
             <span className='flex min-w-0 items-center gap-2'>
-              <ProviderIcon icon={item.icon} />
+              <ProviderIcon icon={item.icon} connector={item.connector} />
               <span className='truncate'>
                 {item.title} <span className='text-muted-foreground'>· {details}</span>
               </span>
             </span>
           ) : (
             <span className='flex min-w-0 flex-1 items-center gap-2'>
-              <ProviderIcon icon={item.icon} />
+              <ProviderIcon icon={item.icon} connector={item.connector} />
               <span className='flex min-w-0 flex-col'>
                 <span className='truncate'>{item.title}</span>
                 <span className='text-muted-foreground truncate text-xs'>{details}</span>
@@ -193,6 +212,7 @@ export function CredentialSelectField({
             allowedDefinitionIds={[...allowedIds]}
             initialDefinitionId={allowedIds.length === 1 ? allowedIds[0] : undefined}
             defaultSharing='not-shared'
+            customConnectorPrefill={customConnectorPrefill}
             onCreated={credential => {
               onCreated?.(credential);
               if (openSeq.current !== creating) return;

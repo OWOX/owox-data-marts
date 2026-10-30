@@ -1,3 +1,4 @@
+import { Fragment, type ReactNode } from 'react';
 import { AppWizardCollapsible } from '@owox/ui/components/common/wizard';
 import {
   RequiredType,
@@ -18,6 +19,16 @@ interface ConfigurationListRenderProps {
   collapsibleTitle?: string;
   connectorName: string;
   onManagedOAuthModeChange?: (specificationName: string, isManaged: boolean) => void;
+  keyFields?: KeyFields;
+}
+
+/** The auth fields a Credential fills: its field stands in place of the first one. */
+export interface KeyFields {
+  names: ReadonlySet<string>;
+  first: string | undefined;
+  field: ReactNode;
+  /** A configuration on its old key still shows it, read-only. */
+  showOldKey: boolean;
 }
 
 function renderItems(
@@ -29,9 +40,25 @@ function renderItems(
   isEditingExisting: boolean,
   storedSecrets: ReadonlySet<string> | undefined,
   connectorName: string,
-  onManagedOAuthModeChange?: (specificationName: string, isManaged: boolean) => void
+  onManagedOAuthModeChange?: (specificationName: string, isManaged: boolean) => void,
+  keyFields?: KeyFields
 ) {
   return items.map(specification => {
+    const item = renderItem(specification);
+    if (!keyFields?.names.has(specification.name)) return item;
+    return (
+      <Fragment key={specification.name}>
+        {specification.name === keyFields.first && keyFields.field}
+        {keyFields.showOldKey && (
+          <fieldset disabled className='min-w-0'>
+            {item}
+          </fieldset>
+        )}
+      </Fragment>
+    );
+  });
+
+  function renderItem(specification: ConnectorSpecificationResponseApiDto) {
     const isSecret = Array.isArray(specification.attributes)
       ? specification.attributes.includes('SECRET')
       : false;
@@ -68,7 +95,7 @@ function renderItems(
         connectorName={connectorName}
       />
     );
-  });
+  }
 }
 
 export function ConfigurationListRender({
@@ -82,6 +109,7 @@ export function ConfigurationListRender({
   storedSecrets,
   connectorName,
   onManagedOAuthModeChange,
+  keyFields,
 }: ConfigurationListRenderProps) {
   return collapsibleTitle ? (
     <AppWizardCollapsible title={collapsibleTitle}>
@@ -94,7 +122,8 @@ export function ConfigurationListRender({
         isEditingExisting,
         storedSecrets,
         connectorName,
-        onManagedOAuthModeChange
+        onManagedOAuthModeChange,
+        keyFields
       )}
     </AppWizardCollapsible>
   ) : (
@@ -107,7 +136,8 @@ export function ConfigurationListRender({
       isEditingExisting,
       storedSecrets,
       connectorName,
-      onManagedOAuthModeChange
+      onManagedOAuthModeChange,
+      keyFields
     )
   );
 }

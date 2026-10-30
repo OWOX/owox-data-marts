@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import GoogleChatWebhookDescription from './GoogleChatWebhookDescription';
 import GoogleProviderChoiceDescription from './GoogleProviderChoiceDescription';
+import GoogleServiceAccountDescription from './GoogleServiceAccountDescription';
 
 const open = () => fireEvent.click(screen.getByRole('button'));
 
@@ -27,7 +28,7 @@ describe('GoogleProviderChoiceDescription', () => {
     );
     open();
 
-    expect(screen.getByText('Sheets Google account (OAuth):')).toBeInTheDocument();
+    expect(screen.getByText('Sheets Destination Google account (OAuth):')).toBeInTheDocument();
     expect(screen.getByText('Google Chat webhook:')).toBeInTheDocument();
     expect(screen.queryByText('BigQuery supports two authentication methods:')).toBeNull();
     expect(screen.getByText(/For BigQuery, the account/)).toBeInTheDocument();
@@ -65,5 +66,16 @@ describe('GoogleChatWebhookDescription', () => {
       'href',
       'https://developers.google.com/workspace/chat/quickstart/webhooks'
     );
+  });
+});
+
+describe('GoogleServiceAccountDescription', () => {
+  it('names the Google Sheets Source among the uses that need no project roles', () => {
+    render(<GoogleServiceAccountDescription />);
+    open();
+
+    expect(
+      screen.getByText(/For a Google Sheets Source or Destination, no project roles are needed/)
+    ).toBeVisible();
   });
 });

@@ -55,7 +55,8 @@ describe('useConnectorFieldOptions', () => {
       'GoogleSheets',
       'SheetName',
       { SpreadsheetId: 'sheet-1', HeaderRow: 1 },
-      expect.objectContaining({ signal: expect.any(AbortSignal) })
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+      undefined
     );
 
     rerender({ configuration: { SpreadsheetId: 'sheet-1', HeaderRow: 2 } });
@@ -129,7 +130,8 @@ describe('useConnectorFieldOptions', () => {
       'GoogleSheets',
       'SheetName',
       { SpreadsheetId: 'sheet-1' },
-      expect.objectContaining({ skipErrorToast: true, skipLoadingIndicator: true })
+      expect.objectContaining({ skipErrorToast: true, skipLoadingIndicator: true }),
+      undefined
     );
   });
 

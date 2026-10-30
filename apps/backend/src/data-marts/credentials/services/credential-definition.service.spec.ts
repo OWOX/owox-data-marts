@@ -56,27 +56,16 @@ describe('CredentialDefinitionService Source definitions', () => {
     { findOneBy: jest.fn() } as never
   );
 
-  it('does not offer the generated Source definitions for creation', async () => {
+  it('lists the generated Source definitions beside the built-in ones', async () => {
     const ids = (await service.list()).map(item => item.definitionId);
 
-    expect(ids).toEqual(expect.arrayContaining(['github']));
-    expect(ids.filter(id => id.startsWith('source:'))).toEqual([]);
-  });
-
-  it('does not offer the Custom connector definition for creation, yet resolves it', async () => {
-    const ids = (await service.list()).map(item => item.definitionId);
-    const resolved = { definitionId: 'custom-connector', source: 'builtin' };
-
-    expect(ids).not.toContain('custom-connector');
-    await expect(service.get('custom-connector')).resolves.toMatchObject(resolved);
-    await expect(
-      service.getForCredential({
-        definitionId: 'custom-connector',
-        acceptedCompatibilityLine: null,
-      })
-    ).resolves.toMatchObject(resolved);
-    await expect(service.getForView({ definitionId: 'custom-connector' })).resolves.toMatchObject(
-      resolved
+    expect(ids).toEqual(
+      expect.arrayContaining([
+        'github',
+        'custom-connector',
+        'source:Shopify:default',
+        'source:GoogleSheets:oauth2',
+      ])
     );
   });
 
@@ -86,7 +75,14 @@ describe('CredentialDefinitionService Source definitions', () => {
     ).resolves.toMatchObject({ definitionId: 'source:Shopify:default', source: 'builtin' });
   });
 
-  it('resolves the connectors whose Source bindings reuse a built-in definition', async () => {
+  it('lists the connectors whose Source bindings reuse a built-in definition', async () => {
+    const listed = new Map(
+      (await service.list()).map(item => [item.definitionId, item.contract.connectors])
+    );
+
+    expect(listed.get('github')).toEqual(['GitHub']);
+    expect(listed.get('google-service-account')).toEqual(['GoogleSheets']);
+    expect(listed.get('openai')).toEqual(undefined);
     await expect(service.get('github')).resolves.toMatchObject({
       contract: { connectors: ['GitHub'] },
     });

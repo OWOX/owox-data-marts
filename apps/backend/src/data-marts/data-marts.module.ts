@@ -293,6 +293,7 @@ import { InsightTemplateExecutionService } from './services/insight-template-exe
 import { ConnectorSourceCredentials } from './entities/connector-source-credentials.entity';
 import { ConnectorSourceCredentialsService } from './services/connector/connector-source-credentials.service';
 import { ConnectorOauthService } from './services/connector/connector-oauth.service';
+import { ConnectSourceOAuthCredentialService } from './use-cases/connect-source-oauth-credential.service';
 import { DataMartTableReferenceService } from './services/data-mart-table-reference.service';
 import { DataMartSqlReferenceResolver } from './services/data-mart-sql-reference-resolver.service';
 import { DataMartSqlReferenceValidator } from './services/data-mart-sql-reference-validator.service';
@@ -510,6 +511,7 @@ import { CredentialMapper } from './credentials/mappers/credential.mapper';
 import { CreateCredentialService } from './credentials/use-cases/create-credential.service';
 import { GetCredentialService } from './credentials/use-cases/get-credential.service';
 import { ListCredentialsService } from './credentials/use-cases/list-credentials.service';
+import { ListFittingCustomConnectorCredentialsService } from './use-cases/custom-connectors/list-fitting-custom-connector-credentials.service';
 import { UpdateCredentialService } from './credentials/use-cases/update-credential.service';
 import { DeleteCredentialService } from './credentials/use-cases/delete-credential.service';
 import { ValidateCredentialService } from './credentials/use-cases/validate-credential.service';
@@ -833,6 +835,7 @@ import { ConsentCredentialDefinitionService } from './credentials/use-cases/cons
     ConnectorService,
     ConnectorDefinitionService,
     ConnectorTestService,
+    ListFittingCustomConnectorCredentialsService,
     ConnectorExecutionService,
     ConnectorRunService,
     ConnectorExecutorService,
@@ -928,6 +931,7 @@ import { ConsentCredentialDefinitionService } from './credentials/use-cases/cons
     BaseSqlHandleResolverService,
     AiAssistantSqlOrchestratorService,
     ConnectorOauthService,
+    ConnectSourceOAuthCredentialService,
     UserProjectionsFetcherService,
     DeleteLegacyDataMartService,
     MoveLegacyDataStorageService,

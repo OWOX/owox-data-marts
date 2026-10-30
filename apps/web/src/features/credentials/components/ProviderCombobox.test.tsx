@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@owox/ui/components/sheet';
 import type { ComponentType } from 'react';
 import { describe, expect, it, vi } from 'vitest';
@@ -14,6 +14,12 @@ import {
 } from '../../../shared';
 import type { CredentialIcon } from '../types';
 import { ProviderCombobox, type ProviderOption } from './ProviderCombobox';
+
+const SHOPIFY_LOGO = 'data:image/svg+xml;base64,PHN2Zy8+';
+vi.mock('../../connectors/shared/utils', () => ({
+  getBundledConnectorLogo: (name: string) =>
+    Promise.resolve(name === 'Shopify' ? SHOPIFY_LOGO : null),
+}));
 
 const options: ProviderOption[] = [
   { id: 'github', displayName: 'GitHub', category: 'other' },
@@ -62,6 +68,40 @@ describe('ProviderCombobox', () => {
     expect(within(listbox).getAllByRole('option')).toHaveLength(5);
   });
 
+  it('ProviderCombobox shows Ads, Social, E-commerce, Currencies and Custom connectors groups', async () => {
+    render(
+      <ProviderCombobox
+        definitions={[
+          { id: 'github', displayName: 'GitHub', category: 'other' },
+          {
+            id: 'custom-connector',
+            displayName: 'Custom connector',
+            category: 'custom-connectors',
+          },
+          {
+            id: 'source:OpenExchangeRates:default',
+            displayName: 'Open Exchange Rates',
+            category: 'currencies',
+          },
+          { id: 'source:Shopify:default', displayName: 'Shopify', category: 'ecommerce' },
+          { id: 'source:LinkedInPages:oauth2', displayName: 'LinkedIn Pages', category: 'social' },
+          { id: 'source:CriteoAds:default', displayName: 'Criteo Ads', category: 'ads' },
+        ]}
+        value=''
+        onChange={vi.fn()}
+      />
+    );
+    fireEvent.mouseDown(screen.getByRole('combobox', { name: 'Provider' }), { button: 0 });
+
+    const listbox = await screen.findByRole('listbox');
+    expect(
+      within(listbox)
+        .getAllByText(/^(Ads|Social|E-commerce|Currencies|Custom connectors|Other)$/)
+        .filter(node => !node.closest('[role="option"]'))
+        .map(node => node.textContent)
+    ).toEqual(['Ads', 'Social', 'E-commerce', 'Currencies', 'Custom connectors', 'Other']);
+  });
+
   it('shows a provider of a group it does not know under Other', async () => {
     const unknown = { id: 'azure-key', displayName: 'Azure key', category: 'azure' } as never;
     render(<ProviderCombobox definitions={[unknown]} value='' onChange={vi.fn()} />);
@@ -91,6 +131,40 @@ describe('ProviderCombobox', () => {
     expect(custom.querySelector('svg')).toHaveClass('lucide-key-round');
     expect(aws.querySelector('svg')).toHaveAttribute('width', '16');
     expect(custom.querySelector('svg')).toHaveAttribute('width', '16');
+  });
+
+  it('shows the logo of the connector a Source provider serves, and a key icon when it has none', async () => {
+    render(
+      <ProviderCombobox
+        definitions={[
+          {
+            id: 'source:Shopify:default',
+            displayName: 'Shopify',
+            category: 'ecommerce',
+            icon: null,
+            connectors: ['Shopify'],
+          },
+          {
+            id: 'source:NoLogo:default',
+            displayName: 'No Logo Ads',
+            category: 'ads',
+            icon: null,
+            connectors: ['NoLogo'],
+          },
+        ]}
+        value=''
+        onChange={vi.fn()}
+      />
+    );
+    fireEvent.mouseDown(screen.getByRole('combobox', { name: 'Provider' }), { button: 0 });
+
+    const shopify = await screen.findByRole('option', { name: 'Shopify' });
+    await waitFor(() => {
+      expect(shopify.querySelector('img')).toHaveAttribute('src', SHOPIFY_LOGO);
+    });
+    const noLogo = screen.getByRole('option', { name: 'No Logo Ads' });
+    expect(noLogo.querySelector('img')).toBeNull();
+    expect(noLogo.querySelector('svg')).toHaveClass('lucide-key-round');
   });
 
   it('shows the BigQuery icon for both Google providers, which reach only BigQuery', async () => {

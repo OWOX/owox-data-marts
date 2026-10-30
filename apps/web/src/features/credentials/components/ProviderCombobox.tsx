@@ -12,6 +12,8 @@ import {
 import { InputGroupAddon } from '@owox/ui/components/input-group';
 import { cn } from '@owox/ui/lib/utils';
 import { KeyRound } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { getBundledConnectorLogo } from '../../connectors/shared/utils';
 import {
   AwsAthenaIcon,
   ChatGPTIcon,
@@ -24,9 +26,11 @@ import {
   GoogleCloudIcon,
   GoogleSheetsIcon,
   OpenRouterIcon,
+  RawBase64Icon,
   SnowflakeIcon,
   type AppIcon,
 } from '../../../shared';
+import { servedConnector } from '../served-connector';
 import type { CredentialCategory, CredentialDefinition, CredentialIcon } from '../types';
 
 export interface ProviderOption {
@@ -34,6 +38,7 @@ export interface ProviderOption {
   displayName: string;
   category?: CredentialCategory;
   icon?: CredentialIcon | null;
+  connectors?: readonly string[];
 }
 
 interface ProviderGroup {
@@ -47,6 +52,11 @@ const GROUPS: { category: CredentialCategory; label: string }[] = [
   { category: 'aws', label: 'AWS' },
   { category: 'snowflake', label: 'Snowflake' },
   { category: 'databricks', label: 'Databricks' },
+  { category: 'ads', label: 'Ads' },
+  { category: 'social', label: 'Social' },
+  { category: 'ecommerce', label: 'E-commerce' },
+  { category: 'currencies', label: 'Currencies' },
+  { category: 'custom-connectors', label: 'Custom connectors' },
   { category: 'other', label: 'Other' },
 ];
 
@@ -65,19 +75,41 @@ const ICONS: Partial<Record<CredentialIcon, AppIcon>> = {
   github: GitHubIcon,
 };
 
-/** The icon of a provider's icon key; a generic key when it has none or this build does not know it. */
+function useConnectorLogo(connector: string | null | undefined): string | null {
+  const [loaded, setLoaded] = useState<{ connector: string; logo: string | null } | null>(null);
+  useEffect(() => {
+    if (!connector) return;
+    let cancelled = false;
+    void getBundledConnectorLogo(connector).then(logo => {
+      if (!cancelled) setLoaded({ connector, logo });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [connector]);
+  return loaded && loaded.connector === connector ? loaded.logo : null;
+}
+
+/**
+ * The icon of a provider's icon key, else the logo of the connector it serves; a generic key
+ * when it has neither or this build does not know the key.
+ */
 export function ProviderIcon({
   icon,
+  connector,
   className,
 }: {
   icon?: CredentialIcon | null;
+  connector?: string | null;
   className?: string;
 }) {
-  const Icon: AppIcon = (icon && ICONS[icon]) ?? KeyRound;
+  const known = icon ? ICONS[icon] : undefined;
+  const logo = useConnectorLogo(known ? null : connector);
+  const Icon: AppIcon = known ?? KeyRound;
   // Brand icons take no aria props, so the wrapper hides them.
   return (
     <span aria-hidden='true' className={cn('inline-flex shrink-0', className)}>
-      <Icon size={16} />
+      {!known && logo ? <RawBase64Icon base64={logo} size={16} /> : <Icon size={16} />}
     </span>
   );
 }
@@ -141,7 +173,7 @@ export function ProviderCombobox({
       >
         {selected && (
           <InputGroupAddon align='inline-start'>
-            <ProviderIcon icon={selected.icon} />
+            <ProviderIcon icon={selected.icon} connector={servedConnector(selected)} />
           </InputGroupAddon>
         )}
       </ComboboxInput>
@@ -154,7 +186,11 @@ export function ProviderCombobox({
               <ComboboxCollection>
                 {(option: ProviderOption) => (
                   <ComboboxItem key={option.id} value={option}>
-                    <ProviderIcon icon={option.icon} className='mr-2 align-text-bottom' />
+                    <ProviderIcon
+                      icon={option.icon}
+                      connector={servedConnector(option)}
+                      className='mr-2 align-text-bottom'
+                    />
                     {option.displayName}
                   </ComboboxItem>
                 )}

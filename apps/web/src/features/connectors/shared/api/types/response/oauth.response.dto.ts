@@ -31,8 +31,7 @@ export interface OAuthAccountDto {
 export interface OAuthCallbackResponseDto {
   success: boolean;
   credentialId: string;
-  user: OAuthUserInfoDto;
-  additional: Record<string, unknown>;
+  user?: OAuthUserInfoDto;
 }
 
 /**

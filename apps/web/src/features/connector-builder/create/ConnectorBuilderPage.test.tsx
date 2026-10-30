@@ -69,6 +69,8 @@ describe('ConnectorBuilderPage (new)', () => {
       status: 'published',
       publishedAt: '2026-06-11T00:00:00Z',
       warnings: [],
+      stoppingDataMarts: [],
+      hiddenStoppingCount: 0,
     });
   });
 
@@ -116,6 +118,8 @@ describe('ConnectorBuilderPage (new)', () => {
       status: 'published',
       publishedAt: '2026-06-11T00:00:00Z',
       warnings: [warning],
+      stoppingDataMarts: [],
+      hiddenStoppingCount: 0,
     });
     render(<ConnectorBuilderPage />);
     fireEvent.change(screen.getByPlaceholderText('MyCustomApi'), { target: { value: 'MyApi' } });
@@ -236,6 +240,8 @@ describe('ConnectorBuilderPage (new)', () => {
               status: 'published',
               publishedAt: '2026-06-11T00:00:00Z',
               warnings: [],
+              stoppingDataMarts: [],
+              hiddenStoppingCount: 0,
             });
           };
         })

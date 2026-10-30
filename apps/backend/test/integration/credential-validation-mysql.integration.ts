@@ -8,6 +8,7 @@ import {
 } from 'typeorm-transactional';
 import { Credential } from 'src/data-marts/credentials/entities/credential.entity';
 import { CredentialService } from 'src/data-marts/credentials/services/credential.service';
+import { ConvertSourceCredentials1793000000000 } from 'src/migrations/1793000000000-convert-source-credentials';
 import { runMigrations } from 'src/migrations/migration-utils';
 import { credentialValidationWriteCases } from '../fixtures/credential-validation-writes';
 
@@ -256,5 +257,60 @@ describeIfAvailable('Credential validation writes (integration, MySQL)', () => {
         marked.refreshTokenStaticAt
       );
     });
+  });
+
+  it('a failed Source key conversion rolls back, though earlier DDL committed the run transaction', async () => {
+    await dataSource.getRepository(Credential).createQueryBuilder().delete().execute();
+    await dataSource.query(
+      `INSERT INTO connector_source_credentials (id, projectId, connectorName, credentials, createdAt, modifiedAt)
+       VALUES ('row-1', 'project-1', 'GitHub', ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+      [JSON.stringify({ AccessToken: 'ghp-1' })]
+    );
+    await dataSource.query(
+      `INSERT INTO data_mart (id, title, definitionType, definition, projectId, createdById, createdAt, modifiedAt)
+       VALUES ('data-mart-1', 'Stars', 'CONNECTOR', ?, 'project-1', 'creator-1', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+      [
+        JSON.stringify({
+          connector: {
+            source: {
+              name: 'GitHub',
+              configuration: [
+                { _id: 'config-1', _secrets_id: 'row-1' },
+                { _id: 'config-2', _secrets_id: 'row-1' },
+              ],
+            },
+          },
+        }),
+      ]
+    );
+    await dataSource.query(
+      "INSERT INTO data_mart_technical_owners (data_mart_id, user_id) VALUES ('data-mart-1', 'tech-1')"
+    );
+    const runner = dataSource.createQueryRunner();
+    const query = runner.query.bind(runner);
+    // The second binding is refused, so the first one exists when the conversion fails.
+    let bindingInserts = 0;
+    jest.spyOn(runner, 'query').mockImplementation(async (sql: string, parameters?: unknown[]) => {
+      if (sql.includes('INSERT INTO credential_consumer_binding') && ++bindingInserts === 2)
+        throw new Error('binding refused');
+      return query(sql, parameters);
+    });
+
+    try {
+      await runner.startTransaction();
+      // As an earlier migration's DDL does in the same run.
+      await runner.query('CREATE TABLE conversion_ddl_probe (id INT)');
+      await expect(new ConvertSourceCredentials1793000000000().up(runner)).rejects.toThrow(
+        'Source keys were not converted: binding refused'
+      );
+      await runner.rollbackTransaction();
+    } finally {
+      await runner.release();
+    }
+
+    expect(bindingInserts).toBe(2);
+    expect(await dataSource.query('SELECT id FROM credential_consumer_binding')).toEqual([]);
+    expect(await dataSource.query('SELECT id FROM credential')).toEqual([]);
+    expect(await dataSource.query('SELECT credential_id FROM credential_owners')).toEqual([]);
   });
 });

@@ -43,6 +43,7 @@ jest.mock('../services/connector/connector-fields-preview.service', () => ({}));
 jest.mock('../services/connector/connector-field-options-preview.service', () => ({}));
 jest.mock('../mappers/connector.mapper', () => ({}));
 jest.mock('../services/connector/connector-oauth.service', () => ({}));
+jest.mock('../use-cases/connect-source-oauth-credential.service', () => ({}));
 jest.mock('../use-cases/create-data-destination.service', () => ({}));
 jest.mock('../use-cases/update-data-destination.service', () => ({}));
 jest.mock('../use-cases/get-data-destination.service', () => ({}));

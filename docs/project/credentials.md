@@ -46,16 +46,16 @@ Storages and Destinations select a Credential instead of holding a key; see
 [Google Chat](../destinations/supported-destinations/google-chat.md) Destinations. These
 providers fit them:
 
-| Provider                | Fits                                               | You enter                                                |
-| ----------------------- | -------------------------------------------------- | -------------------------------------------------------- |
-| Google Service Account  | Google BigQuery Storage, Google Sheets Destination | The JSON key                                             |
-| BigQuery Google account | Google BigQuery                                    | Nothing; click **Connect with Google**                   |
-| Sheets Google account   | Google Sheets Destination                          | Nothing; click **Connect with Google**                   |
-| Google Chat webhook     | Google Chat Destination (webhook delivery)         | Webhook URL                                              |
-| AWS access key          | AWS Athena, AWS Redshift                           | Access key ID, Secret access key, optional Session token |
-| Snowflake password      | Snowflake                                          | Username, Password (or a Programmatic Access Token)      |
-| Snowflake key pair      | Snowflake                                          | Username, Private key, optional Private key passphrase   |
-| Databricks token        | Databricks                                         | Personal access token                                    |
+| Provider                          | Fits                                               | You enter                                                |
+| --------------------------------- | -------------------------------------------------- | -------------------------------------------------------- |
+| Google Service Account            | Google BigQuery Storage, Google Sheets Destination | The JSON key                                             |
+| BigQuery Google account           | Google BigQuery                                    | Nothing; click **Connect with Google**                   |
+| Sheets Destination Google account | Google Sheets Destination                          | Nothing; click **Connect with Google**                   |
+| Google Chat webhook               | Google Chat Destination (webhook delivery)         | Webhook URL                                              |
+| AWS access key                    | AWS Athena, AWS Redshift                           | Access key ID, Secret access key, optional Session token |
+| Snowflake password                | Snowflake                                          | Username, Password (or a Programmatic Access Token)      |
+| Snowflake key pair                | Snowflake                                          | Username, Private key, optional Private key passphrase   |
+| Databricks token                  | Databricks                                         | Personal access token                                    |
 
 Secret fields are write-only like any secret. To replace one, enter a new value; fields you leave
 out keep theirs, and the form warns how many Storages and Destinations the change applies to. Before
@@ -69,9 +69,33 @@ use it. A Credential created from a Storage or Destination form is not shared: o
 Project Admins can use it until an owner shares it. Plugins cannot request these providers, except Google
 Service Account.
 
-### Sheets Google account
+## Source providers
 
-A **Sheets Google account** Credential connects a Google account for Google Sheets Destinations. It
+A Connector Data Mart selects a Credential in the **Credential** field of each configuration instead of holding a key. **+ Create new Credential** opens the Credential form beside the configuration with the provider chosen and selects the new Credential on save. With exactly one fitting Credential, a new configuration selects it for you. Fields that pick data, such as account IDs, stay in the configuration. The Credentials page groups the providers:
+
+| Group             | Providers                                                                                        |
+| ----------------- | ------------------------------------------------------------------------------------------------ |
+| Ads               | Criteo Ads, Facebook Ads, Google Ads, LinkedIn Ads, Microsoft Ads, Reddit Ads, TikTok Ads, X Ads |
+| Social            | LinkedIn Pages                                                                                   |
+| E-commerce        | Shopify                                                                                          |
+| Currencies        | Open Exchange Rates                                                                              |
+| Google            | Sheets Source Google account                                                                     |
+| Other             | GitHub                                                                                           |
+| Custom connectors | Custom connector                                                                                 |
+
+Google Ads has a second provider, **Google Ads service account**, for its service account variant. A Google Sheets Source with a service account key uses a **Google Service Account** Credential. Bank of Canada and Open Holidays need no key and have no provider. Each connector's page tells how to get its keys; see [Add Access Credentials](../getting-started/setup-guide/connector-data-mart.md#step-3-add-access-credentials).
+
+For a connector with its own sign-in, the Credential form offers **Connect** where the deployment has that sign-in set up, and the values typed by hand otherwise or when you choose **Manually**. A **Sheets Source Google account** Credential opens the Google Picker on connect; its page has **Add spreadsheet**, and the Data Mart lists the spreadsheets the Credential can open.
+
+Selecting a Credential for a configuration needs the right to use it, and so does loading the fields and options of a configuration; a member who can edit the Data Mart keeps loading those for the Credential it already uses. Running needs only that the Credential is enabled and fits. Replacing a Credential's values is not checked against the Data Marts that use it: a wrong value shows on the next run. Data Marts that share a Credential with a rotating refresh token share the rotated token.
+
+### Custom connector Credentials
+
+A **Custom connector** Credential holds the keys of one API for custom connectors. Its **hosts** and its list of fields (name, label, secret or not) are set when it is created and cannot be changed afterwards; create a new Credential for other hosts. Whoever maintains it can replace its values. It fits a connector by content, not by name: it holds every host the connector's manifest sends requests to and a value for every required key parameter (of the branch a `selective` authentication selects). One Credential therefore serves several connectors of the same API, and works in the [Connector Builder](../connectors/connector-builder.md) before the connector is saved. See [Key parameters](../connectors/manifest-reference.md#key-parameters).
+
+### Sheets Destination Google account
+
+A **Sheets Destination Google account** Credential connects a Google account for Google Sheets Destinations. It
 works like a [BigQuery Google account](#bigquery-google-account): click **Connect with Google**, and
 reconnect from the Credential when Google revokes the access. It is available only where the
 deployment has Google OAuth for Destinations set up; without it, Destinations that use one show
@@ -103,11 +127,11 @@ account granted, and neither does a refused connect. To remove the access, open 
 services](https://myaccount.google.com/connections) in that Google account and remove the app's
 access. This stops every Credential and Storage that uses that Google account.
 
-### Used by Storages and Destinations
+### Used by Storages, Destinations and Data Marts
 
-**Used by** lists the Storages and Destinations that use the Credential. A Destination you cannot
-access appears as **A Destination you cannot access**. A Credential used by a Storage or a Destination
-cannot be deleted: switch those Storages and Destinations to another Credential first. Disable the
+**Used by** lists the Storages, Destinations and Data Marts that use the Credential. A Destination you cannot
+access appears as **A Destination you cannot access**. A Credential used by a Storage, a Destination or a Data Mart
+cannot be deleted: switch those to another Credential first. Disable the
 Credential to stop them at once; they show **Credential disabled** until it is enabled again.
 
 ## Google Service Account

@@ -1,4 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { ClsService } from 'nestjs-cls';
+import { AUTH_CONTEXT } from '../../idp/guards/idp.guard';
 import { DataMartMapper } from './data-mart.mapper';
 import { DataStorageMapper } from './data-storage.mapper';
 import { ConnectorSecretService } from '../services/connector/connector-secret.service';
@@ -10,13 +12,29 @@ import { DataMartStatus } from '../enums/data-mart-status.enum';
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
 import { DataQualitySummaryState } from '../enums/data-quality-summary-state.enum';
 import { DataMartIcon } from '../enums/data-mart-icon.enum';
+import { DataMartDefinitionType } from '../enums/data-mart-definition-type.enum';
+import { SourceCredentialBindingService } from '../connector-types/source-credential-binding.service';
 
 const SAFE_DATA_QUALITY_RUN_ERROR = 'Data Quality run failed during execution';
 
 describe('DataMartMapper', () => {
   let mapper: DataMartMapper;
+  let connectorSecretService: { mask: jest.Mock };
+  let sourceCredentials: {
+    boundCredentialIds: jest.Mock;
+    boundConfigs: jest.Mock;
+    summarizeForDataMart: jest.Mock;
+  };
+  let authContext: { authFlow?: string } | undefined;
 
   beforeEach(async () => {
+    authContext = undefined;
+    connectorSecretService = { mask: jest.fn() };
+    sourceCredentials = {
+      boundCredentialIds: jest.fn().mockResolvedValue(new Map()),
+      boundConfigs: jest.fn().mockResolvedValue([]),
+      summarizeForDataMart: jest.fn().mockResolvedValue(new Map()),
+    };
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         DataMartMapper,
@@ -29,12 +47,139 @@ describe('DataMartMapper', () => {
         },
         {
           provide: ConnectorSecretService,
-          useValue: {},
+          useValue: connectorSecretService,
+        },
+        { provide: SourceCredentialBindingService, useValue: sourceCredentials },
+        {
+          provide: ClsService,
+          useValue: {
+            isActive: () => true,
+            get: (key: string) => (key === AUTH_CONTEXT ? authContext : undefined),
+          },
         },
       ],
     }).compile();
 
     mapper = module.get<DataMartMapper>(DataMartMapper);
+  });
+
+  describe('a connector Data Mart response', () => {
+    const definition = {
+      connector: {
+        source: { name: 'GitHub', configuration: [{ _id: 'cfg-1' }], node: 'stars', fields: [] },
+        storage: { fullyQualifiedName: 'dataset.table' },
+      },
+    };
+    const dto = {
+      id: 'data-mart-1',
+      projectId: 'project-1',
+      storage: {},
+      definitionType: DataMartDefinitionType.CONNECTOR,
+      definition,
+      contexts: [],
+    } as never;
+    const summary = {
+      access: 'visible',
+      id: 'cred-1',
+      title: 'GitHub token',
+      definitionId: 'github',
+      providerName: 'GitHub',
+      identity: null,
+      state: 'ready',
+    };
+
+    it('returns each configuration _credential_id from its binding, as masks are put back', async () => {
+      const bound = new Map([['cfg-1', 'cred-1']]);
+      const masked = { masked: true };
+      sourceCredentials.boundCredentialIds.mockResolvedValue(bound);
+      connectorSecretService.mask.mockResolvedValue(masked);
+
+      const response = await mapper.toResponse(dto);
+
+      expect(sourceCredentials.boundCredentialIds).toHaveBeenCalledWith('project-1', 'data-mart-1');
+      expect(connectorSecretService.mask).toHaveBeenCalledWith(
+        'project-1',
+        definition,
+        undefined,
+        bound
+      );
+      expect(response.definition).toBe(masked);
+      expect(response).not.toHaveProperty('sourceCredentials');
+    });
+
+    it('sourceCredentials summarizes each bound configuration for the member', async () => {
+      sourceCredentials.summarizeForDataMart.mockResolvedValue(new Map([['cfg-1', summary]]));
+
+      const response = await mapper.toResponse(dto, {
+        projectId: 'project-1',
+        userId: 'member-1',
+        roles: ['editor'],
+      });
+
+      expect(sourceCredentials.summarizeForDataMart).toHaveBeenCalledWith({
+        projectId: 'project-1',
+        userId: 'member-1',
+        roles: ['editor'],
+        dataMartId: 'data-mart-1',
+      });
+      expect(response.sourceCredentials).toEqual([{ configId: 'cfg-1', summary }]);
+    });
+
+    it('toUpdateSchemaResponse carries the member Credential summaries', async () => {
+      sourceCredentials.summarizeForDataMart.mockResolvedValue(new Map([['cfg-1', summary]]));
+
+      const response = await mapper.toUpdateSchemaResponse(
+        { ...(dto as object), warnings: [] } as never,
+        { projectId: 'project-1', userId: 'member-1', roles: ['editor'] }
+      );
+
+      expect(response.sourceCredentials).toEqual([{ configId: 'cfg-1', summary }]);
+    });
+
+    it('hides which Credential a configuration uses from a plugin request', async () => {
+      authContext = { authFlow: 'plugin' };
+      sourceCredentials.summarizeForDataMart.mockResolvedValue(
+        new Map([
+          ['cfg-1', summary],
+          ['cfg-2', { access: 'pending', state: 'ready' }],
+        ])
+      );
+
+      const response = await mapper.toResponse(dto, {
+        projectId: 'project-1',
+        userId: 'member-1',
+        roles: ['editor'],
+      });
+
+      expect(response.sourceCredentials).toEqual([
+        { configId: 'cfg-1', summary: { access: 'restricted', state: 'ready' } },
+        { configId: 'cfg-2', summary: { access: 'pending', state: 'ready' } },
+      ]);
+    });
+
+    it('a list reads the bindings of all its Data Marts once', async () => {
+      const other = { ...(dto as object), id: 'data-mart-2' } as never;
+      sourceCredentials.boundConfigs.mockResolvedValue([
+        { consumerId: 'data-mart-1', requirementKey: 'cfg-1', credential: { id: 'cred-1' } },
+        { consumerId: 'data-mart-2', requirementKey: 'cfg-1', credential: null },
+      ]);
+
+      await mapper.toResponseList([dto, other]);
+
+      expect(sourceCredentials.boundConfigs).toHaveBeenCalledTimes(1);
+      expect(sourceCredentials.boundConfigs).toHaveBeenCalledWith('project-1', [
+        'data-mart-1',
+        'data-mart-2',
+      ]);
+      expect(sourceCredentials.boundCredentialIds).not.toHaveBeenCalled();
+      expect(connectorSecretService.mask.mock.calls.map(c => [...c[3]])).toEqual([
+        [['cfg-1', 'cred-1']],
+        [['cfg-1', null]],
+      ]);
+      expect(connectorSecretService.mask.mock.calls[0][2]).toBe(
+        connectorSecretService.mask.mock.calls[1][2]
+      );
+    });
   });
 
   describe('Data Mart list items', () => {
@@ -199,50 +344,58 @@ describe('DataMartMapper', () => {
   });
 
   describe('toUpdateSchemaResponse', () => {
+    const member = { projectId: 'project-1', userId: 'member-1' };
+
     it('carries calculated-field warnings through to the HTTP response body', async () => {
       const warnings = [
         { code: 'FORMULA_UNGUARDED_DIVISION', field: 'ctr', message: 'divides without guarding' },
       ];
 
-      const response = await mapper.toUpdateSchemaResponse({
-        id: 'data-mart-1',
-        title: 'Orders',
-        status: DataMartStatus.PUBLISHED,
-        storage: {},
-        createdAt: new Date('2026-07-23T12:00:00.000Z'),
-        modifiedAt: new Date('2026-07-23T12:00:00.000Z'),
-        triggersCount: 0,
-        reportsCount: 0,
-        createdByUser: null,
-        businessOwnerUsers: [],
-        technicalOwnerUsers: [],
-        availableForReporting: true,
-        availableForMaintenance: true,
-        contexts: [],
-        warnings,
-      } as never);
+      const response = await mapper.toUpdateSchemaResponse(
+        {
+          id: 'data-mart-1',
+          title: 'Orders',
+          status: DataMartStatus.PUBLISHED,
+          storage: {},
+          createdAt: new Date('2026-07-23T12:00:00.000Z'),
+          modifiedAt: new Date('2026-07-23T12:00:00.000Z'),
+          triggersCount: 0,
+          reportsCount: 0,
+          createdByUser: null,
+          businessOwnerUsers: [],
+          technicalOwnerUsers: [],
+          availableForReporting: true,
+          availableForMaintenance: true,
+          contexts: [],
+          warnings,
+        } as never,
+        member
+      );
 
       expect(response.warnings).toEqual(warnings);
     });
 
     it('returns an empty warnings array on the wire when there is nothing to warn about', async () => {
-      const response = await mapper.toUpdateSchemaResponse({
-        id: 'data-mart-1',
-        title: 'Orders',
-        status: DataMartStatus.PUBLISHED,
-        storage: {},
-        createdAt: new Date('2026-07-23T12:00:00.000Z'),
-        modifiedAt: new Date('2026-07-23T12:00:00.000Z'),
-        triggersCount: 0,
-        reportsCount: 0,
-        createdByUser: null,
-        businessOwnerUsers: [],
-        technicalOwnerUsers: [],
-        availableForReporting: true,
-        availableForMaintenance: true,
-        contexts: [],
-        warnings: [],
-      } as never);
+      const response = await mapper.toUpdateSchemaResponse(
+        {
+          id: 'data-mart-1',
+          title: 'Orders',
+          status: DataMartStatus.PUBLISHED,
+          storage: {},
+          createdAt: new Date('2026-07-23T12:00:00.000Z'),
+          modifiedAt: new Date('2026-07-23T12:00:00.000Z'),
+          triggersCount: 0,
+          reportsCount: 0,
+          createdByUser: null,
+          businessOwnerUsers: [],
+          technicalOwnerUsers: [],
+          availableForReporting: true,
+          availableForMaintenance: true,
+          contexts: [],
+          warnings: [],
+        } as never,
+        member
+      );
 
       expect(response.warnings).toEqual([]);
     });
@@ -691,6 +844,8 @@ describe('DataMartMapper', () => {
             },
           },
           { provide: ConnectorSecretService, useValue: { mask } },
+          { provide: SourceCredentialBindingService, useValue: {} },
+          { provide: ClsService, useValue: { isActive: () => false } },
         ],
       }).compile();
 

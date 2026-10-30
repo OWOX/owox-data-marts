@@ -35,6 +35,7 @@ import { ConnectorFieldsPreviewRequestApiDto } from '../dto/presentation/connect
 import { ConnectorFieldOptionsPreviewService } from '../services/connector/connector-field-options-preview.service';
 import { ConnectorFieldOptionsPreviewRequestApiDto } from '../dto/presentation/connector-field-options-preview-request-api.dto';
 import { ConnectorFieldOptionResponseApiDto } from '../dto/presentation/connector-field-option-response-api.dto';
+import { ConnectSourceOAuthCredentialService } from '../use-cases/connect-source-oauth-credential.service';
 
 @Controller('connectors')
 @ApiTags('Connectors')
@@ -46,7 +47,8 @@ export class ConnectorController {
     private readonly connectorFieldsPreviewService: ConnectorFieldsPreviewService,
     private readonly connectorFieldOptionsPreviewService: ConnectorFieldOptionsPreviewService,
     private readonly mapper: ConnectorMapper,
-    private readonly connectorOauthService: ConnectorOauthService
+    private readonly connectorOauthService: ConnectorOauthService,
+    private readonly connectSourceOAuthCredentialService: ConnectSourceOAuthCredentialService
   ) {}
 
   @Auth(Role.none())
@@ -88,7 +90,8 @@ export class ConnectorController {
     const fields = await this.connectorFieldsPreviewService.run(
       context,
       connectorName,
-      body.configuration ?? {}
+      body.configuration ?? {},
+      body.dataMartId
     );
     return this.mapper.toFieldsResponse(fields);
   }
@@ -105,7 +108,8 @@ export class ConnectorController {
       context,
       connectorName,
       body.field,
-      body.configuration ?? {}
+      body.configuration ?? {},
+      body.dataMartId
     );
     return this.mapper.toFieldOptionsResponse(options);
   }
@@ -123,7 +127,7 @@ export class ConnectorController {
     return this.mapper.toSettingsResponse(settings);
   }
 
-  @Auth(Role.editor())
+  @Auth(Role.viewer())
   @RejectApiKeyAuth()
   @RejectPluginAuth()
   @Post(':connectorName/oauth/exchange')
@@ -133,14 +137,7 @@ export class ConnectorController {
     @Param('connectorName') connectorName: string,
     @Body() body: ExchangeOAuthCredentialsDto
   ): Promise<ConnectorOAuthCredentialsResponseApiDto> {
-    const result = await this.connectorOauthService.exchangeCredentials(
-      context.projectId,
-      context.userId,
-      connectorName,
-      body.fieldPath,
-      body.payload
-    );
-
+    const result = await this.connectSourceOAuthCredentialService.run(context, connectorName, body);
     return this.mapper.toCredentialsResponse(result);
   }
 
@@ -157,7 +154,7 @@ export class ConnectorController {
     const status = await this.connectorOauthService.getCredentialStatus(
       connectorName,
       credentialId,
-      context.projectId
+      context
     );
     return this.mapper.toStatusResponse(status);
   }

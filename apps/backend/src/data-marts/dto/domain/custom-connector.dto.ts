@@ -1,3 +1,5 @@
+import type { StoppingDataMarts } from '../../services/connector/connector-definition.service';
+
 export interface CustomConnectorActor {
   projectId: string;
   userId: string;
@@ -44,12 +46,13 @@ export interface CustomConnectorVersionDto extends CustomConnectorVersionStateDt
   manifest: Record<string, unknown>;
 }
 
-export interface CustomConnectorPublishedDto extends CustomConnectorVersionStateDto {
+export interface CustomConnectorPublishedDto
+  extends CustomConnectorVersionStateDto, StoppingDataMarts {
   publishedAt?: Date | null;
   warnings: string[];
 }
 
-export interface CustomConnectorActivatedDto {
+export interface CustomConnectorActivatedDto extends StoppingDataMarts {
   activeVersionId: string | null;
   activeVersion: number;
 }
@@ -67,4 +70,11 @@ export interface CustomConnectorTestResultDto {
   logs: string[];
   error: string | null;
   sample: Record<string, unknown>[];
+}
+
+export interface FittingCustomConnectorCredentialDto {
+  readonly id: string;
+  readonly title: string;
+  readonly hosts: string[];
+  readonly fieldKeys: string[];
 }

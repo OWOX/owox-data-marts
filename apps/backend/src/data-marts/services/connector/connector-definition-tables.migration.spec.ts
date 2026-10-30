@@ -462,7 +462,8 @@ describe('ConnectorDefinitionService atomicity on the real schema', () => {
       definitionRepo,
       versionRepo,
       { findByProjectIdAndDefinitionType: jest.fn().mockResolvedValue([]) } as never,
-      { canAccessMany: jest.fn().mockResolvedValue(new Map()) } as never
+      { canAccessMany: jest.fn().mockResolvedValue(new Map()) } as never,
+      {} as never
     );
   });
 

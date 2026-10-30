@@ -69,6 +69,26 @@ describe('CredentialUsedByList', () => {
     expect(screen.getAllByText('Destination · Never used')).toHaveLength(2);
   });
 
+  it('Used by links a connector-config consumer to its Data Mart', () => {
+    render(
+      <MemoryRouter>
+        <CredentialUsedByList
+          credential={withUsedBy([
+            consumer('connector-config', 'data-mart-1', 'config-1', 'Ads spend'),
+            consumer('connector-config', 'data-mart-2', 'config-2'),
+          ])}
+        />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByRole('link', { name: 'Ads spend' })).toHaveAttribute(
+      'href',
+      '/ui/project-1/data-marts/data-mart-1/data-setup'
+    );
+    expect(screen.getByText('A Data Mart you cannot access')).toBeInTheDocument();
+    expect(screen.getAllByText('Data Mart · Never used')).toHaveLength(2);
+  });
+
   it('names a plugin the member cannot access without a title', () => {
     render(
       <MemoryRouter>
@@ -189,6 +209,38 @@ describe('SecretReplacementWarning', () => {
 
     expect(screen.getByRole('status')).toHaveTextContent(
       'The new secret applies to 1 Destination that uses this Credential.'
+    );
+  });
+
+  it('counts each Data Mart once, however many of its configurations use the Credential', () => {
+    render(
+      <SecretReplacementWarning
+        credential={withUsedBy([
+          consumer('connector-config', 'dm-1', 'config-a'),
+          consumer('connector-config', 'dm-1', 'config-b'),
+          consumer('connector-config', 'dm-2', 'config-c'),
+        ])}
+      />
+    );
+
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'The new secret applies to 2 Data Marts that use this Credential.'
+    );
+  });
+
+  it('lists Storages, Destinations and Data Marts together', () => {
+    render(
+      <SecretReplacementWarning
+        credential={withUsedBy([
+          consumer('storage', 's-1'),
+          consumer('destination', 'd-1'),
+          consumer('connector-config', 'dm-1', 'config-a'),
+        ])}
+      />
+    );
+
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'The new secret applies to 1 Storage, 1 Destination and 1 Data Mart that use this Credential.'
     );
   });
 });

@@ -125,6 +125,8 @@ describe('Connector builder analytics', () => {
       status: 'published',
       publishedAt: '',
       warnings: ['w'],
+      stoppingDataMarts: [],
+      hiddenStoppingCount: 0,
     });
     // A node without declared fields is tested sample-only: no cast rows, the records in
     // `sample` (connector-test.service.ts).
@@ -212,6 +214,8 @@ describe('Connector builder analytics', () => {
       status: 'published',
       publishedAt: '',
       warnings: ['w'],
+      stoppingDataMarts: [],
+      hiddenStoppingCount: 0,
     });
     fireEvent.click(screen.getByRole('button', { name: /^publish$/i }));
 
@@ -265,7 +269,14 @@ describe('Connector builder analytics', () => {
   it('does not report a publish that landed as failed when the refresh after it fails', async () => {
     await renderExisting();
     fireEvent.change(screen.getByPlaceholderText('My Custom API'), { target: { value: 'Mine' } });
-    publish.mockResolvedValue({ version: 2, status: 'published', publishedAt: '', warnings: [] });
+    publish.mockResolvedValue({
+      version: 2,
+      status: 'published',
+      publishedAt: '',
+      warnings: [],
+      stoppingDataMarts: [],
+      hiddenStoppingCount: 0,
+    });
     // The save before the publish reads the connector back too; only the read after it fails.
     getById
       .mockResolvedValueOnce(detail([{ version: 1, status: 'published' }], 1))
@@ -452,7 +463,12 @@ describe('Connector builder analytics', () => {
         2
       )
     );
-    activateVersion.mockResolvedValue({ activeVersionId: 'v1-id', activeVersion: 1 });
+    activateVersion.mockResolvedValue({
+      activeVersionId: 'v1-id',
+      activeVersion: 1,
+      stoppingDataMarts: [],
+      hiddenStoppingCount: 0,
+    });
     await renderExisting();
 
     fireEvent.click(screen.getByTestId('version-badge'));

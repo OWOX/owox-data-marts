@@ -314,6 +314,7 @@ function buildDefinition(overrides: Partial<CredentialDefinition> = {}): Credent
     supportsAi: false,
     ai: null,
     compatibilityLine: null,
+    connectors: [],
     ...overrides,
   };
 }

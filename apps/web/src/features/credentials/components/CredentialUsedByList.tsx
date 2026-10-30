@@ -1,17 +1,22 @@
 import RelativeTime from '@owox/ui/components/common/relative-time';
 import { FormItem } from '@owox/ui/components/form';
 import { cn } from '@owox/ui/lib/utils';
-import { ArchiveRestore, DatabaseIcon, Puzzle } from 'lucide-react';
+import { ArchiveRestore, Box, DatabaseIcon, Puzzle } from 'lucide-react';
 import { Link } from 'react-router';
 import { useProjectRoute } from '../../../shared/hooks';
 import type { Credential, CredentialConsumerReference } from '../types';
 
-// Storages and Destinations are pages the member can open; any other consumer is a plugin.
+// Storages, Destinations and Data Marts are pages the member can open; any other consumer is a plugin.
 const LINKED_CONSUMERS: Partial<
-  Record<string, { Icon: typeof DatabaseIcon; kind: string; path: string }>
+  Record<string, { Icon: typeof DatabaseIcon; kind: string; path: (id: string) => string }>
 > = {
-  storage: { Icon: DatabaseIcon, kind: 'Storage', path: 'data-storages' },
-  destination: { Icon: ArchiveRestore, kind: 'Destination', path: 'data-destinations' },
+  storage: { Icon: DatabaseIcon, kind: 'Storage', path: id => `/data-storages?id=${id}` },
+  destination: {
+    Icon: ArchiveRestore,
+    kind: 'Destination',
+    path: id => `/data-destinations?id=${id}`,
+  },
+  'connector-config': { Icon: Box, kind: 'Data Mart', path: id => `/data-marts/${id}/data-setup` },
 };
 
 function ConsumerRow({ consumer }: { consumer: CredentialConsumerReference }) {
@@ -36,7 +41,7 @@ function ConsumerRow({ consumer }: { consumer: CredentialConsumerReference }) {
           </span>
         ) : typeof title === 'string' ? (
           <Link
-            to={scope(`/${linked.path}?id=${consumer.consumerId}`)}
+            to={scope(linked.path(consumer.consumerId))}
             className='truncate font-medium hover:underline'
             title={title || undefined}
           >

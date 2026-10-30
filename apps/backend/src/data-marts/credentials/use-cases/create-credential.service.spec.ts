@@ -7,7 +7,6 @@ import { BadRequestException } from '@nestjs/common';
 import type { AuthorizationContext } from '../../../idp';
 import { serviceAccountKey } from '../../../../test/fixtures/google-service-account-key';
 import { BUILTIN_CREDENTIAL_DEFINITIONS } from '../services/builtin-credential-definitions';
-import { sourceCredentialDefinitions } from '../../connector-types/source-credential-definitions';
 import { CreateCredentialService, normalizeAiConfiguration } from './create-credential.service';
 
 describe('normalizeAiConfiguration', () => {
@@ -307,48 +306,123 @@ describe('CreateCredentialService with a field set', () => {
   });
 });
 
-describe('CreateCredentialService with a type the previous release cannot read', () => {
-  const refusal = new BadRequestException(
-    'This Credential type cannot be created in this version.'
-  );
+describe('CreateCredentialService with a custom connector', () => {
+  const custom = builtin('custom-connector');
+  const valid = {
+    hosts: ['API.Acme.example', 'api.acme.example', 'data.acme.example'],
+    fieldList: [
+      { key: 'apiKey', label: 'API key', secret: true },
+      { key: 'accountId', label: 'Account', secret: false },
+    ],
+    fields: { apiKey: ' key-1\n', accountId: 'acc-1' },
+  };
+  const create = (customConnector: object) =>
+    setupCreate('verified', 'accepted', custom).service.run(context, {
+      title: 'Acme',
+      definitionId: 'custom-connector',
+      customConnector,
+    } as never);
 
-  it('refuses a custom connector Credential and writes nothing', async () => {
-    const state = setupCreate('verified', 'accepted', builtin('custom-connector'));
+  it('creates a custom connector Credential with hosts, field list and values', async () => {
+    const state = setupCreate('verified', 'accepted', custom);
 
-    await expect(
-      state.service.run(context, {
-        title: 'Acme',
-        definitionId: 'custom-connector',
-        customConnector: {
-          hosts: ['api.acme.example'],
-          fieldList: [{ key: 'apiKey', label: 'API key', secret: true }],
-          fields: { apiKey: 'key-1' },
+    await state.service.run(context, {
+      title: 'Acme',
+      definitionId: 'custom-connector',
+      customConnector: valid,
+    } as never);
+
+    expect(state.validationProbe.run).not.toHaveBeenCalled();
+    expect(state.credentials.createWithAccess).toHaveBeenCalledWith(
+      expect.objectContaining({
+        secret: { fields: { apiKey: ' key-1\n' } },
+        publicMetadata: {
+          hosts: ['api.acme.example', 'data.acme.example'],
+          fieldList: valid.fieldList,
+          fields: { accountId: 'acc-1' },
         },
-      } as never)
-    ).rejects.toThrow(refusal);
-    expect(state.credentials.createWithAccess).not.toHaveBeenCalled();
+        validationState: 'unknown',
+      }),
+      expect.anything()
+    );
   });
 
-  it('refuses a generated Source Credential and writes nothing', async () => {
-    const contract = sourceCredentialDefinitions().definitions.find(
-      definition => definition.id === 'source:OpenExchangeRates:default'
-    );
-    const state = setupCreate('verified', 'accepted', {
-      definitionId: contract?.id,
-      source: 'builtin',
-      compatibilityLine: null,
-      contract,
-    });
+  it.each([
+    'https://api.acme.example',
+    'api.acme.example:8443',
+    'api.acme.example/v1',
+    '*.acme.example',
+    '',
+  ])('rejects a host that is not a bare hostname: %p', async host => {
+    await expect(create({ ...valid, hosts: [host] })).rejects.toThrow(BadRequestException);
+  });
 
+  it('requires at least one host and at most 20 hosts and 20 fields', async () => {
+    await expect(create({ ...valid, hosts: [] })).rejects.toThrow(BadRequestException);
+    const hosts = Array.from({ length: 21 }, (_, i) => `h${i}.acme.example`);
+    await expect(create({ ...valid, hosts })).rejects.toThrow(BadRequestException);
+    const fieldList = Array.from({ length: 21 }, (_, i) => ({
+      key: `k${i}`,
+      label: 'K',
+      secret: false,
+    }));
+    const fields = Object.fromEntries(fieldList.map(f => [f.key, 'v']));
+    await expect(create({ ...valid, fieldList, fields })).rejects.toThrow(BadRequestException);
+  });
+
+  it.each(['1key', '_key', 'api-key', 'api key', ''])(
+    'rejects a field key that is not a valid manifest parameter name: %p',
+    async key => {
+      await expect(
+        create({ ...valid, fieldList: [{ key, label: 'K', secret: true }], fields: { [key]: 'v' } })
+      ).rejects.toThrow(BadRequestException);
+    }
+  );
+
+  it('rejects a reserved manifest parameter name', async () => {
+    const fieldList = [{ key: 'Fields', label: 'F', secret: true }];
+    await expect(create({ ...valid, fieldList, fields: { Fields: 'top-secret' } })).rejects.toThrow(
+      new BadRequestException('Field Fields uses a name reserved by the connector engine')
+    );
+  });
+
+  it('rejects duplicate keys', async () => {
+    const fieldList = [
+      { key: 'apiKey', label: 'A', secret: true },
+      { key: 'apiKey', label: 'B', secret: false },
+    ];
+    await expect(create({ ...valid, fieldList, fields: { apiKey: 'v' } })).rejects.toThrow(
+      BadRequestException
+    );
+  });
+
+  it('rejects a value for a key not in the field list and a field without a value', async () => {
+    await expect(create({ ...valid, fields: { ...valid.fields, other: 'v' } })).rejects.toThrow(
+      BadRequestException
+    );
+    await expect(create({ ...valid, fields: { apiKey: 'v' } })).rejects.toThrow(
+      BadRequestException
+    );
     await expect(
-      state.service.run(context, {
-        title: 'Rates key',
-        definitionId: 'source:OpenExchangeRates:default',
-        fields: { AppId: 'app-id-1' },
+      create({ ...valid, fields: { ...valid.fields, accountId: '  ' } })
+    ).rejects.toThrow(BadRequestException);
+  });
+
+  it('requires customConnector for this definition and refuses it for others', async () => {
+    await expect(
+      setupCreate('verified', 'accepted', custom).service.run(context, {
+        title: 'Acme',
+        definitionId: 'custom-connector',
       })
-    ).rejects.toThrow(refusal);
-    expect(state.validationProbe.run).not.toHaveBeenCalled();
-    expect(state.credentials.createWithAccess).not.toHaveBeenCalled();
+    ).rejects.toThrow(BadRequestException);
+    await expect(
+      setupCreate('verified', 'accepted', headerDefinition).service.run(context, {
+        title: 'Acme',
+        definitionId: 'github',
+        secret: { value: 'v' },
+        customConnector: valid,
+      } as never)
+    ).rejects.toThrow(BadRequestException);
   });
 });
 

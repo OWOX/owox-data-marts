@@ -10,6 +10,11 @@ import { ActivateCustomConnectorVersionCommand } from '../dto/domain/activate-cu
 import { DeleteCustomConnectorCommand } from '../dto/domain/delete-custom-connector.command';
 import { GetCustomConnectorSpecificationCommand } from '../dto/domain/get-custom-connector-specification.command';
 import { GetCustomConnectorFieldsCommand } from '../dto/domain/get-custom-connector-fields.command';
+import {
+  ListFittingCustomConnectorCredentialsCommand,
+  type FittingCredentialsQuery,
+} from '../dto/domain/list-fitting-custom-connector-credentials.command';
+import type { CustomConnectorCredentialRequirement } from '../connector-types/custom-connector-credential-fit';
 import { TestCustomConnectorCommand } from '../dto/domain/test-custom-connector.command';
 import type {
   CustomConnectorActor,
@@ -23,6 +28,7 @@ import type {
   CustomConnectorDto,
   CustomConnectorVersionDto,
   CustomConnectorVersionStateDto,
+  FittingCustomConnectorCredentialDto,
   CustomConnectorPublishedDto,
 } from '../dto/domain/custom-connector.dto';
 import type {
@@ -34,10 +40,15 @@ import type {
   PublishCustomConnectorResponseApiDto,
   ActivateCustomConnectorVersionResponseApiDto,
   ConnectorTestResultResponseApiDto,
+  CustomConnectorCredentialRequirementResponseApiDto,
+  FittingCustomConnectorCredentialResponseApiDto,
 } from '../dto/presentation/custom-connector-response.dto';
 import { ConnectorDefinition } from '../entities/connector-definition.entity';
 import { ConnectorDefinitionVersion } from '../entities/connector-definition-version.entity';
-import { ConnectorDefinitionVersionSummary } from '../services/connector/connector-definition.service';
+import {
+  ConnectorDefinitionVersionSummary,
+  StoppingDataMarts,
+} from '../services/connector/connector-definition.service';
 
 // Explicit domain projections keep persistence-only fields and manifests out of metadata reads.
 @Injectable()
@@ -134,14 +145,25 @@ export class ConnectorDefinitionMapper {
     return new GetCustomConnectorFieldsCommand(projectId, connectorId, version);
   }
 
-  toTestCommand(projectId: string, input: CustomConnectorTestInput): TestCustomConnectorCommand {
-    return new TestCustomConnectorCommand(projectId, {
-      manifest: input.manifest,
-      node: input.node,
-      configuration: input.configuration,
-      maxRows: input.maxRows,
-      maxPages: input.maxPages,
-    });
+  /** Without `caller.credentialId` the test runs on the typed values, as MCP tests do. */
+  toTestCommand(
+    projectId: string,
+    input: CustomConnectorTestInput,
+    caller?: { credentialId?: string; userId: string; roles?: string[] }
+  ): TestCustomConnectorCommand {
+    return new TestCustomConnectorCommand(
+      projectId,
+      {
+        manifest: input.manifest,
+        node: input.node,
+        configuration: input.configuration,
+        maxRows: input.maxRows,
+        maxPages: input.maxPages,
+      },
+      caller?.credentialId
+        ? { credentialId: caller.credentialId, userId: caller.userId, roles: caller.roles ?? [] }
+        : undefined
+    );
   }
 
   toListItemDto(def: ConnectorDefinition, activeVersion: number | null): CustomConnectorDto {
@@ -191,12 +213,26 @@ export class ConnectorDefinitionMapper {
     return { version: row.version, status: row.status };
   }
 
-  toPublishedDto(row: ConnectorDefinitionVersion, warnings: string[]): CustomConnectorPublishedDto {
-    return { version: row.version, status: row.status, publishedAt: row.publishedAt, warnings };
+  toPublishedDto(
+    row: ConnectorDefinitionVersion,
+    warnings: string[],
+    stopping: StoppingDataMarts
+  ): CustomConnectorPublishedDto {
+    return {
+      version: row.version,
+      status: row.status,
+      publishedAt: row.publishedAt,
+      warnings,
+      ...stopping,
+    };
   }
 
-  toActivatedDto(def: ConnectorDefinition, version: number): CustomConnectorActivatedDto {
-    return { activeVersionId: def.activeVersionId ?? null, activeVersion: version };
+  toActivatedDto(
+    def: ConnectorDefinition,
+    version: number,
+    stopping: StoppingDataMarts
+  ): CustomConnectorActivatedDto {
+    return { activeVersionId: def.activeVersionId ?? null, activeVersion: version, ...stopping };
   }
 
   toListItemApiResponse(dto: CustomConnectorDto): CustomConnectorListItemResponseApiDto {
@@ -247,16 +283,64 @@ export class ConnectorDefinitionMapper {
       status: dto.status,
       publishedAt: dto.publishedAt,
       warnings: dto.warnings,
+      stoppingDataMarts: dto.stoppingDataMarts,
+      hiddenStoppingCount: dto.hiddenStoppingCount,
     };
   }
 
   toActivatedApiResponse(
     dto: CustomConnectorActivatedDto
   ): ActivateCustomConnectorVersionResponseApiDto {
-    return { activeVersionId: dto.activeVersionId, activeVersion: dto.activeVersion };
+    return {
+      activeVersionId: dto.activeVersionId,
+      activeVersion: dto.activeVersion,
+      stoppingDataMarts: dto.stoppingDataMarts,
+      hiddenStoppingCount: dto.hiddenStoppingCount,
+    };
   }
 
   toTestApiResponse(dto: CustomConnectorTestResultDto): ConnectorTestResultResponseApiDto {
     return { rows: dto.rows, logs: dto.logs, error: dto.error, sample: dto.sample };
+  }
+
+  toFittingCredentialsCommand(
+    caller: { projectId: string; userId: string; roles?: string[] },
+    body: FittingCredentialsQuery
+  ): ListFittingCustomConnectorCredentialsCommand {
+    return new ListFittingCustomConnectorCredentialsCommand(
+      caller.projectId,
+      caller.userId,
+      caller.roles ?? [],
+      {
+        manifest: body.manifest,
+        connectorName: body.connectorName,
+        version: body.version,
+        node: body.node,
+        selection: body.selection,
+      }
+    );
+  }
+
+  toFittingCredentialsApiResponse(
+    items: FittingCustomConnectorCredentialDto[]
+  ): FittingCustomConnectorCredentialResponseApiDto[] {
+    return items.map(({ id, title, hosts, fieldKeys }) => ({ id, title, hosts, fieldKeys }));
+  }
+
+  toCredentialRequirementApiResponse(
+    requirement: CustomConnectorCredentialRequirement
+  ): CustomConnectorCredentialRequirementResponseApiDto {
+    return {
+      hosts: requirement.hosts,
+      fieldList: requirement.fieldList.map(({ key, label, secret, required }) => ({
+        key,
+        label,
+        secret,
+        required,
+      })),
+      keyParameters: requirement.keyParameters,
+      selectionParameter: requirement.selectionParameter,
+      misuse: requirement.misuse,
+    };
   }
 }

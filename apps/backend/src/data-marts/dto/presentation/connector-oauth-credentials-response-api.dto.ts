@@ -15,14 +15,11 @@ export class ConnectorOAuthCredentialsResponseApiDto {
   @ApiProperty({ example: true })
   success: boolean;
 
-  @ApiProperty({ example: '1234567890' })
+  @ApiProperty({ description: 'The Credential id', example: '1234567890' })
   credentialId: string;
 
   @ApiProperty({ type: ConnectorOAuthStatusUserApiDto })
   user?: ConnectorOAuthStatusUserApiDto;
-
-  @ApiProperty({ example: { scope: 'read,write' } })
-  additional?: Record<string, unknown>;
 
   @ApiProperty({ example: ['Invalid credentials'] })
   reasons?: string[];

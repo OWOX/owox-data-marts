@@ -50,6 +50,7 @@ import {
   GatewayTimeoutException,
   InternalServerErrorException,
 } from '@nestjs/common';
+import { SourceCredentialUnavailableException } from '../../exceptions/source-credential-unavailable.exception';
 import { AuthorizationContext } from '../../../idp';
 import { ConnectorPreviewCredentialsService } from './connector-preview-credentials.service';
 import { ConnectorFieldsPreviewService } from './connector-fields-preview.service';
@@ -100,14 +101,20 @@ describe(ConnectorFieldsPreviewService.name, () => {
       },
     });
 
-    const result = await service.run(context, 'GoogleSheets', {
-      SpreadsheetId: 'sheet-1',
-    });
+    const result = await service.run(
+      context,
+      'GoogleSheets',
+      {
+        SpreadsheetId: 'sheet-1',
+      },
+      'dm-1'
+    );
 
     expect(previewCredentials.inject).toHaveBeenCalledWith(
       'GoogleSheets',
       { SpreadsheetId: 'sheet-1' },
-      context
+      context,
+      'dm-1'
     );
     expect(result).toEqual([
       expect.objectContaining({
@@ -197,6 +204,17 @@ describe(ConnectorFieldsPreviewService.name, () => {
 
     await expect(service.run(context, 'GoogleSheets', {})).rejects.toThrow(
       InternalServerErrorException
+    );
+  });
+
+  it('a disabled bound Credential gives the run error, not a 500', async () => {
+    const { service, previewCredentials } = createService();
+    (previewCredentials.inject as jest.Mock).mockRejectedValue(
+      new SourceCredentialUnavailableException('Credential "Acme" is disabled.')
+    );
+
+    await expect(service.run(context, 'GoogleSheets', {})).rejects.toBeInstanceOf(
+      SourceCredentialUnavailableException
     );
   });
 

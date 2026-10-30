@@ -15,7 +15,10 @@ import {
 import { ConnectorFieldsSchema } from '../../connector-types/connector-fields-schema';
 import { ConnectorSourceCredentialsService } from './connector-source-credentials.service';
 import { ConnectorDefinitionService } from './connector-definition.service';
-import { ConnectorOauthCredentials } from '../../connector-types/interfaces/connector-oauth-credentials';
+import type {
+  ConnectorOauthCredentials,
+  ExchangedOAuthCredentials,
+} from '../../connector-types/interfaces/connector-oauth-credentials';
 import { OAuthVar, OAuthAttribute } from '../../connector-types/connector-oauth-schema';
 import {
   mapConnectorFieldsSchema,
@@ -308,41 +311,25 @@ export class ConnectorService {
     return true;
   }
 
-  async exchangeCredential(
-    projectId: string,
-    userId: string,
+  /** Runs the connector's OAuth exchange; stores nothing. */
+  async exchangeOauth(
     connectorName: string,
     fieldPath: string,
     payload: unknown
-  ): Promise<{
-    credentialId: string;
-    user?: { id?: string; name?: string; email?: string; picture?: string };
-    additional?: Record<string, unknown>;
-    warnings?: string[];
-  }> {
+  ): Promise<ExchangedOAuthCredentials> {
     const connector = this.createConnectorSource(connectorName);
     const oauthVariables = await this.getSourceOauthVariables(connectorName, fieldPath);
     const exchanged = (await connector.exchangeOauthCredentials(
       payload,
       oauthVariables
     )) as ConnectorOauthCredentials;
-    const expiresAt =
-      exchanged.expiresIn !== null && exchanged.expiresIn !== undefined
-        ? new Date(Date.now() + exchanged.expiresIn * 1000)
-        : null;
-
-    const credential = await this.connectorSourceCredentialsService.createCredentials(
-      projectId,
-      userId,
-      connectorName,
-      exchanged.secret,
-      expiresAt,
-      exchanged.user
-    );
     return {
-      credentialId: credential.id,
+      credentials: exchanged.secret,
       user: exchanged.user,
-      additional: exchanged.additional,
+      expiresAt:
+        exchanged.expiresIn !== null && exchanged.expiresIn !== undefined
+          ? new Date(Date.now() + exchanged.expiresIn * 1000)
+          : null,
       warnings: exchanged.warnings,
     };
   }
