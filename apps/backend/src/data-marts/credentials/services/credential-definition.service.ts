@@ -19,6 +19,9 @@ import {
 } from '../../connector-types/source-credential-definitions';
 import { BUILTIN_CREDENTIAL_DEFINITIONS } from './builtin-credential-definitions';
 
+/** A stored definition id that no longer resolves; still a 400 for callers. */
+export class CredentialDefinitionUnavailableException extends BadRequestException {}
+
 @Injectable()
 export class CredentialDefinitionService {
   private readonly builtins = new Map(
@@ -68,12 +71,16 @@ export class CredentialDefinitionService {
       id: definitionId,
     });
     if (!external) {
-      throw new BadRequestException(`Credential definition ${definitionId} is not available`);
+      throw new CredentialDefinitionUnavailableException(
+        `Credential definition ${definitionId} is not available`
+      );
     }
 
     const resolved = await this.resolveExternal(external);
     if (!resolved) {
-      throw new BadRequestException(`Credential definition ${definitionId} has no active version`);
+      throw new CredentialDefinitionUnavailableException(
+        `Credential definition ${definitionId} has no active version`
+      );
     }
     return resolved;
   }

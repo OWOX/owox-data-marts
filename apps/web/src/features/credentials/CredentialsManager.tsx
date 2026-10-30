@@ -19,7 +19,7 @@ import { wasErrorToastShown } from '../../app/api';
 import { extractApiError } from '../../app/api/extract-api-error.util';
 import { useAuth } from '../idp';
 import { ConfirmationDialog } from '../../shared/components/ConfirmationDialog/ConfirmationDialog';
-import type { Credential } from './types';
+import { isUnavailableCredential, type Credential, type UnavailableCredential } from './types';
 import { CredentialConfigSheet, CredentialUsedByList } from './components/CredentialConfigSheet';
 import { SecretReplacementWarning } from './components/SecretReplacementWarning';
 import { CredentialsTable } from './CredentialsTable';
@@ -31,7 +31,7 @@ import { useCredentialActions, useCredentialDefinitions, useCredentials } from '
 
 export function CredentialsManager() {
   const { user } = useAuth();
-  const { credentials, isLoading, isError, refetch } = useCredentials();
+  const { credentials, unavailableCredentials, isLoading, isError, refetch } = useCredentials();
   const {
     definitions,
     isLoading: definitionsLoading,
@@ -44,7 +44,9 @@ export function CredentialsManager() {
     credential: null,
   });
   const [rotating, setRotating] = useState<Credential | null>(null);
-  const [deleting, setDeleting] = useState<Credential | null>(null);
+  const [deleting, setDeleting] = useState<Credential | UnavailableCredential | null>(null);
+
+  const deletingUsedBy = deleting && !isUnavailableCredential(deleting) ? deleting.usedBy : [];
 
   const fail = (caught: unknown, fallback: string) => {
     if (wasErrorToastShown(caught)) return;
@@ -109,7 +111,7 @@ export function CredentialsManager() {
             Try again
           </Button>
         </div>
-      ) : credentials.length === 0 ? (
+      ) : credentials.length === 0 && unavailableCredentials.length === 0 ? (
         <div className='flex flex-col items-center gap-3 rounded-lg border border-dashed py-12'>
           <KeyRound className='text-muted-foreground size-8' />
           <div className='text-center'>
@@ -130,6 +132,8 @@ export function CredentialsManager() {
       ) : (
         <CredentialsTable
           credentials={credentials}
+          unavailableCredentials={unavailableCredentials}
+          canDeleteUnavailable={Boolean(user?.roles?.includes('admin'))}
           canAddCredential={!definitionsLoading && definitions.length > 0}
           canMaintainCredential={credential =>
             Boolean(user?.roles?.includes('admin')) ||
@@ -220,12 +224,12 @@ export function CredentialsManager() {
         }}
         title='Delete this Credential?'
         description={
-          deleting?.usedBy.length
-            ? credentialDeleteBlockedMessage(deleting.usedBy)
+          deletingUsedBy.length
+            ? credentialDeleteBlockedMessage(deletingUsedBy)
             : 'The stored secret and its sharing configuration will be deleted.'
         }
         confirmLabel={actions.isDeleting ? 'Deleting…' : 'Delete'}
-        confirmDisabled={actions.isDeleting || Boolean(deleting?.usedBy.length)}
+        confirmDisabled={actions.isDeleting || deletingUsedBy.length > 0}
         onConfirm={() => {
           if (!deleting) return;
           void actions
@@ -239,7 +243,9 @@ export function CredentialsManager() {
             });
         }}
       >
-        {deleting && deleting.usedBy.length > 0 && <CredentialUsedByList credential={deleting} />}
+        {deleting && !isUnavailableCredential(deleting) && deletingUsedBy.length > 0 && (
+          <CredentialUsedByList credential={deleting} />
+        )}
       </ConfirmationDialog>
     </div>
   );

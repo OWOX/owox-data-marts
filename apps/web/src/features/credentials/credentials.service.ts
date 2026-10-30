@@ -5,16 +5,23 @@ import type {
   Credential,
   CredentialDefinition,
   GoogleOAuthExchangeRequest,
+  UnavailableCredential,
   UpdateCredentialRequest,
 } from './types';
+import { isUnavailableCredential } from './types';
 
 class CredentialsService extends ApiService {
   constructor() {
     super('/credentials');
   }
 
-  list(): Promise<Credential[]> {
-    return this.get<Credential[]>('');
+  /** Splits the rows once, so every other consumer only ever sees available Credentials. */
+  async list(): Promise<{ credentials: Credential[]; unavailable: UnavailableCredential[] }> {
+    const rows = await this.get<(Credential | UnavailableCredential)[]>('');
+    return {
+      credentials: rows.filter((row): row is Credential => !isUnavailableCredential(row)),
+      unavailable: rows.filter(isUnavailableCredential),
+    };
   }
 
   getById(id: string): Promise<Credential> {
