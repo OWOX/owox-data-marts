@@ -6,8 +6,12 @@ import {
 import { DataStorageType } from '../../enums/data-storage-type.enum';
 import { DataStorageCredentials } from '../../data-storage-credentials.type';
 import { DataStorageConfig } from '../../data-storage-config.type';
-import { isBigQueryCredentials } from '../../data-storage-credentials.guards';
+import {
+  isBigQueryCredentials,
+  isBigQueryManagedCredentials,
+} from '../../data-storage-credentials.guards';
 import { isBigQueryConfig } from '../../data-storage-config.guards';
+import { OwoxStorageStatementException } from '../../../owox-storage/owox-storage.exceptions';
 import { BigQueryApiAdapterFactory } from '../adapters/bigquery-api-adapter.factory';
 import {
   BIGQUERY_AUTODETECT_LOCATION,
@@ -40,6 +44,20 @@ export class BigQueryCreateViewExecutor implements CreateViewExecutor {
     const normalizedConfig = BigQueryConfigSchema.parse(config);
 
     const adapter = this.adapterFactory.create(credentials, normalizedConfig);
+
+    if (isBigQueryManagedCredentials(credentials)) {
+      if (viewName.includes('.')) {
+        throw new Error('OWOX Storage views take an unqualified view name');
+      }
+      // A SQL Data Mart saved without validation may hold a script; refuse before the DDL wraps it.
+      const { statementType } = await adapter.executeDryRunQuery(sql);
+      if (statementType !== 'SELECT') throw new OwoxStorageStatementException(statementType);
+
+      const name = `${normalizedConfig.projectId}.${credentials.internalDatasetId}.${viewName}`;
+      await adapter.executeViewDdl(`CREATE OR REPLACE VIEW \`${name}\` AS ${sql}`);
+      return { fullyQualifiedName: name };
+    }
+
     const resolvedLocation = await this.resolveLocation(adapter, normalizedConfig, sql);
 
     const fullyQualifiedName = await this.normalizeViewName(
