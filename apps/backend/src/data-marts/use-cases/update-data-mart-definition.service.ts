@@ -141,7 +141,14 @@ export class UpdateDataMartDefinitionService {
     // SQL targets are checked here too. The editor's dry run is advisory — its result does not
     // gate Save, and API callers never run it at all — so exempting SQL would let an invalid
     // query silently replace a working table definition.
-    if (definitionTypeChanged) {
+    //
+    // On an OWOX Storage a same-type SQL save is checked too (like a connector save), so a
+    // non-SELECT statement is refused at save time.
+    if (
+      definitionTypeChanged ||
+      (command.definitionType === DataMartDefinitionType.SQL &&
+        (await this.managedStorages.findByStorageId(dataMart.storage.id)))
+    ) {
       await this.definitionValidatorFacade.checkIsValid(dataMart);
     }
 
