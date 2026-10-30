@@ -37,12 +37,15 @@ import type { UserProjectionDto } from '../../../../shared/types/api';
 import { focusFirstInvalidField } from '../../../../utils/form-utils';
 import { extractApiError } from '../../../../app/api/extract-api-error.util';
 import {
+  isCustomConnectorMetadata,
   isFieldsMetadata,
   isServiceAccountMetadata,
+  sourceAuthVariant,
   type CreateCredentialRequest,
   type Credential,
   type CredentialDefinition,
   type CredentialDefinitionField,
+  type CustomConnectorFieldSpec,
   type UpdateCredentialRequest,
 } from '../../types';
 import { safeCredentialDocumentationUrl } from '../../credential-documentation-url';
@@ -55,10 +58,13 @@ import {
 import { CredentialFieldsInputs } from '../CredentialFieldsInputs';
 import { credentialFieldHelp, providerChoiceHelp } from '../CredentialHelp';
 import { CredentialUsedByList } from '../CredentialUsedByList';
+import { CustomConnectorCredentialFields } from '../CustomConnectorCredentialFields';
 import { GoogleOAuthCredentialConnect } from '../GoogleOAuthCredentialConnect';
 import { useGoogleOAuthAvailable } from '../../useCredentials';
 import { ProviderCombobox, ProviderIcon } from '../ProviderCombobox';
+import { servedConnector } from '../../served-connector';
 import { SecretReplacementWarning } from '../SecretReplacementWarning';
+import { SourceOAuthCredentialConnect } from '../SourceOAuthCredentialConnect';
 
 const GITHUB_DEFINITION_VALUE = '__github-credential-definition__';
 const GITHUB_REPOSITORY_PATTERN = /^@[^/]+\/[^/]+$/;
@@ -75,6 +81,16 @@ const credentialFormSchema = z.object({
   secret: z.string().max(32_768, 'Secret is too long'),
   fields: z.record(z.string(), z.string()),
   clearedFields: z.array(z.string()),
+  // A custom connector Credential's hosts, one per line, and the fields its values fill.
+  customHosts: z.string(),
+  customFieldList: z.array(
+    z.object({
+      key: z.string(),
+      label: z.string(),
+      secret: z.boolean(),
+      required: z.boolean().optional(),
+    })
+  ),
   enabled: z.boolean(),
   availableForUse: z.boolean(),
   availableForMaintenance: z.boolean(),
@@ -112,6 +128,8 @@ export interface CredentialFormProps {
   canManageAccess?: boolean;
   /** Starts both sharing switches off for a new Credential. */
   defaultSharing?: 'not-shared';
+  /** Hosts and field list a new custom connector Credential takes from the manifest. */
+  customConnectorPrefill?: { hosts: string[]; fieldList: CustomConnectorFieldSpec[] };
 }
 
 export function CredentialForm(props: CredentialFormProps) {
@@ -151,9 +169,15 @@ function CredentialFormBody({
   onOAuthConnected,
   canManageAccess = false,
   defaultSharing,
+  customConnectorPrefill,
   oauthAvailable,
 }: CredentialFormProps & { oauthAvailable: { storage: boolean; destination: boolean } }) {
   const isEditMode = credential !== null;
+  // A saved custom connector Credential keeps its hosts and field list; a prefill fixes them too.
+  const fixedCustom = isCustomConnectorMetadata(credential?.publicMetadata)
+    ? credential.publicMetadata
+    : (customConnectorPrefill ?? null);
+  const [sourceConnectShown, setSourceConnectShown] = useState(false);
   const [addedDefinition, setAddedDefinition] = useState<CredentialDefinition | null>(null);
   const [githubInstallationUrl, setGithubInstallationUrl] = useState<string | null>(null);
   const definitionOptions = useMemo(() => {
@@ -183,8 +207,13 @@ function CredentialFormBody({
       definitionId: defaultDefinitionId,
       githubRepository: '',
       secret: '',
-      fields: initialFieldValues(credential, defaultDefinition),
+      fields: initialFieldValues(
+        credential,
+        definitionFieldsOf(defaultDefinition, fixedCustom?.fieldList ?? [])
+      ),
       clearedFields: [],
+      customHosts: fixedCustom?.hosts.join('\n') ?? '',
+      customFieldList: fixedCustom ? [...fixedCustom.fieldList] : [EMPTY_CUSTOM_FIELD],
       enabled: credential?.enabled ?? true,
       availableForUse: credential?.availableForUse ?? defaultSharing !== 'not-shared',
       availableForMaintenance: credential?.availableForMaintenance ?? false,
@@ -203,17 +232,21 @@ function CredentialFormBody({
     definitionOptions.find(definition => definition.id === definitionId) ?? credential?.definition;
   const documentationUrl = safeCredentialDocumentationUrl(selectedDefinition?.documentationUrl);
   const secretHelp = credentialFieldHelp(selectedDefinition?.id, 'secret');
-  // The choice is explained only when this form offers more than one provider of the group.
+  // Explained only for a Storage or Destination provider, when the form offers another of its group.
+  const isSourceDefinition = (id = '') => id.startsWith('source:');
   const offeredInGroup = definitionOptions
-    .filter(({ category }) => category === selectedDefinition?.category)
+    .filter(
+      ({ id, category }) => category === selectedDefinition?.category && !isSourceDefinition(id)
+    )
     .map(({ id }) => id);
   const ProviderChoice =
-    !credential && offeredInGroup.length > 1
+    !credential && offeredInGroup.length > 1 && !isSourceDefinition(selectedDefinition?.id)
       ? providerChoiceHelp(selectedDefinition?.category)
       : undefined;
   const aiMappingModes = form.watch('aiModelMappingModes');
   const fieldValues = form.watch('fields');
   const clearedFields = form.watch('clearedFields');
+  const customFieldList = form.watch('customFieldList');
   const fieldErrors = Object.fromEntries(
     Object.entries(form.formState.errors.fields ?? {}).map(([key, error]) => [
       key,
@@ -221,12 +254,19 @@ function CredentialFormBody({
     ])
   );
   const auth = selectedDefinition?.auth;
-  const definitionFields = auth?.type === 'fields' ? auth.fields : [];
+  const isCustomConnector = auth?.type === 'custom-connector';
+  const usesFields = auth?.type === 'fields' || isCustomConnector;
+  const definitionFields = useMemo(
+    () => definitionFieldsOf(selectedDefinition, customFieldList),
+    [selectedDefinition, customFieldList]
+  );
   const initialFields = useMemo(
-    () => initialFieldValues(credential, selectedDefinition),
-    [credential, selectedDefinition]
+    () => initialFieldValues(credential, definitionFields),
+    [credential, definitionFields]
   );
   const isOAuth = auth?.type === 'oauth';
+  const sourceVariant =
+    auth?.type === 'fields' && selectedDefinition ? sourceAuthVariant(selectedDefinition.id) : null;
   // Fields definitions have an empty label.
   const secretLabel = selectedDefinition?.secretLabel.trim()
     ? selectedDefinition.secretLabel
@@ -244,7 +284,11 @@ function CredentialFormBody({
   const selectDefinition = (definition: CredentialDefinition) => {
     setGithubInstallationUrl(null);
     form.clearErrors('fields');
-    form.setValue('fields', initialFieldValues(null, definition), { shouldDirty: true });
+    form.setValue(
+      'fields',
+      initialFieldValues(null, definitionFieldsOf(definition, form.getValues('customFieldList'))),
+      { shouldDirty: true }
+    );
     form.setValue('definitionId', definition.id, {
       shouldDirty: true,
       shouldTouch: true,
@@ -315,7 +359,6 @@ function CredentialFormBody({
       return;
     }
 
-    const usesFields = selectedDefinition?.auth?.type === 'fields';
     if (usesFields) {
       // Saved secrets start empty, so an edit checks only the saved values the user cleared.
       const checked = isEditMode
@@ -366,18 +409,66 @@ function CredentialFormBody({
       return;
     }
 
+    const fields = buildFieldsCreatePayload(definitionFields, values.fields);
     await onSubmit({
       title: values.title,
       definitionId: values.definitionId,
-      ...(usesFields
-        ? { fields: buildFieldsCreatePayload(definitionFields, values.fields) }
-        : { secret: { value: values.secret } }),
+      ...(isCustomConnector
+        ? {
+            customConnector: {
+              hosts: values.customHosts
+                .split('\n')
+                .map(host => host.trim())
+                .filter(Boolean),
+              // Every listed field needs a value on the server, so an empty optional one is left out.
+              fieldList: values.customFieldList
+                .filter(({ key, required }) => key !== '' && (required !== false || key in fields))
+                .map(({ key, label, secret }) => ({ key, label: label.trim(), secret })),
+              fields,
+            },
+          }
+        : usesFields
+          ? { fields }
+          : { secret: { value: values.secret } }),
       availableForUse: values.availableForUse,
       availableForMaintenance: values.availableForMaintenance,
       aiModelMappings: Object.keys(mappings).length > 0 ? mappings : undefined,
       aiModelMappingModes: Object.keys(modes).length > 0 ? modes : undefined,
     });
   };
+
+  const fieldsInputs = (
+    <CredentialFieldsInputs
+      definitionId={selectedDefinition?.id}
+      fields={definitionFields}
+      values={fieldValues}
+      errors={fieldErrors}
+      isEditing={isEditMode}
+      clearedKeys={clearedFields}
+      setSecretKeys={credential?.setSecretFieldKeys}
+      onToggleRemove={key => {
+        const cleared = form.getValues('clearedFields');
+        form.setValue(
+          'clearedFields',
+          cleared.includes(key) ? cleared.filter(item => item !== key) : [...cleared, key],
+          { shouldDirty: true }
+        );
+        form.setValue(`fields.${key}`, '', { shouldDirty: true });
+      }}
+      onChange={(key, value) => {
+        const cleared = form.getValues('clearedFields');
+        if (cleared.includes(key)) {
+          form.setValue(
+            'clearedFields',
+            cleared.filter(item => item !== key),
+            { shouldDirty: true }
+          );
+        }
+        form.clearErrors(`fields.${key}`);
+        form.setValue(`fields.${key}`, value, { shouldDirty: true });
+      }}
+    />
+  );
 
   return (
     <Form {...form}>
@@ -417,7 +508,10 @@ function CredentialFormBody({
                   {credential ? (
                     <InputGroup data-disabled='true'>
                       <InputGroupAddon align='inline-start'>
-                        <ProviderIcon icon={credential.definition.icon} />
+                        <ProviderIcon
+                          icon={credential.definition.icon}
+                          connector={servedConnector(credential.definition)}
+                        />
                       </InputGroupAddon>
                       <InputGroupInput
                         aria-label='Provider'
@@ -543,40 +637,46 @@ function CredentialFormBody({
                     onOAuthConnected?.(connected);
                   }}
                 />
-              ) : auth?.type === 'fields' ? (
+              ) : usesFields ? (
                 <>
-                  <CredentialFieldsInputs
-                    definitionId={selectedDefinition?.id}
-                    fields={definitionFields}
-                    values={fieldValues}
-                    errors={fieldErrors}
-                    isEditing={isEditMode}
-                    clearedKeys={clearedFields}
-                    setSecretKeys={credential?.setSecretFieldKeys}
-                    onToggleRemove={key => {
-                      const cleared = form.getValues('clearedFields');
-                      form.setValue(
-                        'clearedFields',
-                        cleared.includes(key)
-                          ? cleared.filter(item => item !== key)
-                          : [...cleared, key],
-                        { shouldDirty: true }
-                      );
-                      form.setValue(`fields.${key}`, '', { shouldDirty: true });
-                    }}
-                    onChange={(key, value) => {
-                      const cleared = form.getValues('clearedFields');
-                      if (cleared.includes(key)) {
-                        form.setValue(
-                          'clearedFields',
-                          cleared.filter(item => item !== key),
-                          { shouldDirty: true }
-                        );
+                  {isCustomConnector && (
+                    <CustomConnectorCredentialFields
+                      hosts={form.watch('customHosts')}
+                      fieldList={customFieldList}
+                      editable={!fixedCustom && !isEditMode}
+                      onHostsChange={hosts => {
+                        form.setValue('customHosts', hosts, { shouldDirty: true });
+                      }}
+                      onFieldListChange={fieldList => {
+                        form.setValue('customFieldList', fieldList, { shouldDirty: true });
+                      }}
+                    />
+                  )}
+                  {sourceVariant ? (
+                    <SourceOAuthCredentialConnect
+                      key={selectedDefinition?.id}
+                      connectorName={sourceVariant.connectorName}
+                      providerName={
+                        (selectedDefinition ?? credential?.definition)?.displayName ?? ''
                       }
-                      form.clearErrors(`fields.${key}`);
-                      form.setValue(`fields.${key}`, value, { shouldDirty: true });
-                    }}
-                  />
+                      variant={sourceVariant.variant}
+                      credential={credential}
+                      disabled={isEditMode && form.formState.isDirty}
+                      draft={{
+                        title: form.watch('title'),
+                        availableForUse: form.watch('availableForUse'),
+                        availableForMaintenance: form.watch('availableForMaintenance'),
+                      }}
+                      onConnected={connected => {
+                        onOAuthConnected?.(connected);
+                      }}
+                      onConnectShownChange={setSourceConnectShown}
+                    >
+                      {fieldsInputs}
+                    </SourceOAuthCredentialConnect>
+                  ) : (
+                    fieldsInputs
+                  )}
                   {documentationUrl && (
                     <ExternalAnchor href={documentationUrl} className='w-fit text-sm'>
                       How to get this key
@@ -797,7 +897,7 @@ function CredentialFormBody({
         </FormLayout>
 
         <FormActions>
-          {(isEditMode || !isOAuth) && (
+          {(isEditMode || !(isOAuth || sourceConnectShown)) && (
             <Button
               type='submit'
               className='w-full'
@@ -906,17 +1006,40 @@ function fieldLabel(fields: readonly CredentialDefinitionField[], key: string): 
   return fields.find(field => field.key === key)?.label ?? key;
 }
 
+const EMPTY_CUSTOM_FIELD: CustomConnectorFieldSpec = { key: '', label: '', secret: true };
+
+/** The fields whose values the form asks for; a custom connector's come from its field list. */
+function definitionFieldsOf(
+  definition: CredentialDefinition | undefined,
+  customFieldList: readonly CustomConnectorFieldSpec[]
+): readonly CredentialDefinitionField[] {
+  if (definition?.auth?.type === 'fields') return definition.auth.fields;
+  if (definition?.auth?.type !== 'custom-connector') return [];
+  // Each named key once, so a row still being typed asks for no value.
+  return customFieldList
+    .filter(
+      ({ key }, index) => key !== '' && customFieldList.findIndex(f => f.key === key) === index
+    )
+    .map(({ key, label, secret, required = true }) => ({
+      key,
+      label: label.trim() || key,
+      input: secret ? 'password' : 'text',
+      secret,
+      required,
+      identity: false,
+    }));
+}
+
 /** Saved secrets are never returned, so they start empty; other fields start from their saved value. */
 function initialFieldValues(
   credential: Credential | null,
-  definition: CredentialDefinition | undefined
+  fields: readonly CredentialDefinitionField[]
 ): CredentialFieldValues {
-  if (definition?.auth?.type !== 'fields') return {};
   const saved = isFieldsMetadata(credential?.publicMetadata)
     ? credential.publicMetadata.fields
     : {};
   return Object.fromEntries(
-    definition.auth.fields.map(({ key, secret }) => [key, secret ? '' : (saved[key] ?? '')])
+    fields.map(({ key, secret }) => [key, secret ? '' : (saved[key] ?? '')])
   );
 }
 

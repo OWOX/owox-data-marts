@@ -2,7 +2,7 @@ import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { CredentialsTable } from './CredentialsTable';
-import type { Credential, CredentialDefinition } from './types';
+import type { Credential, CredentialDefinition, UnavailableCredential } from './types';
 
 vi.mock('../../shared/hooks', async importOriginal => ({
   ...(await importOriginal<typeof import('../../shared/hooks')>()),
@@ -214,6 +214,56 @@ describe('CredentialsTable', () => {
     expect(onEdit).toHaveBeenCalledWith(expect.objectContaining({ id: 'credential-1' }));
   });
 
+  describe('a Credential whose connector is gone', () => {
+    const unavailable: UnavailableCredential = {
+      id: 'orphan-1',
+      projectId: 'project-1',
+      title: 'Old key',
+      definitionId: 'source:Gone',
+      state: 'unavailable',
+      createdAt: '2026-08-31T06:00:00.000Z',
+      modifiedAt: '2026-08-31T06:00:00.000Z',
+    };
+
+    it('shows the unavailable text, offers only Delete and does not open the editor', async () => {
+      const onEdit = vi.fn();
+      const onDelete = vi.fn();
+      renderCredentials([buildCredential()], '/ui/project-1/credentials', {
+        unavailableCredentials: [unavailable],
+        canDeleteUnavailable: true,
+        onEdit,
+        onDelete,
+      });
+
+      expect(screen.getByText('Old key')).toBeInTheDocument();
+      expect(
+        screen.getByText('Unavailable — its connector is no longer installed')
+      ).toBeInTheDocument();
+
+      fireEvent.click(screen.getByText('Old key'));
+      expect(onEdit).not.toHaveBeenCalled();
+
+      fireEvent.pointerDown(screen.getByRole('button', { name: 'Open actions for Old key' }), {
+        button: 0,
+        ctrlKey: false,
+      });
+      const items = await screen.findAllByRole('menuitem');
+      expect(items.map(item => item.textContent)).toEqual(['Delete']);
+      fireEvent.click(items[0]);
+      expect(onDelete).toHaveBeenCalledWith(unavailable);
+    });
+
+    it('offers no action to a viewer who may not delete it', () => {
+      renderCredentials([], '/ui/project-1/credentials', {
+        unavailableCredentials: [unavailable],
+        canDeleteUnavailable: false,
+      });
+
+      expect(screen.getByText('Old key')).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Open actions for Old key' })).toBeNull();
+    });
+  });
+
   it('hides mutating actions and row editing from a use-only member', () => {
     const onEdit = vi.fn();
     renderCredentials([buildCredential()], '/ui/project-1/credentials', {
@@ -314,6 +364,7 @@ function buildDefinition(overrides: Partial<CredentialDefinition> = {}): Credent
     supportsAi: false,
     ai: null,
     compatibilityLine: null,
+    connectors: [],
     ...overrides,
   };
 }

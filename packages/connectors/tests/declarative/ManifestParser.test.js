@@ -1313,6 +1313,19 @@ describe('ManifestParser oauth2', () => {
     assert.ok(p.attributes.includes('HIDE_IN_CONFIG_FORM'));
   });
 
+  it('forces SECRET and HIDE_IN_CONFIG_FORM on an author-declared GeneratedRefreshToken', () => {
+    const m = base(oauth());
+    m.parameters = {
+      ...m.parameters,
+      GeneratedRefreshToken: { label: 'Mine', isRequired: true, attributes: [] },
+    };
+    const p = new ManifestParser().parse(JSON.stringify(m)).parameters.GeneratedRefreshToken;
+    assert.strictEqual(p.label, 'Mine');
+    assert.strictEqual(p.isRequired, false);
+    assert.ok(p.attributes.includes('SECRET'));
+    assert.ok(p.attributes.includes('HIDE_IN_CONFIG_FORM'));
+  });
+
   it('auto-registers GeneratedRefreshToken for an oauth2 branch inside selective auth', () => {
     const model = new ManifestParser().parse(
       JSON.stringify(
@@ -2583,5 +2596,181 @@ describe('ManifestParser errorHandler status codes', () => {
       () => new ManifestParser().parse(JSON.stringify(m)),
       /httpCodes must be HTTP status codes between 100 and 599/
     );
+  });
+});
+
+// A Credential carries a manifest's key parameters, and a run keeps them inside requests.
+describe('ManifestParser key parameters', () => {
+  const manifest = ({ authentication, parameters, accounts, node = {} }) => ({
+    version: '1.0',
+    name: 'KeyConn',
+    baseUrl: 'https://api.example.com',
+    authentication,
+    ...(accounts ? { accounts } : {}),
+    parameters,
+    nodes: {
+      items: {
+        request: { method: 'GET', path: '/items' },
+        recordSelector: { recordPath: [] },
+        fields: { id: { type: 'string' }, label: { type: 'string' } },
+        ...node,
+      },
+    },
+  });
+  const parse = m => new ManifestParser().parse(JSON.stringify(m));
+  const sorted = names => [...names].sort();
+  const apiKeyAuth = {
+    type: 'apiKey',
+    inject: { into: 'header', name: 'X-Key', format: '{{ parameters.ApiKey }}' },
+  };
+  const withApiKey = extra =>
+    manifest({ authentication: apiKeyAuth, parameters: { ApiKey: {}, Label: {} }, ...extra });
+
+  it('keyParameters includes clientId and username referenced by authentication', () => {
+    const oauth = parse(
+      manifest({
+        authentication: {
+          type: 'oauth2',
+          tokenUrl: 'https://oauth.example.com/token',
+          clientId: '{{ parameters.ClientId }}',
+          clientSecret: '{{ parameters.ClientSecret }}',
+          refreshToken: '{{ parameters.RefreshToken }}',
+          inject: { into: 'header', name: 'Authorization', format: 'Bearer {{ auth.token }}' },
+        },
+        parameters: { ClientId: {}, ClientSecret: {}, RefreshToken: {}, Region: {} },
+      })
+    );
+    assert.deepStrictEqual(sorted(oauth.keyParameters), [
+      'ClientId',
+      'ClientSecret',
+      'GeneratedRefreshToken',
+      'RefreshToken',
+    ]);
+
+    const basic = parse(
+      manifest({
+        authentication: {
+          type: 'basic',
+          username: '{{ parameters.User }}',
+          password: '{{ parameters.Password }}',
+        },
+        parameters: { User: {}, Password: {} },
+      })
+    );
+    assert.deepStrictEqual(sorted(basic.keyParameters), ['Password', 'User']);
+  });
+
+  const selective = parameters =>
+    manifest({
+      authentication: {
+        type: 'selective',
+        selectionParameter: 'AuthType',
+        authenticators: {
+          key: apiKeyAuth,
+          token: {
+            type: 'bearer',
+            inject: {
+              into: 'header',
+              name: 'Authorization',
+              format: 'Bearer {{ parameters.Token }}',
+            },
+          },
+        },
+      },
+      parameters,
+    });
+
+  it('keyParameters excludes the selective selectionParameter', () => {
+    const model = parse(selective({ AuthType: {}, ApiKey: {}, Token: {} }));
+    assert.deepStrictEqual(sorted(model.keyParameters), ['ApiKey', 'Token']);
+  });
+
+  it('keyParameterBranches lists each selective branch', () => {
+    const model = parse(
+      selective({ AuthType: {}, ApiKey: {}, Token: {}, Webhook: { attributes: ['SECRET'] } })
+    );
+    assert.deepStrictEqual(model.keyParameterBranches, {
+      key: ['ApiKey', 'Webhook'],
+      token: ['Token', 'Webhook'],
+    });
+    assert.strictEqual(parse(withApiKey()).keyParameterBranches, null);
+  });
+
+  it('keyParameterMisuse reports a key parameter in transformations.add', () => {
+    const model = parse(
+      withApiKey({
+        node: {
+          transformations: [{ type: 'add', field: 'label', value: '{{ parameters.ApiKey.0 }}' }],
+        },
+      })
+    );
+    assert.deepStrictEqual(model.keyParameterMisuse, [
+      { parameter: 'ApiKey', node: 'items', position: 'transformations.add' },
+    ]);
+  });
+
+  it('keyParameterMisuse reports an author-declared GeneratedRefreshToken in transformations.add', () => {
+    const model = parse(
+      manifest({
+        authentication: {
+          type: 'oauth2',
+          tokenUrl: 'https://oauth.example.com/token',
+          clientId: '{{ parameters.ClientId }}',
+          clientSecret: '{{ parameters.ClientSecret }}',
+          refreshToken: '{{ parameters.RefreshToken }}',
+          inject: { into: 'header', name: 'Authorization', format: 'Bearer {{ auth.token }}' },
+        },
+        parameters: {
+          ClientId: {},
+          ClientSecret: {},
+          RefreshToken: {},
+          GeneratedRefreshToken: {},
+        },
+        node: {
+          transformations: [
+            { type: 'add', field: 'label', value: '{{ parameters.GeneratedRefreshToken }}' },
+          ],
+        },
+      })
+    );
+    assert.deepStrictEqual(model.keyParameterMisuse, [
+      { parameter: 'GeneratedRefreshToken', node: 'items', position: 'transformations.add' },
+    ]);
+  });
+
+  it('keyParameterMisuse reports accounts.from', () => {
+    const model = parse(withApiKey({ accounts: { from: '{{ parameters.ApiKey }}' } }));
+    assert.deepStrictEqual(model.keyParameterMisuse, [
+      { parameter: 'ApiKey', node: null, position: 'accounts.from' },
+    ]);
+  });
+
+  it('keyParameterMisuse reports recordFilter, valueList and auth values in transformations.add', () => {
+    const model = parse(
+      withApiKey({
+        node: {
+          recordFilter: { path: ['id'], operator: 'inList', valuesFromParameter: 'ApiKey' },
+          partitionRouter: { type: 'list', partitionField: 'k', valuesFromParameter: 'ApiKey' },
+          transformations: [{ type: 'add', field: 'label', value: '{{ auth.token }}' }],
+        },
+      })
+    );
+    assert.deepStrictEqual(model.keyParameterMisuse, [
+      { parameter: 'auth.token', node: 'items', position: 'transformations.add' },
+      { parameter: 'ApiKey', node: 'items', position: 'recordFilter' },
+      { parameter: 'ApiKey', node: 'items', position: 'valueList' },
+    ]);
+  });
+
+  it('a non-key parameter in transformations.add is not misuse', () => {
+    const model = parse(
+      withApiKey({
+        accounts: { from: '{{ parameters.Label }}' },
+        node: {
+          transformations: [{ type: 'add', field: 'label', value: '{{ parameters.Label }}' }],
+        },
+      })
+    );
+    assert.deepStrictEqual(model.keyParameterMisuse, []);
   });
 });

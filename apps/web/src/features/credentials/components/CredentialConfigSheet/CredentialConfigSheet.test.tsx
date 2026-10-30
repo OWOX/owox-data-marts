@@ -4,6 +4,11 @@ import type { Credential, CredentialDefinition } from '../../types';
 import { CredentialConfigSheet } from './CredentialConfigSheet';
 
 const create = vi.hoisted(() => vi.fn());
+const mocks = vi.hoisted(() => ({ wasErrorToastShown: vi.fn(), toastError: vi.fn() }));
+vi.mock('../../../../app/api', () => ({ wasErrorToastShown: mocks.wasErrorToastShown }));
+vi.mock('react-hot-toast', () => ({
+  default: { error: mocks.toastError, success: vi.fn() },
+}));
 vi.mock('../../useCredentials', () => ({
   useGoogleOAuthAvailable: () => true,
   useCredentialActions: () => ({
@@ -34,6 +39,7 @@ const definition: CredentialDefinition = {
   supportsAi: false,
   ai: null,
   compatibilityLine: null,
+  connectors: [],
 };
 
 describe('CredentialConfigSheet', () => {
@@ -70,4 +76,34 @@ describe('CredentialConfigSheet', () => {
       expect(calls).toEqual(['created', 'close']);
     });
   });
+
+  it.each([
+    [true, 0],
+    [false, 1],
+  ])(
+    'with the interceptor toast shown=%s a failed save toasts %s time(s)',
+    async (shown, count) => {
+      mocks.toastError.mockReset();
+      mocks.wasErrorToastShown.mockReturnValue(shown);
+      create.mockRejectedValue(new Error('boom'));
+      render(
+        <CredentialConfigSheet
+          isOpen
+          onClose={vi.fn()}
+          credential={null}
+          definitions={[definition]}
+        />
+      );
+
+      screen.getByRole('button', { name: 'Submit Credential' }).click();
+
+      await waitFor(() => {
+        expect(create).toHaveBeenCalled();
+      });
+      await new Promise(resolve => setTimeout(resolve, 0));
+      await waitFor(() => {
+        expect(mocks.toastError).toHaveBeenCalledTimes(count);
+      });
+    }
+  );
 });

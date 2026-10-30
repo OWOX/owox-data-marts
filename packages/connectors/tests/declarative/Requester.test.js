@@ -261,6 +261,137 @@ describe('Requester', () => {
     assert.strictEqual(captured.options.headers.Authorization, 'Bearer TKN');
   });
 
+  it('a node header and query parameter read {{ auth.token }} on the first request', async () => {
+    const captured = {};
+    const tokenClient = {
+      async urlFetchWithRetry(url, options) {
+        if (url.endsWith('/auth/tokens')) {
+          return {
+            async json() {
+              return { token: 'TKN' };
+            },
+          };
+        }
+        captured.url = url;
+        captured.options = options;
+        return {
+          async json() {
+            return { ok: true };
+          },
+        };
+      },
+    };
+    const { Authenticator } = await import('../../src/Core/Declarative/Authenticator.js');
+    const auth = new Authenticator(
+      {
+        type: 'tokenExchange',
+        exchange: {
+          method: 'POST',
+          url: 'https://api.example.com/auth/tokens',
+          body: {},
+          tokenPath: ['token'],
+          ttlSeconds: 3600,
+        },
+        inject: { into: 'header', name: 'Authorization', format: 'Bearer {{ auth.token }}' },
+      },
+      engine
+    );
+    const requester = new Requester({
+      baseUrl: 'https://api.example.com',
+      httpClient: tokenClient,
+      auth,
+      ssrfGuard: guardFor(['api.example.com']),
+      templateEngine: engine,
+    });
+    await requester.send(
+      {
+        method: 'GET',
+        path: '/data',
+        headers: { 'X-Token': '{{ auth.token }}' },
+        queryParameters: { t: '{{ auth.token }}' },
+      },
+      { parameters: {} }
+    );
+    assert.strictEqual(captured.options.headers['X-Token'], 'TKN');
+    assert.strictEqual(captured.options.headers.Authorization, 'Bearer TKN');
+    assert.match(captured.url, /[?&]t=TKN(&|$)/);
+  });
+
+  const tokenAuth = () =>
+    new Authenticator(
+      {
+        type: 'tokenExchange',
+        exchange: {
+          method: 'POST',
+          url: 'https://api.example.com/auth/tokens',
+          body: {},
+          tokenPath: ['token'],
+          ttlSeconds: 10,
+        },
+        inject: { into: 'header', name: 'Authorization', format: 'Bearer {{ auth.token }}' },
+      },
+      engine
+    );
+
+  it('renders the refreshed token on the next request of the same scope', async t => {
+    let now = 1_000_000;
+    t.mock.method(Date, 'now', () => now);
+    const sent = [];
+    let exchanges = 0;
+    const client = {
+      async urlFetchWithRetry(url, options) {
+        if (url.endsWith('/auth/tokens')) {
+          exchanges += 1;
+          return { json: async () => ({ token: `TKN${exchanges}` }) };
+        }
+        sent.push(options.headers['X-Token']);
+        return { json: async () => ({ ok: true }) };
+      },
+    };
+    const requester = new Requester({
+      baseUrl: 'https://api.example.com',
+      httpClient: client,
+      auth: tokenAuth(),
+      ssrfGuard: guardFor(['api.example.com']),
+      templateEngine: engine,
+    });
+    const scope = { parameters: {} };
+    const spec = { method: 'GET', path: '/data', headers: { 'X-Token': '{{ auth.token }}' } };
+
+    await requester.send(spec, scope);
+    now += 11_000;
+    await requester.send(spec, scope);
+
+    assert.deepStrictEqual(sent, ['TKN1', 'TKN2']);
+  });
+
+  it('sends nothing when auth.prepare fails before a header is rendered', async () => {
+    const calls = [];
+    const client = {
+      async urlFetchWithRetry(url) {
+        calls.push(url);
+        if (url.endsWith('/auth/tokens')) throw new Error('token endpoint down');
+        return { json: async () => ({ ok: true }) };
+      },
+    };
+    const requester = new Requester({
+      baseUrl: 'https://api.example.com',
+      httpClient: client,
+      auth: tokenAuth(),
+      ssrfGuard: guardFor(['api.example.com']),
+      templateEngine: engine,
+    });
+
+    await assert.rejects(
+      requester.send(
+        { method: 'GET', path: '/data', headers: { 'X-Token': '{{ auth.token }}' } },
+        { parameters: {} }
+      ),
+      /token endpoint down/
+    );
+    assert.deepStrictEqual(calls, ['https://api.example.com/auth/tokens']);
+  });
+
   it('returns an empty array when error._declAction is IGNORE', async () => {
     const requester = new Requester({
       baseUrl: 'https://api.example.com',

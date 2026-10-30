@@ -5,6 +5,7 @@ import { AddPluginVersionCredentialRequirements1787788800001 } from './178778880
 import { AddCredentialAiModelMappingSources1787788800002 } from './1787788800002-add-credential-ai-model-mapping-sources';
 import { AddCredentialValidationState1787788800003 } from './1787788800003-add-credential-validation-state';
 import { AddCredentialPublicMetadata1791000000000 } from './1791000000000-add-credential-public-metadata';
+import { AddCredentialRotationLease1792900000000 } from './1792900000000-add-credential-rotation-lease';
 
 describe('Reusable Credentials migrations', () => {
   let dataSource: DataSource;
@@ -102,6 +103,27 @@ describe('Reusable Credentials migrations', () => {
     await runner.release();
   });
 
+  it("loads the conversion's helpers without Nest or a runtime service", async () => {
+    await jest.isolateModulesAsync(async () => {
+      for (const name of ['@nestjs/common', 'typeorm']) {
+        jest.doMock(name, () => {
+          throw new Error(`${name} was loaded`);
+        });
+      }
+      try {
+        await import('../data-marts/services/source-credential-conversion/source-credential-conversion-plan');
+        await import('../data-marts/services/source-credential-conversion/legacy-source-credential-sql');
+        await import('../data-marts/connector-types/source-credential-state');
+        await import('../data-marts/connector-types/source-key-fields');
+        await import('../data-marts/credentials/services/credential-requirement-revision');
+        await import('../data-marts/services/storage-credential-conversion/grouping');
+      } finally {
+        jest.dontMock('@nestjs/common');
+        jest.dontMock('typeorm');
+      }
+    });
+  });
+
   it('adds the nullable publicMetadata column once and removes it on down', async () => {
     const runner = dataSource.createQueryRunner();
     await new CreateReusableCredentialTables1787788800000().up(runner);
@@ -114,6 +136,32 @@ describe('Reusable Credentials migrations', () => {
 
     await migration.down(runner);
     expect(await runner.hasColumn('credential', 'publicMetadata')).toBe(false);
+    await migration.down(runner);
+    await runner.release();
+  });
+
+  it('adds the nullable rotation lease columns once and removes them on down', async () => {
+    const runner = dataSource.createQueryRunner();
+    await new CreateReusableCredentialTables1787788800000().up(runner);
+    const migration = new AddCredentialRotationLease1792900000000();
+
+    await migration.up(runner);
+    await migration.up(runner);
+    const table = await runner.getTable('credential');
+    expect(table?.findColumnByName('rotationLeaseId')).toMatchObject({
+      type: 'varchar',
+      length: '36',
+      isNullable: true,
+    });
+    expect(table?.findColumnByName('rotationLeaseAt')).toMatchObject({
+      type: 'datetime',
+      isNullable: true,
+    });
+
+    await migration.down(runner);
+    expect(await runner.hasColumn('credential', 'rotationLeaseId')).toBe(false);
+    expect(await runner.hasColumn('credential', 'rotationLeaseAt')).toBe(false);
+    expect(await runner.hasColumn('credential', 'secret')).toBe(true);
     await migration.down(runner);
     await runner.release();
   });

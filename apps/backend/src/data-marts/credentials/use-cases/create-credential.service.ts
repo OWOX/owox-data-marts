@@ -11,7 +11,7 @@ import { CredentialService } from '../services/credential.service';
 import { parseGoogleServiceAccountKey } from '../services/google-service-account-key';
 import { CredentialViewService } from '../services/credential-view.service';
 import { CredentialValidationProbeService } from '../services/credential-validation-probe.service';
-import { parseFieldsForCreate } from '../services/credential-fields';
+import { parseCustomConnectorForCreate, parseFieldsForCreate } from '../services/credential-fields';
 import {
   isCredentialAiModelInCatalog,
   type CredentialAiModelMappingSources,
@@ -44,6 +44,10 @@ export class CreateCredentialService {
       input.aiModelMappingModes,
       definition.contract.ai
     );
+    if (auth.type === 'custom-connector') {
+      const { secret, publicMetadata } = parseCustomConnectorForCreate(input.customConnector);
+      return this.persist(context, input, definition, aiConfiguration, secret, publicMetadata);
+    }
     if (auth.type === 'fields') {
       // A field set has no provider check, so it starts as unknown.
       const { secret, publicMetadata } = parseFieldsForCreate(
@@ -117,15 +121,34 @@ export class CreateCredentialService {
   }
 }
 
-/** A field set takes `fields`, OAuth takes neither, and the other kinds take `secret`. */
+/** A field set takes `fields`, a custom connector takes `customConnector` (on update, `fields` only), OAuth takes neither, and the other kinds take `secret`. */
 export function assertCredentialInputKind(
   auth: CredentialDefinitionContract['auth'],
-  input: { readonly secret?: unknown; readonly fields?: unknown }
+  input: {
+    readonly secret?: unknown;
+    readonly fields?: unknown;
+    readonly customConnector?: unknown;
+    readonly hosts?: unknown;
+    readonly fieldList?: unknown;
+  },
+  updating = false
 ): void {
-  if (input.fields != null && auth.type !== 'fields') {
+  const custom = auth.type === 'custom-connector';
+  if (input.fields != null && auth.type !== 'fields' && !(custom && updating)) {
     throw new BadRequestException('This Credential definition does not take fields');
   }
-  if (input.secret != null && (auth.type === 'fields' || auth.type === 'oauth')) {
+  if (input.customConnector != null && !custom) {
+    throw new BadRequestException(
+      'This Credential definition does not take custom connector settings'
+    );
+  }
+  if (input.hosts != null || input.fieldList != null) {
+    throw new BadRequestException('Hosts and the field list cannot be changed after creation');
+  }
+  if (
+    input.secret != null &&
+    (auth.type === 'fields' || auth.type === 'oauth' || auth.type === 'custom-connector')
+  ) {
     throw new BadRequestException('This Credential definition does not take a secret value');
   }
 }

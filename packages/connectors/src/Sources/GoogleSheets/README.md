@@ -25,7 +25,9 @@ The preview lists `_owox_row_number` and `_owox_imported_at` alongside sheet fie
 
 ## Sheet tab selection
 
-`SheetName` is a dynamic-options field: once the spreadsheet is known (picked with Google Picker for OAuth, or entered as an ID or URL for a service account), the setup wizard lists the spreadsheet's tabs through the connector's `fetchFieldOptions('SheetName')` method, which reads `spreadsheets.get` with `fields=sheets.properties`. The list needs no permissions beyond the ones the import already uses. When the list cannot be loaded, the tab name can still be typed.
+`SpreadsheetId` is a dynamic-options field for OAuth: `fetchFieldOptions('SpreadsheetId')` lists the spreadsheets the account can open through Drive `files.list` (first 1000, newest first). A service account types the ID or URL.
+
+`SheetName` is a dynamic-options field: once the spreadsheet is known (chosen from the list for OAuth, or entered as an ID or URL when no list loads and for a service account), the setup wizard lists the spreadsheet's tabs through the connector's `fetchFieldOptions('SheetName')` method, which reads `spreadsheets.get` with `fields=sheets.properties`. The list needs no permissions beyond the ones the import already uses. When the list cannot be loaded, the tab name can still be typed.
 
 ## Ranges and headers
 

@@ -191,6 +191,17 @@ owox serve --env-file custom.env --port 3030
   - Project-specific MCP URLs are derived from this value. For `MCP_PUBLIC_BASE_URL=https://mcp.owox.com`, the project URL format is `https://{projectId}.mcp.owox.com/mcp`.
   - Do not configure a separate project-domain environment variable. The deployment must route both `mcp.owox.com` and `*.mcp.owox.com` to the same MCP backend and preserve `Host`, `X-Forwarded-Host`, and `X-Forwarded-Proto`.
 
+## Google Sheets Source sign-in
+
+**Connect** on a **Sheets Source Google account** Credential uses its own Google OAuth client. Without these variables the Credential form offers only the values typed by hand.
+
+- **OAUTH_GOOGLE_SHEETS_CLIENT_ID** and **OAUTH_GOOGLE_SHEETS_CLIENT_SECRET**: the OAuth client, of type Web application.
+- **OAUTH_GOOGLE_SHEETS_REDIRECT_URI**: the client's callback URL.
+- **OAUTH_GOOGLE_SHEETS_PICKER_API_KEY**: an API key restricted to the Google Picker API and the web app's referrers.
+- **OAUTH_GOOGLE_SHEETS_PROJECT_NUMBER**: the number of the same Cloud project, used as the Picker App ID.
+
+Enable the Google Sheets API, the Google Picker API and the Google Drive API in that Cloud project. The Data Mart form needs the Drive API to list the spreadsheets a Credential can open; without it the form shows a spreadsheet ID or URL input. This project setting is separate from the `drive.file` access each user grants when they sign in. Setup steps: [Google Sheets credentials](../../../packages/connectors/src/Sources/GoogleSheets/CREDENTIALS.md#oauth2).
+
 ## Reverse proxy
 
 - **TRUST_PROXY_HOPS**: Number of reverse proxies in front of the application that append to `X-Forwarded-For`.

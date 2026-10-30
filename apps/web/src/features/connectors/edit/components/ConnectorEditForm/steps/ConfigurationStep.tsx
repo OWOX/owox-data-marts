@@ -2,7 +2,7 @@ import type { ConnectorListItem } from '../../../../shared/model/types/connector
 import type { ConnectorSpecificationResponseApiDto } from '../../../../shared/api';
 import { ConnectorVersionControl } from '../../ConnectorDefinitionField/ConnectorVersionControl';
 import { StepperHeroBlock } from '../components';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AppWizardStepSection,
   AppWizardStep,
@@ -13,8 +13,18 @@ import { OpenIssueLink } from '../components';
 import { Unplug } from 'lucide-react';
 import { SECRET_MASK } from '../../../../../../shared/constants/secrets';
 import { ConfigurationListRender } from './ConfigurationStep/ConfigurationListRender';
-import { CopyConfigurationButton } from '../../../../../data-marts/edit/components/DataMartDefinitionSettings/form/CopyConfigurationButton';
-import type { CopiedConfiguration } from '../../../../../data-marts/edit/model/types';
+import {
+  ConnectorCredentialField,
+  CredentialsLoadError,
+} from './ConfigurationStep/ConnectorCredentialField';
+import { AUTH_TYPE, bundledKeyNames } from './ConfigurationStep/connector-credential-keys';
+import { DataMartContext } from '../../../../../data-marts/edit/model/context/context';
+import { ConnectorBuilderApiService } from '../../../../../connector-builder/shared/api/connector-builder-api.service';
+import type {
+  CredentialRequirementDto,
+  FittingCredentialsQuery,
+} from '../../../../../connector-builder/shared/api/types';
+import { hasMeaningfulValue } from '../../../../shared/utils/dynamic-options.utils';
 import { trackEvent } from '../../../../../../utils';
 import { connectorSetupProperties } from '../../../../shared/model/connector-setup-analytics';
 import { ConnectorSpecificationAttribute } from '../../../../shared/enums/connector-specification-attribute.enum';
@@ -26,7 +36,8 @@ import {
 interface ConfigurationStepProps {
   connector: ConnectorListItem;
   connectorSpecification: ConnectorSpecificationResponseApiDto[] | null;
-  onConfigurationChange?: (configuration: Record<string, unknown>) => void;
+  /** `automatic`: a Credential picked for the user, which alone does not make the form dirty. */
+  onConfigurationChange?: (configuration: Record<string, unknown>, automatic?: boolean) => void;
   onValidationChange?: (isValid: boolean) => void;
   initialConfiguration?: Record<string, unknown>;
   loading?: boolean;
@@ -113,7 +124,8 @@ function savedSecretNames(
 function seedConfiguration(
   initialConfiguration: Record<string, unknown> | undefined,
   specs: ConnectorSpecificationResponseApiDto[],
-  isEditingExisting: boolean
+  isEditingExisting: boolean,
+  keyNames: ReadonlySet<string>
 ): Record<string, unknown> {
   const config = migrateNestedConfigValuesToTopLevel({ ...(initialConfiguration ?? {}) }, specs);
   const saved = savedSecretNames(initialConfiguration, specs);
@@ -121,7 +133,8 @@ function seedConfiguration(
   specs.forEach(spec => {
     const isSecret = isSecretSpec(spec);
 
-    if (config[spec.name] === undefined && spec.default !== undefined) {
+    // A key value comes from the Credential, never from a default; a hidden key keeps its default on the typed path.
+    if (config[spec.name] === undefined && spec.default !== undefined && !keyNames.has(spec.name)) {
       config[spec.name] = spec.default;
     }
 
@@ -141,6 +154,15 @@ function seedConfiguration(
   return config;
 }
 
+const credentialIdOf = (config: Record<string, unknown> | undefined) =>
+  typeof config?._credential_id === 'string' ? config._credential_id : null;
+
+/** A saved configuration not yet moved to a Credential, still running on the key it holds. */
+function holdsOldKey(config: Record<string, unknown>, keyNames: ReadonlySet<string>): boolean {
+  if (credentialIdOf(config) || !config._id) return false;
+  return '_secrets_id' in config || [...keyNames].some(name => hasMeaningfulValue(config[name]));
+}
+
 export function ConfigurationStep({
   connector,
   connectorSpecification,
@@ -155,7 +177,11 @@ export function ConfigurationStep({
 }: ConfigurationStepProps) {
   const [configuration, setConfiguration] = useState<Record<string, unknown>>({});
   const initializedRef = useRef(false);
-  const updatingFromParentRef = useRef(false);
+  // The object a seed put in state: it is the parent's configuration, not an edit to report.
+  const seededConfigRef = useRef<Record<string, unknown> | null>(null);
+  // The Credential field mounts after the seed, so a Credential it picks is not overwritten by it.
+  const [seeded, setSeeded] = useState(false);
+  const autoSelectedRef = useRef(false);
   // The exact object last reported upwards. The wizard stores it as-is and hands it
   // straight back as `initialConfiguration`, so reference equality identifies our
   // own echo and distinguishes it from a genuine outside change.
@@ -165,6 +191,56 @@ export function ConfigurationStep({
   // a stored secret, which must not turn it into one with nothing stored.
   const [storedSecrets, setStoredSecrets] = useState<ReadonlySet<string>>(new Set());
   const [managedOAuthModes, setManagedOAuthModes] = useState<Partial<Record<string, boolean>>>({});
+  // A restricted Credential is not in the list, so its own id must not be shown as a selection.
+  const [seededCredentialId, setSeededCredentialId] = useState<string | null>(null);
+  const dataMart = useContext(DataMartContext)?.dataMart;
+
+  // A custom connector's key parameters, as the server parses the version the Data Mart runs.
+  const requirementKey = connector.isCustom
+    ? JSON.stringify({
+        connectorName: connector.name,
+        ...(pinnedVersion !== undefined ? { version: pinnedVersion } : {}),
+      })
+    : null;
+  const [requirement, setRequirement] = useState<{
+    key: string;
+    value: CredentialRequirementDto | null;
+  } | null>(null);
+  const [requirementAttempt, setRequirementAttempt] = useState(0);
+  useEffect(() => {
+    if (!requirementKey) return;
+    let cancelled = false;
+    void new ConnectorBuilderApiService()
+      .credentialRequirement(JSON.parse(requirementKey) as FittingCredentialsQuery)
+      .catch(() => null)
+      .then(value => {
+        if (!cancelled) setRequirement({ key: requirementKey, value });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [requirementKey, requirementAttempt]);
+  const requirementLoading = requirementKey !== null && requirement?.key !== requirementKey;
+  const customKeys = requirement?.key === requirementKey ? requirement.value : null;
+  // A custom connector's keys come from the server's parse only: none are guessed while it is missing.
+  const keysUnknown = requirementKey !== null && customKeys === null;
+  // Every key parameter, hidden ones too: none is ever sent beside a Credential.
+  const allKeyNames = useMemo(
+    () =>
+      new Set(
+        requirementKey
+          ? (customKeys?.keyParameters ?? [])
+          : bundledKeyNames(connectorSpecification ?? [])
+      ),
+    [connectorSpecification, customKeys, requirementKey]
+  );
+  // Only the fields the form shows: a hidden key (a rotated token) is never typed.
+  const keyNames = useMemo(() => {
+    const shown = (connectorSpecification ?? []).filter(
+      spec => !spec.attributes?.includes(ConnectorSpecificationAttribute.HIDE_IN_CONFIG_FORM)
+    );
+    return new Set([...allKeyNames].filter(name => shown.some(spec => spec.name === name)));
+  }, [connectorSpecification, allKeyNames]);
 
   useEffect(() => {
     trackEvent({
@@ -183,17 +259,19 @@ export function ConfigurationStep({
     // the form, but our own echo must not: re-seeding from it discarded characters
     // as they were typed, which is why input appeared to lag a keystroke behind.
     if (connectorSpecification && initialConfiguration !== lastEchoedConfigRef.current) {
-      updatingFromParentRef.current = true;
-      setConfiguration(
-        seedConfiguration(initialConfiguration, connectorSpecification, isEditingExisting)
+      seededConfigRef.current = seedConfiguration(
+        initialConfiguration,
+        connectorSpecification,
+        isEditingExisting,
+        credentialIdOf(initialConfiguration) !== null ? allKeyNames : keyNames
       );
+      setConfiguration(seededConfigRef.current);
       setStoredSecrets(savedSecretNames(initialConfiguration, connectorSpecification));
+      setSeededCredentialId(credentialIdOf(initialConfiguration));
       initializedRef.current = true;
-      setTimeout(() => {
-        updatingFromParentRef.current = false;
-      }, 0);
+      setSeeded(true);
     }
-  }, [connectorSpecification, initialConfiguration, isEditingExisting]);
+  }, [connectorSpecification, initialConfiguration, isEditingExisting, allKeyNames, keyNames]);
 
   useEffect(() => {
     if (
@@ -205,28 +283,34 @@ export function ConfigurationStep({
       // state, so re-applying it here overwrote characters as they were typed.
       initialConfiguration !== lastEchoedConfigRef.current
     ) {
-      updatingFromParentRef.current = true;
       // Same seeding as above: this effect runs after it in the same flush and
       // wins, so re-applying the raw configuration here would drop the defaults,
       // the oneOf seed and the secret mask again.
-      setConfiguration(
-        seedConfiguration(initialConfiguration, connectorSpecification, isEditingExisting)
+      seededConfigRef.current = seedConfiguration(
+        initialConfiguration,
+        connectorSpecification,
+        isEditingExisting,
+        credentialIdOf(initialConfiguration) !== null ? allKeyNames : keyNames
       );
+      setConfiguration(seededConfigRef.current);
       setStoredSecrets(savedSecretNames(initialConfiguration, connectorSpecification));
-      setTimeout(() => {
-        updatingFromParentRef.current = false;
-      }, 0);
+      setSeededCredentialId(credentialIdOf(initialConfiguration));
     }
-  }, [initialConfiguration, connectorSpecification, isEditingExisting]);
+  }, [initialConfiguration, connectorSpecification, isEditingExisting, allKeyNames, keyNames]);
 
   useEffect(() => {
     if (
       initializedRef.current &&
-      !updatingFromParentRef.current &&
+      configuration !== seededConfigRef.current &&
+      // A re-created callback gets nothing new: reporting again would drop an automatic pick's flag.
+      configuration !== lastEchoedConfigRef.current &&
       Object.keys(configuration).length > 0
     ) {
       lastEchoedConfigRef.current = configuration;
-      onConfigurationChange?.(configuration);
+      const automatic = autoSelectedRef.current;
+      autoSelectedRef.current = false;
+      if (automatic) onConfigurationChange?.(configuration, true);
+      else onConfigurationChange?.(configuration);
     }
   }, [configuration, onConfigurationChange]);
 
@@ -308,23 +392,28 @@ export function ConfigurationStep({
 
   const validateConfiguration = useCallback(
     (config: Record<string, unknown>, specs: ConnectorSpecificationResponseApiDto[]) => {
-      const requiredOneOfSpecs = specs.filter(spec => spec.required && spec.oneOf);
+      // On its old key a configuration is checked as before; otherwise a Credential fills the keys.
+      const onOldKey = holdsOldKey(config, keyNames);
+      const checked = onOldKey ? specs : specs.filter(spec => !keyNames.has(spec.name));
+      const hasKey = onOldKey || keyNames.size === 0 || credentialIdOf(config) !== null;
+      const requiredOneOfSpecs = checked.filter(spec => spec.required && spec.oneOf);
 
       const isValidOneOf =
         requiredOneOfSpecs.length === 0
           ? true
           : requiredOneOfSpecs.some(spec => validateOneOfRecursive(config[spec.name], spec));
 
-      const requiredSpecs = specs.filter(spec => spec.required && spec.name !== 'Fields');
+      const requiredSpecs = checked.filter(spec => spec.required && spec.name !== 'Fields');
       const isValidRequired = requiredSpecs.every(spec => validateValue(config[spec.name], spec));
 
       const hasValidServiceAccount =
+        !onOldKey ||
         connector.name !== GOOGLE_SHEETS_CONNECTOR_NAME ||
         hasValidGoogleSheetsServiceAccountConfiguration(config);
 
-      return isValidOneOf && isValidRequired && hasValidServiceAccount;
+      return hasKey && isValidOneOf && isValidRequired && hasValidServiceAccount;
     },
-    [connector.name, validateValue, validateOneOfRecursive]
+    [connector.name, keyNames, validateValue, validateOneOfRecursive]
   );
 
   const handleSecretEditToggle = (name: string, enable: boolean) => {
@@ -336,32 +425,79 @@ export function ConfigurationStep({
     }
   };
 
-  const handleCopyConfiguration = (copiedConfig: CopiedConfiguration) => {
-    const newConfig: Record<string, unknown> = { ...configuration };
+  // A version that keys a stored plain parameter must not keep sending it beside the Credential.
+  useEffect(() => {
+    if (!requirementKey) return;
+    setConfiguration(prev =>
+      credentialIdOf(prev) !== null && [...allKeyNames].some(name => name in prev)
+        ? Object.fromEntries(Object.entries(prev).filter(([name]) => !allKeyNames.has(name)))
+        : prev
+    );
+  }, [allKeyNames, requirementKey]);
 
-    Object.entries(copiedConfig.configuration).forEach(([key, value]) => {
-      if (!['_id', '_copiedFrom'].includes(key)) {
-        newConfig[key] = value;
+  // The Credential replaces the old key and every key value; it decides the auth variant.
+  const handleCredentialChange = (
+    credentialId: string,
+    variant: string | undefined,
+    source: 'existing' | 'created' | 'auto',
+    spreadsheetId?: string
+  ) => {
+    autoSelectedRef.current = source === 'auto';
+    setConfiguration(prev => {
+      const next: Record<string, unknown> = Object.fromEntries(
+        Object.entries(prev).filter(([name]) => !allKeyNames.has(name) && name !== '_secrets_id')
+      );
+      if (variant && keyNames.has(AUTH_TYPE)) next[AUTH_TYPE] = { [variant]: {} };
+      // A spreadsheet belongs to the account that picked it; another Credential picks its own.
+      if (
+        connector.name === GOOGLE_SHEETS_CONNECTOR_NAME &&
+        credentialIdOf(prev) !== credentialId &&
+        (spreadsheetId || prev.SpreadsheetId !== undefined)
+      ) {
+        next.SpreadsheetId = spreadsheetId ?? '';
       }
+      next._credential_id = credentialId;
+      return next;
     });
+  };
 
-    newConfig._copiedFrom = {
-      dataMartId: copiedConfig.dataMartId,
-      dataMartTitle: copiedConfig.dataMartTitle,
-      configId: copiedConfig.configId,
-    };
-    setConfiguration(newConfig);
+  const handleCredentialClear = () => {
+    setConfiguration(prev =>
+      Object.fromEntries(Object.entries(prev).filter(([name]) => name !== '_credential_id'))
+    );
   };
 
   useEffect(() => {
     if (connectorSpecification && onValidationChange) {
-      const isValid = validateConfiguration(configuration, connectorSpecification);
+      const isValid = !keysUnknown && validateConfiguration(configuration, connectorSpecification);
       onValidationChange(isValid);
     }
-  }, [configuration, connectorSpecification, onValidationChange, validateConfiguration]);
+  }, [
+    configuration,
+    connectorSpecification,
+    keysUnknown,
+    onValidationChange,
+    validateConfiguration,
+  ]);
 
-  if (loading) {
+  if (loading || requirementLoading) {
     return <AppWizardStepLoading variant='list' />;
+  }
+
+  if (keysUnknown) {
+    return (
+      <AppWizardStep>
+        <StepperHeroBlock connector={connector} />
+        <AppWizardStepSection>
+          <CredentialsLoadError
+            onRetry={() => {
+              setRequirement(null);
+              setRequirementAttempt(attempt => attempt + 1);
+            }}
+          />
+        </AppWizardStepSection>
+      </AppWizardStep>
+    );
   }
 
   if (!connectorSpecification || connectorSpecification.length === 0) {
@@ -407,7 +543,13 @@ export function ConfigurationStep({
   const selectedAuthType = isRecord(configuration.AuthType)
     ? Object.keys(configuration.AuthType)[0]
     : undefined;
-  // Under OAuth the spreadsheet is chosen with Google Picker, so the manual
+  const credentialId = credentialIdOf(configuration);
+  // On a Source Credential the Data Mart form lists the spreadsheets the Credential can open.
+  const sheetsCredentialId =
+    connector.name === GOOGLE_SHEETS_CONNECTOR_NAME && selectedAuthType === 'oauth2'
+      ? credentialId
+      : null;
+  // Under an old-key OAuth the spreadsheet is chosen with Google Picker, so the manual
   // input stays hidden until the OAuth renderer explicitly reports manual mode
   // (settings still loading or not yet signed in must not flash the input).
   // The renderer only mounts on the OAuth tab, so an explicit "managed" report
@@ -417,9 +559,24 @@ export function ConfigurationStep({
     connector.name === GOOGLE_SHEETS_CONNECTOR_NAME &&
     (managedAuthTypeMode === true ||
       (selectedAuthType === 'oauth2' && managedAuthTypeMode !== false));
-  const visibleSpecifications = usesManagedGoogleSheetsOAuth
-    ? sortedSpecifications.filter(spec => spec.name !== 'SpreadsheetId')
-    : sortedSpecifications;
+  const visibleSpecifications = sortedSpecifications
+    .filter(
+      spec =>
+        !(usesManagedGoogleSheetsOAuth && !sheetsCredentialId && spec.name === 'SpreadsheetId')
+    )
+    // Service-account and old-key screens keep the plain input: no list exists for them.
+    .map(spec =>
+      connector.name === GOOGLE_SHEETS_CONNECTOR_NAME &&
+      spec.name === 'SpreadsheetId' &&
+      !sheetsCredentialId
+        ? {
+            ...spec,
+            attributes: spec.attributes?.filter(
+              attribute => attribute !== (ConnectorSpecificationAttribute.DYNAMIC_OPTIONS as string)
+            ),
+          }
+        : spec
+    );
 
   const requiredFields = visibleSpecifications.filter(
     spec => !spec.attributes?.includes('ADVANCED')
@@ -429,6 +586,47 @@ export function ConfigurationStep({
   );
   const managedOAuthModeChangeHandler =
     connector.name === GOOGLE_SHEETS_CONNECTOR_NAME ? handleManagedOAuthModeChange : undefined;
+
+  const onOldKey = holdsOldKey(configuration, keyNames);
+  const summary =
+    dataMart?.sourceCredentials?.find(item => item.configId === configuration._id)?.summary ?? null;
+  // A restricted Credential is not in the list.
+  const restricted = summary?.access === 'restricted' && credentialId === seededCredentialId;
+  const selection = customKeys?.selectionParameter
+    ? configuration[customKeys.selectionParameter]
+    : undefined;
+  const keyFields = {
+    names: keyNames,
+    first: [...requiredFields, ...advancedFields].find(spec => keyNames.has(spec.name))?.name,
+    showOldKey: onOldKey,
+    field: seeded && (
+      <ConnectorCredentialField
+        connectorName={connector.name}
+        variants={
+          connectorSpecification.find(spec => spec.name === AUTH_TYPE)?.oneOf?.map(o => o.value) ??
+          []
+        }
+        fitting={
+          connector.isCustom
+            ? {
+                connectorName: connector.name,
+                ...(pinnedVersion !== undefined ? { version: pinnedVersion } : {}),
+                ...(typeof selection === 'string' ? { selection } : {}),
+              }
+            : undefined
+        }
+        // Without a selection parameter the answer does not depend on the selection.
+        requirement={customKeys && !customKeys.selectionParameter ? customKeys : undefined}
+        isNew={!configuration._id}
+        value={restricted ? null : credentialId}
+        summary={summary}
+        onOldKey={onOldKey}
+        keptCredentialId={seededCredentialId}
+        onClear={handleCredentialClear}
+        onChange={handleCredentialChange}
+      />
+    ),
+  };
 
   return (
     <>
@@ -448,11 +646,6 @@ export function ConfigurationStep({
                     onChangeVersion={onChangeVersion}
                   />
                 )}
-                <CopyConfigurationButton
-                  currentConnectorName={connector.name}
-                  onCopyConfiguration={handleCopyConfiguration}
-                  connectorSpecification={connectorSpecification}
-                />
               </div>
             </div>
             {requiredFields.length > 0 && (
@@ -466,6 +659,7 @@ export function ConfigurationStep({
                 storedSecrets={storedSecrets}
                 connectorName={connector.name}
                 onManagedOAuthModeChange={managedOAuthModeChangeHandler}
+                keyFields={keyFields}
               />
             )}
             {advancedFields.length > 0 && (
@@ -480,6 +674,7 @@ export function ConfigurationStep({
                 storedSecrets={storedSecrets}
                 connectorName={connector.name}
                 onManagedOAuthModeChange={managedOAuthModeChangeHandler}
+                keyFields={keyFields}
               />
             )}
           </AppWizardStepSection>

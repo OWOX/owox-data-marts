@@ -140,7 +140,7 @@ export function useConnector() {
   );
 
   const previewConnectorFields = useCallback(
-    async (connectorName: string, configuration: Record<string, unknown>) => {
+    async (connectorName: string, configuration: Record<string, unknown>, dataMartId?: string) => {
       const requestId = fieldsRequestIdRef.current + 1;
       fieldsRequestIdRef.current = requestId;
       previewAbortControllerRef.current?.abort();
@@ -154,9 +154,8 @@ export function useConnector() {
         const response = await connectorApiService.previewConnectorFields(
           connectorName,
           configuration,
-          {
-            signal: abortController.signal,
-          }
+          { signal: abortController.signal },
+          dataMartId
         );
 
         if (requestId !== fieldsRequestIdRef.current) return null;

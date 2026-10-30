@@ -1,3 +1,6 @@
+const mockExchangeOauthCredentials = jest.fn();
+const mockRefreshCredentials = jest.fn();
+
 jest.mock('@owox/connectors', () => ({
   AvailableConnectors: ['TestConnector'],
   Connectors: {
@@ -25,8 +28,11 @@ jest.mock('@owox/connectors', () => ({
                       attributes: ['UI'],
                     },
                   },
+                  mapping: { AccessToken: { key: 'accessToken' } },
                 },
-                items: {},
+                items: {
+                  AccessToken: { requiredType: 'string', label: 'Access Token' },
+                },
               },
             ],
           },
@@ -45,8 +51,8 @@ jest.mock('@owox/connectors', () => ({
             },
           };
         }
-        exchangeOauthCredentials = jest.fn();
-        refreshCredentials = jest.fn();
+        exchangeOauthCredentials = mockExchangeOauthCredentials;
+        refreshCredentials = mockRefreshCredentials;
       },
       manifest: {
         title: 'Test Connector',
@@ -98,6 +104,7 @@ jest.mock('@owox/connectors', () => ({
     },
     GENERATED_REFRESH_TOKEN_CREDENTIAL_FIELD: 'generated_refresh_token',
     GENERATED_REFRESH_TOKEN_CONFIG_FIELD: 'GeneratedRefreshToken',
+    OAUTH_SOURCE_CREDENTIALS_KEY: '_source_credential_id',
   },
 }));
 
@@ -355,6 +362,38 @@ describe('ConnectorService', () => {
     });
   });
 
+  describe('exchangeOauth', () => {
+    it("returns the sign-in result without the connector's additional data and writes no connector_source_credentials row", async () => {
+      const { service, connectorSourceCredentialsService } = createService();
+      mockExchangeOauthCredentials.mockResolvedValue({
+        user: { id: 'user-1', name: 'Ann' },
+        secret: { refresh_token: 'refresh-value' },
+        expiresIn: 3600,
+        additional: { paging: { next: 'https://provider.example/?access_token=access-value' } },
+        warnings: ['warning'],
+      });
+      const before = Date.now();
+
+      const result = await service.exchangeOauth('TestConnector', 'AuthType.oauth2', {
+        code: 'code-value',
+      });
+
+      expect(mockExchangeOauthCredentials).toHaveBeenCalledWith(
+        { code: 'code-value' },
+        expect.any(Object)
+      );
+      expect(result).toEqual({
+        credentials: { refresh_token: 'refresh-value' },
+        user: { id: 'user-1', name: 'Ann' },
+        expiresAt: expect.any(Date),
+        warnings: ['warning'],
+      });
+      expect(JSON.stringify(result)).not.toContain('access-value');
+      expect(result.expiresAt!.getTime()).toBeGreaterThanOrEqual(before + 3_600_000);
+      expect(connectorSourceCredentialsService.createCredentials).not.toHaveBeenCalled();
+    });
+  });
+
   describe('refreshCredentials', () => {
     it('refreshes a credential that belongs to the same project', async () => {
       const { service, connectorSourceCredentialsService } = createService();
@@ -412,6 +451,64 @@ describe('ConnectorService', () => {
       ).rejects.toThrow('Credential belongs to connector OtherConnector, not TestConnector');
       // Tokens of one connector must never be rotated under another connector name.
       expect(connectorSourceCredentialsService.createCredentials).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('refreshBoundCredential', () => {
+    const binding = {
+      definitionId: 'source:TestConnector:oauth2',
+      path: ['AuthType', 'oauth2'],
+      connect: true,
+      fieldMap: { AccessToken: 'AccessToken' },
+    };
+    const connected = (connection?: { account: null; expiresAt: string | null }) => ({
+      credentialId: 'cred-1',
+      definitionId: 'source:TestConnector:oauth2',
+      secret: { fields: { AccessToken: 'stale' } },
+      publicMetadata: { fields: {}, ...(connection ? { connection } : {}) },
+    });
+
+    it('refreshes a connected Credential through its connector and maps the new token to its fields', async () => {
+      const { service, connectorSourceCredentialsService } = createService();
+      mockRefreshCredentials.mockResolvedValueOnce({
+        secret: { accessToken: 'fresh' },
+        expiresIn: 3600,
+      });
+      const before = Date.now();
+
+      const result = await service.refreshBoundCredential(
+        'TestConnector',
+        connected({ account: null, expiresAt: '2026-11-01T00:00:00.000Z' }),
+        binding
+      );
+
+      expect(mockRefreshCredentials).toHaveBeenCalledWith(
+        { AuthType: { oauth2: { _source_credential_id: 'cred-1' } } },
+        { secret: { accessToken: 'stale' }, expiresAt: Date.parse('2026-11-01T00:00:00.000Z') },
+        expect.any(Object)
+      );
+      expect(result).toEqual({ fields: { AccessToken: 'fresh' }, expiresAt: expect.any(Date) });
+      expect(result!.expiresAt.getTime()).toBeGreaterThanOrEqual(before + 3_600_000);
+      expect(connectorSourceCredentialsService.createCredentials).not.toHaveBeenCalled();
+    });
+
+    it('leaves a Credential with typed values and a token the connector keeps as they are', async () => {
+      const { service } = createService();
+      mockRefreshCredentials.mockClear();
+
+      await expect(
+        service.refreshBoundCredential('TestConnector', connected(), binding)
+      ).resolves.toBeNull();
+      expect(mockRefreshCredentials).not.toHaveBeenCalled();
+
+      mockRefreshCredentials.mockResolvedValueOnce(null);
+      await expect(
+        service.refreshBoundCredential(
+          'TestConnector',
+          connected({ account: null, expiresAt: null }),
+          binding
+        )
+      ).resolves.toBeNull();
     });
   });
 });

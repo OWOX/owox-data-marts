@@ -28,7 +28,11 @@ export function useCredentials() {
     retry: false,
     refetchOnWindowFocus: false,
   });
-  return { ...query, credentials: query.data ?? [] };
+  return {
+    ...query,
+    credentials: query.data?.credentials ?? [],
+    unavailableCredentials: query.data?.unavailable ?? [],
+  };
 }
 
 export function useCredentialDefinitions() {
@@ -101,6 +105,11 @@ export function useCredentialActions() {
       credentialsService.exchangeGoogleOAuth(input, skipErrorToast),
     onSuccess: invalidateWithListeners,
   });
+  // A connector's sign-in returns only the id of the Credential it saved.
+  const loadConnected = useMutation({
+    mutationFn: (id: string) => credentialsService.getById(id),
+    onSuccess: invalidateWithListeners,
+  });
   const validate = useMutation({
     mutationFn: (id: string) => credentialsService.validate(id),
     onSuccess: invalidateWithListeners,
@@ -125,6 +134,7 @@ export function useCredentialActions() {
     update: update.mutateAsync,
     authorizeGoogleOAuth: authorizeGoogleOAuth.mutateAsync,
     exchangeGoogleOAuth: exchangeGoogleOAuth.mutateAsync,
+    loadConnected: loadConnected.mutateAsync,
     validate: validate.mutateAsync,
     consentDefinition: consentDefinition.mutateAsync,
     addGithubDefinition: addGithubDefinition.mutateAsync,

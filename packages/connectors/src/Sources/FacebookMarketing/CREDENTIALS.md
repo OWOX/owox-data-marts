@@ -15,9 +15,9 @@ OAuth gives most users the shortest path. OWOX Data Marts renews supported OAuth
 
 ## OAuth
 
-1. Click **Continue with Facebook** in the connector settings.
+1. In the Credential form (**Credentials** page, or **+ Create new Credential** beside the Data Mart's **Credential** field), click **Continue with Facebook**.
 2. Log in with a Facebook account that can access the ad account, then confirm access. The button shows **Authenticated as...** after a successful login.
-3. Enter the numeric Account ID. Do not include the `act_` prefix. To import from multiple accounts, separate IDs with commas or semicolons.
+3. Select the Credential in the Data Mart's connector configuration and enter the numeric Account ID. Do not include the `act_` prefix. To import from multiple accounts, separate IDs with commas or semicolons.
 
 See [where to find Account IDs](GETTING_STARTED.md#set-up-the-connector).
 
@@ -153,7 +153,7 @@ Copy the **Access Token** and store it securely. The connector needs the **Acces
 
 ## Step 4: Use the Credentials
 
-You now have the **App ID**, **App Secret**, and **Access Token**. The connector needs all three credentials. Use them in the Data Mart setup, and follow [Getting Started](GETTING_STARTED.md) to fill in the connector fields. To update them later, open **Data Setup → Input Source → Edit config**.
+You now have the **App ID**, **App Secret**, and **Access Token**. The connector needs all three credentials. Enter them in a Credential (choose **Manually** in the Credential form), select it in the Data Mart's connector configuration, and follow [Getting Started](GETTING_STARTED.md) to fill in the other connector fields. To update them later, open the Credential on the **Credentials** page and replace the values.
 
 ## Troubleshooting Credential Setup
 

@@ -49,3 +49,56 @@ describe('CredentialDefinitionService external consent', () => {
     ).resolves.toMatchObject({ compatibilityLine: '2' });
   });
 });
+
+describe('CredentialDefinitionService Source definitions', () => {
+  const service = new CredentialDefinitionService(
+    { find: jest.fn().mockResolvedValue([]), findOneBy: jest.fn() } as never,
+    { findOneBy: jest.fn() } as never
+  );
+
+  it('lists the generated Source definitions beside the built-in ones', async () => {
+    const ids = (await service.list()).map(item => item.definitionId);
+
+    expect(ids).toEqual(
+      expect.arrayContaining([
+        'github',
+        'custom-connector',
+        'source:Shopify:default',
+        'source:GoogleSheets:oauth2',
+      ])
+    );
+  });
+
+  it("resolves a Credential's Source definition for the list view", async () => {
+    await expect(
+      service.getForView({ definitionId: 'source:Shopify:default' })
+    ).resolves.toMatchObject({ definitionId: 'source:Shopify:default', source: 'builtin' });
+  });
+
+  it('lists the connectors whose Source bindings reuse a built-in definition', async () => {
+    const listed = new Map(
+      (await service.list()).map(item => [item.definitionId, item.contract.connectors])
+    );
+
+    expect(listed.get('github')).toEqual(['GitHub']);
+    expect(listed.get('google-service-account')).toEqual(['GoogleSheets']);
+    expect(listed.get('openai')).toEqual(undefined);
+    await expect(service.get('github')).resolves.toMatchObject({
+      contract: { connectors: ['GitHub'] },
+    });
+  });
+
+  it('resolves a generated Source definition as built-in', async () => {
+    await expect(service.get('source:Shopify:default')).resolves.toMatchObject({
+      source: 'builtin',
+      compatibilityLine: null,
+      contract: { displayName: 'Shopify', category: 'ecommerce' },
+    });
+    await expect(
+      service.getForCredential({
+        definitionId: 'source:Shopify:default',
+        acceptedCompatibilityLine: null,
+      })
+    ).resolves.toMatchObject({ source: 'builtin' });
+  });
+});

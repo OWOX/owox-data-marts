@@ -17,6 +17,7 @@ export class RedditAdsSource extends AbstractSource {
         requiredType: 'string',
         label: 'App ID',
         description: 'Reddit Ads API App ID',
+        attributes: [CONFIG_ATTRIBUTES.CREDENTIAL],
       },
       ClientSecret: {
         isRequired: true,
@@ -30,6 +31,7 @@ export class RedditAdsSource extends AbstractSource {
         requiredType: 'string',
         label: 'Redirect URI',
         description: 'Reddit Ads API Redirect URI for OAuth',
+        attributes: [CONFIG_ATTRIBUTES.CREDENTIAL],
       },
       RefreshToken: {
         isRequired: true,

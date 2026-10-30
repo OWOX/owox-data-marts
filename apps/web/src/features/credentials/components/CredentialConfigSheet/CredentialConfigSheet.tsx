@@ -6,6 +6,7 @@ import {
   SheetTitle,
 } from '@owox/ui/components/sheet';
 import toast from 'react-hot-toast';
+import { wasErrorToastShown } from '../../../../app/api';
 import { extractApiError } from '../../../../app/api/extract-api-error.util';
 import { useUnsavedGuard } from '../../../../hooks/useUnsavedGuard';
 import { UnsavedChangesConfirmationDialog } from '../../../../shared/components/UnsavedChangesConfirmationDialog';
@@ -13,6 +14,7 @@ import type {
   CreateCredentialRequest,
   Credential,
   CredentialDefinition,
+  CustomConnectorFieldSpec,
   UpdateCredentialRequest,
 } from '../../types';
 import { useCredentialActions } from '../../useCredentials';
@@ -33,6 +35,8 @@ export interface CredentialConfigSheetProps {
   canAddGithubDefinition?: boolean;
   /** Starts both sharing switches off for a new Credential. */
   defaultSharing?: 'not-shared';
+  /** Hosts and field list a new custom connector Credential takes from the manifest. */
+  customConnectorPrefill?: { hosts: string[]; fieldList: CustomConnectorFieldSpec[] };
 }
 
 export function CredentialConfigSheet({
@@ -49,6 +53,7 @@ export function CredentialConfigSheet({
   canManageAccess,
   canAddGithubDefinition = false,
   defaultSharing,
+  customConnectorPrefill,
 }: CredentialConfigSheetProps) {
   const actions = useCredentialActions();
   const {
@@ -81,6 +86,7 @@ export function CredentialConfigSheet({
 
       finishSave(saved, Boolean(credential));
     } catch (caught) {
+      if (wasErrorToastShown(caught)) return;
       const apiError = extractApiError(caught) as { message?: string } | undefined;
       toast.error(apiError?.message ?? 'Could not save the Credential');
     }
@@ -115,6 +121,7 @@ export function CredentialConfigSheet({
           onRequestReplaceSecret={onRequestReplaceSecret}
           canManageAccess={canManageAccess}
           defaultSharing={defaultSharing}
+          customConnectorPrefill={customConnectorPrefill}
           onOAuthConnected={saved => {
             finishSave(saved, Boolean(credential));
           }}

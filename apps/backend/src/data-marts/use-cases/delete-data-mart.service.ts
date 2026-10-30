@@ -9,6 +9,7 @@ import { ReportService } from '../services/report.service';
 import { DataMartService } from '../services/data-mart.service';
 import { DataMartRelationshipService } from '../services/data-mart-relationship.service';
 import { ConnectorSourceCredentialsService } from '../services/connector/connector-source-credentials.service';
+import { SourceCredentialBindingService } from '../connector-types/source-credential-binding.service';
 import { AccessDecisionService, EntityType, Action } from '../services/access-decision';
 import { DataMartSearchIndexInvalidationService } from '../services/data-mart-search-index-invalidation.service';
 import { DataMartSchemaInheritanceService } from '../services/data-mart-schema-inheritance.service';
@@ -25,6 +26,7 @@ export class DeleteDataMartService {
     private readonly connectorSourceCredentialsService: ConnectorSourceCredentialsService,
     private readonly relationshipService: DataMartRelationshipService,
     private readonly accessDecisionService: AccessDecisionService,
+    private readonly sourceCredentials: SourceCredentialBindingService,
     private readonly searchIndexInvalidation?: DataMartSearchIndexInvalidationService,
     @Optional()
     private readonly schemaInheritance?: DataMartSchemaInheritanceService
@@ -66,6 +68,7 @@ export class DeleteDataMartService {
 
     await this.handOverSecretsStillInUse(command.id, command.projectId);
     await this.connectorSourceCredentialsService.deleteSecretsByDataMart(command.id);
+    await this.sourceCredentials.deactivateDataMart(command.id);
 
     const inboundSourceDataMartIds =
       (await this.searchIndexInvalidation?.findInboundSourceDataMartIds(

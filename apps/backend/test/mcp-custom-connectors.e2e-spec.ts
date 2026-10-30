@@ -14,6 +14,7 @@ import { z } from 'zod-v4';
 import { IdpProviderService } from '../src/idp/services/idp-provider.service';
 import { ConnectorTestService } from '../src/data-marts/services/connector/connector-test.service';
 import { DataMartDefinitionValidatorFacade } from '../src/data-marts/data-storage-types/facades/data-mart-definition-validator-facade.service';
+import { createCredential } from './fixtures/storage-credentials';
 
 const manifestFor = (name: string) => ({
   version: '1.0',
@@ -182,6 +183,8 @@ describe('Custom connector MCP with real persistence and transport', () => {
         status: 'published',
         warnings: expect.any(Array),
         published_at: expect.any(String),
+        stopping_data_marts: [],
+        hidden_stopping_count: 0,
       });
       const specification = await call(client, 'get_custom_connector_specification', target);
       expect(JSON.stringify(specification)).not.toContain('private-default');
@@ -390,6 +393,19 @@ describe('Custom connector MCP with real persistence and transport', () => {
       .set(AUTH_HEADER)
       .send(new DataMartBuilder().withStorageId(storage.body.id).build())
       .expect(201);
+    const credentialId = await createCredential(app, {
+      projectId: '0',
+      definitionId: 'custom-connector',
+      title: 'API Token',
+      secret: { fields: { Token: 'test-only' } },
+      publicMetadata: {
+        hosts: ['api.example.test'],
+        fieldList: [{ key: 'Token', label: 'Token', secret: true }],
+        fields: {},
+      },
+      ownerIds: [],
+      contextIds: [],
+    });
     await agent
       .put(`/api/data-marts/${mart.body.id}/definition`)
       .set(AUTH_HEADER)
@@ -399,7 +415,7 @@ describe('Custom connector MCP with real persistence and transport', () => {
           connector: {
             source: {
               name,
-              configuration: [{ Token: 'test-only' }],
+              configuration: [{ _credential_id: credentialId }],
               node: 'items',
               fields: ['id', 'name'],
             },
@@ -445,5 +461,71 @@ describe('Custom connector MCP with real persistence and transport', () => {
     );
     roles = ['admin'];
     expect((await call(admin, 'publish_custom_connector', { connector_id })).version).toBe(2);
+  });
+
+  it('lists the Data Marts a publish or an activation stops, and none once the Credential fits again', async () => {
+    const client = await connect();
+    const { connector_id, name, manifest } = await create(client);
+    await call(client, 'publish_custom_connector', { connector_id });
+    const storage = await agent
+      .post('/api/data-storages')
+      .set(AUTH_HEADER)
+      .send(new StorageBuilder().build())
+      .expect(201);
+    const mart = await agent
+      .post('/api/data-marts')
+      .set(AUTH_HEADER)
+      .send(new DataMartBuilder().withStorageId(storage.body.id).build())
+      .expect(201);
+    const credentialId = await createCredential(app, {
+      projectId: '0',
+      definitionId: 'custom-connector',
+      title: 'API Token',
+      secret: { fields: { Token: 'test-only' } },
+      publicMetadata: {
+        hosts: ['api.example.test'],
+        fieldList: [{ key: 'Token', label: 'Token', secret: true }],
+        fields: {},
+      },
+      ownerIds: [],
+      contextIds: [],
+    });
+    await agent
+      .put(`/api/data-marts/${mart.body.id}/definition`)
+      .set(AUTH_HEADER)
+      .send({
+        definitionType: 'CONNECTOR',
+        definition: {
+          connector: {
+            source: {
+              name,
+              configuration: [{ _credential_id: credentialId }],
+              node: 'items',
+              fields: ['id', 'name'],
+            },
+            storage: { fullyQualifiedName: 'test_dataset.items' },
+          },
+        },
+      })
+      .expect(200);
+    const stopped = { stopping_data_marts: [{ id: mart.body.id, title: mart.body.title }] };
+    const none = { stopping_data_marts: [], hidden_stopping_count: 0 };
+
+    await call(client, 'save_custom_connector_draft', {
+      connector_id,
+      manifest: { ...manifest, baseUrl: 'https://api-v2.example.test' },
+    });
+
+    expect(await call(client, 'publish_custom_connector', { connector_id })).toMatchObject({
+      version: 2,
+      ...stopped,
+      hidden_stopping_count: 0,
+    });
+    expect(
+      await call(client, 'activate_custom_connector_version', { connector_id, version: 1 })
+    ).toMatchObject(none);
+    expect(
+      await call(client, 'activate_custom_connector_version', { connector_id, version: 2 })
+    ).toMatchObject({ ...stopped, hidden_stopping_count: 0 });
   });
 });

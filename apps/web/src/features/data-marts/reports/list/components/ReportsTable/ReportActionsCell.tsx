@@ -9,6 +9,7 @@ import {
   DropdownMenuTrigger,
 } from '@owox/ui/components/dropdown-menu';
 import toast from 'react-hot-toast';
+import { wasErrorToastShown } from '../../../../../../app/api';
 import { ConfirmationDialog } from '../../../../../../shared/components/ConfirmationDialog';
 import { showApiErrorToast } from '../../../../../../shared/utils/showApiErrorToast';
 import type { DataMartReport } from '../../../shared/model/types/data-mart-report';
@@ -142,7 +143,9 @@ export function ReportActionsCell({
     } catch (error) {
       // Reconnect itself failed before the run was attempted.
       setIsRunning(false);
-      showApiErrorToast(error, 'Failed to reconnect sheet');
+      if (!wasErrorToastShown(error)) {
+        showApiErrorToast(error, 'Failed to reconnect sheet');
+      }
     } finally {
       setIsReconnecting(false);
     }

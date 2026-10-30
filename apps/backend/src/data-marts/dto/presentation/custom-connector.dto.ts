@@ -1,4 +1,5 @@
 import {
+  IsInt,
   IsNotEmpty,
   IsNumber,
   IsObject,
@@ -8,7 +9,7 @@ import {
   Min,
   ValidateIf,
 } from 'class-validator';
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { MaxCodePointLength } from '../../../common/validators/max-code-point-length.validator';
 import { MaxByteLength } from '../../../common/validators/max-byte-length.validator';
 import { MaxJsonSize } from '../../../common/validators/max-json-size.validator';
@@ -140,4 +141,59 @@ export class TestConnectorRequestApiDto {
   @Min(1)
   @Max(50)
   maxPages?: number;
+
+  @ApiProperty({
+    required: false,
+    description:
+      'A Credential whose values the server merges into the configuration, which then carries no key parameter.',
+  })
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  credentialId?: string;
+}
+
+/** Exactly one of `manifest` and `connectorName`. */
+export class FittingCustomConnectorCredentialsRequestApiDto {
+  @ApiPropertyOptional({ type: 'object', additionalProperties: true })
+  @IsOptional()
+  @IsObject()
+  @MaxJsonSize(MAX_MANIFEST_SIZE_BYTES)
+  manifest?: Record<string, unknown>;
+
+  @ApiProperty({
+    required: false,
+    description: 'A published custom connector, in place of a manifest.',
+  })
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  connectorName?: string;
+
+  @ApiProperty({
+    required: false,
+    description: 'With connectorName; the active version when absent.',
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  version?: number;
+
+  @ApiProperty({
+    required: false,
+    example: 'items',
+    description: 'The node a test runs; only it is fitted. The whole manifest when absent.',
+  })
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  node?: string;
+
+  @ApiProperty({
+    required: false,
+    description: 'The selective authentication branch the test or configuration picks.',
+  })
+  @IsOptional()
+  @IsString()
+  selection?: string;
 }

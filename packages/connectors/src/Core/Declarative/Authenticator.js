@@ -59,6 +59,8 @@ export class Authenticator {
     // Optional: called with the rotated credential when the provider issues a new
     // refresh token. Omitted (tests, bundled callers) = rotation is not emitted.
     this.onCredentialsUpdate = options.onCredentialsUpdate || null;
+    // Optional: called with every token written into scope.auth.token, so the host can redact it.
+    this.onToken = options.onToken || null;
     this._token = null;
     // Access-token cache. The host passes one in (DeclarativeSource creates a
     // single Map per run) so it OUTLIVES this instance: an Authenticator is
@@ -330,6 +332,7 @@ export class Authenticator {
   }
 
   _writeToken(scope) {
+    this.onToken?.(this._token);
     scope.auth = scope.auth || {};
     scope.auth.token = this._token;
   }

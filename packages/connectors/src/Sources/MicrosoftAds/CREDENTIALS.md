@@ -107,7 +107,7 @@ Copy the `code` value from the URL.
 
 ## Step 5: Exchange the Authorization Code for a Refresh Token
 
-In ReqBin or Postman, paste the authorization code from Step 4. Click **Send**. A successful request returns a **Refresh Token** in the response. Store it securely — you'll use it to authenticate API requests.
+In ReqBin or Postman, paste the authorization code from Step 4. Click **Send**. A successful request returns a **Refresh Token** in the response. Store it securely — you'll enter it in a Credential (on the **Credentials** page, or with **+ Create new Credential** beside the Data Mart's **Credential** field) to authenticate API requests.
 
 ![Microsoft Refresh](res/microsoft_refresh.png)
 

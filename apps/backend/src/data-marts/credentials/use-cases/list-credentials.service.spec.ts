@@ -1,5 +1,7 @@
 import type { AuthorizationContext } from '../../../idp';
 import { Action, EntityType } from '../../services/access-decision';
+import { BadRequestException } from '@nestjs/common';
+import { CredentialDefinitionUnavailableException } from '../services/credential-definition.service';
 import { ListCredentialsService } from './list-credentials.service';
 
 describe('ListCredentialsService', () => {
@@ -60,5 +62,67 @@ describe('ListCredentialsService', () => {
       [visible, context, undefined, { canUse: false, bindings: [visibleBinding], titles }],
       [usable, context, undefined, { canUse: true, bindings: [usableBinding], titles }],
     ]);
+  });
+
+  describe('a Credential whose definition no longer resolves', () => {
+    const context = { projectId: 'p1', userId: 'm1', roles: ['editor'] } as AuthorizationContext;
+    const at = new Date('2026-01-01');
+    const good = { id: 'good' };
+    const orphan = {
+      id: 'orphan',
+      projectId: 'p1',
+      title: 'Old key',
+      definitionId: 'gone',
+      encryptedSecret: 'secret',
+      publicMetadata: { clientEmail: 'a@b.c' },
+      createdAt: at,
+      modifiedAt: at,
+    };
+    const make = (build: jest.Mock) =>
+      new ListCredentialsService(
+        { listByProjectId: async () => [good, orphan], listBindingsOf: async () => [] } as never,
+        {
+          canAccessMany: async () =>
+            new Map([
+              ['good', true],
+              ['orphan', true],
+            ]),
+        } as never,
+        { build } as never,
+        { visibleTitles: async () => new Map() } as never
+      );
+
+    it('lists it as unavailable next to the resolving row', async () => {
+      const build = jest.fn(async (credential: { id: string }) => {
+        if (credential.id === 'orphan') {
+          throw new CredentialDefinitionUnavailableException(
+            'Credential definition gone is not available'
+          );
+        }
+        return credential;
+      });
+
+      await expect(make(build).run(context)).resolves.toEqual([
+        good,
+        {
+          id: 'orphan',
+          projectId: 'p1',
+          title: 'Old key',
+          definitionId: 'gone',
+          state: 'unavailable',
+          createdAt: at,
+          modifiedAt: at,
+        },
+      ]);
+    });
+
+    it('still fails the list on an unrelated rejection', async () => {
+      const build = jest.fn(async (credential: { id: string }) => {
+        if (credential.id === 'orphan') throw new BadRequestException('unrelated');
+        return credential;
+      });
+
+      await expect(make(build).run(context)).rejects.toThrow('unrelated');
+    });
   });
 });

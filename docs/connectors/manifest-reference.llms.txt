@@ -67,6 +67,7 @@ Each entry describes one user-supplied input, referenced elsewhere via `{{ param
 - `description` — optional help text shown next to the field.
 - `attributes` — an optional array of flags. The one every author should know is `SECRET` (masks the value in the UI and in API responses, stores it apart from the Data Mart's definition and replaces it with `***` in run logs and errors; it is not encrypted — always set this for API keys, client secrets, tokens, passwords). A few advanced/internal flags also exist (`HIDE_IN_CONFIG_FORM`, `ADVANCED`, `OAUTH_FLOW`, `DEPRECATED`, `PINNED`, `MANUAL_BACKFILL`) but are rarely needed when hand-authoring a manifest.
 - A parameter name starts with a letter and contains only letters, digits and underscores; the parser refuses any other name. It also refuses a name the engine or a storage uses for its own settings: `Fields`, `LastRequestedDate`, `DestinationTableName`, `DestinationTableNameOverride`, `MaxBufferSize`, and every storage setting, such as `ProjectID`, `ServiceAccountJson`, `Schema`, `Database` or `AWSRegion`.
+- Key parameters are the parameters `authentication` uses (`SECRET` or not, except `selectionParameter`) plus every `SECRET` parameter. A Data Mart takes their values from a Credential. Reference a key parameter or `{{ auth.* }}` only where a request is built: in `authentication`, in a node's request (`path`, `queryParameters`, `headers`, `body`) and in `retriever.async.submit` and `retriever.async.poll`. Never use one in `transformations.add`, in `accounts.from`, or as a `recordFilter` or `partitionRouter` `valuesFromParameter` list: a run or Test with a Credential fails with `Key parameter "<name>" cannot be used in <position> of node "<node>"`.
 - A parameter name must not match a setting of the Data Mart's storage (for example `ProjectID`, `DestinationDatasetID`, `ServiceAccountJson`); a run on that storage fails until the parameter is renamed.
 
 ## 5. `authentication` — all 6 types
@@ -524,7 +525,7 @@ Every string field that accepts a template uses `{{ scope.path }}` syntax (doubl
 
 - `{{ parameters.X }}` — any declared parameter's resolved value.
 - `{{ account.id }}` — the current account id, when the connector declares `accounts` (§11). Without `accounts` there is no account id.
-- `{{ auth.token }}` — the token issued by `tokenExchange`/`oauth2` (only meaningful inside that same authenticator's `inject.format`).
+- `{{ auth.token }}` — the token issued by `tokenExchange`/`oauth2` (for its `inject.format` or a node's request; a request position only, like key parameters — see §4).
 - `{{ dateWindow.start }}` / `{{ dateWindow.end }}` — the current date window (`YYYY-MM-DD` strings), only in a node fetched by date window (§9).
 - `{{ node.selectedFields }}` — the names of the fields the Data Mart selected for this node, comma-separated (e.g. `date,rate`), for an API that takes the list of fields to return, such as a `fields` query parameter. These are the manifest's field names, not their `dataPath`s.
 - `{{ stream_slice.<partitionField> }}` — the current partition value inside a `partitionRouter` child request (§10).
@@ -863,7 +864,7 @@ Expands the `partitionRouter: substream` shape (§10) into one complete node: fe
 1. Read this whole reference before writing or editing a manifest.
 2. Research the target API (its own docs, pasted after this reference) and author the manifest — pick the auth type (§5), define one node per data stream you need (§6–§7), and add pagination/incremental/filters/transformations/error-handling only where the API actually needs them.
 3. The user saves your output as a `.json` file and imports it in the OWOX connector builder (⋮ menu → Import JSON…), or pastes it into the builder's Code mode.
-4. The user runs Test on one node — this dry-runs that node against the live API. An API key or token goes only into a parameter marked `SECRET` or used by `authentication`: the builder uses those values for the test and never saves them, while other test values are saved in the browser.
+4. The user runs Test on one node — this dry-runs that node against the live API. With **Enter values**, an API key or token goes only into a parameter marked `SECRET` or used by `authentication`: the builder uses those values for the test and never saves them, while other test values are saved in the browser. **Use a Credential** keeps the values out of the browser.
 5. If the test fails, the user brings you the error. Make the SMALLEST change that fixes it (correct a typo in the existing `baseUrl`/`path`/`queryParameters`/field name — do not rewrite working parts, rename nodes, or swap to a different API) and return the whole corrected manifest.
-6. Once the test passes, the user publishes the connector. Connecting real credentials happens separately: the user enters them in OWOX (on the Data Mart page, or in the connector's Test), never through the assistant.
+6. Once the test passes, the user publishes the connector. Connecting real credentials happens separately: the user saves them in an OWOX Credential and selects it (on the Data Mart page, or in the connector's Test), never through the assistant.
 7. When asked to change a connector that is already published, keep the names of its nodes and fields: Data Marts refer to them by name (§7).

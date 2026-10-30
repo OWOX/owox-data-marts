@@ -1,7 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import type { AuthorizationContext } from '../../../idp';
 import { AccessDecisionService, Action, EntityType } from '../../services/access-decision';
-import type { CredentialDto } from '../dto/credential.dto';
+import type { CredentialDto, UnavailableCredentialDto } from '../dto/credential.dto';
+import { CredentialDefinitionUnavailableException } from '../services/credential-definition.service';
 import { CredentialConsumerTitlesService } from '../services/credential-consumer-titles.service';
 import { CredentialService } from '../services/credential.service';
 import { CredentialViewService } from '../services/credential-view.service';
@@ -15,7 +16,7 @@ export class ListCredentialsService {
     private readonly consumerTitles: CredentialConsumerTitlesService
   ) {}
 
-  async run(context: AuthorizationContext): Promise<CredentialDto[]> {
+  async run(context: AuthorizationContext): Promise<(CredentialDto | UnavailableCredentialDto)[]> {
     const credentials = await this.credentials.listByProjectId(context.projectId);
     const decide = (action: Action, ids: string[]) =>
       this.access.canAccessMany(
@@ -37,7 +38,7 @@ export class ListCredentialsService {
       this.credentials.listBindingsOf(visibleIds),
     ]);
     const titles = await this.consumerTitles.visibleTitles(context, bindings);
-    return Promise.all(
+    const rows = await Promise.allSettled(
       visible.map(credential =>
         this.view.build(credential, context, undefined, {
           canUse: canUse.get(credential.id) === true,
@@ -46,5 +47,12 @@ export class ListCredentialsService {
         })
       )
     );
+    return rows.map((row, index) => {
+      if (row.status === 'fulfilled') return row.value;
+      // Only a definition that no longer resolves degrades; any other failure fails the list.
+      if (!(row.reason instanceof CredentialDefinitionUnavailableException)) throw row.reason;
+      const { id, projectId, title, definitionId, createdAt, modifiedAt } = visible[index];
+      return { id, projectId, title, definitionId, state: 'unavailable', createdAt, modifiedAt };
+    });
   }
 }

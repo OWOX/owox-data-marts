@@ -20,6 +20,7 @@ const credential = (overrides: Partial<Credential> = {}): Credential => ({
     supportsAi: false,
     ai: null,
     compatibilityLine: null,
+    connectors: [],
   },
   secretConfigured: true,
   definitionConsentRequired: false,

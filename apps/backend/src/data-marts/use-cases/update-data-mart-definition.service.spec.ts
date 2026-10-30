@@ -11,6 +11,29 @@ import { DataMartDefinitionType } from '../enums/data-mart-definition-type.enum'
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
 import { passThroughSqlReferenceValidator } from '../sql-references/__fixtures__/pass-through-sql-reference-resolver';
+import { SECRET_MASK } from '../services/connector/connector-secret.service';
+
+const OUT_OF_DATE = 'This page is out of date. Reload it.';
+
+/** Bindings by configuration id; a null Credential was deleted. */
+function sourceCredentialsMock(bound: Record<string, string | null> = {}) {
+  const lockedIds: Record<string, string> = {};
+  for (const [configId, credentialId] of Object.entries(bound)) {
+    lockedIds[configId] = credentialId ?? 'deleted-credential';
+  }
+  return {
+    boundCredentialIds: jest.fn().mockResolvedValue(new Map(Object.entries(bound))),
+    lockBoundCredentialId: jest.fn(
+      async (_projectId: string, _dataMartId: string, configId: string): Promise<string | null> =>
+        lockedIds[configId] ?? null
+    ),
+    checkConfigCredential: jest.fn().mockResolvedValue(undefined),
+    checkKeptConfigCredential: jest.fn().mockResolvedValue(undefined),
+    bindConfig: jest.fn().mockResolvedValue(undefined),
+    unbindConfig: jest.fn().mockResolvedValue(undefined),
+    deactivateDataMart: jest.fn().mockResolvedValue(undefined),
+  };
+}
 
 describe('UpdateDataMartDefinitionService', () => {
   const createService = (
@@ -19,6 +42,7 @@ describe('UpdateDataMartDefinitionService', () => {
       definition?: unknown;
       storageType?: DataStorageType;
       sqlReferenceValidator?: { prepareForSave: jest.Mock };
+      bound?: Record<string, string | null>;
     } = {}
   ) => {
     const dataMart = {
@@ -41,10 +65,10 @@ describe('UpdateDataMartDefinitionService', () => {
       toDomainDto: jest.fn().mockReturnValue({ id: 'dm-1' }),
     };
     const connectorSecretService = {
-      mergeDefinitionSecretsFromSource: jest.fn(),
       mergeDefinitionSecrets: jest.fn(),
       extractAndSaveSecrets: jest.fn(),
       deleteOrphanedSecrets: jest.fn(),
+      hasTypedSecrets: jest.fn().mockResolvedValue(false),
     };
     const legacyDataMartsService = {
       updateQuery: jest.fn(),
@@ -60,7 +84,9 @@ describe('UpdateDataMartDefinitionService', () => {
         singleConfiguration: false,
         copySecretsByValue: false,
       }),
+      resolveSourceKeys: jest.fn().mockResolvedValue({ fields: [], model: null }),
     };
+    const sourceCredentials = sourceCredentialsMock(overrides.bound);
     const definitionValidatorFacade = {
       checkIsValid: jest.fn().mockResolvedValue(undefined),
     };
@@ -73,7 +99,8 @@ describe('UpdateDataMartDefinitionService', () => {
       definitionValidatorFacade as any,
       eventDispatcher as any,
       connectorService as any,
-      (overrides.sqlReferenceValidator ?? passThroughSqlReferenceValidator) as never
+      (overrides.sqlReferenceValidator ?? passThroughSqlReferenceValidator) as never,
+      sourceCredentials as any
     );
 
     return {
@@ -85,6 +112,7 @@ describe('UpdateDataMartDefinitionService', () => {
       definitionValidatorFacade,
       eventDispatcher,
       connectorService,
+      sourceCredentials,
       dataMart,
     };
   };
@@ -141,7 +169,7 @@ describe('UpdateDataMartDefinitionService', () => {
   );
 
   it('cleans up orphaned secrets against the definition that was actually saved', async () => {
-    const { service, dataMartService, connectorSecretService, dataMart } = createService();
+    const { service, connectorSecretService, dataMart } = createService();
 
     const previousDefinition = {
       connector: {
@@ -151,25 +179,9 @@ describe('UpdateDataMartDefinitionService', () => {
     dataMart.definitionType = DataMartDefinitionType.CONNECTOR;
     dataMart.definition = previousDefinition;
 
-    const sourceDataMart = {
-      id: 'dm-source',
-      projectId: 'proj-1',
-      definitionType: DataMartDefinitionType.CONNECTOR,
-      definition: {
-        connector: {
-          source: {
-            name: 'FacebookMarketing',
-            configuration: [{ _id: 'src-1', _secrets_id: 'source-secrets' }],
-          },
-        },
-      },
+    const merged = {
+      connector: { source: { name: 'FacebookMarketing', configuration: [{ _id: 'c-2' }] } },
     };
-    dataMartService.getByIdAndProjectId.mockImplementation(async (id: string) =>
-      id === 'dm-source' ? sourceDataMart : dataMart
-    );
-
-    const mergedFromSource = { merged: 'from-source' };
-    const mergedWithPrevious = { merged: 'with-previous' };
     // What extractAndSaveSecrets returns is what gets stored, so it is also
     // what cleanup must be compared against.
     const savedDefinition = {
@@ -177,39 +189,17 @@ describe('UpdateDataMartDefinitionService', () => {
         source: { name: 'FacebookMarketing', configuration: [{ _id: 'c-2', _secrets_id: 'new' }] },
       },
     };
-    connectorSecretService.mergeDefinitionSecretsFromSource.mockResolvedValue(mergedFromSource);
-    connectorSecretService.mergeDefinitionSecrets.mockResolvedValue(mergedWithPrevious);
+    connectorSecretService.mergeDefinitionSecrets.mockResolvedValue(merged);
     connectorSecretService.extractAndSaveSecrets.mockResolvedValue(savedDefinition);
 
     const incomingDefinition = {
-      connector: {
-        source: {
-          name: 'FacebookMarketing',
-          configuration: [{ _copiedFrom: { configId: 'src-1' } }],
-        },
-      },
+      connector: { source: { name: 'FacebookMarketing', configuration: [{ _id: 'c-2' }] } },
     };
-    const command = new UpdateDataMartDefinitionCommand(
-      'dm-1',
-      'proj-1',
-      DataMartDefinitionType.CONNECTOR,
-      incomingDefinition as any,
-      'dm-source',
-      undefined,
-      'user-1',
-      ['editor']
-    );
+    await service.run(commandFor(DataMartDefinitionType.CONNECTOR, incomingDefinition));
 
-    await service.run(command);
-
-    expect(connectorSecretService.mergeDefinitionSecretsFromSource).toHaveBeenCalledWith(
-      'proj-1',
-      incomingDefinition,
-      sourceDataMart.definition
-    );
     expect(connectorSecretService.mergeDefinitionSecrets).toHaveBeenCalledWith(
       'proj-1',
-      mergedFromSource,
+      incomingDefinition,
       previousDefinition
     );
     expect(connectorSecretService.deleteOrphanedSecrets).toHaveBeenCalledWith(
@@ -360,230 +350,613 @@ describe('UpdateDataMartDefinitionService', () => {
     expect(dataMartService.save).toHaveBeenCalledWith(dataMart);
   });
 
-  it('requires edit access when connector secrets are copied by value', async () => {
-    const { service, accessDecisionService, connectorSecretService, connectorService } =
-      createService();
-    connectorService.resolveConnectorCapabilities.mockResolvedValue({
-      singleConfiguration: false,
-      copySecretsByValue: true,
+  describe('Source credentials', () => {
+    const KEY_FIELDS = [{ path: [], parameters: ['AccessToken'] }];
+
+    const connectorDefinition = (configuration: Array<Record<string, unknown>>) => ({
+      connector: {
+        source: { name: 'GitHub', configuration, node: 'stars', fields: ['date'] },
+        storage: { fullyQualifiedName: 'dataset.table' },
+      },
     });
-    accessDecisionService.canAccess.mockResolvedValueOnce(true).mockResolvedValueOnce(false);
-    const definition = {
-      connector: {
-        source: {
-          name: 'CopyByValueConnector',
-          node: 'sheet',
-          fields: ['name'],
-          configuration: [{ _id: 'config-1' }],
-        },
-        storage: { fullyQualifiedName: 'dataset.table' },
-      },
+
+    /** A GitHub Data Mart with `previous` stored and `bound` bindings; merge and extract pass through. */
+    const givenDataMart = (
+      previous: Array<Record<string, unknown>> | null,
+      bound: Record<string, string | null> = {}
+    ) => {
+      const harness = createService(
+        previous
+          ? {
+              definitionType: DataMartDefinitionType.CONNECTOR,
+              definition: connectorDefinition(previous),
+              bound,
+            }
+          : { bound }
+      );
+      harness.connectorService.resolveSourceKeys.mockResolvedValue({
+        fields: KEY_FIELDS,
+        model: null,
+      });
+      harness.connectorSecretService.mergeDefinitionSecrets.mockImplementation(
+        async (_projectId: string, incoming: any) => incoming
+      );
+      harness.connectorSecretService.extractAndSaveSecrets.mockImplementation(
+        async (_id: string, _projectId: string, _name: string, definition: any) => definition
+      );
+      const save = (configuration: Array<Record<string, unknown>>) =>
+        harness.service.run(
+          commandFor(DataMartDefinitionType.CONNECTOR, connectorDefinition(configuration))
+        );
+      const stored = () =>
+        (harness.dataMart.definition as ReturnType<typeof connectorDefinition>).connector.source
+          .configuration;
+      return { ...harness, save, stored };
     };
-    const command = new UpdateDataMartDefinitionCommand(
-      'dm-1',
-      'proj-1',
-      DataMartDefinitionType.CONNECTOR,
-      definition,
-      'source-dm-1',
-      undefined,
-      'user-1',
-      ['editor']
-    );
 
-    await expect(service.run(command)).rejects.toThrow(
-      'You do not have permission to copy connector credentials from the source Data Mart'
-    );
-    expect(accessDecisionService.canAccess).toHaveBeenNthCalledWith(
-      2,
-      'user-1',
-      ['editor'],
-      'DATA_MART',
-      'source-dm-1',
-      'EDIT',
-      'proj-1'
-    );
-    expect(connectorSecretService.mergeDefinitionSecretsFromSource).not.toHaveBeenCalled();
-  });
+    it('binds _credential_id per configuration after checking USE', async () => {
+      const { save, sourceCredentials } = givenDataMart(null);
 
-  it('requires edit access on the copy source for every connector', async () => {
-    const { service, accessDecisionService, connectorSecretService } = createService();
-    accessDecisionService.canAccess.mockResolvedValueOnce(true).mockResolvedValueOnce(false);
-    const definition = {
-      connector: {
-        source: {
-          name: 'src',
-          node: 'n',
-          fields: ['f'],
-          configuration: [{ _id: 'config-1' }],
-        },
-        storage: { fullyQualifiedName: 'dataset.table' },
-      },
-    };
-    const command = new UpdateDataMartDefinitionCommand(
-      'dm-1',
-      'proj-1',
-      DataMartDefinitionType.CONNECTOR,
-      definition,
-      'source-dm-1',
-      undefined,
-      'user-1',
-      ['editor']
-    );
+      await save([
+        { _id: 'c-1', _credential_id: 'cred-1', RepositoryName: 'a/b' },
+        { _id: 'c-2', _credential_id: 'cred-2', RepositoryName: 'c/d' },
+      ]);
 
-    await expect(service.run(command)).rejects.toThrow(
-      'You do not have permission to copy connector credentials from the source Data Mart'
-    );
-    expect(accessDecisionService.canAccess).toHaveBeenNthCalledWith(
-      2,
-      'user-1',
-      ['editor'],
-      'DATA_MART',
-      'source-dm-1',
-      'EDIT',
-      'proj-1'
-    );
-    expect(connectorSecretService.mergeDefinitionSecretsFromSource).not.toHaveBeenCalled();
-  });
-
-  it('rejects an unowned secret reference for connectors that copy secrets by value', async () => {
-    const { service, dataMart, connectorSecretService, connectorService } = createService();
-    connectorService.resolveConnectorCapabilities.mockResolvedValue({
-      singleConfiguration: false,
-      copySecretsByValue: true,
+      expect(sourceCredentials.checkConfigCredential).toHaveBeenCalledWith({
+        projectId: 'proj-1',
+        userId: 'user-1',
+        roles: ['editor'],
+        credentialId: 'cred-1',
+        connectorName: 'GitHub',
+        config: expect.objectContaining({ _id: 'c-1' }),
+        model: null,
+      });
+      expect(sourceCredentials.bindConfig.mock.calls).toEqual([
+        [
+          {
+            projectId: 'proj-1',
+            userId: 'user-1',
+            roles: ['editor'],
+            dataMartId: 'dm-1',
+            configId: 'c-1',
+            credentialId: 'cred-1',
+          },
+        ],
+        [
+          {
+            projectId: 'proj-1',
+            userId: 'user-1',
+            roles: ['editor'],
+            dataMartId: 'dm-1',
+            configId: 'c-2',
+            credentialId: 'cred-2',
+          },
+        ],
+      ]);
+      expect(sourceCredentials.checkConfigCredential.mock.invocationCallOrder[0]).toBeLessThan(
+        sourceCredentials.bindConfig.mock.invocationCallOrder[0]
+      );
+      expect(sourceCredentials.lockBoundCredentialId).toHaveBeenCalledWith('proj-1', 'dm-1', 'c-1');
     });
-    const definition = {
-      connector: {
-        source: {
-          name: 'CopyByValueConnector',
-          node: 'sheet',
-          fields: ['name'],
-          configuration: [{ _id: 'config-1', _secrets_id: 'foreign-secret' }],
-        },
-        storage: { fullyQualifiedName: 'dataset.table' },
-      },
-    };
-    const command = new UpdateDataMartDefinitionCommand(
-      'dm-1',
-      'proj-1',
-      DataMartDefinitionType.CONNECTOR,
-      definition,
-      undefined,
-      undefined,
-      'user-1',
-      ['editor']
-    );
 
-    await expect(service.run(command)).rejects.toThrow(
-      'The selected connector credentials cannot be used for this DataMart'
-    );
-    expect(connectorSecretService.mergeDefinitionSecrets).not.toHaveBeenCalled();
-    expect(connectorSecretService.extractAndSaveSecrets).not.toHaveBeenCalled();
+    it('binds nothing when the Credential check refuses it', async () => {
+      const { save, sourceCredentials, dataMartService } = givenDataMart(null);
+      sourceCredentials.checkConfigCredential.mockRejectedValue(
+        new ForbiddenException('You cannot use this Credential.')
+      );
 
-    dataMart.definition = definition;
-    connectorSecretService.mergeDefinitionSecrets.mockResolvedValue(definition);
-    connectorSecretService.extractAndSaveSecrets.mockResolvedValue(definition);
-
-    await expect(service.run(command)).resolves.toEqual({ id: 'dm-1' });
-  });
-
-  it('rejects an unowned secret reference for every connector, not only copy-by-value ones', async () => {
-    const { service, dataMart, connectorSecretService } = createService();
-    const definition = {
-      connector: {
-        source: {
-          name: 'src',
-          node: 'n',
-          fields: ['f'],
-          configuration: [{ _id: 'config-1', _secrets_id: 'foreign-secret' }],
-        },
-        storage: { fullyQualifiedName: 'dataset.table' },
-      },
-    };
-    const command = new UpdateDataMartDefinitionCommand(
-      'dm-1',
-      'proj-1',
-      DataMartDefinitionType.CONNECTOR,
-      definition,
-      undefined,
-      undefined,
-      'user-1',
-      ['editor']
-    );
-
-    await expect(service.run(command)).rejects.toThrow(
-      'The selected connector credentials cannot be used for this DataMart'
-    );
-    expect(connectorSecretService.extractAndSaveSecrets).not.toHaveBeenCalled();
-
-    // The self-heal of aliased Data Marts stays open: the same pointer is
-    // accepted when it comes from the Data Mart's own stored definition.
-    dataMart.definition = definition;
-    connectorSecretService.mergeDefinitionSecrets.mockResolvedValue(definition);
-    connectorSecretService.extractAndSaveSecrets.mockResolvedValue(definition);
-
-    await expect(service.run(command)).resolves.toEqual({ id: 'dm-1' });
-  });
-
-  it('allows a secret reference from an authorized copy source', async () => {
-    const { service, dataMartService, connectorSecretService, connectorService, dataMart } =
-      createService();
-    connectorService.resolveConnectorCapabilities.mockResolvedValue({
-      singleConfiguration: false,
-      copySecretsByValue: true,
+      await expect(save([{ _id: 'c-1', _credential_id: 'cred-1' }])).rejects.toThrow(
+        ForbiddenException
+      );
+      expect(sourceCredentials.bindConfig).not.toHaveBeenCalled();
+      expect(dataMartService.save).not.toHaveBeenCalled();
     });
-    const definition = {
-      connector: {
-        source: {
-          name: 'CopyByValueConnector',
-          node: 'sheet',
-          fields: ['name'],
-          configuration: [
-            {
-              _secrets_id: 'source-secret',
-              _copiedFrom: { configId: 'source-config' },
-            },
+
+    it('keeps an unchanged _credential_id without USE', async () => {
+      const { save, sourceCredentials, dataMartService } = givenDataMart(
+        [{ _id: 'c-1', RepositoryName: 'a/b' }],
+        { 'c-1': 'cred-1' }
+      );
+
+      await save([{ _id: 'c-1', _credential_id: 'cred-1', RepositoryName: 'a/c' }]);
+
+      expect(sourceCredentials.checkConfigCredential).not.toHaveBeenCalled();
+      expect(sourceCredentials.checkKeptConfigCredential).not.toHaveBeenCalled();
+      expect(sourceCredentials.bindConfig).not.toHaveBeenCalled();
+      expect(dataMartService.save).toHaveBeenCalled();
+    });
+
+    describe('a kept Credential is re-checked, without USE, when what it must fit changes', () => {
+      const NO_LONGER_FITS =
+        "This Data Mart's Credential no longer fits its connector. Select a fitting Credential.";
+      const selective = {
+        allowedHosts: ['api.acme.example'],
+        keyParameters: ['AccessToken'],
+        keyParameterBranches: { token: ['AccessToken'], open: [] },
+        keyParameterMisuse: [],
+        parameters: { AuthMode: { default: 'token' }, AccessToken: { isRequired: true } },
+        authentication: { selectionParameter: 'AuthMode' },
+      };
+
+      it('refuses a connector version the Credential no longer fits', async () => {
+        const { service, sourceCredentials, connectorService, dataMartService } = givenDataMart(
+          [{ _id: 'c-1' }],
+          { 'c-1': 'cred-1' }
+        );
+        connectorService.resolveSourceKeys.mockResolvedValue({
+          fields: KEY_FIELDS,
+          model: selective,
+        });
+        sourceCredentials.checkKeptConfigCredential.mockRejectedValue(
+          new BadRequestException(NO_LONGER_FITS)
+        );
+        const definition = connectorDefinition([{ _id: 'c-1', _credential_id: 'cred-1' }]);
+
+        await expect(
+          service.run(
+            commandFor(DataMartDefinitionType.CONNECTOR, {
+              ...definition,
+              connector: {
+                ...definition.connector,
+                source: { ...definition.connector.source, version: 2 },
+              },
+            })
+          )
+        ).rejects.toThrow(NO_LONGER_FITS);
+        expect(sourceCredentials.checkKeptConfigCredential).toHaveBeenCalledWith({
+          projectId: 'proj-1',
+          credentialId: 'cred-1',
+          connectorName: 'GitHub',
+          config: expect.objectContaining({ _id: 'c-1' }),
+          model: selective,
+        });
+        expect(sourceCredentials.checkConfigCredential).not.toHaveBeenCalled();
+        expect(dataMartService.save).not.toHaveBeenCalled();
+      });
+
+      it('on another selective branch, read with its default', async () => {
+        const { save, sourceCredentials, connectorService } = givenDataMart(
+          [{ _id: 'c-1', AuthMode: 'token' }],
+          { 'c-1': 'cred-1' }
+        );
+        connectorService.resolveSourceKeys.mockResolvedValue({
+          fields: KEY_FIELDS,
+          model: selective,
+        });
+
+        await save([{ _id: 'c-1', _credential_id: 'cred-1', AuthMode: '' }]);
+        expect(sourceCredentials.checkKeptConfigCredential).not.toHaveBeenCalled();
+
+        await save([{ _id: 'c-1', _credential_id: 'cred-1', AuthMode: 'open' }]);
+        expect(sourceCredentials.checkKeptConfigCredential).toHaveBeenCalledWith(
+          expect.objectContaining({ credentialId: 'cred-1', model: selective })
+        );
+      });
+
+      it('on another auth variant', async () => {
+        const { save, sourceCredentials, connectorService } = givenDataMart(
+          [{ _id: 'c-1', AuthType: { oauth2: {} } }],
+          { 'c-1': 'cred-oauth' }
+        );
+        connectorService.resolveSourceKeys.mockResolvedValue({
+          fields: [
+            { path: ['AuthType', 'oauth2'], parameters: ['RefreshToken'] },
+            { path: ['AuthType', 'service_account'], parameters: ['ServiceAccountKey'] },
           ],
-        },
-        storage: { fullyQualifiedName: 'dataset.table' },
-      },
-    };
-    const sourceDefinition = {
-      connector: {
-        source: {
-          name: 'CopyByValueConnector',
-          node: 'sheet',
-          fields: ['name'],
-          configuration: [{ _id: 'source-config', _secrets_id: 'source-secret' }],
-        },
-        storage: { fullyQualifiedName: 'dataset.source_table' },
-      },
-    };
-    dataMartService.getByIdAndProjectId.mockResolvedValueOnce(dataMart).mockResolvedValueOnce({
-      id: 'source-dm-1',
-      projectId: 'proj-1',
-      definitionType: DataMartDefinitionType.CONNECTOR,
-      definition: sourceDefinition,
+          model: null,
+        });
+
+        await save([{ _id: 'c-1', _credential_id: 'cred-oauth', AuthType: { oauth2: {} } }]);
+        expect(sourceCredentials.checkKeptConfigCredential).not.toHaveBeenCalled();
+
+        await save([
+          { _id: 'c-1', _credential_id: 'cred-oauth', AuthType: { service_account: {} } },
+        ]);
+        expect(sourceCredentials.checkKeptConfigCredential).toHaveBeenCalledWith(
+          expect.objectContaining({ credentialId: 'cred-oauth', model: null })
+        );
+      });
     });
-    connectorSecretService.mergeDefinitionSecretsFromSource.mockResolvedValue(definition);
-    connectorSecretService.mergeDefinitionSecrets.mockResolvedValue(definition);
-    connectorSecretService.extractAndSaveSecrets.mockResolvedValue(definition);
-    const command = new UpdateDataMartDefinitionCommand(
-      'dm-1',
-      'proj-1',
-      DataMartDefinitionType.CONNECTOR,
-      definition,
-      'source-dm-1',
-      undefined,
-      'user-1',
-      ['editor']
+
+    it('removing a configuration unbinds it', async () => {
+      const { save, sourceCredentials } = givenDataMart([{ _id: 'c-1' }, { _id: 'c-2' }], {
+        'c-1': 'cred-1',
+        'c-2': 'cred-2',
+      });
+
+      await save([{ _id: 'c-1', _credential_id: 'cred-1' }]);
+
+      expect(sourceCredentials.unbindConfig.mock.calls).toEqual([['dm-1', 'c-2']]);
+    });
+
+    it('unbinds a live binding whose configuration an N-1 save removed', async () => {
+      const { save, sourceCredentials } = givenDataMart([{ _id: 'c-1' }], {
+        'c-1': 'cred-1',
+        'c-2': 'cred-2',
+      });
+
+      await save([{ _id: 'c-1', _credential_id: 'cred-1' }]);
+
+      expect(sourceCredentials.unbindConfig.mock.calls).toEqual([['dm-1', 'c-2']]);
+    });
+
+    it('unbinds the binding of a connector an N-1 save switched away from', async () => {
+      const { save, sourceCredentials } = givenDataMart([{ _id: 'c-new', _secrets_id: 'row-1' }], {
+        'c-old': 'cred-old',
+      });
+
+      await save([{ _id: 'c-new', _secrets_id: 'row-1' }]);
+
+      expect(sourceCredentials.deactivateDataMart).not.toHaveBeenCalled();
+      expect(sourceCredentials.unbindConfig.mock.calls).toEqual([['dm-1', 'c-old']]);
+    });
+
+    it('two configurations whose ids differ only in case or accents are out of date', async () => {
+      const { save, sourceCredentials, dataMartService } = givenDataMart(null);
+
+      await expect(
+        save([
+          { _id: 'main', _credential_id: 'cred-1' },
+          { _id: 'Máin', _credential_id: 'cred-2' },
+        ])
+      ).rejects.toThrow(OUT_OF_DATE);
+      expect(sourceCredentials.bindConfig).not.toHaveBeenCalled();
+      expect(dataMartService.save).not.toHaveBeenCalled();
+    });
+
+    it('two configurations whose ids differ only by a ligature are out of date', async () => {
+      const { save, dataMartService } = givenDataMart(null);
+
+      await expect(
+        save([
+          { _id: 'file', _credential_id: 'cred-1' },
+          { _id: '\uFB01le', _credential_id: 'cred-2' },
+        ])
+      ).rejects.toThrow(OUT_OF_DATE);
+      expect(dataMartService.save).not.toHaveBeenCalled();
+    });
+
+    it('a spelling-only _id change of a bound configuration is out of date where the index folds case', async () => {
+      const { save, sourceCredentials, dataMartService } = givenDataMart(
+        [{ _id: 'Main', _secrets_id: 'row-1' }],
+        { Main: 'cred-1' }
+      );
+      // The binding index compares without case, as MySQL does.
+      sourceCredentials.lockBoundCredentialId.mockImplementation(
+        async (_projectId: string, _dataMartId: string, configId: string) =>
+          configId.toLowerCase() === 'main' ? 'cred-1' : null
+      );
+
+      await expect(
+        save([{ _id: 'main', _credential_id: 'cred-1', _secrets_id: 'row-1' }])
+      ).rejects.toThrow(OUT_OF_DATE);
+      expect(sourceCredentials.unbindConfig).not.toHaveBeenCalled();
+      expect(dataMartService.save).not.toHaveBeenCalled();
+    });
+
+    it('a spelling-only _id change of a bound configuration is out of date where the index is binary', async () => {
+      const { save, sourceCredentials, dataMartService } = givenDataMart([{ _id: 'Main' }], {
+        Main: 'cred-1',
+      });
+
+      await expect(save([{ _id: 'main' }])).rejects.toThrow(OUT_OF_DATE);
+      expect(sourceCredentials.unbindConfig).not.toHaveBeenCalled();
+      expect(dataMartService.save).not.toHaveBeenCalled();
+    });
+
+    it('a spelling-only _id change of an unbound configuration keeps its one previous item', async () => {
+      const { save, stored } = givenDataMart([{ _id: 'Main', _secrets_id: 'row-1' }]);
+
+      await save([{ _id: 'main', _secrets_id: 'row-1' }]);
+
+      expect(stored()).toEqual([{ _id: 'main', _secrets_id: 'row-1' }]);
+    });
+
+    it('an id that matches two stored items only when folded has no previous item', async () => {
+      const { save, dataMartService } = givenDataMart([
+        { _id: 'Main', _secrets_id: 'row-B' },
+        { _id: 'main', _secrets_id: 'row-A' },
+      ]);
+
+      await expect(save([{ _id: 'MAIN', _secrets_id: 'row-B' }])).rejects.toThrow(OUT_OF_DATE);
+      expect(dataMartService.save).not.toHaveBeenCalled();
+    });
+
+    it('the stored definition holds no _credential_id and no key values; old key references stay', async () => {
+      const { save, stored } = givenDataMart(
+        [
+          {
+            _id: 'c-1',
+            _secrets_id: 'old-row',
+            AuthType: { oauth2: { _source_credential_id: 'oauth-row' } },
+          },
+        ],
+        { 'c-1': 'cred-1' }
+      );
+
+      // As a GET returns it: the variant without its old reference.
+      await save([
+        { _id: 'c-1', _credential_id: 'cred-1', AuthType: { oauth2: {} }, RepositoryName: 'a/b' },
+      ]);
+
+      expect(stored()).toEqual([
+        {
+          _id: 'c-1',
+          _secrets_id: 'old-row',
+          AuthType: { oauth2: { _source_credential_id: 'oauth-row' } },
+          RepositoryName: 'a/b',
+        },
+      ]);
+    });
+
+    it.each([
+      ['a rebind to another Credential', { 'c-1': 'cred-a' }],
+      ['a first binding', {}],
+    ])('%s stores no old key references', async (_case, bound: Record<string, string>) => {
+      const { save, stored } = givenDataMart(
+        [
+          {
+            _id: 'c-1',
+            _secrets_id: 'old-row',
+            AuthType: { oauth2: { _source_credential_id: 'oauth-row' } },
+          },
+        ],
+        bound
+      );
+
+      await save([
+        {
+          _id: 'c-1',
+          _secrets_id: 'old-row',
+          _credential_id: 'cred-b',
+          AuthType: { oauth2: {} },
+          RepositoryName: 'a/b',
+        },
+      ]);
+
+      expect(stored()).toEqual([{ _id: 'c-1', AuthType: { oauth2: {} }, RepositoryName: 'a/b' }]);
+    });
+
+    it('one save keeps the old key references of an unchanged binding and drops a rebound one', async () => {
+      const { save, stored } = givenDataMart(
+        [
+          { _id: 'c-1', _secrets_id: 'row-1' },
+          { _id: 'c-2', _secrets_id: 'row-2' },
+        ],
+        { 'c-1': 'cred-1', 'c-2': 'cred-2' }
+      );
+
+      await save([
+        { _id: 'c-1', _credential_id: 'cred-1', RepositoryName: 'a/b' },
+        { _id: 'c-2', _credential_id: 'cred-3', RepositoryName: 'c/d' },
+      ]);
+
+      expect(stored()).toEqual([
+        { _id: 'c-1', _secrets_id: 'row-1', RepositoryName: 'a/b' },
+        { _id: 'c-2', RepositoryName: 'c/d' },
+      ]);
+    });
+
+    it.each([
+      ['sourceDataMartId', { sourceDataMartId: 'dm-source' }, [{ _id: 'c-1' }]],
+      ['_copiedFrom', {}, [{ _copiedFrom: { configId: 'src-1' }, _credential_id: 'cred-1' }]],
+      [
+        '_source_credential_id',
+        {},
+        [{ _id: 'c-1', AuthType: { oauth2: { _source_credential_id: 'oauth-row' } } }],
+      ],
+      ['another _secrets_id', {}, [{ _id: 'c-1', _secrets_id: 'foreign-row' }]],
+      [
+        'key values beside _credential_id',
+        {},
+        [{ _id: 'c-1', _credential_id: 'cred-1', AccessToken: SECRET_MASK }],
+      ],
+    ])(
+      'rejects %s with "This page is out of date. Reload it."',
+      async (_case, request: Record<string, unknown>, configuration) => {
+        const { service, sourceCredentials, dataMartService } = givenDataMart([
+          { _id: 'c-1', _secrets_id: 'own-row' },
+        ]);
+        const command = new UpdateDataMartDefinitionCommand(
+          'dm-1',
+          'proj-1',
+          DataMartDefinitionType.CONNECTOR,
+          connectorDefinition(configuration) as never,
+          request.sourceDataMartId as string | undefined,
+          undefined,
+          'user-1',
+          ['editor']
+        );
+
+        await expect(service.run(command)).rejects.toThrow(new BadRequestException(OUT_OF_DATE));
+        expect(sourceCredentials.bindConfig).not.toHaveBeenCalled();
+        expect(dataMartService.save).not.toHaveBeenCalled();
+      }
     );
 
-    await expect(service.run(command)).resolves.toEqual({ id: 'dm-1' });
-    expect(connectorSecretService.mergeDefinitionSecretsFromSource).toHaveBeenCalledWith(
-      'proj-1',
-      definition,
-      sourceDefinition
-    );
+    it('rejects non-masked key values with "This page is out of date. Reload it."', async () => {
+      const { save, connectorSecretService, dataMartService } = givenDataMart([
+        { _id: 'c-1', _secrets_id: 'own-row' },
+      ]);
+      connectorSecretService.hasTypedSecrets.mockResolvedValue(true);
+
+      await expect(save([{ _id: 'c-1', AccessToken: 'typed' }])).rejects.toThrow(OUT_OF_DATE);
+      expect(dataMartService.save).not.toHaveBeenCalled();
+    });
+
+    it('keeps a previous _secrets_id unchanged and runs on it', async () => {
+      const { save, stored, sourceCredentials } = givenDataMart([
+        { _id: 'c-1', _secrets_id: 'own-row', AccessToken: SECRET_MASK, RepositoryName: 'a/b' },
+      ]);
+
+      await save([
+        { _id: 'c-1', _secrets_id: 'own-row', AccessToken: SECRET_MASK, RepositoryName: 'a/c' },
+      ]);
+
+      expect(stored()).toEqual([
+        { _id: 'c-1', _secrets_id: 'own-row', AccessToken: SECRET_MASK, RepositoryName: 'a/c' },
+      ]);
+      expect(sourceCredentials.bindConfig).not.toHaveBeenCalled();
+      expect(sourceCredentials.unbindConfig).not.toHaveBeenCalled();
+    });
+
+    it('keeps a previous _source_credential_id unchanged', async () => {
+      const oauth = { AuthType: { oauth2: { _source_credential_id: 'oauth-row' } } };
+      const { save, stored, sourceCredentials } = givenDataMart([{ _id: 'c-1', ...oauth }]);
+
+      await save([{ _id: 'c-1', ...oauth, RepositoryName: 'a/b' }]);
+
+      expect(stored()).toEqual([{ _id: 'c-1', ...oauth, RepositoryName: 'a/b' }]);
+      expect(sourceCredentials.bindConfig).not.toHaveBeenCalled();
+    });
+
+    it('switching the auth variant keeps no stray variant and a later Credential change is accepted', async () => {
+      const { service, connectorService, sourceCredentials, dataMart, save, stored } =
+        givenDataMart(
+          [{ _id: 'c-1', AuthType: { oauth2: { _source_credential_id: 'oauth-row' } } }],
+          {
+            'c-1': 'cred-oauth',
+          }
+        );
+      connectorService.resolveSourceKeys.mockResolvedValue({
+        fields: [
+          { path: ['AuthType', 'oauth2'], parameters: ['ClientId', 'RefreshToken'] },
+          { path: ['AuthType', 'service_account'], parameters: ['ServiceAccountKey'] },
+        ],
+        model: null,
+      });
+
+      await save([
+        { _id: 'c-1', _credential_id: 'cred-service', AuthType: { service_account: {} } },
+      ]);
+      expect(stored()).toEqual([{ _id: 'c-1', AuthType: { service_account: {} } }]);
+
+      sourceCredentials.lockBoundCredentialId.mockResolvedValue('cred-service');
+      sourceCredentials.boundCredentialIds.mockResolvedValue(new Map([['c-1', 'cred-service']]));
+      sourceCredentials.checkConfigCredential.mockClear();
+      await service.run(
+        commandFor(DataMartDefinitionType.CONNECTOR, {
+          ...dataMart.definition,
+          connector: {
+            ...dataMart.definition.connector,
+            source: {
+              ...dataMart.definition.connector.source,
+              configuration: [{ ...stored()[0], _credential_id: 'cred-service-2' }],
+            },
+          },
+        })
+      );
+
+      // The only variant left is the one the new Credential's check accepts.
+      expect(sourceCredentials.checkConfigCredential).toHaveBeenCalledWith(
+        expect.objectContaining({
+          credentialId: 'cred-service-2',
+          config: expect.objectContaining({ AuthType: { service_account: {} } }),
+        })
+      );
+      expect(sourceCredentials.bindConfig).toHaveBeenLastCalledWith({
+        projectId: 'proj-1',
+        userId: 'user-1',
+        roles: ['editor'],
+        dataMartId: 'dm-1',
+        configId: 'c-1',
+        credentialId: 'cred-service-2',
+      });
+    });
+
+    it('an existing configuration with inline key values saved unchanged is accepted', async () => {
+      const { save, stored, sourceCredentials } = givenDataMart([
+        { _id: 'c-1', AccessToken: 'inline-key', RepositoryName: 'a/b' },
+      ]);
+
+      await save([{ _id: 'c-1', AccessToken: 'inline-key', RepositoryName: 'a/c' }]);
+
+      expect(stored()).toEqual([{ _id: 'c-1', AccessToken: 'inline-key', RepositoryName: 'a/c' }]);
+      expect(sourceCredentials.bindConfig).not.toHaveBeenCalled();
+    });
+
+    it('changed inline key values on an existing configuration are out of date', async () => {
+      const { save, dataMartService } = givenDataMart([
+        { _id: 'c-1', AccessToken: 'inline-key', RepositoryName: 'a/b' },
+      ]);
+
+      await expect(
+        save([{ _id: 'c-1', AccessToken: 'another-key', RepositoryName: 'a/b' }])
+      ).rejects.toThrow(OUT_OF_DATE);
+      expect(dataMartService.save).not.toHaveBeenCalled();
+    });
+
+    it('a new configuration without a Credential is still rejected', async () => {
+      const { save, dataMartService } = givenDataMart([
+        { _id: 'c-1', AccessToken: 'inline-key', RepositoryName: 'a/b' },
+      ]);
+
+      await expect(
+        save([
+          { _id: 'c-1', AccessToken: 'inline-key', RepositoryName: 'a/b' },
+          { RepositoryName: 'c/d' },
+        ])
+      ).rejects.toThrow('Select a Credential for each configuration.');
+      expect(dataMartService.save).not.toHaveBeenCalled();
+    });
+
+    it('a new configuration without _credential_id and without a previous old row is rejected', async () => {
+      const { save, dataMartService } = givenDataMart([{ _id: 'c-1' }], { 'c-1': 'cred-1' });
+
+      await expect(
+        save([{ _id: 'c-1', _credential_id: 'cred-1' }, { RepositoryName: 'a/b' }])
+      ).rejects.toThrow('Select a Credential for each configuration.');
+      expect(dataMartService.save).not.toHaveBeenCalled();
+    });
+
+    it('a connector without key fields needs no Credential', async () => {
+      const { save, connectorService, dataMartService } = givenDataMart(null);
+      connectorService.resolveSourceKeys.mockResolvedValue({ fields: [], model: null });
+
+      await save([{ Currencies: 'USD' }]);
+
+      expect(dataMartService.save).toHaveBeenCalled();
+    });
+
+    it('a stale page that drops the _credential_id of a live binding is out of date', async () => {
+      const { save, dataMartService } = givenDataMart([{ _id: 'c-1' }], { 'c-1': 'cred-1' });
+
+      await expect(save([{ _id: 'c-1', RepositoryName: 'a/b' }])).rejects.toThrow(OUT_OF_DATE);
+      expect(dataMartService.save).not.toHaveBeenCalled();
+    });
+
+    it('keeps the binding of a configuration whose Credential was deleted', async () => {
+      const { save, stored, sourceCredentials } = givenDataMart(
+        [{ _id: 'c-1', _secrets_id: 'old-row' }],
+        { 'c-1': null }
+      );
+
+      await save([{ _id: 'c-1', RepositoryName: 'a/b' }]);
+
+      expect(sourceCredentials.bindConfig).not.toHaveBeenCalled();
+      expect(sourceCredentials.unbindConfig).not.toHaveBeenCalled();
+      expect(stored()).toEqual([{ _id: 'c-1', _secrets_id: 'old-row', RepositoryName: 'a/b' }]);
+    });
+
+    it('a request switching the connector drops every binding and checks each Credential', async () => {
+      const { service, sourceCredentials } = givenDataMart([{ _id: 'c-1' }], { 'c-1': 'cred-1' });
+      sourceCredentials.lockBoundCredentialId.mockResolvedValue(null);
+      const definition = connectorDefinition([{ _id: 'c-1', _credential_id: 'cred-1' }]);
+      definition.connector.source.name = 'OpenExchangeRates';
+
+      await service.run(commandFor(DataMartDefinitionType.CONNECTOR, definition));
+
+      expect(sourceCredentials.deactivateDataMart).toHaveBeenCalledWith('dm-1');
+      expect(sourceCredentials.checkConfigCredential).toHaveBeenCalled();
+      expect(sourceCredentials.bindConfig).toHaveBeenCalledWith({
+        projectId: 'proj-1',
+        userId: 'user-1',
+        roles: ['editor'],
+        dataMartId: 'dm-1',
+        configId: 'c-1',
+        credentialId: 'cred-1',
+      });
+    });
   });
 
   describe('changing the input source type of an existing data mart', () => {
@@ -835,7 +1208,7 @@ describe('UpdateDataMartDefinitionService with the real ConnectorService', () =>
       save: jest.fn().mockResolvedValue(dataMart),
     };
     const connectorSecretService = {
-      mergeDefinitionSecretsFromSource: jest.fn(),
+      hasTypedSecrets: jest.fn().mockResolvedValue(false),
       mergeDefinitionSecrets: jest.fn(async (_projectId: string, incoming: unknown) => incoming),
       extractAndSaveSecrets: jest.fn(
         async (_id: string, _projectId: string, _name: string, merged: unknown) => merged
@@ -855,7 +1228,8 @@ describe('UpdateDataMartDefinitionService with the real ConnectorService', () =>
       { checkIsValid: jest.fn().mockResolvedValue(undefined) } as never,
       { publishExternal: jest.fn() } as never,
       connectorService,
-      passThroughSqlReferenceValidator as never
+      passThroughSqlReferenceValidator as never,
+      sourceCredentialsMock() as never
     );
 
     return { service, dataMartService, dataMart, tryResolveManifest };
@@ -891,7 +1265,14 @@ describe('UpdateDataMartDefinitionService with the real ConnectorService', () =>
     tryResolveManifest.mockResolvedValue(CUSTOM_MANIFEST);
 
     const result = await service.run(
-      connectorCommand('MyCustomApi', [{ _id: 'c-1' }, { _id: 'c-2' }], 3)
+      connectorCommand(
+        'MyCustomApi',
+        [
+          { _id: 'c-1', _credential_id: 'cred-1' },
+          { _id: 'c-2', _credential_id: 'cred-1' },
+        ],
+        3
+      )
     );
 
     expect(tryResolveManifest).toHaveBeenCalledWith('proj-1', 'MyCustomApi', 3);
@@ -916,7 +1297,9 @@ describe('UpdateDataMartDefinitionService with the real ConnectorService', () =>
   it('resolves a bundled connector without any DB lookup', async () => {
     const { service, dataMartService, tryResolveManifest } = createHarness();
 
-    await service.run(connectorCommand(BUNDLED_CONNECTOR, [{ _id: 'c-1' }]));
+    await service.run(
+      connectorCommand(BUNDLED_CONNECTOR, [{ _id: 'c-1', _credential_id: 'cred-1' }])
+    );
 
     expect(tryResolveManifest).not.toHaveBeenCalled();
     expect(dataMartService.save).toHaveBeenCalled();

@@ -67,15 +67,21 @@ export class CredentialBindingService {
       await this.credentialService.lockActiveByIdAndProjectId(input.credentialId, input.projectId),
       input
     );
-    const key = keyOf(input);
-    const values = {
+    await this.upsert(input, {
       projectId: input.projectId,
       ...boundValues(credential.id, input.requirement, input.userId),
-    };
+    });
+  }
+
+  private async upsert(
+    input: CredentialBindingKey,
+    values: { projectId: string } & ReturnType<typeof boundValues>
+  ): Promise<void> {
+    const key = keyOf(input);
     // The unique index covers inactive rows too, so a consumer keeps reusing its one row.
     const binding = await this.bindings.findOneBy(key);
     if (binding) {
-      if (binding.credentialId !== credential.id) binding.lastUsedAt = null;
+      if (binding.credentialId !== values.credentialId) binding.lastUsedAt = null;
       await this.bindings.save(Object.assign(binding, values));
       return;
     }
@@ -140,18 +146,20 @@ export class CredentialBindingService {
     return { binding, credential };
   }
 
-  /** The consumers' active bindings for one key, each Credential without its secret, null once gone. */
+  /** Active bindings for one key, or every key; each Credential without its secret, null once gone. */
   async listBound(input: {
     readonly projectId: string;
     readonly consumerType: CredentialConsumerType;
-    readonly requirementKey: string;
+    readonly requirementKey?: string;
     readonly consumerIds: readonly string[];
-  }): Promise<{ consumerId: string; credential: BoundCredential | null }[]> {
+  }): Promise<
+    { consumerId: string; requirementKey: string; credential: BoundCredential | null }[]
+  > {
     if (input.consumerIds.length === 0) return [];
     const bound = await this.bindings.find({
       where: {
         consumerType: input.consumerType,
-        requirementKey: input.requirementKey,
+        ...(input.requirementKey === undefined ? {} : { requirementKey: input.requirementKey }),
         consumerId: In([...input.consumerIds]),
         projectId: input.projectId,
         active: true,
@@ -175,6 +183,7 @@ export class CredentialBindingService {
     const byId = new Map(found.map(credential => [credential.id, credential]));
     return bound.map(binding => ({
       consumerId: binding.consumerId,
+      requirementKey: binding.requirementKey,
       credential: byId.get(binding.credentialId) ?? null,
     }));
   }
@@ -189,13 +198,20 @@ export class CredentialBindingService {
     });
   }
 
-  /** Every binding of the consumer stops counting, in any project; the rows stay for a rebind. */
+  /** The consumer's bindings, or its one for the key, stop counting in any project; rows stay for a rebind. */
   async deactivate(consumer: {
     readonly consumerType: CredentialConsumerType;
     readonly consumerId: string;
+    readonly requirementKey?: string;
   }): Promise<void> {
     await this.bindings.update(
-      { consumerType: consumer.consumerType, consumerId: consumer.consumerId },
+      {
+        consumerType: consumer.consumerType,
+        consumerId: consumer.consumerId,
+        ...(consumer.requirementKey === undefined
+          ? {}
+          : { requirementKey: consumer.requirementKey }),
+      },
       { active: false }
     );
   }

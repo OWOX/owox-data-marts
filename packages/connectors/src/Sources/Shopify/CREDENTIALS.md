@@ -123,4 +123,4 @@ You should receive a response containing your **Admin API Access Token**. For ex
 
 ![ReqBin response panel showing a successful JSON response with an access_token field containing the token value shpat_... and scope field listing the granted permissions. The HTTP status is 200 OK. The interface has a clean, developer-focused look.](res/shopify_fulltoken.png)
 
-Next step: please follow [GETTING_STARTED](GETTING_STARTED.md) instructions to create the Data Mart.
+Save the shop domain and the Admin API Access Token in a **Shopify** Credential (on the **Credentials** page, or with **+ Create new Credential** beside the **Credential** field of the Data Mart's connector configuration). Next step: please follow [GETTING_STARTED](GETTING_STARTED.md) instructions to create the Data Mart.

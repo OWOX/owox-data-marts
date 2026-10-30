@@ -133,6 +133,14 @@ const NON_CREDENTIAL_AUTH_KEYS = new Set([
 // Inside `exchange`: the endpoint, verb, response path and cache TTL describe the
 // call. Everything else (notably `body`, which is what buys the token) is swept.
 const NON_CREDENTIAL_EXCHANGE_KEYS = new Set(['url', 'method', 'tokenPath', 'ttlSeconds']);
+// Authenticator keys that describe the protocol; every other reference is a key parameter.
+const NON_KEY_AUTH_KEYS = new Set([
+  'type',
+  'grantType',
+  'tokenUrl',
+  'ttlSeconds',
+  'selectionParameter',
+]);
 // Inside `inject`: `into`/`name` are the header or query-parameter NAME; only
 // `format` renders the credential value.
 const CREDENTIAL_INJECT_KEY = 'format';
@@ -267,6 +275,10 @@ function validateBackoff(b, nodeName, where) {
 }
 
 export class ManifestParser {
+  // Reached through Core.ManifestParser, so a Credential field list follows the same name rule.
+  static PARAMETER_NAME_PATTERN = /^[A-Za-z][A-Za-z0-9_]*$/;
+  static RESERVED_PARAMETER_NAMES = RESERVED_PARAMETER_NAMES;
+
   /**
    * @param {string} json
    * @param {{ authoring?: boolean }} [options] - `authoring` adds the checks for a manifest
@@ -306,7 +318,7 @@ export class ManifestParser {
     // its own bookkeeping keys that way (_id, _secrets_id) and passes them through untouched,
     // so a secret named like one was stored in plain text and shown to viewers.
     for (const name of Object.keys(raw.parameters)) {
-      if (!/^[A-Za-z][A-Za-z0-9_]*$/.test(name)) {
+      if (!ManifestParser.PARAMETER_NAME_PATTERN.test(name)) {
         throw new Error(
           `ManifestParser: parameter "${name}" must start with a letter and contain only ` +
             `letters, digits and underscores`
@@ -348,12 +360,19 @@ export class ManifestParser {
     // token needs a declaration to be readable. Register it for the author
     // instead of making every oauth2 manifest repeat it. Hidden + secret: it is
     // supplied by the host, never typed by a user.
-    if (this._usesOAuth2(raw.authentication) && !parameters[GENERATED_REFRESH_TOKEN_CONFIG_FIELD]) {
-      parameters[GENERATED_REFRESH_TOKEN_CONFIG_FIELD] = {
-        isRequired: false,
-        requiredType: 'string',
-        attributes: [CONFIG_ATTRIBUTES.SECRET, CONFIG_ATTRIBUTES.HIDE_IN_CONFIG_FORM],
-      };
+    // An author's own declaration keeps its properties but is always a secret: a rotated token must never reach data.
+    if (this._usesOAuth2(raw.authentication)) {
+      const declared = parameters[GENERATED_REFRESH_TOKEN_CONFIG_FIELD];
+      const attributes = [
+        ...new Set([
+          ...(Array.isArray(declared?.attributes) ? declared.attributes : []),
+          CONFIG_ATTRIBUTES.SECRET,
+          CONFIG_ATTRIBUTES.HIDE_IN_CONFIG_FORM,
+        ]),
+      ];
+      parameters[GENERATED_REFRESH_TOKEN_CONFIG_FIELD] = declared
+        ? { ...declared, isRequired: false, attributes }
+        : { isRequired: false, requiredType: 'string', attributes };
     }
 
     // Standard advanced params — inject for every declarative connector so it
@@ -1049,6 +1068,7 @@ export class ManifestParser {
       autoSecretAuthParameters,
       undeclaredAuthParameters,
       unprotectedRequestParameters,
+      ...this._keyParametersOf(raw, parameters),
     };
   }
 
@@ -1059,6 +1079,74 @@ export class ManifestParser {
       return value;
     });
     return [...names];
+  }
+
+  /** The parameters a Credential carries for this manifest, and where it misuses them. */
+  _keyParametersOf(raw, parameters) {
+    const declared = names => [...names].filter(name => parameters[name]);
+    const secrets = Object.keys(parameters).filter(
+      name =>
+        Array.isArray(parameters[name]?.attributes) &&
+        parameters[name].attributes.includes(CONFIG_ATTRIBUTES.SECRET)
+    );
+    const authRefs = new Set();
+    this._collectKeyParameterRefs(raw.authentication, authRefs);
+    const keyParameters = [...new Set([...declared(authRefs), ...secrets])];
+
+    let keyParameterBranches = null;
+    if (raw.authentication?.type === 'selective') {
+      const otherSecrets = secrets.filter(name => !authRefs.has(name));
+      keyParameterBranches = {};
+      for (const [branch, sub] of Object.entries(raw.authentication.authenticators)) {
+        const branchRefs = new Set();
+        this._collectKeyParameterRefs(sub, branchRefs);
+        keyParameterBranches[branch] = [...new Set([...declared(branchRefs), ...otherSecrets])];
+      }
+    }
+
+    return {
+      keyParameters,
+      keyParameterBranches,
+      keyParameterMisuse: this.keyParameterMisuse(raw, new Set(keyParameters)),
+    };
+  }
+
+  /** Where a manifest reads one of `keyParameters` or `auth.*` outside a request; runs share it. */
+  keyParameterMisuse(manifest, keyParameters) {
+    const misuse = [];
+    const report = (names, node, position) => {
+      for (const parameter of names) {
+        if (keyParameters.has(parameter) || parameter.startsWith('auth.')) {
+          misuse.push({ parameter, node, position });
+        }
+      }
+    };
+    // Only a string is rendered; any other value is written as it is.
+    const templateRefs = template => {
+      const refs = new Set();
+      if (typeof template === 'string') {
+        this._collectParameterRefs(template, refs, { withAuth: true });
+      }
+      return refs;
+    };
+
+    if (manifest.accounts?.from !== undefined) {
+      report(templateRefs(manifest.accounts.from), null, 'accounts.from');
+    }
+    for (const [nodeName, node] of Object.entries(manifest.nodes || {})) {
+      for (const t of Array.isArray(node?.transformations) ? node.transformations : []) {
+        if (t?.type === 'add') report(templateRefs(t.value), nodeName, 'transformations.add');
+      }
+      const rf = node?.recordFilter;
+      if (rf?.operator === 'inList' && rf.valuesFromParameter) {
+        report([rf.valuesFromParameter], nodeName, 'recordFilter');
+      }
+      const pr = node?.partitionRouter;
+      if (pr?.type === 'list' && pr.valuesFromParameter) {
+        report([pr.valuesFromParameter], nodeName, 'valueList');
+      }
+    }
+    return misuse;
   }
 
   /**
@@ -1211,6 +1299,19 @@ export class ManifestParser {
     );
   }
 
+  /** Auth references a Credential carries: clientId and username too, unlike the SECRET sweep. */
+  _collectKeyParameterRefs(auth, into) {
+    if (!auth || typeof auth !== 'object' || Array.isArray(auth)) return;
+    for (const [key, value] of Object.entries(auth)) {
+      if (NON_KEY_AUTH_KEYS.has(key)) continue;
+      if (key === 'authenticators') {
+        for (const sub of Object.values(value || {})) this._collectKeyParameterRefs(sub, into);
+        continue;
+      }
+      this._collectParameterRefsDeep(value, into);
+    }
+  }
+
   _collectParameterRefsDeep(value, into) {
     if (typeof value === 'string') {
       this._collectParameterRefs(value, into);
@@ -1233,22 +1334,27 @@ export class ManifestParser {
    * second placeholder regex here. The engine owns the placeholder grammar and the
    * allowed-scope list; a private copy of that grammar in the parser would drift
    * from it, and every drift is a credential this sweep silently fails to mark.
+   *
+   * `withAuth` also records `{{ auth.token }}` as "auth.token".
    */
-  _collectParameterRefs(template, into) {
+  _collectParameterRefs(template, into, { withAuth = false } = {}) {
     if (!template.includes('{{')) return;
-    const recorder = new Proxy(
-      {},
-      {
-        get: (_target, key) => {
-          if (typeof key === 'string') into.add(key);
-          // A non-nullish value keeps render() from treating this as unresolved,
-          // so the scan continues through the rest of the string.
-          return '';
-        },
-      }
-    );
+    const recorder = prefix =>
+      new Proxy(
+        {},
+        {
+          get: (_target, key) => {
+            if (typeof key === 'string') into.add(prefix + key);
+            // A non-nullish value keeps render() from treating this as unresolved,
+            // so the scan continues through the rest of the string.
+            return '';
+          },
+        }
+      );
+    const scope = { parameters: recorder('') };
+    if (withAuth) scope.auth = recorder('auth.');
     try {
-      new TemplateEngine().render(template, { parameters: recorder }, { lenient: true });
+      new TemplateEngine().render(template, scope, { lenient: true });
     } catch {
       // A disallowed scope or unsafe path segment is an authoring error the parser
       // does not otherwise reject, and turning it into one here would refuse

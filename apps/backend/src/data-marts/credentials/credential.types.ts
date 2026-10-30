@@ -20,6 +20,11 @@ export const CredentialCategorySchema = z.enum([
   'snowflake',
   'databricks',
   'ai',
+  'ads',
+  'social',
+  'ecommerce',
+  'currencies',
+  'custom-connectors',
   'other',
 ]);
 export type CredentialCategory = z.infer<typeof CredentialCategorySchema>;
@@ -85,6 +90,11 @@ const CredentialGoogleServiceAccountAuthSchema = z.object({
   label: z.string().trim().min(1).max(255),
 });
 
+/** A connector's own fields, entered per Credential; the hosts it may call are public. */
+const CredentialCustomConnectorAuthSchema = z.object({
+  type: z.literal('custom-connector'),
+});
+
 export interface CredentialFieldDefinition {
   readonly key: string;
   readonly label: string;
@@ -140,7 +150,10 @@ const CredentialDefinitionContractObjectSchema = z.object({
     CredentialGoogleServiceAccountAuthSchema,
     CredentialFieldsAuthSchema,
     CredentialOAuthAuthSchema,
+    CredentialCustomConnectorAuthSchema,
   ]),
+  /** Connector names this definition serves. */
+  connectors: z.array(z.string().trim().min(1).max(255)).max(200).default([]),
   category: CredentialCategorySchema.default('other'),
   icon: CredentialIconSchema.optional(),
   origins: z.array(z.string().url().startsWith('https://')).min(1).max(20).optional(),
@@ -217,7 +230,11 @@ export const CredentialDefinitionContractSchema =
     }
   });
 
-export type CredentialDefinitionContract = z.infer<typeof CredentialDefinitionContractSchema>;
+/** `connectors` is optional here so literal built-in definitions can omit it; parsing fills it in. */
+export type CredentialDefinitionContract = Omit<
+  z.infer<typeof CredentialDefinitionContractSchema>,
+  'connectors'
+> & { connectors?: string[] };
 
 export const CredentialRequirementSchema = z.union([
   z.string().trim().min(1).max(255),
@@ -343,13 +360,48 @@ export interface GoogleServiceAccountPublicMetadata {
   readonly clientId?: string;
 }
 
+export interface CustomConnectorFieldSpec {
+  readonly key: string;
+  readonly label: string;
+  readonly secret: boolean;
+}
+
+/** Secret values of a custom connector Credential live in the secret's `fields`. */
+export interface CustomConnectorPublicMetadata {
+  readonly hosts: readonly string[];
+  readonly fieldList: readonly CustomConnectorFieldSpec[];
+  /** Non-secret values. */
+  readonly fields: Readonly<Record<string, string>>;
+}
+
+/** Connectors report this account id when the provider names no account. */
+export const UNKNOWN_ACCOUNT_ID = 'unknown';
+
+/** What a connector's OAuth sign-in reported; `account` is null when it named none. */
+export interface SourceConnection {
+  readonly account: { id: string; name: string | null; email: string | null } | null;
+  /** ISO time the token expires, when the connector says. */
+  readonly expiresAt: string | null;
+}
+
 export type CredentialPublicMetadata =
   | GoogleServiceAccountPublicMetadata
-  | { readonly fields: Readonly<Record<string, string>> }
+  | CustomConnectorPublicMetadata
+  | {
+      readonly fields: Readonly<Record<string, string>>;
+      /** Set by Connect; only a reconnect replaces it. */
+      readonly connection?: SourceConnection;
+    }
   | {
       readonly account: { email: string; name: string | null; picture: string | null };
       readonly scopes: readonly string[];
     };
+
+export function isCustomConnectorMetadata(
+  metadata: CredentialPublicMetadata | null
+): metadata is CustomConnectorPublicMetadata {
+  return metadata !== null && 'hosts' in metadata;
+}
 
 export function secretValue(secret: CredentialSecret): string {
   if ('value' in secret) return secret.value;
@@ -364,6 +416,7 @@ export function credentialIdentity(
   if (!metadata) return null;
   if ('clientEmail' in metadata) return metadata.clientEmail;
   if ('account' in metadata) return metadata.account.email;
+  if (isCustomConnectorMetadata(metadata)) return metadata.hosts.join(', ');
   if (contract.auth.type !== 'fields') return null;
   const identity = contract.auth.fields.find(field => field.identity);
   return identity ? (metadata.fields[identity.key] ?? null) : null;
@@ -400,7 +453,9 @@ export function resolveCredentialAiModelMappings(
 export const CREDENTIAL_CONSUMER_TYPE_PLUGIN_INSTALLATION = 'plugin-installation' as const;
 export const CREDENTIAL_CONSUMER_TYPE_STORAGE = 'storage' as const;
 export const CREDENTIAL_CONSUMER_TYPE_DESTINATION = 'destination' as const;
+export const CREDENTIAL_CONSUMER_TYPE_CONNECTOR_CONFIG = 'connector-config' as const;
 export type CredentialConsumerType =
   | typeof CREDENTIAL_CONSUMER_TYPE_PLUGIN_INSTALLATION
   | typeof CREDENTIAL_CONSUMER_TYPE_STORAGE
-  | typeof CREDENTIAL_CONSUMER_TYPE_DESTINATION;
+  | typeof CREDENTIAL_CONSUMER_TYPE_DESTINATION
+  | typeof CREDENTIAL_CONSUMER_TYPE_CONNECTOR_CONFIG;

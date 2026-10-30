@@ -109,7 +109,19 @@ Each entry in `parameters` describes one user-supplied input, referenced elsewhe
 | `description` | Optional help text shown next to the field. |
 | `attributes` | Optional flags. The one every author should know is `SECRET` — it masks the value in the UI and in API responses, stores it apart from the Data Mart's definition and replaces it with `***` in run logs and errors (it is not encrypted); always set it for API keys, client secrets, tokens, and passwords. A few advanced/internal flags also exist (`HIDE_IN_CONFIG_FORM`, `ADVANCED`, `OAUTH_FLOW`, `DEPRECATED`, `PINNED`, `MANUAL_BACKFILL`) but are rarely needed when hand-authoring a manifest. |
 
-Marking a parameter `SECRET` only changes how the *manifest* declares it — the user still enters the actual value themselves, through the connector's configuration form in the browser. A manifest should never contain a real credential value.
+Marking a parameter `SECRET` only changes how the *manifest* declares it — the user still enters the actual value themselves, in a Credential. A manifest should never contain a real credential value.
+
+### Key parameters
+
+The key parameters of a manifest are the parameters its `authentication` uses, whether `SECRET` or not (such as a `clientId` or a `username`), and every `SECRET` parameter. The one exception is the `selectionParameter` of `selective` authentication, which only picks a branch. A Data Mart takes their values from a Credential, which also names the hosts it may send them to.
+
+When the values come from a Credential, key parameters and `{{ auth.* }}` may appear only where a request is built: in `authentication`, in a node's request (`path`, `queryParameters`, `headers`, `body`) and in an asynchronous retriever's `submit` and `poll`. They are refused in `transformations.add`, in `accounts.from`, and as a `recordFilter` or `partitionRouter` `valuesFromParameter` list. A run with a Credential stops with this error, which names the parameter, the position and the node. In **Test** settings no Credential fits such a manifest until it is fixed, and the error shows under the Credential field. **Publish** accepts such a version and lists the Data Marts whose Credentials will then stop it:
+
+```text
+Key parameter "<name>" cannot be used in <position> of node "<node>"
+```
+
+Values typed into **Test** settings, and Data Marts that still run on a key of their own, are not restricted. An API that stores what one request sends and returns it in a later response can still carry a key into the rows.
 
 A parameter name starts with a letter and contains only letters, digits and underscores, so that templates can refer to it. It also cannot be a name the engine or a storage uses for its own settings: `Fields`, `LastRequestedDate`, `DestinationTableName`, `DestinationTableNameOverride`, `MaxBufferSize`, or a storage setting such as `ProjectID` or `ServiceAccountJson` (BigQuery), `Schema` or `Database` (Redshift) or `AWSRegion` (Athena, Redshift). The parser refuses those names, so Test and Publish fail until the parameter is renamed.
 
@@ -619,7 +631,7 @@ Every string field that accepts a template uses `{{ scope.path }}` syntax (doubl
 |---|---|
 | `{{ parameters.X }}` | Any declared parameter's resolved value. |
 | `{{ account.id }}` | The current account id, when the connector declares `accounts`. Without `accounts` there is no account id. |
-| `{{ auth.token }}` | The token issued by `tokenExchange`/`oauth2` — only meaningful inside that same authenticator's `inject.format`. |
+| `{{ auth.token }}` | The token issued by `tokenExchange`/`oauth2`, for its `inject.format` or a node's request. A request position only: see [Key parameters](#key-parameters). |
 | `{{ dateWindow.start }}` / `{{ dateWindow.end }}` | The current date window (`YYYY-MM-DD` strings), only in a node fetched by date window — see [Incremental](#incremental-date-windowed-extraction). |
 | `{{ node.selectedFields }}` | The names of the fields the Data Mart selected for this node, comma-separated, e.g. `date,rate` — for an API that takes the list of fields to return, such as a `fields` query parameter. These are the manifest's field names, not their `dataPath`s. |
 | `{{ stream_slice.<partitionField> }}` | The current partition value inside a partition-router child request. |
@@ -637,12 +649,12 @@ What happens to an unresolved path depends on where it is:
 1. Read this reference before writing or editing a manifest. An AI assistant gets the same grammar from the [authoring guide for AI assistants](https://docs.owox.com/docs/connectors/manifest-reference.llms.txt).
 2. Research the target API and author the manifest: pick the authentication type, define one node per data stream you need, and add pagination, incremental extraction, filters, transformations, or error handling only where the API actually needs them.
 3. Open the [connector builder](connector-builder.md) and bring the manifest in: **⋮** → **Import JSON…** for a `.json` file, or paste it into Code mode.
-4. Run **Test** on one node. Enter an API key or a token only into a parameter marked `SECRET` or used by the authentication: the builder uses those values for the test and never saves them, while other test values are saved in the browser.
+4. Run **Test** on one node. Choose **Enter values** and type an API key or a token only into a parameter marked `SECRET` or used by the authentication: the builder uses those values for the test and never saves them, while other test values are saved in the browser. Or choose **Use a Credential**, which keeps the values out of the browser.
 5. If the test fails, read the returned error and make the smallest change that fixes it — correct a typo in an existing `baseUrl`/`path`/`queryParameters`/field name rather than rewriting working parts, renaming nodes, or switching to a different API — then test again.
 6. Once it passes, **Publish** the connector.
 7. After that, keep the names of its nodes and fields: Data Marts refer to them by name (see [Fields](#fields)).
 
-Real credentials are connected separately, afterward: the person setting up the connector enters their API key/token on the Data Mart page, or in the connector's Test. Credentials are never typed into a manifest or into an AI assistant.
+Real credentials are connected separately, afterward: the person setting up the connector saves their API key/token in a Credential and selects it on the Data Mart page or in the connector's Test. Credentials are never typed into a manifest or into an AI assistant.
 
 ## Worked examples
 

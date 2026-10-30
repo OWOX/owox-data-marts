@@ -20,7 +20,7 @@ type Input = z.infer<typeof inputSchema>;
 export class PublishCustomConnectorTool implements McpToolDefinition<Input> {
   readonly name = 'publish_custom_connector';
   readonly description =
-    'Validate and publish the latest draft, which immediately becomes the active version. You must be an editor with edit access to every Data Mart that follows the active version. If you do not have this access, ask a project admin or request edit access. Publishing changes future runs of Data Marts that follow the active version. Data Marts pinned to a version keep that version.\n\nReview the returned credential warnings with the user. After a conflict, call get_custom_connector again before retrying. Give the user the returned Connector Builder url to open the published connector in OWOX.';
+    'Validate and publish the latest draft, which immediately becomes the active version. You must be an editor with edit access to every Data Mart that follows the active version. If you do not have this access, ask a project admin or request edit access. Publishing changes future runs of Data Marts that follow the active version. Data Marts pinned to a version keep that version.\n\nReview the returned credential warnings with the user. Tell the user which Data Marts will stop (stopping_data_marts) and how many more are hidden (hidden_stopping_count). After a conflict, call get_custom_connector again before retrying. Give the user the returned Connector Builder url to open the published connector in OWOX.';
   readonly zodSchema = inputSchema;
   readonly outputSchema = { ...connectorPublishedOutputSchema, url: z.string() };
   readonly annotations = {

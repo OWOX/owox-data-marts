@@ -1,5 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
+import type { UnavailableCredentialDto } from './credential.dto';
 import {
   ArrayMaxSize,
   IsArray,
@@ -43,6 +44,52 @@ export class CredentialSecretApiDto {
   value: string;
 }
 
+export class CustomConnectorFieldApiDto {
+  @ApiProperty()
+  @IsString()
+  @MaxLength(255)
+  key: string;
+
+  @ApiProperty()
+  @IsString()
+  @MaxLength(255)
+  label: string;
+
+  @ApiProperty()
+  @IsBoolean()
+  secret: boolean;
+
+  @ApiPropertyOptional({
+    description: 'Accepted so a requirement field list can be sent as returned; not stored.',
+  })
+  @IsOptional()
+  @IsBoolean()
+  required?: boolean;
+}
+
+export class CustomConnectorInputApiDto {
+  @ApiProperty({ type: [String], description: 'Bare hostnames the Credential may be sent to.' })
+  @IsArray()
+  @ArrayMaxSize(20)
+  @IsString({ each: true })
+  hosts: string[];
+
+  @ApiProperty({ type: [CustomConnectorFieldApiDto] })
+  @IsArray()
+  @ArrayMaxSize(20)
+  @ValidateNested({ each: true })
+  @Type(() => CustomConnectorFieldApiDto)
+  fieldList: CustomConnectorFieldApiDto[];
+
+  @ApiProperty({
+    type: 'object',
+    additionalProperties: { type: 'string' },
+    description: 'A value for every field of the list. Secret values are write-only.',
+  })
+  @IsObject()
+  fields: Record<string, string>;
+}
+
 export class CreateCredentialApiDto {
   @ApiProperty()
   @IsString()
@@ -74,6 +121,15 @@ export class CreateCredentialApiDto {
   @IsOptional()
   @IsObject()
   fields?: Record<string, string | null>;
+
+  @ApiPropertyOptional({
+    type: CustomConnectorInputApiDto,
+    description: 'Required for the custom connector definition: hosts, field list and values.',
+  })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => CustomConnectorInputApiDto)
+  customConnector?: CustomConnectorInputApiDto;
 
   @ApiPropertyOptional({ type: [String] })
   @IsOptional()
@@ -141,6 +197,18 @@ export class UpdateCredentialApiDto {
   @IsOptional()
   @IsObject()
   fields?: Record<string, string | null>;
+
+  @ApiPropertyOptional({ description: 'Refused: hosts are fixed once the Credential is created.' })
+  @IsOptional()
+  @IsArray()
+  hosts?: string[];
+
+  @ApiPropertyOptional({
+    description: 'Refused: the field list is fixed once the Credential is created.',
+  })
+  @IsOptional()
+  @IsArray()
+  fieldList?: unknown[];
 
   @ApiPropertyOptional({ type: [String] })
   @IsOptional()
@@ -255,7 +323,7 @@ export class ConnectGoogleOAuthCredentialApiDto extends ExchangeAuthorizationCod
 }
 
 export type CredentialDefinitionAuthApiDto =
-  | { type: 'header' | 'google-service-account' }
+  | { type: 'header' | 'google-service-account' | 'custom-connector' }
   | { type: 'fields'; fields: CredentialFieldDefinition[] }
   | { type: 'oauth'; provider: 'google'; client: GoogleOAuthClientKey; label: string };
 
@@ -270,6 +338,9 @@ export class CredentialDefinitionApiDto {
   @ApiProperty() secretLabel: string;
   @ApiProperty({ enum: CredentialCategorySchema.options })
   category: CredentialCategory;
+  /** Connector names this definition serves. */
+  @ApiProperty({ type: [String] })
+  connectors: string[];
   @ApiProperty({
     enum: CredentialIconSchema.options,
     nullable: true,
@@ -286,7 +357,7 @@ export class CredentialDefinitionApiDto {
     properties: {
       type: {
         type: 'string',
-        enum: ['header', 'google-service-account', 'fields', 'oauth'],
+        enum: ['header', 'google-service-account', 'fields', 'oauth', 'custom-connector'],
       },
       fields: {
         type: 'array',
@@ -429,4 +500,14 @@ export interface ResolvedCredentialDefinition {
   readonly source: CredentialDefinitionSource;
   readonly compatibilityLine: string | null;
   readonly contract: CredentialDefinitionContract;
+}
+
+export class UnavailableCredentialResponseApiDto implements UnavailableCredentialDto {
+  @ApiProperty() id: string;
+  @ApiProperty() projectId: string;
+  @ApiProperty() title: string;
+  @ApiProperty() definitionId: string;
+  @ApiProperty({ enum: ['unavailable'] }) state: 'unavailable';
+  @ApiProperty() createdAt: Date;
+  @ApiProperty() modifiedAt: Date;
 }

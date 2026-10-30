@@ -13,6 +13,7 @@ import {
 } from '@owox/ui/components/form';
 import { Input } from '@owox/ui/components/input';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
+import { wasErrorToastShown } from '../../../../../../app/api';
 import { dataDestinationService } from '../../../../../data-destination';
 import { showApiErrorToast } from '../../../../../../shared/utils/showApiErrorToast';
 import {
@@ -96,7 +97,9 @@ export function GoogleSheetsTargetSection({
         toast.success('Google Sheet created');
       }
     } catch (error) {
-      showApiErrorToast(error, 'Failed to create Google Sheet');
+      if (!wasErrorToastShown(error)) {
+        showApiErrorToast(error, 'Failed to create Google Sheet');
+      }
     } finally {
       setIsCreatingSheet(false);
     }

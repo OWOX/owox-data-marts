@@ -18,6 +18,7 @@ import { AccountResolver } from './AccountResolver.js';
 import { RetrieverFactory } from './RetrieverFactory.js';
 import { createRateLimiter } from './rateLimiter.js';
 import { RecordFilter } from './RecordFilter.js';
+import { ManifestParser } from './ManifestParser.js';
 import { setPathSafe } from './pathUtils.js';
 import { isTimeSeriesManifestNode, nodeDateStrategy } from './timeSeries.js';
 import { PARAMETER_OWNER, DATE_STRATEGY, LOG_LEVEL } from '../../Constants/CommonConstants.js';
@@ -76,7 +77,7 @@ export class DeclarativeSource extends AbstractSource {
     super(context);
     this.model = model;
     this.templateEngine = new TemplateEngine();
-    this.ssrfGuard = new SsrfGuard(model.allowedHosts);
+    this.ssrfGuard = new SsrfGuard(model.allowedHosts, { context });
     this.rateLimiter = createRateLimiter(model.rateLimit);
 
     this.parameters = model.parameters || {};
@@ -93,6 +94,11 @@ export class DeclarativeSource extends AbstractSource {
       }
     }
     context.registerParameters(this.parameters, PARAMETER_OWNER.SOURCE);
+    // A Credential's values, and the token they buy, stay inside requests.
+    this._keyParameters = context.keyParameters ?? new Set();
+    this._keyParameterMisuse = this._keyParameters.size
+      ? new ManifestParser().keyParameterMisuse(model, this._keyParameters)
+      : [];
 
     this.fieldsSchema = this._compileNodes(model.nodes);
     this.runLimits = {
@@ -160,9 +166,12 @@ export class DeclarativeSource extends AbstractSource {
   // --- hooks ---
 
   getAccounts(context) {
+    this._refuseKeyParameterMisuse(null);
     const accountsConfig = this.model.accounts || null;
     const resolver = new AccountResolver(accountsConfig, () =>
-      accountsConfig ? this.templateEngine.render(accountsConfig.from, this._baseScope()) : ''
+      accountsConfig
+        ? this.templateEngine.render(accountsConfig.from, this._dataScope(this._baseScope()))
+        : ''
     );
     return resolver.resolve();
   }
@@ -180,6 +189,7 @@ export class DeclarativeSource extends AbstractSource {
   async fetchData({ nodeName, fields, accountId, startDate, endDate }) {
     const node = this.model.nodes[nodeName];
     if (!node) throw new Error(`DeclarativeSource: unknown node "${nodeName}"`);
+    this._refuseKeyParameterMisuse(nodeName);
 
     const scope = this._scope({ accountId, startDate, endDate, fields });
 
@@ -231,6 +241,7 @@ export class DeclarativeSource extends AbstractSource {
           if (rotated) this._setGeneratedRefreshToken(rotated);
           this.context.updateCredentials(credentials);
         },
+        onToken: token => this.context.addSecret(token),
       }
     );
     const requester = new Requester({
@@ -266,13 +277,14 @@ export class DeclarativeSource extends AbstractSource {
     if (rawRecords.length > 0) {
       this.context.emitAnalytics('rows_extracted', rawRecords.length, { node: nodeTag });
     }
+    const dataScope = this._dataScope(scope);
     const recordFilter = node.recordFilter ? new RecordFilter(node.recordFilter) : null;
     const filtered = recordFilter
-      ? rawRecords.filter(r => recordFilter.keep(r, scope))
+      ? rawRecords.filter(r => recordFilter.keep(r, dataScope))
       : rawRecords;
     const records = new Transformer(node.transformations || [], this.templateEngine).transform(
       filtered,
-      scope
+      dataScope
     );
     if (this.emitSample && !this._sampleEmitted) {
       this._sampleEmitted = true;
@@ -457,6 +469,26 @@ export class DeclarativeSource extends AbstractSource {
       if (p) parameters[name] = p.value instanceof Date ? p.value.toISOString().slice(0, 10) : p.value;
     }
     return { parameters };
+  }
+
+  /** The scope outside requests: no parameters a Credential filled, no `auth` a request set. */
+  _dataScope(scope) {
+    if (!this._keyParameters.size) return scope;
+    const { auth, ...rest } = scope;
+    const parameters = Object.fromEntries(
+      Object.entries(scope.parameters).filter(([name]) => !this._keyParameters.has(name))
+    );
+    return { ...rest, parameters };
+  }
+
+  /** Fails before a key parameter from a Credential reaches a row; `node` null means accounts. */
+  _refuseKeyParameterMisuse(node) {
+    const misuse = this._keyParameterMisuse.find(entry => entry.node === node);
+    if (!misuse) return;
+    throw new Error(
+      `Key parameter "${misuse.parameter}" cannot be used in ${misuse.position}` +
+        (node ? ` of node "${node}"` : '')
+    );
   }
 
   _scope({ accountId, startDate, endDate, fields }) {

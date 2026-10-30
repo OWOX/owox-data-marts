@@ -171,6 +171,7 @@ import { ConnectorProcessSpawnerService } from './services/connector/connector-p
 import { ConnectorStorageConfigService } from './services/connector/connector-storage-config.service';
 import { ConnectorSourceConfigService } from './services/connector/connector-source-config.service';
 import { ConnectorCredentialInjectorService } from './services/connector/connector-credential-injector.service';
+import { SourceCredentialInjectorService } from './services/connector/source-credential-injector.service';
 import { ConnectorPreviewCredentialsService } from './services/connector/connector-preview-credentials.service';
 import { ConnectorMapper } from './mappers/connector.mapper';
 import { ConnectorDefinitionMapper } from './mappers/connector-definition.mapper';
@@ -292,6 +293,7 @@ import { InsightTemplateExecutionService } from './services/insight-template-exe
 import { ConnectorSourceCredentials } from './entities/connector-source-credentials.entity';
 import { ConnectorSourceCredentialsService } from './services/connector/connector-source-credentials.service';
 import { ConnectorOauthService } from './services/connector/connector-oauth.service';
+import { ConnectSourceOAuthCredentialService } from './use-cases/connect-source-oauth-credential.service';
 import { DataMartTableReferenceService } from './services/data-mart-table-reference.service';
 import { DataMartSqlReferenceResolver } from './services/data-mart-sql-reference-resolver.service';
 import { DataMartSqlReferenceValidator } from './services/data-mart-sql-reference-validator.service';
@@ -365,6 +367,8 @@ import { CredentialStorageConsumersService } from './data-storage-types/credenti
 import { DataDestinationCredentialsResolver } from './data-destination-types/data-destination-credentials-resolver.service';
 import { DestinationCredentialBindingService } from './data-destination-types/destination-credential-binding.service';
 import { CredentialDestinationConsumersService } from './data-destination-types/credential-destination-consumers.service';
+import { SourceCredentialBindingService } from './connector-types/source-credential-binding.service';
+import { CredentialSourceConsumersService } from './connector-types/credential-source-consumers.service';
 import { DataStorageCredential } from './entities/data-storage-credential.entity';
 import { DataDestinationCredential } from './entities/data-destination-credential.entity';
 import { DataStorageCredentialService } from './services/data-storage-credential.service';
@@ -507,6 +511,7 @@ import { CredentialMapper } from './credentials/mappers/credential.mapper';
 import { CreateCredentialService } from './credentials/use-cases/create-credential.service';
 import { GetCredentialService } from './credentials/use-cases/get-credential.service';
 import { ListCredentialsService } from './credentials/use-cases/list-credentials.service';
+import { ListFittingCustomConnectorCredentialsService } from './use-cases/custom-connectors/list-fitting-custom-connector-credentials.service';
 import { UpdateCredentialService } from './credentials/use-cases/update-credential.service';
 import { DeleteCredentialService } from './credentials/use-cases/delete-credential.service';
 import { ValidateCredentialService } from './credentials/use-cases/validate-credential.service';
@@ -830,6 +835,7 @@ import { ConsentCredentialDefinitionService } from './credentials/use-cases/cons
     ConnectorService,
     ConnectorDefinitionService,
     ConnectorTestService,
+    ListFittingCustomConnectorCredentialsService,
     ConnectorExecutionService,
     ConnectorRunService,
     ConnectorExecutorService,
@@ -837,6 +843,7 @@ import { ConsentCredentialDefinitionService } from './credentials/use-cases/cons
     ConnectorStorageConfigService,
     ConnectorSourceConfigService,
     ConnectorCredentialInjectorService,
+    SourceCredentialInjectorService,
     ConnectorPreviewCredentialsService,
     ConnectorMapper,
     ConnectorDefinitionMapper,
@@ -924,6 +931,7 @@ import { ConsentCredentialDefinitionService } from './credentials/use-cases/cons
     BaseSqlHandleResolverService,
     AiAssistantSqlOrchestratorService,
     ConnectorOauthService,
+    ConnectSourceOAuthCredentialService,
     UserProjectionsFetcherService,
     DeleteLegacyDataMartService,
     MoveLegacyDataStorageService,
@@ -968,6 +976,8 @@ import { ConsentCredentialDefinitionService } from './credentials/use-cases/cons
     DataDestinationCredentialsResolver,
     DestinationCredentialBindingService,
     CredentialDestinationConsumersService,
+    SourceCredentialBindingService,
+    CredentialSourceConsumersService,
     DataStorageCredentialService,
     DataDestinationCredentialService,
     GoogleOAuthFlowService,

@@ -30,6 +30,13 @@ export class CredentialValidationProbeService {
       return this.googleTokens.verify(secret);
     }
     const validatedAt = new Date();
+    if (definition.contract.auth.type === 'custom-connector') {
+      return {
+        state: 'unknown',
+        message: 'A custom connector Credential has no validation probe',
+        validatedAt,
+      };
+    }
     if (definition.contract.auth.type === 'oauth' && credentialId) {
       try {
         await this.googleOAuth.getOAuth2Client(credentialId, { forceRefresh: true });

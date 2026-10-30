@@ -14,15 +14,18 @@ import {
   ActivateCustomConnectorVersionResponseApiDto,
   ConnectorTestResultResponseApiDto,
   CreateCustomConnectorResponseApiDto,
+  CustomConnectorCredentialRequirementResponseApiDto,
   CustomConnectorDetailResponseApiDto,
   CustomConnectorListItemResponseApiDto,
   CustomConnectorVersionResponseApiDto,
   CustomConnectorVersionStateResponseApiDto,
   DeleteCustomConnectorResponseApiDto,
+  FittingCustomConnectorCredentialResponseApiDto,
   PublishCustomConnectorResponseApiDto,
 } from '../../dto/presentation/custom-connector-response.dto';
 import {
   CreateCustomConnectorRequestApiDto,
+  FittingCustomConnectorCredentialsRequestApiDto,
   SaveDraftRequestApiDto,
   TestConnectorRequestApiDto,
   UpdateCustomConnectorRequestApiDto,
@@ -79,8 +82,53 @@ export function TestCustomConnectorSpec() {
     }),
     ApiResponse({
       status: 400,
-      description: 'Manifest is invalid, the node is unknown, or the test concurrency limit is hit',
-    })
+      description:
+        'Manifest is invalid, the node is unknown, the test concurrency limit is hit, or the ' +
+        'Credential is disabled, does not fit the manifest or is joined by typed key parameters',
+    }),
+    ApiResponse({ status: 403, description: 'The caller cannot use the Credential' }),
+    ApiResponse({ status: 404, description: 'The Credential was not found' })
+  );
+}
+
+export function ListFittingCustomConnectorCredentialsSpec() {
+  return applyDecorators(
+    ApiOperation({
+      summary: 'List the usable Credentials for a custom connector manifest and whether each fits',
+      description:
+        'Takes a manifest, or the name (and optional version) of a published custom connector, and ' +
+        'returns the enabled custom connector Credentials the caller can use: id, title, hosts and ' +
+        'field names, never values. A Credential that cannot be chosen for the manifest carries ' +
+        'its refusal (unfit, misuse, or secret: it keeps a SECRET key as a public field); a ' +
+        'fitting one has a null refusal. Editor access is required.',
+    }),
+    ApiBody({ type: FittingCustomConnectorCredentialsRequestApiDto }),
+    ApiCreatedResponse({ type: [FittingCustomConnectorCredentialResponseApiDto] }),
+    ApiResponse({
+      status: 400,
+      description: 'Manifest is invalid, or not exactly one of manifest and connectorName is sent',
+    }),
+    ApiResponse({ status: 404, description: 'The named custom connector was not found' })
+  );
+}
+
+export function GetCustomConnectorCredentialRequirementSpec() {
+  return applyDecorators(
+    ApiOperation({
+      summary: 'Describe what a Credential needs to fit a custom connector manifest',
+      description:
+        'Takes the same body as fitting-credentials and returns the hosts a new Credential must ' +
+        'allow and the key fields of the selection (labels, secret and required flags, never ' +
+        'values; only required ones decide fit), plus every key parameter and the selection ' +
+        'parameter. Editor access is required.',
+    }),
+    ApiBody({ type: FittingCustomConnectorCredentialsRequestApiDto }),
+    ApiCreatedResponse({ type: CustomConnectorCredentialRequirementResponseApiDto }),
+    ApiResponse({
+      status: 400,
+      description: 'Manifest is invalid, or not exactly one of manifest and connectorName is sent',
+    }),
+    ApiResponse({ status: 404, description: 'The named custom connector was not found' })
   );
 }
 

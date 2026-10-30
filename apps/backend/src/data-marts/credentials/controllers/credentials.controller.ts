@@ -1,5 +1,11 @@
 import { Body, Controller, Delete, Get, HttpCode, Param, Post, Put } from '@nestjs/common';
-import { ApiNoContentResponse, ApiOkResponse, ApiTags } from '@nestjs/swagger';
+import {
+  ApiExtraModels,
+  ApiNoContentResponse,
+  ApiOkResponse,
+  ApiTags,
+  getSchemaPath,
+} from '@nestjs/swagger';
 import {
   Auth,
   AuthContext,
@@ -17,6 +23,7 @@ import {
   CredentialResponseApiDto,
   GoogleOAuthCredentialAuthorizationApiDto,
   GoogleOAuthCredentialSettingsApiDto,
+  UnavailableCredentialResponseApiDto,
   UpdateCredentialApiDto,
 } from '../dto/credential-api.dto';
 import { CredentialMapper, mapCredentialDefinitionToApiDto } from '../mappers/credential.mapper';
@@ -107,9 +114,22 @@ export class CredentialsController {
 
   @Auth(Role.viewer(Strategy.PARSE))
   @Get()
-  @ApiOkResponse({ type: [CredentialResponseApiDto] })
-  async list(@AuthContext() context: AuthorizationContext): Promise<CredentialResponseApiDto[]> {
-    return (await this.listCredentials.run(context)).map(dto => this.mapper.toApiResponse(dto));
+  @ApiExtraModels(CredentialResponseApiDto, UnavailableCredentialResponseApiDto)
+  @ApiOkResponse({
+    schema: {
+      type: 'array',
+      items: {
+        oneOf: [
+          { $ref: getSchemaPath(CredentialResponseApiDto) },
+          { $ref: getSchemaPath(UnavailableCredentialResponseApiDto) },
+        ],
+      },
+    },
+  })
+  async list(
+    @AuthContext() context: AuthorizationContext
+  ): Promise<(CredentialResponseApiDto | UnavailableCredentialResponseApiDto)[]> {
+    return (await this.listCredentials.run(context)).map(dto => this.mapper.toListItem(dto));
   }
 
   @Auth(Role.viewer(Strategy.PARSE))

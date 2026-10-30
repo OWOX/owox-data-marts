@@ -36,3 +36,14 @@ export interface CredentialDto {
   readonly createdAt: Date;
   readonly modifiedAt: Date;
 }
+
+/** A Credential whose stored definition no longer resolves; carries no secret facts. */
+export interface UnavailableCredentialDto {
+  readonly id: string;
+  readonly projectId: string;
+  readonly title: string;
+  readonly definitionId: string;
+  readonly state: 'unavailable';
+  readonly createdAt: Date;
+  readonly modifiedAt: Date;
+}

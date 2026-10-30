@@ -3,7 +3,18 @@ import type { ContextSummary } from '../contexts/types/context.types';
 
 export type CredentialValidationState = 'unknown' | 'verified' | 'rejected';
 
-export type CredentialCategory = 'google' | 'aws' | 'snowflake' | 'databricks' | 'ai' | 'other';
+export type CredentialCategory =
+  | 'google'
+  | 'aws'
+  | 'snowflake'
+  | 'databricks'
+  | 'ai'
+  | 'ads'
+  | 'social'
+  | 'ecommerce'
+  | 'currencies'
+  | 'custom-connectors'
+  | 'other';
 
 export type CredentialIcon =
   | 'google'
@@ -28,8 +39,17 @@ export interface CredentialDefinitionField {
   identity: boolean;
 }
 
+/** A field of a custom connector Credential, named as the manifest parameter it fills. */
+export interface CustomConnectorFieldSpec {
+  key: string;
+  label: string;
+  secret: boolean;
+  /** False for an optional key parameter of a prefill; a saved or typed field is required. */
+  required?: boolean;
+}
+
 export type CredentialDefinitionAuth =
-  | { type: 'header' | 'google-service-account' }
+  | { type: 'header' | 'google-service-account' | 'custom-connector' }
   | { type: 'fields'; fields: CredentialDefinitionField[] }
   | { type: 'oauth'; provider: 'google'; client?: 'storage' | 'destination' };
 
@@ -50,6 +70,8 @@ export interface CredentialDefinition {
   storageTypes?: string[];
   /** Destination types that accept this definition. */
   destinationTypes?: string[];
+  /** Connectors this definition serves; optional while a newer web build talks to an older backend. */
+  connectors?: string[];
   origins: string[];
   supportsAi: boolean;
   ai: {
@@ -71,7 +93,10 @@ export type CredentialState =
   | 'disabled'
   | 'not-configured'
   | 'reconnect-required'
-  | 'reauthorize-required';
+  | 'reauthorize-required'
+  // Only a Data Mart configuration whose Credential was deleted; Storages and Destinations never report it.
+  | 'deleted'
+  | 'unavailable';
 
 /** The Credential a Storage or Destination uses, as the member sees it. */
 export type CredentialSummary =
@@ -106,10 +131,17 @@ export interface CredentialOAuthMetadata {
   scopes: string[];
 }
 
+/** Hosts and field list of a custom connector Credential, fixed once it is created. */
+export interface CredentialCustomConnectorMetadata extends CredentialFieldsMetadata {
+  hosts: string[];
+  fieldList: CustomConnectorFieldSpec[];
+}
+
 export type CredentialPublicMetadataValue =
   | CredentialPublicMetadata
   | CredentialFieldsMetadata
-  | CredentialOAuthMetadata;
+  | CredentialOAuthMetadata
+  | CredentialCustomConnectorMetadata;
 
 export function isServiceAccountMetadata(
   metadata: CredentialPublicMetadataValue | null | undefined
@@ -121,6 +153,22 @@ export function isFieldsMetadata(
   metadata: CredentialPublicMetadataValue | null | undefined
 ): metadata is CredentialFieldsMetadata {
   return metadata != null && 'fields' in metadata;
+}
+
+export function isCustomConnectorMetadata(
+  metadata: CredentialPublicMetadataValue | null | undefined
+): metadata is CredentialCustomConnectorMetadata {
+  return metadata != null && 'hosts' in metadata;
+}
+
+/** Connector and AuthType variant of a Source definition id, `source:<connector>:<variant>`. */
+export function sourceAuthVariant(
+  definitionId: string
+): { connectorName: string; variant: string } | null {
+  const [kind, connectorName, variant] = definitionId.split(':');
+  return kind === 'source' && connectorName && variant && variant !== 'default'
+    ? { connectorName, variant }
+    : null;
 }
 
 export function isOAuthMetadata(
@@ -136,6 +184,23 @@ export interface CredentialConsumerReference {
   title?: string | null;
   requirementKey: string;
   lastUsedAt: string | null;
+}
+
+/** A Credential whose connector or definition is no longer installed; it can only be deleted. */
+export interface UnavailableCredential {
+  id: string;
+  projectId: string;
+  title: string;
+  definitionId: string;
+  state: 'unavailable';
+  createdAt: string;
+  modifiedAt: string;
+}
+
+export function isUnavailableCredential(
+  row: Credential | UnavailableCredential
+): row is UnavailableCredential {
+  return 'state' in row;
 }
 
 export interface Credential {
@@ -172,6 +237,12 @@ export interface CreateCredentialRequest {
   definitionId: string;
   secret?: { value: string };
   fields?: Record<string, string>;
+  /** The custom connector definition takes this instead of `fields`. */
+  customConnector?: {
+    hosts: string[];
+    fieldList: CustomConnectorFieldSpec[];
+    fields: Record<string, string>;
+  };
   ownerIds?: string[];
   contextIds?: string[];
   availableForUse?: boolean;

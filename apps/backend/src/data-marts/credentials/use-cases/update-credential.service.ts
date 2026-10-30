@@ -23,7 +23,7 @@ import { CredentialViewService } from '../services/credential-view.service';
 import { CredentialValidationProbeService } from '../services/credential-validation-probe.service';
 import type { Credential } from '../entities/credential.entity';
 import type { CredentialPublicMetadata, CredentialValidationResult } from '../credential.types';
-import { applyFieldsUpdate } from '../services/credential-fields';
+import { applyCustomConnectorUpdate, applyFieldsUpdate } from '../services/credential-fields';
 import { assertCredentialInputKind, normalizeAiConfiguration } from './create-credential.service';
 
 @Injectable()
@@ -62,12 +62,14 @@ export class UpdateCredentialService {
     const changesRuntimeContract =
       input.secret != null ||
       input.fields != null ||
+      input.hosts != null ||
+      input.fieldList != null ||
       input.aiModelMappings !== undefined ||
       input.aiModelMappingModes !== undefined;
     const definition = changesRuntimeContract
       ? await this.definitions.getForCredential(credential)
       : await this.definitions.getForView(credential);
-    assertCredentialInputKind(definition.contract.auth, input);
+    assertCredentialInputKind(definition.contract.auth, input, true);
     let validation: CredentialValidationResult | undefined;
     let publicMetadata = credential.publicMetadata;
     if (input.secret != null) {
@@ -108,6 +110,9 @@ export class UpdateCredentialService {
     }
     const { auth } = definition.contract;
     let checkedFields: CheckedFields | undefined;
+    if (input.fields != null && auth.type === 'custom-connector') {
+      applyCustomConnectorUpdate(credential, input.fields);
+    }
     if (input.fields != null && auth.type === 'fields') {
       const next = applyFieldsUpdate(auth, credential, input.fields, definition.definitionId);
       if (next.secretChanged) {
@@ -156,6 +161,7 @@ export class UpdateCredentialService {
   ): Promise<CredentialDto> {
     // Fresh read: the provider check took seconds and another request may have saved meanwhile.
     const credential = await this.credentials.getByIdAndProjectId(id, context.projectId);
+    const secretBefore = credential.secret;
     if (input.title !== undefined) credential.title = input.title.trim();
     if (input.secret != null && validation) {
       credential.secret = { value: input.secret.value };
@@ -165,6 +171,11 @@ export class UpdateCredentialService {
       credential.validatedAt = validation.validatedAt;
     }
     const { auth } = definition.contract;
+    if (input.fields != null && auth.type === 'custom-connector') {
+      const next = applyCustomConnectorUpdate(credential, input.fields);
+      credential.secret = next.secret;
+      credential.publicMetadata = next.publicMetadata;
+    }
     if (input.fields != null && auth.type === 'fields') {
       // Merged into the fresh read so a concurrent change to another field survives.
       const next = applyFieldsUpdate(auth, credential, input.fields, definition.definitionId);
@@ -199,6 +210,8 @@ export class UpdateCredentialService {
       credential.aiModelMappingModes = aiConfiguration.modes;
       credential.aiModelMappingSources = aiConfiguration.sources;
     }
+    // New keys may come from a provider that rotates, so the next run leases from its first refresh.
+    if (!isDeepStrictEqual(credential.secret, secretBefore)) credential.refreshTokenStaticAt = null;
     await this.credentials.save(credential);
 
     if (input.ownerIds !== undefined) {

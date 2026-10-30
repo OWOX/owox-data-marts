@@ -147,6 +147,19 @@ async function main() {
     }
   }
 
+  // Names of the parameters a Credential filled. A broken list must not run unrestricted.
+  let keyParameters = [];
+  if (process.env.OW_KEY_PARAMETERS !== undefined) {
+    try {
+      keyParameters = JSON.parse(process.env.OW_KEY_PARAMETERS);
+    } catch {
+      keyParameters = null;
+    }
+    if (!Array.isArray(keyParameters) || !keyParameters.every(name => typeof name === 'string')) {
+      throw new Error('OW_KEY_PARAMETERS must be a JSON array of parameter names');
+    }
+  }
+
   // Build context (replaces NodeJsConfig + AbstractRunConfig)
   const context = (runContext = new Core.AbstractContext({
     source: { name: envConfig.source.name, config: envConfig.source.config || {} },
@@ -156,6 +169,7 @@ async function main() {
       datamartId: process.env.OW_DATAMART_ID,
       runId: process.env.OW_RUN_ID,
     },
+    keyParameters,
   }));
 
   // Resolve Source class from globals

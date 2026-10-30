@@ -1,5 +1,6 @@
 import { ApiService } from '../../../../services/api-service';
 import type { AxiosRequestConfig } from '../../../../app/api';
+import type { OAuthExchangeCredentialTarget } from './types/request';
 import type {
   ConnectorDefinitionDto,
   ConnectorSpecificationResponseApiDto,
@@ -29,16 +30,16 @@ export class ConnectorApiService extends ApiService {
     return this.get<ConnectorFieldsResponseApiDto[]>(`/${connectorName}/fields`);
   }
 
+  /** `dataMartId` lets an editor of the Data Mart preview a configuration bound to a Credential. */
   async previewConnectorFields(
     connectorName: string,
     configuration: Record<string, unknown>,
-    config?: AxiosRequestConfig
+    config?: AxiosRequestConfig,
+    dataMartId?: string
   ): Promise<ConnectorFieldsResponseApiDto[]> {
     return this.post<ConnectorFieldsResponseApiDto[]>(
       `/${connectorName}/fields/preview`,
-      {
-        configuration,
-      },
+      { configuration, dataMartId },
       config
     );
   }
@@ -47,14 +48,12 @@ export class ConnectorApiService extends ApiService {
     connectorName: string,
     field: string,
     configuration: Record<string, unknown>,
-    config?: AxiosRequestConfig
+    config?: AxiosRequestConfig,
+    dataMartId?: string
   ): Promise<ConnectorFieldOptionResponseApiDto[]> {
     return this.post<ConnectorFieldOptionResponseApiDto[]>(
       `/${connectorName}/options/preview`,
-      {
-        field,
-        configuration,
-      },
+      { field, configuration, dataMartId },
       config
     );
   }
@@ -77,7 +76,11 @@ export class ConnectorApiService extends ApiService {
 
   async exchangeCredentials(
     connectorName: string,
-    payload: Record<string, unknown>
+    payload: {
+      fieldPath: string;
+      payload: Record<string, unknown>;
+      credential?: OAuthExchangeCredentialTarget;
+    }
   ): Promise<OAuthCallbackResponseDto> {
     return this.post<OAuthCallbackResponseDto>(`/${connectorName}/oauth/exchange`, payload);
   }

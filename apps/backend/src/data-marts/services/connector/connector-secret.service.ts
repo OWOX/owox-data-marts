@@ -5,6 +5,11 @@ import { ConnectorService } from './connector.service';
 import { ConnectorSourceCredentialsService } from './connector-source-credentials.service';
 import { Core } from '@owox/connectors';
 import { castError } from '@owox/internal-helpers';
+import {
+  withoutKeyValues,
+  withoutOldKeys,
+  type SourceKeyFields,
+} from '../../connector-types/source-key-fields';
 
 export const SECRET_MASK = '**********' as const;
 const { GENERATED_REFRESH_TOKEN_CREDENTIAL_FIELD } = Core;
@@ -593,10 +598,9 @@ export class ConnectorSecretService {
    * connector the author has to repair, and it would gain nothing: the config form is rendered
    * from that same missing specification, so there is no form here to fill in anyway.
    *
-   * Over-masking cannot corrupt a later edit. {@link mergeDefinitionSecrets},
-   * {@link mergeDefinitionSecretsFromSource} and {@link extractAndSaveSecrets} all resolve the
-   * same specification with no fallback of their own, so while this path is live no update can
-   * land; and once the specification resolves again, {@link mask} takes its normal path and
+   * Over-masking cannot corrupt a later edit. {@link mergeDefinitionSecrets} and
+   * {@link extractAndSaveSecrets} both resolve the same specification with no fallback of their
+   * own, so while this path is live no update can land; and once the specification resolves again, {@link mask} takes its normal path and
    * only true SECRET fields come back masked.
    *
    * @param definition Connector definition to mask without a specification
@@ -659,16 +663,24 @@ export class ConnectorSecretService {
    *
    * @param projectId Project ID used to resolve the connector specification (supports custom connectors); pass undefined for the run-display path
    * @param definition Connector definition to mask
+   * @param boundCredentialIds Configuration id to its bound Credential id, null once deleted
    * @returns A new definition object with masked configuration or the original value
    */
   async mask(
     projectId: string | undefined,
     definition: ConnectorDefinition | undefined,
-    secretFieldsCache?: SecretFieldsCache
+    secretFieldsCache?: SecretFieldsCache,
+    boundCredentialIds?: ReadonlyMap<string, string | null>
   ): Promise<ConnectorDefinition | undefined> {
     if (!definition) return definition;
 
+    const credentialIdOf = (item: unknown) =>
+      boundCredentialIds?.get((item as Record<string, unknown>)._id as string);
+    const anyBound = definition.connector.source.configuration.some(
+      item => credentialIdOf(item) !== undefined
+    );
     let secretFieldNames: Set<string>;
+    let keyFields: readonly SourceKeyFields[] = [];
     try {
       const { name, version } = definition.connector.source;
       const key = `${name}@${version ?? 'active'}`;
@@ -678,6 +690,10 @@ export class ConnectorSecretService {
         secretFieldsCache?.set(key, secretFields);
       }
       secretFieldNames = await secretFields;
+      if (projectId && anyBound) {
+        keyFields = (await this.connectorService.resolveSourceKeys(projectId, name, version))
+          .fields;
+      }
     } catch (error) {
       this.logger.warn(
         `Failed to resolve specification for connector "${definition.connector.source.name}" while masking; masking every configuration value`,
@@ -688,7 +704,7 @@ export class ConnectorSecretService {
     const hasGeneratedRefreshToken = this.hasGeneratedRefreshTokenRecursively(
       definition.connector.source.configuration
     );
-    if (secretFieldNames.size === 0 && !hasGeneratedRefreshToken) {
+    if (secretFieldNames.size === 0 && !hasGeneratedRefreshToken && !anyBound) {
       return definition;
     }
 
@@ -700,6 +716,15 @@ export class ConnectorSecretService {
 
     const maskedConfiguration = definition.connector.source.configuration.map(item => {
       const configItem = item as Record<string, unknown>;
+      const credentialId = credentialIdOf(configItem);
+      if (credentialId !== undefined) {
+        // A bound configuration shows its Credential, never an old key; null: it was deleted.
+        const shown = this.maskRecursively(
+          withoutOldKeys(withoutKeyValues(configItem, keyFields)),
+          secretFieldNames
+        ) as Record<string, unknown>;
+        return credentialId === null ? shown : { ...shown, _credential_id: credentialId };
+      }
       let maskedItem = this.maskRecursively(configItem, secretFieldNames) as Record<
         string,
         unknown
@@ -769,7 +794,8 @@ export class ConnectorSecretService {
    * - otherwise — keep the provided incoming value.
    *
    * If the incoming item has missing or empty `_id`, a new `_id` is generated and
-   * merging with previous values is not performed for that item.
+   * merging with previous values is not performed for that item. Nor is it for an item that
+   * selects a Credential with `_credential_id`.
    *
    * If no previous item with the same `_id` is found, the incoming value is kept as is.
    *
@@ -821,6 +847,11 @@ export class ConnectorSecretService {
           return incomingItem;
         }
 
+        // Its key comes from the selected Credential.
+        if (incomingItem._credential_id !== undefined) {
+          return incomingItem;
+        }
+
         const previousItem = previousConfiguration.find(prevItem => {
           const prevObj = (prevItem || {}) as Record<string, unknown>;
           return typeof prevObj._id === 'string' && prevObj._id === itemId;
@@ -862,6 +893,19 @@ export class ConnectorSecretService {
         },
       },
     } as ConnectorDefinition;
+  }
+
+  /** Whether a configuration carries a key value; a mask stands for the stored one. */
+  async hasTypedSecrets(projectId: string, definition: ConnectorDefinition): Promise<boolean> {
+    const { name, version, configuration } = definition.connector.source;
+    const secretFieldNames = await this.getAllSecretFieldNames(projectId, name, version);
+    return configuration.some(
+      item =>
+        this.hasGeneratedRefreshTokenRecursively(item) ||
+        Object.values(
+          this.extractSecretsRecursively(item as Record<string, unknown>, secretFieldNames)
+        ).some(value => value !== '')
+    );
   }
 
   /**
@@ -947,189 +991,5 @@ export class ConnectorSecretService {
     }
 
     return secretsIds;
-  }
-
-  /**
-   * Merges secret fields from source configurations into incoming definition.
-   *
-   * This method is used when copying configurations from an existing Data Mart.
-   * Configuration items can be in one of two states:
-   * 1. New copied configurations with `_copiedFrom.configId` metadata - secrets will be copied from source
-   * 2. Existing configurations without `_copiedFrom` - secrets will be kept from previous version (self-copy scenario)
-   *
-   * Logic flow:
-   * 1. Validates that both source and incoming definitions use the same connector type.
-   *    Throws an error if connector types don't match to prevent incompatible secret merging.
-   *
-   * 2. Retrieves all secret field names from the connector specification to know which
-   *    fields need to be merged.
-   *
-   * 3. Maps over each configuration item in the incoming definition:
-   *    - If item has `_copiedFrom.configId` metadata:
-   *      - Finds the corresponding source configuration by matching its _id
-   *      - Recursively merges secret fields from that specific source configuration
-   *      - Removes the `_copiedFrom` metadata field
-   *      - Generates a new unique _id for the copied configuration
-   *    - If item does NOT have `_copiedFrom` metadata (existing configuration):
-   *      - Returns the item as is (will be handled by mergeDefinitionSecrets later)
-   *
-   * 4. Returns a new definition object with the same structure as incoming, but with
-   *    configuration array containing items with properly merged secrets from their
-   *    respective source configurations.
-   *
-   * @param projectId Project ID used to resolve the connector specification (supports custom connectors)
-   * @param incoming New definition coming from the client, may have mixed configurations (some with _copiedFrom, some without)
-   * @param sourceDefinition Definition from the source Data Mart to copy secrets from
-   * @returns Definition with correctly merged secret values from source configurations
-   * @throws Error if connector types don't match
-   * @throws Error if source configuration with specified _id is not found (when _copiedFrom is present)
-   */
-  async mergeDefinitionSecretsFromSource(
-    projectId: string,
-    incoming: ConnectorDefinition,
-    sourceDefinition: ConnectorDefinition
-  ): Promise<ConnectorDefinition> {
-    if (incoming.connector.source.name !== sourceDefinition.connector.source.name) {
-      throw new Error(
-        `Cannot copy secrets from different connector type. ` +
-          `Source: ${sourceDefinition.connector.source.name}, ` +
-          `Target: ${incoming.connector.source.name}`
-      );
-    }
-
-    // Doubles as the existence guard: this resolves the connector specification
-    // (bundled or custom) and throws NotFoundException for an unknown name, so
-    // merging can never silently produce a definition nothing can run.
-    const secretFieldNames = await this.getAllSecretFieldNames(
-      projectId,
-      incoming.connector.source.name,
-      incoming.connector.source.version
-    );
-    const sourceSecretsIds = sourceDefinition.connector.source.configuration
-      .map(item => (item as Record<string, unknown>)._secrets_id as string | undefined)
-      .filter((id): id is string => !!id);
-    const sourceSecretsMap =
-      await this.connectorSourceCredentialsService.getCredentialsByIds(sourceSecretsIds);
-
-    const mergedConfiguration = incoming.connector.source.configuration.map(incomingItem => {
-      const itemWithMetadata = incomingItem as Record<string, unknown> & {
-        _copiedFrom?: { configId: string };
-      };
-
-      if (!itemWithMetadata._copiedFrom?.configId) {
-        return incomingItem;
-      }
-
-      const sourceConfigId = itemWithMetadata._copiedFrom.configId;
-
-      const sourceConfig = sourceDefinition.connector.source.configuration.find(
-        config => (config as Record<string, unknown> & { _id?: string })._id === sourceConfigId
-      );
-
-      if (!sourceConfig) {
-        throw new Error(
-          `Source configuration with _id "${sourceConfigId}" not found. ` +
-            `Source has ${sourceDefinition.connector.source.configuration.length} configurations.`
-        );
-      }
-
-      const sourceConfigWithSecrets = JSON.parse(JSON.stringify(sourceConfig)) as Record<
-        string,
-        unknown
-      >;
-      const secretsId = sourceConfigWithSecrets._secrets_id as string | undefined;
-      const secretsEntity = secretsId ? sourceSecretsMap.get(secretsId) : undefined;
-      const generatedRefreshToken =
-        secretsEntity?.credentials?.[GENERATED_REFRESH_TOKEN_CREDENTIAL_FIELD];
-      if (secretsEntity?.credentials) {
-        this.injectSecretsAtPaths(sourceConfigWithSecrets, secretsEntity.credentials);
-      }
-
-      const mergedItem = this.mergeSecretsRecursively(
-        incomingItem,
-        sourceConfigWithSecrets,
-        secretFieldNames
-      ) as Record<string, unknown>;
-
-      delete mergedItem._copiedFrom;
-      // A copied config must never keep the source's _secrets_id: that id is
-      // scoped 1:1 to the source DataMart's own config item, and reusing it
-      // would alias both DataMarts' manual credentials to the same record.
-      delete mergedItem._secrets_id;
-      mergedItem._id = randomUUID();
-      // The rotated (generated) refresh token is carried into the copy as a
-      // seed for its own credentials record. Microsoft keeps a redeemed
-      // refresh token valid when it issues a new one, so the source and the
-      // copy rotate independent token lineages from the shared seed; without
-      // it the copy would start from the user-supplied token, which may have
-      // already expired. The seed travels only while the copy authenticates
-      // with the source's exact refresh token and is not managed OAuth.
-      delete mergedItem[GENERATED_REFRESH_TOKEN_CREDENTIAL_FIELD];
-      if (
-        typeof generatedRefreshToken === 'string' &&
-        generatedRefreshToken &&
-        !this.hasSourceCredentialIdRecursively(mergedItem) &&
-        this.hasSameRefreshToken(sourceConfigWithSecrets, mergedItem)
-      ) {
-        mergedItem[GENERATED_REFRESH_TOKEN_CREDENTIAL_FIELD] = generatedRefreshToken;
-      }
-
-      return mergedItem;
-    });
-
-    return {
-      ...incoming,
-      connector: {
-        ...incoming.connector,
-        source: {
-          ...incoming.connector.source,
-          configuration: mergedConfiguration,
-        },
-      },
-    } as ConnectorDefinition;
-  }
-
-  private hasSameRefreshToken(
-    sourceConfig: Record<string, unknown>,
-    mergedConfig: unknown
-  ): boolean {
-    const sourceRefreshToken = this.getRefreshTokenValue(sourceConfig);
-    const mergedRefreshToken = this.getRefreshTokenValue(mergedConfig);
-
-    return (
-      typeof sourceRefreshToken === 'string' &&
-      sourceRefreshToken !== '' &&
-      !this.isSecretMask(sourceRefreshToken) &&
-      mergedRefreshToken === sourceRefreshToken
-    );
-  }
-
-  private getRefreshTokenValue(value: unknown): unknown {
-    if (!value || typeof value !== 'object') {
-      return undefined;
-    }
-
-    if (Array.isArray(value)) {
-      for (const item of value) {
-        const nestedValue = this.getRefreshTokenValue(item);
-        if (nestedValue !== undefined) {
-          return nestedValue;
-        }
-      }
-      return undefined;
-    }
-
-    for (const [key, nestedValue] of Object.entries(value as Record<string, unknown>)) {
-      if (key === 'refresh_token' || key === 'RefreshToken' || key.endsWith('.RefreshToken')) {
-        return nestedValue;
-      }
-
-      const nestedRefreshToken = this.getRefreshTokenValue(nestedValue);
-      if (nestedRefreshToken !== undefined) {
-        return nestedRefreshToken;
-      }
-    }
-
-    return undefined;
   }
 }

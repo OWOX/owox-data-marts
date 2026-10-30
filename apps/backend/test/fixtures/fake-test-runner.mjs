@@ -123,6 +123,28 @@ if (process.env.FAKE_IGNORE_SIGTERM === '1') {
   process.stderr.write(`${huge}\n`);
   process.stdout.write('starting fake run\n');
   process.stdout.write(`${MARKER}${JSON.stringify({ i: 0 })}\n`);
+} else if (process.env.FAKE_KEY_ECHO === '1') {
+  // An API that echoes every parameter it was sent, and a provider that rotates the refresh token.
+  const cfg = JSON.parse(process.env.OW_CONFIG);
+  const params = Object.fromEntries(
+    Object.entries(cfg.source.config).map(([name, parameter]) => [name, parameter.value])
+  );
+  const rotated = 'rotated-token-from-provider';
+  const query = Object.entries(params)
+    .map(([name, value]) => `${name}=${encodeURIComponent(String(value))}`)
+    .join('&');
+  process.stdout.write(`keys=${process.env.OW_KEY_PARAMETERS ?? 'none'}\n`);
+  process.stdout.write(`GET /items?${query}\n`);
+  process.stdout.write(
+    JSON.stringify({ type: 'LOG', level: 'info', message: Object.values(params).join(' ') }) + '\n'
+  );
+  process.stdout.write(JSON.stringify({ type: 'SAMPLE', records: [params] }) + '\n');
+  process.stdout.write(
+    JSON.stringify({ type: 'CREDENTIALS', credentials: { generated_refresh_token: rotated } }) +
+      '\n'
+  );
+  process.stdout.write(`${MARKER}${JSON.stringify({ ...params, rotated })}\n`);
+  process.exit(0);
 } else if (process.env.FAKE_BIG_ROWS === '1') {
   // Rows each under the per-line cap that add up to far more than one test may hold.
   // No process.exit(), for the same reason as above.

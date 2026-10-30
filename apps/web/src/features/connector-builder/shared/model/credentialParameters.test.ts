@@ -10,6 +10,12 @@ describe('credentialParameterNames', () => {
     ).toEqual(new Set(['ApiKey']));
   });
 
+  it('includes a declared GeneratedRefreshToken, which is never kept', () => {
+    expect(
+      credentialParameterNames({ parameters: { GeneratedRefreshToken: {}, Region: {} } })
+    ).toEqual(new Set(['GeneratedRefreshToken']));
+  });
+
   // The parser marks these SECRET only when the manifest is saved, so the editor's copy of
   // the manifest does not say so yet.
   it('includes parameters the authentication block refers to', () => {

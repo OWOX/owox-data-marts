@@ -60,7 +60,6 @@ export const ConnectorOAuthExchangeResultSchema = z.object({
   success: z.boolean(),
   credentialId: z.string(),
   user: ConnectorOAuthUser.optional(),
-  additional: z.record(z.unknown()).optional(),
   reasons: z.array(z.string()).optional(),
 });
 
