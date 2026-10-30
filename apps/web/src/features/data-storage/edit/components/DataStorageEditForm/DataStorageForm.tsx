@@ -57,6 +57,7 @@ import {
   DataStorageStatus,
   DataStorageType,
 } from '../../../shared';
+import { OwoxStorageUsage } from '../../../shared/components/OwoxStorageUsage';
 import type { UseFormReturn } from 'react-hook-form';
 import type { DataStorage } from '../../../shared/model/types/data-storage.ts';
 import { DataStorageTypeModel } from '../../../shared/types/data-storage-type.model.ts';
@@ -341,6 +342,11 @@ export function DataStorageForm({
                 <FormLabel htmlFor='owox-storage-dataset'>Dataset</FormLabel>
                 <Input id='owox-storage-dataset' value={owoxStorage.datasetId} disabled />
               </FormItem>
+            </FormSection>
+          )}
+          {owoxStorage && initialData.id && (
+            <FormSection title='Usage and Tables' name='owox-storage-usage'>
+              <OwoxStorageUsage storageId={initialData.id} />
             </FormSection>
           )}
           {!owoxStorage && selectedType === DataStorageType.GOOGLE_BIGQUERY && (
