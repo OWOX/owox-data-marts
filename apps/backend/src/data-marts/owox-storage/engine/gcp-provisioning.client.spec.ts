@@ -83,12 +83,32 @@ describe('GcpProvisioningClient', () => {
     expect(written().bindings).toEqual([conditional]);
   });
 
-  it('re-reads and retries on an etag conflict', async () => {
-    getIamPolicy.mockImplementation(() => Promise.resolve(policy([])));
+  it('re-reads and retries on an etag conflict, re-applying the edit to the fresh policy', async () => {
+    getIamPolicy.mockResolvedValueOnce(policy([])).mockResolvedValueOnce({
+      data: {
+        version: 3,
+        etag: 'e2',
+        bindings: [{ role: ROLE, members: ['user:other@example.com'] }],
+      },
+    });
     setIamPolicy.mockRejectedValueOnce({ code: 409 }).mockResolvedValue({});
     await client.grantProjectRole('proj', ROLE, EMAIL);
+
     expect(getIamPolicy).toHaveBeenCalledTimes(2);
     expect(setIamPolicy).toHaveBeenCalledTimes(2);
+    const p = written();
+    expect(p.etag).toBe('e2');
+    expect(p.bindings).toEqual([
+      { role: ROLE, members: ['user:other@example.com', `serviceAccount:${EMAIL}`] },
+    ]);
+  });
+
+  it('deletes an account through its own project, not the wildcard', async () => {
+    saDelete.mockResolvedValue({});
+    await client.deleteServiceAccount('owox-st-abc@sa-project.iam.gserviceaccount.com');
+    expect(saDelete).toHaveBeenCalledWith({
+      name: 'projects/sa-project/serviceAccounts/owox-st-abc@sa-project.iam.gserviceaccount.com',
+    });
   });
 
   it('gives up after 5 conflicts', async () => {
