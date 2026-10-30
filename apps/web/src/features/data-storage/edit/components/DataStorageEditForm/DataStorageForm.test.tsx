@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import toast from 'react-hot-toast';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -20,6 +20,10 @@ vi.mock('../../../../../app/api', async importOriginal => ({
 const trackEvent = vi.hoisted(() => vi.fn());
 vi.mock('../../../../../utils/data-layer', () => ({
   trackEvent: (...args: unknown[]) => trackEvent(...args) as unknown,
+}));
+
+vi.mock('../../../shared/components/OwoxStorageUsage', () => ({
+  OwoxStorageUsage: ({ storageId }: { storageId: string }) => <div>Usage of {storageId}</div>,
 }));
 
 vi.mock('../../../../idp/hooks/useAuthState', () => ({
@@ -575,6 +579,17 @@ describe('DataStorageForm — OWOX Storage', () => {
     expect(screen.queryByLabelText('Project ID')).toBeNull();
     expect(screen.queryByText('Authentication')).toBeNull();
     expect(screen.queryByText('Credential')).toBeNull();
+  });
+
+  it('shows the usage section for an OWOX Storage and not for a regular storage', async () => {
+    renderForm(vi.fn(), owoxStorage());
+    expect(await screen.findByText('Usage and Tables')).toBeInTheDocument();
+    expect(screen.getByText('Usage of storage-1')).toBeInTheDocument();
+    cleanup();
+
+    renderForm(vi.fn(), storage(null));
+    await screen.findByDisplayValue('BigQuery');
+    expect(screen.queryByText('Usage and Tables')).toBeNull();
   });
 
   it('saves an OWOX Storage without a Credential', async () => {

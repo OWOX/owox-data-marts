@@ -7,6 +7,7 @@ import type {
   DataStorageResponseDto,
   ListStorageResourcesResponseDto,
   OwoxStorageLocation,
+  OwoxStorageUsageResponseDto,
   PublishDataStorageDraftsResponseDto,
   StorageNamespaceNodeDto,
   StorageResourceFilter,
@@ -73,6 +74,17 @@ export class DataStorageApiService extends ApiService {
       timeout: 180000,
       skipErrorToast: true,
     } as AxiosRequestConfig);
+  }
+
+  async getOwoxStorageUsage(storageId: string): Promise<OwoxStorageUsageResponseDto> {
+    // The usage panel shows its own error with a retry.
+    return this.get<OwoxStorageUsageResponseDto>(`/${storageId}/owox-storage`, undefined, {
+      skipErrorToast: true,
+    } as AxiosRequestConfig);
+  }
+
+  async deleteOwoxStorageTable(storageId: string, tableName: string): Promise<void> {
+    await this.delete(`/${storageId}/owox-storage/tables/${encodeURIComponent(tableName)}`);
   }
 
   /**
