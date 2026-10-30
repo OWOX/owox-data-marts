@@ -286,6 +286,23 @@ describe('AbstractContext', () => {
       });
       assert.strictEqual(ctx.getParameter('ImpersonateServiceAccount'), null);
       assert.strictEqual(ctx.getParameter('DestinationDatasetExists'), null);
+
+      const wired = new AbstractContext({
+        source: {
+          name: 'S',
+          config: {
+            ImpersonateServiceAccount: { value: 'someone-else@p.iam.gserviceaccount.com' },
+          },
+        },
+        storage: {
+          name: 'S',
+          config: { ImpersonateServiceAccount: { value: 'owox-st-abc@p.iam.gserviceaccount.com' } },
+        },
+      });
+      assert.strictEqual(
+        wired.getParameter('ImpersonateServiceAccount').value,
+        'owox-st-abc@p.iam.gserviceaccount.com'
+      );
     });
   });
 
