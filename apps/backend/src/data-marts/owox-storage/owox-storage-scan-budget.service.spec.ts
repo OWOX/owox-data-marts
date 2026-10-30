@@ -1,5 +1,4 @@
 import { Logger } from '@nestjs/common';
-import { InternalProjectBillingService } from '../services/project-billing/internal-project-billing.service';
 import { OwoxStorageScanBudgetService } from './owox-storage-scan-budget.service';
 import {
   OwoxStorageQueryLimitException,
@@ -13,8 +12,7 @@ const GIB = 2 ** 30;
 describe('OwoxStorageScanBudgetService', () => {
   const query = jest.fn();
   const identity = { bigQuery: jest.fn(() => ({ query })) };
-  const billing = { getBalance: jest.fn() };
-  const moduleRef = { get: jest.fn(() => billing) };
+  const plans = { planFor: jest.fn() };
   const config = {
     getSettings: () => ({
       freeQueryLimitBytesPerDay: 10 * GIB,
@@ -32,17 +30,12 @@ describe('OwoxStorageScanBudgetService', () => {
 
   let service: OwoxStorageScanBudgetService;
   const used = (bytes: unknown) => query.mockResolvedValue([[{ used: bytes }]]);
-  const plan = (subscriptionPlanType: ProjectPlanType) =>
-    billing.getBalance.mockResolvedValue({ subscriptionPlanType });
+  const plan = (type: ProjectPlanType) => plans.planFor.mockResolvedValue(type);
 
   beforeEach(() => {
     jest.clearAllMocks();
     jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
-    service = new OwoxStorageScanBudgetService(
-      identity as never,
-      config as never,
-      moduleRef as never
-    );
+    service = new OwoxStorageScanBudgetService(identity as never, config as never, plans as never);
     used(0);
     plan(ProjectPlanType.FREE);
   });
@@ -58,12 +51,6 @@ describe('OwoxStorageScanBudgetService', () => {
     expect(options.params).toEqual({ email: record.serviceAccountEmail });
   });
 
-  it('resolves billing lazily from the module', async () => {
-    await service.forStorage(record).remainingBytes();
-
-    expect(moduleRef.get).toHaveBeenCalledWith(InternalProjectBillingService);
-  });
-
   it('refuses at the limit', async () => {
     used(10 * GIB);
 
@@ -76,7 +63,7 @@ describe('OwoxStorageScanBudgetService', () => {
     plan(ProjectPlanType.PAID);
     await expect(service.forStorage(record).remainingBytes()).resolves.toBe(100 * GIB);
 
-    billing.getBalance.mockClear();
+    plans.planFor.mockClear();
     const overridden = {
       ...record,
       storageId: 's2',
@@ -84,7 +71,7 @@ describe('OwoxStorageScanBudgetService', () => {
       queryLimitBytesPerDay: GIB,
     };
     await expect(service.forStorage(overridden).remainingBytes()).resolves.toBe(GIB);
-    expect(billing.getBalance).not.toHaveBeenCalled();
+    expect(plans.planFor).not.toHaveBeenCalled();
   });
 
   it('returns a whole number of bytes under a fractional limit', async () => {
@@ -92,7 +79,7 @@ describe('OwoxStorageScanBudgetService', () => {
     service = new OwoxStorageScanBudgetService(
       identity as never,
       fractional as never,
-      billing as never
+      plans as never
     );
 
     await expect(service.forStorage(record).remainingBytes()).resolves.toBe(107374182);
@@ -112,8 +99,8 @@ describe('OwoxStorageScanBudgetService', () => {
     await expect(service.forStorage(record).remainingBytes()).resolves.toBe(10 * GIB);
   });
 
-  it('uses the FREE limit when the plan cannot be read', async () => {
-    billing.getBalance.mockRejectedValue(new Error('balance API down'));
+  it('uses the FREE limit when the plan service answers FREE', async () => {
+    plan(ProjectPlanType.FREE);
 
     await expect(service.forStorage(record).remainingBytes()).resolves.toBe(10 * GIB);
   });
@@ -126,22 +113,20 @@ describe('OwoxStorageScanBudgetService', () => {
       jest.advanceTimersByTime(59_000);
       await budget.remainingBytes();
       expect(query).toHaveBeenCalledTimes(1);
-      expect(billing.getBalance).toHaveBeenCalledTimes(1);
 
       jest.advanceTimersByTime(2_000);
       await budget.remainingBytes();
       expect(query).toHaveBeenCalledTimes(2);
-      expect(billing.getBalance).toHaveBeenCalledTimes(2);
     } finally {
       jest.useRealTimers();
     }
   });
 
-  it('reads the plan per project and the usage per storage', async () => {
+  it('asks for the plan of the storage project and reads usage per storage', async () => {
     await service.forStorage(record).remainingBytes();
     await service.forStorage({ ...record, storageId: 's2' }).remainingBytes();
 
-    expect(billing.getBalance).toHaveBeenCalledTimes(1);
+    expect(plans.planFor).toHaveBeenCalledWith('project-1');
     expect(query).toHaveBeenCalledTimes(2);
   });
 
