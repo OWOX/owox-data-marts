@@ -132,6 +132,8 @@ import { StorageOwner } from './entities/storage-owner.entity';
 import { ManagedStorage } from './entities/managed-storage.entity';
 import { ManagedStorageService } from './owox-storage/managed-storage.service';
 import { OwoxStorageIdentity } from './owox-storage/owox-storage-identity.service';
+import { OwoxStorageScanBudgetService } from './owox-storage/owox-storage-scan-budget.service';
+import { OWOX_STORAGE_SCAN_BUDGET } from './owox-storage/owox-storage-scan-budget.token';
 import { DestinationOwner } from './entities/destination-owner.entity';
 import { ReportOwner } from './entities/report-owner.entity';
 import { DataStorage } from './entities/data-storage.entity';
@@ -699,6 +701,8 @@ import { McpCredentialsFacadeImpl } from './credentials/facades/mcp-credentials.
     },
     ManagedStorageService,
     OwoxStorageIdentity,
+    OwoxStorageScanBudgetService,
+    { provide: OWOX_STORAGE_SCAN_BUDGET, useExisting: OwoxStorageScanBudgetService },
     CredentialConsumerBindingFacadeImpl,
     {
       provide: CREDENTIAL_CONSUMER_BINDING_FACADE,

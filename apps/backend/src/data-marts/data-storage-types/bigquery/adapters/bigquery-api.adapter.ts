@@ -6,6 +6,7 @@ import {
   BIGQUERY_MANAGED_TYPE,
   BIGQUERY_OAUTH_TYPE,
   BigQueryCredentials,
+  ScanBudget,
 } from '../schemas/bigquery-credentials.schema';
 import type { SqlParameter } from '../../utils/sql-clause-renderer';
 import {
@@ -16,6 +17,7 @@ import {
   GBQ_SHARD_SUFFIX_MAX_DIGITS,
   GBQ_SHARD_SUFFIX_MIN_DIGITS,
 } from '../services/bigquery-sharded-tables.util';
+import { OwoxStorageStatementException } from '../../../owox-storage/owox-storage.exceptions';
 
 /** Fully-qualified BigQuery table coordinates, as returned by a dry run's `referencedTables`. */
 export interface BigQueryTableReference {
@@ -35,7 +37,7 @@ function toDateOrNull(value: unknown): Date | null {
 
 /**
  * Adapter for BigQuery API operations.
- * Accepts either Service Account credentials or pre-resolved OAuth credentials.
+ * Accepts Service Account credentials, pre-resolved OAuth credentials or OWOX Storage credentials.
  *
  * Resource-listing (namespaces / tables) is handled by the dedicated
  * {@link BigQueryStorageResourceBrowser} service; this adapter focuses on
@@ -52,25 +54,29 @@ export class BigQueryApiAdapter {
   private readonly logger = new Logger(BigQueryApiAdapter.name);
   private readonly bigQuery: BigQuery;
   private readonly authClient: JWT | OAuth2Client;
+  /** Set only for an OWOX Storage: its jobs run SELECT only, capped by today's scan budget. */
+  private readonly scanBudget?: ScanBudget;
   private location?: string;
 
   constructor(credentials: BigQueryCredentials, config: BigQueryConfig) {
-    if (credentials.type === BIGQUERY_MANAGED_TYPE) {
-      throw new Error('OWOX Storage credentials are not supported by this adapter yet');
-    }
     const auth =
-      credentials.type === BIGQUERY_OAUTH_TYPE
-        ? credentials.oauth2Client
-        : new JWT({
-            email: credentials.client_email,
-            key: credentials.private_key,
-            scopes: [
-              'https://www.googleapis.com/auth/bigquery',
-              'https://www.googleapis.com/auth/drive.readonly',
-            ],
-          });
+      credentials.type === BIGQUERY_MANAGED_TYPE
+        ? credentials.authClient
+        : credentials.type === BIGQUERY_OAUTH_TYPE
+          ? credentials.oauth2Client
+          : new JWT({
+              email: credentials.client_email,
+              key: credentials.private_key,
+              scopes: [
+                'https://www.googleapis.com/auth/bigquery',
+                'https://www.googleapis.com/auth/drive.readonly',
+              ],
+            });
 
     this.authClient = auth;
+    if (credentials.type === BIGQUERY_MANAGED_TYPE) {
+      this.scanBudget = credentials.scanBudget;
+    }
     const shouldAutodetectLocation = config.location === BIGQUERY_AUTODETECT_LOCATION;
     this.bigQuery = new BigQuery({
       projectId: config.projectId,
@@ -111,6 +117,8 @@ export class BigQueryApiAdapter {
    * `jobTimeoutMs` (already in ms) caps warehouse cost by aborting the job server-side; unset = no change.
    * `signal` (client disconnect/cancel) cancels the running job immediately — the poll loop then
    * surfaces the cancellation as a thrown error. Unset = no cancellation hook.
+   *
+   * On an OWOX Storage the query is dry-run first and refused unless it is a single SELECT.
    */
   public async executeQuery(
     query: string,
@@ -118,6 +126,11 @@ export class BigQueryApiAdapter {
     jobTimeoutMs?: number,
     signal?: AbortSignal
   ): Promise<{ jobId: string }> {
+    if (this.scanBudget) {
+      const { statementType } = await this.executeDryRunQuery(query, params);
+      if (statementType !== 'SELECT') throw new OwoxStorageStatementException(statementType);
+    }
+
     const queryConfig: Query = {
       query,
       ...this.getLocationOption(),
@@ -127,8 +140,19 @@ export class BigQueryApiAdapter {
       queryConfig.params = Object.fromEntries(params.map(p => [p.name, p.value]));
       queryConfig.parameterMode = 'NAMED';
     }
+    return this.runJob(queryConfig, signal);
+  }
 
-    const [job] = await this.bigQuery.createQueryJob(queryConfig);
+  /** Runs ODM's own view DDL: an OWOX Storage keeps the scan budget but skips the SELECT check. */
+  public async executeViewDdl(ddl: string): Promise<void> {
+    await this.runJob({ query: ddl, ...this.getLocationOption() });
+  }
+
+  private async runJob(queryConfig: Query, signal?: AbortSignal): Promise<{ jobId: string }> {
+    const [job] = await this.bigQuery.createQueryJob({
+      ...queryConfig,
+      ...(await this.getScanBudgetOption()),
+    });
 
     // Best-effort warehouse cancel: on abort, ask BigQuery to cancel the job. The poll loop below
     // then sees the job finish (cancelled) and throws, so we stop billing compute for a gone client.
@@ -218,6 +242,7 @@ export class BigQueryApiAdapter {
     schema?: TableSchema;
     location?: string;
     referencedTables: BigQueryTableReference[];
+    statementType: string;
   }> {
     const queryConfig: Query = {
       query,
@@ -236,6 +261,7 @@ export class BigQueryApiAdapter {
       schema: job.metadata.statistics.query.schema ?? undefined,
       location: this.location,
       referencedTables: this.parseReferencedTables(job.metadata.statistics.query.referencedTables),
+      statementType: job.metadata.statistics.query.statementType,
     };
   }
 
@@ -318,6 +344,7 @@ export class BigQueryApiAdapter {
       },
       parameterMode: 'NAMED',
       ...this.getLocationOption(),
+      ...(await this.getScanBudgetOption()),
     });
 
     return toDateOrNull(rows?.[0]?.last_modified_time);
@@ -359,6 +386,12 @@ export class BigQueryApiAdapter {
     } catch (e) {
       throw new Error(`BigQuery access error: ${e instanceof Error ? e.message : String(e)}`);
     }
+  }
+
+  private async getScanBudgetOption(): Promise<{ maximumBytesBilled?: string }> {
+    return this.scanBudget
+      ? { maximumBytesBilled: String(await this.scanBudget.remainingBytes()) }
+      : {};
   }
 
   private getLocationOption(): { location?: string } {
