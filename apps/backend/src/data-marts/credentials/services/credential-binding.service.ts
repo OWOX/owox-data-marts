@@ -73,27 +73,6 @@ export class CredentialBindingService {
     });
   }
 
-  /** Binds a Credential of the project without the member's checks, which the caller makes. */
-  @Transactional()
-  async bindInProject(
-    input: CredentialBindingKey & {
-      readonly projectId: string;
-      readonly credentialId: string;
-      readonly requirement: CredentialRequirementSnapshot;
-    }
-  ): Promise<void> {
-    // The lock serializes this binding with a concurrent deletion of the Credential.
-    const credential = await this.credentialService.lockActiveByIdAndProjectId(
-      input.credentialId,
-      input.projectId
-    );
-    if (!credential) throw new NotFoundException(`Credential ${input.credentialId} was not found`);
-    await this.upsert(input, {
-      projectId: input.projectId,
-      ...boundValues(credential.id, input.requirement, null),
-    });
-  }
-
   private async upsert(
     input: CredentialBindingKey,
     values: { projectId: string } & ReturnType<typeof boundValues>
