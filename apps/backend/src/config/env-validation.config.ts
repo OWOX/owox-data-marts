@@ -92,6 +92,8 @@ const configSchema = z
     OWOX_STORAGE_PAID_QUERY_LIMIT_GIB_PER_DAY: blankAsUnset(
       z.coerce.number().positive().optional()
     ),
+    OWOX_STORAGE_FREE_STORAGE_LIMIT_GIB: blankAsUnset(z.coerce.number().positive().optional()),
+    OWOX_STORAGE_PAID_INCLUDED_STORAGE_GIB: blankAsUnset(z.coerce.number().positive().optional()),
     // Plugin schedules; unset keeps the defaults in PluginHostConfigService.
     PLUGIN_HOST_MAX_SCHEDULES_PER_INSTALLATION: blankAsUnset(
       z.coerce.number().int().min(1).max(1000).optional()
