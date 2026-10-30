@@ -1,11 +1,23 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ConnectorBuilderApiService } from '../../api/connector-builder-api.service';
-import type { CredentialRequirementDto, FittingCredentialsQuery } from '../../api/types';
+import type {
+  CredentialRequirementDto,
+  FittingCredentialRefusal,
+  FittingCredentialsQuery,
+} from '../../api/types';
+
+interface Listed {
+  /** The fitting Credentials, in the server's order. */
+  ids: string[];
+  /** Why each refused Credential cannot be chosen, by id. */
+  refusals: Record<string, FittingCredentialRefusal>;
+  requirement: CredentialRequirementDto;
+}
 
 export type TestCredentials =
   | { status: 'loading' }
   | { status: 'error' }
-  | { status: 'ready'; ids: string[]; requirement: CredentialRequirementDto };
+  | ({ status: 'ready' } & Listed);
 
 const PAUSE_MS = 400;
 
@@ -19,11 +31,7 @@ export function useTestCredentials(
   const [pausedKey, setPausedKey] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
   const [settled, setSettled] = useState<
-    | ({ key: string; attempt: number } & (
-        | { error: true }
-        | { ids: string[]; requirement: CredentialRequirementDto }
-      ))
-    | null
+    ({ key: string; attempt: number } & ({ error: true } | Listed)) | null
   >(null);
 
   useEffect(() => {
@@ -50,7 +58,15 @@ export function useTestCredentials(
     ]).then(
       ([list, requirement]) => {
         if (!cancelled)
-          setSettled({ key: pausedKey, attempt, ids: list.map(item => item.id), requirement });
+          setSettled({
+            key: pausedKey,
+            attempt,
+            ids: list.filter(item => !item.refusal).map(item => item.id),
+            refusals: Object.fromEntries(
+              list.flatMap(item => (item.refusal ? [[item.id, item.refusal]] : []))
+            ),
+            requirement,
+          });
       },
       () => {
         if (!cancelled) setSettled({ key: pausedKey, attempt, error: true });
@@ -77,7 +93,12 @@ export function useTestCredentials(
     state =
       'error' in settled
         ? { status: 'error' }
-        : { status: 'ready', ids: settled.ids, requirement: settled.requirement };
+        : {
+            status: 'ready',
+            ids: settled.ids,
+            refusals: settled.refusals,
+            requirement: settled.requirement,
+          };
   }
   return { state, retry, refresh, refreshing };
 }

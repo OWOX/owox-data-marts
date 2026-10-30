@@ -415,6 +415,19 @@ describe('SourceCredentialBindingService', () => {
       );
     });
 
+    it('summarizes a configuration whose Credential was deleted as restricted and deleted', async () => {
+      const live = await givenCredential();
+      const deleted = await givenCredential({ title: 'Deleted key' });
+      await bind('dm-1', 'cfg-1', live.id);
+      await bind('dm-1', 'cfg-2', deleted.id);
+      await credentials.softDelete({ id: deleted.id });
+
+      const summaries = await summarize();
+
+      expect(summaries.get('cfg-1')).toMatchObject({ access: 'visible', state: 'ready' });
+      expect(summaries.get('cfg-2')).toEqual({ access: 'restricted', state: 'deleted' });
+    });
+
     it('leaves out unbound configurations', async () => {
       const credential = await givenCredential();
       await bind('dm-1', 'cfg-1', credential.id);
@@ -581,6 +594,30 @@ describe('SourceCredentialBindingService', () => {
       );
     });
 
+    const classified: CustomConnectorKeyModel = {
+      ...model(['api.acme.example']),
+      parameters: { ApiKey: { isRequired: true, label: 'API key', attributes: ['SECRET'] } },
+    };
+    const publicKey = () =>
+      givenCredential({
+        publicMetadata: {
+          hosts: ['api.acme.example'],
+          fieldList: [{ key: 'ApiKey', label: 'API key', secret: false }],
+          fields: {},
+        },
+      });
+
+    it('refuses a chosen Credential that keeps a SECRET key as a public field', async () => {
+      const credential = await publicKey();
+
+      const error = await rejection(check(credential.id, 'AcmeApi', {}, classified));
+
+      expect(error).toBeInstanceOf(BadRequestException);
+      expect(error.message).toBe(
+        'This Credential keeps API key as a public field; this connector needs it secret.'
+      );
+    });
+
     it('refuses a built-in Credential for a custom connector', async () => {
       const credential = await givenCredential({
         definitionId: 'github',
@@ -632,6 +669,12 @@ describe('SourceCredentialBindingService', () => {
           kept(credential.id, 'AcmeApi', {}, model(['api.acme.example']))
         ).resolves.toBeUndefined();
         expect(access.canAccess).not.toHaveBeenCalled();
+      });
+
+      it('keeps a Credential that holds a SECRET key as a public field', async () => {
+        const credential = await publicKey();
+
+        await expect(kept(credential.id, 'AcmeApi', {}, classified)).resolves.toBeUndefined();
       });
 
       it('leaves a deleted Credential to the run', async () => {

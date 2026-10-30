@@ -6,6 +6,10 @@ export class DataMartSourceCredentialApiDto {
   @ApiProperty({ description: 'The `_id` of the configuration item' })
   configId: string;
 
-  @ApiProperty({ type: StorageCredentialSummaryApiDto })
+  @ApiProperty({
+    type: StorageCredentialSummaryApiDto,
+    description:
+      "State 'deleted', with access 'restricted', once the configuration's Credential was deleted.",
+  })
   summary: StorageCredentialSummaryApiDto;
 }

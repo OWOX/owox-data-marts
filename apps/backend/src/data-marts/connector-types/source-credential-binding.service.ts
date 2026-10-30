@@ -18,6 +18,7 @@ import { AccessDecisionService } from '../services/access-decision';
 import { GoogleOAuthConfigService } from '../services/google-oauth/google-oauth-config.service';
 import {
   customConnectorConfigRefusal,
+  type CustomConnectorFitOptions,
   type CustomConnectorKeyModel,
 } from './custom-connector-credential-fit';
 import { sourceBindingFor } from './source-credential-definitions';
@@ -26,7 +27,7 @@ import {
   sourceCredentialRequirement,
 } from './source-credential-state';
 
-const UNSUITABLE = 'This Credential cannot be used with this connector.';
+export const CREDENTIAL_UNSUITABLE = 'This Credential cannot be used with this connector.';
 
 export const CREDENTIAL_NO_LONGER_FITS =
   "This Data Mart's Credential no longer fits its connector. Select a fitting Credential.";
@@ -173,7 +174,9 @@ export class SourceCredentialBindingService extends ConsumerCredentialBindingSer
       ...input,
       type: SOURCE_BINDING_CONSUMER_TYPE,
     });
-    const refusal = configRefusal(credential, input.connectorName, input.config, input.model);
+    const refusal = configRefusal(credential, input.connectorName, input.config, input.model, {
+      classification: true,
+    });
     if (refusal) throw new BadRequestException(refusal);
   }
 
@@ -194,11 +197,13 @@ export class SourceCredentialBindingService extends ConsumerCredentialBindingSer
     if (!credential) return;
     const refusal = configRefusal(credential, input.connectorName, input.config, input.model);
     if (refusal) {
-      throw new BadRequestException(refusal === UNSUITABLE ? CREDENTIAL_NO_LONGER_FITS : refusal);
+      throw new BadRequestException(
+        refusal === CREDENTIAL_UNSUITABLE ? CREDENTIAL_NO_LONGER_FITS : refusal
+      );
     }
   }
 
-  /** Each bound configuration's Credential as the member sees it, by configuration id. */
+  /** Each bound configuration's Credential as the member sees it, by configuration id; a deleted one is restricted. */
   async summarizeForDataMart(input: {
     projectId: string;
     userId: string;
@@ -206,14 +211,20 @@ export class SourceCredentialBindingService extends ConsumerCredentialBindingSer
     dataMartId: string;
   }): Promise<ReadonlyMap<string, CredentialConsumerSummary>> {
     const bound = await this.configBindings(input.projectId, input.dataMartId);
-    return this.summarizeBound(
-      input,
-      bound.map(({ requirementKey, credential }) => ({
-        key: requirementKey,
-        credential,
-        type: SOURCE_BINDING_CONSUMER_TYPE,
-      }))
+    const summaries = new Map(
+      await this.summarizeBound(
+        input,
+        bound.map(({ requirementKey, credential }) => ({
+          key: requirementKey,
+          credential,
+          type: SOURCE_BINDING_CONSUMER_TYPE,
+        }))
+      )
     );
+    for (const { requirementKey, credential } of bound) {
+      if (!credential) summaries.set(requirementKey, { access: 'restricted', state: 'deleted' });
+    }
+    return summaries;
   }
 
   boundCredentialGone(): Error {
@@ -240,15 +251,23 @@ function configRefusal(
   { definitionId, publicMetadata }: ResolvedConsumerCredential,
   connectorName: string,
   config: Record<string, unknown>,
-  model: CustomConnectorKeyModel | null
+  model: CustomConnectorKeyModel | null,
+  options?: CustomConnectorFitOptions
 ): string | null {
   if (model) {
-    const refusal = customConnectorConfigRefusal(model, { definitionId, publicMetadata }, config);
+    const refusal = customConnectorConfigRefusal(
+      model,
+      { definitionId, publicMetadata },
+      config,
+      options
+    );
     if (!refusal) return null;
-    return refusal.kind === 'misuse' ? refusal.message : UNSUITABLE;
+    return refusal.kind === 'misuse' || refusal.kind === 'secret'
+      ? refusal.message
+      : CREDENTIAL_UNSUITABLE;
   }
   const binding = sourceBindingFor(connectorName, definitionId);
-  if (!binding) return UNSUITABLE;
+  if (!binding) return CREDENTIAL_UNSUITABLE;
   // A variant path like ['AuthType', 'oauth2']; the configuration may select only that variant.
   const [parameter, variant] = binding.path;
   const selected = parameter === undefined ? undefined : config[parameter];
@@ -256,5 +275,5 @@ function configRefusal(
     typeof selected === 'object' &&
     selected !== null &&
     Object.keys(selected).some(key => key !== variant);
-  return otherVariant ? UNSUITABLE : null;
+  return otherVariant ? CREDENTIAL_UNSUITABLE : null;
 }

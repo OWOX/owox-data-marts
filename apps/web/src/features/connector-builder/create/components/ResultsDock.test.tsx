@@ -81,7 +81,7 @@ describe('ResultsDock test with a Credential', () => {
 
   it('a test with a Credential sends credentialId and no key values', async () => {
     vi.spyOn(ConnectorBuilderApiService.prototype, 'fittingCredentials').mockResolvedValue([
-      { id: 'c1', title: 'Key', hosts: [], fieldKeys: [] },
+      { id: 'c1', title: 'Key', hosts: [], fieldKeys: [], refusal: null },
     ]);
     vi.spyOn(ConnectorBuilderApiService.prototype, 'credentialRequirement').mockResolvedValue({
       hosts: ['api.example.com'],
@@ -118,7 +118,7 @@ describe('ResultsDock test with a Credential', () => {
 
   it('runs from the dock with the chosen Credential after the settings close', async () => {
     vi.spyOn(ConnectorBuilderApiService.prototype, 'fittingCredentials').mockResolvedValue([
-      { id: 'c1', title: 'Key', hosts: [], fieldKeys: [] },
+      { id: 'c1', title: 'Key', hosts: [], fieldKeys: [], refusal: null },
     ]);
     vi.spyOn(ConnectorBuilderApiService.prototype, 'credentialRequirement').mockResolvedValue({
       hosts: [],
@@ -155,7 +155,7 @@ describe('ResultsDock test with a Credential', () => {
     expect(builderTests()).toEqual([expect.objectContaining({ action: 'credential' })]);
   });
 
-  const item = (id: string) => ({ id, title: id, hosts: [], fieldKeys: [] });
+  const item = (id: string) => ({ id, title: id, hosts: [], fieldKeys: [], refusal: null });
   const renderDockWithLists = (...lists: string[][]) => {
     const fitting = vi.spyOn(ConnectorBuilderApiService.prototype, 'fittingCredentials');
     lists.forEach((ids, index) => {

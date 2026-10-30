@@ -324,7 +324,13 @@ export class ConnectorDefinitionMapper {
   toFittingCredentialsApiResponse(
     items: FittingCustomConnectorCredentialDto[]
   ): FittingCustomConnectorCredentialResponseApiDto[] {
-    return items.map(({ id, title, hosts, fieldKeys }) => ({ id, title, hosts, fieldKeys }));
+    return items.map(({ id, title, hosts, fieldKeys, refusal }) => ({
+      id,
+      title,
+      hosts,
+      fieldKeys,
+      refusal,
+    }));
   }
 
   toCredentialRequirementApiResponse(

@@ -89,7 +89,7 @@ describe('TestSettingsPanel', () => {
     const control = (overrides = {}) => ({
       mode: 'values' as const,
       onModeChange: vi.fn(),
-      state: { status: 'ready' as const, ids: ['c1', 'c2'], requirement },
+      state: { status: 'ready' as const, ids: ['c1', 'c2'], refusals: {}, requirement },
       onRetry: vi.fn(),
       value: null,
       onChange: vi.fn(),

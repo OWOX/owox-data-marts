@@ -17,6 +17,8 @@ import {
 import { ConnectorSourceCredentialsService } from './connector-source-credentials.service';
 import { ConnectorService } from './connector.service';
 import { ConnectorCredentialBoundaryError } from '../../errors/connector-credential-boundary.error';
+import { customConnectorConfigRefusal } from '../../connector-types/custom-connector-credential-fit';
+import { customConnectorKeyModel } from '../../connector-types/custom-connector-key-model';
 import { SourceCredentialUnavailableException } from '../../exceptions/source-credential-unavailable.exception';
 import type {
   ResolvedSourceCredential,
@@ -336,6 +338,40 @@ describe('SourceCredentialInjectorService', () => {
         },
         keyParameters: ['ClientId', 'ClientSecret', 'RefreshToken', 'GeneratedRefreshToken'],
         rotationLease: { credentialId: 'cred-1', leaseId: 'lease-1' },
+      });
+    });
+
+    it('runs a bound Credential that keeps a SECRET key as a public field', async () => {
+      const { service, sourceCredentials } = createService();
+      const publicSecret = custom(
+        ['api.acme.example', 'oauth.acme.example'],
+        [
+          { key: 'ClientId', secret: false },
+          { key: 'ClientSecret', secret: false },
+          { key: 'RefreshToken', secret: true },
+        ],
+        { RefreshToken: 'refresh-token' },
+        { ClientId: 'client-id', ClientSecret: 'client-secret' }
+      );
+      (sourceCredentials.resolveForConfig as jest.Mock).mockResolvedValue(publicSecret);
+
+      const result = await resolveBound(service, { _id: 'cfg-1' }, 'AcmeApi', oauthManifest);
+
+      // Choosing it now is refused; the bound run is not.
+      expect(
+        customConnectorConfigRefusal(
+          customConnectorKeyModel(oauthManifest),
+          publicSecret,
+          {},
+          {
+            classification: true,
+          }
+        )
+      ).toMatchObject({ kind: 'secret' });
+      expect(result?.config).toMatchObject({
+        ClientId: 'client-id',
+        ClientSecret: 'client-secret',
+        RefreshToken: 'refresh-token',
       });
     });
 

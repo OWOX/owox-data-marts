@@ -44,7 +44,7 @@ export class DataMartResponseApiDto {
     type: [DataMartSourceCredentialApiDto],
     required: false,
     description:
-      'The Credential of each bound connector configuration, as the member sees it. A configuration whose Credential was deleted is left out.',
+      'The Credential of each bound connector configuration, as the member sees it. A configuration whose Credential was deleted is listed as restricted with state deleted.',
   })
   sourceCredentials?: DataMartSourceCredentialApiDto[];
 

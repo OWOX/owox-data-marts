@@ -20,11 +20,16 @@ const manifest = {
   },
 };
 
-const credential = (id: string, hosts: string[], definitionId = 'custom-connector') => ({
+const credential = (
+  id: string,
+  hosts: string[],
+  definitionId = 'custom-connector',
+  fieldList: object[] = [{ key: 'ApiKey' }]
+) => ({
   id,
   title: `Title ${id}`,
   definitionId,
-  publicMetadata: { hosts, fieldList: [{ key: 'ApiKey' }], fields: {} },
+  publicMetadata: { hosts, fieldList, fields: {} },
 });
 
 describe('ListFittingCustomConnectorCredentialsService', () => {
@@ -49,33 +54,66 @@ describe('ListFittingCustomConnectorCredentialsService', () => {
   const command = (query: object) =>
     new ListFittingCustomConnectorCredentialsCommand('proj', 'user', ['editor'], query);
 
-  it('lists only fitting Credentials the member can use, without values', async () => {
+  it('lists the Credentials the member can use with why they cannot be chosen, without values', async () => {
     const { service } = make(
       [
         credential('fit-ok', ['api.example.com']),
         credential('fit-denied', ['api.example.com']),
         credential('other-host', ['api.other.com']),
+        credential('public-key', ['api.example.com'], 'custom-connector', [
+          { key: 'ApiKey', label: 'Key', secret: false },
+        ]),
         credential('other-definition', ['api.example.com'], 'google-ads'),
       ],
-      ['fit-ok', 'other-host']
+      ['fit-ok', 'other-host', 'public-key', 'other-definition']
     );
 
     const result = await service.run(command({ manifest }));
 
     expect(result).toEqual([
-      { id: 'fit-ok', title: 'Title fit-ok', hosts: ['api.example.com'], fieldKeys: ['ApiKey'] },
+      {
+        id: 'fit-ok',
+        title: 'Title fit-ok',
+        hosts: ['api.example.com'],
+        fieldKeys: ['ApiKey'],
+        refusal: null,
+      },
+      {
+        id: 'other-host',
+        title: 'Title other-host',
+        hosts: ['api.other.com'],
+        fieldKeys: ['ApiKey'],
+        refusal: {
+          reason: 'unfit',
+          message: 'This Credential cannot be used with this connector.',
+        },
+      },
+      {
+        id: 'public-key',
+        title: 'Title public-key',
+        hosts: ['api.example.com'],
+        fieldKeys: ['ApiKey'],
+        refusal: {
+          reason: 'secret',
+          message: 'This Credential keeps Key as a public field; this connector needs it secret.',
+        },
+      },
     ]);
   });
 
-  it('asks access only about the fitting Credentials', async () => {
+  it('asks access only about custom connector Credentials', async () => {
     const { service, access } = make(
-      [credential('fit', ['api.example.com']), credential('unfit', ['api.other.com'])],
+      [
+        credential('fit', ['api.example.com']),
+        credential('unfit', ['api.other.com']),
+        credential('other-definition', ['api.example.com'], 'google-ads'),
+      ],
       ['fit']
     );
 
     await service.run(command({ manifest }));
 
-    expect(access.canAccessMany.mock.calls[0][3]).toEqual(['fit']);
+    expect(access.canAccessMany.mock.calls[0][3]).toEqual(['fit', 'unfit']);
   });
 
   it('describes what a new Credential must hold to fit', async () => {
