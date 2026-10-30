@@ -41,6 +41,13 @@ export type DataStorageConfigDto =
   | DatabricksConfigDto
   | DuckDbConfigDto;
 
+export type OwoxStorageLocation = 'US' | 'EU';
+
+export interface OwoxStorageDto {
+  location: OwoxStorageLocation;
+  datasetId: string;
+}
+
 export interface DataStorageResponseDto {
   id: string;
   title: string;
@@ -59,4 +66,6 @@ export interface DataStorageResponseDto {
   contexts?: ContextSummary[];
   /** DuckDB only: server-managed absolute path of the .duckdb file (read-only). */
   databasePath?: string;
+  /** Present only for an OWOX Storage. */
+  owoxStorage?: OwoxStorageDto;
 }

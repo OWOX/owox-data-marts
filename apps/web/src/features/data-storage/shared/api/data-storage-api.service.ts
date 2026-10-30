@@ -6,6 +6,7 @@ import type {
   DataStorageListResponseDto,
   DataStorageResponseDto,
   ListStorageResourcesResponseDto,
+  OwoxStorageLocation,
   PublishDataStorageDraftsResponseDto,
   StorageNamespaceNodeDto,
   StorageResourceFilter,
@@ -64,6 +65,14 @@ export class DataStorageApiService extends ApiService {
    */
   async createDataStorage(data: CreateDataStorageRequestDto): Promise<DataStorageResponseDto> {
     return this.post<DataStorageResponseDto>('', data);
+  }
+
+  async createOwoxStorage(data: {
+    title: string;
+    location: OwoxStorageLocation;
+    ownerIds?: string[];
+  }): Promise<DataStorageResponseDto> {
+    return this.post<DataStorageResponseDto>('/owox-storage', data);
   }
 
   /**

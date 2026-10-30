@@ -11,12 +11,16 @@ import { DataStorageStatus, DataStorageType } from '../model/types';
 import { Badge } from '@owox/ui/components/badge';
 import { useDuckDbStorageEnabled } from '../hooks/useDuckDbStorageEnabled';
 import { useActionLock } from '../../../../shared/hooks';
+import { useFlags } from '../../../../app/store/hooks';
+import { checkVisible } from '../../../../utils/check-visible';
+import { GoogleBigQueryIcon } from '../../../../shared';
 
 interface DataStorageTypeDialogProps {
   isOpen: boolean;
   onClose: () => void;
   onSelect: (type: DataStorageType) => Promise<void>;
   isCreatingDataStorage: boolean;
+  onSelectOwoxStorage?: () => void;
 }
 
 export const DataStorageTypeDialog = ({
@@ -24,9 +28,13 @@ export const DataStorageTypeDialog = ({
   onClose,
   onSelect,
   isCreatingDataStorage,
+  onSelectOwoxStorage,
 }: DataStorageTypeDialogProps) => {
   const duckDbEnabled = useDuckDbStorageEnabled();
   const { trigger, isLocked } = useActionLock(onSelect, 1000);
+  const { flags } = useFlags();
+  const showOwoxStorage =
+    !!onSelectOwoxStorage && checkVisible('OWOX_STORAGE_ENABLED', 'true', flags);
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -36,6 +44,22 @@ export const DataStorageTypeDialog = ({
           <DialogDescription>Choose the type of storage you want to create</DialogDescription>
         </DialogHeader>
         <div className='flex flex-col gap-4 py-4'>
+          {showOwoxStorage && (
+            <Button
+              variant='outline'
+              className='flex px-4 py-6 select-none'
+              onClick={onSelectOwoxStorage}
+              disabled={isCreatingDataStorage || isLocked}
+              onDoubleClick={e => {
+                e.preventDefault();
+              }}
+            >
+              <span className='flex flex-grow items-center gap-2'>
+                <GoogleBigQueryIcon size={24} />
+                <span className='font-medium'>OWOX Storage</span>
+              </span>
+            </Button>
+          )}
           {DataStorageTypeModel.getOfferedTypes(duckDbEnabled)
             .filter(typeInfo => typeInfo.status !== DataStorageStatus.LEGACY)
             .map(typeInfo => {
