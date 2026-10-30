@@ -1,5 +1,6 @@
 import type { DataStorageType } from './data-storage-type.enum.ts';
 import type { ContextSummary } from '../../../../contexts/types/context.types';
+import type { OwoxStorageDto } from '../../api/types/response/data-storage.response.dto.ts';
 import type { StorageCredentialSummary } from './data-storage.ts';
 
 export interface DataStorageListItem {
@@ -16,5 +17,6 @@ export interface DataStorageListItem {
   availableForMaintenance?: boolean;
   contexts?: ContextSummary[];
   reusableCredential?: StorageCredentialSummary | null;
+  owoxStorage?: OwoxStorageDto;
 }
 export type DataStorageList = DataStorageListItem[];
