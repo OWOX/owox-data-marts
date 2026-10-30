@@ -16,7 +16,10 @@ import {
   type CredentialConsumerState,
   type CredentialConsumerSummary,
 } from './credential-consumer-state';
-import { CredentialDefinitionService } from './credential-definition.service';
+import {
+  CredentialDefinitionService,
+  CredentialDefinitionUnavailableException,
+} from './credential-definition.service';
 import { CredentialGoogleOAuthService } from './credential-google-oauth.service';
 import { CredentialService } from './credential.service';
 
@@ -226,7 +229,14 @@ export abstract class ConsumerCredentialBindingService<TType extends string> {
     );
     const summaries = new Map<string, CredentialConsumerSummary>();
     for (const { key, credential, type } of live) {
-      const { contract } = await this.definitions.get(credential.definitionId);
+      let contract;
+      try {
+        ({ contract } = await this.definitions.get(credential.definitionId));
+      } catch (error) {
+        if (!(error instanceof CredentialDefinitionUnavailableException)) throw error;
+        summaries.set(key, { access: 'restricted', state: 'unavailable' });
+        continue;
+      }
       const state = credentialConsumerState(credential, contract, this.requirement(type).scopes);
       summaries.set(
         key,

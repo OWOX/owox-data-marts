@@ -8,6 +8,7 @@ const STATE_LABELS: Record<FailedState, string> = {
   'reconnect-required': 'Reconnect the Credential',
   'reauthorize-required': 'Reconnect the Credential to grant permissions',
   deleted: 'Credential deleted',
+  unavailable: 'Connector no longer installed',
 };
 
 // A member who cannot see the Credential cannot fix it, so the copy names who can.

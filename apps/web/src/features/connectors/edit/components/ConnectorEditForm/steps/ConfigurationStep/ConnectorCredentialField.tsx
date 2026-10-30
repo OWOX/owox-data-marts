@@ -19,6 +19,8 @@ import { useTestCredentials } from '../../../../../../connector-builder/shared/m
 const FIELD_ID = 'connectorCredential';
 const REASON_ID = `${FIELD_ID}-reason`;
 const DELETED = "This Data Mart's Credential was deleted. Select another Credential.";
+const UNAVAILABLE =
+  "This Data Mart's Credential belongs to a connector that is no longer installed. Select another Credential.";
 const NO_LONGER_FITS =
   "This Data Mart's Credential no longer fits its connector. Select a fitting Credential.";
 
@@ -102,8 +104,10 @@ export function ConnectorCredentialField({
   // A new pick comes from the fitting list, so only the kept Credential can be refused.
   const refusal = ready && value && value === keptCredentialId ? ready.refusals[value] : undefined;
   const deleted = summary?.state === 'deleted';
+  const unavailable = summary?.state === 'unavailable';
   let reason: string | undefined;
   if (deleted && !value) reason = DELETED;
+  else if (unavailable && !value) reason = UNAVAILABLE;
   else if (refusal) reason = refusal.reason === 'unfit' ? NO_LONGER_FITS : refusal.message;
 
   const variantOf = (definitionId: string | undefined) => {
@@ -137,8 +141,8 @@ export function ConnectorCredentialField({
             createdFrom='data-mart'
             isNew={isNew}
             value={value}
-            // A deleted Credential is not a restricted one: the field offers a new pick and the line below says why.
-            summary={deleted ? null : summary}
+            // A deleted or unavailable Credential is not a restricted one: the field offers a new pick and the line below says why.
+            summary={deleted || unavailable ? null : summary}
             aria-describedby={reason ? REASON_ID : undefined}
             allowedCredentialIds={ready?.ids}
             customConnectorPrefill={
