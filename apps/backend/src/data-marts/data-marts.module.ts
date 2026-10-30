@@ -112,6 +112,8 @@ import { DataMart } from './entities/data-mart.entity';
 import { DataMartBusinessOwner } from './entities/data-mart-business-owner.entity';
 import { DataMartTechnicalOwner } from './entities/data-mart-technical-owner.entity';
 import { StorageOwner } from './entities/storage-owner.entity';
+import { ManagedStorage } from './entities/managed-storage.entity';
+import { ManagedStorageService } from './owox-storage/managed-storage.service';
 import { DestinationOwner } from './entities/destination-owner.entity';
 import { ReportOwner } from './entities/report-owner.entity';
 import { DataStorage } from './entities/data-storage.entity';
@@ -542,6 +544,7 @@ import { ConsentCredentialDefinitionService } from './credentials/use-cases/cons
       DataMartBusinessOwner,
       DataMartTechnicalOwner,
       StorageOwner,
+      ManagedStorage,
       DestinationOwner,
       ReportOwner,
       DataStorage,
@@ -640,6 +643,7 @@ import { ConsentCredentialDefinitionService } from './credentials/use-cases/cons
     CredentialsController,
   ],
   providers: [
+    ManagedStorageService,
     CredentialConsumerBindingFacadeImpl,
     {
       provide: CREDENTIAL_CONSUMER_BINDING_FACADE,
