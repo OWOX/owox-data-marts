@@ -77,4 +77,6 @@ export interface FittingCustomConnectorCredentialDto {
   readonly title: string;
   readonly hosts: string[];
   readonly fieldKeys: string[];
+  /** Why the Credential is not offered; null when it fits. */
+  readonly refusal: { reason: 'unfit' | 'misuse' | 'secret'; message: string } | null;
 }

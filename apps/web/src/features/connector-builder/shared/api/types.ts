@@ -84,11 +84,19 @@ export interface CredentialRequirementDto {
 }
 
 /** A Credential that fits, without its values. */
+/** Why a listed Credential cannot be chosen for the manifest. */
+export interface FittingCredentialRefusal {
+  reason: 'unfit' | 'misuse' | 'secret';
+  message: string;
+}
+
 export interface FittingCredentialDto {
   id: string;
   title: string;
   hosts: string[];
   fieldKeys: string[];
+  /** Null when it fits. */
+  refusal: FittingCredentialRefusal | null;
 }
 
 export interface TestConnectorPayload {

@@ -810,8 +810,11 @@ describe('Custom Connector (e2e)', () => {
 
   describe('POST /connectors/custom/fitting-credentials', () => {
     const FIT_MANIFEST = { ...BASIC_MANIFEST, name: 'FitApi', baseUrl: 'https://fit.example.com' };
+    const fittingIds = (body: { id: string; refusal: unknown }[]) =>
+      body.filter(item => item.refusal === null).map(item => item.id);
+    const listed = (body: { id: string }[], id: string) => body.find(item => item.id === id);
 
-    it('lists only fitting Credentials the caller can use, without values', async () => {
+    it('lists the Credentials the caller can use, refused ones with their reason, without values', async () => {
       const adminOnly = await basicCredential({ host: 'fit.example.com' });
       const editorOwned = await basicCredential({ host: 'fit.example.com', ownerIds: ['1'] });
       const otherHost = await basicCredential({ host: 'elsewhere.example.com', ownerIds: ['1'] });
@@ -830,16 +833,24 @@ describe('Custom Connector (e2e)', () => {
         .send({ manifest: FIT_MANIFEST });
 
       expect(asAdmin.status).toBe(201);
-      const adminIds = asAdmin.body.map((item: { id: string }) => item.id);
+      const adminIds = fittingIds(asAdmin.body);
       expect(adminIds).toEqual(expect.arrayContaining([adminOnly, editorOwned]));
       expect(adminIds).not.toContain(otherHost);
-      expect(adminIds).not.toContain(disabled);
-      expect(asEditor.body.map((item: { id: string }) => item.id)).toEqual([editorOwned]);
-      expect(asEditor.body[0]).toEqual({
+      expect(listed(asAdmin.body, disabled)).toBeUndefined();
+      expect(fittingIds(asEditor.body)).toEqual([editorOwned]);
+      expect(listed(asEditor.body, adminOnly)).toBeUndefined();
+      expect(listed(asEditor.body, editorOwned)).toEqual({
         id: editorOwned,
         title: expect.any(String),
         hosts: ['fit.example.com'],
         fieldKeys: ['Username', 'Password'],
+        refusal: null,
+      });
+      expect(listed(asEditor.body, otherHost)).toMatchObject({
+        refusal: {
+          reason: 'unfit',
+          message: 'This Credential cannot be used with this connector.',
+        },
       });
       for (const value of [USERNAME, PASSWORD]) {
         expect(JSON.stringify(asAdmin.body)).not.toContain(value);
@@ -855,7 +866,7 @@ describe('Custom Connector (e2e)', () => {
         .send({ manifest: SELECTIVE_MANIFEST, selection: '' });
 
       expect(res.status).toBe(201);
-      expect(res.body.map((item: { id: string }) => item.id)).toContain(credentialId);
+      expect(fittingIds(res.body)).toContain(credentialId);
     });
 
     it('resolves the manifest of a published connector by name', async () => {
@@ -885,7 +896,7 @@ describe('Custom Connector (e2e)', () => {
         .send({ connectorName, version: 1 });
 
       expect(res.status).toBe(201);
-      expect(res.body.map((item: { id: string }) => item.id)).toEqual([fitting]);
+      expect(fittingIds(res.body)).toEqual([fitting]);
     });
 
     it('fitting with a node ignores a broken sibling node', async () => {
@@ -907,7 +918,7 @@ describe('Custom Connector (e2e)', () => {
         .send({ manifest });
 
       expect(withNode.status).toBe(201);
-      expect(withNode.body.map((item: { id: string }) => item.id)).toEqual([fitting]);
+      expect(fittingIds(withNode.body)).toEqual([fitting]);
       expect(whole.status).toBe(400);
       expect(whole.body.message).toContain('Invalid manifest');
     });

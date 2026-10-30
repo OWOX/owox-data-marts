@@ -10,7 +10,12 @@ import { CUSTOM_CONNECTOR_DEFINITION_ID } from './source-credential-definitions'
 
 export interface CustomConnectorFit {
   readonly fits: boolean;
-  readonly reasons: readonly ('host' | 'field' | 'misuse')[];
+  readonly reasons: readonly ('host' | 'field' | 'misuse' | 'secret')[];
+}
+
+export interface CustomConnectorFitOptions {
+  /** Also refuse a SECRET key the Credential keeps as a public field; only when a Credential is chosen. */
+  readonly classification?: boolean;
 }
 
 /** What `ManifestParser.parse()` reports about a manifest's keys and hosts. */
@@ -69,6 +74,23 @@ export function selectedKeyParameters(
 const isRequired = (model: CustomConnectorKeyModel, key: string) =>
   model.parameters[key]?.isRequired === true;
 
+const isSecret = (model: CustomConnectorKeyModel, key: string) =>
+  model.parameters[key]?.attributes?.includes(Core.CONFIG_ATTRIBUTES.SECRET) === true;
+
+/** The first selected key the manifest marks SECRET that the Credential keeps as a public field. */
+function publicSecretKey(
+  model: CustomConnectorKeyModel,
+  metadata: CustomConnectorPublicMetadata,
+  selection?: string
+): string | undefined {
+  const publicKeys = new Set(
+    metadata.fieldList.filter(field => field.secret === false).map(field => field.key)
+  );
+  return selectedKeyParameters(model, selection)?.find(
+    key => isSecret(model, key) && publicKeys.has(key)
+  );
+}
+
 /** What fits the model for `selection`, read the way `fitCustomConnectorCredential` reads it. */
 export function customConnectorCredentialRequirement(
   model: CustomConnectorKeyModel,
@@ -83,7 +105,7 @@ export function customConnectorCredentialRequirement(
       .map(key => ({
         key,
         label: model.parameters[key]?.label ?? key,
-        secret: model.parameters[key]?.attributes?.includes(Core.CONFIG_ATTRIBUTES.SECRET) === true,
+        secret: isSecret(model, key),
         required: isRequired(model, key),
       })),
     keyParameters: [...model.keyParameters],
@@ -96,9 +118,10 @@ export function customConnectorCredentialRequirement(
 export function fitCustomConnectorCredential(
   model: CustomConnectorKeyModel,
   metadata: CustomConnectorPublicMetadata,
-  selection?: string
+  selection?: string,
+  options?: CustomConnectorFitOptions
 ): CustomConnectorFit {
-  const reasons: ('host' | 'field' | 'misuse')[] = [];
+  const reasons: ('host' | 'field' | 'misuse' | 'secret')[] = [];
   const hosts = new Set(metadata.hosts.map(host => host.toLowerCase()));
   if (!model.allowedHosts.every(host => hosts.has(host.toLowerCase()))) reasons.push('host');
 
@@ -110,19 +133,24 @@ export function fitCustomConnectorCredential(
   }
 
   if (model.keyParameterMisuse.length > 0) reasons.push('misuse');
+  if (options?.classification && publicSecretKey(model, metadata, selection) !== undefined) {
+    reasons.push('secret');
+  }
   return { fits: reasons.length === 0, reasons };
 }
 
 export type CustomConnectorRefusal =
   | { kind: 'other-definition' }
   | { kind: 'misuse'; message: string }
-  | { kind: 'unfit' };
+  | { kind: 'unfit' }
+  | { kind: 'secret'; message: string };
 
 /** Why a Credential cannot run the manifest for `selection`; null when it fits. */
 export function customConnectorRefusal(
   model: CustomConnectorKeyModel,
   credential: { definitionId: string; publicMetadata: CredentialPublicMetadata | null },
-  selection?: string
+  selection?: string,
+  options?: CustomConnectorFitOptions
 ): CustomConnectorRefusal | null {
   const { definitionId, publicMetadata } = credential;
   if (
@@ -131,20 +159,28 @@ export function customConnectorRefusal(
   ) {
     return { kind: 'other-definition' };
   }
-  const fit = fitCustomConnectorCredential(model, publicMetadata, selection);
+  const fit = fitCustomConnectorCredential(model, publicMetadata, selection, options);
   if (fit.fits) return null;
   // No Credential fits a manifest that misuses a key parameter, so the refusal names the misuse.
-  return fit.reasons.includes('misuse')
-    ? { kind: 'misuse', message: describeKeyParameterMisuse(model.keyParameterMisuse[0]) }
-    : { kind: 'unfit' };
+  if (fit.reasons.includes('misuse')) {
+    return { kind: 'misuse', message: describeKeyParameterMisuse(model.keyParameterMisuse[0]) };
+  }
+  if (fit.reasons.includes('host') || fit.reasons.includes('field')) return { kind: 'unfit' };
+  // Only 'secret' is left, so a key is found.
+  const key = publicSecretKey(model, publicMetadata, selection)!;
+  return {
+    kind: 'secret',
+    message: `This Credential keeps ${model.parameters[key]?.label ?? key} as a public field; this connector needs it secret.`,
+  };
 }
 
 /** `customConnectorRefusal` for the branch a configuration selects. */
 export const customConnectorConfigRefusal = (
   model: CustomConnectorKeyModel,
   credential: { definitionId: string; publicMetadata: CredentialPublicMetadata | null },
-  config: Readonly<Record<string, unknown>>
-) => customConnectorRefusal(model, credential, selectionOf(model, config));
+  config: Readonly<Record<string, unknown>>,
+  options?: CustomConnectorFitOptions
+) => customConnectorRefusal(model, credential, selectionOf(model, config), options);
 
 /** The engine's own wording for a key parameter used where no request is built. */
 export function describeKeyParameterMisuse({

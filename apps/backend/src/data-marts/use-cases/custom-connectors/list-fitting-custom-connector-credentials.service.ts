@@ -7,6 +7,7 @@ import {
   type CustomConnectorKeyModel,
 } from '../../connector-types/custom-connector-credential-fit';
 import { customConnectorKeyModel } from '../../connector-types/custom-connector-key-model';
+import { CREDENTIAL_UNSUITABLE } from '../../connector-types/source-credential-binding.service';
 import { isCustomConnectorMetadata } from '../../credentials/credential.types';
 import { CredentialService } from '../../credentials/services/credential.service';
 import {
@@ -18,7 +19,7 @@ import { AccessDecisionService, Action, EntityType } from '../../services/access
 import { ConnectorDefinitionService } from '../../services/connector/connector-definition.service';
 import { ConnectorTestService } from '../../services/connector/connector-test.service';
 
-/** The enabled custom connector Credentials the member can use that fit a manifest, without values. */
+/** The enabled custom connector Credentials the member can use, each with why it cannot be chosen, without values. */
 @Injectable()
 export class ListFittingCustomConnectorCredentialsService {
   constructor(
@@ -33,33 +34,38 @@ export class ListFittingCustomConnectorCredentialsService {
   ): Promise<FittingCustomConnectorCredentialDto[]> {
     const { projectId, userId, roles, query } = command;
     const { model, selection } = await this.keyModelOf(projectId, query);
-    const fitting = (await this.credentials.listEnabledCustomConnectorPublic(projectId)).flatMap(
+    const listed = (await this.credentials.listEnabledCustomConnectorPublic(projectId)).flatMap(
       credential => {
         const metadata = credential.publicMetadata ?? null;
-        return customConnectorRefusal(
+        if (!isCustomConnectorMetadata(metadata)) return [];
+        const refusal = customConnectorRefusal(
           model,
           { definitionId: credential.definitionId, publicMetadata: metadata },
-          selection
-        ) === null && isCustomConnectorMetadata(metadata)
-          ? [{ credential, metadata }]
-          : [];
+          selection,
+          { classification: true }
+        );
+        return refusal?.kind === 'other-definition' ? [] : [{ credential, metadata, refusal }];
       }
     );
     const canUse = await this.access.canAccessMany(
       userId,
       roles,
       EntityType.CREDENTIAL,
-      fitting.map(({ credential }) => credential.id),
+      listed.map(({ credential }) => credential.id),
       Action.USE,
       projectId
     );
-    return fitting
+    return listed
       .filter(({ credential }) => canUse.get(credential.id) === true)
-      .map(({ credential, metadata }) => ({
+      .map(({ credential, metadata, refusal }) => ({
         id: credential.id,
         title: credential.title,
         hosts: [...metadata.hosts],
         fieldKeys: metadata.fieldList.map(field => field.key),
+        refusal: refusal && {
+          reason: refusal.kind,
+          message: refusal.kind === 'unfit' ? CREDENTIAL_UNSUITABLE : refusal.message,
+        },
       }));
   }
 

@@ -93,7 +93,9 @@ export type CredentialState =
   | 'disabled'
   | 'not-configured'
   | 'reconnect-required'
-  | 'reauthorize-required';
+  | 'reauthorize-required'
+  // Only a Data Mart configuration whose Credential was deleted; Storages and Destinations never report it.
+  | 'deleted';
 
 /** The Credential a Storage or Destination uses, as the member sees it. */
 export type CredentialSummary =

@@ -191,6 +191,14 @@ export class ConnectorTestResultResponseApiDto {
   sample: Record<string, unknown>[];
 }
 
+export class FittingCustomConnectorCredentialRefusalApiDto {
+  @ApiProperty({ enum: ['unfit', 'misuse', 'secret'] })
+  reason: 'unfit' | 'misuse' | 'secret';
+
+  @ApiProperty({ description: 'Copy the UI can show.' })
+  message: string;
+}
+
 export class FittingCustomConnectorCredentialResponseApiDto {
   @ApiProperty()
   id: string;
@@ -203,6 +211,13 @@ export class FittingCustomConnectorCredentialResponseApiDto {
 
   @ApiProperty({ type: [String], description: 'Parameter names the Credential holds values for.' })
   fieldKeys: string[];
+
+  @ApiProperty({
+    type: FittingCustomConnectorCredentialRefusalApiDto,
+    nullable: true,
+    description: 'Why the Credential cannot be chosen for the manifest; null when it fits.',
+  })
+  refusal: FittingCustomConnectorCredentialRefusalApiDto | null;
 }
 
 export class CustomConnectorRequirementFieldResponseApiDto extends OmitType(

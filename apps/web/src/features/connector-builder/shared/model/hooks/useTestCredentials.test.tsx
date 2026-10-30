@@ -18,7 +18,7 @@ describe('useTestCredentials', () => {
   it('lists the fitting Credentials of the manifest in the editor, once typing pauses', async () => {
     const fitting = vi
       .spyOn(ConnectorBuilderApiService.prototype, 'fittingCredentials')
-      .mockResolvedValue([{ id: 'c1', title: 'Key', hosts: [], fieldKeys: [] }]);
+      .mockResolvedValue([{ id: 'c1', title: 'Key', hosts: [], fieldKeys: [], refusal: null }]);
     vi.spyOn(ConnectorBuilderApiService.prototype, 'credentialRequirement').mockResolvedValue(
       requirement
     );
@@ -34,7 +34,12 @@ describe('useTestCredentials', () => {
       await vi.advanceTimersByTimeAsync(600);
     });
     await waitFor(() => {
-      expect(result.current.state).toEqual({ status: 'ready', ids: ['c1'], requirement });
+      expect(result.current.state).toEqual({
+        status: 'ready',
+        ids: ['c1'],
+        refusals: {},
+        requirement,
+      });
     });
     expect(fitting).toHaveBeenCalledTimes(1);
     expect(fitting).toHaveBeenCalledWith({
@@ -64,9 +69,37 @@ describe('useTestCredentials', () => {
       result.current.retry();
     });
     await waitFor(() => {
-      expect(result.current.state).toEqual({ status: 'ready', ids: [], requirement });
+      expect(result.current.state).toEqual({ status: 'ready', ids: [], refusals: {}, requirement });
     });
     expect(fitting).toHaveBeenCalledTimes(2);
+  });
+
+  it('offers only the fitting Credentials and keeps why the others are refused', async () => {
+    const secret = {
+      reason: 'secret' as const,
+      message: 'This Credential keeps Token as a public field; this connector needs it secret.',
+    };
+    vi.spyOn(ConnectorBuilderApiService.prototype, 'fittingCredentials').mockResolvedValue([
+      { id: 'refused', title: 'Public', hosts: [], fieldKeys: [], refusal: secret },
+      { id: 'fits', title: 'Key', hosts: [], fieldKeys: [], refusal: null },
+    ]);
+    vi.spyOn(ConnectorBuilderApiService.prototype, 'credentialRequirement').mockResolvedValue(
+      requirement
+    );
+    const { result } = renderHook(() =>
+      useTestCredentials({ manifest: createEmptyManifest(), node: 'items' })
+    );
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(600);
+    });
+    await waitFor(() => {
+      expect(result.current.state).toEqual({
+        status: 'ready',
+        ids: ['fits'],
+        refusals: { refused: secret },
+        requirement,
+      });
+    });
   });
 
   it('asks nothing without a query', () => {

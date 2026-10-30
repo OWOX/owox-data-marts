@@ -17,6 +17,10 @@ import type {
 import { useTestCredentials } from '../../../../../../connector-builder/shared/model/hooks/useTestCredentials';
 
 const FIELD_ID = 'connectorCredential';
+const REASON_ID = `${FIELD_ID}-reason`;
+const DELETED = "This Data Mart's Credential was deleted. Select another Credential.";
+const NO_LONGER_FITS =
+  "This Data Mart's Credential no longer fits its connector. Select a fitting Credential.";
 
 interface ConnectorCredentialFieldProps {
   connectorName: string;
@@ -95,6 +99,13 @@ export function ConnectorCredentialField({
   // A new configuration picks its only fitting Credential once, from the complete list.
   if (fitting && fit.status === 'loading') return null;
 
+  // A new pick comes from the fitting list, so only the kept Credential can be refused.
+  const refusal = ready && value && value === keptCredentialId ? ready.refusals[value] : undefined;
+  const deleted = summary?.state === 'deleted';
+  let reason: string | undefined;
+  if (deleted && !value) reason = DELETED;
+  else if (refusal) reason = refusal.reason === 'unfit' ? NO_LONGER_FITS : refusal.message;
+
   const variantOf = (definitionId: string | undefined) => {
     if (!definitionId) return undefined;
     return (
@@ -126,7 +137,9 @@ export function ConnectorCredentialField({
             createdFrom='data-mart'
             isNew={isNew}
             value={value}
-            summary={summary}
+            // A deleted Credential is not a restricted one: the field offers a new pick and the line below says why.
+            summary={deleted ? null : summary}
+            aria-describedby={reason ? REASON_ID : undefined}
             allowedCredentialIds={ready?.ids}
             customConnectorPrefill={
               ready
@@ -153,6 +166,11 @@ export function ConnectorCredentialField({
       {onOldKey && (
         <p className='text-muted-foreground text-sm'>
           Uses its own key until you select a Credential
+        </p>
+      )}
+      {reason && (
+        <p id={REASON_ID} className='text-destructive text-sm'>
+          {reason}
         </p>
       )}
       {children}
