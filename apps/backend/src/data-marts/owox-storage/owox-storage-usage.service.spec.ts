@@ -79,6 +79,12 @@ describe('OwoxStorageUsageService', () => {
       ).resolves.toMatchObject({ limitBytes: 5 * GIB });
     });
 
+    it('throws when the plan cannot be read', async () => {
+      plans.planFor.mockResolvedValue(null);
+
+      await expect(service.getUsage(record)).rejects.toThrow();
+    });
+
     it('propagates a failed read', async () => {
       engine.listTables.mockRejectedValue(new Error('Access Denied'));
 
@@ -87,6 +93,15 @@ describe('OwoxStorageUsageService', () => {
   });
 
   describe('assertCanLoad', () => {
+    it('lets the run go when the plan cannot be read', async () => {
+      plans.planFor.mockResolvedValue(null);
+
+      await expect(service.assertCanLoad('s1')).resolves.toBeUndefined();
+      expect(engine.listTables).not.toHaveBeenCalled();
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(warn.mock.calls[0][0]).not.toContain('@');
+    });
+
     it('does nothing for a storage without a record', async () => {
       managed.findByStorageId.mockResolvedValue(null);
 
