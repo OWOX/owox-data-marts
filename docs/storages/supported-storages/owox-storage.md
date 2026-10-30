@@ -56,20 +56,20 @@ The limit resets at midnight Pacific Time. When a project has used it, queries f
 
 ## Storage size
 
-Each OWOX Storage has a size limit.
+On the Free plan, each OWOX Storage has a size limit.
 
 | Project plan | Size |
 | --- | --- |
 | Free | 1 GiB |
 | Paid | 10 GiB included |
 
-When a Free storage reaches its limit, new connector runs are refused. They show as RESTRICTED in Run History with the message "This project's OWOX Storage has reached its size limit. Delete tables in the storage or upgrade the plan to load more data." Delete tables or upgrade the plan to load data again.
+When a Free storage reaches its limit, new connector runs are refused. They show as RESTRICTED in Run History with the message "This project's OWOX Storage has reached its size limit. Delete tables in the storage or upgrade the plan to load more data."
 
 Reads, reports and table deletion keep working when the storage is full.
 
 A connector run that has already started is not stopped, so usage can end above the limit.
 
-A Paid storage is never stopped for its size.
+A Paid storage is never stopped for its size. A project with an unpaid subscription gets the Free size limit.
 
 ## Usage and tables
 
@@ -78,7 +78,7 @@ Open **Storages**, then open the OWOX Storage. The **Usage and Tables** section 
 - **Usage**: "`<used>` of `<limit>` used" on the Free plan, or "`<used>` used, `<included>` included" on the Paid plan. A full Free storage also shows the warning "This storage is full. New connector runs are refused until you delete tables or upgrade the plan."
 - **Tables**: a list of the tables in the storage's dataset with their **Table**, **Rows** and **Size**. Sizes are read live.
 
-To delete a table, click its delete button and confirm.
+To delete a table, click its delete button and confirm. A connector that loads incrementally continues from its last loaded date, so running it again after a delete does not bring back the deleted rows.
 
 > ⚠️ A deleted table cannot be restored. Data Marts that read the table fail until a connector loads it again.
 
