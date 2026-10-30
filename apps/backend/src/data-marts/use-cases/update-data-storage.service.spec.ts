@@ -331,8 +331,20 @@ describe('UpdateDataStorageService - reusableCredentialId', () => {
     const { service, credentialsResolver, storageCredentials, dataStorageAccessFacade } =
       makeService();
     storageCredentials.resolveForStorage.mockResolvedValue(null);
+    const command = new UpdateDataStorageCommand(
+      storageId,
+      projectId,
+      { projectId: 'my-valid-project-1', location: 'US' } as never,
+      'New title',
+      undefined,
+      false,
+      false,
+      undefined,
+      'user-1',
+      ['editor']
+    );
 
-    await service.run(makeCommand());
+    await service.run(command);
 
     expect(credentialsResolver.resolveCredential).not.toHaveBeenCalled();
     expect(dataStorageAccessFacade.verifyAccess).toHaveBeenCalledWith(
@@ -750,12 +762,26 @@ describe('UpdateDataStorageService - OWOX Storage', () => {
     const { service, storage, dataStorageRepository, dataStorageAccessFacade, storageCredentials } =
       managedService();
     storageCredentials.resolveForStorage.mockResolvedValue(null);
+    const command = new UpdateDataStorageCommand(
+      storageId,
+      projectId,
+      { projectId: 'my-valid-project-1', location: 'US' } as never,
+      'New title',
+      undefined,
+      false,
+      false,
+      undefined,
+      'user-1',
+      ['editor']
+    );
 
-    await service.run(makeCommand());
+    await service.run(command);
 
     expect(dataStorageAccessFacade.verifyAccess).not.toHaveBeenCalled();
     expect(storageCredentials.resolveForStorage).not.toHaveBeenCalled();
-    expect(dataStorageRepository.save).toHaveBeenCalledWith(storage);
+    expect(dataStorageRepository.save).toHaveBeenCalledWith(
+      expect.objectContaining({ id: storage.id, title: 'New title' })
+    );
   });
 
   it('refuses a Credential on an OWOX Storage', async () => {
