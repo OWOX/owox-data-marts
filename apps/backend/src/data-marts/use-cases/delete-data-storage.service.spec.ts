@@ -2,12 +2,15 @@ jest.mock('typeorm-transactional', () => ({
   Transactional: () => () => undefined,
 }));
 
+import { Logger } from '@nestjs/common';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
 import { DeleteDataStorageCommand } from '../dto/domain/delete-data-storage.command';
 import { DeleteDataStorageService } from './delete-data-storage.service';
 
-function makeService(dataMarts: unknown[] = []) {
+const record = { storageId: 'storage-1', datasetId: 'owox_abc' };
+
+function makeService(dataMarts: unknown[] = [], managed: unknown = null) {
   const dataStorageRepository = { softDelete: jest.fn().mockResolvedValue(undefined) };
   const dataStorageService = {
     getByProjectIdAndId: jest
@@ -17,14 +20,21 @@ function makeService(dataMarts: unknown[] = []) {
   const dataMartService = { findByStorage: jest.fn().mockResolvedValue(dataMarts) };
   const accessDecisionService = { canAccess: jest.fn().mockResolvedValue(true) };
   const storageCredentials = { deactivateStorage: jest.fn().mockResolvedValue(undefined) };
+  const managedStorages = {
+    findByStorageId: jest.fn().mockResolvedValue(managed),
+    remove: jest.fn().mockResolvedValue(undefined),
+  };
+  const engine = { deprovision: jest.fn().mockResolvedValue(undefined) };
   const service = new DeleteDataStorageService(
     dataStorageRepository as never,
     dataStorageService as never,
     dataMartService as never,
     accessDecisionService as never,
-    storageCredentials as never
+    storageCredentials as never,
+    managedStorages as never,
+    engine as never
   );
-  return { service, dataStorageRepository, storageCredentials };
+  return { service, dataStorageRepository, storageCredentials, managedStorages, engine };
 }
 
 const command = new DeleteDataStorageCommand('storage-1', 'proj-1', 'user-1', ['editor']);
@@ -47,5 +57,40 @@ describe('DeleteDataStorageService', () => {
 
     await expect(service.run(command)).rejects.toThrow(BusinessViolationException);
     expect(storageCredentials.deactivateStorage).not.toHaveBeenCalled();
+  });
+
+  it('deprovisions an OWOX Storage, then soft-deletes it and its record', async () => {
+    const { service, dataStorageRepository, managedStorages, engine } = makeService([], record);
+
+    await service.run(command);
+
+    expect(engine.deprovision).toHaveBeenCalledWith(record);
+    expect(dataStorageRepository.softDelete).toHaveBeenCalled();
+    expect(managedStorages.remove).toHaveBeenCalledWith('storage-1');
+    expect(engine.deprovision.mock.invocationCallOrder[0]).toBeLessThan(
+      dataStorageRepository.softDelete.mock.invocationCallOrder[0]
+    );
+  });
+
+  it('refuses an OWOX Storage used by Data Marts without deprovisioning', async () => {
+    const { service, engine, managedStorages } = makeService([{ id: 'mart-1' }], record);
+
+    await expect(service.run(command)).rejects.toThrow(BusinessViolationException);
+    expect(engine.deprovision).not.toHaveBeenCalled();
+    expect(managedStorages.remove).not.toHaveBeenCalled();
+  });
+
+  it('keeps the storage when deprovisioning fails', async () => {
+    const { service, engine, dataStorageRepository, storageCredentials, managedStorages } =
+      makeService([], record);
+    engine.deprovision.mockRejectedValue(new Error('boom'));
+    jest.spyOn(Logger.prototype, 'error').mockImplementation();
+
+    await expect(service.run(command)).rejects.toThrow(
+      'OWOX Storage could not be deleted. Try again later.'
+    );
+    expect(dataStorageRepository.softDelete).not.toHaveBeenCalled();
+    expect(storageCredentials.deactivateStorage).not.toHaveBeenCalled();
+    expect(managedStorages.remove).not.toHaveBeenCalled();
   });
 });
