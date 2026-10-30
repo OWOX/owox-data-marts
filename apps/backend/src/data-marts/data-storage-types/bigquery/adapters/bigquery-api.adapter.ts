@@ -2,7 +2,11 @@ import { BigQuery, Job, Query, Table, TableSchema } from '@google-cloud/bigquery
 import { Logger } from '@nestjs/common';
 import { JWT, OAuth2Client } from 'google-auth-library';
 import { BIGQUERY_AUTODETECT_LOCATION, BigQueryConfig } from '../schemas/bigquery-config.schema';
-import { BIGQUERY_OAUTH_TYPE, BigQueryCredentials } from '../schemas/bigquery-credentials.schema';
+import {
+  BIGQUERY_MANAGED_TYPE,
+  BIGQUERY_OAUTH_TYPE,
+  BigQueryCredentials,
+} from '../schemas/bigquery-credentials.schema';
 import type { SqlParameter } from '../../utils/sql-clause-renderer';
 import {
   isValidBigQueryDatasetId,
@@ -51,6 +55,9 @@ export class BigQueryApiAdapter {
   private location?: string;
 
   constructor(credentials: BigQueryCredentials, config: BigQueryConfig) {
+    if (credentials.type === BIGQUERY_MANAGED_TYPE) {
+      throw new Error('OWOX Storage credentials are not supported by this adapter yet');
+    }
     const auth =
       credentials.type === BIGQUERY_OAUTH_TYPE
         ? credentials.oauth2Client
