@@ -21,8 +21,7 @@ import {
 // log line, and real keys and tokens are longer.
 const MIN_REDACTED_SECRET_LENGTH = 6;
 
-// Wired into the storage config by the host and the engine. A key of the same name in a Data
-// Mart's configuration must not send the write elsewhere; on main the storage config won.
+// The host and the engine wire these into the storage config; a Data Mart's configuration must not redirect the write.
 const STORAGE_WIRED_PARAMETERS = new Set([
   'DestinationTableName',
   'DestinationTableNameOverride',

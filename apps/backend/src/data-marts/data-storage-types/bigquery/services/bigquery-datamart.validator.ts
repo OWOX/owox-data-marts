@@ -49,6 +49,17 @@ export class BigQueryDataMartValidator implements DataMartValidator {
     }
 
     if (isConnectorDefinition(definition)) {
+      // Runs load only into `<datasetId>.<table>`; any other name would be read but never written.
+      const parts = definition.connector.storage.fullyQualifiedName.split('.');
+      if (
+        isBigQueryManagedCredentials(credentials) &&
+        (parts.length !== 2 || parts[0] !== credentials.datasetId)
+      ) {
+        return ValidationResult.authoredFailure(
+          DataMartValidationCode.INVALID_IDENTIFIER_FORMAT,
+          `Connectors on an OWOX Storage write into dataset ${credentials.datasetId}.`
+        );
+      }
       return ValidationResult.success();
     }
 
