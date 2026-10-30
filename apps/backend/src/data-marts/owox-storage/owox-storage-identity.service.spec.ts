@@ -44,8 +44,14 @@ describe('OwoxStorageIdentity', () => {
 
   it('builds a BigQuery client that authenticates as the storage account', async () => {
     const identity = new OwoxStorageIdentity();
-    const authClient = await identity.impersonate('a@x');
+    const ownClient = { own: true };
+    const impersonated = { impersonated: true };
+    getClient.mockResolvedValue(ownClient);
+    (Impersonated as unknown as jest.Mock).mockImplementation(() => impersonated);
     await identity.bigQueryAs('a@x', 'proj', 'EU');
-    expect(BigQuery).toHaveBeenLastCalledWith({ projectId: 'proj', location: 'EU', authClient });
+    const options = (BigQuery as unknown as jest.Mock).mock.calls.at(-1)[0];
+    expect(options).toEqual({ projectId: 'proj', location: 'EU', authClient: impersonated });
+    expect(options.authClient).toBe(impersonated);
+    expect(options.authClient).not.toBe(ownClient);
   });
 });
