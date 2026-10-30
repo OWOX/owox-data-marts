@@ -1,6 +1,6 @@
 {
   "name": "@owox/backend",
-  "version": "0.40.0",
+  "version": "0.41.0",
   "description": "OWOX Data Marts Backend - Full-stack data orchestration platform",
   "author": "OWOX",
   "license": "ELv2",
@@ -163,10 +163,16 @@
     "typeorm-ts-node-commonjs": "^0.3.20"
   },
   "jest": {
-    "moduleFileExtensions": ["js", "json", "ts"],
+    "moduleFileExtensions": [
+      "js",
+      "json",
+      "ts"
+    ],
     "rootDir": "src",
     "testRegex": ".*\\.spec\\.ts$",
-    "setupFiles": ["<rootDir>/../test/disable-platform-detection.setup.ts"],
+    "setupFiles": [
+      "<rootDir>/../test/disable-platform-detection.setup.ts"
+    ],
     "transform": {
       "^.+\\.(t|j)s$": [
         "ts-jest",
@@ -192,7 +198,9 @@
       "<rootDir>/../../../node_modules/(?!(@owox)/)",
       "<rootDir>/../../../packages/(?!(idp-protocol|idp-better-auth|idp-owox-better-auth|internal-helpers)/)"
     ],
-    "collectCoverageFrom": ["**/*.(t|j)s"],
+    "collectCoverageFrom": [
+      "**/*.(t|j)s"
+    ],
     "coverageDirectory": "../coverage",
     "testEnvironment": "node",
     "moduleNameMapper": {
