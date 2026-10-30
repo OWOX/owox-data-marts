@@ -200,7 +200,7 @@ export interface UnavailableCredential {
 export function isUnavailableCredential(
   row: Credential | UnavailableCredential
 ): row is UnavailableCredential {
-  return 'state' in row && row.state === 'unavailable';
+  return 'state' in row;
 }
 
 export interface Credential {
