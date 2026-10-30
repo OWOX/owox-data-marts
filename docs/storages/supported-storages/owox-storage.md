@@ -45,10 +45,12 @@ Each project has a limit on the data its OWOX Storage queries scan per day.
 
 | Project plan | Daily limit |
 | --- | --- |
-| Free | 10 GB |
-| Paid | 100 GB |
+| Free | 10 GiB |
+| Paid | 100 GiB |
 
 A project with an unpaid subscription gets the Free limit.
+
+Connector loads count toward the limit, with at least 10 MiB for each load, but the limit does not stop them. A query that is already running can take usage past the limit, and new queries are then refused until midnight Pacific Time.
 
 The limit resets at midnight Pacific Time. When a project has used it, queries fail with the error "This project has used today's OWOX Storage query limit. It resets at midnight Pacific Time."
 
