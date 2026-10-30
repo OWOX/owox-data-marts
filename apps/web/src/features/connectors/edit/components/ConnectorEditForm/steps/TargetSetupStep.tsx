@@ -31,6 +31,8 @@ interface TargetSetupStepProps {
   conflict?: ConnectorTargetConflictResponseDto | null;
   // Only some connectors replace the whole table on each run; others merge rows by keys.
   replacesTable?: boolean;
+  /** An OWOX Storage has one dataset; connectors write into it. */
+  fixedDatasetName?: string;
 }
 
 export function TargetSetupStep({
@@ -41,6 +43,7 @@ export function TargetSetupStep({
   onTargetChange,
   conflict,
   replacesTable = false,
+  fixedDatasetName,
 }: TargetSetupStepProps) {
   const { scope } = useProjectRoute();
   const sameTableWarning = replacesTable
@@ -236,6 +239,8 @@ export function TargetSetupStep({
       newTableName = sanitizedDestinationName;
     }
 
+    if (fixedDatasetName) newDatasetName = fixedDatasetName;
+
     const newDatasetError =
       dataStorageType === DataStorageType.AWS_REDSHIFT ||
       dataStorageType === DataStorageType.DATABRICKS
@@ -328,7 +333,14 @@ export function TargetSetupStep({
         newCatalogError
       );
     }
-  }, [target, sanitizedDestinationName, sanitizedConnectorName, dataStorageType, updateTarget]);
+  }, [
+    target,
+    sanitizedDestinationName,
+    sanitizedConnectorName,
+    dataStorageType,
+    updateTarget,
+    fixedDatasetName,
+  ]);
 
   const handleDatasetNameChange = (name: string) => {
     editedByUser.current = true;
@@ -430,6 +442,7 @@ export function TargetSetupStep({
                 autoComplete='off'
                 className='box-border w-full'
                 value={datasetName}
+                readOnly={Boolean(fixedDatasetName)}
                 aria-invalid={Boolean(datasetError)}
                 aria-describedby={datasetError ? 'dataset-name-error' : undefined}
                 onChange={e => {
@@ -437,9 +450,11 @@ export function TargetSetupStep({
                 }}
                 required
               />
-              <p className='text-muted-foreground text-sm'>
-                Dataset is auto-created on first run if it doesn’t exist
-              </p>
+              {!fixedDatasetName && (
+                <p className='text-muted-foreground text-sm'>
+                  Dataset is auto-created on first run if it doesn’t exist
+                </p>
+              )}
               {datasetError && (
                 <p id='dataset-name-error' className='text-destructive text-sm'>
                   {datasetError}
