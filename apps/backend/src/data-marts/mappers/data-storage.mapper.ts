@@ -32,11 +32,15 @@ import { ListDataStoragesByTypeCommand } from '../dto/domain/list-data-storages-
 import { DataStorage } from '../entities/data-storage.entity';
 import { UserProjectionDto } from '../../idp/dto/domain/user-projection.dto';
 import { OwnerFilter } from '../enums/owner-filter.enum';
+import { ManagedStorageService } from '../owox-storage/managed-storage.service';
 import { extractContextSummaries, ContextSummary } from '../utils/extract-context-summaries';
 
 @Injectable()
 export class DataStorageMapper {
-  constructor(private readonly cls: ClsService) {}
+  constructor(
+    private readonly cls: ClsService,
+    private readonly managedStorageService: ManagedStorageService
+  ) {}
 
   toCreateCommand(
     context: AuthorizationContext,
@@ -99,6 +103,7 @@ export class DataStorageMapper {
   }
 
   async toApiResponse(dataStorageDto: DataStorageDto): Promise<DataStorageResponseApiDto> {
+    const managed = await this.managedStorageService.findByStorageId(dataStorageDto.id);
     return {
       id: dataStorageDto.id,
       title: dataStorageDto.title,
@@ -115,6 +120,7 @@ export class DataStorageMapper {
       ...(dataStorageDto.reusableCredential !== undefined && {
         reusableCredential: this.toCredentialSummaryResponse(dataStorageDto.reusableCredential),
       }),
+      ...(managed && { owoxStorage: { location: managed.location, datasetId: managed.datasetId } }),
     };
   }
 
@@ -147,24 +153,33 @@ export class DataStorageMapper {
     );
   }
 
-  toResponseList(dataStorages: DataStorageDto[]): DataStorageListResponseApiDto[] {
-    return dataStorages.map(dataStorageDto => ({
-      id: dataStorageDto.id,
-      title: dataStorageDto.title,
-      type: dataStorageDto.type,
-      createdAt: dataStorageDto.createdAt,
-      modifiedAt: dataStorageDto.modifiedAt,
-      publishedDataMartsCount: dataStorageDto.dataMartsCount,
-      draftDataMartsCount: dataStorageDto.draftsCount,
-      createdByUser: dataStorageDto.createdByUser,
-      ownerUsers: dataStorageDto.ownerUsers,
-      contexts: dataStorageDto.contexts,
-      availableForUse: dataStorageDto.availableForUse,
-      availableForMaintenance: dataStorageDto.availableForMaintenance,
-      reusableCredential: this.toCredentialSummaryResponse(
-        dataStorageDto.reusableCredential ?? null
-      ),
-    }));
+  async toResponseList(dataStorages: DataStorageDto[]): Promise<DataStorageListResponseApiDto[]> {
+    const managedById = await this.managedStorageService.findByStorageIds(
+      dataStorages.map(dto => dto.id)
+    );
+    return dataStorages.map(dataStorageDto => {
+      const managed = managedById.get(dataStorageDto.id);
+      return {
+        id: dataStorageDto.id,
+        title: dataStorageDto.title,
+        type: dataStorageDto.type,
+        createdAt: dataStorageDto.createdAt,
+        modifiedAt: dataStorageDto.modifiedAt,
+        publishedDataMartsCount: dataStorageDto.dataMartsCount,
+        draftDataMartsCount: dataStorageDto.draftsCount,
+        createdByUser: dataStorageDto.createdByUser,
+        ownerUsers: dataStorageDto.ownerUsers,
+        contexts: dataStorageDto.contexts,
+        availableForUse: dataStorageDto.availableForUse,
+        availableForMaintenance: dataStorageDto.availableForMaintenance,
+        reusableCredential: this.toCredentialSummaryResponse(
+          dataStorageDto.reusableCredential ?? null
+        ),
+        ...(managed && {
+          owoxStorage: { location: managed.location, datasetId: managed.datasetId },
+        }),
+      };
+    });
   }
 
   /** Built field by field so a restricted summary never carries the Credential's details. */
