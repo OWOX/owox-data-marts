@@ -11,18 +11,18 @@ const TARGET_SCOPES = [
 /** ODM's own identity (Application Default Credentials) and the storage accounts it impersonates. */
 @Injectable()
 export class OwoxStorageIdentity {
-  private source?: Promise<Awaited<ReturnType<GoogleAuth['getClient']>>>;
+  // GoogleAuth caches only a successful client, so a failed lookup is retried on the next call.
+  private readonly auth = new GoogleAuth({
+    scopes: ['https://www.googleapis.com/auth/cloud-platform'],
+  });
   private readonly impersonated = new Map<string, Impersonated>();
   private readonly bigQueries = new Map<string, BigQuery>();
 
   async impersonate(serviceAccountEmail: string): Promise<OAuth2Client> {
     const cached = this.impersonated.get(serviceAccountEmail);
     if (cached) return cached;
-    this.source ??= new GoogleAuth({
-      scopes: ['https://www.googleapis.com/auth/cloud-platform'],
-    }).getClient();
     const client = new Impersonated({
-      sourceClient: await this.source,
+      sourceClient: await this.auth.getClient(),
       targetPrincipal: serviceAccountEmail,
       targetScopes: TARGET_SCOPES,
       lifetime: 3600,
