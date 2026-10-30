@@ -4,6 +4,7 @@ import express from 'express';
 import { Logger } from '@nestjs/common';
 import { isDuckDbStorageEnabled } from './data-marts/data-storage-types/duckdb/utils/duckdb-availability.utils';
 import { loadEnv } from './load-env';
+import { readOwoxStorageSettings } from './data-marts/owox-storage/owox-storage-settings';
 import { registerPluginCollectionsBodyParser } from './config/plugin-collections-body-parser.config';
 import { configureTrustProxy } from './config/trust-proxy.config';
 
@@ -25,11 +26,14 @@ export async function main() {
     const app = express();
     registerPluginCollectionsBodyParser(app);
     configureTrustProxy(app);
+    // Read before routing so a partial configuration fails startup, not the flags call.
+    const owoxStorageEnabled = readOwoxStorageSettings(process.env) ? 'true' : 'false';
     app.get('/api/flags', (_req, res) => {
       res.setHeader('Cache-Control', 'no-store');
       res.json({
         LICENSE_ISSUANCE_ENABLED: process.env.LICENSE_ISSUANCE_ENABLED,
         DUCKDB_STORAGE_ENABLED: String(isDuckDbStorageEnabled(process.env)),
+        OWOX_STORAGE_ENABLED: owoxStorageEnabled,
       });
     });
     await setupIdp(app);
