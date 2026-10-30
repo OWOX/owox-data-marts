@@ -1,4 +1,13 @@
-import { BadRequestException, ForbiddenException } from '@nestjs/common';
+jest.mock('typeorm-transactional', () => ({
+  Transactional: () => (_target: unknown, _key: string, descriptor: PropertyDescriptor) =>
+    descriptor,
+}));
+
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
+import { DataSource, type Repository } from 'typeorm';
+import { CREDENTIAL_VALIDATION_ENTITIES } from '../../../test/fixtures/credential-validation-writes';
+import { Credential } from '../credentials/entities/credential.entity';
+import { CredentialService } from '../credentials/services/credential.service';
 import type { AuthorizationContext } from '../../idp';
 import { sourceCredentialDefinitions } from '../connector-types/source-credential-definitions';
 import { Connectors } from '@owox/connectors';
@@ -61,7 +70,8 @@ function setup({ canEdit = true, existing = existingCredential() as object } = {
     createWithAccess: jest.fn((value: object) =>
       Promise.resolve({ id: 'credential-new', ...value })
     ),
-    save: jest.fn((value: object) => Promise.resolve(value)),
+    replaceSignIn: jest.fn().mockResolvedValue(undefined),
+    lockActiveByIdAndProjectId: jest.fn().mockResolvedValue(existing),
     getByIdAndProjectId: jest.fn().mockResolvedValue(existing),
   };
   const access = { canAccess: jest.fn().mockResolvedValue(canEdit) };
@@ -242,9 +252,9 @@ describe('ConnectSourceOAuthCredentialService', () => {
         'project-1'
       );
       expect(credentials.createWithAccess).not.toHaveBeenCalled();
-      expect(credentials.save).toHaveBeenCalledWith(
+      expect(credentials.replaceSignIn).toHaveBeenCalledWith(
+        'credential-1',
         expect.objectContaining({
-          id: 'credential-1',
           secret: {
             fields: {
               RefreshToken: 'refresh-value',
@@ -273,7 +283,7 @@ describe('ConnectSourceOAuthCredentialService', () => {
           'Sign in to the same account (42@example.com), or create a new Credential.'
         )
       );
-      expect(credentials.save).not.toHaveBeenCalled();
+      expect(credentials.replaceSignIn).not.toHaveBeenCalled();
     });
 
     it('refuses a member without EDIT before signing in', async () => {
@@ -344,5 +354,147 @@ describe('ConnectSourceOAuthCredentialService', () => {
         payload: { code: 'code-value' },
       })
     ).rejects.toThrow(new BadRequestException('Token exchange failed: invalid_grant'));
+  });
+});
+
+describe('ConnectSourceOAuthCredentialService reconnect on real persistence', () => {
+  let dataSource: DataSource;
+  let repository: Repository<Credential>;
+
+  beforeAll(async () => {
+    dataSource = new DataSource({
+      type: 'better-sqlite3',
+      database: ':memory:',
+      entities: CREDENTIAL_VALIDATION_ENTITIES,
+      synchronize: true,
+      logging: false,
+    });
+    await dataSource.initialize();
+    repository = dataSource.getRepository(Credential);
+  });
+  afterAll(() => dataSource.destroy());
+  beforeEach(() => {
+    jest.replaceProperty(process, 'env', { ...process.env, ...GOOGLE_ADS_ENV });
+  });
+  afterEach(() => jest.restoreAllMocks());
+
+  async function given(accountId = '42') {
+    const { id } = await repository.save(
+      repository.create({
+        projectId: 'project-1',
+        title: 'Ads',
+        definitionSource: 'builtin',
+        definitionId: 'source:GoogleAds:oauth2',
+        secret: { fields: { RefreshToken: 'old', ClientSecret: 'old', DeveloperToken: 'old' } },
+        publicMetadata: {
+          fields: { ClientId: 'old' },
+          connection: {
+            account: { id: accountId, name: '42@example.com', email: null },
+            expiresAt: null,
+          },
+        },
+        enabled: true,
+        availableForUse: true,
+        availableForMaintenance: true,
+        refreshTokenStaticAt: new Date('2026-01-01T00:00:00.000Z'),
+      })
+    );
+    return id;
+  }
+
+  /** Runs a reconnect; `during` simulates another request while the exchange is in flight. */
+  async function reconnect(id: string, during?: () => Promise<unknown>, userId = '42') {
+    const connectors = new ConnectorService({} as never, {} as never);
+    jest.spyOn(connectors, 'exchangeOauth').mockImplementation(async () => {
+      await during?.();
+      return googleAdsSignIn(userId);
+    });
+    const credentials = new CredentialService(
+      repository,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never
+    );
+    const service = new ConnectSourceOAuthCredentialService(
+      connectors,
+      credentials,
+      new CredentialDefinitionService({} as never, {} as never),
+      { canAccess: jest.fn().mockResolvedValue(true) } as never
+    );
+    return service.run(context, 'GoogleAds', {
+      fieldPath: 'AuthType.oauth2',
+      payload: { code: 'code-value' },
+      credential: { id },
+    });
+  }
+
+  it('keeps a disable made during the exchange and stores the new sign-in', async () => {
+    const id = await given();
+
+    await reconnect(id, () => repository.update({ id }, { enabled: false }));
+
+    const stored = await repository.findOneByOrFail({ id });
+    expect(stored.enabled).toBe(false);
+    expect(stored.secret).toEqual({
+      fields: {
+        RefreshToken: 'refresh-value',
+        ClientSecret: 'client-secret-value',
+        DeveloperToken: 'developer-token-value',
+      },
+    });
+    expect(stored.publicMetadata).toMatchObject({
+      connection: { account: { id: '42' }, expiresAt: '2030-01-01T00:00:00.000Z' },
+    });
+    expect(stored.validationState).toBe('verified');
+  });
+
+  it('keeps sharing turned off during the exchange', async () => {
+    const id = await given();
+
+    await reconnect(id, () =>
+      repository.update({ id }, { availableForUse: false, availableForMaintenance: false })
+    );
+
+    const stored = await repository.findOneByOrFail({ id });
+    expect(stored.availableForUse).toBe(false);
+    expect(stored.availableForMaintenance).toBe(false);
+  });
+
+  it('answers not found for a Credential deleted during the exchange and writes nothing', async () => {
+    const id = await given();
+
+    await expect(
+      reconnect(id, () => repository.update({ id }, { deletedAt: new Date() }))
+    ).rejects.toThrow(new NotFoundException(`Credential ${id} was not found`));
+
+    const stored = await repository.findOneOrFail({ where: { id }, withDeleted: true });
+    expect(stored.secret).toEqual({
+      fields: { RefreshToken: 'old', ClientSecret: 'old', DeveloperToken: 'old' },
+    });
+  });
+
+  it('refuses another account and writes nothing', async () => {
+    const id = await given();
+
+    await expect(reconnect(id, undefined, '99')).rejects.toThrow(
+      new BadRequestException(
+        'Sign in to the same account (42@example.com), or create a new Credential.'
+      )
+    );
+
+    const stored = await repository.findOneByOrFail({ id });
+    expect(stored.secret).toEqual({
+      fields: { RefreshToken: 'old', ClientSecret: 'old', DeveloperToken: 'old' },
+    });
+  });
+
+  it('clears the static-token marker', async () => {
+    const id = await given();
+
+    await reconnect(id);
+
+    expect((await repository.findOneByOrFail({ id })).refreshTokenStaticAt).toBeNull();
   });
 });

@@ -1,5 +1,11 @@
-import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { castError } from '@owox/internal-helpers';
+import { Transactional } from 'typeorm-transactional';
 import type { AuthorizationContext } from '../../idp';
 import type { ConnectorOAuthExchangeResultSchema } from '../connector-types/connector-oauth-schema';
 import type { ExchangedOAuthCredentials } from '../connector-types/interfaces/connector-oauth-credentials';
@@ -9,21 +15,18 @@ import {
 } from '../connector-types/source-credential-definitions';
 import { UNKNOWN_ACCOUNT_ID, type SourceConnection } from '../credentials/credential.types';
 import type { ResolvedCredentialDefinition } from '../credentials/dto/credential-api.dto';
-import type { Credential } from '../credentials/entities/credential.entity';
 import { parseFieldsForCreate } from '../credentials/services/credential-fields';
 import { CredentialDefinitionService } from '../credentials/services/credential-definition.service';
-import { CredentialService } from '../credentials/services/credential.service';
+import {
+  CredentialService,
+  type ConnectedValues,
+} from '../credentials/services/credential.service';
 import type {
   ExchangeOAuthCredentialsDto,
   ExchangeOAuthCredentialTargetDto,
 } from '../dto/presentation/exchange-oauth-credentials.dto';
 import { AccessDecisionService, Action, EntityType } from '../services/access-decision';
 import { ConnectorService } from '../services/connector/connector.service';
-
-type ConnectedValues = Pick<
-  Credential,
-  'secret' | 'publicMetadata' | 'validationState' | 'validationMessage' | 'validatedAt'
->;
 
 /** Signs in through a connector's own OAuth app and keeps the result as a Credential of the variant's type. */
 @Injectable()
@@ -117,14 +120,19 @@ export class ConnectSourceOAuthCredentialService {
     return credential.id;
   }
 
+  @Transactional()
   private async reconnect(
     context: AuthorizationContext,
     credentialId: string,
     values: ConnectedValues,
     { account }: SourceConnection
   ): Promise<string> {
-    // Fresh read: the exchange took seconds and another request may have saved meanwhile.
-    const credential = await this.credentials.getByIdAndProjectId(credentialId, context.projectId);
+    // Locked after the exchange, which took seconds: the Credential may have changed or gone meanwhile.
+    const credential = await this.credentials.lockActiveByIdAndProjectId(
+      credentialId,
+      context.projectId
+    );
+    if (!credential) throw new NotFoundException(`Credential ${credentialId} was not found`);
     const metadata = credential.publicMetadata;
     const saved = metadata && 'connection' in metadata ? metadata.connection?.account : null;
     if (saved && account && saved.id !== account.id) {
@@ -133,7 +141,8 @@ export class ConnectSourceOAuthCredentialService {
         `Sign in to the same account${who ? ` (${who})` : ''}, or create a new Credential.`
       );
     }
-    return (await this.credentials.save(Object.assign(credential, values))).id;
+    await this.credentials.replaceSignIn(credentialId, values);
+    return credentialId;
   }
 
   private async assertReconnectable(
