@@ -1,4 +1,5 @@
 import { Logger } from '@nestjs/common';
+import { InternalProjectBillingService } from '../services/project-billing/internal-project-billing.service';
 import { OwoxStorageScanBudgetService } from './owox-storage-scan-budget.service';
 import {
   OwoxStorageQueryLimitException,
@@ -13,6 +14,7 @@ describe('OwoxStorageScanBudgetService', () => {
   const query = jest.fn();
   const identity = { bigQuery: jest.fn(() => ({ query })) };
   const billing = { getBalance: jest.fn() };
+  const moduleRef = { get: jest.fn(() => billing) };
   const config = {
     getSettings: () => ({
       freeQueryLimitBytesPerDay: 10 * GIB,
@@ -39,7 +41,7 @@ describe('OwoxStorageScanBudgetService', () => {
     service = new OwoxStorageScanBudgetService(
       identity as never,
       config as never,
-      billing as never
+      moduleRef as never
     );
     used(0);
     plan(ProjectPlanType.FREE);
@@ -54,6 +56,12 @@ describe('OwoxStorageScanBudgetService', () => {
     expect(options.query).toContain('`owox-storage.region-eu.INFORMATION_SCHEMA.JOBS_BY_PROJECT`');
     expect(options.query).toContain("CURRENT_DATE('America/Los_Angeles'), 'America/Los_Angeles'");
     expect(options.params).toEqual({ email: record.serviceAccountEmail });
+  });
+
+  it('resolves billing lazily from the module', async () => {
+    await service.forStorage(record).remainingBytes();
+
+    expect(moduleRef.get).toHaveBeenCalledWith(InternalProjectBillingService);
   });
 
   it('refuses at the limit', async () => {
