@@ -331,7 +331,14 @@ export class UpdateDataMartDefinitionService {
           config,
           model: keys.model,
         });
-        await this.sourceCredentials.bindConfig(projectId, dataMartId, configId, selected);
+        await this.sourceCredentials.bindConfig({
+          projectId,
+          userId,
+          roles,
+          dataMartId,
+          configId,
+          credentialId: selected,
+        });
       } else if (
         versionChanged ||
         !isDeepStrictEqual(

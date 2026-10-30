@@ -110,6 +110,17 @@ describe('SourceCredentialBindingService', () => {
     });
   }
 
+  function bind(dataMartId: string, configId: string, credentialId: string): Promise<void> {
+    return sourceCredentials.bindConfig({
+      projectId: 'project-1',
+      userId: 'user-1',
+      roles: ['editor'],
+      dataMartId,
+      configId,
+      credentialId,
+    });
+  }
+
   async function rejection(promise: Promise<unknown>): Promise<Error> {
     const error = await promise.then(
       () => undefined,
@@ -124,10 +135,10 @@ describe('SourceCredentialBindingService', () => {
       const first = await givenCredential();
       const second = await givenCredential({ title: 'Acme staging' });
 
-      await sourceCredentials.bindConfig('project-1', 'dm-1', 'cfg-1', first.id);
-      await sourceCredentials.bindConfig('project-1', 'dm-1', 'cfg-2', second.id);
-      await sourceCredentials.bindConfig('project-1', 'dm-1', 'cfg-3', first.id);
-      await sourceCredentials.bindConfig('project-1', 'dm-1', 'cfg-1', second.id);
+      await bind('dm-1', 'cfg-1', first.id);
+      await bind('dm-1', 'cfg-2', second.id);
+      await bind('dm-1', 'cfg-3', first.id);
+      await bind('dm-1', 'cfg-1', second.id);
 
       expect(await rows()).toEqual([
         expect.objectContaining({ requirementKey: 'cfg-1', credentialId: second.id }),
@@ -136,7 +147,11 @@ describe('SourceCredentialBindingService', () => {
       ]);
       expect(await rows()).toEqual(
         Array(3).fill(
-          expect.objectContaining({ projectId: 'project-1', active: true, configuredById: null })
+          expect.objectContaining({
+            projectId: 'project-1',
+            active: true,
+            configuredById: 'user-1',
+          })
         )
       );
       await expect(sourceCredentials.boundCredentialIds('project-1', 'dm-1')).resolves.toEqual(
@@ -154,17 +169,38 @@ describe('SourceCredentialBindingService', () => {
     ])('refuses a Credential %s', async (_case, overrides) => {
       const credential = await givenCredential(overrides);
 
-      await expect(
-        sourceCredentials.bindConfig('project-1', 'dm-1', 'cfg-1', credential.id)
-      ).rejects.toBeInstanceOf(NotFoundException);
+      await expect(bind('dm-1', 'cfg-1', credential.id)).rejects.toBeInstanceOf(NotFoundException);
+      expect(await rows()).toEqual([]);
+    });
+
+    it('refuses when USE is revoked after the check, and writes nothing', async () => {
+      const credential = await givenCredential();
+      access.canAccess.mockResolvedValueOnce(true).mockResolvedValue(false);
+      await sourceCredentials.assertCanUseCredential({
+        projectId: 'project-1',
+        userId: 'user-1',
+        roles: ['editor'],
+        credentialId: credential.id,
+      });
+
+      await expect(bind('dm-1', 'cfg-1', credential.id)).rejects.toBeInstanceOf(ForbiddenException);
+      expect(await rows()).toEqual([]);
+    });
+
+    it('refuses a disabled Credential, and writes nothing', async () => {
+      const credential = await givenCredential({ enabled: false });
+
+      await expect(bind('dm-1', 'cfg-1', credential.id)).rejects.toEqual(
+        new BadRequestException('This Credential is disabled.')
+      );
       expect(await rows()).toEqual([]);
     });
   });
 
   it('unbind deactivates only that configuration', async () => {
     const credential = await givenCredential();
-    await sourceCredentials.bindConfig('project-1', 'dm-1', 'cfg-1', credential.id);
-    await sourceCredentials.bindConfig('project-1', 'dm-1', 'cfg-2', credential.id);
+    await bind('dm-1', 'cfg-1', credential.id);
+    await bind('dm-1', 'cfg-2', credential.id);
     const [{ id: rowId }] = await rows();
 
     await sourceCredentials.unbindConfig('dm-1', 'cfg-1');
@@ -180,15 +216,15 @@ describe('SourceCredentialBindingService', () => {
       new Map([['cfg-2', credential.id]])
     );
 
-    await sourceCredentials.bindConfig('project-1', 'dm-1', 'cfg-1', credential.id);
+    await bind('dm-1', 'cfg-1', credential.id);
     expect((await rows())[0]).toEqual(expect.objectContaining({ id: rowId, active: true }));
   });
 
   it('deactivates every configuration of a Data Mart and no other', async () => {
     const credential = await givenCredential();
-    await sourceCredentials.bindConfig('project-1', 'dm-1', 'cfg-1', credential.id);
-    await sourceCredentials.bindConfig('project-1', 'dm-1', 'cfg-2', credential.id);
-    await sourceCredentials.bindConfig('project-1', 'dm-2', 'cfg-1', credential.id);
+    await bind('dm-1', 'cfg-1', credential.id);
+    await bind('dm-1', 'cfg-2', credential.id);
+    await bind('dm-2', 'cfg-1', credential.id);
 
     await sourceCredentials.deactivateDataMart('dm-1');
 
@@ -198,8 +234,8 @@ describe('SourceCredentialBindingService', () => {
 
   it("marks only the configuration's binding used", async () => {
     const credential = await givenCredential();
-    await sourceCredentials.bindConfig('project-1', 'dm-1', 'cfg-1', credential.id);
-    await sourceCredentials.bindConfig('project-1', 'dm-1', 'cfg-2', credential.id);
+    await bind('dm-1', 'cfg-1', credential.id);
+    await bind('dm-1', 'cfg-2', credential.id);
 
     await sourceCredentials.markConfigUsed('dm-1', 'cfg-2', credential.id);
 
@@ -212,7 +248,8 @@ describe('SourceCredentialBindingService', () => {
   describe('resolveForConfig', () => {
     it('returns the bound Credential values for the configuration', async () => {
       const credential = await givenCredential();
-      await sourceCredentials.bindConfig('project-1', 'dm-1', 'cfg-1', credential.id);
+      await bind('dm-1', 'cfg-1', credential.id);
+      access.canAccess.mockClear();
 
       await expect(
         sourceCredentials.resolveForConfig('project-1', 'dm-1', 'cfg-1')
@@ -230,7 +267,7 @@ describe('SourceCredentialBindingService', () => {
       const credential = await givenCredential();
       const refreshTokenStaticAt = new Date('2026-10-30T00:00:00.000Z');
       await credentials.update({ id: credential.id }, { refreshTokenStaticAt });
-      await sourceCredentials.bindConfig('project-1', 'dm-1', 'cfg-1', credential.id);
+      await bind('dm-1', 'cfg-1', credential.id);
 
       await expect(
         sourceCredentials.resolveForConfig('project-1', 'dm-1', 'cfg-1')
@@ -239,7 +276,7 @@ describe('SourceCredentialBindingService', () => {
 
     it('resolveForConfig returns null for an unbound configuration', async () => {
       const credential = await givenCredential();
-      await sourceCredentials.bindConfig('project-1', 'dm-1', 'cfg-1', credential.id);
+      await bind('dm-1', 'cfg-1', credential.id);
 
       await expect(
         sourceCredentials.resolveForConfig('project-1', 'dm-1', 'cfg-2')
@@ -269,7 +306,7 @@ describe('SourceCredentialBindingService', () => {
       'a %s Credential throws SourceCredentialUnavailableException',
       async (_case, change, message) => {
         const credential = await givenCredential();
-        await sourceCredentials.bindConfig('project-1', 'dm-1', 'cfg-1', credential.id);
+        await bind('dm-1', 'cfg-1', credential.id);
         await credentials.update({ id: credential.id }, change);
 
         const error = await rejection(
@@ -338,9 +375,10 @@ describe('SourceCredentialBindingService', () => {
 
     it('summarizes each bound configuration, restricted where the member cannot see it', async () => {
       const visible = await givenCredential();
-      const hidden = await givenCredential({ title: 'Hidden key', enabled: false });
-      await sourceCredentials.bindConfig('project-1', 'dm-1', 'cfg-1', visible.id);
-      await sourceCredentials.bindConfig('project-1', 'dm-1', 'cfg-2', hidden.id);
+      const hidden = await givenCredential({ title: 'Hidden key' });
+      await bind('dm-1', 'cfg-1', visible.id);
+      await bind('dm-1', 'cfg-2', hidden.id);
+      await credentials.update({ id: hidden.id }, { enabled: false });
       access.canAccessMany.mockResolvedValue(
         new Map([
           [visible.id, true],
@@ -379,7 +417,7 @@ describe('SourceCredentialBindingService', () => {
 
     it('leaves out unbound configurations', async () => {
       const credential = await givenCredential();
-      await sourceCredentials.bindConfig('project-1', 'dm-1', 'cfg-1', credential.id);
+      await bind('dm-1', 'cfg-1', credential.id);
       await sourceCredentials.unbindConfig('dm-1', 'cfg-1');
 
       await expect(summarize()).resolves.toEqual(new Map());
@@ -389,8 +427,8 @@ describe('SourceCredentialBindingService', () => {
   it('lockBoundCredentialId reads the binding of the configuration it names', async () => {
     const first = await givenCredential();
     const second = await givenCredential({ title: 'Acme staging' });
-    await sourceCredentials.bindConfig('project-1', 'dm-1', 'cfg-1', first.id);
-    await sourceCredentials.bindConfig('project-1', 'dm-1', 'cfg-2', second.id);
+    await bind('dm-1', 'cfg-1', first.id);
+    await bind('dm-1', 'cfg-2', second.id);
 
     await expect(
       sourceCredentials.lockBoundCredentialId('project-1', 'dm-1', 'cfg-2')
@@ -403,8 +441,8 @@ describe('SourceCredentialBindingService', () => {
   it('boundCredentialIds maps a configuration whose Credential was deleted to null', async () => {
     const kept = await givenCredential();
     const deleted = await givenCredential({ title: 'Deleted key' });
-    await sourceCredentials.bindConfig('project-1', 'dm-1', 'cfg-1', kept.id);
-    await sourceCredentials.bindConfig('project-1', 'dm-1', 'cfg-2', deleted.id);
+    await bind('dm-1', 'cfg-1', kept.id);
+    await bind('dm-1', 'cfg-2', deleted.id);
     await credentials.softDelete({ id: deleted.id });
 
     await expect(sourceCredentials.boundCredentialIds('project-1', 'dm-1')).resolves.toEqual(

@@ -67,7 +67,7 @@ export abstract class ConsumerCredentialBindingService<TType extends string> {
 
   /** Snapshots the type's requirement, the same whichever accepted Credential is chosen. */
   protected bindConsumer(
-    input: ConsumerBindingCheck<TType> & { consumerId: string }
+    input: ConsumerBindingCheck<TType> & { consumerId: string; requirementKey?: string }
   ): Promise<void> {
     // Called before any await so an unknown type throws synchronously, as callers expect.
     const requirement = this.requirement(input.type);
@@ -79,6 +79,7 @@ export abstract class ConsumerCredentialBindingService<TType extends string> {
       acceptedDefinitionIds: requirement.definitionIds,
       notAcceptedMessage: this.notAcceptedMessage(),
       ...this.binding,
+      requirementKey: input.requirementKey ?? this.binding.requirementKey,
       consumerId: input.consumerId,
       requirement,
     });

@@ -545,12 +545,14 @@ describe('Custom Connector run (e2e)', () => {
     };
 
     // A Credential for another host, as after a version moved its host, never reaches a child.
-    await bindings.bindConfig(
+    await bindings.bindConfig({
       projectId,
+      userId: '0',
+      roles: ['admin'],
       dataMartId,
       configId,
-      await credentialFor(['api.acme.example'])
-    );
+      credentialId: await credentialFor(['api.acme.example']),
+    });
     expect((await agent.put(`/api/data-marts/${dataMartId}/publish`).set(AUTH_HEADER)).status).toBe(
       200
     );
@@ -561,7 +563,14 @@ describe('Custom Connector run (e2e)', () => {
     expect(spawner.rowsByRun.has(refused.runId)).toBe(false);
     expect(keyedRequests).toHaveLength(0);
 
-    await bindings.bindConfig(projectId, dataMartId, configId, fitting);
+    await bindings.bindConfig({
+      projectId,
+      userId: '0',
+      roles: ['admin'],
+      dataMartId,
+      configId,
+      credentialId: fitting,
+    });
     const { runId, finished } = await run();
 
     expect(spawner.rowsByRun.get(runId) ?? []).toHaveLength(UPSTREAM_ROWS.length);
