@@ -16,6 +16,7 @@ interface ConnectorEditSheetProps {
   isOpen: boolean;
   onClose: () => void;
   dataStorageType: DataStorageType;
+  fixedDatasetName?: string;
   onSubmit: (configuredConnector: ConnectorConfig) => void;
   configurationOnly?: boolean;
   existingConnector?: ConnectorConfig | null;
@@ -28,6 +29,7 @@ export function ConnectorEditSheet({
   isOpen,
   onClose,
   dataStorageType,
+  fixedDatasetName,
   onSubmit,
   configurationOnly = false,
   existingConnector = null,
@@ -78,6 +80,7 @@ export function ConnectorEditSheet({
             handleFormSubmitSuccess();
           }}
           dataStorageType={dataStorageType}
+          fixedDatasetName={fixedDatasetName}
           configurationOnly={configurationOnly || mode === 'configuration-only'}
           existingConnector={existingConnector}
           mode={mode}

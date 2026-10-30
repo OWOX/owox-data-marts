@@ -550,3 +550,47 @@ describe('DataStorageForm — a rejected save', () => {
     }
   });
 });
+
+describe('DataStorageForm — OWOX Storage', () => {
+  const owoxStorage = () =>
+    ({
+      ...storage(null),
+      config: { projectId: 'owox-managed-project', location: 'EU' },
+      owoxStorage: { location: 'EU', datasetId: 'owox_0123456789ab' },
+    }) as DataStorage;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    localStorage.clear();
+  });
+
+  it('shows location and dataset read-only and no Credential for an OWOX Storage', async () => {
+    renderForm(vi.fn(), owoxStorage());
+
+    expect(await screen.findByDisplayValue('OWOX Storage')).toBeDisabled();
+    expect(screen.getByLabelText('Location')).toHaveValue('EU');
+    expect(screen.getByLabelText('Location')).toBeDisabled();
+    expect(screen.getByLabelText('Dataset')).toHaveValue('owox_0123456789ab');
+    expect(screen.getByLabelText('Dataset')).toBeDisabled();
+    expect(screen.queryByLabelText('Project ID')).toBeNull();
+    expect(screen.queryByText('Authentication')).toBeNull();
+    expect(screen.queryByText('Credential')).toBeNull();
+  });
+
+  it('saves an OWOX Storage without a Credential', async () => {
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+    renderForm(onSubmit, owoxStorage());
+
+    await changeOwners();
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => {
+      expect(onSubmit).toHaveBeenCalled();
+    });
+    expect(submitted(onSubmit)).not.toHaveProperty('reusableCredentialId');
+    expect(submitted(onSubmit).config).toEqual({
+      projectId: 'owox-managed-project',
+      location: 'EU',
+    });
+  });
+});

@@ -31,6 +31,7 @@ import { ConfirmationDialog } from '../../../../../../shared/components/Confirma
 interface ConnectorDefinitionFieldProps {
   control: Control<DataMartDefinitionFormData>;
   storageType: DataStorageType;
+  fixedDatasetName?: string;
   preset?: string;
   connectorName?: string | null;
   autoOpen?: boolean;
@@ -40,6 +41,7 @@ interface ConnectorDefinitionFieldProps {
 export function ConnectorDefinitionField({
   control,
   storageType,
+  fixedDatasetName,
   preset,
   connectorName,
   autoOpen = false,
@@ -274,6 +276,7 @@ export function ConnectorDefinitionField({
                 datamartStatus === DataMartStatus.DRAFT ? (
                   <ConnectorSetupButton
                     storageType={storageType}
+                    fixedDatasetName={fixedDatasetName}
                     onSetupConnector={(connector: ConnectorConfig) => {
                       void setupConnector(connector);
                       setIsSetupSheetOpen(false);
@@ -293,6 +296,7 @@ export function ConnectorDefinitionField({
                           GOOGLE_SHEETS_CONNECTOR_NAME && (
                           <AddConfigurationButton
                             storageType={storageType}
+                            fixedDatasetName={fixedDatasetName}
                             onAddConfiguration={newConfig => void addConfiguration(newConfig)}
                             existingConnector={
                               isConnectorConfigured(field.value as ConnectorDefinitionConfig)
@@ -374,6 +378,7 @@ export function ConnectorDefinitionField({
           }}
           onSubmit={connector => void updateConnectorFields(connector)}
           dataStorageType={storageType}
+          fixedDatasetName={fixedDatasetName}
           existingConnector={
             isConnectorConfigured(getValues().definition as ConnectorDefinitionConfig)
               ? {

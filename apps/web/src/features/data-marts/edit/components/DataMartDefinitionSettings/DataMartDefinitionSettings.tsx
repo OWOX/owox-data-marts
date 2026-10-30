@@ -79,7 +79,13 @@ export function DataMartDefinitionSettings({
   const {
     definition: initialDefinition,
     id: dataMartId,
-    storage: { id: storageId, type: storageType, config: storageConfig, title: storageTitle },
+    storage: {
+      id: storageId,
+      type: storageType,
+      config: storageConfig,
+      title: storageTitle,
+      owoxStorage,
+    },
   } = dataMart;
   const isPublished = dataMart.status.code === DataMartStatus.PUBLISHED;
   const projectId = useProjectId();
@@ -367,6 +373,7 @@ export function DataMartDefinitionSettings({
         <DataMartDefinitionForm
           definitionType={definitionType}
           storageType={storageType}
+          fixedDatasetName={owoxStorage?.datasetId}
           storageId={storageId}
           storageConfig={storageConfig}
           preset={preset?.connectorSourceTitle}

@@ -1,5 +1,5 @@
 import { TargetSetupStep } from './TargetSetupStep.tsx';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { useState } from 'react';
@@ -15,9 +15,11 @@ type Target = { fullyQualifiedName: string; isValid: boolean } | null;
 function TargetSetupStepHarness({
   dataStorageType,
   stepKey = 1,
+  fixedDatasetName,
 }: {
   dataStorageType: DataStorageType;
   stepKey?: number;
+  fixedDatasetName?: string;
 }) {
   const [target, setTarget] = useState<Target>(null);
 
@@ -26,6 +28,7 @@ function TargetSetupStepHarness({
       <TargetSetupStep
         key={stepKey}
         dataStorageType={dataStorageType}
+        fixedDatasetName={fixedDatasetName}
         destinationName='ad_insights'
         connectorName='TikTok Ads'
         target={target}
@@ -86,5 +89,49 @@ describe('TargetSetupStep', () => {
 
     expect(databaseInput).toHaveValue('tiktok_ads_owox');
     expect(schemaInput).toHaveValue('PUBLIC');
+  });
+
+  it('fixes the dataset of an OWOX Storage', () => {
+    render(
+      <TargetSetupStepHarness
+        dataStorageType={DataStorageType.GOOGLE_BIGQUERY}
+        fixedDatasetName='owox_abc'
+      />
+    );
+
+    const datasetInput = screen.getByLabelText(/dataset name/i, { selector: 'input' });
+    expect(datasetInput).toHaveValue('owox_abc');
+    expect(datasetInput).toHaveAttribute('readonly');
+    expect(screen.queryByText(/dataset is auto-created/i)).toBeNull();
+    expect(screen.getByLabelText(/table name/i, { selector: 'input' })).toHaveValue('ad_insights');
+  });
+
+  it('writes the target of an OWOX Storage into its dataset', () => {
+    const onTargetChange = vi.fn();
+    render(
+      <MemoryRouter>
+        <TargetSetupStep
+          dataStorageType={DataStorageType.GOOGLE_BIGQUERY}
+          fixedDatasetName='owox_abc'
+          destinationName='ad_insights'
+          connectorName='TikTok Ads'
+          target={null}
+          onTargetChange={onTargetChange}
+        />
+      </MemoryRouter>
+    );
+
+    expect(onTargetChange).toHaveBeenCalledWith({
+      fullyQualifiedName: 'owox_abc.ad_insights',
+      isValid: true,
+    });
+  });
+
+  it('keeps the editable dataset for other storages', () => {
+    render(<TargetSetupStepHarness dataStorageType={DataStorageType.GOOGLE_BIGQUERY} />);
+
+    const datasetInput = screen.getByLabelText(/dataset name/i, { selector: 'input' });
+    expect(datasetInput).not.toHaveAttribute('readonly');
+    expect(screen.getByText(/dataset is auto-created/i)).toBeInTheDocument();
   });
 });

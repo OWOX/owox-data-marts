@@ -51,6 +51,7 @@ const BUILDER_STATE = { builderEntryPoint: 'data_mart_wizard' };
 interface ConnectorEditFormProps {
   onSubmit: (connector: ConnectorConfig) => void;
   dataStorageType: DataStorageType;
+  fixedDatasetName?: string;
   configurationOnly?: boolean;
   existingConnector?: ConnectorConfig | null;
   mode?: 'full' | 'configuration-only' | 'fields-only';
@@ -63,6 +64,7 @@ interface ConnectorEditFormProps {
 export function ConnectorEditForm({
   onSubmit,
   dataStorageType,
+  fixedDatasetName,
   configurationOnly = false,
   existingConnector = null,
   mode = 'full',
@@ -943,6 +945,7 @@ export function ConnectorEditForm({
           return selectedNode && connectorFields ? (
             <TargetSetupStep
               dataStorageType={dataStorageType}
+              fixedDatasetName={fixedDatasetName}
               destinationName={suggestGoogleSheetsTableName(connectorConfiguration.SheetName)}
               connectorName={selectedConnector.displayName}
               target={target}
@@ -966,6 +969,7 @@ export function ConnectorEditForm({
         return selectedNode && connectorFields ? (
           <TargetSetupStep
             dataStorageType={dataStorageType}
+            fixedDatasetName={fixedDatasetName}
             destinationName={getDestinationName(connectorFields, selectedNode)}
             connectorName={selectedConnector?.displayName ?? ''}
             target={target}

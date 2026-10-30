@@ -165,6 +165,7 @@ export function ConnectorConfigurationItem({
 
       <DataMartConnectorView
         dataStorageType={dataStorage.type}
+        fixedDatasetName={dataStorage.owoxStorage?.datasetId}
         onSubmit={onUpdateConfiguration(configIndex)}
         configurationOnly={true}
         isOpen={isEditOpen}
