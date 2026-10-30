@@ -1,5 +1,165 @@
 # owox
 
+## 0.41.0
+
+### Minor Changes 0.41.0
+
+- b9c59d7: **Dates from Google Sheets arrive as dates, not text**
+
+  A planner who keeps daily targets in Google Sheets got the date column in the warehouse as text, such as `10/1/2026`. Date filters and date grouping did not work on it, and setting the field type to DATE in the Output Schema only added a warning: the next upload wrote text again.
+  - In a new Data Mart, a column of dates (cells formatted as Date in the sheet) is stored as `DATE` from the first run, with no setting to turn on. The Output Schema then shows it as `DATE`.
+  - Existing Data Marts keep their columns as they are. To store a column as a date, set its type in the Output Schema to `DATE`: the next run, or the next Upload from the Extension, writes dates and the warning goes away.
+  - In a `DATE` column, a date-time cell keeps its day, and any other cell that is not a date is imported as an empty value. Run History lists the rows to fix, so one stray value never turns the column back into text. A column with no date at all stays text, and Run History says so.
+  - In other columns, dates typed as text, date-times, times, durations, and dates mixed with other values stay text.
+
+  See the [Google Sheets source guide](../../packages/connectors/src/Sources/GoogleSheets/GETTING_STARTED.md).
+
+  <!-- markdownlint-disable-file MD041 MD036 -->
+
+- 071320f: <!-- markdownlint-disable-file MD036 MD041 -->
+
+  **Set up Contexts without leaving your AI assistant**
+
+  Project admins setting up Contexts and the project description previously had to switch from their AI assistant to OWOX Data Marts. They can now make those changes within the conversation through [MCP](../../docs/getting-started/setup-guide/mcp.md).
+
+  Your assistant can create Contexts, update their names, descriptions and icons, inspect their usage, assign members, and delete detached Contexts. It can also list project members to find the right people for assignments and read project settings. Admins can update or clear the project description.
+
+- 8cb8346: **Build and maintain custom connectors from your AI assistant**
+
+  Data Owners previously needed the Connector Builder or HTTP API to save, test and
+  publish custom connectors for HTTP APIs. They can now create drafts, test and
+  publish connectors in their connected AI assistant through MCP. The tools also
+  support metadata updates, version inspection and rollback to an earlier published
+  version.
+
+  <https://customer-4geatlj66rtkaxtz.cloudflarestream.com/21c0555ee23b8f2a88a37ed130194e13/iframe>
+
+  These tools are currently available through the custom MCP connection flow.
+  They will become available in public agent directories soon.
+
+  The tools apply project permissions and existing checks for Data Marts that use
+  the connector. See [Custom connector authoring](../../docs/getting-started/setup-guide/mcp.md#custom-connector-authoring)
+  for the available tools. Use [the manifest reference](../../docs/connectors/manifest-reference.md)
+  to write a connector manifest.
+
+  <!-- markdownlint-disable-file MD036 MD041 -->
+
+- 1619442: <!-- markdownlint-disable-file MD041 MD036 -->
+
+  **Shared SQL logic stays in one place: build a Data Mart on top of another**
+
+  An analyst who needed a narrower version of an existing Data Mart — retail orders out of all orders — had to copy its SQL into a new Data Mart. When the original changed, the copy didn't, and the two started reporting different numbers. Now a SQL Data Mart can reference another Data Mart of the same Storage in its `FROM` clause, so the logic lives in one place and every Data Mart built on it follows its changes.
+
+  The video builds a Completed orders Data Mart on top of Shop orders: it writes only the filter, takes the business names from Shop orders, and its report's SQL still reaches the warehouse table.
+
+  <https://customer-4geatlj66rtkaxtz.cloudflarestream.com/385468b42293d21ceaada90f6ce78f82/iframe>
+
+  Type `@` in the SQL editor to pick a published Data Mart; it's inserted as `[Orders](dm:<id>)`. When the query runs, OWOX puts that Data Mart's own SQL in place of the reference, so the warehouse receives plain SQL and **Preview SQL** of a report shows it down to the warehouse tables. People who read the new Data Mart don't need access to the one it references.
+
+  ![The SQL editor with SELECT o.order_id, o.user_id, o.created_at, o.num_of_item FROM @: the @ picker is open, searching "Shop", with the note that only Data Marts from the same Storage can be referenced and the published Data Mart Shop orders offered](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/d8febff3-93ad-438e-615a-d846a363c300/public)
+  - A column that keeps its name takes the referenced Data Mart's alias and description, read-only, so business names are written once and stay in step. Primary keys aren't taken over.
+  - Changing the input source of a referenced Data Mart, or deleting it, now lists the Data Marts that reference it, so you can check them first.
+  - Available on Google BigQuery, AWS Athena, Snowflake, AWS Redshift and Databricks, not on Legacy Google BigQuery storages. See [Reference another Data Mart](../../docs/getting-started/setup-guide/sql-data-mart.md#reference-another-data-mart).
+  - API: `GET /api/data-marts` accepts `storageId`, and `GET /api/data-marts/{id}/input-source-change-impact` also returns `referencingDataMartsCount` and `referencingDataMarts`.
+
+- e8eda7f: <!-- markdownlint-disable-file MD041 MD036 -->
+
+  **Rotating a warehouse key is one change: Storages share reusable Credentials**
+
+  When a warehouse key has to be rotated, for example after someone who had it leaves the company, whoever maintains it used to open every Storage to find the ones holding a copy, and a copy they missed broke once the old key was revoked. Now a Storage selects a reusable Credential instead of keeping its own key: the Credential lists every Storage that uses it, replacing its secret applies to all of them, and switching it off stops them all at once.
+
+  **Existing Storages are converted once, on the first start of this version (or when you run migrations), and keep running; no action is needed.** Every owner of a Storage owns its Credential, Business Users included: they can edit, share and delete the Credential, but still cannot run or edit the Storage. Converted Credentials are Not shared, whatever the Storage's sharing: members who run or maintain a Storage without owning it keep doing so, but an owner has to share the Credential for use before they change where the Storage connects (project, region, account or host) or reuse its key elsewhere, and for maintenance before they replace its key. Identical keys of Storages with the same owners become one Credential, which keeps only the Contexts all its Storages shared. A Storage whose key cannot be converted keeps running on its own key until you select a Credential.
+
+  The Storage form now has a **Credential** field in place of the authentication method and key fields: select a Credential that fits the Storage type, or click **+ Create new Credential** to add one beside the form and select it on save. With exactly one fitting Credential, a new Storage selects it for you. The **Credentials** page gains Storage providers (BigQuery Service Account, BigQuery Google account, AWS access key, Snowflake password, Snowflake key pair, Databricks token), lists the Storages each Credential is used by, and does not delete a Credential that a Storage uses. The video follows a key pasted into a team chat: the Credential shows which Storages use it, where to replace it once, and where to switch it off.
+
+  <https://customer-4geatlj66rtkaxtz.cloudflarestream.com/fbf9fd1875e90c608d865f4446547238/iframe>
+
+  **Copy credentials from another storage** is removed: select the same Credential in both Storages. `PUT /data-storages/:id` takes `reusableCredentialId`, and the old `credentialId`, `credentials` and `sourceStorageId` fields are rejected. Storage responses no longer include `credentials` or `credentialId`.
+
+  See [Credentials for Storages](../../docs/storages/manage-storages.md#credentials-for-storages) and [Credentials](../../docs/project/credentials.md).
+
+- 21a3f01: <!-- markdownlint-disable-file MD041 MD036 -->
+
+  **Reuse one Google Sheets or Google Chat key across Destinations**
+
+  **Existing Google Sheets and Google Chat Destinations are converted once, on the first start of this version (or when you run migrations), and keep running; no action is needed.** A Google account Destination whose stored sign-in lacks a permission the Sheets Google account Credential requires stops until you reconnect its Credential; the migration log names each one. Every owner of a Destination owns its Credential. Converted Credentials are Not shared, whatever the Destination's sharing: members who maintain a Destination without owning it can still use and edit it, but reuse its key elsewhere only after an owner shares the Credential. Identical keys of Destinations with the same owners become one Credential. A Destination whose key cannot be converted keeps running on its own key until you select a Credential.
+
+  Each Google Sheets or Google Chat Destination used to keep its own service account key, Google account or webhook URL. Using one key in two Destinations meant copying it, and rotating a key, for example after someone who had it leaves the company, meant finding and editing every copy. The Destination form now has a **Credential** field: select a Credential that fits, or click **+ Create new Credential** to add one beside the form; the form then selects the new Credential. With exactly one fitting Credential, a new Destination selects it for you. Replacing a Credential's secret updates every Storage and Destination that uses it, as the video shows.
+
+  <https://customer-4geatlj66rtkaxtz.cloudflarestream.com/7a6ec641d0c2e9c46803ef845b09b541/iframe>
+  - **Google Sheets** Destinations use a Google Service Account or a Sheets Google account Credential. The Google Drive permission (`drive.file`) is optional for a Sheets Google account: without it, reports still write, and **Create document** still creates the spreadsheet, but in the account's Drive root, outside the selected folder and not shared with you.
+  - **Google Chat** Destinations with webhook delivery use a Google Chat webhook Credential. Channel email delivery keeps its addresses on the Destination.
+  - The **Credentials** page gains the Sheets Google account and Google Chat webhook providers, lists the Destinations each Credential is used by, and does not delete a Credential that a Destination uses. The BigQuery Service Account provider is now called **Google Service Account**, because one key serves a BigQuery Storage and a Google Sheets Destination.
+
+  **Copy credentials from another destination** is removed: select the same Credential in both Destinations. **API clients: `POST /data-destinations` and `PUT /data-destinations/:id` take `reusableCredentialId` for Google Sheets and Google Chat webhook delivery and reject the old `credentialId`, `sourceDestinationId` and key `credentials` fields. The Destination Google OAuth routes are removed: `POST /data-destinations/oauth/authorize`, `POST /data-destinations/oauth/exchange`, `GET /data-destinations/oauth/credential-status/:credentialId`, `POST /data-destinations/:id/oauth/authorize`, `GET /data-destinations/:id/oauth/status` and `DELETE /data-destinations/:id/oauth`; connect a Google account from the Credential instead.** Destination responses no longer include `credentialId` for these types; `credentials` keeps only the public parts, as before: the service account email and project, the Google account, or that a webhook is set.
+
+  See [Google Sheets](../../docs/destinations/supported-destinations/google-sheets.md), [Google Chat](../../docs/destinations/supported-destinations/google-chat.md) and [Credentials](../../docs/project/credentials.md).
+
+- 9dddd2d: **Finding the right Data Mart is quicker: the list keeps your search when you come back**
+
+  When you look for one Data Mart among many, you type part of its name in the Data Marts list and open a match. If it was the wrong one, for example an SQL Data Mart named like the connector Data Mart you needed, going back showed the whole list again, and you typed the search once more for every wrong guess. Now the list keeps the search when you come back in the same browser tab, through the back arrow, the browser's Back button or the sidebar.
+
+  ![The Data Marts list searched for facebook: three Facebook Ads Data Marts are listed, and the search field ends with a × that clears it](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/e15aea3d-4c81-45a4-85ba-01a95e2b8f00/w=800)
+  - The search is kept per project and only in the current tab: a new tab opens the full list.
+  - A **×** in the search field clears the search in one click. The Connectors, Destinations, Storages, Contexts and Members lists get it too; their search still starts empty each time.
+
+  See [Find a Data Mart in the list](../../docs/data-marts/index.md#find-a-data-mart-in-the-list).
+
+  <!-- markdownlint-disable-file MD041 MD036 -->
+
+- acd2a73: **See on one screen who has access to a Data Mart, who doesn't, and why**
+
+  Project Admins decide which members see each Data Mart and what they can do with it. Now the Data Mart's **Overview** tab shows the result in one place: every project member, whether they have access, what it comes through, and what to change to give them more — for example, _To see it: add Paid ads in Contexts_.
+
+  Watch how a Project Admin sees why a business user has no access to a Data Mart and gives it on the same page.
+
+  <https://customer-4geatlj66rtkaxtz.cloudflarestream.com/f4f22d8ccda9f412d2fc1ba80bd9f89b/iframe>
+  - Each member's row shows their role, what their access comes through — Ownership, _Shared for reporting_, _Shared for maintenance_, or a shared context — and what they can do: see the Data Mart and build reports on it, edit it, or change its Sharing and Ownership.
+  - Hints link to where the change is made: **Project settings → Members** opens the member's details, and a context's name opens that context.
+  - The **Sharing** and **Contexts** sections show who each option and each context lets in, the way **Ownership** shows owners, and warn how many members a setting keeps out, such as a Data Mart without a context that members limited to selected contexts can't see.
+  - The list follows the rules the product enforces and is visible to Project Admins only; see [Ownership and Sharing](../../docs/project/ownership-and-sharing.md#see-who-has-access-to-a-data-mart).
+
+- a2029a1: **Deleting a context no longer gets stuck on attachments you cannot see**
+
+  A Project Admin cleaning up Contexts could not delete one: the dialog said it was attached to several Members or to a Data Mart, but there was nothing to detach. Those members showed **Entire project** scope and no contexts in **Project Settings → Members**, and the Data Marts link opened an empty list. A member could be freed only by switching them to **Selected contexts only**, unticking the context and switching back; a deleted Data Mart could not be freed at all. Both kept a link the admin could not see: a member switched to Entire project, or made a Project Admin, keeps their context assignments so they come back if the member is switched back, and a deleted Data Mart, Storage or Destination keeps its contexts. Now the delete counts only what the admin can see and detach.
+  - **Members** in the delete dialog, and `memberCount` in `GET /api/contexts/{id}/impact`, count only non-admin members with Selected contexts only scope.
+  - **Data Marts**, **Storages** and **Destinations** in the dialog, and their counts in the same endpoint, no longer include deleted ones.
+  - Assignments kept by Project Admins and Entire project members, and the contexts of deleted Data Marts, Storages and Destinations, are removed together with the context.
+  - The **Members** column in **Project Settings → Contexts** lists Project Admins and Entire project members on every context, as the context panel does, instead of only on contexts they kept from an earlier scope. In **Project Settings → Members**, Project Admins show no contexts.
+
+    ![Project Settings → Contexts with Finance, Marketing and Sales: every row's Members column shows the same admins and Entire project members, and the hover card on Finance's +3 lists Marco Rossi, Olivia Park and Tom Becker](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/d653b6aa-c687-4d76-9e44-faf8a101cf00/w=800)
+
+  See [Deleting a Context](../../docs/project/contexts.md#deleting-a-context).
+
+  <!-- markdownlint-disable-file MD041 MD036 -->
+
+- 4e6ef21: **Clearer warning when a report counts a field from a joined Data Mart**
+
+  When you tick **Count** on a field from a joined Data Mart, the report editor warns that the number counts your report's Data Mart rows, not the joined Data Mart's. That warning was one dense paragraph, so it was hard to tell what it meant or what to do, and a count of customers that have an order could still pass for a count of orders. Now it opens with what the number counts, such as "Counts Customers rows, not Orders rows". One sentence with the real Data Mart names says whether it can come out higher or lower than the joined Data Mart's row count, and the last line says what to pick instead. When a missing primary key is the reason, the warning names the Data Mart that needs one and links to its Output Schema, which opens in a new tab so the report you are editing stays as it is. Once you set the key there and come back, the warning updates without reopening the report.
+
+  ![The aggregation popover for the column name from the joined Customers Data Mart, with Count ticked and the warning "Counts Companies rows, not Customers rows": Companies has no primary key, so the count can be higher than the number of Customers rows; set a primary key on Companies, or use Count Unique or the Unique Count of Customers](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/8e327059-1658-4b9a-5e92-e1c7e5364300/w=800)
+
+  Data Mart names and aggregation options are in bold, and field names are in monospace as in the column list, so **Count Unique**, which counts distinct values of this field, no longer blurs with `Unique Count`, the joined Data Mart's own row count. When the warning appears is unchanged, and it still blocks nothing. See [Counting rows in a group](../../docs/getting-started/setup-guide/report-aggregations.md#counting-rows-in-a-group).
+
+  <!-- markdownlint-disable-file MD041 MD036 -->
+
+- c2a758b: <!-- markdownlint-disable-file MD041 MD036 -->
+
+  **Correct client address behind a load balancer that adds two forwarding entries**
+
+  Behind some load balancers, such as a Google Cloud external Application Load Balancer, the application saw the load balancer's own address as the client address, because it trusted exactly one proxy while the load balancer appends two `X-Forwarded-For` entries: the client and itself. Set the new `TRUST_PROXY_HOPS` variable to the number of entries your proxies append, `2` in that case, and the real client address is used.
+
+  The default stays `1`, so a deployment that does not set the variable behaves as before. The value is a number from `0` to `10`; anything else stops the application at startup, and a value larger than the real number of proxies would let clients choose their own address. `0` is only for clients that connect directly, with no proxy in front. See [Reverse proxy](../../docs/getting-started/deployment-guide/environment-variables.md#reverse-proxy).
+
+### Patch Changes 0.41.0
+
+- @owox/internal-helpers@0.41.0
+- @owox/idp-protocol@0.41.0
+- @owox/idp-better-auth@0.41.0
+- @owox/idp-owox-better-auth@0.41.0
+- @owox/backend@0.41.0
+- @owox/web@0.41.0
+
 ## 0.40.0
 
 ### Minor Changes 0.40.0
