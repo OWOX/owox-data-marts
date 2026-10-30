@@ -54,6 +54,34 @@ Connector loads count toward the limit, with at least 10 MiB for each load, but 
 
 The limit resets at midnight Pacific Time. When a project has used it, queries fail with the error "This project has used today's OWOX Storage query limit. It resets at midnight Pacific Time."
 
+## Storage size
+
+Each OWOX Storage has a size limit.
+
+| Project plan | Size |
+| --- | --- |
+| Free | 1 GiB |
+| Paid | 10 GiB included |
+
+When a Free storage reaches its limit, new connector runs are refused. They show as RESTRICTED in Run History with the message "This project's OWOX Storage has reached its size limit. Delete tables in the storage or upgrade the plan to load more data." Delete tables or upgrade the plan to load data again.
+
+Reads, reports and table deletion keep working when the storage is full.
+
+A connector run that has already started is not stopped, so usage can end above the limit.
+
+A Paid storage is never stopped for its size.
+
+## Usage and tables
+
+Open **Storages**, then open the OWOX Storage. The **Usage and Tables** section of the edit sheet shows:
+
+- **Usage**: "`<used>` of `<limit>` used" on the Free plan, or "`<used>` used, `<included>` included" on the Paid plan. A full Free storage also shows the warning "This storage is full. New connector runs are refused until you delete tables or upgrade the plan."
+- **Tables**: a list of the tables in the storage's dataset with their **Table**, **Rows** and **Size**. Sizes are read live.
+
+To delete a table, click its delete button and confirm.
+
+> ⚠️ A deleted table cannot be restored. Data Marts that read the table fail until a connector loads it again.
+
 ## No direct BigQuery access
 
 OWOX Storage gives you no key and no access to the Google Cloud console. Use OWOX Data Marts to query the data and to deliver it with [Destinations](../../destinations/).
