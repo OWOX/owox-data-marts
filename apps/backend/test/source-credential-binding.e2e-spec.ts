@@ -268,7 +268,7 @@ describe('Selecting Source credentials in a Data Mart definition (e2e)', () => {
     expect(JSON.stringify(saved.body)).not.toContain(TOKEN);
   });
 
-  it('a configuration whose Credential was deleted shows no _credential_id and keeps its binding', async () => {
+  it('a configuration whose Credential was deleted shows no _credential_id, says it was deleted and keeps its binding', async () => {
     const credentialId = await givenGitHubToken('Deleted token');
     const { dataMartId, configId } = await givenBoundDataMart(credentialId);
     await dataSource.getRepository(Credential).softDelete({ id: credentialId });
@@ -277,7 +277,9 @@ describe('Selecting Source credentials in a Data Mart definition (e2e)', () => {
     expect(configurationOf(read.body)).toEqual([
       { _id: configId, RepositoryName: 'owox/owox-data-marts' },
     ]);
-    expect(read.body.sourceCredentials).toEqual([]);
+    expect(read.body.sourceCredentials).toEqual([
+      { configId, summary: { access: 'restricted', state: 'deleted' } },
+    ]);
 
     await put(dataMartId, configurationOf(read.body)).expect(200);
     expect(await bindings(dataMartId)).toEqual([
