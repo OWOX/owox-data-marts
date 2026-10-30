@@ -25,3 +25,15 @@ export class OwoxStorageProvisioningException extends BusinessViolationException
     super('OWOX Storage could not be created. Try again later.');
   }
 }
+
+export class OwoxStorageUsageReadException extends BusinessViolationException {
+  constructor() {
+    super('OWOX Storage usage could not be read. Try again later.');
+  }
+}
+
+export class OwoxStorageTableDeleteException extends BusinessViolationException {
+  constructor() {
+    super('The table could not be deleted. Try again later.');
+  }
+}
