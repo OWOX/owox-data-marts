@@ -35,6 +35,10 @@ export class CreateCredentialService {
   async run(context: AuthorizationContext, input: CreateCredentialApiDto): Promise<CredentialDto> {
     const definition = await this.definitions.get(input.definitionId);
     const { auth } = definition.contract;
+    // The previous release cannot read these, so a rollback would break its Credentials list.
+    if (auth.type === 'custom-connector' || definition.definitionId.startsWith('source:')) {
+      throw new BadRequestException('This Credential type cannot be created in this version.');
+    }
     if (auth.type === 'oauth') {
       throw new BadRequestException('Connect a Google account to create this Credential.');
     }
@@ -117,15 +121,34 @@ export class CreateCredentialService {
   }
 }
 
-/** A field set takes `fields`, OAuth takes neither, and the other kinds take `secret`. */
+/** A field set takes `fields`, a custom connector takes `customConnector` (on update, `fields` only), OAuth takes neither, and the other kinds take `secret`. */
 export function assertCredentialInputKind(
   auth: CredentialDefinitionContract['auth'],
-  input: { readonly secret?: unknown; readonly fields?: unknown }
+  input: {
+    readonly secret?: unknown;
+    readonly fields?: unknown;
+    readonly customConnector?: unknown;
+    readonly hosts?: unknown;
+    readonly fieldList?: unknown;
+  },
+  updating = false
 ): void {
-  if (input.fields != null && auth.type !== 'fields') {
+  const custom = auth.type === 'custom-connector';
+  if (input.fields != null && auth.type !== 'fields' && !(custom && updating)) {
     throw new BadRequestException('This Credential definition does not take fields');
   }
-  if (input.secret != null && (auth.type === 'fields' || auth.type === 'oauth')) {
+  if (input.customConnector != null && !custom) {
+    throw new BadRequestException(
+      'This Credential definition does not take custom connector settings'
+    );
+  }
+  if (input.hosts != null || input.fieldList != null) {
+    throw new BadRequestException('Hosts and the field list cannot be changed after creation');
+  }
+  if (
+    input.secret != null &&
+    (auth.type === 'fields' || auth.type === 'oauth' || auth.type === 'custom-connector')
+  ) {
     throw new BadRequestException('This Credential definition does not take a secret value');
   }
 }

@@ -183,6 +183,7 @@ export class CriteoAdsSource extends AbstractSource {
         requiredType: 'string',
         label: 'Client ID',
         description: 'Your Criteo API Client Id',
+        attributes: [CONFIG_ATTRIBUTES.CREDENTIAL],
       },
       ClientSecret: {
         isRequired: true,

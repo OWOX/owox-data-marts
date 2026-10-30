@@ -125,6 +125,22 @@ export function withBuildLock(fn) {
 }
 
 /**
+ * `withBuildLock` for async work: holds the lock until `fn` settles, e.g. while a child
+ * process runs the dist bundle, so no sibling rebuild deletes it mid-run.
+ * @template T
+ * @param {() => Promise<T>} fn
+ * @returns {Promise<T>}
+ */
+export async function withBuildLockAsync(fn) {
+  acquireLock();
+  try {
+    return await fn();
+  } finally {
+    releaseLock();
+  }
+}
+
+/**
  * Runs `npm run build` for the package at `pkgRoot`. Callers MUST invoke this
  * (and any subsequent `require()` of dist output) inside `withBuildLock`.
  * @param {string} pkgRoot

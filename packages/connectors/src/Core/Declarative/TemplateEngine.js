@@ -44,7 +44,7 @@ export class TemplateEngine {
         if (key === '__proto__' || key === 'constructor' || key === 'prototype') {
           throw new Error(`Template path "${path}" contains an unsafe segment "${key}"`);
         }
-        value = value == null ? undefined : value[key];
+        value = value !== null && typeof value === 'object' ? value[key] : undefined;
       }
       if (value === undefined || value === null) {
         if (onUnresolved) onUnresolved(path);

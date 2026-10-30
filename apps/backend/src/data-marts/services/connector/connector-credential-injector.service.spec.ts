@@ -10,6 +10,7 @@ describe('ConnectorCredentialInjectorService', () => {
     const connectorSourceCredentialsService = {
       getCredentialsById: jest.fn(),
       isExpired: jest.fn(),
+      createCredentials: jest.fn(),
     } as unknown as ConnectorSourceCredentialsService;
 
     const connectorService = {

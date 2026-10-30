@@ -26,7 +26,7 @@ const MIN_REDACTED_SECRET_LENGTH = 6;
 const STORAGE_WIRED_PARAMETERS = new Set(['DestinationTableName', 'DestinationTableNameOverride']);
 
 export class AbstractContext {
-  constructor({ source, storage, runConfig, env }) {
+  constructor({ source, storage, runConfig, env, keyParameters }) {
     if (!source?.name) throw new Error('source.name is required');
     if (!source?.config) throw new Error('source.config is required');
     if (!storage?.name) throw new Error('storage.name is required');
@@ -47,6 +47,11 @@ export class AbstractContext {
       datamartId: env?.datamartId || null,
       runId: env?.runId || null,
     };
+
+    // Names of the parameters a Credential filled; their values are redacted like secrets.
+    this.keyParameters = new Set(keyParameters ?? []);
+    // Secrets the run obtained rather than was given, such as an access token.
+    this._obtainedSecrets = new Set();
 
     this._parameterDefinitions = {};
   }
@@ -313,9 +318,24 @@ export class AbstractContext {
    * Emit an event to stdout (newline-delimited JSON).
    */
   emit(event) {
-    const line = JSON.stringify(event.toJSON());
+    const json = event.toJSON();
     // A CREDENTIALS event carries rotated secrets for the host to store, on purpose.
-    process.stdout.write(`${event instanceof CredentialsEvent ? line : this.redactSecrets(line)}\n`);
+    // Masking the object, not the line, keeps a secret that matches a JSON number from breaking the line.
+    const body = event instanceof CredentialsEvent ? json : this._maskStrings(json);
+    process.stdout.write(`${JSON.stringify(body)}\n`);
+  }
+
+  /** Masks strings and object keys; numbers, booleans and null pass unchanged. */
+  _maskStrings(value) {
+    if (typeof value === 'string') return this.redactSecrets(value);
+    if (Array.isArray(value)) return value.map(item => this._maskStrings(item));
+    if (value && typeof value === 'object') {
+      if (typeof value.toJSON === 'function') return this._maskStrings(value.toJSON());
+      return Object.fromEntries(
+        Object.entries(value).map(([k, v]) => [this.redactSecrets(k), this._maskStrings(v)])
+      );
+    }
+    return value;
   }
 
   /**
@@ -343,28 +363,46 @@ export class AbstractContext {
   }
 
   /**
-   * The current string values of every parameter declared SECRET, the items of an option
-   * included (an OAuth client secret, say), longest first so that a secret containing another
-   * is replaced whole.
+   * Adds a value the run obtained, such as an access token, to those redactSecrets replaces.
+   *
+   * @param {unknown} value
+   */
+  addSecret(value) {
+    if (value !== undefined && value !== null) this._obtainedSecrets.add(String(value));
+  }
+
+  /**
+   * The current values (strings, numbers, object leaves) of every parameter declared SECRET or
+   * filled from a Credential, the items of an option included (an OAuth client secret, say), and
+   * every secret added with addSecret, longest first so that a secret containing another is
+   * replaced whole.
    *
    * @returns {string[]}
    * @private
    */
   _secretValues() {
-    const values = new Set();
+    // A number is matched by its text, an object by each leaf.
+    const textsOf = value =>
+      typeof value === 'string'
+        ? [value]
+        : typeof value === 'number' && Number.isFinite(value)
+          ? [String(value)]
+          : value && typeof value === 'object' && !(value instanceof Date)
+            ? Object.values(value).flatMap(textsOf)
+            : [];
+    const values = new Set(this._obtainedSecrets);
     const isSecret = definition =>
       Array.isArray(definition?.attributes) &&
       definition.attributes.includes(CONFIG_ATTRIBUTES.SECRET);
 
     for (const [name, definition] of Object.entries(this._parameterDefinitions)) {
       const parameter = this.getParameter(name);
-      if (isSecret(definition) && typeof parameter?.value === 'string') {
-        values.add(parameter.value);
-      }
+      const redacted = isSecret(definition) || this.keyParameters.has(name);
+      if (redacted) for (const text of textsOf(parameter?.value)) values.add(text);
       for (const option of Array.isArray(definition?.oneOf) ? definition.oneOf : []) {
         for (const [itemName, itemDefinition] of Object.entries(option?.items ?? {})) {
           const item = parameter?.items?.[itemName];
-          if (isSecret(itemDefinition) && typeof item?.value === 'string') values.add(item.value);
+          if (isSecret(itemDefinition)) for (const text of textsOf(item?.value)) values.add(text);
         }
       }
     }
