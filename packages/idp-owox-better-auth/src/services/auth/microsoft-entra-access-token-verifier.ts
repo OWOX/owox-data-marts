@@ -16,8 +16,9 @@ const EntraAccessTokenClaimsSchema = z.object({
   exp: z.number().int().positive(),
   nbf: z.number().int().optional(),
   iat: z.number().int().positive(),
-  oid: z.string().uuid(),
-  tid: z.string().uuid(),
+  // GUID, not RFC UUID: personal-account oids look like 00000000-0000-0000-xxxx-xxxxxxxxxxxx.
+  oid: z.guid(),
+  tid: z.guid(),
   scp: z.string().min(1),
   email: z.string().optional(),
   xms_edov: EntraBooleanClaimSchema.optional(),

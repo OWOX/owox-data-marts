@@ -72,6 +72,13 @@ describe('MicrosoftEntraAccessTokenVerifier', () => {
     });
   });
 
+  it('accepts a personal Microsoft account, whose oid is not an RFC UUID', async () => {
+    const personalOid = '00000000-0000-0000-66f3-3332eca7ea81';
+    const result = await verifier.verify(await sign({ oid: personalOid }));
+
+    expect(result.oid).toBe(personalOid);
+  });
+
   it('normalizes the Entra string representation of xms_edov', async () => {
     const verified = await verifier.verify(await sign({ xms_edov: '1' }));
     const unverified = await verifier.verify(await sign({ xms_edov: '0' }));
