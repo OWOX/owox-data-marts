@@ -1217,6 +1217,39 @@ describe('UpdateDataMartDefinitionService', () => {
       expect(dataMartService.save).toHaveBeenCalled();
     });
 
+    describe('a same-type SQL save', () => {
+      const sqlAt = (sqlQuery: string) => ({ sqlQuery });
+
+      it('on an OWOX Storage is refused when the validator rejects it, and nothing is written', async () => {
+        const { service, dataMartService, definitionValidatorFacade } = createService({
+          definitionType: DataMartDefinitionType.SQL,
+          definition: sqlAt('SELECT 1'),
+          managed: true,
+        });
+        definitionValidatorFacade.checkIsValid.mockRejectedValue(
+          new BusinessViolationException('OWOX Storage runs SELECT queries only.')
+        );
+
+        await expect(
+          service.run(commandFor(DataMartDefinitionType.SQL, sqlAt('DELETE FROM t WHERE true')))
+        ).rejects.toThrow('SELECT queries only');
+
+        expect(dataMartService.save).not.toHaveBeenCalled();
+      });
+
+      it('on a regular storage is not validated, as before', async () => {
+        const { service, dataMartService, definitionValidatorFacade } = createService({
+          definitionType: DataMartDefinitionType.SQL,
+          definition: sqlAt('SELECT 1'),
+        });
+
+        await service.run(commandFor(DataMartDefinitionType.SQL, sqlAt('SELECT 2')));
+
+        expect(definitionValidatorFacade.checkIsValid).not.toHaveBeenCalled();
+        expect(dataMartService.save).toHaveBeenCalled();
+      });
+    });
+
     it('does not re-validate a same-type edit', async () => {
       const { service, definitionValidatorFacade } = createService({
         definitionType: DataMartDefinitionType.TABLE,
