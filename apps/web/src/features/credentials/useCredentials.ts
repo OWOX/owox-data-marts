@@ -28,7 +28,11 @@ export function useCredentials() {
     retry: false,
     refetchOnWindowFocus: false,
   });
-  return { ...query, credentials: query.data ?? [] };
+  return {
+    ...query,
+    credentials: query.data?.credentials ?? [],
+    unavailableCredentials: query.data?.unavailable ?? [],
+  };
 }
 
 export function useCredentialDefinitions() {

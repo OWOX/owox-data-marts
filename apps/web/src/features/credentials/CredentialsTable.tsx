@@ -50,13 +50,18 @@ import {
   matchesCredentialSearch,
   type CredentialFilterKey,
 } from './CredentialsTableFilters';
-import type { Credential } from './types';
+import { isUnavailableCredential, type Credential, type UnavailableCredential } from './types';
 import { ProviderIcon } from './components/ProviderCombobox';
 import { servedConnector } from './served-connector';
 import { CredentialConsumerList } from './components/CredentialUsedByList';
 
+type TableRow = Credential | UnavailableCredential;
+
 interface CredentialsTableProps {
   credentials: Credential[];
+  unavailableCredentials?: UnavailableCredential[];
+  /** Whether the viewer may delete a Credential whose connector is gone. */
+  canDeleteUnavailable?: boolean;
   canAddCredential: boolean;
   canMaintainCredential: (credential: Credential) => boolean;
   isValidating: boolean;
@@ -66,11 +71,13 @@ interface CredentialsTableProps {
   onEdit: (credential: Credential) => void;
   onToggleEnabled: (credential: Credential) => void;
   onAcceptDefinition: (credential: Credential) => void;
-  onDelete: (credential: Credential) => void;
+  onDelete: (credential: TableRow) => void;
 }
 
 export function CredentialsTable({
   credentials,
+  unavailableCredentials = [],
+  canDeleteUnavailable = false,
   canAddCredential,
   canMaintainCredential,
   isValidating,
@@ -91,18 +98,24 @@ export function CredentialsTable({
     urlParam: 'filters',
     config: filtersConfig,
   });
-  const filteredCredentials = useMemo(
-    () =>
-      applyFiltersToData(credentials, appliedState, credentialFilterAccessors).filter(credential =>
-        matchesCredentialSearch(credential, searchQuery)
+  const filteredCredentials = useMemo<TableRow[]>(() => {
+    const query = searchQuery.trim().toLocaleLowerCase();
+    return [
+      ...applyFiltersToData(credentials, appliedState, credentialFilterAccessors).filter(
+        credential => matchesCredentialSearch(credential, searchQuery)
       ),
-    [appliedState, credentials, searchQuery]
-  );
+      // Filters describe fields an unavailable row does not have.
+      ...(appliedState.filters.length === 0
+        ? unavailableCredentials.filter(row => row.title.toLocaleLowerCase().includes(query))
+        : []),
+    ];
+  }, [appliedState, credentials, unavailableCredentials, searchQuery]);
   const columns = useMemo(
     () =>
       getCredentialColumns({
         isValidating,
         canMaintainCredential,
+        canDeleteUnavailable,
         onValidate,
         onReplaceSecret,
         onEdit,
@@ -113,6 +126,7 @@ export function CredentialsTable({
     [
       isValidating,
       canMaintainCredential,
+      canDeleteUnavailable,
       onAcceptDefinition,
       onDelete,
       onEdit,
@@ -130,14 +144,14 @@ export function CredentialsTable({
     getRowId: credential => credential.id,
   });
 
-  const handleRowClick = (row: Row<Credential>, event: React.MouseEvent) => {
+  const handleRowClick = (row: Row<TableRow>, event: React.MouseEvent) => {
     if (
       event.target instanceof HTMLElement &&
       (event.target.closest('.actions-cell') || event.target.closest('[role="menuitem"]'))
     ) {
       return;
     }
-    if (!canMaintainCredential(row.original)) return;
+    if (isUnavailableCredential(row.original) || !canMaintainCredential(row.original)) return;
     onEdit(row.original);
   };
 
@@ -195,16 +209,17 @@ export function CredentialsTable({
 
 interface CredentialColumnActions {
   isValidating: boolean;
+  canDeleteUnavailable: boolean;
   canMaintainCredential: (credential: Credential) => boolean;
   onValidate: (credential: Credential) => void;
   onReplaceSecret: (credential: Credential) => void;
   onEdit: (credential: Credential) => void;
   onToggleEnabled: (credential: Credential) => void;
   onAcceptDefinition: (credential: Credential) => void;
-  onDelete: (credential: Credential) => void;
+  onDelete: (credential: TableRow) => void;
 }
 
-function getCredentialColumns(actions: CredentialColumnActions): ColumnDef<Credential>[] {
+function getCredentialColumns(actions: CredentialColumnActions): ColumnDef<TableRow>[] {
   return [
     {
       accessorKey: 'title',
@@ -215,48 +230,63 @@ function getCredentialColumns(actions: CredentialColumnActions): ColumnDef<Crede
     },
     {
       id: 'provider',
-      accessorFn: credential => credential.definition.displayName,
+      accessorFn: credential =>
+        isUnavailableCredential(credential) ? '' : credential.definition.displayName,
       size: 180,
       meta: { title: 'Provider' },
       header: ({ column }) => <SortableHeader column={column}>Provider</SortableHeader>,
-      cell: ({ row }) => (
-        <div className='flex items-center gap-2'>
-          <ProviderIcon
-            icon={row.original.definition.icon}
-            connector={servedConnector(row.original.definition)}
-          />
-          {row.original.definition.displayName}
-        </div>
-      ),
+      cell: ({ row }) =>
+        isUnavailableCredential(row.original) ? (
+          <span className='text-muted-foreground'>
+            Unavailable — its connector is no longer installed
+          </span>
+        ) : (
+          <div className='flex items-center gap-2'>
+            <ProviderIcon
+              icon={row.original.definition.icon}
+              connector={servedConnector(row.original.definition)}
+            />
+            {row.original.definition.displayName}
+          </div>
+        ),
     },
     {
       id: 'availability',
       accessorFn: credential =>
-        credential.definitionConsentRequired
-          ? 'definition-update-pending'
-          : credential.enabled
-            ? 'enabled'
-            : 'disabled',
+        isUnavailableCredential(credential)
+          ? ''
+          : credential.definitionConsentRequired
+            ? 'definition-update-pending'
+            : credential.enabled
+              ? 'enabled'
+              : 'disabled',
       size: 300,
       meta: { title: 'Availability' },
       header: ({ column }) => <SortableHeader column={column}>Availability</SortableHeader>,
-      cell: ({ row }) => <CredentialAvailability credential={row.original} />,
+      cell: ({ row }) =>
+        isUnavailableCredential(row.original) ? null : (
+          <CredentialAvailability credential={row.original} />
+        ),
     },
     {
       id: 'usedBy',
-      accessorFn: credential => credential.usedBy.length,
+      accessorFn: credential =>
+        isUnavailableCredential(credential) ? 0 : credential.usedBy.length,
       size: 120,
       meta: { title: 'Used by' },
       header: ({ column }) => <SortableHeader column={column}>Used by</SortableHeader>,
-      cell: ({ row }) => <UsedByCell credential={row.original} />,
+      cell: ({ row }) =>
+        isUnavailableCredential(row.original) ? null : <UsedByCell credential={row.original} />,
     },
     {
       id: 'lastUsedAt',
-      accessorFn: credential => credential.lastUsedAt ?? '',
+      accessorFn: credential =>
+        isUnavailableCredential(credential) ? '' : (credential.lastUsedAt ?? ''),
       size: 190,
       meta: { title: 'Last used' },
       header: ({ column }) => <SortableHeader column={column}>Last used</SortableHeader>,
-      cell: ({ row }) => formatDate(row.original.lastUsedAt),
+      cell: ({ row }) =>
+        isUnavailableCredential(row.original) ? null : formatDate(row.original.lastUsedAt),
     },
     {
       id: 'actions',
@@ -264,11 +294,51 @@ function getCredentialColumns(actions: CredentialColumnActions): ColumnDef<Crede
       enableResizing: false,
       header: ({ table }) => <ToggleColumnsHeader table={table} />,
       cell: ({ row }) =>
-        actions.canMaintainCredential(row.original) ? (
+        isUnavailableCredential(row.original) ? (
+          actions.canDeleteUnavailable ? (
+            <UnavailableActionsCell credential={row.original} onDelete={actions.onDelete} />
+          ) : null
+        ) : actions.canMaintainCredential(row.original) ? (
           <CredentialActionsCell credential={row.original} {...actions} />
         ) : null,
     },
   ];
+}
+
+function UnavailableActionsCell({
+  credential,
+  onDelete,
+}: {
+  credential: UnavailableCredential;
+  onDelete: (credential: UnavailableCredential) => void;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+
+  return (
+    <div className='actions-cell text-right'>
+      <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
+        <DropdownMenuTrigger asChild>
+          <Button
+            variant='ghost'
+            className={`dm-card-table-body-row-actionbtn opacity-0 transition-opacity ${isOpen ? 'opacity-100' : 'group-hover:opacity-100'}`}
+            aria-label={`Open actions for ${credential.title}`}
+          >
+            <MoreHorizontal className='dm-card-table-body-row-actionbtn-icon' />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align='end'>
+          <DropdownMenuItem
+            onClick={() => {
+              onDelete(credential);
+            }}
+          >
+            <Trash2 className='h-4 w-4 text-red-600' aria-hidden='true' />
+            <span className='text-red-600'>Delete</span>
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
+  );
 }
 
 function CredentialAvailability({ credential }: { credential: Credential }) {

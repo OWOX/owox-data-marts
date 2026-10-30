@@ -185,6 +185,23 @@ export interface CredentialConsumerReference {
   lastUsedAt: string | null;
 }
 
+/** A Credential whose connector or definition is no longer installed; it can only be deleted. */
+export interface UnavailableCredential {
+  id: string;
+  projectId: string;
+  title: string;
+  definitionId: string;
+  state: 'unavailable';
+  createdAt: string;
+  modifiedAt: string;
+}
+
+export function isUnavailableCredential(
+  row: Credential | UnavailableCredential
+): row is UnavailableCredential {
+  return 'state' in row;
+}
+
 export interface Credential {
   id: string;
   projectId: string;

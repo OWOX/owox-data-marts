@@ -41,6 +41,7 @@ vi.mock('./useCredentials', () => ({
   useCredentialActions: () => ({ validate: mocks.validate }),
   useCredentials: () => ({
     credentials: mocks.state.credentials,
+    unavailableCredentials: [],
     isLoading: false,
     isError: false,
     refetch: vi.fn(),
