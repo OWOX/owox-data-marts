@@ -77,6 +77,8 @@ function makeService() {
     save: jest.fn().mockResolvedValue(undefined),
   };
 
+  const managedStorages = { findByStorageId: jest.fn().mockResolvedValue(null) };
+
   const service = new UpdateDataStorageService(
     dataStorageRepository as never,
     dataStorageService as never,
@@ -90,7 +92,8 @@ function makeService() {
     storageOwnerRepository as never,
     eventDispatcher as never,
     accessDecisionService as never,
-    contextAccessService as never
+    contextAccessService as never,
+    managedStorages as never
   );
 
   return {
@@ -109,6 +112,7 @@ function makeService() {
     eventDispatcher,
     contextAccessService,
     storageOwnerRepository,
+    managedStorages,
   };
 }
 
@@ -1105,6 +1109,52 @@ describe('UpdateDataStorageService - BigQuery projectId validation', () => {
     const { service, dataStorageRepository } = makeService();
 
     await expect(service.run(makeFullCommand())).resolves.toBeDefined();
+    expect(dataStorageRepository.save).toHaveBeenCalled();
+  });
+});
+
+describe('UpdateDataStorageService - OWOX Storage', () => {
+  function managedService() {
+    const ctx = makeService();
+    ctx.managedStorages.findByStorageId.mockResolvedValue({ storageId });
+    return ctx;
+  }
+
+  it('saves a new title on an OWOX Storage', async () => {
+    const { service, storage, dataStorageRepository, dataStorageAccessFacade, storageCredentials } =
+      managedService();
+    storageCredentials.resolveForStorage.mockResolvedValue(null);
+
+    await service.run(makeCommand());
+
+    expect(dataStorageAccessFacade.verifyAccess).not.toHaveBeenCalled();
+    expect(storageCredentials.resolveForStorage).not.toHaveBeenCalled();
+    expect(dataStorageRepository.save).toHaveBeenCalledWith(storage);
+  });
+
+  it('refuses a Credential on an OWOX Storage', async () => {
+    const { service, dataStorageRepository } = managedService();
+
+    await expect(service.run(makeCommand({ reusableCredentialId: 'cred-1' }))).rejects.toThrow(
+      "An OWOX Storage's connection and Credential are managed by OWOX and cannot be changed."
+    );
+    expect(dataStorageRepository.save).not.toHaveBeenCalled();
+  });
+
+  it('refuses a changed config on an OWOX Storage', async () => {
+    const { service, dataStorageRepository } = managedService();
+
+    await expect(
+      service.run(makeCommand({ config: { projectId: 'other-project-1', location: 'US' } }))
+    ).rejects.toThrow('managed by OWOX');
+    expect(dataStorageRepository.save).not.toHaveBeenCalled();
+  });
+
+  it('accepts the unchanged config the form sends', async () => {
+    const { service, dataStorageRepository } = managedService();
+
+    await service.run(makeFullCommand());
+
     expect(dataStorageRepository.save).toHaveBeenCalled();
   });
 });

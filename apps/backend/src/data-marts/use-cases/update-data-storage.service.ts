@@ -47,6 +47,8 @@ import { AccessDecisionService, EntityType, Action } from '../services/access-de
 import { ContextAccessService } from '../services/context/context-access.service';
 import { AdvancedSearchIndexSyncService } from '../services/advanced-search-index-sync.service';
 import { SearchableEntityType } from '../../common/search/search.facade';
+import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
+import { ManagedStorageService } from '../owox-storage/managed-storage.service';
 
 interface StorageUpdateValidation {
   type: DataStorageType;
@@ -74,6 +76,7 @@ export class UpdateDataStorageService {
     private readonly eventDispatcher: OwoxEventDispatcher,
     private readonly accessDecisionService: AccessDecisionService,
     private readonly contextAccessService: ContextAccessService,
+    private readonly managedStorages: ManagedStorageService,
     private readonly advancedSearchIndexSync?: AdvancedSearchIndexSyncService
   ) {}
 
@@ -140,6 +143,19 @@ export class UpdateDataStorageService {
   ): Promise<StorageUpdateValidation | undefined> {
     if (command.config === undefined && command.reusableCredentialId === undefined)
       return undefined;
+    const managed = await this.managedStorages.findByStorageId(storage.id);
+    if (
+      managed &&
+      (command.reusableCredentialId !== undefined ||
+        (command.config !== undefined &&
+          !sameStorageConfig(storage.type, storage.config, command.config)))
+    ) {
+      throw new BusinessViolationException(
+        "An OWOX Storage's connection and Credential are managed by OWOX and cannot be changed."
+      );
+    }
+    // The config is unchanged, so there is nothing to verify or write.
+    if (managed) return undefined;
     let config = command.config ?? storage.config;
     if (!config) {
       throw new BadRequestException('Set the Storage configuration before selecting a Credential.');
