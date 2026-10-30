@@ -68,7 +68,11 @@ export class DataStorageApiService extends ApiService {
     location: OwoxStorageLocation;
     ownerIds?: string[];
   }): Promise<DataStorageResponseDto> {
-    return this.post<DataStorageResponseDto>('/owox-storage', data);
+    // Provisioning can take about 90 s; the dialog shows the error inline, so no toast.
+    return this.post<DataStorageResponseDto>('/owox-storage', data, {
+      timeout: 180000,
+      skipErrorToast: true,
+    } as AxiosRequestConfig);
   }
 
   /**
