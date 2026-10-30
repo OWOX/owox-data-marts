@@ -60,20 +60,23 @@ export class SourceCredentialBindingService extends ConsumerCredentialBindingSer
     super(binder, definitions, access, credentialService, googleOAuth, googleOAuthConfig);
   }
 
-  /** Checks only the project: a caller binding a newly chosen Credential checks USE first. */
-  bindConfig(
-    projectId: string,
-    dataMartId: string,
-    configId: string,
-    credentialId: string
-  ): Promise<void> {
-    return this.binder.bindInProject({
-      consumerType: SOURCE_BINDING_CONSUMER_TYPE,
-      consumerId: dataMartId,
-      requirementKey: configId,
-      projectId,
-      credentialId,
-      requirement: this.requirement(),
+  /** Checks USE, the accepted definition and enabled under the Credential's lock. */
+  bindConfig(input: {
+    projectId: string;
+    userId: string;
+    roles: readonly string[];
+    dataMartId: string;
+    configId: string;
+    credentialId: string;
+  }): Promise<void> {
+    return this.bindConsumer({
+      projectId: input.projectId,
+      userId: input.userId,
+      roles: input.roles,
+      credentialId: input.credentialId,
+      type: SOURCE_BINDING_CONSUMER_TYPE,
+      consumerId: input.dataMartId,
+      requirementKey: input.configId,
     });
   }
 

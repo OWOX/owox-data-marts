@@ -412,8 +412,26 @@ describe('UpdateDataMartDefinitionService', () => {
         model: null,
       });
       expect(sourceCredentials.bindConfig.mock.calls).toEqual([
-        ['proj-1', 'dm-1', 'c-1', 'cred-1'],
-        ['proj-1', 'dm-1', 'c-2', 'cred-2'],
+        [
+          {
+            projectId: 'proj-1',
+            userId: 'user-1',
+            roles: ['editor'],
+            dataMartId: 'dm-1',
+            configId: 'c-1',
+            credentialId: 'cred-1',
+          },
+        ],
+        [
+          {
+            projectId: 'proj-1',
+            userId: 'user-1',
+            roles: ['editor'],
+            dataMartId: 'dm-1',
+            configId: 'c-2',
+            credentialId: 'cred-2',
+          },
+        ],
       ]);
       expect(sourceCredentials.checkConfigCredential.mock.invocationCallOrder[0]).toBeLessThan(
         sourceCredentials.bindConfig.mock.invocationCallOrder[0]
@@ -836,12 +854,14 @@ describe('UpdateDataMartDefinitionService', () => {
           config: expect.objectContaining({ AuthType: { service_account: {} } }),
         })
       );
-      expect(sourceCredentials.bindConfig).toHaveBeenLastCalledWith(
-        'proj-1',
-        'dm-1',
-        'c-1',
-        'cred-service-2'
-      );
+      expect(sourceCredentials.bindConfig).toHaveBeenLastCalledWith({
+        projectId: 'proj-1',
+        userId: 'user-1',
+        roles: ['editor'],
+        dataMartId: 'dm-1',
+        configId: 'c-1',
+        credentialId: 'cred-service-2',
+      });
     });
 
     it('an existing configuration with inline key values saved unchanged is accepted', async () => {
@@ -928,7 +948,14 @@ describe('UpdateDataMartDefinitionService', () => {
 
       expect(sourceCredentials.deactivateDataMart).toHaveBeenCalledWith('dm-1');
       expect(sourceCredentials.checkConfigCredential).toHaveBeenCalled();
-      expect(sourceCredentials.bindConfig).toHaveBeenCalledWith('proj-1', 'dm-1', 'c-1', 'cred-1');
+      expect(sourceCredentials.bindConfig).toHaveBeenCalledWith({
+        projectId: 'proj-1',
+        userId: 'user-1',
+        roles: ['editor'],
+        dataMartId: 'dm-1',
+        configId: 'c-1',
+        credentialId: 'cred-1',
+      });
     });
   });
 
