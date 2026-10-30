@@ -39,6 +39,7 @@ import { InsightTemplateController } from './controllers/insight-template.contro
 import { ScheduledTriggerController } from './controllers/scheduled-trigger.controller';
 import { SyncDataMartsByGcpTrigger } from './entities/legacy-data-marts/sync-data-marts-by-gcp-trigger.entity';
 import { SyncGcpStoragesForProjectTrigger } from './entities/legacy-data-marts/sync-gcp-storages-for-project-trigger.entity';
+import { OwoxStorageConfigService } from './owox-storage/owox-storage-config.service';
 import { InternalProjectBillingService } from './services/project-billing/internal-project-billing.service';
 import { LicenseProjectBillingService } from './services/project-billing/license-project-billing.service';
 import { RestrictedProjectBillingService } from './services/project-billing/restricted-project-billing.service';
@@ -897,6 +898,7 @@ import { ConsentCredentialDefinitionService } from './credentials/use-cases/cons
     ConnectorMessageParserService,
     ConnectorStateService,
     InternalProjectBillingService,
+    OwoxStorageConfigService,
     LicenseProjectBillingService,
     RestrictedProjectBillingService,
     projectBillingProvider,
