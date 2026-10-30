@@ -27,24 +27,22 @@ export class CreateManagedStorageTable1792800000000 implements MigrationInterfac
           { name: 'createdAt', type: 'datetime', default: 'CURRENT_TIMESTAMP' },
           { name: 'modifiedAt', type: 'datetime', default: 'CURRENT_TIMESTAMP' },
         ],
-      })
-    );
-    await queryRunner.createIndex(
-      TABLE,
-      new TableIndex({
-        name: 'UQ_managed_storage_projectId',
-        columnNames: ['projectId'],
-        isUnique: true,
-      })
-    );
-    await queryRunner.createForeignKey(
-      TABLE,
-      new TableForeignKey({
-        columnNames: ['storageId'],
-        referencedTableName: 'data_storage',
-        referencedColumnNames: ['id'],
-        onDelete: 'NO ACTION',
-        onUpdate: 'NO ACTION',
+        indices: [
+          new TableIndex({
+            name: 'UQ_managed_storage_projectId',
+            columnNames: ['projectId'],
+            isUnique: true,
+          }),
+        ],
+        foreignKeys: [
+          new TableForeignKey({
+            columnNames: ['storageId'],
+            referencedTableName: 'data_storage',
+            referencedColumnNames: ['id'],
+            onDelete: 'NO ACTION',
+            onUpdate: 'NO ACTION',
+          }),
+        ],
       })
     );
   }
