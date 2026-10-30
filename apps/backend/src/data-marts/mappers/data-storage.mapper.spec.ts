@@ -45,8 +45,13 @@ function configWith(dataDir = '/data/owox-duckdb') {
   } as never;
 }
 
+const noManaged = {
+  findByStorageId: jest.fn().mockResolvedValue(null),
+  findByStorageIds: jest.fn().mockResolvedValue(new Map()),
+} as never;
+
 describe('DataStorageMapper', () => {
-  const mapper = new DataStorageMapper(clsWith(), configWith());
+  const mapper = new DataStorageMapper(clsWith(), configWith(), noManaged);
 
   describe('toApiResponse', () => {
     it('carries the Credential summary and no key data', async () => {
@@ -91,8 +96,8 @@ describe('DataStorageMapper', () => {
     });
   });
 
-  it('lists Storages with their Credential summaries', () => {
-    const [item] = mapper.toResponseList([
+  it('lists Storages with their Credential summaries', async () => {
+    const [item] = await mapper.toResponseList([
       mapper.toDomainDto(storage, 0, 0, null, [], undefined, visible),
     ]);
 
@@ -100,14 +105,14 @@ describe('DataStorageMapper', () => {
   });
 
   it('hides which Credential a Storage uses from a plugin request', async () => {
-    const pluginMapper = new DataStorageMapper(clsWith('plugin'), configWith());
+    const pluginMapper = new DataStorageMapper(clsWith('plugin'), configWith(), noManaged);
     const dto = pluginMapper.toDomainDto(storage, 0, 0, null, [], undefined, visible);
 
     expect((await pluginMapper.toApiResponse(dto)).reusableCredential).toEqual({
       access: 'restricted',
       state: 'ready',
     });
-    expect(pluginMapper.toResponseList([dto])[0].reusableCredential).toEqual({
+    expect((await pluginMapper.toResponseList([dto]))[0].reusableCredential).toEqual({
       access: 'restricted',
       state: 'ready',
     });
@@ -116,20 +121,58 @@ describe('DataStorageMapper', () => {
   it('says a Storage still runs on its own key, to members and plugins alike', async () => {
     const pending: StorageCredentialSummary = { access: 'pending', state: 'ready' };
     for (const authFlow of [undefined, 'plugin']) {
-      const flowMapper = new DataStorageMapper(clsWith(authFlow), configWith());
+      const flowMapper = new DataStorageMapper(clsWith(authFlow), configWith(), noManaged);
       const dto = flowMapper.toDomainDto(storage, 0, 0, null, [], undefined, pending);
 
       expect((await flowMapper.toApiResponse(dto)).reusableCredential).toEqual(pending);
-      expect(flowMapper.toResponseList([dto])[0].reusableCredential).toEqual(pending);
+      expect((await flowMapper.toResponseList([dto]))[0].reusableCredential).toEqual(pending);
     }
   });
 
   it('shows the Credential to a member request, whatever its auth flow', async () => {
-    const apiKeyMapper = new DataStorageMapper(clsWith('api_key'), configWith());
+    const apiKeyMapper = new DataStorageMapper(clsWith('api_key'), configWith(), noManaged);
     const dto = apiKeyMapper.toDomainDto(storage, 0, 0, null, [], undefined, visible);
 
     expect((await apiKeyMapper.toApiResponse(dto)).reusableCredential).toEqual(visible);
-    expect(apiKeyMapper.toResponseList([dto])[0].reusableCredential).toEqual(visible);
+    expect((await apiKeyMapper.toResponseList([dto]))[0].reusableCredential).toEqual(visible);
+  });
+
+  describe('OWOX Storage marker', () => {
+    const managed = { location: 'EU', datasetId: 'owox_0123456789ab', storageId: 'storage-1' };
+
+    it('adds owoxStorage for a managed storage', async () => {
+      const m = new DataStorageMapper(clsWith(), configWith(), {
+        findByStorageId: jest.fn().mockResolvedValue(managed),
+      } as never);
+
+      const response = await m.toApiResponse(m.toDomainDto(storage));
+
+      expect(response.owoxStorage).toEqual({ location: 'EU', datasetId: 'owox_0123456789ab' });
+    });
+
+    it('omits it otherwise', async () => {
+      const response = await mapper.toApiResponse(mapper.toDomainDto(storage));
+      const [item] = await mapper.toResponseList([mapper.toDomainDto(storage)]);
+
+      expect(response).not.toHaveProperty('owoxStorage');
+      expect(item).not.toHaveProperty('owoxStorage');
+    });
+
+    it('toResponseList looks managed storages up in one call', async () => {
+      const findByStorageIds = jest.fn().mockResolvedValue(new Map([['storage-1', managed]]));
+      const m = new DataStorageMapper(clsWith(), configWith(), { findByStorageIds } as never);
+      const other = { ...storage, id: 'storage-2' } as unknown as DataStorage;
+
+      const [first, second] = await m.toResponseList([
+        m.toDomainDto(storage),
+        m.toDomainDto(other),
+      ]);
+
+      expect(findByStorageIds).toHaveBeenCalledTimes(1);
+      expect(findByStorageIds).toHaveBeenCalledWith(['storage-1', 'storage-2']);
+      expect(first.owoxStorage).toEqual({ location: 'EU', datasetId: 'owox_0123456789ab' });
+      expect(second).not.toHaveProperty('owoxStorage');
+    });
   });
 
   describe('toUpdateCommand', () => {
@@ -173,10 +216,11 @@ describe('DataStorageMapper', () => {
       ['a member', undefined, false],
       ['a plugin', 'plugin', true],
     ])('carries the member and whether %s calls', (_who, authFlow, isPluginCall) => {
-      const command = new DataStorageMapper(clsWith(authFlow), configWith()).toByTypeCommand(
-        context as AuthorizationContext,
-        DataStorageType.SNOWFLAKE
-      );
+      const command = new DataStorageMapper(
+        clsWith(authFlow),
+        configWith(),
+        noManaged
+      ).toByTypeCommand(context as AuthorizationContext, DataStorageType.SNOWFLAKE);
 
       expect(command).toEqual({
         projectId: 'proj-1',
