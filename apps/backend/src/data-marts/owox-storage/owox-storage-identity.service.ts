@@ -43,4 +43,16 @@ export class OwoxStorageIdentity {
     }
     return client;
   }
+
+  async bigQueryAs(
+    serviceAccountEmail: string,
+    projectId: string,
+    location: OwoxStorageLocation
+  ): Promise<BigQuery> {
+    return new BigQuery({
+      projectId,
+      location,
+      authClient: await this.impersonate(serviceAccountEmail),
+    });
+  }
 }
