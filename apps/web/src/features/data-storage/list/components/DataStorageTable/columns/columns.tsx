@@ -20,6 +20,7 @@ export interface DataStorageTableItem {
   id: string;
   title: string;
   type: DataStorageType;
+  owoxStorage?: unknown;
   createdAt: Date;
   modifiedAt: Date;
   publishedDataMartsCount: number;
@@ -104,7 +105,7 @@ export const getDataStorageColumns = ({
       return (
         <div className='text-muted-foreground flex items-center gap-2'>
           <Icon size={18} />
-          {displayName}
+          {row.original.owoxStorage ? 'OWOX Storage' : displayName}
         </div>
       );
     },

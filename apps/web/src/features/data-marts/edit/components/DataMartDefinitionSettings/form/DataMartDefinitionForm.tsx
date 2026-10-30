@@ -13,6 +13,7 @@ import type { SqlReferencesContext } from './SqlDataMartReferencePicker.tsx';
 interface DataMartDefinitionFormProps {
   definitionType: DataMartDefinitionType;
   storageType: DataStorageType;
+  fixedDatasetName?: string;
   storageId: string;
   storageConfig: DataStorageConfigDto | null;
   preset?: string;
@@ -29,6 +30,7 @@ interface DataMartDefinitionFormProps {
 export function DataMartDefinitionForm({
   definitionType,
   storageType,
+  fixedDatasetName,
   storageId,
   storageConfig,
   preset,
@@ -106,6 +108,7 @@ export function DataMartDefinitionForm({
         <ConnectorDefinitionField
           control={control}
           storageType={storageType}
+          fixedDatasetName={fixedDatasetName}
           preset={preset}
           connectorName={connectorName}
           autoOpen={shouldAutoOpenConnector}
