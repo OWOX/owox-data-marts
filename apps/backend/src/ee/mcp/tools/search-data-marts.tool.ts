@@ -4,7 +4,7 @@ import {
   type McpContextsFacade,
 } from '../../../data-marts/facades/mcp-contexts.facade';
 import { Inject, Injectable } from '@nestjs/common';
-import { z } from 'zod-v4';
+import { z } from 'zod';
 import type { McpScope } from '@owox/idp-protocol';
 import {
   SEARCH_FACADE,

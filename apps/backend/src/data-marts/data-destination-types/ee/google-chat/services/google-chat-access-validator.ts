@@ -39,7 +39,7 @@ export class GoogleChatAccessValidator implements DataDestinationAccessValidator
     if (!credentialsValidation.success) {
       this.logger.warn('Invalid Google Chat credentials format', credentialsValidation.error);
       return new ValidationResult(false, 'Invalid Google Chat credentials', {
-        errors: credentialsValidation.error.errors,
+        errors: credentialsValidation.error.issues,
       });
     }
 
@@ -47,7 +47,7 @@ export class GoogleChatAccessValidator implements DataDestinationAccessValidator
     if (!config.success) {
       this.logger.warn('Invalid Google Chat report configuration', config.error);
       return new ValidationResult(false, 'Invalid configuration', {
-        errors: config.error.errors,
+        errors: config.error.issues,
       });
     }
 

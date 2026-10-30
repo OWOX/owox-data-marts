@@ -1,4 +1,4 @@
-import { z } from 'zod-v4';
+import { z } from 'zod';
 export const contextIdsSchema = z
   .array(z.string().trim().min(1))
   .max(100)

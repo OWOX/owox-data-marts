@@ -1,5 +1,5 @@
 import { AjvJsonSchemaValidator } from '@modelcontextprotocol/server/validators/ajv';
-import { z } from 'zod-v4';
+import { z } from 'zod';
 import { makeMcpOutputSchema } from './mcp-output-schema';
 
 const validator = new AjvJsonSchemaValidator();

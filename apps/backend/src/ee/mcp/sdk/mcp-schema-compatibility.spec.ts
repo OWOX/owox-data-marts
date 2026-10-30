@@ -1,6 +1,6 @@
 import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
 import { createMcpHandler, McpServer } from '@modelcontextprotocol/server';
-import { z } from 'zod-v4';
+import { z } from 'zod';
 import type { McpAuthContext } from '../auth/mcp-auth-context';
 import { McpConfigService } from '../config/mcp.config';
 import { jsonToolResult, type McpToolDefinition } from '../tools/mcp-tool.definition';

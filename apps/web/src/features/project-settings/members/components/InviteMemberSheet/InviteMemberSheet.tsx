@@ -39,7 +39,7 @@ import { MemberFormFields } from '../MemberFormFields/MemberFormFields';
 import type { ContextDto } from '../../../../../features/contexts/types/context.types';
 
 const inviteMemberSchema = z.object({
-  email: z.string().trim().email('Please enter a valid email address').max(320),
+  email: z.string().trim().pipe(z.email('Please enter a valid email address').max(320)),
   role: z.enum(PROJECT_ROLE_VALUES),
   roleScope: z.enum(ROLE_SCOPE_VALUES),
 });

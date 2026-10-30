@@ -20,6 +20,6 @@ export const ConnectorOauthCredentialsSchema = z.object({
     .optional(),
   secret: z.record(z.string(), z.unknown()),
   expiresIn: z.number().optional(),
-  additional: z.record(z.unknown()).optional(),
+  additional: z.record(z.string(), z.unknown()).optional(),
   warnings: z.array(z.string()).optional(),
 });

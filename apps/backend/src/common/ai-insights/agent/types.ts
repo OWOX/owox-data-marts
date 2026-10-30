@@ -78,7 +78,7 @@ export type ToolMessageProcessor = (params: {
   messages: AiMessage[];
 }) => string;
 
-export interface ToolLoopOptions {
+export interface ToolLoopOptions<TSchema extends ZodTypeAny = ZodTypeAny> {
   aiProvider: AiChatProvider;
   toolRegistry: ToolRegistry;
   context: AiContext;
@@ -86,7 +86,7 @@ export interface ToolLoopOptions {
   initialMessages: AiMessage[];
   tools: ReturnType<ToolRegistry['getAiTools']>;
   maxTurns: number;
-  resultSchema: ZodTypeAny;
+  resultSchema: TSchema;
   logger: Logger;
   executionPolicy?: ToolExecutionPolicy;
   messageProcessors?: Record<string, ToolMessageProcessor>;

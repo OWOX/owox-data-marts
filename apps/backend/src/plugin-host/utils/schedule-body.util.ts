@@ -8,7 +8,7 @@ import type {
 const FIELDS = {
   action: z.string(),
   // z.unknown() answers the value itself, so keys such as `__proto__` and `constructor` survive.
-  parameters: z.unknown(),
+  parameters: z.unknown().optional(),
   cron: z.string(),
   timeZone: z.string(),
   // A blank name is stored as no name.
@@ -25,7 +25,7 @@ const CreateScheduleBodySchema = z
 
 const UpdateScheduleBodySchema = z.object(FIELDS).partial().strict();
 
-function parse<T>(schema: z.ZodType<T, z.ZodTypeDef, unknown>, body: unknown): T {
+function parse<T>(schema: z.ZodType<T>, body: unknown): T {
   const result = schema.safeParse(body ?? {});
   if (!result.success) {
     throw new BadRequestException(

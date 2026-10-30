@@ -1,4 +1,4 @@
-import { z } from 'zod-v4';
+import { z } from 'zod';
 import {
   ADVERTISED_MCP_OPERATORS,
   LEGACY_MCP_OPERATORS,

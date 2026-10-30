@@ -48,10 +48,13 @@ describe('parseCreateScheduleBody', () => {
 
   it.each([
     [{ ...BASE, extra: 1 }, 'property extra should not exist'],
-    [{ ...BASE, enabled: 'yes' }, 'enabled: Expected boolean, received string'],
-    [{ ...BASE, cron: 5 }, 'cron: Expected string, received number'],
-    [{ cron: '0 9 * * *', timeZone: 'UTC' }, 'action: Required'],
-    [[], 'body: Expected object, received array'],
+    [{ ...BASE, enabled: 'yes' }, 'enabled: Invalid input: expected boolean, received string'],
+    [{ ...BASE, cron: 5 }, 'cron: Invalid input: expected string, received number'],
+    [
+      { cron: '0 9 * * *', timeZone: 'UTC' },
+      'action: Invalid input: expected string, received undefined',
+    ],
+    [[], 'body: Invalid input: expected object, received array'],
   ])('refuses %j', (body, message) => {
     expect(refusal(() => parseCreateScheduleBody(body))).toMatchObject({ message: [message] });
   });

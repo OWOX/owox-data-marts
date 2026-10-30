@@ -61,8 +61,14 @@ describe('ValidationMiddleware', () => {
       expect.objectContaining({
         error: 'Invalid request body',
         details: expect.arrayContaining([
-          expect.objectContaining({ path: 'foo', message: 'Required' }),
-          expect.objectContaining({ path: 'bar', message: 'Expected number, received string' }),
+          expect.objectContaining({
+            path: 'foo',
+            message: 'Invalid input: expected string, received undefined',
+          }),
+          expect.objectContaining({
+            path: 'bar',
+            message: 'Invalid input: expected number, received string',
+          }),
         ]),
       })
     );
