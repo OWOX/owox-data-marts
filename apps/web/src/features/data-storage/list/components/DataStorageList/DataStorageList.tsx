@@ -240,6 +240,7 @@ export const DataStorageList = ({
     availableForMaintenance: storage.availableForMaintenance,
     contexts: storage.contexts ?? [],
     reusableCredential: storage.reusableCredential,
+    owoxStorage: storage.owoxStorage,
   }));
 
   const columns = getDataStorageColumns({

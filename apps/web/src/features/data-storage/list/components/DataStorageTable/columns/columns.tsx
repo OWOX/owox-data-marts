@@ -6,6 +6,7 @@ import {
   type StorageCredentialSummary,
 } from '../../../../shared';
 import { CredentialStateMark } from '../../../../../credentials';
+import type { OwoxStorageDto } from '../../../../shared/api/types/response/data-storage.response.dto';
 import { DataStorageTypeModel } from '../../../../shared/types/data-storage-type.model';
 import { DataStorageActionsCell } from '../DataStorageActionsCell';
 import { DataStorageColumnKey } from './columnKeys';
@@ -20,7 +21,7 @@ export interface DataStorageTableItem {
   id: string;
   title: string;
   type: DataStorageType;
-  owoxStorage?: unknown;
+  owoxStorage?: OwoxStorageDto;
   createdAt: Date;
   modifiedAt: Date;
   publishedDataMartsCount: number;
