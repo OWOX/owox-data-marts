@@ -2,6 +2,7 @@ import { ForbiddenException, Logger, NotFoundException } from '@nestjs/common';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
 import { DeleteOwoxStorageTableCommand } from '../dto/domain/delete-owox-storage-table.command';
 import { OwoxStorageTableDeleteException } from '../owox-storage/owox-storage.exceptions';
+import { Action, EntityType } from '../services/access-decision';
 import { DeleteOwoxStorageTableService } from './delete-owox-storage-table.service';
 
 const record = {
@@ -21,7 +22,7 @@ function makeService(managed: unknown = record, canEdit = true) {
     managedStorages as never,
     engine as never
   );
-  return { service, dataStorageService, engine };
+  return { service, accessDecisionService, dataStorageService, engine };
 }
 
 const command = new DeleteOwoxStorageTableCommand('storage-1', 'proj-1', 'events', 'user-1', [
@@ -34,6 +35,21 @@ describe('DeleteOwoxStorageTableService', () => {
     errorLog = jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
   });
   afterEach(() => jest.restoreAllMocks());
+
+  it('checks EDIT access on the storage', async () => {
+    const { service, accessDecisionService } = makeService();
+
+    await service.run(command);
+
+    expect(accessDecisionService.canAccess).toHaveBeenCalledWith(
+      'user-1',
+      command.roles,
+      EntityType.STORAGE,
+      'storage-1',
+      Action.EDIT,
+      'proj-1'
+    );
+  });
 
   it('drops the table', async () => {
     const { service, engine } = makeService();

@@ -3,6 +3,7 @@ import { BusinessViolationException } from '../../common/exceptions/business-vio
 import { GetOwoxStorageUsageCommand } from '../dto/domain/get-owox-storage-usage.command';
 import { ProjectPlanType } from '../enums/project-plan-type.enum';
 import { OwoxStorageUsageReadException } from '../owox-storage/owox-storage.exceptions';
+import { Action, EntityType } from '../services/access-decision';
 import { GetOwoxStorageUsageService } from './get-owox-storage-usage.service';
 
 const record = { storageId: 'storage-1', datasetId: 'owox_abc', projectId: 'proj-1' };
@@ -24,7 +25,7 @@ function makeService(managed: unknown = record, canSee = true) {
     managedStorages as never,
     usageService as never
   );
-  return { service, dataStorageService, usageService };
+  return { service, accessDecisionService, dataStorageService, usageService };
 }
 
 const command = new GetOwoxStorageUsageCommand('storage-1', 'proj-1', 'user-1', ['viewer']);
@@ -32,6 +33,21 @@ const command = new GetOwoxStorageUsageCommand('storage-1', 'proj-1', 'user-1', 
 describe('GetOwoxStorageUsageService', () => {
   beforeEach(() => jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined));
   afterEach(() => jest.restoreAllMocks());
+
+  it('checks SEE access on the storage', async () => {
+    const { service, accessDecisionService } = makeService();
+
+    await service.run(command);
+
+    expect(accessDecisionService.canAccess).toHaveBeenCalledWith(
+      'user-1',
+      command.roles,
+      EntityType.STORAGE,
+      'storage-1',
+      Action.SEE,
+      'proj-1'
+    );
+  });
 
   it('returns usage for an OWOX Storage', async () => {
     const { service, usageService } = makeService();
