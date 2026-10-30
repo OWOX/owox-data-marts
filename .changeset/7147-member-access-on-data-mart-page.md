@@ -8,7 +8,7 @@ Project Admins decide which members see each Data Mart and what they can do with
 
 Watch how a Project Admin sees why a business user has no access to a Data Mart and gives it on the same page.
 
-<https://customer-4geatlj66rtkaxtz.cloudflarestream.com/f228505c34f5f4b59b63f994432430f3/iframe>
+<https://customer-4geatlj66rtkaxtz.cloudflarestream.com/f4f22d8ccda9f412d2fc1ba80bd9f89b/iframe>
 
 - Each member's row shows their role, what their access comes through — Ownership, _Shared for reporting_, _Shared for maintenance_, or a shared context — and what they can do: see the Data Mart and build reports on it, edit it, or change its Sharing and Ownership.
 - Hints link to where the change is made: **Project settings → Members** opens the member's details, and a context's name opens that context.
