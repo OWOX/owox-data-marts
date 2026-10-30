@@ -12,6 +12,8 @@ import { CreateOwoxStorageCommand } from '../dto/domain/create-owox-storage.comm
 import { CreateOwoxStorageApiDto } from '../dto/presentation/create-owox-storage-api.dto';
 import { DataStorageDto } from '../dto/domain/data-storage.dto';
 import { DeleteDataStorageCommand } from '../dto/domain/delete-data-storage.command';
+import { GetOwoxStorageUsageCommand } from '../dto/domain/get-owox-storage-usage.command';
+import { DeleteOwoxStorageTableCommand } from '../dto/domain/delete-owox-storage-table.command';
 import { GetDataStorageCommand } from '../dto/domain/get-data-storage.command';
 import { ListDataStoragesCommand } from '../dto/domain/list-data-storages.command';
 import { ListStorageResourcesCommand } from '../dto/domain/list-storage-resources.command';
@@ -223,6 +225,33 @@ export class DataStorageMapper {
 
   toDeleteCommand(id: string, context: AuthorizationContext): DeleteDataStorageCommand {
     return new DeleteDataStorageCommand(id, context.projectId, context.userId, context.roles ?? []);
+  }
+
+  toGetOwoxStorageUsageCommand(
+    id: string,
+    context: AuthorizationContext
+  ): GetOwoxStorageUsageCommand {
+    return new GetOwoxStorageUsageCommand(
+      id,
+      context.projectId,
+      context.userId,
+      context.roles ?? []
+    );
+  }
+
+  toDeleteOwoxStorageTableCommand(
+    id: string,
+    tableName: string,
+    context: AuthorizationContext
+  ): DeleteOwoxStorageTableCommand {
+    return new DeleteOwoxStorageTableCommand(
+      id,
+      context.projectId,
+      tableName,
+      context.userId,
+      context.roles ?? [],
+      context.authFlow === 'plugin'
+    );
   }
 
   toPublishDraftsCommand(

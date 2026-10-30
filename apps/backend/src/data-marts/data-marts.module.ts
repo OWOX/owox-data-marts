@@ -108,6 +108,8 @@ import { ReportMapper } from './mappers/report.mapper';
 import { GetDataStorageService } from './use-cases/get-data-storage.service';
 import { CreateDataStorageService } from './use-cases/create-data-storage.service';
 import { CreateOwoxStorageService } from './use-cases/create-owox-storage.service';
+import { GetOwoxStorageUsageService } from './use-cases/get-owox-storage-usage.service';
+import { DeleteOwoxStorageTableService } from './use-cases/delete-owox-storage-table.service';
 import { UpdateDataStorageService } from './use-cases/update-data-storage.service';
 import { GetDataDestinationService } from './use-cases/get-data-destination.service';
 import { CreateDataDestinationService } from './use-cases/create-data-destination.service';
@@ -827,6 +829,8 @@ import { McpCredentialsFacadeImpl } from './credentials/facades/mcp-credentials.
     GetDataDestinationService,
     CreateDataStorageService,
     CreateOwoxStorageService,
+    GetOwoxStorageUsageService,
+    DeleteOwoxStorageTableService,
     CreateDataDestinationService,
     UpdateDataStorageService,
     UpdateDataDestinationService,
