@@ -17,7 +17,7 @@ type GoogleError = {
 };
 
 /** HTTP code and Google status/reason only: messages can carry emails and project ids. */
-function describe(error: unknown): string {
+export function describeGoogleError(error: unknown): string {
   const e = (error ?? {}) as GoogleError;
   const status = e.response?.data?.error?.status ?? e.errors?.[0]?.reason;
   return ` (code ${e.code ?? 'unknown'}${status ? `, ${status}` : ''})`;
@@ -102,13 +102,15 @@ export class BigQueryManagedStorageEngine implements ManagedStorageEngine {
         serviceAccountEmail: created,
       };
     } catch (error) {
-      this.logger.error(`OWOX Storage ${shortId} provisioning failed at ${step}${describe(error)}`);
+      this.logger.error(
+        `OWOX Storage ${shortId} provisioning failed at ${step}${describeGoogleError(error)}`
+      );
       for (const undoStep of undo.reverse()) {
         try {
           await undoStep.run();
         } catch (undoError) {
           this.logger.error(
-            `OWOX Storage ${shortId} undo failed at ${undoStep.name}${describe(undoError)}`
+            `OWOX Storage ${shortId} undo failed at ${undoStep.name}${describeGoogleError(undoError)}`
           );
         }
       }
@@ -120,10 +122,28 @@ export class BigQueryManagedStorageEngine implements ManagedStorageEngine {
 
   async deprovision(target: ProvisionedManagedStorage): Promise<void> {
     const { gcpProjectId, serviceAccountEmail: email } = target;
-    await this.client.revokeProjectRole(gcpProjectId, JOB_USER_ROLE, email);
-    await this.client.deleteServiceAccount(email);
-    await this.client.deleteDataset(gcpProjectId, target.datasetId);
-    await this.client.deleteDataset(gcpProjectId, target.internalDatasetId);
+    const steps: [string, () => Promise<void>][] = [
+      [
+        'revokeProjectRole',
+        () => this.client.revokeProjectRole(gcpProjectId, JOB_USER_ROLE, email),
+      ],
+      ['deleteServiceAccount', () => this.client.deleteServiceAccount(email)],
+      ['deleteDataset', () => this.client.deleteDataset(gcpProjectId, target.datasetId)],
+      ['deleteDataset', () => this.client.deleteDataset(gcpProjectId, target.internalDatasetId)],
+    ];
+    // Every step runs: one failure must not leave the rest behind.
+    const failures: unknown[] = [];
+    for (const [name, run] of steps) {
+      try {
+        await run();
+      } catch (error) {
+        failures.push(error);
+        this.logger.error(
+          `OWOX Storage ${target.datasetId} deprovision failed at ${name}${describeGoogleError(error)}`
+        );
+      }
+    }
+    if (failures.length > 0) throw failures[0];
   }
 
   private async withGrantRetry(grant: () => Promise<void>): Promise<void> {

@@ -45,15 +45,19 @@ describe('CreateOwoxStorageService', () => {
     };
     const createDataStorage = { run: jest.fn().mockResolvedValue(created) };
     const repo = { update: jest.fn().mockResolvedValue(undefined) };
+    const idp = {
+      getProjectMembers: jest.fn().mockResolvedValue([{ userId: 'u1', isOutbound: false }]),
+    };
     const service = new CreateOwoxStorageService(
       configService as never,
       billing as never,
       managed as never,
       engine as never,
       createDataStorage as never,
-      repo as never
+      repo as never,
+      idp as never
     );
-    return { service, configService, billing, managed, engine, createDataStorage, repo };
+    return { service, configService, billing, managed, engine, createDataStorage, repo, idp };
   }
 
   it('creates the storage, its record and returns owoxStorage', async () => {
@@ -105,6 +109,14 @@ describe('CreateOwoxStorageService', () => {
     expect(s.engine.provision).not.toHaveBeenCalled();
   });
 
+  it('refuses an owner who is not a project member before provisioning', async () => {
+    const s = setup();
+    await expect(
+      s.service.run(new CreateOwoxStorageCommand('p1', 'Mine', 'EU', 'u1', false, ['u1', 'x9']))
+    ).rejects.toThrow('not members of this project: x9');
+    expect(s.engine.provision).not.toHaveBeenCalled();
+  });
+
   it('refuses a second OWOX Storage before provisioning', async () => {
     const s = setup();
     s.managed.findByProjectId.mockResolvedValue({ storageId: 'x' });
@@ -137,9 +149,17 @@ describe('CreateOwoxStorageService', () => {
     const s = setup();
     const boom = new Error('db down');
     s.managed.create.mockRejectedValue(boom);
-    jest.spyOn(Logger.prototype, 'error').mockImplementation();
-    s.engine.deprovision.mockRejectedValue(new Error('gcp down'));
+    const log = jest.spyOn(Logger.prototype, 'error').mockImplementation();
+    s.engine.deprovision.mockRejectedValue(
+      Object.assign(new Error(`gcp down ${provisioned.serviceAccountEmail}`), { code: 403 })
+    );
     await expect(s.service.run(command)).rejects.toBe(boom);
+    const line = String(log.mock.calls[0][0]);
+    expect(line).toContain(provisioned.datasetId);
+    expect(line).toContain('code 403');
+    expect(line).not.toContain(provisioned.serviceAccountEmail);
+    expect(line).not.toContain('owox-managed');
+    log.mockRestore();
   });
 
   it('turns a concurrent duplicate into the already-has refusal', async () => {
