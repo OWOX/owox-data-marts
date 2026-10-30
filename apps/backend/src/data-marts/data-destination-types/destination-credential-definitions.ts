@@ -1,5 +1,5 @@
 // Imported by migration 1792700000000: keep it and its imports when the legacy code goes.
-import { secretValue } from '../credentials/credential.types';
+import { isCustomConnectorMetadata, secretValue } from '../credentials/credential.types';
 import type { CredentialPublicMetadata, CredentialSecret } from '../credentials/credential.types';
 import {
   GOOGLE_CHAT_WEBHOOK_DEFINITION_ID,
@@ -40,6 +40,9 @@ export function toDestinationAdapterCredentials(
         secretValue(secret)
       ) as GoogleSheetsCredentials['serviceAccountKey'],
     };
+  }
+  if (isCustomConnectorMetadata(metadata)) {
+    throw new Error('Custom connector credentials have no Destination adapter shape');
   }
   if (definitionId === GOOGLE_CHAT_WEBHOOK_DEFINITION_ID) {
     const values = {

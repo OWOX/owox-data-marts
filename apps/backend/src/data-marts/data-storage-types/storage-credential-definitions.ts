@@ -2,7 +2,7 @@ import { isDeepStrictEqual } from 'node:util';
 import type { ZodTypeAny } from 'zod';
 import type { StoredStorageCredentials } from '../entities/stored-storage-credentials.type';
 import type { CredentialPublicMetadata, CredentialSecret } from '../credentials/credential.types';
-import { secretValue } from '../credentials/credential.types';
+import { isCustomConnectorMetadata, secretValue } from '../credentials/credential.types';
 import { BUILTIN_CREDENTIAL_DEFINITIONS } from '../credentials/services/builtin-credential-definitions';
 import { AthenaConfigSchema } from './athena/schemas/athena-config.schema';
 import { BigQueryConfigSchema } from './bigquery/schemas/bigquery-config.schema';
@@ -134,6 +134,9 @@ export function toAdapterCredentials(
   }
   if (definitionId === 'google-service-account') {
     return JSON.parse(secretValue(secret)) as StoredStorageCredentials;
+  }
+  if (isCustomConnectorMetadata(metadata)) {
+    throw new Error('Custom connector credentials have no Storage adapter shape');
   }
   const secrets = 'fields' in secret ? secret.fields : {};
   const publics = metadata && 'fields' in metadata ? metadata.fields : {};

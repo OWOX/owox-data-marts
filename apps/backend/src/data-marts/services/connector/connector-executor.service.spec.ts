@@ -56,6 +56,8 @@ import { Logger } from '@nestjs/common';
 
 import { CredentialsExpiredException } from '../../exceptions/google-oauth.exceptions';
 import { StorageCredentialUnavailableException } from '../../exceptions/storage-credential-unavailable.exception';
+import { SourceCredentialUnavailableException } from '../../exceptions/source-credential-unavailable.exception';
+import type { CredentialService } from '../../credentials/services/credential.service';
 import {
   ConnectorExecutorService,
   MAX_MERGED_RUN_OUTPUT_ENTRIES,
@@ -64,6 +66,10 @@ import { ConnectorProcessSpawnerService } from './connector-process-spawner.serv
 import { ConnectorStorageConfigService } from './connector-storage-config.service';
 import { ConnectorSourceConfigService } from './connector-source-config.service';
 import { ConnectorCredentialInjectorService } from './connector-credential-injector.service';
+import {
+  RUN_ROTATION_LEASE_WAIT_MS,
+  SourceCredentialInjectorService,
+} from './source-credential-injector.service';
 import { ConnectorSourceCredentialsService } from './connector-source-credentials.service';
 import { ConnectorOutputCaptureService } from '../../connector-types/connector-message/services/connector-output-capture.service';
 import { ConnectorStateService } from '../../connector-types/connector-message/services/connector-state.service';
@@ -156,6 +162,10 @@ describe('ConnectorExecutorService', () => {
       buildRunConfig: jest.fn().mockReturnValue({ toObject: () => ({}) }),
     } as unknown as ConnectorSourceConfigService;
 
+    const sourceCredentialInjector = {
+      resolveBoundConfig: jest.fn().mockResolvedValue(null),
+    } as unknown as SourceCredentialInjectorService;
+
     const credentialInjector = {
       refreshCredentialsForConfig: jest
         .fn()
@@ -211,6 +221,13 @@ describe('ConnectorExecutorService', () => {
       createTrigger: jest.fn().mockResolvedValue('trigger-2'),
     } as unknown as ConnectorRunTriggerService;
 
+    const credentialService = {
+      updateSecretFields: jest.fn().mockResolvedValue({ updated: true }),
+      claimRotation: jest.fn().mockResolvedValue('lease-1'),
+      releaseRotation: jest.fn().mockResolvedValue(undefined),
+      markRefreshTokenStatic: jest.fn().mockResolvedValue(undefined),
+    } as unknown as CredentialService;
+
     const service = new ConnectorExecutorService(
       dataMartRunRepository,
       processSpawner,
@@ -227,17 +244,21 @@ describe('ConnectorExecutorService', () => {
       connectorDefinitionService,
       connectorSourceCredentialsService,
       configService,
-      connectorRunTriggerService
+      connectorRunTriggerService,
+      credentialService,
+      sourceCredentialInjector
     );
 
     return {
       service,
+      credentialService,
       connectorRunTriggerService,
       dataMartRunRepository,
       processSpawner,
       storageConfigService,
       sourceConfigService,
       credentialInjector,
+      sourceCredentialInjector,
       outputCaptureService,
       connectorStateService,
       gracefulShutdownService,
@@ -1879,7 +1900,8 @@ describe('ConnectorExecutorService', () => {
       undefined,
       dataMart,
       'run-1',
-      'config-1'
+      'config-1',
+      null
     );
 
     expect(warnSpy).toHaveBeenCalledWith(
@@ -3197,6 +3219,478 @@ describe('ConnectorExecutorService', () => {
       // Exactly one message was emitted by the run, so exactly one entry may be stored.
       expect(row.logs).toEqual([expect.stringContaining('"status":3')]);
       expect(row.errors).toBeNull();
+    });
+  });
+
+  describe('bound Credentials', () => {
+    const MISFIT =
+      "This Data Mart's Credential no longer fits its connector. Select a fitting Credential.";
+    const boundConfig = { _id: 'cfg-1', Token: 'credential-token' };
+    const bound = {
+      config: boundConfig,
+      credentialId: 'cred-9',
+      expected: { generated_refresh_token: 'old-token' },
+      keyParameters: ['Token'],
+    };
+    const finalErrors = (dataMartRunRepository: Repository<DataMartRun>): unknown[] =>
+      (
+        (dataMartRunRepository.update as jest.Mock).mock.calls.find(
+          call => call[1]?.status === DataMartRunStatus.FAILED
+        )![1].errors as string[]
+      ).map(entry => JSON.parse(entry));
+
+    it('an unbound configuration falls back to the old row', async () => {
+      const {
+        service,
+        processSpawner,
+        credentialInjector,
+        sourceCredentialInjector,
+        sourceConfigService,
+        connectorSourceCredentialsService,
+        credentialService,
+        emitMessage,
+        emitSuccessMessage,
+      } = createService();
+      const dataMart = createDataMart();
+      getFirstSourceConfig(dataMart)._secrets_id = 'old-row';
+      (processSpawner.spawnConnector as jest.Mock).mockImplementation(() => {
+        emitMessage({
+          type: ConnectorMessageType.CREDENTIALS_UPDATE,
+          at: new Date().toISOString(),
+          credentials: { generated_refresh_token: 'new-token' },
+        });
+        emitSuccessMessage();
+        return Promise.resolve();
+      });
+
+      await service.executeInBackground(dataMart, createRun(), null);
+
+      expect(sourceCredentialInjector.resolveBoundConfig).toHaveBeenCalledWith(
+        'proj-1',
+        'dm-1',
+        'TestConnector',
+        'cfg-1',
+        getFirstSourceConfig(dataMart),
+        null
+      );
+      expect(credentialInjector.refreshCredentialsForConfig).toHaveBeenCalled();
+      expect((sourceConfigService.buildSourceConfig as jest.Mock).mock.calls[0][3]).toEqual(
+        expect.objectContaining({ _secrets_id: 'old-row' })
+      );
+      expect(connectorSourceCredentialsService.updateCredentialFields).toHaveBeenCalledWith(
+        'old-row',
+        'proj-1',
+        { generated_refresh_token: 'new-token' }
+      );
+      expect(credentialService.updateSecretFields).not.toHaveBeenCalled();
+      expect((processSpawner.spawnConnector as jest.Mock).mock.calls[0][7]).toBeUndefined();
+    });
+
+    it("runs a bound configuration on its Credential's values and key parameters", async () => {
+      const {
+        service,
+        processSpawner,
+        credentialInjector,
+        sourceCredentialInjector,
+        sourceConfigService,
+        connectorDefinitionService,
+      } = createService();
+      (sourceCredentialInjector.resolveBoundConfig as jest.Mock).mockResolvedValue(bound);
+      const manifest = { name: 'AcmeApi', nodes: {} };
+      const dataMart = createDataMart();
+      (connectorDefinitionService.tryResolveManifest as jest.Mock).mockResolvedValue(manifest);
+
+      await service.executeInBackground(dataMart, createRun(), null);
+
+      expect(sourceCredentialInjector.resolveBoundConfig).toHaveBeenCalledWith(
+        'proj-1',
+        'dm-1',
+        'TestConnector',
+        'cfg-1',
+        getFirstSourceConfig(dataMart),
+        manifest
+      );
+      expect(credentialInjector.refreshCredentialsForConfig).not.toHaveBeenCalled();
+      expect((sourceConfigService.buildSourceConfig as jest.Mock).mock.calls[0][3]).toBe(
+        boundConfig
+      );
+      expect((processSpawner.spawnConnector as jest.Mock).mock.calls[0][7]).toEqual(['Token']);
+    });
+
+    it('a rotated refresh token is written into the Credential', async () => {
+      const {
+        service,
+        processSpawner,
+        sourceCredentialInjector,
+        connectorSourceCredentialsService,
+        credentialService,
+        emitMessage,
+        emitSuccessMessage,
+      } = createService();
+      (sourceCredentialInjector.resolveBoundConfig as jest.Mock).mockResolvedValue(bound);
+      const dataMart = createDataMart();
+      getFirstSourceConfig(dataMart)._secrets_id = 'old-row';
+      (processSpawner.spawnConnector as jest.Mock).mockImplementation(() => {
+        emitMessage({
+          type: ConnectorMessageType.CREDENTIALS_UPDATE,
+          at: new Date().toISOString(),
+          credentials: { generated_refresh_token: 'new-token' },
+        });
+        emitSuccessMessage();
+        return Promise.resolve();
+      });
+
+      await service.executeInBackground(dataMart, createRun(), null);
+
+      expect(credentialService.updateSecretFields).toHaveBeenCalledWith(
+        'cred-9',
+        'proj-1',
+        { generated_refresh_token: 'new-token' },
+        { generated_refresh_token: 'old-token' }
+      );
+      expect(connectorSourceCredentialsService.updateCredentialFields).not.toHaveBeenCalled();
+      expect(connectorSourceCredentialsService.getCredentialsById).not.toHaveBeenCalled();
+    });
+
+    describe('a rotated token reported during the run', () => {
+      const rotation = (token: string) => ({
+        type: ConnectorMessageType.CREDENTIALS_UPDATE,
+        at: new Date().toISOString(),
+        credentials: { generated_refresh_token: token },
+      });
+      const settle = () => new Promise(resolve => setImmediate(resolve));
+      const finalUpdate = (dataMartRunRepository: Repository<DataMartRun>) =>
+        (dataMartRunRepository.update as jest.Mock).mock.calls
+          .map(call => call[1])
+          .find(
+            update => update.status !== undefined && update.status !== DataMartRunStatus.RUNNING
+          );
+
+      /** A bound run whose runner reports `tokens` in turn, each after the previous was handled. */
+      const runRotating = async (tokens: string[], during?: () => void) => {
+        const created = createService();
+        const { processSpawner, sourceCredentialInjector, emitMessage, emitSuccessMessage } =
+          created;
+        (sourceCredentialInjector.resolveBoundConfig as jest.Mock).mockResolvedValue(bound);
+        (processSpawner.spawnConnector as jest.Mock).mockImplementation(async () => {
+          for (const token of tokens) {
+            emitMessage(rotation(token));
+            await settle();
+          }
+          during?.();
+          emitSuccessMessage();
+        });
+        return created;
+      };
+
+      it('is stored while the run is still going', async () => {
+        let storedDuringRun: unknown[][] = [];
+        const created = await runRotating(['new-token'], () => {
+          storedDuringRun = [
+            ...(created.credentialService.updateSecretFields as jest.Mock).mock.calls,
+          ];
+        });
+
+        await created.service.executeInBackground(createDataMart(), createRun(), null);
+
+        expect(storedDuringRun).toEqual([
+          [
+            'cred-9',
+            'proj-1',
+            { generated_refresh_token: 'new-token' },
+            { generated_refresh_token: 'old-token' },
+          ],
+        ]);
+        expect(created.credentialService.updateSecretFields).toHaveBeenCalledTimes(1);
+      });
+
+      it('a second rotation in one run is checked against the first', async () => {
+        const { service, credentialService } = await runRotating(['token-1', 'token-2']);
+
+        await service.executeInBackground(createDataMart(), createRun(), null);
+
+        expect((credentialService.updateSecretFields as jest.Mock).mock.calls).toEqual([
+          [
+            'cred-9',
+            'proj-1',
+            { generated_refresh_token: 'token-1' },
+            { generated_refresh_token: 'old-token' },
+          ],
+          [
+            'cred-9',
+            'proj-1',
+            { generated_refresh_token: 'token-2' },
+            { generated_refresh_token: 'token-1' },
+          ],
+        ]);
+      });
+
+      it('that loses its compare-and-set leaves a warning, stops the later writes, and the run succeeds', async () => {
+        const { service, credentialService, dataMartRunRepository } = await runRotating([
+          'token-1',
+          'token-2',
+        ]);
+        (credentialService.updateSecretFields as jest.Mock).mockResolvedValue({ updated: false });
+        jest.spyOn(service['logger'], 'warn').mockImplementation(() => undefined);
+
+        await service.executeInBackground(createDataMart(), createRun(), null);
+
+        expect(credentialService.updateSecretFields).toHaveBeenCalledTimes(1);
+        const final = finalUpdate(dataMartRunRepository);
+        expect(final.status).toBe(DataMartRunStatus.SUCCESS);
+        expect((final.logs as string[]).join('\n')).toMatch(/could not be saved/i);
+        expect(final.errors).toBeNull();
+      });
+
+      it("whose write throws fails the configuration with 'Failed to update connector credentials'", async () => {
+        const { service, credentialService, dataMartRunRepository } = await runRotating([
+          'token-1',
+          'token-2',
+        ]);
+        (credentialService.updateSecretFields as jest.Mock).mockRejectedValue(new Error('db down'));
+        jest.spyOn(service['logger'], 'error').mockImplementation(() => undefined);
+
+        await service.executeInBackground(createDataMart(), createRun(), null);
+
+        expect(credentialService.updateSecretFields).toHaveBeenCalledTimes(1);
+        const final = finalUpdate(dataMartRunRepository);
+        expect(final.status).toBe(DataMartRunStatus.FAILED);
+        expect(JSON.stringify(final.errors)).toContain(
+          'Failed to update connector credentials: db down'
+        );
+        expect(JSON.stringify(final)).not.toContain('token-1');
+      });
+
+      describe('the rotation lease', () => {
+        const leased = {
+          ...bound,
+          rotationLease: { credentialId: 'cred-9', leaseId: 'lease-1' },
+        };
+        const released = [['cred-9', 'lease-1']];
+
+        /** A leased run like `runRotating`, with the releases seen while the runner was still going. */
+        const runLeased = async (tokens: string[]) => {
+          const seen = { duringRun: [] as unknown[][] };
+          const created = await runRotating(tokens, () => {
+            seen.duringRun = [
+              ...(created.credentialService.releaseRotation as jest.Mock).mock.calls,
+            ];
+          });
+          (created.sourceCredentialInjector.resolveBoundConfig as jest.Mock).mockResolvedValue(
+            leased
+          );
+          return { ...created, seen };
+        };
+
+        it('is released after the first stored rotation, before a second write', async () => {
+          const { service, credentialService, seen } = await runLeased(['token-1', 'token-2']);
+
+          await service.executeInBackground(createDataMart(), createRun(), null);
+
+          expect(seen.duringRun).toEqual(released);
+          expect((credentialService.releaseRotation as jest.Mock).mock.calls).toEqual(released);
+          const release = (credentialService.releaseRotation as jest.Mock).mock.invocationCallOrder;
+          const writes = (credentialService.updateSecretFields as jest.Mock).mock
+            .invocationCallOrder;
+          expect(writes[0]).toBeLessThan(release[0]);
+          expect(release[0]).toBeLessThan(writes[1]);
+        });
+
+        it('is released at once after a lost write', async () => {
+          const { service, credentialService, seen } = await runLeased(['token-1']);
+          (credentialService.updateSecretFields as jest.Mock).mockResolvedValue({ updated: false });
+          jest.spyOn(service['logger'], 'warn').mockImplementation(() => undefined);
+
+          await service.executeInBackground(createDataMart(), createRun(), null);
+
+          expect(seen.duringRun).toEqual(released);
+          expect((credentialService.releaseRotation as jest.Mock).mock.calls).toEqual(released);
+        });
+
+        it('is kept after an update with no storable token, until the run ends', async () => {
+          const { service, credentialService, seen } = await runLeased(['']);
+
+          await service.executeInBackground(createDataMart(), createRun(), null);
+
+          expect(credentialService.updateSecretFields).not.toHaveBeenCalled();
+          expect(seen.duringRun).toEqual([]);
+          expect((credentialService.releaseRotation as jest.Mock).mock.calls).toEqual(released);
+        });
+
+        it('is released when the run stores no rotation', async () => {
+          const { service, credentialService } = await runLeased([]);
+
+          await service.executeInBackground(createDataMart(), createRun(), null);
+
+          expect(credentialService.updateSecretFields).not.toHaveBeenCalled();
+          expect((credentialService.releaseRotation as jest.Mock).mock.calls).toEqual(released);
+        });
+
+        it('is released when the runner crashes', async () => {
+          const { service, credentialService, processSpawner } = await runLeased([]);
+          (processSpawner.spawnConnector as jest.Mock).mockRejectedValue(
+            new Error('runner crashed')
+          );
+          jest.spyOn(service['logger'], 'error').mockImplementation(() => undefined);
+
+          await service.executeInBackground(createDataMart(), createRun(), null);
+
+          expect((credentialService.releaseRotation as jest.Mock).mock.calls).toEqual(released);
+        });
+
+        it('is released when the run fails before the runner starts', async () => {
+          const { service, credentialService, connectorStateService } = await runLeased([]);
+          (connectorStateService.getState as jest.Mock).mockRejectedValue(new Error('db down'));
+          jest.spyOn(service['logger'], 'error').mockImplementation(() => undefined);
+
+          await service.executeInBackground(createDataMart(), createRun(), null);
+
+          expect((credentialService.releaseRotation as jest.Mock).mock.calls).toEqual(released);
+          expect(credentialService.markRefreshTokenStatic).not.toHaveBeenCalled();
+        });
+
+        describe('a run that ends without a rotated token', () => {
+          it('marks the Credential static when it succeeds, before releasing the lease', async () => {
+            const { service, credentialService } = await runLeased([]);
+
+            await service.executeInBackground(createDataMart(), createRun(), null);
+
+            expect(credentialService.markRefreshTokenStatic).toHaveBeenCalledWith('cred-9');
+            expect(
+              (credentialService.markRefreshTokenStatic as jest.Mock).mock.invocationCallOrder[0]
+            ).toBeLessThan(
+              (credentialService.releaseRotation as jest.Mock).mock.invocationCallOrder[0]
+            );
+          });
+
+          it('leaves the marker alone when it fails', async () => {
+            const { service, credentialService, processSpawner, emitMessage } = await runLeased([]);
+            (processSpawner.spawnConnector as jest.Mock).mockImplementation(() => {
+              emitMessage({
+                type: ConnectorMessageType.ERROR,
+                at: new Date().toISOString(),
+                error: 'HTTP 500',
+                toFormattedString: () => '[ERROR] HTTP 500',
+              });
+              return Promise.resolve();
+            });
+            jest.spyOn(service['logger'], 'error').mockImplementation(() => undefined);
+
+            await service.executeInBackground(createDataMart(), createRun(), null);
+
+            expect(credentialService.markRefreshTokenStatic).not.toHaveBeenCalled();
+            expect((credentialService.releaseRotation as jest.Mock).mock.calls).toEqual(released);
+          });
+
+          it('leaves the marker alone when it ran without the lease', async () => {
+            const { service, credentialService } = await runRotating([]);
+
+            await service.executeInBackground(createDataMart(), createRun(), null);
+
+            expect(credentialService.markRefreshTokenStatic).not.toHaveBeenCalled();
+          });
+        });
+
+        it('a stored or lost rotation never marks the Credential static', async () => {
+          const stored = await runLeased(['token-1']);
+          await stored.service.executeInBackground(createDataMart(), createRun(), null);
+
+          const lost = await runLeased(['token-1']);
+          (lost.credentialService.updateSecretFields as jest.Mock).mockResolvedValue({
+            updated: false,
+          });
+          jest.spyOn(lost.service['logger'], 'warn').mockImplementation(() => undefined);
+          await lost.service.executeInBackground(createDataMart(), createRun(), null);
+
+          expect(stored.credentialService.markRefreshTokenStatic).not.toHaveBeenCalled();
+          expect(lost.credentialService.markRefreshTokenStatic).not.toHaveBeenCalled();
+        });
+      });
+    });
+
+    it('a disabled Credential fails the configuration with the Credential name and fix', async () => {
+      const { service, processSpawner, sourceCredentialInjector, dataMartRunRepository } =
+        createService();
+      const disabled =
+        'Credential "Acme ads" is disabled. Select another Credential for this Data Mart.';
+      (sourceCredentialInjector.resolveBoundConfig as jest.Mock).mockRejectedValue(
+        new SourceCredentialUnavailableException(disabled)
+      );
+      jest.spyOn(service['logger'], 'warn').mockImplementation(() => undefined);
+
+      await service.executeInBackground(createDataMart(), createRun(), null);
+
+      expect(processSpawner.spawnConnector).not.toHaveBeenCalled();
+      expect(finalErrors(dataMartRunRepository)).toEqual([
+        expect.objectContaining({ type: ConnectorMessageType.WARNING, warning: disabled }),
+      ]);
+    });
+
+    it('a rotation lease another run keeps past the wait fails the configuration and spawns nothing', async () => {
+      jest.useFakeTimers();
+      try {
+        const {
+          service,
+          processSpawner,
+          sourceCredentialInjector,
+          credentialService,
+          dataMartRunRepository,
+        } = createService();
+        (credentialService.claimRotation as jest.Mock).mockResolvedValue(null);
+        const refreshBoundCredential = jest.fn();
+        const injector = new SourceCredentialInjectorService(
+          {} as never,
+          { refreshBoundCredential } as never,
+          {
+            resolveForConfig: jest.fn().mockResolvedValue({
+              credentialId: 'cred-9',
+              definitionId: 'custom-connector',
+              secret: { fields: { RefreshToken: 'refresh', generated_refresh_token: 'rotated-1' } },
+              publicMetadata: null,
+            }),
+            markConfigUsed: jest.fn(),
+          } as never,
+          credentialService
+        );
+        (sourceCredentialInjector.resolveBoundConfig as jest.Mock).mockImplementation(
+          (...args: Parameters<SourceCredentialInjectorService['resolveBoundConfig']>) =>
+            injector.resolveBoundConfig(...args)
+        );
+        jest.spyOn(service['logger'], 'warn').mockImplementation(() => undefined);
+
+        const run = service.executeInBackground(createDataMart(), createRun(), null);
+        await jest.advanceTimersByTimeAsync(RUN_ROTATION_LEASE_WAIT_MS);
+        await run;
+
+        expect(credentialService.claimRotation).toHaveBeenCalledWith('cred-9');
+        expect(refreshBoundCredential).not.toHaveBeenCalled();
+        expect(processSpawner.spawnConnector).not.toHaveBeenCalled();
+        expect(credentialService.releaseRotation).not.toHaveBeenCalled();
+        expect(finalErrors(dataMartRunRepository)).toEqual([
+          expect.objectContaining({
+            type: ConnectorMessageType.WARNING,
+            warning: "Another run is refreshing this Credential's token; the next run retries.",
+          }),
+        ]);
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+
+    it(`a Credential that no longer fits fails with "${MISFIT}" and spawns nothing`, async () => {
+      const { service, processSpawner, sourceCredentialInjector, dataMartRunRepository } =
+        createService();
+      (sourceCredentialInjector.resolveBoundConfig as jest.Mock).mockRejectedValue(
+        new SourceCredentialUnavailableException(MISFIT)
+      );
+      jest.spyOn(service['logger'], 'warn').mockImplementation(() => undefined);
+
+      await service.executeInBackground(createDataMart(), createRun(), null);
+
+      expect(processSpawner.spawnConnector).not.toHaveBeenCalled();
+      expect(finalErrors(dataMartRunRepository)).toEqual([
+        expect.objectContaining({ type: ConnectorMessageType.WARNING, warning: MISFIT }),
+      ]);
     });
   });
 });

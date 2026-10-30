@@ -25,6 +25,7 @@ describe('built-in Credential definitions', () => {
       'snowflake-password': 'snowflake',
       'snowflake-key-pair': 'snowflake',
       'databricks-token': 'databricks',
+      'custom-connector': 'custom-connectors',
     });
   });
 
@@ -130,5 +131,15 @@ describe('built-in Credential definitions', () => {
       },
     });
     expect(definition).not.toHaveProperty('origins');
+  });
+
+  it('declares one Custom connector definition whose fields each Credential carries', () => {
+    expect(BUILTIN_CREDENTIAL_DEFINITIONS.find(item => item.id === 'custom-connector')).toEqual({
+      id: 'custom-connector',
+      category: 'custom-connectors',
+      displayName: 'Custom connector',
+      description: expect.any(String),
+      auth: { type: 'custom-connector' },
+    });
   });
 });

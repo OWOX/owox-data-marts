@@ -37,6 +37,7 @@ describe('DeleteDataMartService', () => {
     const accessDecisionService = {
       canAccess: jest.fn().mockResolvedValue(true),
     };
+    const sourceCredentials = { deactivateDataMart: jest.fn().mockResolvedValue(undefined) };
     const searchIndexInvalidation = {
       findInboundSourceDataMartIds: jest.fn().mockResolvedValue(['source-1', 'source-2']),
       scheduleDataMartDeleted: jest.fn().mockResolvedValue(undefined),
@@ -50,6 +51,7 @@ describe('DeleteDataMartService', () => {
       connectorSourceCredentialsService as never,
       relationshipService as never,
       accessDecisionService as never,
+      sourceCredentials as never,
       searchIndexInvalidation as never
     );
 
@@ -93,6 +95,7 @@ describe('DeleteDataMartService', () => {
       } as never,
       { deleteAllByDataMartId: jest.fn() } as never,
       { canAccess: jest.fn().mockResolvedValue(true) } as never,
+      { deactivateDataMart: jest.fn().mockResolvedValue(undefined) } as never,
       undefined,
       schemaInheritance as never
     );
@@ -150,6 +153,7 @@ describe('DeleteDataMartService', () => {
     const accessDecisionService = {
       canAccess: jest.fn().mockResolvedValue(true),
     };
+    const sourceCredentials = { deactivateDataMart: jest.fn().mockResolvedValue(undefined) };
     const searchIndexInvalidation = {
       findInboundSourceDataMartIds: jest.fn().mockResolvedValue([]),
       scheduleDataMartDeleted: jest.fn().mockResolvedValue(undefined),
@@ -163,6 +167,7 @@ describe('DeleteDataMartService', () => {
       connectorSourceCredentialsService as never,
       relationshipService as never,
       accessDecisionService as never,
+      sourceCredentials as never,
       searchIndexInvalidation as never
     );
 
@@ -186,5 +191,33 @@ describe('DeleteDataMartService', () => {
     ).toBeLessThan(
       connectorSourceCredentialsService.deleteSecretsByDataMart.mock.invocationCallOrder[0]
     );
+  });
+
+  it('deleting a Data Mart deactivates all its configuration bindings', async () => {
+    const sourceCredentials = { deactivateDataMart: jest.fn().mockResolvedValue(undefined) };
+    const service = new DeleteDataMartService(
+      {
+        getByIdAndProjectId: jest.fn().mockResolvedValue({
+          id: 'target-1',
+          projectId: 'project-1',
+          storage: { type: DataStorageType.GOOGLE_BIGQUERY },
+        }),
+        softDeleteByIdAndProjectId: jest.fn().mockResolvedValue(undefined),
+      } as never,
+      { deleteAllByDataMartIdAndProjectId: jest.fn() } as never,
+      { deleteAllByDataMartIdAndProjectId: jest.fn() } as never,
+      {} as never,
+      {
+        getSecretsByDataMart: jest.fn().mockResolvedValue([]),
+        deleteSecretsByDataMart: jest.fn(),
+      } as never,
+      { deleteAllByDataMartId: jest.fn() } as never,
+      { canAccess: jest.fn().mockResolvedValue(true) } as never,
+      sourceCredentials as never
+    );
+
+    await service.run(new DeleteDataMartCommand('target-1', 'project-1'));
+
+    expect(sourceCredentials.deactivateDataMart).toHaveBeenCalledWith('target-1');
   });
 });

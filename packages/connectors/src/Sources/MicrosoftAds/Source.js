@@ -23,6 +23,8 @@ export class MicrosoftAdsSource extends AbstractSource {
             label: 'OAuth2',
             value: 'oauth2',
             requiredType: 'object',
+            // Microsoft rotates refresh tokens, so runs on one Credential must take turns.
+            rotatesRefreshToken: true,
             attributes: [CONFIG_ATTRIBUTES.OAUTH_FLOW],
             oauthParams: {
               vars: {
