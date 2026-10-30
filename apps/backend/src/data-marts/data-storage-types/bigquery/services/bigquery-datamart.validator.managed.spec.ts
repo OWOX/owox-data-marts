@@ -8,6 +8,7 @@ describe('BigQueryDataMartValidator (managed)', () => {
   const credentials = {
     type: 'bigquery_managed',
     authClient: {},
+    datasetId: 'owox_abc',
   } as unknown as DataStorageCredentials;
   const config = { projectId: 'proj-abc', location: 'US' } as unknown as DataStorageConfig;
   const definition = {
@@ -33,6 +34,40 @@ describe('BigQueryDataMartValidator (managed)', () => {
     executeDryRunQuery.mockResolvedValue({ statementType: 'SELECT' });
 
     const result = await validator.validate(definition, config, credentials);
+
+    expect(result.valid).toBe(true);
+  });
+
+  const connectorDefinition = (fullyQualifiedName: string) =>
+    ({
+      connector: {
+        source: { name: 'TestSource', configuration: [{}], node: 'ads', fields: ['id'] },
+        storage: { fullyQualifiedName },
+      },
+    }) as unknown as DataMartDefinition;
+
+  it.each(['other.table', 'proj-abc.owox_abc.table'])(
+    'refuses a connector aimed at another dataset (%s)',
+    async fullyQualifiedName => {
+      const result = await validator.validate(
+        connectorDefinition(fullyQualifiedName),
+        config,
+        credentials
+      );
+
+      expect(result.valid).toBe(false);
+      expect(result.errorMessage).toBe(
+        'Connectors on an OWOX Storage write into dataset owox_abc.'
+      );
+    }
+  );
+
+  it('passes a connector aimed at the storage dataset', async () => {
+    const result = await validator.validate(
+      connectorDefinition('owox_abc.table'),
+      config,
+      credentials
+    );
 
     expect(result.valid).toBe(true);
   });
