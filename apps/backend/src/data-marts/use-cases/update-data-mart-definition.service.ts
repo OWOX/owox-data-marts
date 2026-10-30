@@ -6,6 +6,7 @@ import { OwoxEventDispatcher } from '../../common/event-dispatcher/owox-event-di
 import { DataMartDefinitionValidatorFacade } from '../data-storage-types/facades/data-mart-definition-validator-facade.service';
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
 import { DataMartDto } from '../dto/domain/data-mart.dto';
+import { DataMart } from '../entities/data-mart.entity';
 import { UpdateDataMartDefinitionCommand } from '../dto/domain/update-data-mart-definition.command';
 import { ConnectorDefinition } from '../dto/schemas/data-mart-table-definitions/connector-definition.schema';
 import { SqlDefinition } from '../dto/schemas/data-mart-table-definitions/sql-definition.schema';
@@ -24,6 +25,7 @@ import { AccessDecisionService, EntityType, Action } from '../services/access-de
 import { AdvancedSearchIndexSyncService } from '../services/advanced-search-index-sync.service';
 import { SearchableEntityType } from '../../common/search/search.facade';
 import { ConnectorService } from '../services/connector/connector.service';
+import { ManagedStorageService } from '../owox-storage/managed-storage.service';
 import type { ConnectorCapabilities } from '../connector-types/connector-capabilities';
 import { DataMartSqlReferenceValidator } from '../services/data-mart-sql-reference-validator.service';
 import { selectionOf } from '../connector-types/custom-connector-credential-fit';
@@ -53,6 +55,7 @@ export class UpdateDataMartDefinitionService {
     private readonly connectorService: ConnectorService,
     private readonly sqlReferenceValidator: DataMartSqlReferenceValidator,
     private readonly sourceCredentials: SourceCredentialBindingService,
+    private readonly managedStorages: ManagedStorageService,
     private readonly advancedSearchIndexSync?: AdvancedSearchIndexSyncService
   ) {}
 
@@ -117,7 +120,7 @@ export class UpdateDataMartDefinitionService {
     if (command.definitionType === DataMartDefinitionType.CONNECTOR && command.definition) {
       dataMart.definition = await this.saveConnectorDefinition(
         command,
-        dataMart.id,
+        dataMart,
         command.definition as ConnectorDefinition,
         dataMart.definition as ConnectorDefinition | undefined
       );
@@ -226,10 +229,11 @@ export class UpdateDataMartDefinitionService {
   /** The definition to store: key values go to old rows or stay with the selected Credentials. */
   private async saveConnectorDefinition(
     command: UpdateDataMartDefinitionCommand,
-    dataMartId: string,
+    dataMart: DataMart,
     incoming: ConnectorDefinition,
     previous: ConnectorDefinition | undefined
   ): Promise<ConnectorDefinition> {
+    const dataMartId = dataMart.id;
     if (command.sourceDataMartId !== undefined || command.sourceConfigurationId !== undefined) {
       throw new BadRequestException(OUT_OF_DATE);
     }
@@ -257,6 +261,11 @@ export class UpdateDataMartDefinitionService {
       incoming,
       previous
     );
+    // Runs on an OWOX Storage write only into its dataset, so every connector save is checked before any write.
+    if (await this.managedStorages.findByStorageId(dataMart.storage.id)) {
+      dataMart.definition = merged;
+      await this.definitionValidatorFacade.checkIsValid(dataMart);
+    }
     if (switchedConnector) await this.sourceCredentials.deactivateDataMart(dataMartId);
     const bound = await this.bindSourceCredentials(
       command,
