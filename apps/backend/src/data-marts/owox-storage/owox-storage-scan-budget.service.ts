@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { ModuleRef } from '@nestjs/core';
 import { castError } from '@owox/internal-helpers';
 import type { ManagedStorage } from '../entities/managed-storage.entity';
 import type { ScanBudget } from '../data-storage-types/bigquery/schemas/bigquery-credentials.schema';
@@ -29,7 +30,7 @@ export class OwoxStorageScanBudgetService implements OwoxStorageScanBudgetFactor
   constructor(
     private readonly identity: OwoxStorageIdentity,
     private readonly config: OwoxStorageConfigService,
-    private readonly billing: InternalProjectBillingService
+    private readonly moduleRef: ModuleRef
   ) {}
 
   forStorage(record: ManagedStorage): ScanBudget {
@@ -56,7 +57,9 @@ export class OwoxStorageScanBudgetService implements OwoxStorageScanBudgetFactor
 
   private async readPlan(record: ManagedStorage): Promise<ProjectPlanType> {
     try {
-      return (await this.billing.getBalance(record.projectId)).subscriptionPlanType;
+      // Lazy: billing -> connectors -> data marts -> credentials resolver is a provider cycle.
+      const billing = this.moduleRef.get(InternalProjectBillingService);
+      return (await billing.getBalance(record.projectId)).subscriptionPlanType;
     } catch (error) {
       // A billing outage must not stop every query; the lower limit is the safe side.
       this.logger.warn(
