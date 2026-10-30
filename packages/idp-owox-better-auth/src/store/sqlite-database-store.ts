@@ -165,6 +165,10 @@ export class SqliteDatabaseStore implements DatabaseStore {
     return this.getDb();
   }
 
+  async ensureVerificationIdLength(): Promise<void> {
+    // SQLite does not enforce VARCHAR lengths.
+  }
+
   async isHealthy(): Promise<boolean> {
     try {
       await this.connect();

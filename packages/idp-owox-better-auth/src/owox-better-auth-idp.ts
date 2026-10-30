@@ -365,6 +365,7 @@ export class OwoxBetterAuthIdp implements IdpProvider {
     const { runMigrations } = await getMigrations(this.auth.options);
     await this.store.initialize();
     await runMigrations();
+    await this.store.ensureVerificationIdLength();
   }
 
   registerRoutes(app: Express): void {
