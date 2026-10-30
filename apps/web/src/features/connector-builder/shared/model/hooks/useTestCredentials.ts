@@ -63,7 +63,7 @@ export function useTestCredentials(
             attempt,
             ids: list.filter(item => !item.refusal).map(item => item.id),
             refusals: Object.fromEntries(
-              list.flatMap(item => (item.refusal ? [[item.id, item.refusal]] : []))
+              list.flatMap(item => (item.refusal ? [[item.id, item.refusal] as const] : []))
             ),
             requirement,
           });

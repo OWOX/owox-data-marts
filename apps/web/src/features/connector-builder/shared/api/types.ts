@@ -83,13 +83,13 @@ export interface CredentialRequirementDto {
   misuse?: string[];
 }
 
-/** A Credential that fits, without its values. */
 /** Why a listed Credential cannot be chosen for the manifest. */
 export interface FittingCredentialRefusal {
   reason: 'unfit' | 'misuse' | 'secret';
   message: string;
 }
 
+/** A listed Credential, without its values. */
 export interface FittingCredentialDto {
   id: string;
   title: string;
