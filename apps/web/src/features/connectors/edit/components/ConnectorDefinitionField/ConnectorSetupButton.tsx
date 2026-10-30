@@ -6,6 +6,7 @@ import type { ConnectorConfig } from '../../../../data-marts/edit/model';
 
 interface ConnectorSetupButtonProps {
   storageType: DataStorageType;
+  fixedDatasetName?: string;
   onSetupConnector: (connector: ConnectorConfig, runAfterSave: boolean) => void;
   preset?: string;
   connectorName?: string | null;
@@ -15,6 +16,7 @@ interface ConnectorSetupButtonProps {
 
 export function ConnectorSetupButton({
   storageType,
+  fixedDatasetName,
   onSetupConnector,
   preset,
   connectorName,
@@ -24,6 +26,7 @@ export function ConnectorSetupButton({
   return (
     <DataMartConnectorView
       dataStorageType={storageType}
+      fixedDatasetName={fixedDatasetName}
       onSubmit={onSetupConnector}
       configurationOnly={false}
       preset={preset}
