@@ -31,6 +31,12 @@ describe('ManagedStorageService', () => {
 
   beforeEach(() => jest.clearAllMocks());
 
+  it('findByStorageId returns null for an empty id without querying', async () => {
+    expect(await service.findByStorageId('')).toBeNull();
+    expect(await service.findByStorageId(undefined as unknown as string)).toBeNull();
+    expect(repository.findOne).not.toHaveBeenCalled();
+  });
+
   it('findByStorageIds returns a map keyed by storageId', async () => {
     repository.find.mockResolvedValue([record('s1'), record('s2', 'project-2')]);
 

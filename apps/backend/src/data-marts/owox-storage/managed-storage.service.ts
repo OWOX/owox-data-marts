@@ -11,6 +11,7 @@ export class ManagedStorageService {
   ) {}
 
   findByStorageId(storageId: string): Promise<ManagedStorage | null> {
+    if (!storageId) return Promise.resolve(null);
     return this.repository.findOne({ where: { storageId } });
   }
 
