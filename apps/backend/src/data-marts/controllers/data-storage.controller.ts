@@ -173,7 +173,6 @@ export class DataStorageController {
     return this.listStorageResourcesService.run(command);
   }
 
-  // Distinct from `:id/resources` and the other `:id/...` paths; no `:id/...` route here captures it.
   @Auth(Role.viewer(Strategy.INTROSPECT))
   @Get(':id/owox-storage')
   @GetOwoxStorageUsageSpec()
