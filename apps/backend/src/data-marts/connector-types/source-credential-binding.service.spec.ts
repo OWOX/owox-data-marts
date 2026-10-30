@@ -77,7 +77,7 @@ describe('SourceCredentialBindingService', () => {
     );
     sourceCredentials = new SourceCredentialBindingService(
       binder,
-      new CredentialDefinitionService({} as never, {} as never),
+      new CredentialDefinitionService({ findOneBy: async () => null } as never, {} as never),
       access as never,
       credentialService,
       {} as never,
@@ -426,6 +426,29 @@ describe('SourceCredentialBindingService', () => {
 
       expect(summaries.get('cfg-1')).toMatchObject({ access: 'visible', state: 'ready' });
       expect(summaries.get('cfg-2')).toEqual({ access: 'restricted', state: 'deleted' });
+    });
+
+    it('summarizes a configuration whose Credential definition no longer resolves as restricted and unavailable', async () => {
+      const live = await givenCredential();
+      const orphan = await givenCredential({ title: 'Orphan key' });
+      await bind('dm-1', 'cfg-1', live.id);
+      await bind('dm-1', 'cfg-2', orphan.id);
+      await credentials.update({ id: orphan.id }, { definitionId: 'removed-connector' });
+
+      const summaries = await summarize();
+
+      expect(summaries.get('cfg-1')).toMatchObject({ access: 'visible', state: 'ready' });
+      expect(summaries.get('cfg-2')).toEqual({ access: 'restricted', state: 'unavailable' });
+    });
+
+    it('still rejects when the definition lookup fails for another reason', async () => {
+      const credential = await givenCredential();
+      await bind('dm-1', 'cfg-1', credential.id);
+      jest
+        .spyOn(CredentialDefinitionService.prototype, 'get')
+        .mockRejectedValueOnce(new Error('database down'));
+
+      await expect(summarize()).rejects.toThrow('database down');
     });
 
     it('leaves out unbound configurations', async () => {

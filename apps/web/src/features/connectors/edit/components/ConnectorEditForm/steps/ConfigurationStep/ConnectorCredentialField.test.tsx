@@ -23,6 +23,8 @@ vi.mock('../../../../../../credentials', async importOriginal => ({
 }));
 
 const DELETED = "This Data Mart's Credential was deleted. Select another Credential.";
+const UNAVAILABLE =
+  "This Data Mart's Credential belongs to a connector that is no longer installed. Select another Credential.";
 const NO_LONGER_FITS =
   "This Data Mart's Credential no longer fits its connector. Select a fitting Credential.";
 const SECRET = 'This Credential keeps API key as a public field; this connector needs it secret.';
@@ -70,6 +72,17 @@ describe('ConnectorCredentialField', () => {
     expect(screen.getByText(DELETED)).toHaveClass('text-destructive');
     expect(select.props.summary).toBeNull();
     expect(select.props['aria-describedby']).toBe('connectorCredential-reason');
+  });
+
+  it('says the connector is no longer installed, without a restricted summary or state mark', () => {
+    renderField({
+      value: null,
+      keptCredentialId: null,
+      summary: { access: 'restricted', state: 'unavailable' },
+    });
+
+    expect(screen.getByText(UNAVAILABLE)).toHaveClass('text-destructive');
+    expect(select.props.summary).toBeNull();
   });
 
   it('says nothing about a deleted Credential once another is picked', () => {

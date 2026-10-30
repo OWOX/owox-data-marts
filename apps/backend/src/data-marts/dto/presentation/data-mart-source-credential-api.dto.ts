@@ -9,7 +9,7 @@ export class DataMartSourceCredentialApiDto {
   @ApiProperty({
     type: StorageCredentialSummaryApiDto,
     description:
-      "State 'deleted', with access 'restricted', once the configuration's Credential was deleted.",
+      "State 'deleted', with access 'restricted', once the configuration's Credential was deleted, and 'unavailable' once its connector is no longer installed.",
   })
   summary: StorageCredentialSummaryApiDto;
 }
