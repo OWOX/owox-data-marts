@@ -17,6 +17,7 @@ To configure a new **Storage**:
 1. Navigate to the **Storages** in the left sidebar and click on **+ New Storage**.
 2. Then select the **data warehouse** you want to add and follow the instructions for your platform:
    - [Google BigQuery](supported-storages/google-bigquery.md)
+   - [OWOX Storage (OWOX Cloud only)](supported-storages/owox-storage.md)
    - [AWS Athena](supported-storages/aws-athena.md)
    - [AWS Redshift](supported-storages/aws-redshift.md)
    - [Snowflake](supported-storages/snowflake.md)
@@ -37,7 +38,7 @@ To configure a new **Storage**:
 ## Credentials for Storages
 
 A Storage does not hold its own key. It selects a [Credential](../project/credentials.md), and one
-Credential can serve several Storages, so a rotated key is replaced once.
+Credential can serve several Storages, so a rotated key is replaced once. An [OWOX Storage](supported-storages/owox-storage.md) takes no Credential.
 
 - The **Credential** field lists the Credentials that fit the Storage type, that you can use and that
   are enabled (a disabled one stays shown only on the Storage already using it).
