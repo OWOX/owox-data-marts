@@ -5,6 +5,38 @@ import { OwoxStorageCreateDialog } from './OwoxStorageCreateDialog';
 const createOwoxStorage = vi.hoisted(() => vi.fn());
 vi.mock('../model/hooks/useDataStorage', () => ({ useDataStorage: () => ({ createOwoxStorage }) }));
 
+// Radix Select renders its items in a portal only while open; a native <select> keeps the test on behavior.
+vi.mock('@owox/ui/components/select', () => ({
+  Select: ({
+    value,
+    onValueChange,
+    children,
+  }: {
+    value: string;
+    onValueChange: (v: string) => void;
+    children: React.ReactNode;
+  }) => (
+    <select
+      aria-label='Location'
+      value={value}
+      onChange={e => {
+        onValueChange(e.target.value);
+      }}
+    >
+      <option value=''>Select location</option>
+      {children}
+    </select>
+  ),
+  SelectTrigger: () => null,
+  SelectValue: () => null,
+  SelectContent: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  SelectItem: ({ value }: { value: string }) => <option value={value}>{value}</option>,
+}));
+
+const pick = (value: string) => {
+  fireEvent.change(screen.getByLabelText('Location'), { target: { value } });
+};
+
 const setup = () => {
   const onCreated = vi.fn();
   const onClose = vi.fn();
@@ -20,7 +52,7 @@ describe('OwoxStorageCreateDialog', () => {
   it('requires a location', () => {
     setup();
     expect(screen.getByRole('button', { name: 'Create' })).toBeDisabled();
-    fireEvent.click(screen.getByRole('radio', { name: 'EU' }));
+    pick('EU');
     expect(screen.getByRole('button', { name: 'Create' })).toBeEnabled();
   });
 
@@ -29,7 +61,7 @@ describe('OwoxStorageCreateDialog', () => {
     createOwoxStorage.mockResolvedValue(storage);
     const { onCreated, onClose } = setup();
     fireEvent.change(screen.getByLabelText('Title'), { target: { value: ' My OWOX ' } });
-    fireEvent.click(screen.getByRole('radio', { name: 'US' }));
+    pick('US');
     fireEvent.click(screen.getByRole('button', { name: 'Create' }));
     await waitFor(() => {
       expect(onCreated).toHaveBeenCalledWith(storage);
@@ -43,11 +75,39 @@ describe('OwoxStorageCreateDialog', () => {
       response: { data: { message: 'Project already has an OWOX Storage' } },
     });
     const { onCreated } = setup();
-    fireEvent.click(screen.getByRole('radio', { name: 'US' }));
+    pick('US');
     fireEvent.click(screen.getByRole('button', { name: 'Create' }));
     expect(await screen.findByRole('alert')).toHaveTextContent(
       'Project already has an OWOX Storage'
     );
     expect(onCreated).not.toHaveBeenCalled();
+  });
+
+  it('starts empty when reopened after Cancel', () => {
+    const onClose = vi.fn();
+    const props = { onClose, onCreated: vi.fn() };
+    const { rerender } = render(<OwoxStorageCreateDialog isOpen {...props} />);
+    fireEvent.change(screen.getByLabelText('Title'), { target: { value: 'Changed' } });
+    pick('EU');
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    rerender(<OwoxStorageCreateDialog isOpen={false} {...props} />);
+    rerender(<OwoxStorageCreateDialog isOpen {...props} />);
+    expect(screen.getByLabelText('Title')).toHaveValue('OWOX Storage');
+    expect(screen.getByLabelText('Location')).toHaveValue('');
+  });
+
+  it('does not show the create error when onCreated rejects', async () => {
+    createOwoxStorage.mockResolvedValue({ id: 's1' });
+    const onCreated = vi.fn().mockRejectedValue(new Error('boom'));
+    const onClose = vi.fn();
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    render(<OwoxStorageCreateDialog isOpen onClose={onClose} onCreated={onCreated} />);
+    pick('US');
+    fireEvent.click(screen.getByRole('button', { name: 'Create' }));
+    await waitFor(() => {
+      expect(onCreated).toHaveBeenCalled();
+    });
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(onClose).toHaveBeenCalled();
   });
 });
