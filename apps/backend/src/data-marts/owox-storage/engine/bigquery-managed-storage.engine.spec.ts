@@ -240,4 +240,25 @@ describe('BigQueryManagedStorageEngine', () => {
       EMAIL
     );
   });
+
+  it('deprovision attempts every step when one fails, then rejects', async () => {
+    const { engine, client } = setup();
+    const log = jest.spyOn(Logger.prototype, 'error').mockImplementation();
+    const boom = Object.assign(new Error('iam down'), { code: 500 });
+    client.revokeProjectRole.mockRejectedValue(boom);
+    await expect(
+      engine.deprovision({
+        engine: 'bigquery',
+        gcpProjectId: 'data-project',
+        location: 'US',
+        datasetId: 'owox_abcdef012345',
+        internalDatasetId: 'owox_abcdef012345_internal',
+        serviceAccountEmail: EMAIL,
+      })
+    ).rejects.toBe(boom);
+    expect(client.deleteServiceAccount).toHaveBeenCalledWith(EMAIL);
+    expect(client.deleteDataset).toHaveBeenCalledTimes(2);
+    expect(String(log.mock.calls[0][0])).toContain('revokeProjectRole');
+    log.mockRestore();
+  });
 });

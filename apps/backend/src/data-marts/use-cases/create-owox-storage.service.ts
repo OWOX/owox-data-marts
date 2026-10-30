@@ -17,6 +17,9 @@ import {
 import { ManagedStorageService } from '../owox-storage/managed-storage.service';
 import { OwoxStorageConfigService } from '../owox-storage/owox-storage-config.service';
 import { InternalProjectBillingService } from '../services/project-billing/internal-project-billing.service';
+import { IdpProjectionsFacade } from '../../idp/facades/idp-projections.facade';
+import { describeGoogleError } from '../owox-storage/engine/bigquery-managed-storage.engine';
+import { assertProjectMembers } from '../utils/sync-owners';
 import { CreateDataStorageService } from './create-data-storage.service';
 
 const ALREADY_HAS = 'This project already has an OWOX Storage.';
@@ -32,7 +35,8 @@ export class CreateOwoxStorageService {
     @Inject(MANAGED_STORAGE_ENGINE) private readonly engine: ManagedStorageEngine,
     private readonly createDataStorageService: CreateDataStorageService,
     @InjectRepository(DataStorage)
-    private readonly dataStorageRepository: Repository<DataStorage>
+    private readonly dataStorageRepository: Repository<DataStorage>,
+    private readonly idpProjectionsFacade: IdpProjectionsFacade
   ) {}
 
   async run(command: CreateOwoxStorageCommand): Promise<DataStorageDto> {
@@ -51,6 +55,13 @@ export class CreateOwoxStorageService {
       throw new BusinessViolationException(ALREADY_HAS);
     }
 
+    // Before provisioning: a bad owner would otherwise fail the save and cost a full provision/deprovision cycle.
+    await assertProjectMembers(
+      command.projectId,
+      command.ownerIds ?? [command.userId],
+      this.idpProjectionsFacade
+    );
+
     const provisioned = await this.engine.provision({
       projectId: command.projectId,
       location: command.location,
@@ -62,11 +73,9 @@ export class CreateOwoxStorageService {
       try {
         await this.engine.deprovision(provisioned);
       } catch (deprovisionError) {
-        // Only the error name: its message may carry project ids.
+        // Dataset id (carries the short id) lets ops find leaked resources; no email or project ids.
         this.logger.error(
-          `Failed to deprovision an OWOX Storage after a failed save (${
-            deprovisionError instanceof Error ? deprovisionError.name : 'unknown error'
-          })`
+          `OWOX Storage ${provisioned.datasetId} deprovision failed after a failed save${describeGoogleError(deprovisionError)}`
         );
       }
       if (isUniqueConstraintViolation(error)) {
