@@ -1,0 +1,207 @@
+import { OwoxStorageProvisioningException } from '../owox-storage.exceptions';
+import { BigQueryManagedStorageEngine } from './bigquery-managed-storage.engine';
+import type { GcpProvisioningClient } from './gcp-provisioning.client';
+
+const EMAIL = 'owox-st-abcdef012345@sa-project.iam.gserviceaccount.com';
+
+function setup() {
+  const calls: string[] = [];
+  const record =
+    (name: string, result?: unknown) =>
+    (...args: unknown[]) => {
+      calls.push(name);
+      void args;
+      return Promise.resolve(result);
+    };
+  const client = {
+    createDataset: jest.fn(record('createDataset')),
+    deleteDataset: jest.fn(record('deleteDataset')),
+    createServiceAccount: jest.fn(record('createServiceAccount', EMAIL)),
+    deleteServiceAccount: jest.fn(record('deleteServiceAccount')),
+    grantDatasetWriter: jest.fn(record('grantDatasetWriter')),
+    grantProjectRole: jest.fn(record('grantProjectRole')),
+    revokeProjectRole: jest.fn(record('revokeProjectRole')),
+  };
+  const config = {
+    getSettings: () => ({ gcpProjectId: 'data-project', serviceAccountProjectId: 'sa-project' }),
+  };
+  const engine = new BigQueryManagedStorageEngine(
+    config as never,
+    client as unknown as GcpProvisioningClient
+  );
+  const sleeps: number[] = [];
+  engine.sleep = ms => {
+    sleeps.push(ms);
+    return Promise.resolve();
+  };
+  engine.newShortId = () => 'abcdef012345';
+  return { engine, client, calls, sleeps };
+}
+
+describe('BigQueryManagedStorageEngine', () => {
+  it('provisions datasets, account and grants with the derived names', async () => {
+    const { engine, client } = setup();
+    const result = await engine.provision({ projectId: 'p1', location: 'EU' });
+
+    expect(result).toEqual({
+      engine: 'bigquery',
+      gcpProjectId: 'data-project',
+      location: 'EU',
+      datasetId: 'owox_abcdef012345',
+      internalDatasetId: 'owox_abcdef012345_internal',
+      serviceAccountEmail: EMAIL,
+    });
+    expect(client.createDataset).toHaveBeenNthCalledWith(
+      1,
+      'data-project',
+      'owox_abcdef012345',
+      'EU'
+    );
+    expect(client.createDataset).toHaveBeenNthCalledWith(
+      2,
+      'data-project',
+      'owox_abcdef012345_internal',
+      'EU'
+    );
+    expect(client.createServiceAccount).toHaveBeenCalledWith(
+      'sa-project',
+      'owox-st-abcdef012345',
+      'OWOX Storage for project p1'
+    );
+    expect(client.grantDatasetWriter).toHaveBeenCalledWith(
+      'data-project',
+      'owox_abcdef012345',
+      EMAIL
+    );
+    expect(client.grantDatasetWriter).toHaveBeenCalledWith(
+      'data-project',
+      'owox_abcdef012345_internal',
+      EMAIL
+    );
+    expect(client.grantProjectRole).toHaveBeenCalledWith(
+      'data-project',
+      'roles/bigquery.jobUser',
+      EMAIL
+    );
+  });
+
+  it('generates a 12-character hex short id by default', () => {
+    expect(new BigQueryManagedStorageEngine({} as never, {} as never).newShortId()).toMatch(
+      /^[0-9a-f]{12}$/
+    );
+  });
+
+  const failures: [string, (c: ReturnType<typeof setup>['client']) => void, string[]][] = [
+    [
+      'the second dataset',
+      c =>
+        c.createDataset
+          .mockImplementationOnce(() => Promise.resolve())
+          .mockRejectedValueOnce(new Error('x')),
+      ['deleteDataset:owox_abcdef012345'],
+    ],
+    [
+      'the service account',
+      c => c.createServiceAccount.mockRejectedValue(new Error('x')),
+      ['deleteDataset:owox_abcdef012345_internal', 'deleteDataset:owox_abcdef012345'],
+    ],
+    [
+      'the dataset grant',
+      c => c.grantDatasetWriter.mockRejectedValue(new Error('x')),
+      [
+        'deleteServiceAccount',
+        'deleteDataset:owox_abcdef012345_internal',
+        'deleteDataset:owox_abcdef012345',
+      ],
+    ],
+    [
+      'the project role grant',
+      c => c.grantProjectRole.mockRejectedValue(new Error('x')),
+      [
+        'deleteServiceAccount',
+        'deleteDataset:owox_abcdef012345_internal',
+        'deleteDataset:owox_abcdef012345',
+      ],
+    ],
+  ];
+
+  it.each(failures)(
+    'undoes the earlier steps in reverse when %s fails',
+    async (_n, fail, undone) => {
+      const { engine, client } = setup();
+      fail(client);
+      const log: string[] = [];
+      client.deleteDataset.mockImplementation((_p: unknown, id: unknown) => {
+        log.push(`deleteDataset:${String(id)}`);
+        return Promise.resolve();
+      });
+      client.deleteServiceAccount.mockImplementation(() => {
+        log.push('deleteServiceAccount');
+        return Promise.resolve();
+      });
+
+      await expect(engine.provision({ projectId: 'p1', location: 'US' })).rejects.toBeInstanceOf(
+        OwoxStorageProvisioningException
+      );
+      expect(log).toEqual(undone);
+    }
+  );
+
+  it('keeps undoing when an undo step fails', async () => {
+    const { engine, client } = setup();
+    client.createServiceAccount.mockRejectedValue(new Error('x'));
+    client.deleteDataset.mockRejectedValueOnce(new Error('y')).mockResolvedValue(undefined);
+
+    await expect(engine.provision({ projectId: 'p1', location: 'US' })).rejects.toBeInstanceOf(
+      OwoxStorageProvisioningException
+    );
+    expect(client.deleteDataset).toHaveBeenCalledTimes(2);
+  });
+
+  it('retries a grant until IAM sees the new account', async () => {
+    const { engine, client, sleeps } = setup();
+    client.grantProjectRole
+      .mockRejectedValueOnce(new Error('not found'))
+      .mockRejectedValueOnce(new Error('not found'))
+      .mockResolvedValue(undefined);
+
+    await engine.provision({ projectId: 'p1', location: 'US' });
+    expect(sleeps).toEqual([2000, 4000]);
+    expect(client.grantProjectRole).toHaveBeenCalledTimes(3);
+  });
+
+  it('gives up after 5 attempts', async () => {
+    const { engine, client, sleeps } = setup();
+    client.grantProjectRole.mockRejectedValue(new Error('nope'));
+
+    await expect(engine.provision({ projectId: 'p1', location: 'US' })).rejects.toBeInstanceOf(
+      OwoxStorageProvisioningException
+    );
+    expect(client.grantProjectRole).toHaveBeenCalledTimes(5);
+    expect(sleeps).toEqual([2000, 4000, 8000, 16000]);
+  });
+
+  it('deprovision ignores resources that are already gone', async () => {
+    const { engine, client, calls } = setup();
+    await engine.deprovision({
+      engine: 'bigquery',
+      gcpProjectId: 'data-project',
+      location: 'US',
+      datasetId: 'owox_abcdef012345',
+      internalDatasetId: 'owox_abcdef012345_internal',
+      serviceAccountEmail: EMAIL,
+    });
+
+    expect(calls).toEqual([
+      'revokeProjectRole',
+      'deleteServiceAccount',
+      'deleteDataset',
+      'deleteDataset',
+    ]);
+    expect(client.revokeProjectRole).toHaveBeenCalledWith(
+      'data-project',
+      'roles/bigquery.jobUser',
+      EMAIL
+    );
+  });
+});

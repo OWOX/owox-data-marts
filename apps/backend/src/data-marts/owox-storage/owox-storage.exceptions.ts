@@ -19,3 +19,9 @@ export class OwoxStorageUsageUnavailableException extends BusinessViolationExcep
     super("OWOX Storage could not check today's query usage. Try again in a minute.");
   }
 }
+
+export class OwoxStorageProvisioningException extends BusinessViolationException {
+  constructor() {
+    super('OWOX Storage could not be created. Try again later.');
+  }
+}
