@@ -402,12 +402,37 @@ describe('ConnectSourceOAuthCredentialService reconnect on real persistence', ()
     return id;
   }
 
-  /** Runs a reconnect; `during` simulates another request while the exchange is in flight. */
-  async function reconnect(id: string, during?: () => Promise<unknown>, userId = '42') {
+  /**
+   * Runs a reconnect. `inExchange` runs while the exchange is in flight; `afterRead` runs right
+   * after reconnect's own read of the Credential, i.e. between its read and its write.
+   */
+  async function reconnect(
+    id: string,
+    {
+      inExchange,
+      afterRead,
+      userId = '42',
+    }: {
+      inExchange?: () => Promise<unknown>;
+      afterRead?: () => Promise<unknown>;
+      userId?: string;
+    } = {}
+  ) {
     const connectors = new ConnectorService({} as never, {} as never);
+    let armed = false;
     jest.spyOn(connectors, 'exchangeOauth').mockImplementation(async () => {
-      await during?.();
+      await inExchange?.();
+      armed = true;
       return googleAdsSignIn(userId);
+    });
+    const findOne = repository.findOne.bind(repository);
+    jest.spyOn(repository, 'findOne').mockImplementation(async options => {
+      const row = await findOne(options);
+      if (armed && afterRead) {
+        armed = false;
+        await afterRead();
+      }
+      return row;
     });
     const credentials = new CredentialService(
       repository,
@@ -433,7 +458,7 @@ describe('ConnectSourceOAuthCredentialService reconnect on real persistence', ()
   it('keeps a disable made during the exchange and stores the new sign-in', async () => {
     const id = await given();
 
-    await reconnect(id, () => repository.update({ id }, { enabled: false }));
+    await reconnect(id, { afterRead: () => repository.update({ id }, { enabled: false }) });
 
     const stored = await repository.findOneByOrFail({ id });
     expect(stored.enabled).toBe(false);
@@ -453,9 +478,10 @@ describe('ConnectSourceOAuthCredentialService reconnect on real persistence', ()
   it('keeps sharing turned off during the exchange', async () => {
     const id = await given();
 
-    await reconnect(id, () =>
-      repository.update({ id }, { availableForUse: false, availableForMaintenance: false })
-    );
+    await reconnect(id, {
+      afterRead: () =>
+        repository.update({ id }, { availableForUse: false, availableForMaintenance: false }),
+    });
 
     const stored = await repository.findOneByOrFail({ id });
     expect(stored.availableForUse).toBe(false);
@@ -466,19 +492,21 @@ describe('ConnectSourceOAuthCredentialService reconnect on real persistence', ()
     const id = await given();
 
     await expect(
-      reconnect(id, () => repository.update({ id }, { deletedAt: new Date() }))
+      reconnect(id, { inExchange: () => repository.update({ id }, { deletedAt: new Date() }) })
     ).rejects.toThrow(new NotFoundException(`Credential ${id} was not found`));
 
     const stored = await repository.findOneOrFail({ where: { id }, withDeleted: true });
     expect(stored.secret).toEqual({
       fields: { RefreshToken: 'old', ClientSecret: 'old', DeveloperToken: 'old' },
     });
+    expect(stored.enabled).toBe(true);
+    expect(stored.refreshTokenStaticAt).not.toBeNull();
   });
 
   it('refuses another account and writes nothing', async () => {
     const id = await given();
 
-    await expect(reconnect(id, undefined, '99')).rejects.toThrow(
+    await expect(reconnect(id, { userId: '99' })).rejects.toThrow(
       new BadRequestException(
         'Sign in to the same account (42@example.com), or create a new Credential.'
       )
@@ -488,6 +516,8 @@ describe('ConnectSourceOAuthCredentialService reconnect on real persistence', ()
     expect(stored.secret).toEqual({
       fields: { RefreshToken: 'old', ClientSecret: 'old', DeveloperToken: 'old' },
     });
+    expect(stored.enabled).toBe(true);
+    expect(stored.refreshTokenStaticAt).not.toBeNull();
   });
 
   it('clears the static-token marker', async () => {
