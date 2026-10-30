@@ -1,10 +1,15 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { randomBytes } from 'crypto';
 import { OwoxStorageConfigService } from '../owox-storage-config.service';
+import { OwoxStorageIdentity } from '../owox-storage-identity.service';
 import { OwoxStorageProvisioningException } from '../owox-storage.exceptions';
 import type { OwoxStorageLocation } from '../owox-storage-settings';
 import { GcpProvisioningClient } from './gcp-provisioning.client';
-import type { ManagedStorageEngine, ProvisionedManagedStorage } from './managed-storage-engine';
+import type {
+  ManagedStorageEngine,
+  ManagedTable,
+  ProvisionedManagedStorage,
+} from './managed-storage-engine';
 
 const JOB_USER_ROLE = 'roles/bigquery.jobUser';
 // IAM needs a moment to see a new service account.
@@ -33,7 +38,8 @@ export class BigQueryManagedStorageEngine implements ManagedStorageEngine {
 
   constructor(
     private readonly config: OwoxStorageConfigService,
-    private readonly client: GcpProvisioningClient
+    private readonly client: GcpProvisioningClient,
+    private readonly identity: OwoxStorageIdentity
   ) {}
 
   async provision(input: {
@@ -144,6 +150,33 @@ export class BigQueryManagedStorageEngine implements ManagedStorageEngine {
       }
     }
     if (failures.length > 0) throw failures[0];
+  }
+
+  async listTables(target: ProvisionedManagedStorage): Promise<ManagedTable[]> {
+    const { gcpProjectId, datasetId, location } = target;
+    // ODM's own identity: the storage account's job history must stay the customer's.
+    const [rows] = await this.identity.bigQuery(gcpProjectId, location).query({
+      query: `SELECT table_id, size_bytes, row_count FROM \`${gcpProjectId}.${datasetId}.__TABLES__\` ORDER BY table_id`,
+    });
+    return (rows as { table_id: string; size_bytes: string; row_count: string }[]).map(row => ({
+      name: row.table_id,
+      sizeBytes: Number(row.size_bytes),
+      rowCount: Number(row.row_count),
+    }));
+  }
+
+  async dropTable(target: ProvisionedManagedStorage, tableName: string): Promise<void> {
+    // Only a name the dataset itself lists reaches the delete call.
+    const listed = (await this.listTables(target)).some(table => table.name === tableName);
+    if (!listed) {
+      throw new NotFoundException(`Table ${tableName} was not found in this OWOX Storage.`);
+    }
+    const bigQuery = await this.identity.bigQueryAs(
+      target.serviceAccountEmail,
+      target.gcpProjectId,
+      target.location
+    );
+    await bigQuery.dataset(target.datasetId).table(tableName).delete();
   }
 
   private async withGrantRetry(grant: () => Promise<void>): Promise<void> {
