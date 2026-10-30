@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ModuleRef } from '@nestjs/core';
-import { castError } from '@owox/internal-helpers';
+import { describeGoogleError } from './engine/bigquery-managed-storage.engine';
 import type { ManagedStorage } from '../entities/managed-storage.entity';
 import type { ScanBudget } from '../data-storage-types/bigquery/schemas/bigquery-credentials.schema';
 import { ProjectPlanType } from '../enums/project-plan-type.enum';
@@ -63,7 +63,7 @@ export class OwoxStorageScanBudgetService implements OwoxStorageScanBudgetFactor
     } catch (error) {
       // A billing outage must not stop every query; the lower limit is the safe side.
       this.logger.warn(
-        `Using the FREE OWOX Storage query limit for storage ${record.storageId}: ${castError(error).message}`
+        `Using the FREE OWOX Storage query limit for storage ${record.storageId}: ${describeGoogleError(error)}`
       );
       return ProjectPlanType.FREE;
     }
@@ -86,7 +86,7 @@ WHERE user_email = @email
     } catch (error) {
       // Without today's usage there is no cap, so the query must not run.
       this.logger.warn(
-        `Could not read today's usage of OWOX Storage ${record.storageId}: ${castError(error).message}`
+        `Could not read today's usage of OWOX Storage ${record.storageId}: ${describeGoogleError(error)}`
       );
       throw new OwoxStorageUsageUnavailableException();
     }
