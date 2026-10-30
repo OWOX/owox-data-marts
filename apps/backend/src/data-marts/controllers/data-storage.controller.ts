@@ -14,6 +14,9 @@ import { ApiTags } from '@nestjs/swagger';
 import { Auth, AuthContext, AuthorizationContext, ViewOnlySafe } from '../../idp';
 import { Role, Strategy } from '../../idp/types/role-config.types';
 import { CreateOwoxStorageApiDto } from '../dto/presentation/create-owox-storage-api.dto';
+import { GetOwoxStorageUsageService } from '../use-cases/get-owox-storage-usage.service';
+import { DeleteOwoxStorageTableService } from '../use-cases/delete-owox-storage-table.service';
+import { OwoxStorageUsageResponseApiDto } from '../dto/presentation/owox-storage-usage-response-api.dto';
 import { CreateOwoxStorageService } from '../use-cases/create-owox-storage.service';
 import { CreateDataStorageApiDto } from '../dto/presentation/create-data-storage-api.dto';
 import { DataStorageAccessValidationResponseApiDto } from '../dto/presentation/data-storage-access-validation-response-api.dto';
@@ -38,6 +41,8 @@ import {
   CreateDataStorageSpec,
   CreateOwoxStorageSpec,
   DeleteDataStorageSpec,
+  DeleteOwoxStorageTableSpec,
+  GetOwoxStorageUsageSpec,
   GetDataStorageSpec,
   ListDataStoragesSpec,
   ListDataStoragesByTypeSpec,
@@ -63,7 +68,9 @@ export class DataStorageController {
     private readonly mapper: DataStorageMapper,
     private readonly listByTypeService: ListDataStoragesByTypeService,
     private readonly listStorageResourcesService: ListStorageResourcesService,
-    private readonly updateAvailabilityService: UpdateAvailabilityService
+    private readonly updateAvailabilityService: UpdateAvailabilityService,
+    private readonly getOwoxStorageUsageService: GetOwoxStorageUsageService,
+    private readonly deleteOwoxStorageTableService: DeleteOwoxStorageTableService
   ) {}
 
   @Auth(Role.viewer(Strategy.PARSE))
@@ -164,6 +171,31 @@ export class DataStorageController {
   ): Promise<ListStorageResourcesResponseDto> {
     const command = this.mapper.toListStorageResourcesCommand(id, context, query);
     return this.listStorageResourcesService.run(command);
+  }
+
+  // Distinct from `:id/resources` and the other `:id/...` paths; no `:id/...` route here captures it.
+  @Auth(Role.viewer(Strategy.INTROSPECT))
+  @Get(':id/owox-storage')
+  @GetOwoxStorageUsageSpec()
+  async getOwoxStorageUsage(
+    @AuthContext() context: AuthorizationContext,
+    @Param('id') id: string
+  ): Promise<OwoxStorageUsageResponseApiDto> {
+    const command = this.mapper.toGetOwoxStorageUsageCommand(id, context);
+    return this.getOwoxStorageUsageService.run(command);
+  }
+
+  @Auth(Role.editor(Strategy.INTROSPECT))
+  @Delete(':id/owox-storage/tables/:tableName')
+  @HttpCode(204)
+  @DeleteOwoxStorageTableSpec()
+  async deleteOwoxStorageTable(
+    @AuthContext() context: AuthorizationContext,
+    @Param('id') id: string,
+    @Param('tableName') tableName: string
+  ): Promise<void> {
+    const command = this.mapper.toDeleteOwoxStorageTableCommand(id, tableName, context);
+    await this.deleteOwoxStorageTableService.run(command);
   }
 
   @Auth(Role.viewer(Strategy.INTROSPECT))
