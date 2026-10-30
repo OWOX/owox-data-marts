@@ -368,7 +368,7 @@ describe('ConnectorDefinitionController OpenAPI', () => {
     const fittingSchema = resolveRef(
       '#/components/schemas/FittingCustomConnectorCredentialResponseApiDto'
     );
-    expect(fittingSchema.required).toEqual(['id', 'title', 'hosts', 'fieldKeys']);
+    expect(fittingSchema.required).toEqual(['id', 'title', 'hosts', 'fieldKeys', 'refusal']);
 
     expect(
       jsonSchemaOf(
