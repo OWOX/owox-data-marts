@@ -43,7 +43,11 @@ import type { ContextSummary } from '../../../features/contexts/types/context.ty
 import {
   DataMartMemberAccessList,
   MemberAccessWarning,
+  MemberAvatars,
+  countMembersSharingWouldLetIn,
   countMembersWhoCannotSee,
+  membersInContext,
+  membersSharingOpensTo,
   useDataMartMemberAccess,
 } from '../../../features/data-marts/edit/components/DataMartMemberAccess';
 import type { DataMartStatusInfo } from '../../../features/data-marts/shared/types/data-mart-status.model';
@@ -104,6 +108,10 @@ export default function DataMartOverviewContent() {
     dataMart.businessOwnerUsers.map(u => u.userId).join(','),
   ].join('|');
   const memberAccess = useDataMartMemberAccess(dataMart.id, memberAccessRefreshKey, isAdmin);
+  const memberAccessDataMart = {
+    contexts: dataMart.contexts ?? [],
+    availableForMaintenance: dataMart.availableForMaintenance !== false,
+  };
 
   // Sync local state when dataMart props change (after refetch)
   useEffect(() => {
@@ -345,6 +353,13 @@ export default function DataMartOverviewContent() {
                   >
                     Shared for maintenance
                   </label>
+                  {availableForMaintenance && (
+                    <MemberAvatars
+                      members={membersSharingOpensTo(memberAccess.members, 'maintenance')}
+                      label='Shared for maintenance with'
+                      testId='dataMartSharedForMaintenanceMembers'
+                    />
+                  )}
                 </div>
                 <p className='text-muted-foreground text-xs'>
                   Members with the Data Owner role can edit, delete, and manage triggers for this
@@ -382,6 +397,13 @@ export default function DataMartOverviewContent() {
                   >
                     Shared for reporting
                   </label>
+                  {availableForReporting && (
+                    <MemberAvatars
+                      members={membersSharingOpensTo(memberAccess.members, 'reporting')}
+                      label='Shared for reporting with'
+                      testId='dataMartSharedForReportingMembers'
+                    />
+                  )}
                 </div>
                 <p className='text-muted-foreground text-xs'>
                   All project members can see this Data Mart and build reports on it
@@ -403,7 +425,7 @@ export default function DataMartOverviewContent() {
               </div>
             </div>
             <MemberAccessWarning
-              count={countMembersWhoCannotSee(memberAccess.members, 'NOT_SHARED')}
+              count={countMembersSharingWouldLetIn(memberAccess.members, memberAccessDataMart)}
               testId='dataMartSharingAccessWarning'
             >
               It isn&apos;t shared with them. Turn on Shared for reporting, or add them as owners.
@@ -430,6 +452,17 @@ export default function DataMartOverviewContent() {
                 onChange={persistContexts}
                 idPrefix='dm-ctx'
                 {...inlineContext.pickerProps}
+                renderContextEnd={
+                  isAdmin
+                    ? contextId => (
+                        <MemberAvatars
+                          members={membersInContext(memberAccess.members, contextId)}
+                          label='Members limited to this context:'
+                          testId='dataMartContextMembers'
+                        />
+                      )
+                    : undefined
+                }
               />
             </div>
             {(dataMart.contexts ?? []).length === 0 && (
@@ -437,8 +470,8 @@ export default function DataMartOverviewContent() {
                 count={countMembersWhoCannotSee(memberAccess.members, 'DATA_MART_HAS_NO_CONTEXT')}
                 testId='dataMartContextsAccessWarning'
               >
-                They see only Data Marts in their contexts, and this one has none. Add a context to
-                make it visible to them.
+                They see only Data Marts in their contexts, and this one has none. Add one of their
+                contexts to make it visible to them — the list below shows which.
               </MemberAccessWarning>
             )}
             <Accordion variant='common' type='single' collapsible>
@@ -481,10 +514,7 @@ export default function DataMartOverviewContent() {
               isLoading={memberAccess.isLoading}
               hasError={memberAccess.hasError}
               onRetry={memberAccess.retry}
-              dataMart={{
-                contexts: dataMart.contexts ?? [],
-                availableForMaintenance: dataMart.availableForMaintenance !== false,
-              }}
+              dataMart={memberAccessDataMart}
               isDraft={dataMart.status?.code === DataMartStatus.DRAFT}
             />
           </CollapsibleCardContent>

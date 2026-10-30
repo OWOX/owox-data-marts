@@ -51,6 +51,8 @@ export function useDataMartMemberAccess(
       .getMemberAccess(dataMartId, {
         signal: abortController.signal,
         skipLoadingIndicator: true,
+        // The list renders its own error with a retry; a global toast on every refetch would repeat it.
+        skipErrorToast: true,
       })
       .then(response => {
         setMembers(response.members);

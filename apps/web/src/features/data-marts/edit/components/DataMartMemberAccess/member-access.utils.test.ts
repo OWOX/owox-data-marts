@@ -4,10 +4,13 @@ import type {
   DataMartMemberAccessItemDto,
 } from '../../../shared/types/api/response/data-mart-member-access.response.dto';
 import {
+  countMembersSharingWouldLetIn,
   countMembersWhoCannotSee,
   explainMemberAccess,
   formatMemberCount,
   memberAccessPath,
+  membersInContext,
+  membersSharingOpensTo,
   plainText,
   sortMembersForAccess,
   type MemberAccessDataMart,
@@ -201,6 +204,51 @@ describe('explainMemberAccess', () => {
     });
   });
 
+  it('adds the context step when Sharing alone would not reach a member limited to other contexts', () => {
+    const outside = member({
+      contexts: [{ id: 'ctx-social', name: 'Social' }],
+      see: no('NOT_SHARED'),
+    });
+    expect(explain(outside, dataMart).next).toBe(
+      'To see it: turn on Shared for reporting and add Social in Contexts, or add them as Business Owner in Ownership'
+    );
+    expect(explain(member({ contexts: [], see: no('NOT_SHARED') }), dataMart).next).toBe(
+      'To see it: turn on Shared for reporting and assign the member to Paid ads, SEO, or add them as Business Owner in Ownership'
+    );
+  });
+
+  it('does not promise edit through maintenance sharing to a Business Owner the context gate keeps out', () => {
+    const businessOwner = member({
+      contexts: [{ id: 'ctx-social', name: 'Social' }],
+      ownership: 'BUSINESS_OWNER',
+      see: yes('OWNER'),
+    });
+    expect(explain(businessOwner, dataMart).next).toBe(
+      "To edit it: change their role to Data Owner in Project settings → Members, then add Social in Contexts or add them as this Data Mart's Data Owner in Ownership"
+    );
+    expect(explain(businessOwner, { ...dataMart, availableForMaintenance: false }).next).toBe(
+      "To edit it: change their role to Data Owner in Project settings → Members, then turn on Shared for maintenance and add Social in Contexts or add them as this Data Mart's Data Owner in Ownership"
+    );
+  });
+
+  it('asks for one of several contexts, since one is enough and each exposes the Data Mart more', () => {
+    const several = [
+      { id: 'ctx-social', name: 'Social' },
+      { id: 'ctx-brand', name: 'Brand' },
+    ];
+    expect(
+      explain(member({ contexts: several, see: no('NO_SHARED_CONTEXT') }), dataMart).next
+    ).toBe(
+      'To see it: add one of their contexts (Social, Brand) in Contexts, or assign the member to Paid ads, SEO'
+    );
+    expect(
+      explain(member({ contexts: several, see: no('DATA_MART_HAS_NO_CONTEXT') }), {
+        ...dataMart,
+        contexts: [],
+      }).next
+    ).toBe('To see it: add one of their contexts (Social, Brand) in Contexts');
+  });
+
   it('links settings on other screens: contexts to their pages, roles to the member in Members', () => {
     const blocked = explainMemberAccess(
       member({ contexts: [{ id: 'ctx-social', name: 'Social' }], see: no('NO_SHARED_CONTEXT') }),
@@ -258,8 +306,57 @@ describe('counts', () => {
     expect(countMembersWhoCannotSee(null, 'NOT_SHARED')).toBe(0);
   });
 
+  it('counts in the Sharing warning only members whom Sharing would let in', () => {
+    const members = [
+      member({ see: no('NOT_SHARED') }),
+      member({ contexts: [{ id: 'ctx-social', name: 'Social' }], see: no('NOT_SHARED') }),
+      member({ roleScope: 'entire_project', contexts: [], see: no('NOT_SHARED') }),
+    ];
+
+    expect(countMembersSharingWouldLetIn(members, dataMart)).toBe(2);
+  });
+
   it('formats one and many members', () => {
     expect(formatMemberCount(1)).toBe('1 member');
     expect(formatMemberCount(3)).toBe('3 members');
+  });
+});
+
+describe('who a setting lets in', () => {
+  const members = [
+    member({ userId: 'zoe', displayName: 'Zoe', see: yes('SHARED_CONTEXT') }),
+    member({
+      userId: 'tom',
+      displayName: 'Tom',
+      role: 'editor',
+      roleScope: 'entire_project',
+      contexts: [],
+      see: yes('PROJECT_WIDE_ACCESS'),
+      edit: yes('PROJECT_WIDE_ACCESS'),
+    }),
+    member({ userId: 'ben', displayName: 'Ben', see: no('NO_SHARED_CONTEXT') }),
+    member({ userId: 'owner', displayName: 'Ola', ownership: 'BUSINESS_OWNER', see: yes('OWNER') }),
+    member({
+      userId: 'admin',
+      displayName: 'Ada',
+      role: 'admin',
+      see: yes('PROJECT_ADMIN'),
+      edit: yes('PROJECT_ADMIN'),
+    }),
+  ];
+
+  it('lists members who see or edit the Data Mart through Sharing, not owners or admins', () => {
+    expect(membersSharingOpensTo(members, 'reporting').map(m => m.userId)).toEqual(['tom', 'zoe']);
+    expect(membersSharingOpensTo(members, 'maintenance').map(m => m.userId)).toEqual(['tom']);
+    expect(membersSharingOpensTo(null, 'reporting')).toEqual([]);
+  });
+
+  it('lists members limited to a context and assigned to it, never admins', () => {
+    expect(membersInContext(members, 'ctx-paid').map(m => m.userId)).toEqual([
+      'ben',
+      'owner',
+      'zoe',
+    ]);
+    expect(membersInContext(members, 'ctx-seo')).toEqual([]);
   });
 });

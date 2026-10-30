@@ -181,7 +181,7 @@ The **Who has access to this Data Mart** section on the Data Mart's **Overview**
 
 For the first actions a member lacks, the section says what to change: a sharing toggle, a context on the Data Mart or the member, an ownership assignment, or the member's role. When the change is made on another screen, the hint links to it: **Project settings → Members** opens the member's details, where their role and contexts are set, and a context's name opens that context. Members with the least access are listed first.
 
-The **Sharing** and **Contexts** sections also warn when a setting keeps members out: how many members can't see the Data Mart because it isn't shared with them, or because it has no context while they are limited to selected contexts.
+The **Sharing** and **Contexts** sections show the same answer where you change it, as **Ownership** shows owners: next to *Shared for reporting*, the members who see the Data Mart through it; next to *Shared for maintenance*, the members who edit it through it; next to each context, the members limited to that context. They also warn when a setting keeps members out: how many members can't see the Data Mart because it isn't shared with them, or because it has no context while they are limited to selected contexts.
 
 MCP lists only published Data Marts, so the section notes when the Data Mart is still a draft.
 

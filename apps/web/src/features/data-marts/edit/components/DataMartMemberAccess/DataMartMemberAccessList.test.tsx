@@ -8,6 +8,7 @@ import type {
 } from '../../../shared/types/api/response/data-mart-member-access.response.dto';
 import { DataMartMemberAccessList } from './DataMartMemberAccessList';
 import { MemberAccessWarning } from './MemberAccessWarning';
+import { MemberAvatars } from './MemberAvatars';
 
 vi.mock('../../../../../shared/hooks', () => ({
   useProjectRoute: () => ({ scope: (path: string) => `/ui/project${path}` }),
@@ -165,5 +166,28 @@ describe('MemberAccessWarning', () => {
     );
 
     expect(screen.queryByTestId('warning')).not.toBeInTheDocument();
+  });
+});
+
+describe('MemberAvatars', () => {
+  it('names the members a setting lets in and shows nothing for none', () => {
+    const { rerender } = render(
+      <MemberAvatars
+        members={members.slice(1, 3)}
+        label='Shared for reporting with'
+        testId='avatars'
+      />
+    );
+
+    expect(
+      screen.getByRole('group', { name: 'Shared for reporting with Ben, Tom' })
+    ).toBeInTheDocument();
+
+    rerender(
+      <MemoryRouter>
+        <MemberAvatars members={[]} label='Shared for reporting with' testId='avatars' />
+      </MemoryRouter>
+    );
+    expect(screen.queryByTestId('avatars')).not.toBeInTheDocument();
   });
 });

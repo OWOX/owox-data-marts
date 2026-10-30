@@ -1,3 +1,4 @@
+import type { UserProjection } from '../../../../../shared/types';
 import type {
   DataMartAccessLevelDto,
   DataMartAccessReason,
@@ -79,6 +80,40 @@ const roleChange = (member: DataMartMemberAccessItemDto): MemberAccessText => [
   { text: MEMBERS_LINK_TEXT, target: { kind: 'members', userId: member.userId } },
 ];
 
+/** One context is enough to pass the context gate, and each extra one exposes the Data Mart more. */
+const oneOfTheirContexts = (member: DataMartMemberAccessItemDto) =>
+  member.contexts.length === 1
+    ? listNames(member.contexts)
+    : `one of their contexts (${listNames(member.contexts)})`;
+
+/**
+ * Whether Sharing reaches the member at all: it does unless their role is limited to selected
+ * contexts and none of those is on the Data Mart — then the context gate still keeps them out.
+ */
+export function sharingReaches(
+  member: DataMartMemberAccessItemDto,
+  dataMart: MemberAccessDataMart
+): boolean {
+  if (member.roleScope !== 'selected_contexts') return true;
+  const dataMartContextIds = new Set(dataMart.contexts.map(c => c.id));
+  return member.contexts.some(c => dataMartContextIds.has(c.id));
+}
+
+/** The context change that lets Sharing reach a member limited to selected contexts. */
+function contextStep(
+  member: DataMartMemberAccessItemDto,
+  dataMart: MemberAccessDataMart
+): MemberAccessText {
+  if (member.contexts.length > 0) return [`add ${oneOfTheirContexts(member)} in Contexts`];
+  if (dataMart.contexts.length > 0) {
+    return ['assign the member to ', ...contextLinks(dataMart.contexts)];
+  }
+  return [
+    'add a context in Contexts and ',
+    { text: 'assign the member to it', target: { kind: 'members', userId: member.userId } },
+  ];
+}
+
 export function memberDisplayName(member: DataMartMemberAccessItemDto): string {
   return member.displayName ?? member.email;
 }
@@ -107,12 +142,70 @@ export function countMembersWhoCannotSee(
     .length;
 }
 
-export function formatMemberCount(count: number): string {
-  return count === 1 ? '1 member' : `${String(count)} members`;
+/**
+ * Members whom turning on Sharing would let see the Data Mart — what the Sharing warning counts.
+ * Members the context gate would still keep out are left to the Contexts hints.
+ */
+export function countMembersSharingWouldLetIn(
+  members: readonly DataMartMemberAccessItemDto[] | null,
+  dataMart: MemberAccessDataMart
+): number {
+  return (members ?? []).filter(
+    member =>
+      !member.see.granted && member.see.reason === 'NOT_SHARED' && sharingReaches(member, dataMart)
+  ).length;
 }
 
 const isThroughSharing = (level: DataMartAccessLevelDto) =>
   level.granted && (level.reason === 'PROJECT_WIDE_ACCESS' || level.reason === 'SHARED_CONTEXT');
+
+/** A member as the shared avatar components expect it. */
+export function toUserProjection(member: DataMartMemberAccessItemDto): UserProjection {
+  return {
+    userId: member.userId,
+    fullName: member.displayName ?? null,
+    email: member.email,
+    avatar: member.avatarUrl ?? null,
+  };
+}
+
+const byName = (members: DataMartMemberAccessItemDto[]) =>
+  members.sort((a, b) => memberDisplayName(a).localeCompare(memberDisplayName(b)));
+
+/**
+ * Members whom a Sharing option lets in right now: Shared for reporting — those who see the Data
+ * Mart through Sharing; Shared for maintenance — those who edit it through Sharing. Admins and
+ * owners have access regardless of Sharing, so they are not listed.
+ */
+export function membersSharingOpensTo(
+  members: readonly DataMartMemberAccessItemDto[] | null,
+  sharing: 'reporting' | 'maintenance'
+): DataMartMemberAccessItemDto[] {
+  const level = sharing === 'reporting' ? 'see' : 'edit';
+  return byName((members ?? []).filter(member => isThroughSharing(member[level])));
+}
+
+/**
+ * Members whose role is limited to selected contexts and who are assigned to this one — whom the
+ * context lets in. Admins see everything, so they are never listed.
+ */
+export function membersInContext(
+  members: readonly DataMartMemberAccessItemDto[] | null,
+  contextId: string
+): DataMartMemberAccessItemDto[] {
+  return byName(
+    (members ?? []).filter(
+      member =>
+        member.role !== 'admin' &&
+        member.roleScope === 'selected_contexts' &&
+        member.contexts.some(c => c.id === contextId)
+    )
+  );
+}
+
+export function formatMemberCount(count: number): string {
+  return count === 1 ? '1 member' : `${String(count)} members`;
+}
 
 function sharedContexts(member: DataMartMemberAccessItemDto, dataMart: MemberAccessDataMart) {
   const dataMartContextIds = new Set(dataMart.contexts.map(c => c.id));
@@ -157,7 +250,6 @@ function contextGate(
   dataMart: MemberAccessDataMart
 ): { why: MemberAccessText; change: MemberAccessText } | null {
   // The member's contexts link to their pages; contexts to add are ticked in Contexts on this page.
-  const theirs = listNames(member.contexts);
   if (reason === 'DATA_MART_HAS_NO_CONTEXT') {
     return member.contexts.length > 0
       ? {
@@ -166,7 +258,7 @@ function contextGate(
             ...contextLinks(member.contexts),
             '), and this Data Mart has none',
           ],
-          change: [`add ${theirs} in Contexts`],
+          change: [`add ${oneOfTheirContexts(member)} in Contexts`],
         }
       : {
           why: ['Sees only their contexts, has none assigned, and this Data Mart has none'],
@@ -188,7 +280,7 @@ function contextGate(
             '), and none of them is on this Data Mart',
           ],
           change: [
-            `add ${theirs} in Contexts, or assign the member to `,
+            `add ${oneOfTheirContexts(member)} in Contexts, or assign the member to `,
             ...contextLinks(dataMart.contexts),
           ],
         }
@@ -208,17 +300,25 @@ function cannotSee(
   if (gate) {
     return { canDo: gate.why, next: ['To see it: ', ...gate.change] };
   }
+  // Sharing alone is not enough when the context gate would still keep the member out.
+  const andContext: MemberAccessText = sharingReaches(member, dataMart)
+    ? []
+    : [' and ', ...contextStep(member, dataMart)];
   return member.role === 'editor'
     ? {
         canDo: ['Not shared for reporting or maintenance'],
         next: [
-          'To see it: turn on Shared for reporting or Shared for maintenance, or add them in Ownership',
+          'To see it: turn on Shared for reporting or Shared for maintenance',
+          ...andContext,
+          ', or add them in Ownership',
         ],
       }
     : {
         canDo: ['Not shared for reporting'],
         next: [
-          'To see it: turn on Shared for reporting, or add them as Business Owner in Ownership',
+          'To see it: turn on Shared for reporting',
+          ...andContext,
+          ', or add them as Business Owner in Ownership',
         ],
       };
 }
@@ -228,21 +328,39 @@ function toEdit(
   dataMart: MemberAccessDataMart
 ): MemberAccessText {
   const { reason } = member.edit;
+  // Maintenance sharing is a way in only when it reaches the member past the context gate;
+  // owning the Data Mart as its Data Owner bypasses both.
+  const reaches = sharingReaches(member, dataMart);
   if (reason === 'ROLE_REQUIRED') {
-    // A Data Owner of this Data Mart only lacks the role; anyone else also needs a way in.
-    return member.ownership === 'DATA_OWNER' || dataMart.availableForMaintenance
-      ? ['To edit it: ', ...roleChange(member)]
-      : [
-          'To edit it: ',
-          ...roleChange(member),
-          `, then turn on Shared for maintenance or ${DATA_OWNER_OF_THIS}`,
-        ];
+    if (member.ownership === 'DATA_OWNER' || (dataMart.availableForMaintenance && reaches)) {
+      return ['To edit it: ', ...roleChange(member)];
+    }
+    if (dataMart.availableForMaintenance) {
+      return [
+        'To edit it: ',
+        ...roleChange(member),
+        ', then ',
+        ...contextStep(member, dataMart),
+        ` or ${DATA_OWNER_OF_THIS}`,
+      ];
+    }
+    return [
+      'To edit it: ',
+      ...roleChange(member),
+      ', then turn on Shared for maintenance',
+      ...(reaches ? [] : [' and ', ...contextStep(member, dataMart)]),
+      ` or ${DATA_OWNER_OF_THIS}`,
+    ];
   }
   const gate = contextGate(reason, member, dataMart);
   if (gate) {
     return ['To edit it: ', ...gate.change];
   }
-  return [`To edit it: turn on Shared for maintenance, or ${DATA_OWNER_OF_THIS}`];
+  return [
+    'To edit it: turn on Shared for maintenance',
+    ...(reaches ? [] : [' and ', ...contextStep(member, dataMart)]),
+    `, or ${DATA_OWNER_OF_THIS}`,
+  ];
 }
 
 function toConfigureSharing(member: DataMartMemberAccessItemDto): MemberAccessText {

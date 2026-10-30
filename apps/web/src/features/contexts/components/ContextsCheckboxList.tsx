@@ -14,6 +14,8 @@ interface ContextsCheckboxListProps {
   disabled?: boolean;
   emptyText?: ReactNode;
   onRequestCreate?: () => void;
+  /** Extra content at the end of a context's row, such as the members it lets in. */
+  renderRowEnd?: (contextId: string) => ReactNode;
 }
 
 export function ContextsCheckboxList({
@@ -24,6 +26,7 @@ export function ContextsCheckboxList({
   disabled,
   emptyText,
   onRequestCreate,
+  renderRowEnd,
 }: ContextsCheckboxListProps) {
   const createButton = onRequestCreate ? (
     <Button type='button' variant='outline' size='sm' onClick={onRequestCreate} disabled={disabled}>
@@ -76,6 +79,7 @@ export function ContextsCheckboxList({
                   <span className='text-muted-foreground truncate text-xs'>{ctx.description}</span>
                 )}
               </Label>
+              {renderRowEnd?.(ctx.id)}
             </div>
           );
         })}

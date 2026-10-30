@@ -160,7 +160,7 @@ test.describe('DataMart Availability', () => {
     await page.goto(`/ui/0/data-marts/${dm.id}/overview`);
     await expect(page.getByTestId(TESTIDS.datamartTabOverview)).toBeVisible();
 
-    await expect(page.getByText('Sharing')).toBeVisible();
+    await expect(page.getByText('Sharing', { exact: true })).toBeVisible();
     await expect(page.getByText('Shared for reporting', { exact: true })).toBeVisible();
     await expect(page.getByText('Shared for maintenance', { exact: true })).toBeVisible();
   });

@@ -26,6 +26,13 @@ import { RoleScope } from '../../enums/role-scope.enum';
 import { Credential } from '../../credentials/entities/credential.entity';
 import { CredentialOwner } from '../../credentials/entities/credential-owner.entity';
 
+/** The sharing states a Data Mart can be in once shared; SHARED_FOR_USE belongs to Storages. */
+const DATA_MART_SHARED_STATES = [
+  SharingState.SHARED_FOR_REPORTING,
+  SharingState.SHARED_FOR_MAINTENANCE,
+  SharingState.SHARED_FOR_BOTH,
+] as const;
+
 @Injectable()
 export class AccessDecisionService {
   private readonly logger = new Logger(AccessDecisionService.name);
@@ -218,7 +225,7 @@ export class AccessDecisionService {
 
     if (!allows(role, OwnerStatus.NON_OWNER, sharingState)) {
       let reason = DataMartAccessReason.ROLE_REQUIRED;
-      if (Object.values(SharingState).some(state => allows(role, OwnerStatus.NON_OWNER, state))) {
+      if (DATA_MART_SHARED_STATES.some(state => allows(role, OwnerStatus.NON_OWNER, state))) {
         reason = DataMartAccessReason.NOT_SHARED;
       } else if (allows(role, OwnerStatus.TECH_OWNER, sharingState)) {
         reason = DataMartAccessReason.OWNER_REQUIRED;
