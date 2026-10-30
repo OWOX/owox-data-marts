@@ -94,7 +94,7 @@ export function TestCustomConnectorSpec() {
 export function ListFittingCustomConnectorCredentialsSpec() {
   return applyDecorators(
     ApiOperation({
-      summary: 'List the Credentials that fit a custom connector manifest',
+      summary: 'List the usable Credentials for a custom connector manifest and whether each fits',
       description:
         'Takes a manifest, or the name (and optional version) of a published custom connector, and ' +
         'returns the enabled custom connector Credentials the caller can use: id, title, hosts and ' +
