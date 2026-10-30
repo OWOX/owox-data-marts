@@ -150,6 +150,131 @@ describe('getBigQueryClient', () => {
     // acceptable in practice, since a real expiry timestamp is never 0.
     expect(authClient.isTokenExpiring()).toBe(false);
   });
+
+  describe('with ImpersonateServiceAccount', () => {
+    const realRequire = globalThis.require;
+    const sourceClient = { adc: true };
+    let googleAuthOptions;
+
+    // No real ADC lookup: GoogleAuth hands back a fixed source client, Impersonated keeps its options.
+    beforeEach(() => {
+      googleAuthOptions = [];
+      class GoogleAuth {
+        constructor(options) {
+          googleAuthOptions.push(options);
+        }
+        async getClient() {
+          return sourceClient;
+        }
+      }
+      class Impersonated {
+        constructor(options) {
+          this.options = options;
+        }
+      }
+      globalThis.require = name =>
+        name === 'google-auth-library' ? { GoogleAuth, Impersonated } : realRequire(name);
+    });
+
+    afterEach(() => {
+      globalThis.require = realRequire;
+    });
+
+    // An OAuth token stays set on purpose: impersonation must win over it.
+    const impersonatingStorage = () =>
+      Object.assign(Object.create(proto), {
+        _bigqueryClient: null,
+        config: {
+          OAuthAccessToken: configValue('access-token'),
+          ProjectID: configValue('p'),
+          DestinationTableName: configValue('ads'),
+          ImpersonateServiceAccount: configValue('owox-st-abc@p.iam.gserviceaccount.com'),
+        },
+      });
+
+    it('builds the client from the impersonated auth when ImpersonateServiceAccount is set', async () => {
+      const storage = impersonatingStorage();
+      storage.loadTableSchema = async () => {};
+
+      await storage.init();
+      storage.getBigQueryClient();
+
+      expect(googleAuthOptions).toEqual([
+        { scopes: ['https://www.googleapis.com/auth/cloud-platform'] },
+      ]);
+      expect(capturedAuthClients).toHaveLength(1);
+      expect(capturedAuthClients[0].options).toEqual({
+        sourceClient,
+        targetPrincipal: 'owox-st-abc@p.iam.gserviceaccount.com',
+        targetScopes: ['https://www.googleapis.com/auth/bigquery'],
+        lifetime: 3600,
+      });
+    });
+
+    it('refuses to fall back to another credential when the impersonated client was not prepared', () => {
+      expect(() => impersonatingStorage().getBigQueryClient()).toThrow(/not prepared/);
+      expect(capturedAuthClients).toHaveLength(0);
+    });
+
+    it('prepares the impersonated client on the snapshot import path, which skips init()', async () => {
+      const storage = impersonatingStorage();
+      storage.createDatasetIfItDoesntExist = async () => {};
+      storage.executeQuery = async function () {
+        this.getBigQueryClient();
+        throw new Error('stop after the first query');
+      };
+
+      await expect(storage.replaceData([])).rejects.toThrow('stop after the first query');
+      expect(capturedAuthClients[0].options.targetPrincipal).toBe(
+        'owox-st-abc@p.iam.gserviceaccount.com'
+      );
+    });
+  });
+});
+
+describe('dataset checks for a storage whose dataset already exists', () => {
+  const datasetStorage = (overrides = {}) => {
+    const queries = [];
+    const storage = Object.assign(Object.create(proto), {
+      config: {
+        DestinationProjectID: configValue('p'),
+        DestinationDatasetName: configValue('owox_abc'),
+        DestinationDatasetID: configValue('p.owox_abc'),
+        DestinationTableName: configValue('ads'),
+        DestinationLocation: configValue('US'),
+        ...overrides,
+      },
+    });
+    storage.executeQuery = async query => {
+      queries.push(query);
+      return [];
+    };
+    return { storage, queries };
+  };
+
+  it('skips SCHEMATA and CREATE SCHEMA when the dataset exists', async () => {
+    const { storage, queries } = datasetStorage({ DestinationDatasetExists: configValue(true) });
+
+    await storage.getAListOfExistingColumns();
+    await storage.createDatasetIfItDoesntExist();
+
+    const sql = queries.join('\n');
+    expect(sql).not.toContain('SCHEMATA');
+    expect(sql).not.toContain('CREATE SCHEMA');
+    expect(queries).toHaveLength(1);
+    expect(queries[0]).toContain('FROM `p.owox_abc.INFORMATION_SCHEMA.COLUMNS`');
+    expect(queries[0]).toContain("WHERE table_name = 'ads'");
+  });
+
+  it('keeps the SCHEMATA script for a regular storage', async () => {
+    const { storage, queries } = datasetStorage();
+
+    await storage.getAListOfExistingColumns();
+    await storage.createDatasetIfItDoesntExist();
+
+    expect(queries[0]).toContain('FROM `p.INFORMATION_SCHEMA.SCHEMATA`');
+    expect(queries[1]).toContain('CREATE SCHEMA IF NOT EXISTS `p.owox_abc`');
+  });
 });
 
 describe('buildMergeQuery partition pruning', () => {
