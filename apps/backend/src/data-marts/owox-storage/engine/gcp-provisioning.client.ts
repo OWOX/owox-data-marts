@@ -61,7 +61,8 @@ export class GcpProvisioningClient {
   async deleteServiceAccount(email: string): Promise<void> {
     try {
       await this.iam.projects.serviceAccounts.delete({
-        name: `projects/-/serviceAccounts/${email}`,
+        // The `-` wildcard answers 403, not 404, for a missing account; use the account's own project.
+        name: `projects/${email.split('@')[1].split('.')[0]}/serviceAccounts/${email}`,
       });
     } catch (error) {
       if (!isNotFound(error)) throw error;
