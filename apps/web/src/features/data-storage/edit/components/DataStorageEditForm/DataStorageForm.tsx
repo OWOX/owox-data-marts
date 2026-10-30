@@ -353,7 +353,9 @@ export function DataStorageForm({
           )}
           {owoxStorage && initialData.id && (
             <FormSection title='Usage and Tables' name='owox-storage-usage'>
-              <OwoxStorageUsage storageId={initialData.id} />
+              <FormItem>
+                <OwoxStorageUsage storageId={initialData.id} />
+              </FormItem>
             </FormSection>
           )}
           {!owoxStorage && selectedType === DataStorageType.GOOGLE_BIGQUERY && (
