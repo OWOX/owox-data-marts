@@ -8,6 +8,7 @@ import {
 import { BigQueryConfig } from '../schemas/bigquery-config.schema';
 import { DataStorageCredentialsResolver } from '../../data-storage-credentials-resolver.service';
 import { DataStorage } from '../../../entities/data-storage.entity';
+import { isBigQueryManagedCredentials } from '../../data-storage-credentials.guards';
 
 @Injectable()
 export class BigQueryApiAdapterFactory {
@@ -22,6 +23,7 @@ export class BigQueryApiAdapterFactory {
     config: BigQueryConfig
   ): Promise<BigQueryApiAdapter> {
     const resolved = await this.credentialsResolver.resolve(storage);
+    if (isBigQueryManagedCredentials(resolved)) return new BigQueryApiAdapter(resolved, config);
     const saParsed = BigQueryServiceAccountCredentialsSchema.safeParse(resolved);
     const oauthParsed = BigQueryOAuthCredentialsSchema.safeParse(resolved);
     if (!saParsed.success && !oauthParsed.success) {
