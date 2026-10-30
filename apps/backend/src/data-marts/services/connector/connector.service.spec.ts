@@ -1,3 +1,4 @@
+const mockExchangeOauthCredentials = jest.fn();
 const mockRefreshCredentials = jest.fn();
 
 jest.mock('@owox/connectors', () => ({
@@ -50,7 +51,7 @@ jest.mock('@owox/connectors', () => ({
             },
           };
         }
-        exchangeOauthCredentials = jest.fn();
+        exchangeOauthCredentials = mockExchangeOauthCredentials;
         refreshCredentials = mockRefreshCredentials;
       },
       manifest: {
@@ -358,6 +359,38 @@ describe('ConnectorService', () => {
 
       expect(Array.isArray(result)).toBe(true);
       expect(result[0]).toMatchObject({ name: 'ads', destinationName: 'ads' });
+    });
+  });
+
+  describe('exchangeOauth', () => {
+    it("returns the sign-in result without the connector's additional data and writes no connector_source_credentials row", async () => {
+      const { service, connectorSourceCredentialsService } = createService();
+      mockExchangeOauthCredentials.mockResolvedValue({
+        user: { id: 'user-1', name: 'Ann' },
+        secret: { refresh_token: 'refresh-value' },
+        expiresIn: 3600,
+        additional: { paging: { next: 'https://provider.example/?access_token=access-value' } },
+        warnings: ['warning'],
+      });
+      const before = Date.now();
+
+      const result = await service.exchangeOauth('TestConnector', 'AuthType.oauth2', {
+        code: 'code-value',
+      });
+
+      expect(mockExchangeOauthCredentials).toHaveBeenCalledWith(
+        { code: 'code-value' },
+        expect.any(Object)
+      );
+      expect(result).toEqual({
+        credentials: { refresh_token: 'refresh-value' },
+        user: { id: 'user-1', name: 'Ann' },
+        expiresAt: expect.any(Date),
+        warnings: ['warning'],
+      });
+      expect(JSON.stringify(result)).not.toContain('access-value');
+      expect(result.expiresAt!.getTime()).toBeGreaterThanOrEqual(before + 3_600_000);
+      expect(connectorSourceCredentialsService.createCredentials).not.toHaveBeenCalled();
     });
   });
 

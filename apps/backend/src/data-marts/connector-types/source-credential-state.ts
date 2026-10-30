@@ -1,4 +1,4 @@
-// Imported by migration 1792800000000: keep it and its imports free of Nest and runtime services.
+// Imported by migration 1793000000000: keep it and its imports free of Nest and runtime services.
 import {
   CREDENTIAL_CONSUMER_TYPE_CONNECTOR_CONFIG,
   type AcceptedCredentialRequirement,

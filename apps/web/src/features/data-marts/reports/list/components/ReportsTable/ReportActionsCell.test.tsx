@@ -7,6 +7,7 @@ const runReport = vi.fn();
 const fetchReportsByDataMartId = vi.fn();
 const toastSuccess = vi.fn();
 const showApiErrorToast = vi.fn();
+const wasErrorToastShown = vi.fn<(error: unknown) => boolean>(() => false);
 
 // Radix dropdowns need real pointer events — render everything inline instead
 // (the established pattern for menu tests in this codebase).
@@ -39,6 +40,10 @@ vi.mock('react-hot-toast', () => ({
 
 vi.mock('../../../../../../shared/utils/showApiErrorToast', () => ({
   showApiErrorToast: (...args: unknown[]) => showApiErrorToast(...args),
+}));
+
+vi.mock('../../../../../../app/api', () => ({
+  wasErrorToastShown: (error: unknown) => wasErrorToastShown(error),
 }));
 
 vi.mock('../../../shared', () => ({
@@ -165,6 +170,21 @@ describe('ReportActionsCell — Reconnect & run', () => {
     await waitFor(() => {
       expect(showApiErrorToast).toHaveBeenCalled();
     });
+    expect(runReport).not.toHaveBeenCalled();
+  });
+
+  it('does not repeat a reconnect failure the API client already reported', async () => {
+    const error = new Error('bad request');
+    reconnectSheet.mockRejectedValueOnce(error);
+    wasErrorToastShown.mockReturnValueOnce(true);
+    render(<ReportActionsCell row={{ original: buildReport('ERROR') }} />);
+
+    fireEvent.click(screen.getByText('Reconnect & run'));
+
+    await waitFor(() => {
+      expect(wasErrorToastShown).toHaveBeenCalledWith(error);
+    });
+    expect(showApiErrorToast).not.toHaveBeenCalled();
     expect(runReport).not.toHaveBeenCalled();
   });
 });

@@ -12,7 +12,7 @@ export class PublishCustomConnectorService {
   ) {}
 
   async run(command: PublishCustomConnectorCommand): Promise<CustomConnectorPublishedDto> {
-    const { version, warnings } = await this.definitions.publish(
+    const { version, warnings, ...stopping } = await this.definitions.publish(
       command.projectId,
       command.connectorId,
       {
@@ -20,6 +20,6 @@ export class PublishCustomConnectorService {
         roles: command.roles,
       }
     );
-    return this.mapper.toPublishedDto(version, warnings);
+    return this.mapper.toPublishedDto(version, warnings, stopping);
   }
 }

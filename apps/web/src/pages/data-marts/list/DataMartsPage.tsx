@@ -3,7 +3,7 @@ import {
   DataMartTable,
   useDataMartList,
 } from '../../../features/data-marts/list';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { getDataMartColumns } from '../../../features/data-marts/list/components/DataMartTable/columns/columns.tsx';
 import { ConnectorContextProvider } from '../../../features/connectors/shared/model/context';
 import { useConnector } from '../../../features/connectors/shared/model/hooks/useConnector.ts';
@@ -11,6 +11,8 @@ import {
   isDataQualityActivityState,
   RunActivityIndicator,
 } from '../../../features/data-marts/shared/components/RunActivityIndicator';
+import { loadCustomConnectors } from '../../../features/connectors/shared/utils';
+import type { ConnectorListItem } from '../../../features/connectors/shared/model/types/connector';
 import { useProjectRoute } from '../../../shared/hooks';
 import { useDataQualitySummaries } from '../../../features/data-marts/data-quality';
 
@@ -28,6 +30,24 @@ const DataMartsPageContent = () => {
   useEffect(() => {
     void fetchAvailableConnectors();
   }, [fetchAvailableConnectors]);
+
+  // The bundled list has no custom connectors; without them their Data Marts read "Unknown".
+  const [customConnectors, setCustomConnectors] = useState<ConnectorListItem[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    loadCustomConnectors()
+      .then(customs => {
+        if (!cancelled) setCustomConnectors(customs);
+      })
+      .catch(() => null);
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  const allConnectors = useMemo(
+    () => [...connectors, ...customConnectors],
+    [connectors, customConnectors]
+  );
 
   useEffect(() => {
     void loadDataMarts();
@@ -49,8 +69,8 @@ const DataMartsPageContent = () => {
       </header>
       <div className='dm-page-content'>
         <DataMartTable
-          connectors={connectors}
-          columns={getDataMartColumns({ connectors })}
+          connectors={allConnectors}
+          columns={getDataMartColumns({ connectors: allConnectors })}
           data={items}
           deleteDataMart={deleteDataMart}
           publishDataMart={publishDataMart}

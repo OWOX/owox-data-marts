@@ -1,8 +1,11 @@
 import { ForbiddenException, Injectable } from '@nestjs/common';
 import { AuthorizationContext } from '../../../idp';
 import { Action, AccessDecisionService, EntityType } from '../access-decision';
+import { SourceCredentialBindingService } from '../../connector-types/source-credential-binding.service';
+import { ConnectorCredentialBoundaryError } from '../../errors/connector-credential-boundary.error';
 import { ConnectorCredentialInjectorService } from './connector-credential-injector.service';
 import { ConnectorSourceCredentialsService } from './connector-source-credentials.service';
+import { SourceCredentialInjectorService } from './source-credential-injector.service';
 
 const SECRET_MASK = '**********';
 
@@ -13,14 +16,21 @@ export class ConnectorPreviewCredentialsService {
   constructor(
     private readonly credentialInjector: ConnectorCredentialInjectorService,
     private readonly connectorSourceCredentialsService: ConnectorSourceCredentialsService,
-    private readonly accessDecisionService: AccessDecisionService
+    private readonly accessDecisionService: AccessDecisionService,
+    private readonly sourceCredentials: SourceCredentialBindingService,
+    private readonly sourceCredentialInjector: SourceCredentialInjectorService
   ) {}
 
   async inject(
     connectorName: string,
     config: Record<string, unknown>,
-    context: AuthorizationContext
+    context: AuthorizationContext,
+    dataMartId?: string
   ): Promise<Record<string, unknown>> {
+    const { _credential_id: credentialId, ...rest } = config;
+    if (credentialId !== undefined) {
+      return this.injectCredential(connectorName, rest, credentialId, context, dataMartId);
+    }
     const previewConfig = this.withoutStoredSecretReferenceForInlineKey(config);
     await this.validateReferences(connectorName, previewConfig, context);
     const configWithSecrets = await this.credentialInjector.injectSecrets(
@@ -33,6 +43,60 @@ export class ConnectorPreviewCredentialsService {
       connectorName,
       context.projectId
     );
+  }
+
+  /** USE the Credential, or EDIT the Data Mart it is bound to for exactly this configuration. */
+  private async injectCredential(
+    connectorName: string,
+    config: Record<string, unknown>,
+    credentialId: unknown,
+    context: AuthorizationContext,
+    dataMartId?: string
+  ): Promise<Record<string, unknown>> {
+    if (typeof credentialId !== 'string' || !credentialId) throw this.invalidCredentials();
+    const { projectId, userId, roles = [] } = context;
+    const ids =
+      dataMartId !== undefined && typeof config._id === 'string'
+        ? await this.sourceCredentials.boundCredentialIds(projectId, dataMartId)
+        : undefined;
+    // Undefined when the configuration is unbound, null once its Credential was deleted.
+    const bound = ids?.get(config._id as string);
+    const canEditDataMart =
+      bound !== undefined &&
+      (bound === null || bound === credentialId) &&
+      (await this.accessDecisionService.canAccess(
+        userId,
+        roles,
+        EntityType.DATA_MART,
+        dataMartId!,
+        Action.EDIT,
+        projectId
+      ));
+    if (!(canEditDataMart && bound === credentialId)) {
+      // An id that is not a Credential of this project is refused as a member is, whatever the role.
+      const deletedKnown = canEditDataMart && bound === null;
+      if (!deletedKnown && !(await this.sourceCredentials.hasCredential(projectId, credentialId))) {
+        throw this.invalidCredentials();
+      }
+      try {
+        await this.sourceCredentials.assertCanUseCredential({
+          projectId,
+          userId,
+          roles,
+          credentialId,
+        });
+      } catch (error) {
+        if (canEditDataMart && bound === null) throw this.sourceCredentials.boundCredentialGone();
+        throw error;
+      }
+    }
+    const credential = await this.sourceCredentials.resolveCredential(projectId, credentialId);
+    try {
+      return this.sourceCredentialInjector.previewBoundConfig(config, connectorName, credential);
+    } catch (error) {
+      if (error instanceof ConnectorCredentialBoundaryError) throw this.invalidCredentials();
+      throw error;
+    }
   }
 
   private withoutStoredSecretReferenceForInlineKey(
@@ -56,7 +120,6 @@ export class ConnectorPreviewCredentialsService {
     context: AuthorizationContext
   ): Promise<void> {
     const configId = typeof config._id === 'string' ? config._id : undefined;
-    const copiedFrom = this.getCopiedFrom(config);
 
     for (const reference of this.collectReferences(config)) {
       const credential = await this.connectorSourceCredentialsService.getCredentialsById(
@@ -82,11 +145,7 @@ export class ConnectorPreviewCredentialsService {
       }
 
       const isCurrentConfig = Boolean(configId) && credential.configId === configId;
-      const isCopiedConfig =
-        copiedFrom !== undefined &&
-        credential.dataMartId === copiedFrom.dataMartId &&
-        credential.configId === copiedFrom.configId;
-      if (!isCurrentConfig && !isCopiedConfig) {
+      if (!isCurrentConfig) {
         throw this.invalidCredentials();
       }
 
@@ -106,21 +165,6 @@ export class ConnectorPreviewCredentialsService {
         throw this.invalidCredentials();
       }
     }
-  }
-
-  private getCopiedFrom(
-    config: Record<string, unknown>
-  ): { dataMartId: string; configId: string } | undefined {
-    if (!config._copiedFrom || typeof config._copiedFrom !== 'object') {
-      return undefined;
-    }
-
-    const copiedFrom = config._copiedFrom as Record<string, unknown>;
-    if (typeof copiedFrom.dataMartId !== 'string' || typeof copiedFrom.configId !== 'string') {
-      return undefined;
-    }
-
-    return { dataMartId: copiedFrom.dataMartId, configId: copiedFrom.configId };
   }
 
   private collectReferences(

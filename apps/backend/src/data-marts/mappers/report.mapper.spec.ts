@@ -32,6 +32,7 @@ describe('ReportMapper — uniqueCountConfig round-trip', () => {
   const mockDataMartMapper = {
     toDomainDto: jest.fn().mockReturnValue({ id: 'dm-1' }),
     toResponse: jest.fn().mockResolvedValue({ id: 'dm-1' }),
+    toResponseList: jest.fn(),
   };
 
   const mockDataDestinationMapper = {
@@ -130,6 +131,42 @@ describe('ReportMapper — uniqueCountConfig round-trip', () => {
 
     expect(response.uniqueCountConfig).toBe(true);
     expect(mockDataMartMapper.toResponse).toHaveBeenCalledWith(reportDto.dataMart);
+  });
+
+  it('toResponseList: maps a Data Mart shared by reports once, through the batch', async () => {
+    mockDataMartMapper.toResponse.mockClear();
+    mockDataMartMapper.toResponseList.mockReset();
+    mockDataMartMapper.toResponseList.mockImplementation(async (dms: { id: string }[]) =>
+      dms.map(dm => ({ id: dm.id, mapped: true }))
+    );
+    const dto = (id: string, dataMartId: string) =>
+      new ReportDto(
+        id,
+        id,
+        { id: dataMartId } as any,
+        { id: 'dd-1' } as any,
+        {} as any,
+        new Date(),
+        new Date()
+      );
+
+    const responses = await mapper.toResponseList([
+      dto('r1', 'dm-1'),
+      dto('r2', 'dm-2'),
+      dto('r3', 'dm-1'),
+    ]);
+
+    expect(mockDataMartMapper.toResponseList).toHaveBeenCalledTimes(1);
+    expect(mockDataMartMapper.toResponseList).toHaveBeenCalledWith([
+      { id: 'dm-1' },
+      { id: 'dm-2' },
+    ]);
+    expect(mockDataMartMapper.toResponse).not.toHaveBeenCalled();
+    expect(responses.map(r => [r.id, r.dataMart])).toEqual([
+      ['r1', { id: 'dm-1', mapped: true }],
+      ['r2', { id: 'dm-2', mapped: true }],
+      ['r3', { id: 'dm-1', mapped: true }],
+    ]);
   });
 
   it('toUpdateDomainCommand: uniqueCountConfig=false is threaded through', () => {

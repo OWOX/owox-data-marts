@@ -47,6 +47,8 @@ Optional fields:
 
 - `logo` — path to logo file (SVG/PNG), will be auto-converted to base64
 - `docUrl` — link to the connector's documentation
+- `category` — the Credentials provider group of its key: `ads`, `social`, `ecommerce`,
+  `currencies` or `google`; `other` when omitted
 
 ### `Source.js`
 
@@ -179,6 +181,12 @@ Configuration parameters are declared in the Source constructor as `this.paramet
 **Special Attributes:**
 
 - `CONFIG_ATTRIBUTES.SECRET` — marks sensitive data (passwords, tokens)
+- `CONFIG_ATTRIBUTES.CREDENTIAL` — a non-secret part of the key, such as a client ID; it is stored
+  in the Credential with the `SECRET` parameters. Each `AuthType` variant gets a Credential type of
+  its own with all its items; `credentialDefinitionId` on a variant (or in `manifest.json`) reuses
+  an existing type and `credentialDisplayName` names the generated one
+- `CONFIG_ATTRIBUTES.MULTILINE` — the value spans several lines (a JSON key); the Credential form
+  shows a multi-line input
 - `CONFIG_ATTRIBUTES.MANUAL_BACKFILL` — parameter can be overridden during manual backfill
 - `CONFIG_ATTRIBUTES.HIDE_IN_CONFIG_FORM` — hidden from config UI
 - `CONFIG_ATTRIBUTES.ADVANCED` — shown under Advanced Settings in the config UI

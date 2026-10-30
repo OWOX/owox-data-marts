@@ -1,6 +1,6 @@
 import { useConnector } from '../../../shared/model/hooks/useConnector';
 import type { ConnectorListItem } from '../../../shared/model/types/connector';
-import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
+import { useContext, useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { DataStorageType } from '../../../../data-storage';
 import {
   ConnectorSelectionStep,
@@ -40,6 +40,7 @@ import { useProjectRoute } from '../../../../../shared/hooks/useProjectRoute';
 import { usePermissions } from '../../../../../app/permissions';
 import { isUnpublishedCustomConnector } from '../../../shared/utils/custom-connector-publish.utils';
 import { suggestGoogleSheetsTableName } from '../../../shared/utils/google-sheets-table-name.utils';
+import { DataMartContext } from '../../../../data-marts/edit/model/context/context';
 
 const connectorKey = (c: ConnectorListItem) =>
   c.isCustom && c.id ? `custom:${c.id}` : `bundled:${c.name}`;
@@ -72,6 +73,8 @@ export function ConnectorEditForm({
 }: ConnectorEditFormProps) {
   const { navigate } = useProjectRoute();
   const { canEdit } = usePermissions();
+  // Lets an editor of this Data Mart preview a configuration bound to a Credential.
+  const dataMartId = useContext(DataMartContext)?.dataMart?.id;
   const [customConnectors, setCustomConnectors] = useState<CustomConnectorListItemDto[]>([]);
   const [isDirty, setIsDirty] = useState(false);
   const [selectedConnector, setSelectedConnector] = useState<ConnectorListItem | null>(null);
@@ -468,7 +471,7 @@ export function ConnectorEditForm({
   // every echo would become a new reference, the step would re-seed on each keystroke,
   // and typed characters would be dropped again.
   const handleConfigurationChange = useCallback(
-    (configuration: Record<string, unknown>) => {
+    (configuration: Record<string, unknown>, automatic?: boolean) => {
       setConnectorConfiguration(configuration);
       if (isGoogleSheetsConnector) {
         setPreviewConfigurationKey(null);
@@ -484,7 +487,8 @@ export function ConnectorEditForm({
           googleSheetsSourceKeyRef.current = sourceKey;
         }
       }
-      setIsDirty(true);
+      // A preselected Credential alone does not make the form dirty.
+      if (!automatic) setIsDirty(true);
     },
     [existingConnector, isGoogleSheetsConnector]
   );
@@ -534,7 +538,11 @@ export function ConnectorEditForm({
       setFieldsOnlyPreviewError(null);
 
       try {
-        const previewFields = await previewConnectorFields(connectorName, configuration);
+        const previewFields = await previewConnectorFields(
+          connectorName,
+          configuration,
+          dataMartId
+        );
         if (!previewFields) {
           if (mode === 'fields-only') {
             setFieldsOnlyPreviewError('Failed to load Google Sheets columns');
@@ -584,7 +592,14 @@ export function ConnectorEditForm({
         return false;
       }
     },
-    [connectorConfiguration, mode, previewConnectorFields, selectedConnector?.name, selectedFields]
+    [
+      connectorConfiguration,
+      dataMartId,
+      mode,
+      previewConnectorFields,
+      selectedConnector?.name,
+      selectedFields,
+    ]
   );
 
   useEffect(() => {

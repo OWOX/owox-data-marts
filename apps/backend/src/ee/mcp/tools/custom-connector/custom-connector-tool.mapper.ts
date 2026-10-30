@@ -38,6 +38,7 @@ export class CustomConnectorToolMapper {
       status: version.status,
       published_at: version.publishedAt?.toISOString() ?? null,
       warnings: version.warnings,
+      ...this.toStopping(version),
     };
   }
 
@@ -45,6 +46,16 @@ export class CustomConnectorToolMapper {
     return {
       active_version_id: connector.activeVersionId,
       active_version: connector.activeVersion,
+      ...this.toStopping(connector),
+    };
+  }
+
+  private toStopping(
+    result: Pick<McpCustomConnectorPublished, 'stoppingDataMarts' | 'hiddenStoppingCount'>
+  ) {
+    return {
+      stopping_data_marts: result.stoppingDataMarts,
+      hidden_stopping_count: result.hiddenStoppingCount,
     };
   }
 }

@@ -15,6 +15,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/too
 import { Info, KeyRound, Plus } from 'lucide-react';
 import { useState } from 'react';
 import toast from 'react-hot-toast';
+import { wasErrorToastShown } from '../../app/api';
 import { extractApiError } from '../../app/api/extract-api-error.util';
 import { useAuth } from '../idp';
 import { ConfirmationDialog } from '../../shared/components/ConfirmationDialog/ConfirmationDialog';
@@ -24,6 +25,8 @@ import { SecretReplacementWarning } from './components/SecretReplacementWarning'
 import { CredentialsTable } from './CredentialsTable';
 import { credentialDeleteBlockedMessage } from './credential-delete-message';
 import { safeCredentialDocumentationUrl } from './credential-documentation-url';
+import { servedConnector } from './served-connector';
+import { trackCredentialCreated } from './track-credential-created';
 import { useCredentialActions, useCredentialDefinitions, useCredentials } from './useCredentials';
 
 export function CredentialsManager() {
@@ -44,6 +47,7 @@ export function CredentialsManager() {
   const [deleting, setDeleting] = useState<Credential | null>(null);
 
   const fail = (caught: unknown, fallback: string) => {
+    if (wasErrorToastShown(caught)) return;
     const apiError = extractApiError(caught) as { message?: string } | undefined;
     toast.error(apiError?.message ?? fallback);
   };
@@ -138,9 +142,10 @@ export function CredentialsManager() {
           }}
           onValidate={credential => void validate(credential)}
           onReplaceSecret={credential => {
-            // Field sets and Google accounts are changed in the form, not as one secret.
+            // Field sets, custom connectors and Google accounts are changed in the form, not as one secret.
             if (
               credential.definition.auth?.type === 'fields' ||
+              credential.definition.auth?.type === 'custom-connector' ||
               credential.definition.auth?.type === 'oauth'
             ) {
               setEditor({ open: true, credential });
@@ -172,6 +177,18 @@ export function CredentialsManager() {
           setEditor({ open: false, credential: null });
         }}
         onRequestReplaceSecret={setRotating}
+        onCreated={credential => {
+          const { definition } = credential;
+          // Only Source Credentials are reported, as on the Data Mart form and the builder.
+          if (definition.id.startsWith('source:') || definition.auth?.type === 'custom-connector') {
+            trackCredentialCreated(
+              'connector-config',
+              servedConnector(definition) ?? 'custom connector',
+              credential,
+              'credentials-page'
+            );
+          }
+        }}
       />
 
       <ReplaceSecretDialog

@@ -96,14 +96,27 @@ export const connectorDetailOutputSchema = {
   ...connectorOutputSchema,
   versions: z.array(z.object({ ...versionStateOutputSchema, published_at: z.string().nullable() })),
 };
+const stoppingOutputSchema = {
+  stopping_data_marts: z
+    .array(z.object({ id: z.string(), title: z.string() }))
+    .describe(
+      'Data Marts that stop until someone selects a fitting Credential; may be a partial list.'
+    ),
+  hidden_stopping_count: z
+    .number()
+    .int()
+    .describe('How many more stopping Data Marts the list leaves out.'),
+};
 export const connectorPublishedOutputSchema = {
   ...versionStateOutputSchema,
   published_at: z.string().nullable(),
   warnings: z.array(z.string()),
+  ...stoppingOutputSchema,
 };
 export const connectorActivatedOutputSchema = {
   active_version_id: z.string().nullable(),
   active_version: z.number().int(),
+  ...stoppingOutputSchema,
 };
 export const connectorTestOutputSchema = {
   rows: z.array(jsonObjectSchema),

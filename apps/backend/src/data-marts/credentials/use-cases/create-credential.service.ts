@@ -11,7 +11,7 @@ import { CredentialService } from '../services/credential.service';
 import { parseGoogleServiceAccountKey } from '../services/google-service-account-key';
 import { CredentialViewService } from '../services/credential-view.service';
 import { CredentialValidationProbeService } from '../services/credential-validation-probe.service';
-import { parseFieldsForCreate } from '../services/credential-fields';
+import { parseCustomConnectorForCreate, parseFieldsForCreate } from '../services/credential-fields';
 import {
   isCredentialAiModelInCatalog,
   type CredentialAiModelMappingSources,
@@ -35,10 +35,6 @@ export class CreateCredentialService {
   async run(context: AuthorizationContext, input: CreateCredentialApiDto): Promise<CredentialDto> {
     const definition = await this.definitions.get(input.definitionId);
     const { auth } = definition.contract;
-    // The previous release cannot read these, so a rollback would break its Credentials list.
-    if (auth.type === 'custom-connector' || definition.definitionId.startsWith('source:')) {
-      throw new BadRequestException('This Credential type cannot be created in this version.');
-    }
     if (auth.type === 'oauth') {
       throw new BadRequestException('Connect a Google account to create this Credential.');
     }
@@ -48,6 +44,10 @@ export class CreateCredentialService {
       input.aiModelMappingModes,
       definition.contract.ai
     );
+    if (auth.type === 'custom-connector') {
+      const { secret, publicMetadata } = parseCustomConnectorForCreate(input.customConnector);
+      return this.persist(context, input, definition, aiConfiguration, secret, publicMetadata);
+    }
     if (auth.type === 'fields') {
       // A field set has no provider check, so it starts as unknown.
       const { secret, publicMetadata } = parseFieldsForCreate(

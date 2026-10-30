@@ -215,6 +215,13 @@ describe('DataMart utility triggers — viewer guards (lowered)', () => {
   });
 });
 
+describe('Connector controller — viewer guards (Credential access checked in the use case)', () => {
+  it('handleOAuthCallback should allow viewer role', () => {
+    const guards = extractRouteGuards(readController('connector.controller.ts'));
+    expect(guards.handleOAuthCallback).toBe('viewer');
+  });
+});
+
 describe('View-only safe POST routes', () => {
   it('allows only the read-semantics Data Mart health endpoint', () => {
     expect(extractViewOnlySafeMethods(readController('data-mart.controller.ts'))).toEqual([
@@ -285,6 +292,9 @@ describe('ConnectorDefinition controller — the custom connector surface, pinne
       publish: 'editor',
       activate: 'editor',
       remove: 'editor',
+      // Credential lookups for the Data Mart form and the builder test, at the level of the edits they serve.
+      fittingCredentials: 'editor',
+      credentialRequirement: 'editor',
       // The one READ that is editor-only, deliberately: it returns a manifest verbatim, and
       // a manifest is author-written JSON that can carry a credential typed into the
       // builder form. Lowering this to viewer would hand every viewer those secrets.

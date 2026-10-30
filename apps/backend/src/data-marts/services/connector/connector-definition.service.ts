@@ -12,6 +12,7 @@ import { QueryDeepPartialEntity } from 'typeorm/query-builder/QueryPartialEntity
 import { Transactional } from 'typeorm-transactional';
 
 import { AvailableConnectors, Core } from '@owox/connectors';
+import { castError } from '@owox/internal-helpers';
 
 import { BusinessViolationException } from '../../../common/exceptions/business-violation.exception';
 import { isUniqueConstraintViolation } from '../../../common/typeorm/query-error.utils';
@@ -29,6 +30,9 @@ import {
 } from '../../entities/connector-definition-version.entity';
 import { AccessDecisionService, Action, EntityType } from '../access-decision';
 import { DataMartService } from '../data-mart.service';
+import { customConnectorConfigRefusal } from '../../connector-types/custom-connector-credential-fit';
+import { customConnectorKeyModel } from '../../connector-types/custom-connector-key-model';
+import { SourceCredentialBindingService } from '../../connector-types/source-credential-binding.service';
 import {
   fieldsSchemaFromManifest,
   specificationFromManifest,
@@ -148,18 +152,19 @@ interface ParsedManifestAuthReport {
   parameters?: Record<string, unknown>;
 }
 
-/**
- * The outcome of a publish, warnings included.
- *
- * `warnings` travels with the version rather than staying in the log because the log is not
- * a surface an author has: on managed cloud they cannot read it at all, and these warnings
- * are the ONLY thing telling them a credential they authored will be stored in plain text.
- * Always an array, empty when there is nothing to say, so a caller can tell "nothing to
- * report" from "this response predates warnings".
- */
-export interface PublishedConnectorVersion {
+/** The Data Marts a version will stop until someone selects a fitting Credential; for information only. */
+export interface StoppingDataMarts {
+  stoppingDataMarts: { id: string; title: string }[];
+  hiddenStoppingCount: number;
+}
+
+export interface PublishedConnectorVersion extends StoppingDataMarts {
   version: ConnectorDefinitionVersion;
   warnings: string[];
+}
+
+export interface ActivatedConnectorVersion extends StoppingDataMarts {
+  definition: ConnectorDefinition;
 }
 
 /** Who publishes a version or makes one active, for the access check both of those make. */
@@ -201,7 +206,8 @@ export class ConnectorDefinitionService {
     @InjectRepository(ConnectorDefinitionVersion)
     private readonly versionRepo: Repository<ConnectorDefinitionVersion>,
     private readonly dataMartService: DataMartService,
-    private readonly accessDecisionService: AccessDecisionService
+    private readonly accessDecisionService: AccessDecisionService,
+    private readonly sourceBindings: SourceCredentialBindingService
   ) {}
 
   /**
@@ -588,7 +594,8 @@ export class ConnectorDefinitionService {
     );
 
     const published = { ...draft, status: ConnectorDefinitionVersionStatus.PUBLISHED, publishedAt };
-    return { version: published, warnings };
+    const stopping = await this.findStoppingDataMarts(def, actor, draft.manifest);
+    return { version: published, warnings, ...stopping };
   }
 
   /** Row locks exist on MySQL; SQLite has none, and TypeORM refuses to ask it for one. */
@@ -622,7 +629,7 @@ export class ConnectorDefinitionService {
     id: string,
     version: number,
     actor: ConnectorVersionActor
-  ): Promise<ConnectorDefinition> {
+  ): Promise<ActivatedConnectorVersion> {
     const def = await this.getById(projectId, id);
     await this.assertMayChangeActiveVersion(def, actor, 'Activating this version', 'activate it');
     const row = await this.versionRepo.findOne({
@@ -643,7 +650,67 @@ export class ConnectorDefinitionService {
       { id, projectId },
       { ...this.displayFieldsOf(row.manifest), activeVersionId: row.id }
     );
-    return this.getById(projectId, id);
+    const stopping = await this.findStoppingDataMarts(def, actor, row.manifest);
+    return { definition: await this.getById(projectId, id), ...stopping };
+  }
+
+  /**
+   * The followers whose bound Credentials do not fit the manifest that just became active. A
+   * failure here is logged and answers none: the version is already live.
+   */
+  private async findStoppingDataMarts(
+    def: ConnectorDefinition,
+    actor: ConnectorVersionActor,
+    manifest: Record<string, unknown>
+  ): Promise<StoppingDataMarts> {
+    try {
+      const followers = await this.followersOf(def);
+      if (followers.length === 0) return { stoppingDataMarts: [], hiddenStoppingCount: 0 };
+      const model = customConnectorKeyModel(manifest);
+      const byId = new Map(followers.map(mart => [mart.id, mart]));
+      const rows = await this.sourceBindings.boundConfigs(def.projectId, [...byId.keys()]);
+      const stoppingIds = new Set<string>();
+      for (const { consumerId, requirementKey, credential } of rows) {
+        const configs = (byId.get(consumerId)?.definition as ConnectorSourceDefinition | undefined)
+          ?.connector?.source?.configuration as Record<string, unknown>[] | undefined;
+        const config = configs?.find(c => c._id === requirementKey) ?? {};
+        const refusal = credential && customConnectorConfigRefusal(model, credential, config);
+        if (refusal && refusal.kind !== 'other-definition') stoppingIds.add(consumerId);
+      }
+      if (stoppingIds.size === 0) return { stoppingDataMarts: [], hiddenStoppingCount: 0 };
+      const ids = [...stoppingIds];
+      const canSee = await this.accessDecisionService.canAccessMany(
+        actor.userId,
+        actor.roles,
+        EntityType.DATA_MART,
+        ids,
+        Action.SEE,
+        def.projectId
+      );
+      const visible = ids.filter(id => canSee.get(id));
+      return {
+        stoppingDataMarts: visible.map(id => ({ id, title: byId.get(id)!.title })),
+        hiddenStoppingCount: ids.length - visible.length,
+      };
+    } catch (error) {
+      this.logger.error(
+        `Could not list the Data Marts connector ${def.id} will stop: ${castError(error).message}`
+      );
+      return { stoppingDataMarts: [], hiddenStoppingCount: 0 };
+    }
+  }
+
+  /** Data Marts of the project on this connector that pin no version, so follow the active one. */
+  private async followersOf(def: ConnectorDefinition) {
+    const name = def.name.toLowerCase();
+    const connectorMarts = await this.dataMartService.findByProjectIdAndDefinitionType(
+      def.projectId,
+      DataMartDefinitionType.CONNECTOR
+    );
+    return connectorMarts.filter(mart => {
+      const source = (mart.definition as ConnectorSourceDefinition | undefined)?.connector?.source;
+      return source?.name?.toLowerCase() === name && typeof source.version !== 'number';
+    });
   }
 
   /**
@@ -704,15 +771,7 @@ export class ConnectorDefinitionService {
     change: string,
     adminAction: string
   ): Promise<void> {
-    const name = def.name.toLowerCase();
-    const connectorMarts = await this.dataMartService.findByProjectIdAndDefinitionType(
-      def.projectId,
-      DataMartDefinitionType.CONNECTOR
-    );
-    const followers = connectorMarts.filter(mart => {
-      const source = (mart.definition as ConnectorSourceDefinition | undefined)?.connector?.source;
-      return source?.name?.toLowerCase() === name && typeof source.version !== 'number';
-    });
+    const followers = await this.followersOf(def);
     if (followers.length === 0) return;
 
     const ask = (ids: string[], action: Action) =>

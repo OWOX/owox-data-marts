@@ -75,7 +75,8 @@ describe('ConnectorDefinitionController specification and fields', () => {
       ),
       {} as never,
       new ConnectorDefinitionMapper(),
-      new ConnectorMapper()
+      new ConnectorMapper(),
+      {} as never
     );
   };
 
@@ -127,7 +128,8 @@ describe('ConnectorDefinitionController response boundary', () => {
       {} as never,
       {} as never,
       new ConnectorDefinitionMapper(),
-      new ConnectorMapper()
+      new ConnectorMapper(),
+      {} as never
     );
     const ctx = { projectId: 'proj-1', userId: 'u', roles: ['viewer'] } as AuthorizationContext;
     expect(await controller.list(ctx)).toEqual([metadata]);

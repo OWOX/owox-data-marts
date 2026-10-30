@@ -17,6 +17,10 @@ class CredentialsService extends ApiService {
     return this.get<Credential[]>('');
   }
 
+  getById(id: string): Promise<Credential> {
+    return this.get<Credential>(`/${id}`);
+  }
+
   listDefinitions(): Promise<CredentialDefinition[]> {
     return this.get<CredentialDefinition[]>('/definitions');
   }

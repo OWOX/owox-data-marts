@@ -1,4 +1,3 @@
-import { NotFoundException } from '@nestjs/common';
 import type { ConnectorDefinition } from '../../dto/schemas/data-mart-table-definitions/connector-definition.schema';
 import { ConnectorService } from './connector.service';
 import { ConnectorSecretService, SECRET_MASK } from './connector-secret.service';
@@ -33,6 +32,7 @@ describe('ConnectorSecretService', () => {
     const specService = {
       getConnectorSpecification: jest.fn().mockResolvedValue(specification),
       resolveConnectorSpecification: jest.fn().mockResolvedValue(specification),
+      resolveSourceKeys: jest.fn().mockResolvedValue({ fields: [], model: null }),
       getConnectorCapabilities: jest.fn().mockReturnValue({
         singleConfiguration: false,
         copySecretsByValue: false,
@@ -224,6 +224,85 @@ describe('ConnectorSecretService', () => {
       expect(JSON.stringify(masked)).not.toContain('nested-secret');
       expect(JSON.stringify(masked)).not.toContain('rotated-token');
     });
+
+    describe('a configuration bound to a Credential', () => {
+      const keyFields = [
+        { path: ['AuthType', 'oauth2'], parameters: ['ClientId', 'RefreshToken'] },
+      ];
+
+      it('returns its _credential_id and neither its key values nor its old key', async () => {
+        const { service, specService, credentialsService } = createService(['RefreshToken']);
+        (specService.resolveSourceKeys as jest.Mock).mockResolvedValue({
+          fields: keyFields,
+          model: null,
+        });
+        (credentialsService.getCredentialsByIds as jest.Mock).mockResolvedValue(
+          new Map([['old-row', { credentials: { 'AuthType.oauth2.RefreshToken': 'old' } }]])
+        );
+        const def = makeDefinition([
+          {
+            _id: 'bound',
+            _secrets_id: 'old-row',
+            AuthType: { oauth2: { _source_credential_id: 'oauth-row', ClientId: 'client-1' } },
+            AccountIDs: '33',
+          },
+          { _id: 'unbound', _secrets_id: 'old-row', AccountIDs: '22' },
+        ]);
+
+        const masked = await service.mask(
+          'project-1',
+          def,
+          undefined,
+          new Map([['bound', 'cred-1']])
+        );
+
+        const [bound, unbound] = masked!.connector.source.configuration as Array<
+          Record<string, unknown>
+        >;
+        expect(bound).toEqual({
+          _id: 'bound',
+          _credential_id: 'cred-1',
+          AuthType: { oauth2: {} },
+          AccountIDs: '33',
+        });
+        expect(unbound).toEqual({
+          _id: 'unbound',
+          _secrets_id: 'old-row',
+          AuthType: { oauth2: { RefreshToken: SECRET_MASK } },
+          AccountIDs: '22',
+        });
+        expect(specService.resolveSourceKeys).toHaveBeenCalledWith(
+          'project-1',
+          'FacebookMarketing',
+          undefined
+        );
+      });
+
+      it('shows a configuration whose Credential was deleted without a _credential_id', async () => {
+        const { service } = createService(['AccessToken']);
+        const def = makeDefinition([{ _id: 'gone', _secrets_id: 'old-row', AccountIDs: '33' }]);
+
+        const masked = await service.mask('project-1', def, undefined, new Map([['gone', null]]));
+
+        expect(masked!.connector.source.configuration).toEqual([{ _id: 'gone', AccountIDs: '33' }]);
+      });
+
+      it('returns _credential_id for a connector without secret fields', async () => {
+        const { service } = createService([]);
+        const def = makeDefinition([{ _id: 'bound', AccountIDs: '33' }]);
+
+        const masked = await service.mask(
+          'project-1',
+          def,
+          undefined,
+          new Map([['bound', 'cred-1']])
+        );
+
+        expect(masked!.connector.source.configuration).toEqual([
+          { _id: 'bound', _credential_id: 'cred-1', AccountIDs: '33' },
+        ]);
+      });
+    });
   });
 
   describe('mergeDefinitionSecrets', () => {
@@ -310,6 +389,24 @@ describe('ConnectorSecretService', () => {
       expect(credentialsService.getCredentialsById).not.toHaveBeenCalled();
     });
 
+    it('takes no old key values into a configuration that selects a Credential', async () => {
+      const { service, credentialsService } = createService(['AccessToken']);
+      const previous = makeDefinition([
+        { _id: 'a', _secrets_id: 'old-row', AccessToken: 'prev-a', AccountIDs: '33' },
+      ]);
+      const incoming = makeDefinition([
+        { _id: 'a', _credential_id: 'cred-1', AccountIDs: '44' },
+        { _credential_id: 'cred-2' },
+      ]);
+
+      const merged = await service.mergeDefinitionSecrets('project-1', incoming, previous);
+      const cfg = merged.connector.source.configuration as Array<Record<string, unknown>>;
+
+      expect(cfg[0]).toEqual({ _id: 'a', _credential_id: 'cred-1', AccountIDs: '44' });
+      expect(cfg[1]).toEqual({ _id: expect.any(String), _credential_id: 'cred-2' });
+      expect(credentialsService.getCredentialsById).not.toHaveBeenCalled();
+    });
+
     it('drops stale _secrets_id when an item switches to OAuth credentials', async () => {
       const { service, credentialsService } = createService(['RefreshToken']);
       const previous = makeDefinition([
@@ -329,6 +426,23 @@ describe('ConnectorSecretService', () => {
       expect(cfg[0]).not.toHaveProperty('_secrets_id');
       expect(authType.oauth2._source_credential_id).toBe('oauth-cred');
       expect(credentialsService.getCredentialsById).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('hasTypedSecrets', () => {
+    it.each([
+      ['a typed secret', { _id: 'a', AccessToken: 'typed' }, true],
+      ['a nested typed secret', { _id: 'a', AuthType: { oauth2: { AccessToken: 'typed' } } }, true],
+      ['a rotated refresh token', { _id: 'a', generated_refresh_token: 'rotated' }, true],
+      ['a mask', { _id: 'a', AccessToken: SECRET_MASK }, false],
+      ['an empty secret', { _id: 'a', AccessToken: '' }, false],
+      ['no secret', { _id: 'a', AccountIDs: '33' }, false],
+    ])('%s: %s', async (_case, item, expected) => {
+      const { service } = createService(['AccessToken']);
+
+      await expect(
+        service.hasTypedSecrets('project-1', makeDefinition([item as Record<string, unknown>]))
+      ).resolves.toBe(expected);
     });
   });
 
@@ -826,485 +940,6 @@ describe('ConnectorSecretService', () => {
 
       expect(credentialsService.updateSecretsForConfig).not.toHaveBeenCalled();
       expect(credentialsService.createSecretsForConfig).not.toHaveBeenCalled();
-    });
-  });
-
-  describe('mergeDefinitionSecretsFromSource', () => {
-    // getConnectorCapabilities is bundled-only: it throws NotFoundException for any
-    // custom connector name. Merging must not depend on it — the existence guard is
-    // getAllSecretFieldNames, which resolves custom connectors too.
-    it('merges a custom connector definition without consulting bundled capabilities', async () => {
-      const { service, specService } = createService(['AccessToken']);
-      (specService.getConnectorCapabilities as jest.Mock).mockImplementation(() => {
-        throw new NotFoundException("Connector 'MyCustomApi' not found");
-      });
-
-      const sourceDefinition = makeDefinition(
-        [{ _id: 'source-id-1', AccessToken: 'access1', AccountIDs: '1' }],
-        'MyCustomApi'
-      );
-      const incoming = makeDefinition(
-        [{ AccessToken: SECRET_MASK, AccountIDs: '1', _copiedFrom: { configId: 'source-id-1' } }],
-        'MyCustomApi'
-      );
-
-      const merged = await service.mergeDefinitionSecretsFromSource(
-        'project-1',
-        incoming,
-        sourceDefinition
-      );
-      const cfg = merged.connector.source.configuration as Array<Record<string, unknown>>;
-
-      expect(cfg[0].AccessToken).toBe('access1');
-      expect(specService.getConnectorCapabilities).not.toHaveBeenCalled();
-    });
-
-    // What SECRET_MASK means on the way back IN, pinned because mask() now masks
-    // defensively when it cannot resolve the specification. For a spec SECRET field the mask
-    // means "keep the stored value"; a field that is NOT a spec secret carries its literal
-    // incoming value and stays editable. Over-masking a non-secret field would break exactly
-    // this — the edit would be lost and the mask string persisted in its place.
-    it('keeps the stored secret on a SECRET_MASK round-trip and still applies an edit to a non-secret field', async () => {
-      const { service } = createService(['AccessToken']);
-
-      const sourceDefinition = makeDefinition([
-        { _id: 'source-id-1', AccessToken: 'stored-token', AccountIDs: '33' },
-      ]);
-      const incoming = makeDefinition([
-        { AccessToken: SECRET_MASK, AccountIDs: '44', _copiedFrom: { configId: 'source-id-1' } },
-      ]);
-
-      const merged = await service.mergeDefinitionSecretsFromSource(
-        'project-1',
-        incoming,
-        sourceDefinition
-      );
-      const cfg = merged.connector.source.configuration as Array<Record<string, unknown>>;
-
-      expect(cfg[0].AccessToken).toBe('stored-token');
-      expect(cfg[0].AccountIDs).toBe('44');
-    });
-
-    it('copies secrets from correct source configurations using _copiedFrom.configId metadata', async () => {
-      const { service } = createService(['AccessToken']);
-
-      const sourceDefinition = makeDefinition([
-        { _id: 'source-id-1', AccessToken: 'access1', AccountIDs: '1' },
-        { _id: 'source-id-2', AccessToken: 'access2', AccountIDs: '2' },
-        { _id: 'source-id-3', AccessToken: 'access3', AccountIDs: '3' },
-      ]);
-
-      const incoming = makeDefinition([
-        {
-          AccessToken: SECRET_MASK,
-          AccountIDs: '1',
-          _copiedFrom: { configId: 'source-id-1' },
-        },
-        {
-          AccessToken: SECRET_MASK,
-          AccountIDs: '3',
-          _copiedFrom: { configId: 'source-id-3' },
-        },
-      ]);
-
-      const merged = await service.mergeDefinitionSecretsFromSource(
-        'project-1',
-        incoming,
-        sourceDefinition
-      );
-      const cfg = merged.connector.source.configuration as Array<Record<string, unknown>>;
-
-      expect(cfg[0].AccessToken).toBe('access1');
-      expect(cfg[0].AccountIDs).toBe('1');
-      expect(cfg[0]._copiedFrom).toBeUndefined();
-      expect(typeof cfg[0]._id).toBe('string');
-      expect(cfg[0]._id).not.toBe('source-id-1');
-
-      expect(cfg[1].AccessToken).toBe('access3');
-      expect(cfg[1].AccountIDs).toBe('3');
-      expect(cfg[1]._copiedFrom).toBeUndefined();
-      expect(typeof cfg[1]._id).toBe('string');
-      expect(cfg[1]._id).not.toBe('source-id-3');
-    });
-
-    // A copied config never keeps the source's _secrets_id, for every connector:
-    // the deletion is unconditional and no capability flag gates it.
-    it('copies secrets by value without retaining the source secret record', async () => {
-      const { service, credentialsService } = createService(['ServiceAccountKey']);
-
-      (credentialsService.getCredentialsByIds as jest.Mock).mockResolvedValue(
-        new Map([
-          [
-            'secrets-1',
-            {
-              id: 'secrets-1',
-              credentials: {
-                'AuthType.service_account.ServiceAccountKey': 'stored-service-account-key',
-              },
-            },
-          ],
-        ])
-      );
-
-      const sourceDefinition = makeDefinition(
-        [{ _id: 'source-id-1', _secrets_id: 'secrets-1', AuthType: { service_account: {} } }],
-        'CopyByValueConnector'
-      );
-
-      const incoming = makeDefinition(
-        [
-          {
-            _secrets_id: 'secrets-1',
-            AuthType: { service_account: { ServiceAccountKey: SECRET_MASK } },
-            _copiedFrom: { configId: 'source-id-1' },
-          },
-        ],
-        'CopyByValueConnector'
-      );
-
-      const merged = await service.mergeDefinitionSecretsFromSource(
-        'project-1',
-        incoming,
-        sourceDefinition
-      );
-      const cfg = merged.connector.source.configuration as Array<Record<string, unknown>>;
-      const authType = cfg[0].AuthType as Record<string, Record<string, unknown>>;
-
-      expect(authType.service_account.ServiceAccountKey).toBe('stored-service-account-key');
-      expect(cfg[0]).not.toHaveProperty('_secrets_id');
-    });
-
-    it('seeds the copy with the source generated refresh token in its own record', async () => {
-      const { service, credentialsService } = createService(['RefreshToken']);
-
-      (credentialsService.getCredentialsByIds as jest.Mock).mockResolvedValue(
-        new Map([
-          [
-            'secrets-1',
-            {
-              id: 'secrets-1',
-              credentials: {
-                'AuthType.oauth2.RefreshToken': 'stored-refresh-token',
-                generated_refresh_token: 'generated-refresh-token',
-              },
-            },
-          ],
-        ])
-      );
-
-      const sourceDefinition = makeDefinition([
-        { _id: 'source-id-1', _secrets_id: 'secrets-1', AuthType: { oauth2: {} } },
-      ]);
-
-      const incoming = makeDefinition([
-        {
-          _secrets_id: 'secrets-1',
-          AuthType: { oauth2: { RefreshToken: SECRET_MASK } },
-          _copiedFrom: { configId: 'source-id-1' },
-        },
-      ]);
-
-      const merged = await service.mergeDefinitionSecretsFromSource(
-        'project-1',
-        incoming,
-        sourceDefinition
-      );
-      const cfg = merged.connector.source.configuration as Array<Record<string, unknown>>;
-      const authType = cfg[0].AuthType as Record<string, Record<string, unknown>>;
-
-      // The copy keeps the same auth chain, so it takes the rotated token as
-      // the seed of its own record — Microsoft does not revoke a redeemed
-      // refresh token, so the two records rotate independent lineages — but it
-      // never keeps the pointer to the source's record.
-      expect(authType.oauth2.RefreshToken).toBe('stored-refresh-token');
-      expect(cfg[0].generated_refresh_token).toBe('generated-refresh-token');
-      expect(cfg[0]).not.toHaveProperty('_secrets_id');
-    });
-
-    it('does not copy source generated refresh token when incoming copied refresh token changes', async () => {
-      const { service, credentialsService } = createService(['RefreshToken']);
-
-      (credentialsService.getCredentialsByIds as jest.Mock).mockResolvedValue(
-        new Map([
-          [
-            'secrets-1',
-            {
-              id: 'secrets-1',
-              credentials: {
-                'AuthType.oauth2.RefreshToken': 'stored-refresh-token',
-                generated_refresh_token: 'generated-refresh-token',
-              },
-            },
-          ],
-        ])
-      );
-
-      const sourceDefinition = makeDefinition([
-        { _id: 'source-id-1', _secrets_id: 'secrets-1', AuthType: { oauth2: {} } },
-      ]);
-
-      const incoming = makeDefinition([
-        {
-          AuthType: { oauth2: { RefreshToken: 'new-refresh-token' } },
-          _copiedFrom: { configId: 'source-id-1' },
-        },
-      ]);
-
-      const merged = await service.mergeDefinitionSecretsFromSource(
-        'project-1',
-        incoming,
-        sourceDefinition
-      );
-      const cfg = merged.connector.source.configuration as Array<Record<string, unknown>>;
-      const authType = cfg[0].AuthType as Record<string, Record<string, unknown>>;
-
-      expect(authType.oauth2.RefreshToken).toBe('new-refresh-token');
-      expect(cfg[0]).not.toHaveProperty('generated_refresh_token');
-    });
-
-    it('does not inline generated refresh token into copied OAuth configs', async () => {
-      const { service, credentialsService } = createService(['RefreshToken']);
-
-      (credentialsService.getCredentialsByIds as jest.Mock).mockResolvedValue(
-        new Map([
-          [
-            'secrets-1',
-            {
-              id: 'secrets-1',
-              credentials: {
-                'AuthType.oauth2.RefreshToken': 'stored-refresh-token',
-                generated_refresh_token: 'generated-refresh-token',
-              },
-            },
-          ],
-        ])
-      );
-
-      const sourceDefinition = makeDefinition([
-        {
-          _id: 'source-id-1',
-          _secrets_id: 'secrets-1',
-          AuthType: { oauth2: { _source_credential_id: 'oauth-cred' } },
-        },
-      ]);
-
-      const incoming = makeDefinition([
-        {
-          AuthType: { oauth2: { _source_credential_id: 'oauth-cred' } },
-          _copiedFrom: { configId: 'source-id-1' },
-        },
-      ]);
-
-      const merged = await service.mergeDefinitionSecretsFromSource(
-        'project-1',
-        incoming,
-        sourceDefinition
-      );
-      const cfg = merged.connector.source.configuration as Array<Record<string, unknown>>;
-
-      expect(cfg[0]).not.toHaveProperty('generated_refresh_token');
-    });
-
-    it('throws error when connector types do not match', async () => {
-      const { service } = createService(['AccessToken']);
-
-      const sourceDefinition = makeDefinition([{ _id: 'source-1', AccessToken: 'access1' }]);
-
-      const incoming = {
-        connector: {
-          source: {
-            name: 'GoogleAds',
-            configuration: [
-              {
-                AccessToken: SECRET_MASK,
-                _copiedFrom: { configId: 'source-1' },
-              },
-            ],
-            node: 'campaigns',
-            fields: ['id'],
-          },
-          storage: { fullyQualifiedName: 'dataset.table' },
-        },
-      } as unknown as ConnectorDefinition;
-
-      await expect(
-        service.mergeDefinitionSecretsFromSource('project-1', incoming, sourceDefinition)
-      ).rejects.toThrow('Cannot copy secrets from different connector type');
-    });
-
-    it('returns configuration as is when _copiedFrom.configId metadata is missing (existing config)', async () => {
-      const { service } = createService(['AccessToken']);
-
-      const sourceDefinition = makeDefinition([{ _id: 'source-1', AccessToken: 'access1' }]);
-
-      const incoming = makeDefinition([
-        {
-          _id: 'existing-1',
-          AccessToken: SECRET_MASK,
-          AccountIDs: '1',
-        },
-      ]);
-
-      const merged = await service.mergeDefinitionSecretsFromSource(
-        'project-1',
-        incoming,
-        sourceDefinition
-      );
-      const cfg = merged.connector.source.configuration as Array<Record<string, unknown>>;
-
-      // Should return the item unchanged (will be merged with previous in the next step)
-      expect(cfg[0]._id).toBe('existing-1');
-      expect(cfg[0].AccessToken).toBe(SECRET_MASK);
-      expect(cfg[0].AccountIDs).toBe('1');
-    });
-
-    it('throws error when source configuration with specified configId is not found', async () => {
-      const { service } = createService(['AccessToken']);
-
-      const sourceDefinition = makeDefinition([{ _id: 'source-1', AccessToken: 'access1' }]);
-
-      const incoming = makeDefinition([
-        {
-          AccessToken: SECRET_MASK,
-          _copiedFrom: { configId: 'non-existent-id' },
-        },
-      ]);
-
-      await expect(
-        service.mergeDefinitionSecretsFromSource('project-1', incoming, sourceDefinition)
-      ).rejects.toThrow('Source configuration with _id "non-existent-id" not found');
-    });
-
-    it('generates new _id for each copied configuration', async () => {
-      const { service } = createService(['AccessToken']);
-
-      const sourceDefinition = makeDefinition([{ _id: 'source-1', AccessToken: 'access1' }]);
-
-      const incoming = makeDefinition([
-        {
-          AccessToken: SECRET_MASK,
-          _copiedFrom: { configId: 'source-1' },
-        },
-      ]);
-
-      const merged = await service.mergeDefinitionSecretsFromSource(
-        'project-1',
-        incoming,
-        sourceDefinition
-      );
-      const cfg = merged.connector.source.configuration as Array<Record<string, unknown>>;
-
-      expect(cfg[0]._id).not.toBe('source-1');
-      expect(typeof cfg[0]._id).toBe('string');
-      expect((cfg[0]._id as string).length).toBeGreaterThan(0);
-    });
-
-    it('strips a copied _secrets_id so the target DataMart gets its own secrets record', async () => {
-      const { service, credentialsService } = createService(['AccessToken']);
-
-      // Production shape: the source's secret value lives in the credentials
-      // record, not inline in the definition.
-      (credentialsService.getCredentialsByIds as jest.Mock).mockResolvedValue(
-        new Map([
-          [
-            'source-secrets-id',
-            { id: 'source-secrets-id', credentials: { AccessToken: 'access1' } },
-          ],
-        ])
-      );
-
-      const sourceDefinition = makeDefinition([
-        { _id: 'source-1', _secrets_id: 'source-secrets-id', AccountIDs: '1' },
-      ]);
-
-      // The frontend "Copy from..." feature spreads every field of the source
-      // config except _id/_copiedFrom, so _secrets_id leaks into the incoming
-      // item pointing at the SOURCE DataMart's own secrets record.
-      const incoming = makeDefinition([
-        {
-          AccessToken: SECRET_MASK,
-          AccountIDs: '1',
-          _secrets_id: 'source-secrets-id',
-          _copiedFrom: { configId: 'source-1' },
-        },
-      ]);
-
-      const merged = await service.mergeDefinitionSecretsFromSource(
-        'project-1',
-        incoming,
-        sourceDefinition
-      );
-      const cfg = merged.connector.source.configuration as Array<Record<string, unknown>>;
-
-      // The value is carried over from the source's credentials record, but the
-      // pointer to that record is not.
-      expect(cfg[0].AccessToken).toBe('access1');
-      expect(cfg[0]).not.toHaveProperty('_secrets_id');
-    });
-
-    it('handles self-copy scenario with mixed configurations (existing + copied)', async () => {
-      const { service } = createService(['AccessToken', 'RefreshToken']);
-
-      // Source definition has 2 configurations
-      const sourceDefinition = makeDefinition([
-        { _id: 'source-id-1', AccessToken: 'access1', RefreshToken: 'refresh1', AccountIDs: '1' },
-        { _id: 'source-id-2', AccessToken: 'access2', RefreshToken: 'refresh2', AccountIDs: '2' },
-      ]);
-
-      // Incoming has 3 configurations:
-      // 1. Existing config (no _copiedFrom) - should be returned as is
-      // 2. New copied config from source-id-1
-      // 3. New copied config from source-id-2
-      const incoming = makeDefinition([
-        {
-          _id: 'existing-id',
-          AccessToken: SECRET_MASK,
-          RefreshToken: SECRET_MASK,
-          AccountIDs: '999',
-        },
-        {
-          AccessToken: SECRET_MASK,
-          RefreshToken: SECRET_MASK,
-          AccountIDs: '1',
-          _copiedFrom: { configId: 'source-id-1' },
-        },
-        {
-          AccessToken: SECRET_MASK,
-          RefreshToken: SECRET_MASK,
-          AccountIDs: '2',
-          _copiedFrom: { configId: 'source-id-2' },
-        },
-      ]);
-
-      const merged = await service.mergeDefinitionSecretsFromSource(
-        'project-1',
-        incoming,
-        sourceDefinition
-      );
-      const cfg = merged.connector.source.configuration as Array<Record<string, unknown>>;
-
-      // First config (existing) should be unchanged
-      expect(cfg[0]._id).toBe('existing-id');
-      expect(cfg[0].AccessToken).toBe(SECRET_MASK);
-      expect(cfg[0].RefreshToken).toBe(SECRET_MASK);
-      expect(cfg[0].AccountIDs).toBe('999');
-      expect(cfg[0]._copiedFrom).toBeUndefined();
-
-      // Second config (copied from source-id-1)
-      expect(cfg[1].AccessToken).toBe('access1');
-      expect(cfg[1].RefreshToken).toBe('refresh1');
-      expect(cfg[1].AccountIDs).toBe('1');
-      expect(cfg[1]._copiedFrom).toBeUndefined();
-      expect(typeof cfg[1]._id).toBe('string');
-      expect(cfg[1]._id).not.toBe('source-id-1');
-
-      // Third config (copied from source-id-2)
-      expect(cfg[2].AccessToken).toBe('access2');
-      expect(cfg[2].RefreshToken).toBe('refresh2');
-      expect(cfg[2].AccountIDs).toBe('2');
-      expect(cfg[2]._copiedFrom).toBeUndefined();
-      expect(typeof cfg[2]._id).toBe('string');
-      expect(cfg[2]._id).not.toBe('source-id-2');
     });
   });
 

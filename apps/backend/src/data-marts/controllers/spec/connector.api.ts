@@ -76,12 +76,16 @@ export function PreviewConnectorFieldOptionsSpec() {
 
 export function ExchangeOAuthCredentialsSpec() {
   return applyDecorators(
-    ApiOperation({ summary: 'Exchange OAuth credentials for a connector' }),
+    ApiOperation({
+      summary: "Connect a Source Credential through the connector's OAuth app",
+      description:
+        'Creates a Credential of the sign-in variant, or reconnects `credential.id`; returns no token.',
+    }),
     ApiParam({ name: 'connectorName', description: 'Connector name' }),
     ApiBody({ type: ExchangeOAuthCredentialsDto }),
     ApiCreatedResponse({
       type: ConnectorOAuthCredentialsResponseApiDto,
-      description: 'OAuth credentials exchanged successfully',
+      description: 'The Credential was created or reconnected',
     }),
     ApiResponse({ status: 400, description: 'Invalid OAuth credentials payload' })
   );

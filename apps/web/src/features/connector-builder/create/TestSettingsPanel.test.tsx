@@ -1,7 +1,24 @@
 import { describe, it, expect, vi } from 'vitest';
+import type { ReactNode } from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { TestSettingsPanel } from './components/TestSettingsPanel';
 import type { ManifestParameter } from '../shared/model/manifest.types';
+
+const field = vi.hoisted(() => ({ props: null as null | Record<string, unknown> }));
+vi.mock('../../credentials', () => ({
+  ConsumerCredentialField: (props: Record<string, unknown>): ReactNode => {
+    field.props = props;
+    return (
+      <button
+        onClick={() => {
+          (props.onChange as (id: string) => void)('c1');
+        }}
+      >
+        Credential field
+      </button>
+    );
+  },
+}));
 
 const params: [string, ManifestParameter][] = [
   ['Token', { requiredType: 'string', isRequired: true, attributes: ['SECRET'] }],
@@ -61,5 +78,137 @@ describe('TestSettingsPanel', () => {
     const { onRun } = setup();
     fireEvent.click(screen.getByTestId('run-test-settings'));
     expect(onRun).toHaveBeenCalled();
+  });
+
+  describe('with a Credential', () => {
+    const requirement = {
+      hosts: ['api.example.com'],
+      fieldList: [{ key: 'Token', label: 'Token', secret: true, required: true }],
+      keyParameters: ['Token'],
+    };
+    const control = (overrides = {}) => ({
+      mode: 'values' as const,
+      onModeChange: vi.fn(),
+      state: { status: 'ready' as const, ids: ['c1', 'c2'], requirement },
+      onRetry: vi.fn(),
+      value: null,
+      onChange: vi.fn(),
+      consumerType: 'MyApi',
+      ...overrides,
+    });
+
+    it('switches between Enter values and Use a Credential', () => {
+      const credential = control();
+      setup({ credential });
+      expect(screen.getByTestId('test-param-Token')).toBeInTheDocument();
+      fireEvent.click(screen.getByRole('tab', { name: 'Use a Credential' }));
+      expect(credential.onModeChange).toHaveBeenCalledWith('credential');
+    });
+
+    it('hides the key parameters and keeps the others when a Credential is used', () => {
+      setup({ credential: control({ mode: 'credential' }) });
+      expect(screen.queryByTestId('test-param-Token')).not.toBeInTheDocument();
+      expect(screen.getByTestId('test-param-Region')).toBeInTheDocument();
+    });
+
+    it('keeps the Parameters section and the focus while the fitting list is refetched', () => {
+      const credential = control({ mode: 'credential' });
+      const paramsWithMode: [string, ManifestParameter][] = [
+        ['Mode', { requiredType: 'string', isRequired: false }],
+        ...params,
+      ];
+      const props = {
+        open: true,
+        onOpenChange: vi.fn(),
+        nodeNames: ['items'],
+        node: 'items',
+        onNodeChange: vi.fn(),
+        paramEntries: paramsWithMode,
+        secretNames: new Set(['Token']),
+        values: {},
+        onChangeValue: vi.fn(),
+        maxRows: 25,
+        onChangeMaxRows: vi.fn(),
+        onRun: vi.fn(),
+        running: false,
+      };
+      const { rerender } = render(<TestSettingsPanel {...props} credential={credential} />);
+      screen.getByTestId('test-param-Mode').focus();
+      rerender(
+        <TestSettingsPanel
+          {...props}
+          credential={{ ...credential, state: { status: 'loading' as const } }}
+        />
+      );
+      expect(screen.getByTestId('test-param-Mode')).toBe(document.activeElement);
+      expect(screen.queryByTestId('test-param-Token')).not.toBeInTheDocument();
+    });
+
+    it('never asks for a GeneratedRefreshToken the author declared', () => {
+      setup({
+        paramEntries: [
+          ...params,
+          ['GeneratedRefreshToken', { requiredType: 'string', isRequired: true }],
+        ],
+        credential: control(),
+      });
+      expect(screen.queryByTestId('test-param-GeneratedRefreshToken')).not.toBeInTheDocument();
+      expect(screen.getByTestId('test-param-Region')).toBeInTheDocument();
+    });
+
+    it('marks Credentials created here as coming from the builder', () => {
+      setup({ credential: control({ mode: 'credential' }) });
+      expect(field.props?.createdFrom).toBe('builder');
+    });
+
+    it('keeps a declared GeneratedRefreshToken out in Credential mode too', () => {
+      setup({
+        paramEntries: [
+          ...params,
+          ['GeneratedRefreshToken', { requiredType: 'string', isRequired: true }],
+        ],
+        credential: control({ mode: 'credential' }),
+      });
+      expect(screen.queryByTestId('test-param-GeneratedRefreshToken')).not.toBeInTheDocument();
+      expect(screen.getByTestId('test-param-Region')).toBeInTheDocument();
+    });
+
+    it('lists only the fitting Credentials and prefills a new one from the manifest', () => {
+      setup({ credential: control({ mode: 'credential' }) });
+      expect(field.props).toMatchObject({
+        allowedCredentialIds: ['c1', 'c2'],
+        customConnectorPrefill: { hosts: ['api.example.com'], fieldList: requirement.fieldList },
+      });
+    });
+
+    it('shows a failed lookup with a retry instead of a key list', () => {
+      const credential = control({ mode: 'credential', state: { status: 'error' } });
+      setup({ credential });
+      expect(screen.queryByText('Credential field')).not.toBeInTheDocument();
+      fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+      expect(credential.onRetry).toHaveBeenCalled();
+    });
+
+    it('does not run until a Credential is chosen', () => {
+      setup({ credential: control({ mode: 'credential' }), runBlocked: true });
+      expect(screen.getByTestId('run-test-settings')).toBeDisabled();
+    });
+
+    const misuse = 'Key parameter "Token" cannot be used in transformations.add of node "items"';
+    const misusing = {
+      status: 'ready' as const,
+      ids: [],
+      requirement: { ...requirement, misuse: [misuse] },
+    };
+
+    it('says why no Credential fits a manifest that misuses a key parameter', () => {
+      setup({ credential: control({ mode: 'credential', state: misusing }), runBlocked: true });
+      expect(screen.getByText(misuse)).toBeInTheDocument();
+    });
+
+    it('keeps the misuse out of Enter values, where typed keys are not restricted', () => {
+      setup({ credential: control({ state: misusing }) });
+      expect(screen.queryByText(misuse)).not.toBeInTheDocument();
+    });
   });
 });

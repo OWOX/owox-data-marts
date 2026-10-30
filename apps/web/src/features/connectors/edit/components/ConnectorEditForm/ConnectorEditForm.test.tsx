@@ -3,10 +3,11 @@ import { act, render, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { ConnectorEditForm } from './ConnectorEditForm';
 import { DataStorageType } from '../../../../data-storage';
+import { DataMartContext } from '../../../../data-marts/edit/model/context/context';
 
 interface RecordedProps {
   initialConfiguration?: Record<string, unknown>;
-  onConfigurationChange?: (configuration: Record<string, unknown>) => void;
+  onConfigurationChange?: (configuration: Record<string, unknown>, automatic?: boolean) => void;
 }
 
 interface RecordedFieldsProps {
@@ -218,6 +219,60 @@ describe('ConnectorEditForm configuration echo', () => {
 
     expect(recordedFields.at(-1)?.selectedFields).not.toContain('Spend');
     expect(recordedNavigation.at(-1)?.canGoNext).toBe(true);
+  });
+
+  it('is not made dirty by a Credential picked for the user', () => {
+    const onDirtyChange = vi.fn();
+    render(
+      <MemoryRouter>
+        <ConnectorEditForm
+          onSubmit={vi.fn()}
+          dataStorageType={DataStorageType.GOOGLE_BIGQUERY}
+          configurationOnly
+          onDirtyChange={onDirtyChange}
+        />
+      </MemoryRouter>
+    );
+
+    act(() => {
+      lastProps().onConfigurationChange?.({ _credential_id: 'ads-sa' }, true);
+    });
+    expect(onDirtyChange).not.toHaveBeenCalledWith(true);
+
+    act(() => {
+      lastProps().onConfigurationChange?.({ _credential_id: 'ads-sa', CustomerId: '1' });
+    });
+    expect(onDirtyChange).toHaveBeenLastCalledWith(true);
+  });
+
+  it('previews the columns of a configuration with the Data Mart it belongs to', async () => {
+    const hook = createGoogleSheetsConnectorHook();
+    connectorHook.current = hook;
+    render(
+      <MemoryRouter>
+        <DataMartContext.Provider value={{ dataMart: { id: 'dm-1' } } as never}>
+          <ConnectorEditForm
+            onSubmit={vi.fn()}
+            dataStorageType={DataStorageType.GOOGLE_BIGQUERY}
+            configurationOnly
+          />
+        </DataMartContext.Provider>
+      </MemoryRouter>
+    );
+    const configuration = {
+      _id: 'cfg-1',
+      _credential_id: 'sheets-oauth',
+      SpreadsheetId: 'sheet-1',
+    };
+    act(() => {
+      lastProps().onConfigurationChange?.(configuration);
+    });
+
+    await act(async () => {
+      recordedNavigation.at(-1)?.onNext();
+    });
+
+    expect(hook.previewConnectorFields).toHaveBeenCalledWith('GoogleSheets', configuration, 'dm-1');
   });
 
   it('shows Google Sheets preview server errors in the configuration wizard', async () => {

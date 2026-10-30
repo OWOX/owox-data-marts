@@ -106,8 +106,15 @@ describe('custom connector tools through the MCP SDK', () => {
         ...state,
         publishedAt: new Date('2026-10-27T00:00:00Z'),
         warnings: ['Review authentication'],
+        stoppingDataMarts: [],
+        hiddenStoppingCount: 0,
       }),
-      activate: jest.fn().mockResolvedValue({ activeVersionId: 'version-id', activeVersion: 1 }),
+      activate: jest.fn().mockResolvedValue({
+        activeVersionId: 'version-id',
+        activeVersion: 1,
+        stoppingDataMarts: [],
+        hiddenStoppingCount: 0,
+      }),
       delete: jest.fn().mockResolvedValue(undefined),
       getSpecification: jest.fn().mockResolvedValue([{ name: 'Limit', default: 25 }]),
       getFields: jest
@@ -238,6 +245,39 @@ describe('custom connector tools through the MCP SDK', () => {
       });
     }
   );
+
+  it('reports the Data Marts a publish or activation stops', async () => {
+    const client = await open();
+    const stopping = {
+      stoppingDataMarts: [{ id: 'dm-1', title: 'Orders' }],
+      hiddenStoppingCount: 3,
+    };
+    const expected = {
+      stopping_data_marts: [{ id: 'dm-1', title: 'Orders' }],
+      hidden_stopping_count: 3,
+    };
+    facade.publish.mockResolvedValue({
+      ...state,
+      publishedAt: null,
+      warnings: [],
+      ...stopping,
+    });
+    facade.activate.mockResolvedValue({
+      activeVersionId: 'version-id',
+      activeVersion: 1,
+      ...stopping,
+    });
+    const published = await client.callTool({
+      name: 'publish_custom_connector',
+      arguments: { connector_id: 'connector' },
+    });
+    expect(published.structuredContent).toMatchObject(expected);
+    const activated = await client.callTool({
+      name: 'activate_custom_connector_version',
+      arguments: { connector_id: 'connector', version: 1 },
+    });
+    expect(activated.structuredContent).toMatchObject(expected);
+  });
 
   it('bounds the test log trail while retaining final diagnostics, rows and raw sample', async () => {
     const client = await open();

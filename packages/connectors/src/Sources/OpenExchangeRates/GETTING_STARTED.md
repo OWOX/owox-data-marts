@@ -17,7 +17,7 @@ Before you begin, please ensure that:
 
 - Select **Connector** as the input source type.  
 - Click **Set up connector** and choose **Open Exchange Rates**.  
-- Fill in App ID you obtained in the [CREDENTIALS](CREDENTIALS.md) guide.  
+- Select the Credential with the App ID you obtained in the [CREDENTIALS](CREDENTIALS.md) guide, or click **+ Create new Credential**.  
 - Leave the other fields as default.  
 - Proceed to the next step.
 

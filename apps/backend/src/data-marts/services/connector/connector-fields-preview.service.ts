@@ -6,6 +6,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { ConnectorFieldsSchema } from '../../connector-types/connector-fields-schema';
+import { BusinessViolationException } from '../../../common/exceptions/business-violation.exception';
 import { AuthorizationContext } from '../../../idp';
 import { ConnectorPreviewCredentialsService } from './connector-preview-credentials.service';
 import {
@@ -35,7 +36,8 @@ export class ConnectorFieldsPreviewService {
   async run(
     context: AuthorizationContext,
     connectorName: string,
-    configuration: Record<string, unknown>
+    configuration: Record<string, unknown>,
+    dataMartId?: string
   ): Promise<ConnectorFieldsSchema> {
     if (!connectorSourceImplements(connectorName, 'fetchFieldsSchema')) {
       throw new BadRequestException(
@@ -48,10 +50,11 @@ export class ConnectorFieldsPreviewService {
       configWithCredentials = await this.previewCredentials.inject(
         connectorName,
         configuration,
-        context
+        context,
+        dataMartId
       );
     } catch (error) {
-      if (error instanceof HttpException) {
+      if (error instanceof HttpException || error instanceof BusinessViolationException) {
         throw error;
       }
       this.logger.error(`Failed to resolve credentials for ${connectorName} field preview`, error);

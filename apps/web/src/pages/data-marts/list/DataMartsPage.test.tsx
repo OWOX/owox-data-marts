@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import DataMartsPage from './DataMartsPage';
 
@@ -12,6 +12,8 @@ const mocks = vi.hoisted(() => ({
   loadDataMarts: vi.fn().mockResolvedValue(undefined),
   refreshList: vi.fn().mockResolvedValue(undefined),
   fetchAvailableConnectors: vi.fn().mockResolvedValue(undefined),
+  getDataMartColumns: vi.fn().mockReturnValue([]),
+  loadCustomConnectors: vi.fn().mockResolvedValue([]),
 }));
 
 vi.mock('../../../features/data-marts/list', () => ({
@@ -46,7 +48,11 @@ vi.mock('../../../features/data-marts/data-quality', () => ({
 }));
 
 vi.mock('../../../features/data-marts/list/components/DataMartTable/columns/columns.tsx', () => ({
-  getDataMartColumns: () => [],
+  getDataMartColumns: mocks.getDataMartColumns,
+}));
+
+vi.mock('../../../features/connectors/shared/utils', () => ({
+  loadCustomConnectors: mocks.loadCustomConnectors,
 }));
 
 vi.mock('../../../features/connectors/shared/model/context', () => ({
@@ -67,6 +73,7 @@ vi.mock('../../../shared/hooks', () => ({
 describe('DataMartsPage Data Quality activity', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.loadCustomConnectors.mockResolvedValue([]);
     mocks.items = [];
     mocks.summaries = {};
     mocks.useDataQualitySummaries.mockImplementation(
@@ -109,5 +116,16 @@ describe('DataMartsPage Data Quality activity', () => {
 
     expect(screen.queryByRole('status')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'View runs' })).not.toBeInTheDocument();
+  });
+
+  it('resolves custom connector titles and logos in the Input Source column', async () => {
+    const custom = { name: 'MyApi', displayName: 'My API', isCustom: true };
+    mocks.loadCustomConnectors.mockResolvedValue([custom]);
+
+    render(<DataMartsPage />);
+
+    await waitFor(() => {
+      expect(mocks.getDataMartColumns).toHaveBeenLastCalledWith({ connectors: [custom] });
+    });
   });
 });

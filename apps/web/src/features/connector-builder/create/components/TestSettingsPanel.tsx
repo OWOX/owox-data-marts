@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Play } from 'lucide-react';
 import { Button } from '@owox/ui/components/button';
 import { Input } from '@owox/ui/components/input';
@@ -17,13 +18,35 @@ import {
   SheetTitle,
 } from '@owox/ui/components/sheet';
 import { cn } from '@owox/ui/lib/utils';
+import { ConsumerCredentialField } from '../../../credentials';
+import type { TestCredentials } from '../../shared/model/hooks/useTestCredentials';
 import type { ManifestParameter } from '../../shared/model/manifest.types';
 import { asText, firstNonEmpty } from '../../shared/model/asText';
+import { GENERATED_REFRESH_TOKEN } from '../../shared/model/credentialParameters';
 
 /** A parameter is "satisfied" if it has a value or a usable default; required ones that are neither are flagged. */
 function hasUsableDefault(param: ManifestParameter): boolean {
   return asText(param.default) !== '';
 }
+
+/** How the test gets its keys: typed here, or from a Credential. */
+export interface TestCredentialControl {
+  mode: 'values' | 'credential';
+  onModeChange: (mode: 'values' | 'credential') => void;
+  state: TestCredentials;
+  onRetry: () => void;
+  value: string | null;
+  onChange: (credentialId: string) => void;
+  /** Asks for the fitting list again after a Credential was created from the field. */
+  onCreated?: () => void;
+  /** The connector's name, for the Credential field's analytics. */
+  consumerType: string;
+}
+
+const MODES = [
+  ['values', 'Enter values'],
+  ['credential', 'Use a Credential'],
+] as const;
 
 /**
  * The connector test inputs — node, parameter values, max rows — in a roomy
@@ -45,6 +68,8 @@ export function TestSettingsPanel({
   onChangeMaxRows,
   onRun,
   running,
+  credential,
+  runBlocked,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -60,8 +85,28 @@ export function TestSettingsPanel({
   onChangeMaxRows: (maxRows: number) => void;
   onRun: () => void;
   running: boolean;
+  /** Without it the test only takes typed values. */
+  credential?: TestCredentialControl;
+  runBlocked?: boolean;
 }) {
   const hasNodes = nodeNames.length > 0;
+  const useCredential = credential?.mode === 'credential';
+  const ready = credential?.state.status === 'ready' ? credential.state : null;
+  // A refetch keeps the last known keys, so the section stays and the input keeps focus.
+  const [lastKeys, setLastKeys] = useState<string[] | null>(null);
+  if (ready && ready.requirement.keyParameters !== lastKeys) {
+    setLastKeys(ready.requirement.keyParameters);
+  }
+  const knownKeys =
+    ready?.requirement.keyParameters ?? (credential?.state.status === 'loading' ? lastKeys : null);
+  const keyParameters = new Set(knownKeys);
+  const typable = paramEntries.filter(([name]) => name !== GENERATED_REFRESH_TOKEN);
+  // The key parameters are not asked for while a Credential supplies them (or until it is known which they are).
+  const shownParams = useCredential
+    ? knownKeys
+      ? typable.filter(([name]) => !keyParameters.has(name))
+      : []
+    : typable;
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -95,12 +140,84 @@ export function TestSettingsPanel({
               </Select>
             </label>
 
-            {paramEntries.length > 0 && (
+            {credential && (
+              <div className='flex flex-col gap-3'>
+                <div
+                  className='inline-flex self-start rounded-md border p-0.5'
+                  role='tablist'
+                  aria-label='Keys for the test'
+                >
+                  {MODES.map(([mode, label]) => (
+                    <button
+                      key={mode}
+                      type='button'
+                      role='tab'
+                      aria-selected={credential.mode === mode}
+                      data-testid={mode === 'values' ? 'testModeValues' : 'testModeCredential'}
+                      onClick={() => {
+                        credential.onModeChange(mode);
+                      }}
+                      className={cn(
+                        'rounded px-2.5 py-1 text-xs font-medium transition-colors',
+                        credential.mode === mode
+                          ? 'bg-accent text-foreground'
+                          : 'text-muted-foreground hover:text-foreground'
+                      )}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                {useCredential && (
+                  <div className='flex flex-col gap-1.5' data-testid='testCredential'>
+                    <span className='text-foreground text-sm font-medium'>Credential</span>
+                    {credential.state.status === 'error' ? (
+                      <div role='alert' className='flex items-center gap-3 text-sm'>
+                        <span className='text-muted-foreground'>Could not load Credentials.</span>
+                        <Button
+                          type='button'
+                          variant='outline'
+                          size='sm'
+                          onClick={credential.onRetry}
+                        >
+                          Try again
+                        </Button>
+                      </div>
+                    ) : ready ? (
+                      <ConsumerCredentialField
+                        consumer='connector-config'
+                        consumerType={credential.consumerType}
+                        createdFrom='builder'
+                        isNew={false}
+                        value={credential.value}
+                        summary={null}
+                        allowedCredentialIds={ready.ids}
+                        customConnectorPrefill={{
+                          hosts: ready.requirement.hosts,
+                          fieldList: ready.requirement.fieldList,
+                        }}
+                        onChange={credential.onChange}
+                        onCreated={credential.onCreated}
+                      />
+                    ) : (
+                      <span className='text-muted-foreground text-sm'>Loading…</span>
+                    )}
+                    {ready?.requirement.misuse?.length ? (
+                      <p className='text-destructive text-sm'>
+                        {ready.requirement.misuse.join('; ')}
+                      </p>
+                    ) : null}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {shownParams.length > 0 && (
               <section className='flex flex-col gap-3'>
                 <h3 className='text-muted-foreground text-[11.5px] font-semibold tracking-wide uppercase'>
                   Parameters
                 </h3>
-                {paramEntries.map(([name, param]) => {
+                {shownParams.map(([name, param]) => {
                   const isSecret = secretNames.has(name);
                   const label = firstNonEmpty(param.label, name);
                   const value = values[name] ?? '';
@@ -168,7 +285,7 @@ export function TestSettingsPanel({
           <SheetFooter className='border-t'>
             <Button
               onClick={onRun}
-              disabled={running || !node}
+              disabled={running || !node || runBlocked}
               data-testid='run-test-settings'
               className={cn('w-full gap-1.5')}
             >

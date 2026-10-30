@@ -9,6 +9,7 @@ import type { BlendedFieldsConfig } from '../../../shared/types/relationship.typ
 import type { DataLastUpdatedDto } from '../../../shared/types/api/response/data-mart-data-last-updated.dto';
 import type { DataMartIconValue } from '../../../shared/enums/data-mart-icon.enum';
 import type { ContextSummary } from '../../../../contexts/types/context.types';
+import type { DataMartSourceCredentialDto } from '../../../shared/types/api/response/data-mart.response.dto';
 
 /**
  * Data mart domain model
@@ -123,4 +124,9 @@ export interface DataMart {
    * Last-known Data Last Updated snapshot; null when never computed.
    */
   dataLastUpdated: DataLastUpdatedDto | null;
+
+  /**
+   * The Credential of each connector configuration bound to one
+   */
+  sourceCredentials?: DataMartSourceCredentialDto[];
 }

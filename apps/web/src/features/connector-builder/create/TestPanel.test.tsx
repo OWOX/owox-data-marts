@@ -297,6 +297,31 @@ describe('test settings persistence', () => {
     expect(screen.getByTestId('test-param-Region')).toHaveValue('eu');
   });
 
+  it('does not send a GeneratedRefreshToken an earlier build stored', async () => {
+    localStorage.setItem(
+      'connector-builder:test-settings:def-1',
+      JSON.stringify({ values: { GeneratedRefreshToken: 'old', Region: 'eu' }, maxRows: 25 })
+    );
+    test.mockResolvedValue({ rows: [], logs: [], error: null });
+    render(<ConnectorBuilderPage />);
+    fireEvent.change(screen.getByPlaceholderText('MyCustomApi'), { target: { value: 'MyApi' } });
+    fireEvent.click(screen.getByText('Parameters'));
+    addParameter('GeneratedRefreshToken');
+    addParameter('Region');
+    fireEvent.change(screen.getByPlaceholderText('Node name'), { target: { value: 'items' } });
+    fireEvent.click(screen.getByRole('button', { name: /add node/i }));
+    await saveDraft();
+
+    fireEvent.click(screen.getByTestId('test-settings-gear'));
+    expect(await screen.findByTestId('test-param-Region')).toHaveValue('eu');
+    fireEvent.click(screen.getByTestId('run-test-settings'));
+
+    await waitFor(() => {
+      expect(test).toHaveBeenCalledTimes(1);
+    });
+    expect(test.mock.calls[0][0].configuration).not.toHaveProperty('GeneratedRefreshToken');
+  });
+
   it('writes nothing for a connector that has not been saved yet', () => {
     buildConnector();
 

@@ -161,7 +161,6 @@ export class ConnectorMapper {
             picture: result.user.picture,
           }
         : undefined,
-      additional: result.additional,
       reasons: result.reasons,
     };
   }

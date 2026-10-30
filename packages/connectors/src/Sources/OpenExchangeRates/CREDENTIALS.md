@@ -16,7 +16,7 @@ Copy the provided App ID.
 
 ## ✅ You’re Ready to Go
 
-You can now use this App ID as described in the [Getting Started guide](GETTING_STARTED.md).
+Save the App ID in a Credential (on the **Credentials** page, or with **+ Create new Credential** beside the **Credential** field of the Data Mart's connector configuration), then continue as described in the [Getting Started guide](GETTING_STARTED.md).
 
 ## Troubleshooting and Support
 

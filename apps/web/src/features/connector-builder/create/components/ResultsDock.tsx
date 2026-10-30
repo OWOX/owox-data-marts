@@ -12,6 +12,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@owox/ui/components/pop
 import { cn } from '@owox/ui/lib/utils';
 import { useBuilder } from '../../shared/model/hooks/useBuilder';
 import { asText } from '../../shared/model/asText';
+import { useTestCredentials } from '../../shared/model/hooks/useTestCredentials';
 import { ConnectorBuilderApiService } from '../../shared/api/connector-builder-api.service';
 import { apiErrorMessage } from '../../../../app/api/extract-api-error.util';
 import { TestSettingsPanel } from './TestSettingsPanel';
@@ -22,6 +23,7 @@ import {
   trackCustomConnectorEvent,
 } from '../../shared/model/analytics';
 import type { ConnectorTestResultDto } from '../../shared/api/types';
+import { trackEvent } from '../../../../utils/data-layer';
 
 /** Which representation of the test run the dock body shows. */
 type ResultView = 'table' | 'json' | 'logs';
@@ -102,6 +104,8 @@ export function ResultsDock({
   const [running, setRunning] = useState(false);
   const [result, setResult] = useState<ConnectorTestResultDto | null>(null);
   const [settings, setSettings] = useState(false);
+  const [keysFrom, setKeysFrom] = useState<'values' | 'credential'>('values');
+  const [chosenCredential, setChosenCredential] = useState<string | null>(null);
   const [view, setView] = useState<ResultView>('table');
   const [dockHeight, setDockHeight] = useState(300);
   const testsRun = useRef(0);
@@ -118,6 +122,43 @@ export function ResultsDock({
       }),
     [manifest.parameters, manifest.authentication]
   );
+
+  // The branch of a selective authentication the test picks, which decides the keys a Credential needs.
+  const selectionName =
+    manifest.authentication?.type === 'selective' ? manifest.authentication.selectionParameter : '';
+  const selection = selectionName
+    ? values[selectionName] ||
+      asText((manifest.parameters as Partial<typeof manifest.parameters>)[selectionName]?.default)
+    : '';
+  const usingCredential = keysFrom === 'credential';
+  const {
+    state: credentialState,
+    retry: retryCredentials,
+    refresh: refreshCredentials,
+    refreshing: refreshingCredentials,
+  } = useTestCredentials(
+    (settings || chosenCredential) && usingCredential && node
+      ? { manifest, node, ...(selection ? { selection } : {}) }
+      : null
+  );
+  const credentialId =
+    credentialState.status === 'ready' &&
+    chosenCredential &&
+    credentialState.ids.includes(chosenCredential)
+      ? chosenCredential
+      : null;
+  const runBlocked = usingCredential && !credentialId;
+  // Drop a choice the fresh fitting list lacks; a list still refreshing is not yet the answer.
+  useEffect(() => {
+    if (
+      credentialState.status === 'ready' &&
+      !refreshingCredentials &&
+      chosenCredential &&
+      !credentialId
+    ) {
+      setChosenCredential(null);
+    }
+  }, [credentialState.status, refreshingCredentials, chosenCredential, credentialId]);
 
   // Test inputs persist per connector on this device, so they survive runs and reloads.
   // Only once the connector has an id: before that there is nothing to key them to, and a
@@ -244,13 +285,30 @@ export function ResultsDock({
     const target = followNode(nodeNames, node, Object.keys(tested.nodes));
     if (target !== node) setNode(target);
     const startedAt = Date.now();
+    // A Credential supplies the key parameters; the test refuses any typed value for them.
+    const keyNames =
+      credentialId && credentialState.status === 'ready'
+        ? new Set(credentialState.requirement.keyParameters)
+        : null;
+    const configuration = keyNames
+      ? Object.fromEntries(Object.entries(values).filter(([name]) => !keyNames.has(name)))
+      : values;
     const connector = { id: state.id, manifest: tested, version: state.loadedVersion };
     let outcome: ConnectorTestResultDto;
+    trackEvent({
+      event: 'connector_builder_test',
+      category: 'Connector',
+      action: credentialId ? 'credential' : 'values',
+      label: null,
+      context: null,
+      value: null,
+    });
     try {
       outcome = await new ConnectorBuilderApiService().test({
         manifest: tested,
         node: target,
-        configuration: values,
+        configuration,
+        ...(credentialId ? { credentialId } : {}),
         maxRows,
       });
       setResult(outcome);
@@ -409,7 +467,7 @@ export function ResultsDock({
           <Button
             size='sm'
             onClick={() => void run()}
-            disabled={running || !node}
+            disabled={running || !node || runBlocked}
             data-testid='run-test'
             className='h-8 gap-1.5'
           >
@@ -456,6 +514,17 @@ export function ResultsDock({
           void run();
         }}
         running={running}
+        runBlocked={runBlocked}
+        credential={{
+          mode: keysFrom,
+          onModeChange: setKeysFrom,
+          state: credentialState,
+          onRetry: retryCredentials,
+          value: credentialId,
+          onChange: setChosenCredential,
+          onCreated: refreshCredentials,
+          consumerType: manifest.name || 'custom connector',
+        }}
       />
     </div>
   );

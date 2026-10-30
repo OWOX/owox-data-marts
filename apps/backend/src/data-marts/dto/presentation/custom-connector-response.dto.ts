@@ -1,5 +1,6 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional, OmitType } from '@nestjs/swagger';
 import type { CustomConnectorVersionStateDto } from '../domain/custom-connector.dto';
+import { CustomConnectorFieldApiDto } from '../../credentials/dto/credential-api.dto';
 import { ConnectorDefinitionVersionStatus } from '../../entities/connector-definition-version.entity';
 
 /**
@@ -102,6 +103,14 @@ export class CustomConnectorVersionResponseApiDto extends CustomConnectorVersion
   manifest: Record<string, unknown>;
 }
 
+export class StoppingDataMartApiDto {
+  @ApiProperty({ type: String, example: '0f1e2d3c-4b5a-4c6d-8e9f-0a1b2c3d4e5f' })
+  id: string;
+
+  @ApiProperty({ type: String, example: 'Sales' })
+  title: string;
+}
+
 export class PublishCustomConnectorResponseApiDto extends CustomConnectorVersionStateResponseApiDto {
   /**
    * Optional because the handler forwards the stored column verbatim rather than
@@ -133,6 +142,12 @@ export class PublishCustomConnectorResponseApiDto extends CustomConnectorVersion
     ],
   })
   warnings: string[];
+
+  @ApiProperty({ type: [StoppingDataMartApiDto] })
+  stoppingDataMarts: StoppingDataMartApiDto[];
+
+  @ApiProperty({ type: 'integer', example: 0, minimum: 0 })
+  hiddenStoppingCount: number;
 }
 
 export class ActivateCustomConnectorVersionResponseApiDto {
@@ -141,6 +156,12 @@ export class ActivateCustomConnectorVersionResponseApiDto {
 
   @ApiProperty({ type: 'integer', example: 2, minimum: 1 })
   activeVersion: number;
+
+  @ApiProperty({ type: [StoppingDataMartApiDto] })
+  stoppingDataMarts: StoppingDataMartApiDto[];
+
+  @ApiProperty({ type: 'integer', example: 0, minimum: 0 })
+  hiddenStoppingCount: number;
 }
 
 export class DeleteCustomConnectorResponseApiDto {
@@ -168,4 +189,55 @@ export class ConnectorTestResultResponseApiDto {
     description: 'Raw upstream records captured for field discovery, before record selection.',
   })
   sample: Record<string, unknown>[];
+}
+
+export class FittingCustomConnectorCredentialResponseApiDto {
+  @ApiProperty()
+  id: string;
+
+  @ApiProperty()
+  title: string;
+
+  @ApiProperty({ type: [String] })
+  hosts: string[];
+
+  @ApiProperty({ type: [String], description: 'Parameter names the Credential holds values for.' })
+  fieldKeys: string[];
+}
+
+export class CustomConnectorRequirementFieldResponseApiDto extends OmitType(
+  CustomConnectorFieldApiDto,
+  ['required'] as const
+) {
+  @ApiProperty({ description: 'False for an optional key parameter, which may be left out.' })
+  required: boolean;
+}
+
+export class CustomConnectorCredentialRequirementResponseApiDto {
+  @ApiProperty({ type: [String], description: 'Bare hostnames a fitting Credential must allow.' })
+  hosts: string[];
+
+  @ApiProperty({
+    type: [CustomConnectorRequirementFieldResponseApiDto],
+    description:
+      'The key parameters of the selection, generated ones aside; empty until a selective branch is picked.',
+  })
+  fieldList: CustomConnectorRequirementFieldResponseApiDto[];
+
+  @ApiProperty({
+    type: [String],
+    description:
+      'Every key parameter of every branch; a configuration never holds a value for one.',
+  })
+  keyParameters: string[];
+
+  @ApiPropertyOptional({ description: 'The parameter that picks a selective branch.' })
+  selectionParameter?: string;
+
+  @ApiProperty({
+    type: [String],
+    description:
+      'The run error for each key parameter the manifest uses where no request is built; no Credential fits while any is listed.',
+  })
+  misuse: string[];
 }

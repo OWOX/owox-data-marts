@@ -34,7 +34,7 @@ The Sheets API can read and write spreadsheets, but it cannot place a file into 
 A Google Sheets Destination selects a [Credential](../../project/credentials.md) instead of holding a key. Two providers fit:
 
 - **Google Service Account** — a JSON key of a Google Cloud service account. Recommended for automated, unattended workflows.
-- **Sheets Google account** — a Google account you connect with OAuth. It appears only where your deployment has Google OAuth for Destinations set up.
+- **Sheets Destination Google account** — a Google account you connect with OAuth. It appears only where your deployment has Google OAuth for Destinations set up.
 
 For a service account, create the JSON key:
 
@@ -63,18 +63,18 @@ Select **Google Sheets** from the **Destination Type** dropdown.
 
 #### 4. Select a Credential
 
-In the **Credential** field, select a **Google Service Account** or **Sheets Google account** Credential that you can use. If exactly one fits, a new Destination selects it for you.
+In the **Credential** field, select a **Google Service Account** or **Sheets Destination Google account** Credential that you can use. If exactly one fits, a new Destination selects it for you.
 
 To add one without leaving the form, click **+ Create new Credential**:
 
 - **Google Service Account**: paste the JSON key file or drop it. This is the recommended method for automated, unattended workflows.
-- **Sheets Google account**: click **Connect with Google** and grant access on Google's consent screen. The account's email becomes the Credential's identity.
+- **Sheets Destination Google account**: click **Connect with Google** and grant access on Google's consent screen. The account's email becomes the Credential's identity.
 
 The new Credential is selected when you save it. A Credential created from the form is not shared: only its owners and Project Admins can use it until an owner shares it. Manage and share it on the [Credentials](../../project/credentials.md) page.
 
 > **Note:** OAuth tokens are automatically refreshed. If access is revoked or expires, the Destination shows that its Credential needs reconnecting; open the Credential and click **Connect with Google** again.
 >
-> The Google Drive permission (`drive.file`) is optional for a **Sheets Google account**. Without it, reports still write to spreadsheets, and **Create document** puts the new spreadsheet in the account's Drive root, outside the selected folder and not shared with you.
+> The Google Drive permission (`drive.file`) is optional for a **Sheets Destination Google account**. Without it, reports still write to spreadsheets, and **Create document** puts the new spreadsheet in the account's Drive root, outside the selected folder and not shared with you.
 
 To use the same key in several Destinations, select the same Credential in each one. To replace a leaked key, replace it once in the Credential; every Destination that uses it picks up the new value.
 

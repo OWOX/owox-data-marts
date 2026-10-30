@@ -30,10 +30,15 @@ vi.mock('../../../shared/api/connector-api.service', () => ({
 // full version list via .getById() only when opened.
 const builderList = vi.fn();
 const builderGetById = vi.fn();
+// The Configuration step reads a custom connector's key parameters from the server.
+const builderCredentialRequirement = vi.fn(() =>
+  Promise.resolve({ hosts: ['api.example.com'], fieldList: [], keyParameters: [] })
+);
 vi.mock('../../../../connector-builder/shared/api/connector-builder-api.service', () => ({
   ConnectorBuilderApiService: class {
     list = builderList;
     getById = builderGetById;
+    credentialRequirement = builderCredentialRequirement;
   },
 }));
 

@@ -38,7 +38,7 @@ export default function GoogleProviderChoiceDescription({
             )}
             {offers('google-sheets-oauth') && (
               <div>
-                <strong className='font-medium'>Sheets Google account (OAuth):</strong>
+                <strong className='font-medium'>Sheets Destination Google account (OAuth):</strong>
                 <p className='mt-1'>
                   The quickest way to get started. Sign in with your Google account and grant access
                   to Google Sheets in a few clicks.

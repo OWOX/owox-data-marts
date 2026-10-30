@@ -53,6 +53,7 @@ import {
 } from './CredentialsTableFilters';
 import { isSecretReplaceable, SECRET_NOT_REPLACEABLE, type Credential } from './types';
 import { ProviderIcon } from './components/ProviderCombobox';
+import { servedConnector } from './served-connector';
 import { CredentialConsumerList } from './components/CredentialUsedByList';
 
 interface CredentialsTableProps {
@@ -221,7 +222,10 @@ function getCredentialColumns(actions: CredentialColumnActions): ColumnDef<Crede
       header: ({ column }) => <SortableHeader column={column}>Provider</SortableHeader>,
       cell: ({ row }) => (
         <div className='flex items-center gap-2'>
-          <ProviderIcon icon={row.original.definition.icon} />
+          <ProviderIcon
+            icon={row.original.definition.icon}
+            connector={servedConnector(row.original.definition)}
+          />
           {row.original.definition.displayName}
         </div>
       ),
