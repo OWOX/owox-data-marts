@@ -1124,12 +1124,13 @@ describe('UpdateDataStorageService - OWOX Storage', () => {
     const { service, storage, dataStorageRepository, dataStorageAccessFacade, storageCredentials } =
       managedService();
     storageCredentials.resolveForStorage.mockResolvedValue(null);
-
-    await service.run(makeCommand());
+    await service.run(makeFullCommand({ title: 'New title' }));
 
     expect(dataStorageAccessFacade.verifyAccess).not.toHaveBeenCalled();
     expect(storageCredentials.resolveForStorage).not.toHaveBeenCalled();
-    expect(dataStorageRepository.save).toHaveBeenCalledWith(storage);
+    expect(dataStorageRepository.save).toHaveBeenCalledWith(
+      expect.objectContaining({ id: storage.id, title: 'New title' })
+    );
   });
 
   it('refuses a Credential on an OWOX Storage', async () => {
