@@ -29,7 +29,7 @@ describe('OwoxStorageScanBudgetService', () => {
   } as ManagedStorage;
 
   let service: OwoxStorageScanBudgetService;
-  const used = (bytes: number) => query.mockResolvedValue([[{ used: bytes }]]);
+  const used = (bytes: unknown) => query.mockResolvedValue([[{ used: bytes }]]);
   const plan = (subscriptionPlanType: ProjectPlanType) =>
     billing.getBalance.mockResolvedValue({ subscriptionPlanType });
 
@@ -68,8 +68,34 @@ describe('OwoxStorageScanBudgetService', () => {
     plan(ProjectPlanType.PAID);
     await expect(service.forStorage(record).remainingBytes()).resolves.toBe(100 * GIB);
 
-    const overridden = { ...record, storageId: 's2', queryLimitBytesPerDay: GIB };
+    billing.getBalance.mockClear();
+    const overridden = {
+      ...record,
+      storageId: 's2',
+      projectId: 'project-2',
+      queryLimitBytesPerDay: GIB,
+    };
     await expect(service.forStorage(overridden).remainingBytes()).resolves.toBe(GIB);
+    expect(billing.getBalance).not.toHaveBeenCalled();
+  });
+
+  it('returns a whole number of bytes under a fractional limit', async () => {
+    const fractional = { getSettings: () => ({ freeQueryLimitBytesPerDay: 0.1 * GIB }) };
+    service = new OwoxStorageScanBudgetService(
+      identity as never,
+      fractional as never,
+      billing as never
+    );
+
+    await expect(service.forStorage(record).remainingBytes()).resolves.toBe(107374182);
+  });
+
+  it('refuses instead of returning NaN when the usage is not a number', async () => {
+    used('not a number');
+
+    await expect(service.forStorage(record).remainingBytes()).rejects.toThrow(
+      OwoxStorageUsageUnavailableException
+    );
   });
 
   it('NOT_PAID uses the FREE limit', async () => {
@@ -117,5 +143,14 @@ describe('OwoxStorageScanBudgetService', () => {
     await expect(service.forStorage(record).remainingBytes()).rejects.toThrow(
       OwoxStorageUsageUnavailableException
     );
+  });
+
+  it('reads the usage again after a failed read', async () => {
+    query.mockRejectedValueOnce(new Error('Access Denied'));
+    const budget = service.forStorage(record);
+
+    await expect(budget.remainingBytes()).rejects.toThrow(OwoxStorageUsageUnavailableException);
+    await expect(budget.remainingBytes()).resolves.toBe(10 * GIB);
+    expect(query).toHaveBeenCalledTimes(2);
   });
 });

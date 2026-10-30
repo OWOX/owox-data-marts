@@ -35,8 +35,11 @@ export class OwoxStorageScanBudgetService implements OwoxStorageScanBudgetFactor
   forStorage(record: ManagedStorage): ScanBudget {
     return {
       remainingBytes: async () => {
-        const remaining = (await this.limitFor(record)) - (await this.usedToday(record));
-        if (remaining <= 0) throw new OwoxStorageQueryLimitException();
+        // BigQuery takes maximumBytesBilled as an INT64; a GiB limit like 0.1 is fractional.
+        const remaining = Math.floor(
+          (await this.limitFor(record)) - (await this.usedToday(record))
+        );
+        if (!(remaining > 0)) throw new OwoxStorageQueryLimitException();
         return remaining;
       },
     };
@@ -73,7 +76,9 @@ WHERE user_email = @email
   AND creation_time >= TIMESTAMP(CURRENT_DATE('America/Los_Angeles'), 'America/Los_Angeles')`,
           params: { email: record.serviceAccountEmail },
         });
-        return Number(rows[0]?.used ?? 0);
+        const used = Number(rows[0]?.used ?? 0);
+        if (!Number.isFinite(used)) throw new Error(`Unexpected usage value: ${rows[0]?.used}`);
+        return used;
       });
     } catch (error) {
       // Without today's usage there is no cap, so the query must not run.
