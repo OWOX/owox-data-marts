@@ -1,6 +1,8 @@
 import {
+  BIGQUERY_MANAGED_TYPE,
   BIGQUERY_OAUTH_TYPE,
   BigQueryCredentials,
+  BigQueryManagedCredentials,
   BigQueryServiceAccountCredentialsSchema,
   BigQueryOAuthCredentials,
 } from './bigquery/schemas/bigquery-credentials.schema';
@@ -31,11 +33,22 @@ export function isBigQueryOAuthCredentials(
   );
 }
 
+export function isBigQueryManagedCredentials(
+  credentials: unknown
+): credentials is BigQueryManagedCredentials {
+  return (
+    typeof credentials === 'object' &&
+    credentials !== null &&
+    (credentials as { type?: string }).type === BIGQUERY_MANAGED_TYPE
+  );
+}
+
 export function isBigQueryCredentials(
   credentials: unknown
 ): credentials is BigQueryCredentials | BigQueryOAuthCredentials {
   return (
     isBigQueryOAuthCredentials(credentials) ||
+    isBigQueryManagedCredentials(credentials) ||
     BigQueryServiceAccountCredentialsSchema.safeParse(credentials).success
   );
 }

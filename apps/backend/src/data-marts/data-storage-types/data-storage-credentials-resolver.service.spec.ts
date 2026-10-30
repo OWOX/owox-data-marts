@@ -62,7 +62,10 @@ describe('DataStorageCredentialsResolver', () => {
     resolver = new DataStorageCredentialsResolver(
       storageRepo as unknown as Repository<DataStorage>,
       facade as unknown as StorageCredentialBindingService,
-      legacy
+      legacy,
+      { findByStorageId: jest.fn().mockResolvedValue(null) } as never,
+      {} as never,
+      {} as never
     );
   });
 

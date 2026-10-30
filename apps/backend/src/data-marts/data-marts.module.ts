@@ -131,6 +131,7 @@ import { DataMartTechnicalOwner } from './entities/data-mart-technical-owner.ent
 import { StorageOwner } from './entities/storage-owner.entity';
 import { ManagedStorage } from './entities/managed-storage.entity';
 import { ManagedStorageService } from './owox-storage/managed-storage.service';
+import { OwoxStorageIdentity } from './owox-storage/owox-storage-identity.service';
 import { DestinationOwner } from './entities/destination-owner.entity';
 import { ReportOwner } from './entities/report-owner.entity';
 import { DataStorage } from './entities/data-storage.entity';
@@ -697,6 +698,7 @@ import { McpCredentialsFacadeImpl } from './credentials/facades/mcp-credentials.
       useClass: McpStorageManagementFacadeImpl,
     },
     ManagedStorageService,
+    OwoxStorageIdentity,
     CredentialConsumerBindingFacadeImpl,
     {
       provide: CREDENTIAL_CONSUMER_BINDING_FACADE,
