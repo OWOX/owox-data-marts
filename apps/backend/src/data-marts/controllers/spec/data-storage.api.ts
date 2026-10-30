@@ -9,6 +9,7 @@ import {
   ApiResponse,
 } from '@nestjs/swagger';
 import { CreateDataStorageApiDto } from '../../dto/presentation/create-data-storage-api.dto';
+import { CreateOwoxStorageApiDto } from '../../dto/presentation/create-owox-storage-api.dto';
 import { DataStorageAccessValidationResponseApiDto } from '../../dto/presentation/data-storage-access-validation-response-api.dto';
 import { DataStorageListResponseApiDto } from '../../dto/presentation/data-storage-list-response-api.dto';
 import { DataStorageResponseApiDto } from '../../dto/presentation/data-storage-response-api.dto';
@@ -33,6 +34,20 @@ export function CreateDataStorageSpec() {
     ApiOperation({ summary: 'Create a new Data Storage' }),
     ApiBody({ type: CreateDataStorageApiDto }),
     ApiResponse({ status: 201, type: DataStorageResponseApiDto })
+  );
+}
+
+export function CreateOwoxStorageSpec() {
+  return applyDecorators(
+    ApiOperation({ summary: 'Create an OWOX Storage (OWOX-hosted BigQuery)' }),
+    ApiBody({ type: CreateOwoxStorageApiDto }),
+    ApiResponse({ status: 201, type: DataStorageResponseApiDto }),
+    ApiResponse({
+      status: 400,
+      description:
+        'OWOX Storage is not available, the subscription is unpaid, or the project already has one',
+    }),
+    ApiResponse({ status: 403, description: 'A plugin-authenticated request' })
   );
 }
 

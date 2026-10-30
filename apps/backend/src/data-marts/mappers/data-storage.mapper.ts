@@ -8,6 +8,8 @@ import {
 } from '../data-storage-types/enums/data-storage-type.enum';
 import { ValidationResult } from '../data-storage-types/interfaces/data-storage-access-validator.interface';
 import { CreateDataStorageCommand } from '../dto/domain/create-data-storage.command';
+import { CreateOwoxStorageCommand } from '../dto/domain/create-owox-storage.command';
+import { CreateOwoxStorageApiDto } from '../dto/presentation/create-owox-storage-api.dto';
 import { DataStorageDto } from '../dto/domain/data-storage.dto';
 import { DeleteDataStorageCommand } from '../dto/domain/delete-data-storage.command';
 import { GetDataStorageCommand } from '../dto/domain/get-data-storage.command';
@@ -47,6 +49,20 @@ export class DataStorageMapper {
     dto: CreateDataStorageApiDto
   ): CreateDataStorageCommand {
     return new CreateDataStorageCommand(context.projectId, dto.type, context.userId, dto.ownerIds);
+  }
+
+  toCreateOwoxStorageCommand(
+    context: AuthorizationContext,
+    dto: CreateOwoxStorageApiDto
+  ): CreateOwoxStorageCommand {
+    return new CreateOwoxStorageCommand(
+      context.projectId,
+      dto.title,
+      dto.location,
+      context.userId,
+      context.authFlow === 'plugin',
+      dto.ownerIds
+    );
   }
 
   toUpdateCommand(
