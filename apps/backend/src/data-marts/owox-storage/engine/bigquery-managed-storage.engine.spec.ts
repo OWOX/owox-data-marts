@@ -1,4 +1,4 @@
-import { Logger } from '@nestjs/common';
+import { Logger, NotFoundException } from '@nestjs/common';
 import { OwoxStorageProvisioningException } from '../owox-storage.exceptions';
 import { BigQueryManagedStorageEngine } from './bigquery-managed-storage.engine';
 import type { GcpProvisioningClient } from './gcp-provisioning.client';
@@ -26,9 +26,23 @@ function setup() {
   const config = {
     getSettings: () => ({ gcpProjectId: 'data-project', serviceAccountProjectId: 'sa-project' }),
   };
+  const del = jest.fn().mockResolvedValue(undefined);
+  const table = jest.fn(() => ({ delete: del }));
+  const dataset = jest.fn(() => ({ table }));
+  const query = jest.fn().mockResolvedValue([
+    [
+      { table_id: 'holidays', size_bytes: '225', row_count: '8' },
+      { table_id: 'sales', size_bytes: '0', row_count: '0' },
+    ],
+  ]);
+  const identity = {
+    bigQuery: jest.fn(() => ({ query })),
+    bigQueryAs: jest.fn(() => Promise.resolve({ dataset })),
+  };
   const engine = new BigQueryManagedStorageEngine(
     config as never,
-    client as unknown as GcpProvisioningClient
+    client as unknown as GcpProvisioningClient,
+    identity as never
   );
   const sleeps: number[] = [];
   engine.sleep = ms => {
@@ -36,7 +50,7 @@ function setup() {
     return Promise.resolve();
   };
   engine.newShortId = () => 'abcdef012345';
-  return { engine, client, calls, sleeps };
+  return { engine, client, calls, sleeps, identity, query, dataset, table, del };
 }
 
 describe('BigQueryManagedStorageEngine', () => {
@@ -87,9 +101,9 @@ describe('BigQueryManagedStorageEngine', () => {
   });
 
   it('generates a 12-character hex short id by default', () => {
-    expect(new BigQueryManagedStorageEngine({} as never, {} as never).newShortId()).toMatch(
-      /^[0-9a-f]{12}$/
-    );
+    expect(
+      new BigQueryManagedStorageEngine({} as never, {} as never, {} as never).newShortId()
+    ).toMatch(/^[0-9a-f]{12}$/);
   });
 
   const DS = ['deleteDataset:owox_abcdef012345_internal', 'deleteDataset:owox_abcdef012345'];
@@ -260,5 +274,55 @@ describe('BigQueryManagedStorageEngine', () => {
     expect(client.deleteDataset).toHaveBeenCalledTimes(2);
     expect(String(log.mock.calls[0][0])).toContain('revokeProjectRole');
     log.mockRestore();
+  });
+
+  describe('tables', () => {
+    const target = {
+      engine: 'bigquery' as const,
+      gcpProjectId: 'owox-gcp',
+      location: 'US' as const,
+      datasetId: 'owox_abc',
+      internalDatasetId: 'owox_abc_internal',
+      serviceAccountEmail: 'owox-st-abc@sa-project.iam.gserviceaccount.com',
+    };
+
+    it("lists tables as ODM's identity", async () => {
+      const { engine, identity, query } = setup();
+      const tables = await engine.listTables(target);
+
+      expect(identity.bigQuery).toHaveBeenCalledWith('owox-gcp', 'US');
+      expect(query).toHaveBeenCalledWith({
+        query: expect.stringContaining('`owox-gcp.owox_abc.__TABLES__`'),
+      });
+      expect(identity.bigQueryAs).not.toHaveBeenCalled();
+      expect(tables).toEqual([
+        { name: 'holidays', sizeBytes: 225, rowCount: 8 },
+        { name: 'sales', sizeBytes: 0, rowCount: 0 },
+      ]);
+    });
+
+    it("drops a listed table as the storage's account", async () => {
+      const { engine, identity, dataset, table, del } = setup();
+      await engine.dropTable(target, 'holidays');
+
+      expect(identity.bigQueryAs).toHaveBeenCalledWith(
+        target.serviceAccountEmail,
+        'owox-gcp',
+        'US'
+      );
+      expect(dataset).toHaveBeenCalledWith('owox_abc');
+      expect(table).toHaveBeenCalledWith('holidays');
+      expect(del).toHaveBeenCalledTimes(1);
+    });
+
+    it.each(['other', 'owox_other.t', '../owox_abc_internal', 'x/../../datasets/y'])(
+      'refuses a name outside the dataset: %s',
+      async name => {
+        const { engine, identity, del } = setup();
+        await expect(engine.dropTable(target, name)).rejects.toBeInstanceOf(NotFoundException);
+        expect(identity.bigQueryAs).not.toHaveBeenCalled();
+        expect(del).not.toHaveBeenCalled();
+      }
+    );
   });
 });
