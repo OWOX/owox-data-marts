@@ -35,6 +35,10 @@ function buildAdAnalyticsByGeoFields(geoField) {
       ([name]) => !AD_ANALYTICS_FIELDS_NOT_IN_GEO_BREAKDOWN.includes(name)
     )
   );
+  // One partition column per table: dateRangeStart. adAnalyticsFields flags both dates, and
+  // with two flags the column BigQuery partitions by depends on the order fields are selected.
+  const dateRangeEnd = { ...adAnalyticsFields.dateRangeEnd };
+  delete dateRangeEnd.GoogleBigQueryPartitioned;
 
   return {
     account: {
@@ -59,5 +63,6 @@ function buildAdAnalyticsByGeoFields(geoField) {
       type: DATA_TYPES.STRING,
     },
     ...metrics,
+    dateRangeEnd,
   };
 }

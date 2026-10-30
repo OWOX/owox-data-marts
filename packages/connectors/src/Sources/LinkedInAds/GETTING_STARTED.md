@@ -89,7 +89,7 @@ LinkedIn reports one location level at a time, so country, region, and county ar
 What to expect from these endpoints:
 
 - **More API requests than Ad Analytics.** LinkedIn breaks location down only for one campaign at a time. For every day, the connector first reads which campaigns ran, then asks for each of those campaigns separately. LinkedIn returns up to 18 metrics per request, so every further 18 selected metrics add one more request per campaign.
-- **Totals can be lower than in Ad Analytics.** LinkedIn drops a location with fewer than 3 events, returns at most the top 100 locations for each ad on each day, and returns location data only for ads that reached enough members, to protect member privacy. Rows LinkedIn returns without a location are not imported, and the run says how many.
+- **Totals can be lower than in Ad Analytics.** LinkedIn drops a location with fewer than 3 events, returns at most the top 100 locations for each ad on each day, and returns location data only for ads that reached enough members, to protect member privacy. Rows LinkedIn returns without a location or a date are not imported, and the run says how many.
 - **Data arrives 12–24 hours late.** The default **Reimport Lookback Window** of 2 days re-imports those days on the next run.
 - **Two years of history.** LinkedIn keeps location breakdowns for two years, so a backfill further back returns no rows.
 - **Some metrics are missing.** LinkedIn does not break down `approximateMemberReach`, `audiencePenetration`, `conversionValueInLocalCurrency`, or the carousel card metrics by location, so these endpoints do not offer them.
@@ -97,7 +97,8 @@ What to expect from these endpoints:
 Location names:
 
 - If LinkedIn returns no name for a location, its name column stays empty, and the run finishes with a **Warning** status that lists those locations.
-- If LinkedIn refuses the name lookup, the run imports the metrics and the location URNs, leaves every name empty, and finishes with a **Warning** status.
+- If LinkedIn does not allow the name lookup for your app, the run imports the metrics and the location URNs, leaves every name empty, and finishes with a **Warning** status.
+- If LinkedIn rejects the lookup for some locations, only those names stay empty, and the **Warning** lists them.
 - If the name lookup fails for a while (for example LinkedIn is overloaded), the affected days are not imported and the run fails, so the next run imports them again with their names.
 
 ### Why does my Ad Analytics run finish with a Warning status?

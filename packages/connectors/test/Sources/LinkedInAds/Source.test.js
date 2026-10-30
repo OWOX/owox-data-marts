@@ -50,6 +50,7 @@ const buildSource = ({ makeRequest, parameters = {} } = {}) => {
     GEO_NAMES_PER_REQUEST: 50,
     geoNames: new Map(),
     geoNamesUnavailable: false,
+    geoNamesRejected: false,
     geoGaps: new Map(),
     MAX_GEO_URNS_IN_WARNING: 5,
     fieldsSchema,
@@ -351,6 +352,19 @@ describe('geo breakdown nodes', () => {
     }
   });
 
+  /**
+   * With two flagged fields, the column BigQuery partitions by depends on the order the
+   * fields are selected in.
+   */
+  it.each(GEO_NODES)('%s partitions by dateRangeStart only', node => {
+    const flagged = Object.entries(fieldsSchema[node].fields)
+      .filter(([, field]) => field.GoogleBigQueryPartitioned)
+      .map(([name]) => name);
+
+    expect(flagged).toEqual(['dateRangeStart']);
+    expect(globalThis.adAnalyticsFields.dateRangeEnd.GoogleBigQueryPartitioned).toBe(true);
+  });
+
   it('writes each breakdown to its own table', () => {
     const destinations = GEO_NODES.map(([node]) => fieldsSchema[node].destinationName);
 
@@ -389,7 +403,12 @@ describe('fetchAdAnalyticsByGeo', () => {
       const day = Number(/start:\(year:\d+,month:\d+,day:(\d+)\)/.exec(url)?.[1]);
 
       if (url.includes('adTargetingEntities')) {
-        if (namesError) throw namesError;
+        if (typeof namesError === 'function') {
+          const error = namesError(decoded);
+          if (error) throw error;
+        } else if (namesError) {
+          throw namesError;
+        }
         return {
           elements: Object.entries(names)
             .filter(([urn]) => decoded.includes(urn))
@@ -689,10 +708,10 @@ describe('fetchAdAnalyticsByGeo', () => {
   });
 
   /**
-   * The location is part of the unique key, and a key with an empty part never matches on
-   * reimport: such a row would be stored again on every run.
+   * The location and the day are part of the unique key, and a key with an empty part never
+   * matches on reimport: such a row would be stored again on every run.
    */
-  it('leaves out rows without a location and says how many', async () => {
+  it('leaves out rows without a location or a date and says how many', async () => {
     const { makeRequest } = buildLinkedIn({
       campaigns: [CAMPAIGN_1],
       rowsByCampaign: {
@@ -700,6 +719,7 @@ describe('fetchAdAnalyticsByGeo', () => {
           geoRow(day, US, { impressions: 10 }),
           buildRow(day, [], { impressions: 4 }),
           { dateRange: buildRow(day, []).dateRange, impressions: 1 },
+          { pivotValues: [DE], impressions: 2 },
         ],
       },
     });
@@ -710,7 +730,8 @@ describe('fetchAdAnalyticsByGeo', () => {
 
     expect(rows.map(row => row.country)).toEqual([US]);
     expect(warnings()).toEqual([
-      `LinkedIn returned 2 row(s) without a location for account ${URN}; they were not imported`,
+      `LinkedIn returned 3 row(s) without a location or a date for account ${URN}; ` +
+        'they were not imported',
     ]);
   });
 
@@ -728,7 +749,111 @@ describe('fetchAdAnalyticsByGeo', () => {
 
     const truncation = warnings().filter(message => message.includes('element limit'));
     expect(truncation).toHaveLength(1);
+    expect(truncation[0]).toContain(`adAnalyticsByCountry responses for account ${URN}`);
     expect(truncation[0]).toContain('on 1 day(s): 2026-08-01;');
+  });
+
+  /**
+   * A 400 says something about what one batch asked, not about the lookup as a whole: the
+   * other batches are still asked, and only the rejected locations stay unnamed.
+   */
+  it('keeps asking for names after one batch is rejected, warning once', async () => {
+    const geoUrns = Array.from({ length: 4 }, (_, i) => `urn:li:geo:${i + 1}`);
+    const rejection = Object.assign(new Error('HTTP 400: Invalid URN'), { statusCode: 400 });
+    const { makeRequest, requests } = buildLinkedIn({
+      campaigns: [CAMPAIGN_1],
+      rowsByCampaign: { [CAMPAIGN_1]: day => geoUrns.map(urn => geoRow(day, urn, {})) },
+      names: Object.fromEntries(geoUrns.map(urn => [urn, `Name of ${urn}`])),
+      namesError: decoded => (decoded.includes('urn:li:geo:1,') ? rejection : null),
+    });
+    const { self, warnings } = buildSource({ makeRequest });
+    self.GEO_NAMES_PER_REQUEST = 2;
+
+    const rows = await fetchGeoDay(self, 1);
+    sourceProto.onAccountComplete.call(self, { id: URN });
+
+    expect(requests.filter(url => url.includes('adTargetingEntities'))).toHaveLength(2);
+    expect(rows.map(row => row.countryName)).toEqual([
+      null,
+      null,
+      'Name of urn:li:geo:3',
+      'Name of urn:li:geo:4',
+    ]);
+    expect(warnings()).toEqual([
+      'LinkedIn rejected a location name lookup (HTTP 400: Invalid URN); the locations it ' +
+        'asked for are left unnamed',
+      `LinkedIn returned no name for 2 location(s) of account ${URN}: urn:li:geo:1, ` +
+        'urn:li:geo:2; their name column is left empty',
+    ]);
+  });
+
+  it('reads the next page of names when LinkedIn pages the answer', async () => {
+    const pages = [
+      {
+        elements: [{ urn: US, name: 'United States' }],
+        paging: { start: 0, count: 1, links: [{ rel: 'next', href: '/rest/next' }] },
+      },
+      { elements: [{ urn: DE, name: 'Germany' }], paging: { start: 1, count: 1, links: [] } },
+    ];
+    const linkedIn = buildLinkedIn();
+    const nameRequests = [];
+    const makeRequest = vi.fn(async url => {
+      if (!url.includes('adTargetingEntities')) return linkedIn.makeRequest(url);
+      nameRequests.push(url);
+      return pages[nameRequests.length - 1];
+    });
+    const { self, warnings } = buildSource({ makeRequest });
+
+    const rows = await fetchGeoDay(self, 1);
+    sourceProto.onAccountComplete.call(self, { id: URN });
+
+    expect(nameRequests).toHaveLength(2);
+    expect(nameRequests[1]).toBe(`${nameRequests[0]}&start=1`);
+    expect(rows.map(row => row.countryName)).toEqual(['United States', 'United States', 'Germany']);
+    expect(warnings()).toHaveLength(0);
+  });
+
+  it('takes an empty name for no name, and lists it', async () => {
+    const { makeRequest } = buildLinkedIn({ names: { [US]: 'United States', [DE]: '' } });
+    const { self, warnings } = buildSource({ makeRequest });
+
+    const rows = await fetchGeoDay(self, 1);
+    sourceProto.onAccountComplete.call(self, { id: URN });
+
+    expect(rows.find(row => row.country === DE).countryName).toBeNull();
+    expect(warnings()[0]).toContain(`no name for 1 location(s) of account ${URN}: ${DE};`);
+  });
+
+  /**
+   * The engine skips onAccountComplete for an account with an issue, so the days it imported
+   * before failing would otherwise never be reported.
+   */
+  it('reports what an account gathered before it failed', async () => {
+    const { makeRequest } = buildLinkedIn({ names: { [US]: 'United States' } });
+    const { self, warnings } = buildSource({ makeRequest });
+
+    await fetchGeoDay(self, 1);
+    sourceProto.onAccountError.call(self, { id: URN }, new Error('HTTP 429'));
+    sourceProto.onAccountError.call(self, { id: URN }, new Error('HTTP 429'));
+
+    expect(warnings()).toEqual([
+      `LinkedIn returned no name for 1 location(s) of account ${URN}: ${DE}; ` +
+        'their name column is left empty',
+    ]);
+  });
+
+  it('records a cut-short campaign list as a truncated day of the node', async () => {
+    const campaigns = Array.from({ length: 15000 }, (_, i) => `urn:li:sponsoredCampaign:${i}`);
+    const { makeRequest } = buildLinkedIn({ campaigns, rowsByCampaign: {} });
+    const { self, warnings } = buildSource({ makeRequest });
+
+    await fetchGeoDay(self, 1, 'adAnalyticsByRegion');
+    sourceProto.onAccountComplete.call(self, { id: URN });
+
+    expect(warnings()).toEqual([
+      `adAnalyticsByRegion responses for account ${URN} reached LinkedIn's 15000-element ` +
+        'limit on 1 day(s): 2026-08-01; data for those days may be incomplete',
+    ]);
   });
 
   it('is what fetchData runs for a geo node', async () => {
