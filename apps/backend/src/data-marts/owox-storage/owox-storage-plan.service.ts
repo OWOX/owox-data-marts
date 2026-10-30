@@ -6,15 +6,15 @@ import { InternalProjectBillingService } from '../services/project-billing/inter
 
 const CACHE_TTL_MS = 60_000;
 
-/** The subscription plan of a project, as OWOX Storage limits see it. */
+/** The subscription plan of a project, or null when billing cannot be read. */
 @Injectable()
 export class OwoxStoragePlanService {
   private readonly logger = new Logger(OwoxStoragePlanService.name);
-  private readonly plans = new Map<string, { value: ProjectPlanType; expiresAt: number }>();
+  private readonly plans = new Map<string, { value: ProjectPlanType | null; expiresAt: number }>();
 
   constructor(private readonly moduleRef: ModuleRef) {}
 
-  async planFor(projectId: string): Promise<ProjectPlanType> {
+  async planFor(projectId: string): Promise<ProjectPlanType | null> {
     const hit = this.plans.get(projectId);
     if (hit && hit.expiresAt > Date.now()) return hit.value;
     const value = await this.readPlan(projectId);
@@ -22,17 +22,16 @@ export class OwoxStoragePlanService {
     return value;
   }
 
-  private async readPlan(projectId: string): Promise<ProjectPlanType> {
+  private async readPlan(projectId: string): Promise<ProjectPlanType | null> {
     try {
       // Lazy: billing -> connectors -> data marts -> credentials resolver is a provider cycle.
       const billing = this.moduleRef.get(InternalProjectBillingService);
       return (await billing.getBalance(projectId)).subscriptionPlanType;
     } catch (error) {
-      // A billing outage must not stop every query or load; the lower limit is the safe side.
       this.logger.warn(
-        `Using the FREE plan limits of OWOX Storage for project ${projectId}: ${describeGoogleError(error)}`
+        `Could not read the plan of project ${projectId} for OWOX Storage: ${describeGoogleError(error)}`
       );
-      return ProjectPlanType.FREE;
+      return null;
     }
   }
 }

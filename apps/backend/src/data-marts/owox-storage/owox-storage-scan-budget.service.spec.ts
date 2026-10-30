@@ -99,8 +99,8 @@ describe('OwoxStorageScanBudgetService', () => {
     await expect(service.forStorage(record).remainingBytes()).resolves.toBe(10 * GIB);
   });
 
-  it('uses the FREE limit when the plan service answers FREE', async () => {
-    plan(ProjectPlanType.FREE);
+  it('uses the FREE limit when the plan cannot be read', async () => {
+    plans.planFor.mockResolvedValue(null);
 
     await expect(service.forStorage(record).remainingBytes()).resolves.toBe(10 * GIB);
   });
