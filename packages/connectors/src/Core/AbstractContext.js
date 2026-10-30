@@ -28,7 +28,14 @@ const STORAGE_WIRED_PARAMETERS = new Set([
   'DestinationTableNameOverride',
   'DatabasePath',
   'DestinationSchemaName',
+  'DestinationDatasetID',
+  'DestinationDatasetName',
+  'DestinationProjectID',
+  'ProjectID',
 ]);
+
+// Set only by the host: a Data Mart's configuration must never pick the account a run acts as.
+const HOST_ONLY_PARAMETERS = new Set(['ImpersonateServiceAccount', 'DestinationDatasetExists']);
 
 export class AbstractContext {
   constructor({ source, storage, runConfig, env, keyParameters }) {
@@ -311,6 +318,7 @@ export class AbstractContext {
    * destination, which the storage config holds.
    */
   getParameter(name) {
+    if (HOST_ONLY_PARAMETERS.has(name)) return this.storageConfig[name] ?? null;
     if (STORAGE_WIRED_PARAMETERS.has(name) && this.storageConfig[name] !== undefined) {
       return this.storageConfig[name];
     }
