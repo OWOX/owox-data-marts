@@ -23,6 +23,10 @@ export class ProjectOperationBlockedException extends BusinessViolationException
       message +=
         ' Report Runs require an active OWOX Data Marts Cloud license. Open https://app.owox.com and create a managed license key in Project Settings, then set it as LICENSE_KEY to enable execution.';
     }
+    if (blockedReasons.includes(ProjectBlockedReason.OWOX_STORAGE_FULL)) {
+      message +=
+        " This project's OWOX Storage has reached its size limit. Delete tables in the storage or upgrade the plan to load more data.";
+    }
     message = message.trim();
 
     if (message.length === 0) {

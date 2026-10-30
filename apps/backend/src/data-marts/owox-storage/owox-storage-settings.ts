@@ -7,6 +7,8 @@ export interface OwoxStorageSettings {
   serviceAccountProjectId: string;
   freeQueryLimitBytesPerDay: number;
   paidQueryLimitBytesPerDay: number;
+  freeStorageLimitBytes: number;
+  paidIncludedStorageBytes: number;
 }
 
 const GIB = 2 ** 30;
@@ -46,5 +48,7 @@ export function readOwoxStorageSettings(env: Record<string, unknown>): OwoxStora
     serviceAccountProjectId: read('OWOX_STORAGE_SERVICE_ACCOUNT_PROJECT_ID') ?? gcpProjectId,
     freeQueryLimitBytesPerDay: limitGib('OWOX_STORAGE_FREE_QUERY_LIMIT_GIB_PER_DAY', 10) * GIB,
     paidQueryLimitBytesPerDay: limitGib('OWOX_STORAGE_PAID_QUERY_LIMIT_GIB_PER_DAY', 100) * GIB,
+    freeStorageLimitBytes: limitGib('OWOX_STORAGE_FREE_STORAGE_LIMIT_GIB', 1) * GIB,
+    paidIncludedStorageBytes: limitGib('OWOX_STORAGE_PAID_INCLUDED_STORAGE_GIB', 10) * GIB,
   };
 }
