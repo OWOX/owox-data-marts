@@ -6,6 +6,8 @@ import { useUrlParam, useProjectRoute } from '../../../../../shared/hooks';
 import { DataStorageConfigSheet } from '../../../edit';
 import { DataStorageType } from '../../../shared';
 import { DataStorageTypeDialog } from '../../../shared/components/DataStorageTypeDialog.tsx';
+import { OwoxStorageCreateDialog } from '../../../shared/components/OwoxStorageCreateDialog.tsx';
+import type { DataStorage } from '../../../shared/model/types/data-storage.ts';
 import { useDataStorage } from '../../../shared/model/hooks/useDataStorage.ts';
 import { usePublishDraftsTrigger } from '../../../shared/hooks/usePublishDraftsTrigger.ts';
 import { DataStorageDetailsDialog } from '../DataStorageDetailsDialog';
@@ -25,6 +27,7 @@ export const DataStorageList = ({
   onTypeDialogClose,
 }: DataStorageListProps) => {
   const [isTypeDialogOpen, setIsTypeDialogOpen] = useState(initialTypeDialogOpen);
+  const [isOwoxCreateOpen, setIsOwoxCreateOpen] = useState(false);
   const [isCreatingDataStorage, setIsCreatingDataStorage] = useState(false);
 
   const {
@@ -111,6 +114,10 @@ export const DataStorageList = ({
     } catch (error) {
       console.error('Failed to create storage:', error);
     }
+  };
+
+  const handleOwoxStorageCreated = async (storage: DataStorage) => {
+    await handleEdit(storage.id);
   };
 
   const handleViewDetails = (id: string) => {
@@ -264,6 +271,18 @@ export const DataStorageList = ({
         onClose={handleTypeDialogClose}
         onSelect={handleCreateNewStorage}
         isCreatingDataStorage={isCreatingDataStorage}
+        onSelectOwoxStorage={() => {
+          handleTypeDialogClose();
+          setIsOwoxCreateOpen(true);
+        }}
+      />
+
+      <OwoxStorageCreateDialog
+        isOpen={isOwoxCreateOpen}
+        onClose={() => {
+          setIsOwoxCreateOpen(false);
+        }}
+        onCreated={handleOwoxStorageCreated}
       />
 
       <DataStorageConfigSheet
