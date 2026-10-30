@@ -19,7 +19,10 @@ describe('DataStorageCredentialsResolver DuckDB', () => {
       { findOne: jest.fn() } as unknown as Repository<DataStorage>,
       storageCredentials as unknown as StorageCredentialBindingService,
       legacy as unknown as LegacyStorageCredentialReader,
-      new ConfigService({ DUCKDB_DATA_DIR: 'data/duck' })
+      new ConfigService({ DUCKDB_DATA_DIR: 'data/duck' }),
+      {} as never,
+      {} as never,
+      {} as never
     );
   });
 

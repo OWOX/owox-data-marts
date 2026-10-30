@@ -1,10 +1,12 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { DataStorageCredentials } from './data-storage-credentials.type';
 import {
+  BIGQUERY_MANAGED_TYPE,
   BIGQUERY_OAUTH_TYPE,
+  BigQueryManagedCredentials,
   BigQueryOAuthCredentials,
 } from './bigquery/schemas/bigquery-credentials.schema';
 import { DataStorage } from '../entities/data-storage.entity';
@@ -22,6 +24,12 @@ import { StorageCredentialUnavailableException } from '../exceptions/storage-cre
 import { toAdapterCredentials } from './storage-credential-definitions';
 import { DataStorageType } from './enums/data-storage-type.enum';
 import { resolveDuckDbDatabasePath } from './duckdb/utils/duckdb-path.utils';
+import { ManagedStorageService } from '../owox-storage/managed-storage.service';
+import { OwoxStorageIdentity } from '../owox-storage/owox-storage-identity.service';
+import {
+  OWOX_STORAGE_SCAN_BUDGET,
+  type OwoxStorageScanBudgetFactory,
+} from '../owox-storage/owox-storage-scan-budget.token';
 
 @Injectable()
 export class DataStorageCredentialsResolver {
@@ -30,11 +38,16 @@ export class DataStorageCredentialsResolver {
     private readonly dataStorageRepository: Repository<DataStorage>,
     private readonly storageCredentials: StorageCredentialBindingService,
     private readonly legacy: LegacyStorageCredentialReader,
-    private readonly configService: ConfigService
+    private readonly configService: ConfigService,
+    private readonly managedStorages: ManagedStorageService,
+    private readonly identity: OwoxStorageIdentity,
+    @Inject(OWOX_STORAGE_SCAN_BUDGET)
+    private readonly scanBudgets: OwoxStorageScanBudgetFactory
   ) {}
 
   /** True when the Storage has a bound Credential or an old credentials row. */
   async hasCredentials(storage: DataStorage): Promise<boolean> {
+    if (await this.managedStorages.findByStorageId(storage.id)) return true;
     if (this.legacy.hasOldKey(storage)) return true;
     const bound = await this.storageCredentials.findBoundStorageIds(storage.projectId, [
       storage.id,
@@ -76,6 +89,18 @@ export class DataStorageCredentialsResolver {
     if (storage.type === DataStorageType.DUCKDB) {
       // No Credential: a DuckDB storage is its file, derived from the storage id.
       return { databasePath: resolveDuckDbDatabasePath(this.configService, storage.id) };
+    }
+    // A managed storage never reaches the Credential binding or the old key.
+    const managed = await this.managedStorages.findByStorageId(storage.id);
+    if (managed) {
+      return {
+        type: BIGQUERY_MANAGED_TYPE,
+        authClient: await this.identity.impersonate(managed.serviceAccountEmail),
+        serviceAccountEmail: managed.serviceAccountEmail,
+        datasetId: managed.datasetId,
+        internalDatasetId: managed.internalDatasetId,
+        scanBudget: this.scanBudgets.forStorage(managed),
+      } satisfies BigQueryManagedCredentials;
     }
     const bound = await this.storageCredentials.resolveForStorage(storage);
     // A bound Storage never falls back to the old row, whatever happened to its Credential.
