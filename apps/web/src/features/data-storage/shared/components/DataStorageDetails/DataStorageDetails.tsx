@@ -3,6 +3,7 @@ import { Skeleton } from '@owox/ui/components/skeleton';
 import { type DataStorage } from '../../model/types/data-storage';
 import { DataStorageTypeModel } from '../../types/data-storage-type.model';
 import { DataStorageInfo } from '../DataStorageInfo';
+import { InfoRow } from '../DataStorageInfo/InfoRow';
 
 export interface DataStorageDetailsProps {
   dataStorage?: DataStorage | null;
@@ -31,7 +32,7 @@ export function DataStorageDetails({ dataStorage, isLoading = false }: DataStora
     return <div>No storage information available.</div>;
   }
 
-  const { type, config, createdAt, modifiedAt } = dataStorage;
+  const { type, config, createdAt, modifiedAt, owoxStorage } = dataStorage;
 
   return (
     <div className='space-y-2'>
@@ -44,7 +45,7 @@ export function DataStorageDetails({ dataStorage, isLoading = false }: DataStora
               return (
                 <>
                   <Icon />
-                  {displayName}
+                  {owoxStorage ? 'OWOX Storage' : displayName}
                 </>
               );
             })()}
@@ -52,7 +53,17 @@ export function DataStorageDetails({ dataStorage, isLoading = false }: DataStora
         </div>
 
         <div className='bg-muted/10 rounded-md border p-4'>
-          <DataStorageInfo type={type} config={config} />
+          {owoxStorage ? (
+            <div className='space-y-1'>
+              <h4 className='text-sm font-medium'>Configuration</h4>
+              <div className='grid gap-2'>
+                <InfoRow label='Location' value={owoxStorage.location} />
+                <InfoRow label='Dataset' value={owoxStorage.datasetId} />
+              </div>
+            </div>
+          ) : (
+            <DataStorageInfo type={type} config={config} />
+          )}
         </div>
 
         <div className='text-muted-foreground flex gap-6 text-xs'>
