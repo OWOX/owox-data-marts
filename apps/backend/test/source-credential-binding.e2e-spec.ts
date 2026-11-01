@@ -409,6 +409,58 @@ describe('Selecting Source credentials in a Data Mart definition (e2e)', () => {
     expect(stored).toEqual({ _id: configId, AuthType: { oauth2: {} } });
   });
 
+  it("a save that keeps a binding keeps the configuration's public key values; another Credential takes them away", async () => {
+    const shopify = (title: string) =>
+      createCredential(app, {
+        projectId: '0',
+        definitionId: 'source:Shopify:default',
+        title,
+        secret: { fields: { AccessToken: 'shpat_e2e_inline' } },
+        publicMetadata: { fields: { ShopDomain: 'acme.myshopify.com' } },
+        ownerIds: ['0'],
+        contextIds: [],
+      });
+    const first = await shopify('Shopify one');
+    const dataMartId = await givenDataMart();
+    const saved = await put(dataMartId, [{ _credential_id: first }], AUTH_HEADER, {}, 'Shopify');
+    expect(saved.status).toBe(200);
+    const [{ _id: configId }] = configurationOf(saved.body);
+    // A converted configuration still holds its public values until its first save.
+    const [stored] = await storedConfiguration(dataMartId);
+    const definition = {
+      connector: {
+        source: {
+          name: 'Shopify',
+          configuration: [{ ...stored, ShopDomain: 'acme.myshopify.com' }],
+        },
+      },
+    };
+    await dataSource.query('UPDATE data_mart SET definition = ? WHERE id = ?', [
+      JSON.stringify(definition),
+      dataMartId,
+    ]);
+    const keep = { _id: configId, _credential_id: first };
+
+    for (let save = 0; save < 2; save++) {
+      await put(dataMartId, [keep], AUTH_HEADER, {}, 'Shopify').expect(200);
+      expect(await storedConfiguration(dataMartId)).toEqual([
+        { _id: configId, ShopDomain: 'acme.myshopify.com' },
+      ]);
+    }
+
+    const other = await shopify('Shopify two');
+    await put(
+      dataMartId,
+      [{ _id: configId, _credential_id: other }],
+      AUTH_HEADER,
+      {},
+      'Shopify'
+    ).expect(200);
+    const after = await storedConfiguration(dataMartId);
+    expect(after).toEqual([{ _id: configId }]);
+    expect(JSON.stringify(after)).not.toContain('shpat_e2e_inline');
+  });
+
   it('refuses a configuration sent twice in one save and stores nothing', async () => {
     const { dataMartId, configId, first } = await givenBoundBesideOldRow();
     const before = await storedConfiguration(dataMartId);

@@ -69,6 +69,7 @@ describe('UpdateDataMartDefinitionService', () => {
       extractAndSaveSecrets: jest.fn(),
       deleteOrphanedSecrets: jest.fn(),
       hasTypedSecrets: jest.fn().mockResolvedValue(false),
+      getAllSecretFieldNames: jest.fn().mockResolvedValue(new Set()),
     };
     const legacyDataMartsService = {
       updateQuery: jest.fn(),
@@ -1214,6 +1215,7 @@ describe('UpdateDataMartDefinitionService with the real ConnectorService', () =>
         async (_id: string, _projectId: string, _name: string, merged: unknown) => merged
       ),
       deleteOrphanedSecrets: jest.fn(),
+      getAllSecretFieldNames: jest.fn().mockResolvedValue(new Set()),
     };
 
     const tryResolveManifest = jest.fn();

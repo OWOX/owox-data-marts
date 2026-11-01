@@ -34,6 +34,7 @@ import {
   oldKeyIdsOf,
   withOldKeysOf,
   withoutKeyValues,
+  withoutSecretKeyValues,
   withoutOldKeys,
   type SourceKeys,
 } from '../connector-types/source-key-fields';
@@ -264,6 +265,11 @@ export class UpdateDataMartDefinitionService {
       keys,
       previous?.connector?.source?.version !== source.version
     );
+    const secretNames = await this.connectorSecretService.getAllSecretFieldNames(
+      projectId,
+      source.name,
+      source.version
+    );
     const saved = await this.connectorSecretService.extractAndSaveSecrets(
       dataMartId,
       projectId,
@@ -274,7 +280,7 @@ export class UpdateDataMartDefinitionService {
           const keepsOldKeys = bound.get(config._id as string);
           return keepsOldKeys === undefined
             ? config
-            : storedBoundConfig(config, previousItems, keys.fields, keepsOldKeys);
+            : storedBoundConfig(config, previousItems, keys.fields, keepsOldKeys, secretNames);
         })
       )
     );
@@ -425,15 +431,19 @@ function rejectStaleConfiguration(
   }
 }
 
-/** A bound configuration as stored: no Credential id or key values; old key refs only if kept. */
+/** A bound configuration as stored: no Credential id or secret values; public values and old key refs only if kept. */
 function storedBoundConfig(
   config: Config,
   previousItems: readonly Config[],
   keyFields: SourceKeys['fields'],
-  keepsOldKeys: boolean
+  keepsOldKeys: boolean,
+  secretNames: ReadonlySet<string>
 ): Config {
   const { _credential_id: _selected, ...rest } = config;
-  const stored = withoutKeyValues(rest, keyFields);
+  // A kept binding keeps the public key values the previous release's form still reads.
+  const stored = keepsOldKeys
+    ? withoutSecretKeyValues(rest, previousOf(config, previousItems), keyFields, secretNames)
+    : withoutKeyValues(rest, keyFields);
   // A rebound configuration must not lead a run to the old row of another sign-in.
   return keepsOldKeys
     ? withOldKeysOf(stored, previousOf(config, previousItems))
