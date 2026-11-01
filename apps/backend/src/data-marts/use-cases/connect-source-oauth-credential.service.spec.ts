@@ -379,6 +379,7 @@ describe('ConnectSourceOAuthCredentialService', () => {
 describe('ConnectSourceOAuthCredentialService reconnect on real persistence', () => {
   let dataSource: DataSource;
   let repository: Repository<Credential>;
+  let lock: jest.SpyInstance;
 
   beforeAll(async () => {
     dataSource = new DataSource({
@@ -431,10 +432,12 @@ describe('ConnectSourceOAuthCredentialService reconnect on real persistence', ()
       inExchange,
       afterRead,
       userId = '42',
+      canEdit = () => true,
     }: {
       inExchange?: () => Promise<unknown>;
       afterRead?: () => Promise<unknown>;
       userId?: string;
+      canEdit?: () => boolean;
     } = {}
   ) {
     const connectors = new ConnectorService({} as never, {} as never);
@@ -461,11 +464,12 @@ describe('ConnectSourceOAuthCredentialService reconnect on real persistence', ()
       {} as never,
       {} as never
     );
+    lock = jest.spyOn(credentials, 'lockActiveByIdAndProjectId');
     const service = new ConnectSourceOAuthCredentialService(
       connectors,
       credentials,
       new CredentialDefinitionService({} as never, {} as never),
-      { canAccess: jest.fn().mockResolvedValue(true) } as never
+      { canAccess: jest.fn(() => Promise.resolve(canEdit())) } as never
     );
     return service.run(context, 'GoogleAds', {
       fieldPath: 'AuthType.oauth2',
@@ -492,6 +496,33 @@ describe('ConnectSourceOAuthCredentialService reconnect on real persistence', ()
       connection: { account: { id: '42' }, expiresAt: '2030-01-01T00:00:00.000Z' },
     });
     expect(stored.validationState).toBe('verified');
+  });
+
+  it('reads the Credential under its lock', async () => {
+    const id = await given();
+
+    await reconnect(id);
+
+    expect(lock).toHaveBeenCalledWith(id, 'project-1');
+  });
+
+  it('refuses with 403 when EDIT is revoked during the exchange and writes nothing', async () => {
+    const id = await given();
+    let revoked = false;
+
+    await expect(
+      reconnect(id, {
+        inExchange: () => Promise.resolve((revoked = true)),
+        canEdit: () => !revoked,
+      })
+    ).rejects.toThrow(
+      new ForbiddenException('You do not have permission to reconnect this Credential')
+    );
+
+    const stored = await repository.findOneByOrFail({ id });
+    expect(stored.secret).toEqual({
+      fields: { RefreshToken: 'old', ClientSecret: 'old', DeveloperToken: 'old' },
+    });
   });
 
   it('keeps sharing turned off during the exchange', async () => {

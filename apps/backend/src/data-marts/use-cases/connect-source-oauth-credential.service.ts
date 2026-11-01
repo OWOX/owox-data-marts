@@ -135,6 +135,8 @@ export class ConnectSourceOAuthCredentialService {
       context.projectId
     );
     if (!credential) throw new NotFoundException(`Credential ${credentialId} was not found`);
+    // EDIT may have been revoked while the exchange ran.
+    await this.assertCanEdit(context, credentialId);
     const metadata = credential.publicMetadata;
     const saved = metadata && 'connection' in metadata ? metadata.connection?.account : null;
     if (saved && account && saved.id !== account.id) {
@@ -153,6 +155,13 @@ export class ConnectSourceOAuthCredentialService {
     definitionId: string
   ): Promise<void> {
     const credential = await this.credentials.getByIdAndProjectId(credentialId, context.projectId);
+    await this.assertCanEdit(context, credentialId);
+    if (credential.definitionId !== definitionId) {
+      throw new BadRequestException('A reconnect keeps the definition of the Credential.');
+    }
+  }
+
+  private async assertCanEdit(context: AuthorizationContext, credentialId: string): Promise<void> {
     const canEdit = await this.access.canAccess(
       context.userId,
       context.roles ?? [],
@@ -163,9 +172,6 @@ export class ConnectSourceOAuthCredentialService {
     );
     if (!canEdit) {
       throw new ForbiddenException('You do not have permission to reconnect this Credential');
-    }
-    if (credential.definitionId !== definitionId) {
-      throw new BadRequestException('A reconnect keeps the definition of the Credential.');
     }
   }
 
