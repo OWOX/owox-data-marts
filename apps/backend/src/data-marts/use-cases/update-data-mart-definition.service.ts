@@ -32,7 +32,7 @@ import {
   keyValuesOf,
   oldKeyIdsOf,
   withOldKeysOf,
-  withoutKeyValues,
+  withoutSecretKeyValues,
   withoutOldKeys,
   type SourceKeyFields,
 } from '../connector-types/source-key-fields';
@@ -323,6 +323,7 @@ export class UpdateDataMartDefinitionService {
     const previousItems = (previous?.connector?.source?.configuration ?? []) as Config[];
     const kept = new Map<string, Config | undefined>();
     let fields: readonly SourceKeyFields[] | undefined;
+    let secretNames: ReadonlySet<string> | undefined;
     for (const config of configuration) {
       const id = typeof config._id === 'string' && config._id ? config._id : undefined;
       const bound = id !== undefined && live.has(id);
@@ -340,13 +341,25 @@ export class UpdateDataMartDefinitionService {
       fields ??= (
         await this.connectorService.resolveSourceKeys(projectId, source.name, source.version)
       ).fields;
+      // The names extraction treats as secret; the other key values are public and stay stored.
+      secretNames ??= await this.connectorSecretService.getAllSecretFieldNames(
+        projectId,
+        source.name,
+        source.version
+      );
       const previousItem = previousItems.find(item => item._id === id);
       if (isStaleBoundConfig(config, previousItem, fields)) {
         throw new BadRequestException(OUT_OF_DATE);
       }
       kept.set(id, previousItem);
     }
-    return { live, kept, fields: fields ?? [], switchedConnector };
+    return {
+      live,
+      kept,
+      fields: fields ?? [],
+      secretNames: secretNames ?? new Set(),
+      switchedConnector,
+    };
   }
 
   /** Deactivates the bindings of configurations the saved definition no longer has. */
@@ -458,6 +471,7 @@ interface SourceBindingsOfSave {
   /** Each bound configuration the save keeps, with its stored item. */
   readonly kept: ReadonlyMap<string, Config | undefined>;
   readonly fields: readonly SourceKeyFields[];
+  readonly secretNames: ReadonlySet<string>;
   readonly switchedConnector: boolean;
 }
 
@@ -478,17 +492,21 @@ function isStaleBoundConfig(
   );
 }
 
-/** Bound configurations as stored: no Credential id or key values, and the old key refs they held. */
+/** Bound configurations as stored: no Credential id or secret key values, public ones and old key refs kept. */
 function withStoredBoundConfigs(
   definition: ConnectorDefinition,
-  { kept, fields }: SourceBindingsOfSave
+  { kept, fields, secretNames }: SourceBindingsOfSave
 ): ConnectorDefinition {
   if (kept.size === 0) return definition;
   const configuration = (definition.connector.source.configuration as Config[]).map(config => {
     const id = config._id as string;
     if (!kept.has(id)) return config;
     const { _credential_id: _selected, ...rest } = config;
-    return withOldKeysOf(withoutOldKeys(withoutKeyValues(rest, fields)), kept.get(id));
+    const previous = kept.get(id);
+    return withOldKeysOf(
+      withoutOldKeys(withoutSecretKeyValues(rest, previous, fields, secretNames)),
+      previous
+    );
   });
   return {
     ...definition,

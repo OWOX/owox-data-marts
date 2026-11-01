@@ -49,15 +49,22 @@ describe('Bound Source configurations saved by the bridge release (e2e)', () => 
     await closeTestApp(app);
   });
 
-  const definitionOf = (configuration: ConfigItem[]) => ({
+  const definitionOf = (configuration: ConfigItem[], name = CONNECTOR) => ({
     connector: {
-      source: { name: CONNECTOR, configuration, node: 'historical', fields: ['date'] },
+      source: { name, configuration, node: 'historical', fields: ['date'] },
       storage: { fullyQualifiedName: 'test_dataset.rates' },
     },
   });
 
   /** A Data Mart whose configurations are each bound and keep an old key row, as a conversion leaves them. */
-  async function givenBoundDataMart(count = 1) {
+  async function givenBoundDataMart(
+    count = 1,
+    { name = CONNECTOR, extra = {}, oldKeys = { AppId: OLD_KEY } } = {} as {
+      name?: string;
+      extra?: ConfigItem;
+      oldKeys?: Record<string, string>;
+    }
+  ) {
     const storage = await agent
       .post('/api/data-storages')
       .set(AUTH_HEADER)
@@ -75,7 +82,7 @@ describe('Bound Source configurations saved by the bridge release (e2e)', () => 
       const configId = randomUUID();
       const oldRow = await app
         .get(ConnectorSourceCredentialsService)
-        .createSecretsForConfig('0', CONNECTOR, dataMartId, configId, { AppId: OLD_KEY });
+        .createSecretsForConfig('0', name, dataMartId, configId, oldKeys);
       await dataSource.getRepository(CredentialConsumerBinding).insert({
         consumerType: SOURCE_BINDING_CONSUMER_TYPE,
         consumerId: dataMartId,
@@ -87,20 +94,20 @@ describe('Bound Source configurations saved by the bridge release (e2e)', () => 
         configuredById: null,
         active: true,
       });
-      configuration.push({ _id: configId, _secrets_id: oldRow.id, Symbols: `EUR${i}` });
+      configuration.push({ _id: configId, _secrets_id: oldRow.id, Symbols: `EUR${i}`, ...extra });
     }
     await dataSource.query(
       "UPDATE data_mart SET definitionType = 'CONNECTOR', definition = ? WHERE id = ?",
-      [JSON.stringify(definitionOf(configuration)), dataMartId]
+      [JSON.stringify(definitionOf(configuration, name)), dataMartId]
     );
     return { dataMartId, configuration };
   }
 
-  function put(dataMartId: string, configuration: ConfigItem[]) {
+  function put(dataMartId: string, configuration: ConfigItem[], name = CONNECTOR) {
     return agent
       .put(`/api/data-marts/${dataMartId}/definition`)
       .set(AUTH_HEADER)
-      .send({ definitionType: 'CONNECTOR', definition: definitionOf(configuration) });
+      .send({ definitionType: 'CONNECTOR', definition: definitionOf(configuration, name) });
   }
 
   async function pageConfiguration(dataMartId: string): Promise<ConfigItem[]> {
@@ -144,6 +151,43 @@ describe('Bound Source configurations saved by the bridge release (e2e)', () => 
     ]);
     expect(JSON.stringify(saved.body)).not.toContain(OLD_KEY);
     expect(JSON.stringify(saved.body)).not.toContain(CREDENTIAL_KEY);
+  });
+
+  describe('a connector with a public key value', () => {
+    const SHOPIFY = 'Shopify';
+    const SHOP = 'e2e-bridge.myshopify.com';
+    const OLD_TOKEN = 'e2e_bridge_old_row_token';
+    const given = () =>
+      givenBoundDataMart(1, {
+        name: SHOPIFY,
+        extra: { ShopDomain: SHOP, Fields: 'orders id' },
+        oldKeys: { AccessToken: OLD_TOKEN },
+      });
+
+    it('keeps the shop domain through every save, and the secret out of the definition', async () => {
+      const { dataMartId, configuration } = await given();
+      const page = await pageConfiguration(dataMartId);
+      expect(page).toEqual([{ ...configuration[0], AccessToken: '**********' }]);
+
+      for (let save = 0; save < 2; save++) {
+        const saved = await put(dataMartId, await pageConfiguration(dataMartId), SHOPIFY);
+        expect(saved.status).toBe(200);
+        expect(await storedConfiguration(dataMartId)).toEqual(configuration);
+      }
+      expect(JSON.stringify(await storedConfiguration(dataMartId))).not.toContain(OLD_TOKEN);
+      expect(await bindings(dataMartId)).toHaveLength(1);
+    });
+
+    it('still refuses a changed shop domain', async () => {
+      const { dataMartId, configuration } = await given();
+      const [item] = await pageConfiguration(dataMartId);
+
+      const res = await put(dataMartId, [{ ...item, ShopDomain: 'other.myshopify.com' }], SHOPIFY);
+
+      expect(res.status).toBe(400);
+      expect(res.body.message).toBe(OUT_OF_DATE);
+      expect(await storedConfiguration(dataMartId)).toEqual(configuration);
+    });
   });
 
   it('a typed key is refused as out of date and nothing is written', async () => {

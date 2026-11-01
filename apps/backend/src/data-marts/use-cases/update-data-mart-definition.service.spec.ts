@@ -45,6 +45,7 @@ describe('UpdateDataMartDefinitionService', () => {
       mergeDefinitionSecrets: jest.fn(),
       extractAndSaveSecrets: jest.fn(),
       deleteOrphanedSecrets: jest.fn(),
+      getAllSecretFieldNames: jest.fn().mockResolvedValue(new Set()),
     };
     const legacyDataMartsService = {
       updateQuery: jest.fn(),
@@ -989,6 +990,29 @@ describe('UpdateDataMartDefinitionService', () => {
         expect(sourceCredentials.deactivateDataMart).not.toHaveBeenCalled();
       }
     );
+
+    it('keeps the public key values the stored configuration held and drops the secret ones', async () => {
+      const { service, connectorSecretService, connectorService, dataMart } = givenBound();
+      dataMart.definition.connector.source.configuration[0].Shop = 'shop.example';
+      dataMart.definition.connector.source.configuration[0].AppId = 'stored-secret';
+      connectorService.resolveSourceKeys.mockResolvedValue({
+        fields: [{ path: [], parameters: ['AppId', 'Shop'] }],
+        model: null,
+      });
+      connectorSecretService.getAllSecretFieldNames.mockResolvedValue(new Set(['AppId']));
+
+      await save(service, [
+        { _id: 'c-1', _secrets_id: 'row-1', AppId: MASK, Symbols: 'GBP' },
+        unbound,
+      ]);
+
+      expect(extractedConfiguration(connectorSecretService.extractAndSaveSecrets)[0]).toEqual({
+        _id: 'c-1',
+        _secrets_id: 'row-1',
+        Shop: 'shop.example',
+        Symbols: 'GBP',
+      });
+    });
 
     it('passes an unbound configuration next to a bound one through untouched', async () => {
       const { service, connectorSecretService } = givenBound();

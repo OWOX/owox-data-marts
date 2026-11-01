@@ -53,7 +53,7 @@ export class ConnectorSecretService {
    * @param specification Connector specification
    * @returns Set of all secret field names including nested ones
    */
-  private async getAllSecretFieldNames(
+  async getAllSecretFieldNames(
     projectId: string | undefined,
     connectorName: string,
     version?: number

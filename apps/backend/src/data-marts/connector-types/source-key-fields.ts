@@ -61,6 +61,27 @@ export function withoutKeyValues(config: Config, fields: readonly SourceKeyField
   return copy;
 }
 
+/** `withoutKeyValues`, except the non-secret values `previous` held, which are public and stay. */
+export function withoutSecretKeyValues(
+  config: Config,
+  previous: Config | undefined,
+  fields: readonly SourceKeyFields[],
+  secretNames: ReadonlySet<string>
+): Config {
+  const copy = withoutKeyValues(config, fields);
+  for (const { path, parameters } of fields) {
+    const values = objectAt(copy, path);
+    const before = objectAt(previous ?? {}, path);
+    for (const name of parameters) {
+      const value = before?.[name];
+      if (values && !secretNames.has(name) && value !== undefined && value !== null) {
+        values[name] = structuredClone(value);
+      }
+    }
+  }
+  return copy;
+}
+
 /** The `_secrets_id` and `_source_credential_id` values anywhere in the configuration. */
 export function oldKeyIdsOf(config: unknown): string[] {
   if (!isRecord(config)) return [];
