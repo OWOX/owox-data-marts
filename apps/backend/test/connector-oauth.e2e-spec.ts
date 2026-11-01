@@ -162,7 +162,7 @@ describe('Connector OAuth Settings (e2e)', () => {
       const exchanged = await agent
         .post('/api/connectors/GoogleAds/oauth/exchange')
         .set(AUTH_HEADER)
-        .send({ fieldPath: 'AuthType.oauth2', payload: { code: 'code-value' } })
+        .send({ fieldPath: 'AuthType.oauth2', payload: { code: 'code-value' }, credential: {} })
         .expect(201);
 
       expect(exchanged.body).toMatchObject({ success: true, credentialId: expect.any(String) });
@@ -210,7 +210,7 @@ describe('Connector OAuth Settings (e2e)', () => {
       const exchanged = await agent
         .post('/api/connectors/GoogleAds/oauth/exchange')
         .set(AUTH_HEADER)
-        .send({ fieldPath: 'AuthType.oauth2', payload: { code: 'code-value' } })
+        .send({ fieldPath: 'AuthType.oauth2', payload: { code: 'code-value' }, credential: {} })
         .expect(201);
 
       const credential = await agent
@@ -226,7 +226,7 @@ describe('Connector OAuth Settings (e2e)', () => {
       await agent
         .post('/api/connectors/GoogleAds/oauth/exchange')
         .set(AUTH_HEADER)
-        .send({ fieldPath: 'AuthType.oauth2', payload: { code: 'code-value' } })
+        .send({ fieldPath: 'AuthType.oauth2', payload: { code: 'code-value' }, credential: {} })
         .expect(400);
       expect(globalThis.fetch).not.toHaveBeenCalled();
     });

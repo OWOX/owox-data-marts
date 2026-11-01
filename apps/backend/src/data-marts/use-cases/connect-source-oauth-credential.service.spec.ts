@@ -102,6 +102,7 @@ describe('ConnectSourceOAuthCredentialService', () => {
     const result = await service.run(context, 'GoogleAds', {
       fieldPath: 'AuthType.oauth2',
       payload: { code: 'code-value' },
+      credential: {},
     });
 
     expect(exchangeOauth).toHaveBeenCalledWith('GoogleAds', 'AuthType.oauth2', {
@@ -166,6 +167,7 @@ describe('ConnectSourceOAuthCredentialService', () => {
     const result = await service.run(context, 'FacebookMarketing', {
       fieldPath: 'AuthType.oauth2',
       payload: { accessToken: 'short-lived-value' },
+      credential: {},
     });
 
     expect(JSON.stringify(result)).not.toContain('access-value');
@@ -216,6 +218,7 @@ describe('ConnectSourceOAuthCredentialService', () => {
     await service.run(context, 'LinkedInAds', {
       fieldPath: 'AuthType.oauth2',
       payload: { code: 'code-value' },
+      credential: {},
     });
 
     const type = sourceCredentialDefinitions().definitions.find(
@@ -315,6 +318,19 @@ describe('ConnectSourceOAuthCredentialService', () => {
     });
   });
 
+  it('refuses an exchange that sends no Credential target, before the sign-in is spent', async () => {
+    const { service, exchangeOauth, credentials } = setup();
+
+    await expect(
+      service.run(context, 'GoogleAds', {
+        fieldPath: 'AuthType.oauth2',
+        payload: { code: 'code-value' },
+      })
+    ).rejects.toThrow(new BadRequestException('This page is out of date. Reload it.'));
+    expect(exchangeOauth).not.toHaveBeenCalled();
+    expect(credentials.createWithAccess).not.toHaveBeenCalled();
+  });
+
   it('exchange refuses a fieldPath without OAUTH_FLOW', async () => {
     const { service, exchangeOauth } = setup();
 
@@ -322,6 +338,7 @@ describe('ConnectSourceOAuthCredentialService', () => {
       service.run(context, 'GoogleAds', {
         fieldPath: 'AuthType.service_account',
         payload: { code: 'code-value' },
+        credential: {},
       })
     ).rejects.toThrow(BadRequestException);
     expect(exchangeOauth).not.toHaveBeenCalled();
@@ -335,6 +352,7 @@ describe('ConnectSourceOAuthCredentialService', () => {
       service.run(context, 'GoogleAds', {
         fieldPath: 'AuthType.oauth2',
         payload: { code: 'code-value' },
+        credential: {},
       })
     ).rejects.toThrow(BadRequestException);
     expect(exchangeOauth).not.toHaveBeenCalled();
@@ -352,6 +370,7 @@ describe('ConnectSourceOAuthCredentialService', () => {
       service.run(context, 'GoogleAds', {
         fieldPath: 'AuthType.oauth2',
         payload: { code: 'code-value' },
+        credential: {},
       })
     ).rejects.toThrow(new BadRequestException('Token exchange failed: invalid_grant'));
   });

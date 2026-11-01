@@ -87,7 +87,10 @@ export function ExchangeOAuthCredentialsSpec() {
       type: ConnectorOAuthCredentialsResponseApiDto,
       description: 'The Credential was created or reconnected',
     }),
-    ApiResponse({ status: 400, description: 'Invalid OAuth credentials payload' })
+    ApiResponse({
+      status: 400,
+      description: 'Invalid OAuth credentials payload, or no `credential` target',
+    })
   );
 }
 

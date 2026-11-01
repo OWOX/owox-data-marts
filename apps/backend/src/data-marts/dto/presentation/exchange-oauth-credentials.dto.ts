@@ -65,7 +65,11 @@ export class ExchangeOAuthCredentialsDto {
   @IsObject()
   payload: Record<string, unknown>;
 
-  @ApiPropertyOptional({ type: ExchangeOAuthCredentialTargetDto })
+  @ApiPropertyOptional({
+    type: ExchangeOAuthCredentialTargetDto,
+    description:
+      'Send `{}` to create a Credential. A request without it is refused: "This page is out of date. Reload it."',
+  })
   @IsOptional()
   @ValidateNested()
   @Type(() => ExchangeOAuthCredentialTargetDto)

@@ -43,7 +43,9 @@ export class ConnectSourceOAuthCredentialService {
     connectorName: string,
     input: ExchangeOAuthCredentialsDto
   ): Promise<ConnectorOAuthExchangeResultSchema> {
-    const { fieldPath, payload, credential: target = {} } = input;
+    // The previous release's page sends no target and would store the new id as an old key row.
+    if (!input.credential) throw new BadRequestException('This page is out of date. Reload it.');
+    const { fieldPath, payload, credential: target } = input;
     const binding = sourceConnectBindingFor(connectorName, fieldPath);
     if (!binding) {
       throw new BadRequestException(`${connectorName} has no sign-in at ${fieldPath}`);
