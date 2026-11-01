@@ -63,8 +63,10 @@ saving, OWOX Data Marts checks the new values against each Storage and Destinati
 Credential where a check exists: a Storage must connect, Google Sheets must accept a service account
 key (the Drive folder is not checked), and a Google Chat webhook URL must be a Google Chat incoming
 webhook. If one of them fails, nothing is saved; the error names that Storage or Destination if you
-can see it. A changed **Access key ID** or **Username** is checked the same way. Replacing values
-needs the right to maintain the Credential, not the right to edit the Storages and Destinations that
+can see it. A changed **Access key ID** or **Username** is checked the same way. It also needs the
+stored secrets entered again, so they never follow a new identity: without them, saving answers, for
+example, "Enter Password again to change Username". Replacing values needs the right to maintain the
+Credential, not the right to edit the Storages and Destinations that
 use it. A Credential created from a Storage or Destination form is not shared: only its owners and
 Project Admins can use it until an owner shares it. Plugins cannot request these providers, except Google
 Service Account.
