@@ -4,6 +4,7 @@ import {
   applyCustomConnectorUpdate,
   applyFieldsUpdate,
   builtinFieldRule,
+  parseCustomConnectorForCreate,
   parseFieldsForCreate,
   secretFieldKeysWithValue,
 } from './credential-fields';
@@ -511,4 +512,19 @@ describe('secretFieldKeysWithValue of a custom connector', () => {
       )
     ).toEqual(['token']);
   });
+});
+
+describe('parseCustomConnectorForCreate field names', () => {
+  it.each(['generated_refresh_token', 'legacy_generated_refresh_token'])(
+    'refuses a field named %s',
+    key => {
+      expect(() =>
+        parseCustomConnectorForCreate({
+          hosts: ['a.example'],
+          fieldList: [{ key, label: 'Token', secret: false }],
+          fields: { [key]: 'value' },
+        })
+      ).toThrow(`Field ${key} uses a name reserved by the connector engine`);
+    }
+  );
 });
