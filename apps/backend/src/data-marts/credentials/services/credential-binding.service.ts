@@ -78,11 +78,13 @@ export class CredentialBindingService {
     values: { projectId: string } & ReturnType<typeof boundValues>
   ): Promise<void> {
     const key = keyOf(input);
+    // MySQL matches the key case- and accent-insensitively, so a reused row takes the spelling sent.
+    const { requirementKey } = input;
     // The unique index covers inactive rows too, so a consumer keeps reusing its one row.
     const binding = await this.bindings.findOneBy(key);
     if (binding) {
       if (binding.credentialId !== values.credentialId) binding.lastUsedAt = null;
-      await this.bindings.save(Object.assign(binding, values));
+      await this.bindings.save(Object.assign(binding, values, { requirementKey }));
       return;
     }
     try {
@@ -90,7 +92,7 @@ export class CredentialBindingService {
     } catch (error) {
       if (!isUniqueConstraintViolation(error)) throw error;
       // A concurrent first binding won the insert; an UPDATE sees its row where a re-read may not.
-      await this.bindings.update(key, { ...values, lastUsedAt: null });
+      await this.bindings.update(key, { ...values, requirementKey, lastUsedAt: null });
     }
   }
 
