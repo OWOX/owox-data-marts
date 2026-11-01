@@ -1,4 +1,4 @@
-// Imported by migrations: keep it and its imports free of Nest and runtime services.
+// Imported by migration 1793000000000: keep it and its imports free of Nest and runtime services.
 import { AvailableConnectors, Connectors, Core } from '@owox/connectors';
 import {
   CredentialDefinitionContractSchema,
