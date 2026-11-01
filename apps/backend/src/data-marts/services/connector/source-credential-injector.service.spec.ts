@@ -733,7 +733,7 @@ describe('SourceCredentialInjectorService', () => {
         expect(credentialService.claimRotation).toHaveBeenCalledTimes(1);
       });
 
-      it('a run waits for a held lease up to 60 s, a builder test up to 5 s, then both fail alike', async () => {
+      it('a run waits for a held lease up to 65 s, a builder test up to 5 s, then both fail alike', async () => {
         jest.useFakeTimers();
         const { service, credentialService } = createService();
         (credentialService.claimRotation as jest.Mock).mockResolvedValue(null);
@@ -752,7 +752,7 @@ describe('SourceCredentialInjectorService', () => {
 
         await jest.advanceTimersByTimeAsync(5_000);
         expect(settled).toEqual(['builder test']);
-        await jest.advanceTimersByTimeAsync(55_000);
+        await jest.advanceTimersByTimeAsync(60_000);
         expect(settled).toEqual(['builder test', 'run']);
       });
 

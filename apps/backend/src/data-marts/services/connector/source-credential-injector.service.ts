@@ -32,8 +32,8 @@ const { GENERATED_REFRESH_TOKEN_CREDENTIAL_FIELD, GENERATED_REFRESH_TOKEN_CONFIG
 const ROTATION_LEASE_POLL_MS = 500;
 /** How many Credentials a run follows a rebinding configuration to before it gives up. */
 const ROTATION_LEASE_ROUNDS = 3;
-/** A run waits until a held lease would go stale. */
-export const RUN_ROTATION_LEASE_WAIT_MS = ROTATION_LEASE_STALE_MS;
+/** A run waits a little past a held lease's stale time: lease times are whole seconds from the claiming pod's clock. */
+export const RUN_ROTATION_LEASE_WAIT_MS = ROTATION_LEASE_STALE_MS + 5_000;
 /** Short enough that a builder test still answers inside the web request's 30 s timeout. */
 export const BUILDER_TEST_ROTATION_LEASE_WAIT_MS = 5_000;
 export const ROTATION_LEASE_BUSY =
