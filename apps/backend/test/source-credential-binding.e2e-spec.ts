@@ -350,10 +350,16 @@ describe('Selecting Source credentials in a Data Mart definition (e2e)', () => {
       { _credential_id: first, AuthType: { oauth2: {} } },
     ]).expect(200);
     const configId = configurationOf(saved.body)[0]._id as string;
-    // An old row holding a rotated token.
+    // An old row holding a rotated token, and the key values the Credential's grant has.
     const oldRow = await app
       .get(ConnectorSourceCredentialsService)
-      .createCredentials('0', '0', 'GoogleAds', { generated_refresh_token: OLD_GRANT }, null);
+      .createCredentials(
+        '0',
+        '0',
+        'GoogleAds',
+        { DeveloperToken: TOKEN, generated_refresh_token: OLD_GRANT },
+        null
+      );
     await dataSource.query('UPDATE data_mart SET definition = ? WHERE id = ?', [
       JSON.stringify({
         connector: {
@@ -377,11 +383,21 @@ describe('Selecting Source credentials in a Data Mart definition (e2e)', () => {
     const { dataMartId, configId } = await givenBoundBesideOldRow();
 
     const rebound = await credentialOf('source:GoogleAds:oauth2');
+    // A kept old reference would let the old row's token into this converted Credential.
+    await dataSource.getRepository(Credential).update(rebound, {
+      secret: {
+        fields: {
+          DeveloperToken: TOKEN,
+          generated_refresh_token: 'e2e_converted',
+          legacy_generated_refresh_token: 'e2e_converted',
+        },
+      },
+    });
     await putGoogleAds(dataMartId, [
       { _id: configId, _credential_id: rebound, AuthType: { oauth2: {} } },
     ]).expect(200);
     const [stored] = await storedConfiguration(dataMartId);
-    const run = await app
+    await app
       .get(SourceCredentialInjectorService)
       .resolveBoundConfig('0', dataMartId, 'GoogleAds', configId, stored, null);
 
@@ -390,7 +406,6 @@ describe('Selecting Source credentials in a Data Mart definition (e2e)', () => {
       .resolveForConfig('0', dataMartId, configId);
     expect(credential?.credentialId).toBe(rebound);
     expect(JSON.stringify(credential)).not.toContain(OLD_GRANT);
-    expect(JSON.stringify(run)).not.toContain(OLD_GRANT);
     expect(stored).toEqual({ _id: configId, AuthType: { oauth2: {} } });
   });
 

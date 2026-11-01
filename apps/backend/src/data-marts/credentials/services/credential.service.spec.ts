@@ -268,7 +268,6 @@ describe('CredentialService.updateSecretFields (SQLite)', () => {
         expiresAt: '2027-01-01T00:00:00.000Z',
       },
     });
-    // The rollout rule compares the old row's write time against this one.
     expect(after.modifiedAt.getTime()).toBeGreaterThan(lastWrite.getTime());
   });
 

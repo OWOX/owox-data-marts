@@ -513,13 +513,17 @@ describe('SourceCredentialBindingService', () => {
       });
 
     it('checks USE on the Credential first', async () => {
+      // Disabled and of a definition OpenExchangeRates refuses: both later checks would fail too.
       const credential = await givenCredential({
         definitionId: 'github',
         secret: { value: SECRET },
+        enabled: false,
       });
       access.canAccess.mockResolvedValue(false);
 
-      await expect(check(credential.id, 'GitHub')).rejects.toBeInstanceOf(ForbiddenException);
+      await expect(check(credential.id, 'OpenExchangeRates')).rejects.toBeInstanceOf(
+        ForbiddenException
+      );
       expect(access.canAccess).toHaveBeenCalledWith(
         'member-1',
         ['editor'],

@@ -955,8 +955,6 @@ describe('SourceCredentialInjectorService', () => {
         projectId: 'proj-1',
         connectorName: 'FacebookMarketing',
         credentials: { ...keys, generated_refresh_token: rotated },
-        // An N-1 save or a delete hand-over moves it without a rotation.
-        modifiedAt: new Date('2026-10-28T12:00:00.000Z'),
       });
       /** A converted Credential: its token, and the old row's token as last taken. */
       const converted = (token: string, base?: string) =>
@@ -966,18 +964,9 @@ describe('SourceCredentialInjectorService', () => {
         });
       const config = { _id: 'cfg-1', AuthType: { oauth2: { _source_credential_id: 'old-oauth' } } };
 
-      const setUp = () => {
-        const created = createService();
-        // Older than the old row's, so the order of the two never decides.
-        (created.credentialService.findById as jest.Mock).mockResolvedValue({
-          modifiedAt: new Date('2026-10-28T11:00:00.000Z'),
-        });
-        return created;
-      };
-
       it("keeps the Credential's newer token when the old row moved without a rotation", async () => {
         const { service, sourceCredentials, credentialService, connectorSourceCredentialsService } =
-          setUp();
+          createService();
         (sourceCredentials.resolveForConfig as jest.Mock).mockResolvedValue(
           converted('rotated-on-n', 'converted')
         );
@@ -992,7 +981,7 @@ describe('SourceCredentialInjectorService', () => {
 
       it("ignores an old row of another grant: another account's sign-in or a key replaced on N-1", async () => {
         const { service, sourceCredentials, credentialService, connectorSourceCredentialsService } =
-          setUp();
+          createService();
         (sourceCredentials.resolveForConfig as jest.Mock).mockResolvedValue(
           converted('converted', 'converted')
         );
@@ -1012,7 +1001,7 @@ describe('SourceCredentialInjectorService', () => {
 
       it('takes a token an N-1 run rotated since the conversion and moves the base to it', async () => {
         const { service, sourceCredentials, credentialService, connectorSourceCredentialsService } =
-          setUp();
+          createService();
         // Read, read again under the rotation lease, then read the leased Credential after taking the old row's token.
         (sourceCredentials.resolveForConfig as jest.Mock).mockResolvedValue(
           converted('converted', 'converted')
@@ -1056,7 +1045,7 @@ describe('SourceCredentialInjectorService', () => {
 
       it('takes nothing once the Credential has rotated its own token', async () => {
         const { service, sourceCredentials, credentialService, connectorSourceCredentialsService } =
-          setUp();
+          createService();
         (sourceCredentials.resolveForConfig as jest.Mock).mockResolvedValue(
           converted('rotated-on-n', 'converted')
         );
@@ -1071,7 +1060,7 @@ describe('SourceCredentialInjectorService', () => {
 
       it('ignores a foreign or missing old row, and a Credential converted without a base', async () => {
         const { service, sourceCredentials, credentialService, connectorSourceCredentialsService } =
-          setUp();
+          createService();
         const resolve = sourceCredentials.resolveForConfig as jest.Mock;
         const getRow = connectorSourceCredentialsService.getCredentialsById as jest.Mock;
 
