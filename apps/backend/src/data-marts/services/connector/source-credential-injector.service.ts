@@ -19,7 +19,7 @@ import {
   customConnectorConfigRefusal,
   type CustomConnectorKeyModel,
 } from '../../connector-types/custom-connector-credential-fit';
-import { OLD_ROW_TOKEN_FIELD } from '../../connector-types/source-key-fields';
+import { OLD_ROW_TOKEN_FIELD, withoutKeyValues } from '../../connector-types/source-key-fields';
 import { isCustomConnectorMetadata } from '../../credentials/credential.types';
 import {
   CredentialService,
@@ -374,8 +374,15 @@ function applyCredential(
       key === '_secrets_id' || key === '_source_credential_id' ? undefined : value
     )
   ) as Record<string, unknown>;
+  // A value the configuration holds for a parameter the Credential lacks must not pair with its other values.
+  const cleared = withoutKeyValues(withoutOldKeys, [
+    {
+      path: target.path,
+      parameters: [...Object.values(target.fieldMap), ...(target.keyParameters ?? [])],
+    },
+  ]);
   return {
-    config: withValuesAt(withoutOldKeys, target.path, {
+    config: withValuesAt(cleared, target.path, {
       ...filled,
       ...(token ? { [GENERATED_REFRESH_TOKEN_CONFIG_FIELD]: { value: token } } : {}),
     }),

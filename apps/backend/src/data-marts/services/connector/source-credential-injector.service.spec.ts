@@ -213,6 +213,24 @@ describe('SourceCredentialInjectorService', () => {
       expect(result?.keyParameters).toBeUndefined();
     });
 
+    it('a bound built-in run drops key values the Credential lacks and keeps other parameters', async () => {
+      const { service, sourceCredentials } = createService();
+      (sourceCredentials.resolveForConfig as jest.Mock).mockResolvedValue({
+        ...facebook(),
+        secret: { fields: { AccessToken: 'fb-token' } },
+        publicMetadata: { fields: {} },
+      });
+
+      const result = await resolveBound(service, {
+        _id: 'cfg-1',
+        AuthType: { oauth2: { AppId: 'stale-app', AccessToken: 'old', Other: 'kept' } },
+      });
+
+      expect(result?.config.AuthType).toStrictEqual({
+        oauth2: { AccessToken: 'fb-token', Other: 'kept' },
+      });
+    });
+
     it('a run on a bound Credential marks it used', async () => {
       const { service, sourceCredentials } = createService();
       (sourceCredentials.resolveForConfig as jest.Mock).mockResolvedValue(facebook());
@@ -483,6 +501,21 @@ describe('SourceCredentialInjectorService', () => {
         await expect(
           resolveBound(service, { _id: 'cfg-1', AuthType: 'oauth2' }, 'AcmeApi', manifest)
         ).rejects.toThrow(MISFIT);
+      });
+
+      it('drops a key parameter the Credential lacks and keeps non-key ones', async () => {
+        const { service, sourceCredentials } = createService();
+        const manifest = selective({ requiredType: 'string' });
+        (sourceCredentials.resolveForConfig as jest.Mock).mockResolvedValue(apiKeyOnly);
+
+        const run = await resolveBound(
+          service,
+          { _id: 'cfg-1', AuthType: 'key', ClientId: 'stale-id', ApiKey: 'stale-key' },
+          'AcmeApi',
+          manifest
+        );
+
+        expect(run?.config).toStrictEqual({ _id: 'cfg-1', AuthType: 'key', ApiKey: 'api-key' });
       });
 
       it("fits on the selection's default when the configuration leaves it untyped", async () => {
