@@ -28,6 +28,10 @@ import type { ConnectorCapabilities } from '../connector-types/connector-capabil
 import { DataMartSqlReferenceValidator } from '../services/data-mart-sql-reference-validator.service';
 import { SourceCredentialBindingService } from '../connector-types/source-credential-binding.service';
 import {
+  selectsOtherVariant,
+  sourceBindingFor,
+} from '../connector-types/source-credential-definitions';
+import {
   bindingIdKey,
   keyValuesOf,
   oldKeyIdsOf,
@@ -287,7 +291,8 @@ export class UpdateDataMartDefinitionService {
 
   /**
    * This release never binds, but keeps every binding a newer one made: a bound configuration takes
-   * no key values, other Credential, copy or other old key row. Unbound ones save as before.
+   * no key values, other Credential, copy, other old key row or other authentication type. Unbound
+   * ones save as before.
    */
   private async checkSourceBindings(
     command: UpdateDataMartDefinitionCommand,
@@ -324,6 +329,7 @@ export class UpdateDataMartDefinitionService {
     const kept = new Map<string, Config | undefined>();
     let fields: readonly SourceKeyFields[] | undefined;
     let secretNames: ReadonlySet<string> | undefined;
+    let definitionIds: ReadonlyMap<string, string | undefined> | undefined;
     for (const config of configuration) {
       const id = typeof config._id === 'string' && config._id ? config._id : undefined;
       const bound = id !== undefined && live.has(id);
@@ -347,6 +353,17 @@ export class UpdateDataMartDefinitionService {
         source.name,
         source.version
       );
+      definitionIds ??= new Map(
+        (await this.sourceCredentials.boundConfigs(projectId, [command.id])).map(
+          ({ requirementKey, credential }) => [requirementKey, credential?.definitionId]
+        )
+      );
+      const definitionId = definitionIds.get(id);
+      const binding = definitionId ? sourceBindingFor(source.name, definitionId) : null;
+      // A run injects the Credential's variant, so a saved other one would not be what runs.
+      if (binding && selectsOtherVariant(binding, config)) {
+        throw new BadRequestException(AUTH_TYPE_KEPT);
+      }
       const previousItem = previousItems.find(item => item._id === id);
       if (isStaleBoundConfig(config, previousItem, fields)) {
         throw new BadRequestException(OUT_OF_DATE);
@@ -463,6 +480,8 @@ export class UpdateDataMartDefinitionService {
 }
 
 const OUT_OF_DATE = 'This page is out of date. Reload it.';
+const AUTH_TYPE_KEPT =
+  "This configuration uses a Credential, so its authentication type can't be changed.";
 
 type Config = Record<string, unknown>;
 

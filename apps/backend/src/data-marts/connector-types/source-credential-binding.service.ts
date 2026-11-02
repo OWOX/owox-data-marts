@@ -20,7 +20,7 @@ import {
   customConnectorConfigRefusal,
   type CustomConnectorKeyModel,
 } from './custom-connector-credential-fit';
-import { sourceBindingFor } from './source-credential-definitions';
+import { selectsOtherVariant, sourceBindingFor } from './source-credential-definitions';
 import {
   SOURCE_BINDING_CONSUMER_TYPE,
   sourceCredentialRequirement,
@@ -245,13 +245,5 @@ function configRefusal(
     return refusal.kind === 'misuse' ? refusal.message : UNSUITABLE;
   }
   const binding = sourceBindingFor(connectorName, definitionId);
-  if (!binding) return UNSUITABLE;
-  // A variant path like ['AuthType', 'oauth2']; the configuration may select only that variant.
-  const [parameter, variant] = binding.path;
-  const selected = parameter === undefined ? undefined : config[parameter];
-  const otherVariant =
-    typeof selected === 'object' &&
-    selected !== null &&
-    Object.keys(selected).some(key => key !== variant);
-  return otherVariant ? UNSUITABLE : null;
+  return !binding || selectsOtherVariant(binding, config) ? UNSUITABLE : null;
 }

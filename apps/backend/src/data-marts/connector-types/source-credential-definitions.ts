@@ -167,6 +167,20 @@ export function sourceBindingFor(
   );
 }
 
+/** The configuration selects a variant other than the binding's, like AuthType.service_account for ['AuthType', 'oauth2']. */
+export function selectsOtherVariant(
+  binding: SourceCredentialBinding,
+  config: Record<string, unknown>
+): boolean {
+  const [parameter, variant] = binding.path;
+  const selected = parameter === undefined ? undefined : config[parameter];
+  return (
+    typeof selected === 'object' &&
+    selected !== null &&
+    Object.keys(selected).some(key => key !== variant)
+  );
+}
+
 /** The binding whose variant runs the connector's OAuth flow at `fieldPath`, like "AuthType.oauth2". */
 export function sourceConnectBindingFor(
   connectorName: string,

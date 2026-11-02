@@ -59,10 +59,11 @@ describe('Bound Source configurations saved by the bridge release (e2e)', () => 
   /** A Data Mart whose configurations are each bound and keep an old key row, as a conversion leaves them. */
   async function givenBoundDataMart(
     count = 1,
-    { name = CONNECTOR, extra = {}, oldKeys = { AppId: OLD_KEY } } = {} as {
+    { name = CONNECTOR, extra = {}, oldKeys = { AppId: OLD_KEY }, boundTo = credentialId } = {} as {
       name?: string;
       extra?: ConfigItem;
       oldKeys?: Record<string, string>;
+      boundTo?: string;
     }
   ) {
     const storage = await agent
@@ -88,7 +89,7 @@ describe('Bound Source configurations saved by the bridge release (e2e)', () => 
         consumerId: dataMartId,
         requirementKey: configId,
         projectId: '0',
-        credentialId,
+        credentialId: boundTo,
         requirementSnapshot: requirement,
         requirementRevision: requirementRevision(requirement),
         configuredById: null,
@@ -187,6 +188,62 @@ describe('Bound Source configurations saved by the bridge release (e2e)', () => 
       expect(res.status).toBe(400);
       expect(res.body.message).toBe(OUT_OF_DATE);
       expect(await storedConfiguration(dataMartId)).toEqual(configuration);
+    });
+  });
+
+  describe('a configuration bound to an OAuth2 Credential', () => {
+    const SHEETS = 'GoogleSheets';
+    let sheetsCredentialId: string;
+
+    beforeAll(async () => {
+      sheetsCredentialId = await createCredential(app, {
+        projectId: '0',
+        definitionId: `source:${SHEETS}:oauth2`,
+        title: 'Sheets account',
+        secret: { fields: { RefreshToken: 'e2e_bridge_refresh', ClientSecret: 'e2e_bridge_cs' } },
+        publicMetadata: { fields: { ClientId: 'e2e_bridge_client' } },
+        ownerIds: ['0'],
+        contextIds: [],
+      });
+    });
+
+    const given = () =>
+      givenBoundDataMart(1, {
+        name: SHEETS,
+        extra: { AuthType: { oauth2: {} }, SpreadsheetId: 'sheet-1', SheetName: 'Sheet1' },
+        oldKeys: { RefreshToken: 'e2e_bridge_old_refresh' },
+        boundTo: sheetsCredentialId,
+      });
+
+    it('refuses a service account authentication type and writes nothing', async () => {
+      const { dataMartId, configuration } = await given();
+      const [item] = await pageConfiguration(dataMartId);
+
+      const res = await put(
+        dataMartId,
+        [{ ...item, AuthType: { service_account: { ServiceAccountKey: '**********' } } }],
+        SHEETS
+      );
+
+      expect(res.status).toBe(400);
+      expect(res.body.message).toBe(
+        "This configuration uses a Credential, so its authentication type can't be changed."
+      );
+      expect(await storedConfiguration(dataMartId)).toEqual(configuration);
+      expect(await bindings(dataMartId)).toEqual([
+        { requirementKey: configuration[0]._id, credentialId: sheetsCredentialId, active: true },
+      ]);
+    });
+
+    it('saves the OAuth2 authentication type as before', async () => {
+      const { dataMartId, configuration } = await given();
+      const [item] = await pageConfiguration(dataMartId);
+
+      await put(dataMartId, [{ ...item, SheetName: 'Sheet2' }], SHEETS).expect(200);
+
+      expect(await storedConfiguration(dataMartId)).toEqual([
+        { ...configuration[0], SheetName: 'Sheet2' },
+      ]);
     });
   });
 

@@ -12,6 +12,7 @@ import {
   type ResolvedSourceCredential,
 } from '../../connector-types/source-credential-binding.service';
 import {
+  selectsOtherVariant,
   sourceBindingFor,
   type SourceCredentialBinding,
 } from '../../connector-types/source-credential-definitions';
@@ -99,7 +100,7 @@ export class SourceCredentialInjectorService {
     const targetOf = (credential: ResolvedSourceCredential) =>
       manifest
         ? customTarget(connectorName, credential, manifest, config)
-        : builtinTarget(connectorName, credential);
+        : builtinTarget(connectorName, credential, config);
     const { credential: resolved, leaseId } = await this.leaseRotation(
       first,
       resolve,
@@ -289,12 +290,18 @@ export class SourceCredentialInjectorService {
   }
 }
 
+/** A run passes its configuration, which must select the binding's variant; a preview passes none. */
 function builtinTarget(
   connectorName: string,
-  credential: ResolvedSourceCredential
+  credential: ResolvedSourceCredential,
+  config?: Record<string, unknown>
 ): CredentialTarget {
   const binding = sourceBindingFor(connectorName, credential.definitionId);
   if (!binding) throw boundaryError(connectorName, credential);
+  // Injection would replace the saved authentication type with the Credential's.
+  if (config && selectsOtherVariant(binding, config)) {
+    throw new SourceCredentialUnavailableException(CREDENTIAL_NO_LONGER_FITS);
+  }
   return {
     path: binding.path,
     fieldMap: binding.fieldMap,

@@ -258,7 +258,7 @@ describe('SourceCredentialInjectorService', () => {
       const result = await resolveBound(service, {
         _id: 'cfg-1',
         _secrets_id: 'old-secrets',
-        AuthType: { oauth2: { _source_credential_id: 'old-oauth' }, token: {} },
+        AuthType: { oauth2: { _source_credential_id: 'old-oauth' } },
       });
 
       expect(result?.config).toEqual({
@@ -268,6 +268,28 @@ describe('SourceCredentialInjectorService', () => {
         },
       });
       expect(JSON.stringify(result)).not.toContain('old-');
+    });
+
+    it('a bound configuration saved with another authentication type fails the fit check before any value is applied', async () => {
+      const { service, sourceCredentials, connectorService, credentialService } = createService();
+      (sourceCredentials.resolveForConfig as jest.Mock).mockResolvedValue({
+        credentialId: 'cred-1',
+        definitionId: 'source:GoogleSheets:oauth2',
+        secret: { fields: { RefreshToken: 'refresh-token', ClientSecret: 'client-secret' } },
+        publicMetadata: { fields: { ClientId: 'client-id' } },
+      });
+
+      const failure = resolveBound(
+        service,
+        { _id: 'cfg-1', AuthType: { service_account: { ServiceAccountKey: '**********' } } },
+        'GoogleSheets'
+      );
+
+      await expect(failure).rejects.toBeInstanceOf(SourceCredentialUnavailableException);
+      await expect(failure).rejects.toThrow(MISFIT);
+      expect(connectorService.refreshBoundCredential).not.toHaveBeenCalled();
+      expect(credentialService.updateSecretFields).not.toHaveBeenCalled();
+      expect(sourceCredentials.markConfigUsed).not.toHaveBeenCalled();
     });
 
     it("a Credential of another connector's definition throws ConnectorCredentialBoundaryError", async () => {

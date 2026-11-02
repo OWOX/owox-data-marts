@@ -68,6 +68,7 @@ describe('UpdateDataMartDefinitionService', () => {
     };
     const sourceCredentials = {
       boundCredentialIds: jest.fn().mockResolvedValue(new Map()),
+      boundConfigs: jest.fn().mockResolvedValue([]),
       unbindConfig: jest.fn().mockResolvedValue(undefined),
       deactivateDataMart: jest.fn().mockResolvedValue(undefined),
     };
