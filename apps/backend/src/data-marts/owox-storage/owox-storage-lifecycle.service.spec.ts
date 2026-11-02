@@ -32,9 +32,13 @@ function setup(
       return new Map(Object.entries(jobs));
     }),
   };
+  const saved: ManagedStorage[] = [];
   const managed = {
     findActive: jest.fn().mockResolvedValue(records),
-    save: jest.fn(async (r: ManagedStorage) => r),
+    save: jest.fn(async (r: ManagedStorage) => {
+      saved.push({ ...r });
+      return r;
+    }),
   };
   const planService = { planFor: jest.fn(async (projectId: string) => plans[projectId]) };
   const config = {
@@ -47,7 +51,7 @@ function setup(
     managed as never,
     config as never
   );
-  return { service, engine, managed };
+  return { service, engine, managed, saved };
 }
 
 describe('OwoxStorageLifecycleService.runDaily', () => {
@@ -73,10 +77,10 @@ describe('OwoxStorageLifecycleService.runDaily', () => {
 
   it('deletes a storage NOT_PAID for 30 days', async () => {
     const r = record('a', { notPaidSince: ago(30) });
-    const { service, engine } = setup([r], { 'p-a': ProjectPlanType.NOT_PAID });
+    const { service, engine, saved } = setup([r], { 'p-a': ProjectPlanType.NOT_PAID });
     await service.runDaily(now);
     expect(engine.deprovision).toHaveBeenCalledWith(r);
-    expect(r.deprovisionedAt).toEqual(now);
+    expect(saved[saved.length - 1].deprovisionedAt).toEqual(now);
     expect(logs).toContain('OWOX Storage ds_a deleted: NOT_PAID');
   });
 
@@ -90,10 +94,11 @@ describe('OwoxStorageLifecycleService.runDaily', () => {
 
   it('restarts the inactivity period when the project pays on day 29', async () => {
     const r = record('a', { notPaidSince: ago(29), lastActivityAt: ago(90) });
-    const { service, engine } = setup([r], { 'p-a': ProjectPlanType.FREE });
+    const { service, engine, saved } = setup([r], { 'p-a': ProjectPlanType.FREE });
     await service.runDaily(now);
-    expect(r.notPaidSince).toBeNull();
-    expect(r.lastActivityAt).toEqual(now);
+    expect(saved).toHaveLength(1);
+    expect(saved[0].notPaidSince).toBeNull();
+    expect(saved[0].lastActivityAt).toEqual(now);
     expect(engine.deprovision).not.toHaveBeenCalled();
   });
 
@@ -107,13 +112,14 @@ describe('OwoxStorageLifecycleService.runDaily', () => {
 
   it("records yesterday's job and keeps the storage", async () => {
     const r = record('a', { lastActivityAt: ago(31) });
-    const { service, engine } = setup(
+    const { service, engine, saved } = setup(
       [r],
       { 'p-a': ProjectPlanType.FREE },
       { 'a@sa.example': ago(1) }
     );
     await service.runDaily(now);
-    expect(r.lastActivityAt).toEqual(ago(1));
+    expect(saved).toHaveLength(1);
+    expect(saved[0].lastActivityAt).toEqual(ago(1));
     expect(engine.deprovision).not.toHaveBeenCalled();
   });
 
@@ -149,14 +155,14 @@ describe('OwoxStorageLifecycleService.runDaily', () => {
   it('continues after a failed deprovision and leaves that storage unmarked', async () => {
     const first = record('a', { notPaidSince: ago(31) });
     const second = record('b', { notPaidSince: ago(31) });
-    const { service, engine } = setup([first, second], {
+    const { service, engine, saved } = setup([first, second], {
       'p-a': ProjectPlanType.NOT_PAID,
       'p-b': ProjectPlanType.NOT_PAID,
     });
     engine.deprovision.mockRejectedValueOnce(new Error('gone wrong'));
     await service.runDaily(now);
-    expect(first.deprovisionedAt).toBeNull();
-    expect(second.deprovisionedAt).toEqual(now);
+    expect(saved.filter(s => s.storageId === 'a' && s.deprovisionedAt)).toHaveLength(0);
+    expect(saved.filter(s => s.storageId === 'b' && s.deprovisionedAt)).toHaveLength(1);
   });
 
   it('processes nothing once aborted', async () => {
@@ -166,6 +172,26 @@ describe('OwoxStorageLifecycleService.runDaily', () => {
     controller.abort();
     await service.runDaily(now, controller.signal);
     expect(engine.deprovision).not.toHaveBeenCalled();
+    expect(engine.lastJobTimes).not.toHaveBeenCalled();
+  });
+
+  it('keeps the newer lastActivityAt when the job is older', async () => {
+    const r = record('a', { lastActivityAt: ago(1) });
+    const { service, saved } = setup(
+      [r],
+      { 'p-a': ProjectPlanType.FREE },
+      { 'a@sa.example': ago(10) }
+    );
+    await service.runDaily(now);
+    expect(r.lastActivityAt).toEqual(ago(1));
+    expect(saved).toHaveLength(0);
+  });
+
+  it('deletes a storage that falls due a few seconds after the run starts', async () => {
+    const r = record('a', { notPaidSince: new Date(ago(30).getTime() + 10_000) });
+    const { service, engine } = setup([r], { 'p-a': ProjectPlanType.NOT_PAID });
+    await service.runDaily(now);
+    expect(engine.deprovision).toHaveBeenCalledWith(r);
   });
 
   it('writes no service-account email to the logs', async () => {

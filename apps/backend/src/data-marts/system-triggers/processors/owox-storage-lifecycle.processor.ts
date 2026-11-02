@@ -5,7 +5,6 @@ import { SystemTriggerType } from '../../../common/scheduler/system-tasks/system
 import { OwoxStorageConfigService } from '../../owox-storage/owox-storage-config.service';
 import { OwoxStorageLifecycleService } from '../../owox-storage/owox-storage-lifecycle.service';
 
-/** Deletes OWOX Storages after non-payment or inactivity. */
 @Injectable()
 export class OwoxStorageLifecycleProcessor extends BaseSystemTaskProcessor {
   constructor(

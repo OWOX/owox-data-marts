@@ -5,10 +5,12 @@ import { describeGoogleError } from './engine/bigquery-managed-storage.engine';
 import { MANAGED_STORAGE_ENGINE, ManagedStorageEngine } from './engine/managed-storage-engine';
 import { ManagedStorageService } from './managed-storage.service';
 import { OwoxStorageConfigService } from './owox-storage-config.service';
-import { scheduledDeletion } from './owox-storage-lifecycle';
+import { DAY_MS, scheduledDeletion } from './owox-storage-lifecycle';
+import type { OwoxStorageSettings } from './owox-storage-settings';
 import { OwoxStoragePlanService } from './owox-storage-plan.service';
 
-const DAY_MS = 86_400_000;
+// The daily run starts up to a minute late; an hour of slack keeps a due deletion from slipping a day.
+const RUN_SLACK_MS = 3_600_000;
 
 @Injectable()
 export class OwoxStorageLifecycleService {
@@ -27,6 +29,7 @@ export class OwoxStorageLifecycleService {
     const records = await this.managedStorages.findActive();
     if (records.length === 0) return;
 
+    if (signal?.aborted) return;
     let jobTimes: Map<string, Date> | null = null;
     try {
       const since = new Date(now.getTime() - days.inactivityDeletionDays * DAY_MS);
@@ -43,7 +46,7 @@ export class OwoxStorageLifecycleService {
         await this.processRecord(record, jobTimes, days, now);
       } catch (error) {
         this.logger.error(
-          `OWOX Storage ${record.datasetId} lifecycle step failed${describeGoogleError(error)}`
+          `OWOX Storage ${record.datasetId} lifecycle step failed (${error instanceof Error ? error.name : 'unknown'})${describeGoogleError(error)}`
         );
       }
     }
@@ -52,7 +55,7 @@ export class OwoxStorageLifecycleService {
   private async processRecord(
     record: ManagedStorage,
     jobTimes: Map<string, Date> | null,
-    days: { notPaidDeletionDays: number; inactivityDeletionDays: number },
+    days: Pick<OwoxStorageSettings, 'notPaidDeletionDays' | 'inactivityDeletionDays'>,
     now: Date
   ): Promise<void> {
     const plan = await this.plans.planFor(record.projectId);
@@ -81,7 +84,7 @@ export class OwoxStorageLifecycleService {
     }
 
     const due = deletable ? scheduledDeletion(record, plan, days, now) : null;
-    const reason = due && due.date <= now ? due.reason : null;
+    const reason = due && due.date.getTime() <= now.getTime() + RUN_SLACK_MS ? due.reason : null;
 
     const after = [record.notPaidSince, record.lastActivityAt].map(d => d?.getTime() ?? null);
     if (before.some((value, i) => value !== after[i])) await this.managedStorages.save(record);
