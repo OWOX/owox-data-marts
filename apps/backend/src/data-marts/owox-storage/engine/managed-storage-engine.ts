@@ -22,6 +22,8 @@ export interface ManagedStorageEngine {
     projectId: string;
     location: OwoxStorageLocation;
   }): Promise<ProvisionedManagedStorage>;
+  /** Makes sure the target's datasets, account and grants exist again; never undoes. */
+  restore(target: ProvisionedManagedStorage, projectId: string): Promise<void>;
   deprovision(target: ProvisionedManagedStorage): Promise<void>;
   listTables(target: ProvisionedManagedStorage): Promise<ManagedTable[]>;
   /** Newest job per service account since `since`, keyed by email; accounts with no job are absent. */

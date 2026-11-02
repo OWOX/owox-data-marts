@@ -6,8 +6,14 @@ import { OwoxStorageUsage } from './OwoxStorageUsage';
 
 const getOwoxStorageUsage = vi.hoisted(() => vi.fn());
 const deleteOwoxStorageTable = vi.hoisted(() => vi.fn());
+const restoreOwoxStorage = vi.hoisted(() => vi.fn());
 vi.mock('../../api', () => ({
-  dataStorageApiService: { getOwoxStorageUsage, deleteOwoxStorageTable },
+  dataStorageApiService: { getOwoxStorageUsage, deleteOwoxStorageTable, restoreOwoxStorage },
+}));
+const toastSuccess = vi.hoisted(() => vi.fn());
+vi.mock('react-hot-toast', () => ({
+  default: { success: toastSuccess },
+  toast: { success: toastSuccess },
 }));
 
 const usage = (patch: Partial<OwoxStorageUsageResponseDto> = {}): OwoxStorageUsageResponseDto => ({
@@ -30,6 +36,7 @@ describe('OwoxStorageUsage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     deleteOwoxStorageTable.mockResolvedValue(undefined);
+    restoreOwoxStorage.mockResolvedValue(undefined);
   });
 
   it('shows FREE usage', async () => {
@@ -108,6 +115,46 @@ describe('OwoxStorageUsage', () => {
     ).toBeInTheDocument();
     expect(screen.queryByText(/of .* used/)).toBeNull();
     expect(screen.queryByText(/No tables yet/)).toBeNull();
+  });
+
+  it('restores a deleted storage and reloads its usage', async () => {
+    getOwoxStorageUsage
+      .mockResolvedValueOnce(usage({ deletedAt: '2026-12-05T12:00:00.000Z' }))
+      .mockResolvedValue(usage());
+    render(<OwoxStorageUsage storageId='s1' />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Restore storage' }));
+
+    expect(await screen.findByText('512 MB of 1 GB used')).toBeInTheDocument();
+    expect(restoreOwoxStorage).toHaveBeenCalledWith('s1');
+    expect(getOwoxStorageUsage).toHaveBeenCalledTimes(2);
+    expect(toastSuccess).toHaveBeenCalledWith('Storage restored.');
+  });
+
+  it('disables the restore button while restoring', async () => {
+    getOwoxStorageUsage.mockResolvedValue(usage({ deletedAt: '2026-12-05T12:00:00.000Z' }));
+    restoreOwoxStorage.mockReturnValue(new Promise(() => undefined));
+    render(<OwoxStorageUsage storageId='s1' />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Restore storage' }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Restore storage' })).toBeDisabled();
+    });
+  });
+
+  it('keeps the deleted notice when the restore fails', async () => {
+    getOwoxStorageUsage.mockResolvedValue(usage({ deletedAt: '2026-12-05T12:00:00.000Z' }));
+    restoreOwoxStorage.mockRejectedValue(new Error('boom'));
+    render(<OwoxStorageUsage storageId='s1' />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Restore storage' }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Restore storage' })).toBeEnabled();
+    });
+    expect(getOwoxStorageUsage).toHaveBeenCalledTimes(1);
+    expect(toastSuccess).not.toHaveBeenCalled();
   });
 
   it('lists tables with rows and sizes', async () => {

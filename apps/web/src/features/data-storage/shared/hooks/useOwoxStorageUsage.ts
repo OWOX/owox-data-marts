@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import toast from 'react-hot-toast';
 import { dataStorageApiService } from '../api';
 import type { OwoxStorageUsageResponseDto } from '../api/types';
 
@@ -7,6 +8,7 @@ export function useOwoxStorageUsage(storageId: string) {
   const [failed, setFailed] = useState(false);
   const [tableToDelete, setTableToDelete] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [restoring, setRestoring] = useState(false);
 
   const load = useCallback(async () => {
     setFailed(false);
@@ -36,5 +38,28 @@ export function useOwoxStorageUsage(storageId: string) {
     }
   };
 
-  return { usage, failed, load, tableToDelete, setTableToDelete, deleting, confirmDelete };
+  const restore = async () => {
+    setRestoring(true);
+    try {
+      await dataStorageApiService.restoreOwoxStorage(storageId);
+      toast.success('Storage restored.');
+      await load();
+    } catch {
+      // The default error toast has already reported it.
+    } finally {
+      setRestoring(false);
+    }
+  };
+
+  return {
+    usage,
+    failed,
+    load,
+    tableToDelete,
+    setTableToDelete,
+    deleting,
+    confirmDelete,
+    restoring,
+    restore,
+  };
 }
