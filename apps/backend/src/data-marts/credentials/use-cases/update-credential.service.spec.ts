@@ -4,9 +4,13 @@ jest.mock('typeorm-transactional', () => ({
 }));
 
 import { BadRequestException } from '@nestjs/common';
+import { DataSource, type Repository } from 'typeorm';
 import { AccessValidationException } from '../../../common/exceptions/access-validation.exception';
 import type { AuthorizationContext } from '../../../idp';
 import { serviceAccountKey } from '../../../../test/fixtures/google-service-account-key';
+import { CREDENTIAL_VALIDATION_ENTITIES } from '../../../../test/fixtures/credential-validation-writes';
+import { Credential } from '../entities/credential.entity';
+import { CredentialService } from '../services/credential.service';
 import { BUILTIN_CREDENTIAL_DEFINITIONS } from '../services/builtin-credential-definitions';
 import { sourceCredentialDefinitions } from '../../connector-types/source-credential-definitions';
 import { UpdateCredentialService } from './update-credential.service';
@@ -831,5 +835,108 @@ describe('UpdateCredentialService with a custom connector', () => {
 
     expect(error).toBeInstanceOf(BadRequestException);
     expect((error as Error).message).not.toContain('top-secret');
+  });
+});
+
+describe('UpdateCredentialService on a stored Source Credential (SQLite)', () => {
+  const contract = sourceCredentialDefinitions().definitions.find(
+    definition => definition.id === 'source:MicrosoftAds:oauth2'
+  );
+  let dataSource: DataSource;
+  let credentials: Repository<Credential>;
+  let credentialService: CredentialService;
+  let service: UpdateCredentialService;
+
+  beforeAll(async () => {
+    dataSource = new DataSource({
+      type: 'better-sqlite3',
+      database: ':memory:',
+      entities: CREDENTIAL_VALIDATION_ENTITIES,
+      synchronize: true,
+      logging: false,
+    });
+    await dataSource.initialize();
+    credentials = dataSource.getRepository(Credential);
+    credentialService = new CredentialService(
+      credentials,
+      { find: jest.fn().mockResolvedValue([]) } as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never
+    );
+    const definition = {
+      definitionId: contract?.id,
+      source: 'builtin',
+      compatibilityLine: null,
+      contract,
+    };
+    service = new UpdateCredentialService(
+      credentialService,
+      {
+        getForCredential: jest.fn().mockResolvedValue(definition),
+        getForView: jest.fn().mockResolvedValue(definition),
+      } as never,
+      { canAccess: jest.fn().mockResolvedValue(true) } as never,
+      {} as never,
+      { build: jest.fn().mockResolvedValue({}) } as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      { verifyCandidate: jest.fn().mockResolvedValue(0) } as never,
+      { verifyCandidate: jest.fn().mockResolvedValue(0) } as never
+    );
+  });
+
+  afterAll(() => dataSource.destroy());
+
+  async function given(): Promise<string> {
+    const { id } = await credentials.save(
+      credentials.create({
+        projectId: 'project-1',
+        title: 'Ads account',
+        definitionSource: 'builtin',
+        definitionId: contract?.id,
+        secret: { fields: { RefreshToken: 'refresh-1', ClientSecret: 's', DeveloperToken: 'd' } },
+        publicMetadata: { fields: { ClientId: 'client-id' } },
+      })
+    );
+    return id;
+  }
+
+  const stored = (id: string) =>
+    credentials.findOneOrFail({
+      where: { id },
+      select: {
+        id: true,
+        secret: true,
+        refreshTokenStaticAt: true,
+        rotationLeaseId: true,
+        rotationLeaseAt: true,
+      },
+    });
+
+  it('a run that leased the replaced keys can no longer mark or release them', async () => {
+    const id = await given();
+    const leaseId = (await credentialService.claimRotation(id))!;
+
+    await service.run(id, context, { fields: { RefreshToken: 'refresh-2' } });
+    await credentialService.markRefreshTokenStatic(id, leaseId);
+
+    expect(await stored(id)).toMatchObject({
+      refreshTokenStaticAt: null,
+      rotationLeaseId: null,
+      rotationLeaseAt: null,
+    });
+    await expect(credentialService.claimRotation(id)).resolves.toEqual(expect.any(String));
+  });
+
+  it('a title edit keeps the lease of a running run', async () => {
+    const id = await given();
+    const leaseId = await credentialService.claimRotation(id);
+
+    await service.run(id, context, { title: 'Renamed' });
+
+    expect((await stored(id)).rotationLeaseId).toBe(leaseId);
   });
 });

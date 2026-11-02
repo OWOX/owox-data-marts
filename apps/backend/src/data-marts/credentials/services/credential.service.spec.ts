@@ -476,21 +476,31 @@ describe('CredentialService rotation lease (SQLite)', () => {
     const markerOf = async (id: string) =>
       (await credentials.findOneByOrFail({ id })).refreshTokenStaticAt;
 
-    it('is set once and keeps modifiedAt', async () => {
+    it('is set once by the lease holder and keeps modifiedAt', async () => {
       const id = await givenRotating();
+      const leaseId = (await service.claimRotation(id))!;
 
-      await service.markRefreshTokenStatic(id);
+      await service.markRefreshTokenStatic(id, leaseId);
       const first = await markerOf(id);
-      await service.markRefreshTokenStatic(id);
+      await service.markRefreshTokenStatic(id, leaseId);
 
       expect(first).toEqual(expect.any(Date));
       expect(await markerOf(id)).toEqual(first);
       expect((await leaseOf(id)).modifiedAt).toEqual(modifiedAt);
     });
 
+    it('is not set by a run that does not hold the lease', async () => {
+      const id = await givenRotating();
+      await service.claimRotation(id);
+
+      await service.markRefreshTokenStatic(id, 'an-older-lease');
+
+      expect(await markerOf(id)).toBeNull();
+    });
+
     it('is cleared by a stored rotated token, not by another secret write', async () => {
       const id = await givenRotating();
-      await service.markRefreshTokenStatic(id);
+      await service.markRefreshTokenStatic(id, (await service.claimRotation(id))!);
 
       await service.updateSecretFields(id, 'project-1', { RefreshToken: 'refresh-2' });
       expect(await markerOf(id)).toEqual(expect.any(Date));
@@ -509,7 +519,9 @@ describe('CredentialService rotation lease (SQLite)', () => {
         {}
       );
 
-      await expect(failing.markRefreshTokenStatic('credential-1')).resolves.toBeUndefined();
+      await expect(
+        failing.markRefreshTokenStatic('credential-1', 'lease-1')
+      ).resolves.toBeUndefined();
     });
   });
 

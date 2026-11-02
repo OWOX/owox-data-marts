@@ -1127,7 +1127,10 @@ export class ConnectorExecutorService {
         if (bound) {
           // Still leased after a good run: no rotated token came, so this provider keeps its token.
           if (success && bound.rotationLease && !rotationLeaseReleased) {
-            await this.credentialService.markRefreshTokenStatic(bound.rotationLease.credentialId);
+            await this.credentialService.markRefreshTokenStatic(
+              bound.rotationLease.credentialId,
+              bound.rotationLease.leaseId
+            );
           }
           await releaseRotationLease(bound);
         }

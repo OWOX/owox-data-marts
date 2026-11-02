@@ -3555,7 +3555,10 @@ describe('ConnectorExecutorService', () => {
 
             await service.executeInBackground(createDataMart(), createRun(), null);
 
-            expect(credentialService.markRefreshTokenStatic).toHaveBeenCalledWith('cred-9');
+            expect(credentialService.markRefreshTokenStatic).toHaveBeenCalledWith(
+              'cred-9',
+              'lease-1'
+            );
             expect(
               (credentialService.markRefreshTokenStatic as jest.Mock).mock.invocationCallOrder[0]
             ).toBeLessThan(

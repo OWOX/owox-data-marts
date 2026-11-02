@@ -382,14 +382,16 @@ export class CredentialService {
     }
   }
 
-  /** Records that a leased run ended without a rotated token; best-effort, and modifiedAt stays as for a lease. */
-  async markRefreshTokenStatic(id: string): Promise<void> {
+  /** Records that a leased run ended without a rotated token, only while it holds the lease; best-effort, and modifiedAt stays as for a lease. */
+  async markRefreshTokenStatic(id: string, leaseId: string): Promise<void> {
     try {
       await this.credentials
         .createQueryBuilder()
         .update(Credential)
         .set({ refreshTokenStaticAt: new Date(), modifiedAt: () => 'modifiedAt' })
         .where('id = :id', { id })
+        // An owner edit of the keys clears the lease, so a run on the old keys marks nothing.
+        .andWhere('rotationLeaseId = :leaseId', { leaseId })
         .andWhere('refreshTokenStaticAt IS NULL')
         .execute();
     } catch {
