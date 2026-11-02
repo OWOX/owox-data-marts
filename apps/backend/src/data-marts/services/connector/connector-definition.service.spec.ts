@@ -122,13 +122,24 @@ describe('ConnectorDefinitionService', () => {
       ),
     };
 
+    const sourceBindings = { boundConfigs: jest.fn().mockResolvedValue([]) };
+
     const service = new ConnectorDefinitionService(
       defRepo as never,
       versionRepo as never,
       dataMartService as never,
-      accessDecisionService as never
+      accessDecisionService as never,
+      sourceBindings as never
     );
-    return { service, store, defRepo, versionRepo, dataMartService, accessDecisionService };
+    return {
+      service,
+      store,
+      defRepo,
+      versionRepo,
+      dataMartService,
+      accessDecisionService,
+      sourceBindings,
+    };
   };
 
   const EDITOR = { userId: 'user-1', roles: ['editor'] };
@@ -1169,7 +1180,7 @@ describe('ConnectorDefinitionService', () => {
     const storedDef = store.defs.find(d => d.id === def.id);
     storedDef.activeVersionId = null;
     const result = await service.setActiveVersion('proj-1', def.id, published.version, EDITOR);
-    expect(result.activeVersionId).toBe(published.id);
+    expect(result.definition.activeVersionId).toBe(published.id);
     expect(store.defs.find(d => d.id === def.id)!.activeVersionId).toBe(published.id);
   });
 
@@ -1212,7 +1223,7 @@ describe('ConnectorDefinitionService', () => {
     await service.publish('proj-1', def.id, EDITOR);
     // v2 is now active; roll back to v1
     const result = await service.setActiveVersion('proj-1', def.id, v1.version, EDITOR);
-    expect(result.activeVersionId).toBe(v1.id);
+    expect(result.definition.activeVersionId).toBe(v1.id);
     expect(store.defs.find(d => d.id === def.id)!.activeVersionId).toBe(v1.id);
   });
 
@@ -1312,6 +1323,195 @@ describe('ConnectorDefinitionService', () => {
         ForbiddenException
       );
       expect(store.defs.find(d => d.id === def.id)!.activeVersionId).toBe(v2.id);
+    });
+  });
+
+  describe('publish() and setActiveVersion() list the Data Marts they will stop', () => {
+    const keyed = (baseUrl: string, extra: Record<string, unknown> = {}) => ({
+      ...validManifest,
+      baseUrl,
+      authentication: {
+        type: 'apiKey',
+        inject: { into: 'header', name: 'X-Key', format: '{{ parameters.ApiKey }}' },
+      },
+      parameters: { ApiKey: { requiredType: 'string', isRequired: true, label: 'Key' } },
+      ...extra,
+    });
+    const misusing = keyed('https://api.example.com', {
+      nodes: {
+        items: {
+          ...validManifest.nodes.items,
+          transformations: [{ type: 'add', field: 'label', value: '{{ parameters.ApiKey }}' }],
+        },
+      },
+    });
+
+    const mart = (id: string, title: string, version?: number) => ({
+      id,
+      title,
+      definition: {
+        connector: { source: { name: 'MyCustom', version, configuration: [{ _id: `${id}-cfg` }] } },
+      },
+    });
+    const bound = (id: string, hosts = ['api.example.com']) => ({
+      consumerId: id,
+      requirementKey: `${id}-cfg`,
+      credential: {
+        id: `cred-${id}`,
+        definitionId: 'custom-connector',
+        publicMetadata: { hosts, fieldList: [{ key: 'ApiKey' }], fields: {} },
+      },
+    });
+
+    /** v1 published and active (api.example.com), then a draft of `next`. */
+    const withDraft = async (marts: object[], rows: object[], next: Record<string, unknown>) => {
+      const made = make();
+      const def = await made.service.create('proj-1', 'u', {
+        name: 'MyCustom',
+        title: 'My Custom',
+        manifest: keyed('https://api.example.com'),
+      });
+      await made.service.publish('proj-1', def.id, EDITOR);
+      await made.service.saveDraft('proj-1', def.id, next);
+      made.dataMartService.findByProjectIdAndDefinitionType.mockResolvedValue(marts);
+      made.sourceBindings.boundConfigs.mockResolvedValue(rows);
+      return { ...made, def };
+    };
+
+    it('lists followers whose bound Credentials do not fit the new version', async () => {
+      const { service, def } = await withDraft(
+        [mart('dm-1', 'Sales'), mart('dm-2', 'Fits')],
+        [bound('dm-1'), bound('dm-2', ['api.v2.example.com'])],
+        keyed('https://api.v2.example.com')
+      );
+
+      const result = await service.publish('proj-1', def.id, EDITOR);
+
+      expect(result.stoppingDataMarts).toEqual([{ id: 'dm-1', title: 'Sales' }]);
+      expect(result.hiddenStoppingCount).toBe(0);
+      expect(JSON.stringify(result)).not.toContain('cred-');
+    });
+
+    it('lists followers when the new version misuses a key parameter', async () => {
+      const { service, def } = await withDraft([mart('dm-1', 'Sales')], [bound('dm-1')], misusing);
+
+      const result = await service.publish('proj-1', def.id, EDITOR);
+
+      expect(result.stoppingDataMarts).toEqual([{ id: 'dm-1', title: 'Sales' }]);
+    });
+
+    it('does not list followers on an old row, unbound, or pinned to another version', async () => {
+      const { service, def, sourceBindings } = await withDraft(
+        [mart('dm-old', 'Old row'), mart('dm-pinned', 'Pinned', 1)],
+        [],
+        keyed('https://api.v2.example.com')
+      );
+
+      const result = await service.publish('proj-1', def.id, EDITOR);
+
+      expect(result.stoppingDataMarts).toEqual([]);
+      expect(sourceBindings.boundConfigs).toHaveBeenCalledWith('proj-1', ['dm-old']);
+    });
+
+    it('does not list a follower whose Credential was deleted or belongs to another definition', async () => {
+      const { service, def } = await withDraft(
+        [mart('dm-gone', 'Deleted'), mart('dm-other', 'Other'), mart('dm-fit', 'Fits')],
+        [
+          { ...bound('dm-gone'), credential: null },
+          {
+            ...bound('dm-other'),
+            credential: { ...bound('dm-other').credential, definitionId: 'x' },
+          },
+          bound('dm-fit'),
+        ],
+        keyed('https://api.v2.example.com')
+      );
+
+      const result = await service.publish('proj-1', def.id, EDITOR);
+
+      expect(result.stoppingDataMarts).toEqual([{ id: 'dm-fit', title: 'Fits' }]);
+    });
+
+    it('counts followers the actor cannot see instead of naming them', async () => {
+      const { service, def, accessDecisionService } = await withDraft(
+        [mart('dm-1', 'Sales'), mart('dm-2', 'Board pack')],
+        [bound('dm-1'), bound('dm-2')],
+        keyed('https://api.v2.example.com')
+      );
+      accessDecisionService.canAccessMany.mockImplementation(
+        async (_u, _r, _t, ids, action?: Action) =>
+          new Map(ids.map(id => [id, action === Action.EDIT || id === 'dm-1']))
+      );
+
+      const result = await service.publish('proj-1', def.id, EDITOR);
+
+      expect(result.stoppingDataMarts).toEqual([{ id: 'dm-1', title: 'Sales' }]);
+      expect(result.hiddenStoppingCount).toBe(1);
+    });
+
+    it('does not list a follower whose untyped selection falls to the default branch its Credential fits', async () => {
+      const selective = keyed('https://api.example.com', {
+        authentication: {
+          type: 'selective',
+          selectionParameter: 'AuthMode',
+          authenticators: {
+            basic: {
+              type: 'basic',
+              username: '{{ parameters.User }}',
+              password: '{{ parameters.Pass }}',
+            },
+            bearer: keyed('https://api.example.com').authentication,
+          },
+        },
+        parameters: {
+          User: { requiredType: 'string', isRequired: true, label: 'User' },
+          Pass: { requiredType: 'string', isRequired: true, label: 'Pass' },
+          ApiKey: { requiredType: 'string', isRequired: true, label: 'Key' },
+          AuthMode: { requiredType: 'string', default: 'basic' },
+        },
+      });
+      const holdsBasicKeys = bound('dm-1');
+      holdsBasicKeys.credential.publicMetadata.fieldList = [{ key: 'User' }, { key: 'Pass' }];
+      const { service, def } = await withDraft(
+        [mart('dm-1', 'Sales')],
+        [holdsBasicKeys],
+        selective
+      );
+
+      const result = await service.publish('proj-1', def.id, EDITOR);
+
+      expect(result.stoppingDataMarts).toEqual([]);
+    });
+
+    it('publish goes ahead, and a failure to compute the list returns none', async () => {
+      const { service, store, def, sourceBindings } = await withDraft(
+        [mart('dm-1', 'Sales')],
+        [],
+        keyed('https://api.v2.example.com')
+      );
+      sourceBindings.boundConfigs.mockRejectedValue(new Error('db down'));
+
+      const result = await service.publish('proj-1', def.id, EDITOR);
+
+      expect(result.stoppingDataMarts).toEqual([]);
+      expect(result.hiddenStoppingCount).toBe(0);
+      expect(store.defs.find(d => d.id === def.id)!.activeVersionId).toBe(result.version.id);
+    });
+
+    it('setActiveVersion() lists the followers the activated version stops', async () => {
+      const { service, def } = await withDraft(
+        [mart('dm-1', 'Sales')],
+        [bound('dm-1')],
+        keyed('https://api.v2.example.com')
+      );
+      await service.publish('proj-1', def.id, EDITOR);
+
+      const result = await service.setActiveVersion('proj-1', def.id, 1, EDITOR);
+      expect(result.stoppingDataMarts).toEqual([]);
+
+      const back = await service.setActiveVersion('proj-1', def.id, 2, EDITOR);
+      expect(back.stoppingDataMarts).toEqual([{ id: 'dm-1', title: 'Sales' }]);
+      expect(back.definition.id).toBe(def.id);
     });
   });
 

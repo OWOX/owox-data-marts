@@ -21,6 +21,7 @@ import { ReportDataHeader } from '../dto/domain/report-data-header.dto';
 import { ReportOutputSchemaFieldApiDto } from '../dto/presentation/report-output-schema-field-api.dto';
 import { AuthorizationContext } from '../../idp';
 import { DataMartMapper } from './data-mart.mapper';
+import { DataMartResponseApiDto } from '../dto/presentation/data-mart-response-api.dto';
 import { DataDestinationMapper } from './data-destination.mapper';
 import type { DestinationCredentialSummary } from '../data-destination-types/destination-credential-state';
 import { RunType } from '../../common/scheduler/shared/types';
@@ -122,11 +123,14 @@ export class ReportMapper {
     );
   }
 
-  async toResponse(dto: ReportDto): Promise<ReportResponseApiDto> {
+  async toResponse(
+    dto: ReportDto,
+    dataMart?: DataMartResponseApiDto
+  ): Promise<ReportResponseApiDto> {
     return {
       id: dto.id,
       title: dto.title,
-      dataMart: await this.dataMartMapper.toResponse(dto.dataMart),
+      dataMart: dataMart ?? (await this.dataMartMapper.toResponse(dto.dataMart)),
       dataDestinationAccess: await this.dataDestinationMapper.toApiResponse(
         dto.dataDestinationAccess
       ),
@@ -154,7 +158,10 @@ export class ReportMapper {
   }
 
   async toResponseList(dtos: ReportDto[]): Promise<ReportResponseApiDto[]> {
-    return Promise.all(dtos.map(dto => this.toResponse(dto)));
+    const dataMarts = [...new Map(dtos.map(dto => [dto.dataMart.id, dto.dataMart])).values()];
+    const mapped = await this.dataMartMapper.toResponseList(dataMarts);
+    const byId = new Map(dataMarts.map((dataMart, i) => [dataMart.id, mapped[i]]));
+    return Promise.all(dtos.map(dto => this.toResponse(dto, byId.get(dto.dataMart.id))));
   }
 
   toGetCommand(id: string, context: AuthorizationContext): GetReportCommand {

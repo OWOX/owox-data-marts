@@ -20,7 +20,7 @@ must be assigned to the ad account.
 
 ## OAuth
 
-1. Click **Continue with TikTok** in the connector settings.
+1. In the Credential form (**Credentials** page, or **+ Create new Credential** beside the Data Mart's **Credential** field), click **Continue with TikTok**.
 2. Log in with a TikTok account that can access the advertiser account.
 3. Approve access for the advertiser accounts you want to import.
 
@@ -175,8 +175,8 @@ Copy the **access token** and store it securely. Copy the advertiser IDs you pla
 ## Step 5: Use the Credentials
 
 You now have the **App ID**, **App Secret**, **Access Token**, and your **Advertiser IDs**.
-Enter them in the Data Mart setup. Follow [Getting Started](GETTING_STARTED.md) to fill in
-the connector fields. To update them later, open **Data Setup → Input Source → Edit config**.
+Enter the keys in a Credential (choose **Manually** in the Credential form), select it in the Data Mart's connector configuration, and enter the Advertiser IDs there. Follow [Getting Started](GETTING_STARTED.md) to fill in
+the other connector fields. To update the keys later, open the Credential on the **Credentials** page and replace the values.
 
 ## Troubleshooting Credential Setup
 

@@ -5,7 +5,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-function hasMeaningfulValue(value: unknown): boolean {
+export function hasMeaningfulValue(value: unknown): boolean {
   if (value === null || value === undefined) return false;
   if (typeof value === 'string') return value.trim() !== '';
   if (typeof value === 'number') return !Number.isNaN(value);
@@ -44,7 +44,9 @@ export function areDynamicOptionDependenciesReady(
 
   return dependsOn.every(dependency => {
     const value = configuration[dependency];
-    return isRecord(value) ? isOneOfDependencyReady(value) : hasMeaningfulValue(value);
+    if (!isRecord(value)) return hasMeaningfulValue(value);
+    // A Credential fills the auth section, which then holds no values of its own.
+    return typeof configuration._credential_id === 'string' || isOneOfDependencyReady(value);
   });
 }
 
@@ -56,10 +58,14 @@ export function getDynamicOptionsDependencyKey(
   configuration: Record<string, unknown>,
   dependsOn: string[] | undefined
 ): string {
-  const picked = (dependsOn ?? []).reduce<Record<string, unknown>>((acc, dependency) => {
-    acc[dependency] = configuration[dependency];
-    return acc;
-  }, {});
+  // Another Credential can open other files, so its options are loaded again.
+  const picked = (dependsOn ?? []).reduce<Record<string, unknown>>(
+    (acc, dependency) => {
+      acc[dependency] = configuration[dependency];
+      return acc;
+    },
+    { _credential_id: configuration._credential_id }
+  );
 
   return JSON.stringify(picked);
 }

@@ -58,7 +58,12 @@ describe('Version history', () => {
       ],
     });
     getVersion.mockResolvedValue({ version: 3, status: 'draft', manifest: MANIFEST });
-    activateVersion.mockResolvedValue({ activeVersionId: 'v1-id', activeVersion: 1 });
+    activateVersion.mockResolvedValue({
+      activeVersionId: 'v1-id',
+      activeVersion: 1,
+      stoppingDataMarts: [],
+      hiddenStoppingCount: 0,
+    });
   });
 
   it('lists versions with active marker, opens an old version, and rolls back', async () => {

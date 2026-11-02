@@ -59,7 +59,7 @@ Paste the copied **Consent URL** into your browser and follow the prompt to gran
 
 ---
 
-Once access is granted, you now have all the necessary credentials (`client_id`, `client_secret`, and app authorization) to use it as described in the [Getting Started guide](GETTING_STARTED.md).
+Once access is granted, you now have all the necessary credentials (`client_id`, `client_secret`, and app authorization) to use it as described in the [Getting Started guide](GETTING_STARTED.md). Save them in a Credential: on the **Credentials** page, or with **+ Create new Credential** beside the **Credential** field of the Data Mart's connector configuration. Account and advertiser IDs that pick the data stay in the configuration.
 
 ## Troubleshooting Credential Setup
 
@@ -96,7 +96,7 @@ Use this section for authentication and permission errors from the Criteo API.
 
 **Cause:** The `client_id` and `client_secret` do not form a valid pair. Most often the secret was copied from a **different app** (e.g., a new app was created during credential rotation while the connector still uses the old `client_id`), or the secret was copied with a typo or truncated.
 
-**Solution:** Take both values from the **same key file** (the `.txt` downloaded when you clicked **Create new key**) of the app that has the consent, and update the connector configuration with that pair.
+**Solution:** Take both values from the **same key file** (the `.txt` downloaded when you clicked **Create new key**) of the app that has the consent, and replace the Credential's values with that pair.
 
 > 📌 If you are testing with `curl` and get `invalid_client` even though the pair is correct, make sure the secret is URL-encoded (use `--data-urlencode` as shown above): a literal `+` inside `-d` is decoded as a space and corrupts the secret.
 

@@ -21,8 +21,7 @@ Before proceeding, please make sure that:
 2. Choose **Criteo Ads**.  
 3. Fill in the required fields:
     - **Advertiser ID** – you can find it on the homepage of your [Criteo Ads account](https://marketing.criteo.com/)
-    - **Client ID** – paste the ID you saved earlier.
-    - **Client Secret** – paste the secret you saved earlier.
+    - **Credential** – select the Credential with your Client ID and Client Secret, or click **+ Create new Credential**.
     - Leave the other fields as default and proceed to the next step.
 
 ![Criteo Ads Input Source](res/criteo_connector.png)

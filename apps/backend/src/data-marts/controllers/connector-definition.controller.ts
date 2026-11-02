@@ -18,6 +18,7 @@ import { ConnectorFieldsResponseApiDto } from '../dto/presentation/connector-fie
 import { ConnectorSpecificationResponseApiDto } from '../dto/presentation/connector-specification-response-api.dto';
 import {
   CreateCustomConnectorRequestApiDto,
+  FittingCustomConnectorCredentialsRequestApiDto,
   SaveDraftRequestApiDto,
   TestConnectorRequestApiDto,
   UpdateCustomConnectorRequestApiDto,
@@ -26,22 +27,27 @@ import {
   ActivateCustomConnectorVersionResponseApiDto,
   ConnectorTestResultResponseApiDto,
   CreateCustomConnectorResponseApiDto,
+  CustomConnectorCredentialRequirementResponseApiDto,
   CustomConnectorDetailResponseApiDto,
   CustomConnectorListItemResponseApiDto,
   CustomConnectorVersionResponseApiDto,
   CustomConnectorVersionStateResponseApiDto,
   DeleteCustomConnectorResponseApiDto,
+  FittingCustomConnectorCredentialResponseApiDto,
   PublishCustomConnectorResponseApiDto,
 } from '../dto/presentation/custom-connector-response.dto';
+import { ListFittingCustomConnectorCredentialsService } from '../use-cases/custom-connectors/list-fitting-custom-connector-credentials.service';
 import {
   ActivateCustomConnectorVersionSpec,
   CreateCustomConnectorSpec,
   DeleteCustomConnectorSpec,
+  GetCustomConnectorCredentialRequirementSpec,
   GetCustomConnectorFieldsSpec,
   GetCustomConnectorSpec,
   GetCustomConnectorSpecificationSpec,
   GetCustomConnectorVersionSpec,
   ListCustomConnectorsSpec,
+  ListFittingCustomConnectorCredentialsSpec,
   PublishCustomConnectorSpec,
   SaveCustomConnectorDraftSpec,
   TestCustomConnectorSpec,
@@ -94,7 +100,8 @@ export class ConnectorDefinitionController {
     private readonly getCustomConnectorFields: GetCustomConnectorFieldsService,
     private readonly testCustomConnector: TestCustomConnectorService,
     private readonly mapper: ConnectorDefinitionMapper,
-    private readonly connectorMapper: ConnectorMapper
+    private readonly connectorMapper: ConnectorMapper,
+    private readonly listFittingCredentials: ListFittingCustomConnectorCredentialsService
   ) {}
 
   /**
@@ -136,9 +143,39 @@ export class ConnectorDefinitionController {
     @Body() body: TestConnectorRequestApiDto
   ): Promise<ConnectorTestResultResponseApiDto> {
     const result = await this.testCustomConnector.run(
-      this.mapper.toTestCommand(ctx.projectId, body)
+      this.mapper.toTestCommand(ctx.projectId, body, {
+        credentialId: body.credentialId,
+        userId: ctx.userId,
+        roles: ctx.roles,
+      })
     );
     return this.mapper.toTestApiResponse(result);
+  }
+
+  @Auth(Role.editor())
+  @Post('fitting-credentials')
+  @ListFittingCustomConnectorCredentialsSpec()
+  async fittingCredentials(
+    @AuthContext() ctx: AuthorizationContext,
+    @Body() body: FittingCustomConnectorCredentialsRequestApiDto
+  ): Promise<FittingCustomConnectorCredentialResponseApiDto[]> {
+    const result = await this.listFittingCredentials.run(
+      this.mapper.toFittingCredentialsCommand(ctx, body)
+    );
+    return this.mapper.toFittingCredentialsApiResponse(result);
+  }
+
+  @Auth(Role.editor())
+  @Post('credential-requirement')
+  @GetCustomConnectorCredentialRequirementSpec()
+  async credentialRequirement(
+    @AuthContext() ctx: AuthorizationContext,
+    @Body() body: FittingCustomConnectorCredentialsRequestApiDto
+  ): Promise<CustomConnectorCredentialRequirementResponseApiDto> {
+    const result = await this.listFittingCredentials.requirement(
+      this.mapper.toFittingCredentialsCommand(ctx, body)
+    );
+    return this.mapper.toCredentialRequirementApiResponse(result);
   }
 
   @Auth(Role.viewer())

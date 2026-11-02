@@ -1,4 +1,6 @@
 import { Injectable } from '@nestjs/common';
+import { ClsService } from 'nestjs-cls';
+import { isPluginRuntimeCall } from '../../idp/utils/is-plugin-runtime-call';
 import { RunType } from '../../common/scheduler/shared/types';
 import { AuthorizationContext } from '../../idp';
 import { UserProjectionDto } from '../../idp/dto/domain/user-projection.dto';
@@ -85,6 +87,7 @@ import {
 import { UpdateDataMartOwnersApiDto } from '../dto/presentation/update-data-mart-owners-api.dto';
 import { UpdateDataMartOwnersCommand } from '../dto/domain/update-data-mart-owners.command';
 import { DataStorageMapper } from './data-storage.mapper';
+import { SourceCredentialBindingService } from '../connector-types/source-credential-binding.service';
 import { extractContextSummaries } from '../utils/extract-context-summaries';
 import {
   SourceDataLastUpdated,
@@ -103,7 +106,9 @@ import type { DataMartMemberAccessResponseApiDto } from '../dto/presentation/dat
 export class DataMartMapper {
   constructor(
     private readonly dataStorageMapper: DataStorageMapper,
-    private readonly connectorSecretService: ConnectorSecretService
+    private readonly connectorSecretService: ConnectorSecretService,
+    private readonly sourceCredentials: SourceCredentialBindingService,
+    private readonly cls: ClsService
   ) {}
 
   toCreateDomainCommand(
@@ -168,14 +173,34 @@ export class DataMartMapper {
     };
   }
 
-  async toResponse(dto: DataMartDto): Promise<DataMartResponseApiDto> {
-    const maskedDefinition =
-      dto.definitionType === DataMartDefinitionType.CONNECTOR
-        ? await this.connectorSecretService.mask(
-            dto.projectId,
-            dto.definition as ConnectorDefinition
-          )
-        : dto.definition;
+  /** `member` adds the Credential summaries of a connector Data Mart, as that member sees them. */
+  async toResponse(
+    dto: DataMartDto,
+    member?: AuthorizationContext,
+    batched?: {
+      boundCredentialIds: ReadonlyMap<string, string | null>;
+      secretFieldsCache: SecretFieldsCache;
+    }
+  ): Promise<DataMartResponseApiDto> {
+    const isConnector = dto.definitionType === DataMartDefinitionType.CONNECTOR && !!dto.definition;
+    const maskedDefinition = isConnector
+      ? await this.connectorSecretService.mask(
+          dto.projectId,
+          dto.definition as ConnectorDefinition,
+          batched?.secretFieldsCache,
+          batched?.boundCredentialIds ??
+            (await this.sourceCredentials.boundCredentialIds(dto.projectId, dto.id))
+        )
+      : dto.definition;
+    const summaries =
+      isConnector && member
+        ? await this.sourceCredentials.summarizeForDataMart({
+            projectId: dto.projectId,
+            userId: member.userId,
+            roles: member.roles ?? [],
+            dataMartId: dto.id,
+          })
+        : undefined;
     return {
       id: dto.id,
       title: dto.title,
@@ -183,6 +208,16 @@ export class DataMartMapper {
       storage: await this.dataStorageMapper.toApiResponse(dto.storage),
       definitionType: dto.definitionType,
       definition: maskedDefinition,
+      ...(summaries && {
+        sourceCredentials: [...summaries].map(([configId, summary]) => ({
+          configId,
+          // A plugin never sees the Credential's title, identity or provider; `_credential_id` stays so it can save it back.
+          summary:
+            summary.access === 'visible' && isPluginRuntimeCall(this.cls)
+              ? { access: 'restricted' as const, state: summary.state }
+              : summary,
+        })),
+      }),
       description: dto.description,
       icon: dto.icon,
       schema: dto.schema,
@@ -264,7 +299,31 @@ export class DataMartMapper {
   }
 
   async toResponseList(dtos: DataMartDto[]): Promise<DataMartResponseApiDto[]> {
-    return Promise.all(dtos.map(dto => this.toResponse(dto)));
+    const connectors = dtos.filter(
+      dto => dto.definitionType === DataMartDefinitionType.CONNECTOR && !!dto.definition
+    );
+    const idsByDataMart = new Map<string, Map<string, string | null>>();
+    if (connectors.length > 0) {
+      // One project per call: the only caller lists a single project's Data Marts.
+      const bound = await this.sourceCredentials.boundConfigs(
+        connectors[0].projectId,
+        connectors.map(dto => dto.id)
+      );
+      for (const { consumerId, requirementKey, credential } of bound) {
+        const ids = idsByDataMart.get(consumerId) ?? new Map<string, string | null>();
+        ids.set(requirementKey, credential?.id ?? null);
+        idsByDataMart.set(consumerId, ids);
+      }
+    }
+    const secretFieldsCache: SecretFieldsCache = new Map();
+    return Promise.all(
+      dtos.map(dto =>
+        this.toResponse(dto, undefined, {
+          boundCredentialIds: idsByDataMart.get(dto.id) ?? new Map(),
+          secretFieldsCache,
+        })
+      )
+    );
   }
 
   async toBatchHealthStatusResponse(
@@ -649,9 +708,10 @@ export class DataMartMapper {
   }
 
   async toUpdateSchemaResponse(
-    result: UpdateDataMartSchemaResult
+    result: UpdateDataMartSchemaResult,
+    member: AuthorizationContext
   ): Promise<UpdateDataMartSchemaResponseApiDto> {
-    const base = await this.toResponse(result);
+    const base = await this.toResponse(result, member);
     return { ...base, warnings: result.warnings };
   }
 

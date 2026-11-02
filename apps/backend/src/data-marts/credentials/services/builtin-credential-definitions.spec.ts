@@ -90,12 +90,12 @@ describe('built-in Credential definitions', () => {
     expect(new URL(definition!.documentationUrl!).hostname).toBe('docs.cloud.google.com');
   });
 
-  it('declares the Sheets Google account on the destination client', () => {
+  it('the Sheets destination definition is named Sheets Destination Google account', () => {
     expect(BUILTIN_CREDENTIAL_DEFINITIONS.find(item => item.id === 'google-sheets-oauth')).toEqual({
       id: 'google-sheets-oauth',
       category: 'google',
       icon: 'google-sheets',
-      displayName: 'Sheets Google account',
+      displayName: 'Sheets Destination Google account',
       description: expect.any(String),
       auth: {
         type: 'oauth',

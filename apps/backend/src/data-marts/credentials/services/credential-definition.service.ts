@@ -17,10 +17,10 @@ import {
   sourceConnectorsOf,
   sourceCredentialDefinitions,
 } from '../../connector-types/source-credential-definitions';
-import {
-  BUILTIN_CREDENTIAL_DEFINITIONS,
-  CUSTOM_CONNECTOR_DEFINITION_ID,
-} from './builtin-credential-definitions';
+import { BUILTIN_CREDENTIAL_DEFINITIONS } from './builtin-credential-definitions';
+
+/** A stored definition id that no longer resolves; still a 400 for callers. */
+export class CredentialDefinitionUnavailableException extends BadRequestException {}
 
 @Injectable()
 export class CredentialDefinitionService {
@@ -41,10 +41,10 @@ export class CredentialDefinitionService {
       external.map(definition => this.resolveExternal(definition))
     );
     return [
-      // Not offered for creation until the web can render its form; existing ones still resolve.
-      ...BUILTIN_CREDENTIAL_DEFINITIONS.filter(
-        contract => contract.id !== CUSTOM_CONNECTOR_DEFINITION_ID
-      ).map(contract => ({
+      ...[
+        ...BUILTIN_CREDENTIAL_DEFINITIONS.map(withSourceConnectors),
+        ...sourceCredentialDefinitions().definitions,
+      ].map(contract => ({
         definitionId: contract.id,
         source: 'builtin' as const,
         compatibilityLine: null,
@@ -71,12 +71,16 @@ export class CredentialDefinitionService {
       id: definitionId,
     });
     if (!external) {
-      throw new BadRequestException(`Credential definition ${definitionId} is not available`);
+      throw new CredentialDefinitionUnavailableException(
+        `Credential definition ${definitionId} is not available`
+      );
     }
 
     const resolved = await this.resolveExternal(external);
     if (!resolved) {
-      throw new BadRequestException(`Credential definition ${definitionId} has no active version`);
+      throw new CredentialDefinitionUnavailableException(
+        `Credential definition ${definitionId} has no active version`
+      );
     }
     return resolved;
   }

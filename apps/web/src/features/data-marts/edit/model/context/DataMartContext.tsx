@@ -393,32 +393,12 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
             } as UpdateDataMartTablePatternDefinitionRequestDto;
             break;
 
-          case DataMartDefinitionType.CONNECTOR: {
-            const connectorDef = definition as ConnectorDefinitionConfig;
-
-            let sourceDataMartId: string | undefined;
-
-            for (const config of connectorDef.connector.source.configuration) {
-              const configWithMetadata = config as Record<string, unknown> & {
-                _copiedFrom?: {
-                  dataMartId: string;
-                  dataMartTitle: string;
-                  configId: string;
-                };
-              };
-              if (configWithMetadata._copiedFrom) {
-                sourceDataMartId = configWithMetadata._copiedFrom.dataMartId;
-                break;
-              }
-            }
-
+          case DataMartDefinitionType.CONNECTOR:
             requestData = {
               definitionType: DataMartDefinitionType.CONNECTOR,
-              definition: mapConnectorDefinitionToDto(connectorDef),
-              sourceDataMartId,
+              definition: mapConnectorDefinitionToDto(definition as ConnectorDefinitionConfig),
             } as UpdateDataMartConnectorDefinitionRequestDto;
             break;
-          }
 
           default:
             throw new Error(`Unsupported definition type: ${String(definitionType)}`);

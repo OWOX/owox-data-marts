@@ -18,7 +18,7 @@ Some APIs need logic a manifest cannot express — for example, an API that answ
 
 A manifest has three main parts:
 
-- **Parameters** — the values that change from one Data Mart to another, such as an account ID, a date range or an API key. They are filled in when the connector is set up in a Data Mart.
+- **Parameters** — the values that change from one Data Mart to another, such as an account ID, a date range or an API key. They are filled in when the connector is set up in a Data Mart; keys come from a Credential.
 - **Authentication** — how the API authorizes requests. Keys and tokens come from Secret parameters, never from the manifest itself.
 - **Nodes** — the data streams. Each node is one request to the API, the place in the response where the records are, and the output fields with their types. A node becomes one table in your storage.
 
@@ -63,9 +63,13 @@ See [Roles and Permissions](../project/roles-and-permissions.md).
 
 ## Credentials and network access
 
-Credentials should never be part of a manifest. The engine does not stop one from being typed into a header, a template or a parameter default, and one that is stays in the manifest: **Export JSON** downloads it as it is, and anyone who can edit the connector can read it. A key or a token goes into a Secret parameter instead: its value is masked in the UI and in API responses and stored apart from the Data Mart's definition (it is not encrypted), and it is entered only on the Data Mart page, or in the builder to run a test.
+Credentials should never be part of a manifest. The engine does not stop one from being typed into a header, a template or a parameter default, and one that is stays in the manifest: **Export JSON** downloads it as it is, and anyone who can edit the connector can read it. A key or a token goes into a Secret parameter instead, and its value lives in a **Custom connector** [Credential](../project/credentials.md#custom-connector-credentials).
 
-A custom connector sends requests only over HTTPS, only to the hosts named in its manifest — the base URL and the authentication URLs. The one exception is the download link that an asynchronous report API returns, which may point to any public HTTPS address. A custom connector never connects to private or local network addresses, so an API inside your own network cannot be reached this way.
+A Data Mart selects a Credential in its **Credential** field. The value is masked in the UI and in API responses and stored apart from the Data Mart's definition (it is not encrypted). In the builder, a test can take the keys from a Credential (**Use a Credential**) or from values you type (**Enter values**); see [Test on live data](connector-builder.md#step-5-test-on-live-data).
+
+A Credential fits a connector when it holds every host the connector sends requests to and a value for every required key parameter (of the branch a `selective` authentication selects). It keeps its hosts as they were created, and a custom connector sends its keys only to them, apart from the download link described below. A connector can use a key parameter only where it builds a request, not to fill a field or a list; see [Key parameters](manifest-reference.md#key-parameters). Publishing a version that Credentials no longer fit lists the Data Marts that will stop, until someone selects a fitting Credential.
+
+A custom connector sends requests only over HTTPS, only to the hosts named in its manifest — the base URL and the authentication URLs. The one exception is the download link that an asynchronous report API returns, which may point to any public HTTPS address; a key the API puts into that link goes there with it. A custom connector never connects to private or local network addresses, so an API inside your own network cannot be reached this way.
 
 ## Related Links
 

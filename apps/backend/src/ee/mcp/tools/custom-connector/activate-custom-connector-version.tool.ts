@@ -20,7 +20,7 @@ type Input = z.infer<typeof inputSchema>;
 export class ActivateCustomConnectorVersionTool implements McpToolDefinition<Input> {
   readonly name = 'activate_custom_connector_version';
   readonly description =
-    'Make an existing published version active, including an earlier version for rollback. You must be an editor with edit access to every Data Mart that follows the active version. If you do not have this access, ask a project admin or request edit access. Draft versions cannot be activated. Activation changes future runs of Data Marts that follow the active version. Data Marts pinned to a version keep that version.';
+    'Make an existing published version active, including an earlier version for rollback. You must be an editor with edit access to every Data Mart that follows the active version. If you do not have this access, ask a project admin or request edit access. Draft versions cannot be activated. Activation changes future runs of Data Marts that follow the active version. Data Marts pinned to a version keep that version.\n\nTell the user which Data Marts will stop (stopping_data_marts) and how many more are hidden (hidden_stopping_count).';
   readonly zodSchema = inputSchema;
   readonly outputSchema = connectorActivatedOutputSchema;
   readonly annotations = {

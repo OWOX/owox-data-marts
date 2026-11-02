@@ -3612,11 +3612,11 @@ describe('ConnectorExecutorService', () => {
       });
     });
 
-    it('a disabled Credential fails the configuration with the Credential name and fix', async () => {
+    it('a disabled Credential fails the configuration with the fix', async () => {
       const { service, processSpawner, sourceCredentialInjector, dataMartRunRepository } =
         createService();
       const disabled =
-        'Credential "Acme ads" is disabled. Select another Credential for this Data Mart.';
+        "This Data Mart's Credential is disabled. Select another Credential, or ask a Credential maintainer to enable it.";
       (sourceCredentialInjector.resolveBoundConfig as jest.Mock).mockRejectedValue(
         new SourceCredentialUnavailableException(disabled)
       );

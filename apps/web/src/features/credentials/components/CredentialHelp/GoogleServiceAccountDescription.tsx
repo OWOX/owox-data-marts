@@ -38,7 +38,7 @@ export default function GoogleServiceAccountDescription() {
             <li>
               For a BigQuery Storage, assign the <strong>bigquery.dataEditor</strong> and{' '}
               <strong>bigquery.jobUser</strong> roles to this service account. For a Google Sheets
-              Destination, no project roles are needed: share the target spreadsheets with the
+              Source or Destination, no project roles are needed: share the spreadsheets with the
               service account's email. For a plugin, use a dedicated service account with no project
               roles.
             </li>

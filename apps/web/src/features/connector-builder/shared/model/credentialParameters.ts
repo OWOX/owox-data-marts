@@ -1,5 +1,8 @@
 import type { ManifestParameter } from './manifest.types';
 
+/** A run writes it; nobody types it, so it is neither asked for nor kept. */
+export const GENERATED_REFRESH_TOKEN = 'GeneratedRefreshToken';
+
 const PARAMETER_REFERENCE = /\{\{\s*parameters\.([A-Za-z0-9_]+)\s*\}\}/g;
 
 function collectReferences(value: unknown, into: Set<string>): void {
@@ -27,5 +30,6 @@ export function credentialParameterNames(manifest: {
       .map(([name]) => name)
   );
   collectReferences(manifest.authentication, names);
+  if (GENERATED_REFRESH_TOKEN in manifest.parameters) names.add(GENERATED_REFRESH_TOKEN);
   return names;
 }

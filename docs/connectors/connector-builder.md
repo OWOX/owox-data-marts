@@ -4,7 +4,7 @@ The Connector Builder creates a connector for any HTTP API that has no ready-mad
 
 Project Admins and Data Owners can build and edit connectors. Anyone who sets up a connector-based Data Mart can use a published one. See [Roles and Permissions](../project/roles-and-permissions.md).
 
-> Credentials never go into the connector itself. Declare a **Secret** parameter for an API key or a token: whoever sets up a Data Mart enters its value there, and you enter a value only to run a test.
+> Credentials never go into the connector itself. Declare a **Secret** parameter for an API key or a token: whoever sets up a Data Mart selects a [Credential](../project/credentials.md) that holds its value, and you give a value only to run a test.
 
 The steps below use the public npm downloads API as an example: a connector that loads the daily downloads of an npm package.
 
@@ -74,13 +74,18 @@ The node's **⋮** menu renames, clones or deletes it. Data Marts refer to a nod
 
 ## Step 5: Test on live data
 
-Click **Test** in the top bar, then the gear icon to open **Test settings**. Choose the **Node**, enter the parameter values, e.g. the package `owox`, set a **Max rows** limit, and click **Run test**. The test uses the connector as it is in the editor, unsaved changes included.
+Click **Test** in the top bar, then the gear icon to open **Test settings**. Choose the **Node**, enter the parameter values, e.g. the package `owox`, set a **Max rows** limit, and click **Run test**. The keys have two sources, chosen with a switch:
+
+- **Enter values**: type the keys and tokens into the parameters. The test uses them and the builder never stores them.
+- **Use a Credential**: select a Credential that fits the connector, or click **+ Create new Credential** to add one beside the builder. The test sends only the Credential's id, so the browser never sends or receives the stored values. The output masks those values, not what an API returns for them. A Credential fits when it holds every host the connector sends requests to and a value for every required key parameter (of the branch a `selective` authentication selects); the new-Credential form starts with the hosts and the fields the connector needs. You need the right to use the Credential.
+
+The parameters that do not hold keys, such as the package `owox`, you still enter in both cases. Keys from a Credential can be used only where the connector builds a request; see [Key parameters](manifest-reference.md#key-parameters). The test uses the connector as it is in the editor, unsaved changes included.
 
 The result opens as a **Table**, as raw **JSON**, or as the run's **Logs**. If the test fails, the error and the **Logs** show what went wrong.
 
 ![A passed test of the daily node: 25 records of day and downloads in the results table](../res/screens/Connector-Builder-Test.png)
 
-The builder remembers test values in this browser for the next test. Values of Secret parameters, and of parameters the authentication uses, are never saved.
+The builder remembers test values in this browser for the next test. Values of Secret parameters, and of parameters the authentication uses, are never saved. If the API rotates a refresh token during a test with a Credential, the new token is saved into that Credential.
 
 ## Step 6: Define the fields
 
@@ -101,7 +106,7 @@ Data Marts refer to a field by its name, as they do to a node. Once you publish,
 
 **Save draft** keeps your work without making it available. Data Marts never run a draft, and a connector that has never been published appears in the connector list with a **Publish to use** badge.
 
-**Publish** checks the manifest, saves it as a new version and makes that version active. The version badge in the top bar shows the result, e.g. `v1 · published`. The title, description and docs URL shown in the connector list change when you publish, not when you save a draft.
+**Publish** checks the manifest, saves it as a new version and makes that version active. If a Data Mart's Credential no longer fits the new version, for example because the connector now sends requests to another host or needs another key parameter, a notice lists the Data Marts that will stop (it shows five and counts the rest, and the Data Marts you cannot see). Publishing goes ahead. Those Data Marts fail with `This Data Mart's Credential no longer fits its connector. Select a fitting Credential.` until someone selects a fitting Credential. The version badge in the top bar shows the result, e.g. `v1 · published`. The title, description and docs URL shown in the connector list change when you publish, not when you save a draft.
 
 ## Versions
 
@@ -125,7 +130,7 @@ To build a connector with an AI assistant, give it the [authoring guide for AI a
 
 ## Use the connector in a Data Mart
 
-In the connector setup of a Data Mart, published custom connectors are listed under **Custom Connectors**, below the built-in ones. From there, the setup is the same as for any connector: fill in the parameters, choose the node and its fields, and set the target table. See [Connector-based Data Mart](../getting-started/setup-guide/connector-data-mart.md).
+In the connector setup of a Data Mart, published custom connectors are listed under **Custom Connectors**, below the built-in ones. From there, the setup is the same as for any connector: select a **Credential** that fits the connector, fill in the other parameters, choose the node and its fields, and set the target table. **+ Create new Credential** opens the Credential form beside the setup with the hosts and the fields of the connector filled in; fill in the values there. See [Connector-based Data Mart](../getting-started/setup-guide/connector-data-mart.md).
 
 ## Delete a connector
 

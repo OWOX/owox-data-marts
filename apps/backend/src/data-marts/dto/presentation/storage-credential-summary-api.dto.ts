@@ -7,6 +7,8 @@ const STATES: StorageCredentialState[] = [
   'not-configured',
   'reconnect-required',
   'reauthorize-required',
+  'deleted',
+  'unavailable',
 ];
 
 /** A restricted or pending summary carries only `access` and `state`. */

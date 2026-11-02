@@ -16,7 +16,10 @@ import {
   type CredentialConsumerState,
   type CredentialConsumerSummary,
 } from './credential-consumer-state';
-import { CredentialDefinitionService } from './credential-definition.service';
+import {
+  CredentialDefinitionService,
+  CredentialDefinitionUnavailableException,
+} from './credential-definition.service';
 import { CredentialGoogleOAuthService } from './credential-google-oauth.service';
 import { CredentialService } from './credential.service';
 
@@ -67,7 +70,7 @@ export abstract class ConsumerCredentialBindingService<TType extends string> {
 
   /** Snapshots the type's requirement, the same whichever accepted Credential is chosen. */
   protected bindConsumer(
-    input: ConsumerBindingCheck<TType> & { consumerId: string }
+    input: ConsumerBindingCheck<TType> & { consumerId: string; requirementKey?: string }
   ): Promise<void> {
     // Called before any await so an unknown type throws synchronously, as callers expect.
     const requirement = this.requirement(input.type);
@@ -79,6 +82,7 @@ export abstract class ConsumerCredentialBindingService<TType extends string> {
       acceptedDefinitionIds: requirement.definitionIds,
       notAcceptedMessage: this.notAcceptedMessage(),
       ...this.binding,
+      requirementKey: input.requirementKey ?? this.binding.requirementKey,
       consumerId: input.consumerId,
       requirement,
     });
@@ -225,7 +229,14 @@ export abstract class ConsumerCredentialBindingService<TType extends string> {
     );
     const summaries = new Map<string, CredentialConsumerSummary>();
     for (const { key, credential, type } of live) {
-      const { contract } = await this.definitions.get(credential.definitionId);
+      let contract;
+      try {
+        ({ contract } = await this.definitions.get(credential.definitionId));
+      } catch (error) {
+        if (!(error instanceof CredentialDefinitionUnavailableException)) throw error;
+        summaries.set(key, { access: 'restricted', state: 'unavailable' });
+        continue;
+      }
       const state = credentialConsumerState(credential, contract, this.requirement(type).scopes);
       summaries.set(
         key,

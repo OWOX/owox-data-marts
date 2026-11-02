@@ -4,13 +4,14 @@ import type { OpenGoogleSheetsPickerOptions } from '../../../../../../../../goog
 import type { OauthRenderComponentProps } from '../OauthRenderFactory';
 import { GoogleSheetsOauthRender } from './GoogleSheetsOauthRender';
 
-const { openPicker, toastSuccess } = vi.hoisted(() => ({
+const { openPicker, toastSuccess, toastError } = vi.hoisted(() => ({
   openPicker: vi.fn<(options: OpenGoogleSheetsPickerOptions) => Promise<void>>(),
   toastSuccess: vi.fn(),
+  toastError: vi.fn(),
 }));
 
 vi.mock('react-hot-toast', () => ({
-  toast: { success: toastSuccess },
+  toast: { success: toastSuccess, error: toastError },
 }));
 
 vi.mock('../../../../../../../../google-oauth', () => ({
@@ -61,7 +62,6 @@ function renderGoogleSheetsOAuth(overrides: Partial<OauthRenderComponentProps> =
       success: true,
       credentialId: 'credential-1',
       user: { id: 'user-1', name: 'analyst@example.com', email: 'analyst@example.com' },
-      additional: {},
     }),
     ...overrides,
   } as OauthRenderComponentProps;
@@ -74,6 +74,7 @@ describe('GoogleSheetsOauthRender', () => {
   beforeEach(() => {
     openPicker.mockReset();
     toastSuccess.mockReset();
+    toastError.mockReset();
   });
 
   it('stores the spreadsheet selected with Google Picker', async () => {
@@ -146,7 +147,6 @@ describe('GoogleSheetsOauthRender', () => {
         success: true,
         credentialId: 'credential-2',
         user: { id: 'user-2', name: 'other@example.com', email: 'other@example.com' },
-        additional: {},
       }),
     });
 
@@ -228,7 +228,6 @@ describe('GoogleSheetsOauthRender', () => {
         success: true,
         credentialId: 'credential-2',
         user: { id: 'user-2', name: 'other@example.com', email: 'other@example.com' },
-        additional: {},
       }),
     });
 
@@ -250,6 +249,72 @@ describe('GoogleSheetsOauthRender', () => {
       expect(toastSuccess).toHaveBeenCalledWith(
         'Google account analyst@example.com connected. Now choose a spreadsheet.'
       );
+    });
+  });
+  describe('connecting a Credential', () => {
+    const exchangedUser = {
+      id: 'user-1',
+      name: 'analyst@example.com',
+      email: 'analyst@example.com',
+    };
+    const connecting = (overrides: Partial<OauthRenderComponentProps> = {}) =>
+      renderGoogleSheetsOAuth({
+        forCredential: true,
+        onOAuthSuccess: vi.fn(async (_payload, beforeFinish) => {
+          await beforeFinish?.({
+            success: true,
+            credentialId: 'credential-1',
+            user: exchangedUser,
+          });
+          return { success: true, credentialId: 'credential-1', user: exchangedUser };
+        }) as unknown as OauthRenderComponentProps['onOAuthSuccess'],
+        ...overrides,
+      });
+
+    it('a Picker failure during Connect is a toast, not an inline error', async () => {
+      openPicker.mockImplementation(options => {
+        options.onError?.('API developer key is invalid');
+        return Promise.resolve();
+      });
+      connecting();
+
+      fireEvent.click(screen.getByTestId('google-login'));
+
+      await waitFor(() => {
+        expect(toastError).toHaveBeenCalledWith('API developer key is invalid');
+      });
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    });
+
+    it('a Picker failure from Add spreadsheet stays inline', () => {
+      openPicker.mockImplementation(options => {
+        options.onError?.('API developer key is invalid');
+        return Promise.resolve();
+      });
+      renderGoogleSheetsOAuth({ forCredential: true });
+
+      fireEvent.click(screen.getByRole('button', { name: 'Add spreadsheet' }));
+
+      return waitFor(() => {
+        expect(screen.getByRole('alert')).toHaveTextContent('API developer key is invalid');
+        expect(toastError).not.toHaveBeenCalled();
+      });
+    });
+
+    it('an incomplete Picker configuration during Connect is shown as a toast', async () => {
+      connecting({
+        settings: {
+          isEnabled: true,
+          vars: { ClientId: 'client-id', RedirectUri: 'https://app.example.com/cb' },
+        },
+      });
+
+      fireEvent.click(screen.getByTestId('google-login'));
+
+      await waitFor(() => {
+        expect(toastError).toHaveBeenCalledWith('Google Picker configuration is incomplete');
+      });
+      expect(openPicker).not.toHaveBeenCalled();
     });
   });
 });

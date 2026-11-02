@@ -1,4 +1,4 @@
-// Imported by migration 1792700000000: keep it and its imports when the legacy code goes.
+// Imported by migration 1793000000000: keep it and its imports when the legacy code goes.
 import {
   credentialIdentity,
   type CredentialPublicMetadata,

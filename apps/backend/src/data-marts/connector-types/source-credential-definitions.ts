@@ -1,5 +1,6 @@
-// Imported by migrations: keep it and its imports free of Nest and runtime services.
+// Imported by migration 1793000000000: keep it and its imports free of Nest and runtime services.
 import { AvailableConnectors, Connectors, Core } from '@owox/connectors';
+import { isDeepStrictEqual } from 'util';
 import {
   CredentialDefinitionContractSchema,
   type CredentialDefinitionContract,
@@ -177,6 +178,24 @@ export function selectsOtherVariant(
   // The run and the conversion take the first key, so later ones are only stored values.
   const [first] = typeof selected === 'object' && selected !== null ? Object.keys(selected) : [];
   return first !== undefined && first !== variant;
+}
+
+/** Another variant beside the bound one, unless the stored item held the same ones: MySQL stores JSON keys sorted, so it could come first. */
+export function addsVariant(
+  binding: SourceCredentialBinding,
+  config: Record<string, unknown>,
+  previous: Record<string, unknown> | undefined
+): boolean {
+  const [parameter, variant] = binding.path;
+  if (parameter === undefined) return false;
+  const variants = (item: Record<string, unknown> | undefined) => {
+    const selected = item?.[parameter];
+    return typeof selected === 'object' && selected !== null ? Object.keys(selected).sort() : [];
+  };
+  const requested = variants(config);
+  return (
+    requested.some(key => key !== variant) && !isDeepStrictEqual(requested, variants(previous))
+  );
 }
 
 /** The binding whose variant runs the connector's OAuth flow at `fieldPath`, like "AuthType.oauth2". */

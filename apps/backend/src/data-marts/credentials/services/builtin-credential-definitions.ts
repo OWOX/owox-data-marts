@@ -1,4 +1,4 @@
-// Imported by migration 1792700000000: keep it and its imports when the legacy code goes.
+// Imported by migration 1793000000000: keep it and its imports when the legacy code goes.
 import type { CredentialDefinitionContract, CredentialOAuthAuth } from '../credential.types';
 
 export const GOOGLE_SHEETS_OAUTH_DEFINITION_ID = 'google-sheets-oauth';
@@ -173,7 +173,7 @@ export const BUILTIN_CREDENTIAL_DEFINITIONS: readonly CredentialDefinitionContra
     id: GOOGLE_SHEETS_OAUTH_DEFINITION_ID,
     category: 'google',
     icon: 'google-sheets',
-    displayName: 'Sheets Google account',
+    displayName: 'Sheets Destination Google account',
     description: 'Google account access for Google Sheets Destinations.',
     auth: {
       type: 'oauth',

@@ -57,6 +57,7 @@ import {
   GatewayTimeoutException,
   InternalServerErrorException,
 } from '@nestjs/common';
+import { SourceCredentialUnavailableException } from '../../exceptions/source-credential-unavailable.exception';
 import { AuthorizationContext } from '../../../idp';
 import { ConnectorPreviewCredentialsService } from './connector-preview-credentials.service';
 import { ConnectorService } from './connector.service';
@@ -105,20 +106,40 @@ describe(ConnectorFieldOptionsPreviewService.name, () => {
       { value: 'Data', label: 'Data' },
     ]);
 
-    const result = await service.run(context, 'GoogleSheets', 'SheetName', {
-      SpreadsheetId: 'sheet-1',
-    });
+    const result = await service.run(
+      context,
+      'GoogleSheets',
+      'SheetName',
+      {
+        SpreadsheetId: 'sheet-1',
+      },
+      'dm-1'
+    );
 
     expect(previewCredentials.inject).toHaveBeenCalledWith(
       'GoogleSheets',
       { SpreadsheetId: 'sheet-1' },
-      context
+      context,
+      'dm-1'
     );
     expect(fetchFieldOptionsMock).toHaveBeenCalledWith('SheetName', expect.any(AbortSignal));
     expect(result).toEqual([
       { value: 'Summary', label: 'Summary' },
       { value: 'Data', label: 'Data' },
     ]);
+  });
+
+  it('a disabled bound Credential gives the run error, not a 500', async () => {
+    const inject = jest
+      .fn()
+      .mockRejectedValue(
+        new SourceCredentialUnavailableException('Credential "Acme" is disabled.')
+      );
+    const { service } = createService(inject);
+
+    await expect(service.run(context, 'GoogleSheets', 'SheetName', {})).rejects.toBeInstanceOf(
+      SourceCredentialUnavailableException
+    );
   });
 
   it('rejects connectors that do not support dynamic field options', async () => {

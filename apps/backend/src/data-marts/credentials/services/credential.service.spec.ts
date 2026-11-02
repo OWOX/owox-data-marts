@@ -268,7 +268,6 @@ describe('CredentialService.updateSecretFields (SQLite)', () => {
         expiresAt: '2027-01-01T00:00:00.000Z',
       },
     });
-    // The rollout rule compares the old row's write time against this one.
     expect(after.modifiedAt.getTime()).toBeGreaterThan(lastWrite.getTime());
   });
 
@@ -512,6 +511,27 @@ describe('CredentialService rotation lease (SQLite)', () => {
       await service.markRefreshTokenStatic(id, leaseId, grant);
 
       expect(await markerOf(id)).toBeNull();
+    });
+
+    it("is not set, and no rotated token is written, once a reconnect replaced the run's grant", async () => {
+      const id = await givenRotating();
+      const leaseId = (await service.claimRotation(id))!;
+      const signIn = { fields: { RefreshToken: 'refresh-2' } };
+      await service.replaceSignIn(id, {
+        secret: signIn,
+        publicMetadata: null,
+        validationState: 'verified',
+        validationMessage: 'Account connected',
+        validatedAt: new Date(),
+      });
+
+      await expect(
+        service.updateSecretFields(id, 'project-1', { generated_refresh_token: 'rotated-2' }, grant)
+      ).resolves.toEqual({ updated: false });
+      await service.markRefreshTokenStatic(id, leaseId, grant);
+
+      expect(await markerOf(id)).toBeNull();
+      expect((await credentials.findOneByOrFail({ id })).secret).toEqual(signIn);
     });
 
     it('is cleared by a stored rotated token, not by another secret write', async () => {

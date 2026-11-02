@@ -20,10 +20,7 @@ Before you begin, please ensure that:
 1. Select **Connector** as the input source type.
 2. Click **Setup connector** and choose **Reddit Ads**.  
 3. Fill in the required fields:
-    - **App ID** – paste the App ID you saved earlier following the [CREDENTIALS](CREDENTIALS) tutorial.
-    - **Secret** – paste the Secret you saved earlier following the [CREDENTIALS](CREDENTIALS) tutorial.
-    - **Redirect URI** – paste `https://www.reddit.com/prefs/apps`
-    - **Refresh Token** – paste the token you created following the [CREDENTIALS](CREDENTIALS) tutorial.
+    - **Credential** – select the Credential you saved following the [CREDENTIALS](CREDENTIALS) tutorial (App ID, Secret, Redirect URI and Refresh Token), or click **+ Create new Credential**.
     - **User Agent** – `googleapps:owox-data-marts.redditads:v1.0.0 (by /u/your_reddit_username)` (replace `your_reddit_username` with your actual Reddit username).
     - **Account ID** – you can find this value on your [Reddit Ads Manager](https://ads.reddit.com/).
     - Leave the other fields as default and proceed to the next step.

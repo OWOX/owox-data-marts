@@ -73,37 +73,18 @@ export class CredentialBindingService {
     });
   }
 
-  /** Binds a Credential of the project without the member's checks, which the caller makes. */
-  @Transactional()
-  async bindInProject(
-    input: CredentialBindingKey & {
-      readonly projectId: string;
-      readonly credentialId: string;
-      readonly requirement: CredentialRequirementSnapshot;
-    }
-  ): Promise<void> {
-    // The lock serializes this binding with a concurrent deletion of the Credential.
-    const credential = await this.credentialService.lockActiveByIdAndProjectId(
-      input.credentialId,
-      input.projectId
-    );
-    if (!credential) throw new NotFoundException(`Credential ${input.credentialId} was not found`);
-    await this.upsert(input, {
-      projectId: input.projectId,
-      ...boundValues(credential.id, input.requirement, null),
-    });
-  }
-
   private async upsert(
     input: CredentialBindingKey,
     values: { projectId: string } & ReturnType<typeof boundValues>
   ): Promise<void> {
     const key = keyOf(input);
+    // MySQL matches the key case- and accent-insensitively, so a reused row takes the spelling sent.
+    const { requirementKey } = input;
     // The unique index covers inactive rows too, so a consumer keeps reusing its one row.
     const binding = await this.bindings.findOneBy(key);
     if (binding) {
       if (binding.credentialId !== values.credentialId) binding.lastUsedAt = null;
-      await this.bindings.save(Object.assign(binding, values));
+      await this.bindings.save(Object.assign(binding, values, { requirementKey }));
       return;
     }
     try {
@@ -111,7 +92,7 @@ export class CredentialBindingService {
     } catch (error) {
       if (!isUniqueConstraintViolation(error)) throw error;
       // A concurrent first binding won the insert; an UPDATE sees its row where a re-read may not.
-      await this.bindings.update(key, { ...values, lastUsedAt: null });
+      await this.bindings.update(key, { ...values, requirementKey, lastUsedAt: null });
     }
   }
 

@@ -231,7 +231,7 @@ export class DataMartController {
   ): Promise<DataMartResponseApiDto> {
     const command = this.mapper.toGetCommand(id, context);
     const dataMart = await this.getDataMartService.run(command);
-    return this.mapper.toResponse(dataMart);
+    return this.mapper.toResponse(dataMart, context);
   }
 
   @Auth(Role.editor(Strategy.INTROSPECT))
@@ -244,7 +244,7 @@ export class DataMartController {
   ): Promise<DataMartResponseApiDto> {
     const command = this.mapper.toUpdateDefinitionCommand(id, context, dto);
     const dataMart = await this.updateDefinitionService.run(command);
-    return this.mapper.toResponse(dataMart);
+    return this.mapper.toResponse(dataMart, context);
   }
 
   @Auth(Role.editor(Strategy.INTROSPECT))
@@ -257,7 +257,7 @@ export class DataMartController {
   ): Promise<DataMartResponseApiDto> {
     const command = this.mapper.toUpdateTitleCommand(id, context, dto);
     const dataMart = await this.updateTitleService.run(command);
-    return this.mapper.toResponse(dataMart);
+    return this.mapper.toResponse(dataMart, context);
   }
 
   @Auth(Role.editor(Strategy.INTROSPECT))
@@ -270,7 +270,7 @@ export class DataMartController {
   ): Promise<DataMartResponseApiDto> {
     const command = this.mapper.toUpdateDescriptionCommand(id, context, dto);
     const dataMart = await this.updateDescriptionService.run(command);
-    return this.mapper.toResponse(dataMart);
+    return this.mapper.toResponse(dataMart, context);
   }
 
   @Auth(Role.editor(Strategy.INTROSPECT))
@@ -283,7 +283,7 @@ export class DataMartController {
   ): Promise<DataMartResponseApiDto> {
     const command = this.mapper.toUpdateIconCommand(id, context, dto);
     const dataMart = await this.updateIconService.run(command);
-    return this.mapper.toResponse(dataMart);
+    return this.mapper.toResponse(dataMart, context);
   }
 
   @Auth(Role.editor(Strategy.INTROSPECT))
@@ -296,7 +296,7 @@ export class DataMartController {
   ): Promise<DataMartResponseApiDto> {
     const command = this.mapper.toUpdateOwnersCommand(id, context, dto);
     const dataMart = await this.updateOwnersService.run(command);
-    return this.mapper.toResponse(dataMart);
+    return this.mapper.toResponse(dataMart, context);
   }
 
   @Auth(Role.editor(Strategy.INTROSPECT))
@@ -325,7 +325,7 @@ export class DataMartController {
   ): Promise<DataMartResponseApiDto> {
     const command = this.mapper.toPublishCommand(id, context);
     const dataMart = await this.publishDataMartService.run(command);
-    return this.mapper.toResponse(dataMart);
+    return this.mapper.toResponse(dataMart, context);
   }
 
   @Auth(Role.editor(Strategy.INTROSPECT))
@@ -387,7 +387,7 @@ export class DataMartController {
   ): Promise<UpdateDataMartSchemaResponseApiDto> {
     const command = this.mapper.toUpdateSchemaCommand(id, context, dto);
     const result = await this.updateSchemaService.run(command);
-    return this.mapper.toUpdateSchemaResponse(result);
+    return this.mapper.toUpdateSchemaResponse(result, context);
   }
 
   // POST rather than PUT because it changes nothing: the formula is checked and thrown away.
@@ -415,7 +415,7 @@ export class DataMartController {
   ): Promise<DataMartResponseApiDto> {
     const command = this.mapper.toUpdateBlendedFieldsConfigCommand(id, context, dto);
     const result = await this.updateBlendedFieldsConfigService.run(command);
-    return this.mapper.toResponse(result);
+    return this.mapper.toResponse(result, context);
   }
 
   @Auth(Role.viewer(Strategy.PARSE))

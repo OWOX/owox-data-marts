@@ -237,7 +237,7 @@ function assertUsable({ state }: ResolvedDestinationCredential): void {
   }
   if (state === 'not-configured') {
     throw new DestinationCredentialUnavailableException(
-      'Sheets Google account Credentials cannot be used because Google sign-in is not configured on this server.',
+      'Sheets Destination Google account Credentials cannot be used because Google sign-in is not configured on this server.',
       false
     );
   }

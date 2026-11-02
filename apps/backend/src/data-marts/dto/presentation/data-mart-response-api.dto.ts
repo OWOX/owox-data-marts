@@ -12,6 +12,7 @@ import { BlendedFieldsConfig } from '../schemas/blended-fields-config.schema';
 import { ContextSummary } from '../../utils/extract-context-summaries';
 import { ContextSummaryApiDto } from './context-summary-api.dto';
 import { DataMartDataLastUpdatedResponseApiDto } from './data-mart-data-last-updated-response-api.dto';
+import { DataMartSourceCredentialApiDto } from './data-mart-source-credential-api.dto';
 import {
   DATA_MART_ICON_API_DESCRIPTION,
   type DataMartIconValue,
@@ -33,8 +34,19 @@ export class DataMartResponseApiDto {
   @ApiProperty({ enum: DataMartDefinitionType, example: DataMartDefinitionType.SQL })
   definitionType?: DataMartDefinitionType;
 
-  @ApiProperty()
+  @ApiProperty({
+    description:
+      'A connector configuration item bound to a Credential carries its `_credential_id` and no key values.',
+  })
   definition?: DataMartDefinition;
+
+  @ApiProperty({
+    type: [DataMartSourceCredentialApiDto],
+    required: false,
+    description:
+      'The Credential of each bound connector configuration, as the member sees it. A configuration whose Credential was deleted is listed as restricted with state deleted, and one whose connector is no longer installed with state unavailable.',
+  })
+  sourceCredentials?: DataMartSourceCredentialApiDto[];
 
   @ApiProperty()
   description?: string;

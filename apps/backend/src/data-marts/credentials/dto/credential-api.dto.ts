@@ -1,5 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
+import type { UnavailableCredentialDto } from './credential.dto';
 import {
   ArrayMaxSize,
   IsArray,
@@ -499,4 +500,14 @@ export interface ResolvedCredentialDefinition {
   readonly source: CredentialDefinitionSource;
   readonly compatibilityLine: string | null;
   readonly contract: CredentialDefinitionContract;
+}
+
+export class UnavailableCredentialResponseApiDto implements UnavailableCredentialDto {
+  @ApiProperty() id: string;
+  @ApiProperty() projectId: string;
+  @ApiProperty() title: string;
+  @ApiProperty() definitionId: string;
+  @ApiProperty({ enum: ['unavailable'] }) state: 'unavailable';
+  @ApiProperty() createdAt: Date;
+  @ApiProperty() modifiedAt: Date;
 }

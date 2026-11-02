@@ -298,7 +298,11 @@ function parseFieldList(raw: unknown): CustomConnectorFieldSpec[] {
         'A field key must start with a letter and contain only letters, digits and underscores'
       );
     }
-    if (Core.ManifestParser.RESERVED_PARAMETER_NAMES.has(key)) {
+    if (
+      Core.ManifestParser.RESERVED_PARAMETER_NAMES.has(key) ||
+      key === Core.GENERATED_REFRESH_TOKEN_CREDENTIAL_FIELD ||
+      key === OLD_ROW_TOKEN_FIELD
+    ) {
       throw new BadRequestException(`Field ${key} uses a name reserved by the connector engine`);
     }
     if (keys.has(key)) throw new BadRequestException(`Duplicate field ${key}`);

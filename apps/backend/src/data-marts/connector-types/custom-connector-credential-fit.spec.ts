@@ -212,6 +212,110 @@ describe('customConnectorRefusal', () => {
   });
 });
 
+describe('classification', () => {
+  const hosts = ['api.acme.example', 'auth.acme.example'];
+  const custom = (metadata: CustomConnectorPublicMetadata) => ({
+    definitionId: CUSTOM_CONNECTOR_DEFINITION_ID,
+    publicMetadata: metadata,
+  });
+  const classified = {
+    ...model,
+    parameters: {
+      ...model.parameters,
+      ClientId: { isRequired: true, label: 'Client ID', attributes: ['SECRET'] },
+      ClientSecret: { isRequired: true, attributes: ['SECRET'] },
+    },
+  };
+  // ClientId is held as a public field, ClientSecret as a secret one.
+  const publicClientId = credential(hosts, ['ClientId', 'ClientSecret']);
+
+  it('refuses a SECRET key held as a public field only with the option', () => {
+    const options = { classification: true };
+
+    expect(fitCustomConnectorCredential(classified, publicClientId)).toEqual({
+      fits: true,
+      reasons: [],
+    });
+    expect(fitCustomConnectorCredential(classified, publicClientId, undefined, options)).toEqual({
+      fits: false,
+      reasons: ['secret'],
+    });
+    expect(customConnectorRefusal(classified, custom(publicClientId))).toBeNull();
+    const secret = {
+      kind: 'secret',
+      message: 'This Credential keeps Client ID as a public field; this connector needs it secret.',
+    };
+    expect(customConnectorRefusal(classified, custom(publicClientId), undefined, options)).toEqual(
+      secret
+    );
+    expect(customConnectorConfigRefusal(classified, custom(publicClientId), {}, options)).toEqual(
+      secret
+    );
+  });
+
+  it('accepts a SECRET key the Credential holds as secret', () => {
+    const secretOnly = {
+      ...model,
+      parameters: {
+        ...model.parameters,
+        ClientSecret: { isRequired: true, attributes: ['SECRET'] },
+      },
+    };
+
+    expect(
+      customConnectorRefusal(secretOnly, custom(publicClientId), undefined, {
+        classification: true,
+      })
+    ).toBeNull();
+  });
+
+  it('names misuse first, then unfit, then secret', () => {
+    const options = { classification: true };
+    const misused = {
+      ...classified,
+      keyParameterMisuse: [
+        { parameter: 'ClientSecret', node: 'orders', position: 'transformations.add' },
+      ],
+    };
+    const missingHost = credential(['api.acme.example'], ['ClientId', 'ClientSecret']);
+
+    expect(customConnectorRefusal(misused, custom(missingHost), undefined, options)).toMatchObject({
+      kind: 'misuse',
+    });
+    expect(customConnectorRefusal(classified, custom(missingHost), undefined, options)).toEqual({
+      kind: 'unfit',
+    });
+    expect(
+      customConnectorRefusal(classified, custom(publicClientId), undefined, options)
+    ).toMatchObject({ kind: 'secret' });
+  });
+
+  it('names the first mismatched key by its key when it has no label', () => {
+    const unlabelled = {
+      ...classified,
+      parameters: {
+        ...classified.parameters,
+        ClientId: { isRequired: true, attributes: ['SECRET'] },
+      },
+    };
+    const bothPublic: CustomConnectorPublicMetadata = {
+      hosts,
+      fieldList: [
+        { key: 'ClientSecret', label: 'Secret', secret: false },
+        { key: 'ClientId', label: 'Id', secret: false },
+      ],
+      fields: {},
+    };
+
+    expect(
+      customConnectorRefusal(unlabelled, custom(bothPublic), undefined, { classification: true })
+    ).toEqual({
+      kind: 'secret',
+      message: 'This Credential keeps ClientId as a public field; this connector needs it secret.',
+    });
+  });
+});
+
 describe('selectionOf', () => {
   const selecting = (parameter: Record<string, unknown> = {}) => ({
     ...model,

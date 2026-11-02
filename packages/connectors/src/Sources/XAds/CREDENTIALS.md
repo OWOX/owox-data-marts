@@ -225,7 +225,7 @@ You now have all four credentials for the connector:
 | Access Token | `oauth_token` | [Step 6](#step-6-exchange-for-permanent-tokens) response |
 | Access Token Secret | `oauth_token_secret` | [Step 6](#step-6-exchange-for-permanent-tokens) response |
 
-Go to the [Getting Started Guide](GETTING_STARTED.md) to complete the setup.
+Save the four values in a Credential (on the **Credentials** page, or with **+ Create new Credential** beside the **Credential** field of the Data Mart's connector configuration), then go to the [Getting Started Guide](GETTING_STARTED.md) to complete the setup.
 
 ---
 

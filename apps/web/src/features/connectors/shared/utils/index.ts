@@ -6,17 +6,26 @@ import type { ConnectorDefinitionDto } from '../api/index.ts';
 import { mapConnectorListFromDto } from '../model/mappers/connector-list.mapper.ts';
 import type { ConnectorListItem } from '../model/types/connector.ts';
 
-// Module-level cache for connectors list
-let connectorsCache: ConnectorListItem[] | null = null;
+// Module-level cache for connectors list; the promise is cached so parallel callers share one request
+let connectorsCache: Promise<ConnectorListItem[]> | null = null;
 
-async function getConnectors(): Promise<ConnectorListItem[]> {
-  if (connectorsCache) {
-    return connectorsCache;
-  }
-
-  const connectorsDto = await loadConnectors();
-  connectorsCache = mapConnectorListFromDto(connectorsDto);
+function getConnectors(): Promise<ConnectorListItem[]> {
+  connectorsCache ??= loadConnectors()
+    .then(mapConnectorListFromDto)
+    .catch((error: unknown) => {
+      connectorsCache = null;
+      throw error;
+    });
   return connectorsCache;
+}
+
+/** The logo of a bundled connector; null when it has none or the list cannot load. */
+export async function getBundledConnectorLogo(name: string): Promise<string | null> {
+  try {
+    return (await getConnectors()).find(c => c.name === name)?.logoBase64 ?? null;
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -28,7 +37,7 @@ async function loadConnectors(): Promise<ConnectorDefinitionDto[]> {
   return await connectorApiService.getAvailableConnectors();
 }
 
-async function loadCustomConnectors(): Promise<ConnectorListItem[]> {
+export async function loadCustomConnectors(): Promise<ConnectorListItem[]> {
   const customs: CustomConnectorListItemDto[] = await new ConnectorBuilderApiService().list();
   return customs.map(c => ({
     name: c.name,
