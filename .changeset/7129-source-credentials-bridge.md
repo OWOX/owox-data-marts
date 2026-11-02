@@ -4,7 +4,7 @@
 
 <!-- markdownlint-disable-file MD041 MD036 -->
 
-**Upgrading several instances: run this version on all of them before the next one**
+**Check custom connector templates, and run this version on every instance before the next one**
 
 **Before you upgrade, check your custom connector templates: a template path no longer steps into text.** `{{ parameters.Key.0 }}` or `{{ record.name.length }}` is now unresolved. That fails the run wherever an unresolved path does, such as a request path, a request body or an authentication field; in a query parameter or a header, the parameter is not sent. See [Templating scopes](../../docs/connectors/manifest-reference.md#templating-scopes).
 
