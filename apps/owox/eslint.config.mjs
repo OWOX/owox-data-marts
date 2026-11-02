@@ -25,4 +25,17 @@ export default [
       'import/no-unresolved': 'off',
     },
   },
+  {
+    rules: {
+      // Same guard as @owox/eslint-config/base: 'zod/v3' is the unpatched zod 3 code.
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            { message: "Import from 'zod'. 'zod/v3' is the unpatched zod 3 code.", name: 'zod/v3' },
+          ],
+        },
+      ],
+    },
+  },
 ];
