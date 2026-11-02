@@ -38,6 +38,7 @@ function setup() {
   const identity = {
     bigQuery: jest.fn(() => ({ query })),
     bigQueryAs: jest.fn(() => Promise.resolve({ dataset })),
+    forget: jest.fn(() => void calls.push('forget')),
   };
   const engine = new BigQueryManagedStorageEngine(
     config as never,
@@ -243,12 +244,14 @@ describe('BigQueryManagedStorageEngine', () => {
     };
 
     it("restore recreates the record's datasets, account and grants", async () => {
-      const { engine, client } = setup();
+      const { engine, client, identity, calls } = setup();
       client.createServiceAccount.mockResolvedValue(OLD_EMAIL);
       engine.newShortId = jest.fn(() => 'unused');
 
       await engine.restore(deleted, 'p1');
 
+      expect(identity.forget).toHaveBeenCalledWith(OLD_EMAIL);
+      expect(calls[0]).toBe('forget');
       expect(engine.newShortId).not.toHaveBeenCalled();
       expect(client.createDataset).toHaveBeenCalledTimes(2);
       expect(client.createServiceAccount).toHaveBeenCalledTimes(1);
@@ -329,7 +332,7 @@ describe('BigQueryManagedStorageEngine', () => {
   });
 
   it('deprovision ignores resources that are already gone', async () => {
-    const { engine, client, calls } = setup();
+    const { engine, client, calls, identity } = setup();
     await engine.deprovision({
       engine: 'bigquery',
       gcpProjectId: 'data-project',
@@ -339,7 +342,9 @@ describe('BigQueryManagedStorageEngine', () => {
       serviceAccountEmail: EMAIL,
     });
 
+    expect(identity.forget).toHaveBeenCalledWith(EMAIL);
     expect(calls).toEqual([
+      'forget',
       'revokeProjectRole',
       'deleteServiceAccount',
       'deleteDataset',

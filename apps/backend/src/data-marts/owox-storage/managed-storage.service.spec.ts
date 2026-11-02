@@ -97,10 +97,21 @@ describe('ManagedStorageService', () => {
     expect(repository.find).toHaveBeenCalledWith({ where: { deprovisionedAt: IsNull() } });
   });
 
-  it('save passes the record to the repository', async () => {
-    const row = record('s1');
+  it.each([
+    [1, true],
+    [0, false],
+  ])(
+    'updateActive changes only a record that is not deleted (%i row)',
+    async (affected, result) => {
+      const now = new Date('2026-11-02T10:00:00Z');
+      repository.update.mockResolvedValue({ affected });
 
-    expect(await service.save(row)).toBe(row);
-    expect(repository.save).toHaveBeenCalledWith(row);
-  });
+      expect(await service.updateActive('s1', { lastActivityAt: now })).toBe(result);
+      expect(repository.update).toHaveBeenCalledWith(
+        { storageId: 's1', deprovisionedAt: IsNull() },
+        { lastActivityAt: now }
+      );
+      expect(repository.save).not.toHaveBeenCalled();
+    }
+  );
 });

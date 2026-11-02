@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { ConnectorState as ConnectorStateEntity } from '../../../entities/connector-state.entity';
 import { ConnectorOutputState } from '../../interfaces/connector-output-state';
 import { ConnectorState as State, ConnectorStateItem } from '../../interfaces/connector-state';
@@ -32,6 +32,10 @@ export class ConnectorStateService {
     }
 
     return undefined;
+  }
+
+  async deleteByDataMartIds(dataMartIds: string[]): Promise<void> {
+    await this.connectorStateRepository.delete({ datamartId: In(dataMartIds) });
   }
 
   /**
