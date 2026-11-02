@@ -13,6 +13,11 @@ import { Credential } from '../entities/credential.entity';
 import { CredentialService } from '../services/credential.service';
 import { BUILTIN_CREDENTIAL_DEFINITIONS } from '../services/builtin-credential-definitions';
 import { sourceCredentialDefinitions } from '../../connector-types/source-credential-definitions';
+import type { ResolvedSourceCredential } from '../../connector-types/source-credential-binding.service';
+import {
+  SourceCredentialInjectorService,
+  type BoundSourceConfig,
+} from '../../services/connector/source-credential-injector.service';
 import { UpdateCredentialService } from './update-credential.service';
 
 const context = {
@@ -922,6 +927,69 @@ describe('UpdateCredentialService on a stored Source Credential (SQLite)', () =>
       },
     });
 
+  /** A MicrosoftAds run on the Credential as the executor starts it: leased, with the grant it redeems. */
+  async function startRun(id: string): Promise<BoundSourceConfig> {
+    const read = async (): Promise<ResolvedSourceCredential> => {
+      const credential = await credentials.findOneByOrFail({ id });
+      return { ...credential, credentialId: id };
+    };
+    const injector = new SourceCredentialInjectorService(
+      { getCredentialsById: jest.fn() } as never,
+      { refreshBoundCredential: jest.fn().mockResolvedValue(null) } as never,
+      { resolveForConfig: read, resolveCredential: read, markConfigUsed: jest.fn() } as never,
+      credentialService
+    );
+    const config = { _id: 'cfg-1', AuthType: { oauth2: {} } };
+    return (await injector.resolveBoundConfig(
+      'project-1',
+      'dm-1',
+      'MicrosoftAds',
+      'cfg-1',
+      config,
+      null
+    ))!;
+  }
+
+  /** The run's rotated token, stored as the executor stores it. */
+  const storeRotation = (run: BoundSourceConfig, token: string) =>
+    credentialService.updateSecretFields(
+      run.credentialId,
+      'project-1',
+      { generated_refresh_token: token },
+      run.expected
+    );
+
+  describe('a run and an owner edit of the same Credential', () => {
+    it("keeps both an edit of another key and the run's rotated token", async () => {
+      const id = await given({ generated_refresh_token: 'R1' });
+      const run = await startRun(id);
+
+      await service.run(id, context, { fields: { DeveloperToken: 'd2' } });
+
+      await expect(storeRotation(run, 'R2')).resolves.toEqual({ updated: true });
+      expect((await stored(id)).secret).toEqual({
+        fields: {
+          RefreshToken: 'refresh-1',
+          ClientSecret: 's',
+          DeveloperToken: 'd2',
+          generated_refresh_token: 'R2',
+        },
+      });
+    });
+
+    it('drops the rotation of a grant the owner replaced during the run', async () => {
+      const id = await given({ generated_refresh_token: 'R1' });
+      const run = await startRun(id);
+
+      await service.run(id, context, { fields: { RefreshToken: 'refresh-2' } });
+
+      await expect(storeRotation(run, 'R2')).resolves.toEqual({ updated: false });
+      expect((await stored(id)).secret).toEqual({
+        fields: { RefreshToken: 'refresh-2', ClientSecret: 's', DeveloperToken: 'd' },
+      });
+    });
+  });
+
   it('a run that leased the replaced keys can no longer mark or release them', async () => {
     const id = await given();
     const leaseId = (await credentialService.claimRotation(id))!;
@@ -939,19 +1007,13 @@ describe('UpdateCredentialService on a stored Source Credential (SQLite)', () =>
 
   it('an edit of another field keeps a token rotation that a run stores between its read and its save', async () => {
     const id = await given({ generated_refresh_token: 'R1' });
+    const run = await startRun(id);
     const order: string[] = [];
     let rotation: Promise<{ updated: boolean }> | undefined;
     const save = credentialService.save.bind(credentialService);
     const saving = jest.spyOn(credentialService, 'save').mockImplementation(async credential => {
-      // The edit has read and merged R1; a run now stores R2.
-      rotation = credentialService
-        .updateSecretFields(
-          id,
-          'project-1',
-          { generated_refresh_token: 'R2' },
-          { generated_refresh_token: 'R1' }
-        )
-        .finally(() => order.push('rotation stored'));
+      // The edit has read and merged R1; the run now stores R2.
+      rotation = storeRotation(run, 'R2').finally(() => order.push('rotation stored'));
       await Promise.race([rotation, new Promise(resolve => setTimeout(resolve, 100))]);
       const saved = await save(credential);
       order.push('edit saved');

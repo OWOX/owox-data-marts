@@ -22,6 +22,7 @@ import {
 } from '../../connector-types/custom-connector-credential-fit';
 import { OLD_ROW_TOKEN_FIELD, withoutKeyValues } from '../../connector-types/source-key-fields';
 import { isCustomConnectorMetadata } from '../../credentials/credential.types';
+import { grantValues } from '../../credentials/services/credential-fields';
 import {
   CredentialService,
   ROTATION_LEASE_STALE_MS,
@@ -47,7 +48,7 @@ export interface BoundSourceConfig {
   /** The configuration with the Credential's values and without its old key references. */
   readonly config: Record<string, unknown>;
   readonly credentialId: string;
-  /** The secret values the run starts from, for the compare-and-set of a rotated token. */
+  /** The grant the run redeems, for the compare-and-set of a rotated token; other keys may change meanwhile. */
   readonly expected: Readonly<Record<string, string | undefined>>;
   /** Parameters a custom connector Credential filled, for OW_KEY_PARAMETERS. */
   readonly keyParameters?: string[];
@@ -60,7 +61,7 @@ export interface TestCredentialValues {
   /** Flat, like typed test values. */
   readonly parameters: Record<string, string>;
   readonly keyParameters: string[];
-  /** The secret values the test starts from, for the compare-and-set of a rotated token. */
+  /** The grant the test redeems, for the compare-and-set of a rotated token. */
   readonly expected: Readonly<Record<string, string | undefined>>;
   /** Every value the Credential holds. */
   readonly values: string[];
@@ -130,7 +131,7 @@ export class SourceCredentialInjectorService {
       return {
         config: injected,
         credentialId: credential.credentialId,
-        expected: expectedOf(credential),
+        expected: grantValues(credential),
         ...(target.keyParameters && {
           keyParameters: keyParametersOf(target.keyParameters, filled, token),
         }),
@@ -195,7 +196,7 @@ export class SourceCredentialInjectorService {
         ...(token ? { [GENERATED_REFRESH_TOKEN_CONFIG_FIELD]: token } : {}),
       },
       keyParameters: keyParametersOf(target.keyParameters ?? [], filled, token),
-      expected: expectedOf(credential),
+      expected: grantValues(credential),
       values: Object.values(credentialValues(credential)),
     };
   }
@@ -412,14 +413,6 @@ function keyParametersOf(
       ? [GENERATED_REFRESH_TOKEN_CONFIG_FIELD]
       : []),
   ];
-}
-
-/** Every secret value the run read and the rotated token; a key changed meanwhile drops the rotation. */
-function expectedOf({ secret }: ResolvedSourceCredential): Record<string, string | undefined> {
-  return {
-    [GENERATED_REFRESH_TOKEN_CREDENTIAL_FIELD]: undefined,
-    ...('fields' in secret ? secret.fields : {}),
-  };
 }
 
 function rotatedTokenOf({ secret }: ResolvedSourceCredential): string | undefined {

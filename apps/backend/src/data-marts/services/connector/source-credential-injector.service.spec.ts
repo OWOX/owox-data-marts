@@ -204,10 +204,11 @@ describe('SourceCredentialInjectorService', () => {
           },
         },
         credentialId: 'cred-1',
+        // Only the grant: an owner edit of another key leaves a rotation storable.
         expected: {
           generated_refresh_token: undefined,
-          AccessToken: 'fb-token',
-          AppSecret: 'app-secret',
+          RefreshToken: undefined,
+          refresh_token: undefined,
         },
       });
       expect(result?.keyParameters).toBeUndefined();
@@ -1011,10 +1012,9 @@ describe('SourceCredentialInjectorService', () => {
           },
         });
         expect(result?.expected).toEqual({
-          AccessToken: 'fb-token',
-          AppSecret: 'app-secret',
           generated_refresh_token: 'rotated-by-n-1',
-          legacy_generated_refresh_token: 'rotated-by-n-1',
+          RefreshToken: undefined,
+          refresh_token: undefined,
         });
       });
 

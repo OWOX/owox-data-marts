@@ -203,24 +203,36 @@ export function applyCustomConnectorUpdate(
     throw new BadRequestException('This Credential has no custom connector settings');
   }
   const values = splitValues(publicMetadata, storedFields(current), input);
-  const secretKeys = publicMetadata.fieldList.filter(spec => spec.secret).map(spec => spec.key);
-  return { ...values, secret: withRotatedToken(values.secret, current, input, secretKeys) };
+  return { ...values, secret: withRotatedToken(values.secret, current, input) };
+}
+
+/** The secret fields of a refresh grant, with the token a run rotated from it; a custom connector's refresh parameter can have any name, so all its secrets. */
+export function grantFieldKeys({ publicMetadata }: Pick<StoredValues, 'publicMetadata'>): string[] {
+  const refresh = isCustomConnectorMetadata(publicMetadata)
+    ? publicMetadata.fieldList.filter(spec => spec.secret).map(spec => spec.key)
+    : ['RefreshToken', 'refresh_token'];
+  return [...refresh, Core.GENERATED_REFRESH_TOKEN_CREDENTIAL_FIELD];
+}
+
+/** The grant as stored, for a compare-and-set of a write that redeemed it; undefined: absent. */
+export function grantValues(current: StoredValues): Record<string, string | undefined> {
+  const stored = 'fields' in current.secret ? current.secret.fields : {};
+  return Object.fromEntries(
+    grantFieldKeys(current).map(key => [key, own(stored, key) as string | undefined])
+  );
 }
 
 /** A token a run rotated survives an edit, unless the edit replaces the refresh token it came from. */
 function withRotatedToken(
   secret: { fields: Record<string, string> },
   current: StoredValues,
-  input: Record<string, unknown>,
-  // A custom connector's refresh parameter can have any name, so any changed secret replaces it.
-  anySecretKeys: readonly string[] = []
+  input: Record<string, unknown>
 ): { fields: Record<string, string> } {
   const stored = 'fields' in current.secret ? current.secret.fields : {};
   const rotated = own(stored, Core.GENERATED_REFRESH_TOKEN_CREDENTIAL_FIELD);
+  const grant = grantFieldKeys(current);
   const replaced = Object.keys(input).some(
-    key =>
-      (key === 'RefreshToken' || key === 'refresh_token' || anySecretKeys.includes(key)) &&
-      input[key] !== own(stored, key)
+    key => grant.includes(key) && input[key] !== own(stored, key)
   );
   if (typeof rotated !== 'string' || replaced) return secret;
   // The old row's token is the base a run's expected values were read with.
