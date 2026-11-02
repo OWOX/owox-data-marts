@@ -32,7 +32,7 @@ function makeService({
   const accessDecisionService = { canAccess: jest.fn().mockResolvedValue(canEdit) };
   const managedStorages = {
     findByStorageId: jest.fn().mockResolvedValue(record),
-    save: jest.fn().mockResolvedValue(undefined),
+    markRestored: jest.fn().mockResolvedValue(true),
   };
   const engine = { restore: jest.fn().mockResolvedValue(undefined) };
   const billing = { getBalance: jest.fn().mockResolvedValue({ subscriptionPlanType: plan }) };
@@ -121,7 +121,7 @@ describe('RestoreOwoxStorageService', () => {
 
     await expect(s.service.run(command)).resolves.toBeUndefined();
     expect(s.engine.restore).not.toHaveBeenCalled();
-    expect(s.managedStorages.save).not.toHaveBeenCalled();
+    expect(s.managedStorages.markRestored).not.toHaveBeenCalled();
     expect(s.connectorStates.delete).not.toHaveBeenCalled();
   });
 
@@ -145,16 +145,20 @@ describe('RestoreOwoxStorageService', () => {
 
     expect(s.engine.restore).toHaveBeenCalledWith(record, 'proj-1');
     expect(s.dataMartService.findByStorage).toHaveBeenCalledWith(storage);
+    expect(s.managedStorages.markRestored).toHaveBeenCalledWith('storage-1', NOW);
     expect(s.connectorStates.delete).toHaveBeenCalledWith({ datamartId: In(['dm-1', 'dm-2']) });
-    expect(s.managedStorages.save).toHaveBeenCalledWith(
-      expect.objectContaining({
-        storageId: 'storage-1',
-        deprovisionedAt: null,
-        notPaidSince: null,
-        lastActivityAt: NOW,
-      })
+    expect(s.managedStorages.markRestored.mock.invocationCallOrder[0]).toBeLessThan(
+      s.connectorStates.delete.mock.invocationCallOrder[0]
     );
     expect(logs).toContain('OWOX Storage owox_abc restored');
+  });
+
+  it('leaves connector states alone when a concurrent restore already cleared the record', async () => {
+    const s = makeService();
+    s.managedStorages.markRestored.mockResolvedValue(false);
+
+    await expect(s.service.run(command)).resolves.toBeUndefined();
+    expect(s.connectorStates.delete).not.toHaveBeenCalled();
   });
 
   it('turns an engine failure into the restore refusal and keeps the record deleted', async () => {
@@ -167,10 +171,7 @@ describe('RestoreOwoxStorageService', () => {
 
     await expect(s.service.run(command)).rejects.toThrow(OwoxStorageRestoreException);
     expect(s.connectorStates.delete).not.toHaveBeenCalled();
-    expect(s.managedStorages.save).not.toHaveBeenCalled();
-    expect(logs.some(l => l.includes('OWOX Storage owox_abc restore failed (code 403)'))).toBe(
-      true
-    );
+    expect(s.managedStorages.markRestored).not.toHaveBeenCalled();
     for (const line of logs) expect(line).not.toContain('@');
   });
 });
