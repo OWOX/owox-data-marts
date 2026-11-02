@@ -286,6 +286,46 @@ describe('BigQueryManagedStorageEngine', () => {
       serviceAccountEmail: 'owox-st-abc@sa-project.iam.gserviceaccount.com',
     };
 
+    it("reads the newest job per account once per location as ODM's identity", async () => {
+      const { engine, identity, query } = setup();
+      const since = new Date('2026-10-01T00:00:00Z');
+      const newest = new Date('2026-10-20T10:00:00Z');
+      query
+        .mockResolvedValueOnce([[{ user_email: 'a@x', last_job: { value: newest.toISOString() } }]])
+        .mockResolvedValueOnce([[]]);
+      const at = (email: string, location: 'US' | 'EU') => ({
+        ...target,
+        location,
+        serviceAccountEmail: email,
+      });
+
+      const result = await engine.lastJobTimes(
+        [at('a@x', 'US'), at('b@x', 'US'), at('c@x', 'EU')],
+        since
+      );
+
+      expect(identity.bigQuery).toHaveBeenCalledTimes(2);
+      expect(identity.bigQuery).toHaveBeenCalledWith('owox-gcp', 'US');
+      expect(identity.bigQuery).toHaveBeenCalledWith('owox-gcp', 'EU');
+      const calls = query.mock.calls.map(([q]) => q);
+      expect(calls[0].query).toContain('`owox-gcp.region-us.INFORMATION_SCHEMA.JOBS_BY_PROJECT`');
+      expect(calls[1].query).toContain('`owox-gcp.region-eu.INFORMATION_SCHEMA.JOBS_BY_PROJECT`');
+      expect(calls[0].query).toContain('creation_time >= @since AND user_email IN UNNEST(@emails)');
+      expect(calls[0].query).toContain('GROUP BY user_email');
+      expect(calls[0].query).toContain('MAX(creation_time)');
+      expect(calls[0].query).not.toContain('a@x');
+      expect(calls[0].params).toEqual({ since, emails: ['a@x', 'b@x'] });
+      expect(calls[1].params).toEqual({ since, emails: ['c@x'] });
+      expect(result).toEqual(new Map([['a@x', newest]]));
+    });
+
+    it('makes no query for an empty target list', async () => {
+      const { engine, identity } = setup();
+
+      expect(await engine.lastJobTimes([], new Date())).toEqual(new Map());
+      expect(identity.bigQuery).not.toHaveBeenCalled();
+    });
+
     it("lists tables as ODM's identity", async () => {
       const { engine, identity, query } = setup();
       const tables = await engine.listTables(target);

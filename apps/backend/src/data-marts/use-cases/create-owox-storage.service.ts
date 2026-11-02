@@ -106,6 +106,8 @@ export class CreateOwoxStorageService {
       storageLimitBytes: null,
       queryLimitBytesPerDay: null,
       notPaidSince: null,
+      lastActivityAt: null,
+      deprovisionedAt: null,
     });
     return new DataStorageDto(
       created.id,
