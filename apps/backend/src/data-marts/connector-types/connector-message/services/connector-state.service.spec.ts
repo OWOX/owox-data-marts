@@ -1,4 +1,4 @@
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { ConnectorState } from '../../../entities/connector-state.entity';
 import { ConnectorStateService } from './connector-state.service';
 
@@ -7,6 +7,7 @@ describe('ConnectorStateService', () => {
     const repository = {
       findOne: jest.fn().mockResolvedValue(existing),
       save: jest.fn().mockImplementation(async entity => entity),
+      delete: jest.fn().mockResolvedValue({ affected: 2 }),
     } as unknown as Repository<ConnectorState>;
     return { service: new ConnectorStateService(repository), repository };
   };
@@ -32,6 +33,14 @@ describe('ConnectorStateService', () => {
       { _id: 'cfg-1', state: { date: '2026-09-23', shortLinks: { a: ['b', 1] } }, at: 'z' },
       { _id: 'cfg-2', state: { date: '2026-09-01' }, at: 'y' },
     ]);
+  });
+
+  it('deletes the states of the given Data Marts', async () => {
+    const { service, repository } = createService(null);
+
+    await service.deleteByDataMartIds(['dm-1', 'dm-2']);
+
+    expect(repository.delete).toHaveBeenCalledWith({ datamartId: In(['dm-1', 'dm-2']) });
   });
 
   it('creates the row and the configuration entry when none exists', async () => {

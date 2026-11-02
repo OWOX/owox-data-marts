@@ -92,6 +92,7 @@ export class BigQueryManagedStorageEngine implements ManagedStorageEngine {
   }
 
   async restore(target: ProvisionedManagedStorage, projectId: string): Promise<void> {
+    this.identity.forget(target.serviceAccountEmail);
     let step = '';
     try {
       // No undo: what this call finds may belong to a concurrent or earlier restore.
@@ -116,6 +117,7 @@ export class BigQueryManagedStorageEngine implements ManagedStorageEngine {
 
   async deprovision(target: ProvisionedManagedStorage): Promise<void> {
     const { gcpProjectId, serviceAccountEmail: email } = target;
+    this.identity.forget(email);
     const steps: [string, () => Promise<void>][] = [
       [
         'revokeProjectRole',

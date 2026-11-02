@@ -29,8 +29,16 @@ export class ManagedStorageService {
     return this.repository.find({ where: { deprovisionedAt: IsNull() } });
   }
 
-  save(record: ManagedStorage): Promise<ManagedStorage> {
-    return this.repository.save(record);
+  // An update, never an insert: a record the customer deleted meanwhile stays deleted.
+  async updateActive(
+    storageId: string,
+    changes: Partial<Pick<ManagedStorage, 'notPaidSince' | 'lastActivityAt' | 'deprovisionedAt'>>
+  ): Promise<boolean> {
+    const { affected } = await this.repository.update(
+      { storageId, deprovisionedAt: IsNull() },
+      changes
+    );
+    return affected === 1;
   }
 
   // False when the record is not deleted, so a restore that lost a race changes nothing.
