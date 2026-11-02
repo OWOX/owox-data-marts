@@ -4,6 +4,8 @@
 
 ### Minor Changes 0.41.0
 
+<https://customer-4geatlj66rtkaxtz.cloudflarestream.com/d7dde8721ec80ac8b1b98ec6c597e6c3/iframe>
+
 - f66ac98: <!-- markdownlint-disable-file MD041 MD036 -->
 
   **Safer sign-in and request validation: Better Auth and zod security fixes**
