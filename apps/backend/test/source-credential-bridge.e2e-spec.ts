@@ -12,6 +12,10 @@ import { CredentialConsumerBinding } from '../src/data-marts/credentials/entitie
 import { requirementRevision } from '../src/data-marts/credentials/services/credential-requirement-revision';
 import { DataStorageType } from '../src/data-marts/data-storage-types/enums/data-storage-type.enum';
 import { ConnectorSourceCredentialsService } from '../src/data-marts/services/connector/connector-source-credentials.service';
+import {
+  AUTH_TYPE_MISMATCH,
+  SourceCredentialInjectorService,
+} from '../src/data-marts/services/connector/source-credential-injector.service';
 import { createCredential } from './fixtures/storage-credentials';
 
 const OUT_OF_DATE = 'This page is out of date. Reload it.';
@@ -207,17 +211,20 @@ describe('Bound Source configurations saved by the bridge release (e2e)', () => 
       });
     });
 
-    const given = () =>
+    const SERVICE_ACCOUNT = { ServiceAccountKey: '**********' };
+    const given = (AuthType: ConfigItem = { oauth2: {} }) =>
       givenBoundDataMart(1, {
         name: SHEETS,
-        extra: { AuthType: { oauth2: {} }, SpreadsheetId: 'sheet-1', SheetName: 'Sheet1' },
+        extra: { AuthType, SpreadsheetId: 'sheet-1', SheetName: 'Sheet1' },
         oldKeys: { RefreshToken: 'e2e_bridge_old_refresh' },
         boundTo: sheetsCredentialId,
       });
 
     it.each([
-      ['alone', { service_account: { ServiceAccountKey: '**********' } }],
-      ['before OAuth2', { service_account: { ServiceAccountKey: '**********' }, oauth2: {} }],
+      ['alone', { service_account: SERVICE_ACCOUNT }],
+      ['before OAuth2', { service_account: SERVICE_ACCOUNT, oauth2: {} }],
+      // MySQL stores JSON keys sorted, so an added variant can come to be stored first.
+      ['added after OAuth2', { oauth2: {}, service_account: SERVICE_ACCOUNT }],
     ])(
       'refuses a service account authentication type %s and writes nothing',
       async (_case, AuthType) => {
@@ -248,17 +255,45 @@ describe('Bound Source configurations saved by the bridge release (e2e)', () => 
       ]);
     });
 
-    it('saves OAuth2 first with a service account after it', async () => {
-      const { dataMartId } = await given();
+    it('saves a converted configuration that keeps a service account after OAuth2', async () => {
+      const { dataMartId } = await given({ oauth2: {}, service_account: {} });
       const [item] = await pageConfiguration(dataMartId);
-      const AuthType = { oauth2: {}, service_account: { ServiceAccountKey: '**********' } };
 
-      await put(dataMartId, [{ ...item, AuthType }], SHEETS).expect(200);
+      await put(dataMartId, [{ ...item, SheetName: 'Sheet2' }], SHEETS).expect(200);
 
-      expect(Object.keys((await storedConfiguration(dataMartId))[0].AuthType as object)).toEqual([
-        'oauth2',
-        'service_account',
-      ]);
+      expect((await storedConfiguration(dataMartId))[0].AuthType).toEqual({
+        oauth2: {},
+        service_account: {},
+      });
+    });
+
+    it('runs once a configuration stored with a service account is saved back with OAuth2', async () => {
+      // As a save stored it before saves checked the authentication type.
+      const { dataMartId, configuration } = await given({ service_account: {} });
+      const configId = configuration[0]._id as string;
+      const resolve = async () =>
+        app
+          .get(SourceCredentialInjectorService)
+          .resolveBoundConfig(
+            '0',
+            dataMartId,
+            SHEETS,
+            configId,
+            (await storedConfiguration(dataMartId))[0],
+            null
+          );
+      await expect(resolve()).rejects.toThrow(AUTH_TYPE_MISMATCH);
+      const [item] = await pageConfiguration(dataMartId);
+
+      await put(dataMartId, [{ ...item, AuthType: { oauth2: {} } }], SHEETS).expect(200);
+
+      expect((await resolve())?.config.AuthType).toEqual({
+        oauth2: {
+          ClientId: 'e2e_bridge_client',
+          ClientSecret: 'e2e_bridge_cs',
+          RefreshToken: 'e2e_bridge_refresh',
+        },
+      });
     });
   });
 

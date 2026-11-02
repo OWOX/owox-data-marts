@@ -840,9 +840,14 @@ describe('UpdateDataMartDefinitionService', () => {
       dataMartService.getByIdAndProjectId.mockImplementation(async (id: string) =>
         id === 'dm-source' ? sourceDataMart : dataMart
       );
-      sourceCredentials.boundCredentialIds.mockImplementation(async (_projectId, dataMartId) =>
-        dataMartId === 'dm-1' ? new Map(live) : new Map([['src-1', 'cred-9']])
+      sourceCredentials.boundConfigs.mockResolvedValue(
+        live.map(([requirementKey, credentialId]) => ({
+          requirementKey,
+          credential: credentialId && { id: credentialId, definitionId: 'source:KeyedApi:default' },
+        }))
       );
+      // The copy source.
+      sourceCredentials.boundCredentialIds.mockResolvedValue(new Map([['src-1', 'cred-9']]));
       connectorService.resolveSourceKeys.mockResolvedValue({
         fields: [{ path: [], parameters: ['AppId'] }],
         model: null,
@@ -1187,6 +1192,7 @@ describe('UpdateDataMartDefinitionService with the real ConnectorService', () =>
       passThroughSqlReferenceValidator as never,
       {
         boundCredentialIds: jest.fn().mockResolvedValue(new Map()),
+        boundConfigs: jest.fn().mockResolvedValue([]),
         unbindConfig: jest.fn(),
         deactivateDataMart: jest.fn(),
       } as never

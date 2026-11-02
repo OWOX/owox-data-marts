@@ -30,6 +30,7 @@ import { SourceCredentialBindingService } from '../connector-types/source-creden
 import {
   selectsOtherVariant,
   sourceBindingFor,
+  type SourceCredentialBinding,
 } from '../connector-types/source-credential-definitions';
 import {
   bindingIdKey,
@@ -307,9 +308,15 @@ export class UpdateDataMartDefinitionService {
     const switchedConnector =
       typeof previousName === 'string' && previousName.toLowerCase() !== source.name.toLowerCase();
     // A switched connector's bindings are all deactivated after the save, so none is kept.
-    const live: ReadonlyMap<string, string | null> = switchedConnector
-      ? new Map()
-      : await this.sourceCredentials.boundCredentialIds(projectId, command.id);
+    const bindings = switchedConnector
+      ? []
+      : await this.sourceCredentials.boundConfigs(projectId, [command.id]);
+    const live: ReadonlyMap<string, string | null> = new Map(
+      bindings.map(({ requirementKey, credential }) => [requirementKey, credential?.id ?? null])
+    );
+    const definitionIds = new Map(
+      bindings.map(({ requirementKey, credential }) => [requirementKey, credential?.definitionId])
+    );
 
     const copiedIds = configuration
       .map(config => (config._copiedFrom as Config | null | undefined)?.configId)
@@ -329,7 +336,6 @@ export class UpdateDataMartDefinitionService {
     const kept = new Map<string, Config | undefined>();
     let fields: readonly SourceKeyFields[] | undefined;
     let secretNames: ReadonlySet<string> | undefined;
-    let definitionIds: ReadonlyMap<string, string | undefined> | undefined;
     for (const config of configuration) {
       const id = typeof config._id === 'string' && config._id ? config._id : undefined;
       const bound = id !== undefined && live.has(id);
@@ -353,18 +359,16 @@ export class UpdateDataMartDefinitionService {
         source.name,
         source.version
       );
-      definitionIds ??= new Map(
-        (await this.sourceCredentials.boundConfigs(projectId, [command.id])).map(
-          ({ requirementKey, credential }) => [requirementKey, credential?.definitionId]
-        )
-      );
       const definitionId = definitionIds.get(id);
       const binding = definitionId ? sourceBindingFor(source.name, definitionId) : null;
+      const previousItem = previousItems.find(item => item._id === id);
       // A run injects the Credential's variant, so a saved other one would not be what runs.
-      if (binding && selectsOtherVariant(binding, config)) {
+      if (
+        binding &&
+        (selectsOtherVariant(binding, config) || addsVariant(binding, config, previousItem))
+      ) {
         throw new BadRequestException(AUTH_TYPE_KEPT);
       }
-      const previousItem = previousItems.find(item => item._id === id);
       if (isStaleBoundConfig(config, previousItem, fields)) {
         throw new BadRequestException(OUT_OF_DATE);
       }
@@ -492,6 +496,24 @@ interface SourceBindingsOfSave {
   readonly fields: readonly SourceKeyFields[];
   readonly secretNames: ReadonlySet<string>;
   readonly switchedConnector: boolean;
+}
+
+/** Another variant beside the bound one, unless the stored item held the same ones: MySQL stores JSON keys sorted, so it could come first. */
+function addsVariant(
+  binding: SourceCredentialBinding,
+  config: Config,
+  previous: Config | undefined
+): boolean {
+  const [parameter, variant] = binding.path;
+  if (parameter === undefined) return false;
+  const variants = (item: Config | undefined) => {
+    const selected = item?.[parameter];
+    return typeof selected === 'object' && selected !== null ? Object.keys(selected).sort() : [];
+  };
+  const requested = variants(config);
+  return (
+    requested.some(key => key !== variant) && !isDeepStrictEqual(requested, variants(previous))
+  );
 }
 
 /** A copy, an old key row it did not hold or a typed key value comes from a stale page. */
