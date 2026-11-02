@@ -30,18 +30,10 @@ jobs:
         os:
           - ubuntu-latest
         test:
-          # The backend suite outgrew the 10-minute budget on one runner, so
-          # jest --shard splits its files across jobs, as e2e-api.yml does.
-          - name: 'Overall test @owox/backend (shard 1/3)'
-            command: 'npm run test -w @owox/backend -- --shard=1/3'
-            build: 'npm run build:dep -w @owox/backend'
-            timeout: 10
-          - name: 'Overall test @owox/backend (shard 2/3)'
-            command: 'npm run test -w @owox/backend -- --shard=2/3'
-            build: 'npm run build:dep -w @owox/backend'
-            timeout: 10
-          - name: 'Overall test @owox/backend (shard 3/3)'
-            command: 'npm run test -w @owox/backend -- --shard=3/3'
+          # One runner is enough since the suite runs through @swc/jest (about 3.5 min of
+          # tests). Split it with jest --shard, as e2e-api.yml does, if it outgrows the budget.
+          - name: 'Overall test @owox/backend'
+            command: 'npm run test -w @owox/backend'
             build: 'npm run build:dep -w @owox/backend'
             timeout: 10
           - name: 'Overall test @owox/web'

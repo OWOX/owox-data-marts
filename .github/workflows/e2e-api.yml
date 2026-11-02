@@ -23,11 +23,12 @@ jobs:
     # share process state and overwrite the in-memory DB). To cut wall-clock
     # without reintroducing that flakiness, split the test files across separate
     # runner jobs with jest --shard: each shard stays single-worker and fully
-    # isolated on its own runner. Bump the shard count if the suite grows.
+    # isolated on its own runner. Each shard also installs and builds for ~2.5 min,
+    # so keep the count low and bump it only if the suite grows.
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4, 5, 6]
+        shard: [1, 2, 3]
 
     steps:
       - name: Checkout repository
