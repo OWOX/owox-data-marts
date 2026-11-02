@@ -82,6 +82,40 @@ To delete a table, click its delete button and confirm. A connector that loads i
 
 > ⚠️ A deleted table cannot be restored. Data Marts that read the table fail until a connector loads it again.
 
+## When an OWOX Storage is deleted
+
+OWOX deletes an OWOX Storage and its data in two cases:
+
+- **Unpaid subscription.** Connector runs into the storage stop at once and show as RESTRICTED in Run History. The storage and its data are deleted 30 days after the subscription became unpaid. Pay for the subscription before then to keep them.
+- **No use on the Free plan.** A Free storage that is not used for 30 days is deleted. Any query or connector run counts as use, scheduled ones included. After an unpaid period, the 30 days count from the day the subscription is paid again.
+
+A Paid storage is never deleted for inactivity.
+
+The storage panel shows the deletion date:
+
+- For an unpaid subscription: "This project's subscription is not paid. Connector runs into this storage are stopped, and the storage and its data will be deleted on `<date>`. Pay for the subscription before then to keep them."
+- For a Free storage, once it has been idle for 7 days: "This storage has not been used recently. It and its data will be deleted on `<date>` unless a query or a connector run uses it before then."
+
+OWOX sends no emails about deletion. Check the panel.
+
+### After deletion
+
+The panel shows "This storage and its data were deleted on `<date>`. Restore it to use it again. The Data Marts that use it keep their settings, and their next connector runs load their data again."
+
+Until you restore the storage, connector runs end as RESTRICTED, and queries fail with the error "This OWOX Storage and its data were deleted. Restore the storage on its page to continue."
+
+### Restore a deleted storage
+
+1. Pay for the subscription if it is unpaid. A storage cannot be restored while the subscription is unpaid: "Pay for this project's subscription before restoring its OWOX Storage."
+2. Open **Storages**, then open the OWOX Storage.
+3. Click **Restore storage** in the notice. Only editors see the button.
+
+Restoring brings the storage back empty, under the same names. The deleted data does not come back.
+
+The Data Marts keep their settings. OWOX resets the state of their connectors, so the next runs load data from each connector's start date.
+
+> ☝️ You can also delete the storage instead, as described below. Delete its Data Marts first.
+
 ## No direct BigQuery access
 
 OWOX Storage gives you no key and no access to the Google Cloud console. Use OWOX Data Marts to query the data and to deliver it with [Destinations](../../destinations/).
