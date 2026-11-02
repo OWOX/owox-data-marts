@@ -1,4 +1,4 @@
-import { Entity, Index, PrimaryColumn, ManyToOne, JoinColumn } from 'typeorm';
+import { Entity, Index, PrimaryColumn, ManyToOne, JoinColumn, type Relation } from 'typeorm';
 import { Context } from './context.entity';
 
 /**
@@ -22,5 +22,5 @@ export class MemberRoleContext {
 
   @ManyToOne(() => Context, { onDelete: 'RESTRICT' })
   @JoinColumn({ name: 'context_id' })
-  context: Context;
+  context: Relation<Context>;
 }

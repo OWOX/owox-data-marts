@@ -6,6 +6,7 @@ import {
   forwardRef,
   Optional,
 } from '@nestjs/common';
+import type { WrapperType } from '../../../common/utils/wrapper-type';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Transactional } from 'typeorm-transactional';
@@ -39,7 +40,7 @@ export class ContextAccessService {
     private readonly contextService: ContextService,
     private readonly userProvisioningContextSettingsService: UserProvisioningContextSettingsService,
     @Inject(forwardRef(() => AccessDecisionService))
-    private readonly accessDecisionService: AccessDecisionService,
+    private readonly accessDecisionService: WrapperType<AccessDecisionService>,
     @Optional()
     @InjectRepository(CredentialContext)
     private readonly credentialContextRepository?: Repository<CredentialContext>

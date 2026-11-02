@@ -7,6 +7,7 @@ import {
   ManyToOne,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
+  type Relation,
 } from 'typeorm';
 import { createZodTransformer } from '../../common/zod/zod-transformer';
 import { JoinCondition, JoinConditionsSchema } from '../dto/schemas/join-condition.schema';
@@ -27,15 +28,15 @@ export class DataMartRelationship implements CreatorAwareEntity {
 
   @ManyToOne(() => DataStorage, { eager: true })
   @JoinColumn()
-  dataStorage: DataStorage;
+  dataStorage: Relation<DataStorage>;
 
   @ManyToOne(() => DataMart, { eager: true })
   @JoinColumn()
-  sourceDataMart: DataMart;
+  sourceDataMart: Relation<DataMart>;
 
   @ManyToOne(() => DataMart, { eager: true })
   @JoinColumn()
-  targetDataMart: DataMart;
+  targetDataMart: Relation<DataMart>;
 
   @Column({ length: 255 })
   targetAlias: string;

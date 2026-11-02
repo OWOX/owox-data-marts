@@ -1,4 +1,4 @@
-import { Entity, JoinColumn, ManyToOne, PrimaryColumn } from 'typeorm';
+import { Entity, JoinColumn, ManyToOne, PrimaryColumn, type Relation } from 'typeorm';
 import { Credential } from './credential.entity';
 
 @Entity('credential_owners')
@@ -13,5 +13,5 @@ export class CredentialOwner {
     onDelete: 'CASCADE',
   })
   @JoinColumn({ name: 'credential_id' })
-  credential: Credential;
+  credential: Relation<Credential>;
 }

@@ -1,4 +1,4 @@
-import { Entity, Index, PrimaryColumn, ManyToOne, JoinColumn } from 'typeorm';
+import { Entity, Index, PrimaryColumn, ManyToOne, JoinColumn, type Relation } from 'typeorm';
 import { DataDestination } from './data-destination.entity';
 import { Context } from './context.entity';
 
@@ -13,9 +13,9 @@ export class DestinationContext {
 
   @ManyToOne(() => DataDestination, dest => dest.contexts, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'destination_id' })
-  destination: DataDestination;
+  destination: Relation<DataDestination>;
 
   @ManyToOne(() => Context, { onDelete: 'RESTRICT' })
   @JoinColumn({ name: 'context_id' })
-  context: Context;
+  context: Relation<Context>;
 }

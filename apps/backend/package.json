@@ -141,6 +141,7 @@
     "@owox/test-utils": "*",
     "@swc/cli": "^0.6.0",
     "@swc/core": "^1.10.7",
+    "@swc/jest": "^0.2.39",
     "@types/better-sqlite3": "^7.6.13",
     "@types/compression": "^1.8.1",
     "@types/cross-spawn": "^6.0.6",
@@ -167,21 +168,21 @@
     "setupFiles": ["<rootDir>/../test/disable-platform-detection.setup.ts"],
     "transform": {
       "^.+\\.(t|j)s$": [
-        "ts-jest",
+        "@swc/jest",
         {
-          "diagnostics": false,
-          "tsconfig": {
-            "module": "commonjs",
-            "moduleResolution": "node",
-            "emitDecoratorMetadata": true,
-            "experimentalDecorators": true,
-            "allowSyntheticDefaultImports": true,
-            "target": "ES2023",
-            "esModuleInterop": true,
-            "allowJs": true,
-            "resolveJsonModule": true,
-            "skipLibCheck": true,
-            "strictNullChecks": true
+          "jsc": {
+            "parser": {
+              "syntax": "typescript",
+              "decorators": true
+            },
+            "transform": {
+              "legacyDecorator": true,
+              "decoratorMetadata": true
+            },
+            "target": "es2023"
+          },
+          "module": {
+            "type": "commonjs"
           }
         }
       ]

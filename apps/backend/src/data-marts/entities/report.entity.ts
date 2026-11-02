@@ -11,6 +11,7 @@ import {
   PrimaryGeneratedColumn,
   UpdateDateColumn,
   VersionColumn,
+  type Relation,
 } from 'typeorm';
 import { v5 as uuidv5 } from 'uuid';
 import { createZodTransformer } from '../../common/zod/zod-transformer';
@@ -58,11 +59,11 @@ export class Report implements CreatorAwareEntity {
 
   @ManyToOne(() => DataMart, { eager: true, cascade: true })
   @JoinColumn()
-  dataMart: DataMart;
+  dataMart: Relation<DataMart>;
 
   @ManyToOne(() => DataDestination, { eager: true, cascade: true })
   @JoinColumn()
-  dataDestination: DataDestination;
+  dataDestination: Relation<DataDestination>;
 
   @Column({
     type: 'json',
@@ -136,7 +137,7 @@ export class Report implements CreatorAwareEntity {
   @Column({ nullable: true })
   lastRunAt?: Date;
 
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   lastRunStatus?: ReportRunStatus;
 
   @Column({ type: 'text', nullable: true })

@@ -1,4 +1,4 @@
-import { Entity, PrimaryColumn, ManyToOne, JoinColumn } from 'typeorm';
+import { Entity, PrimaryColumn, ManyToOne, JoinColumn, type Relation } from 'typeorm';
 import { DataDestination } from './data-destination.entity';
 
 @Entity('destination_owners')
@@ -11,5 +11,5 @@ export class DestinationOwner {
 
   @ManyToOne(() => DataDestination, dest => dest.owners, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'destination_id' })
-  destination: DataDestination;
+  destination: Relation<DataDestination>;
 }

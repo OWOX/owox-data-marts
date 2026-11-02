@@ -1,5 +1,4 @@
 import type { McpAuthContext } from '../auth/mcp-auth-context';
-import * as refreshModule from './mcp-schema-refresh';
 import {
   McpSchemaRefresh,
   MCP_SCHEMA_REFRESH_MAX_ENTRIES,
@@ -15,11 +14,7 @@ const context = {
 describe('McpSchemaRefresh', () => {
   let now: number;
   beforeEach(() => {
-    jest.replaceProperty(
-      refreshModule as { MCP_SCHEMA_REFRESH_ENABLED: boolean },
-      'MCP_SCHEMA_REFRESH_ENABLED',
-      true
-    );
+    jest.replaceProperty(McpSchemaRefresh, 'enabled', true);
     now = 0;
     jest.spyOn(Date, 'now').mockImplementation(() => now);
   });
@@ -94,11 +89,7 @@ describe('McpSchemaRefresh', () => {
     const refresh = new McpSchemaRefresh();
     const notify = jest.fn();
     await refresh.notifyIfDue(context, notify);
-    jest.replaceProperty(
-      refreshModule as { MCP_SCHEMA_REFRESH_ENABLED: boolean },
-      'MCP_SCHEMA_REFRESH_ENABLED',
-      false
-    );
+    jest.replaceProperty(McpSchemaRefresh, 'enabled', false);
     await refresh.notifyIfDue({ ...context, clientId: 'other' }, notify);
     expect(notify).toHaveBeenCalledTimes(1);
     expect(entries(refresh).size).toBe(0);

@@ -5,6 +5,7 @@ import {
   ManyToOne,
   JoinColumn,
   CreateDateColumn,
+  type Relation,
 } from 'typeorm';
 import { CreatorAwareEntity } from './creator-aware-entity.interface';
 import { DataMart } from './data-mart.entity';
@@ -33,12 +34,12 @@ export class DataMartRun implements CreatorAwareEntity {
 
   @ManyToOne(() => DataMart)
   @JoinColumn()
-  dataMart: DataMart;
+  dataMart: Relation<DataMart>;
 
   @Column()
   dataMartId: string;
 
-  @Column()
+  @Column({ type: 'varchar' })
   type: DataMartRunType;
 
   @Column({ type: 'json', nullable: true })
@@ -65,13 +66,13 @@ export class DataMartRun implements CreatorAwareEntity {
   @Column({ type: 'json', nullable: true })
   reportDefinition?: DataMartRunReportDefinition | null;
 
-  @Column()
+  @Column({ type: 'varchar' })
   status: DataMartRunStatus;
 
   @Column({ nullable: true })
   createdById?: string;
 
-  @Column()
+  @Column({ type: 'varchar' })
   runType: RunType;
 
   @Column({ type: 'json', nullable: true })

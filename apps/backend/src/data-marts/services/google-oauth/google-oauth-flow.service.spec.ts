@@ -1,3 +1,12 @@
+// Module exports cannot be spied on once compiled by SWC, so the function is a mock from the start
+// that runs the real implementation unless a test overrides it.
+jest.mock('../../credentials/services/builtin-credential-definitions', () => {
+  const actual = jest.requireActual<
+    typeof import('../../credentials/services/builtin-credential-definitions')
+  >('../../credentials/services/builtin-credential-definitions');
+  return { ...actual, builtinOAuthAuth: jest.fn(actual.builtinOAuthAuth) };
+});
+
 import { Logger } from '@nestjs/common';
 import { OAuth2Client } from 'google-auth-library';
 import * as jwt from 'jsonwebtoken';
@@ -10,8 +19,15 @@ import {
 import * as builtinDefinitions from '../../credentials/services/builtin-credential-definitions';
 import { TokenRefreshFailedException } from '../../exceptions/google-oauth.exceptions';
 
+const { builtinOAuthAuth: realBuiltinOAuthAuth } = jest.requireActual<typeof builtinDefinitions>(
+  '../../credentials/services/builtin-credential-definitions'
+);
+
 describe('GoogleOAuthFlowService for Credentials', () => {
-  afterEach(() => jest.restoreAllMocks());
+  afterEach(() => {
+    jest.restoreAllMocks();
+    jest.mocked(builtinDefinitions.builtinOAuthAuth).mockImplementation(realBuiltinOAuthAuth);
+  });
 
   it('authorizes a Credential with the Storage client and the BigQuery scopes', async () => {
     const { flow } = googleOAuthFlow();
@@ -34,7 +50,7 @@ describe('GoogleOAuthFlowService for Credentials', () => {
   });
 
   it('authorizes and exchanges with the client and scopes the definition names', async () => {
-    jest.spyOn(builtinDefinitions, 'builtinOAuthAuth').mockImplementation(id =>
+    jest.mocked(builtinDefinitions.builtinOAuthAuth).mockImplementation(id =>
       id === 'sheets-account'
         ? {
             type: 'oauth',

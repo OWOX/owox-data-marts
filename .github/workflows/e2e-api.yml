@@ -44,9 +44,10 @@ jobs:
       - name: Install dependencies
         run: npm ci --prefer-offline --no-audit --no-fund --loglevel error
 
-      # The API suite boots only the backend; its build:dep builds the packages it imports.
-      - name: Build backend
-        run: npm run build -w @owox/backend
+      # The suite boots the backend in-process, and the API key smoke specs also spawn the built
+      # owox and owox-ctl CLIs; their prebuild steps build the backend and the packages it imports.
+      - name: Build owox and ctl
+        run: npm run build -w owox -w @owox/ctl
 
       - name: Run API E2E tests
         run: npm run test:e2e -w @owox/backend -- --shard=${{ matrix.shard }}/${{ strategy.job-total }}

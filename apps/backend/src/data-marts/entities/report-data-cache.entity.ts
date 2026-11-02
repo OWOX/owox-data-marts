@@ -6,6 +6,7 @@ import {
   JoinColumn,
   ManyToOne,
   PrimaryGeneratedColumn,
+  type Relation,
 } from 'typeorm';
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
 import { DataStorageReportReaderState } from '../data-storage-types/interfaces/data-storage-report-reader-state.interface';
@@ -29,7 +30,7 @@ export class ReportDataCache {
   @Index('IDX_report_data_cache_reportId')
   @ManyToOne(() => Report, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'reportId' })
-  report: Report;
+  report: Relation<Report>;
 
   /**
    * Serialized report data description containing headers and metadata
@@ -46,7 +47,7 @@ export class ReportDataCache {
   /**
    * Type of data storage for proper reader resolution
    */
-  @Column()
+  @Column({ type: 'varchar' })
   storageType: DataStorageType;
 
   /**

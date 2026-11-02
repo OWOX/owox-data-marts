@@ -1,4 +1,4 @@
-import { Entity, Index, PrimaryColumn, ManyToOne, JoinColumn } from 'typeorm';
+import { Entity, Index, PrimaryColumn, ManyToOne, JoinColumn, type Relation } from 'typeorm';
 import { DataMart } from './data-mart.entity';
 import { Context } from './context.entity';
 
@@ -13,9 +13,9 @@ export class DataMartContext {
 
   @ManyToOne(() => DataMart, dm => dm.contexts, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'data_mart_id' })
-  dataMart: DataMart;
+  dataMart: Relation<DataMart>;
 
   @ManyToOne(() => Context, { onDelete: 'RESTRICT' })
   @JoinColumn({ name: 'context_id' })
-  context: Context;
+  context: Relation<Context>;
 }

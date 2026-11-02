@@ -1,4 +1,4 @@
-import { Column, Entity, JoinColumn, ManyToOne } from 'typeorm';
+import { Column, Entity, JoinColumn, ManyToOne, type Relation } from 'typeorm';
 import { ScheduledTrigger } from '../../common/scheduler/shared/entities/scheduled-trigger.entity';
 import { createZodTransformer } from '../../common/zod/zod-transformer';
 import { CreatorAwareEntity } from './creator-aware-entity.interface';
@@ -14,12 +14,12 @@ import {
  */
 @Entity()
 export class DataMartScheduledTrigger extends ScheduledTrigger implements CreatorAwareEntity {
-  @Column()
+  @Column({ type: 'varchar' })
   type: ScheduledTriggerType;
 
   @ManyToOne(() => DataMart, { eager: true })
   @JoinColumn()
-  dataMart: DataMart;
+  dataMart: Relation<DataMart>;
 
   @Column({
     type: 'json',
