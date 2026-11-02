@@ -413,11 +413,12 @@ describe('BigQueryManagedStorageEngine', () => {
       expect(calls[0].query).toContain('`owox-gcp.region-us.INFORMATION_SCHEMA.JOBS_BY_PROJECT`');
       expect(calls[1].query).toContain('`owox-gcp.region-eu.INFORMATION_SCHEMA.JOBS_BY_PROJECT`');
       expect(calls[0].query).toContain('creation_time >= @since AND user_email IN UNNEST(@emails)');
+      expect(calls[0].query).toContain('(query IS NULL OR query != @accessCheck)');
       expect(calls[0].query).toContain('GROUP BY user_email');
       expect(calls[0].query).toContain('MAX(creation_time)');
       expect(calls[0].query).not.toContain('a@x');
-      expect(calls[0].params).toEqual({ since, emails: ['a@x', 'b@x'] });
-      expect(calls[1].params).toEqual({ since, emails: ['c@x'] });
+      expect(calls[0].params).toEqual({ since, emails: ['a@x', 'b@x'], accessCheck: 'SELECT 1' });
+      expect(calls[1].params).toEqual({ since, emails: ['c@x'], accessCheck: 'SELECT 1' });
       expect(result).toEqual(new Map([['a@x', newest]]));
     });
 

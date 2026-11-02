@@ -4,6 +4,7 @@ import { OwoxStorageConfigService } from '../owox-storage-config.service';
 import { OwoxStorageIdentity } from '../owox-storage-identity.service';
 import { OwoxStorageProvisioningException } from '../owox-storage.exceptions';
 import type { OwoxStorageLocation } from '../owox-storage-settings';
+import { ACCESS_CHECK_QUERY } from '../../data-storage-types/bigquery/adapters/bigquery-api.adapter';
 import { GcpProvisioningClient } from './gcp-provisioning.client';
 import type {
   ManagedStorageEngine,
@@ -168,10 +169,11 @@ export class BigQueryManagedStorageEngine implements ManagedStorageEngine {
     for (const [first, ...rest] of groups.values()) {
       const { gcpProjectId, location } = first;
       const emails = [first, ...rest].map(t => t.serviceAccountEmail);
+      // The access check runs when someone opens the storage, which is not use.
       // ODM's own identity: reading the history must not count as the account's use.
       const [rows] = await this.identity.bigQuery(gcpProjectId, location).query({
-        query: `SELECT user_email, MAX(creation_time) AS last_job FROM \`${gcpProjectId}.region-${location.toLowerCase()}.INFORMATION_SCHEMA.JOBS_BY_PROJECT\` WHERE creation_time >= @since AND user_email IN UNNEST(@emails) GROUP BY user_email`,
-        params: { since, emails },
+        query: `SELECT user_email, MAX(creation_time) AS last_job FROM \`${gcpProjectId}.region-${location.toLowerCase()}.INFORMATION_SCHEMA.JOBS_BY_PROJECT\` WHERE creation_time >= @since AND user_email IN UNNEST(@emails) AND (query IS NULL OR query != @accessCheck) GROUP BY user_email`,
+        params: { since, emails, accessCheck: ACCESS_CHECK_QUERY },
       });
       for (const row of rows as { user_email: string; last_job: { value: string } | Date }[]) {
         const { last_job: time } = row;
