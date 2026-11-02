@@ -23,6 +23,22 @@ describe('OwoxStorageConfigService', () => {
     });
   });
 
+  it('reads the deletion periods from the config', () => {
+    const service = new OwoxStorageConfigService(
+      fakeConfig({
+        OWOX_STORAGE_ENGINE: 'bigquery',
+        OWOX_STORAGE_GCP_PROJECT_ID: 'owox-storage',
+        OWOX_STORAGE_NOT_PAID_DELETION_DAYS: '14',
+        OWOX_STORAGE_INACTIVITY_DELETION_DAYS: '7',
+      })
+    );
+
+    expect(service.getSettings()).toMatchObject({
+      notPaidDeletionDays: 14,
+      inactivityDeletionDays: 7,
+    });
+  });
+
   it('is disabled and refuses getSettings when the engine is unset', () => {
     const service = new OwoxStorageConfigService(fakeConfig({}));
 

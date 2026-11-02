@@ -38,12 +38,20 @@ describe('scheduledDeletion', () => {
   });
 
   it('dates a FREE storage that never ran a job from its creation', () => {
+    const createdAt = ago(31);
+    expect(scheduledDeletion({ ...base, createdAt }, ProjectPlanType.FREE, days, now)).toEqual({
+      reason: 'INACTIVE',
+      date: new Date(createdAt.getTime() + 20 * DAY),
+    });
+  });
+
+  it('is due for a 30-day period when the storage was created 31 days ago', () => {
     const result = scheduledDeletion(
       { ...base, createdAt: ago(31) },
       ProjectPlanType.FREE,
-      days,
+      { ...days, inactivityDeletionDays: 30 },
       now
     );
-    expect(result?.date.getTime()).toBeLessThanOrEqual(now.getTime() - 11 * DAY);
+    expect(result?.date.getTime()).toBeLessThanOrEqual(now.getTime());
   });
 });
