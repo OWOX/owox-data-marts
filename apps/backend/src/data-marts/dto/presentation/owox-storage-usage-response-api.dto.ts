@@ -12,6 +12,14 @@ export class OwoxStorageTableApiDto {
   rowCount: number;
 }
 
+export class OwoxStorageDeletionApiDto {
+  @ApiProperty({ enum: ['NOT_PAID', 'INACTIVE'] })
+  reason: 'NOT_PAID' | 'INACTIVE';
+
+  @ApiProperty({ type: String, format: 'date-time' })
+  date: Date;
+}
+
 export class OwoxStorageUsageResponseApiDto {
   @ApiProperty({ enum: ProjectPlanType })
   plan: ProjectPlanType;
@@ -24,4 +32,10 @@ export class OwoxStorageUsageResponseApiDto {
 
   @ApiProperty({ type: [OwoxStorageTableApiDto] })
   tables: OwoxStorageTableApiDto[];
+
+  @ApiProperty({ type: OwoxStorageDeletionApiDto, nullable: true })
+  deletion: OwoxStorageDeletionApiDto | null;
+
+  @ApiProperty({ type: String, format: 'date-time', nullable: true })
+  deletedAt: Date | null;
 }

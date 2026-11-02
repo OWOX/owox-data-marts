@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { OwoxStorageUsageResponseDto } from '../../api/types';
+import { formatDateOnly } from '../../../../../utils/date-formatters';
 import { OwoxStorageUsage } from './OwoxStorageUsage';
 
 const getOwoxStorageUsage = vi.hoisted(() => vi.fn());
@@ -14,11 +15,16 @@ const usage = (patch: Partial<OwoxStorageUsageResponseDto> = {}): OwoxStorageUsa
   usedBytes: 512 * 2 ** 20,
   limitBytes: 2 ** 30,
   tables: [],
+  deletion: null,
+  deletedAt: null,
   ...patch,
 });
 
 const FULL =
   'This storage is full. New connector runs are refused until you delete tables or upgrade the plan.';
+
+// Noon UTC stays on the same calendar day in every time zone the tests may run in.
+const DATE = formatDateOnly('2026-12-05T12:00:00.000Z');
 
 describe('OwoxStorageUsage', () => {
   beforeEach(() => {
@@ -49,6 +55,50 @@ describe('OwoxStorageUsage', () => {
     render(<OwoxStorageUsage storageId='s1' />);
 
     expect(await screen.findByText(FULL)).toBeInTheDocument();
+  });
+
+  it('announces the deletion date of a NOT_PAID storage', async () => {
+    getOwoxStorageUsage.mockResolvedValue(
+      usage({
+        plan: 'NOT_PAID',
+        deletion: { reason: 'NOT_PAID', date: '2026-12-05T12:00:00.000Z' },
+      })
+    );
+    render(<OwoxStorageUsage storageId='s1' />);
+
+    expect(
+      await screen.findByText(
+        `This project's subscription is not paid. Connector runs into this storage are stopped, and the storage and its data will be deleted on ${DATE}. Pay for the subscription before then to keep them.`
+      )
+    ).toBeInTheDocument();
+  });
+
+  it('announces the deletion date of an unused storage', async () => {
+    getOwoxStorageUsage.mockResolvedValue(
+      usage({ deletion: { reason: 'INACTIVE', date: '2026-12-05T12:00:00.000Z' } })
+    );
+    render(<OwoxStorageUsage storageId='s1' />);
+
+    expect(
+      await screen.findByText(
+        `This storage has not been used recently. It and its data will be deleted on ${DATE} unless a query or a connector run uses it before then.`
+      )
+    ).toBeInTheDocument();
+  });
+
+  it('shows only the deleted notice for a deleted storage', async () => {
+    getOwoxStorageUsage.mockResolvedValue(
+      usage({ usedBytes: 0, deletedAt: '2026-12-05T12:00:00.000Z' })
+    );
+    render(<OwoxStorageUsage storageId='s1' />);
+
+    expect(
+      await screen.findByText(
+        `This storage and its data were deleted on ${DATE}. Restore it to use it again. The Data Marts that use it keep their settings, and their next connector runs load their data again.`
+      )
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/of .* used/)).toBeNull();
+    expect(screen.queryByText(/No tables yet/)).toBeNull();
   });
 
   it('lists tables with rows and sizes', async () => {

@@ -10,6 +10,7 @@ import {
   TableRow,
 } from '@owox/ui/components/table';
 import { ConfirmationDialog } from '../../../../../shared/components/ConfirmationDialog';
+import { formatDateOnly } from '../../../../../utils/date-formatters';
 import { formatBytes } from '../../../../../utils/format-bytes';
 import { useOwoxStorageUsage } from '../../hooks/useOwoxStorageUsage';
 
@@ -30,6 +31,16 @@ export function OwoxStorageUsage({ storageId }: { storageId: string }) {
 
   if (!usage) return <Skeleton className='h-24 w-full' />;
 
+  if (usage.deletedAt) {
+    return (
+      <p className='bg-warning-bg text-warning rounded-md px-3 py-2 text-sm'>
+        This storage and its data were deleted on {formatDateOnly(usage.deletedAt)}. Restore it to
+        use it again. The Data Marts that use it keep their settings, and their next connector runs
+        load their data again.
+      </p>
+    );
+  }
+
   const paid = usage.plan === 'PAID';
   const full = !paid && usage.usedBytes >= usage.limitBytes;
 
@@ -40,6 +51,20 @@ export function OwoxStorageUsage({ storageId }: { storageId: string }) {
           ? `${formatBytes(usage.usedBytes)} used, ${formatBytes(usage.limitBytes)} included`
           : `${formatBytes(usage.usedBytes)} of ${formatBytes(usage.limitBytes)} used`}
       </p>
+      {usage.deletion?.reason === 'NOT_PAID' && (
+        <p className='bg-warning-bg text-warning rounded-md px-3 py-2 text-sm'>
+          This project&apos;s subscription is not paid. Connector runs into this storage are
+          stopped, and the storage and its data will be deleted on{' '}
+          {formatDateOnly(usage.deletion.date)}. Pay for the subscription before then to keep them.
+        </p>
+      )}
+      {usage.deletion?.reason === 'INACTIVE' && (
+        <p className='bg-warning-bg text-warning rounded-md px-3 py-2 text-sm'>
+          This storage has not been used recently. It and its data will be deleted on{' '}
+          {formatDateOnly(usage.deletion.date)} unless a query or a connector run uses it before
+          then.
+        </p>
+      )}
       {full && (
         <p className='bg-warning-bg text-warning rounded-md px-3 py-2 text-sm'>
           This storage is full. New connector runs are refused until you delete tables or upgrade
