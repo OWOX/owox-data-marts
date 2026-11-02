@@ -11,6 +11,6 @@ When you look for one Data Mart among many, you type part of its name in the Dat
 - The search is kept per project and only in the current tab: a new tab opens the full list.
 - A **×** in the search field clears the search in one click. The Connectors, Destinations, Storages, Contexts and Members lists get it too; their search still starts empty each time.
 
-See [Find a Data Mart in the list](../../docs/data-marts/index.md#find-a-data-mart-in-the-list).
+See [Find a Data Mart in the list](../../docs/data-marts/#find-a-data-mart-in-the-list).
 
 <!-- markdownlint-disable-file MD041 MD036 -->
