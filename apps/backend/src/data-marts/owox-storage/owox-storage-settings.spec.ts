@@ -19,6 +19,8 @@ describe('readOwoxStorageSettings', () => {
       paidQueryLimitBytesPerDay: 100 * 2 ** 30,
       freeStorageLimitBytes: 2 ** 30,
       paidIncludedStorageBytes: 10 * 2 ** 30,
+      notPaidDeletionDays: 30,
+      inactivityDeletionDays: 30,
     });
   });
 
@@ -46,6 +48,35 @@ describe('readOwoxStorageSettings', () => {
       expect(() =>
         readOwoxStorageSettings({ ...base, OWOX_STORAGE_PAID_INCLUDED_STORAGE_GIB: '-1' })
       ).toThrow(/OWOX_STORAGE_PAID_INCLUDED_STORAGE_GIB/);
+    });
+  });
+
+  describe('deletion periods', () => {
+    const base = { OWOX_STORAGE_ENGINE: 'bigquery', OWOX_STORAGE_GCP_PROJECT_ID: 'owox-storage' };
+
+    it('defaults both to 30 days', () => {
+      const settings = readOwoxStorageSettings(base);
+      expect(settings?.notPaidDeletionDays).toBe(30);
+      expect(settings?.inactivityDeletionDays).toBe(30);
+    });
+
+    it('reads both variables', () => {
+      const settings = readOwoxStorageSettings({
+        ...base,
+        OWOX_STORAGE_NOT_PAID_DELETION_DAYS: 14,
+        OWOX_STORAGE_INACTIVITY_DELETION_DAYS: '7',
+      });
+      expect(settings?.notPaidDeletionDays).toBe(14);
+      expect(settings?.inactivityDeletionDays).toBe(7);
+    });
+
+    it.each(['0', '-1', '1.5', 'x'])('throws on %s', value => {
+      expect(() =>
+        readOwoxStorageSettings({ ...base, OWOX_STORAGE_INACTIVITY_DELETION_DAYS: value })
+      ).toThrow('OWOX_STORAGE_INACTIVITY_DELETION_DAYS must be a positive integer.');
+      expect(() =>
+        readOwoxStorageSettings({ ...base, OWOX_STORAGE_NOT_PAID_DELETION_DAYS: value })
+      ).toThrow('OWOX_STORAGE_NOT_PAID_DELETION_DAYS must be a positive integer.');
     });
   });
 

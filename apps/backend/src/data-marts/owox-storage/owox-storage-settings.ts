@@ -9,6 +9,8 @@ export interface OwoxStorageSettings {
   paidQueryLimitBytesPerDay: number;
   freeStorageLimitBytes: number;
   paidIncludedStorageBytes: number;
+  notPaidDeletionDays: number;
+  inactivityDeletionDays: number;
 }
 
 const GIB = 2 ** 30;
@@ -42,6 +44,14 @@ export function readOwoxStorageSettings(env: Record<string, unknown>): OwoxStora
     return gib;
   };
 
+  const days = (name: string) => {
+    const value = read(name);
+    if (value === undefined) return 30;
+    const n = Number(value);
+    if (!Number.isInteger(n) || n <= 0) throw new Error(`${name} must be a positive integer.`);
+    return n;
+  };
+
   return {
     engine,
     gcpProjectId,
@@ -50,5 +60,7 @@ export function readOwoxStorageSettings(env: Record<string, unknown>): OwoxStora
     paidQueryLimitBytesPerDay: limitGib('OWOX_STORAGE_PAID_QUERY_LIMIT_GIB_PER_DAY', 100) * GIB,
     freeStorageLimitBytes: limitGib('OWOX_STORAGE_FREE_STORAGE_LIMIT_GIB', 1) * GIB,
     paidIncludedStorageBytes: limitGib('OWOX_STORAGE_PAID_INCLUDED_STORAGE_GIB', 10) * GIB,
+    notPaidDeletionDays: days('OWOX_STORAGE_NOT_PAID_DELETION_DAYS'),
+    inactivityDeletionDays: days('OWOX_STORAGE_INACTIVITY_DELETION_DAYS'),
   };
 }
