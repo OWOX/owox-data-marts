@@ -26,6 +26,12 @@ export class OwoxStorageProvisioningException extends BusinessViolationException
   }
 }
 
+export class OwoxStorageRestoreException extends BusinessViolationException {
+  constructor() {
+    super('The OWOX Storage could not be restored. Try again in a few minutes.');
+  }
+}
+
 export class OwoxStorageUsageReadException extends BusinessViolationException {
   constructor() {
     super('OWOX Storage usage could not be read. Try again later.');

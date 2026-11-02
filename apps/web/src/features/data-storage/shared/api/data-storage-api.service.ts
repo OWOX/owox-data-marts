@@ -91,6 +91,13 @@ export class DataStorageApiService extends ApiService {
     await this.delete(`/${storageId}/owox-storage/tables/${encodeURIComponent(tableName)}`);
   }
 
+  async restoreOwoxStorage(storageId: string): Promise<void> {
+    // Recreating the datasets and the account takes as long as creating them.
+    await this.post(`/${storageId}/owox-storage/restore`, undefined, {
+      timeout: 180000,
+    } as AxiosRequestConfig);
+  }
+
   /**
    * Updates an existing data storage resource with the provided data.
    *

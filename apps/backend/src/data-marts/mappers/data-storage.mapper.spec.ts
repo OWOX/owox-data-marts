@@ -219,6 +219,28 @@ describe('DataStorageMapper', () => {
     });
   });
 
+  describe('toRestoreOwoxStorageCommand', () => {
+    const context = { projectId: 'proj-1', userId: 'user-1', roles: ['editor'] };
+
+    it.each([
+      ['a member', undefined, false],
+      ['a plugin', 'plugin', true],
+    ])('marks whether %s calls', (_who, authFlow, fromPlugin) => {
+      const command = new DataStorageMapper(clsWith(), noManaged).toRestoreOwoxStorageCommand(
+        'storage-1',
+        { ...context, authFlow } as AuthorizationContext
+      );
+
+      expect(command).toEqual({
+        storageId: 'storage-1',
+        projectId: 'proj-1',
+        userId: 'user-1',
+        roles: ['editor'],
+        fromPlugin,
+      });
+    });
+  });
+
   describe('toByTypeCommand', () => {
     const context = { projectId: 'proj-1', userId: 'user-1', roles: ['editor'] };
 

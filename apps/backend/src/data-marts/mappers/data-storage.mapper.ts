@@ -14,6 +14,7 @@ import { DataStorageDto } from '../dto/domain/data-storage.dto';
 import { DeleteDataStorageCommand } from '../dto/domain/delete-data-storage.command';
 import { GetOwoxStorageUsageCommand } from '../dto/domain/get-owox-storage-usage.command';
 import { DeleteOwoxStorageTableCommand } from '../dto/domain/delete-owox-storage-table.command';
+import { RestoreOwoxStorageCommand } from '../dto/domain/restore-owox-storage.command';
 import { GetDataStorageCommand } from '../dto/domain/get-data-storage.command';
 import { ListDataStoragesCommand } from '../dto/domain/list-data-storages.command';
 import { ListStorageResourcesCommand } from '../dto/domain/list-storage-resources.command';
@@ -248,6 +249,19 @@ export class DataStorageMapper {
       id,
       context.projectId,
       tableName,
+      context.userId,
+      context.roles ?? [],
+      context.authFlow === 'plugin'
+    );
+  }
+
+  toRestoreOwoxStorageCommand(
+    id: string,
+    context: AuthorizationContext
+  ): RestoreOwoxStorageCommand {
+    return new RestoreOwoxStorageCommand(
+      id,
+      context.projectId,
       context.userId,
       context.roles ?? [],
       context.authFlow === 'plugin'
