@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm';
+import { In, IsNull, Repository } from 'typeorm';
 import { ManagedStorage } from '../entities/managed-storage.entity';
 
 @Injectable()
@@ -23,6 +23,14 @@ export class ManagedStorageService {
 
   findByProjectId(projectId: string): Promise<ManagedStorage | null> {
     return this.repository.findOne({ where: { projectId } });
+  }
+
+  findActive(): Promise<ManagedStorage[]> {
+    return this.repository.find({ where: { deprovisionedAt: IsNull() } });
+  }
+
+  save(record: ManagedStorage): Promise<ManagedStorage> {
+    return this.repository.save(record);
   }
 
   create(record: Omit<ManagedStorage, 'createdAt' | 'modifiedAt'>): Promise<ManagedStorage> {
