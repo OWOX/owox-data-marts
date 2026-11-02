@@ -47,6 +47,11 @@ export class DeleteOwoxStorageTableService {
     if (!record) {
       throw new BusinessViolationException('This storage is not an OWOX Storage.');
     }
+    if (record.deprovisionedAt) {
+      throw new BusinessViolationException(
+        'This OWOX Storage and its data were deleted. Restore the storage on its page to continue.'
+      );
+    }
 
     try {
       await this.engine.dropTable(record, command.tableName);

@@ -93,6 +93,17 @@ describe('DeleteOwoxStorageTableService', () => {
     expect(engine.dropTable).not.toHaveBeenCalled();
   });
 
+  it('refuses a deleted storage before any engine call', async () => {
+    const { service, engine } = makeService({ ...record, deprovisionedAt: new Date() });
+
+    await expect(service.run(command)).rejects.toThrow(
+      new BusinessViolationException(
+        'This OWOX Storage and its data were deleted. Restore the storage on its page to continue.'
+      )
+    );
+    expect(engine.dropTable).not.toHaveBeenCalled();
+  });
+
   it('passes not-found through', async () => {
     const { service, engine } = makeService();
     engine.dropTable.mockRejectedValue(new NotFoundException('Table x was not found.'));

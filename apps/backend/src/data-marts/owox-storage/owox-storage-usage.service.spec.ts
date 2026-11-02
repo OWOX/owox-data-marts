@@ -135,6 +135,33 @@ describe('OwoxStorageUsageService', () => {
       expect(engine.listTables).not.toHaveBeenCalled();
     });
 
+    it('refuses a load on NOT_PAID without reading sizes', async () => {
+      plans.planFor.mockResolvedValue(ProjectPlanType.NOT_PAID);
+
+      const error = await service.assertCanLoad('s1').catch(e => e);
+
+      expect(error).toBeInstanceOf(ProjectOperationBlockedException);
+      expect(error.blockedReasons).toEqual([ProjectBlockedReason.OWOX_STORAGE_NOT_PAID]);
+      expect(error.message).toBe(
+        "This project's subscription is not paid, so connector runs into its OWOX Storage are stopped. Pay for the subscription to resume them."
+      );
+      expect(engine.listTables).not.toHaveBeenCalled();
+    });
+
+    it('refuses a load on a deleted storage', async () => {
+      managed.findByStorageId.mockResolvedValue({ ...record, deprovisionedAt: new Date() });
+
+      const error = await service.assertCanLoad('s1').catch(e => e);
+
+      expect(error).toBeInstanceOf(ProjectOperationBlockedException);
+      expect(error.blockedReasons).toEqual([ProjectBlockedReason.OWOX_STORAGE_DELETED]);
+      expect(error.message).toBe(
+        "This project's OWOX Storage and its data were deleted. Restore the storage on its page to load data again."
+      );
+      expect(plans.planFor).not.toHaveBeenCalled();
+      expect(engine.listTables).not.toHaveBeenCalled();
+    });
+
     it('lets the run go when the size cannot be read', async () => {
       engine.listTables.mockRejectedValue(new Error('Access Denied'));
 
