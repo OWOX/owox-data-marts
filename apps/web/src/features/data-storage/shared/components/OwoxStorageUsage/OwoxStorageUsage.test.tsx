@@ -57,6 +57,15 @@ describe('OwoxStorageUsage', () => {
     expect(await screen.findByText(FULL)).toBeInTheDocument();
   });
 
+  it('shows no deletion notice when nothing is scheduled', async () => {
+    getOwoxStorageUsage.mockResolvedValue(usage());
+    render(<OwoxStorageUsage storageId='s1' />);
+
+    await screen.findByText('512 MB of 1 GB used');
+    expect(screen.queryByText(/will be deleted/)).toBeNull();
+    expect(screen.queryByText(/were deleted/)).toBeNull();
+  });
+
   it('announces the deletion date of a NOT_PAID storage', async () => {
     getOwoxStorageUsage.mockResolvedValue(
       usage({
