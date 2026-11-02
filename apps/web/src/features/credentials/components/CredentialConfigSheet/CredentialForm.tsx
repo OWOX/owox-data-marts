@@ -26,6 +26,7 @@ import {
   SelectValue,
 } from '@owox/ui/components/select';
 import { Switch } from '@owox/ui/components/switch';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
 import { Loader2 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
@@ -38,7 +39,9 @@ import { focusFirstInvalidField } from '../../../../utils/form-utils';
 import { extractApiError } from '../../../../app/api/extract-api-error.util';
 import {
   isFieldsMetadata,
+  isSecretReplaceable,
   isServiceAccountMetadata,
+  SECRET_NOT_REPLACEABLE,
   type CreateCredentialRequest,
   type Credential,
   type CredentialDefinition,
@@ -600,15 +603,25 @@ function CredentialFormBody({
                         )}
                       </div>
                       {onRequestReplaceSecret && (
-                        <Button
-                          type='button'
-                          variant='outline'
-                          onClick={() => {
-                            onRequestReplaceSecret(credential);
-                          }}
-                        >
-                          Replace secret
-                        </Button>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <div>
+                              <Button
+                                type='button'
+                                variant='outline'
+                                disabled={!isSecretReplaceable(credential)}
+                                onClick={() => {
+                                  onRequestReplaceSecret(credential);
+                                }}
+                              >
+                                Replace secret
+                              </Button>
+                            </div>
+                          </TooltipTrigger>
+                          {!isSecretReplaceable(credential) && (
+                            <TooltipContent side='left'>{SECRET_NOT_REPLACEABLE}</TooltipContent>
+                          )}
+                        </Tooltip>
                       )}
                     </div>
                   </FormItem>

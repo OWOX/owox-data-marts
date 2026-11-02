@@ -335,6 +335,31 @@ describe('CredentialForm', () => {
     expect(screen.getByText('Share documents with this address as Editor')).toBeInTheDocument();
   });
 
+  it('disables Replace secret for a custom connector Credential and says why', async () => {
+    const customDefinition: CredentialDefinition = {
+      ...githubDefinition,
+      id: 'custom-connector',
+      displayName: 'Custom connector',
+      auth: { type: 'custom-connector' },
+    };
+    const onRequestReplaceSecret = vi.fn();
+    renderForm({
+      definitions: [customDefinition],
+      credential: { ...githubCredential, title: 'Acme keys', definition: customDefinition },
+      onRequestReplaceSecret,
+    });
+
+    const replace = screen.getByRole('button', { name: 'Replace secret' });
+    fireEvent.click(replace);
+    fireEvent.pointerMove(replace.parentElement!);
+
+    expect(replace).toBeDisabled();
+    expect(onRequestReplaceSecret).not.toHaveBeenCalled();
+    expect(await screen.findByRole('tooltip')).toHaveTextContent(
+      "This version can't change this Credential's keys."
+    );
+  });
+
   describe('Storage providers', () => {
     const snowflakeDefinition: CredentialDefinition = {
       id: 'snowflake-password',
