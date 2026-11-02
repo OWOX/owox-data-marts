@@ -165,6 +165,32 @@ export class BigQueryManagedStorageEngine implements ManagedStorageEngine {
     }));
   }
 
+  async lastJobTimes(
+    targets: ProvisionedManagedStorage[],
+    since: Date
+  ): Promise<Map<string, Date>> {
+    const groups = new Map<string, ProvisionedManagedStorage[]>();
+    for (const target of targets) {
+      const key = `${target.gcpProjectId}:${target.location}`;
+      groups.set(key, [...(groups.get(key) ?? []), target]);
+    }
+    const result = new Map<string, Date>();
+    for (const [first, ...rest] of groups.values()) {
+      const { gcpProjectId, location } = first;
+      const emails = [first, ...rest].map(t => t.serviceAccountEmail);
+      // ODM's own identity: reading the history must not count as the account's use.
+      const [rows] = await this.identity.bigQuery(gcpProjectId, location).query({
+        query: `SELECT user_email, MAX(creation_time) AS last_job FROM \`${gcpProjectId}.region-${location.toLowerCase()}.INFORMATION_SCHEMA.JOBS_BY_PROJECT\` WHERE creation_time >= @since AND user_email IN UNNEST(@emails) GROUP BY user_email`,
+        params: { since, emails },
+      });
+      for (const row of rows as { user_email: string; last_job: { value: string } | Date }[]) {
+        const { last_job: time } = row;
+        result.set(row.user_email, new Date(time instanceof Date ? time : time.value));
+      }
+    }
+    return result;
+  }
+
   async dropTable(target: ProvisionedManagedStorage, tableName: string): Promise<void> {
     // Only a name the dataset itself lists reaches the delete call.
     const listed = (await this.listTables(target)).some(table => table.name === tableName);

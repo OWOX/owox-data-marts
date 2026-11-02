@@ -43,6 +43,14 @@ export class ManagedStorage {
   @Column({ type: 'datetime', nullable: true })
   notPaidSince: Date | null;
 
+  // Newest known use of the storage; deletion for inactivity counts from it.
+  @Column({ type: 'datetime', nullable: true })
+  lastActivityAt: Date | null;
+
+  // Set when the datasets and service account were deleted.
+  @Column({ type: 'datetime', nullable: true })
+  deprovisionedAt: Date | null;
+
   @CreateDateColumn()
   createdAt: Date;
 

@@ -81,6 +81,8 @@ describe('CreateOwoxStorageService', () => {
       storageLimitBytes: null,
       queryLimitBytesPerDay: null,
       notPaidSince: null,
+      lastActivityAt: null,
+      deprovisionedAt: null,
     });
     expect(dto.title).toBe('Mine');
     expect(dto.config).toEqual({ projectId: 'owox-managed', location: 'EU' });

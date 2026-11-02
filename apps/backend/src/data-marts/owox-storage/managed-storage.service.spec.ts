@@ -1,4 +1,4 @@
-import { Repository } from 'typeorm';
+import { IsNull, Repository } from 'typeorm';
 import { ManagedStorage } from '../entities/managed-storage.entity';
 import { ManagedStorageService } from './managed-storage.service';
 
@@ -15,6 +15,8 @@ function record(storageId: string, projectId = 'project-1'): ManagedStorage {
     storageLimitBytes: null,
     queryLimitBytesPerDay: null,
     notPaidSince: null,
+    lastActivityAt: null,
+    deprovisionedAt: null,
     createdAt: new Date(),
     modifiedAt: new Date(),
   };
@@ -68,5 +70,19 @@ describe('ManagedStorageService', () => {
 
     expect(repository.save).toHaveBeenCalledWith(expect.objectContaining({ storageId: 's1' }));
     expect(repository.delete).toHaveBeenCalledWith({ storageId: 's1' });
+  });
+
+  it('findActive queries rows that are not deprovisioned', async () => {
+    repository.find.mockResolvedValue([record('s1')]);
+
+    expect(await service.findActive()).toEqual([record('s1')]);
+    expect(repository.find).toHaveBeenCalledWith({ where: { deprovisionedAt: IsNull() } });
+  });
+
+  it('save passes the record to the repository', async () => {
+    const row = record('s1');
+
+    expect(await service.save(row)).toBe(row);
+    expect(repository.save).toHaveBeenCalledWith(row);
   });
 });
