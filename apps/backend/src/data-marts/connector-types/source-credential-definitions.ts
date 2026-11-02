@@ -174,11 +174,9 @@ export function selectsOtherVariant(
 ): boolean {
   const [parameter, variant] = binding.path;
   const selected = parameter === undefined ? undefined : config[parameter];
-  return (
-    typeof selected === 'object' &&
-    selected !== null &&
-    Object.keys(selected).some(key => key !== variant)
-  );
+  // The run and the conversion take the first key, so later ones are only stored values.
+  const [first] = typeof selected === 'object' && selected !== null ? Object.keys(selected) : [];
+  return first !== undefined && first !== variant;
 }
 
 /** The binding whose variant runs the connector's OAuth flow at `fieldPath`, like "AuthType.oauth2". */

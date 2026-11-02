@@ -490,6 +490,13 @@ describe('SourceCredentialBindingService', () => {
       await expect(
         check(credential.id, 'GoogleAds', { AuthType: { oauth2: {} } })
       ).resolves.toBeUndefined();
+      // The first variant is the selected one; a later one is only a stored value.
+      await expect(
+        check(credential.id, 'GoogleAds', { AuthType: { service_account: {}, oauth2: {} } })
+      ).rejects.toBeInstanceOf(BadRequestException);
+      await expect(
+        check(credential.id, 'GoogleAds', { AuthType: { oauth2: {}, service_account: {} } })
+      ).resolves.toBeUndefined();
     });
 
     it('refuses a custom connector Credential that does not fit the version the Data Mart runs', async () => {

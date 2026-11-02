@@ -39,6 +39,8 @@ export const RUN_ROTATION_LEASE_WAIT_MS = ROTATION_LEASE_STALE_MS + 5_000;
 export const BUILDER_TEST_ROTATION_LEASE_WAIT_MS = 5_000;
 export const ROTATION_LEASE_BUSY =
   "Another run is refreshing this Credential's token; the next run retries.";
+export const AUTH_TYPE_MISMATCH =
+  "This configuration's authentication type doesn't match its Credential. Change it back and save.";
 
 /** A configuration ready to run on its bound Credential. */
 export interface BoundSourceConfig {
@@ -300,7 +302,7 @@ function builtinTarget(
   if (!binding) throw boundaryError(connectorName, credential);
   // Injection would replace the saved authentication type with the Credential's.
   if (config && selectsOtherVariant(binding, config)) {
-    throw new SourceCredentialUnavailableException(CREDENTIAL_NO_LONGER_FITS);
+    throw new SourceCredentialUnavailableException(AUTH_TYPE_MISMATCH);
   }
   return {
     path: binding.path,

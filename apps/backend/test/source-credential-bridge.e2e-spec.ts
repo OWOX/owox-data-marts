@@ -215,25 +215,27 @@ describe('Bound Source configurations saved by the bridge release (e2e)', () => 
         boundTo: sheetsCredentialId,
       });
 
-    it('refuses a service account authentication type and writes nothing', async () => {
-      const { dataMartId, configuration } = await given();
-      const [item] = await pageConfiguration(dataMartId);
+    it.each([
+      ['alone', { service_account: { ServiceAccountKey: '**********' } }],
+      ['before OAuth2', { service_account: { ServiceAccountKey: '**********' }, oauth2: {} }],
+    ])(
+      'refuses a service account authentication type %s and writes nothing',
+      async (_case, AuthType) => {
+        const { dataMartId, configuration } = await given();
+        const [item] = await pageConfiguration(dataMartId);
 
-      const res = await put(
-        dataMartId,
-        [{ ...item, AuthType: { service_account: { ServiceAccountKey: '**********' } } }],
-        SHEETS
-      );
+        const res = await put(dataMartId, [{ ...item, AuthType }], SHEETS);
 
-      expect(res.status).toBe(400);
-      expect(res.body.message).toBe(
-        "This configuration uses a Credential, so its authentication type can't be changed."
-      );
-      expect(await storedConfiguration(dataMartId)).toEqual(configuration);
-      expect(await bindings(dataMartId)).toEqual([
-        { requirementKey: configuration[0]._id, credentialId: sheetsCredentialId, active: true },
-      ]);
-    });
+        expect(res.status).toBe(400);
+        expect(res.body.message).toBe(
+          "This configuration uses a Credential, so its authentication type can't be changed."
+        );
+        expect(await storedConfiguration(dataMartId)).toEqual(configuration);
+        expect(await bindings(dataMartId)).toEqual([
+          { requirementKey: configuration[0]._id, credentialId: sheetsCredentialId, active: true },
+        ]);
+      }
+    );
 
     it('saves the OAuth2 authentication type as before', async () => {
       const { dataMartId, configuration } = await given();
@@ -243,6 +245,19 @@ describe('Bound Source configurations saved by the bridge release (e2e)', () => 
 
       expect(await storedConfiguration(dataMartId)).toEqual([
         { ...configuration[0], SheetName: 'Sheet2' },
+      ]);
+    });
+
+    it('saves OAuth2 first with a service account after it', async () => {
+      const { dataMartId } = await given();
+      const [item] = await pageConfiguration(dataMartId);
+      const AuthType = { oauth2: {}, service_account: { ServiceAccountKey: '**********' } };
+
+      await put(dataMartId, [{ ...item, AuthType }], SHEETS).expect(200);
+
+      expect(Object.keys((await storedConfiguration(dataMartId))[0].AuthType as object)).toEqual([
+        'oauth2',
+        'service_account',
       ]);
     });
   });
