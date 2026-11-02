@@ -54,12 +54,23 @@ export default function rehypeChangelogEntryAnchors() {
  *   the item is not an entry
  */
 function entryTitle(item) {
-  const first = item.children.find(child => !isBlank(child));
+  const [first, next] = item.children.filter(child => !isBlank(child));
 
   // Loose list: the title is a paragraph of its own.
   if (first?.type === 'element' && first.tagName === 'p') {
     const title = boldTitle(first.children);
-    return title && title.rest.length === 0 ? { parent: first, strong: title.strong } : null;
+    if (title) return title.rest.length === 0 ? { parent: first, strong: title.strong } : null;
+
+    // `abc1234: <!-- markdownlint-disable-file … -->` leaves the hash alone in its paragraph,
+    // and the title is the next paragraph.
+    const [prefix, ...others] = first.children.filter(node => !isBlank(node));
+    const [strong, ...rest] =
+      next?.type === 'element' && next.tagName === 'p'
+        ? next.children.filter(node => !isBlank(node))
+        : [];
+    return isCommitPrefix(prefix) && others.length === 0 && isStrong(strong) && rest.length === 0
+      ? { parent: next, strong }
+      : null;
   }
 
   // Tight list: the title is inline, followed only by block content such as a nested list.
@@ -75,9 +86,24 @@ function entryTitle(item) {
  */
 function boldTitle(nodes) {
   const [prefix, strong, ...rest] = nodes.filter(node => !isBlank(node));
-  if (prefix?.type !== 'text' || !COMMIT_PREFIX.test(prefix.value)) return null;
-  if (strong?.type !== 'element' || strong.tagName !== 'strong') return null;
+  if (!isCommitPrefix(prefix) || !isStrong(strong)) return null;
   return { strong, rest };
+}
+
+/**
+ * @param {any} node - hast node
+ * @returns {boolean} True for the `abc1234: ` text that opens an entry
+ */
+function isCommitPrefix(node) {
+  return node?.type === 'text' && COMMIT_PREFIX.test(node.value);
+}
+
+/**
+ * @param {any} node - hast node
+ * @returns {boolean} True for a `strong` element
+ */
+function isStrong(node) {
+  return node?.type === 'element' && node.tagName === 'strong';
 }
 
 /**
@@ -119,9 +145,12 @@ function anchorLink(id, title) {
 
 /**
  * @param {any} node - hast node
- * @returns {boolean} True for whitespace-only text
+ * @returns {boolean} True for whitespace-only text and HTML comments. Astro runs these plugins
+ *   before `rehype-raw`, so a comment still arrives as a `raw` node here.
  */
 function isBlank(node) {
+  if (node.type === 'comment') return true;
+  if (node.type === 'raw') return /^\s*<!--[\s\S]*-->\s*$/.test(node.value);
   return node.type === 'text' && node.value.trim() === '';
 }
 
