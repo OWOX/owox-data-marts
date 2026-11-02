@@ -23,6 +23,7 @@ function sourceCredentialsMock(bound: Record<string, string | null> = {}) {
   }
   return {
     boundCredentialIds: jest.fn().mockResolvedValue(new Map(Object.entries(bound))),
+    boundConfigs: jest.fn().mockResolvedValue([]),
     lockBoundCredentialId: jest.fn(
       async (_projectId: string, _dataMartId: string, configId: string): Promise<string | null> =>
         lockedIds[configId] ?? null

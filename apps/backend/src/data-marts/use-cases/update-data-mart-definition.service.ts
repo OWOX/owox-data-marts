@@ -28,6 +28,7 @@ import type { ConnectorCapabilities } from '../connector-types/connector-capabil
 import { DataMartSqlReferenceValidator } from '../services/data-mart-sql-reference-validator.service';
 import { selectionOf } from '../connector-types/custom-connector-credential-fit';
 import { SourceCredentialBindingService } from '../connector-types/source-credential-binding.service';
+import { addsVariant, sourceBindingFor } from '../connector-types/source-credential-definitions';
 import {
   bindingIdKey,
   keyValuesOf,
@@ -362,6 +363,21 @@ export class UpdateDataMartDefinitionService {
       }
       bound.set(configId, selected === undefined || selected === current);
     }
+    if (bound.size > 0) {
+      // Read after binding, so a new Credential's variant is checked as a kept one's is.
+      const definitionIds = new Map(
+        (await this.sourceCredentials.boundConfigs(projectId, [dataMartId])).map(
+          ({ requirementKey, credential }) => [requirementKey, credential?.definitionId]
+        )
+      );
+      for (const config of configuration) {
+        const definitionId = definitionIds.get(config._id as string);
+        const binding = definitionId ? sourceBindingFor(connectorName, definitionId) : null;
+        if (binding && addsVariant(binding, config, previousOf(config, previousItems))) {
+          throw new BadRequestException(AUTH_TYPE_KEPT);
+        }
+      }
+    }
     // Every live binding, not only the stored items: an N-1 save may have dropped its configuration.
     const kept = new Set(configuration.map(config => config._id));
     for (const configId of live.keys()) {
@@ -393,6 +409,8 @@ export class UpdateDataMartDefinitionService {
 
 const OUT_OF_DATE = 'This page is out of date. Reload it.';
 const SELECT_CREDENTIAL = 'Select a Credential for each configuration.';
+const AUTH_TYPE_KEPT =
+  "This configuration uses a Credential, so its authentication type can't be changed.";
 
 type Config = Record<string, unknown>;
 

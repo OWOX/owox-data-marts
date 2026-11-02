@@ -342,6 +342,87 @@ describe('Selecting Source credentials in a Data Mart definition (e2e)', () => {
     ]);
   });
 
+  describe('an authentication type beside the bound one', () => {
+    const AUTH_TYPE_KEPT =
+      "This configuration uses a Credential, so its authentication type can't be changed.";
+
+    /** A GoogleAds configuration bound to a Credential of `variant`, stored with `AuthType`. */
+    async function givenBoundVariant(variant: string, AuthType: ConfigItem) {
+      const credentialId = await credentialOf(`source:GoogleAds:${variant}`);
+      const dataMartId = await givenDataMart();
+      const saved = await putGoogleAds(dataMartId, [
+        { _credential_id: credentialId, AuthType: { [variant]: {} } },
+      ]).expect(200);
+      const configId = configurationOf(saved.body)[0]._id as string;
+      await dataSource.query('UPDATE data_mart SET definition = ? WHERE id = ?', [
+        JSON.stringify({
+          connector: {
+            source: {
+              name: 'GoogleAds',
+              configuration: [{ _id: configId, AuthType }],
+              node: 'stars',
+              fields: ['date'],
+            },
+            storage: { fullyQualifiedName: 'test_dataset.stars' },
+          },
+        }),
+        dataMartId,
+      ]);
+      return { dataMartId, configId, credentialId };
+    }
+
+    it('refuses a kept binding saved with another variant after its own and writes nothing', async () => {
+      const { dataMartId, configId, credentialId } = await givenBoundVariant('service_account', {
+        service_account: {},
+      });
+
+      // MySQL would store the keys sorted, so oauth2 would come first and every run would fail.
+      const res = await putGoogleAds(dataMartId, [
+        {
+          _id: configId,
+          _credential_id: credentialId,
+          AuthType: { service_account: {}, oauth2: {} },
+        },
+      ]);
+
+      expect(res.status).toBe(400);
+      expect(res.body.message).toBe(AUTH_TYPE_KEPT);
+      expect(await storedConfiguration(dataMartId)).toEqual([
+        { _id: configId, AuthType: { service_account: {} } },
+      ]);
+    });
+
+    it('refuses a newly selected Credential with another variant after its own and keeps the binding', async () => {
+      const { dataMartId, configId, credentialId } = await givenBoundVariant('service_account', {
+        service_account: {},
+      });
+      const selected = await credentialOf('source:GoogleAds:service_account');
+
+      const res = await putGoogleAds(dataMartId, [
+        { _id: configId, _credential_id: selected, AuthType: { service_account: {}, oauth2: {} } },
+      ]);
+
+      expect(res.status).toBe(400);
+      expect(res.body.message).toBe(AUTH_TYPE_KEPT);
+      expect(await storedConfiguration(dataMartId)).toEqual([
+        { _id: configId, AuthType: { service_account: {} } },
+      ]);
+      expect(await bindings(dataMartId)).toEqual([
+        { requirementKey: configId, credentialId, active: true },
+      ]);
+    });
+
+    it('saves back a converted configuration whose two variants are unchanged', async () => {
+      const AuthType = { oauth2: {}, service_account: {} };
+      const { dataMartId } = await givenBoundVariant('oauth2', AuthType);
+
+      const read = await agent.get(`/api/data-marts/${dataMartId}`).set(AUTH_HEADER).expect(200);
+      await putGoogleAds(dataMartId, configurationOf(read.body)).expect(200);
+
+      expect((await storedConfiguration(dataMartId))[0].AuthType).toEqual(AuthType);
+    });
+  });
+
   /** A GoogleAds configuration bound to `first` beside an old OAuth row holding a rotated token. */
   async function givenBoundBesideOldRow() {
     const first = await credentialOf('source:GoogleAds:oauth2');
