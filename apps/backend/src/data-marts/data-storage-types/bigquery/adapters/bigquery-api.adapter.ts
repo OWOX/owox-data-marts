@@ -35,6 +35,9 @@ function toDateOrNull(value: unknown): Date | null {
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
+/** The access check's query; the OWOX Storage activity read ignores it. */
+export const ACCESS_CHECK_QUERY = 'SELECT 1';
+
 /**
  * Adapter for BigQuery API operations.
  * Accepts Service Account credentials, pre-resolved OAuth credentials or OWOX Storage credentials.
@@ -381,7 +384,7 @@ export class BigQueryApiAdapter {
    */
   public async checkAccess(): Promise<void> {
     try {
-      const [, , res] = await this.bigQuery.query('SELECT 1', this.getLocationOption());
+      const [, , res] = await this.bigQuery.query(ACCESS_CHECK_QUERY, this.getLocationOption());
       this.setLocationFromJobReference(res?.jobReference?.location);
     } catch (e) {
       throw new Error(`BigQuery access error: ${e instanceof Error ? e.message : String(e)}`);
