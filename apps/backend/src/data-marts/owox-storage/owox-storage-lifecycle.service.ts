@@ -1,4 +1,5 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
+import { castError } from '@owox/internal-helpers';
 import type { ManagedStorage } from '../entities/managed-storage.entity';
 import { ProjectPlanType } from '../enums/project-plan-type.enum';
 import { describeGoogleError } from './engine/bigquery-managed-storage.engine';
@@ -46,7 +47,7 @@ export class OwoxStorageLifecycleService {
         await this.processRecord(record, jobTimes, days, now);
       } catch (error) {
         this.logger.error(
-          `OWOX Storage ${record.datasetId} lifecycle step failed (${error instanceof Error ? error.name : 'unknown'})${describeGoogleError(error)}`
+          `OWOX Storage ${record.datasetId} lifecycle step failed (${castError(error).name})${describeGoogleError(error)}`
         );
       }
     }
@@ -66,28 +67,33 @@ export class OwoxStorageLifecycleService {
       return;
     }
 
-    const before = [record.notPaidSince, record.lastActivityAt].map(d => d?.getTime() ?? null);
+    const changes: Partial<Pick<ManagedStorage, 'notPaidSince' | 'lastActivityAt'>> = {};
     const jobTime = jobTimes?.get(record.serviceAccountEmail);
     if (jobTime && (!record.lastActivityAt || jobTime > record.lastActivityAt)) {
-      record.lastActivityAt = jobTime;
+      changes.lastActivityAt = jobTime;
     }
 
     let deletable = false;
     if (plan === ProjectPlanType.NOT_PAID) {
-      if (!record.notPaidSince) record.notPaidSince = now;
+      if (!record.notPaidSince) changes.notPaidSince = now;
       else deletable = true;
-    } else if (record.notPaidSince) {
-      record.notPaidSince = null;
-      record.lastActivityAt = now;
+    } else if (record.notPaidSince || plan === ProjectPlanType.PAID) {
+      // Leaving NOT_PAID or PAID gives a FREE project its full inactivity period.
+      if (record.notPaidSince) changes.notPaidSince = null;
+      changes.lastActivityAt = now;
     } else {
       deletable = plan === ProjectPlanType.FREE && jobTimes !== null;
     }
 
-    const due = deletable ? scheduledDeletion(record, plan, days, now) : null;
+    const due = deletable ? scheduledDeletion({ ...record, ...changes }, plan, days, now) : null;
     const reason = due && due.date.getTime() <= now.getTime() + RUN_SLACK_MS ? due.reason : null;
 
-    const after = [record.notPaidSince, record.lastActivityAt].map(d => d?.getTime() ?? null);
-    if (before.some((value, i) => value !== after[i])) await this.managedStorages.save(record);
+    if (
+      Object.keys(changes).length > 0 &&
+      !(await this.managedStorages.updateActive(record.storageId, changes))
+    ) {
+      return;
+    }
     if (!reason) return;
 
     try {
@@ -98,8 +104,9 @@ export class OwoxStorageLifecycleService {
       );
       return;
     }
-    record.deprovisionedAt = now;
-    await this.managedStorages.save(record);
+    if (!(await this.managedStorages.updateActive(record.storageId, { deprovisionedAt: now }))) {
+      return;
+    }
     this.logger.log(`OWOX Storage ${record.datasetId} deleted: ${reason}`);
   }
 }

@@ -1,10 +1,8 @@
 import { ForbiddenException, Inject, Injectable, Logger } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm';
 import { Transactional } from 'typeorm-transactional';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
+import { ConnectorStateService } from '../connector-types/connector-message/services/connector-state.service';
 import { RestoreOwoxStorageCommand } from '../dto/domain/restore-owox-storage.command';
-import { ConnectorState } from '../entities/connector-state.entity';
 import { ProjectPlanType } from '../enums/project-plan-type.enum';
 import {
   MANAGED_STORAGE_ENGINE,
@@ -28,8 +26,7 @@ export class RestoreOwoxStorageService {
     @Inject(MANAGED_STORAGE_ENGINE) private readonly engine: ManagedStorageEngine,
     private readonly billing: InternalProjectBillingService,
     private readonly dataMartService: DataMartService,
-    @InjectRepository(ConnectorState)
-    private readonly connectorStates: Repository<ConnectorState>
+    private readonly connectorStates: ConnectorStateService
   ) {}
 
   async run(command: RestoreOwoxStorageCommand): Promise<void> {
@@ -85,6 +82,6 @@ export class RestoreOwoxStorageService {
   private async finishRestore(storageId: string, dataMartIds: string[]): Promise<void> {
     if (!(await this.managedStorages.markRestored(storageId, new Date()))) return;
     // The restored tables are empty: the next runs must load from each connector's start.
-    await this.connectorStates.delete({ datamartId: In(dataMartIds) });
+    await this.connectorStates.deleteByDataMartIds(dataMartIds);
   }
 }

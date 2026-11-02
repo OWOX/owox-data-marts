@@ -34,6 +34,15 @@ describe('OwoxStorageIdentity', () => {
     );
   });
 
+  it('forgets the cached client of one email only', async () => {
+    const identity = new OwoxStorageIdentity();
+    const a = await identity.impersonate('a@x');
+    const b = await identity.impersonate('b@x');
+    identity.forget('a@x');
+    expect(await identity.impersonate('a@x')).not.toBe(a);
+    expect(await identity.impersonate('b@x')).toBe(b);
+  });
+
   it('retries ODM own credentials after a failed lookup', async () => {
     getClient.mockRejectedValueOnce(new Error('metadata server not ready'));
     const identity = new OwoxStorageIdentity();

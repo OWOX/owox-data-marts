@@ -87,7 +87,7 @@ To delete a table, click its delete button and confirm. A connector that loads i
 OWOX deletes an OWOX Storage and its data in two cases:
 
 - **Unpaid subscription.** Connector runs into the storage stop at once and show as RESTRICTED in Run History. The storage and its data are deleted 30 days after the subscription became unpaid. Pay for the subscription before then to keep them.
-- **No use on the Free plan.** A Free storage that is not used for 30 days is deleted. Any query or connector run counts as use, scheduled ones included. After an unpaid period, the 30 days count from the day the subscription is paid again.
+- **No use on the Free plan.** A Free storage that is not used for 30 days is deleted. Any query or connector run counts as use, scheduled ones included. After an unpaid period, the 30 days count from the day the subscription is paid again. After a Paid period, they count from the day the project moves to Free.
 
 A Paid storage is never deleted for inactivity.
 
@@ -108,7 +108,7 @@ Until you restore the storage, connector runs end as RESTRICTED, and queries fai
 
 1. Pay for the subscription if it is unpaid. A storage cannot be restored while the subscription is unpaid: "Pay for this project's subscription before restoring its OWOX Storage."
 2. Open **Storages**, then open the OWOX Storage.
-3. Click **Restore storage** in the notice. Only editors see the button.
+3. Click **Restore storage** in the notice. Only editors can restore a storage.
 
 Restoring brings the storage back empty, under the same names. The deleted data does not come back.
 
