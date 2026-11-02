@@ -205,13 +205,47 @@ describe('CredentialsTable', () => {
     });
 
     expect(await screen.findByRole('menuitem', { name: 'Validate' })).toBeInTheDocument();
-    expect(screen.getByRole('menuitem', { name: 'Replace secret' })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'Replace secret' })).not.toHaveAttribute(
+      'aria-disabled'
+    );
     expect(screen.getByRole('menuitem', { name: 'Disable' })).toBeInTheDocument();
     expect(screen.getByRole('menuitem', { name: 'Delete' })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('menuitem', { name: 'Edit' }));
 
     expect(onEdit).toHaveBeenCalledWith(expect.objectContaining({ id: 'credential-1' }));
+  });
+
+  it('offers no key replacement for a custom connector Credential and says why', async () => {
+    const onReplaceSecret = vi.fn();
+    renderCredentials(
+      [
+        buildCredential({
+          title: 'Acme keys',
+          definition: buildDefinition({
+            id: 'custom-connector',
+            displayName: 'Custom connector',
+            auth: { type: 'custom-connector' },
+          }),
+        }),
+      ],
+      '/ui/project-1/credentials',
+      { onReplaceSecret }
+    );
+
+    fireEvent.pointerDown(screen.getByRole('button', { name: 'Open actions for Acme keys' }), {
+      button: 0,
+      ctrlKey: false,
+    });
+    const replace = await screen.findByRole('menuitem', { name: 'Replace secret' });
+    fireEvent.click(replace);
+    fireEvent.pointerMove(replace.parentElement!);
+
+    expect(replace).toHaveAttribute('aria-disabled', 'true');
+    expect(onReplaceSecret).not.toHaveBeenCalled();
+    expect(await screen.findByRole('tooltip')).toHaveTextContent(
+      "This version can't change this Credential's keys."
+    );
   });
 
   it('hides mutating actions and row editing from a use-only member', () => {

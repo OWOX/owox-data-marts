@@ -1,6 +1,10 @@
 // Imported by migration 1792700000000: keep it and its imports when the legacy code goes.
 import { randomUUID } from 'node:crypto';
-import type { CredentialPublicMetadata, CredentialSecret } from '../credential.types';
+import {
+  isCustomConnectorMetadata,
+  type CredentialPublicMetadata,
+  type CredentialSecret,
+} from '../credential.types';
 
 /** Sorted keys, exact strings, and a blank value dropped like an absent one. */
 function canonical(value: unknown): unknown {
@@ -33,6 +37,13 @@ export function materialKey(
     return secret.oauth.tokens.refresh_token
       ? oauthGrantKey(definitionId, secret.oauth)
       : randomUUID();
+  }
+  if (isCustomConnectorMetadata(metadata) && 'fields' in secret) {
+    const { hosts, fieldList, fields } = metadata;
+    return JSON.stringify([
+      definitionId,
+      canonical({ hosts, fieldList, fields: { ...fields, ...secret.fields } }),
+    ]);
   }
   const material =
     'value' in secret

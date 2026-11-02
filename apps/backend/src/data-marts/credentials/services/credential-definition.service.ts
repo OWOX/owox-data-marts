@@ -6,11 +6,21 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { CredentialDefinitionContractSchema } from '../credential.types';
+import {
+  CredentialDefinitionContractSchema,
+  type CredentialDefinitionContract,
+} from '../credential.types';
 import type { ResolvedCredentialDefinition } from '../dto/credential-api.dto';
 import { CredentialDefinitionVersion } from '../entities/credential-definition-version.entity';
 import { CredentialExternalDefinition } from '../entities/credential-external-definition.entity';
-import { BUILTIN_CREDENTIAL_DEFINITIONS } from './builtin-credential-definitions';
+import {
+  sourceConnectorsOf,
+  sourceCredentialDefinitions,
+} from '../../connector-types/source-credential-definitions';
+import {
+  BUILTIN_CREDENTIAL_DEFINITIONS,
+  CUSTOM_CONNECTOR_DEFINITION_ID,
+} from './builtin-credential-definitions';
 
 @Injectable()
 export class CredentialDefinitionService {
@@ -31,7 +41,10 @@ export class CredentialDefinitionService {
       external.map(definition => this.resolveExternal(definition))
     );
     return [
-      ...BUILTIN_CREDENTIAL_DEFINITIONS.map(contract => ({
+      // Not offered for creation until the web can render its form; existing ones still resolve.
+      ...BUILTIN_CREDENTIAL_DEFINITIONS.filter(
+        contract => contract.id !== CUSTOM_CONNECTOR_DEFINITION_ID
+      ).map(contract => ({
         definitionId: contract.id,
         source: 'builtin' as const,
         compatibilityLine: null,
@@ -44,7 +57,7 @@ export class CredentialDefinitionService {
   }
 
   async get(definitionId: string): Promise<ResolvedCredentialDefinition> {
-    const builtin = this.builtins.get(definitionId);
+    const builtin = this.builtin(definitionId);
     if (builtin) {
       return {
         definitionId: builtin.id,
@@ -72,7 +85,7 @@ export class CredentialDefinitionService {
     definitionId: string;
     acceptedCompatibilityLine: string | null;
   }): Promise<ResolvedCredentialDefinition> {
-    const builtin = this.builtins.get(input.definitionId);
+    const builtin = this.builtin(input.definitionId);
     if (builtin) {
       return {
         definitionId: builtin.id,
@@ -116,6 +129,14 @@ export class CredentialDefinitionService {
     return this.get(input.definitionId);
   }
 
+  /** Generated Source definitions resolve as built-in ones. */
+  private builtin(definitionId: string) {
+    const builtin = this.builtins.get(definitionId);
+    return builtin
+      ? withSourceConnectors(builtin)
+      : sourceCredentialDefinitions().definitions.find(contract => contract.id === definitionId);
+  }
+
   private async resolveExternal(
     definition: CredentialExternalDefinition
   ): Promise<ResolvedCredentialDefinition | null> {
@@ -133,4 +154,14 @@ export class CredentialDefinitionService {
       contract: parsed.data,
     };
   }
+}
+
+/** A built-in reused by Source bindings (github, google-service-account) lists their connectors. */
+function withSourceConnectors(
+  contract: CredentialDefinitionContract
+): CredentialDefinitionContract {
+  const connectors = sourceConnectorsOf(contract.id);
+  return connectors.length > 0
+    ? { ...contract, connectors: [...(contract.connectors ?? []), ...connectors] }
+    : contract;
 }

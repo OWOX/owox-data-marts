@@ -6,7 +6,6 @@ import {
   credentialIdentity,
   type AcceptedCredentialRequirement,
   type CredentialConsumerType,
-  type CredentialDefinitionContract,
   type CredentialPublicMetadata,
   type CredentialSecret,
 } from '../credential.types';
@@ -28,6 +27,7 @@ export interface ResolvedConsumerCredential {
   readonly state: CredentialConsumerState;
   readonly secret: CredentialSecret;
   readonly publicMetadata: CredentialPublicMetadata | null;
+  readonly refreshTokenStaticAt: Date | null;
 }
 
 /** A bound Credential's definition and public metadata, without its secret. */
@@ -44,16 +44,11 @@ export interface ConsumerBindingCheck<TType> {
   readonly type: TType;
 }
 
-interface BoundConsumer {
-  readonly consumerId: string;
-  readonly credential: BoundCredential;
-  readonly contract: CredentialDefinitionContract;
-}
-
-/** How a kind of consumer with one Credential each (Storage, Destination) binds, resolves and summarizes it. */
+/** How a kind of consumer binds, resolves and summarizes its Credentials, one per requirement key. */
 export abstract class ConsumerCredentialBindingService<TType extends string> {
   protected abstract readonly binding: {
     readonly consumerType: CredentialConsumerType;
+    /** The key a call uses unless it names its own. */
     readonly requirementKey: string;
   };
   /** The consumer as messages name it: "Storage", "Destination". */
@@ -116,12 +111,26 @@ export abstract class ConsumerCredentialBindingService<TType extends string> {
   }
 
   /** In the caller's transaction, the Credential the consumer is bound to now, read under a lock. */
-  lockBoundCredentialId(projectId: string, consumerId: string): Promise<string | null> {
-    return this.binder.lockBoundCredentialId({ ...this.binding, consumerId, projectId });
+  lockBoundCredentialId(
+    projectId: string,
+    consumerId: string,
+    requirementKey = this.binding.requirementKey
+  ): Promise<string | null> {
+    return this.binder.lockBoundCredentialId({
+      ...this.binding,
+      requirementKey,
+      consumerId,
+      projectId,
+    });
   }
 
-  protected deactivateConsumer(consumerId: string): Promise<void> {
-    return this.binder.deactivate({ consumerType: this.binding.consumerType, consumerId });
+  /** Every binding of the consumer, or only the one for `requirementKey`. */
+  protected deactivateConsumer(consumerId: string, requirementKey?: string): Promise<void> {
+    return this.binder.deactivate({
+      consumerType: this.binding.consumerType,
+      consumerId,
+      requirementKey,
+    });
   }
 
   protected async findBoundIds(
@@ -133,19 +142,34 @@ export abstract class ConsumerCredentialBindingService<TType extends string> {
   }
 
   /** Checks no member access: running a consumer needs access to the consumer only. */
-  protected async resolveForConsumer(consumer: {
-    readonly id: string;
-    readonly projectId: string;
-    readonly type: TType;
-  }): Promise<ResolvedConsumerCredential | null> {
+  protected async resolveForConsumer(
+    consumer: {
+      readonly id: string;
+      readonly projectId: string;
+      readonly type: TType;
+    },
+    requirementKey = this.binding.requirementKey
+  ): Promise<ResolvedConsumerCredential | null> {
     const bound = await this.binder.resolve({
       ...this.binding,
+      requirementKey,
       consumerId: consumer.id,
       projectId: consumer.projectId,
     });
     if (!bound) return null;
     if (!bound.credential) throw this.boundCredentialGone();
     return this.toResolved(bound.credential, this.requirement(consumer.type));
+  }
+
+  /** A project's Credential by id, without a binding or member access checks; null when it is gone. */
+  protected async resolveCredentialById(
+    projectId: string,
+    credentialId: string,
+    type: TType
+  ): Promise<ResolvedConsumerCredential | null> {
+    const credential = await this.credentialService.findById(credentialId);
+    if (!credential || credential.projectId !== projectId) return null;
+    return this.toResolved(credential, this.requirement(type));
   }
 
   /** What resolving a consumer whose bound Credential was deleted throws. */
@@ -166,26 +190,45 @@ export abstract class ConsumerCredentialBindingService<TType extends string> {
     roles: readonly string[];
     consumers: readonly { readonly id: string; readonly type: TType }[];
   }): Promise<ReadonlyMap<string, CredentialConsumerSummary>> {
-    const bound = await this.boundCredentials(
-      input.projectId,
-      input.consumers.map(consumer => consumer.id)
+    const bound = await this.binder.listBound({
+      ...this.binding,
+      projectId: input.projectId,
+      consumerIds: input.consumers.map(consumer => consumer.id),
+    });
+    const types = new Map(input.consumers.map(consumer => [consumer.id, consumer.type]));
+    return this.summarizeBound(
+      input,
+      bound.map(({ consumerId, credential }) => ({
+        key: consumerId,
+        credential,
+        // Every bound row comes from input.consumers.
+        type: types.get(consumerId)!,
+      }))
+    );
+  }
+
+  /** Each row's summary under its key; a row whose Credential is gone is left out. */
+  protected async summarizeBound(
+    member: { projectId: string; userId: string; roles: readonly string[] },
+    rows: readonly { key: string; credential: BoundCredential | null; type: TType }[]
+  ): Promise<ReadonlyMap<string, CredentialConsumerSummary>> {
+    const live = rows.filter(
+      (row): row is typeof row & { credential: BoundCredential } => row.credential !== null
     );
     const canSee = await this.access.canAccessMany(
-      input.userId,
-      [...input.roles],
+      member.userId,
+      [...member.roles],
       EntityType.CREDENTIAL,
-      bound.map(row => row.credential.id),
+      live.map(row => row.credential.id),
       Action.SEE,
-      input.projectId
+      member.projectId
     );
-    const types = new Map(input.consumers.map(consumer => [consumer.id, consumer.type]));
     const summaries = new Map<string, CredentialConsumerSummary>();
-    for (const { consumerId, credential, contract } of bound) {
-      // Every bound row comes from input.consumers.
-      const { scopes } = this.requirement(types.get(consumerId)!);
-      const state = credentialConsumerState(credential, contract, scopes);
+    for (const { key, credential, type } of live) {
+      const { contract } = await this.definitions.get(credential.definitionId);
+      const state = credentialConsumerState(credential, contract, this.requirement(type).scopes);
       summaries.set(
-        consumerId,
+        key,
         canSee.get(credential.id)
           ? {
               access: 'visible',
@@ -253,10 +296,14 @@ export abstract class ConsumerCredentialBindingService<TType extends string> {
       : null;
   }
 
-  protected async markConsumerUsed(consumerId: string, credentialId: string): Promise<void> {
+  protected async markConsumerUsed(
+    consumerId: string,
+    credentialId: string,
+    requirementKey = this.binding.requirementKey
+  ): Promise<void> {
     // Usage telemetry must never fail a run.
     await this.binder
-      .markUsed({ credentialId, ...this.binding, consumerId })
+      .markUsed({ credentialId, ...this.binding, requirementKey, consumerId })
       .catch(() => undefined);
   }
 
@@ -276,21 +323,7 @@ export abstract class ConsumerCredentialBindingService<TType extends string> {
       state: credentialConsumerState(credential, contract, requirement.scopes),
       secret: credential.secret,
       publicMetadata: credential.publicMetadata ?? null,
+      refreshTokenStaticAt: credential.refreshTokenStaticAt ?? null,
     };
-  }
-
-  /** Bound Credentials without their secrets; a binding whose Credential is gone is left out. */
-  private async boundCredentials(
-    projectId: string,
-    consumerIds: readonly string[]
-  ): Promise<BoundConsumer[]> {
-    const bound = await this.binder.listBound({ ...this.binding, projectId, consumerIds });
-    const rows: BoundConsumer[] = [];
-    for (const { consumerId, credential } of bound) {
-      if (!credential) continue;
-      const { contract } = await this.definitions.get(credential.definitionId);
-      rows.push({ consumerId, credential, contract });
-    }
-    return rows;
   }
 }

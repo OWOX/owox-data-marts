@@ -171,6 +171,7 @@ import { ConnectorProcessSpawnerService } from './services/connector/connector-p
 import { ConnectorStorageConfigService } from './services/connector/connector-storage-config.service';
 import { ConnectorSourceConfigService } from './services/connector/connector-source-config.service';
 import { ConnectorCredentialInjectorService } from './services/connector/connector-credential-injector.service';
+import { SourceCredentialInjectorService } from './services/connector/source-credential-injector.service';
 import { ConnectorPreviewCredentialsService } from './services/connector/connector-preview-credentials.service';
 import { ConnectorMapper } from './mappers/connector.mapper';
 import { ConnectorDefinitionMapper } from './mappers/connector-definition.mapper';
@@ -365,6 +366,8 @@ import { CredentialStorageConsumersService } from './data-storage-types/credenti
 import { DataDestinationCredentialsResolver } from './data-destination-types/data-destination-credentials-resolver.service';
 import { DestinationCredentialBindingService } from './data-destination-types/destination-credential-binding.service';
 import { CredentialDestinationConsumersService } from './data-destination-types/credential-destination-consumers.service';
+import { SourceCredentialBindingService } from './connector-types/source-credential-binding.service';
+import { CredentialSourceConsumersService } from './connector-types/credential-source-consumers.service';
 import { DataStorageCredential } from './entities/data-storage-credential.entity';
 import { DataDestinationCredential } from './entities/data-destination-credential.entity';
 import { DataStorageCredentialService } from './services/data-storage-credential.service';
@@ -837,6 +840,7 @@ import { ConsentCredentialDefinitionService } from './credentials/use-cases/cons
     ConnectorStorageConfigService,
     ConnectorSourceConfigService,
     ConnectorCredentialInjectorService,
+    SourceCredentialInjectorService,
     ConnectorPreviewCredentialsService,
     ConnectorMapper,
     ConnectorDefinitionMapper,
@@ -968,6 +972,8 @@ import { ConsentCredentialDefinitionService } from './credentials/use-cases/cons
     DataDestinationCredentialsResolver,
     DestinationCredentialBindingService,
     CredentialDestinationConsumersService,
+    SourceCredentialBindingService,
+    CredentialSourceConsumersService,
     DataStorageCredentialService,
     DataDestinationCredentialService,
     GoogleOAuthFlowService,

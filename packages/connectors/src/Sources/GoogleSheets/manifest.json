@@ -1,5 +1,6 @@
 {
   "title": "Google Sheets",
+  "category": "google",
   "logo": "logo.svg",
   "docUrl": "https://docs.owox.com/packages/connectors/src/sources/google-sheets/readme/",
   "capabilities": {

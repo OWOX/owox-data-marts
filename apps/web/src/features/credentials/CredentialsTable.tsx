@@ -20,6 +20,7 @@ import {
   HoverCardTrigger,
 } from '@owox/ui/components/hover-card';
 import { Input } from '@owox/ui/components/input';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
 import {
   CircleCheckBig,
   MoreHorizontal,
@@ -50,7 +51,7 @@ import {
   matchesCredentialSearch,
   type CredentialFilterKey,
 } from './CredentialsTableFilters';
-import type { Credential } from './types';
+import { isSecretReplaceable, SECRET_NOT_REPLACEABLE, type Credential } from './types';
 import { ProviderIcon } from './components/ProviderCombobox';
 import { CredentialConsumerList } from './components/CredentialUsedByList';
 
@@ -298,6 +299,7 @@ function CredentialActionsCell({
   onDelete,
 }: { credential: Credential } & CredentialColumnActions) {
   const [isOpen, setIsOpen] = useState(false);
+  const replaceable = isSecretReplaceable(credential);
 
   return (
     <div className='actions-cell text-right'>
@@ -323,14 +325,24 @@ function CredentialActionsCell({
                 <ShieldCheck className='text-foreground h-4 w-4' aria-hidden='true' />
                 Validate
               </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() => {
-                  onReplaceSecret(credential);
-                }}
-              >
-                <RefreshCw className='text-foreground h-4 w-4' aria-hidden='true' />
-                Replace secret
-              </DropdownMenuItem>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div>
+                    <DropdownMenuItem
+                      disabled={!replaceable}
+                      onClick={() => {
+                        if (replaceable) onReplaceSecret(credential);
+                      }}
+                    >
+                      <RefreshCw className='text-foreground h-4 w-4' aria-hidden='true' />
+                      Replace secret
+                    </DropdownMenuItem>
+                  </div>
+                </TooltipTrigger>
+                {!replaceable && (
+                  <TooltipContent side='left'>{SECRET_NOT_REPLACEABLE}</TooltipContent>
+                )}
+              </Tooltip>
             </>
           )}
           <DropdownMenuItem

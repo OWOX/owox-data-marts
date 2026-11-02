@@ -83,7 +83,7 @@ export class SyncRetriever {
       if (pages >= this.maxPages) {
         if (!this.pageCapIsChosen) {
           throw new Error(
-            `Pagination did not end after ${this.maxPages} pages of (${redactedTarget(request)}), ` +
+            `Pagination did not end after ${this.maxPages} pages of (${this._redactedTarget(request)}), ` +
               `so the rest of the node was not imported. Check that the node's pagination stops ` +
               `on the last page.`
           );
@@ -135,7 +135,7 @@ export class SyncRetriever {
    * connector-test.service.ts caps it at 1 by default — so at WARN every builder
    * test of a paginated node would carry a warning.
    *
-   * The target is REDACTED (origin + path only) for the same reason as
+   * The target is REDACTED (see redactUrl) for the same reason as
    * Requester._reportIgnored: this is a persisted, viewer-readable run log, and
    * `pendingRequest` is the NEXT page — i.e. the link the upstream returned,
    * which echoes back whatever the caller sent, including an
@@ -145,19 +145,19 @@ export class SyncRetriever {
    */
   _reportPageBudgetExhausted(pendingRequest) {
     if (!this.context?.log) return;
+    const target = this._redactedTarget(pendingRequest);
     this.context.log(
       LOG_LEVEL.INFO,
-      `Stopped after the maximum of ${this.maxPages} page(s) for (${redactedTarget(pendingRequest)}) while the paginator ` +
+      `Stopped after the maximum of ${this.maxPages} page(s) for (${target}) while the paginator ` +
         `still had a next page: any remaining records were NOT imported.`
     );
   }
-}
 
-/**
- * The next page's origin and path, for a message about it. Paginator injects the next page
- * marked opaque, so it is unwrapped before redacting, or `redactUrl` would get an OpaqueValue.
- */
-function redactedTarget(pendingRequest) {
-  const raw = unwrapOpaque(pendingRequest?.url) || unwrapOpaque(pendingRequest?.path) || '';
-  return raw ? redactUrl(raw) : '';
+  /** The next page for a message, as redactUrl names it, the base's origin when it names none. */
+  _redactedTarget(pendingRequest) {
+    // Paginator marks the next page opaque; redactUrl needs the string inside.
+    const raw = unwrapOpaque(pendingRequest?.url) || unwrapOpaque(pendingRequest?.path) || '';
+    const baseUrl = this.requester?.baseUrl;
+    return raw ? redactUrl(raw, this.context) || redactUrl(baseUrl, this.context) : '';
+  }
 }

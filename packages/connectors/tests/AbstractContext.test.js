@@ -2,6 +2,7 @@
 import assert from 'node:assert';
 import { describe, it } from 'node:test';
 import { AbstractContext } from '../src/Core/AbstractContext.js';
+import { StateEvent } from '../src/Core/Events/StateEvent.js';
 
 function createMinimalContext(overrides = {}) {
   return new AbstractContext({
@@ -317,6 +318,83 @@ describe('AbstractContext', () => {
     it('does not touch a secret short enough to be an ordinary word', () => {
       const out = capture(() => contextWithSecret('eu').log('info', 'region eu-west'));
       assert.match(out, /region eu-west/);
+    });
+
+    it('redacts values of OW_KEY_PARAMETERS parameters, including a non-secret ClientId', () => {
+      const ctx = createMinimalContext({
+        source: {
+          name: 'S',
+          config: { ClientId: { value: '1234567890.apps' }, Region: { value: 'eu-west' } },
+        },
+        keyParameters: ['ClientId'],
+      });
+      ctx.registerParameters({
+        ClientId: { requiredType: 'string' },
+        Region: { requiredType: 'string' },
+      });
+      const out = capture(() => ctx.log('info', 'client 1234567890.apps in eu-west'));
+      assert.doesNotMatch(out, /1234567890/);
+      assert.match(out, /client \*\*\* in eu-west/);
+    });
+
+    it('redacts a key parameter the context cast to a number', () => {
+      const ctx = createMinimalContext({
+        source: { name: 'S', config: { AccountNo: { value: '12345678' } } },
+        keyParameters: ['AccountNo'],
+      });
+      ctx.registerParameters({ AccountNo: { requiredType: 'number' } });
+      ctx.validate();
+      const out = capture(() => ctx.log('info', 'account 12345678 denied'));
+      assert.match(out, /account \*\*\* denied/);
+    });
+
+    describe('a key parameter value that is also a number in the event', () => {
+      const idContext = () => {
+        const ctx = createMinimalContext({
+          source: { name: 'S', config: { ClientId: { value: '123456' } } },
+          keyParameters: ['ClientId'],
+        });
+        ctx.registerParameters({ ClientId: { requiredType: 'string' } });
+        return ctx;
+      };
+
+      it('keeps a STATE line parseable and its numbers unchanged', () => {
+        const out = capture(() =>
+          idContext().emit(new StateEvent({ accountId: 123456, cursor: 'next-page' }))
+        );
+        const parsed = JSON.parse(out);
+        assert.strictEqual(parsed.type, 'STATE');
+        assert.strictEqual(parsed.state.accountId, 123456);
+        assert.strictEqual(parsed.state.cursor, 'next-page');
+      });
+
+      it('still masks the value inside a LOG message', () => {
+        const out = capture(() => idContext().log('info', 'account 123456 denied'));
+        assert.match(out, /account \*\*\* denied/);
+      });
+
+      it('masks an object key equal to the value', () => {
+        const out = capture(() => idContext().emit(new StateEvent({ 123456: 'x' })));
+        assert.doesNotMatch(out, /123456/);
+        assert.strictEqual(JSON.parse(out).state['***'], 'x');
+      });
+    });
+
+    it('redacts every leaf of a SECRET parameter parsed as an object', () => {
+      const ctx = createMinimalContext({
+        source: {
+          name: 'S',
+          config: {
+            Account: {
+              value: '{"client_email":"svc@proj.iam.example","private_key":"PRIVATEKEY-abcdef"}',
+            },
+          },
+        },
+      });
+      ctx.registerParameters({ Account: { requiredType: 'object', attributes: ['SECRET'] } });
+      ctx.validate();
+      const out = capture(() => ctx.log('info', 'key PRIVATEKEY-abcdef rejected'));
+      assert.doesNotMatch(out, /PRIVATEKEY-abcdef/);
     });
 
     // The host stores what a CREDENTIALS event carries, so it must arrive intact.

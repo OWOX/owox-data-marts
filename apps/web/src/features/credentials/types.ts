@@ -29,7 +29,7 @@ export interface CredentialDefinitionField {
 }
 
 export type CredentialDefinitionAuth =
-  | { type: 'header' | 'google-service-account' }
+  | { type: 'header' | 'google-service-account' | 'custom-connector' }
   | { type: 'fields'; fields: CredentialDefinitionField[] }
   | { type: 'oauth'; provider: 'google'; client?: 'storage' | 'destination' };
 
@@ -165,6 +165,13 @@ export interface Credential {
   canUse?: boolean;
   createdAt: string;
   modifiedAt: string;
+}
+
+export const SECRET_NOT_REPLACEABLE = "This version can't change this Credential's keys.";
+
+/** A custom connector Credential, made by a newer version, takes new keys only as fields, which this version cannot send. */
+export function isSecretReplaceable(credential: Credential): boolean {
+  return credential.definition.auth?.type !== 'custom-connector';
 }
 
 export interface CreateCredentialRequest {

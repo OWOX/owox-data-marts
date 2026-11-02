@@ -1,5 +1,6 @@
 {
   "title": "Criteo Ads",
+  "category": "ads",
   "logo": "logo.svg",
   "docUrl": "https://docs.owox.com/packages/connectors/src/sources/criteo-ads/readme/"
 }

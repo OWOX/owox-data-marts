@@ -69,6 +69,7 @@ export class GoogleSheetsSource extends AbstractSource {
             label: 'OAuth2',
             value: 'oauth2',
             requiredType: 'object',
+            credentialDisplayName: 'Sheets Source Google account',
             attributes: [CONFIG_ATTRIBUTES.OAUTH_FLOW],
             oauthParams: {
               vars: {
@@ -174,6 +175,7 @@ export class GoogleSheetsSource extends AbstractSource {
             label: 'Service Account',
             value: 'service_account',
             requiredType: 'object',
+            credentialDefinitionId: 'google-service-account',
             items: {
               ServiceAccountKey: {
                 isRequired: true,

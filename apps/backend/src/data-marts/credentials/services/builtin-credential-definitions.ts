@@ -3,6 +3,7 @@ import type { CredentialDefinitionContract, CredentialOAuthAuth } from '../crede
 
 export const GOOGLE_SHEETS_OAUTH_DEFINITION_ID = 'google-sheets-oauth';
 export const GOOGLE_CHAT_WEBHOOK_DEFINITION_ID = 'google-chat-webhook';
+export const CUSTOM_CONNECTOR_DEFINITION_ID = 'custom-connector';
 
 export const BUILTIN_CREDENTIAL_DEFINITIONS: readonly CredentialDefinitionContract[] = [
   {
@@ -321,6 +322,13 @@ export const BUILTIN_CREDENTIAL_DEFINITIONS: readonly CredentialDefinitionContra
         },
       ],
     },
+  },
+  {
+    id: CUSTOM_CONNECTOR_DEFINITION_ID,
+    category: 'custom-connectors',
+    displayName: 'Custom connector',
+    description: 'Hosts and key values for custom connectors.',
+    auth: { type: 'custom-connector' },
   },
 ] as const;
 

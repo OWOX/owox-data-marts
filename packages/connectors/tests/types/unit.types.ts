@@ -10,7 +10,13 @@
 //   * A `@ts-expect-error` line fails the build if the expected error STOPS
 //     occurring — so weakening a precise shape to `any` is caught as TS2578.
 
-import { Core, AvailableConnectors, Connectors } from '../../types/index';
+import {
+  Core,
+  AvailableConnectors,
+  Connectors,
+  KeyParameterMisuse,
+  ManifestKeyParameters,
+} from '../../types/index';
 
 // Value side: `Core` exposes every runtime member through its index signature.
 // If `Core` were narrowed to a closed object type without `ManifestParser`,
@@ -43,3 +49,15 @@ void wrongType;
 // @ts-expect-error Connectors is Record<string, any>, not string
 const wrongConnectors: string = Connectors;
 void wrongConnectors;
+
+// The parse() key-parameter fields; a misuse position is one of the places outside a request.
+const keys: ManifestKeyParameters = {
+  keyParameters: ['ApiKey'],
+  keyParameterBranches: null,
+  keyParameterMisuse: [{ parameter: 'ApiKey', node: null, position: 'accounts.from' }],
+};
+void keys;
+
+// @ts-expect-error a request is where a key parameter belongs, not a misuse position
+const wrongPosition: KeyParameterMisuse['position'] = 'request';
+void wrongPosition;

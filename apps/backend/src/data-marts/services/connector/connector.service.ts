@@ -28,6 +28,13 @@ import {
   specificationFromManifest,
 } from './declarative-manifest-schemas';
 import { ConnectorCredentialBoundaryError } from '../../errors/connector-credential-boundary.error';
+import type { ResolvedSourceCredential } from '../../connector-types/source-credential-binding.service';
+import {
+  sourceFieldValues,
+  type SourceCredentialBinding,
+} from '../../connector-types/source-credential-definitions';
+import type { CustomConnectorKeyModel } from '../../connector-types/custom-connector-credential-fit';
+import { bundledSourceKeyFields, type SourceKeys } from '../../connector-types/source-key-fields';
 
 /**
  * The capabilities of a connector that declares none. Frozen because it is handed
@@ -196,6 +203,33 @@ export class ConnectorService {
     const fieldsSchema = mapConnectorFieldsSchema(sourceFieldsSchema);
 
     return ConnectorFieldsSchema.parse(fieldsSchema);
+  }
+
+  /** Where the connector's Credentials put their values, for the version a Data Mart runs. */
+  async resolveSourceKeys(
+    projectId: string,
+    connectorName: string,
+    version?: number
+  ): Promise<SourceKeys> {
+    return this.resolveBundledOrCustom<SourceKeys>(
+      projectId,
+      connectorName,
+      version,
+      name => {
+        this.validateConnectorExists(name);
+        return { fields: bundledSourceKeyFields(name), model: null };
+      },
+      manifest => {
+        const model = new Core.ManifestParser().parse(
+          JSON.stringify(manifest)
+        ) as CustomConnectorKeyModel;
+        const { keyParameters } = model;
+        return {
+          fields: keyParameters.length ? [{ path: [], parameters: keyParameters }] : [],
+          model,
+        };
+      }
+    );
   }
 
   /**
@@ -380,6 +414,48 @@ export class ConnectorService {
     );
 
     return newCredential.id;
+  }
+
+  /** The connector's refresh of a Credential signed in with Connect, by Credential field; null keeps it. */
+  async refreshBoundCredential(
+    connectorName: string,
+    credential: ResolvedSourceCredential,
+    binding: SourceCredentialBinding
+  ): Promise<{ fields: Record<string, string>; expiresAt: Date } | null> {
+    const { credentialId, secret, publicMetadata } = credential;
+    const connection =
+      publicMetadata && 'connection' in publicMetadata ? publicMetadata.connection : undefined;
+    if (!connection || !('fields' in secret)) return null;
+
+    const mapping = (await this.getItemByFieldPath(connectorName, binding.path.join('.')))
+      .oauthParams?.mapping as Record<string, { key?: string }> | undefined;
+    const stored: Record<string, string> = {};
+    for (const [field, parameter] of Object.entries(binding.fieldMap)) {
+      const key = mapping ? mapping[parameter]?.key : parameter;
+      if (key !== undefined && Object.hasOwn(secret.fields, field)) {
+        stored[key] = secret.fields[field];
+      }
+    }
+    // A connector refreshes a stored sign-in only when its variant names one.
+    const configuration = binding.path.reduceRight<Record<string, unknown>>(
+      (inner, key) => ({ [key]: inner }),
+      { [Core.OAUTH_SOURCE_CREDENTIALS_KEY]: credentialId }
+    );
+    const refreshed = (await this.createConnectorSource(connectorName).refreshCredentials(
+      configuration,
+      { secret: stored, expiresAt: connection.expiresAt ? Date.parse(connection.expiresAt) : null },
+      await this.getOAuthVariablesForRefresh(connectorName, configuration)
+    )) as ConnectorOauthCredentials | null;
+    if (!refreshed) return null;
+
+    const fields = Object.entries(sourceFieldValues(binding, mapping, refreshed.secret)).filter(
+      (entry): entry is [string, string] =>
+        typeof entry[1] === 'string' && Object.hasOwn(secret.fields, entry[0])
+    );
+    return {
+      fields: Object.fromEntries(fields),
+      expiresAt: new Date(Date.now() + refreshed.expiresIn * 1000),
+    };
   }
 
   /**

@@ -39,6 +39,7 @@ export function mapCredentialDefinitionToApiDto(
     description: definition.contract.description,
     documentationUrl: definition.contract.documentationUrl ?? null,
     category: definition.contract.category,
+    connectors: [...(definition.contract.connectors ?? [])],
     icon: definition.contract.icon ?? null,
     storageTypes: storageTypesForDefinition(definition.definitionId),
     destinationTypes: destinationTypesForDefinition(definition.definitionId),

@@ -626,6 +626,8 @@ Every string field that accepts a template uses `{{ scope.path }}` syntax (doubl
 | `{{ job.id }}` | The async job id, inside `retriever.async.poll`. |
 | `{{ record.<field> }}` | A field of the current record, only inside `transformations.add.value`. |
 
+A path steps only into objects and lists. On text, `{{ parameters.Key.0 }}` or `{{ record.name.length }}` is unresolved.
+
 What happens to an unresolved path depends on where it is:
 
 - In the request `path`, the request `body` and the authentication fields, it throws and fails the run. A `dateWindow` placeholder there, in a node that is never given a date window, is refused by **Publish** and **Test** instead.

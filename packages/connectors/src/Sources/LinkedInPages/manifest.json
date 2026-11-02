@@ -1,5 +1,6 @@
 {
   "title": "LinkedIn Pages",
+  "category": "social",
   "logo": "logo.svg",
   "docUrl": "https://docs.owox.com/packages/connectors/src/sources/linked-in-pages/readme/"
 }

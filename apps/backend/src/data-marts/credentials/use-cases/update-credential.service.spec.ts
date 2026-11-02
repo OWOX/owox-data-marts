@@ -4,10 +4,20 @@ jest.mock('typeorm-transactional', () => ({
 }));
 
 import { BadRequestException } from '@nestjs/common';
+import { DataSource, type Repository } from 'typeorm';
 import { AccessValidationException } from '../../../common/exceptions/access-validation.exception';
 import type { AuthorizationContext } from '../../../idp';
 import { serviceAccountKey } from '../../../../test/fixtures/google-service-account-key';
+import { CREDENTIAL_VALIDATION_ENTITIES } from '../../../../test/fixtures/credential-validation-writes';
+import { Credential } from '../entities/credential.entity';
+import { CredentialService } from '../services/credential.service';
 import { BUILTIN_CREDENTIAL_DEFINITIONS } from '../services/builtin-credential-definitions';
+import { sourceCredentialDefinitions } from '../../connector-types/source-credential-definitions';
+import type { ResolvedSourceCredential } from '../../connector-types/source-credential-binding.service';
+import {
+  SourceCredentialInjectorService,
+  type BoundSourceConfig,
+} from '../../services/connector/source-credential-injector.service';
 import { UpdateCredentialService } from './update-credential.service';
 
 const context = {
@@ -43,6 +53,10 @@ function setup(definitionOverride?: object, credentialOverride: Record<string, u
   };
   const credentials = {
     getByIdAndProjectId: jest.fn().mockResolvedValue(credential),
+    getLockedByIdAndProjectId: jest.fn((id: string, projectId: string) =>
+      credentials.getByIdAndProjectId(id, projectId)
+    ),
+    queueSecretWrite: jest.fn((_id: string, write: () => Promise<unknown>) => write()),
     save: jest.fn().mockImplementation(value => Promise.resolve(value)),
     listBindings: jest.fn().mockResolvedValue([]),
   };
@@ -438,19 +452,34 @@ describe('UpdateCredentialService with a field set', () => {
     );
   });
 
+  it('refuses a changed username without the password before checking Storages or saving', async () => {
+    const state = setup(snowflake, stored);
+    state.credentials.listBindings.mockResolvedValue(bindings);
+
+    await expect(
+      state.service.run('credential-1', context, { fields: { username: 'reporter' } })
+    ).rejects.toThrow(new BadRequestException('Enter Password again to change Username'));
+
+    expect(state.storageConsumers.verifyCandidate).not.toHaveBeenCalled();
+    expect(state.validationProbe.run).not.toHaveBeenCalled();
+    expect(state.credentials.save).not.toHaveBeenCalled();
+  });
+
   it('checks a new identity against every bound Storage and resets the validation', async () => {
     const state = setup(snowflake, stored);
     state.credentials.listBindings.mockResolvedValue(bindings);
     state.storageConsumers.verifyCandidate.mockResolvedValue(2);
 
-    await state.service.run('credential-1', context, { fields: { username: 'reporter' } });
+    await state.service.run('credential-1', context, {
+      fields: { username: 'reporter', password: 'new-password' },
+    });
 
     expect(state.storageConsumers.verifyCandidate).toHaveBeenCalledWith(
       context,
       bindings,
       {
         definitionId: 'snowflake-password',
-        secret: { fields: { password: 'old-password' } },
+        secret: { fields: { password: 'new-password' } },
         publicMetadata: { fields: { username: 'reporter' } },
       },
       {
@@ -646,5 +675,388 @@ describe('UpdateCredentialService with a field set', () => {
     ).rejects.toThrow(BadRequestException);
     expect(state.validationProbe.run).not.toHaveBeenCalled();
     expect(state.credentials.save).not.toHaveBeenCalled();
+  });
+});
+
+describe('UpdateCredentialService with a connected Source type', () => {
+  it('updating fields keeps the OAuth connection metadata', async () => {
+    const contract = sourceCredentialDefinitions().definitions.find(
+      definition => definition.id === 'source:GoogleAds:oauth2'
+    );
+    const connection = {
+      account: { id: '42', name: 'ads@example.com', email: null },
+      expiresAt: '2030-01-01T00:00:00.000Z',
+    };
+    const state = setup(
+      { definitionId: contract?.id, source: 'builtin', compatibilityLine: null, contract },
+      {
+        definitionId: contract?.id,
+        secret: {
+          fields: { RefreshToken: 'old', ClientSecret: 'secret', DeveloperToken: 'token' },
+        },
+        publicMetadata: { fields: { ClientId: 'client-id' }, connection },
+      }
+    );
+
+    await state.service.run('credential-1', context, { fields: { DeveloperToken: 'new-token' } });
+
+    expect(state.credentials.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        secret: {
+          fields: { RefreshToken: 'old', ClientSecret: 'secret', DeveloperToken: 'new-token' },
+        },
+        publicMetadata: { fields: { ClientId: 'client-id' }, connection },
+      })
+    );
+  });
+
+  it('a changed secret field clears the marker of a refresh token that does not rotate; the same value keeps it', async () => {
+    const contract = sourceCredentialDefinitions().definitions.find(
+      definition => definition.id === 'source:MicrosoftAds:oauth2'
+    );
+    const refreshTokenStaticAt = new Date('2026-10-30T00:00:00.000Z');
+    const given = () =>
+      setup(
+        { definitionId: contract?.id, source: 'builtin', compatibilityLine: null, contract },
+        {
+          definitionId: contract?.id,
+          secret: { fields: { RefreshToken: 'old', ClientSecret: 's', DeveloperToken: 'd' } },
+          publicMetadata: { fields: { ClientId: 'client-id' } },
+          refreshTokenStaticAt,
+        }
+      );
+
+    const changed = given();
+    await changed.service.run('credential-1', context, { fields: { RefreshToken: 'new' } });
+    const same = given();
+    await same.service.run('credential-1', context, { fields: { RefreshToken: 'old' } });
+
+    expect(changed.credentials.save).toHaveBeenCalledWith(
+      expect.objectContaining({ refreshTokenStaticAt: null })
+    );
+    expect(same.credentials.save).toHaveBeenCalledWith(
+      expect.objectContaining({ refreshTokenStaticAt })
+    );
+  });
+});
+
+describe('UpdateCredentialService with a custom connector', () => {
+  const custom = BUILTIN_CREDENTIAL_DEFINITIONS.find(item => item.id === 'custom-connector');
+  const fieldList = [
+    { key: 'apiKey', label: 'API key', secret: true },
+    { key: 'accountId', label: 'Account', secret: false },
+  ];
+  const stored = {
+    secret: { fields: { apiKey: 'old-key' } },
+    publicMetadata: { hosts: ['api.acme.example'], fieldList, fields: { accountId: 'acc-1' } },
+  };
+  const setupCustom = () =>
+    setup(
+      {
+        definitionId: 'custom-connector',
+        source: 'builtin',
+        compatibilityLine: null,
+        contract: custom,
+      },
+      structuredClone(stored)
+    );
+
+  it('replacing a secret value keeps hosts', async () => {
+    const state = setupCustom();
+
+    await state.service.run('credential-1', context, { fields: { apiKey: 'new-key' } } as never);
+
+    expect(state.credentials.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        secret: { fields: { apiKey: 'new-key' } },
+        publicMetadata: stored.publicMetadata,
+      })
+    );
+  });
+
+  it('a replaced secret value clears the marker of a refresh token that does not rotate; a public one keeps it', async () => {
+    const refreshTokenStaticAt = new Date('2026-10-30T00:00:00.000Z');
+    const given = () =>
+      setup(
+        {
+          definitionId: 'custom-connector',
+          source: 'builtin',
+          compatibilityLine: null,
+          contract: custom,
+        },
+        // Not cloned: structuredClone's objects come from another realm, which isDeepStrictEqual tells apart.
+        {
+          secret: { fields: { apiKey: 'old-key' } },
+          publicMetadata: { ...stored.publicMetadata, fields: { accountId: 'acc-1' } },
+          refreshTokenStaticAt,
+        }
+      );
+
+    const secret = given();
+    await secret.service.run('credential-1', context, { fields: { apiKey: 'new-key' } } as never);
+    const visible = given();
+    await visible.service.run('credential-1', context, {
+      fields: { accountId: 'acc-2' },
+    } as never);
+
+    expect(secret.credentials.save).toHaveBeenCalledWith(
+      expect.objectContaining({ refreshTokenStaticAt: null })
+    );
+    expect(visible.credentials.save).toHaveBeenCalledWith(
+      expect.objectContaining({ refreshTokenStaticAt })
+    );
+  });
+
+  it('replaces a non-secret value and keeps the untouched secret', async () => {
+    const state = setupCustom();
+
+    await state.service.run('credential-1', context, { fields: { accountId: 'acc-2' } } as never);
+
+    expect(state.credentials.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        secret: { fields: { apiKey: 'old-key' } },
+        publicMetadata: { ...stored.publicMetadata, fields: { accountId: 'acc-2' } },
+      })
+    );
+  });
+
+  it('refuses to change hosts on update', async () => {
+    const state = setupCustom();
+    await expect(
+      state.service.run('credential-1', context, { hosts: ['evil.example'] } as never)
+    ).rejects.toThrow(BadRequestException);
+    expect(state.credentials.save).not.toHaveBeenCalled();
+  });
+
+  it('refuses to change the field list on update', async () => {
+    const state = setupCustom();
+    await expect(
+      state.service.run('credential-1', context, { fieldList: [] } as never)
+    ).rejects.toThrow(BadRequestException);
+    expect(state.credentials.save).not.toHaveBeenCalled();
+  });
+
+  it('refuses a value for a key not in the field list, without quoting it', async () => {
+    const state = setupCustom();
+    const error = await state.service
+      .run('credential-1', context, { fields: { other: 'top-secret' } } as never)
+      .catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(BadRequestException);
+    expect((error as Error).message).not.toContain('top-secret');
+  });
+});
+
+describe('UpdateCredentialService on a stored Source Credential (SQLite)', () => {
+  const contract = sourceCredentialDefinitions().definitions.find(
+    definition => definition.id === 'source:MicrosoftAds:oauth2'
+  );
+  let dataSource: DataSource;
+  let credentials: Repository<Credential>;
+  let credentialService: CredentialService;
+  let service: UpdateCredentialService;
+
+  beforeAll(async () => {
+    dataSource = new DataSource({
+      type: 'better-sqlite3',
+      database: ':memory:',
+      entities: CREDENTIAL_VALIDATION_ENTITIES,
+      synchronize: true,
+      logging: false,
+    });
+    await dataSource.initialize();
+    credentials = dataSource.getRepository(Credential);
+    credentialService = new CredentialService(
+      credentials,
+      { find: jest.fn().mockResolvedValue([]) } as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never
+    );
+    const definition = {
+      definitionId: contract?.id,
+      source: 'builtin',
+      compatibilityLine: null,
+      contract,
+    };
+    service = new UpdateCredentialService(
+      credentialService,
+      {
+        getForCredential: jest.fn().mockResolvedValue(definition),
+        getForView: jest.fn().mockResolvedValue(definition),
+      } as never,
+      { canAccess: jest.fn().mockResolvedValue(true) } as never,
+      {} as never,
+      { build: jest.fn().mockResolvedValue({}) } as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      { verifyCandidate: jest.fn().mockResolvedValue(0) } as never,
+      { verifyCandidate: jest.fn().mockResolvedValue(0) } as never
+    );
+  });
+
+  afterAll(() => dataSource.destroy());
+
+  async function given(fields: Record<string, string> = {}): Promise<string> {
+    const { id } = await credentials.save(
+      credentials.create({
+        projectId: 'project-1',
+        title: 'Ads account',
+        definitionSource: 'builtin',
+        definitionId: contract?.id,
+        secret: {
+          fields: { RefreshToken: 'refresh-1', ClientSecret: 's', DeveloperToken: 'd', ...fields },
+        },
+        publicMetadata: { fields: { ClientId: 'client-id' } },
+      })
+    );
+    return id;
+  }
+
+  const stored = (id: string) =>
+    credentials.findOneOrFail({
+      where: { id },
+      select: {
+        id: true,
+        secret: true,
+        refreshTokenStaticAt: true,
+        rotationLeaseId: true,
+        rotationLeaseAt: true,
+      },
+    });
+
+  /** A MicrosoftAds run on the Credential as the executor starts it: leased, with the grant it redeems. */
+  async function startRun(id: string): Promise<BoundSourceConfig> {
+    const read = async (): Promise<ResolvedSourceCredential> => {
+      const credential = await credentials.findOneByOrFail({ id });
+      return { ...credential, credentialId: id };
+    };
+    const injector = new SourceCredentialInjectorService(
+      { getCredentialsById: jest.fn() } as never,
+      { refreshBoundCredential: jest.fn().mockResolvedValue(null) } as never,
+      { resolveForConfig: read, resolveCredential: read, markConfigUsed: jest.fn() } as never,
+      credentialService
+    );
+    const config = { _id: 'cfg-1', AuthType: { oauth2: {} } };
+    return (await injector.resolveBoundConfig(
+      'project-1',
+      'dm-1',
+      'MicrosoftAds',
+      'cfg-1',
+      config,
+      null
+    ))!;
+  }
+
+  /** The run's rotated token, stored as the executor stores it. */
+  const storeRotation = (run: BoundSourceConfig, token: string) =>
+    credentialService.updateSecretFields(
+      run.credentialId,
+      'project-1',
+      { generated_refresh_token: token },
+      run.expected
+    );
+
+  describe('a run and an owner edit of the same Credential', () => {
+    it("keeps both an edit of another key and the run's rotated token", async () => {
+      const id = await given({ generated_refresh_token: 'R1' });
+      const run = await startRun(id);
+
+      await service.run(id, context, { fields: { DeveloperToken: 'd2' } });
+
+      await expect(storeRotation(run, 'R2')).resolves.toEqual({ updated: true });
+      expect((await stored(id)).secret).toEqual({
+        fields: {
+          RefreshToken: 'refresh-1',
+          ClientSecret: 's',
+          DeveloperToken: 'd2',
+          generated_refresh_token: 'R2',
+        },
+      });
+    });
+
+    it('drops the rotation of a grant the owner replaced during the run', async () => {
+      const id = await given({ generated_refresh_token: 'R1' });
+      const run = await startRun(id);
+
+      await service.run(id, context, { fields: { RefreshToken: 'refresh-2' } });
+
+      await expect(storeRotation(run, 'R2')).resolves.toEqual({ updated: false });
+      expect((await stored(id)).secret).toEqual({
+        fields: { RefreshToken: 'refresh-2', ClientSecret: 's', DeveloperToken: 'd' },
+      });
+    });
+  });
+
+  describe('a run that ends without a rotated token', () => {
+    /** As the executor marks it at the end of a good run. */
+    const markStatic = (run: BoundSourceConfig) =>
+      credentialService.markRefreshTokenStatic(
+        run.credentialId,
+        run.rotationLease!.leaseId,
+        run.expected
+      );
+
+    it('keeps its lease through an edit of another key and marks the token static', async () => {
+      const id = await given();
+      const run = await startRun(id);
+
+      await service.run(id, context, { fields: { DeveloperToken: 'd2' } });
+      expect((await stored(id)).rotationLeaseId).toBe(run.rotationLease!.leaseId);
+      await markStatic(run);
+
+      expect((await stored(id)).refreshTokenStaticAt).toEqual(expect.any(Date));
+    });
+
+    it('leaves the marker unset when the owner replaced the refresh token meanwhile', async () => {
+      const id = await given();
+      const run = await startRun(id);
+
+      await service.run(id, context, { fields: { RefreshToken: 'refresh-2' } });
+      await markStatic(run);
+
+      expect((await stored(id)).refreshTokenStaticAt).toBeNull();
+    });
+  });
+
+  it('an edit of another field keeps a token rotation that a run stores between its read and its save', async () => {
+    const id = await given({ generated_refresh_token: 'R1' });
+    const run = await startRun(id);
+    const order: string[] = [];
+    let rotation: Promise<{ updated: boolean }> | undefined;
+    const save = credentialService.save.bind(credentialService);
+    const saving = jest.spyOn(credentialService, 'save').mockImplementation(async credential => {
+      // The edit has read and merged R1; the run now stores R2.
+      rotation = storeRotation(run, 'R2').finally(() => order.push('rotation stored'));
+      await Promise.race([rotation, new Promise(resolve => setTimeout(resolve, 100))]);
+      const saved = await save(credential);
+      order.push('edit saved');
+      return saved;
+    });
+
+    await service.run(id, context, { fields: { DeveloperToken: 'd2' } });
+    saving.mockRestore();
+
+    await expect(rotation).resolves.toEqual({ updated: true });
+    expect((await stored(id)).secret).toEqual({
+      fields: {
+        RefreshToken: 'refresh-1',
+        ClientSecret: 's',
+        DeveloperToken: 'd2',
+        generated_refresh_token: 'R2',
+      },
+    });
+    expect(order).toEqual(['edit saved', 'rotation stored']);
+  });
+
+  it('a title edit keeps the lease of a running run', async () => {
+    const id = await given();
+    const leaseId = await credentialService.claimRotation(id);
+
+    await service.run(id, context, { title: 'Renamed' });
+
+    expect((await stored(id)).rotationLeaseId).toBe(leaseId);
   });
 });

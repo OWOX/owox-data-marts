@@ -38,6 +38,10 @@ export const CONFIG_ATTRIBUTES = Object.freeze({
   OAUTH_FLOW: 'OAUTH_FLOW',
   DEPRECATED: 'DEPRECATED',
   PINNED: 'PINNED',
+  // A non-secret part of the key (e.g. a client ID); it moves into the Credential with the secrets.
+  CREDENTIAL: 'CREDENTIAL',
+  // The value spans several lines, such as a JSON key; forms offer a multi-line input.
+  MULTILINE: 'MULTILINE',
   // The field's allowed values come from the source at configuration time, not
   // from a static `options` list: the source implements
   // `fetchFieldOptions(fieldName, signal)` and may list the fields it needs first
