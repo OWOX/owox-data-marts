@@ -1,4 +1,4 @@
-import { Trash2 } from 'lucide-react';
+import { Loader2, Trash2 } from 'lucide-react';
 import { Button } from '@owox/ui/components/button';
 import { Skeleton } from '@owox/ui/components/skeleton';
 import {
@@ -15,8 +15,17 @@ import { formatBytes } from '../../../../../utils/format-bytes';
 import { useOwoxStorageUsage } from '../../hooks/useOwoxStorageUsage';
 
 export function OwoxStorageUsage({ storageId }: { storageId: string }) {
-  const { usage, failed, load, tableToDelete, setTableToDelete, deleting, confirmDelete } =
-    useOwoxStorageUsage(storageId);
+  const {
+    usage,
+    failed,
+    load,
+    tableToDelete,
+    setTableToDelete,
+    deleting,
+    confirmDelete,
+    restoring,
+    restore,
+  } = useOwoxStorageUsage(storageId);
 
   if (failed) {
     return (
@@ -33,11 +42,23 @@ export function OwoxStorageUsage({ storageId }: { storageId: string }) {
 
   if (usage.deletedAt) {
     return (
-      <p className='bg-warning-bg text-warning rounded-md px-3 py-2 text-sm'>
-        This storage and its data were deleted on {formatDateOnly(usage.deletedAt)}. Restore it to
-        use it again. The Data Marts that use it keep their settings, and their next connector runs
-        load their data again.
-      </p>
+      <div className='bg-warning-bg text-warning space-y-2 rounded-md px-3 py-2 text-sm'>
+        <p>
+          This storage and its data were deleted on {formatDateOnly(usage.deletedAt)}. Restore it to
+          use it again. The Data Marts that use it keep their settings, and their next connector
+          runs load their data again.
+        </p>
+        <Button
+          type='button'
+          variant='outline'
+          size='sm'
+          disabled={restoring}
+          onClick={() => void restore()}
+        >
+          {restoring && <Loader2 className='animate-spin' />}
+          Restore storage
+        </Button>
+      </div>
     );
   }
 

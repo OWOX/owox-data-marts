@@ -16,6 +16,7 @@ import { Role, Strategy } from '../../idp/types/role-config.types';
 import { CreateOwoxStorageApiDto } from '../dto/presentation/create-owox-storage-api.dto';
 import { GetOwoxStorageUsageService } from '../use-cases/get-owox-storage-usage.service';
 import { DeleteOwoxStorageTableService } from '../use-cases/delete-owox-storage-table.service';
+import { RestoreOwoxStorageService } from '../use-cases/restore-owox-storage.service';
 import { OwoxStorageUsageResponseApiDto } from '../dto/presentation/owox-storage-usage-response-api.dto';
 import { CreateOwoxStorageService } from '../use-cases/create-owox-storage.service';
 import { CreateDataStorageApiDto } from '../dto/presentation/create-data-storage-api.dto';
@@ -42,6 +43,7 @@ import {
   CreateOwoxStorageSpec,
   DeleteDataStorageSpec,
   DeleteOwoxStorageTableSpec,
+  RestoreOwoxStorageSpec,
   GetOwoxStorageUsageSpec,
   GetDataStorageSpec,
   ListDataStoragesSpec,
@@ -70,7 +72,8 @@ export class DataStorageController {
     private readonly listStorageResourcesService: ListStorageResourcesService,
     private readonly updateAvailabilityService: UpdateAvailabilityService,
     private readonly getOwoxStorageUsageService: GetOwoxStorageUsageService,
-    private readonly deleteOwoxStorageTableService: DeleteOwoxStorageTableService
+    private readonly deleteOwoxStorageTableService: DeleteOwoxStorageTableService,
+    private readonly restoreOwoxStorageService: RestoreOwoxStorageService
   ) {}
 
   @Auth(Role.viewer(Strategy.PARSE))
@@ -195,6 +198,18 @@ export class DataStorageController {
   ): Promise<void> {
     const command = this.mapper.toDeleteOwoxStorageTableCommand(id, tableName, context);
     await this.deleteOwoxStorageTableService.run(command);
+  }
+
+  @Auth(Role.editor(Strategy.INTROSPECT))
+  @Post(':id/owox-storage/restore')
+  @HttpCode(204)
+  @RestoreOwoxStorageSpec()
+  async restoreOwoxStorage(
+    @AuthContext() context: AuthorizationContext,
+    @Param('id') id: string
+  ): Promise<void> {
+    const command = this.mapper.toRestoreOwoxStorageCommand(id, context);
+    await this.restoreOwoxStorageService.run(command);
   }
 
   @Auth(Role.viewer(Strategy.INTROSPECT))

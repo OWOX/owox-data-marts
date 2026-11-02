@@ -15,6 +15,10 @@ const JOB_USER_ROLE = 'roles/bigquery.jobUser';
 // IAM needs a moment to see a new service account.
 const GRANT_DELAYS_MS = [2000, 4000, 8000, 16000];
 
+type UndoStep = { name: string; run: () => Promise<void> };
+/** Runs one named create-or-grant step; `undo` reverses it. */
+type Step = <T>(name: string, fn: () => Promise<T>, undo?: UndoStep) => Promise<T | undefined>;
+
 type GoogleError = {
   code?: number | string;
   errors?: { reason?: string }[];
@@ -49,64 +53,25 @@ export class BigQueryManagedStorageEngine implements ManagedStorageEngine {
     const { gcpProjectId, serviceAccountProjectId } = this.config.getSettings();
     const shortId = this.newShortId();
     const datasetId = `owox_${shortId}`;
-    const internalDatasetId = `${datasetId}_internal`;
-    const email = `owox-st-${shortId}@${serviceAccountProjectId}.iam.gserviceaccount.com`;
-    // Registered before each create: a create that commits but errors must still be rolled back.
-    const undo: { name: string; run: () => Promise<void> }[] = [];
-    let step = '';
-    const run = async <T>(name: string, fn: () => Promise<T>, undoStep?: (typeof undo)[number]) => {
-      step = name;
-      if (undoStep) undo.push(undoStep);
-      return fn();
+    const target: ProvisionedManagedStorage = {
+      engine: 'bigquery',
+      gcpProjectId,
+      location: input.location,
+      datasetId,
+      internalDatasetId: `${datasetId}_internal`,
+      serviceAccountEmail: `owox-st-${shortId}@${serviceAccountProjectId}.iam.gserviceaccount.com`,
     };
+    const undo: UndoStep[] = [];
+    let step = '';
 
     try {
-      for (const id of [datasetId, internalDatasetId]) {
-        await run(
-          'createDataset',
-          () => this.client.createDataset(gcpProjectId, id, input.location),
-          {
-            name: 'deleteDataset',
-            run: () => this.client.deleteDataset(gcpProjectId, id),
-          }
-        );
-      }
-      const created = await run(
-        'createServiceAccount',
-        () =>
-          this.client.createServiceAccount(
-            serviceAccountProjectId,
-            `owox-st-${shortId}`,
-            `OWOX Storage for project ${input.projectId}`
-          ),
-        { name: 'deleteServiceAccount', run: () => this.client.deleteServiceAccount(email) }
-      );
-
-      for (const id of [datasetId, internalDatasetId]) {
-        await run('grantDatasetWriter', () =>
-          this.withGrantRetry(() => this.client.grantDatasetWriter(gcpProjectId, id, created))
-        );
-      }
-      await run(
-        'grantProjectRole',
-        () =>
-          this.withGrantRetry(() =>
-            this.client.grantProjectRole(gcpProjectId, JOB_USER_ROLE, created)
-          ),
-        {
-          name: 'revokeProjectRole',
-          run: () => this.client.revokeProjectRole(gcpProjectId, JOB_USER_ROLE, email),
-        }
-      );
-
-      return {
-        engine: 'bigquery',
-        gcpProjectId,
-        location: input.location,
-        datasetId,
-        internalDatasetId,
-        serviceAccountEmail: created,
-      };
+      // Registered before each create: a create that commits but errors must still be rolled back.
+      const created = await this.createAndGrant(target, input.projectId, (name, fn, undoStep) => {
+        step = name;
+        if (undoStep) undo.push(undoStep);
+        return fn();
+      });
+      return { ...target, serviceAccountEmail: created };
     } catch (error) {
       this.logger.error(
         `OWOX Storage ${shortId} provisioning failed at ${step}${describeGoogleError(error)}`
@@ -124,6 +89,20 @@ export class BigQueryManagedStorageEngine implements ManagedStorageEngine {
       exception.cause = error;
       throw exception;
     }
+  }
+
+  async restore(target: ProvisionedManagedStorage, projectId: string): Promise<void> {
+    // No undo: what this call finds may belong to a concurrent or earlier restore.
+    await this.createAndGrant(target, projectId, async (name, fn) => {
+      try {
+        return await fn();
+      } catch (error) {
+        const e = error as { code?: unknown; status?: unknown };
+        // An existing dataset or account counts as created, so a retry ends in the same state.
+        if (name.startsWith('create') && (e?.code === 409 || e?.status === 409)) return undefined;
+        throw error;
+      }
+    });
   }
 
   async deprovision(target: ProvisionedManagedStorage): Promise<void> {
@@ -203,6 +182,52 @@ export class BigQueryManagedStorageEngine implements ManagedStorageEngine {
       target.location
     );
     await bigQuery.dataset(target.datasetId).table(tableName).delete();
+  }
+
+  /** Creates the datasets and the account of `target`, then grants; returns the account's email. */
+  private async createAndGrant(
+    target: ProvisionedManagedStorage,
+    projectId: string,
+    step: Step
+  ): Promise<string> {
+    const { gcpProjectId, location, serviceAccountEmail: email } = target;
+    const [accountId, accountDomain] = email.split('@');
+    const datasets = [target.datasetId, target.internalDatasetId];
+    for (const id of datasets) {
+      await step('createDataset', () => this.client.createDataset(gcpProjectId, id, location), {
+        name: 'deleteDataset',
+        run: () => this.client.deleteDataset(gcpProjectId, id),
+      });
+    }
+    const created =
+      (await step(
+        'createServiceAccount',
+        () =>
+          this.client.createServiceAccount(
+            accountDomain.split('.')[0],
+            accountId,
+            `OWOX Storage for project ${projectId}`
+          ),
+        { name: 'deleteServiceAccount', run: () => this.client.deleteServiceAccount(email) }
+      )) ?? email;
+
+    for (const id of datasets) {
+      await step('grantDatasetWriter', () =>
+        this.withGrantRetry(() => this.client.grantDatasetWriter(gcpProjectId, id, created))
+      );
+    }
+    await step(
+      'grantProjectRole',
+      () =>
+        this.withGrantRetry(() =>
+          this.client.grantProjectRole(gcpProjectId, JOB_USER_ROLE, created)
+        ),
+      {
+        name: 'revokeProjectRole',
+        run: () => this.client.revokeProjectRole(gcpProjectId, JOB_USER_ROLE, email),
+      }
+    );
+    return created;
   }
 
   private async withGrantRetry(grant: () => Promise<void>): Promise<void> {
