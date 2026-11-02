@@ -12,7 +12,12 @@ describe('OwoxStorageUsageService', () => {
   const plans = { planFor: jest.fn() };
   const managed = { findByStorageId: jest.fn() };
   const config = {
-    getSettings: () => ({ freeStorageLimitBytes: GIB, paidIncludedStorageBytes: 10 * GIB }),
+    getSettings: () => ({
+      freeStorageLimitBytes: GIB,
+      paidIncludedStorageBytes: 10 * GIB,
+      notPaidDeletionDays: 30,
+      inactivityDeletionDays: 30,
+    }),
   };
   const record = {
     storageId: 's1',
@@ -20,6 +25,10 @@ describe('OwoxStorageUsageService', () => {
     datasetId: 'owox_abc',
     serviceAccountEmail: 'owox-st-abc@owox-storage.iam.gserviceaccount.com',
     storageLimitBytes: null,
+    createdAt: new Date('2020-01-01T00:00:00Z'),
+    lastActivityAt: null,
+    notPaidSince: null,
+    deprovisionedAt: null,
   } as ManagedStorage;
 
   let service: OwoxStorageUsageService;
@@ -77,6 +86,68 @@ describe('OwoxStorageUsageService', () => {
       await expect(
         service.getUsage({ ...record, storageLimitBytes: 5 * GIB } as ManagedStorage)
       ).resolves.toMatchObject({ limitBytes: 5 * GIB });
+    });
+
+    describe('scheduled deletion', () => {
+      const DAY = 86_400_000;
+      const ago = (days: number) => new Date(Date.now() - days * DAY);
+      const near = (date: Date, expected: Date) =>
+        expect(Math.abs(date.getTime() - expected.getTime())).toBeLessThan(60_000);
+
+      it('dates a NOT_PAID deletion from notPaidSince', async () => {
+        plans.planFor.mockResolvedValue(ProjectPlanType.NOT_PAID);
+        const notPaidSince = ago(3);
+
+        const usage = await service.getUsage({ ...record, notPaidSince } as ManagedStorage);
+
+        expect(usage.deletion?.reason).toBe('NOT_PAID');
+        near(usage.deletion!.date, new Date(notPaidSince.getTime() + 30 * DAY));
+        expect(usage.deletedAt).toBeNull();
+      });
+
+      it('shows no inactivity deletion before 7 idle days', async () => {
+        const usage = await service.getUsage({
+          ...record,
+          lastActivityAt: ago(6),
+        } as ManagedStorage);
+
+        expect(usage.deletion).toBeNull();
+      });
+
+      it('shows the inactivity deletion after 8 idle days', async () => {
+        const lastActivityAt = ago(8);
+
+        const usage = await service.getUsage({ ...record, lastActivityAt } as ManagedStorage);
+
+        expect(usage.deletion?.reason).toBe('INACTIVE');
+        near(usage.deletion!.date, new Date(lastActivityAt.getTime() + 30 * DAY));
+      });
+
+      it('counts idle days from createdAt when there is no activity', async () => {
+        const usage = await service.getUsage({ ...record, createdAt: ago(8) } as ManagedStorage);
+
+        expect(usage.deletion?.reason).toBe('INACTIVE');
+      });
+
+      it('never schedules a PAID deletion', async () => {
+        plans.planFor.mockResolvedValue(ProjectPlanType.PAID);
+
+        await expect(service.getUsage(record)).resolves.toMatchObject({ deletion: null });
+      });
+
+      it('reports a deleted storage without listing its tables', async () => {
+        const deprovisionedAt = ago(2);
+
+        const usage = await service.getUsage({ ...record, deprovisionedAt } as ManagedStorage);
+
+        expect(usage).toMatchObject({
+          deletedAt: deprovisionedAt,
+          usedBytes: 0,
+          tables: [],
+          deletion: null,
+        });
+        expect(engine.listTables).not.toHaveBeenCalled();
+      });
     });
 
     it('throws when the plan cannot be read', async () => {
