@@ -34,6 +34,11 @@ export class OwoxStorageIdentity {
     );
   }
 
+  // A recreated account rejects the old token; other pods keep theirs until it expires.
+  forget(serviceAccountEmail: string): void {
+    this.impersonated.delete(serviceAccountEmail);
+  }
+
   bigQuery(projectId: string, location: OwoxStorageLocation): BigQuery {
     const key = `${projectId}:${location}`;
     let client = this.bigQueries.get(key);
