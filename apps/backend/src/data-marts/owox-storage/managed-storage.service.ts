@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, IsNull, Repository } from 'typeorm';
+import { In, IsNull, Not, Repository } from 'typeorm';
 import { ManagedStorage } from '../entities/managed-storage.entity';
 
 @Injectable()
@@ -31,6 +31,15 @@ export class ManagedStorageService {
 
   save(record: ManagedStorage): Promise<ManagedStorage> {
     return this.repository.save(record);
+  }
+
+  // False when the record is not deleted, so a restore that lost a race changes nothing.
+  async markRestored(storageId: string, now: Date): Promise<boolean> {
+    const { affected } = await this.repository.update(
+      { storageId, deprovisionedAt: Not(IsNull()) },
+      { deprovisionedAt: null, notPaidSince: null, lastActivityAt: now }
+    );
+    return affected === 1;
   }
 
   create(record: Omit<ManagedStorage, 'createdAt' | 'modifiedAt'>): Promise<ManagedStorage> {

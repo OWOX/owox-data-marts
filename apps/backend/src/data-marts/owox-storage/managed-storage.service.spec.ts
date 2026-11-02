@@ -1,4 +1,4 @@
-import { IsNull, Repository } from 'typeorm';
+import { IsNull, Not, Repository } from 'typeorm';
 import { ManagedStorage } from '../entities/managed-storage.entity';
 import { ManagedStorageService } from './managed-storage.service';
 
@@ -28,6 +28,7 @@ describe('ManagedStorageService', () => {
     findOne: jest.fn(),
     save: jest.fn(async (value: unknown) => value),
     delete: jest.fn(),
+    update: jest.fn(),
   };
   const service = new ManagedStorageService(repository as unknown as Repository<ManagedStorage>);
 
@@ -71,6 +72,23 @@ describe('ManagedStorageService', () => {
     expect(repository.save).toHaveBeenCalledWith(expect.objectContaining({ storageId: 's1' }));
     expect(repository.delete).toHaveBeenCalledWith({ storageId: 's1' });
   });
+
+  it.each([
+    [1, true],
+    [0, false],
+  ])(
+    'markRestored clears the deleted state only of a deleted record (%i row)',
+    async (affected, result) => {
+      const now = new Date('2026-11-02T10:00:00Z');
+      repository.update.mockResolvedValue({ affected });
+
+      expect(await service.markRestored('s1', now)).toBe(result);
+      expect(repository.update).toHaveBeenCalledWith(
+        { storageId: 's1', deprovisionedAt: Not(IsNull()) },
+        { deprovisionedAt: null, notPaidSince: null, lastActivityAt: now }
+      );
+    }
+  );
 
   it('findActive queries rows that are not deprovisioned', async () => {
     repository.find.mockResolvedValue([record('s1')]);

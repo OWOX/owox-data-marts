@@ -5,9 +5,7 @@ import { Transactional } from 'typeorm-transactional';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
 import { RestoreOwoxStorageCommand } from '../dto/domain/restore-owox-storage.command';
 import { ConnectorState } from '../entities/connector-state.entity';
-import { ManagedStorage } from '../entities/managed-storage.entity';
 import { ProjectPlanType } from '../enums/project-plan-type.enum';
-import { describeGoogleError } from '../owox-storage/engine/bigquery-managed-storage.engine';
 import {
   MANAGED_STORAGE_ENGINE,
   ManagedStorageEngine,
@@ -73,25 +71,20 @@ export class RestoreOwoxStorageService {
 
     try {
       await this.engine.restore(record, command.projectId);
-    } catch (error) {
-      this.logger.error(
-        `OWOX Storage ${record.datasetId} restore failed${describeGoogleError(error)}`
-      );
+    } catch {
+      // The engine has logged the failed step.
       throw new OwoxStorageRestoreException();
     }
 
     const dataMartIds = (await this.dataMartService.findByStorage(storage)).map(({ id }) => id);
-    await this.markRestored(record, dataMartIds);
+    await this.finishRestore(record.storageId, dataMartIds);
     this.logger.log(`OWOX Storage ${record.datasetId} restored`);
   }
 
   @Transactional()
-  private async markRestored(record: ManagedStorage, dataMartIds: string[]): Promise<void> {
+  private async finishRestore(storageId: string, dataMartIds: string[]): Promise<void> {
+    if (!(await this.managedStorages.markRestored(storageId, new Date()))) return;
     // The restored tables are empty: the next runs must load from each connector's start.
     await this.connectorStates.delete({ datamartId: In(dataMartIds) });
-    record.deprovisionedAt = null;
-    record.notPaidSince = null;
-    record.lastActivityAt = new Date();
-    await this.managedStorages.save(record);
   }
 }
