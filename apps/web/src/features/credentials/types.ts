@@ -232,13 +232,6 @@ export interface Credential {
   modifiedAt: string;
 }
 
-export const SECRET_NOT_REPLACEABLE = "This version can't change this Credential's keys.";
-
-/** A custom connector Credential, made by a newer version, takes new keys only as fields, which this version cannot send. */
-export function isSecretReplaceable(credential: Credential): boolean {
-  return credential.definition.auth?.type !== 'custom-connector';
-}
-
 export interface CreateCredentialRequest {
   title: string;
   definitionId: string;
