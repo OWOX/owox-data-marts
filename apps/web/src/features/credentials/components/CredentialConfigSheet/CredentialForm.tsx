@@ -230,6 +230,7 @@ function CredentialFormBody({
     [credential, selectedDefinition]
   );
   const isOAuth = auth?.type === 'oauth';
+  const secretReplaceable = credential === null || isSecretReplaceable(credential);
   // Fields definitions have an empty label.
   const secretLabel = selectedDefinition?.secretLabel.trim()
     ? selectedDefinition.secretLabel
@@ -609,7 +610,7 @@ function CredentialFormBody({
                               <Button
                                 type='button'
                                 variant='outline'
-                                disabled={!isSecretReplaceable(credential)}
+                                disabled={!secretReplaceable}
                                 onClick={() => {
                                   onRequestReplaceSecret(credential);
                                 }}
@@ -618,7 +619,7 @@ function CredentialFormBody({
                               </Button>
                             </div>
                           </TooltipTrigger>
-                          {!isSecretReplaceable(credential) && (
+                          {!secretReplaceable && (
                             <TooltipContent side='left'>{SECRET_NOT_REPLACEABLE}</TooltipContent>
                           )}
                         </Tooltip>
