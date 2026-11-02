@@ -48,6 +48,10 @@ function setup(definitionOverride?: object, credentialOverride: Record<string, u
   };
   const credentials = {
     getByIdAndProjectId: jest.fn().mockResolvedValue(credential),
+    getLockedByIdAndProjectId: jest.fn((id: string, projectId: string) =>
+      credentials.getByIdAndProjectId(id, projectId)
+    ),
+    queueSecretWrite: jest.fn((_id: string, write: () => Promise<unknown>) => write()),
     save: jest.fn().mockImplementation(value => Promise.resolve(value)),
     listBindings: jest.fn().mockResolvedValue([]),
   };
@@ -890,14 +894,16 @@ describe('UpdateCredentialService on a stored Source Credential (SQLite)', () =>
 
   afterAll(() => dataSource.destroy());
 
-  async function given(): Promise<string> {
+  async function given(fields: Record<string, string> = {}): Promise<string> {
     const { id } = await credentials.save(
       credentials.create({
         projectId: 'project-1',
         title: 'Ads account',
         definitionSource: 'builtin',
         definitionId: contract?.id,
-        secret: { fields: { RefreshToken: 'refresh-1', ClientSecret: 's', DeveloperToken: 'd' } },
+        secret: {
+          fields: { RefreshToken: 'refresh-1', ClientSecret: 's', DeveloperToken: 'd', ...fields },
+        },
         publicMetadata: { fields: { ClientId: 'client-id' } },
       })
     );
@@ -929,6 +935,42 @@ describe('UpdateCredentialService on a stored Source Credential (SQLite)', () =>
       rotationLeaseAt: null,
     });
     await expect(credentialService.claimRotation(id)).resolves.toEqual(expect.any(String));
+  });
+
+  it('an edit of another field keeps a token rotation that a run stores between its read and its save', async () => {
+    const id = await given({ generated_refresh_token: 'R1' });
+    const order: string[] = [];
+    let rotation: Promise<{ updated: boolean }> | undefined;
+    const save = credentialService.save.bind(credentialService);
+    const saving = jest.spyOn(credentialService, 'save').mockImplementation(async credential => {
+      // The edit has read and merged R1; a run now stores R2.
+      rotation = credentialService
+        .updateSecretFields(
+          id,
+          'project-1',
+          { generated_refresh_token: 'R2' },
+          { generated_refresh_token: 'R1' }
+        )
+        .finally(() => order.push('rotation stored'));
+      await Promise.race([rotation, new Promise(resolve => setTimeout(resolve, 100))]);
+      const saved = await save(credential);
+      order.push('edit saved');
+      return saved;
+    });
+
+    await service.run(id, context, { fields: { DeveloperToken: 'd2' } });
+    saving.mockRestore();
+
+    await expect(rotation).resolves.toEqual({ updated: true });
+    expect((await stored(id)).secret).toEqual({
+      fields: {
+        RefreshToken: 'refresh-1',
+        ClientSecret: 's',
+        DeveloperToken: 'd2',
+        generated_refresh_token: 'R2',
+      },
+    });
+    expect(order).toEqual(['edit saved', 'rotation stored']);
   });
 
   it('a title edit keeps the lease of a running run', async () => {

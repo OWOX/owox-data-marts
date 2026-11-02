@@ -104,6 +104,19 @@ export class CredentialService {
     return credential;
   }
 
+  /** getByIdAndProjectId under the row lock a runtime secret write takes on MySQL; call it first in a transaction, so the read sees what the lock waited for. */
+  async getLockedByIdAndProjectId(id: string, projectId: string): Promise<Credential> {
+    if (isMysql(this.credentials)) {
+      await this.credentials
+        .createQueryBuilder('credential')
+        .select('credential.id')
+        .where('credential.id = :id AND credential.projectId = :projectId', { id, projectId })
+        .setLock('pessimistic_write')
+        .getOne();
+    }
+    return this.getByIdAndProjectId(id, projectId);
+  }
+
   /**
    * Serializes binding and deletion decisions for one active Credential.
    *
@@ -257,16 +270,21 @@ export class CredentialService {
     expected?: Readonly<Record<string, string | undefined>>,
     connectionExpiresAt?: Date
   ): Promise<{ updated: boolean }> {
-    const write = (this.secretWrites.get(credentialId) ?? Promise.resolve()).then(() =>
+    return this.queueSecretWrite(credentialId, () =>
       this.writeSecretFields(credentialId, projectId, updates, expected, connectionExpiresAt)
     );
-    const settled = write.then(
+  }
+
+  /** Runs `write` after the Credential's pending secret writes; later ones wait until it settles. `write` must not queue one itself. */
+  async queueSecretWrite<T>(credentialId: string, write: () => Promise<T>): Promise<T> {
+    const queued = (this.secretWrites.get(credentialId) ?? Promise.resolve()).then(write);
+    const settled = queued.then(
       () => undefined,
       () => undefined
     );
     this.secretWrites.set(credentialId, settled);
     try {
-      return await write;
+      return await queued;
     } finally {
       if (this.secretWrites.get(credentialId) === settled) this.secretWrites.delete(credentialId);
     }

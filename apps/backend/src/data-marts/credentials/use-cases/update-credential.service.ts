@@ -120,7 +120,10 @@ export class UpdateCredentialService {
         validation = await this.checkBoundConsumers(credential, context, checkedFields);
       }
     }
-    return this.apply(id, context, input, definition, validation, publicMetadata, checkedFields);
+    // Queued with runtime secret writes, so a token rotation lands before the reread or after the save.
+    return this.credentials.queueSecretWrite(id, () =>
+      this.apply(id, context, input, definition, validation, publicMetadata, checkedFields)
+    );
   }
 
   /** New field values must work for the Storages and Destinations where the current ones do; none bound leaves no result. */
@@ -160,7 +163,7 @@ export class UpdateCredentialService {
     checkedFields: CheckedFields | undefined
   ): Promise<CredentialDto> {
     // Fresh read: the provider check took seconds and another request may have saved meanwhile.
-    const credential = await this.credentials.getByIdAndProjectId(id, context.projectId);
+    const credential = await this.credentials.getLockedByIdAndProjectId(id, context.projectId);
     const secretBefore = credential.secret;
     if (input.title !== undefined) credential.title = input.title.trim();
     if (input.secret != null && validation) {
