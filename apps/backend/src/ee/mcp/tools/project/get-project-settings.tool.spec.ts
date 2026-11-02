@@ -1,4 +1,4 @@
-import { z } from 'zod-v4';
+import { z } from 'zod';
 import { adminMcpContext } from '../../../../../test/fixtures/mcp-auth-context';
 import type { ProjectSettingsFacade } from '../../../../project-settings/facades/project-settings.facade';
 import { GetProjectSettingsTool } from './get-project-settings.tool';

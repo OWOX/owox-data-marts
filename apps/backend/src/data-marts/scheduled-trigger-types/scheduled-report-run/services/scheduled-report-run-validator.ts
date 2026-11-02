@@ -31,7 +31,7 @@ export class ScheduledReportRunValidator implements ScheduledTriggerValidator {
     if (!configOpt.success) {
       this.logger.warn('Invalid trigger config', configOpt.error);
       return new ValidationResult(false, 'Invalid trigger config', {
-        errors: configOpt.error.errors,
+        errors: configOpt.error.issues,
       });
     }
 

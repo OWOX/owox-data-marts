@@ -9,7 +9,7 @@ export const TemplateEditPlaceholderTagSchema = z
       .describe('Placeholder tag id used in text as [[TAG:<id>]].'),
     name: z.string().min(1).describe('Template tag name, e.g. "table" or "value".'),
     params: z
-      .record(z.unknown())
+      .record(z.string(), z.unknown())
       .describe(
         'Raw tag parameters object. Runtime validation and tag-specific schemas are handled later.'
       ),

@@ -1,6 +1,6 @@
 import { INestApplication } from '@nestjs/common';
 import { AUTH_HEADER, closeTestApp, createTestApp } from '@owox/test-utils';
-import { z } from 'zod-v4';
+import { z } from 'zod';
 import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
 import type { AddressInfo } from 'node:net';
 import { getRepositoryToken } from '@nestjs/typeorm';

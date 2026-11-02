@@ -1,6 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import type { McpScope, Role } from '@owox/idp-protocol';
-import { z } from 'zod-v4';
+import { z } from 'zod';
 import {
   MCP_CONTEXTS_FACADE,
   type McpContextsFacade,

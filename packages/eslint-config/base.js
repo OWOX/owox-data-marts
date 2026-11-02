@@ -12,6 +12,20 @@ export const config = [
   eslintConfigPrettier,
   ...tseslint.configs.recommended,
   {
+    rules: {
+      // zod 4 still ships the unpatched zod 3 code at 'zod/v3', and npm audit only sees the
+      // package version, so an import of it would bring the advisory back unnoticed.
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            { name: 'zod/v3', message: "Import from 'zod'. 'zod/v3' is the unpatched zod 3 code." },
+          ],
+        },
+      ],
+    },
+  },
+  {
     files: ['**/*.test.ts', '**/*.spec.ts', '**/test/**', '**/__tests__/**'],
     rules: {
       '@typescript-eslint/no-explicit-any': 'off',

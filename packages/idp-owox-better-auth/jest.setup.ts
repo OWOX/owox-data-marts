@@ -8,5 +8,6 @@ jest.unstable_mockModule('./src/core/logger.js', () => ({
     error: jest.fn(),
     debug: jest.fn(),
     trace: jest.fn(),
+    log: jest.fn(),
   }),
 }));

@@ -15,8 +15,8 @@ export class SnowflakeDataMartSchemaParser implements DataMartSchemaParser {
     const result = SnowflakeDataMartSchemaSchema.safeParse(schema);
     if (!result.success) {
       throw new BusinessViolationException(
-        `Failed to validate Snowflake schema:\n${result.error.errors[0].message}`,
-        { zodErrors: result.error.errors }
+        `Failed to validate Snowflake schema:\n${result.error.issues[0].message}`,
+        { zodErrors: result.error.issues }
       );
     }
     return result.data;

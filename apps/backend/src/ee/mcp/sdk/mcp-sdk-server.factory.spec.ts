@@ -1,4 +1,4 @@
-import { z } from 'zod-v4';
+import { z } from 'zod';
 import type { Role } from '@owox/idp-protocol';
 import type { McpAuthContext } from '../auth/mcp-auth-context';
 import { McpConfigService } from '../config/mcp.config';

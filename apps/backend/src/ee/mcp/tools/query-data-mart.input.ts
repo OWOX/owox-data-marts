@@ -1,4 +1,4 @@
-import { z } from 'zod-v4';
+import { z } from 'zod';
 import {
   IN_LIST_MAX_VALUES,
   RELATIVE_DATE_MAX_N,

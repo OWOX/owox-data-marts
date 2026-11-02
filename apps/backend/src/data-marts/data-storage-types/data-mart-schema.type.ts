@@ -14,6 +14,10 @@ export const DataMartSchemaSchema = z.discriminatedUnion('type', [
 ]);
 
 export type DataMartSchema = z.infer<typeof DataMartSchemaSchema>;
-export type DataMartSchemaField = DataMartSchema['fields'][number];
+// The loose field schema's index signature would otherwise keep flat field types in `'fields' in field`.
+type WithoutIndexSignature<T> = T extends unknown
+  ? { [K in keyof T as string extends K ? never : K]: T[K] }
+  : never;
+export type DataMartSchemaField = WithoutIndexSignature<DataMartSchema['fields'][number]>;
 
 export type DataMartSchemaUpdate = z.input<typeof DataMartSchemaSchema>;

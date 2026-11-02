@@ -28,7 +28,7 @@ describe('field-errors.utils', () => {
     ]);
   });
 
-  it('names a missing key instead of repeating a bare "Required"', () => {
+  it('names a missing key instead of only its expected type', () => {
     const parsed = credentialsSchema.safeParse({ password: 'secret' });
     if (parsed.success) throw new Error('expected credentials to be rejected');
 
@@ -73,10 +73,10 @@ describe('field-errors.utils', () => {
     if (parsed.success) throw new Error('expected credentials to be rejected');
 
     expect(toFieldErrors('credentials', parsed.error)).toEqual([
-      { field: 'credentials', message: 'Required' },
+      { field: 'credentials', message: 'Invalid input: expected object, received undefined' },
     ]);
     expect(describeInvalidInput('credentials', parsed.error)).toBe(
-      'Invalid credentials — credentials: Required'
+      'Invalid credentials — credentials: Invalid input: expected object, received undefined'
     );
   });
 
@@ -107,7 +107,7 @@ describe('field-errors.utils', () => {
     expect(result.valid).toBe(false);
     expect(result.errorMessage).toMatch(/^Invalid config — projectId: /);
     expect(result.reason).toEqual({
-      errors: parsed.error.errors,
+      errors: parsed.error.issues,
       fieldErrors: [{ field: 'config.projectId', message: expect.any(String) }],
     });
   });

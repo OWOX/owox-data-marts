@@ -12,7 +12,7 @@ export class RedshiftDataMartSchemaParser implements DataMartSchemaParser {
     const result = RedshiftDataMartSchemaSchema.safeParse(schema);
 
     if (!result.success) {
-      throw new Error(`Invalid Redshift data mart schema: ${JSON.stringify(result.error.errors)}`);
+      throw new Error(`Invalid Redshift data mart schema: ${JSON.stringify(result.error.issues)}`);
     }
 
     return result.data;

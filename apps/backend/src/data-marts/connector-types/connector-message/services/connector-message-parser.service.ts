@@ -71,7 +71,7 @@ export class ConnectorMessageParserService {
       this.logger.warn(`Schema validation failed for message:`, {
         messageLength: message.length,
         shape: describeShape(asJson),
-        errors: parsedMessage.error.errors,
+        errors: parsedMessage.error.issues,
       });
       return this.parseAsUnknown(message);
     }

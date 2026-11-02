@@ -15,8 +15,8 @@ export class BigQueryDataMartSchemaParser implements DataMartSchemaParser {
     const result = BigQueryDataMartSchemaSchema.safeParse(schema);
     if (!result.success) {
       throw new BusinessViolationException(
-        `Failed to validate BigQuery schema:\n${result.error.errors[0].message}`,
-        { zodErrors: result.error.errors }
+        `Failed to validate BigQuery schema:\n${result.error.issues[0].message}`,
+        { zodErrors: result.error.issues }
       );
     }
     return result.data;

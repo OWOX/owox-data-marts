@@ -23,7 +23,7 @@
   "peerDependencies": {
     "@nestjs/platform-express": "^11",
     "express": "^5",
-    "zod": "^3.25"
+    "zod": "^4.6.6"
   },
   "devDependencies": {
     "@eslint/compat": "^1",

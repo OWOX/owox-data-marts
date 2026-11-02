@@ -127,7 +127,12 @@ export class TemplateTagContractValidator {
           `Invalid params for tag "${tag.name}" (${tag.id}). ${firstIssue?.message ?? ''}`.trim(),
         path:
           firstIssue?.path && firstIssue.path.length > 0
-            ? ['tags', index, 'params', ...firstIssue.path]
+            ? [
+                'tags',
+                index,
+                'params',
+                ...firstIssue.path.map(key => (typeof key === 'symbol' ? String(key) : key)),
+              ]
             : ['tags', index, 'params'],
         details: {
           tagName: tag.name,

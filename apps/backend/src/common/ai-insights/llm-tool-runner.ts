@@ -22,7 +22,7 @@ import { ToolRegistry } from './agent/tool-registry';
  * - Returns parsed JSON result (validated by finalJsonSchema) AND all tool executions.
  */
 export async function runAgentLoop<TSchema extends ZodTypeAny, TResult = z.infer<TSchema>>(
-  options: ToolLoopOptions
+  options: ToolLoopOptions<TSchema>
 ): Promise<ToolLoopOutput<TResult>> {
   const {
     aiProvider,

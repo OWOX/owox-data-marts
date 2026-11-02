@@ -69,7 +69,7 @@ function parseOrExplain<T>(
   const problems = parsed.error.issues.map(issue => {
     const [index, ...path] = issue.path;
     const name = typeof index === 'number' ? items[index]?.name : undefined;
-    const where = path.map(key => MANIFEST_KEYS[key] ?? key).join('.');
+    const where = path.map(key => MANIFEST_KEYS[String(key)] ?? String(key)).join('.');
     return `${kind} "${String(name)}" ${where}: ${issue.message}`;
   });
   throw new BadRequestException(`Invalid manifest: ${problems.join('; ')}`);

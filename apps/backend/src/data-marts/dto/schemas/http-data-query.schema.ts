@@ -82,7 +82,7 @@ const AggregationParamSchema = makeEncodedConfigParam(AggregationConfigSchema, '
 const DateTruncParamSchema = makeEncodedConfigParam(DateTruncConfigSchema, 'dateTrunc');
 
 export const LimitParamSchema = z.coerce
-  .number({ invalid_type_error: 'limit must be an integer' })
+  .number({ error: 'limit must be an integer' })
   .int('limit must be an integer')
   .min(1, 'limit must be ≥ 1');
 

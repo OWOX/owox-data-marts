@@ -4,9 +4,9 @@ import { REPORT_AGGREGATE_FUNCTIONS } from './relationship.types';
 export { PERCENTILE_FUNCTIONS, REPORT_AGGREGATE_FUNCTIONS } from './relationship.types';
 export type { ReportAggregateFunction } from './relationship.types';
 
-// .finite() mirrors the backend schema: Infinity/NaN would render invalid SQL
-// server-side, so a config carrying them must not validate as clean here.
-const ScalarValueSchema = z.union([z.string(), z.number().finite(), z.boolean()]);
+// z.number() rejects Infinity/NaN, as the backend schema does: they would render
+// invalid SQL server-side, so a config carrying them must not validate as clean here.
+const ScalarValueSchema = z.union([z.string(), z.number(), z.boolean()]);
 
 // Mirror of the backend IN_LIST_MAX_VALUES (filter-config.schema.ts) — the single
 // web-side copy; the schema and the picker's value editor both read this.

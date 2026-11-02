@@ -73,7 +73,7 @@ export const PluginBackendSchema = z.object({
         ),
       z.object({
         timeoutSeconds: z.number().int().min(1).max(300).default(30),
-        input: z.record(z.unknown()).optional(),
+        input: z.record(z.string(), z.unknown()).optional(),
       })
     )
     .refine(actions => Object.keys(actions).length >= 1, 'declare at least one action')

@@ -41,7 +41,7 @@ const connectorDefinitionSchema = z.object({
       source: z.object({
         name: z.string().min(1, 'Connector name is required'),
         configuration: z
-          .array(z.record(z.unknown()))
+          .array(z.record(z.string(), z.unknown()))
           .min(1, 'At least one configuration is required'),
         node: z.string().min(1, 'Node is required'),
         fields: z.array(z.string()).min(1, 'At least one field is required'),
@@ -60,7 +60,7 @@ export const createDataMartDefinitionSchema = (
 ) => {
   if (!definitionType) {
     return z.object({
-      definitionType: z.nullable(z.nativeEnum(DataMartDefinitionType)),
+      definitionType: z.nullable(z.enum(DataMartDefinitionType)),
       definition: z.object({}).optional(),
     });
   }

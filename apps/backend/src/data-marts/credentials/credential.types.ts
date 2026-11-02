@@ -148,7 +148,7 @@ const CredentialDefinitionContractObjectSchema = z.object({
     .object({
       method: z.enum(['GET', 'POST']).default('GET'),
       path: z.string().startsWith('/').max(2048),
-      headers: z.record(z.string()).optional(),
+      headers: z.record(z.string(), z.string()).optional(),
       successStatuses: z.array(z.number().int().min(200).max(399)).min(1).max(20).optional(),
       rejectedStatuses: z.array(z.number().int().min(400).max(499)).min(1).max(20).optional(),
     })

@@ -1,5 +1,5 @@
 import type { StandardSchemaWithJSON } from '@modelcontextprotocol/server';
-import { z, type ZodRawShape } from 'zod-v4';
+import { z, type ZodRawShape } from 'zod';
 
 const schemaMaps = ['properties', 'patternProperties', '$defs', 'definitions', 'dependentSchemas'];
 const schemaArrays = ['allOf', 'anyOf', 'oneOf', 'prefixItems'];

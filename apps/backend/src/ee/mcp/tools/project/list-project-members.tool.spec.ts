@@ -1,4 +1,4 @@
-import { z } from 'zod-v4';
+import { z } from 'zod';
 import type { McpAuthContext } from '../../auth/mcp-auth-context';
 import type { McpProjectMembersFacade } from '../../../../data-marts/facades/mcp-project-members.facade';
 import { ListProjectMembersTool } from './list-project-members.tool';
