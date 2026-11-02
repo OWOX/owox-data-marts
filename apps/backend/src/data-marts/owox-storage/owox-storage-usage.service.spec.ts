@@ -129,6 +129,35 @@ describe('OwoxStorageUsageService', () => {
         expect(usage.deletion?.reason).toBe('INACTIVE');
       });
 
+      it('shows the inactivity deletion at exactly 7 idle days', async () => {
+        const usage = await service.getUsage({
+          ...record,
+          lastActivityAt: new Date(Date.now() - 7 * DAY - 1000),
+        } as ManagedStorage);
+
+        expect(usage.deletion?.reason).toBe('INACTIVE');
+      });
+
+      it('stays quiet in the first week after leaving NOT_PAID', async () => {
+        const usage = await service.getUsage({
+          ...record,
+          notPaidSince: ago(2),
+          lastActivityAt: ago(40),
+        } as ManagedStorage);
+
+        expect(usage.deletion).toBeNull();
+      });
+
+      it('reports a deleted storage even when the plan cannot be read', async () => {
+        plans.planFor.mockResolvedValue(null);
+        const deprovisionedAt = ago(2);
+
+        await expect(
+          service.getUsage({ ...record, deprovisionedAt } as ManagedStorage)
+        ).resolves.toMatchObject({ deletedAt: deprovisionedAt });
+        expect(engine.listTables).not.toHaveBeenCalled();
+      });
+
       it('never schedules a PAID deletion', async () => {
         plans.planFor.mockResolvedValue(ProjectPlanType.PAID);
 

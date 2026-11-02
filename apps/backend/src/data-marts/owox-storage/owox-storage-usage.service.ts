@@ -40,17 +40,18 @@ export class OwoxStorageUsageService {
 
   async getUsage(record: ManagedStorage): Promise<OwoxStorageUsage> {
     const plan = await this.plans.planFor(record.projectId);
-    if (!plan) throw new Error('The plan of the project cannot be read');
     if (record.deprovisionedAt) {
       return {
-        plan,
+        // A deleted storage shows only its notice, so the plan is display-only here.
+        plan: plan ?? ProjectPlanType.FREE,
         usedBytes: 0,
-        limitBytes: this.limitFor(record, plan),
+        limitBytes: this.limitFor(record, plan ?? ProjectPlanType.FREE),
         tables: [],
         deletion: null,
         deletedAt: record.deprovisionedAt,
       };
     }
+    if (!plan) throw new Error('The plan of the project cannot be read');
     return this.measure(record, plan);
   }
 
@@ -100,9 +101,13 @@ export class OwoxStorageUsageService {
   private async measure(record: ManagedStorage, plan: ProjectPlanType): Promise<OwoxStorageUsage> {
     const tables = await this.engine.listTables(record);
     const now = new Date();
-    const deletion = scheduledDeletion(record, plan, this.config.getSettings(), now);
-    const idleSince = record.lastActivityAt ?? record.createdAt;
-    const idleLongEnough = now.getTime() - idleSince.getTime() >= IDLE_NOTICE_DAYS * DAY_MS;
+    const settings = this.config.getSettings();
+    const deletion = scheduledDeletion(record, plan, settings, now);
+    // The rule's own idle base, so the first week after leaving NOT_PAID stays quiet.
+    const idleLongEnough =
+      deletion !== null &&
+      now.getTime() - (deletion.date.getTime() - settings.inactivityDeletionDays * DAY_MS) >=
+        IDLE_NOTICE_DAYS * DAY_MS;
     return {
       plan,
       usedBytes: tables.reduce((sum, table) => sum + table.sizeBytes, 0),
