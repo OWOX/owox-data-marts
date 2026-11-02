@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import { createMemoryRouter } from 'react-router';
 import { RouterProvider } from 'react-router/dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -35,7 +35,10 @@ describe('LayoutErrorBoundary', () => {
     renderFailingRoute('boom');
 
     expect(await screen.findByText('Something went wrong')).toBeInTheDocument();
-    expect(logRouteError).toHaveBeenCalledTimes(1);
+    // Logging runs in a passive effect, which can flush after the error screen is painted.
+    await waitFor(() => {
+      expect(logRouteError).toHaveBeenCalledTimes(1);
+    });
     expect(trackEvent).toHaveBeenCalledTimes(1);
     expect(trackEvent).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -52,7 +55,10 @@ describe('LayoutErrorBoundary', () => {
     );
 
     expect(await screen.findByText('Something went wrong')).toBeInTheDocument();
-    expect(logRouteError).toHaveBeenCalledTimes(1);
+    // Logging runs in a passive effect, which can flush after the error screen is painted.
+    await waitFor(() => {
+      expect(logRouteError).toHaveBeenCalledTimes(1);
+    });
     expect(trackEvent).toHaveBeenCalledTimes(1);
     expect(trackEvent).toHaveBeenCalledWith({
       event: 'route_error',

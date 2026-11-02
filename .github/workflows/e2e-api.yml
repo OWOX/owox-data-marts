@@ -44,8 +44,9 @@ jobs:
       - name: Install dependencies
         run: npm ci --prefer-offline --no-audit --no-fund --loglevel error
 
-      - name: Build all workspace packages
-        run: npm run build --workspaces --if-present
+      # The API suite boots only the backend; its build:dep builds the packages it imports.
+      - name: Build backend
+        run: npm run build -w @owox/backend
 
       - name: Run API E2E tests
         run: npm run test:e2e -w @owox/backend -- --shard=${{ matrix.shard }}/${{ strategy.job-total }}
