@@ -1,3 +1,4 @@
+import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
 import { Inject, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -85,6 +86,11 @@ export class DataStorageCredentialsResolver {
     // A managed storage never reaches the Credential binding or the old key.
     const managed = await this.managedStorages.findByStorageId(storage.id);
     if (managed) {
+      if (managed.deprovisionedAt) {
+        throw new BusinessViolationException(
+          'This OWOX Storage and its data were deleted. Restore the storage on its page to continue.'
+        );
+      }
       return {
         type: BIGQUERY_MANAGED_TYPE,
         authClient: await this.identity.impersonate(managed.serviceAccountEmail),

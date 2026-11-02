@@ -38,16 +38,22 @@ export class OwoxStorageUsageService {
     return this.measure(record, plan);
   }
 
-  /** Refuses a load into a FREE storage that is full; PAID, no record and an unreadable size let it go. */
+  /** Refuses a load into a deleted or NOT_PAID storage, or a FREE one that is full; PAID, no record and an unreadable size let it go. */
   async assertCanLoad(storageId: string): Promise<void> {
     const record = await this.managedStorages.findByStorageId(storageId);
     if (!record) return;
+    if (record.deprovisionedAt) {
+      throw new ProjectOperationBlockedException([ProjectBlockedReason.OWOX_STORAGE_DELETED]);
+    }
     const plan = await this.plans.planFor(record.projectId);
     if (!plan) {
       this.logger.warn(
         `Could not read the plan of the project for OWOX Storage ${record.datasetId}; the connector run goes ahead.`
       );
       return;
+    }
+    if (plan === ProjectPlanType.NOT_PAID) {
+      throw new ProjectOperationBlockedException([ProjectBlockedReason.OWOX_STORAGE_NOT_PAID]);
     }
     if (plan === ProjectPlanType.PAID) return;
 
