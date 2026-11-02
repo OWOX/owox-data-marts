@@ -2,6 +2,7 @@ import {
   BUILTIN_CREDENTIAL_DEFINITIONS,
   BUILTIN_CREDENTIAL_DEFINITION_IDS,
 } from '../credentials/services/builtin-credential-definitions';
+import { grantFieldKeys } from '../credentials/services/credential-fields';
 import { ConnectorService } from '../services/connector/connector.service';
 import {
   buildSourceCredentialDefinitions,
@@ -132,6 +133,17 @@ describe('Source credential definitions', () => {
     expect(sourceBindingFor('GoogleAds', 'source:GoogleAds:oauth2')).not.toHaveProperty(
       'rotatesRefreshToken'
     );
+  });
+
+  it('every rotating variant holds a refresh field that grantFieldKeys checks', () => {
+    const grant = grantFieldKeys({ publicMetadata: null });
+    const rotating = Object.values(sourceCredentialDefinitions().bindings)
+      .flat()
+      .filter(binding => binding.rotatesRefreshToken);
+    expect(rotating.length).toBeGreaterThan(0);
+    for (const binding of rotating) {
+      expect(Object.keys(binding.fieldMap).some(key => grant.includes(key))).toBe(true);
+    }
   });
 
   it('reuses google-service-account for the Sheets service account and github for GitHub', () => {
