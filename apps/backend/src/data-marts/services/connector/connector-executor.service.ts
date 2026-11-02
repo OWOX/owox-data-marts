@@ -1129,7 +1129,8 @@ export class ConnectorExecutorService {
           if (success && bound.rotationLease && !rotationLeaseReleased) {
             await this.credentialService.markRefreshTokenStatic(
               bound.rotationLease.credentialId,
-              bound.rotationLease.leaseId
+              bound.rotationLease.leaseId,
+              bound.expected
             );
           }
           await releaseRotationLease(bound);

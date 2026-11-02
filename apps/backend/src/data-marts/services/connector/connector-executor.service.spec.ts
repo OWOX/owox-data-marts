@@ -3557,7 +3557,8 @@ describe('ConnectorExecutorService', () => {
 
             expect(credentialService.markRefreshTokenStatic).toHaveBeenCalledWith(
               'cred-9',
-              'lease-1'
+              'lease-1',
+              leased.expected
             );
             expect(
               (credentialService.markRefreshTokenStatic as jest.Mock).mock.invocationCallOrder[0]

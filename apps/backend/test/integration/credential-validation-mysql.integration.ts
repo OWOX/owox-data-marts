@@ -246,13 +246,14 @@ describeIfAvailable('Credential validation writes (integration, MySQL)', () => {
       );
 
       const leaseId = (await service.claimRotation(id))!;
-      await service.markRefreshTokenStatic(id, leaseId);
+      const grant = { RefreshToken: 'refresh-1', refresh_token: undefined };
+      await service.markRefreshTokenStatic(id, leaseId, grant);
 
       const marked = await credentials.findOneByOrFail({ id });
       expect(marked.refreshTokenStaticAt).toBeInstanceOf(Date);
       expect(marked.modifiedAt).toEqual(before.modifiedAt);
       await new Promise(resolve => setTimeout(resolve, 1100));
-      await service.markRefreshTokenStatic(id, leaseId);
+      await service.markRefreshTokenStatic(id, leaseId, grant);
       expect((await credentials.findOneByOrFail({ id })).refreshTokenStaticAt).toEqual(
         marked.refreshTokenStaticAt
       );

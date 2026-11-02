@@ -306,10 +306,7 @@ export class CredentialService {
     const credential = await query.getOne();
     if (!credential || !('fields' in credential.secret)) return { updated: false };
     const { fields } = credential.secret;
-    const holds = Object.entries(expected).every(
-      ([key, value]) => (Object.hasOwn(fields, key) ? fields[key] : undefined) === value
-    );
-    if (!holds) return { updated: false };
+    if (!holdsValues(fields, expected)) return { updated: false };
 
     const metadata = credential.publicMetadata;
     const connection = metadata && 'connection' in metadata ? metadata.connection : undefined;
@@ -400,21 +397,42 @@ export class CredentialService {
     }
   }
 
-  /** Records that a leased run ended without a rotated token, only while it holds the lease; best-effort, and modifiedAt stays as for a lease. */
-  async markRefreshTokenStatic(id: string, leaseId: string): Promise<void> {
+  /** Records that a leased run ended without a rotated token, while it holds the lease and the grant it read is stored; best-effort, and modifiedAt stays as for a lease. */
+  async markRefreshTokenStatic(
+    id: string,
+    leaseId: string,
+    grant: Readonly<Record<string, string | undefined>>
+  ): Promise<void> {
     try {
-      await this.credentials
-        .createQueryBuilder()
-        .update(Credential)
-        .set({ refreshTokenStaticAt: new Date(), modifiedAt: () => 'modifiedAt' })
-        .where('id = :id', { id })
-        // An owner edit of the keys clears the lease, so a run on the old keys marks nothing.
-        .andWhere('rotationLeaseId = :leaseId', { leaseId })
-        .andWhere('refreshTokenStaticAt IS NULL')
-        .execute();
+      await this.queueSecretWrite(id, () => this.writeRefreshTokenStatic(id, leaseId, grant));
     } catch {
       // Deliberately ignored: without the marker the next run only takes the lease again.
     }
+  }
+
+  /** Reads under a row lock on MySQL, as writeSecretFields does, so an owner edit of the grant lands before or after. */
+  @Transactional()
+  private async writeRefreshTokenStatic(
+    id: string,
+    leaseId: string,
+    grant: Readonly<Record<string, string | undefined>>
+  ): Promise<void> {
+    const query = this.credentials.createQueryBuilder('credential').where('credential.id = :id', {
+      id,
+    });
+    if (isMysql(this.credentials)) query.setLock('pessimistic_write');
+    const credential = await query.getOne();
+    // A replaced grant may rotate where the old one did not.
+    const fields = credential && 'fields' in credential.secret ? credential.secret.fields : {};
+    if (!credential || !holdsValues(fields, grant)) return;
+    await this.credentials
+      .createQueryBuilder()
+      .update(Credential)
+      .set({ refreshTokenStaticAt: new Date(), modifiedAt: () => 'modifiedAt' })
+      .where('id = :id', { id })
+      .andWhere('rotationLeaseId = :leaseId', { leaseId })
+      .andWhere('refreshTokenStaticAt IS NULL')
+      .execute();
   }
 
   /** Best-effort and throttled: runtime success must never depend on usage telemetry. */
@@ -446,6 +464,16 @@ export class CredentialService {
       // Deliberately ignored: this field is informational and cannot break a consumer.
     }
   }
+}
+
+/** Each `expected` value is the stored one; undefined: absent. */
+function holdsValues(
+  fields: Readonly<Record<string, string>>,
+  expected: Readonly<Record<string, string | undefined>>
+): boolean {
+  return Object.entries(expected).every(
+    ([key, value]) => (Object.hasOwn(fields, key) ? fields[key] : undefined) === value
+  );
 }
 
 function isMysql(repository: Repository<object>): boolean {

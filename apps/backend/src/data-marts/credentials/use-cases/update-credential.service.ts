@@ -213,12 +213,8 @@ export class UpdateCredentialService {
       credential.aiModelMappingModes = aiConfiguration.modes;
       credential.aiModelMappingSources = aiConfiguration.sources;
     }
-    // New keys may rotate: the next run leases from its first refresh, and a run on the old ones loses its lease.
-    if (!isDeepStrictEqual(credential.secret, secretBefore)) {
-      credential.refreshTokenStaticAt = null;
-      credential.rotationLeaseId = null;
-      credential.rotationLeaseAt = null;
-    }
+    // New keys may come from a provider that rotates, so the next run leases from its first refresh.
+    if (!isDeepStrictEqual(credential.secret, secretBefore)) credential.refreshTokenStaticAt = null;
     await this.credentials.save(credential);
 
     if (input.ownerIds !== undefined) {

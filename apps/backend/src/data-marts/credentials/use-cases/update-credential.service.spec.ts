@@ -990,19 +990,35 @@ describe('UpdateCredentialService on a stored Source Credential (SQLite)', () =>
     });
   });
 
-  it('a run that leased the replaced keys can no longer mark or release them', async () => {
-    const id = await given();
-    const leaseId = (await credentialService.claimRotation(id))!;
+  describe('a run that ends without a rotated token', () => {
+    /** As the executor marks it at the end of a good run. */
+    const markStatic = (run: BoundSourceConfig) =>
+      credentialService.markRefreshTokenStatic(
+        run.credentialId,
+        run.rotationLease!.leaseId,
+        run.expected
+      );
 
-    await service.run(id, context, { fields: { RefreshToken: 'refresh-2' } });
-    await credentialService.markRefreshTokenStatic(id, leaseId);
+    it('keeps its lease through an edit of another key and marks the token static', async () => {
+      const id = await given();
+      const run = await startRun(id);
 
-    expect(await stored(id)).toMatchObject({
-      refreshTokenStaticAt: null,
-      rotationLeaseId: null,
-      rotationLeaseAt: null,
+      await service.run(id, context, { fields: { DeveloperToken: 'd2' } });
+      expect((await stored(id)).rotationLeaseId).toBe(run.rotationLease!.leaseId);
+      await markStatic(run);
+
+      expect((await stored(id)).refreshTokenStaticAt).toEqual(expect.any(Date));
     });
-    await expect(credentialService.claimRotation(id)).resolves.toEqual(expect.any(String));
+
+    it('leaves the marker unset when the owner replaced the refresh token meanwhile', async () => {
+      const id = await given();
+      const run = await startRun(id);
+
+      await service.run(id, context, { fields: { RefreshToken: 'refresh-2' } });
+      await markStatic(run);
+
+      expect((await stored(id)).refreshTokenStaticAt).toBeNull();
+    });
   });
 
   it('an edit of another field keeps a token rotation that a run stores between its read and its save', async () => {
