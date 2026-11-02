@@ -110,6 +110,7 @@ import { CreateDataStorageService } from './use-cases/create-data-storage.servic
 import { CreateOwoxStorageService } from './use-cases/create-owox-storage.service';
 import { GetOwoxStorageUsageService } from './use-cases/get-owox-storage-usage.service';
 import { DeleteOwoxStorageTableService } from './use-cases/delete-owox-storage-table.service';
+import { RestoreOwoxStorageService } from './use-cases/restore-owox-storage.service';
 import { UpdateDataStorageService } from './use-cases/update-data-storage.service';
 import { GetDataDestinationService } from './use-cases/get-data-destination.service';
 import { CreateDataDestinationService } from './use-cases/create-data-destination.service';
@@ -834,6 +835,7 @@ import { McpCredentialsFacadeImpl } from './credentials/facades/mcp-credentials.
     CreateOwoxStorageService,
     GetOwoxStorageUsageService,
     DeleteOwoxStorageTableService,
+    RestoreOwoxStorageService,
     CreateDataDestinationService,
     UpdateDataStorageService,
     UpdateDataDestinationService,

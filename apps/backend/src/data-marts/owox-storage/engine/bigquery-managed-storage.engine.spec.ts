@@ -231,6 +231,84 @@ describe('BigQueryManagedStorageEngine', () => {
     expect(sleeps).toEqual([2000, 4000, 8000, 16000]);
   });
 
+  describe('restore', () => {
+    const OLD_EMAIL = 'owox-st-old123@old-sa.iam.gserviceaccount.com';
+    const deleted = {
+      engine: 'bigquery' as const,
+      gcpProjectId: 'old-data',
+      location: 'EU' as const,
+      datasetId: 'owox_old123',
+      internalDatasetId: 'owox_old123_internal',
+      serviceAccountEmail: OLD_EMAIL,
+    };
+
+    it("restore recreates the record's datasets, account and grants", async () => {
+      const { engine, client } = setup();
+      client.createServiceAccount.mockResolvedValue(OLD_EMAIL);
+      engine.newShortId = jest.fn(() => 'unused');
+
+      await engine.restore(deleted, 'p1');
+
+      expect(engine.newShortId).not.toHaveBeenCalled();
+      expect(client.createDataset).toHaveBeenCalledWith('old-data', 'owox_old123', 'EU');
+      expect(client.createDataset).toHaveBeenCalledWith('old-data', 'owox_old123_internal', 'EU');
+      expect(client.createServiceAccount).toHaveBeenCalledWith(
+        'old-sa',
+        'owox-st-old123',
+        'OWOX Storage for project p1'
+      );
+      expect(client.grantDatasetWriter).toHaveBeenCalledWith('old-data', 'owox_old123', OLD_EMAIL);
+      expect(client.grantDatasetWriter).toHaveBeenCalledWith(
+        'old-data',
+        'owox_old123_internal',
+        OLD_EMAIL
+      );
+      expect(client.grantProjectRole).toHaveBeenCalledWith(
+        'old-data',
+        'roles/bigquery.jobUser',
+        OLD_EMAIL
+      );
+    });
+
+    it('restore treats an existing dataset or account as created', async () => {
+      const { engine, client } = setup();
+      client.createDataset.mockRejectedValue({ code: 409 });
+      client.createServiceAccount.mockRejectedValue({ code: 409 });
+
+      await expect(engine.restore(deleted, 'p1')).resolves.toBeUndefined();
+
+      expect(client.grantDatasetWriter).toHaveBeenCalledTimes(2);
+      expect(client.grantDatasetWriter).toHaveBeenCalledWith('old-data', 'owox_old123', OLD_EMAIL);
+      expect(client.grantProjectRole).toHaveBeenCalledWith(
+        'old-data',
+        'roles/bigquery.jobUser',
+        OLD_EMAIL
+      );
+    });
+
+    it('restore fails on any other create error', async () => {
+      const { engine, client } = setup();
+      const denied = { code: 403 };
+      client.createServiceAccount.mockRejectedValue(denied);
+
+      await expect(engine.restore(deleted, 'p1')).rejects.toBe(denied);
+      expect(client.grantDatasetWriter).not.toHaveBeenCalled();
+    });
+
+    it('restore does not roll back', async () => {
+      const { engine, client, sleeps } = setup();
+      const boom = new Error('nope');
+      client.grantProjectRole.mockRejectedValue(boom);
+
+      await expect(engine.restore(deleted, 'p1')).rejects.toBe(boom);
+      expect(client.grantProjectRole).toHaveBeenCalledTimes(5);
+      expect(sleeps).toEqual([2000, 4000, 8000, 16000]);
+      expect(client.deleteDataset).not.toHaveBeenCalled();
+      expect(client.deleteServiceAccount).not.toHaveBeenCalled();
+      expect(client.revokeProjectRole).not.toHaveBeenCalled();
+    });
+  });
+
   it('deprovision ignores resources that are already gone', async () => {
     const { engine, client, calls } = setup();
     await engine.deprovision({

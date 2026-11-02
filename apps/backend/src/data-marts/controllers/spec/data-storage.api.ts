@@ -119,6 +119,16 @@ export function DeleteOwoxStorageTableSpec() {
   );
 }
 
+export function RestoreOwoxStorageSpec() {
+  return applyDecorators(
+    ApiOperation({
+      summary: 'Restore a deleted OWOX Storage under its old names, without its data',
+    }),
+    ApiParam({ name: 'id', description: 'Data Storage ID' }),
+    ApiNoContentResponse({ description: 'OWOX Storage restored, or it was not deleted' })
+  );
+}
+
 export function ValidateDataStorageAccessSpec() {
   return applyDecorators(
     ApiOperation({ summary: 'Validate Data Storage access' }),
