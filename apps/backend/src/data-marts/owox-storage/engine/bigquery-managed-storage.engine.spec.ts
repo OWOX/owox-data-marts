@@ -250,6 +250,8 @@ describe('BigQueryManagedStorageEngine', () => {
       await engine.restore(deleted, 'p1');
 
       expect(engine.newShortId).not.toHaveBeenCalled();
+      expect(client.createDataset).toHaveBeenCalledTimes(2);
+      expect(client.createServiceAccount).toHaveBeenCalledTimes(1);
       expect(client.createDataset).toHaveBeenCalledWith('old-data', 'owox_old123', 'EU');
       expect(client.createDataset).toHaveBeenCalledWith('old-data', 'owox_old123_internal', 'EU');
       expect(client.createServiceAccount).toHaveBeenCalledWith(
@@ -270,21 +272,29 @@ describe('BigQueryManagedStorageEngine', () => {
       );
     });
 
-    it('restore treats an existing dataset or account as created', async () => {
-      const { engine, client } = setup();
-      client.createDataset.mockRejectedValue({ code: 409 });
-      client.createServiceAccount.mockRejectedValue({ code: 409 });
+    // BigQuery reports a conflict in `code`; IAM through gaxios in `status`.
+    it.each([{ code: 409 }, { status: 409 }])(
+      'restore treats an existing dataset or account as created: %o',
+      async conflict => {
+        const { engine, client } = setup();
+        client.createDataset.mockRejectedValue(conflict);
+        client.createServiceAccount.mockRejectedValue(conflict);
 
-      await expect(engine.restore(deleted, 'p1')).resolves.toBeUndefined();
+        await expect(engine.restore(deleted, 'p1')).resolves.toBeUndefined();
 
-      expect(client.grantDatasetWriter).toHaveBeenCalledTimes(2);
-      expect(client.grantDatasetWriter).toHaveBeenCalledWith('old-data', 'owox_old123', OLD_EMAIL);
-      expect(client.grantProjectRole).toHaveBeenCalledWith(
-        'old-data',
-        'roles/bigquery.jobUser',
-        OLD_EMAIL
-      );
-    });
+        expect(client.grantDatasetWriter).toHaveBeenCalledTimes(2);
+        expect(client.grantDatasetWriter).toHaveBeenCalledWith(
+          'old-data',
+          'owox_old123',
+          OLD_EMAIL
+        );
+        expect(client.grantProjectRole).toHaveBeenCalledWith(
+          'old-data',
+          'roles/bigquery.jobUser',
+          OLD_EMAIL
+        );
+      }
+    );
 
     it('restore fails on any other create error', async () => {
       const { engine, client } = setup();
@@ -295,12 +305,21 @@ describe('BigQueryManagedStorageEngine', () => {
       expect(client.grantDatasetWriter).not.toHaveBeenCalled();
     });
 
-    it('restore does not roll back', async () => {
+    it('restore does not roll back and logs the failed step without the email', async () => {
       const { engine, client, sleeps } = setup();
-      const boom = new Error('nope');
+      const boom = Object.assign(new Error(`denied for ${OLD_EMAIL}`), { code: 403 });
       client.grantProjectRole.mockRejectedValue(boom);
+      const logged: string[] = [];
+      const spy = jest
+        .spyOn(Logger.prototype, 'error')
+        .mockImplementation((m: unknown) => void logged.push(String(m)));
 
       await expect(engine.restore(deleted, 'p1')).rejects.toBe(boom);
+      spy.mockRestore();
+
+      expect(logged).toEqual([
+        'OWOX Storage owox_old123 restore failed at grantProjectRole (code 403)',
+      ]);
       expect(client.grantProjectRole).toHaveBeenCalledTimes(5);
       expect(sleeps).toEqual([2000, 4000, 8000, 16000]);
       expect(client.deleteDataset).not.toHaveBeenCalled();
