@@ -6,6 +6,11 @@
 
 <https://customer-4geatlj66rtkaxtz.cloudflarestream.com/d7dde8721ec80ac8b1b98ec6c597e6c3/iframe>
 
+[0:11](https://customer-4geatlj66rtkaxtz.cloudflarestream.com/d7dde8721ec80ac8b1b98ec6c597e6c3/iframe?startTime=11.4s) - Your AI Assistant Sets Up Contexts and Connectors\
+[0:39](https://customer-4geatlj66rtkaxtz.cloudflarestream.com/d7dde8721ec80ac8b1b98ec6c597e6c3/iframe?startTime=40.1s) - Build a Data Mart on Top of Another\
+[1:06](https://customer-4geatlj66rtkaxtz.cloudflarestream.com/d7dde8721ec80ac8b1b98ec6c597e6c3/iframe?startTime=66.7s) - Rotate a Key Once, Everywhere It’s Used\
+[1:27](https://customer-4geatlj66rtkaxtz.cloudflarestream.com/d7dde8721ec80ac8b1b98ec6c597e6c3/iframe?startTime=87.8s) - And a Few More Things
+
 - f66ac98: <!-- markdownlint-disable-file MD041 MD036 -->
 
   **Safer sign-in and request validation: Better Auth and zod security fixes**
