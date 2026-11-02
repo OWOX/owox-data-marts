@@ -16,7 +16,7 @@ const JOB_USER_ROLE = 'roles/bigquery.jobUser';
 const GRANT_DELAYS_MS = [2000, 4000, 8000, 16000];
 
 type UndoStep = { name: string; run: () => Promise<void> };
-/** Runs one named create-or-grant step; `undo` reverses it. */
+// Provision registers undo steps here; restore accepts resources that already exist.
 type Step = <T>(name: string, fn: () => Promise<T>, undo?: UndoStep) => Promise<T | undefined>;
 
 type GoogleError = {
@@ -92,17 +92,26 @@ export class BigQueryManagedStorageEngine implements ManagedStorageEngine {
   }
 
   async restore(target: ProvisionedManagedStorage, projectId: string): Promise<void> {
-    // No undo: what this call finds may belong to a concurrent or earlier restore.
-    await this.createAndGrant(target, projectId, async (name, fn) => {
-      try {
-        return await fn();
-      } catch (error) {
-        const e = error as { code?: unknown; status?: unknown };
-        // An existing dataset or account counts as created, so a retry ends in the same state.
-        if (name.startsWith('create') && (e?.code === 409 || e?.status === 409)) return undefined;
-        throw error;
-      }
-    });
+    let step = '';
+    try {
+      // No undo: what this call finds may belong to a concurrent or earlier restore.
+      await this.createAndGrant(target, projectId, async (name, fn) => {
+        step = name;
+        try {
+          return await fn();
+        } catch (error) {
+          const e = error as { code?: unknown; status?: unknown };
+          // An existing dataset or account counts as created, so a retry ends in the same state.
+          if (name.startsWith('create') && (e?.code === 409 || e?.status === 409)) return undefined;
+          throw error;
+        }
+      });
+    } catch (error) {
+      this.logger.error(
+        `OWOX Storage ${target.datasetId} restore failed at ${step}${describeGoogleError(error)}`
+      );
+      throw error;
+    }
   }
 
   async deprovision(target: ProvisionedManagedStorage): Promise<void> {
@@ -184,7 +193,6 @@ export class BigQueryManagedStorageEngine implements ManagedStorageEngine {
     await bigQuery.dataset(target.datasetId).table(tableName).delete();
   }
 
-  /** Creates the datasets and the account of `target`, then grants; returns the account's email. */
   private async createAndGrant(
     target: ProvisionedManagedStorage,
     projectId: string,
