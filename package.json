@@ -81,13 +81,13 @@
   "overrides": {
     "diff": "^8.0.3",
     "typeorm": {
-      "glob": "^11.0.0"
+      "glob": "^14.0.2"
     },
     "filelist": {
-      "minimatch": "^10.2.1"
+      "minimatch": "^11.0.1"
     },
     "@oclif/core": {
-      "minimatch": "^10.2.1"
+      "minimatch": "^11.0.1"
     },
     "monaco-editor": {
       "dompurify": "^3.3.2"
@@ -119,7 +119,8 @@
       "katex": "^0.18.2"
     },
     "googleapis-common": {
-      "google-auth-library": "^10.1.0"
+      "google-auth-library": "^10.1.0",
+      "gaxios": "^7.1.4"
     },
     "postcss-nested": {
       "postcss-selector-parser": "^7.1.6"
