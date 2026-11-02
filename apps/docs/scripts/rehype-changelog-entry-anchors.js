@@ -62,15 +62,19 @@ function entryTitle(item) {
     if (title) return title.rest.length === 0 ? { parent: first, strong: title.strong } : null;
 
     // `abc1234: <!-- markdownlint-disable-file … -->` leaves the hash alone in its paragraph,
-    // and the title is the next paragraph.
+    // and the title is the next paragraph. Move the title up beside the hash, so the entry reads
+    // like the others instead of a hash on a line of its own.
     const [prefix, ...others] = first.children.filter(node => !isBlank(node));
     const [strong, ...rest] =
       next?.type === 'element' && next.tagName === 'p'
         ? next.children.filter(node => !isBlank(node))
         : [];
-    return isCommitPrefix(prefix) && others.length === 0 && isStrong(strong) && rest.length === 0
-      ? { parent: next, strong }
-      : null;
+    if (!isCommitPrefix(prefix) || others.length > 0 || !isStrong(strong) || rest.length > 0) {
+      return null;
+    }
+    first.children.push(strong);
+    item.children.splice(item.children.indexOf(next), 1);
+    return { parent: first, strong };
   }
 
   // Tight list: the title is inline, followed only by block content such as a nested list.
