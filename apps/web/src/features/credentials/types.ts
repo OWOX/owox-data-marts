@@ -123,6 +123,12 @@ export interface CredentialPublicMetadata {
 /** Non-secret fields of a `fields` Credential. */
 export interface CredentialFieldsMetadata {
   fields: Record<string, string>;
+  /** The Google account a Source OAuth Credential is signed in with. */
+  connection?: {
+    account: { id: string; name: string | null; email: string | null } | null;
+    expiresAt: string | null;
+    signedInByUserId?: string;
+  };
 }
 
 /** The connected Google account of an `oauth` Credential. */
@@ -228,6 +234,8 @@ export interface Credential {
   publicMetadata?: CredentialPublicMetadataValue | null;
   identity?: string | null;
   canUse?: boolean;
+  /** Whether the member may open Google Picker with this Credential; null when it opens none. */
+  filePicking?: 'allowed' | 'reconnect' | 'other-signer' | 'not-recorded' | null;
   createdAt: string;
   modifiedAt: string;
 }

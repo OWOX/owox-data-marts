@@ -7,6 +7,10 @@ import { ConfigurationObjectField } from './ConfigurationObjectField';
 import { ConfigurationSecretField } from './ConfigurationSecretField';
 import { ConfigurationComboboxField } from './ConfigurationComboboxField';
 import { ConfigurationDynamicOptionsField } from './ConfigurationDynamicOptionsField';
+export type {
+  DynamicOptionsAction,
+  DynamicOptionsExtras,
+} from './ConfigurationDynamicOptionsField';
 
 export {
   ConfigurationDynamicOptionsField,

@@ -18,6 +18,7 @@ import {
   CredentialsLoadError,
 } from './ConfigurationStep/ConnectorCredentialField';
 import { AUTH_TYPE, bundledKeyNames } from './ConfigurationStep/connector-credential-keys';
+import { useAddSpreadsheetAction } from './ConfigurationStep/useAddSpreadsheetAction';
 import { DataMartContext } from '../../../../../data-marts/edit/model/context/context';
 import { ConnectorBuilderApiService } from '../../../../../connector-builder/shared/api/connector-builder-api.service';
 import type {
@@ -51,6 +52,8 @@ interface ConfigurationStepProps {
   /** Present only when the version is user-choosable at this call site; its mere
    * presence is what gates rendering ConnectorVersionControl below. */
   onChangeVersion?: (version?: number) => void;
+  /** The label of a dynamic options field's selected value, e.g. a spreadsheet's name. */
+  onOptionLabelChange?: (field: string, label: string | undefined) => void;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -174,6 +177,7 @@ export function ConfigurationStep({
   disabled = false,
   pinnedVersion,
   onChangeVersion,
+  onOptionLabelChange,
 }: ConfigurationStepProps) {
   const [configuration, setConfiguration] = useState<Record<string, unknown>>({});
   const initializedRef = useRef(false);
@@ -480,6 +484,19 @@ export function ConfigurationStep({
     validateConfiguration,
   ]);
 
+  const selectedAuthType = isRecord(configuration.AuthType)
+    ? Object.keys(configuration.AuthType)[0]
+    : undefined;
+  const credentialId = credentialIdOf(configuration);
+  // On a Source Credential the Data Mart form lists the spreadsheets the Credential can open.
+  const sheetsCredentialId =
+    connector.name === GOOGLE_SHEETS_CONNECTOR_NAME && selectedAuthType === 'oauth2'
+      ? credentialId
+      : null;
+  const addSpreadsheet = useAddSpreadsheetAction(sheetsCredentialId, url => {
+    handleValueChange('SpreadsheetId', url);
+  });
+
   if (loading || requirementLoading) {
     return <AppWizardStepLoading variant='list' />;
   }
@@ -540,15 +557,6 @@ export function ConfigurationStep({
       return getPriority(a) - getPriority(b);
     });
 
-  const selectedAuthType = isRecord(configuration.AuthType)
-    ? Object.keys(configuration.AuthType)[0]
-    : undefined;
-  const credentialId = credentialIdOf(configuration);
-  // On a Source Credential the Data Mart form lists the spreadsheets the Credential can open.
-  const sheetsCredentialId =
-    connector.name === GOOGLE_SHEETS_CONNECTOR_NAME && selectedAuthType === 'oauth2'
-      ? credentialId
-      : null;
   // Under an old-key OAuth the spreadsheet is chosen with Google Picker, so the manual
   // input stays hidden until the OAuth renderer explicitly reports manual mode
   // (settings still loading or not yet signed in must not flash the input).
@@ -595,6 +603,10 @@ export function ConfigurationStep({
   const selection = customKeys?.selectionParameter
     ? configuration[customKeys.selectionParameter]
     : undefined;
+  const dynamicOptionsExtras = {
+    actions: addSpreadsheet && { SpreadsheetId: addSpreadsheet },
+    onLabelChange: onOptionLabelChange,
+  };
   const keyFields = {
     names: keyNames,
     first: [...requiredFields, ...advancedFields].find(spec => keyNames.has(spec.name))?.name,
@@ -660,6 +672,7 @@ export function ConfigurationStep({
                 connectorName={connector.name}
                 onManagedOAuthModeChange={managedOAuthModeChangeHandler}
                 keyFields={keyFields}
+                dynamicOptionsExtras={dynamicOptionsExtras}
               />
             )}
             {advancedFields.length > 0 && (
@@ -675,6 +688,7 @@ export function ConfigurationStep({
                 connectorName={connector.name}
                 onManagedOAuthModeChange={managedOAuthModeChangeHandler}
                 keyFields={keyFields}
+                dynamicOptionsExtras={dynamicOptionsExtras}
               />
             )}
           </AppWizardStepSection>

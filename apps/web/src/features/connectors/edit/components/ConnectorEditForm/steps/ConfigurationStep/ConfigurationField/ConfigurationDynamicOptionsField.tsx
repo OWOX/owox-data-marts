@@ -1,15 +1,42 @@
+import { useEffect, useId, useRef } from 'react';
 import { Input } from '@owox/ui/components/input';
 import { Button } from '@owox/ui/components/button';
 import type { ConnectorSpecificationResponseApiDto } from '../../../../../../shared/api/types';
 import { Combobox } from '../../../../../../../../shared/components/Combobox/combobox.tsx';
 import { useConnectorFieldOptions } from '../../../../../../shared/model/hooks/useConnectorFieldOptions';
 
+/** An extra list item that does something instead of picking a value, e.g. adding a file. */
+export interface DynamicOptionsAction {
+  label: string;
+  onSelect: () => Promise<void> | void;
+  disabled?: boolean;
+  /** Why the action is disabled. */
+  hint?: string;
+}
+
+/** What a form adds to its dynamic options fields, keyed by field name. */
+export interface DynamicOptionsExtras {
+  actions?: Readonly<Record<string, DynamicOptionsAction>>;
+  onLabelChange?: (field: string, label: string | undefined) => void;
+}
+
 interface ConfigurationDynamicOptionsFieldProps {
   specification: ConnectorSpecificationResponseApiDto;
   configuration: Record<string, unknown>;
   onValueChange: (name: string, value: unknown) => void;
   connectorName: string;
+  /** Rendered as the last list item, and as a button when the list fails or is empty. */
+  action?: DynamicOptionsAction;
+  /** The label of the selected option, undefined when the list does not hold the value. */
+  onLabelChange?: (label: string | undefined) => void;
 }
+
+const ACTION_VALUE = '__dynamic_options_action__';
+
+const sentence = (text: string) => {
+  const trimmed = text.trim();
+  return /[.!?]$/.test(trimmed) ? trimmed : `${trimmed}.`;
+};
 
 // Fields whose title is not a noun that takes a plural "s".
 const PLURAL_NOUN: Readonly<Record<string, string>> = { SpreadsheetId: 'spreadsheets' };
@@ -28,6 +55,8 @@ export function ConfigurationDynamicOptionsField({
   configuration,
   onValueChange,
   connectorName,
+  action,
+  onLabelChange,
 }: ConfigurationDynamicOptionsFieldProps) {
   const { name, placeholder, optionsDependsOn } = specification;
   const displayName = (specification.title ?? specification.name).toLowerCase();
@@ -41,6 +70,40 @@ export function ConfigurationDynamicOptionsField({
     configuration,
     dependsOn: optionsDependsOn,
   });
+  const hintId = useId();
+
+  const settled = status === 'loaded' || status === 'error';
+  const selectedLabel = options.find(option => option.value === currentValue)?.label;
+  // A ref, so a caller passing a new function each render does not re-report the same label.
+  const onLabelChangeRef = useRef(onLabelChange);
+  onLabelChangeRef.current = onLabelChange;
+  useEffect(() => {
+    if (settled) onLabelChangeRef.current?.(selectedLabel);
+  }, [settled, selectedLabel]);
+
+  const runAction = async () => {
+    if (!action) return;
+    await action.onSelect();
+    reload();
+  };
+
+  const actionButton = action && (
+    <Button
+      type='button'
+      variant='outline'
+      size='sm'
+      disabled={action.disabled}
+      aria-describedby={action.disabled && action.hint ? hintId : undefined}
+      onClick={() => void runAction()}
+    >
+      {action.label}
+    </Button>
+  );
+  const actionHint = action?.disabled && action.hint && (
+    <p id={hintId} className='text-muted-foreground text-xs'>
+      {action.hint}
+    </p>
+  );
 
   if (status === 'error') {
     return (
@@ -55,15 +118,16 @@ export function ConfigurationDynamicOptionsField({
             onValueChange(name, event.target.value);
           }}
         />
-        <div role='alert' className='text-destructive flex items-center gap-2 text-sm'>
-          <span className='min-w-0 flex-1'>
-            Could not load the list of {plural}: {error ?? 'unknown error'}. Enter the value
-            manually or retry.
-          </span>
-          <Button type='button' variant='ghost' size='sm' onClick={reload}>
+        <p role='alert' className='text-destructive text-sm'>
+          {`Could not load the list of ${plural}.` + (error ? ` ${sentence(error)}` : '')}
+        </p>
+        <div className='flex flex-wrap items-center gap-2'>
+          <Button type='button' variant='outline' size='sm' onClick={reload}>
             Retry
           </Button>
+          {actionButton}
         </div>
+        {actionHint}
       </div>
     );
   }
@@ -82,6 +146,8 @@ export function ConfigurationDynamicOptionsField({
           }}
         />
         <p className='text-muted-foreground text-sm'>No {plural} were found.</p>
+        {actionButton}
+        {actionHint}
       </div>
     );
   }
@@ -96,16 +162,45 @@ export function ConfigurationDynamicOptionsField({
     currentValue !== '' && !isKnownValue
       ? [{ value: currentValue, label: currentValue }, ...options]
       : options;
+  const listedOptions = action
+    ? [
+        ...visibleOptions,
+        {
+          value: ACTION_VALUE,
+          label: action.label,
+          forceMount: true,
+          separator: options.length > 0,
+          disabled: action.disabled,
+        },
+      ]
+    : visibleOptions;
 
   return (
     <div className='space-y-2'>
       <Combobox
         id={name}
-        options={visibleOptions}
+        options={listedOptions}
         value={currentValue}
         onValueChange={(value: string) => {
+          if (value === ACTION_VALUE) {
+            void runAction();
+            return;
+          }
           onValueChange(name, value);
         }}
+        renderLabel={(option, context) =>
+          option.value === ACTION_VALUE && context === 'item' && action?.disabled && action.hint ? (
+            <span className='flex min-w-0 flex-1 flex-col'>
+              <span>{option.label}</span>
+              <span className='text-muted-foreground text-xs'>{action.hint}</span>
+            </span>
+          ) : (
+            // The trigger wraps the label in a flex item, so only a block span truncates there.
+            <span className={context === 'trigger' ? 'block truncate' : 'min-w-0 flex-1 truncate'}>
+              {option.label}
+            </span>
+          )
+        }
         placeholder={
           isWaiting
             ? `Complete the settings above to load ${plural}`
