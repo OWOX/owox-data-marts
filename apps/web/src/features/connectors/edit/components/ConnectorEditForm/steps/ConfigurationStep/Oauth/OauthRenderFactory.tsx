@@ -51,6 +51,8 @@ export interface OauthRenderComponentProps {
   ) => Promise<OAuthCallbackResponseDto | null>;
   /** Rendered for a Credential, not for a Data Mart configuration. */
   forCredential?: boolean;
+  /** Fetches a Picker token for the saved Credential, so Picker opens without a Google popup. */
+  pickerToken?: () => Promise<string>;
 }
 
 export function OauthRenderFactory({
@@ -172,7 +174,11 @@ export function OauthRenderFactory({
     handleNestedValueChange(itemName, enable ? '' : SECRET_MASK);
   };
 
-  const { checkStatus, getSettings, exchangeCredentials } = useOAuth();
+  const { checkStatus, getSettings, exchangeCredentials, getPickerToken } = useOAuth();
+  const savedCredentialId = credential?.id;
+  const pickerToken = savedCredentialId
+    ? () => getPickerToken(connectorName, savedCredentialId)
+    : undefined;
 
   const handleOAuthSuccess = async (
     credentials: Record<string, unknown>,
@@ -385,6 +391,7 @@ export function OauthRenderFactory({
             settings={settings}
             onOAuthSuccess={handleOAuthSuccess}
             forCredential={credential !== undefined}
+            pickerToken={pickerToken}
           />
         );
       case 'LinkedInAds':

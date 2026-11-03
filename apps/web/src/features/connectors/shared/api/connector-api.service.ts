@@ -97,4 +97,15 @@ export class ConnectorApiService extends ApiService {
       `/${connectorName}/oauth/settings?path=${encodeURIComponent(path)}`
     );
   }
+
+  async issuePickerToken(
+    connectorName: string,
+    credentialId: string
+  ): Promise<{ accessToken: string }> {
+    return this.post<{ accessToken: string }>(
+      `/${connectorName}/oauth/picker-token/${credentialId}`,
+      undefined,
+      { skipErrorToast: true } as AxiosRequestConfig
+    );
+  }
 }

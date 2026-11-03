@@ -1,4 +1,5 @@
 import { useRef, useCallback } from 'react';
+import { extractApiError } from '../../../../../app/api';
 import { ConnectorApiService } from '../../api';
 import type { OAuthExchangeCredentialTarget } from '../../api/types/request';
 import type { OAuthStatusResponseDto, OAuthSettingsResponseDto } from '../../api/types/response';
@@ -43,8 +44,24 @@ export function useOAuth() {
     []
   );
 
+  const getPickerToken = useCallback(
+    async (connectorName: string, credentialId: string): Promise<string> => {
+      try {
+        const { accessToken } = await apiService.current.issuePickerToken(
+          connectorName,
+          credentialId
+        );
+        return accessToken;
+      } catch (e) {
+        throw new Error(extractApiError(e).message ?? 'Could not get a Google token for Picker');
+      }
+    },
+    []
+  );
+
   return {
     exchangeCredentials,
+    getPickerToken,
     checkStatus,
     getSettings,
   };

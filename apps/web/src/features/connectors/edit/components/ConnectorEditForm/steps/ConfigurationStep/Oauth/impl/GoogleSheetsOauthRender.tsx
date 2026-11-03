@@ -18,6 +18,7 @@ export function GoogleSheetsOauthRender({
   configuration,
   onValueChange,
   forCredential = false,
+  pickerToken,
 }: OauthRenderComponentProps) {
   const [isPickingSpreadsheet, setIsPickingSpreadsheet] = useState(false);
   const [pickerError, setPickerError] = useState<string | null>(null);
@@ -32,9 +33,13 @@ export function GoogleSheetsOauthRender({
     // With drive.file a Credential opens only files its account picked, so its connect picks first.
     const result = await (forCredential
       ? onOAuthSuccess({ code: response.code }, exchanged =>
-          pickSpreadsheet(exchanged.user?.email ?? exchanged.user?.name, message => {
-            toast.error(message);
-          })
+          pickSpreadsheet(
+            exchanged.user?.email ?? exchanged.user?.name,
+            message => {
+              toast.error(message);
+            },
+            exchanged.pickerAccessToken
+          )
         )
       : onOAuthSuccess({ code: response.code }));
     const nextEmail = result?.user?.email ?? result?.user?.name;
@@ -69,9 +74,10 @@ export function GoogleSheetsOauthRender({
   // Connect passes a toast: its form closes right after, so an inline error would be lost.
   const pickSpreadsheet = async (
     hintEmail: string | undefined,
-    report: (message: string) => void = setPickerError
+    report: (message: string) => void = setPickerError,
+    accessToken?: string | (() => Promise<string>)
   ) => {
-    if (!clientId || !pickerApiKey || !projectNumber) {
+    if (!pickerApiKey || !projectNumber || (!accessToken && !clientId)) {
       report('Google Picker configuration is incomplete');
       return;
     }
@@ -86,6 +92,7 @@ export function GoogleSheetsOauthRender({
       apiKey: pickerApiKey,
       appId: projectNumber,
       clientId,
+      accessToken,
       hintEmail,
       onPicked: spreadsheet => {
         onValueChange('SpreadsheetId', spreadsheet.url);
@@ -119,7 +126,11 @@ export function GoogleSheetsOauthRender({
             type='button'
             variant='outline'
             onClick={() => {
-              void pickSpreadsheet(connectedEmail);
+              void pickSpreadsheet(
+                connectedEmail,
+                setPickerError,
+                forCredential ? pickerToken : undefined
+              );
             }}
             disabled={isLoading || isPickingSpreadsheet}
             className='w-full'

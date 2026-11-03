@@ -224,4 +224,130 @@ describe('useGoogleSheetsPicker', () => {
     });
     expect(onPicked).not.toHaveBeenCalled();
   });
+
+  function mockPickerApi() {
+    const setOAuthToken = vi.fn();
+    const setVisible = vi.fn();
+    const PickerBuilder = vi.fn(function (this: Record<string, unknown>) {
+      const chain = () => this;
+      Object.assign(this, {
+        setOAuthToken: (token: string) => {
+          setOAuthToken(token);
+          return this;
+        },
+        setDeveloperKey: chain,
+        setAppId: chain,
+        addView: chain,
+        enableFeature: chain,
+        setSize: chain,
+        setCallback: chain,
+        build: () => ({ setVisible }),
+      });
+    });
+    class DocsView {
+      setMimeTypes() {
+        return this;
+      }
+      setMode() {
+        return this;
+      }
+    }
+    (window as unknown as { gapi: { load: (_api: string, callback: () => void) => void } }).gapi = {
+      load: (_api, callback) => {
+        callback();
+      },
+    };
+    (window as unknown as { google: { picker: Record<string, unknown> } }).google = {
+      picker: {
+        PickerBuilder,
+        DocsView,
+        ViewId: { SPREADSHEETS: 'spreadsheets' },
+        DocsViewMode: { LIST: 'list' },
+        Action: { PICKED: 'picked', CANCEL: 'cancel' },
+        Feature: { SUPPORT_DRIVES: 'support-drives' },
+      },
+    };
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ email: 'a@example.com' }), { status: 200 })
+    );
+    return { setOAuthToken, setVisible, PickerBuilder };
+  }
+
+  it('opens Picker with a ready token and never loads Google Identity Services', async () => {
+    const { setOAuthToken, setVisible } = mockPickerApi();
+    const { result } = renderHook(() => useGoogleSheetsPicker());
+
+    void result.current.openPicker({
+      apiKey: 'api-key',
+      appId: 'project-number',
+      accessToken: 'backend-token',
+      hintEmail: 'a@example.com',
+      onPicked: vi.fn(),
+    });
+
+    await vi.waitFor(() => {
+      expect(setVisible).toHaveBeenCalledWith(true);
+    });
+    expect(setOAuthToken).toHaveBeenCalledWith('backend-token');
+    expect(
+      document.querySelector('script[src="https://accounts.google.com/gsi/client"]')
+    ).toBeNull();
+  });
+
+  it('opens Picker with the token a getter resolves to', async () => {
+    const { setOAuthToken, setVisible } = mockPickerApi();
+    const { result } = renderHook(() => useGoogleSheetsPicker());
+
+    void result.current.openPicker({
+      apiKey: 'api-key',
+      appId: 'project-number',
+      accessToken: () => Promise.resolve('fetched-token'),
+      hintEmail: 'a@example.com',
+      onPicked: vi.fn(),
+    });
+
+    await vi.waitFor(() => {
+      expect(setVisible).toHaveBeenCalledWith(true);
+    });
+    expect(setOAuthToken).toHaveBeenCalledWith('fetched-token');
+  });
+
+  it('reports a rejected token getter and opens no Picker and no popup', async () => {
+    const { PickerBuilder } = mockPickerApi();
+    const onError = vi.fn();
+    const message =
+      'Spreadsheets for this Credential are added by the person who connected its Google account. Connect your own Google account to add one.';
+    const { result } = renderHook(() => useGoogleSheetsPicker());
+
+    await result.current.openPicker({
+      apiKey: 'api-key',
+      appId: 'project-number',
+      accessToken: () => Promise.reject(new Error(message)),
+      hintEmail: 'a@example.com',
+      onPicked: vi.fn(),
+      onError,
+    });
+
+    expect(onError).toHaveBeenCalledWith(message);
+    expect(PickerBuilder).not.toHaveBeenCalled();
+    expect(
+      document.querySelector('script[src="https://accounts.google.com/gsi/client"]')
+    ).toBeNull();
+  });
+
+  it('needs a client ID when no token is given', async () => {
+    mockPickerApi();
+    const onError = vi.fn();
+    const { result } = renderHook(() => useGoogleSheetsPicker());
+
+    await result.current.openPicker({
+      apiKey: 'api-key',
+      appId: 'project-number',
+      hintEmail: 'a@example.com',
+      onPicked: vi.fn(),
+      onError,
+    });
+
+    expect(onError).toHaveBeenCalledWith('Google Picker configuration is incomplete');
+  });
 });

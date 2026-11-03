@@ -26,7 +26,10 @@ export interface PickedGoogleSpreadsheet {
 export interface OpenGoogleSheetsPickerOptions {
   apiKey: string;
   appId: string;
-  clientId: string;
+  /** Needed only without accessToken, to ask Google Identity Services for a token. */
+  clientId?: string;
+  /** A token, or a getter for one, that opens Picker without a Google popup. */
+  accessToken?: string | (() => Promise<string>);
   hintEmail?: string;
   onPicked: (spreadsheet: PickedGoogleSpreadsheet) => void;
   onError?: (message: string) => void;
@@ -301,12 +304,21 @@ export function useGoogleSheetsPicker() {
 
   const openPicker = useCallback(
     async (options: OpenGoogleSheetsPickerOptions): Promise<void> => {
-      const { apiKey, appId, clientId, hintEmail, onPicked, onError } = options;
+      const { apiKey, appId, clientId, accessToken, hintEmail, onPicked, onError } = options;
 
       try {
         closeActivePicker();
         await loadPicker();
-        const token = await requestAccessToken(clientId, hintEmail);
+        let token: string;
+        if (typeof accessToken === 'function') {
+          token = await accessToken();
+        } else if (accessToken) {
+          token = accessToken;
+        } else if (clientId) {
+          token = await requestAccessToken(clientId, hintEmail);
+        } else {
+          throw new Error('Google Picker configuration is incomplete');
+        }
         await verifyGooglePickerAccount(token, hintEmail);
         if (!isMountedRef.current) return;
 
