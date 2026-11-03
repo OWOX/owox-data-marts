@@ -204,7 +204,7 @@ import { AUTH_HEADER, NONEXISTENT_UUID, ALL_CONNECTORS, LOOKER_STUDIO_CREDENTIAL
 
 - `testRegex`: `.e2e-spec.ts$` -- only runs files ending in `.e2e-spec.ts`
 - `transform`: `@swc/jest` with CommonJS module output and decorator metadata (the unit config
-  in `package.json` uses the same transform)
+  in `package.json` and `jest-integration.json` use the same transform)
 
 SWC compiles each file on its own, so code under test must not depend on whole-program type
 information:
