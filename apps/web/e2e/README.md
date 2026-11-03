@@ -80,7 +80,7 @@ Playwright auto-starts both servers (configured in `playwright.config.ts`):
    - Uses self-signed certificates (HTTPS)
    - Timeout: 120s for startup
    - With `CI` set, serves the built bundle instead (`vite preview`); build it first with
-     `npm run build -w @owox/web`. CI splits the specs across four runners with `--shard`.
+     `npm run build -w @owox/web`. CI splits the specs across five runners with `--shard`.
 
 **Important:** Playwright always starts its own servers (`reuseExistingServer: false`). An `assertPortFree()` check runs before server startup -- if ports 3000 or 5173 are already in use (e.g., you have a dev server running), Playwright will fail immediately with a clear error asking you to stop the existing server. This prevents tests from accidentally running against a dev server with the wrong environment.
 

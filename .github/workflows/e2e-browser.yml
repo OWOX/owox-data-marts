@@ -22,10 +22,12 @@ jobs:
 
     # Playwright runs one worker (the specs share a SQLite database), so wall-clock grows with
     # the suite. Each shard is a separate runner with its own database, as in e2e-api.yml.
+    # Playwright splits by spec file, and datamart-calculated-field-chips alone runs ~90 s:
+    # five shards keep it nearly alone, which four did not.
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4]
+        shard: [1, 2, 3, 4, 5]
 
     steps:
       - name: Checkout repository
