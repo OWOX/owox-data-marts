@@ -135,9 +135,12 @@ describe('useAddSpreadsheetAction', () => {
     });
   });
 
-  it('names no email for an unrecorded Credential the member cannot edit', () => {
+  it('asks for a reconnect by an editor when no signer is recorded and the member cannot edit', () => {
     credentialsState.credentials = [credential('not-recorded')];
-    expect(hookFor('cred-1').current).toMatchObject({ disabled: true, hint: UNKNOWN_SIGNER_HINT });
+    expect(hookFor('cred-1').current).toMatchObject({
+      disabled: true,
+      hint: 'Ask a member who can edit this Credential to reconnect it.',
+    });
   });
 
   it('asks for edit access when the signer can no longer edit the Credential', () => {
@@ -166,10 +169,10 @@ describe('useAddSpreadsheetAction', () => {
     expect(hookFor('cred-1').current).toMatchObject({ disabled: true, hint: UNAVAILABLE_HINT });
   });
 
-  it('asks to reload when the backend does not say whether Picker opens', () => {
+  it('offers nothing and asks for no reload when the backend does not say whether Picker opens', () => {
     credentialsState.credentials = [credential(undefined)];
 
-    expect(hookFor('cred-1').current).toMatchObject({ disabled: true, hint: UNAVAILABLE_HINT });
+    expect(hookFor('cred-1').current).toBeUndefined();
   });
 
   it('offers nothing for a Credential that opens no Picker', () => {

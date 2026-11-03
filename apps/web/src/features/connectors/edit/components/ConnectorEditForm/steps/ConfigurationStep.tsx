@@ -511,6 +511,14 @@ export function ConfigurationStep({
     onOptionLabelChange?.('SpreadsheetId', name);
   });
 
+  // Without a list (a service account, no Credential) the field reports no name, so drop the last one.
+  const listsSpreadsheets = sheetsCredentialId !== null;
+  useEffect(() => {
+    if (listsSpreadsheets) return;
+    pickedSpreadsheetRef.current = null;
+    onOptionLabelChange?.('SpreadsheetId', undefined);
+  }, [listsSpreadsheets, onOptionLabelChange]);
+
   if (loading || requirementLoading) {
     return <AppWizardStepLoading variant='list' />;
   }

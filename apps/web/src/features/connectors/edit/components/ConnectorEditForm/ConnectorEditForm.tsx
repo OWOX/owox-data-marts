@@ -386,6 +386,7 @@ export function ConnectorEditForm({
   const handleConnectorSelect = (connector: ConnectorListItem) => {
     setSelectedConnector(connector);
     setConnectorConfiguration({});
+    setSpreadsheetName(undefined);
     setConfigurationIsValid(false);
     if (
       !existingConnector &&

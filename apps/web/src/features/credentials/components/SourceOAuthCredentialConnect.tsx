@@ -5,7 +5,7 @@ import toast from 'react-hot-toast';
 import { wasErrorToastShown } from '../../../app/api';
 import { apiErrorMessage } from '../../../app/api/extract-api-error.util';
 import { OauthRenderFactory } from '../../connectors/edit/components/ConnectorEditForm/steps/ConfigurationStep/Oauth/OauthRenderFactory';
-import { addSpreadsheetHint } from '../../connectors/edit/components/ConnectorEditForm/steps/ConfigurationStep/useAddSpreadsheetAction';
+import { addSpreadsheetHint } from '../../connectors/shared/utils/add-spreadsheet-hint.utils';
 import { ConnectPickedSpreadsheetContext } from '../connect-picked-spreadsheet';
 import type { Credential } from '../types';
 import { HelpLabel } from './CredentialHelp';

@@ -1,43 +1,18 @@
 import { toast } from 'react-hot-toast';
 import { useCredentials } from '../../../../../../credentials/useCredentials';
-import { isFieldsMetadata, type Credential } from '../../../../../../credentials/types';
 import { useGoogleSheetsPicker } from '../../../../../../google-oauth';
 import { useOAuth } from '../../../../../shared/model/hooks/useOAuth';
+import {
+  addSpreadsheetHint,
+  connectedEmail,
+  signerHint,
+  UNAVAILABLE_HINT,
+} from '../../../../../shared/utils/add-spreadsheet-hint.utils';
 import { GOOGLE_SHEETS_CONNECTOR_NAME } from '../../../../../shared/utils/google-sheets-fields.utils';
 import type { DynamicOptionsAction } from './ConfigurationField';
 
 const LABEL = '+ Add spreadsheet';
-const RECONNECT_HINT = 'Reconnect this Credential to add spreadsheets.';
-const EDIT_ACCESS_HINT = 'You need edit access to this Credential to add spreadsheets.';
-const UNAVAILABLE_HINT = 'Spreadsheets cannot be added right now. Reload the page and try again.';
 const noop = () => undefined;
-
-const signerHint = (account: string) =>
-  `Spreadsheets are added by the person who connected ${account}. Connect your own Google account to add one.`;
-
-const connectedEmail = (credential: Credential) => {
-  const metadata = credential.publicMetadata;
-  return (isFieldsMetadata(metadata) ? metadata.connection?.account?.email : null) ?? undefined;
-};
-
-/** Why the member may not open Google Picker with this Credential; undefined when they may. */
-export function addSpreadsheetHint(credential: Credential): string | undefined {
-  switch (credential.filePicking) {
-    case 'allowed':
-    case null:
-      return undefined;
-    case 'reconnect':
-      return RECONNECT_HINT;
-    case 'signer-without-edit':
-      return EDIT_ACCESS_HINT;
-    case 'other-signer':
-      return signerHint(connectedEmail(credential) ?? 'this Google account');
-    case undefined:
-      return UNAVAILABLE_HINT;
-    default:
-      return signerHint('this Google account');
-  }
-}
 
 const disabledAction = (hint: string): DynamicOptionsAction => ({
   label: LABEL,
@@ -66,9 +41,11 @@ export function useAddSpreadsheetAction(
   if (!credential) {
     return disabledAction(isSuccess ? signerHint('this Google account') : UNAVAILABLE_HINT);
   }
-  if (credential.filePicking === null) return undefined;
-  const hint = addSpreadsheetHint(credential);
-  if (hint) return disabledAction(hint);
+  // A refusal shows its hint; no filePicking (null, or an older backend) offers nothing.
+  if (credential.filePicking !== 'allowed') {
+    const hint = addSpreadsheetHint(credential);
+    return hint ? disabledAction(hint) : undefined;
+  }
 
   return {
     label: LABEL,

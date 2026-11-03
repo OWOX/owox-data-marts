@@ -19,10 +19,10 @@ describe('suggestGoogleSheetsTableName', () => {
 
   it('transliterates a Cyrillic name', () => {
     expect(suggestGoogleSheetsTableName('Лист1')).toBe('lyst1');
+    expect(suggestGoogleSheetsTableName('План')).toBe('plan');
   });
 
   it('falls back to google_sheets when nothing usable is left', () => {
-    expect(suggestGoogleSheetsTableName('План')).toBe('plan');
     expect(suggestGoogleSheetsTableName('***')).toBe('google_sheets');
     expect(suggestGoogleSheetsTableName(undefined)).toBe('google_sheets');
   });

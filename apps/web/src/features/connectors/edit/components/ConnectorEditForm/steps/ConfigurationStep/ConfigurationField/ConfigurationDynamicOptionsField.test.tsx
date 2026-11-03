@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ConnectorSpecificationResponseApiDto } from '../../../../../../shared/api/types';
 import type { ConnectorFieldOptionsState } from '../../../../../../shared/model/hooks/useConnectorFieldOptions';
@@ -127,8 +127,11 @@ describe('ConfigurationDynamicOptionsField', () => {
     renderField({ action: { label: '+ Add spreadsheet', onSelect } });
     const button = screen.getByRole('button', { name: '+ Add spreadsheet' });
 
-    fireEvent.click(button);
-    fireEvent.click(button);
+    // One act for both clicks: the disabled state renders only after them, so only the ref stops the second.
+    act(() => {
+      button.click();
+      button.click();
+    });
 
     expect(onSelect).toHaveBeenCalledTimes(1);
     expect(button).toBeDisabled();

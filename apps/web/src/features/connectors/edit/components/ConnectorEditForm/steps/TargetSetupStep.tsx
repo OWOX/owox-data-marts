@@ -854,6 +854,9 @@ export function TargetSetupStep({
           {conflict.dataMart ? (
             <Link
               to={scope(`/data-marts/${conflict.dataMart.id}/data-setup`)}
+              // A new tab keeps the unsaved wizard.
+              target='_blank'
+              rel='noopener noreferrer'
               className='underline'
             >
               {conflict.dataMart.title}

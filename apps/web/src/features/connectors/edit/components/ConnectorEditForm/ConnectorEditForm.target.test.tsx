@@ -319,6 +319,29 @@ describe('ConnectorEditForm target reset', () => {
     expect(last(targets).destinationName).toBe('budget_2026_plan');
   });
 
+  it('forgets the spreadsheet name when another connector is picked', async () => {
+    renderForm();
+    act(() => {
+      last(selection).onConnectorSelect(googleSheets);
+    });
+    await next();
+    act(() => {
+      last(configuration).onOptionLabelChange?.('SpreadsheetId', 'Budget 2026');
+    });
+    await back(); // step 1
+    act(() => {
+      last(selection).onConnectorSelect(facebookAds);
+    });
+    act(() => {
+      last(selection).onConnectorSelect(googleSheets);
+    });
+    await next();
+    await configure({ SpreadsheetId: 'doc-2', SheetName: 'Plan' });
+    await reachTargetStep();
+
+    expect(last(targets).destinationName).toBe('plan');
+  });
+
   it('passes the target conflict to Target Setup', async () => {
     const conflict = { conflict: true, dataMart: null };
     conflictHook.current = conflict;

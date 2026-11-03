@@ -111,9 +111,10 @@ describe('TargetSetupStep', () => {
     expect(
       screen.getByText(/Each run replaces the table/, { selector: 'p.text-warning' })
     ).toBeTruthy();
-    expect(screen.getByRole('link', { name: 'Plan 2026' }).getAttribute('href')).toMatch(
-      /\/data-marts\/dm-2\/data-setup$/
-    );
+    const link = screen.getByRole('link', { name: 'Plan 2026' });
+    expect(link.getAttribute('href')).toMatch(/\/data-marts\/dm-2\/data-setup$/);
+    expect(link).toHaveAttribute('target', '_blank');
+    expect(link).toHaveAttribute('rel', 'noopener noreferrer');
   });
 
   it('says another Data Mart when the member cannot see it', () => {

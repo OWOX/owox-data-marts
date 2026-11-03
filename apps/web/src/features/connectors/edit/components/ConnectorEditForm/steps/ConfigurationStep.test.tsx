@@ -18,6 +18,7 @@ const oauthMocks = vi.hoisted(() => ({
   exchangeCredentials: vi.fn(),
   checkStatus: vi.fn(),
   getSettings: vi.fn(),
+  getPickerToken: vi.fn(),
 }));
 
 vi.mock('../../../../shared/model/hooks/useOAuth', () => ({
@@ -715,6 +716,26 @@ describe('ConfigurationStep Google Sheets Credential', () => {
     ).toBeInTheDocument();
   });
 
+  it("shows a 403 from the API as the prefix and the source's message only", async () => {
+    const denied =
+      'Google denied access to the spreadsheet list. Reconnect the Credential and try again.';
+    vi.spyOn(ConnectorApiService.prototype, 'previewConnectorFieldOptions').mockRejectedValue(
+      Object.assign(new Error('Request failed with status code 403'), {
+        isAxiosError: true,
+        response: { status: 403, data: { statusCode: 403, message: denied, error: 'Forbidden' } },
+      })
+    );
+    renderNewSheets();
+
+    await selectCredential('Marketing sheets');
+
+    expect((await screen.findByRole('alert')).textContent).toBe(
+      `Could not load the list of spreadsheets. ${denied}`
+    );
+    expect(screen.getByRole('textbox', { name: 'Spreadsheet ID or URL *' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument();
+  });
+
   it('names the table after the spreadsheet Picker added even when the list cannot reload', async () => {
     const previewSpy = vi
       .spyOn(ConnectorApiService.prototype, 'previewConnectorFieldOptions')
@@ -768,6 +789,44 @@ describe('ConfigurationStep Google Sheets Credential', () => {
     fireEvent.change(await screen.findByRole('textbox', { name: 'Spreadsheet ID or URL *' }), {
       target: { value: 'typed-id' },
     });
+    expect(onOptionLabelChange).toHaveBeenLastCalledWith('SpreadsheetId', undefined);
+  });
+
+  it('forgets the listed spreadsheet name when a service-account Credential replaces the list', async () => {
+    vi.spyOn(ConnectorApiService.prototype, 'previewConnectorFieldOptions').mockResolvedValue([
+      { value: 'budget-id', label: 'Budget 2026' },
+    ]);
+    const onOptionLabelChange = vi.fn();
+    function Harness() {
+      const [configuration, setConfiguration] = useState<Record<string, unknown>>({});
+      return (
+        <ConfigurationStep
+          connector={googleSheetsConnector}
+          connectorSpecification={freshSpecification}
+          initialConfiguration={configuration}
+          onConfigurationChange={setConfiguration}
+          onOptionLabelChange={onOptionLabelChange}
+        />
+      );
+    }
+    render(inDataMart(<Harness />));
+
+    await selectCredential('Marketing sheets');
+    const combobox = await screen.findByRole('combobox', { name: 'Spreadsheet ID or URL *' });
+    await waitFor(() => {
+      expect(combobox).toBeEnabled();
+    });
+    fireEvent.click(combobox);
+    fireEvent.click(await within(document.body).findByRole('option', { name: 'Budget 2026' }));
+    await waitFor(() => {
+      expect(onOptionLabelChange).toHaveBeenLastCalledWith('SpreadsheetId', 'Budget 2026');
+    });
+
+    await selectCredential('Reporting robot');
+    fireEvent.change(await screen.findByRole('textbox', { name: 'Spreadsheet ID or URL *' }), {
+      target: { value: 'https://docs.google.com/spreadsheets/d/other/edit' },
+    });
+
     expect(onOptionLabelChange).toHaveBeenLastCalledWith('SpreadsheetId', undefined);
   });
 
