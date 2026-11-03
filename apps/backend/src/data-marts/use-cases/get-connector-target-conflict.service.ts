@@ -1,16 +1,21 @@
 import { ForbiddenException, Injectable } from '@nestjs/common';
-import { AuthorizationContext } from '../../idp';
+import { z } from 'zod';
+import { GetConnectorTargetConflictCommand } from '../dto/domain/get-connector-target-conflict.command';
 import { ConnectorTargetConflictDto } from '../dto/domain/connector-target-conflict.dto';
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
-import { ConnectorDefinition } from '../dto/schemas/data-mart-table-definitions/connector-definition.schema';
+import { ConnectorStorageSchema } from '../dto/schemas/data-mart-table-definitions/connector-definition.schema';
 import { Action, AccessDecisionService, EntityType } from '../services/access-decision';
 import { DataMartService } from '../services/data-mart.service';
 
-// BigQuery names are case-sensitive; the other storages fold unquoted identifiers.
+// BigQuery names are case-sensitive, and the web quotes every Snowflake name; other storages fold case.
 const CASE_SENSITIVE_STORAGES: ReadonlySet<DataStorageType> = new Set([
   DataStorageType.GOOGLE_BIGQUERY,
   DataStorageType.LEGACY_GOOGLE_BIGQUERY,
+  DataStorageType.SNOWFLAKE,
 ]);
+
+// Only the target: the rest of a draft's definition may be partial.
+const TargetSchema = z.object({ connector: z.object({ storage: ConnectorStorageSchema }) });
 
 export function normalizeTargetName(name: string, caseSensitive: boolean): string {
   const unquoted = name.replace(/[`"[\]]/g, '').trim();
@@ -25,13 +30,8 @@ export class GetConnectorTargetConflictService {
     private readonly accessDecisionService: AccessDecisionService
   ) {}
 
-  async run(
-    context: AuthorizationContext,
-    dataMartId: string,
-    fullyQualifiedName: string
-  ): Promise<ConnectorTargetConflictDto> {
-    const { projectId, userId } = context;
-    const roles = context.roles ?? [];
+  async run(command: GetConnectorTargetConflictCommand): Promise<ConnectorTargetConflictDto> {
+    const { dataMartId, fullyQualifiedName, projectId, userId, roles } = command;
     const dataMart = await this.dataMartService.getByIdAndProjectId(dataMartId, projectId);
 
     const canEdit = await this.accessDecisionService.canAccess(
@@ -52,12 +52,14 @@ export class GetConnectorTargetConflictService {
       projectId,
       dataMart.storage.id
     );
-    // Drafts may hold a partial definition, so read the target defensively instead of validating.
+    // A draft may hold a partial definition; one without a valid target cannot conflict.
     const matches = candidates.filter(candidate => {
-      const name = (candidate.definition as Partial<ConnectorDefinition> | null | undefined)
-        ?.connector?.storage?.fullyQualifiedName;
+      const parsed = TargetSchema.safeParse(candidate.definition);
       return (
-        candidate.id !== dataMartId && !!name && normalizeTargetName(name, caseSensitive) === target
+        candidate.id !== dataMartId &&
+        parsed.success &&
+        normalizeTargetName(parsed.data.connector.storage.fullyQualifiedName, caseSensitive) ===
+          target
       );
     });
     if (matches.length === 0) return new ConnectorTargetConflictDto(false, null);

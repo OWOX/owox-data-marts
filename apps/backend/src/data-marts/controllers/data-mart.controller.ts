@@ -523,11 +523,12 @@ export class DataMartController {
     @Param('id') dataMartId: string,
     @Query() query: ConnectorTargetConflictQueryApiDto
   ): Promise<ConnectorTargetConflictResponseApiDto> {
-    const result = await this.getConnectorTargetConflictService.run(
-      context,
+    const command = this.mapper.toGetConnectorTargetConflictCommand(
       dataMartId,
-      query.fullyQualifiedName
+      query.fullyQualifiedName,
+      context
     );
+    const result = await this.getConnectorTargetConflictService.run(command);
     return this.mapper.toConnectorTargetConflictResponse(result);
   }
 }

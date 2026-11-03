@@ -316,6 +316,8 @@ export class DataMartService {
         storage: { id: storageId },
         definitionType: DataMartDefinitionType.CONNECTOR,
       },
+      // A select does not stop the eager storage and its credential from loading for each row.
+      loadEagerRelations: false,
     });
   }
 
