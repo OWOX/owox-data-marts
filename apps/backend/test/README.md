@@ -205,18 +205,12 @@ import { AUTH_HEADER, NONEXISTENT_UUID, ALL_CONNECTORS, LOOKER_STUDIO_CREDENTIAL
 - `testRegex`: `.e2e-spec.ts$` -- only runs files ending in `.e2e-spec.ts`
 - `transform`: `@swc/jest` with CommonJS module output and decorator metadata (the unit config
   in `package.json` and `jest-integration.json` use the same transform)
-
-SWC compiles each file on its own, so code under test must not depend on whole-program type
-information:
-
-- type a TypeORM relation property that points at an entity class as `Relation<Entity>`, and a
-  `forwardRef` constructor parameter as `WrapperType<Service>`; otherwise a circular import
-  fails on load with `Cannot access '<Class>' before initialization`;
-- give an enum-typed `@Column` an explicit `type`; TypeORM cannot infer it from SWC metadata;
-- do not `jest.spyOn` or `jest.replaceProperty` a module export, which SWC makes read-only;
-  mock the module with `jest.mock` and `jest.requireActual` instead.
 - `moduleNameMapper`: `^src/(.*)$` -> `<rootDir>/../src/$1` (resolve `src/` imports)
 - `resolver`: `jest-e2e-resolver.js` for ESM import compatibility
+
+SWC compiles each file on its own, so code under test must not depend on whole-program type
+information. The rules are in
+[Entities and SWC-compiled tests](../MODULAR_CONVENTIONS.md#entities-and-swc-compiled-tests).
 
 #### `jest-e2e-resolver.js`
 
