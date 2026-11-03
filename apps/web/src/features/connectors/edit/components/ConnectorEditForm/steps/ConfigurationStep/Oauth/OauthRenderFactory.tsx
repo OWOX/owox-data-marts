@@ -33,6 +33,8 @@ interface OauthRenderFactoryProps {
   /** Makes the exchange create, or with an id reconnect, this reusable Credential. */
   credential?: OAuthExchangeCredentialTarget;
   onExchanged?: (exchanged: OAuthCallbackResponseDto) => void;
+  /** Why the member may not add files to the saved Credential with Google Picker. */
+  pickerHint?: string;
 }
 
 export interface OauthRenderComponentProps {
@@ -53,6 +55,8 @@ export interface OauthRenderComponentProps {
   forCredential?: boolean;
   /** Fetches a Picker token for the saved Credential, so Picker opens without a Google popup. */
   pickerToken?: () => Promise<string>;
+  /** Why Picker is disabled for the saved Credential. */
+  pickerHint?: string;
 }
 
 export function OauthRenderFactory({
@@ -65,6 +69,7 @@ export function OauthRenderFactory({
   onManagedModeChange,
   credential,
   onExchanged,
+  pickerHint,
 }: OauthRenderFactoryProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [fieldSecretEditing, setFieldSecretEditing] = useState<Record<string, boolean>>({});
@@ -392,6 +397,7 @@ export function OauthRenderFactory({
             onOAuthSuccess={handleOAuthSuccess}
             forCredential={credential !== undefined}
             pickerToken={pickerToken}
+            pickerHint={pickerHint}
           />
         );
       case 'LinkedInAds':

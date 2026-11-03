@@ -318,7 +318,18 @@ export function ConfigurationStep({
     }
   }, [configuration, onConfigurationChange]);
 
+  // The name Picker gave the spreadsheet it added, kept until another value is chosen.
+  const pickedSpreadsheetRef = useRef<{ url: string; name: string } | null>(null);
   const handleValueChange = (name: string, value: unknown) => {
+    if (
+      name === 'SpreadsheetId' &&
+      pickedSpreadsheetRef.current &&
+      value !== pickedSpreadsheetRef.current.url
+    ) {
+      pickedSpreadsheetRef.current = null;
+      // The list reports a label only when it changes, so drop the picked name here.
+      onOptionLabelChange?.('SpreadsheetId', undefined);
+    }
     setConfiguration(prev => ({
       ...prev,
       [name]: value,
@@ -493,8 +504,11 @@ export function ConfigurationStep({
     connector.name === GOOGLE_SHEETS_CONNECTOR_NAME && selectedAuthType === 'oauth2'
       ? credentialId
       : null;
-  const addSpreadsheet = useAddSpreadsheetAction(sheetsCredentialId, url => {
+  // Offered by the Credential's own capability, not by the connector's name.
+  const addSpreadsheet = useAddSpreadsheetAction(credentialId, (url, name) => {
+    pickedSpreadsheetRef.current = { url, name };
     handleValueChange('SpreadsheetId', url);
+    onOptionLabelChange?.('SpreadsheetId', name);
   });
 
   if (loading || requirementLoading) {
@@ -605,7 +619,12 @@ export function ConfigurationStep({
     : undefined;
   const dynamicOptionsExtras = {
     actions: addSpreadsheet && { SpreadsheetId: addSpreadsheet },
-    onLabelChange: onOptionLabelChange,
+    onLabelChange: (field: string, label: string | undefined) => {
+      const picked = pickedSpreadsheetRef.current;
+      // A reload that fails or lacks the added file keeps the name Picker gave it.
+      const keepPicked = field === 'SpreadsheetId' && picked?.url === configuration.SpreadsheetId;
+      onOptionLabelChange?.(field, label ?? (keepPicked ? picked?.name : undefined));
+    },
   };
   const keyFields = {
     names: keyNames,

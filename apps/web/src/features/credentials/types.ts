@@ -235,7 +235,13 @@ export interface Credential {
   identity?: string | null;
   canUse?: boolean;
   /** Whether the member may open Google Picker with this Credential; null when it opens none. */
-  filePicking?: 'allowed' | 'reconnect' | 'other-signer' | 'not-recorded' | null;
+  filePicking?:
+    | 'allowed'
+    | 'reconnect'
+    | 'signer-without-edit'
+    | 'other-signer'
+    | 'not-recorded'
+    | null;
   createdAt: string;
   modifiedAt: string;
 }

@@ -7,7 +7,7 @@ import { useGoogleSheetsPicker } from '../../../../../../../../google-oauth';
 import { Button } from '@owox/ui/components/button';
 import { ExternalAnchor } from '@owox/ui/components/common/external-anchor';
 import { CircleCheck, FileSpreadsheet } from 'lucide-react';
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import { toast } from 'react-hot-toast';
 
 export function GoogleSheetsOauthRender({
@@ -19,7 +19,10 @@ export function GoogleSheetsOauthRender({
   onValueChange,
   forCredential = false,
   pickerToken,
+  pickerHint,
 }: OauthRenderComponentProps) {
+  const pickerHintId = useId();
+  const pickerRefused = forCredential && Boolean(pickerHint);
   const [isPickingSpreadsheet, setIsPickingSpreadsheet] = useState(false);
   const [pickerError, setPickerError] = useState<string | null>(null);
   const { openPicker } = useGoogleSheetsPicker();
@@ -139,7 +142,8 @@ export function GoogleSheetsOauthRender({
                 forCredential ? pickerToken : undefined
               );
             }}
-            disabled={isLoading || isPickingSpreadsheet}
+            disabled={isLoading || isPickingSpreadsheet || pickerRefused}
+            aria-describedby={pickerRefused ? pickerHintId : undefined}
             className='w-full'
           >
             <FileSpreadsheet className='h-4 w-4' />
@@ -151,6 +155,11 @@ export function GoogleSheetsOauthRender({
                   ? 'Change spreadsheet'
                   : 'Choose spreadsheet'}
           </Button>
+          {pickerRefused && (
+            <p id={pickerHintId} className='text-muted-foreground text-xs'>
+              {pickerHint}
+            </p>
+          )}
           {spreadsheetSelected && (
             <ExternalAnchor href={spreadsheetUrl} variant='field'>
               {spreadsheetUrl}

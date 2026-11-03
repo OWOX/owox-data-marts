@@ -3,7 +3,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { OpenGoogleSheetsPickerOptions } from '../../../../../../../google-oauth';
 import { useAddSpreadsheetAction } from '../useAddSpreadsheetAction';
 
-const credentialsState = vi.hoisted(() => ({ credentials: [] as unknown[] }));
+const credentialsState = vi.hoisted(() => ({
+  credentials: [] as unknown[],
+  isPending: false,
+  isSuccess: true,
+}));
 vi.mock('../../../../../../../credentials/useCredentials', () => ({
   useCredentials: () => credentialsState,
 }));
@@ -27,7 +31,7 @@ const UNAVAILABLE_HINT = 'Spreadsheets cannot be added right now. Reload the pag
 const UNKNOWN_SIGNER_HINT =
   'Spreadsheets are added by the person who connected this Google account. Connect your own Google account to add one.';
 
-function credential(filePicking: string) {
+function credential(filePicking: string | null | undefined) {
   return {
     id: 'cred-1',
     filePicking,
@@ -49,6 +53,8 @@ function hookFor(credentialId: string | null, onPicked = vi.fn()) {
 describe('useAddSpreadsheetAction', () => {
   beforeEach(() => {
     credentialsState.credentials = [];
+    credentialsState.isPending = false;
+    credentialsState.isSuccess = true;
     vi.clearAllMocks();
   });
 
@@ -89,7 +95,7 @@ describe('useAddSpreadsheetAction', () => {
     expect(options.clientId).toBeUndefined();
     await expect((options.accessToken as () => Promise<string>)()).resolves.toBe('token-1');
     expect(oauth.getPickerToken).toHaveBeenCalledWith('GoogleSheets', 'cred-1');
-    expect(onPicked).toHaveBeenCalledWith('https://docs.google.com/x');
+    expect(onPicked).toHaveBeenCalledWith('https://docs.google.com/x', 'Budget');
   });
 
   it('reports a Picker error with a toast', async () => {
@@ -132,8 +138,43 @@ describe('useAddSpreadsheetAction', () => {
   it('names no email for an unrecorded Credential the member cannot edit', () => {
     credentialsState.credentials = [credential('not-recorded')];
     expect(hookFor('cred-1').current).toMatchObject({ disabled: true, hint: UNKNOWN_SIGNER_HINT });
+  });
 
-    credentialsState.credentials = [];
+  it('asks for edit access when the signer can no longer edit the Credential', () => {
+    credentialsState.credentials = [credential('signer-without-edit')];
+
+    expect(hookFor('cred-1').current).toMatchObject({
+      disabled: true,
+      hint: 'You need edit access to this Credential to add spreadsheets.',
+    });
+  });
+
+  it('offers nothing while the Credentials load', () => {
+    credentialsState.isPending = true;
+    credentialsState.isSuccess = false;
+
+    expect(hookFor('cred-1').current).toBeUndefined();
+  });
+
+  it('points a member who cannot see the Credential to its signer', () => {
+    expect(hookFor('cred-1').current).toMatchObject({ disabled: true, hint: UNKNOWN_SIGNER_HINT });
+  });
+
+  it('asks to reload when the Credentials could not be loaded', () => {
+    credentialsState.isSuccess = false;
+
     expect(hookFor('cred-1').current).toMatchObject({ disabled: true, hint: UNAVAILABLE_HINT });
+  });
+
+  it('asks to reload when the backend does not say whether Picker opens', () => {
+    credentialsState.credentials = [credential(undefined)];
+
+    expect(hookFor('cred-1').current).toMatchObject({ disabled: true, hint: UNAVAILABLE_HINT });
+  });
+
+  it('offers nothing for a Credential that opens no Picker', () => {
+    credentialsState.credentials = [credential(null)];
+
+    expect(hookFor('cred-1').current).toBeUndefined();
   });
 });

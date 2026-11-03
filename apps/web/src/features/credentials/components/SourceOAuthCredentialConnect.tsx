@@ -5,6 +5,7 @@ import toast from 'react-hot-toast';
 import { wasErrorToastShown } from '../../../app/api';
 import { apiErrorMessage } from '../../../app/api/extract-api-error.util';
 import { OauthRenderFactory } from '../../connectors/edit/components/ConnectorEditForm/steps/ConfigurationStep/Oauth/OauthRenderFactory';
+import { addSpreadsheetHint } from '../../connectors/edit/components/ConnectorEditForm/steps/ConfigurationStep/useAddSpreadsheetAction';
 import { ConnectPickedSpreadsheetContext } from '../connect-picked-spreadsheet';
 import type { Credential } from '../types';
 import { HelpLabel } from './CredentialHelp';
@@ -128,6 +129,8 @@ export function SourceOAuthCredentialConnect({
                     availableForMaintenance: draft.availableForMaintenance,
                   }
             }
+            // A Credential connected here was signed in by this member, so only a saved one can refuse.
+            pickerHint={credential ? addSpreadsheetHint(credential) : undefined}
             onExchanged={({ credentialId }) => {
               setSavedId(credentialId);
               void finishConnect(credentialId);

@@ -374,6 +374,22 @@ describe('GoogleSheetsOauthRender', () => {
         );
       });
     });
+
+    it('Add spreadsheet is disabled with its hint when the member may not open Picker', () => {
+      const hint = 'You need edit access to this Credential to add spreadsheets.';
+      renderGoogleSheetsOAuth({
+        forCredential: true,
+        pickerToken: vi.fn(),
+        pickerHint: hint,
+      });
+
+      const button = screen.getByRole('button', { name: 'Add spreadsheet' });
+      expect(button).toBeDisabled();
+      expect(button).toHaveAccessibleDescription(hint);
+      expect(screen.getByText(hint)).toBeVisible();
+      fireEvent.click(button);
+      expect(openPicker).not.toHaveBeenCalled();
+    });
   });
 
   it('Choose spreadsheet in a Data Mart configuration still asks Google', async () => {

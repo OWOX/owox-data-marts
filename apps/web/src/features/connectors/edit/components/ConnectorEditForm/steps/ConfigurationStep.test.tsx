@@ -24,6 +24,12 @@ vi.mock('../../../../shared/model/hooks/useOAuth', () => ({
   useOAuth: () => oauthMocks,
 }));
 
+const picker = vi.hoisted(() => ({ openPicker: vi.fn() }));
+vi.mock('../../../../../google-oauth', async importOriginal => ({
+  ...(await importOriginal<typeof import('../../../../../google-oauth')>()),
+  useGoogleSheetsPicker: () => picker,
+}));
+
 const credentialsState = vi.hoisted(() => ({
   credentials: [] as unknown[],
   isLoading: false,
@@ -707,6 +713,62 @@ describe('ConfigurationStep Google Sheets Credential', () => {
     expect(
       await screen.findByRole('textbox', { name: 'Spreadsheet ID or URL *' })
     ).toBeInTheDocument();
+  });
+
+  it('names the table after the spreadsheet Picker added even when the list cannot reload', async () => {
+    const previewSpy = vi
+      .spyOn(ConnectorApiService.prototype, 'previewConnectorFieldOptions')
+      .mockRejectedValue(new Error('Network down'));
+    credentialsState.credentials = [
+      {
+        ...credential('sheets-oauth', 'source:GoogleSheets:oauth2', 'Marketing sheets'),
+        filePicking: 'allowed',
+      },
+    ];
+    const pickedUrl = 'https://docs.google.com/spreadsheets/d/picked/edit';
+    picker.openPicker.mockImplementation(
+      async (options: { onPicked: (spreadsheet: object) => void }) => {
+        options.onPicked({ id: 'picked', name: 'Budget 2026', url: pickedUrl });
+      }
+    );
+    const onOptionLabelChange = vi.fn();
+    function Harness() {
+      const [configuration, setConfiguration] = useState<Record<string, unknown>>({});
+      return (
+        <ConfigurationStep
+          connector={googleSheetsConnector}
+          connectorSpecification={freshSpecification}
+          initialConfiguration={configuration}
+          onConfigurationChange={setConfiguration}
+          onOptionLabelChange={onOptionLabelChange}
+        />
+      );
+    }
+    render(inDataMart(<Harness />));
+
+    await selectCredential('Marketing sheets');
+    const addButton = await screen.findByRole('button', { name: '+ Add spreadsheet' });
+    onOptionLabelChange.mockClear();
+    const loadsBefore = previewSpy.mock.calls.length;
+    fireEvent.click(addButton);
+    await waitFor(() => {
+      expect(previewSpy.mock.calls.length).toBeGreaterThan(loadsBefore);
+    });
+
+    const input = await screen.findByRole('textbox', { name: 'Spreadsheet ID or URL *' });
+    await waitFor(() => {
+      expect(input).toHaveValue(pickedUrl);
+    });
+    await waitFor(() => {
+      expect(onOptionLabelChange).toHaveBeenLastCalledWith('SpreadsheetId', 'Budget 2026');
+    });
+    expect(onOptionLabelChange).not.toHaveBeenCalledWith('SpreadsheetId', undefined);
+
+    // The reload after the action renders the input anew.
+    fireEvent.change(await screen.findByRole('textbox', { name: 'Spreadsheet ID or URL *' }), {
+      target: { value: 'typed-id' },
+    });
+    expect(onOptionLabelChange).toHaveBeenLastCalledWith('SpreadsheetId', undefined);
   });
 
   it('a service account keeps the plain spreadsheet input and loads no list', async () => {
