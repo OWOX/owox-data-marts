@@ -1,4 +1,4 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class ConnectorOAuthStatusUserApiDto {
   @ApiProperty({ example: '1234567890' })
@@ -23,4 +23,10 @@ export class ConnectorOAuthCredentialsResponseApiDto {
 
   @ApiProperty({ example: ['Invalid credentials'] })
   reasons?: string[];
+
+  @ApiPropertyOptional({
+    description:
+      "Google Picker's access token for the member who just signed in; only for a connector that opens Picker",
+  })
+  pickerAccessToken?: string;
 }

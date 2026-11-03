@@ -162,6 +162,7 @@ export class ConnectorMapper {
           }
         : undefined,
       reasons: result.reasons,
+      pickerAccessToken: result.pickerAccessToken,
     };
   }
 }

@@ -382,6 +382,8 @@ export interface SourceConnection {
   readonly account: { id: string; name: string | null; email: string | null } | null;
   /** ISO time the token expires, when the connector says. */
   readonly expiresAt: string | null;
+  /** The member who signed in last. */
+  readonly signedInByUserId?: string;
 }
 
 export type CredentialPublicMetadata =

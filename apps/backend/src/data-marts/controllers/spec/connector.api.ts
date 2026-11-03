@@ -79,7 +79,7 @@ export function ExchangeOAuthCredentialsSpec() {
     ApiOperation({
       summary: "Connect a Source Credential through the connector's OAuth app",
       description:
-        'Creates a Credential of the sign-in variant, or reconnects `credential.id`; returns no token.',
+        "Creates a Credential of the sign-in variant, or reconnects `credential.id`; returns Google Picker's access token only for a connector that opens Picker.",
     }),
     ApiParam({ name: 'connectorName', description: 'Connector name' }),
     ApiBody({ type: ExchangeOAuthCredentialsDto }),

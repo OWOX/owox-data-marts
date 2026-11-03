@@ -36,6 +36,13 @@ const FACEBOOK_ENV = {
   OAUTH_FACEBOOK_MARKETING_APP_ID: 'app-id-value',
   OAUTH_FACEBOOK_MARKETING_APP_SECRET: 'app-secret-value',
 };
+const GOOGLE_SHEETS_ENV = {
+  OAUTH_GOOGLE_SHEETS_CLIENT_ID: 'client-id-value',
+  OAUTH_GOOGLE_SHEETS_CLIENT_SECRET: 'client-secret-value',
+  OAUTH_GOOGLE_SHEETS_REDIRECT_URI: 'https://app.example.com/oauth',
+  OAUTH_GOOGLE_SHEETS_PICKER_API_KEY: 'picker-api-key-value',
+  OAUTH_GOOGLE_SHEETS_PROJECT_NUMBER: '123456789',
+};
 const TOKENS = ['refresh-value', 'access-value', 'client-secret-value', 'developer-token-value'];
 
 const googleAdsSignIn = (userId = '42') => ({
@@ -47,6 +54,18 @@ const googleAdsSignIn = (userId = '42') => ({
     developer_token: 'developer-token-value',
   },
   user: { id: userId, name: `${userId}@example.com` },
+  expiresAt: new Date('2030-01-01T00:00:00.000Z'),
+  warnings: undefined,
+});
+
+const googleSheetsSignIn = () => ({
+  credentials: {
+    refresh_token: 'refresh-value',
+    access_token: 'access-value',
+    client_id: 'client-id-value',
+    client_secret: 'client-secret-value',
+  },
+  user: { id: '42', name: 'ann@example.com', email: 'ann@example.com' },
   expiresAt: new Date('2030-01-01T00:00:00.000Z'),
   warnings: undefined,
 });
@@ -91,6 +110,7 @@ describe('ConnectSourceOAuthCredentialService', () => {
       ...GOOGLE_ADS_ENV,
       ...LINKEDIN_ADS_ENV,
       ...FACEBOOK_ENV,
+      ...GOOGLE_SHEETS_ENV,
     });
   });
   afterEach(() => jest.restoreAllMocks());
@@ -126,6 +146,7 @@ describe('ConnectSourceOAuthCredentialService', () => {
           connection: {
             account: { id: '42', name: '42@example.com', email: null },
             expiresAt: '2030-01-01T00:00:00.000Z',
+            signedInByUserId: 'member-1',
           },
         },
         enabled: true,
@@ -174,6 +195,38 @@ describe('ConnectSourceOAuthCredentialService', () => {
     const [stored] = credentials.createWithAccess.mock.calls[0] as [Record<string, unknown>];
     expect(stored.secret).toEqual({ fields: { AccessToken: 'access-value' } });
     expect(JSON.stringify(stored.publicMetadata)).not.toContain('access-value');
+  });
+
+  it('returns the Google Sheets sign-in token to the caller and stores it nowhere', async () => {
+    const { service, exchangeOauth, credentials } = setup();
+    exchangeOauth.mockResolvedValue(googleSheetsSignIn());
+
+    const result = await service.run(context, 'GoogleSheets', {
+      fieldPath: 'AuthType.oauth2',
+      payload: { code: 'code-value' },
+      credential: {},
+    });
+
+    expect(result.pickerAccessToken).toBe('access-value');
+    expect(JSON.stringify(credentials.createWithAccess.mock.calls[0])).not.toContain(
+      'access-value'
+    );
+  });
+
+  it('records the signing member on create', async () => {
+    const { service, exchangeOauth, credentials } = setup();
+    exchangeOauth.mockResolvedValue(googleAdsSignIn());
+
+    await service.run(context, 'GoogleAds', {
+      fieldPath: 'AuthType.oauth2',
+      payload: { code: 'code-value' },
+      credential: {},
+    });
+
+    const [stored] = credentials.createWithAccess.mock.calls[0] as [
+      { publicMetadata: { connection: { signedInByUserId?: string } } },
+    ];
+    expect(stored.publicMetadata.connection.signedInByUserId).toBe('member-1');
   });
 
   it('takes title, owners, Contexts and sharing from the credential block', async () => {
@@ -228,7 +281,7 @@ describe('ConnectSourceOAuthCredentialService', () => {
       expect.objectContaining({
         title: type?.displayName,
         publicMetadata: expect.objectContaining({
-          connection: { account: null, expiresAt: null },
+          connection: { account: null, expiresAt: null, signedInByUserId: 'member-1' },
         }),
       }),
       expect.anything()
@@ -269,6 +322,35 @@ describe('ConnectSourceOAuthCredentialService', () => {
         })
       );
       expect(result.credentialId).toBe('credential-1');
+    });
+
+    it('a reconnect records the reconnecting member as the signer', async () => {
+      const existing = existingCredential();
+      const { service, exchangeOauth, credentials } = setup({
+        existing: {
+          ...existing,
+          publicMetadata: {
+            ...existing.publicMetadata,
+            connection: { ...existing.publicMetadata.connection, signedInByUserId: 'member-0' },
+          },
+        },
+      });
+      exchangeOauth.mockResolvedValue(googleAdsSignIn('42'));
+
+      await service.run(context, 'GoogleAds', {
+        fieldPath: 'AuthType.oauth2',
+        payload: { code: 'code-value' },
+        credential: { id: 'credential-1' },
+      });
+
+      expect(credentials.replaceSignIn).toHaveBeenCalledWith(
+        'credential-1',
+        expect.objectContaining({
+          publicMetadata: expect.objectContaining({
+            connection: expect.objectContaining({ signedInByUserId: 'member-1' }),
+          }),
+        })
+      );
     });
 
     it('refuses another account', async () => {
