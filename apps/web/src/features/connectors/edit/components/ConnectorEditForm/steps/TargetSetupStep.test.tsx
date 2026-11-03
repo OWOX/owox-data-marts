@@ -107,6 +107,10 @@ describe('TargetSetupStep', () => {
     );
     const status = screen.getByRole('status');
     expect(status).toHaveTextContent(`Already used by Plan 2026. ${SAME_TABLE}`);
+    expect(status).toHaveClass('sr-only');
+    expect(
+      screen.getByText(/Each run replaces the table/, { selector: 'p.text-warning' })
+    ).toBeTruthy();
     expect(screen.getByRole('link', { name: 'Plan 2026' }).getAttribute('href')).toMatch(
       /\/data-marts\/dm-2\/data-setup$/
     );
@@ -133,6 +137,7 @@ describe('TargetSetupStep', () => {
       />
     );
     expect(screen.getByRole('status')).toBeEmptyDOMElement();
+    expect(screen.queryByText(/Already used by/)).toBeNull();
   });
 
   it('a conflict leaves the target valid', () => {

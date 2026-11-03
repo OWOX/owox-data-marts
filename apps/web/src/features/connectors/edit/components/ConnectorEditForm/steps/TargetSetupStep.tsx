@@ -31,6 +31,9 @@ interface TargetSetupStepProps {
   conflict?: ConnectorTargetConflictResponseDto | null;
 }
 
+const SAME_TABLE_WARNING =
+  'Each run replaces the table, so the two Data Marts will overwrite each other.';
+
 export function TargetSetupStep({
   dataStorageType,
   target,
@@ -841,24 +844,26 @@ export function TargetSetupStep({
           </AppWizardStepSection>
         </>
       )}
-      <p role='status' className='text-warning text-sm'>
-        {conflict?.conflict && (
-          <>
-            Already used by{' '}
-            {conflict.dataMart ? (
-              <Link
-                to={scope(`/data-marts/${conflict.dataMart.id}/data-setup`)}
-                className='underline'
-              >
-                {conflict.dataMart.title}
-              </Link>
-            ) : (
-              'another Data Mart'
-            )}
-            . Each run replaces the table, so the two Data Marts will overwrite each other.
-          </>
-        )}
+      <p role='status' className='sr-only'>
+        {conflict?.conflict &&
+          `Already used by ${conflict.dataMart?.title ?? 'another Data Mart'}. ${SAME_TABLE_WARNING}`}
       </p>
+      {conflict?.conflict && (
+        <p className='text-warning text-sm'>
+          Already used by{' '}
+          {conflict.dataMart ? (
+            <Link
+              to={scope(`/data-marts/${conflict.dataMart.id}/data-setup`)}
+              className='underline'
+            >
+              {conflict.dataMart.title}
+            </Link>
+          ) : (
+            'another Data Mart'
+          )}
+          . {SAME_TABLE_WARNING}
+        </p>
+      )}
       <AppWizardStepSection title='Schedule updates'>
         <TimeTriggerAnnouncement />
       </AppWizardStepSection>
