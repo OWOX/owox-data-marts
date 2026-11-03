@@ -26,7 +26,10 @@ const { builtinOAuthAuth: realBuiltinOAuthAuth } = jest.requireActual<typeof bui
 describe('GoogleOAuthFlowService for Credentials', () => {
   afterEach(() => {
     jest.restoreAllMocks();
-    jest.mocked(builtinDefinitions.builtinOAuthAuth).mockImplementation(realBuiltinOAuthAuth);
+    jest
+      .mocked(builtinDefinitions.builtinOAuthAuth)
+      .mockReset()
+      .mockImplementation(realBuiltinOAuthAuth);
   });
 
   it('authorizes a Credential with the Storage client and the BigQuery scopes', async () => {

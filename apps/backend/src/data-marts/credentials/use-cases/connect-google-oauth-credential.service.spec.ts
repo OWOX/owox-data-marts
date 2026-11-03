@@ -105,7 +105,10 @@ function setup({ canEdit = true, existing = existingGoogleCredential() as object
 describe('ConnectGoogleOAuthCredentialService', () => {
   afterEach(() => {
     jest.restoreAllMocks();
-    jest.mocked(builtinDefinitions.builtinOAuthAuth).mockImplementation(realBuiltinOAuthAuth);
+    jest
+      .mocked(builtinDefinitions.builtinOAuthAuth)
+      .mockReset()
+      .mockImplementation(realBuiltinOAuthAuth);
   });
 
   it('creates a verified Google account Credential titled by the email and owned by the member', async () => {

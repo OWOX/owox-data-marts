@@ -7,7 +7,7 @@ export const MCP_SCHEMA_REFRESH_MAX_ENTRIES = 10_000;
 export class McpSchemaRefresh {
   // Temporary recovery for clients caching strict schemas is disabled after the recovery window.
   // The permanent tolerant output schemas stay enabled. A static property, so tests can turn it on.
-  static enabled = false;
+  static readonly enabled: boolean = false;
 
   private readonly expiresAtByClient = new Map<string, number>();
 

@@ -29,6 +29,9 @@ export default defineConfig({
         client: {
           enabled: true,
           include: ['lucide-react', '@base-ui/react'],
+          // Vitest keeps react external but not react-dom; a bundled copy would never be wired
+          // to the renderer, so Base UI's flushSync would stop flushing synchronously.
+          exclude: ['react-dom'],
           // Same reason as optimizeDeps in vite.config.ts: esbuild cannot lower these packages'
           // destructuring for the default browser targets.
           esbuildOptions: { supported: { destructuring: true } },

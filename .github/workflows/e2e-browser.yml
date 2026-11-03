@@ -6,6 +6,7 @@ on:
       - 'apps/backend/**'
       - 'apps/web/**'
       - 'packages/**'
+      - '.github/workflows/e2e-browser.yml'
   push:
     branches: [main]
   workflow_dispatch:
@@ -43,8 +44,10 @@ jobs:
         run: npm ci --prefer-offline --no-audit --no-fund --loglevel error
 
       # The suite needs only the backend (with its own build:dep packages) and the web bundle.
+      # NODE_ENV=development keeps React's development build, so specs that fail on console
+      # errors still see the warnings the dev server used to print.
       - name: Build backend and web
-        run: npm run build -w @owox/backend -w @owox/web
+        run: npm run build -w @owox/backend && NODE_ENV=development npm run build -w @owox/web
 
       - name: Install Playwright Chromium
         run: cd apps/web && npx playwright install --with-deps chromium

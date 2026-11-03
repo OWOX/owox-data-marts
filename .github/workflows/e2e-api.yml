@@ -4,7 +4,11 @@ on:
   pull_request:
     paths:
       - 'apps/backend/**'
+      # The API key smoke specs spawn the built owox and owox-ctl CLIs.
+      - 'apps/owox/**'
+      - 'apps/ctl/**'
       - 'packages/**'
+      - '.github/workflows/e2e-api.yml'
   push:
     branches: [main]
   workflow_dispatch:
