@@ -1,15 +1,20 @@
 import { ForbiddenException, Injectable } from '@nestjs/common';
 import { AuthorizationContext } from '../../idp';
 import { ConnectorTargetConflictDto } from '../dto/domain/connector-target-conflict.dto';
+import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
 import { ConnectorDefinition } from '../dto/schemas/data-mart-table-definitions/connector-definition.schema';
 import { Action, AccessDecisionService, EntityType } from '../services/access-decision';
 import { DataMartService } from '../services/data-mart.service';
 
-export function normalizeTargetName(name: string): string {
-  return name
-    .replace(/[`"[\]]/g, '')
-    .trim()
-    .toLowerCase();
+// BigQuery names are case-sensitive; the other storages fold unquoted identifiers.
+const CASE_SENSITIVE_STORAGES: ReadonlySet<DataStorageType> = new Set([
+  DataStorageType.GOOGLE_BIGQUERY,
+  DataStorageType.LEGACY_GOOGLE_BIGQUERY,
+]);
+
+export function normalizeTargetName(name: string, caseSensitive: boolean): string {
+  const unquoted = name.replace(/[`"[\]]/g, '').trim();
+  return caseSensitive ? unquoted : unquoted.toLowerCase();
 }
 
 /** Tells whether another Data Mart's connector already writes the same target table. */
@@ -41,7 +46,8 @@ export class GetConnectorTargetConflictService {
       throw new ForbiddenException('You do not have permission to edit this Data Mart');
     }
 
-    const target = normalizeTargetName(fullyQualifiedName);
+    const caseSensitive = CASE_SENSITIVE_STORAGES.has(dataMart.storage.type);
+    const target = normalizeTargetName(fullyQualifiedName, caseSensitive);
     const candidates = await this.dataMartService.findConnectorTargetsByStorage(
       projectId,
       dataMart.storage.id
@@ -50,7 +56,9 @@ export class GetConnectorTargetConflictService {
     const matches = candidates.filter(candidate => {
       const name = (candidate.definition as Partial<ConnectorDefinition> | null | undefined)
         ?.connector?.storage?.fullyQualifiedName;
-      return candidate.id !== dataMartId && !!name && normalizeTargetName(name) === target;
+      return (
+        candidate.id !== dataMartId && !!name && normalizeTargetName(name, caseSensitive) === target
+      );
     });
     if (matches.length === 0) return new ConnectorTargetConflictDto(false, null);
 

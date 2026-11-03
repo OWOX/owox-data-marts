@@ -63,7 +63,7 @@ jest.mock('../services/access-decision', () => ({
 jest.mock('../use-cases/google-sheets/create-google-sheet-document.service', () => ({}));
 
 import { RequestMethod, Type } from '@nestjs/common';
-import { METHOD_METADATA, PATH_METADATA } from '@nestjs/common/constants';
+import { HEADERS_METADATA, METHOD_METADATA, PATH_METADATA } from '@nestjs/common/constants';
 import { REJECT_API_KEY_AUTH_METADATA } from '../../idp/decorators/reject-api-key-auth.decorator';
 import { ConnectorController } from './connector.controller';
 import { DataDestinationController } from './data-destination.controller';
@@ -160,4 +160,13 @@ describe('OAuth-flow-only controller routes', () => {
     expect(rejectedControllers).toEqual([]);
     expect(rejectedHandlers).toEqual(expectedRejectedHandlers);
   });
+
+  it.each(['handleOAuthCallback', 'issuePickerToken'] as const)(
+    'keeps the Google token %s returns out of caches',
+    handlerName => {
+      expect(
+        Reflect.getMetadata(HEADERS_METADATA, ConnectorController.prototype[handlerName])
+      ).toContainEqual({ name: 'Cache-Control', value: 'no-store' });
+    }
+  );
 });

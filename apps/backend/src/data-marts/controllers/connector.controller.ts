@@ -135,6 +135,7 @@ export class ConnectorController {
   @RejectApiKeyAuth()
   @RejectPluginAuth()
   @Post(':connectorName/oauth/exchange')
+  @Header('Cache-Control', 'no-store')
   @ExchangeOAuthCredentialsSpec()
   async handleOAuthCallback(
     @AuthContext() context: AuthorizationContext,
