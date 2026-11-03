@@ -24,6 +24,7 @@ import {
   ConnectorOAuthExchangeResultSchema,
 } from '../connector-types/connector-oauth-schema';
 import { ConnectorOAuthSettingsResponseApiDto } from '../dto/presentation/connector-oauth-settings-response-api.dto';
+import { ConnectorPickerTokenResponseApiDto } from '../dto/presentation/connector-picker-token-response-api.dto';
 
 @Injectable()
 export class ConnectorMapper {
@@ -164,5 +165,9 @@ export class ConnectorMapper {
       reasons: result.reasons,
       pickerAccessToken: result.pickerAccessToken,
     };
+  }
+
+  toPickerTokenResponse(result: { accessToken: string }): ConnectorPickerTokenResponseApiDto {
+    return { accessToken: result.accessToken };
   }
 }

@@ -405,6 +405,21 @@ export function isCustomConnectorMetadata(
   return metadata !== null && 'hosts' in metadata;
 }
 
+/** Whether a member may add files to a Picker Credential with Google Picker, or why not. */
+export type CredentialFilePicking = 'allowed' | 'reconnect' | 'other-signer' | 'not-recorded';
+
+/** Only the member who signed in last, while they have EDIT; one never recorded must reconnect. */
+export function sourceFilePicking(
+  metadata: CredentialPublicMetadata | null,
+  userId: string,
+  canEdit: boolean
+): CredentialFilePicking {
+  const signer =
+    metadata && 'connection' in metadata ? metadata.connection?.signedInByUserId : undefined;
+  if (signer) return signer === userId && canEdit ? 'allowed' : 'other-signer';
+  return canEdit ? 'reconnect' : 'not-recorded';
+}
+
 export function secretValue(secret: CredentialSecret): string {
   if ('value' in secret) return secret.value;
   throw new Error('Credential does not hold a single secret value');

@@ -3,6 +3,7 @@ import type { ContextSummary } from '../../utils/extract-context-summaries';
 import type {
   CredentialAiModelMappingModes,
   CredentialAiModelMappings,
+  CredentialFilePicking,
   CredentialPublicMetadata,
   CredentialValidationState,
 } from '../credential.types';
@@ -30,6 +31,7 @@ export interface CredentialDto {
   readonly identity: string | null;
   readonly setSecretFieldKeys: string[];
   readonly canUse: boolean;
+  readonly filePicking: CredentialFilePicking | null;
   readonly ownerUsers: UserProjectionDto[];
   readonly contexts: ContextSummary[];
   readonly usedBy: CredentialConsumerReferenceApiDto[];

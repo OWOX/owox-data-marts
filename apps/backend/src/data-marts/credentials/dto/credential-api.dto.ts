@@ -22,6 +22,7 @@ import {
   CredentialAiModelMappingModes,
   CredentialDefinitionContract,
   CredentialDefinitionSource,
+  CredentialFilePicking,
   CredentialPublicMetadata,
   CredentialValidationState,
   type GoogleOAuthClientKey,
@@ -471,6 +472,13 @@ export class CredentialResponseApiDto {
   setSecretFieldKeys: string[];
   @ApiProperty({ description: 'Whether the current member may bind this Credential.' })
   canUse: boolean;
+  @ApiPropertyOptional({
+    enum: ['allowed', 'reconnect', 'other-signer', 'not-recorded'],
+    nullable: true,
+    description:
+      'Whether the current member may add files to this Credential with Google Picker; null when its connector opens no Picker.',
+  })
+  filePicking: CredentialFilePicking | null;
   @ApiProperty({ type: [Object] }) ownerUsers: UserProjectionDto[];
   @ApiProperty({ type: [ContextSummaryApiDto] }) contexts: ContextSummary[];
   @ApiProperty({

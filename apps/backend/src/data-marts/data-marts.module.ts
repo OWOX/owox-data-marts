@@ -294,6 +294,7 @@ import { ConnectorSourceCredentials } from './entities/connector-source-credenti
 import { ConnectorSourceCredentialsService } from './services/connector/connector-source-credentials.service';
 import { ConnectorOauthService } from './services/connector/connector-oauth.service';
 import { ConnectSourceOAuthCredentialService } from './use-cases/connect-source-oauth-credential.service';
+import { IssueSourcePickerTokenService } from './use-cases/issue-source-picker-token.service';
 import { DataMartTableReferenceService } from './services/data-mart-table-reference.service';
 import { DataMartSqlReferenceResolver } from './services/data-mart-sql-reference-resolver.service';
 import { DataMartSqlReferenceValidator } from './services/data-mart-sql-reference-validator.service';
@@ -932,6 +933,7 @@ import { ConsentCredentialDefinitionService } from './credentials/use-cases/cons
     AiAssistantSqlOrchestratorService,
     ConnectorOauthService,
     ConnectSourceOAuthCredentialService,
+    IssueSourcePickerTokenService,
     UserProjectionsFetcherService,
     DeleteLegacyDataMartService,
     MoveLegacyDataStorageService,

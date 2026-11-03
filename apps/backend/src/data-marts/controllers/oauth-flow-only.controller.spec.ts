@@ -44,6 +44,7 @@ jest.mock('../services/connector/connector-field-options-preview.service', () =>
 jest.mock('../mappers/connector.mapper', () => ({}));
 jest.mock('../services/connector/connector-oauth.service', () => ({}));
 jest.mock('../use-cases/connect-source-oauth-credential.service', () => ({}));
+jest.mock('../use-cases/issue-source-picker-token.service', () => ({}));
 jest.mock('../use-cases/create-data-destination.service', () => ({}));
 jest.mock('../use-cases/update-data-destination.service', () => ({}));
 jest.mock('../use-cases/get-data-destination.service', () => ({}));
@@ -92,6 +93,11 @@ const oauthFlowOnlyRoutes: Array<{
     controller: ConnectorController,
     handlerName: 'getConnectorOAuthStatus',
     endpoint: 'GET /api/connectors/{connectorName}/oauth/status/{credentialId}',
+  },
+  {
+    controller: ConnectorController,
+    handlerName: 'issuePickerToken',
+    endpoint: 'POST /api/connectors/{connectorName}/oauth/picker-token/{credentialId}',
   },
   {
     controller: DataDestinationController,

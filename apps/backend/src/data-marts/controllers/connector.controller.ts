@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Param, Body, Query } from '@nestjs/common';
+import { Controller, Get, Post, Param, Body, Query, Header } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { AvailableConnectorService } from '../use-cases/connector/available-connector.service';
 import {
@@ -10,6 +10,7 @@ import {
   ExchangeOAuthCredentialsSpec,
   GetConnectorOAuthStatusSpec,
   GetConnectorOAuthSettingsSpec,
+  IssuePickerTokenSpec,
 } from './spec/connector.api';
 import { ConnectorDefinitionResponseApiDto } from '../dto/presentation/connector-definition-response-api.dto';
 import { ConnectorSpecificationResponseApiDto } from '../dto/presentation/connector-specification-response-api.dto';
@@ -36,6 +37,8 @@ import { ConnectorFieldOptionsPreviewService } from '../services/connector/conne
 import { ConnectorFieldOptionsPreviewRequestApiDto } from '../dto/presentation/connector-field-options-preview-request-api.dto';
 import { ConnectorFieldOptionResponseApiDto } from '../dto/presentation/connector-field-option-response-api.dto';
 import { ConnectSourceOAuthCredentialService } from '../use-cases/connect-source-oauth-credential.service';
+import { IssueSourcePickerTokenService } from '../use-cases/issue-source-picker-token.service';
+import { ConnectorPickerTokenResponseApiDto } from '../dto/presentation/connector-picker-token-response-api.dto';
 
 @Controller('connectors')
 @ApiTags('Connectors')
@@ -48,7 +51,8 @@ export class ConnectorController {
     private readonly connectorFieldOptionsPreviewService: ConnectorFieldOptionsPreviewService,
     private readonly mapper: ConnectorMapper,
     private readonly connectorOauthService: ConnectorOauthService,
-    private readonly connectSourceOAuthCredentialService: ConnectSourceOAuthCredentialService
+    private readonly connectSourceOAuthCredentialService: ConnectSourceOAuthCredentialService,
+    private readonly issueSourcePickerTokenService: IssueSourcePickerTokenService
   ) {}
 
   @Auth(Role.none())
@@ -139,6 +143,25 @@ export class ConnectorController {
   ): Promise<ConnectorOAuthCredentialsResponseApiDto> {
     const result = await this.connectSourceOAuthCredentialService.run(context, connectorName, body);
     return this.mapper.toCredentialsResponse(result);
+  }
+
+  @Auth(Role.viewer())
+  @RejectApiKeyAuth()
+  @RejectPluginAuth()
+  @Post(':connectorName/oauth/picker-token/:credentialId')
+  @Header('Cache-Control', 'no-store')
+  @IssuePickerTokenSpec()
+  async issuePickerToken(
+    @AuthContext() context: AuthorizationContext,
+    @Param('connectorName') connectorName: string,
+    @Param('credentialId') credentialId: string
+  ): Promise<ConnectorPickerTokenResponseApiDto> {
+    const result = await this.issueSourcePickerTokenService.run(
+      context,
+      connectorName,
+      credentialId
+    );
+    return this.mapper.toPickerTokenResponse(result);
   }
 
   @Auth(Role.viewer())

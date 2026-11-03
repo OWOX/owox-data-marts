@@ -4,6 +4,7 @@ import {
   CredentialDocumentationUrlSchema,
   credentialIdentity,
   resolveCredentialAiModelMappings,
+  sourceFilePicking,
 } from './credential.types';
 
 const definition = {
@@ -200,5 +201,33 @@ describe('custom-connector credentials', () => {
     expect(isCustomConnectorMetadata({ fields: { a: 'b' } })).toBe(false);
     expect(isCustomConnectorMetadata(null)).toBe(false);
     expect(isCustomConnectorMetadata(metadata)).toBe(true);
+  });
+});
+
+describe('sourceFilePicking', () => {
+  const signedBy = (signedInByUserId?: string) => ({
+    fields: {},
+    connection: { account: null, expiresAt: null, signedInByUserId },
+  });
+
+  it('allowed for the signer with EDIT', () => {
+    expect(sourceFilePicking(signedBy('member-1'), 'member-1', true)).toBe('allowed');
+  });
+
+  it('other-signer for another member', () => {
+    expect(sourceFilePicking(signedBy('member-1'), 'member-2', true)).toBe('other-signer');
+  });
+
+  it('other-signer for the signer without EDIT', () => {
+    expect(sourceFilePicking(signedBy('member-1'), 'member-1', false)).toBe('other-signer');
+  });
+
+  it('reconnect without a recorded signer for a member with EDIT', () => {
+    expect(sourceFilePicking(signedBy(), 'member-1', true)).toBe('reconnect');
+    expect(sourceFilePicking({ fields: {} }, 'member-1', true)).toBe('reconnect');
+  });
+
+  it('not-recorded without a recorded signer or EDIT', () => {
+    expect(sourceFilePicking(null, 'member-1', false)).toBe('not-recorded');
   });
 });

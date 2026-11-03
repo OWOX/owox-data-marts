@@ -18,6 +18,7 @@ import { ExchangeOAuthCredentialsDto } from '../../dto/presentation/exchange-oau
 import { ConnectorFieldsPreviewRequestApiDto } from '../../dto/presentation/connector-fields-preview-request-api.dto';
 import { ConnectorFieldOptionsPreviewRequestApiDto } from '../../dto/presentation/connector-field-options-preview-request-api.dto';
 import { ConnectorFieldOptionResponseApiDto } from '../../dto/presentation/connector-field-option-response-api.dto';
+import { ConnectorPickerTokenResponseApiDto } from '../../dto/presentation/connector-picker-token-response-api.dto';
 
 export function GetAvailableConnectorsSpec() {
   return applyDecorators(
@@ -102,6 +103,24 @@ export function GetConnectorOAuthStatusSpec() {
     ApiOkResponse({
       type: ConnectorOAuthStatusResponseApiDto,
       description: 'OAuth credential status',
+    })
+  );
+}
+
+export function IssuePickerTokenSpec() {
+  return applyDecorators(
+    ApiOperation({
+      summary: 'Issue a Google Picker token for a Source Credential',
+      description:
+        "Refreshes the Credential's access token for Google Picker; only for the member who signed the Credential in last, while they can edit it.",
+    }),
+    ApiParam({ name: 'connectorName', description: 'Connector name' }),
+    ApiParam({ name: 'credentialId', description: 'Source Credential ID' }),
+    ApiCreatedResponse({ type: ConnectorPickerTokenResponseApiDto }),
+    ApiResponse({ status: 400, description: "The Credential's connector opens no Google Picker" }),
+    ApiResponse({
+      status: 403,
+      description: 'The caller is not the member who signed the Credential in, or cannot edit it',
     })
   );
 }

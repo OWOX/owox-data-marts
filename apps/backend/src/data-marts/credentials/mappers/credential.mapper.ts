@@ -19,6 +19,7 @@ import {
   credentialIdentity,
   resolveCredentialAiModelMappings,
   type CredentialDefinitionContract,
+  type CredentialFilePicking,
   type CredentialValidationResult,
 } from '../credential.types';
 
@@ -65,7 +66,8 @@ export class CredentialMapper {
     canUse: boolean,
     /** Titles of the consumers the member can see, by consumer type, then id. */
     consumerTitles: CredentialConsumerTitles,
-    validation?: CredentialValidationResult
+    validation?: CredentialValidationResult,
+    filePicking: CredentialFilePicking | null = null
   ): Promise<CredentialDto> {
     const users = await this.userProjections.fetchUserProjectionsList(credential.ownerIds);
     return {
@@ -96,6 +98,7 @@ export class CredentialMapper {
         publicMetadata: credential.publicMetadata ?? null,
       }),
       canUse,
+      filePicking,
       ownerUsers: resolveOwnerUsers(credential.ownerIds, users),
       contexts: extractContextSummaries(credential.contexts),
       usedBy: bindings.map(binding => ({
