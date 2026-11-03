@@ -16,6 +16,9 @@ import {
   AwsRedshiftIcon,
   DatabricksIcon,
 } from '../../../../../../shared';
+import { Link } from 'react-router';
+import { useProjectRoute } from '../../../../../../shared/hooks/useProjectRoute';
+import type { ConnectorTargetConflictResponseDto } from '../../../../../data-marts/shared/types/api/response/connector-target-conflict.response.dto';
 import { quoteIdentifier, unquoteIdentifier } from '../../../utils/snowflake-identifier.utils';
 import RedshiftSchemaPermissionsDescription from '../../../../shared/components/FormDescriptions/RedshiftSchemaPermissionsDescription.tsx';
 
@@ -25,6 +28,7 @@ interface TargetSetupStepProps {
   destinationName: string;
   connectorName: string;
   onTargetChange: (target: { fullyQualifiedName: string; isValid: boolean } | null) => void;
+  conflict?: ConnectorTargetConflictResponseDto | null;
 }
 
 export function TargetSetupStep({
@@ -33,7 +37,9 @@ export function TargetSetupStep({
   destinationName,
   connectorName,
   onTargetChange,
+  conflict,
 }: TargetSetupStepProps) {
+  const { scope } = useProjectRoute();
   const sanitizedDestinationName = destinationName.replace(/[^a-zA-Z0-9_]/g, '_');
   const sanitizedConnectorName = connectorName.replace(/[^a-zA-Z0-9_]/g, '_').toLowerCase();
 
@@ -834,6 +840,22 @@ export function TargetSetupStep({
             </AppWizardStepItem>
           </AppWizardStepSection>
         </>
+      )}
+      {conflict?.conflict && (
+        <p role='status' className='text-warning text-sm'>
+          Already used by{' '}
+          {conflict.dataMart ? (
+            <Link
+              to={scope(`/data-marts/${conflict.dataMart.id}/data-setup`)}
+              className='underline'
+            >
+              {conflict.dataMart.title}
+            </Link>
+          ) : (
+            'another Data Mart'
+          )}
+          . Each run replaces the table, so the two Data Marts will overwrite each other.
+        </p>
       )}
       <AppWizardStepSection title='Schedule updates'>
         <TimeTriggerAnnouncement />

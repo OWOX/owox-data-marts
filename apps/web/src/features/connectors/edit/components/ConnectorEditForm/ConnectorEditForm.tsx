@@ -40,6 +40,7 @@ import { useProjectRoute } from '../../../../../shared/hooks/useProjectRoute';
 import { usePermissions } from '../../../../../app/permissions';
 import { isUnpublishedCustomConnector } from '../../../shared/utils/custom-connector-publish.utils';
 import { suggestGoogleSheetsTableName } from '../../../shared/utils/google-sheets-table-name.utils';
+import { useConnectorTargetConflict } from '../../../shared/model/hooks/useConnectorTargetConflict';
 import { DataMartContext } from '../../../../data-marts/edit/model/context/context';
 
 const connectorKey = (c: ConnectorListItem) =>
@@ -81,6 +82,10 @@ export function ConnectorEditForm({
   const [selectedNode, setSelectedNode] = useState<string>('');
   const [selectedFields, setSelectedFields] = useState<string[]>([]);
   const [currentStep, setCurrentStep] = useState<number>(1);
+  const [spreadsheetName, setSpreadsheetName] = useState<string | undefined>();
+  const handleOptionLabelChange = useCallback((field: string, label: string | undefined) => {
+    if (field === 'SpreadsheetId') setSpreadsheetName(label);
+  }, []);
   const [connectorConfiguration, setConnectorConfiguration] = useState<Record<string, unknown>>({});
   const [configurationIsValid, setConfigurationIsValid] = useState<boolean>(false);
   const [loadedSpecifications, setLoadedSpecifications] = useState<Set<string>>(new Set());
@@ -133,6 +138,7 @@ export function ConnectorEditForm({
   const [target, setTarget] = useState<{ fullyQualifiedName: string; isValid: boolean } | null>(
     null
   );
+  const conflict = useConnectorTargetConflict(dataMartId, target);
   const isGoogleSheetsConnector = selectedConnector?.name === GOOGLE_SHEETS_CONNECTOR_NAME;
   const isUnpublishedConnector = selectedConnector
     ? isUnpublishedCustomConnector(selectedConnector)
@@ -771,6 +777,7 @@ export function ConnectorEditForm({
           connector={selectedConnector}
           connectorSpecification={connectorSpecification}
           onConfigurationChange={handleConfigurationChange}
+          onOptionLabelChange={handleOptionLabelChange}
           onValidationChange={handleConfigurationValidationChange}
           initialConfiguration={connectorConfiguration}
           loading={loadingSpecification}
@@ -900,6 +907,7 @@ export function ConnectorEditForm({
             connector={selectedConnector}
             connectorSpecification={connectorSpecification}
             onConfigurationChange={handleConfigurationChange}
+            onOptionLabelChange={handleOptionLabelChange}
             onValidationChange={handleConfigurationValidationChange}
             initialConfiguration={connectorConfiguration}
             loading={loadingSpecification}
@@ -943,7 +951,11 @@ export function ConnectorEditForm({
           return selectedNode && connectorFields ? (
             <TargetSetupStep
               dataStorageType={dataStorageType}
-              destinationName={suggestGoogleSheetsTableName(connectorConfiguration.SheetName)}
+              destinationName={suggestGoogleSheetsTableName(
+                connectorConfiguration.SheetName,
+                spreadsheetName
+              )}
+              conflict={conflict}
               connectorName={selectedConnector.displayName}
               target={target}
               onTargetChange={handleTargetChange}
@@ -970,6 +982,7 @@ export function ConnectorEditForm({
             connectorName={selectedConnector?.displayName ?? ''}
             target={target}
             onTargetChange={handleTargetChange}
+            conflict={conflict}
           />
         ) : null;
       default:

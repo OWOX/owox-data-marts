@@ -11,10 +11,13 @@ interface SelectionProps {
 }
 interface ConfigurationProps {
   onConfigurationChange?: (configuration: Record<string, unknown>) => void;
+  onOptionLabelChange?: (field: string, label: string | undefined) => void;
 }
 interface TargetProps {
   target: { fullyQualifiedName: string; isValid: boolean } | null;
   onTargetChange: (target: { fullyQualifiedName: string; isValid: boolean } | null) => void;
+  destinationName: string;
+  conflict?: unknown;
 }
 interface NavigationProps {
   onNext: () => void;
@@ -24,14 +27,16 @@ interface NodesProps {
   onFieldSelect: (fieldName: string) => void;
 }
 
-const { connectorHook, selection, configuration, targets, navigation, nodes } = vi.hoisted(() => ({
-  connectorHook: { current: {} as Record<string, unknown> },
-  selection: [] as SelectionProps[],
-  configuration: [] as ConfigurationProps[],
-  targets: [] as TargetProps[],
-  navigation: [] as NavigationProps[],
-  nodes: [] as NodesProps[],
-}));
+const { conflictHook, connectorHook, selection, configuration, targets, navigation, nodes } =
+  vi.hoisted(() => ({
+    conflictHook: { current: null as unknown },
+    connectorHook: { current: {} as Record<string, unknown> },
+    selection: [] as SelectionProps[],
+    configuration: [] as ConfigurationProps[],
+    targets: [] as TargetProps[],
+    navigation: [] as NavigationProps[],
+    nodes: [] as NodesProps[],
+  }));
 
 vi.mock('react-hot-toast', () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 
@@ -84,6 +89,10 @@ vi.mock('../../../../connector-builder/shared/api/connector-builder-api.service'
   ConnectorBuilderApiService: class {
     list = vi.fn().mockResolvedValue([]);
   },
+}));
+
+vi.mock('../../../shared/model/hooks/useConnectorTargetConflict', () => ({
+  useConnectorTargetConflict: () => conflictHook.current,
 }));
 
 vi.mock('../../../shared/model/hooks/useConnector', () => ({
@@ -194,6 +203,7 @@ describe('ConnectorEditForm target reset', () => {
     navigation.length = 0;
     nodes.length = 0;
     connectorHook.current = createHook();
+    conflictHook.current = null;
   });
 
   it('drops the seeded target when the sheet changes while creating a Data Mart', async () => {
@@ -292,5 +302,34 @@ describe('ConnectorEditForm target reset', () => {
     await reachTargetStep();
 
     expect(last(targets).target?.fullyQualifiedName).toBe('google_sheets_owox.saved_plan');
+  });
+
+  it("suggests the table from the picked spreadsheet's name and its sheet", async () => {
+    renderForm();
+    act(() => {
+      last(selection).onConnectorSelect(googleSheets);
+    });
+    await next();
+    await configure({ SpreadsheetId: 'doc-1', SheetName: 'Plan' });
+    act(() => {
+      last(configuration).onOptionLabelChange?.('SpreadsheetId', 'Budget 2026');
+    });
+    await reachTargetStep();
+
+    expect(last(targets).destinationName).toBe('budget_2026_plan');
+  });
+
+  it('passes the target conflict to Target Setup', async () => {
+    const conflict = { conflict: true, dataMart: null };
+    conflictHook.current = conflict;
+    renderForm();
+    act(() => {
+      last(selection).onConnectorSelect(googleSheets);
+    });
+    await next();
+    await configure({ SpreadsheetId: 'doc-1', SheetName: 'Plan' });
+    await reachTargetStep();
+
+    expect(last(targets).conflict).toEqual(conflict);
   });
 });
