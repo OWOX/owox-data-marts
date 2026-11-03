@@ -8,6 +8,10 @@
 
 Before this release, Sign in with Google failed on the Credentials page for a Sheets Source Google account. The error was "Failed to open popup window". When the popup opened, Google asked for access a second time to choose a spreadsheet. Now one sign-in adds the account, and the spreadsheet picker opens immediately.
 
+The video connects two plans to Data Marts with one Google account. The second plan uses "+ Add spreadsheet" in the Data Mart form, and the form shows a warning when you choose a plan that another Data Mart already loads.
+
+<https://customer-4geatlj66rtkaxtz.cloudflarestream.com/9e291ee9948594cae9807b318cba56e3/iframe>
+
 - The spreadsheet list in the Data Mart form has a "+ Add spreadsheet" item at the end. You can add a new plan without leaving the form.
 - Only the person who connected the Google account can add spreadsheets with it. Other members see who connected the account.
 - For a Credential that was connected before this release, reconnect the Credential one time to add spreadsheets.
