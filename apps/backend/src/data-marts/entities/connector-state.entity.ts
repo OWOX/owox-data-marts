@@ -7,6 +7,7 @@ import {
   Index,
   JoinColumn,
   OneToOne,
+  type Relation,
 } from 'typeorm';
 import { ConnectorState as State } from '../connector-types/interfaces/connector-state';
 import { createZodTransformer } from '../../common/zod/zod-transformer';
@@ -24,7 +25,7 @@ export class ConnectorState {
 
   @OneToOne(() => DataMart, dm => dm.connectorState, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'datamartId', referencedColumnName: 'id' })
-  dataMart: DataMart;
+  dataMart: Relation<DataMart>;
 
   @Column({
     type: 'json',

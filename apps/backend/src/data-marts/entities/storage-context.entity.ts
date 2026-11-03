@@ -1,4 +1,4 @@
-import { Entity, Index, PrimaryColumn, ManyToOne, JoinColumn } from 'typeorm';
+import { Entity, Index, PrimaryColumn, ManyToOne, JoinColumn, type Relation } from 'typeorm';
 import { DataStorage } from './data-storage.entity';
 import { Context } from './context.entity';
 
@@ -13,9 +13,9 @@ export class StorageContext {
 
   @ManyToOne(() => DataStorage, storage => storage.contexts, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'storage_id' })
-  storage: DataStorage;
+  storage: Relation<DataStorage>;
 
   @ManyToOne(() => Context, { onDelete: 'RESTRICT' })
   @JoinColumn({ name: 'context_id' })
-  context: Context;
+  context: Relation<Context>;
 }

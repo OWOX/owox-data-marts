@@ -1,4 +1,5 @@
 import { Injectable, Logger, Inject, forwardRef, Optional } from '@nestjs/common';
+import type { WrapperType } from '../../../common/utils/wrapper-type';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { DataMart } from '../../entities/data-mart.entity';
@@ -60,7 +61,7 @@ export class AccessDecisionService {
     @InjectRepository(Report)
     private readonly reportRepository: Repository<Report>,
     @Inject(forwardRef(() => ContextAccessService))
-    private readonly contextAccessService: ContextAccessService,
+    private readonly contextAccessService: WrapperType<ContextAccessService>,
     @Optional()
     @InjectRepository(Credential)
     private readonly credentialRepository?: Repository<Credential>,

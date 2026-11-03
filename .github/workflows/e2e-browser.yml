@@ -6,6 +6,7 @@ on:
       - 'apps/backend/**'
       - 'apps/web/**'
       - 'packages/**'
+      - '.github/workflows/e2e-browser.yml'
   push:
     branches: [main]
   workflow_dispatch:
@@ -16,9 +17,18 @@ concurrency:
 
 jobs:
   e2e-browser:
-    name: Browser E2E Tests
+    name: Browser E2E Tests (shard ${{ matrix.shard }}/${{ strategy.job-total }})
     runs-on: ubuntu-latest
     timeout-minutes: 30
+
+    # Playwright runs one worker (the specs share a SQLite database), so wall-clock grows with
+    # the suite. Each shard is a separate runner with its own database, as in e2e-api.yml.
+    # Playwright splits by spec file, and datamart-calculated-field-chips alone runs ~90 s:
+    # five shards keep it nearly alone, which four did not.
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4, 5]
 
     steps:
       - name: Checkout repository
@@ -33,8 +43,11 @@ jobs:
       - name: Install dependencies
         run: npm ci --prefer-offline --no-audit --no-fund --loglevel error
 
-      - name: Build all workspace packages
-        run: npm run build --workspaces --if-present
+      # The suite needs only the backend (with its own build:dep packages) and the web bundle.
+      # NODE_ENV=development keeps React's development build, so specs that fail on console
+      # errors still see the warnings the dev server used to print.
+      - name: Build backend and web
+        run: npm run build -w @owox/backend && NODE_ENV=development npm run build -w @owox/web
 
       - name: Install Playwright Chromium
         run: cd apps/web && npx playwright install --with-deps chromium
@@ -43,7 +56,7 @@ jobs:
         run: mkdir -p tmp
 
       - name: Run Browser E2E tests
-        run: cd apps/web && npx playwright test
+        run: cd apps/web && npx playwright test --shard=${{ matrix.shard }}/${{ strategy.job-total }}
         env:
           CI: true
           NODE_ENV: test
@@ -56,7 +69,7 @@ jobs:
         uses: actions/upload-artifact@v7
         if: ${{ !cancelled() }}
         with:
-          name: playwright-report
+          name: playwright-report-${{ matrix.shard }}
           path: apps/web/playwright-report/
           retention-days: 7
 
@@ -64,6 +77,6 @@ jobs:
         uses: actions/upload-artifact@v7
         if: failure()
         with:
-          name: playwright-traces
+          name: playwright-traces-${{ matrix.shard }}
           path: apps/web/test-results/
           retention-days: 7

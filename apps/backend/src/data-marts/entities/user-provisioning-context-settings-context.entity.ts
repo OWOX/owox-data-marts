@@ -1,4 +1,4 @@
-import { Entity, Index, JoinColumn, ManyToOne, PrimaryColumn } from 'typeorm';
+import { Entity, Index, JoinColumn, ManyToOne, PrimaryColumn, type Relation } from 'typeorm';
 import { Context } from './context.entity';
 import { UserProvisioningContextSettings } from './user-provisioning-context-settings.entity';
 
@@ -16,9 +16,9 @@ export class UserProvisioningContextSettingsContext {
 
   @ManyToOne(() => UserProvisioningContextSettings, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'project_id' })
-  settings: UserProvisioningContextSettings;
+  settings: Relation<UserProvisioningContextSettings>;
 
   @ManyToOne(() => Context, { onDelete: 'RESTRICT' })
   @JoinColumn({ name: 'context_id' })
-  context: Context;
+  context: Relation<Context>;
 }

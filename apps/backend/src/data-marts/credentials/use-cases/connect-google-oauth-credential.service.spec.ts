@@ -2,6 +2,14 @@ jest.mock('typeorm-transactional', () => ({
   Transactional: () => (_target: unknown, _key: string, descriptor: PropertyDescriptor) =>
     descriptor,
 }));
+// Module exports cannot be spied on once compiled by SWC, so the function is a mock from the start
+// that runs the real implementation unless a test overrides it.
+jest.mock('../services/builtin-credential-definitions', () => {
+  const actual = jest.requireActual<typeof import('../services/builtin-credential-definitions')>(
+    '../services/builtin-credential-definitions'
+  );
+  return { ...actual, builtinOAuthAuth: jest.fn(actual.builtinOAuthAuth) };
+});
 
 import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import type { AuthorizationContext } from '../../../idp';
@@ -17,6 +25,10 @@ import { InvalidOAuthStateException } from '../../exceptions/google-oauth.except
 import * as builtinDefinitions from '../services/builtin-credential-definitions';
 import { CredentialDefinitionService } from '../services/credential-definition.service';
 import { ConnectGoogleOAuthCredentialService } from './connect-google-oauth-credential.service';
+
+const { builtinOAuthAuth: realBuiltinOAuthAuth } = jest.requireActual<typeof builtinDefinitions>(
+  '../services/builtin-credential-definitions'
+);
 
 const context = {
   projectId: 'project-1',
@@ -91,7 +103,13 @@ function setup({ canEdit = true, existing = existingGoogleCredential() as object
 }
 
 describe('ConnectGoogleOAuthCredentialService', () => {
-  afterEach(() => jest.restoreAllMocks());
+  afterEach(() => {
+    jest.restoreAllMocks();
+    jest
+      .mocked(builtinDefinitions.builtinOAuthAuth)
+      .mockReset()
+      .mockImplementation(realBuiltinOAuthAuth);
+  });
 
   it('creates a verified Google account Credential titled by the email and owned by the member', async () => {
     const { service, credentials, stateFor } = setup();
@@ -126,10 +144,11 @@ describe('ConnectGoogleOAuthCredentialService', () => {
   });
 
   it('creates the Credential with the definition its state names', async () => {
-    const real = builtinDefinitions.builtinOAuthAuth;
     jest
-      .spyOn(builtinDefinitions, 'builtinOAuthAuth')
-      .mockImplementation(id => real(id === 'google-oauth-drive' ? 'google-oauth' : id));
+      .mocked(builtinDefinitions.builtinOAuthAuth)
+      .mockImplementation(id =>
+        realBuiltinOAuthAuth(id === 'google-oauth-drive' ? 'google-oauth' : id)
+      );
     jest.spyOn(CredentialDefinitionService.prototype, 'get').mockResolvedValue({
       source: 'builtin',
       definitionId: 'google-oauth-drive',

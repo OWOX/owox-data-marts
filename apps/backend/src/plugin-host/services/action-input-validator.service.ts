@@ -7,7 +7,7 @@ import { ACTION_INPUT_AJV } from '../utils/action-input-schema.util';
 
 const AJV_PATH = require.resolve('ajv/dist/2020');
 
-/** Plain JS evaluated as is, so the worker runs the same under ts-jest, the Nest build and the CLI. */
+/** Plain JS evaluated as is, so the worker runs the same under jest, the Nest build and the CLI. */
 const WORKER_SOURCE = `
 const { parentPort, workerData } = require('node:worker_threads');
 const Ajv2020 = require(workerData.ajvPath).default;

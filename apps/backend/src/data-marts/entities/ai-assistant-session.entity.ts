@@ -7,6 +7,7 @@ import {
   ManyToOne,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
+  type Relation,
 } from 'typeorm';
 import { DataMart } from './data-mart.entity';
 import { InsightTemplate } from './insight-template.entity';
@@ -24,7 +25,7 @@ export class AiAssistantSession {
 
   @ManyToOne(() => DataMart)
   @JoinColumn({ name: 'dataMartId' })
-  dataMart: DataMart;
+  dataMart: Relation<DataMart>;
 
   @Column({ type: 'varchar' })
   scope: AiAssistantScope;
@@ -37,7 +38,7 @@ export class AiAssistantSession {
 
   @ManyToOne(() => InsightTemplate, { nullable: false })
   @JoinColumn({ name: 'templateId' })
-  insightTemplate?: InsightTemplate;
+  insightTemplate?: Relation<InsightTemplate>;
 
   @Column()
   createdById: string;

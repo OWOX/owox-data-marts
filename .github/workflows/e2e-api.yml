@@ -4,7 +4,11 @@ on:
   pull_request:
     paths:
       - 'apps/backend/**'
+      # The API key smoke specs spawn the built owox and owox-ctl CLIs.
+      - 'apps/owox/**'
+      - 'apps/ctl/**'
       - 'packages/**'
+      - '.github/workflows/e2e-api.yml'
   push:
     branches: [main]
   workflow_dispatch:
@@ -23,11 +27,12 @@ jobs:
     # share process state and overwrite the in-memory DB). To cut wall-clock
     # without reintroducing that flakiness, split the test files across separate
     # runner jobs with jest --shard: each shard stays single-worker and fully
-    # isolated on its own runner. Bump the shard count if the suite grows.
+    # isolated on its own runner. Each shard also installs and builds for ~2.5 min,
+    # so keep the count low and bump it only if the suite grows.
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4, 5, 6]
+        shard: [1, 2, 3]
 
     steps:
       - name: Checkout repository
@@ -44,8 +49,10 @@ jobs:
       - name: Install dependencies
         run: npm ci --prefer-offline --no-audit --no-fund --loglevel error
 
-      - name: Build all workspace packages
-        run: npm run build --workspaces --if-present
+      # The suite boots the backend in-process, and the API key smoke specs also spawn the built
+      # owox and owox-ctl CLIs; their prebuild steps build the backend and the packages it imports.
+      - name: Build owox and ctl
+        run: npm run build -w owox -w @owox/ctl
 
       - name: Run API E2E tests
         run: npm run test:e2e -w @owox/backend -- --shard=${{ matrix.shard }}/${{ strategy.job-total }}

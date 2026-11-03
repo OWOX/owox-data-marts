@@ -79,9 +79,9 @@ describe('DOES_ARITHMETIC_ON_ARGUMENT', () => {
   });
 
   // The `Record<ReportAggregateFunction, boolean>` type IS enforced on a PR — `e2e-api.yml` builds
-  // every workspace on any `apps/backend/**` change, and a missing key fails `nest build` with
-  // TS2741. This assertion covers the run where that type is invisible instead: ts-jest compiles
-  // with `diagnostics: false`, so under jest alone a missing entry reads `undefined`, is treated as
+  // the owox CLI, whose prebuild runs `nest build`, on any `apps/backend/**` change, and a missing
+  // key fails it with TS2741. This assertion covers the run where that type is invisible instead:
+  // jest transpiles through SWC without type checking, so under jest alone a missing entry reads `undefined`, is treated as
   // "does not do arithmetic", emits no cast, and every suite stays green — which is exactly what a
   // developer sees locally. The accessor throws at module load so that run is loud too.
   it('states an answer for every report function at RUNTIME, not only under tsc', () => {

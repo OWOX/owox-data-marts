@@ -7,6 +7,7 @@ import {
   ManyToOne,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
+  type Relation,
 } from 'typeorm';
 import type { AiAssistantApplyActionResponse } from '../dto/domain/ai-assistant-apply-action-response.dto';
 import { AiAssistantSession } from './ai-assistant-session.entity';
@@ -23,7 +24,7 @@ export class AiAssistantApplyAction {
 
   @ManyToOne(() => AiAssistantSession)
   @JoinColumn({ name: 'sessionId' })
-  session: AiAssistantSession;
+  session: Relation<AiAssistantSession>;
 
   @Column({ type: 'varchar', length: 255 })
   requestId: string;

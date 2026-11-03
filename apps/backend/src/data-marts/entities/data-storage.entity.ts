@@ -21,7 +21,7 @@ export class DataStorage implements CreatorAwareEntity {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column()
+  @Column({ type: 'varchar' })
   type: DataStorageType;
 
   @Column()

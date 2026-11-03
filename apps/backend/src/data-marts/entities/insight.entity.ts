@@ -7,6 +7,7 @@ import {
   ManyToOne,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
+  type Relation,
 } from 'typeorm';
 import { CreatorAwareEntity } from './creator-aware-entity.interface';
 import { DataMart } from './data-mart.entity';
@@ -24,7 +25,7 @@ export class Insight implements CreatorAwareEntity {
 
   @ManyToOne(() => DataMart)
   @JoinColumn()
-  dataMart: DataMart;
+  dataMart: Relation<DataMart>;
 
   @Column({ nullable: true })
   lastManualDataMartRunId?: string;

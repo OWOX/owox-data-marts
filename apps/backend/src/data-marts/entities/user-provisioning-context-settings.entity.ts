@@ -12,6 +12,6 @@ export class UserProvisioningContextSettings {
   @PrimaryColumn({ name: 'project_id' })
   projectId: string;
 
-  @Column({ name: 'role_scope', default: RoleScope.ENTIRE_PROJECT })
+  @Column({ type: 'varchar', name: 'role_scope', default: RoleScope.ENTIRE_PROJECT })
   roleScope: RoleScope;
 }

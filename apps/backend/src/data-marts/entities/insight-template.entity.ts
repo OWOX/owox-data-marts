@@ -8,6 +8,7 @@ import {
   OneToMany,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
+  type Relation,
 } from 'typeorm';
 import { CreatorAwareEntity } from './creator-aware-entity.interface';
 import { DataMart } from './data-mart.entity';
@@ -84,7 +85,7 @@ export class InsightTemplate implements CreatorAwareEntity {
 
   @ManyToOne(() => DataMart)
   @JoinColumn()
-  dataMart: DataMart;
+  dataMart: Relation<DataMart>;
 
   @Column()
   createdById: string;
