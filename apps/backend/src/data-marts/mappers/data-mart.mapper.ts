@@ -31,6 +31,8 @@ import { RunDataMartCommand } from '../dto/domain/run-data-mart.command';
 import { SqlDryRunResult } from '../dto/domain/sql-dry-run-result.dto';
 import { SqlDryRunCommand } from '../dto/domain/sql-dry-run.command';
 import { UpdateDataMartDefinitionCommand } from '../dto/domain/update-data-mart-definition.command';
+import { ConnectorTargetConflictDto } from '../dto/domain/connector-target-conflict.dto';
+import { ConnectorTargetConflictResponseApiDto } from '../dto/presentation/connector-target-conflict-api.dto';
 import { GetBlendableSchemaCommand } from '../dto/domain/get-blendable-schema.command';
 import { UpdateBlendedFieldsConfigCommand } from '../dto/domain/update-blended-fields-config.command';
 import { UpdateDataMartDescriptionCommand } from '../dto/domain/update-data-mart-description.command';
@@ -553,6 +555,12 @@ export class DataMartMapper {
       context.userId,
       context.roles ?? []
     );
+  }
+
+  toConnectorTargetConflictResponse(
+    dto: ConnectorTargetConflictDto
+  ): ConnectorTargetConflictResponseApiDto {
+    return { conflict: dto.conflict, dataMart: dto.dataMart };
   }
 
   toGetBlendableSchemaCommand(

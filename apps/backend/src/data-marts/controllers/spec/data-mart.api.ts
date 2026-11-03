@@ -16,6 +16,7 @@ import { BatchDataMartHealthStatusResponseApiDto } from '../../dto/presentation/
 import { UpdateDataMartDescriptionApiDto } from '../../dto/presentation/update-data-mart-description-api.dto';
 import { UpdateDataMartIconApiDto } from '../../dto/presentation/update-data-mart-icon-api.dto';
 import { UpdateDataMartTitleApiDto } from '../../dto/presentation/update-data-mart-title-api.dto';
+import { ConnectorTargetConflictResponseApiDto } from '../../dto/presentation/connector-target-conflict-api.dto';
 import { BlendableSchemaDto } from '../../dto/domain/blendable-schema.dto';
 import { UpdateBlendedFieldsConfigApiDto } from '../../dto/presentation/update-blended-fields-config-api.dto';
 import { DataMartMemberAccessResponseApiDto } from '../../dto/presentation/data-mart-member-access-response-api.dto';
@@ -383,6 +384,18 @@ export function GetBlendableSchemaSpec() {
         'Include draft relationship targets and disconnected target fields for configuration. Reporting consumers should keep the default so only published targets and report-eligible fields are returned.',
     }),
     ApiOkResponse({ type: BlendableSchemaDto })
+  );
+}
+
+export function GetConnectorTargetConflictSpec() {
+  return applyDecorators(
+    ApiOperation({
+      summary: 'Check whether another DataMart writes the same connector target table',
+      description:
+        'Compares the target name ignoring quotes, brackets and case. The other DataMart is named only when the caller can see it.',
+    }),
+    ApiParam({ name: 'id', description: 'DataMart ID' }),
+    ApiOkResponse({ type: ConnectorTargetConflictResponseApiDto })
   );
 }
 

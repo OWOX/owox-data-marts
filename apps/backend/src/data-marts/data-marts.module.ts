@@ -407,6 +407,7 @@ import { DeleteDataMartRelationshipService } from './use-cases/delete-data-mart-
 import { ListRelationshipsByStorageService } from './use-cases/list-relationships-by-storage.service';
 import { GetDataMartRelationshipGraphService } from './use-cases/get-data-mart-relationship-graph.service';
 import { GetBlendableSchemaService } from './use-cases/get-blendable-schema.service';
+import { GetConnectorTargetConflictService } from './use-cases/get-connector-target-conflict.service';
 import { GetReportGeneratedSqlService } from './use-cases/get-report-generated-sql.service';
 import { GetReportOutputSchemaService } from './use-cases/get-report-output-schema.service';
 import { CopyReportAsDataMartService } from './use-cases/copy-report-as-data-mart.service';
@@ -1010,6 +1011,7 @@ import { ConsentCredentialDefinitionService } from './credentials/use-cases/cons
     ListRelationshipsByStorageService,
     GetDataMartRelationshipGraphService,
     GetBlendableSchemaService,
+    GetConnectorTargetConflictService,
     GetReportGeneratedSqlService,
     GetReportOutputSchemaService,
     CopyReportAsDataMartService,
