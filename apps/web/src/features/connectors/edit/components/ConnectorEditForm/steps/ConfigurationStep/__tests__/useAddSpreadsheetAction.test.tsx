@@ -23,6 +23,7 @@ vi.mock('react-hot-toast', () => ({ toast: { error: toastError } }));
 
 const OTHER_SIGNER_HINT =
   'Spreadsheets are added by the person who connected a@example.com. Connect your own Google account to add one.';
+const UNAVAILABLE_HINT = 'Spreadsheets cannot be added right now. Reload the page and try again.';
 const UNKNOWN_SIGNER_HINT =
   'Spreadsheets are added by the person who connected this Google account. Connect your own Google account to add one.';
 
@@ -133,6 +134,6 @@ describe('useAddSpreadsheetAction', () => {
     expect(hookFor('cred-1').current).toMatchObject({ disabled: true, hint: UNKNOWN_SIGNER_HINT });
 
     credentialsState.credentials = [];
-    expect(hookFor('cred-1').current).toMatchObject({ disabled: true, hint: UNKNOWN_SIGNER_HINT });
+    expect(hookFor('cred-1').current).toMatchObject({ disabled: true, hint: UNAVAILABLE_HINT });
   });
 });

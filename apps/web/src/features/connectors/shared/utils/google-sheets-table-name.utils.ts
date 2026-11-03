@@ -44,9 +44,7 @@ const CYRILLIC_TO_LATIN: Readonly<Record<string, string>> = {
   "'": '',
 };
 
-// Letters that NFKD does not split into a base letter plus a mark. Anything else outside
-// a-z0-9 (other scripts included) is dropped, so the result is a best-effort suggestion the
-// user can edit, not a faithful transliteration.
+// Latin letters that NFKD does not split into a base letter plus a mark.
 const LETTER_REPLACEMENTS: Record<string, string> = {
   ß: 'ss',
   ł: 'l',
@@ -67,17 +65,6 @@ const LETTER_REPLACEMENT_PATTERN = new RegExp(
   'g'
 );
 
-/**
- * Suggests a target table name for a Google Sheets source as `<document>_<sheet>`, e.g.
- * ("Plan", "Product Engineering") → "product_engineering_plan".
- *
- * The result always satisfies the target-table validation (`^[A-Za-z][A-Za-z0-9_]*$`):
- * Ukrainian and Russian Cyrillic is transliterated, diacritics are stripped, a few Latin
- * letters without a decomposition are transliterated, every other run of characters becomes
- * a single underscore, a leading digit gets a `sheet_` prefix, and an empty result falls back
- * to `google_sheets`. The name is capped at 100 characters (Redshift allows 127), cutting the
- * document part first. It is a suggestion the user can edit, not a reversible encoding.
- */
 function toIdentifierPart(value: unknown): string {
   if (typeof value !== 'string') return '';
   return value
@@ -93,6 +80,17 @@ function toIdentifierPart(value: unknown): string {
 const withDigitPrefix = (name: string) => (/^[0-9]/.test(name) ? `sheet_${name}` : name);
 const cut = (name: string, length: number) => name.slice(0, Math.max(0, length)).replace(/_+$/, '');
 
+/**
+ * Suggests a target table name for a Google Sheets source as `<document>_<sheet>`, e.g.
+ * ("Plan", "Product Engineering") → "product_engineering_plan".
+ *
+ * The result always satisfies the target-table validation (`^[A-Za-z][A-Za-z0-9_]*$`):
+ * Ukrainian and Russian Cyrillic is transliterated, diacritics are stripped, a few Latin
+ * letters without a decomposition are transliterated, every other run of characters becomes
+ * a single underscore, a leading digit gets a `sheet_` prefix, and an empty result falls back
+ * to `google_sheets`. The name is capped at 100 characters (Redshift allows 127), cutting the
+ * document part first. It is a suggestion the user can edit, not a reversible encoding.
+ */
 export function suggestGoogleSheetsTableName(sheetName: unknown, documentName?: unknown): string {
   const sheet = toIdentifierPart(sheetName);
   const document = toIdentifierPart(documentName);

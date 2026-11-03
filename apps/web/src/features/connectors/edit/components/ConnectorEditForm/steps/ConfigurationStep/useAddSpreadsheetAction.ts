@@ -8,6 +8,7 @@ import type { DynamicOptionsAction } from './ConfigurationField';
 
 const LABEL = '+ Add spreadsheet';
 const RECONNECT_HINT = 'Reconnect this Credential to add spreadsheets.';
+const UNAVAILABLE_HINT = 'Spreadsheets cannot be added right now. Reload the page and try again.';
 const noop = () => undefined;
 
 const signerHint = (account: string) =>
@@ -68,6 +69,8 @@ export function useAddSpreadsheetAction(
         disabled: true,
         hint: signerHint(email ?? 'this Google account'),
       };
+    case undefined:
+      return { label: LABEL, onSelect: noop, disabled: true, hint: UNAVAILABLE_HINT };
     default:
       return {
         label: LABEL,

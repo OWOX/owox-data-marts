@@ -117,7 +117,11 @@ export function IssuePickerTokenSpec() {
     ApiParam({ name: 'connectorName', description: 'Connector name' }),
     ApiParam({ name: 'credentialId', description: 'Source Credential ID' }),
     ApiCreatedResponse({ type: ConnectorPickerTokenResponseApiDto }),
-    ApiResponse({ status: 400, description: "The Credential's connector opens no Google Picker" }),
+    ApiResponse({
+      status: 400,
+      description:
+        "The Credential's connector opens no Google Picker, or its connector credentials are invalid or expired",
+    }),
     ApiResponse({
       status: 403,
       description: 'The caller is not the member who signed the Credential in, or cannot edit it',

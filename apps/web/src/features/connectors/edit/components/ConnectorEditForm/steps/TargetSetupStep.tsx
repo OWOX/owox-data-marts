@@ -841,22 +841,24 @@ export function TargetSetupStep({
           </AppWizardStepSection>
         </>
       )}
-      {conflict?.conflict && (
-        <p role='status' className='text-warning text-sm'>
-          Already used by{' '}
-          {conflict.dataMart ? (
-            <Link
-              to={scope(`/data-marts/${conflict.dataMart.id}/data-setup`)}
-              className='underline'
-            >
-              {conflict.dataMart.title}
-            </Link>
-          ) : (
-            'another Data Mart'
-          )}
-          . Each run replaces the table, so the two Data Marts will overwrite each other.
-        </p>
-      )}
+      <p role='status' className='text-warning text-sm'>
+        {conflict?.conflict && (
+          <>
+            Already used by{' '}
+            {conflict.dataMart ? (
+              <Link
+                to={scope(`/data-marts/${conflict.dataMart.id}/data-setup`)}
+                className='underline'
+              >
+                {conflict.dataMart.title}
+              </Link>
+            ) : (
+              'another Data Mart'
+            )}
+            . Each run replaces the table, so the two Data Marts will overwrite each other.
+          </>
+        )}
+      </p>
       <AppWizardStepSection title='Schedule updates'>
         <TimeTriggerAnnouncement />
       </AppWizardStepSection>

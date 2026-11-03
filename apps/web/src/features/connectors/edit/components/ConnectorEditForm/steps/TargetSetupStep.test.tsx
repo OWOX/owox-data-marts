@@ -132,7 +132,7 @@ describe('TargetSetupStep', () => {
         conflict={{ conflict: false, dataMart: null }}
       />
     );
-    expect(screen.queryByRole('status')).toBeNull();
+    expect(screen.getByRole('status')).toBeEmptyDOMElement();
   });
 
   it('a conflict leaves the target valid', () => {
