@@ -214,6 +214,32 @@ export class LinkedInAdsSource extends AbstractSource {
     // and rows that came without a location or a date. Reported once per account.
     this.geoGaps = new Map();
     this.MAX_GEO_URNS_IN_WARNING = 5;
+    // Metrics that show a campaign had any activity in a day: delivery, spend, clicks,
+    // conversions, leads and engagement. The day's campaign list asks for these, in one
+    // request, whatever the node imports.
+    this.CAMPAIGN_ACTIVITY_FIELDS = [
+      'impressions',
+      'clicks',
+      'costInLocalCurrency',
+      'externalWebsiteConversions',
+      'externalWebsitePostClickConversions',
+      'externalWebsitePostViewConversions',
+      'oneClickLeads',
+      'oneClickLeadFormOpens',
+      'qualifiedLeads',
+      'landingPageClicks',
+      'totalEngagements',
+      'videoViews',
+      'videoStarts',
+      'opens',
+      'sends',
+      'follows',
+      'jobApplications',
+      'registrations',
+    ];
+    // Accounts that failed once in this run: the engine no longer calls onAccountComplete for
+    // them, so their warnings are reported day by day instead.
+    this.accountsWithIssues = new Set();
     this.BASE_URL = 'https://api.linkedin.com/rest/';
   }
 
@@ -380,10 +406,16 @@ export class LinkedInAdsSource extends AbstractSource {
           queryType: 'criteria',
         });
       case 'adAnalytics':
-        return await this.fetchAdAnalytics({ urn, fields, startDate, endDate });
+        return this.reportIfAccountFailed(
+          urn,
+          await this.fetchAdAnalytics({ urn, fields, startDate, endDate })
+        );
       default:
         if (this.fieldsSchema[nodeName]?.geoPivot) {
-          return await this.fetchAdAnalyticsByGeo({ nodeName, urn, fields, startDate, endDate });
+          return this.reportIfAccountFailed(
+            urn,
+            await this.fetchAdAnalyticsByGeo({ nodeName, urn, fields, startDate, endDate })
+          );
         }
         throw new Error(`Unknown node: ${nodeName}`);
     }
@@ -443,7 +475,8 @@ export class LinkedInAdsSource extends AbstractSource {
    * @returns {Promise<object[]>} merged elements, with dateRange still in LinkedIn's shape
    */
   async fetchAnalyticsRows({ urn, nodeName, pivots, facet, start, end, fieldChunks, timeGranularity }) {
-    const memberPivot = pivots.some(pivot => pivot.startsWith('MEMBER_'));
+    // One pivot is the analytics finder, the one LinkedIn documents with paged answers.
+    const analyticsFinder = pivots.length === 1;
     let rows = [];
 
     for (const fields of fieldChunks) {
@@ -467,7 +500,7 @@ export class LinkedInAdsSource extends AbstractSource {
         }
 
         rows = this.mergeAnalyticsResults(rows, elements);
-        pageUrl = memberPivot ? this.nextAnalyticsPage(url, res, elements, seen) : null;
+        pageUrl = analyticsFinder ? this.nextAnalyticsPage(url, res, elements, seen) : null;
       }
     }
 
@@ -475,11 +508,12 @@ export class LinkedInAdsSource extends AbstractSource {
   }
 
   /**
-   * The next page of a member-pivot answer, or null.
+   * The next page of an analytics-finder answer, or null.
    *
-   * LinkedIn says adAnalytics does not paginate, yet documents every member-pivot response
-   * with `paging.count` 10 and a `next` link. Ignoring a real next page would drop all but
-   * the first ten locations without a word, so a full page that links onward is followed.
+   * LinkedIn says adAnalytics does not paginate, yet documents analytics-finder responses,
+   * the member-pivot ones among them, with `paging.count` 10 and a `next` link. Ignoring a
+   * real next page would drop all but the first ten locations or campaigns without a word,
+   * so a full page that links onward is followed.
    * Should LinkedIn ignore `start`, the next page only repeats rows already read, which ends
    * it; a page shorter than `paging.count` is the last one.
    *
@@ -541,13 +575,7 @@ export class LinkedInAdsSource extends AbstractSource {
     const apiFields = this.convertFieldsForApi(fields.filter(field => !filledHere.includes(field)));
     const fieldChunks = this.prepareAnalyticsFieldChunks(apiFields);
 
-    const campaignUrns = await this.fetchActiveCampaignUrns({
-      urn,
-      nodeName,
-      start,
-      end,
-      fieldChunks,
-    });
+    const campaignUrns = await this.fetchActiveCampaignUrns({ urn, nodeName, start, end });
     const rows = [];
 
     for (const campaignUrn of campaignUrns) {
@@ -592,11 +620,11 @@ export class LinkedInAdsSource extends AbstractSource {
   /**
    * The campaigns of an account that have analytics in the range, as URNs.
    *
-   * Asked with the same metrics as the breakdown, so a campaign is listed whenever any
-   * metric the node imports has activity in the range, not only when it had impressions:
-   * conversions can land on a day a campaign showed no ads.
+   * Asked with CAMPAIGN_ACTIVITY_FIELDS, so a campaign is listed when it had any activity in
+   * the range, not only impressions: conversions can land on a day a campaign showed no ads.
+   * One request, however many metrics the node imports.
    */
-  async fetchActiveCampaignUrns({ urn, nodeName, start, end, fieldChunks }) {
+  async fetchActiveCampaignUrns({ urn, nodeName, start, end }) {
     const rows = await this.fetchAnalyticsRows({
       urn,
       nodeName,
@@ -604,7 +632,7 @@ export class LinkedInAdsSource extends AbstractSource {
       facet: `accounts=List(${encodeURIComponent(`urn:li:sponsoredAccount:${urn}`)})`,
       start,
       end,
-      fieldChunks,
+      fieldChunks: [['pivotValues', ...this.CAMPAIGN_ACTIVITY_FIELDS]],
       timeGranularity: 'ALL',
     });
 
@@ -623,8 +651,10 @@ export class LinkedInAdsSource extends AbstractSource {
    * - Not being allowed (401/403) will not change within the run: no batch is asked again,
    *   the metrics and location URNs still load with names left empty, and one warning says
    *   so.
-   * - Any other 4xx rejects only what that batch asked: its locations stay unnamed and are
-   *   listed in the account's warning, and the next batches are still asked.
+   * - Any other 4xx may come from a single URN LinkedIn will not take, so the batch is split
+   *   until that URN is found: only it stays unnamed, it is named in a warning and in the
+   *   account's list, and the rest keep their names. If not one URN of a batch is taken even
+   *   one at a time, the lookup itself is rejected and is treated like a refusal.
    *
    * @param {string[]} geoUrns - location URNs such as urn:li:geo:103644278
    * @returns {Promise<Map<string, string|null>>} URN -> name, for every URN resolved so far
@@ -636,29 +666,29 @@ export class LinkedInAdsSource extends AbstractSource {
 
     for (let i = 0; i < unknown.length; i += this.GEO_NAMES_PER_REQUEST) {
       const batch = unknown.slice(i, i + this.GEO_NAMES_PER_REQUEST);
-      let elements = [];
-
+      let result;
       try {
-        elements = await this.fetchGeoNameElements(batch);
+        result = await this.fetchGeoNamesSplitting(batch);
       } catch (error) {
-        if (this.isValidToRetry(error)) throw error;
-        if (this._isAuthError(error)) {
-          this.geoNamesUnavailable = true;
-          this.context.log(
-            LOG_LEVEL.WARN,
-            `LinkedIn refused the location name lookup (${error.message}); location names ` +
-              'are left empty, and the location URNs and metrics are imported'
-          );
-          return this.geoNames;
-        }
-        if (!this.geoNamesRejected) {
-          this.geoNamesRejected = true;
-          this.context.log(
-            LOG_LEVEL.WARN,
-            `LinkedIn rejected a location name lookup (${error.message}); the locations it ` +
-              'asked for are left unnamed'
-          );
-        }
+        if (!this._isAuthError(error)) throw error;
+        return this.stopGeoNames(`LinkedIn refused the location name lookup (${error.message})`);
+      }
+
+      const { elements, rejected } = result;
+      if (batch.length > 1 && rejected.length === batch.length) {
+        return this.stopGeoNames(
+          `LinkedIn rejected the location name lookup for every location asked, one at a ` +
+            `time too (${rejected[0].error.message})`
+        );
+      }
+      if (rejected.length > 0 && !this.geoNamesRejected) {
+        this.geoNamesRejected = true;
+        this.context.log(
+          LOG_LEVEL.WARN,
+          `LinkedIn rejected the name lookup for ` +
+            `${this.listSome(rejected.map(({ urn }) => urn), this.MAX_GEO_URNS_IN_WARNING)} ` +
+            `(${rejected[0].error.message}); their name column is left empty`
+        );
       }
 
       // An empty name is no name: it is stored and reported as missing.
@@ -670,6 +700,40 @@ export class LinkedInAdsSource extends AbstractSource {
       }
     }
 
+    return this.geoNames;
+  }
+
+  /**
+   * The names of one batch, split in half on a 4xx other than 401/403 and asked again, down to
+   * the single URN LinkedIn will not take. 401/403 and failures LinkedIn may get over are
+   * thrown for resolveGeoNames to handle.
+   *
+   * @returns {Promise<{elements: object[], rejected: {urn: string, error: Error}[]}>}
+   */
+  async fetchGeoNamesSplitting(batch) {
+    try {
+      return { elements: await this.fetchGeoNameElements(batch), rejected: [] };
+    } catch (error) {
+      if (this.isValidToRetry(error) || this._isAuthError(error)) throw error;
+      if (batch.length === 1) return { elements: [], rejected: [{ urn: batch[0], error }] };
+
+      const half = Math.ceil(batch.length / 2);
+      const first = await this.fetchGeoNamesSplitting(batch.slice(0, half));
+      const second = await this.fetchGeoNamesSplitting(batch.slice(half));
+      return {
+        elements: [...first.elements, ...second.elements],
+        rejected: [...first.rejected, ...second.rejected],
+      };
+    }
+  }
+
+  /** No more name lookups this run; the metrics and location URNs still load. */
+  stopGeoNames(reason) {
+    this.geoNamesUnavailable = true;
+    this.context.log(
+      LOG_LEVEL.WARN,
+      `${reason}; location names are left empty, and the location URNs and metrics are imported`
+    );
     return this.geoNames;
   }
 
@@ -713,12 +777,19 @@ export class LinkedInAdsSource extends AbstractSource {
 
   /**
    * The engine calls onAccountComplete only for an account that finished without an issue,
-   * so what an account gathered before a failure is reported here: a run that fails after
-   * importing days with empty names still says so. The days after a failure are asked again
-   * by the next run, which reports them then.
+   * so what an account gathered before a failure is reported here, and every later day of
+   * the account is reported right after it (reportIfAccountFailed): a run that fails still
+   * names the days it imported with empty names or cut short.
    */
   onAccountError(account) {
+    if (account?.id) this.accountsWithIssues.add(account.id);
     this.reportAccountWarnings(account);
+  }
+
+  /** Reports the account's warnings now if it already failed once in this run. */
+  reportIfAccountFailed(urn, rows) {
+    if (this.accountsWithIssues.has(urn)) this.reportAccountWarnings({ id: urn });
+    return rows;
   }
 
   reportAccountWarnings(account) {

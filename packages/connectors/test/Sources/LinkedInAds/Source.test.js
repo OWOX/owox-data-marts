@@ -51,6 +51,8 @@ const buildSource = ({ makeRequest, parameters = {} } = {}) => {
     geoNames: new Map(),
     geoNamesUnavailable: false,
     geoNamesRejected: false,
+    CAMPAIGN_ACTIVITY_FIELDS: ['impressions', 'clicks', 'costInLocalCurrency'],
+    accountsWithIssues: new Set(),
     geoGaps: new Map(),
     MAX_GEO_URNS_IN_WARNING: 5,
     fieldsSchema,
@@ -505,10 +507,10 @@ describe('fetchAdAnalyticsByGeo', () => {
   });
 
   /**
-   * Conversions can land on a day a campaign showed no ads, so the campaigns are listed with
-   * every metric the node imports, not by impressions alone.
+   * Conversions can land on a day a campaign showed no ads, so the campaigns are listed by
+   * any activity, not by impressions alone.
    */
-  it('lists the campaigns that ran with the metrics the node imports', async () => {
+  it('lists the campaigns that ran by their activity metrics', async () => {
     const { makeRequest, requests } = buildLinkedIn();
     const { self } = buildSource({ makeRequest });
 
@@ -522,14 +524,12 @@ describe('fetchAdAnalyticsByGeo', () => {
       `&accounts=List(${encodeURIComponent(`urn:li:sponsoredAccount:${URN}`)})`
     );
     expect(new URL(campaignRequests[0]).searchParams.get('fields')).toBe(
-      'dateRange,pivotValues,impressions,costInLocalCurrency'
+      'pivotValues,impressions,clicks,costInLocalCurrency'
     );
   });
 
-  it('lists a campaign found by any field chunk, once', async () => {
-    const { makeRequest, requests } = buildLinkedIn({
-      campaigns: url => (url.includes('clicks') ? [CAMPAIGN_2] : [CAMPAIGN_1, CAMPAIGN_2]),
-    });
+  it('lists the campaigns in one request however many metrics the node imports', async () => {
+    const { makeRequest, requests } = buildLinkedIn();
     const { self } = buildSource({ makeRequest });
     self.MAX_FIELDS_PER_REQUEST = 3;
 
@@ -542,10 +542,43 @@ describe('fetchAdAnalyticsByGeo', () => {
       'clicks',
     ]);
 
-    expect(requests.filter(url => url.includes('pivot=CAMPAIGN&'))).toHaveLength(2);
+    expect(requests.filter(url => url.includes('pivot=CAMPAIGN&'))).toHaveLength(1);
     expect(new Set(rows.map(row => row.campaign))).toEqual(new Set([CAMPAIGN_1, CAMPAIGN_2]));
-    // Each campaign's breakdown is asked once per chunk, not once per chunk that found it.
     expect(requests.filter(url => url.includes('pivot=MEMBER_COUNTRY_V2'))).toHaveLength(4);
+  });
+
+  /**
+   * The campaign list comes from the analytics finder too, which LinkedIn documents with
+   * paged answers: a real next page left unread would drop the campaigns on it.
+   */
+  it('reads every page of the campaign list', async () => {
+    const campaigns = Array.from({ length: 12 }, (_, i) => `urn:li:sponsoredCampaign:${i + 1}`);
+    const linkedIn = buildLinkedIn({ names: {} });
+    const listRequests = [];
+    const makeRequest = vi.fn(async url => {
+      if (!url.includes('pivot=CAMPAIGN&')) return linkedIn.makeRequest(url);
+      listRequests.push(url);
+      const start = Number(/[?&]start=(\d+)/.exec(url)?.[1] ?? 0);
+      return {
+        elements: campaigns.slice(start, start + 10).map(urn => ({ pivotValues: [urn] })),
+        paging: {
+          start,
+          count: 10,
+          links: start + 10 < campaigns.length ? [{ rel: 'next', href: '/next' }] : [],
+        },
+      };
+    });
+    const { self } = buildSource({ makeRequest });
+
+    const urns = await sourceProto.fetchActiveCampaignUrns.call(self, {
+      urn: URN,
+      nodeName: 'adAnalyticsByCountry',
+      start: utcDay(1),
+      end: utcDay(1),
+    });
+
+    expect(urns).toEqual(campaigns);
+    expect(listRequests).toHaveLength(2);
   });
 
   it('asks nothing more on a day without campaigns', async () => {
@@ -754,36 +787,63 @@ describe('fetchAdAnalyticsByGeo', () => {
   });
 
   /**
-   * A 400 says something about what one batch asked, not about the lookup as a whole: the
-   * other batches are still asked, and only the rejected locations stay unnamed.
+   * A 400 can come from a single URN LinkedIn will not take: the batch is split until that
+   * URN is found, so it alone stays unnamed and the rest keep their names.
    */
-  it('keeps asking for names after one batch is rejected, warning once', async () => {
+  it('splits a rejected name batch down to the URN LinkedIn will not take', async () => {
     const geoUrns = Array.from({ length: 4 }, (_, i) => `urn:li:geo:${i + 1}`);
     const rejection = Object.assign(new Error('HTTP 400: Invalid URN'), { statusCode: 400 });
     const { makeRequest, requests } = buildLinkedIn({
       campaigns: [CAMPAIGN_1],
       rowsByCampaign: { [CAMPAIGN_1]: day => geoUrns.map(urn => geoRow(day, urn, {})) },
       names: Object.fromEntries(geoUrns.map(urn => [urn, `Name of ${urn}`])),
-      namesError: decoded => (decoded.includes('urn:li:geo:1,') ? rejection : null),
+      namesError: decoded => (/urn:li:geo:2[,)]/.test(decoded) ? rejection : null),
     });
     const { self, warnings } = buildSource({ makeRequest });
-    self.GEO_NAMES_PER_REQUEST = 2;
 
     const rows = await fetchGeoDay(self, 1);
+    await fetchGeoDay(self, 2);
     sourceProto.onAccountComplete.call(self, { id: URN });
 
-    expect(requests.filter(url => url.includes('adTargetingEntities'))).toHaveLength(2);
+    const nameRequests = requests.filter(url => url.includes('adTargetingEntities'));
+    // [1,2,3,4] → [1,2] → [1], [2] → [3,4]; nothing is asked again on day 2.
+    expect(nameRequests.map(url => decodeURIComponent(url).match(/List\(([^)]*)\)/)[1])).toEqual([
+      'urn:li:geo:1,urn:li:geo:2,urn:li:geo:3,urn:li:geo:4',
+      'urn:li:geo:1,urn:li:geo:2',
+      'urn:li:geo:1',
+      'urn:li:geo:2',
+      'urn:li:geo:3,urn:li:geo:4',
+    ]);
     expect(rows.map(row => row.countryName)).toEqual([
-      null,
+      'Name of urn:li:geo:1',
       null,
       'Name of urn:li:geo:3',
       'Name of urn:li:geo:4',
     ]);
     expect(warnings()).toEqual([
-      'LinkedIn rejected a location name lookup (HTTP 400: Invalid URN); the locations it ' +
-        'asked for are left unnamed',
-      `LinkedIn returned no name for 2 location(s) of account ${URN}: urn:li:geo:1, ` +
-        'urn:li:geo:2; their name column is left empty',
+      'LinkedIn rejected the name lookup for urn:li:geo:2 (HTTP 400: Invalid URN); ' +
+        'their name column is left empty',
+      `LinkedIn returned no name for 1 location(s) of account ${URN}: urn:li:geo:2; ` +
+        'their name column is left empty',
+    ]);
+  });
+
+  it('stops asking for names when LinkedIn takes no URN of a batch, even one at a time', async () => {
+    const rejection = Object.assign(new Error('HTTP 400: Invalid URN'), { statusCode: 400 });
+    const { makeRequest, requests } = buildLinkedIn({ namesError: rejection });
+    const { self, warnings } = buildSource({ makeRequest });
+
+    const rows = await fetchGeoDay(self, 1);
+    await fetchGeoDay(self, 2);
+    sourceProto.onAccountComplete.call(self, { id: URN });
+
+    expect(rows.every(row => row.countryName === null)).toBe(true);
+    // [US, DE] → [US], [DE]; then no more lookups this run.
+    expect(requests.filter(url => url.includes('adTargetingEntities'))).toHaveLength(3);
+    expect(warnings()).toEqual([
+      'LinkedIn rejected the location name lookup for every location asked, one at a time ' +
+        'too (HTTP 400: Invalid URN); location names are left empty, and the location URNs ' +
+        'and metrics are imported',
     ]);
   });
 
@@ -840,6 +900,34 @@ describe('fetchAdAnalyticsByGeo', () => {
       `LinkedIn returned no name for 1 location(s) of account ${URN}: ${DE}; ` +
         'their name column is left empty',
     ]);
+  });
+
+  /**
+   * After a failure the engine never calls onAccountComplete for the account, so each later
+   * day is reported right after it rather than not at all.
+   */
+  it('reports each later day of an account that already failed', async () => {
+    const { makeRequest } = buildLinkedIn({ names: { [US]: 'United States' } });
+    const { self, warnings } = buildSource({ makeRequest });
+    const fetchCountryDay = day =>
+      sourceProto.fetchData.call(self, {
+        nodeName: 'adAnalyticsByCountry',
+        fields: [...fieldsSchema.adAnalyticsByCountry.uniqueKeys, 'countryName'],
+        accountId: URN,
+        startDate: utcDay(day),
+        endDate: utcDay(day),
+      });
+
+    await fetchCountryDay(1);
+    expect(warnings()).toHaveLength(0);
+
+    sourceProto.onAccountError.call(self, { id: URN }, new Error('HTTP 429'));
+    expect(warnings()).toHaveLength(1);
+
+    self.geoNames.clear();
+    await fetchCountryDay(2);
+    expect(warnings()).toHaveLength(2);
+    expect(warnings()[1]).toContain(`no name for 1 location(s) of account ${URN}: ${DE};`);
   });
 
   it('records a cut-short campaign list as a truncated day of the node', async () => {
