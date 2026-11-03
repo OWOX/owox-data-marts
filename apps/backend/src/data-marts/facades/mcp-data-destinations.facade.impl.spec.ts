@@ -366,6 +366,54 @@ describe('McpDataDestinationsFacadeImpl', () => {
       expect(createDataDestinationService.run).not.toHaveBeenCalled();
     });
 
+    it.each([
+      ['google_sheets', DataDestinationType.GOOGLE_SHEETS],
+      ['google_chat', DataDestinationType.GOOGLE_CHAT],
+    ] as const)(
+      'binds a saved Credential to an unshared %s destination',
+      async (type, domainType) => {
+        const { facade, createDataDestinationService } = createFacadeForCreate({
+          createDataDestinationService: {
+            run: jest
+              .fn()
+              .mockResolvedValue({ id: 'new-dest', title: 'New destination', secret: 'hidden' }),
+          },
+        });
+
+        const result = await facade.createDestination({
+          ...baseRequest,
+          type,
+          title: 'New destination',
+          credentialId: 'credential-1',
+        });
+
+        expect(createDataDestinationService.run).toHaveBeenCalledWith(
+          expect.objectContaining({
+            ...baseRequest,
+            type: domainType,
+            reusableCredentialId: 'credential-1',
+            credentials: undefined,
+            availableForUse: false,
+          })
+        );
+        expect(result).toEqual({ id: 'new-dest', name: 'New destination' });
+      }
+    );
+
+    it.each([
+      { type: 'email', credentialId: 'credential-1', emails: ['a@b.test'] },
+      { type: 'looker_studio', credentialId: 'credential-1' },
+      { type: 'google_chat', credentialId: 'credential-1', emails: [] },
+      { type: 'google_sheets', credentialId: 'credential-1', emails: ['a@b.test'] },
+    ] as const)('refuses an unsupported or mixed Credential binding: %j', async input => {
+      const { facade, createDataDestinationService } = createFacadeForCreate();
+
+      await expect(facade.createDestination({ ...baseRequest, ...input } as never)).rejects.toThrow(
+        BadRequestException
+      );
+      expect(createDataDestinationService.run).not.toHaveBeenCalled();
+    });
+
     it('rejects direct creation when emails are missing for non-looker types', async () => {
       const { facade, createDataDestinationService } = createFacadeForCreate();
 

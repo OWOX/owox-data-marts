@@ -11,6 +11,7 @@ export class TestCustomConnectorCommand {
   constructor(
     public readonly projectId: string,
     public readonly input: CustomConnectorTestInput,
-    public readonly credential?: TestCustomConnectorCredential
+    public readonly credential?: TestCustomConnectorCredential,
+    public readonly allowInlineCredentials = true
   ) {}
 }

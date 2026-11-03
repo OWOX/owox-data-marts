@@ -5,6 +5,7 @@ import { useAuthState, useUser } from '../hooks';
 import { signIn } from '../services';
 import { normalizeProjectId } from '../utils/project-id';
 import { FullScreenLoader } from '@owox/ui/components/common/loading-spinner';
+import { CONNECT_SWITCH_ATTEMPT_KEY, getConnectProjectTarget } from '../utils/connect-project';
 
 /**
  * A React component that acts as a guard to ensure the user is accessing the correct project ID,
@@ -20,6 +21,7 @@ export function ProjectIdGuard({ children }: { children: React.ReactNode }): Rea
   const user = useUser();
   const { projectId: urlProjectId } = useParams<{ projectId?: string }>();
   const location = useLocation();
+  const currentUrl = location.pathname + location.search + location.hash;
 
   const userProjectId = user?.projectId;
   const safeUrlProjectId = normalizeProjectId(urlProjectId);
@@ -34,9 +36,23 @@ export function ProjectIdGuard({ children }: { children: React.ReactNode }): Rea
 
   useEffect(() => {
     if (hasMismatch) {
+      const connectTarget = getConnectProjectTarget(currentUrl);
+      if (connectTarget) {
+        if (sessionStorage.getItem(CONNECT_SWITCH_ATTEMPT_KEY) === connectTarget.url) {
+          window.dispatchEvent(
+            new CustomEvent('auth:logout', {
+              detail: { reason: 'connect_project_mismatch', connectTarget: connectTarget.url },
+            })
+          );
+          return;
+        }
+        sessionStorage.setItem(CONNECT_SWITCH_ATTEMPT_KEY, connectTarget.url);
+        signIn({ projectId: connectTarget.projectId, redirect: connectTarget.url });
+        return;
+      }
       signIn({ projectId: safeUrlProjectId });
     }
-  }, [hasMismatch, safeUrlProjectId]);
+  }, [hasMismatch, safeUrlProjectId, currentUrl]);
 
   if (!isLoading && isPlaceholder && userProjectId) {
     return (

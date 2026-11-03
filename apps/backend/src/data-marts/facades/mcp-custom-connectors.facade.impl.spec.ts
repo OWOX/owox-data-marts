@@ -22,9 +22,6 @@ jest.mock('../services/connector/connector-test.service', () => ({
   ConnectorTestService: jest.fn(),
 }));
 
-// The MCP path never carries a Credential, so these collaborators are never reached.
-const credentialPathUnused = {} as never;
-
 describe('McpCustomConnectorsFacadeImpl', () => {
   const actor = { projectId: 'project', userId: 'editor', roles: ['editor'] };
   const manifest = { name: 'CustomApi', arbitrary: 'private authoring value' };
@@ -47,7 +44,8 @@ describe('McpCustomConnectorsFacadeImpl', () => {
   };
   let definitions: Record<string, jest.Mock>;
   let connector: Record<string, jest.Mock>;
-  let tester: { runTest: jest.Mock };
+  let tester: { runTest: jest.Mock; pruneToNode: jest.Mock };
+  let sourceCredentials: { checkConfigCredential: jest.Mock; resolveCredential: jest.Mock };
   let facade: McpCustomConnectorsFacadeImpl;
 
   beforeEach(() => {
@@ -90,6 +88,11 @@ describe('McpCustomConnectorsFacadeImpl', () => {
     };
     tester = {
       runTest: jest.fn().mockResolvedValue({ rows: [], logs: [], error: null, sample: [] }),
+      pruneToNode: jest.fn(value => value),
+    };
+    sourceCredentials = {
+      checkConfigCredential: jest.fn().mockResolvedValue(undefined),
+      resolveCredential: jest.fn().mockResolvedValue({ credentialId: 'credential-1' }),
     };
     facade = new McpCustomConnectorsFacadeImpl(
       new ListCustomConnectorsService(definitions as never, new ConnectorDefinitionMapper()),
@@ -119,9 +122,16 @@ describe('McpCustomConnectorsFacadeImpl', () => {
       ),
       new TestCustomConnectorService(
         tester as never,
-        credentialPathUnused,
-        credentialPathUnused,
-        credentialPathUnused
+        sourceCredentials as never,
+        {
+          leaseRotation: jest.fn(async credential => ({ credential })),
+          testValues: jest.fn(() => ({
+            parameters: { Token: 'private-token' },
+            keyParameters: ['Token'],
+            values: ['private-token'],
+          })),
+        } as never,
+        {} as never
       ),
       new ConnectorDefinitionMapper()
     );
@@ -176,12 +186,63 @@ describe('McpCustomConnectorsFacadeImpl', () => {
     expect(definitions.getById).toHaveBeenCalledWith('project', 'connector');
   });
 
-  it('runs a test on the typed values only, never with a Credential', async () => {
-    const input = { manifest, node: 'items', configuration: { Limit: 1 } };
-    await facade.test('project', input);
+  const testManifest = {
+    version: '1.0',
+    name: 'CustomApi',
+    baseUrl: 'https://api.example.test',
+    parameters: { Limit: { requiredType: 'number' } },
+    nodes: {
+      items: {
+        fields: { id: { type: 'string' } },
+        uniqueKeys: ['id'],
+        request: { method: 'GET', path: '/items' },
+        recordSelector: { recordPath: [] },
+      },
+    },
+  };
+
+  it('runs a public connector without a Credential', async () => {
+    const input = { manifest: testManifest, node: 'items', configuration: { Limit: 1 } };
+    await facade.test(actor, input);
     expect(tester.runTest).toHaveBeenCalledWith(
       expect.objectContaining({ projectId: 'project', ...input })
     );
     expect(tester.runTest.mock.calls[0][0]).not.toHaveProperty('credential');
+  });
+
+  const credentialManifest = {
+    ...testManifest,
+    authentication: {
+      type: 'bearer',
+      inject: { into: 'header', name: 'Authorization', format: 'Bearer {{ parameters.Token }}' },
+    },
+    parameters: { Token: { requiredType: 'string', isRequired: true } },
+  };
+
+  it('passes the authenticated actor to the Credential use check', async () => {
+    await facade.test(actor, {
+      manifest: credentialManifest,
+      node: 'items',
+      configuration: {},
+      credentialId: 'credential-1',
+    });
+
+    expect(sourceCredentials.checkConfigCredential).toHaveBeenCalledWith(
+      expect.objectContaining({ ...actor, credentialId: 'credential-1' })
+    );
+    expect(tester.runTest).toHaveBeenCalledWith(
+      expect.objectContaining({ configuration: { Token: 'private-token' } })
+    );
+  });
+
+  it('forbids inline keys even when the caller selects no Credential', async () => {
+    await expect(
+      facade.test(actor, {
+        manifest: credentialManifest,
+        node: 'items',
+        configuration: { Token: 'private-token' },
+      })
+    ).rejects.toThrow('configuration');
+    expect(tester.runTest).not.toHaveBeenCalled();
   });
 });

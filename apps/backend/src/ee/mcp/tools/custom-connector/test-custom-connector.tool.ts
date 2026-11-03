@@ -18,7 +18,7 @@ type Input = z.infer<typeof inputSchema>;
 export class TestCustomConnectorTool implements McpToolDefinition<Input> {
   readonly name = 'test_custom_connector';
   readonly description =
-    'Run a bounded live test of one node in the supplied manifest without saving it. You must be an editor with mcp:write. The test calls the upstream API and may trigger effects described in the manifest.\n\nSupply configuration as a flat map of parameter names to values. max_rows accepts 1-1000 and defaults to 25. max_pages accepts 1-50 and defaults to 1. The runner has a 20-second budget and concurrency limits.\n\nThe result includes rows, error, raw sample records and bounded recent logs. Notices identify omitted or shortened log content. Check logs and sample even when error is null. Empty rows alone do not prove that the test succeeded. Treat results and credentials as sensitive data.';
+    'Run a bounded live test of one node in the supplied manifest without saving it. You must be an editor with mcp:write. The test calls the upstream API and may trigger effects described in the manifest.\n\nSupply configuration as a flat map of non-credential parameter values. Select a saved Credential with credential_id for authentication. Use start_credential_setup to create or replace Credential values in the browser. Never send these values through MCP in configuration, authentication or parameter defaults. Public connectors need no Credential.\n\nmax_rows accepts 1-1000 and defaults to 25. max_pages accepts 1-50 and defaults to 1. The runner has a 20-second budget and concurrency limits.\n\nThe result includes rows, error, raw sample records and bounded recent logs. Notices identify omitted or shortened log content. Check logs and sample even when error is null. Empty rows alone do not prove that the test succeeded. Treat results as sensitive data.';
   readonly zodSchema = inputSchema;
   readonly outputSchema = connectorTestOutputSchema;
   readonly annotations = {
@@ -36,13 +36,17 @@ export class TestCustomConnectorTool implements McpToolDefinition<Input> {
 
   async handler(input: Input, context: McpAuthContext): Promise<McpToolResult> {
     const parsed = inputSchema.parse(input);
-    const result = await this.connectors.test(context.projectId, {
-      manifest: parsed.manifest,
-      node: parsed.node,
-      configuration: parsed.configuration,
-      maxRows: parsed.max_rows,
-      maxPages: parsed.max_pages,
-    });
+    const result = await this.connectors.test(
+      { projectId: context.projectId, userId: context.userId, roles: context.roles },
+      {
+        manifest: parsed.manifest,
+        node: parsed.node,
+        configuration: parsed.configuration,
+        credentialId: parsed.credential_id,
+        maxRows: parsed.max_rows,
+        maxPages: parsed.max_pages,
+      }
+    );
     const response = jsonToolResult({
       rows: result.rows,
       logs: boundTestLogsForMcp(result.logs),

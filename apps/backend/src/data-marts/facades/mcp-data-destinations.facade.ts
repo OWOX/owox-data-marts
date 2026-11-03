@@ -24,6 +24,7 @@ export interface McpCreateDestinationRequest {
   type: McpDestinationType;
   title?: string;
   emails?: string[];
+  credentialId?: string;
 }
 
 export interface McpCreateDestinationResponse {

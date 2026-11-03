@@ -36,7 +36,9 @@ export type McpCustomConnectorDetail = CustomConnectorDetailDto;
 export type McpCustomConnectorVersion = CustomConnectorVersionDto;
 export type McpCustomConnectorPublished = CustomConnectorPublishedDto;
 export type McpCustomConnectorActivated = CustomConnectorActivatedDto;
-export type McpCustomConnectorTestInput = CustomConnectorTestInput;
+export interface McpCustomConnectorTestInput extends CustomConnectorTestInput {
+  credentialId?: string;
+}
 export type McpCustomConnectorTestResult = CustomConnectorTestResultDto;
 export type McpCustomConnectorSpecificationItem = ConnectorSpecificationItemDto;
 export type McpCustomConnectorSpecification = ConnectorSpecificationDto;
@@ -73,7 +75,7 @@ export interface McpCustomConnectorsFacade {
   ): Promise<McpCustomConnectorSpecification[]>;
   getFields(projectId: string, id: string, version?: number): Promise<ConnectorFieldsDto[]>;
   test(
-    projectId: string,
+    actor: McpCustomConnectorActor,
     input: McpCustomConnectorTestInput
   ): Promise<McpCustomConnectorTestResult>;
 }

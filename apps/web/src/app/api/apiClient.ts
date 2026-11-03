@@ -10,6 +10,12 @@ import { isBlockedUserError } from '../../features/idp/services/auth-api.service
 import { AuthStateManager } from './auth-state-manager';
 import { getTokenProvider } from './token-provider';
 import { withLoadingIndicator } from './api-loading';
+import {
+  ConnectProjectMismatchError,
+  ConnectAccountMismatchError,
+  getConnectProjectTarget,
+  type ConnectProjectTarget,
+} from '../../features/idp/utils/connect-project';
 
 // Extend AxiosRequestConfig to include our custom properties
 export interface AxiosRequestConfig extends OriginalAxiosRequestConfig {
@@ -22,6 +28,8 @@ export interface AxiosRequestConfig extends OriginalAxiosRequestConfig {
 interface ExtendedInternalAxiosRequestConfig extends InternalAxiosRequestConfig {
   skipAuthHeader?: boolean;
   _retry?: boolean;
+  connectProjectTarget?: ConnectProjectTarget | null;
+  connectUserId?: string | null;
 }
 
 // Default config for the axios instance
@@ -54,6 +62,29 @@ export function wasErrorToastShown(error: unknown): boolean {
 
 const authStateManager = new AuthStateManager();
 
+function assertConnectSession(request: ExtendedInternalAxiosRequestConfig, token: string | null) {
+  const target = request.connectProjectTarget;
+  if (!target) return;
+  const provider = getTokenProvider();
+  const projectMatches =
+    provider?.getProjectId?.() === target.projectId && provider.getAccessToken() === token;
+  const userMatches =
+    Boolean(request.connectUserId) && provider?.getUserId?.() === request.connectUserId;
+  if (projectMatches && userMatches) return;
+  const error = projectMatches
+    ? new ConnectAccountMismatchError(target)
+    : new ConnectProjectMismatchError(target);
+  window.dispatchEvent(
+    new CustomEvent('auth:logout', {
+      detail: {
+        reason: projectMatches ? 'connect_account_changed' : 'connect_project_mismatch',
+        connectTarget: target.url,
+      },
+    })
+  );
+  throw error;
+}
+
 // Request interceptor to add auth headers
 apiClient.interceptors.request.use(
   (config: ExtendedInternalAxiosRequestConfig) => {
@@ -61,13 +92,29 @@ apiClient.interceptors.request.use(
       return config;
     }
 
+    // Keep the original target when a request is retried after navigation or token refresh.
+    if (config.connectProjectTarget === undefined) {
+      config.connectProjectTarget = getConnectProjectTarget(
+        window.location.pathname + window.location.search + window.location.hash
+      );
+      config.connectUserId = config.connectProjectTarget
+        ? (getTokenProvider()?.getUserId?.() ?? null)
+        : null;
+    }
+
     const headers = new AxiosHeaders(config.headers);
     if (headers.has('X-OWOX-Authorization')) {
+      const authorization = headers.get('X-OWOX-Authorization');
+      assertConnectSession(
+        config,
+        typeof authorization === 'string' ? authorization.replace(/^Bearer /, '') : null
+      );
       return config;
     }
 
     const tokenProvider = getTokenProvider();
     const accessToken = tokenProvider?.getAccessToken() ?? authStateManager.getAccessToken();
+    assertConnectSession(config, accessToken);
 
     if (accessToken) {
       config.headers['X-OWOX-Authorization'] = `Bearer ${accessToken}`;
@@ -91,11 +138,25 @@ apiClient.interceptors.response.use(
 
       const signOut = (cause: unknown) => {
         authStateManager.clear();
+        const connectTarget =
+          originalRequest.connectProjectTarget ??
+          (cause instanceof ConnectProjectMismatchError ||
+          cause instanceof ConnectAccountMismatchError
+            ? cause.target
+            : null);
 
         window.dispatchEvent(
           new CustomEvent('auth:logout', {
             detail: {
-              reason: isBlockedUserError(cause) ? 'user_blocked' : 'token_refresh_failed',
+              reason:
+                cause instanceof ConnectAccountMismatchError
+                  ? 'connect_account_changed'
+                  : cause instanceof ConnectProjectMismatchError
+                    ? 'connect_project_mismatch'
+                    : isBlockedUserError(cause)
+                      ? 'user_blocked'
+                      : 'token_refresh_failed',
+              ...(connectTarget ? { connectTarget: connectTarget.url } : {}),
             },
           })
         );
@@ -115,6 +176,8 @@ apiClient.interceptors.response.use(
         return signOut(refreshError);
       }
 
+      // Each request must check a shared refresh result against its original project and account.
+      assertConnectSession(originalRequest, newAccessToken);
       originalRequest.headers['X-OWOX-Authorization'] = `Bearer ${newAccessToken}`;
       try {
         return await apiClient(originalRequest);

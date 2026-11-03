@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { act, renderHook } from '@testing-library/react';
+import { act, renderHook, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Credential } from './types';
@@ -36,9 +36,9 @@ const saved = {
   usedBy: [consumer('storage', 'storage-1'), consumer('plugin', 'plugin-1')],
 } as unknown as Credential;
 
-function setup() {
+function setup(client = new QueryClient()) {
   const wrapper = ({ children }: { children: ReactNode }) => (
-    <QueryClientProvider client={new QueryClient()}>{children}</QueryClientProvider>
+    <QueryClientProvider client={client}>{children}</QueryClientProvider>
   );
   return renderHook(() => useCredentialActions(), { wrapper }).result;
 }
@@ -76,5 +76,69 @@ describe('useCredentialActions', () => {
     });
     expect(mocks.invalidate).toHaveBeenCalledTimes(1);
     expect(mocks.invalidate).toHaveBeenCalledWith(saved);
+  });
+
+  it.each(['create', 'update', 'exchange'] as const)(
+    'drops %s secrets from the mutation cache after success or failure while mounted',
+    async action => {
+      const client = new QueryClient();
+      const result = setup(client);
+      const run = () => {
+        if (action === 'exchange') {
+          return result.current.exchangeGoogleOAuth({ code: 'private-code', state: 'oauth-state' });
+        }
+        const input = { title: 'Key', definitionId: 'github', secret: { value: 'private-token' } };
+        return action === 'create'
+          ? result.current.create(input)
+          : result.current.update({ id: saved.id, input });
+      };
+
+      await act(async () => {
+        await expect(run()).resolves.toBe(saved);
+      });
+      await waitFor(() => {
+        expect(client.getMutationCache().getAll()).toHaveLength(0);
+      });
+      const error = new Error('Save failed');
+      mocks[action].mockRejectedValueOnce(error);
+      await act(async () => {
+        await expect(run()).rejects.toBe(error);
+      });
+      await waitFor(() => {
+        expect(client.getMutationCache().getAll()).toHaveLength(0);
+      });
+    }
+  );
+
+  it('keeps saving state and listener invalidation until an update completes', async () => {
+    let finish!: (credential: Credential) => void;
+    mocks.update.mockImplementation(
+      () =>
+        new Promise(resolve => {
+          finish = resolve;
+        })
+    );
+    const result = setup();
+    let request!: Promise<Credential>;
+    await act(async () => {
+      request = result.current.update({
+        id: saved.id,
+        input: { secret: { value: 'private-token' } },
+      });
+    });
+    await waitFor(() => {
+      expect(result.current.isSaving).toBe(true);
+    });
+    expect(mocks.invalidate).not.toHaveBeenCalled();
+
+    await act(async () => {
+      finish(saved);
+      await request;
+    });
+
+    await waitFor(() => {
+      expect(result.current.isSaving).toBe(false);
+    });
+    expect(mocks.invalidate).toHaveBeenCalledExactlyOnceWith(saved);
   });
 });

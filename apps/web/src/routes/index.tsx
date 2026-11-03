@@ -27,6 +27,7 @@ import { SearchPage } from '../pages/search/SearchPage';
 import { ConnectFlowLayout } from '../layouts/ConnectFlowLayout';
 import { ConnectGoogleSheetsPage } from '../pages/connect/ConnectGoogleSheetsPage';
 import { ConnectGoogleSheetsDonePage } from '../pages/connect/ConnectGoogleSheetsDonePage';
+import { ConnectCredentialSetupPage } from '../pages/connect/ConnectCredentialSetupPage';
 import { pluginsRoutes } from './plugins/routes';
 import { CredentialsPage } from '../pages/credentials/CredentialsPage';
 import ConnectorBuilderRoutePage from '../pages/connectors/builder/BuilderPage';
@@ -173,6 +174,11 @@ const routes: RouteObject[] = [
     errorElement: <RootErrorBoundary />,
     children: [
       {
+        path: 'credentials/:setupId',
+        element: <ConnectCredentialSetupPage />,
+        errorElement: <LayoutErrorBoundary />,
+      },
+      {
         path: 'google-sheets',
         element: <ConnectGoogleSheetsPage />,
         errorElement: <LayoutErrorBoundary />,
@@ -187,7 +193,7 @@ const routes: RouteObject[] = [
   {
     // First-run steps linked from the sign-up questionnaire: same guards, no app chrome.
     path: '/ui/:projectId/onboarding',
-    element: <ConnectFlowLayout />,
+    element: <ConnectFlowLayout flow='onboarding' />,
     errorElement: <RootErrorBoundary />,
     children: [
       {

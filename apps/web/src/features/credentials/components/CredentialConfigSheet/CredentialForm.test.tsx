@@ -209,6 +209,39 @@ function renderForm(overrides: Partial<React.ComponentProps<typeof CredentialFor
 }
 
 describe('CredentialForm', () => {
+  it('updates an automatic name with the provider and preserves a name entered by the user', async () => {
+    renderForm({ definitions: [openAiDefinition, githubDefinition] });
+    const name = screen.getByRole('textbox', { name: 'Name' });
+    expect(name).toHaveValue('OpenAI');
+    fireEvent.mouseDown(screen.getByRole('combobox', { name: 'Provider' }), { button: 0 });
+    fireEvent.click(await screen.findByRole('option', { name: 'GitHub' }));
+    expect(name).toHaveValue('GitHub');
+    fireEvent.change(name, { target: { value: 'Production account' } });
+    fireEvent.mouseDown(screen.getByRole('combobox', { name: 'Provider' }), { button: 0 });
+    fireEvent.click(await screen.findByRole('option', { name: 'OpenAI' }));
+    expect(name).toHaveValue('Production account');
+  });
+
+  it('preserves a suggested name when the provider changes', async () => {
+    renderForm({
+      definitions: [openAiDefinition, githubDefinition],
+      initialTitle: 'Marketing access',
+    });
+    expect(screen.getByRole('textbox', { name: 'Name' })).toHaveValue('Marketing access');
+    fireEvent.mouseDown(screen.getByRole('combobox', { name: 'Provider' }), { button: 0 });
+    fireEvent.click(await screen.findByRole('option', { name: 'GitHub' }));
+    expect(screen.getByRole('textbox', { name: 'Name' })).toHaveValue('Marketing access');
+  });
+
+  it('keeps the current name of an existing Credential', () => {
+    renderForm({
+      credential: githubCredential,
+      definitions: [githubDefinition],
+      initialTitle: 'New suggestion',
+    });
+    expect(screen.getByRole('textbox', { name: 'Name' })).toHaveValue('GitHub production');
+  });
+
   it('uses standard sections and hides non-editable recommended model IDs', () => {
     renderForm();
 
@@ -1073,6 +1106,24 @@ describe('CredentialForm', () => {
       fireEvent.click(screen.getByText('Which provider should I choose?'));
 
       expect(screen.getByText('Sheets Destination Google account (OAuth):')).toBeInTheDocument();
+    });
+
+    it('uses a provider name for manual entry and account details for OAuth without replacing a user edit', async () => {
+      connectorOAuth.getSettings.mockResolvedValue({ isEnabled: true, vars: { AppId: 'app' } });
+      renderForm({ definitions: [facebookDefinition] });
+      await screen.findByRole('button', { name: 'Continue with Facebook' });
+      const name = screen.getByRole('textbox', { name: 'Name' });
+      expect(name).toHaveValue('');
+      fireEvent.click(screen.getByRole('button', { name: 'Manually' }));
+      expect(name).toHaveValue('Facebook Ads');
+      fireEvent.click(screen.getByRole('button', { name: 'Back to OAuth' }));
+      await screen.findByRole('button', { name: 'Continue with Facebook' });
+      expect(name).toHaveValue('');
+      fireEvent.click(screen.getByRole('button', { name: 'Manually' }));
+      fireEvent.change(name, { target: { value: 'Ads team' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Back to OAuth' }));
+      await screen.findByRole('button', { name: 'Continue with Facebook' });
+      expect(name).toHaveValue('Ads team');
     });
 
     it('a Source definition with connect shows Connect when the connector OAuth is available and the fields otherwise', async () => {

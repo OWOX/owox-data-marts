@@ -63,22 +63,26 @@ export class McpDataDestinationsFacadeImpl implements McpDataDestinationsFacade 
   ): Promise<McpCreateDestinationResponse> {
     const dataDestinationType = REVERSE_DESTINATION_TYPE_MAP[request.type];
 
-    // google_sheets never reaches this method — AddDestinationTool intercepts it earlier
-    // and routes through the OAuth connect flow instead. Guarded explicitly so a future
-    // caller gets a clear error instead of silently falling into the email-credentials
-    // branch below and seeing a confusing "Emails list is required" message.
-    if (request.type === 'google_sheets') {
+    if (request.credentialId && !['google_sheets', 'google_chat'].includes(request.type)) {
+      throw new BadRequestException(
+        'You can select a Credential only for Google Sheets or Google Chat.'
+      );
+    }
+    if (request.credentialId && request.emails !== undefined) {
+      throw new BadRequestException('Do not combine emails with a Credential.');
+    }
+    if (request.type === 'google_sheets' && !request.credentialId) {
       throw new BadRequestException(
         'google_sheets destinations cannot be created directly; use the OAuth connect flow instead'
       );
     }
 
-    let credentials: DataDestinationCredentials;
+    let credentials: DataDestinationCredentials | undefined;
     if (request.type === 'looker_studio') {
       credentials = {
         type: 'looker-studio-credentials',
       };
-    } else {
+    } else if (!request.credentialId) {
       if (!request.emails || request.emails.length === 0) {
         throw new BadRequestException('Emails list is required for direct destination creation');
       }
@@ -96,6 +100,7 @@ export class McpDataDestinationsFacadeImpl implements McpDataDestinationsFacade 
       type: dataDestinationType,
       userId: request.userId,
       credentials,
+      reusableCredentialId: request.credentialId,
       roles: request.roles,
       // MCP-created destinations start unshared — an agent-created destination shouldn't
       // silently become available to the whole project's reports before a human reviews it.

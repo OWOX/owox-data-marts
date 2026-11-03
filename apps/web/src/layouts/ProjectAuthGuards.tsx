@@ -11,9 +11,15 @@ import { ProjectsProvider } from '../features/idp/context/ProjectsContext';
  * Extracted out of MainLayout so minimal, chrome-free layouts (e.g. ConnectFlowLayout) can
  * reuse the same guarantees without pulling in the sidebar/nav chrome.
  */
-export function ProjectAuthGuards({ children }: { children: ReactNode }) {
+export function ProjectAuthGuards({
+  children,
+  authFallback,
+}: {
+  children: ReactNode;
+  authFallback?: ReactNode;
+}) {
   return (
-    <AuthGuard>
+    <AuthGuard fallback={authFallback}>
       <ProjectIdGuard>
         <ProjectRoleGuard>
           <ProjectsProvider>{children}</ProjectsProvider>

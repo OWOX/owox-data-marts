@@ -178,7 +178,7 @@ describe('custom connector tools through the MCP SDK', () => {
     }
   );
 
-  it('maps test configuration and MCP limit names to the domain request', async () => {
+  it('maps the Credential reference, actor, configuration and MCP limits to the domain request', async () => {
     const client = await open();
     await client.callTool({
       name: 'test_custom_connector',
@@ -186,17 +186,22 @@ describe('custom connector tools through the MCP SDK', () => {
         manifest,
         node: 'items',
         configuration: { Value: 'sensitive-content' },
+        credential_id: 'credential-1',
         max_rows: 2,
         max_pages: 3,
       },
     });
-    expect(facade.test).toHaveBeenCalledWith('project-1', {
-      manifest,
-      node: 'items',
-      configuration: { Value: 'sensitive-content' },
-      maxRows: 2,
-      maxPages: 3,
-    });
+    expect(facade.test).toHaveBeenCalledWith(
+      { projectId: 'project-1', userId: 'user-1', roles: ['admin'] },
+      {
+        manifest,
+        node: 'items',
+        configuration: { Value: 'sensitive-content' },
+        credentialId: 'credential-1',
+        maxRows: 2,
+        maxPages: 3,
+      }
+    );
     expect(events[0].payload[OFFLOAD_KEY]?.arguments).toMatchObject({
       manifest: loggedManifest,
       configuration: { Value: '[REDACTED]' },
@@ -331,6 +336,11 @@ describe('custom connector tools through the MCP SDK', () => {
     ['test_custom_connector', { manifest, node: 'items', configuration: {}, max_rows: 1001 }],
     ['test_custom_connector', { manifest, node: 'items', configuration: {}, max_pages: 51 }],
     ['test_custom_connector', { manifest, node: 'items', configuration: {}, max_pages: 1.5 }],
+    ['test_custom_connector', { manifest, node: 'items', configuration: {}, credential_id: '' }],
+    [
+      'test_custom_connector',
+      { manifest, node: 'items', configuration: {}, credential: { secret: 'private-token' } },
+    ],
   ])('rejects invalid %s input before reaching the domain', async (name, args) => {
     const client = await open();
     const result = await client.callTool({

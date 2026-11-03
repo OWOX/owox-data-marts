@@ -1,18 +1,5 @@
 import { Button } from '@owox/ui/components/button';
-import { ExternalAnchor } from '@owox/ui/components/common/external-anchor';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@owox/ui/components/dialog';
-import { FileDropTextarea } from '@owox/ui/components/file-drop-textarea';
-import { Input } from '@owox/ui/components/input';
-import { Label } from '@owox/ui/components/label';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
-import { Info, KeyRound, Plus } from 'lucide-react';
+import { KeyRound, Plus } from 'lucide-react';
 import { useState } from 'react';
 import toast from 'react-hot-toast';
 import { wasErrorToastShown } from '../../app/api';
@@ -21,16 +8,17 @@ import { useAuth } from '../idp';
 import { ConfirmationDialog } from '../../shared/components/ConfirmationDialog/ConfirmationDialog';
 import { isUnavailableCredential, type Credential, type UnavailableCredential } from './types';
 import { CredentialConfigSheet, CredentialUsedByList } from './components/CredentialConfigSheet';
-import { SecretReplacementWarning } from './components/SecretReplacementWarning';
+import { ReplaceSecretDialog } from './components/ReplaceSecretDialog';
 import { CredentialsTable } from './CredentialsTable';
 import { credentialDeleteBlockedMessage } from './credential-delete-message';
-import { safeCredentialDocumentationUrl } from './credential-documentation-url';
 import { servedConnector } from './served-connector';
 import { trackCredentialCreated } from './track-credential-created';
 import { useCredentialActions, useCredentialDefinitions, useCredentials } from './useCredentials';
+import { useCredentialPermissions } from './useCredentialPermissions';
 
 export function CredentialsManager() {
   const { user } = useAuth();
+  const permissions = useCredentialPermissions();
   const { credentials, unavailableCredentials, isLoading, isError, refetch } = useCredentials();
   const {
     definitions,
@@ -135,11 +123,7 @@ export function CredentialsManager() {
           unavailableCredentials={unavailableCredentials}
           canDeleteUnavailable={Boolean(user?.roles?.includes('admin'))}
           canAddCredential={!definitionsLoading && definitions.length > 0}
-          canMaintainCredential={credential =>
-            Boolean(user?.roles?.includes('admin')) ||
-            credential.availableForMaintenance ||
-            credential.ownerUsers.some(owner => owner.userId === user?.id)
-          }
+          canMaintainCredential={permissions.canMaintain}
           isValidating={actions.isValidating}
           onAddCredential={() => {
             setEditor({ open: true, credential: null });
@@ -171,11 +155,7 @@ export function CredentialsManager() {
         isOpen={editor.open}
         credential={editor.credential}
         definitions={definitions}
-        canManageAccess={
-          editor.credential === null ||
-          Boolean(user?.roles?.includes('admin')) ||
-          editor.credential.ownerUsers.some(owner => owner.userId === user?.id)
-        }
+        canManageAccess={permissions.canManageAccess(editor.credential)}
         canAddGithubDefinition={Boolean(user?.roles?.includes('admin'))}
         onClose={() => {
           setEditor({ open: false, credential: null });
@@ -247,130 +227,6 @@ export function CredentialsManager() {
           <CredentialUsedByList credential={deleting} />
         )}
       </ConfirmationDialog>
-    </div>
-  );
-}
-
-function ReplaceSecretDialog({
-  credential,
-  isSaving,
-  onOpenChange,
-  onReplace,
-}: {
-  credential: Credential | null;
-  isSaving: boolean;
-  onOpenChange: (open: boolean) => void;
-  onReplace: (secret: string) => Promise<void>;
-}) {
-  const [secret, setSecret] = useState('');
-  const documentationUrl = safeCredentialDocumentationUrl(credential?.definition.documentationUrl);
-  return (
-    <Dialog open={credential !== null} onOpenChange={onOpenChange}>
-      <DialogContent className='flex max-h-[90vh] flex-col'>
-        <DialogHeader>
-          <DialogTitle>Replace secret</DialogTitle>
-          <DialogDescription>
-            Consumers continue using this Credential and will receive the new secret on their next
-            request.
-          </DialogDescription>
-        </DialogHeader>
-        {/* Only the body scrolls, so the buttons stay in view in a short window. */}
-        <div className='-mx-6 -my-1 flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-6 py-1'>
-          {credential && credential.usedBy.length > 0 && (
-            <CredentialUsedByList credential={credential} />
-          )}
-          {credential && <SecretReplacementWarning credential={credential} />}
-          <Field label='New secret'>
-            {credential?.definition.auth?.type === 'google-service-account' ? (
-              <FileDropTextarea
-                className='min-h-[150px] font-mono'
-                rows={8}
-                spellCheck={false}
-                autoComplete='off'
-                maxLength={32_768}
-                value={secret}
-                placeholder='Paste the service account JSON key or drop the file'
-                onChange={event => {
-                  setSecret(event.target.value);
-                }}
-                onFileRead={setSecret}
-                onFileReject={message => {
-                  toast.error(message);
-                }}
-              />
-            ) : (
-              <Input
-                type='password'
-                autoComplete='new-password'
-                value={secret}
-                onChange={event => {
-                  setSecret(event.target.value);
-                }}
-                maxLength={32_768}
-              />
-            )}
-            {documentationUrl && (
-              <ExternalAnchor href={documentationUrl} className='w-fit text-sm'>
-                How to get this key
-              </ExternalAnchor>
-            )}
-          </Field>
-        </div>
-        <DialogFooter>
-          <Button
-            type='button'
-            variant='outline'
-            onClick={() => {
-              onOpenChange(false);
-            }}
-          >
-            Cancel
-          </Button>
-          <Button disabled={isSaving || !secret} onClick={() => void onReplace(secret)}>
-            {isSaving ? 'Replacing…' : 'Replace secret'}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-function Field({
-  label,
-  tooltip,
-  children,
-}: {
-  label: string;
-  tooltip?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className='flex flex-col gap-1.5'>
-      <FieldLabel label={label} tooltip={tooltip} />
-      {children}
-    </div>
-  );
-}
-
-function FieldLabel({ label, tooltip }: { label: string; tooltip?: string }) {
-  return (
-    <div className='flex items-center gap-1.5'>
-      <Label>{label}</Label>
-      {tooltip && (
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <button type='button' aria-label={`${label} information`}>
-              <Info
-                className='text-muted-foreground/50 hover:text-muted-foreground size-4 shrink-0 transition-colors'
-                aria-hidden='true'
-              />
-            </button>
-          </TooltipTrigger>
-          <TooltipContent side='top' align='center' role='tooltip' className='max-w-72'>
-            {tooltip}
-          </TooltipContent>
-        </Tooltip>
-      )}
     </div>
   );
 }

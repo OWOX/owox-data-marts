@@ -54,6 +54,7 @@ export interface AuthState {
   session: AuthSession | null;
   user: User | null;
   error?: string;
+  errorCode?: 'CONNECT_ACCOUNT_CHANGED';
 }
 
 /**

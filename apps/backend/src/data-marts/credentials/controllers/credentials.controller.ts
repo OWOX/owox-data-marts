@@ -27,7 +27,7 @@ import {
   UpdateCredentialApiDto,
 } from '../dto/credential-api.dto';
 import { CredentialMapper, mapCredentialDefinitionToApiDto } from '../mappers/credential.mapper';
-import { CredentialDefinitionService } from '../services/credential-definition.service';
+import { ListCredentialDefinitionsService } from '../use-cases/list-credential-definitions.service';
 import { CreateCredentialService } from '../use-cases/create-credential.service';
 import { DeleteCredentialService } from '../use-cases/delete-credential.service';
 import { GetCredentialService } from '../use-cases/get-credential.service';
@@ -50,7 +50,7 @@ export class CredentialsController {
     private readonly deleteCredential: DeleteCredentialService,
     private readonly validateCredential: ValidateCredentialService,
     private readonly consentCredentialDefinition: ConsentCredentialDefinitionService,
-    private readonly definitions: CredentialDefinitionService,
+    private readonly definitions: ListCredentialDefinitionsService,
     private readonly mapper: CredentialMapper,
     private readonly authorizeGoogleOAuthCredential: AuthorizeGoogleOAuthCredentialService,
     private readonly connectGoogleOAuthCredential: ConnectGoogleOAuthCredentialService,
@@ -61,7 +61,7 @@ export class CredentialsController {
   @Get('definitions')
   @ApiOkResponse({ type: [CredentialDefinitionApiDto] })
   async listDefinitions(): Promise<CredentialDefinitionApiDto[]> {
-    return (await this.definitions.list()).map(mapCredentialDefinitionToApiDto);
+    return (await this.definitions.run()).map(mapCredentialDefinitionToApiDto);
   }
 
   @Auth(Role.viewer())

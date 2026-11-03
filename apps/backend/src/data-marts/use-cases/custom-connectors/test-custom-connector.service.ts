@@ -38,10 +38,10 @@ export class TestCustomConnectorService {
     projectId,
     input,
     credential: caller,
+    allowInlineCredentials,
   }: TestCustomConnectorCommand): Promise<CustomConnectorTestResultDto> {
-    if (!caller) return this.tests.runTest({ ...input, projectId });
+    if (!caller && allowInlineCredentials) return this.tests.runTest({ ...input, projectId });
 
-    const { credentialId, userId, roles } = caller;
     const { manifest, node, configuration } = input;
     // The runner gets only this node, so fit and misuse are judged on it, not its siblings.
     const runs = this.tests.pruneToNode(manifest, node);
@@ -53,10 +53,29 @@ export class TestCustomConnectorService {
     const typed = Object.keys(configuration).filter(name => model.keyParameters.includes(name));
     if (typed.length > 0) {
       throw new BadRequestException(
-        `Remove ${typed.join(', ')} from the configuration: the Credential provides the keys.`
+        `Remove ${typed.join(', ')} from the configuration. Select a saved Credential to supply the keys.`
       );
     }
+    if (!allowInlineCredentials) {
+      const defaults = model.keyParameters.filter(name => {
+        const value = model.parameters[name]?.default;
+        return value !== undefined && value !== null && value !== '';
+      });
+      if (defaults.length > 0) {
+        throw new BadRequestException(
+          `Remove defaults for ${defaults.join(', ')}. Select a saved Credential to supply the keys.`
+        );
+      }
+      assertAuthenticationReferences(manifest.authentication);
+    }
+    if (!caller) {
+      if (model.keyParameters.length > 0) {
+        throw new BadRequestException('Select a saved Credential to test this connector.');
+      }
+      return this.tests.runTest({ ...input, projectId });
+    }
 
+    const { credentialId, userId, roles } = caller;
     const connectorName = String(manifest.name ?? 'Custom');
     await this.sourceCredentials.checkConfigCredential({
       projectId,
@@ -129,6 +148,58 @@ export class TestCustomConnectorService {
         `Failed to store the token rotated in a test on Credential ${credentialId}: ${castError(error).message}`
       );
       return false;
+    }
+  }
+}
+
+const KEY_REFERENCE = /^\{\{\s*(?:parameters\.[A-Za-z_][A-Za-z0-9_]*|auth\.token)\s*\}\}$/;
+// Allow one authentication scheme before the reference, with no additional payload.
+const INJECT_REFERENCE =
+  /^(?:[!#$%&'*+.^_`|~0-9A-Za-z-]+[ \t]+)?\{\{\s*(?:parameters\.[A-Za-z_][A-Za-z0-9_]*|auth\.token)\s*\}\}$/;
+
+function assertReference(value: unknown, format = false): void {
+  // Some providers require an empty Basic password. An empty field contains no secret.
+  if (value === '' && !format) return;
+  if (typeof value !== 'string' || !(format ? INJECT_REFERENCE : KEY_REFERENCE).test(value)) {
+    throw new BadRequestException(
+      'Use parameter references in authentication instead of literal keys. Select a saved Credential.'
+    );
+  }
+}
+
+function record(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+function assertAuthenticationReferences(value: unknown): void {
+  const auth = record(value);
+  for (const key of ['username', 'password', 'clientId', 'clientSecret', 'refreshToken']) {
+    if (auth[key] !== undefined) assertReference(auth[key]);
+  }
+  const inject = record(auth.inject);
+  if (inject.format !== undefined) assertReference(inject.format, true);
+  const exchange = record(auth.exchange);
+  assertExchangeKeyReferences(exchange.body);
+  assertExchangeKeyReferences(exchange.headers);
+  for (const branch of Object.values(record(auth.authenticators))) {
+    assertAuthenticationReferences(branch);
+  }
+}
+
+/** Check only known authentication fields. This check cannot classify arbitrary manifest text as a secret. */
+function assertExchangeKeyReferences(value: unknown): void {
+  for (const [key, item] of Object.entries(record(value))) {
+    if (
+      /^(?:username|password|client_?id|client_?secret|refresh_?token|access_?token|token|api_?key|authorization)$/i.test(
+        key
+      )
+    ) {
+      assertReference(item, key.toLowerCase() === 'authorization');
+    } else if (item && typeof item === 'object') {
+      if (Array.isArray(item)) item.forEach(assertExchangeKeyReferences);
+      else assertExchangeKeyReferences(item);
     }
   }
 }

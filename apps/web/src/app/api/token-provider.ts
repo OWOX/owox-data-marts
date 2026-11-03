@@ -5,6 +5,8 @@
 export interface TokenProvider {
   getAccessToken(): string | null;
   refreshToken(): Promise<string>;
+  getProjectId?(): string | null;
+  getUserId?(): string | null;
 }
 
 /**
@@ -13,14 +15,31 @@ export interface TokenProvider {
 export class DefaultTokenProvider implements TokenProvider {
   private getToken: () => string | null;
   private refreshFn: () => Promise<string>;
+  private getProject: () => string | null;
+  private getUser: () => string | null;
 
-  constructor(getToken: () => string | null, refreshFn: () => Promise<string>) {
+  constructor(
+    getToken: () => string | null,
+    refreshFn: () => Promise<string>,
+    getProject: () => string | null = () => null,
+    getUser: () => string | null = () => null
+  ) {
     this.getToken = getToken;
     this.refreshFn = refreshFn;
+    this.getProject = getProject;
+    this.getUser = getUser;
   }
 
   getAccessToken(): string | null {
     return this.getToken();
+  }
+
+  getProjectId(): string | null {
+    return this.getProject();
+  }
+
+  getUserId(): string | null {
+    return this.getUser();
   }
 
   async refreshToken(): Promise<string> {

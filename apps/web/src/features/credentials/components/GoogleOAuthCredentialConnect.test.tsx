@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import toast from 'react-hot-toast';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Credential } from '../types';
@@ -50,6 +50,37 @@ describe('GoogleOAuthCredentialConnect', () => {
     });
     mocks.popup.mockResolvedValue({ code: 'code-1', state: 's' });
     mocks.exchange.mockResolvedValue(created);
+  });
+
+  it('ignores a popup result after the form closes', async () => {
+    let finishPopup: ((value: { code: string; state: string }) => void) | undefined;
+    mocks.popup.mockImplementation(
+      () =>
+        new Promise(resolve => {
+          finishPopup = resolve;
+        })
+    );
+    const onConnected = vi.fn();
+    const view = render(
+      <GoogleOAuthCredentialConnect
+        credential={null}
+        definitionId='google-oauth'
+        draft={draft}
+        onConnected={onConnected}
+      />
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Connect with Google' }));
+    await waitFor(() => {
+      expect(mocks.popup).toHaveBeenCalled();
+    });
+    view.unmount();
+
+    await act(async () => {
+      finishPopup?.({ code: 'code-1', state: 's' });
+    });
+
+    expect(mocks.exchange).not.toHaveBeenCalled();
+    expect(onConnected).not.toHaveBeenCalled();
   });
 
   it('shows the connect button in a card with the permissions it requests', () => {

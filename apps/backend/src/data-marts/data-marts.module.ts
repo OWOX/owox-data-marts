@@ -527,6 +527,21 @@ import { ConnectGoogleOAuthCredentialService } from './credentials/use-cases/con
 import { CredentialExternalDefinitionRegistryService } from './credentials/services/credential-external-definition-registry.service';
 import { CredentialConsumerTitlesService } from './credentials/services/credential-consumer-titles.service';
 import { ConsentCredentialDefinitionService } from './credentials/use-cases/consent-credential-definition.service';
+import { CredentialSetup } from './credentials/entities/credential-setup.entity';
+import { CredentialSetupService } from './credentials/services/credential-setup.service';
+import { CredentialSetupMapper } from './credentials/mappers/credential-setup.mapper';
+import { CredentialSetupController } from './credentials/controllers/credential-setup.controller';
+import { StartCredentialSetupService } from './credentials/use-cases/start-credential-setup.service';
+import { GetCredentialSetupService } from './credentials/use-cases/get-credential-setup.service';
+import { CompleteCredentialSetupService } from './credentials/use-cases/complete-credential-setup.service';
+import { CancelCredentialSetupService } from './credentials/use-cases/cancel-credential-setup.service';
+import { WaitCredentialSetupService } from './credentials/use-cases/wait-credential-setup.service';
+import { CleanupCredentialSetupsService } from './credentials/use-cases/cleanup-credential-setups.service';
+import { CleanupCredentialSetupsProcessor } from './system-triggers/processors/cleanup-credential-setups-processor';
+import { ListCredentialDefinitionsService } from './credentials/use-cases/list-credential-definitions.service';
+import { McpCredentialMapper } from './credentials/mappers/mcp-credential.mapper';
+import { MCP_CREDENTIALS_FACADE } from './credentials/facades/mcp-credentials.facade';
+import { McpCredentialsFacadeImpl } from './credentials/facades/mcp-credentials.facade.impl';
 
 @Module({
   imports: [
@@ -586,6 +601,7 @@ import { ConsentCredentialDefinitionService } from './credentials/use-cases/cons
       UserProvisioningContextSettings,
       UserProvisioningContextSettingsContext,
       Credential,
+      CredentialSetup,
       CredentialOwner,
       CredentialContext,
       CredentialExternalDefinition,
@@ -637,6 +653,7 @@ import { ConsentCredentialDefinitionService } from './credentials/use-cases/cons
     HttpDataController,
     RequestAccessController,
     CredentialsController,
+    CredentialSetupController,
   ],
   providers: [
     CredentialConsumerBindingFacadeImpl,
@@ -1065,6 +1082,18 @@ import { ConsentCredentialDefinitionService } from './credentials/use-cases/cons
     CredentialBindingService,
     CredentialViewService,
     CredentialMapper,
+    CredentialSetupService,
+    CredentialSetupMapper,
+    StartCredentialSetupService,
+    GetCredentialSetupService,
+    CompleteCredentialSetupService,
+    CancelCredentialSetupService,
+    WaitCredentialSetupService,
+    CleanupCredentialSetupsService,
+    CleanupCredentialSetupsProcessor,
+    ListCredentialDefinitionsService,
+    McpCredentialMapper,
+    { provide: MCP_CREDENTIALS_FACADE, useClass: McpCredentialsFacadeImpl },
     CreateCredentialService,
     GetCredentialService,
     ListCredentialsService,
@@ -1083,6 +1112,7 @@ import { ConsentCredentialDefinitionService } from './credentials/use-cases/cons
     ConsentCredentialDefinitionService,
   ],
   exports: [
+    MCP_CREDENTIALS_FACADE,
     MCP_CONTEXTS_FACADE,
     MCP_CUSTOM_CONNECTORS_FACADE,
     MCP_PROJECT_MEMBERS_FACADE,

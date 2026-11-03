@@ -145,11 +145,12 @@ export class ConnectorDefinitionMapper {
     return new GetCustomConnectorFieldsCommand(projectId, connectorId, version);
   }
 
-  /** Without `caller.credentialId` the test runs on the typed values, as MCP tests do. */
+  /** Browser tests may use typed keys. Callers that require Credential references explicitly disable typed keys. */
   toTestCommand(
     projectId: string,
     input: CustomConnectorTestInput,
-    caller?: { credentialId?: string; userId: string; roles?: string[] }
+    caller?: { credentialId?: string; userId: string; roles?: string[] },
+    allowInlineCredentials = true
   ): TestCustomConnectorCommand {
     return new TestCustomConnectorCommand(
       projectId,
@@ -162,7 +163,8 @@ export class ConnectorDefinitionMapper {
       },
       caller?.credentialId
         ? { credentialId: caller.credentialId, userId: caller.userId, roles: caller.roles ?? [] }
-        : undefined
+        : undefined,
+      allowInlineCredentials
     );
   }
 

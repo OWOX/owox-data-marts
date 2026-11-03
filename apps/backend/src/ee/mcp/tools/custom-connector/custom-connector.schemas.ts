@@ -69,8 +69,15 @@ export const testConnectorSchema = z
     manifest: manifestSchema,
     node: z.string().min(1).describe('Specify the node key from manifest.nodes to test.'),
     configuration: boundedJsonObjectSchema.describe(
-      'Supply a flat map of parameter names to values for this test. The configuration is not saved. Mark credential parameters with attributes: ["SECRET"] in the manifest.'
+      'Supply a flat map of non-credential parameter names to values for this test. Never include authentication keys or SECRET parameters. The configuration is not saved.'
     ),
+    credential_id: z
+      .string()
+      .min(1)
+      .optional()
+      .describe(
+        'Select the ID of a saved custom connector Credential that you can use. This field is required when the manifest uses authentication keys. The Credential hosts and fields must fit the manifest. Never include Credential values in configuration, authentication or parameter defaults.'
+      ),
     max_rows: z.number().int().min(1).max(1000).optional(),
     max_pages: z.number().int().min(1).max(50).optional(),
   })

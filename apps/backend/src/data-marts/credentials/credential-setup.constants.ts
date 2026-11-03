@@ -1,0 +1,1 @@
+export const CREDENTIAL_SETUP_TTL_MS = 15 * 60_000;
