@@ -821,7 +821,9 @@ export class GoogleSheetsSource extends AbstractSource {
 
         const requestError = new HttpRequestException({
           message:
-            deniedMessage && error?.statusCode === HTTP_STATUS.FORBIDDEN
+            deniedMessage &&
+            error?.statusCode === HTTP_STATUS.FORBIDDEN &&
+            this._isPermissionDenial(error?.payload)
               ? deniedMessage
               : this._buildSheetRequestErrorMessage(error),
           statusCode: error?.statusCode,
@@ -1086,6 +1088,24 @@ export class GoogleSheetsSource extends AbstractSource {
     this.context.log(LOG_LEVEL.INFO, `Attempt ${attempt}: isValidToRetry = ${retryable}`);
 
     return retryable;
+  }
+
+  /**
+   * Whether a Google 403 body names a missing permission. A rate limit or a disabled API
+   * is also a 403, but a reconnect does not fix it.
+   *
+   * @param {Object|null} [payload] - The parsed Google error body
+   * @return {boolean}
+   */
+  _isPermissionDenial(payload) {
+    const { errors, details } = payload?.error ?? {};
+    const reasons = [
+      ...(Array.isArray(errors) ? errors : []),
+      ...(Array.isArray(details) ? details : []),
+    ].map(item => item?.reason);
+    return reasons.some(reason =>
+      ['insufficientPermissions', 'forbidden', 'ACCESS_TOKEN_SCOPE_INSUFFICIENT'].includes(reason)
+    );
   }
 
   _buildSheetRequestErrorMessage(error) {

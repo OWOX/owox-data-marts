@@ -38,6 +38,16 @@ describe('getAccessToken', () => {
     );
     expect(error.isWarning).toBeFalsy();
   });
+
+  it('refuses a successful response without an access token', async () => {
+    globalThis.fetch = async () => ({ ok: true, status: 200, text: async () => '{}' });
+    const error = await OAuthUtils.getAccessToken({ context, tokenUrl: 'x', formData: {} }).catch(
+      e => e
+    );
+    expect(error.message).toBe(
+      'Failed to get access token: Token response has no access_token (HTTP 200)'
+    );
+  });
 });
 
 describe('getServiceAccountToken', () => {

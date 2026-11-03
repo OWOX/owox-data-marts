@@ -350,13 +350,35 @@ test('answers a denied spreadsheet list with one actionable sentence', async () 
   const source = createSource({ authType: 'oauth2' });
   source.getAccessToken = async () => 'token';
   source._fetchSheetResponse = async () => {
-    throw new HttpRequestException({ message: 'Drive API has not been used', statusCode: 403 });
+    throw new HttpRequestException({
+      message: 'Request had insufficient authentication scopes.',
+      statusCode: 403,
+      payload: { error: { details: [{ reason: 'ACCESS_TOKEN_SCOPE_INSUFFICIENT' }] } },
+    });
   };
   await assert.rejects(source.fetchFieldOptions('SpreadsheetId'), error => {
     assert.equal(
       error.message,
       'Google denied access to the spreadsheet list. Reconnect the Credential and try again.'
     );
+    assert.equal(error.statusCode, 403);
+    return true;
+  });
+});
+
+test('keeps the Google message of a spreadsheet list 403 that a reconnect does not fix', async () => {
+  const source = createSource({ authType: 'oauth2' });
+  source.getAccessToken = async () => 'token';
+  source._fetchSheetResponse = async () => {
+    throw new HttpRequestException({
+      message: 'Drive API has not been used',
+      statusCode: 403,
+      payload: { error: { errors: [{ reason: 'accessNotConfigured' }] } },
+    });
+  };
+  await assert.rejects(source.fetchFieldOptions('SpreadsheetId'), error => {
+    assert.match(error.message, /Drive API has not been used/);
+    assert.doesNotMatch(error.message, /spreadsheet list/);
     assert.equal(error.statusCode, 403);
     return true;
   });

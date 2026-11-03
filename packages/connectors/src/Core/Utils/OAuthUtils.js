@@ -63,6 +63,10 @@ var OAuthUtils = {
         tokenError.isWarning = json.error === 'invalid_grant';
         throw tokenError;
       }
+      // Without this check a caller sends "Bearer undefined".
+      if (typeof json.access_token !== 'string' || json.access_token === '') {
+        throw new Error(`Token response has no access_token (HTTP ${response.status})`);
+      }
 
       // Write the token back into context.sourceConfig so callers can read it
       // via context.getParameter('AccessToken').
