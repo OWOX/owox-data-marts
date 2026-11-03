@@ -1,4 +1,4 @@
-import { useContext } from 'react';
+import { StrictMode, useContext } from 'react';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AuthProvider } from './AuthContext';
@@ -55,9 +55,11 @@ function setUser(projectId: string, roles: Role[] = ['editor']) {
 
 function renderAuth() {
   return render(
-    <AuthProvider>
-      <Status />
-    </AuthProvider>
+    <StrictMode>
+      <AuthProvider>
+        <Status />
+      </AuthProvider>
+    </StrictMode>
   );
 }
 
@@ -66,6 +68,9 @@ beforeEach(() => {
   sessionStorage.clear();
   window.history.replaceState({}, '', target);
   api.refreshAccessToken.mockResolvedValue({ accessToken: 'token-a' });
+  api.signIn.mockImplementation((options?: { redirect?: string }) => {
+    if (options?.redirect) RedirectStorageService.save(options.redirect);
+  });
   setUser('project-a');
 });
 
@@ -289,6 +294,45 @@ describe('AuthProvider connect project', () => {
     expect(api.signIn).not.toHaveBeenCalled();
     expect(replace).not.toHaveBeenCalled();
   });
+
+  it.each(['manual retry', 'session refresh failure'])(
+    'keeps the setup URL when another project mismatch arrives after %s starts sign-in',
+    async source => {
+      setUser('project-b');
+      sessionStorage.setItem('owox_connect_project_switch', target);
+      renderAuth();
+      await screen.findByText('error:');
+
+      if (source === 'manual retry') {
+        fireEvent.click(screen.getByRole('button', { name: 'Retry sign-in' }));
+      } else {
+        act(() => {
+          window.dispatchEvent(
+            new CustomEvent('auth:logout', {
+              detail: { reason: 'token_refresh_failed', connectTarget: target },
+            })
+          );
+        });
+      }
+      expect(RedirectStorageService.retrieve()).toBe(target);
+
+      act(() => {
+        window.dispatchEvent(
+          new CustomEvent('auth:logout', {
+            detail: { reason: 'connect_project_mismatch', connectTarget: target },
+          })
+        );
+      });
+
+      expect(RedirectStorageService.retrieve()).toBe(target);
+      expect(api.signIn).toHaveBeenCalledExactlyOnceWith({
+        projectId: 'project-a',
+        redirect: target,
+      });
+      expect(getTokenProvider()).toBeNull();
+      expect(screen.queryByText('authenticated:project-b')).not.toBeInTheDocument();
+    }
+  );
 
   it('shows an explicit switch action when the provider still returns another project', async () => {
     setUser('project-b');

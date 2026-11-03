@@ -1,4 +1,4 @@
-import React, { useReducer, useEffect, useCallback } from 'react';
+import React, { useReducer, useEffect, useCallback, useRef } from 'react';
 import { AuthStatus, type AuthState, type AuthSession, type User } from '../types';
 import { AuthContext, type AuthContextType } from './AuthContext.types';
 import {
@@ -138,6 +138,7 @@ interface AuthProviderProps {
  */
 export function AuthProvider({ children }: AuthProviderProps) {
   const [state, dispatch] = useReducer(authReducer, initialState);
+  const pendingConnectSignIn = useRef<string | null>(null);
 
   /**
    * Redirect to sign-in page
@@ -145,6 +146,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const signIn = useCallback(() => {
     const connectTarget = getPendingConnectProjectTarget();
     if (connectTarget) {
+      pendingConnectSignIn.current = connectTarget.url;
       signInApi({ projectId: connectTarget.projectId, redirect: connectTarget.url });
       return;
     }
@@ -156,10 +158,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const handleConnectMismatch = useCallback((target: ConnectProjectTarget) => {
     clearTokenProvider();
     dispatch({ type: 'SET_ERROR', payload: new ConnectProjectMismatchError(target).message });
+    // Keep the return URL when another auth result arrives before sign-in navigation completes.
+    if (pendingConnectSignIn.current === target.url) return;
     const attempted = sessionStorage.getItem(CONNECT_SWITCH_ATTEMPT_KEY) === target.url;
     if (!attempted) {
       RedirectStorageService.save(target.url);
       sessionStorage.setItem(CONNECT_SWITCH_ATTEMPT_KEY, target.url);
+      pendingConnectSignIn.current = target.url;
       signInApi({ projectId: target.projectId, redirect: target.url });
       return;
     }
@@ -419,6 +424,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         if (connectTarget) RedirectStorageService.save(connectTarget.url);
         signOut();
       } else if (connectTarget) {
+        pendingConnectSignIn.current = connectTarget.url;
         signInApi({ projectId: connectTarget.projectId, redirect: connectTarget.url });
       } else {
         // Regular token refresh failure - just redirect to sign-in
