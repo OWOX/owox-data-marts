@@ -42,7 +42,6 @@
   ],
   "dependencies": {
     "@google-cloud/pino-logging-gcp-config": "^1.2.0",
-    "@sendgrid/mail": "^8.1.6",
     "dotenv": "^16.4.7",
     "env-paths": "^3.0.0",
     "google-auth-library": "^9.14.3",
