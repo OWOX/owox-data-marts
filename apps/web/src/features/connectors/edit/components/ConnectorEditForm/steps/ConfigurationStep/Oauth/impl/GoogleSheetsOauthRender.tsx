@@ -32,15 +32,22 @@ export function GoogleSheetsOauthRender({
   const handleGoogleLogin = async (response: GoogleSheetsLoginResponse) => {
     // With drive.file a Credential opens only files its account picked, so its connect picks first.
     const result = await (forCredential
-      ? onOAuthSuccess({ code: response.code }, exchanged =>
-          pickSpreadsheet(
+      ? onOAuthSuccess({ code: response.code }, async exchanged => {
+          // Without a click Chrome blocks the Google Identity Services popup, so never fall back to it here.
+          if (!exchanged.pickerAccessToken) {
+            toast.error(
+              'Google did not return a Picker token. Use "Add spreadsheet" on the Credential to choose a spreadsheet.'
+            );
+            return;
+          }
+          await pickSpreadsheet(
             exchanged.user?.email ?? exchanged.user?.name,
             message => {
               toast.error(message);
             },
             exchanged.pickerAccessToken
-          )
-        )
+          );
+        })
       : onOAuthSuccess({ code: response.code }));
     const nextEmail = result?.user?.email ?? result?.user?.name;
 

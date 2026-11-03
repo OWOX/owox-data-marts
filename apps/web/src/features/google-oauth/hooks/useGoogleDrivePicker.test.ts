@@ -312,6 +312,28 @@ describe('useGoogleSheetsPicker', () => {
     expect(setOAuthToken).toHaveBeenCalledWith('fetched-token');
   });
 
+  it('prefers the token getter over Google Identity Services even with a client ID', async () => {
+    const { setOAuthToken, setVisible } = mockPickerApi();
+    const { result } = renderHook(() => useGoogleSheetsPicker());
+
+    void result.current.openPicker({
+      apiKey: 'api-key',
+      appId: 'project-number',
+      clientId: 'client-id',
+      accessToken: () => Promise.resolve('fetched-token'),
+      hintEmail: 'a@example.com',
+      onPicked: vi.fn(),
+    });
+
+    await vi.waitFor(() => {
+      expect(setVisible).toHaveBeenCalledWith(true);
+    });
+    expect(setOAuthToken).toHaveBeenCalledWith('fetched-token');
+    expect(
+      document.querySelector('script[src="https://accounts.google.com/gsi/client"]')
+    ).toBeNull();
+  });
+
   it('reports a rejected token getter and opens no Picker and no popup', async () => {
     const { PickerBuilder } = mockPickerApi();
     const onError = vi.fn();

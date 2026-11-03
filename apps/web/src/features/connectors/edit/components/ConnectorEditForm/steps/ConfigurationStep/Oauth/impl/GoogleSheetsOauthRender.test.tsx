@@ -265,6 +265,7 @@ describe('GoogleSheetsOauthRender', () => {
             success: true,
             credentialId: 'credential-1',
             user: exchangedUser,
+            pickerAccessToken: 'exchange-token',
           });
           return { success: true, credentialId: 'credential-1', user: exchangedUser };
         }) as unknown as OauthRenderComponentProps['onOAuthSuccess'],
@@ -339,6 +340,25 @@ describe('GoogleSheetsOauthRender', () => {
           expect.objectContaining({ accessToken: 'exchange-token' })
         );
       });
+    });
+
+    it('Connect without a Picker token reports it and opens no Google popup', async () => {
+      connecting({
+        onOAuthSuccess: vi.fn(async (_payload, beforeFinish) => {
+          const exchanged = { success: true, credentialId: 'credential-1', user: exchangedUser };
+          await beforeFinish?.(exchanged);
+          return exchanged;
+        }) as unknown as OauthRenderComponentProps['onOAuthSuccess'],
+      });
+
+      fireEvent.click(screen.getByTestId('google-login'));
+
+      await waitFor(() => {
+        expect(toastError).toHaveBeenCalledWith(
+          'Google did not return a Picker token. Use "Add spreadsheet" on the Credential to choose a spreadsheet.'
+        );
+      });
+      expect(openPicker).not.toHaveBeenCalled();
     });
 
     it('Add spreadsheet on a saved Credential takes its token from the backend', async () => {
