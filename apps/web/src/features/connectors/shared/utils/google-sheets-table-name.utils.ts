@@ -39,10 +39,9 @@ const CYRILLIC_TO_LATIN: Readonly<Record<string, string>> = {
   ы: 'y',
   э: 'e',
   ъ: '',
-  ʼ: '',
-  '’': '',
-  "'": '',
 };
+// An apostrophe inside a Cyrillic word marks pronunciation (п'ять); anywhere else it separates.
+const CYRILLIC_APOSTROPHE = /(?<=[\u0400-\u04ff])['\u2019\u02bc](?=[\u0400-\u04ff])/g;
 
 // Latin letters that NFKD does not split into a base letter plus a mark.
 const LETTER_REPLACEMENTS: Record<string, string> = {
@@ -68,8 +67,10 @@ const LETTER_REPLACEMENT_PATTERN = new RegExp(
 function toIdentifierPart(value: unknown): string {
   if (typeof value !== 'string') return '';
   return value
+    .normalize('NFC')
     .toLowerCase()
-    .replace(/[\u0400-\u04ff\u02bc\u2019']/g, letter => CYRILLIC_TO_LATIN[letter] ?? letter)
+    .replace(CYRILLIC_APOSTROPHE, '')
+    .replace(/[\u0400-\u04ff]/g, letter => CYRILLIC_TO_LATIN[letter] ?? letter)
     .normalize('NFKD')
     .replace(/[\u0300-\u036f]/g, '')
     .replace(LETTER_REPLACEMENT_PATTERN, letter => LETTER_REPLACEMENTS[letter] ?? letter)

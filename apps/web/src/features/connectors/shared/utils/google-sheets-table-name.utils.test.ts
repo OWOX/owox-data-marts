@@ -36,6 +36,18 @@ describe('suggestGoogleSheetsTableName', () => {
     expect(suggestGoogleSheetsTableName('Объём')).toBe('obem');
   });
 
+  it('transliterates a decomposed Cyrillic name as its composed form', () => {
+    expect(suggestGoogleSheetsTableName('Йогурт'.normalize('NFD'))).toBe('iohurt');
+    expect(suggestGoogleSheetsTableName('Їжа'.normalize('NFD'))).toBe('izha');
+  });
+
+  it('drops an apostrophe only inside a Cyrillic word', () => {
+    expect(suggestGoogleSheetsTableName("п'ять")).toBe('piat');
+    expect(suggestGoogleSheetsTableName('м’ясо')).toBe('miaso');
+    expect(suggestGoogleSheetsTableName("O'Brien Plan")).toBe('o_brien_plan');
+    expect(suggestGoogleSheetsTableName("'План'")).toBe('plan');
+  });
+
   it('joins the document and the sheet', () => {
     expect(suggestGoogleSheetsTableName('Plan', 'Дата Софт поточні витрати')).toBe(
       'data_soft_potochni_vytraty_plan'
