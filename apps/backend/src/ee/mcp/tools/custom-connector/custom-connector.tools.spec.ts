@@ -365,6 +365,78 @@ describe('custom connector tools through the MCP SDK', () => {
     expect(result.isError).not.toBe(true);
   });
 
+  it.each([
+    {
+      label: 'an unmarked Authorization parameter',
+      manifest: {
+        parameters: { Value: { requiredType: 'string' } },
+        nodes: {
+          items: { request: { headers: { Authorization: 'Bearer {{ parameters.Value }}' } } },
+        },
+      },
+      configuration: { Value: 'temporary/"secret-value"' },
+    },
+    {
+      label: 'a literal api-key in a token exchange body',
+      manifest: {
+        authentication: {
+          type: 'tokenExchange',
+          exchange: { body: { 'api-key': 'temporary/"secret-value"' } },
+        },
+      },
+      configuration: {},
+    },
+    {
+      label: 'a literal X-API-Key in a token exchange header',
+      manifest: {
+        authentication: {
+          type: 'tokenExchange',
+          exchange: { headers: { 'X-API-Key': 'temporary/"secret-value"' } },
+        },
+      },
+      configuration: {},
+    },
+  ])('masks $label in test results and telemetry before truncating logs', async args => {
+    const client = await open();
+    const secret = 'temporary/"secret-value"';
+    const raw = {
+      rows: [{ echoed: secret, region: 'eu' }],
+      sample: [{ echoed: encodeURIComponent(secret) }],
+      logs: [`${'x'.repeat(1990)}${secret}`],
+      error: `Request rejected ${JSON.stringify(secret)}`,
+    };
+    facade.test.mockResolvedValue(raw);
+
+    const result = await client.callTool({
+      name: 'test_custom_connector',
+      arguments: { manifest: args.manifest, node: 'items', configuration: args.configuration },
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.structuredContent).toMatchObject({
+      rows: [{ echoed: '[REDACTED]', region: 'eu' }],
+      sample: [{ echoed: '[REDACTED]' }],
+      error: 'Request rejected "[REDACTED]"',
+    });
+    expect(result.content[0]).toEqual({ type: 'text', text: 'Request rejected "[REDACTED]"' });
+    expect(JSON.stringify({ result, events })).not.toContain('temporary');
+    expect(raw.rows[0].echoed).toBe(secret);
+  });
+
+  it('masks a temporary key in a thrown error and its telemetry', async () => {
+    const client = await open();
+    facade.test.mockRejectedValue(new Error('Rejected runtime-secret'));
+
+    const result = await client.callTool({
+      name: 'test_custom_connector',
+      arguments: { manifest, node: 'items', configuration: { Value: 'runtime-secret' } },
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content).toEqual([{ type: 'text', text: 'Rejected [REDACTED]' }]);
+    expect(JSON.stringify({ result, events })).not.toContain('runtime-secret');
+  });
+
   it('reports a failed test without copying partial upstream data into inline telemetry', async () => {
     const client = await open();
     facade.test.mockResolvedValue({
@@ -385,8 +457,8 @@ describe('custom connector tools through the MCP SDK', () => {
       result.structuredContent
     );
     expect(result.structuredContent).toEqual({
-      rows: [{ email: 'private@example.test', password: 'private-password' }],
-      sample: [{ access_token: 'private-sample-token' }],
+      rows: [{ email: 'private@example.test', password: '[REDACTED]' }],
+      sample: [{ access_token: '[REDACTED]' }],
       logs: ['Fetched one row using ***'],
       error: 'Request failed using ***',
     });

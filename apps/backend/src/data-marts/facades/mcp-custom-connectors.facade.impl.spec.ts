@@ -235,14 +235,46 @@ describe('McpCustomConnectorsFacadeImpl', () => {
     );
   });
 
-  it('forbids inline keys even when the caller selects no Credential', async () => {
-    await expect(
-      facade.test(actor, {
-        manifest: credentialManifest,
-        node: 'items',
-        configuration: { Token: 'private-token' },
-      })
-    ).rejects.toThrow('configuration');
-    expect(tester.runTest).not.toHaveBeenCalled();
+  it('tests temporary keys without a saved Credential', async () => {
+    await facade.test(actor, {
+      manifest: credentialManifest,
+      node: 'items',
+      configuration: { Token: 'private-token' },
+    });
+
+    expect(tester.runTest).toHaveBeenCalledWith({
+      projectId: actor.projectId,
+      manifest: credentialManifest,
+      node: 'items',
+      configuration: { Token: 'private-token' },
+      maxRows: undefined,
+      maxPages: undefined,
+    });
+    expect(sourceCredentials.checkConfigCredential).not.toHaveBeenCalled();
+  });
+
+  it('accepts a composite authentication template with a saved Credential', async () => {
+    await facade.test(actor, {
+      manifest: {
+        ...credentialManifest,
+        authentication: {
+          type: 'apiKey',
+          inject: {
+            into: 'header',
+            name: 'Authorization',
+            format: '{{ parameters.User }}:{{ parameters.Pass }}',
+          },
+        },
+        parameters: { User: { requiredType: 'string' }, Pass: { requiredType: 'string' } },
+      },
+      node: 'items',
+      configuration: {},
+      credentialId: 'credential-1',
+    });
+
+    expect(sourceCredentials.checkConfigCredential).toHaveBeenCalledWith(
+      expect.objectContaining({ ...actor, credentialId: 'credential-1' })
+    );
+    expect(tester.runTest).toHaveBeenCalledTimes(1);
   });
 });

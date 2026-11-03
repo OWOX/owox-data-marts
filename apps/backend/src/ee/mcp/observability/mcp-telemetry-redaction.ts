@@ -67,6 +67,23 @@ function redactCredential(value: unknown, context: RedactionContext, depth = 0):
       Object.entries(value).map(([key, item]) => [key, redactCredential(item, context, depth + 1)])
     );
   }
+  if (typeof value === 'string' && value.includes('{{')) {
+    try {
+      new Core.TemplateEngine().render(
+        value,
+        {},
+        {
+          lenient: true,
+          onUnresolved: (path: string) => {
+            const [scope, name] = path.split('.');
+            if (scope === 'parameters' && name) context.secretNames.add(name);
+          },
+        }
+      );
+    } catch {
+      // Invalid templates are still masked as credential values.
+    }
+  }
   if (value == null || value === '' || (typeof value === 'string' && isCredentialReference(value)))
     return value;
   rememberSecret(value, context);
@@ -195,7 +212,6 @@ function maskPayload(value: unknown, context: RedactionContext): unknown {
   for (const name of parser.getAuthenticationParameterNames(manifest.authentication))
     context.secretNames.add(name);
   const { parameters, authentication, ...manifestContent } = manifest;
-  const maskedParameters = maskParameters(parameters, context);
   const maskedManifest = {
     ...(redact(manifestContent, context) as Record<string, unknown>),
     ...('authentication' in manifest
@@ -207,7 +223,7 @@ function maskPayload(value: unknown, context: RedactionContext): unknown {
           ),
         }
       : {}),
-    ...('parameters' in manifest ? { parameters: maskedParameters } : {}),
+    ...('parameters' in manifest ? { parameters: maskParameters(parameters, context) } : {}),
   };
   return {
     ...(redact(rest, context) as Record<string, unknown>),

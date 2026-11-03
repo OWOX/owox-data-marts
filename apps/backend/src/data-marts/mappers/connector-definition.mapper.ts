@@ -145,12 +145,11 @@ export class ConnectorDefinitionMapper {
     return new GetCustomConnectorFieldsCommand(projectId, connectorId, version);
   }
 
-  /** Browser tests may use typed keys. Callers that require Credential references explicitly disable typed keys. */
+  /** Tests can use temporary keys or a saved Credential. */
   toTestCommand(
     projectId: string,
     input: CustomConnectorTestInput,
-    caller?: { credentialId?: string; userId: string; roles?: string[] },
-    allowInlineCredentials = true
+    caller?: { credentialId?: string; userId: string; roles?: string[] }
   ): TestCustomConnectorCommand {
     return new TestCustomConnectorCommand(
       projectId,
@@ -163,8 +162,7 @@ export class ConnectorDefinitionMapper {
       },
       caller?.credentialId
         ? { credentialId: caller.credentialId, userId: caller.userId, roles: caller.roles ?? [] }
-        : undefined,
-      allowInlineCredentials
+        : undefined
     );
   }
 

@@ -586,7 +586,7 @@ export class ConnectorTestService {
         // while one is still running makes the cap count something that no longer exists.
         void this.stopChild(child).then(() => {
           const shown: ConnectorTestResult = { ...result, logs: [...logs, ...diagnostics] };
-          resolve(args.credential ? redactValues(shown, hidden) : shown);
+          resolve(hidden.length > 0 ? redactValues(shown, hidden) : shown);
         });
       };
       const timer = setTimeout(() => finish(`Test run timed out after ${timeoutMs}ms`), timeoutMs);
@@ -631,20 +631,19 @@ export class ConnectorTestService {
             records?: Record<string, unknown>[];
             credentials?: Record<string, unknown>;
           };
-          if (evt && evt.type === 'CREDENTIALS' && args.credential) {
+          if (evt && evt.type === 'CREDENTIALS') {
             const rotated = evt.credentials ?? {};
             hidden.push(
               ...Object.values(rotated).filter(
                 (value): value is string => typeof value === 'string'
               )
             );
-            args.credential.onRotated(rotated);
-            return;
-          }
-          if (evt && evt.type === 'CREDENTIALS') {
-            logs.push(
-              'The provider issued new credentials during this test; they were not stored.'
-            );
+            if (args.credential) args.credential.onRotated(rotated);
+            else {
+              logs.push(
+                'The provider issued new credentials during this test; they were not stored.'
+              );
+            }
             return;
           }
           if (evt && evt.type === 'SAMPLE') {

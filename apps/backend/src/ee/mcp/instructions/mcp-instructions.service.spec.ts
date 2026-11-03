@@ -14,17 +14,19 @@ describe('MCP instructions', () => {
     expect(service.getInstructions()).toBe(MCP_SYSTEM_INSTRUCTIONS);
   });
 
-  it('keeps provider secrets in browser setup and correlates completion with the request', () => {
+  it('keeps saved Credential secrets in browser setup and permits temporary connector tests', () => {
     expect(MCP_SYSTEM_INSTRUCTIONS).toContain('start_credential_setup');
     expect(MCP_SYSTEM_INSTRUCTIONS).toContain('get_credential_setup_status');
     expect(MCP_SYSTEM_INSTRUCTIONS).toContain('wait_seconds');
-    expect(MCP_SYSTEM_INSTRUCTIONS).toContain('Never ask the user to paste provider secrets');
+    expect(MCP_SYSTEM_INSTRUCTIONS).toContain(
+      'Never accept provider secrets in Credential management tool arguments'
+    );
     expect(MCP_SYSTEM_INSTRUCTIONS).toContain('Completion does not prove provider validation');
     expect(MCP_SYSTEM_INSTRUCTIONS).toContain(
       'Do not promise a background completion notification'
     );
-    expect(MCP_SYSTEM_INSTRUCTIONS).not.toContain(
-      'Supply actual values only in test configuration'
+    expect(MCP_SYSTEM_INSTRUCTIONS).toContain(
+      'If the user chooses a test with temporary keys, omit credential_id'
     );
   });
 

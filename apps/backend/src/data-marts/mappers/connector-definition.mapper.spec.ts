@@ -61,26 +61,6 @@ describe('ConnectorDefinitionMapper commands', () => {
     ).toEqual({ credentialId: 'cred', userId: 'editor', roles: [] });
   });
 
-  it('preserves the reference-only policy separately from the selected Credential', () => {
-    const input = { manifest: {}, node: 'items', configuration: {} };
-    expect(mapper.toTestCommand('project', input, { userId: 'editor' }, false)).toMatchObject({
-      projectId: 'project',
-      credential: undefined,
-      allowInlineCredentials: false,
-    });
-    expect(
-      mapper.toTestCommand(
-        'project',
-        input,
-        { credentialId: 'cred', userId: 'editor', roles: ['editor'] },
-        false
-      )
-    ).toMatchObject({
-      credential: { credentialId: 'cred', userId: 'editor', roles: ['editor'] },
-      allowInlineCredentials: false,
-    });
-  });
-
   it('builds the fitting command from the body and the caller', () => {
     const body = {
       connectorName: 'CustomApi',

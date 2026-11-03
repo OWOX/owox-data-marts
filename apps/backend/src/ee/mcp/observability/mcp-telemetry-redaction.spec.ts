@@ -1,6 +1,49 @@
 import { redactMcpTelemetry } from './mcp-telemetry-redaction';
 
 describe('redactMcpTelemetry for custom connectors', () => {
+  it.each(['Authorization', 'api-key', 'X-API-Key'])(
+    'masks values referenced by a %s header even without SECRET attributes',
+    name => {
+      const input = {
+        manifest: {
+          parameters: {
+            Value: { default: 'private-default' },
+            Other: { requiredType: 'string' },
+            PageToken: { default: 'next-page' },
+          },
+          nodes: {
+            items: {
+              request: {
+                headers: { [name]: '{{ parameters.Value }}:{{ parameters.Other }}' },
+                queryParameters: { page_token: '{{ parameters.PageToken }}' },
+              },
+            },
+          },
+        },
+        configuration: { Value: 'private-first', Other: 'private-second', PageToken: 'next-page' },
+      };
+      const before = structuredClone(input);
+
+      expect(redactMcpTelemetry(input)).toMatchObject({
+        manifest: { parameters: { Value: { default: '[REDACTED]' } } },
+        configuration: { Value: '[REDACTED]', Other: '[REDACTED]', PageToken: 'next-page' },
+      });
+      expect(
+        redactMcpTelemetry(
+          {
+            logs: ['private-first:private-second'],
+            rows: [{ value: 'private-default', page: 'next-page' }],
+          },
+          input
+        )
+      ).toEqual({
+        logs: ['[REDACTED]:[REDACTED]'],
+        rows: [{ value: '[REDACTED]', page: 'next-page' }],
+      });
+      expect(input).toEqual(before);
+    }
+  );
+
   it('masks flagged parameter values while preserving definitions and ordinary settings', () => {
     const input = {
       manifest: {

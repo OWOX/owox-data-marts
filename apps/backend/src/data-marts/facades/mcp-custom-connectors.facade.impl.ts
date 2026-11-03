@@ -94,12 +94,11 @@ export class McpCustomConnectorsFacadeImpl implements McpCustomConnectorsFacade 
 
   test(actor: McpCustomConnectorActor, input: McpCustomConnectorTestInput) {
     return this.testCustomConnector.run(
-      this.mapper.toTestCommand(
-        actor.projectId,
-        input,
-        { userId: actor.userId, roles: actor.roles, credentialId: input.credentialId },
-        false
-      )
+      this.mapper.toTestCommand(actor.projectId, input, {
+        userId: actor.userId,
+        roles: actor.roles,
+        credentialId: input.credentialId,
+      })
     );
   }
 }

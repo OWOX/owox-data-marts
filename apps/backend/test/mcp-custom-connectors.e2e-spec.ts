@@ -10,6 +10,7 @@ import {
 } from '@owox/test-utils';
 import type { AddressInfo } from 'node:net';
 import { join } from 'node:path';
+import { DataSource } from 'typeorm';
 import { z } from 'zod';
 import { IdpProviderService } from '../src/idp/services/idp-provider.service';
 import {
@@ -18,6 +19,8 @@ import {
 } from '../src/data-marts/services/connector/connector-test.service';
 import { DataMartDefinitionValidatorFacade } from '../src/data-marts/data-storage-types/facades/data-mart-definition-validator-facade.service';
 import { createCredential } from './fixtures/storage-credentials';
+import { Credential } from '../src/data-marts/credentials/entities/credential.entity';
+import { ConnectorDefinition } from '../src/data-marts/entities/connector-definition.entity';
 import {
   boundDestinationCredentialId,
   CHAT_WEBHOOK_URL,
@@ -49,7 +52,8 @@ class LocalConnectorTestService extends ConnectorTestService {
   }
 
   async runTest(args: ConnectorTestRequest) {
-    return super.runTest(args, args.credential ? { env: { FAKE_KEY_ECHO: '1' } } : undefined);
+    const echo = args.credential || Object.keys(args.configuration).length > 0;
+    return super.runTest(args, echo ? { env: { FAKE_KEY_ECHO: '1' } } : undefined);
   }
 }
 
@@ -304,8 +308,8 @@ describe('Custom connector MCP with real persistence and transport', () => {
       });
 
       expect(result).toMatchObject({
-        rows: [expect.objectContaining({ Token: '***', rotated: '***' })],
-        sample: [expect.objectContaining({ Token: '***' })],
+        rows: [expect.objectContaining({ Token: '[REDACTED]', rotated: '[REDACTED]' })],
+        sample: [expect.objectContaining({ Token: '[REDACTED]' })],
         error: null,
       });
       expect(JSON.stringify(result)).not.toContain('mcp-private-token');
@@ -314,24 +318,93 @@ describe('Custom connector MCP with real persistence and transport', () => {
   );
 
   it.each(['legacy', 'modern'] as const)(
-    'rejects inline keys and extra secret fields over %s MCP before starting a test',
+    'tests temporary credentials over %s MCP without saving them or exposing their values',
+    async era => {
+      const client = await connect(era);
+      const dataSource = app.get(DataSource);
+      const counts = () =>
+        Promise.all([
+          dataSource.getRepository(Credential).count(),
+          dataSource.getRepository(ConnectorDefinition).count(),
+        ]);
+      const before = await counts();
+      const base = referenceManifest();
+      const secret = 'temporary/"mcp-secret"';
+      const cases = [
+        { manifest: base, configuration: { Token: secret } },
+        { manifest: manifestFor('McpDefaultKeyTest'), configuration: { Region: 'eu' } },
+        {
+          manifest: {
+            ...base,
+            authentication: undefined,
+            parameters: {
+              Value: { requiredType: 'string' },
+              PageToken: { requiredType: 'string' },
+            },
+            nodes: {
+              items: {
+                ...base.nodes.items,
+                request: {
+                  ...base.nodes.items.request,
+                  headers: { Authorization: 'Bearer {{ parameters.Value }}' },
+                  queryParameters: { page_token: '{{ parameters.PageToken }}' },
+                },
+              },
+            },
+          },
+          configuration: { Value: secret, PageToken: 'next-page' },
+        },
+      ];
+
+      for (const args of cases) {
+        const result = await client.callTool({
+          name: 'test_custom_connector',
+          arguments: { ...args, node: 'items' },
+        });
+        expect(result.isError).not.toBe(true);
+        expect(result.structuredContent).toMatchObject({
+          rows: [expect.objectContaining({ rotated: '***' })],
+          logs: expect.arrayContaining([
+            'The provider issued new credentials during this test; they were not stored.',
+          ]),
+          error: null,
+        });
+        for (const value of [
+          secret,
+          encodeURIComponent(secret),
+          'private-default',
+          'rotated-token-from-provider',
+        ]) {
+          expect(JSON.stringify(result)).not.toContain(value);
+        }
+        if ('Value' in args.configuration) {
+          expect(result.structuredContent).toMatchObject({
+            rows: [expect.objectContaining({ Value: '[REDACTED]', PageToken: 'next-page' })],
+            sample: [expect.objectContaining({ Value: '[REDACTED]', PageToken: 'next-page' })],
+          });
+        }
+      }
+      expect(await counts()).toEqual(before);
+    }
+  );
+
+  it.each(['legacy', 'modern'] as const)(
+    'rejects unknown secret fields over %s MCP before starting a test',
     async era => {
       const client = await connect(era);
       const runner = jest.spyOn(testService, 'runTest');
       try {
-        for (const args of [
-          { configuration: { Token: 'do-not-run' } },
-          { configuration: {}, credential: { secret: 'do-not-run' } },
-          { configuration: {}, manifest: manifestFor('DefaultKey') },
-        ]) {
-          const result = await client.callTool({
-            name: 'test_custom_connector',
-            arguments: { manifest: referenceManifest(), node: 'items', ...args },
-          });
-          expect(result.isError).toBe(true);
-          expect(JSON.stringify(result)).not.toContain('do-not-run');
-          expect(JSON.stringify(result)).not.toContain('private-default');
-        }
+        const result = await client.callTool({
+          name: 'test_custom_connector',
+          arguments: {
+            manifest: referenceManifest(),
+            node: 'items',
+            configuration: {},
+            credential: { secret: 'do-not-run' },
+          },
+        });
+        expect(result.isError).toBe(true);
+        expect(JSON.stringify(result)).not.toContain('do-not-run');
         expect(runner).not.toHaveBeenCalled();
       } finally {
         runner.mockRestore();

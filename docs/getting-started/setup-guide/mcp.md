@@ -254,20 +254,20 @@ through your assistant. This includes creating drafts, testing, publishing and
 rollback. Every operation uses the connected project. Use `list_custom_connectors`
 to find `connector_id`. Use `get_custom_connector` to find version numbers.
 
-| Tool                                 | Scope       | Minimum role | Inputs and behavior                                                                                                                                                                                                                                                                                                                   |
-| ------------------------------------ | ----------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `list_custom_connectors`             | `mcp:read`  | Viewer       | This tool takes no inputs. The result contains `connectors` with metadata and active version numbers. It does not contain manifests.                                                                                                                                                                                                  |
-| `get_custom_connector`               | `mcp:read`  | Viewer       | Provide `connector_id`. The result includes metadata, a Connector Builder `url` and `versions`. Versions appear oldest first, with status and publication date.                                                                                                                                                                       |
-| `create_custom_connector`            | `mcp:write` | Editor       | Provide `name`, `title` and `manifest`. Optional inputs are `description`, `logo` and `doc_url`. The tool creates version 1 as a draft. It returns `connector_id`, `name`, `title` and a Connector Builder `url`.                                                                                                                     |
-| `update_custom_connector`            | `mcp:write` | Editor       | Provide `connector_id` and any metadata fields to update. Omitted fields remain unchanged. Use `null` to clear `description`, `logo` or `doc_url`. The connector name cannot change.                                                                                                                                                  |
-| `get_custom_connector_version`       | `mcp:read`  | Editor       | Provide `connector_id` and `version`. The tool returns the complete draft or published manifest. You must be an editor because manifests can contain credentials.                                                                                                                                                                     |
-| `save_custom_connector_draft`        | `mcp:write` | Editor       | Provide `connector_id` and the complete `manifest`. The tool replaces the current draft, or creates the next draft if none exists. Published versions remain unchanged.                                                                                                                                                               |
-| `test_custom_connector`              | `mcp:write` | Editor       | Provide `manifest`, `node` and a flat non-secret `configuration` map. Use `credential_id` for a compatible stored Credential. Optional inputs are `max_rows` (1–1000, default 25) and `max_pages` (1–50, default 1). The test makes real upstream API requests without saving. It returns `rows`, `logs`, `error` and a raw `sample`. |
-| `publish_custom_connector`           | `mcp:write` | Editor       | Provide `connector_id`. The tool validates the latest draft and publishes it. This version becomes active immediately. The result contains version status, publication date, `warnings` and a Connector Builder `url`.                                                                                                                |
-| `activate_custom_connector_version`  | `mcp:write` | Editor       | Provide `connector_id` and a published `version`. The tool makes that version active. This includes rollback to an earlier published version.                                                                                                                                                                                         |
-| `delete_custom_connector`            | `mcp:write` | Editor       | Provide `connector_id`. The tool soft-deletes an unused connector and makes its name available for reuse. Deletion fails if any Data Mart references the connector.                                                                                                                                                                   |
-| `get_custom_connector_specification` | `mcp:read`  | Viewer       | Provide `connector_id`. Optionally, provide a published `version`. The tool uses the active version by default. The result contains `specification` without secret parameter values or OAuth internals.                                                                                                                               |
-| `get_custom_connector_fields`        | `mcp:read`  | Viewer       | Provide `connector_id`. Optionally, provide a published `version`. The tool uses the active version by default. The result contains node and field schemas, including primary keys and default fields.                                                                                                                                |
+| Tool                                 | Scope       | Minimum role | Inputs and behavior                                                                                                                                                                                                                                                                                                                                                        |
+| ------------------------------------ | ----------- | ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `list_custom_connectors`             | `mcp:read`  | Viewer       | This tool takes no inputs. The result contains `connectors` with metadata and active version numbers. It does not contain manifests.                                                                                                                                                                                                                                       |
+| `get_custom_connector`               | `mcp:read`  | Viewer       | Provide `connector_id`. The result includes metadata, a Connector Builder `url` and `versions`. Versions appear oldest first, with status and publication date.                                                                                                                                                                                                            |
+| `create_custom_connector`            | `mcp:write` | Editor       | Provide `name`, `title` and `manifest`. Optional inputs are `description`, `logo` and `doc_url`. The tool creates version 1 as a draft. It returns `connector_id`, `name`, `title` and a Connector Builder `url`.                                                                                                                                                          |
+| `update_custom_connector`            | `mcp:write` | Editor       | Provide `connector_id` and any metadata fields to update. Omitted fields remain unchanged. Use `null` to clear `description`, `logo` or `doc_url`. The connector name cannot change.                                                                                                                                                                                       |
+| `get_custom_connector_version`       | `mcp:read`  | Editor       | Provide `connector_id` and `version`. The tool returns the complete draft or published manifest. You must be an editor because manifests can contain credentials.                                                                                                                                                                                                          |
+| `save_custom_connector_draft`        | `mcp:write` | Editor       | Provide `connector_id` and the complete `manifest`. The tool replaces the current draft, or creates the next draft if none exists. Published versions remain unchanged.                                                                                                                                                                                                    |
+| `test_custom_connector`              | `mcp:write` | Editor       | Provide `manifest`, `node` and a flat `configuration` map. For authentication, use a compatible saved `credential_id` or supply temporary keys in `configuration`. Optional inputs are `max_rows` (1–1000, default 25) and `max_pages` (1–50, default 1). The test makes real upstream API requests without saving. It returns `rows`, `logs`, `error` and a raw `sample`. |
+| `publish_custom_connector`           | `mcp:write` | Editor       | Provide `connector_id`. The tool validates the latest draft and publishes it. This version becomes active immediately. The result contains version status, publication date, `warnings` and a Connector Builder `url`.                                                                                                                                                     |
+| `activate_custom_connector_version`  | `mcp:write` | Editor       | Provide `connector_id` and a published `version`. The tool makes that version active. This includes rollback to an earlier published version.                                                                                                                                                                                                                              |
+| `delete_custom_connector`            | `mcp:write` | Editor       | Provide `connector_id`. The tool soft-deletes an unused connector and makes its name available for reuse. Deletion fails if any Data Mart references the connector.                                                                                                                                                                                                        |
+| `get_custom_connector_specification` | `mcp:read`  | Viewer       | Provide `connector_id`. Optionally, provide a published `version`. The tool uses the active version by default. The result contains `specification` without secret parameter values or OAuth internals.                                                                                                                                                                    |
+| `get_custom_connector_fields`        | `mcp:read`  | Viewer       | Provide `connector_id`. Optionally, provide a published `version`. The tool uses the active version by default. The result contains node and field schemas, including primary keys and default fields.                                                                                                                                                                     |
 
 Use the [manifest reference](../../connectors/manifest-reference.md) to write a
 connector manifest:
@@ -308,23 +308,25 @@ and `published_at`. The nested `manifest`, `specification` and `fields` keep the
 native connector JSON keys, including camelCase names. MCP metadata responses do
 not include base64 logos. Logos remain available in the Connector Builder.
 
-Do not put literal credentials in a manifest. Declare credential parameters with
-`attributes: ["SECRET"]`. Use parameter references in the manifest. Select a
-compatible stored Credential by `credential_id` for tests. Supply only
-non-secret test `configuration`. Use `start_credential_setup` to create or update
-the Credential in the browser when needed.
-This rule also applies to public OAuth client IDs and fixed Basic usernames in
-`authentication`. Store these values in the Credential and use parameter references.
+Do not put literal secrets in a saved manifest. Declare secret parameters with
+`attributes: ["SECRET"]` and use parameter references in the manifest.
+For tests, you can reuse a compatible saved Credential with `credential_id`.
+Omit fields supplied by that Credential from `configuration`.
+Use `start_credential_setup` to create or update a Credential in the browser.
+
+You can also test with temporary keys in `configuration` and omit `credential_id`.
+The test does not create a Credential or save its configuration.
+This option lets you test a connector before you save provider access.
 
 Manifests, test configuration, sample rows and logs pass through your AI client.
 The client may send this content to its provider.
 
-OWOX MCP tool-call telemetry masks `SECRET` parameter values in test configuration.
-It also masks their defaults, placeholders and options. The same masking applies
-to parameters that the manifest parser identifies as credentials from
-`authentication`. Telemetry also masks credential keys such as `Authorization`,
-`token` and `api_key` elsewhere in the manifest. Other manifest content and test
-diagnostics remain available. The connector runner masks secrets in logs and errors.
+OWOX masks recognized credential values in MCP test results, errors and tool-call
+telemetry. This includes `SECRET` parameters and values referenced by authentication
+fields or credential headers such as `Authorization` and `X-API-Key`.
+Telemetry also masks credential defaults, placeholders, options and literal values
+in recognized credential fields. Public settings, such as pagination tokens, remain
+visible. Test results can still contain sensitive upstream data.
 
 ### `list_data_marts`
 

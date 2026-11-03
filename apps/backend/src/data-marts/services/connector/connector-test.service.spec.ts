@@ -1108,7 +1108,7 @@ describe('ConnectorTestService.runTest on a Credential (against a fake runner)',
     expect(res.logs.join('\n')).not.toContain('CREDENTIALS');
   });
 
-  it('typed values behave as before', async () => {
+  it('keeps typed values and masks rotated tokens without storing them', async () => {
     const res = await makeService().runTest(
       {
         projectId: 'p',
@@ -1122,6 +1122,8 @@ describe('ConnectorTestService.runTest on a Credential (against a fake runner)',
     expect(capturedSpawnEnv).not.toHaveProperty('OW_KEY_PARAMETERS');
     expect(res.logs).toContain('keys=none');
     expect(res.rows[0]).toMatchObject({ Username: username, Password: password });
+    expect(res.rows[0]).toHaveProperty('rotated', '***');
+    expect(JSON.stringify(res)).not.toContain('rotated-token-from-provider');
     expect(res.logs).toContain(
       'The provider issued new credentials during this test; they were not stored.'
     );
