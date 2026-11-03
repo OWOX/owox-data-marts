@@ -4,7 +4,7 @@
  * MCP refresh token).
  *
  * The class name is the contract so callers do not need a runtime import from
- * the ESM-only package (keeps ts-jest happy in unit and e2e suites). A plain
+ * the ESM-only package (the CommonJS jest unit and e2e suites cannot load it). A plain
  * `status === 401` is intentionally insufficient: the IB C2C interceptor uses
  * the same status when it rejects the service identity, and that failure must
  * remain a server-side dependency error rather than become `invalid_grant`.

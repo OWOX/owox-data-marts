@@ -107,18 +107,25 @@ export class ProjectsFacadeImpl implements ProjectsFacade {
 
 ### Entities and SWC-compiled tests
 
-Production builds with `tsc`, but the jest suites compile through `@swc/jest`, which reads one
-file at a time. Write entities and injections so both compilers produce the same metadata:
+Production builds with `tsc`, but the jest suites compile through
+`@swc/jest`, which reads one file at a time. Write entities and injections so
+both compilers produce the same metadata:
 
-* Type a relation to an entity class as `Relation<Entity>` (`import { type Relation } from
-  'typeorm'`). A bare class fails on load in a circular import: `Cannot access '<Class>' before
-  initialization`. Arrays, `Entity | null` and lazy `Promise<Entity>` relations are fine as they are.
-* Give an enum-typed column an explicit type, e.g. `@Column({ type: 'varchar' })` for a string
-  enum. `tsc` infers it; under SWC TypeORM reports `Data type "undefined"`.
-* Type a `@Inject(forwardRef(() => Service))` parameter as `WrapperType<Service>` from
-  `src/common/utils/wrapper-type.ts`, for the same reason as relations.
-* In specs, do not `jest.spyOn` or `jest.replaceProperty` a module export, which SWC makes
-  read-only; mock the module with `jest.mock` and `jest.requireActual`.
+* Type a relation to an entity class as `Relation<Entity>`
+  (`import { type Relation } from 'typeorm'`). A bare class fails on load in a
+  circular import: `Cannot access '<Class>' before initialization`. Arrays,
+  `Entity | null` and lazy `Promise<Entity>` relations are fine as they are.
+* Give a column an explicit type unless it is a plain `string`, `number`,
+  `boolean` or `Date` (optional `prop?: string` included): e.g.
+  `@Column({ type: 'varchar' })` for a string enum, and for any union such as
+  `string | null`, which SWC records as `Object`. `tsc` infers these; under
+  SWC TypeORM cannot (`Data type "undefined"`).
+* Type a `@Inject(forwardRef(() => Service))` parameter as
+  `WrapperType<Service>` from `src/common/utils/wrapper-type.ts`, for the same
+  reason as relations.
+* In specs, do not `jest.spyOn` or `jest.replaceProperty` a module export,
+  which SWC makes read-only; mock the module with `jest.mock` and
+  `jest.requireActual`.
 
 ESLint enforces the first two in `*.entity.ts` (`local/swc-safe-entity-types`).
 

@@ -124,12 +124,12 @@ const DOES_ARITHMETIC_ON_ARGUMENT: Record<ReportAggregateFunction, boolean> = {
  * Throws rather than defaulting — the SECOND floor under the `Record` type above, not a substitute
  * for it.
  *
- * `tsc` does gate this on a PR: `e2e-api.yml` triggers on `apps/backend/**` and runs
- * `npm run build --workspaces --if-present`, which is this workspace's `nest build`, and a missing
- * key fails it with `TS2741: Property 'COUNT' is missing` (verified by deleting that entry).
+ * `tsc` does gate this on a PR: `e2e-api.yml` triggers on `apps/backend/**` and builds the `owox`
+ * CLI, whose prebuild runs this workspace's `nest build`, and a missing key fails it with
+ * `TS2741: Property 'COUNT' is missing` (verified by deleting that entry).
  *
- * What the throw adds is independence from WHICH job runs. ts-jest compiles with
- * `diagnostics: false`, so under jest alone a missing entry is invisible: it reads `undefined`, is
+ * What the throw adds is independence from WHICH job runs. Jest transpiles through SWC without
+ * type checking, so under jest alone a missing entry is invisible: it reads `undefined`, is
  * treated as "does not do arithmetic", emits no cast, and every suite stays green while Redshift
  * goes back to truncating. That is what a developer sees running the suite locally. Failing at
  * module load makes the omission loud in that run too.

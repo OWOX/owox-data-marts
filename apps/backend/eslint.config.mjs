@@ -102,13 +102,6 @@ const swcSafeEntityTypesRule = {
         .find(expression => expression.type === 'CallExpression' && names.includes(expression.callee.name));
     }
 
-    // tsc drops null and undefined from a union before recording metadata.
-    function significantType(typeNode) {
-      if (typeNode?.type !== 'TSUnionType') return typeNode;
-      const rest = typeNode.types.filter(t => t.type !== 'TSNullKeyword' && t.type !== 'TSUndefinedKeyword');
-      return rest.length === 1 ? rest[0] : null;
-    }
-
     function declaresColumnType(call) {
       const [first] = call.arguments;
       if (first?.type === 'Literal' && typeof first.value === 'string') return true;
@@ -135,7 +128,8 @@ const swcSafeEntityTypesRule = {
           return;
         }
 
-        const typeNode = significantType(declared);
+        // SWC records Object for any union, `string | null` included; `prop?: string` stays a string.
+        const typeNode = declared;
         if (!typeNode) return;
 
         const column = decoratorCall(node, columnDecorators);

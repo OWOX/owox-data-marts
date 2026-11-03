@@ -113,8 +113,8 @@ describe('the one seat that decides a filter rule clause', () => {
   // facades — the only way production code reaches a builder — require the verdict instead, and
   // `nest build` type-checks every producer against them.
   //
-  // Executable documentation of that contract rather than a gate: ts-jest runs with
-  // `diagnostics: false`, so nothing here can fail at test time. The enforcing check is the build.
+  // Executable documentation of that contract rather than a gate: jest transpiles through SWC
+  // without type checking, so nothing here can fail at test time. The enforcing check is the build.
   describe('the facade option types refuse an unrouted list', () => {
     it('rejects report.filterConfig forwarded as-is', () => {
       const unrouted: FilterRule[] = [{ column: 'channel', operator: 'eq', value: 'paid' }];
