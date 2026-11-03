@@ -282,6 +282,7 @@ export function useGoogleSheetsPicker() {
   const activePickerRef = useRef<PickerInstanceLike | null>(null);
   const pendingPickerResolveRef = useRef<(() => void) | null>(null);
   const isMountedRef = useRef(true);
+  const generationRef = useRef(0);
 
   const closeActivePicker = useCallback(() => {
     const picker = activePickerRef.current;
@@ -305,10 +306,14 @@ export function useGoogleSheetsPicker() {
   const openPicker = useCallback(
     async (options: OpenGoogleSheetsPickerOptions): Promise<void> => {
       const { apiKey, appId, clientId, accessToken, hintEmail, onPicked, onError } = options;
+      // A newer open supersedes this one, so a double click builds a single Picker.
+      const generation = ++generationRef.current;
+      const superseded = () => !isMountedRef.current || generationRef.current !== generation;
 
       try {
         closeActivePicker();
         await loadPicker();
+        if (superseded()) return;
         let token: string;
         if (typeof accessToken === 'function') {
           token = await accessToken();
@@ -319,8 +324,9 @@ export function useGoogleSheetsPicker() {
         } else {
           throw new Error('Google Picker configuration is incomplete');
         }
+        if (superseded()) return;
         await verifyGooglePickerAccount(token, hintEmail);
-        if (!isMountedRef.current) return;
+        if (superseded()) return;
 
         const picker = googleWindow.google?.picker;
         if (!picker) {
@@ -377,12 +383,12 @@ export function useGoogleSheetsPicker() {
           builtPicker.setVisible(true);
         });
       } catch (error) {
+        // A superseded call must not close the Picker a newer one opened.
+        if (superseded()) return;
         closeActivePicker();
-        if (isMountedRef.current) {
-          onError?.(
-            error instanceof Error ? error.message : 'Failed to open the Google Sheets picker'
-          );
-        }
+        onError?.(
+          error instanceof Error ? error.message : 'Failed to open the Google Sheets picker'
+        );
       }
     },
     [closeActivePicker]

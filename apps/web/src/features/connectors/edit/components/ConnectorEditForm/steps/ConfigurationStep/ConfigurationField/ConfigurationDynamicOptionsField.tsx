@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { Input } from '@owox/ui/components/input';
 import { Button } from '@owox/ui/components/button';
 import type { ConnectorSpecificationResponseApiDto } from '../../../../../../shared/api/types';
@@ -81,9 +81,19 @@ export function ConfigurationDynamicOptionsField({
     if (settled) onLabelChangeRef.current?.(selectedLabel);
   }, [settled, selectedLabel]);
 
+  const [running, setRunning] = useState(false);
+  // A ref too: two clicks in one tick both run before the disabled state renders.
+  const runningRef = useRef(false);
   const runAction = async () => {
-    if (!action) return;
-    await action.onSelect();
+    if (!action || runningRef.current) return;
+    runningRef.current = true;
+    setRunning(true);
+    try {
+      await action.onSelect();
+    } finally {
+      runningRef.current = false;
+      setRunning(false);
+    }
     reload();
   };
 
@@ -92,7 +102,7 @@ export function ConfigurationDynamicOptionsField({
       type='button'
       variant='outline'
       size='sm'
-      disabled={action.disabled}
+      disabled={running || action.disabled}
       aria-describedby={action.disabled && action.hint ? hintId : undefined}
       onClick={() => void runAction()}
     >
@@ -170,7 +180,7 @@ export function ConfigurationDynamicOptionsField({
           label: action.label,
           forceMount: true,
           separator: options.length > 0,
-          disabled: action.disabled,
+          disabled: running || action.disabled,
         },
       ]
     : visibleOptions;

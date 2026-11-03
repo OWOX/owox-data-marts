@@ -273,6 +273,48 @@ describe('useGoogleSheetsPicker', () => {
     return { setOAuthToken, setVisible, PickerBuilder };
   }
 
+  it('builds one Picker for two rapid opens and settles the older one', async () => {
+    const { setOAuthToken, setVisible, PickerBuilder } = mockPickerApi();
+    const { result } = renderHook(() => useGoogleSheetsPicker());
+    let releaseFirstToken: ((token: string) => void) | undefined;
+    const onFirstError = vi.fn();
+
+    const first = result.current.openPicker({
+      apiKey: 'api-key',
+      appId: 'project-number',
+      accessToken: () =>
+        new Promise<string>(resolve => {
+          releaseFirstToken = resolve;
+        }),
+      hintEmail: 'a@example.com',
+      onPicked: vi.fn(),
+      onError: onFirstError,
+    });
+    // The second click lands while the first still waits for its token.
+    await vi.waitFor(() => {
+      expect(releaseFirstToken).toBeDefined();
+    });
+    void result.current.openPicker({
+      apiKey: 'api-key',
+      appId: 'project-number',
+      accessToken: () => Promise.resolve('second-token'),
+      hintEmail: 'a@example.com',
+      onPicked: vi.fn(),
+    });
+
+    await vi.waitFor(() => {
+      expect(setVisible).toHaveBeenCalledWith(true);
+    });
+    releaseFirstToken?.('first-token');
+    await first;
+
+    expect(PickerBuilder).toHaveBeenCalledOnce();
+    expect(setOAuthToken).toHaveBeenCalledWith('second-token');
+    expect(setOAuthToken).not.toHaveBeenCalledWith('first-token');
+    expect(setVisible).not.toHaveBeenCalledWith(false);
+    expect(onFirstError).not.toHaveBeenCalled();
+  });
+
   it('opens Picker with a ready token and never loads Google Identity Services', async () => {
     const { setOAuthToken, setVisible } = mockPickerApi();
     const { result } = renderHook(() => useGoogleSheetsPicker());

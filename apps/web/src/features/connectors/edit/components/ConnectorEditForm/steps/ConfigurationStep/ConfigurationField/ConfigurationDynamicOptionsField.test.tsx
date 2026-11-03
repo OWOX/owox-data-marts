@@ -115,6 +115,45 @@ describe('ConfigurationDynamicOptionsField', () => {
     expect(screen.getByRole('textbox')).toBeInTheDocument();
   });
 
+  it('ignores clicks on the action while it runs', async () => {
+    setState({ status: 'loaded', options: [] });
+    let finish!: () => void;
+    const onSelect = vi.fn(
+      () =>
+        new Promise<void>(resolve => {
+          finish = resolve;
+        })
+    );
+    renderField({ action: { label: '+ Add spreadsheet', onSelect } });
+    const button = screen.getByRole('button', { name: '+ Add spreadsheet' });
+
+    fireEvent.click(button);
+    fireEvent.click(button);
+
+    expect(onSelect).toHaveBeenCalledTimes(1);
+    expect(button).toBeDisabled();
+    finish();
+    await waitFor(() => {
+      expect(button).toBeEnabled();
+    });
+    expect(reload).toHaveBeenCalledTimes(1);
+  });
+
+  it('cannot pick the action from the list again while it runs', async () => {
+    setState({ options: [{ value: 'id-1', label: 'Budget 2026' }] });
+    const onSelect = vi.fn(() => new Promise<void>(() => undefined));
+    renderField({ action: { label: '+ Add spreadsheet', onSelect } });
+
+    fireEvent.click(screen.getByRole('combobox'));
+    fireEvent.click((await screen.findAllByRole('option'))[1]);
+    fireEvent.click(screen.getByRole('combobox'));
+    const options = await screen.findAllByRole('option');
+    fireEvent.click(options[options.length - 1]);
+
+    expect(onSelect).toHaveBeenCalledTimes(1);
+    expect(options[options.length - 1]).toHaveAttribute('aria-disabled', 'true');
+  });
+
   it('shows a disabled action with its hint', () => {
     setState({ status: 'loaded', options: [] });
     const hint = 'Reconnect this Credential to add spreadsheets.';
