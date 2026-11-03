@@ -1,4 +1,7 @@
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { describe, expect, it, vi } from 'vitest';
+import { loadGasClass } from '../../support/loadGasClass.js';
 import { LinkedInAdsSource } from '../../../src/Sources/LinkedInAds/Source.js';
 
 // The Source is an ES module on this branch, so it is imported rather than vm-evaluated.
@@ -7,6 +10,27 @@ import { LinkedInAdsSource } from '../../../src/Sources/LinkedInAds/Source.js';
 globalThis.HTTP_STATUS = { TOO_MANY_REQUESTS: 429, SERVER_ERROR_MIN: 500 };
 globalThis.LOG_LEVEL = { INFO: 'info', WARN: 'warn', ERROR: 'error' };
 globalThis.DATE_STRATEGY = { DAY_BY_DAY: 'day-by-day', RANGE: 'range', NONE: 'none' };
+
+// The field references are GAS-style scripts that declare globals with `var`, in the order
+// the bundle puts them: field files first, the schema that reads them last.
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const apiReferenceDir = path.join(
+  __dirname,
+  '../../../src/Sources/LinkedInAds/LinkedInAdsAPIReference'
+);
+loadGasClass(path.join(__dirname, '../../../src/Constants/DataTypes.js'));
+for (const file of [
+  'adAccountFields.js',
+  'adCampaignGroupFields.js',
+  'adCampaignFields.js',
+  'creativesFields.js',
+  'adAnalyticsFields.js',
+  'adAnalyticsByGeoFields.js',
+  'LinkedInAdsFieldsSchema.js',
+]) {
+  loadGasClass(path.join(apiReferenceDir, file));
+}
+const fieldsSchema = globalThis.LinkedInAdsFieldsSchema;
 
 const sourceProto = LinkedInAdsSource.prototype;
 const URN = '123456';
@@ -23,6 +47,15 @@ const buildSource = ({ makeRequest, parameters = {} } = {}) => {
     MAX_RESPONSE_ELEMENTS: 15000,
     MAX_TRUNCATED_DAYS_IN_WARNING: 10,
     truncatedAnalyticsDays: new Map(),
+    GEO_NAMES_PER_REQUEST: 50,
+    geoNames: new Map(),
+    geoNamesUnavailable: false,
+    geoNamesRejected: false,
+    CAMPAIGN_ACTIVITY_FIELDS: ['impressions', 'clicks', 'costInLocalCurrency'],
+    accountsWithIssues: new Set(),
+    geoGaps: new Map(),
+    MAX_GEO_URNS_IN_WARNING: 5,
+    fieldsSchema,
     BASE_URL: 'https://api.linkedin.com/rest/',
     context: {
       getParameter: name => parameters[name],
@@ -83,6 +116,26 @@ describe('fetchAdAnalytics', () => {
       'dateRange=(start:(year:2026,month:8,day:1),end:(year:2026,month:8,day:1))'
     );
     expect(warnings()).toHaveLength(0);
+  });
+
+  it('asks the statistics finder for creative, campaign, group and account rows', async () => {
+    const requestedUrls = [];
+    const { self } = buildSource({
+      makeRequest: vi.fn(async url => {
+        requestedUrls.push(url);
+        return { elements: [] };
+      }),
+    });
+
+    await fetchDay(self, 1);
+
+    expect(requestedUrls).toEqual([
+      'https://api.linkedin.com/rest/adAnalytics?q=statistics' +
+        '&dateRange=(start:(year:2026,month:8,day:1),end:(year:2026,month:8,day:1))' +
+        '&pivots=List(CREATIVE,CAMPAIGN,CAMPAIGN_GROUP,ACCOUNT)&timeGranularity=DAILY' +
+        `&accounts=List(${encodeURIComponent(`urn:li:sponsoredAccount:${URN}`)})` +
+        '&fields=dateRange,pivotValues,impressions',
+    ]);
   });
 
   it('merges field chunks into single rows', async () => {
@@ -258,5 +311,728 @@ describe('isValidToRetry', () => {
     [{ statusCode: 400 }, false],
   ])('returns %s → %s', (error, expected) => {
     expect(sourceProto.isValidToRetry.call({}, error)).toBe(expected);
+  });
+});
+
+const GEO_NODES = [
+  ['adAnalyticsByCountry', 'MEMBER_COUNTRY_V2', 'country'],
+  ['adAnalyticsByRegion', 'MEMBER_REGION_V2', 'region'],
+  ['adAnalyticsByCounty', 'MEMBER_COUNTY', 'county'],
+];
+
+describe('geo breakdown nodes', () => {
+  it.each(GEO_NODES)('%s offers its location, the campaign and the metrics', (node, pivot, geo) => {
+    const schema = fieldsSchema[node];
+    const fieldNames = Object.keys(schema.fields);
+
+    expect(schema.geoPivot).toBe(pivot);
+    expect(schema.geoField).toBe(geo);
+    expect(schema.isTimeSeries).toBe(true);
+    expect(fieldNames).toEqual(
+      expect.arrayContaining(['account', 'campaign', geo, `${geo}Name`, 'costInLocalCurrency'])
+    );
+    expect(schema.uniqueKeys.every(key => fieldNames.includes(key))).toBe(true);
+    expect(schema.defaultFields.every(field => fieldNames.includes(field))).toBe(true);
+  });
+
+  /**
+   * LinkedIn answers these only for non-member pivots, and every geo breakdown is a member
+   * pivot; pivotValues is replaced by the account, campaign and location columns.
+   */
+  it.each(GEO_NODES)('%s leaves out what a member pivot does not return', node => {
+    for (const field of [
+      'pivotValues',
+      'approximateMemberReach',
+      'audiencePenetration',
+      'cardClicks',
+      'cardImpressions',
+      'viralCardClicks',
+      'viralCardImpressions',
+      'conversionValueInLocalCurrency',
+    ]) {
+      expect(fieldsSchema[node].fields).not.toHaveProperty(field);
+    }
+  });
+
+  /**
+   * With two flagged fields, the column BigQuery partitions by depends on the order the
+   * fields are selected in.
+   */
+  it.each(GEO_NODES)('%s partitions by dateRangeStart only', node => {
+    const flagged = Object.entries(fieldsSchema[node].fields)
+      .filter(([, field]) => field.GoogleBigQueryPartitioned)
+      .map(([name]) => name);
+
+    expect(flagged).toEqual(['dateRangeStart']);
+    expect(globalThis.adAnalyticsFields.dateRangeEnd.GoogleBigQueryPartitioned).toBe(true);
+  });
+
+  it('writes each breakdown to its own table', () => {
+    const destinations = GEO_NODES.map(([node]) => fieldsSchema[node].destinationName);
+
+    expect(new Set([...destinations, fieldsSchema.adAnalytics.destinationName]).size).toBe(4);
+  });
+});
+
+describe('fetchAdAnalyticsByGeo', () => {
+  const CAMPAIGN_1 = 'urn:li:sponsoredCampaign:1';
+  const CAMPAIGN_2 = 'urn:li:sponsoredCampaign:2';
+  const US = 'urn:li:geo:103644278';
+  const DE = 'urn:li:geo:101282230';
+
+  const geoRow = (day, geoUrn, metrics) => buildRow(day, [geoUrn], metrics);
+
+  /**
+   * A LinkedIn stand-in that answers by request: the day's campaigns (a list, or a function
+   * of the request URL), the geo breakdown of one campaign, and location names.
+   */
+  const buildLinkedIn = ({
+    campaigns = [CAMPAIGN_1, CAMPAIGN_2],
+    rowsByCampaign = {
+      [CAMPAIGN_1]: day => [geoRow(day, US, { impressions: 10, costInLocalCurrency: '1.5' })],
+      [CAMPAIGN_2]: day => [
+        geoRow(day, US, { impressions: 20, costInLocalCurrency: '2.5' }),
+        geoRow(day, DE, { impressions: 5, costInLocalCurrency: '0.5' }),
+      ],
+    },
+    names = { [US]: 'United States', [DE]: 'Germany' },
+    namesError = null,
+  } = {}) => {
+    const requests = [];
+    const makeRequest = vi.fn(async url => {
+      requests.push(url);
+      const decoded = decodeURIComponent(url);
+      const day = Number(/start:\(year:\d+,month:\d+,day:(\d+)\)/.exec(url)?.[1]);
+
+      if (url.includes('adTargetingEntities')) {
+        if (typeof namesError === 'function') {
+          const error = namesError(decoded);
+          if (error) throw error;
+        } else if (namesError) {
+          throw namesError;
+        }
+        return {
+          elements: Object.entries(names)
+            .filter(([urn]) => decoded.includes(urn))
+            .map(([urn, name]) => ({ urn, name, facetUrn: 'urn:li:adTargetingFacet:locations' })),
+        };
+      }
+      if (url.includes('pivot=CAMPAIGN&')) {
+        const listed = typeof campaigns === 'function' ? campaigns(url) : campaigns;
+        return { elements: listed.map(urn => ({ pivotValues: [urn], impressions: 1 })) };
+      }
+      const campaign = Object.keys(rowsByCampaign).find(urn => decoded.includes(`List(${urn})`));
+      return { elements: campaign ? rowsByCampaign[campaign](day) : [] };
+    });
+    return { makeRequest, requests };
+  };
+
+  const fetchGeoDay = (self, day, nodeName = 'adAnalyticsByCountry', fields) =>
+    sourceProto.fetchAdAnalyticsByGeo.call(self, {
+      nodeName,
+      urn: URN,
+      fields: fields ?? [
+        'dateRangeStart',
+        'dateRangeEnd',
+        'account',
+        'campaign',
+        fieldsSchema[nodeName].geoField,
+        `${fieldsSchema[nodeName].geoField}Name`,
+        'impressions',
+        'costInLocalCurrency',
+      ],
+      startDate: utcDay(day),
+      endDate: utcDay(day),
+    });
+
+  it('returns a row per campaign and country, with the country name', async () => {
+    const { makeRequest } = buildLinkedIn();
+    const { self } = buildSource({ makeRequest });
+
+    const rows = await fetchGeoDay(self, 1);
+
+    expect(rows).toEqual([
+      {
+        account: `urn:li:sponsoredAccount:${URN}`,
+        campaign: CAMPAIGN_1,
+        country: US,
+        countryName: 'United States',
+        dateRangeStart: '2026-08-01',
+        dateRangeEnd: '2026-08-01',
+        impressions: 10,
+        costInLocalCurrency: '1.5',
+      },
+      {
+        account: `urn:li:sponsoredAccount:${URN}`,
+        campaign: CAMPAIGN_2,
+        country: US,
+        countryName: 'United States',
+        dateRangeStart: '2026-08-01',
+        dateRangeEnd: '2026-08-01',
+        impressions: 20,
+        costInLocalCurrency: '2.5',
+      },
+      {
+        account: `urn:li:sponsoredAccount:${URN}`,
+        campaign: CAMPAIGN_2,
+        country: DE,
+        countryName: 'Germany',
+        dateRangeStart: '2026-08-01',
+        dateRangeEnd: '2026-08-01',
+        impressions: 5,
+        costInLocalCurrency: '0.5',
+      },
+    ]);
+  });
+
+  /**
+   * LinkedIn takes a member pivot only from the analytics finder, alone, so the campaign
+   * can only come from narrowing each request to one campaign.
+   */
+  it('asks the analytics finder for the member pivot, one campaign per request', async () => {
+    const { makeRequest, requests } = buildLinkedIn();
+    const { self } = buildSource({ makeRequest });
+
+    await fetchGeoDay(self, 1, 'adAnalyticsByRegion');
+
+    const geoRequests = requests.filter(url => url.includes('pivot=MEMBER_REGION_V2'));
+    expect(geoRequests).toHaveLength(2);
+    expect(geoRequests[0]).toContain('adAnalytics?q=analytics&');
+    expect(geoRequests[0]).toContain('&timeGranularity=DAILY');
+    expect(geoRequests[0]).toContain(`&campaigns=List(${encodeURIComponent(CAMPAIGN_1)})`);
+    expect(geoRequests[1]).toContain(`&campaigns=List(${encodeURIComponent(CAMPAIGN_2)})`);
+    // The account, campaign and location columns are filled by the connector, not asked for.
+    const fields = new URL(geoRequests[0]).searchParams.get('fields').split(',');
+    expect(fields).toEqual(['dateRange', 'pivotValues', 'impressions', 'costInLocalCurrency']);
+  });
+
+  /**
+   * Conversions can land on a day a campaign showed no ads, so the campaigns are listed by
+   * any activity, not by impressions alone.
+   */
+  it('lists the campaigns that ran by their activity metrics', async () => {
+    const { makeRequest, requests } = buildLinkedIn();
+    const { self } = buildSource({ makeRequest });
+
+    await fetchGeoDay(self, 1);
+
+    const campaignRequests = requests.filter(url => url.includes('pivot=CAMPAIGN&'));
+    expect(campaignRequests).toHaveLength(1);
+    expect(campaignRequests[0]).toContain('adAnalytics?q=analytics&');
+    expect(campaignRequests[0]).toContain('&timeGranularity=ALL');
+    expect(campaignRequests[0]).toContain(
+      `&accounts=List(${encodeURIComponent(`urn:li:sponsoredAccount:${URN}`)})`
+    );
+    expect(new URL(campaignRequests[0]).searchParams.get('fields')).toBe(
+      'pivotValues,impressions,clicks,costInLocalCurrency'
+    );
+  });
+
+  it('lists the campaigns in one request however many metrics the node imports', async () => {
+    const { makeRequest, requests } = buildLinkedIn();
+    const { self } = buildSource({ makeRequest });
+    self.MAX_FIELDS_PER_REQUEST = 3;
+
+    const rows = await fetchGeoDay(self, 1, 'adAnalyticsByCountry', [
+      'dateRangeStart',
+      'dateRangeEnd',
+      'campaign',
+      'country',
+      'impressions',
+      'clicks',
+    ]);
+
+    expect(requests.filter(url => url.includes('pivot=CAMPAIGN&'))).toHaveLength(1);
+    expect(new Set(rows.map(row => row.campaign))).toEqual(new Set([CAMPAIGN_1, CAMPAIGN_2]));
+    expect(requests.filter(url => url.includes('pivot=MEMBER_COUNTRY_V2'))).toHaveLength(4);
+  });
+
+  /**
+   * The campaign list comes from the analytics finder too, which LinkedIn documents with
+   * paged answers: a real next page left unread would drop the campaigns on it.
+   */
+  it('reads every page of the campaign list', async () => {
+    const campaigns = Array.from({ length: 12 }, (_, i) => `urn:li:sponsoredCampaign:${i + 1}`);
+    const linkedIn = buildLinkedIn({ names: {} });
+    const listRequests = [];
+    const makeRequest = vi.fn(async url => {
+      if (!url.includes('pivot=CAMPAIGN&')) return linkedIn.makeRequest(url);
+      listRequests.push(url);
+      const start = Number(/[?&]start=(\d+)/.exec(url)?.[1] ?? 0);
+      return {
+        elements: campaigns.slice(start, start + 10).map(urn => ({ pivotValues: [urn] })),
+        paging: {
+          start,
+          count: 10,
+          links: start + 10 < campaigns.length ? [{ rel: 'next', href: '/next' }] : [],
+        },
+      };
+    });
+    const { self } = buildSource({ makeRequest });
+
+    const urns = await sourceProto.fetchActiveCampaignUrns.call(self, {
+      urn: URN,
+      nodeName: 'adAnalyticsByCountry',
+      start: utcDay(1),
+      end: utcDay(1),
+    });
+
+    expect(urns).toEqual(campaigns);
+    expect(listRequests).toHaveLength(2);
+  });
+
+  it('asks nothing more on a day without campaigns', async () => {
+    const { makeRequest, requests } = buildLinkedIn({ campaigns: [] });
+    const { self } = buildSource({ makeRequest });
+
+    expect(await fetchGeoDay(self, 1)).toEqual([]);
+    expect(requests).toHaveLength(1);
+  });
+
+  it('merges field chunks of one campaign into single rows', async () => {
+    const { makeRequest } = buildLinkedIn({
+      campaigns: [CAMPAIGN_1],
+      rowsByCampaign: {
+        [CAMPAIGN_1]: day => [geoRow(day, US, { impressions: 10, clicks: 3 })],
+      },
+    });
+    const { self } = buildSource({ makeRequest });
+    self.MAX_FIELDS_PER_REQUEST = 3;
+
+    const rows = await fetchGeoDay(self, 1, 'adAnalyticsByCountry', [
+      'dateRangeStart',
+      'dateRangeEnd',
+      'campaign',
+      'country',
+      'impressions',
+      'clicks',
+    ]);
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      campaign: CAMPAIGN_1,
+      country: US,
+      impressions: 10,
+      clicks: 3,
+    });
+  });
+
+  it('looks each location name up once per run', async () => {
+    const { makeRequest, requests } = buildLinkedIn();
+    const { self } = buildSource({ makeRequest });
+
+    await fetchGeoDay(self, 1);
+    await fetchGeoDay(self, 2);
+
+    const nameRequests = requests.filter(url => url.includes('adTargetingEntities'));
+    expect(nameRequests).toHaveLength(1);
+    expect(nameRequests[0]).toBe(
+      'https://api.linkedin.com/rest/adTargetingEntities?q=urns&queryVersion=QUERY_USES_URNS' +
+        `&urns=List(${encodeURIComponent(US)},${encodeURIComponent(DE)})` +
+        '&locale=(language:en,country:US)'
+    );
+  });
+
+  it('asks for at most GEO_NAMES_PER_REQUEST names at a time', async () => {
+    const geoUrns = Array.from({ length: 5 }, (_, i) => `urn:li:geo:${i + 1}`);
+    const { makeRequest, requests } = buildLinkedIn({
+      campaigns: [CAMPAIGN_1],
+      rowsByCampaign: { [CAMPAIGN_1]: day => geoUrns.map(urn => geoRow(day, urn, {})) },
+      names: {},
+    });
+    const { self } = buildSource({ makeRequest });
+    self.GEO_NAMES_PER_REQUEST = 2;
+
+    await fetchGeoDay(self, 1);
+
+    expect(requests.filter(url => url.includes('adTargetingEntities'))).toHaveLength(3);
+  });
+
+  it('leaves a location LinkedIn does not name empty, and does not ask for it again', async () => {
+    const { makeRequest, requests } = buildLinkedIn({ names: { [US]: 'United States' } });
+    const { self } = buildSource({ makeRequest });
+
+    const rows = await fetchGeoDay(self, 1);
+    await fetchGeoDay(self, 2);
+
+    expect(rows.find(row => row.country === DE).countryName).toBeNull();
+    expect(requests.filter(url => url.includes('adTargetingEntities'))).toHaveLength(1);
+  });
+
+  /**
+   * A run that succeeds with empty names must still say so: otherwise nobody looks until
+   * someone opens the table.
+   */
+  it('warns once per account about the locations LinkedIn did not name', async () => {
+    const { makeRequest } = buildLinkedIn({ names: { [US]: 'United States' } });
+    const { self, warnings } = buildSource({ makeRequest });
+
+    await fetchGeoDay(self, 1);
+    await fetchGeoDay(self, 2);
+    expect(warnings()).toHaveLength(0);
+    sourceProto.onAccountComplete.call(self, { id: URN });
+    sourceProto.onAccountComplete.call(self, { id: URN });
+
+    expect(warnings()).toEqual([
+      `LinkedIn returned no name for 1 location(s) of account ${URN}: ${DE}; ` +
+        'their name column is left empty',
+    ]);
+  });
+
+  it('lists a few unnamed locations and counts the rest', async () => {
+    const geoUrns = Array.from({ length: 7 }, (_, i) => `urn:li:geo:${i + 1}`);
+    const { makeRequest } = buildLinkedIn({
+      campaigns: [CAMPAIGN_1],
+      rowsByCampaign: { [CAMPAIGN_1]: day => geoUrns.map(urn => geoRow(day, urn, {})) },
+      names: {},
+    });
+    const { self, warnings } = buildSource({ makeRequest });
+
+    await fetchGeoDay(self, 1);
+    sourceProto.onAccountComplete.call(self, { id: URN });
+
+    expect(warnings()[0]).toContain(
+      'no name for 7 location(s) of account 123456: urn:li:geo:1, urn:li:geo:2, ' +
+        'urn:li:geo:3, urn:li:geo:4, urn:li:geo:5 and 2 more'
+    );
+  });
+
+  /**
+   * A refusal does not change within the run: the metrics and location URNs still load, and
+   * one warning (not one more per account) says the names are missing.
+   */
+  it('imports the metrics without names when LinkedIn refuses the lookup, warning once', async () => {
+    const refusal = Object.assign(new Error('HTTP 403: Not enough permissions'), {
+      statusCode: 403,
+    });
+    const { makeRequest, requests } = buildLinkedIn({ namesError: refusal });
+    const { self, warnings } = buildSource({ makeRequest });
+
+    const rows = await fetchGeoDay(self, 1);
+    await fetchGeoDay(self, 2);
+    sourceProto.onAccountComplete.call(self, { id: URN });
+
+    expect(rows).toHaveLength(3);
+    expect(rows.every(row => row.country && row.countryName === null)).toBe(true);
+    expect(warnings()).toHaveLength(1);
+    expect(warnings()[0]).toContain('HTTP 403: Not enough permissions');
+    expect(requests.filter(url => url.includes('adTargetingEntities'))).toHaveLength(1);
+  });
+
+  /**
+   * Rows stored without names stay so: an incremental run only reimports its lookback window.
+   * A failure LinkedIn may get over therefore fails the day, which the next run asks again.
+   */
+  it.each([
+    ['a server error', { statusCode: 503 }],
+    ['a rate limit', { statusCode: 429 }],
+    ['a network error', {}],
+  ])('fails the day on %s in the name lookup, and asks again next time', async (_, props) => {
+    const outage = Object.assign(new Error('lookup failed'), props);
+    const linkedIn = buildLinkedIn({ namesError: outage });
+    const { self, warnings } = buildSource({ makeRequest: linkedIn.makeRequest });
+
+    await expect(fetchGeoDay(self, 1)).rejects.toBe(outage);
+    expect(warnings()).toHaveLength(0);
+
+    self.makeRequest = buildLinkedIn().makeRequest;
+    const rows = await fetchGeoDay(self, 1);
+    expect(rows.every(row => row.countryName)).toBe(true);
+  });
+
+  /**
+   * The location and the day are part of the unique key, and a key with an empty part never
+   * matches on reimport: such a row would be stored again on every run.
+   */
+  it('leaves out rows without a location or a date and says how many', async () => {
+    const { makeRequest } = buildLinkedIn({
+      campaigns: [CAMPAIGN_1],
+      rowsByCampaign: {
+        [CAMPAIGN_1]: day => [
+          geoRow(day, US, { impressions: 10 }),
+          buildRow(day, [], { impressions: 4 }),
+          { dateRange: buildRow(day, []).dateRange, impressions: 1 },
+          { pivotValues: [DE], impressions: 2 },
+        ],
+      },
+    });
+    const { self, warnings } = buildSource({ makeRequest });
+
+    const rows = await fetchGeoDay(self, 1);
+    sourceProto.onAccountComplete.call(self, { id: URN });
+
+    expect(rows.map(row => row.country)).toEqual([US]);
+    expect(warnings()).toEqual([
+      `LinkedIn returned 3 row(s) without a location or a date for account ${URN}; ` +
+        'they were not imported',
+    ]);
+  });
+
+  it('names each day cut short by the element limit once, however many campaigns hit it', async () => {
+    const fullDay = day =>
+      Array.from({ length: 15000 }, (_, i) => geoRow(day, `urn:li:geo:${i}`, {}));
+    const { makeRequest } = buildLinkedIn({
+      rowsByCampaign: { [CAMPAIGN_1]: fullDay, [CAMPAIGN_2]: fullDay },
+    });
+    const { self, warnings } = buildSource({ makeRequest });
+    self.GEO_NAMES_PER_REQUEST = 15000;
+
+    await fetchGeoDay(self, 1);
+    sourceProto.onAccountComplete.call(self, { id: URN });
+
+    const truncation = warnings().filter(message => message.includes('element limit'));
+    expect(truncation).toHaveLength(1);
+    expect(truncation[0]).toContain(`adAnalyticsByCountry responses for account ${URN}`);
+    expect(truncation[0]).toContain('on 1 day(s): 2026-08-01;');
+  });
+
+  /**
+   * A 400 can come from a single URN LinkedIn will not take: the batch is split until that
+   * URN is found, so it alone stays unnamed and the rest keep their names.
+   */
+  it('splits a rejected name batch down to the URN LinkedIn will not take', async () => {
+    const geoUrns = Array.from({ length: 4 }, (_, i) => `urn:li:geo:${i + 1}`);
+    const rejection = Object.assign(new Error('HTTP 400: Invalid URN'), { statusCode: 400 });
+    const { makeRequest, requests } = buildLinkedIn({
+      campaigns: [CAMPAIGN_1],
+      rowsByCampaign: { [CAMPAIGN_1]: day => geoUrns.map(urn => geoRow(day, urn, {})) },
+      names: Object.fromEntries(geoUrns.map(urn => [urn, `Name of ${urn}`])),
+      namesError: decoded => (/urn:li:geo:2[,)]/.test(decoded) ? rejection : null),
+    });
+    const { self, warnings } = buildSource({ makeRequest });
+
+    const rows = await fetchGeoDay(self, 1);
+    await fetchGeoDay(self, 2);
+    sourceProto.onAccountComplete.call(self, { id: URN });
+
+    const nameRequests = requests.filter(url => url.includes('adTargetingEntities'));
+    // [1,2,3,4] → [1,2] → [1], [2] → [3,4]; nothing is asked again on day 2.
+    expect(nameRequests.map(url => decodeURIComponent(url).match(/List\(([^)]*)\)/)[1])).toEqual([
+      'urn:li:geo:1,urn:li:geo:2,urn:li:geo:3,urn:li:geo:4',
+      'urn:li:geo:1,urn:li:geo:2',
+      'urn:li:geo:1',
+      'urn:li:geo:2',
+      'urn:li:geo:3,urn:li:geo:4',
+    ]);
+    expect(rows.map(row => row.countryName)).toEqual([
+      'Name of urn:li:geo:1',
+      null,
+      'Name of urn:li:geo:3',
+      'Name of urn:li:geo:4',
+    ]);
+    expect(warnings()).toEqual([
+      'LinkedIn rejected the name lookup for urn:li:geo:2 (HTTP 400: Invalid URN); ' +
+        'their name column is left empty',
+      `LinkedIn returned no name for 1 location(s) of account ${URN}: urn:li:geo:2; ` +
+        'their name column is left empty',
+    ]);
+  });
+
+  it('stops asking for names when LinkedIn takes no URN of a batch, even one at a time', async () => {
+    const rejection = Object.assign(new Error('HTTP 400: Invalid URN'), { statusCode: 400 });
+    const { makeRequest, requests } = buildLinkedIn({ namesError: rejection });
+    const { self, warnings } = buildSource({ makeRequest });
+
+    const rows = await fetchGeoDay(self, 1);
+    await fetchGeoDay(self, 2);
+    sourceProto.onAccountComplete.call(self, { id: URN });
+
+    expect(rows.every(row => row.countryName === null)).toBe(true);
+    // [US, DE] → [US], [DE]; then no more lookups this run.
+    expect(requests.filter(url => url.includes('adTargetingEntities'))).toHaveLength(3);
+    expect(warnings()).toEqual([
+      'LinkedIn rejected the location name lookup for every location asked, one at a time ' +
+        'too (HTTP 400: Invalid URN); location names are left empty, and the location URNs ' +
+        'and metrics are imported',
+    ]);
+  });
+
+  it('reads the next page of names when LinkedIn pages the answer', async () => {
+    const pages = [
+      {
+        elements: [{ urn: US, name: 'United States' }],
+        paging: { start: 0, count: 1, links: [{ rel: 'next', href: '/rest/next' }] },
+      },
+      { elements: [{ urn: DE, name: 'Germany' }], paging: { start: 1, count: 1, links: [] } },
+    ];
+    const linkedIn = buildLinkedIn();
+    const nameRequests = [];
+    const makeRequest = vi.fn(async url => {
+      if (!url.includes('adTargetingEntities')) return linkedIn.makeRequest(url);
+      nameRequests.push(url);
+      return pages[nameRequests.length - 1];
+    });
+    const { self, warnings } = buildSource({ makeRequest });
+
+    const rows = await fetchGeoDay(self, 1);
+    sourceProto.onAccountComplete.call(self, { id: URN });
+
+    expect(nameRequests).toHaveLength(2);
+    expect(nameRequests[1]).toBe(`${nameRequests[0]}&start=1`);
+    expect(rows.map(row => row.countryName)).toEqual(['United States', 'United States', 'Germany']);
+    expect(warnings()).toHaveLength(0);
+  });
+
+  it('takes an empty name for no name, and lists it', async () => {
+    const { makeRequest } = buildLinkedIn({ names: { [US]: 'United States', [DE]: '' } });
+    const { self, warnings } = buildSource({ makeRequest });
+
+    const rows = await fetchGeoDay(self, 1);
+    sourceProto.onAccountComplete.call(self, { id: URN });
+
+    expect(rows.find(row => row.country === DE).countryName).toBeNull();
+    expect(warnings()[0]).toContain(`no name for 1 location(s) of account ${URN}: ${DE};`);
+  });
+
+  /**
+   * The engine skips onAccountComplete for an account with an issue, so the days it imported
+   * before failing would otherwise never be reported.
+   */
+  it('reports what an account gathered before it failed', async () => {
+    const { makeRequest } = buildLinkedIn({ names: { [US]: 'United States' } });
+    const { self, warnings } = buildSource({ makeRequest });
+
+    await fetchGeoDay(self, 1);
+    sourceProto.onAccountError.call(self, { id: URN }, new Error('HTTP 429'));
+    sourceProto.onAccountError.call(self, { id: URN }, new Error('HTTP 429'));
+
+    expect(warnings()).toEqual([
+      `LinkedIn returned no name for 1 location(s) of account ${URN}: ${DE}; ` +
+        'their name column is left empty',
+    ]);
+  });
+
+  /**
+   * After a failure the engine never calls onAccountComplete for the account, so each later
+   * day is reported right after it rather than not at all.
+   */
+  it('reports each later day of an account that already failed', async () => {
+    const { makeRequest } = buildLinkedIn({ names: { [US]: 'United States' } });
+    const { self, warnings } = buildSource({ makeRequest });
+    const fetchCountryDay = day =>
+      sourceProto.fetchData.call(self, {
+        nodeName: 'adAnalyticsByCountry',
+        fields: [...fieldsSchema.adAnalyticsByCountry.uniqueKeys, 'countryName'],
+        accountId: URN,
+        startDate: utcDay(day),
+        endDate: utcDay(day),
+      });
+
+    await fetchCountryDay(1);
+    expect(warnings()).toHaveLength(0);
+
+    sourceProto.onAccountError.call(self, { id: URN }, new Error('HTTP 429'));
+    expect(warnings()).toHaveLength(1);
+
+    self.geoNames.clear();
+    await fetchCountryDay(2);
+    expect(warnings()).toHaveLength(2);
+    expect(warnings()[1]).toContain(`no name for 1 location(s) of account ${URN}: ${DE};`);
+  });
+
+  it('records a cut-short campaign list as a truncated day of the node', async () => {
+    const campaigns = Array.from({ length: 15000 }, (_, i) => `urn:li:sponsoredCampaign:${i}`);
+    const { makeRequest } = buildLinkedIn({ campaigns, rowsByCampaign: {} });
+    const { self, warnings } = buildSource({ makeRequest });
+
+    await fetchGeoDay(self, 1, 'adAnalyticsByRegion');
+    sourceProto.onAccountComplete.call(self, { id: URN });
+
+    expect(warnings()).toEqual([
+      `adAnalyticsByRegion responses for account ${URN} reached LinkedIn's 15000-element ` +
+        'limit on 1 day(s): 2026-08-01; data for those days may be incomplete',
+    ]);
+  });
+
+  describe('pages of a member-pivot answer', () => {
+    const regions = Array.from({ length: 25 }, (_, i) => `urn:li:geo:${i + 1}`);
+    const next = { rel: 'next', href: '/adAnalytics?start=10&count=10', type: 'application/json' };
+
+    /** LinkedIn answering the breakdown with `answer(start)`; everything else as usual. */
+    const pagedLinkedIn = answer => {
+      const linkedIn = buildLinkedIn({ campaigns: [CAMPAIGN_1], names: {} });
+      const geoRequests = [];
+      const makeRequest = vi.fn(async url => {
+        if (!url.includes('pivot=MEMBER_')) return linkedIn.makeRequest(url);
+        geoRequests.push(url);
+        return answer(Number(/[?&]start=(\d+)/.exec(url)?.[1] ?? 0));
+      });
+      return { makeRequest, geoRequests };
+    };
+    const page = (start, count = 10) => ({
+      elements: regions.slice(start, start + count).map(urn => geoRow(1, urn, { impressions: 1 })),
+      paging: { start, count, links: start + count < regions.length ? [next] : [] },
+    });
+
+    /**
+     * LinkedIn's docs say adAnalytics does not paginate, yet show member-pivot answers with
+     * a next link. Were they real, reading the first page alone would drop most locations.
+     */
+    it('reads every page when LinkedIn really pages the answer', async () => {
+      const { makeRequest, geoRequests } = pagedLinkedIn(start => page(start));
+      const { self } = buildSource({ makeRequest });
+
+      const rows = await fetchGeoDay(self, 1, 'adAnalyticsByRegion');
+
+      expect(rows).toHaveLength(25);
+      expect(geoRequests).toHaveLength(3);
+      expect(geoRequests[1]).toBe(`${geoRequests[0]}&start=10&count=10`);
+      expect(geoRequests[2]).toBe(`${geoRequests[0]}&start=20&count=10`);
+    });
+
+    it('takes a page shorter than paging.count for the whole answer, as in the docs', async () => {
+      const { makeRequest, geoRequests } = pagedLinkedIn(() => ({
+        elements: regions.slice(0, 3).map(urn => geoRow(1, urn, { impressions: 1 })),
+        paging: { start: 0, count: 10, links: [next] },
+      }));
+      const { self } = buildSource({ makeRequest });
+
+      const rows = await fetchGeoDay(self, 1, 'adAnalyticsByRegion');
+
+      expect(rows).toHaveLength(3);
+      expect(geoRequests).toHaveLength(1);
+    });
+
+    it('stops when LinkedIn ignores start and repeats the page', async () => {
+      const { makeRequest, geoRequests } = pagedLinkedIn(() => page(0));
+      const { self } = buildSource({ makeRequest });
+
+      const rows = await fetchGeoDay(self, 1, 'adAnalyticsByRegion');
+
+      expect(rows).toHaveLength(10);
+      expect(geoRequests).toHaveLength(2);
+    });
+
+    it('never pages a request without a member pivot', async () => {
+      const requests = [];
+      const { self } = buildSource({
+        makeRequest: vi.fn(async url => {
+          requests.push(url);
+          return {
+            elements: Array.from({ length: 10 }, (_, i) => buildRow(1, [String(i)])),
+            paging: { start: 0, count: 10, links: [next] },
+          };
+        }),
+      });
+
+      await fetchDay(self, 1);
+
+      expect(requests).toHaveLength(1);
+    });
+  });
+
+  it('is what fetchData runs for a geo node', async () => {
+    const { makeRequest } = buildLinkedIn();
+    const { self } = buildSource({ makeRequest });
+
+    const rows = await sourceProto.fetchData.call(self, {
+      nodeName: 'adAnalyticsByCountry',
+      fields: fieldsSchema.adAnalyticsByCountry.uniqueKeys,
+      accountId: URN,
+      startDate: utcDay(1),
+      endDate: utcDay(1),
+    });
+
+    expect(rows).toHaveLength(3);
   });
 });

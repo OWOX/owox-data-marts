@@ -198,9 +198,48 @@ export class LinkedInAdsSource extends AbstractSource {
     // response that reaches it was silently cut short rather than being all there is.
     this.MAX_RESPONSE_ELEMENTS = 15000;
     this.MAX_TRUNCATED_DAYS_IN_WARNING = 10;
-    // Account id -> the days whose adAnalytics response reached MAX_RESPONSE_ELEMENTS, reported
-    // once when the account completes: every WARN line becomes one of the run's warnings.
+    // Account id -> node -> the days whose response reached MAX_RESPONSE_ELEMENTS, reported
+    // once per account: every WARN line becomes one of the run's warnings.
     this.truncatedAnalyticsDays = new Map();
+    // Location names asked of adTargetingEntities in one request; LinkedIn documents no limit,
+    // this keeps the URL well short of one.
+    this.GEO_NAMES_PER_REQUEST = 50;
+    // Geo URN -> name for the whole run: every day and campaign repeats the same locations.
+    this.geoNames = new Map();
+    // LinkedIn refused the lookup (401/403), so no batch is asked again this run.
+    this.geoNamesUnavailable = false;
+    // LinkedIn rejected a batch (another 4xx); said once per run.
+    this.geoNamesRejected = false;
+    // Account id -> what the geo breakdowns could not fill: locations LinkedIn gave no name
+    // and rows that came without a location or a date. Reported once per account.
+    this.geoGaps = new Map();
+    this.MAX_GEO_URNS_IN_WARNING = 5;
+    // Metrics that show a campaign had any activity in a day: delivery, spend, clicks,
+    // conversions, leads and engagement. The day's campaign list asks for these, in one
+    // request, whatever the node imports.
+    this.CAMPAIGN_ACTIVITY_FIELDS = [
+      'impressions',
+      'clicks',
+      'costInLocalCurrency',
+      'externalWebsiteConversions',
+      'externalWebsitePostClickConversions',
+      'externalWebsitePostViewConversions',
+      'oneClickLeads',
+      'oneClickLeadFormOpens',
+      'qualifiedLeads',
+      'landingPageClicks',
+      'totalEngagements',
+      'videoViews',
+      'videoStarts',
+      'opens',
+      'sends',
+      'follows',
+      'jobApplications',
+      'registrations',
+    ];
+    // Accounts that failed once in this run: the engine no longer calls onAccountComplete for
+    // them, so their warnings are reported day by day instead.
+    this.accountsWithIssues = new Set();
     this.BASE_URL = 'https://api.linkedin.com/rest/';
   }
 
@@ -214,8 +253,9 @@ export class LinkedInAdsSource extends AbstractSource {
    * each response far below the cap, and the engine's per-day checkpoint makes an
    * interrupted range resumable instead of restarting it.
    *
-   * adAnalytics is the only isTimeSeries node here, so it is the only node this is
-   * consulted for; the catalog nodes are planned as plain nodes and never see a date.
+   * The geo breakdowns share the cap and ask once per campaign, so a day keeps them small
+   * too. Only the analytics nodes are isTimeSeries, so only they consult this; the catalog
+   * nodes are planned as plain nodes and never see a date.
    */
   getDateStrategy(nodeName) {
     return DATE_STRATEGY.DAY_BY_DAY;
@@ -366,8 +406,17 @@ export class LinkedInAdsSource extends AbstractSource {
           queryType: 'criteria',
         });
       case 'adAnalytics':
-        return await this.fetchAdAnalytics({ urn, fields, startDate, endDate });
+        return this.reportIfAccountFailed(
+          urn,
+          await this.fetchAdAnalytics({ urn, fields, startDate, endDate })
+        );
       default:
+        if (this.fieldsSchema[nodeName]?.geoPivot) {
+          return this.reportIfAccountFailed(
+            urn,
+            await this.fetchAdAnalyticsByGeo({ nodeName, urn, fields, startDate, endDate })
+          );
+        }
         throw new Error(`Unknown node: ${nodeName}`);
     }
   }
@@ -397,64 +446,399 @@ export class LinkedInAdsSource extends AbstractSource {
    * Fetch analytics data, handling field limits and data merging
    */
   async fetchAdAnalytics({ urn, fields, startDate, endDate }) {
-    const start = new Date(startDate);
-    const end = new Date(endDate);
     const accountUrn = `urn:li:sponsoredAccount:${urn}`;
-    const encodedUrn = encodeURIComponent(accountUrn);
-    let allResults = [];
-    const uniqueApiFields = this.convertFieldsForApi(fields || []);
-
     // LinkedIn API caps fields per request — split and merge.
-    const fieldChunks = this.prepareAnalyticsFieldChunks(uniqueApiFields);
+    const fieldChunks = this.prepareAnalyticsFieldChunks(this.convertFieldsForApi(fields || []));
 
-    let isTruncated = false;
+    const rows = await this.fetchAnalyticsRows({
+      urn,
+      nodeName: 'adAnalytics',
+      pivots: ['CREATIVE', 'CAMPAIGN', 'CAMPAIGN_GROUP', 'ACCOUNT'],
+      facet: `accounts=List(${encodeURIComponent(accountUrn)})`,
+      start: new Date(startDate),
+      end: new Date(endDate),
+      fieldChunks,
+    });
 
-    for (const fieldChunk of fieldChunks) {
-      const url = this.buildAdAnalyticsUrl({
-        startDate: start,
-        endDate: end,
-        encodedUrn,
-        fields: fieldChunk,
-      });
-      const res = await this.makeRequest(url);
-      const elements = res.elements || [];
-
-      if (elements.length >= this.MAX_RESPONSE_ELEMENTS) {
-        isTruncated = true;
-      }
-
-      allResults = this.mergeAnalyticsResults(allResults, elements);
-    }
-
-    // getDateStrategy keeps this to one day per call, which puts the cap far out of
-    // reach for an ordinary account -- so reaching it is worth saying out loud rather
-    // than counting. The rows already fetched are still returned: they are real, there
-    // are simply more of them than LinkedIn would hand over.
-    if (isTruncated) {
-      const days = this.truncatedAnalyticsDays.get(urn) ?? [];
-      days.push(start.toISOString().slice(0, 10));
-      this.truncatedAnalyticsDays.set(urn, days);
-    }
-
-    return this.transformAnalyticsDateRanges(allResults);
+    return this.transformAnalyticsDateRanges(rows);
   }
 
   /**
-   * One warning per account for the days its adAnalytics responses were cut short, as main
-   * reported them, instead of one per day.
+   * One adAnalytics read: a request per field chunk, merged into one row per dateRange and
+   * pivotValues.
+   *
+   * getDateStrategy keeps every read to one day, which puts the element cap far out of reach
+   * for an ordinary account -- so reaching it is worth saying out loud rather than counting,
+   * and the day is recorded for the account's warning. The rows already fetched are still
+   * returned: they are real, there are simply more of them than LinkedIn would hand over.
+   *
+   * @returns {Promise<object[]>} merged elements, with dateRange still in LinkedIn's shape
    */
-  onAccountComplete(account) {
-    const days = this.truncatedAnalyticsDays.get(account?.id);
-    if (!days) return;
-    this.truncatedAnalyticsDays.delete(account.id);
-    const listed = days.slice(0, this.MAX_TRUNCATED_DAYS_IN_WARNING).join(', ');
-    const hidden = days.length - this.MAX_TRUNCATED_DAYS_IN_WARNING;
+  async fetchAnalyticsRows({ urn, nodeName, pivots, facet, start, end, fieldChunks, timeGranularity }) {
+    // One pivot is the analytics finder, the one LinkedIn documents with paged answers.
+    const analyticsFinder = pivots.length === 1;
+    let rows = [];
+
+    for (const fields of fieldChunks) {
+      const url = this.buildAdAnalyticsUrl({
+        pivots,
+        facet,
+        startDate: start,
+        endDate: end,
+        fields,
+        timeGranularity,
+      });
+      const seen = new Set();
+      let pageUrl = url;
+
+      while (pageUrl) {
+        const res = await this.makeRequest(pageUrl);
+        const elements = res.elements || [];
+
+        if (elements.length >= this.MAX_RESPONSE_ELEMENTS) {
+          this.recordTruncatedDay(urn, nodeName, start);
+        }
+
+        rows = this.mergeAnalyticsResults(rows, elements);
+        pageUrl = analyticsFinder ? this.nextAnalyticsPage(url, res, elements, seen) : null;
+      }
+    }
+
+    return rows;
+  }
+
+  /**
+   * The next page of an analytics-finder answer, or null.
+   *
+   * LinkedIn says adAnalytics does not paginate, yet documents analytics-finder responses,
+   * the member-pivot ones among them, with `paging.count` 10 and a `next` link. Ignoring a
+   * real next page would drop all but the first ten locations or campaigns without a word,
+   * so a full page that links onward is followed.
+   * Should LinkedIn ignore `start`, the next page only repeats rows already read, which ends
+   * it; a page shorter than `paging.count` is the last one.
+   *
+   * @param {string} url - the request without paging parameters
+   * @param {{paging?: {start?: number, count?: number, links?: object[]}}} res - this page
+   * @param {object[]} elements - this page's elements
+   * @param {Set<string>} seen - row keys read so far for this request, updated here
+   * @returns {string|null} the next page's URL
+   */
+  nextAnalyticsPage(url, res, elements, seen) {
+    const fresh = elements.filter(element => !seen.has(LinkedInAdsSource.analyticsRowKey(element)));
+    for (const element of fresh) seen.add(LinkedInAdsSource.analyticsRowKey(element));
+
+    const { paging } = res;
+    const isFull = paging?.count > 0 && elements.length === paging.count;
+    const linksOn = paging?.links?.some(link => link.rel === 'next');
+    if (!isFull || !linksOn || fresh.length === 0) return null;
+
+    const next = (paging.start ?? 0) + elements.length;
+    return next < this.MAX_RESPONSE_ELEMENTS ? `${url}&start=${next}&count=${paging.count}` : null;
+  }
+
+  /** dateRange and pivotValues identify an adAnalytics row. */
+  static analyticsRowKey(element) {
+    return JSON.stringify([element.dateRange, element.pivotValues]);
+  }
+
+  recordTruncatedDay(urn, nodeName, start) {
+    if (!this.truncatedAnalyticsDays.has(urn)) this.truncatedAnalyticsDays.set(urn, new Map());
+    const byNode = this.truncatedAnalyticsDays.get(urn);
+    const days = byNode.get(nodeName) ?? [];
+    const day = start.toISOString().slice(0, 10);
+    if (!days.includes(day)) days.push(day);
+    byNode.set(nodeName, days);
+  }
+
+  /**
+   * One geo breakdown (country, region or county) of a day's analytics, per campaign.
+   *
+   * LinkedIn returns a member pivot such as MEMBER_COUNTRY_V2 only from the analytics
+   * finder, which takes that one pivot and nothing else. Rows can therefore only carry the
+   * campaign when each request is narrowed to one campaign. To ask only for campaigns that
+   * ran, the day's campaigns are read first.
+   *
+   * pivotValues holds the location URN; it becomes the node's location column, and its
+   * name is looked up through adTargetingEntities. A row without a location or a date is
+   * left out: both are part of the unique key, and a key with an empty part never matches
+   * on reimport, so the row would be stored again on every run.
+   */
+  async fetchAdAnalyticsByGeo({ nodeName, urn, fields, startDate, endDate }) {
+    const { geoPivot, geoField } = this.fieldsSchema[nodeName];
+    const geoNameField = `${geoField}Name`;
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    const accountUrn = `urn:li:sponsoredAccount:${urn}`;
+
+    // The account, campaign and location columns are filled here, not asked of LinkedIn.
+    const filledHere = ['account', 'campaign', geoField, geoNameField];
+    const apiFields = this.convertFieldsForApi(fields.filter(field => !filledHere.includes(field)));
+    const fieldChunks = this.prepareAnalyticsFieldChunks(apiFields);
+
+    const campaignUrns = await this.fetchActiveCampaignUrns({ urn, nodeName, start, end });
+    const rows = [];
+
+    for (const campaignUrn of campaignUrns) {
+      const campaignRows = await this.fetchAnalyticsRows({
+        urn,
+        nodeName,
+        pivots: [geoPivot],
+        facet: `campaigns=List(${encodeURIComponent(campaignUrn)})`,
+        start,
+        end,
+        fieldChunks,
+      });
+      for (const row of campaignRows) {
+        rows.push({ ...row, account: accountUrn, campaign: campaignUrn });
+      }
+    }
+
+    const complete = rows.filter(
+      row => row.pivotValues?.[0] && row.dateRange?.start && row.dateRange?.end
+    );
+    const gaps = this.geoGapsOf(urn);
+    gaps.incompleteRows += rows.length - complete.length;
+
+    const names = await this.resolveGeoNames(complete.map(row => row.pivotValues[0]));
+
+    return this.transformAnalyticsDateRanges(complete).map(row => {
+      const { pivotValues, ...rest } = row;
+      const geoUrn = pivotValues[0];
+      const name = names.get(geoUrn) ?? null;
+      // A refused lookup is reported once for the run; only the names missing otherwise are
+      // listed for the account.
+      if (name === null && !this.geoNamesUnavailable) gaps.unnamed.add(geoUrn);
+      return { ...rest, [geoField]: geoUrn, [geoNameField]: name };
+    });
+  }
+
+  geoGapsOf(urn) {
+    if (!this.geoGaps.has(urn)) this.geoGaps.set(urn, { unnamed: new Set(), incompleteRows: 0 });
+    return this.geoGaps.get(urn);
+  }
+
+  /**
+   * The campaigns of an account that have analytics in the range, as URNs.
+   *
+   * Asked with CAMPAIGN_ACTIVITY_FIELDS, so a campaign is listed when it had any activity in
+   * the range, not only impressions: conversions can land on a day a campaign showed no ads.
+   * One request, however many metrics the node imports.
+   */
+  async fetchActiveCampaignUrns({ urn, nodeName, start, end }) {
+    const rows = await this.fetchAnalyticsRows({
+      urn,
+      nodeName,
+      pivots: ['CAMPAIGN'],
+      facet: `accounts=List(${encodeURIComponent(`urn:li:sponsoredAccount:${urn}`)})`,
+      start,
+      end,
+      fieldChunks: [['pivotValues', ...this.CAMPAIGN_ACTIVITY_FIELDS]],
+      timeGranularity: 'ALL',
+    });
+
+    return [...new Set(rows.map(row => row.pivotValues?.[0]).filter(Boolean))];
+  }
+
+  /**
+   * Names for geo URNs, from LinkedIn's URN-to-name resolver (adTargetingEntities, q=urns).
+   *
+   * Each URN is asked once per run. A URN LinkedIn does not name stays empty rather than
+   * being asked again; fetchAdAnalyticsByGeo lists it in the account's warning.
+   *
+   * - A failure LinkedIn may get over (rate limit, server or network error) outlasting the
+   *   retries fails the day, so its rows are not stored without names and the next run asks
+   *   again.
+   * - Not being allowed (401/403) will not change within the run: no batch is asked again,
+   *   the metrics and location URNs still load with names left empty, and one warning says
+   *   so.
+   * - Any other 4xx may come from a single URN LinkedIn will not take, so the batch is split
+   *   until that URN is found: only it stays unnamed, it is named in a warning and in the
+   *   account's list, and the rest keep their names. If not one URN of a batch is taken even
+   *   one at a time, the lookup itself is rejected and is treated like a refusal.
+   *
+   * @param {string[]} geoUrns - location URNs such as urn:li:geo:103644278
+   * @returns {Promise<Map<string, string|null>>} URN -> name, for every URN resolved so far
+   */
+  async resolveGeoNames(geoUrns) {
+    if (this.geoNamesUnavailable) return this.geoNames;
+
+    const unknown = [...new Set(geoUrns)].filter(geoUrn => !this.geoNames.has(geoUrn));
+
+    for (let i = 0; i < unknown.length; i += this.GEO_NAMES_PER_REQUEST) {
+      const batch = unknown.slice(i, i + this.GEO_NAMES_PER_REQUEST);
+      let result;
+      try {
+        result = await this.fetchGeoNamesSplitting(batch);
+      } catch (error) {
+        if (!this._isAuthError(error)) throw error;
+        return this.stopGeoNames(`LinkedIn refused the location name lookup (${error.message})`);
+      }
+
+      const { elements, rejected } = result;
+      if (batch.length > 1 && rejected.length === batch.length) {
+        return this.stopGeoNames(
+          `LinkedIn rejected the location name lookup for every location asked, one at a ` +
+            `time too (${rejected[0].error.message})`
+        );
+      }
+      if (rejected.length > 0 && !this.geoNamesRejected) {
+        this.geoNamesRejected = true;
+        this.context.log(
+          LOG_LEVEL.WARN,
+          `LinkedIn rejected the name lookup for ` +
+            `${this.listSome(rejected.map(({ urn }) => urn), this.MAX_GEO_URNS_IN_WARNING)} ` +
+            `(${rejected[0].error.message}); their name column is left empty`
+        );
+      }
+
+      // An empty name is no name: it is stored and reported as missing.
+      for (const element of elements) {
+        if (element?.urn) this.geoNames.set(element.urn, element.name || null);
+      }
+      for (const geoUrn of batch) {
+        if (!this.geoNames.has(geoUrn)) this.geoNames.set(geoUrn, null);
+      }
+    }
+
+    return this.geoNames;
+  }
+
+  /**
+   * The names of one batch, split in half on a 4xx other than 401/403 and asked again, down to
+   * the single URN LinkedIn will not take. 401/403 and failures LinkedIn may get over are
+   * thrown for resolveGeoNames to handle.
+   *
+   * @returns {Promise<{elements: object[], rejected: {urn: string, error: Error}[]}>}
+   */
+  async fetchGeoNamesSplitting(batch) {
+    try {
+      return { elements: await this.fetchGeoNameElements(batch), rejected: [] };
+    } catch (error) {
+      if (this.isValidToRetry(error) || this._isAuthError(error)) throw error;
+      if (batch.length === 1) return { elements: [], rejected: [{ urn: batch[0], error }] };
+
+      const half = Math.ceil(batch.length / 2);
+      const first = await this.fetchGeoNamesSplitting(batch.slice(0, half));
+      const second = await this.fetchGeoNamesSplitting(batch.slice(half));
+      return {
+        elements: [...first.elements, ...second.elements],
+        rejected: [...first.rejected, ...second.rejected],
+      };
+    }
+  }
+
+  /** No more name lookups this run; the metrics and location URNs still load. */
+  stopGeoNames(reason) {
+    this.geoNamesUnavailable = true;
     this.context.log(
       LOG_LEVEL.WARN,
-      `adAnalytics responses for account ${account.id} reached LinkedIn's ` +
-        `${this.MAX_RESPONSE_ELEMENTS}-element limit on ${days.length} day(s): ${listed}` +
-        `${hidden > 0 ? ` and ${hidden} more` : ''}; data for those days may be incomplete`
+      `${reason}; location names are left empty, and the location URNs and metrics are imported`
     );
+    return this.geoNames;
+  }
+
+  /**
+   * The adTargetingEntities elements for one batch of URNs. LinkedIn's documented answer to
+   * q=urns comes in one page; should it come in several, the next pages are read too, so a
+   * URN on a later page is not taken for one LinkedIn has no name for.
+   */
+  async fetchGeoNameElements(geoUrns) {
+    const url =
+      `${this.BASE_URL}adTargetingEntities?q=urns&queryVersion=QUERY_USES_URNS` +
+      `&urns=List(${this.formatFields(geoUrns)})` +
+      `&locale=(language:en,country:US)`;
+    const elements = [];
+    let pageUrl = url;
+
+    // Every page read holds at least one element, so there are never more pages than URNs.
+    for (let page = 0; pageUrl && page < geoUrns.length; page++) {
+      const res = await this.makeRequest(pageUrl);
+      const pageElements = res.elements || [];
+      for (const element of pageElements) elements.push(element);
+
+      const hasNext = res.paging?.links?.some(link => link.rel === 'next');
+      pageUrl =
+        hasNext && pageElements.length > 0
+          ? `${url}&start=${(res.paging.start ?? 0) + pageElements.length}`
+          : null;
+    }
+
+    return elements;
+  }
+
+  /**
+   * Reports, once per account, the days a response was cut short and what the geo
+   * breakdowns could not fill, instead of a warning per day: every WARN line becomes one of
+   * the run's warnings.
+   */
+  onAccountComplete(account) {
+    this.reportAccountWarnings(account);
+  }
+
+  /**
+   * The engine calls onAccountComplete only for an account that finished without an issue,
+   * so what an account gathered before a failure is reported here, and every later day of
+   * the account is reported right after it (reportIfAccountFailed): a run that fails still
+   * names the days it imported with empty names or cut short.
+   */
+  onAccountError(account) {
+    if (account?.id) this.accountsWithIssues.add(account.id);
+    this.reportAccountWarnings(account);
+  }
+
+  /** Reports the account's warnings now if it already failed once in this run. */
+  reportIfAccountFailed(urn, rows) {
+    if (this.accountsWithIssues.has(urn)) this.reportAccountWarnings({ id: urn });
+    return rows;
+  }
+
+  reportAccountWarnings(account) {
+    this.reportTruncatedDays(account);
+    this.reportGeoGaps(account);
+  }
+
+  reportTruncatedDays(account) {
+    const byNode = this.truncatedAnalyticsDays.get(account?.id);
+    if (!byNode) return;
+    this.truncatedAnalyticsDays.delete(account.id);
+
+    for (const [nodeName, days] of byNode) {
+      this.context.log(
+        LOG_LEVEL.WARN,
+        `${nodeName} responses for account ${account.id} reached LinkedIn's ` +
+          `${this.MAX_RESPONSE_ELEMENTS}-element limit on ${days.length} day(s): ` +
+          `${this.listSome(days, this.MAX_TRUNCATED_DAYS_IN_WARNING)}; ` +
+          'data for those days may be incomplete'
+      );
+    }
+  }
+
+  reportGeoGaps(account) {
+    const gaps = this.geoGaps.get(account?.id);
+    if (!gaps) return;
+    this.geoGaps.delete(account.id);
+
+    if (gaps.unnamed.size > 0) {
+      this.context.log(
+        LOG_LEVEL.WARN,
+        `LinkedIn returned no name for ${gaps.unnamed.size} location(s) of account ` +
+          `${account.id}: ${this.listSome([...gaps.unnamed], this.MAX_GEO_URNS_IN_WARNING)}; ` +
+          'their name column is left empty'
+      );
+    }
+    if (gaps.incompleteRows > 0) {
+      this.context.log(
+        LOG_LEVEL.WARN,
+        `LinkedIn returned ${gaps.incompleteRows} row(s) without a location or a date for ` +
+          `account ${account.id}; they were not imported`
+      );
+    }
+  }
+
+  /** "a, b, c and 2 more": the first `max` items, and how many were left out. */
+  listSome(items, max) {
+    const hidden = items.length - max;
+    return `${items.slice(0, max).join(', ')}${hidden > 0 ? ` and ${hidden} more` : ''}`;
   }
 
   convertFieldsForApi(fields) {
@@ -486,14 +870,29 @@ export class LinkedInAdsSource extends AbstractSource {
     return fieldChunks;
   }
 
-  buildAdAnalyticsUrl({ startDate, endDate, encodedUrn, fields }) {
+  /**
+   * An adAnalytics request. Several pivots go to the statistics finder; a single pivot goes
+   * to the analytics finder, the only one that accepts a member pivot such as
+   * MEMBER_COUNTRY_V2.
+   *
+   * @param {{pivots: string[], facet: string, startDate: Date, endDate: Date,
+   *   fields: string[], timeGranularity?: string}} request - facet is the encoded filter,
+   *   such as `accounts=List(urn%3Ali%3AsponsoredAccount%3A1)`
+   * @returns {string} the request URL, without the access token
+   */
+  buildAdAnalyticsUrl({ pivots, facet, startDate, endDate, fields, timeGranularity = 'DAILY' }) {
+    const [finder, pivotParam] =
+      pivots.length > 1
+        ? ['statistics', `pivots=List(${pivots.join(',')})`]
+        : ['analytics', `pivot=${pivots[0]}`];
+
     return (
-      `${this.BASE_URL}adAnalytics?q=statistics` +
+      `${this.BASE_URL}adAnalytics?q=${finder}` +
       `&dateRange=(start:${this.formatDateForUrl(startDate)},` +
       `end:${this.formatDateForUrl(endDate)})` +
-      `&pivots=List(CREATIVE,CAMPAIGN,CAMPAIGN_GROUP,ACCOUNT)` +
-      `&timeGranularity=DAILY` +
-      `&accounts=List(${encodedUrn})` +
+      `&${pivotParam}` +
+      `&timeGranularity=${timeGranularity}` +
+      `&${facet}` +
       `&fields=${this.formatFields(fields)}`
     );
   }
@@ -520,8 +919,8 @@ export class LinkedInAdsSource extends AbstractSource {
   }
 
   mergeAnalyticsResults(existingResults, newElements) {
-    // dateRange and pivotValues identify a row; the same row from another field chunk is combined.
-    const keyOf = element => JSON.stringify([element.dateRange, element.pivotValues]);
+    // The same row from another field chunk or page is combined.
+    const keyOf = LinkedInAdsSource.analyticsRowKey;
     const mergedByKey = new Map(existingResults.map(element => [keyOf(element), element]));
 
     for (const newElement of newElements) {
