@@ -7,19 +7,26 @@ import { ConnectorStorageSchema } from '../dto/schemas/data-mart-table-definitio
 import { Action, AccessDecisionService, EntityType } from '../services/access-decision';
 import { DataMartService } from '../services/data-mart.service';
 
-// BigQuery names are case-sensitive, and the web quotes every Snowflake name; other storages fold case.
+// BigQuery names are case-sensitive; Snowflake folds only unquoted parts; other storages fold case.
 const CASE_SENSITIVE_STORAGES: ReadonlySet<DataStorageType> = new Set([
   DataStorageType.GOOGLE_BIGQUERY,
   DataStorageType.LEGACY_GOOGLE_BIGQUERY,
-  DataStorageType.SNOWFLAKE,
 ]);
 
 // Only the target: the rest of a draft's definition may be partial.
 const TargetSchema = z.object({ connector: z.object({ storage: ConnectorStorageSchema }) });
 
-export function normalizeTargetName(name: string, caseSensitive: boolean): string {
+export function normalizeTargetName(name: string, storageType: DataStorageType): string {
+  if (storageType === DataStorageType.SNOWFLAKE) {
+    // ponytail: splits on every dot, so a quoted part with a dot inside compares by its pieces.
+    return name
+      .split('.')
+      .map(part => part.trim())
+      .map(part => (/^".*"$/.test(part) ? part.slice(1, -1) : part.toUpperCase()))
+      .join('.');
+  }
   const unquoted = name.replace(/[`"[\]]/g, '').trim();
-  return caseSensitive ? unquoted : unquoted.toLowerCase();
+  return CASE_SENSITIVE_STORAGES.has(storageType) ? unquoted : unquoted.toLowerCase();
 }
 
 /** Tells whether another Data Mart's connector already writes the same target table. */
@@ -46,8 +53,8 @@ export class GetConnectorTargetConflictService {
       throw new ForbiddenException('You do not have permission to edit this Data Mart');
     }
 
-    const caseSensitive = CASE_SENSITIVE_STORAGES.has(dataMart.storage.type);
-    const target = normalizeTargetName(fullyQualifiedName, caseSensitive);
+    const storageType = dataMart.storage.type;
+    const target = normalizeTargetName(fullyQualifiedName, storageType);
     const candidates = await this.dataMartService.findConnectorTargetsByStorage(
       projectId,
       dataMart.storage.id
@@ -58,7 +65,7 @@ export class GetConnectorTargetConflictService {
       return (
         candidate.id !== dataMartId &&
         parsed.success &&
-        normalizeTargetName(parsed.data.connector.storage.fullyQualifiedName, caseSensitive) ===
+        normalizeTargetName(parsed.data.connector.storage.fullyQualifiedName, storageType) ===
           target
       );
     });

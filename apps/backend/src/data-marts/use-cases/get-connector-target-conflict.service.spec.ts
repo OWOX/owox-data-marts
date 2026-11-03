@@ -66,22 +66,36 @@ describe('GetConnectorTargetConflictService', () => {
     );
   });
 
-  it.each([
-    DataStorageType.GOOGLE_BIGQUERY,
-    DataStorageType.LEGACY_GOOGLE_BIGQUERY,
-    DataStorageType.SNOWFLAKE,
-  ])('compares %s names case-sensitively', async storageType => {
+  it.each([DataStorageType.GOOGLE_BIGQUERY, DataStorageType.LEGACY_GOOGLE_BIGQUERY])(
+    'compares %s names case-sensitively',
+    async storageType => {
+      const { service } = createService({
+        storageType,
+        others: [connectorDm('dm-2', 'Plan 2026', 'ds.Plan')],
+      });
+
+      await expect(service.run(command('dm-1', 'ds.plan'))).resolves.toEqual({
+        conflict: false,
+        dataMart: null,
+      });
+      await expect(service.run(command('dm-1', '`ds`.`Plan`'))).resolves.toMatchObject({
+        conflict: true,
+      });
+    }
+  );
+
+  it('keeps a quoted Snowflake part as typed and upper-cases an unquoted one', async () => {
     const { service } = createService({
-      storageType,
-      others: [connectorDm('dm-2', 'Plan 2026', 'ds.Plan')],
+      storageType: DataStorageType.SNOWFLAKE,
+      others: [connectorDm('dm-2', 'Plan 2026', 'DB.public.plan')],
     });
 
-    await expect(service.run(command('dm-1', 'ds.plan'))).resolves.toEqual({
+    await expect(service.run(command('dm-1', '"DB"."PUBLIC"."PLAN"'))).resolves.toMatchObject({
+      conflict: true,
+    });
+    await expect(service.run(command('dm-1', '"DB"."PUBLIC"."plan"'))).resolves.toEqual({
       conflict: false,
       dataMart: null,
-    });
-    await expect(service.run(command('dm-1', '`ds`.`Plan`'))).resolves.toMatchObject({
-      conflict: true,
     });
   });
 
