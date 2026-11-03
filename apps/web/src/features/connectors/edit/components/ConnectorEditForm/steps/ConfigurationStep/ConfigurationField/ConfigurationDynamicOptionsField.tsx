@@ -122,7 +122,7 @@ export function ConfigurationDynamicOptionsField({
           {`Could not load the list of ${plural}.` + (error ? ` ${sentence(error)}` : '')}
         </p>
         <div className='flex flex-wrap items-center gap-2'>
-          <Button type='button' variant='outline' size='sm' onClick={reload}>
+          <Button type='button' variant='ghost' size='sm' onClick={reload}>
             Retry
           </Button>
           {actionButton}
@@ -188,18 +188,26 @@ export function ConfigurationDynamicOptionsField({
           }
           onValueChange(name, value);
         }}
-        renderLabel={(option, context) =>
-          option.value === ACTION_VALUE && context === 'item' && action?.disabled && action.hint ? (
-            <span className='flex min-w-0 flex-1 flex-col'>
-              <span>{option.label}</span>
-              <span className='text-muted-foreground text-xs'>{action.hint}</span>
-            </span>
-          ) : (
-            // The trigger wraps the label in a flex item, so only a block span truncates there.
-            <span className={context === 'trigger' ? 'block truncate' : 'min-w-0 flex-1 truncate'}>
-              {option.label}
-            </span>
-          )
+        // Only a field with an action renders its labels itself, so the others keep their markup.
+        renderLabel={
+          action &&
+          ((option, context) =>
+            option.value === ACTION_VALUE &&
+            context === 'item' &&
+            action.disabled &&
+            action.hint ? (
+              <span className='flex min-w-0 flex-1 flex-col'>
+                <span>{option.label}</span>
+                <span className='text-muted-foreground text-xs'>{action.hint}</span>
+              </span>
+            ) : (
+              // The trigger wraps the label in a flex item, so only a block span truncates there.
+              <span
+                className={context === 'trigger' ? 'block truncate' : 'min-w-0 flex-1 truncate'}
+              >
+                {option.label}
+              </span>
+            ))
         }
         placeholder={
           isWaiting
@@ -211,8 +219,11 @@ export function ConfigurationDynamicOptionsField({
         emptyMessage={`No ${plural} found`}
         disabled={isWaiting || isLoading}
         ariaInvalid={isMissingValue}
+        // cmdk skips a disabled item, so its hint is also read out with the combobox.
+        ariaDescribedBy={actionHint ? hintId : undefined}
         className='w-full'
       />
+      {actionHint}
       {isMissingValue && (
         <p role='alert' className='text-destructive text-sm'>
           &quot;{currentValue}&quot; was not found among the available {plural}. Pick another one or

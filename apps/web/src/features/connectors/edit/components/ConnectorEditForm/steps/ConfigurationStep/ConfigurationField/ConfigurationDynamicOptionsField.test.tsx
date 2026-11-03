@@ -144,6 +144,27 @@ describe('ConfigurationDynamicOptionsField', () => {
     expect(onSelect).not.toHaveBeenCalled();
   });
 
+  it('keeps Retry a ghost button on its own row under the text', () => {
+    setState({ status: 'error', error: DENIED });
+    renderField({ action: { label: '+ Add spreadsheet', onSelect: vi.fn() } });
+
+    const retry = screen.getByRole('button', { name: 'Retry' });
+    // Ghost is the only variant without a border or a background.
+    expect(retry.className).not.toMatch(/(^|\s)border(\s|$)|bg-background/);
+    expect(screen.getByRole('alert')).not.toContainElement(retry);
+  });
+
+  it('describes the combobox with the hint of a disabled action', () => {
+    setState({ options: [{ value: 'id-1', label: 'Budget 2026' }] });
+    const hint = 'Reconnect this Credential to add spreadsheets.';
+    renderField({
+      action: { label: '+ Add spreadsheet', onSelect: vi.fn(), disabled: true, hint },
+    });
+
+    expect(screen.getByText(hint)).toBeVisible();
+    expect(screen.getByRole('combobox')).toHaveAccessibleDescription(hint);
+  });
+
   it('reports the label of the selected option once the list loads', () => {
     const onLabelChange = vi.fn();
     setState({ status: 'loading' });
