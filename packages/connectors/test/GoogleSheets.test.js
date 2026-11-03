@@ -76,6 +76,7 @@ Object.assign(globalThis, {
   LOG_LEVEL: { INFO: 'info', WARN: 'warn', ERROR: 'error' },
   HTTP_STATUS: {
     UNAUTHORIZED: 401,
+    FORBIDDEN: 403,
     TOO_MANY_REQUESTS: 429,
     SUCCESS_MIN: 200,
     SUCCESS_MAX: 299,
@@ -333,6 +334,32 @@ test('stores the verified Google account used by Google Picker', async () => {
       assert.equal(credentials.expiresIn, null);
     }
   );
+});
+
+test('marks the OAuth sign-in as the one Google Picker opens with', () => {
+  const source = new GoogleSheetsSource({
+    getParameter: () => null,
+    registerParameters() {},
+    log() {},
+  });
+  assert.equal(source.parameters.AuthType.oneOf[0].oauthParams.opensPicker, true);
+  assert.equal(source.parameters.AuthType.oneOf[1].oauthParams, undefined);
+});
+
+test('answers a denied spreadsheet list with one actionable sentence', async () => {
+  const source = createSource({ authType: 'oauth2' });
+  source.getAccessToken = async () => 'token';
+  source._fetchSheetResponse = async () => {
+    throw new HttpRequestException({ message: 'Drive API has not been used', statusCode: 403 });
+  };
+  await assert.rejects(source.fetchFieldOptions('SpreadsheetId'), error => {
+    assert.equal(
+      error.message,
+      'Google denied access to the spreadsheet list. Reconnect the Credential and try again.'
+    );
+    assert.equal(error.statusCode, 403);
+    return true;
+  });
 });
 
 test('gives OAuth users guidance to add the spreadsheet for access errors', () => {
