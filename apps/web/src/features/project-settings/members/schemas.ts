@@ -22,10 +22,11 @@ export const userProvisioningFormSchema = z
       data.contextIds.length === 0
     ) {
       ctx.addIssue({
-        code: z.ZodIssueCode.too_small,
+        code: 'too_small',
+        origin: 'array',
         minimum: 1,
-        type: 'array',
         inclusive: true,
+        input: data.contextIds,
         path: ['contextIds'],
         message: 'Select at least one context before saving Selected Contexts.',
       });

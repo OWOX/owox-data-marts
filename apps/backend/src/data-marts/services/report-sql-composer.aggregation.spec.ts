@@ -19,6 +19,7 @@ import { GroupRestriction } from '../dto/domain/group-restriction';
 import { AggregationRule } from '../dto/schemas/aggregation-config.schema';
 import { FilterRule } from '../dto/schemas/filter-config.schema';
 import { isCalculatedGroupingKey } from '../calculated-fields/calculated-plan-grain';
+import { passThroughSqlReferenceResolver } from '../sql-references/__fixtures__/pass-through-sql-reference-resolver';
 
 describe('ReportSqlComposerService — aggregations wiring', () => {
   const buildReport = (overrides: Partial<Report> = {}): Report =>
@@ -55,7 +56,8 @@ describe('ReportSqlComposerService — aggregations wiring', () => {
       blendableSchemaService as never,
       // The composer validates the REPORT's own config before deriving a Totals restriction from
       // its HAVING rules (that precondition used to hold by call order alone).
-      { validateForReport: jest.fn().mockResolvedValue(undefined) } as never
+      { validateForReport: jest.fn().mockResolvedValue(undefined) } as never,
+      passThroughSqlReferenceResolver as never
     );
     return { service, queryBuilderFacade, blendedReportDataService };
   };
@@ -436,7 +438,8 @@ describe('ReportSqlComposerService — aggregations wiring', () => {
         tableReferenceService as never,
         capabilityService as never,
         blendableSchemaService as never,
-        validator as never
+        validator as never,
+        passThroughSqlReferenceResolver as never
       );
       return { service, facade, blendedReportDataService, blendableSchemaService, validator };
     };
@@ -1074,7 +1077,8 @@ describe('ReportSqlComposerService — aggregations wiring', () => {
               .fn()
               .mockResolvedValue({ nativeFields: [], blendedFields: [] }),
           } as never,
-          validator as never
+          validator as never,
+          passThroughSqlReferenceResolver as never
         );
         return { service, facade };
       };
@@ -1340,7 +1344,8 @@ describe('ReportSqlComposerService — aggregations wiring', () => {
         blendableSchemaService as never,
         // The composer validates the REPORT's own config before deriving a Totals restriction from
         // its HAVING rules (that precondition used to hold by call order alone).
-        { validateForReport: jest.fn().mockResolvedValue(undefined) } as never
+        { validateForReport: jest.fn().mockResolvedValue(undefined) } as never,
+        passThroughSqlReferenceResolver as never
       );
       return { service, blendedReportDataService, blendableSchemaService };
     };
@@ -1705,7 +1710,8 @@ describe('ReportSqlComposerService — aggregations wiring', () => {
           blendableSchemaService as never,
           // The composer validates the REPORT's own config before deriving a Totals restriction from
           // its HAVING rules (that precondition used to hold by call order alone).
-          { validateForReport: jest.fn().mockResolvedValue(undefined) } as never
+          { validateForReport: jest.fn().mockResolvedValue(undefined) } as never,
+          passThroughSqlReferenceResolver as never
         );
         return { service, facade };
       };

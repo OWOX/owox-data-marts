@@ -36,6 +36,16 @@ describe('ConnectorBuilderApiService writes', () => {
     ],
     ['publish', (api: ConnectorBuilderApiService) => api.publish('def-1')],
     ['activateVersion', (api: ConnectorBuilderApiService) => api.activateVersion('def-1', 1)],
+    [
+      'fittingCredentials',
+      (api: ConnectorBuilderApiService) =>
+        api.fittingCredentials({ manifest: createEmptyManifest(), node: 'items' }),
+    ],
+    [
+      'credentialRequirement',
+      (api: ConnectorBuilderApiService) =>
+        api.credentialRequirement({ manifest: createEmptyManifest() }),
+    ],
     ['softDelete', (api: ConnectorBuilderApiService) => api.softDelete('def-1')],
   ])('%s leaves reporting a failure to the builder', async (_name, write) => {
     expect(await configsSentBy(write)).toEqual([expect.objectContaining({ skipErrorToast: true })]);

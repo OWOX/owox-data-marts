@@ -1,5 +1,7 @@
 # Google BigQuery
 
+> Evaluating OWOX for BigQuery? [See what OWOX does on BigQuery](https://www.owox.com/data-storages/google-bigquery) or [book a demo](https://www.owox.com/book-a-call).
+
 ## 1. Go to the Storages Page
 
 In the OWOX Data Marts web application, navigate to **Storages** from the main navigation pane and click **+ New Storage**.

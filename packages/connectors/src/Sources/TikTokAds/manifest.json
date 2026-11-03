@@ -1,5 +1,6 @@
 {
   "title": "TikTok Ads",
+  "category": "ads",
   "logo": "logo.svg",
   "docUrl": "https://docs.owox.com/packages/connectors/src/sources/tik-tok-ads/readme/"
 }

@@ -17,6 +17,7 @@ export function GoogleSheetsOauthRender({
   onOAuthSuccess,
   configuration,
   onValueChange,
+  forCredential = false,
 }: OauthRenderComponentProps) {
   const [isPickingSpreadsheet, setIsPickingSpreadsheet] = useState(false);
   const [pickerError, setPickerError] = useState<string | null>(null);
@@ -28,8 +29,15 @@ export function GoogleSheetsOauthRender({
   const spreadsheetSelected = spreadsheetUrl !== '';
 
   const handleGoogleLogin = async (response: GoogleSheetsLoginResponse) => {
-    const result = await onOAuthSuccess({ code: response.code });
-    const nextEmail = result?.user.email ?? result?.user.name;
+    // With drive.file a Credential opens only files its account picked, so its connect picks first.
+    const result = await (forCredential
+      ? onOAuthSuccess({ code: response.code }, exchanged =>
+          pickSpreadsheet(exchanged.user?.email ?? exchanged.user?.name, message => {
+            toast.error(message);
+          })
+        )
+      : onOAuthSuccess({ code: response.code }));
+    const nextEmail = result?.user?.email ?? result?.user?.name;
 
     const accountChanged = Boolean(
       result &&
@@ -42,6 +50,8 @@ export function GoogleSheetsOauthRender({
     }
     if (result) {
       setPickerError(null);
+      // A Credential's form closes once it is connected and says so itself.
+      if (forCredential) return;
       // The popup closes on its own; say out loud that the account is connected and,
       // when no spreadsheet is chosen yet, what comes next, so the user does not have
       // to spot the changed button label.
@@ -56,27 +66,31 @@ export function GoogleSheetsOauthRender({
   const clientId = settings?.vars.ClientId as string | undefined;
   const pickerApiKey = settings?.vars.PickerApiKey as string | undefined;
   const projectNumber = settings?.vars.ProjectNumber as string | undefined;
-  const handlePickSpreadsheet = () => {
+  // Connect passes a toast: its form closes right after, so an inline error would be lost.
+  const pickSpreadsheet = async (
+    hintEmail: string | undefined,
+    report: (message: string) => void = setPickerError
+  ) => {
     if (!clientId || !pickerApiKey || !projectNumber) {
-      setPickerError('Google Picker configuration is incomplete');
+      report('Google Picker configuration is incomplete');
       return;
     }
-    if (!connectedEmail?.includes('@')) {
-      setPickerError('Reconnect Google Sheets before choosing a spreadsheet');
+    if (!hintEmail?.includes('@')) {
+      report('Reconnect Google Sheets before choosing a spreadsheet');
       return;
     }
 
     setPickerError(null);
     setIsPickingSpreadsheet(true);
-    void openPicker({
+    await openPicker({
       apiKey: pickerApiKey,
       appId: projectNumber,
       clientId,
-      hintEmail: connectedEmail,
+      hintEmail,
       onPicked: spreadsheet => {
         onValueChange('SpreadsheetId', spreadsheet.url);
       },
-      onError: setPickerError,
+      onError: report,
     }).finally(() => {
       setIsPickingSpreadsheet(false);
     });
@@ -104,16 +118,20 @@ export function GoogleSheetsOauthRender({
           <Button
             type='button'
             variant='outline'
-            onClick={handlePickSpreadsheet}
+            onClick={() => {
+              void pickSpreadsheet(connectedEmail);
+            }}
             disabled={isLoading || isPickingSpreadsheet}
             className='w-full'
           >
             <FileSpreadsheet className='h-4 w-4' />
             {isPickingSpreadsheet
               ? 'Opening Google Picker...'
-              : spreadsheetSelected
-                ? 'Change spreadsheet'
-                : 'Choose spreadsheet'}
+              : forCredential
+                ? 'Add spreadsheet'
+                : spreadsheetSelected
+                  ? 'Change spreadsheet'
+                  : 'Choose spreadsheet'}
           </Button>
           {spreadsheetSelected && (
             <ExternalAnchor href={spreadsheetUrl} variant='field'>

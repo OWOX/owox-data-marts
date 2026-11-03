@@ -7,6 +7,7 @@ import {
   ManyToOne,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
+  type Relation,
 } from 'typeorm';
 import { InsightTemplateSourceType } from '../dto/schemas/insight-template/insight-template-source.schema';
 import { InsightArtifact } from './insight-artifact.entity';
@@ -27,7 +28,7 @@ export class InsightTemplateSourceEntity {
     onDelete: 'CASCADE',
   })
   @JoinColumn({ name: 'templateId' })
-  insightTemplate: InsightTemplate;
+  insightTemplate: Relation<InsightTemplate>;
 
   @Column({ type: 'varchar', length: 64 })
   key: string;
@@ -40,7 +41,7 @@ export class InsightTemplateSourceEntity {
 
   @ManyToOne(() => InsightArtifact, { nullable: false, onDelete: 'NO ACTION' })
   @JoinColumn({ name: 'artifactId' })
-  insightArtifact: InsightArtifact;
+  insightArtifact: Relation<InsightArtifact>;
 
   sql(): string {
     return (this.insightArtifact ? this.insightArtifact.sql : null)?.trim() ?? '';

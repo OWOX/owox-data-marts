@@ -20,9 +20,7 @@ Before proceeding, please make sure that:
 1. Select **Connector** as the input source type.
 2. Click **Set up connector** and choose **LinkedIn Ads**.  
 3. Fill in the required fields:
-    - **Client ID** – paste the ID you saved earlier.
-    - **Primary Client Secret** – paste the secret you saved earlier.
-    - **Refresh Token** – paste the token you created following the [CREDENTIALS](CREDENTIALS) tutorial.
+    - **Credential** – select the Credential with your Client ID, Primary Client Secret and Refresh Token (see the [CREDENTIALS](CREDENTIALS) tutorial), or click **+ Create new Credential**.
     - **Account URNs** – you can find this value on your [LinkedIn Campaign Manager](https://www.linkedin.com/campaignmanager/).
     - Leave the other fields as default and proceed to the next step.
 

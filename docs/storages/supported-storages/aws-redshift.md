@@ -1,5 +1,7 @@
 # AWS Redshift
 
+> Evaluating OWOX for Redshift? [See what OWOX does on Redshift](https://www.owox.com/data-storages/aws-redshift) or [book a demo](https://www.owox.com/book-a-call).
+
 Use this guide to configure **AWS Redshift as a storage** in **OWOX Data Marts**. The steps below walk you through creating a storage record, completing authentication, and finishing validation.
 
 ## 1. Go to the Storages Page and choose Storage Type

@@ -1,7 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import type { McpScope, Role } from '@owox/idp-protocol';
 import { maxLength } from 'class-validator';
-import { z } from 'zod-v4';
+import { z } from 'zod';
 import {
   PROJECT_SETTINGS_FACADE,
   PROJECT_DESCRIPTION_MAX_LENGTH,

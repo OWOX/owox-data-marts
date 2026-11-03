@@ -1,5 +1,7 @@
 # MCP Server
 
+> New to OWOX MCP? [See what it does and who it's for](https://www.owox.com/features/mcp) or [book a demo](https://www.owox.com/book-a-call).
+
 OWOX Data Marts exposes a Model Context Protocol (MCP) server. It lets AI assistants and MCP-compatible clients connect to your project data using standard OAuth authorization.
 
 Use the MCP server to explore your [data marts](../core-concepts.md) in plain language with an AI assistant like Claude or ChatGPT. You never have to leave the assistant. The assistant can summarize the available catalog and inspect data mart fields. It can run bounded queries, list destinations and reports, and set up report delivery. It can also manage report schedules and start report runs for supported push destinations. Editors can also create, test, publish and maintain custom connectors. See [Available tools](#available-tools) for exactly what it can and cannot do.

@@ -1,15 +1,15 @@
 import { ValueTransformer } from 'typeorm';
-import { ZodTypeAny } from 'zod';
+import { z } from 'zod';
 
 /**
  * Creates a value transformer that uses a Zod schema for validation.
  *
- * @param {ZodTypeAny} schema - The Zod schema used to validate and transform the value.
+ * @param {z.ZodType<T>} schema - The Zod schema used to validate and transform the value.
  * @param {boolean} isRequired - If entity presence is strictly required.
  * @return {ValueTransformer} A value transformer object that validates data using the provided schema during both `to` and `from` operations.
  */
 export function createZodTransformer<T>(
-  schema: ZodTypeAny,
+  schema: z.ZodType<T>,
   isRequired: boolean = true
 ): ValueTransformer {
   return {

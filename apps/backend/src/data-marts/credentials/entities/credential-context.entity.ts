@@ -1,4 +1,4 @@
-import { Entity, Index, JoinColumn, ManyToOne, PrimaryColumn } from 'typeorm';
+import { Entity, Index, JoinColumn, ManyToOne, PrimaryColumn, type Relation } from 'typeorm';
 import { Context } from '../../entities/context.entity';
 import { Credential } from './credential.entity';
 
@@ -15,9 +15,9 @@ export class CredentialContext {
     onDelete: 'CASCADE',
   })
   @JoinColumn({ name: 'credential_id' })
-  credential: Credential;
+  credential: Relation<Credential>;
 
   @ManyToOne(() => Context, { onDelete: 'RESTRICT' })
   @JoinColumn({ name: 'context_id' })
-  context: Context;
+  context: Relation<Context>;
 }

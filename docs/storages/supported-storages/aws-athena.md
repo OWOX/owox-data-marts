@@ -1,5 +1,7 @@
 # AWS Athena
 
+> Evaluating OWOX for Athena? [See what OWOX does on Athena](https://www.owox.com/data-storages/aws-athena) or [book a demo](https://www.owox.com/book-a-call).
+
 AWS Athena is an interactive query service that enables SQL-based analysis of data stored in Amazon S3.  
 This page details how to configure AWS Athena as a Storage in OWOX Data Marts, allowing you to incorporate it seamlessly into your self-service analytics environment.
 

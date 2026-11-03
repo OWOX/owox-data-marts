@@ -158,7 +158,8 @@ describe('Data Mart input source change (e2e)', () => {
     expect(reportAfter.body.dataMart.id).toBe(subjectId);
 
     // The impact endpoint reports the real counts, including the report. Inbound is 2 — one
-    // source joining under two aliases is two dependencies, not one.
+    // source joining under two aliases is two dependencies, not one. No SQL Data Mart
+    // references it in its query.
     const impact = await agent
       .get(`/api/data-marts/${subjectId}/input-source-change-impact`)
       .set(AUTH_HEADER);
@@ -167,6 +168,8 @@ describe('Data Mart input source change (e2e)', () => {
       outboundRelationshipsCount: 1,
       inboundRelationshipsCount: 2,
       reportsCount: 1,
+      referencingDataMartsCount: 0,
+      referencingDataMarts: [],
     });
   });
 

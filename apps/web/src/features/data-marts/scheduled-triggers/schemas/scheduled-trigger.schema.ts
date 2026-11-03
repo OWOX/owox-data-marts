@@ -18,7 +18,7 @@ const scheduledConnectorRunConfigSchema = z.null();
  * Schema for the scheduled trigger form
  */
 export const scheduledTriggerSchema = z.object({
-  type: z.nativeEnum(ScheduledTriggerType),
+  type: z.enum(ScheduledTriggerType),
   cronExpression: z.string().min(1, 'Cron expression is required'),
   timeZone: z.string().min(1, 'Time zone is required'),
   isActive: z.boolean(),

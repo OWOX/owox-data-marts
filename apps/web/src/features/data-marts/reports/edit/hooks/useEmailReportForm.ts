@@ -28,13 +28,13 @@ export const EmailReportEditFormSchema = z
   .object({
     title: z.string().trim().min(1, 'Title is required'),
     dataDestinationId: z.string().min(1, 'Destination is required'),
-    reportCondition: z.nativeEnum(ReportConditionEnum),
+    reportCondition: z.enum(ReportConditionEnum),
     subject: z.string().trim().min(1, 'Subject is required'),
     // messageTemplate is required only for CUSTOM_MESSAGE
     messageTemplate: z.string().optional(),
     insightTemplateId: z.string().optional(),
     // Track which template source type is selected
-    templateSourceType: z.nativeEnum(TemplateSourceTypeEnum),
+    templateSourceType: z.enum(TemplateSourceTypeEnum),
     columnConfig: z
       .array(z.string())
       .nullable()
@@ -51,7 +51,7 @@ export const EmailReportEditFormSchema = z
     if (data.templateSourceType === TemplateSourceTypeEnum.CUSTOM_MESSAGE) {
       if (!data.messageTemplate?.trim()) {
         ctx.addIssue({
-          code: z.ZodIssueCode.custom,
+          code: 'custom',
           message: 'Message is required',
           path: ['messageTemplate'],
         });
@@ -61,7 +61,7 @@ export const EmailReportEditFormSchema = z
 
     if (!data.insightTemplateId?.trim()) {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: 'custom',
         message: 'Insight is required',
         path: ['insightTemplateId'],
       });

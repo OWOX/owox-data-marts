@@ -4,6 +4,7 @@ import express from 'express';
 import { Logger } from '@nestjs/common';
 import { loadEnv } from './load-env';
 import { registerPluginCollectionsBodyParser } from './config/plugin-collections-body-parser.config';
+import { configureTrustProxy } from './config/trust-proxy.config';
 
 async function setupIdp(app: express.Express) {
   const idpProvider = new NullIdpProvider();
@@ -22,7 +23,7 @@ export async function main() {
   try {
     const app = express();
     registerPluginCollectionsBodyParser(app);
-    app.set('trust proxy', 1);
+    configureTrustProxy(app);
     app.get('/api/flags', (_req, res) => {
       res.setHeader('Cache-Control', 'no-store');
       res.json({ LICENSE_ISSUANCE_ENABLED: process.env.LICENSE_ISSUANCE_ENABLED });

@@ -1,20 +1,16 @@
+import { McpSchemaRefresh } from './mcp-schema-refresh';
 import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
 import { createMcpHandler, McpServer } from '@modelcontextprotocol/server';
-import { z } from 'zod-v4';
+import { z } from 'zod';
 import type { McpAuthContext } from '../auth/mcp-auth-context';
 import { McpConfigService } from '../config/mcp.config';
 import { jsonToolResult, type McpToolDefinition } from '../tools/mcp-tool.definition';
 import { McpToolRegistry } from '../tools/mcp-tool.registry';
 import { McpSdkServerFactory } from './mcp-sdk-server.factory';
-import * as refreshModule from './mcp-schema-refresh';
 
 describe('MCP schema refresh over HTTP', () => {
   beforeEach(() => {
-    jest.replaceProperty(
-      refreshModule as { MCP_SCHEMA_REFRESH_ENABLED: boolean },
-      'MCP_SCHEMA_REFRESH_ENABLED',
-      true
-    );
+    jest.replaceProperty(McpSchemaRefresh, 'enabled', true);
   });
   afterEach(() => jest.restoreAllMocks());
 

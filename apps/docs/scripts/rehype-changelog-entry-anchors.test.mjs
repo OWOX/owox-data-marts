@@ -90,6 +90,35 @@ test('leaves items without a bold title as they are', () => {
   assert.deepEqual(plain.children, [text('edb4478: Google Tag Manager integration')]);
 });
 
+test('moves the title beside the hash when a markdownlint comment pushed it to the next paragraph', () => {
+  const comment = { type: 'raw', value: '<!-- markdownlint-disable-file MD041 MD036 -->' };
+  const title = bold(text('Safer sign-in'));
+  const hashLine = el('p', [text('f66ac98: '), comment]);
+  const details = el('p', [text('Details')]);
+  const item = el('li', [text('\n'), hashLine, text('\n'), el('p', [title]), details]);
+  const [, list] = transform([release('0.41.0'), el('ul', [item])]);
+
+  assert.equal(list.children[0].properties.id, 'safer-sign-in-0410');
+  assert.deepEqual(
+    hashLine.children.map(node => node.tagName ?? node.type),
+    ['text', 'raw', 'strong', 'a']
+  );
+  assert.equal(hashLine.children[2], title);
+  assert.equal(hashLine.children[3].properties.href, '#safer-sign-in-0410');
+  assert.deepEqual(item.children, [text('\n'), hashLine, text('\n'), details]);
+});
+
+test('leaves a commented entry alone when the next paragraph is not just a bold title', () => {
+  const comment = { type: 'raw', value: '<!-- markdownlint-disable-file MD041 MD036 -->' };
+  const item = el('li', [
+    el('p', [text('f66ac98: '), comment]),
+    el('p', [bold(text('Safer sign-in')), text(' and more')]),
+  ]);
+  transform([release('0.41.0'), el('ul', [item])]);
+
+  assert.deepEqual(item.properties, {});
+});
+
 test('changes no other page', () => {
   const item = entry('42c797b', bold(text('Title')));
   transform([release('0.36.0'), el('ul', [item])], '/site/src/content/docs/docs/api/index.md');

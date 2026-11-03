@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, ForbiddenException } from '@nestjs/common';
+import { isDeepStrictEqual } from 'util';
 import { Transactional } from 'typeorm-transactional';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
 import { OwoxEventDispatcher } from '../../common/event-dispatcher/owox-event-dispatcher';
@@ -13,7 +14,10 @@ import { DataMartDefinitionSetEvent } from '../events/data-mart-definition-set.e
 import { DataMartDefinitionTypeChangedEvent } from '../events/data-mart-definition-type-changed.event';
 import { DataMartDefinitionTypeSetEvent } from '../events/data-mart-definition-type-set.event';
 import { DataMartMapper } from '../mappers/data-mart.mapper';
-import { ConnectorSecretService } from '../services/connector/connector-secret.service';
+import {
+  ConnectorSecretService,
+  SECRET_MASK,
+} from '../services/connector/connector-secret.service';
 import { DataMartService } from '../services/data-mart.service';
 import { LegacyDataMartsService } from '../services/legacy-data-marts/legacy-data-marts.service';
 import { AccessDecisionService, EntityType, Action } from '../services/access-decision';
@@ -21,6 +25,20 @@ import { AdvancedSearchIndexSyncService } from '../services/advanced-search-inde
 import { SearchableEntityType } from '../../common/search/search.facade';
 import { ConnectorService } from '../services/connector/connector.service';
 import type { ConnectorCapabilities } from '../connector-types/connector-capabilities';
+import { DataMartSqlReferenceValidator } from '../services/data-mart-sql-reference-validator.service';
+import { selectionOf } from '../connector-types/custom-connector-credential-fit';
+import { SourceCredentialBindingService } from '../connector-types/source-credential-binding.service';
+import { addsVariant, sourceBindingFor } from '../connector-types/source-credential-definitions';
+import {
+  bindingIdKey,
+  keyValuesOf,
+  oldKeyIdsOf,
+  withOldKeysOf,
+  withoutKeyValues,
+  withoutSecretKeyValues,
+  withoutOldKeys,
+  type SourceKeys,
+} from '../connector-types/source-key-fields';
 
 @Injectable()
 export class UpdateDataMartDefinitionService {
@@ -33,6 +51,8 @@ export class UpdateDataMartDefinitionService {
     private readonly definitionValidatorFacade: DataMartDefinitionValidatorFacade,
     private readonly eventDispatcher: OwoxEventDispatcher,
     private readonly connectorService: ConnectorService,
+    private readonly sqlReferenceValidator: DataMartSqlReferenceValidator,
+    private readonly sourceCredentials: SourceCredentialBindingService,
     private readonly advancedSearchIndexSync?: AdvancedSearchIndexSyncService
   ) {}
 
@@ -53,6 +73,18 @@ export class UpdateDataMartDefinitionService {
         throw new ForbiddenException('You do not have permission to edit this DataMart');
       }
     }
+
+    // Data Mart references in SQL are checked before anything is written or sent to a legacy
+    // storage; the query is saved with every reference's title refreshed.
+    const sqlQuery =
+      command.definitionType === DataMartDefinitionType.SQL && command.definition
+        ? await this.sqlReferenceValidator.prepareForSave({
+            dataMart,
+            sqlQuery: (command.definition as SqlDefinition).sqlQuery,
+            userId: command.userId || undefined,
+            roles: command.roles,
+          })
+        : undefined;
 
     const previousDefinitionType = dataMart.definitionType;
     const definitionTypeWasEmpty = !previousDefinitionType;
@@ -83,67 +115,14 @@ export class UpdateDataMartDefinitionService {
     dataMart.definitionType = command.definitionType;
 
     if (command.definitionType === DataMartDefinitionType.CONNECTOR && command.definition) {
-      const connectorDefinition = command.definition as ConnectorDefinition;
-      const previousDefinition = dataMart.definition as ConnectorDefinition | undefined;
-      let sourceDefinition: ConnectorDefinition | undefined;
-      let mergedDefinition: ConnectorDefinition;
-
-      if (command.sourceDataMartId) {
-        await this.validateCredentialCopyAccess(command);
-
-        const sourceDataMart = await this.dataMartService.getByIdAndProjectId(
-          command.sourceDataMartId,
-          command.projectId
-        );
-
-        if (
-          !sourceDataMart.definition ||
-          sourceDataMart.definitionType !== DataMartDefinitionType.CONNECTOR
-        ) {
-          throw new BusinessViolationException(
-            'Source Data Mart does not have a connector definition'
-          );
-        }
-
-        sourceDefinition = sourceDataMart.definition as ConnectorDefinition;
-      }
-
-      this.validateSecretReferences(connectorDefinition, previousDefinition, sourceDefinition);
-
-      if (sourceDefinition) {
-        mergedDefinition = await this.connectorSecretService.mergeDefinitionSecretsFromSource(
-          command.projectId,
-          connectorDefinition,
-          sourceDefinition
-        );
-        mergedDefinition = await this.connectorSecretService.mergeDefinitionSecrets(
-          command.projectId,
-          mergedDefinition,
-          previousDefinition
-        );
-      } else {
-        mergedDefinition = await this.connectorSecretService.mergeDefinitionSecrets(
-          command.projectId,
-          connectorDefinition,
-          previousDefinition
-        );
-      }
-
-      // Store previous definition for orphaned secrets cleanup
-      // Extract non-OAuth secrets and save them to a separate table
-      dataMart.definition = await this.connectorSecretService.extractAndSaveSecrets(
+      dataMart.definition = await this.saveConnectorDefinition(
+        command,
         dataMart.id,
-        command.projectId,
-        connectorDefinition.connector.source.name,
-        mergedDefinition
+        command.definition as ConnectorDefinition,
+        dataMart.definition as ConnectorDefinition | undefined
       );
-
-      // Delete secrets this DataMart no longer references
-      await this.connectorSecretService.deleteOrphanedSecrets(
-        dataMart.id,
-        dataMart.definition as ConnectorDefinition,
-        previousDefinition
-      );
+    } else if (sqlQuery !== undefined) {
+      dataMart.definition = { ...(command.definition as SqlDefinition), sqlQuery };
     } else {
       dataMart.definition = command.definition;
     }
@@ -244,66 +223,167 @@ export class UpdateDataMartDefinitionService {
     }
   }
 
-  private async validateCredentialCopyAccess(
-    command: UpdateDataMartDefinitionCommand
-  ): Promise<void> {
-    if (!command.userId || !command.sourceDataMartId) {
-      return;
+  /** The definition to store: key values go to old rows or stay with the selected Credentials. */
+  private async saveConnectorDefinition(
+    command: UpdateDataMartDefinitionCommand,
+    dataMartId: string,
+    incoming: ConnectorDefinition,
+    previous: ConnectorDefinition | undefined
+  ): Promise<ConnectorDefinition> {
+    if (command.sourceDataMartId !== undefined || command.sourceConfigurationId !== undefined) {
+      throw new BadRequestException(OUT_OF_DATE);
+    }
+    const { projectId } = command;
+    const source = incoming.connector.source;
+    const keys = await this.connectorService.resolveSourceKeys(
+      projectId,
+      source.name,
+      source.version
+    );
+    // Compared without case, as MySQL resolves a connector's name.
+    const previousName = previous?.connector?.source?.name;
+    const switchedConnector =
+      typeof previousName === 'string' && previousName.toLowerCase() !== source.name.toLowerCase();
+    const previousItems = switchedConnector
+      ? []
+      : ((previous?.connector?.source?.configuration ?? []) as Config[]);
+    rejectStaleConfiguration(source.configuration as Config[], previousItems, keys.fields);
+    if (await this.connectorSecretService.hasTypedSecrets(projectId, incoming)) {
+      throw new BadRequestException(OUT_OF_DATE);
     }
 
-    const canCopyCredentials = await this.accessDecisionService.canAccess(
-      command.userId,
-      command.roles,
-      EntityType.DATA_MART,
-      command.sourceDataMartId,
-      Action.EDIT,
-      command.projectId
+    const merged = await this.connectorSecretService.mergeDefinitionSecrets(
+      projectId,
+      incoming,
+      previous
     );
-    if (!canCopyCredentials) {
-      throw new ForbiddenException(
-        'You do not have permission to copy connector credentials from the source Data Mart. ' +
-          'Ask its owner to add you as a Data Owner or to turn on "Shared for maintenance", ' +
-          'or enter the credentials manually.'
-      );
-    }
+    if (switchedConnector) await this.sourceCredentials.deactivateDataMart(dataMartId);
+    const bound = await this.bindSourceCredentials(
+      command,
+      dataMartId,
+      merged,
+      previousItems,
+      keys,
+      previous?.connector?.source?.version !== source.version
+    );
+    const secretNames = await this.connectorSecretService.getAllSecretFieldNames(
+      projectId,
+      source.name,
+      source.version
+    );
+    const saved = await this.connectorSecretService.extractAndSaveSecrets(
+      dataMartId,
+      projectId,
+      source.name,
+      withConfiguration(
+        merged,
+        (merged.connector.source.configuration as Config[]).map(config => {
+          const keepsOldKeys = bound.get(config._id as string);
+          return keepsOldKeys === undefined
+            ? config
+            : storedBoundConfig(config, previousItems, keys.fields, keepsOldKeys, secretNames);
+        })
+      )
+    );
+    await this.connectorSecretService.deleteOrphanedSecrets(dataMartId, saved, previous);
+    return saved;
   }
 
-  private validateSecretReferences(
-    incoming: ConnectorDefinition,
-    previous: ConnectorDefinition | undefined,
-    copySource: ConnectorDefinition | undefined
-  ): void {
-    const previousConfigurations = previous?.connector?.source?.configuration ?? [];
-    const sourceConfigurations = copySource?.connector?.source?.configuration ?? [];
-
-    for (const configuration of incoming.connector.source.configuration) {
-      const item = configuration as Record<string, unknown>;
-      const secretsId = typeof item._secrets_id === 'string' ? item._secrets_id : undefined;
-      if (!secretsId) {
-        continue;
-      }
-
-      const matchesPrevious = previousConfigurations.some(previousConfiguration => {
-        const previousItem = previousConfiguration as Record<string, unknown>;
-        return previousItem._id === item._id && previousItem._secrets_id === secretsId;
-      });
-      const copiedFrom =
-        item._copiedFrom && typeof item._copiedFrom === 'object'
-          ? (item._copiedFrom as Record<string, unknown>)
-          : undefined;
-      const matchesCopySource =
-        typeof copiedFrom?.configId === 'string' &&
-        sourceConfigurations.some(sourceConfiguration => {
-          const sourceItem = sourceConfiguration as Record<string, unknown>;
-          return sourceItem._id === copiedFrom.configId && sourceItem._secrets_id === secretsId;
-        });
-
-      if (!matchesPrevious && !matchesCopySource) {
-        throw new ForbiddenException(
-          'The selected connector credentials cannot be used for this DataMart'
+  /** Binds new Credentials, re-checks kept ones, unbinds removed; true where a binding is kept. */
+  private async bindSourceCredentials(
+    command: UpdateDataMartDefinitionCommand,
+    dataMartId: string,
+    definition: ConnectorDefinition,
+    previousItems: readonly Config[],
+    keys: SourceKeys,
+    versionChanged: boolean
+  ): Promise<Map<string, boolean>> {
+    const { projectId, userId, roles } = command;
+    const { name: connectorName } = definition.connector.source;
+    const configuration = definition.connector.source.configuration as Config[];
+    const live = await this.sourceCredentials.boundCredentialIds(projectId, dataMartId);
+    const bound = new Map<string, boolean>();
+    for (const config of configuration) {
+      const configId = config._id as string;
+      const selected = config._credential_id as string | undefined;
+      // A bound configuration keeps its id's spelling: MySQL would find the binding, SQLite would not.
+      const respelled =
+        typeof configId === 'string' &&
+        [...live.keys()].some(
+          key => key !== configId && bindingIdKey(key) === bindingIdKey(configId)
         );
+      if (respelled) throw new BadRequestException(OUT_OF_DATE);
+      const current = await this.sourceCredentials.lockBoundCredentialId(
+        projectId,
+        dataMartId,
+        configId
+      );
+      if (selected === undefined) {
+        // The page returns a live binding's Credential; a deleted one stays bound and runs say so.
+        if (current && live.get(configId)) throw new BadRequestException(OUT_OF_DATE);
+        if (!current) {
+          // A new configuration needs a Credential; an existing one runs as it does today.
+          if (keys.fields.length > 0 && !previousOf(config, previousItems)) {
+            throw new BadRequestException(SELECT_CREDENTIAL);
+          }
+          continue;
+        }
+      } else if (selected !== current) {
+        await this.sourceCredentials.checkConfigCredential({
+          projectId,
+          userId,
+          roles,
+          credentialId: selected,
+          connectorName,
+          config,
+          model: keys.model,
+        });
+        await this.sourceCredentials.bindConfig({
+          projectId,
+          userId,
+          roles,
+          dataMartId,
+          configId,
+          credentialId: selected,
+        });
+      } else if (
+        versionChanged ||
+        !isDeepStrictEqual(
+          fitChoice(config, keys.model),
+          fitChoice(previousOf(config, previousItems), keys.model)
+        )
+      ) {
+        await this.sourceCredentials.checkKeptConfigCredential({
+          projectId,
+          credentialId: selected,
+          connectorName,
+          config,
+          model: keys.model,
+        });
+      }
+      bound.set(configId, selected === undefined || selected === current);
+    }
+    if (bound.size > 0) {
+      // Read after binding, so a new Credential's variant is checked as a kept one's is.
+      const definitionIds = new Map(
+        (await this.sourceCredentials.boundConfigs(projectId, [dataMartId])).map(
+          ({ requirementKey, credential }) => [requirementKey, credential?.definitionId]
+        )
+      );
+      for (const config of configuration) {
+        const definitionId = definitionIds.get(config._id as string);
+        const binding = definitionId ? sourceBindingFor(connectorName, definitionId) : null;
+        if (binding && addsVariant(binding, config, previousOf(config, previousItems))) {
+          throw new BadRequestException(AUTH_TYPE_KEPT);
+        }
       }
     }
+    // Every live binding, not only the stored items: an N-1 save may have dropped its configuration.
+    const kept = new Set(configuration.map(config => config._id));
+    for (const configId of live.keys()) {
+      if (!kept.has(configId)) await this.sourceCredentials.unbindConfig(dataMartId, configId);
+    }
+    return bound;
   }
 
   /**
@@ -325,4 +405,98 @@ export class UpdateDataMartDefinitionService {
       );
     }
   }
+}
+
+const OUT_OF_DATE = 'This page is out of date. Reload it.';
+const SELECT_CREDENTIAL = 'Select a Credential for each configuration.';
+const AUTH_TYPE_KEPT =
+  "This configuration uses a Credential, so its authentication type can't be changed.";
+
+type Config = Record<string, unknown>;
+
+/** Copy fields, a new old key reference or a typed key value come from a stale page. */
+function rejectStaleConfiguration(
+  configuration: readonly Config[],
+  previousItems: readonly Config[],
+  keyFields: SourceKeys['fields']
+): void {
+  // One _id is one binding; a repeated one would let its second item judge the first's rebind.
+  const ids = configuration
+    .map(config => config._id)
+    .filter((id): id is string => typeof id === 'string' && id !== '')
+    .map(bindingIdKey);
+  if (new Set(ids).size !== ids.length) throw new BadRequestException(OUT_OF_DATE);
+  for (const config of configuration) {
+    const previous = previousOf(config, previousItems);
+    const previousIds = oldKeyIdsOf(previous);
+    const before = keyValuesOf(previous ?? {}, keyFields);
+    const keyValues = Object.entries(keyValuesOf(config, keyFields));
+    const selected = config._credential_id;
+    if (
+      '_copiedFrom' in config ||
+      !oldKeyIdsOf(config).every(id => previousIds.includes(id)) ||
+      (selected === undefined
+        ? keyValues.some(
+            ([at, value]) => value !== SECRET_MASK && !isDeepStrictEqual(value, before[at])
+          )
+        : keyValues.length > 0)
+    ) {
+      throw new BadRequestException(OUT_OF_DATE);
+    }
+    if (selected !== undefined && (typeof selected !== 'string' || !selected)) {
+      throw new BadRequestException(SELECT_CREDENTIAL);
+    }
+  }
+}
+
+/** A bound configuration as stored: no Credential id or secret values; public values and old key refs only if kept. */
+function storedBoundConfig(
+  config: Config,
+  previousItems: readonly Config[],
+  keyFields: SourceKeys['fields'],
+  keepsOldKeys: boolean,
+  secretNames: ReadonlySet<string>
+): Config {
+  const { _credential_id: _selected, ...rest } = config;
+  // A kept binding keeps the public key values the previous release's form still reads.
+  const stored = keepsOldKeys
+    ? withoutSecretKeyValues(rest, previousOf(config, previousItems), keyFields, secretNames)
+    : withoutKeyValues(rest, keyFields);
+  // A rebound configuration must not lead a run to the old row of another sign-in.
+  return keepsOldKeys
+    ? withOldKeysOf(stored, previousOf(config, previousItems))
+    : withoutOldKeys(stored);
+}
+
+/** What a Credential must fit besides the version: a custom connector's branch, else the auth variant. */
+function fitChoice(config: Config | undefined, model: SourceKeys['model']): unknown {
+  if (!config) return undefined;
+  if (model) return selectionOf(model, config);
+  const { AuthType: variant } = config;
+  return typeof variant === 'object' && variant !== null ? Object.keys(variant) : undefined;
+}
+
+function previousOf(config: Config, previousItems: readonly Config[]): Config | undefined {
+  const id = config._id;
+  if (typeof id !== 'string' || !id) return undefined;
+  const exact = previousItems.find(item => item._id === id);
+  if (exact) return exact;
+  // Items stored before ids were compared folded may hold twins; then none is this one's.
+  const folded = previousItems.filter(
+    item => typeof item._id === 'string' && bindingIdKey(item._id) === bindingIdKey(id)
+  );
+  return folded.length === 1 ? folded[0] : undefined;
+}
+
+function withConfiguration(
+  definition: ConnectorDefinition,
+  configuration: Config[]
+): ConnectorDefinition {
+  return {
+    ...definition,
+    connector: {
+      ...definition.connector,
+      source: { ...definition.connector.source, configuration },
+    },
+  };
 }

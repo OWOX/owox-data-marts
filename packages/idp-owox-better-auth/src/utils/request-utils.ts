@@ -63,7 +63,7 @@ const optionalExtraParams = z.preprocess(value => {
     Object.entries(value).filter((entry): entry is [string, string] => typeof entry[1] === 'string')
   );
   return Object.keys(extraParams).length > 0 ? extraParams : undefined;
-}, z.record(z.string()).optional());
+}, z.record(z.string(), z.string()).optional());
 
 /**
  * Parameters used for auth-flow redirects and context persistence.

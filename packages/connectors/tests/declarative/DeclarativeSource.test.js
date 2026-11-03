@@ -2538,3 +2538,106 @@ describe('DeclarativeSource renders a date parameter as the date entered', () =>
     assert.strictEqual(requested.searchParams.get('since'), '2024-01-15');
   });
 });
+
+// Values a Credential filled reach requests only, never rows.
+describe('DeclarativeSource with key parameters from a Credential', () => {
+  const KEY = 'sk_live_4f2b9a';
+  const modelWith = ({ node = {}, accounts } = {}) =>
+    new ManifestParser().parse(
+      JSON.stringify({
+        version: '1.0',
+        name: 'Keyed',
+        baseUrl: 'https://api.example.com',
+        authentication: {
+          type: 'apiKey',
+          inject: { into: 'header', name: 'X-Key', format: '{{ parameters.ApiKey }}' },
+        },
+        ...(accounts ? { accounts } : {}),
+        parameters: { ApiKey: { requiredType: 'string' } },
+        nodes: {
+          items: {
+            uniqueKeys: ['id'],
+            fields: { id: { type: 'string' }, label: { type: 'string' } },
+            request: { method: 'GET', path: '/items' },
+            recordSelector: { recordPath: [] },
+            ...node,
+          },
+        },
+      })
+    );
+  const contextWith = keyParameters =>
+    new AbstractContext({
+      source: { name: 'Keyed', config: { ApiKey: { value: KEY } } },
+      storage: { name: 'MockStorage', config: {} },
+      runConfig: { type: 'INCREMENTAL', data: [], state: {} },
+      env: { datamartId: 'dm', runId: 'run' },
+      keyParameters,
+    });
+  const run = (keyParameters, manifest) => {
+    const source = new DeclarativeSource(contextWith(keyParameters), modelWith(manifest));
+    const sent = [];
+    source.urlFetchWithRetry = async (url, options) => {
+      sent.push(options);
+      return { json: async () => [{ id: '1' }] };
+    };
+    const rows = source.fetchData({
+      nodeName: 'items',
+      fields: ['id', 'label'],
+      accountId: null,
+      startDate: null,
+      endDate: null,
+    });
+    return { rows, sent };
+  };
+  const addLabel = value => ({
+    node: { transformations: [{ type: 'add', field: 'label', value }] },
+  });
+
+  it('with restricted ApiKey, transformations.add referencing it throws naming the node and position', async () => {
+    await assert.rejects(run(['ApiKey'], addLabel('{{ parameters.ApiKey }}')).rows, {
+      message: 'Key parameter "ApiKey" cannot be used in transformations.add of node "items"',
+    });
+  });
+
+  it('with restricted ApiKey, accounts.from referencing it throws', () => {
+    const source = new DeclarativeSource(
+      contextWith(['ApiKey']),
+      modelWith({ accounts: { from: '{{ parameters.ApiKey }}' } })
+    );
+    assert.throws(() => source.getAccounts(), {
+      message: 'Key parameter "ApiKey" cannot be used in accounts.from',
+    });
+  });
+
+  it('with restricted ApiKey, recordFilter inList valuesFromParameter ApiKey throws naming recordFilter', async () => {
+    const recordFilter = { path: ['id'], operator: 'inList', valuesFromParameter: 'ApiKey' };
+    await assert.rejects(run(['ApiKey'], { node: { recordFilter } }).rows, {
+      message: 'Key parameter "ApiKey" cannot be used in recordFilter of node "items"',
+    });
+  });
+
+  it('with restricted ApiKey, a list partitionRouter valuesFromParameter ApiKey throws naming valueList', async () => {
+    const partitionRouter = { type: 'list', partitionField: 'k', valuesFromParameter: 'ApiKey' };
+    await assert.rejects(run(['ApiKey'], { node: { partitionRouter } }).rows, {
+      message: 'Key parameter "ApiKey" cannot be used in valueList of node "items"',
+    });
+  });
+
+  it('with restricted ApiKey, the request header still receives the value', async () => {
+    const { rows, sent } = run(['ApiKey'], addLabel('item-{{ record.id }}'));
+    assert.deepStrictEqual(await rows, [{ id: '1', label: 'item-1' }]);
+    assert.strictEqual(sent[0].headers['X-Key'], KEY);
+  });
+
+  it('{{ auth.token }} in transformations.add throws when restricted', async () => {
+    await assert.rejects(run(['ApiKey'], addLabel('{{ auth.token }}')).rows, {
+      message: 'Key parameter "auth.token" cannot be used in transformations.add of node "items"',
+    });
+  });
+
+  it('without restriction, transformations.add still writes a key parameter', async () => {
+    assert.deepStrictEqual(await run(undefined, addLabel('{{ parameters.ApiKey }}')).rows, [
+      { id: '1', label: KEY },
+    ]);
+  });
+});

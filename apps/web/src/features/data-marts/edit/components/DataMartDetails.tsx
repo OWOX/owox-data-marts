@@ -53,6 +53,13 @@ import {
   RunActivityIndicator,
 } from '../../shared/components/RunActivityIndicator';
 import { GOOGLE_SHEETS_CONNECTOR_NAME } from '../../../connectors/shared/utils/google-sheets-fields.utils';
+import {
+  ReferencingDataMartsNotice,
+  trackReferencedDeleteConfirmed,
+  useReferencingDataMarts,
+} from '../../shared/components/ReferencingDataMartsNotice';
+
+const NO_DATA_MARTS: string[] = [];
 
 interface DataMartDetailsProps {
   id: string;
@@ -118,6 +125,11 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
     dataMartDefinition.connector.source.name === GOOGLE_SHEETS_CONNECTOR_NAME
   );
   const isPublished = dataMartStatus.code === DataMartStatus.PUBLISHED;
+  // Only a published Data Mart can be referenced from another one's SQL.
+  const referencingDataMarts = useReferencingDataMarts(
+    isPublished ? [dataMartId] : NO_DATA_MARTS,
+    isDeleteDialogOpen
+  );
   const isDraft = dataMartStatus.code === DataMartStatus.DRAFT;
   const hasActiveDataQualityRun = isDataQualityActivityState(dataQualitySummary?.state);
   const runActivityLabel = getDataMartRunActivityLabel(hasActiveRuns, hasActiveDataQualityRun);
@@ -619,12 +631,17 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
                 extension.
               </p>
             )}
+
+            <ReferencingDataMartsNotice {...referencingDataMarts} action='delete' />
           </div>
         }
         confirmLabel='Delete'
         cancelLabel='Cancel'
         variant='destructive'
+        // Held until the user has seen which Data Marts reference this one.
+        confirmDisabled={referencingDataMarts.isLoading}
         onConfirm={() => {
+          trackReferencedDeleteConfirmed(dataMartId, referencingDataMarts.total);
           // Deleting destroys the whole data mart (schema included), so guarding
           // unsaved schema edits here is moot — it only stacks a second dialog and
           // could block the delete if a doomed schema save fails. Run delete

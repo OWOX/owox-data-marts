@@ -52,7 +52,7 @@ export const HttpDataRunMetadataSchema = z.object({
   // Computed as a SEPARATE best-effort query at run time whenever the result has an eligible metric —
   // NOT limited to explicitly aggregated reports. Omitted when nothing is eligible, or when the
   // totals query failed — in which case `totalsError` says so.
-  totals: z.record(z.union([z.number(), z.string(), z.boolean(), z.null()])).optional(),
+  totals: z.record(z.string(), z.union([z.number(), z.string(), z.boolean(), z.null()])).optional(),
   // Why totals are absent, when the cause was a FAILURE rather than "nothing eligible". Totals are
   // best-effort so their failure never costs the run its rows, but an unexplained absence is
   // indistinguishable from a report that has no totals — and this is the only record of the run

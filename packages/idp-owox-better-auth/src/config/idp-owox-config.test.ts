@@ -56,6 +56,56 @@ describe('loadBetterAuthProviderConfigFromEnv', () => {
     });
   });
 
+  it('keeps server-side auth page events off unless a collect URL is set', () => {
+    expect(loadBetterAuthProviderConfigFromEnv(baseEnv()).serverEvents).toBeUndefined();
+  });
+
+  it('loads server-side auth page events with their measurement id and visitor cookie', () => {
+    const config = loadBetterAuthProviderConfigFromEnv({
+      ...baseEnv(),
+      IDP_OWOX_SERVER_EVENTS_COLLECT_URL: 'https://collector.owox.test/g/collect',
+      IDP_OWOX_SERVER_EVENTS_MEASUREMENT_ID: 'G-TEST',
+      IDP_OWOX_SERVER_EVENTS_VISITOR_COOKIE: 'vid',
+    });
+
+    expect(config.serverEvents).toEqual({
+      collectUrl: 'https://collector.owox.test/g/collect',
+      measurementId: 'G-TEST',
+      visitorCookieName: 'vid',
+    });
+  });
+
+  it('refuses a server events collect URL without a measurement id and visitor cookie', () => {
+    expect(() =>
+      loadBetterAuthProviderConfigFromEnv({
+        ...baseEnv(),
+        IDP_OWOX_SERVER_EVENTS_COLLECT_URL: 'https://collector.owox.test/g/collect',
+      })
+    ).toThrow();
+  });
+
+  it('treats blank server events settings as unset', () => {
+    const config = loadBetterAuthProviderConfigFromEnv({
+      ...baseEnv(),
+      IDP_OWOX_SERVER_EVENTS_COLLECT_URL: '',
+      IDP_OWOX_SERVER_EVENTS_MEASUREMENT_ID: ' ',
+      IDP_OWOX_SERVER_EVENTS_VISITOR_COOKIE: '',
+    });
+
+    expect(config.serverEvents).toBeUndefined();
+  });
+
+  it('refuses a server events collect URL that is not https', () => {
+    expect(() =>
+      loadBetterAuthProviderConfigFromEnv({
+        ...baseEnv(),
+        IDP_OWOX_SERVER_EVENTS_COLLECT_URL: 'http://collector.owox.test/g/collect',
+        IDP_OWOX_SERVER_EVENTS_MEASUREMENT_ID: 'G-TEST',
+        IDP_OWOX_SERVER_EVENTS_VISITOR_COOKIE: 'vid',
+      })
+    ).toThrow();
+  });
+
   it('refuses to enable Microsoft NAA without deployment-owned audience and scope', () => {
     expect(() =>
       loadBetterAuthProviderConfigFromEnv({

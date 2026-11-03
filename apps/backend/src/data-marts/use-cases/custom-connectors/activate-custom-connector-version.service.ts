@@ -12,7 +12,7 @@ export class ActivateCustomConnectorVersionService {
   ) {}
 
   async run(command: ActivateCustomConnectorVersionCommand): Promise<CustomConnectorActivatedDto> {
-    const definition = await this.definitions.setActiveVersion(
+    const { definition, ...stopping } = await this.definitions.setActiveVersion(
       command.projectId,
       command.connectorId,
       command.version,
@@ -21,6 +21,6 @@ export class ActivateCustomConnectorVersionService {
         roles: command.roles,
       }
     );
-    return this.mapper.toActivatedDto(definition, command.version);
+    return this.mapper.toActivatedDto(definition, command.version, stopping);
   }
 }

@@ -1,4 +1,4 @@
-import { Entity, PrimaryColumn, ManyToOne, JoinColumn } from 'typeorm';
+import { Entity, PrimaryColumn, ManyToOne, JoinColumn, type Relation } from 'typeorm';
 import { DataMart } from './data-mart.entity';
 
 @Entity('data_mart_technical_owners')
@@ -11,5 +11,5 @@ export class DataMartTechnicalOwner {
 
   @ManyToOne(() => DataMart, dm => dm.technicalOwners, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'data_mart_id' })
-  dataMart: DataMart;
+  dataMart: Relation<DataMart>;
 }

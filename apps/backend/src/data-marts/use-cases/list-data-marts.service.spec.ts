@@ -109,4 +109,27 @@ describe('ListDataMartsService relationships count', () => {
     expect(dataMartService.findVisibleIdsByProjectIdAndIds).not.toHaveBeenCalled();
     expect(counts(result.items)).toEqual({ orders: 0, customers: 0, sessions: 0 });
   });
+
+  it('passes the Storage filter to the query', async () => {
+    const { service, dataMartService } = setup([]);
+
+    await service.run(
+      new ListDataMartsCommand(
+        'project-1',
+        'user-1',
+        ['viewer'],
+        0,
+        undefined,
+        undefined,
+        undefined,
+        true,
+        'storage-1'
+      )
+    );
+
+    expect(dataMartService.findByProjectIdForList).toHaveBeenCalledWith(
+      'project-1',
+      expect.objectContaining({ storageId: 'storage-1' })
+    );
+  });
 });

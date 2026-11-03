@@ -389,4 +389,17 @@ export class MysqlDatabaseStore implements DatabaseStore {
   async getAdapter(): Promise<unknown> {
     return await this.getPool();
   }
+
+  async ensureVerificationIdLength(): Promise<void> {
+    const pool = await this.getPool();
+    const [[column]] = await pool.query(
+      `SELECT CHARACTER_MAXIMUM_LENGTH AS len FROM information_schema.COLUMNS
+       WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'verification' AND COLUMN_NAME = 'id'`
+    );
+    // Better Auth 1.7 writes 43-character lock ids (e.g. on a first magic-link sign-in of an
+    // unverified user), but its MySQL migrations create verification.id as VARCHAR(36).
+    if (column && Number(column.len) < 255) {
+      await pool.query('ALTER TABLE verification MODIFY id VARCHAR(255) NOT NULL');
+    }
+  }
 }

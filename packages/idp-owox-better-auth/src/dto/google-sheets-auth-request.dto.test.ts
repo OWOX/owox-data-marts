@@ -27,7 +27,7 @@ describe('GoogleSheetsExtensionAuthRequestSchema', () => {
     const result = GoogleSheetsExtensionAuthRequestSchema.safeParse(invalidData);
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.error.errors[0]?.message).toBe(
+      expect(result.error.issues[0]?.message).toBe(
         'Either google_id_token or refresh_token is required'
       );
     }

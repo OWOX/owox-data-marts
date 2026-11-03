@@ -6,6 +6,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { ConnectorFieldOptions } from '../../connector-types/connector-field-options';
+import { BusinessViolationException } from '../../../common/exceptions/business-violation.exception';
 import { AuthorizationContext } from '../../../idp';
 import { ConnectorPreviewCredentialsService } from './connector-preview-credentials.service';
 import { ConnectorService } from './connector.service';
@@ -47,7 +48,8 @@ export class ConnectorFieldOptionsPreviewService {
     context: AuthorizationContext,
     connectorName: string,
     field: string,
-    configuration: Record<string, unknown>
+    configuration: Record<string, unknown>,
+    dataMartId?: string
   ): Promise<ConnectorFieldOptions> {
     if (!connectorSourceImplements(connectorName, 'fetchFieldOptions')) {
       throw new BadRequestException(
@@ -61,10 +63,11 @@ export class ConnectorFieldOptionsPreviewService {
       configWithCredentials = await this.previewCredentials.inject(
         connectorName,
         configuration,
-        context
+        context,
+        dataMartId
       );
     } catch (error) {
-      if (error instanceof HttpException) {
+      if (error instanceof HttpException || error instanceof BusinessViolationException) {
         throw error;
       }
       this.logger.error(

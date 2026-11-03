@@ -454,6 +454,7 @@ describe('StorageCredentialBindingService', () => {
         state: 'ready',
         secret: { value: 'service-account-key' },
         publicMetadata: credential.publicMetadata,
+        refreshTokenStaticAt: null,
       });
       expect(access.canAccess).not.toHaveBeenCalled();
       expect(access.canAccessMany).not.toHaveBeenCalled();

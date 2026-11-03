@@ -611,6 +611,61 @@ describe('BaseSchemaTable — Description column', () => {
   });
 });
 
+describe('BaseSchemaTable — a field inherited from a referenced Data Mart', () => {
+  const inheritedFrom = { dataMartId: 'dm-orders', dataMartTitle: 'Orders' };
+  const source = 'From Data Mart “Orders”. Change it there.';
+
+  it('shows its alias and description read-only, naming the Data Mart to change them in', () => {
+    render(
+      <AthenaSchemaTable
+        fields={[
+          buildAthenaField({
+            name: 'order_id',
+            alias: 'Order ID',
+            description: 'Unique order',
+            inheritedFrom,
+          }),
+          buildAthenaField({ name: 'retail_only', alias: 'Retail only' }),
+        ]}
+        onFieldsChange={() => {}}
+        schemaToolbar={mockSchemaToolbar}
+      />
+    );
+
+    const cells = screen.getAllByTestId('inherited-field-metadata');
+    expect(cells.map(cell => cell.textContent)).toEqual([
+      `Order ID${source}`,
+      `Unique order${source}`,
+    ]);
+    expect(screen.queryByRole('button', { name: 'Order ID' })).toBeNull();
+    // A field of its own keeps its editable alias.
+    expect(screen.getByRole('button', { name: 'Retail only' })).toBeInTheDocument();
+  });
+
+  it('does the same on the BigQuery table', () => {
+    const field: BigQuerySchemaField = {
+      name: 'channel',
+      type: BigQueryFieldType.STRING,
+      mode: BigQueryFieldMode.NULLABLE,
+      isPrimaryKey: false,
+      status: DataMartSchemaFieldStatus.CONNECTED,
+      alias: 'Sales channel',
+      inheritedFrom,
+    };
+    render(
+      <BigQuerySchemaTable
+        fields={[field]}
+        onFieldsChange={() => {}}
+        schemaToolbar={mockSchemaToolbar}
+      />
+    );
+
+    const cells = screen.getAllByTestId('inherited-field-metadata');
+    expect(cells.map(cell => cell.textContent)).toEqual([`Sales channel${source}`, `-${source}`]);
+    expect(screen.queryByRole('button', { name: 'Sales channel' })).toBeNull();
+  });
+});
+
 describe('BaseSchemaTable — calculated field row', () => {
   function buildCalculatedField(overrides: Partial<AthenaSchemaField> = {}): AthenaSchemaField {
     return buildAthenaField({

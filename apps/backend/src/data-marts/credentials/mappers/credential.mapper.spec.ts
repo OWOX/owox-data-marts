@@ -38,6 +38,7 @@ describe('CredentialMapper', () => {
           displayName: 'GitHub',
           description: '',
           category: 'other',
+          connectors: [],
           documentationUrl:
             'https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens',
           origins: ['https://api.github.com'],
@@ -417,5 +418,26 @@ describe('CredentialMapper', () => {
       { consumerId: 'own-installation', title: 'Slack digest' },
     ]);
     expect(dto.setSecretFieldKeys).toEqual([]);
+  });
+});
+
+describe('mapCredentialDefinitionToApiDto', () => {
+  it('maps connectors and the custom-connector auth', () => {
+    const dto = mapCredentialDefinitionToApiDto({
+      definitionId: 'custom-connector',
+      source: 'builtin',
+      compatibilityLine: null,
+      contract: {
+        id: 'custom-connector',
+        displayName: 'Custom connector',
+        description: '',
+        category: 'custom-connectors',
+        connectors: ['AcmeAds'],
+        auth: { type: 'custom-connector' },
+      },
+    });
+    expect(dto.connectors).toEqual(['AcmeAds']);
+    expect(dto.auth).toEqual({ type: 'custom-connector' });
+    expect(dto.category).toBe('custom-connectors');
   });
 });

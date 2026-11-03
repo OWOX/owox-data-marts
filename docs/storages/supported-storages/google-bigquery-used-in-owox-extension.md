@@ -1,5 +1,7 @@
 # Google BigQuery (used in OWOX extension)
 
+> Evaluating OWOX for BigQuery? [See what OWOX does on BigQuery](https://www.owox.com/data-storages/google-bigquery) or [book a demo](https://www.owox.com/book-a-call).
+
 **Google BigQuery (used in OWOX extension)** is a system storage that appears automatically in OWOX Data Marts if you have created Data Marts using **[OWOX Reports (Google Sheets extension)](https://workspace.google.com/marketplace/app/owox_bigquery_data_marts/263000453832)**.
 
 This storage connects your existing Data Marts from the extension to the OWOX Data Marts web interface. It allows you to complete a one-time setup, publish your Data Marts, and manage them using additional capabilities available in OWOX Data Marts.

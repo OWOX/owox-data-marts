@@ -1,6 +1,7 @@
 import { RefreshDataMartDataLastUpdatedCommand } from '../dto/domain/refresh-data-mart-data-last-updated.command';
 import { DataMartDefinitionType } from '../enums/data-mart-definition-type.enum';
 import { RefreshDataMartDataLastUpdatedService } from './refresh-data-mart-data-last-updated.service';
+import { passThroughSqlReferenceResolver } from '../sql-references/__fixtures__/pass-through-sql-reference-resolver';
 
 const measured = {
   dataLastUpdatedAt: '2026-07-25T08:30:00.000Z',
@@ -61,7 +62,8 @@ describe('RefreshDataMartDataLastUpdatedService', () => {
       dataMartService as never,
       accessDecisionService as never,
       queryBuilderFacade as never,
-      sourceDataLastUpdatedService as never
+      sourceDataLastUpdatedService as never,
+      passThroughSqlReferenceResolver as never
     );
     return {
       service,

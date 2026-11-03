@@ -1,4 +1,5 @@
 import { Injectable, Logger, Inject, forwardRef, Optional } from '@nestjs/common';
+import type { WrapperType } from '../../../common/utils/wrapper-type';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { DataMart } from '../../entities/data-mart.entity';
@@ -11,11 +12,27 @@ import { DestinationOwner } from '../../entities/destination-owner.entity';
 import { ReportOwner } from '../../entities/report-owner.entity';
 import { Report } from '../../entities/report.entity';
 import { ACCESS_MATRIX } from './access-matrix.config';
-import { EntityType, Action, Role, OwnerStatus, SharingState } from './access-decision.types';
+import {
+  EntityType,
+  Action,
+  Role,
+  OwnerStatus,
+  SharingState,
+  DataMartAccessReason,
+  type DataMartAccessExplanation,
+  type DataMartAccessFacts,
+} from './access-decision.types';
 import { ContextAccessService } from '../context/context-access.service';
 import { RoleScope } from '../../enums/role-scope.enum';
 import { Credential } from '../../credentials/entities/credential.entity';
 import { CredentialOwner } from '../../credentials/entities/credential-owner.entity';
+
+/** The sharing states a Data Mart can be in once shared; SHARED_FOR_USE belongs to Storages. */
+const DATA_MART_SHARED_STATES = [
+  SharingState.SHARED_FOR_REPORTING,
+  SharingState.SHARED_FOR_MAINTENANCE,
+  SharingState.SHARED_FOR_BOTH,
+] as const;
 
 @Injectable()
 export class AccessDecisionService {
@@ -44,7 +61,7 @@ export class AccessDecisionService {
     @InjectRepository(Report)
     private readonly reportRepository: Repository<Report>,
     @Inject(forwardRef(() => ContextAccessService))
-    private readonly contextAccessService: ContextAccessService,
+    private readonly contextAccessService: WrapperType<ContextAccessService>,
     @Optional()
     @InjectRepository(Credential)
     private readonly credentialRepository?: Repository<Credential>,
@@ -174,6 +191,62 @@ export class AccessDecisionService {
       uniqueIds.map(id => this.canAccess(userId, roles, entityType, id, action, projectId))
     );
     return new Map(uniqueIds.map((id, index) => [id, results[index]]));
+  }
+
+  /**
+   * Explains whether one member can take an action on a Data Mart, from facts the caller already
+   * loaded, so a whole member list costs no query per member. Takes the same steps as
+   * {@link canAccess} — admin, ownership, sharing, then the context gate — and names the step that
+   * settled it. A refusal at the sharing step also says whether Sharing, owning the Data Mart, or
+   * only another role could grant the action.
+   */
+  explainDataMartAccess(facts: DataMartAccessFacts, action: Action): DataMartAccessExplanation {
+    const role = this.resolveRole(facts.roles);
+    const allows = (asRole: Role, ownerStatus: OwnerStatus, sharingState: SharingState) =>
+      this.lookupMatrix(EntityType.DATA_MART, action, asRole, ownerStatus, sharingState);
+
+    if (role === Role.ADMIN) {
+      return {
+        granted: allows(Role.ADMIN, OwnerStatus.ADMIN, SharingState.NOT_SHARED),
+        reason: DataMartAccessReason.PROJECT_ADMIN,
+      };
+    }
+
+    const sharingState = this.resolveReportingMaintenanceSharing(
+      facts.availableForReporting,
+      facts.availableForMaintenance
+    );
+
+    if (
+      facts.ownerStatus !== OwnerStatus.NON_OWNER &&
+      allows(role, facts.ownerStatus, sharingState)
+    ) {
+      return { granted: true, reason: DataMartAccessReason.OWNER };
+    }
+
+    if (!allows(role, OwnerStatus.NON_OWNER, sharingState)) {
+      let reason = DataMartAccessReason.ROLE_REQUIRED;
+      if (DATA_MART_SHARED_STATES.some(state => allows(role, OwnerStatus.NON_OWNER, state))) {
+        reason = DataMartAccessReason.NOT_SHARED;
+      } else if (allows(role, OwnerStatus.TECH_OWNER, sharingState)) {
+        reason = DataMartAccessReason.OWNER_REQUIRED;
+      }
+      return { granted: false, reason };
+    }
+
+    if (facts.roleScope !== RoleScope.SELECTED_CONTEXTS) {
+      return { granted: true, reason: DataMartAccessReason.PROJECT_WIDE_ACCESS };
+    }
+
+    if (facts.dataMartContextIds.length === 0) {
+      return { granted: false, reason: DataMartAccessReason.DATA_MART_HAS_NO_CONTEXT };
+    }
+
+    const dataMartContextIds = new Set(facts.dataMartContextIds);
+    const sharesContext = facts.memberContextIds.some(id => dataMartContextIds.has(id));
+    return sharesContext
+      ? { granted: true, reason: DataMartAccessReason.SHARED_CONTEXT }
+      : { granted: false, reason: DataMartAccessReason.NO_SHARED_CONTEXT };
   }
 
   private lookupMatrix(

@@ -6,6 +6,7 @@ import {
   Index,
   JoinColumn,
   ManyToOne,
+  type Relation,
 } from 'typeorm';
 import { ConnectorDefinition } from './connector-definition.entity';
 
@@ -48,7 +49,7 @@ export class ConnectorDefinitionVersion {
     onUpdate: 'NO ACTION',
   })
   @JoinColumn({ name: 'connectorDefinitionId' })
-  connectorDefinition: ConnectorDefinition;
+  connectorDefinition: Relation<ConnectorDefinition>;
 
   @Column({ type: 'int' })
   version: number;
@@ -56,7 +57,7 @@ export class ConnectorDefinitionVersion {
   @Column({ type: 'json' })
   manifest: Record<string, unknown>;
 
-  @Column({ default: ConnectorDefinitionVersionStatus.DRAFT })
+  @Column({ type: 'varchar', default: ConnectorDefinitionVersionStatus.DRAFT })
   status: ConnectorDefinitionVersionStatus;
 
   @Column({ type: 'varchar', nullable: true })

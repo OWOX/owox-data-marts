@@ -79,7 +79,12 @@ export default defineConfig({
       },
     },
     {
-      command: 'npx vite --config vite.config.ts',
+      // CI serves the bundle the workflow already built: the dev server transforms modules on
+      // first request and can reload the page when it discovers a dependency, which turned slow
+      // first navigations into timeouts. Locally the dev server keeps edits live.
+      command: process.env.CI
+        ? 'npx vite preview --config vite.config.ts --port 5173 --strictPort'
+        : 'npx vite --config vite.config.ts',
       url: 'https://localhost:5173',
       ignoreHTTPSErrors: true,
       reuseExistingServer: false,

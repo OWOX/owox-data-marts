@@ -7,6 +7,7 @@ import { DataMart } from '../entities/data-mart.entity';
 import { Action, AccessDecisionService, EntityType } from '../services/access-decision';
 import { DataMartService } from '../services/data-mart.service';
 import { SourceDataLastUpdatedService } from '../services/source-data-last-updated.service';
+import { DataMartSqlReferenceResolver } from '../services/data-mart-sql-reference-resolver.service';
 
 /**
  * The user-triggered "how current is this?" check behind the refresh affordances on the Data Mart
@@ -41,7 +42,8 @@ export class RefreshDataMartDataLastUpdatedService {
     private readonly dataMartService: DataMartService,
     private readonly accessDecisionService: AccessDecisionService,
     private readonly queryBuilderFacade: DataMartQueryBuilderFacade,
-    private readonly sourceDataLastUpdatedService: SourceDataLastUpdatedService
+    private readonly sourceDataLastUpdatedService: SourceDataLastUpdatedService,
+    private readonly sqlReferenceResolver: DataMartSqlReferenceResolver
   ) {}
 
   async run(
@@ -114,10 +116,8 @@ export class RefreshDataMartDataLastUpdatedService {
     const items: ResolveSourceDataLastUpdatedItem[] = [];
     for (const dataMart of dataMarts) {
       try {
-        const built = await this.queryBuilderFacade.buildQuery(
-          dataMart.storage.type,
-          dataMart.definition!
-        );
+        const definition = await this.sqlReferenceResolver.resolveDefinition(dataMart);
+        const built = await this.queryBuilderFacade.buildQuery(dataMart.storage.type, definition!);
         items.push(
           typeof built === 'string'
             ? { key: dataMart.id, sql: built }

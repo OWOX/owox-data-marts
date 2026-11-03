@@ -79,6 +79,8 @@ Playwright auto-starts both servers (configured in `playwright.config.ts`):
 2. **Frontend:** `npx vite --config vite.config.ts` on `https://localhost:5173`
    - Uses self-signed certificates (HTTPS)
    - Timeout: 120s for startup
+   - With `CI` set, serves the built bundle instead (`vite preview`); build it first with
+     `NODE_ENV=development npm run build -w @owox/web` (React's development build). CI splits the specs across five runners with `--shard`.
 
 **Important:** Playwright always starts its own servers (`reuseExistingServer: false`). An `assertPortFree()` check runs before server startup -- if ports 3000 or 5173 are already in use (e.g., you have a dev server running), Playwright will fail immediately with a clear error asking you to stop the existing server. This prevents tests from accidentally running against a dev server with the wrong environment.
 

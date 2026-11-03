@@ -95,7 +95,7 @@ After the token is generated, **copy and securely store your Refresh Token**.
 
 ## ✅ You’re Ready to Go
 
-You can now use this token as described in the [Getting Started guide](GETTING_STARTED.md) to connect to LinkedIn Pages data source.
+Save the token in a Credential (on the **Credentials** page, or with **+ Create new Credential** beside the **Credential** field of the Data Mart's connector configuration), then use it as described in the [Getting Started guide](GETTING_STARTED.md) to connect to LinkedIn Pages data source.
 
 ## Troubleshooting and Support
 

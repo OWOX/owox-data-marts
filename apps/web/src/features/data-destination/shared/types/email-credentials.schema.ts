@@ -5,5 +5,5 @@ import { z } from 'zod';
  * Used by Data Destination module
  */
 export const emailCredentialsSchema = z.object({
-  to: z.array(z.string().email()).min(1),
+  to: z.array(z.email()).min(1, 'Array must contain at least 1 element(s)'),
 });

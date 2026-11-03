@@ -4,13 +4,15 @@ import { SqlRunCommand } from '../dto/domain/sql-run.command';
 import { DataMartService } from '../services/data-mart.service';
 import { SqlRunBatch } from '../dto/domain/sql-run-batch.dto';
 import { DataStorageCredentialsResolver } from '../data-storage-types/data-storage-credentials-resolver.service';
+import { DataMartSqlReferenceResolver } from '../services/data-mart-sql-reference-resolver.service';
 
 @Injectable()
 export class SqlRunService {
   constructor(
     private readonly dataMartService: DataMartService,
     private readonly sqlRunExecutorFacade: SqlRunExecutorFacade,
-    private readonly credentialsResolver: DataStorageCredentialsResolver
+    private readonly credentialsResolver: DataStorageCredentialsResolver,
+    private readonly sqlReferenceResolver: DataMartSqlReferenceResolver
   ) {}
 
   /**
@@ -34,12 +36,16 @@ export class SqlRunService {
     }
 
     const credentials = await this.credentialsResolver.resolve(storage);
+    // Without `command.sql` the executor runs the definition itself.
+    const definition = command.sql
+      ? dataMart.definition
+      : await this.sqlReferenceResolver.resolveDefinition(dataMart);
 
     yield* this.sqlRunExecutorFacade.executeBatches<Row>(
       storage.type,
       credentials,
       storage.config,
-      dataMart.definition,
+      definition!,
       command.sql,
       { maxRowsPerBatch: command.maxRowsPerBatch }
     );

@@ -9,6 +9,7 @@ import {
 } from '@owox/ui/components/alert-dialog';
 import { Button } from '@owox/ui/components/button';
 import { DataMartDefinitionType } from '../../../shared';
+import { ReferencingDataMartsNotice } from '../../../shared/components/ReferencingDataMartsNotice';
 import type { InputSourceChangeImpact } from './useInputSourceChangeImpact';
 
 const TYPE_LABELS: Record<DataMartDefinitionType, string> = {
@@ -101,11 +102,20 @@ export function ChangeInputSourceTypeDialog({
             .
           </p>
         ) : impact ? (
-          <p className='text-muted-foreground text-sm'>
-            {dependants
-              ? `${dependants} depend on this Data Mart.`
-              : 'Nothing else depends on this Data Mart yet.'}
-          </p>
+          <>
+            {(dependants !== null || impact.referencingDataMartsCount === 0) && (
+              <p className='text-muted-foreground text-sm'>
+                {dependants
+                  ? `${dependants} depend on this Data Mart.`
+                  : 'Nothing else depends on this Data Mart yet.'}
+              </p>
+            )}
+            <ReferencingDataMartsNotice
+              dataMarts={impact.referencingDataMarts}
+              total={impact.referencingDataMartsCount}
+              action='change'
+            />
+          </>
         ) : null}
 
         <AlertDialogFooter>

@@ -195,7 +195,7 @@ export const AssistantMatchDebugSchema = z.object({
   promptType: TurnPromptTypeSchema.optional(),
   sourceTaskMode: AssistantTaskModeSchema.optional(),
   decisionPath: z.string().min(1).optional(),
-  decisionNodes: z.record(z.unknown()).optional(),
+  decisionNodes: z.record(z.string(), z.unknown()).optional(),
   matchedSourceId: z.string().min(1).optional(),
   matchConfidence: z.number().min(0).max(1).optional(),
   matchReason: z.string().min(1).optional(),

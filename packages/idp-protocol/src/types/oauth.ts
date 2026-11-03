@@ -95,6 +95,6 @@ export const OAuthTokenExchangeResultSchema = z.object({
 export type OAuthTokenExchangeResult = z.infer<typeof OAuthTokenExchangeResultSchema>;
 
 export const OAuthJwksResultSchema = z.object({
-  keys: z.array(z.record(z.unknown())),
+  keys: z.array(z.record(z.string(), z.unknown())),
 });
 export type OAuthJwksResult = z.infer<typeof OAuthJwksResultSchema>;

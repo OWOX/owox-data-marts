@@ -7,6 +7,7 @@ import { OnboardingService } from './onboarding-service.js';
 function createStoreMock(): jest.Mocked<DatabaseStore> {
   return {
     initialize: jest.fn(),
+    ensureVerificationIdLength: jest.fn(),
     isHealthy: jest.fn(),
     cleanupExpiredSessions: jest.fn(),
     shutdown: jest.fn(),

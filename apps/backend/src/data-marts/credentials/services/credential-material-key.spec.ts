@@ -51,3 +51,29 @@ describe('materialKey', () => {
     expect(key('plain-key')).not.toBe(key('other-key'));
   });
 });
+
+describe('materialKey of a custom connector', () => {
+  const spec = { key: 'token', label: 'Token', secret: true };
+  const key = (hosts: string[], fieldList = [spec]) =>
+    materialKey('custom-connector', { fields: { token: 't' } }, { hosts, fieldList, fields: {} });
+
+  it('differs when hosts differ', () => {
+    expect(key(['a.example'])).not.toBe(key(['b.example']));
+    expect(key(['a.example'])).toBe(key(['a.example']));
+  });
+
+  it('differs when the field list differs', () => {
+    expect(key(['a.example'])).not.toBe(key(['a.example'], [{ ...spec, label: 'Other' }]));
+  });
+
+  it('keeps a value apart from hosts and the field list of the same name', () => {
+    const named = (hosts: string[], value: string) =>
+      materialKey(
+        'custom-connector',
+        { fields: { hosts: value } },
+        { hosts, fieldList: [{ key: 'hosts', label: 'Hosts', secret: true }], fields: {} }
+      );
+
+    expect(named(['a.example'], 'token-1')).not.toBe(named(['b.example'], 'token-1'));
+  });
+});

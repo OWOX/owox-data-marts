@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, type ReactNode } from 'react';
 import { toast } from 'react-hot-toast';
 import { contextService } from '../../services/context.service';
 import { AdminsHoverCard } from '../../../project-members/components/AdminsHoverCard';
@@ -12,6 +12,8 @@ interface ContextPickerProps {
   idPrefix?: string;
   onRequestCreate?: () => void;
   refreshToken?: number;
+  /** Extra content at the end of a context's row, such as the members it lets in. */
+  renderContextEnd?: (contextId: string) => ReactNode;
 }
 
 /**
@@ -27,6 +29,7 @@ export function ContextPicker({
   idPrefix = 'ctx-picker',
   onRequestCreate,
   refreshToken,
+  renderContextEnd,
 }: ContextPickerProps) {
   const [allContexts, setAllContexts] = useState<ContextDto[]>([]);
 
@@ -68,6 +71,7 @@ export function ContextPicker({
       onToggle={handleToggle}
       disabled={disabled}
       onRequestCreate={onRequestCreate}
+      renderRowEnd={renderContextEnd}
       emptyText={
         onRequestCreate ? undefined : (
           <>No contexts available. Ask your {adminWord} to create contexts.</>

@@ -30,28 +30,26 @@ jobs:
         os:
           - ubuntu-latest
         test:
-          # The backend suite outgrew the 10-minute budget on one runner, so
-          # jest --shard splits its files across jobs, as e2e-api.yml does.
-          - name: 'Overall test @owox/backend (shard 1/3)'
-            command: 'npm run test -w @owox/backend -- --shard=1/3'
-            timeout: 10
-          - name: 'Overall test @owox/backend (shard 2/3)'
-            command: 'npm run test -w @owox/backend -- --shard=2/3'
-            timeout: 10
-          - name: 'Overall test @owox/backend (shard 3/3)'
-            command: 'npm run test -w @owox/backend -- --shard=3/3'
+          # One runner is enough since the suite runs through @swc/jest (about 3.5 min of
+          # tests). Split it with jest --shard, as e2e-api.yml does, if it outgrows the budget.
+          - name: 'Overall test @owox/backend'
+            command: 'npm run test -w @owox/backend'
+            build: 'npm run build:dep -w @owox/backend'
             timeout: 10
           - name: 'Overall test @owox/web'
             command: 'npm run test -w @owox/web'
             timeout: 10
           - name: 'Overall test owox'
             command: 'npm run test -w owox'
+            build: 'npm run build -w owox'
             timeout: 10
           - name: 'Overall test @owox/idp-better-auth'
             command: 'npm run test -w @owox/idp-better-auth'
+            build: 'npm run build:dep -w @owox/idp-better-auth'
             timeout: 10
           - name: 'Overall test @owox/idp-owox-better-auth'
             command: 'npm run test -w @owox/idp-owox-better-auth'
+            build: 'npm run build:dep -w @owox/idp-owox-better-auth'
             timeout: 10
           - name: 'Overall test @owox/api-client'
             command: 'npm run test -w @owox/api-client'
@@ -91,8 +89,11 @@ jobs:
         if: startsWith(matrix.test.name, 'Overall test @owox/backend')
         run: npm rebuild better-sqlite3 --foreground-scripts
 
-      - name: Build publishable CLI packages
-        run: npm run build --workspace owox --workspace @owox/ctl
+      # Each suite builds only the workspace packages it resolves from dist; the web,
+      # api-client and connectors suites read sources only, and ctl builds its own in pretest.
+      - name: Build required packages
+        if: matrix.test.build
+        run: ${{ matrix.test.build }}
 
       - name: Run ${{ matrix.test.name }}
         run: ${{ matrix.test.command }}

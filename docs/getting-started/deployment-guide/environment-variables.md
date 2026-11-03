@@ -191,6 +191,28 @@ owox serve --env-file custom.env --port 3030
   - Project-specific MCP URLs are derived from this value. For `MCP_PUBLIC_BASE_URL=https://mcp.owox.com`, the project URL format is `https://{projectId}.mcp.owox.com/mcp`.
   - Do not configure a separate project-domain environment variable. The deployment must route both `mcp.owox.com` and `*.mcp.owox.com` to the same MCP backend and preserve `Host`, `X-Forwarded-Host`, and `X-Forwarded-Proto`.
 
+## Google Sheets Source sign-in
+
+**Connect** on a **Sheets Source Google account** Credential uses its own Google OAuth client. Without these variables the Credential form offers only the values typed by hand.
+
+- **OAUTH_GOOGLE_SHEETS_CLIENT_ID** and **OAUTH_GOOGLE_SHEETS_CLIENT_SECRET**: the OAuth client, of type Web application.
+- **OAUTH_GOOGLE_SHEETS_REDIRECT_URI**: the client's callback URL.
+- **OAUTH_GOOGLE_SHEETS_PICKER_API_KEY**: an API key restricted to the Google Picker API and the web app's referrers.
+- **OAUTH_GOOGLE_SHEETS_PROJECT_NUMBER**: the number of the same Cloud project, used as the Picker App ID.
+
+Enable the Google Sheets API, the Google Picker API and the Google Drive API in that Cloud project. The Data Mart form needs the Drive API to list the spreadsheets a Credential can open; without it the form shows a spreadsheet ID or URL input. This project setting is separate from the `drive.file` access each user grants when they sign in. Setup steps: [Google Sheets credentials](../../../packages/connectors/src/Sources/GoogleSheets/CREDENTIALS.md#oauth2).
+
+## Reverse proxy
+
+- **TRUST_PROXY_HOPS**: Number of reverse proxies in front of the application that append to `X-Forwarded-For`.
+  - The application's client address (Express `req.ip`) is taken that many entries from the right of `X-Forwarded-For`; entries further left come from the client and are ignored.
+  - Count the entries your proxies append. Example: `2` behind a Google Cloud external Application Load Balancer, which appends both the client address and its own.
+  - A number from `0` to `10`, read like the other numeric settings; a value outside that range or not a whole number stops the application at startup. A blank value means the default.
+  - Default: `1`.
+  - `0` trusts no proxy at all: the protocol (and `req.hostname`) also come from the connection instead of `X-Forwarded-Proto` and `X-Forwarded-Host`. Use it only when clients connect to the application directly; behind a proxy that terminates TLS the application would see `http` and stop marking auth cookies `Secure`.
+  - A value larger than the real number of proxies lets clients set their own address through `X-Forwarded-For`.
+  - Better Auth reads `X-Forwarded-For` itself for its rate limits and is not affected by this setting.
+
 ## CORS
 
 - **CORS_ALLOWED_HEADERS**: Additional comma-separated request headers allowed by the

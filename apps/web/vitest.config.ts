@@ -21,6 +21,23 @@ export default defineConfig({
         },
       },
     },
+    // lucide-react's entry re-exports ~1,700 icon files and @base-ui/react's hundreds more; every
+    // test file loaded them all again, which was about half of the suite's import time. Bundling
+    // each into one file once per run removes that. Mocks of these packages would not apply.
+    deps: {
+      optimizer: {
+        client: {
+          enabled: true,
+          include: ['lucide-react', '@base-ui/react'],
+          // Vitest keeps react external but not react-dom; a bundled copy would never be wired
+          // to the renderer, so Base UI's flushSync would stop flushing synchronously.
+          exclude: ['react-dom'],
+          // Same reason as optimizeDeps in vite.config.ts: esbuild cannot lower these packages'
+          // destructuring for the default browser targets.
+          esbuildOptions: { supported: { destructuring: true } },
+        },
+      },
+    },
     globals: true,
     setupFiles: [resolve(__dirname, 'test/setupTests.ts')],
     exclude: ['e2e/**', 'node_modules/**'],

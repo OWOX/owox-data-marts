@@ -22,6 +22,9 @@ jest.mock('../services/connector/connector-test.service', () => ({
   ConnectorTestService: jest.fn(),
 }));
 
+// The MCP path never carries a Credential, so these collaborators are never reached.
+const credentialPathUnused = {} as never;
+
 describe('McpCustomConnectorsFacadeImpl', () => {
   const actor = { projectId: 'project', userId: 'editor', roles: ['editor'] };
   const manifest = { name: 'CustomApi', arbitrary: 'private authoring value' };
@@ -114,7 +117,12 @@ describe('McpCustomConnectorsFacadeImpl', () => {
         connector as never,
         new ConnectorMapper()
       ),
-      new TestCustomConnectorService(tester as never),
+      new TestCustomConnectorService(
+        tester as never,
+        credentialPathUnused,
+        credentialPathUnused,
+        credentialPathUnused
+      ),
       new ConnectorDefinitionMapper()
     );
   });
@@ -166,5 +174,14 @@ describe('McpCustomConnectorsFacadeImpl', () => {
     ]);
     expect(definitions.resolveManifest).toHaveBeenLastCalledWith('project', 'CustomApi', undefined);
     expect(definitions.getById).toHaveBeenCalledWith('project', 'connector');
+  });
+
+  it('runs a test on the typed values only, never with a Credential', async () => {
+    const input = { manifest, node: 'items', configuration: { Limit: 1 } };
+    await facade.test('project', input);
+    expect(tester.runTest).toHaveBeenCalledWith(
+      expect.objectContaining({ projectId: 'project', ...input })
+    );
+    expect(tester.runTest.mock.calls[0][0]).not.toHaveProperty('credential');
   });
 });

@@ -3,12 +3,12 @@ import type { McpAuthContext } from '../auth/mcp-auth-context';
 
 export const MCP_SCHEMA_REFRESH_TTL_MS = 5 * 60_000;
 export const MCP_SCHEMA_REFRESH_MAX_ENTRIES = 10_000;
-// Temporary recovery for clients caching strict schemas is disabled after the recovery window.
-// The permanent tolerant output schemas stay enabled.
-export const MCP_SCHEMA_REFRESH_ENABLED = false;
-
 /** Pod-local cooldown shared by the factory's otherwise per-request SDK server instances. */
 export class McpSchemaRefresh {
+  // Temporary recovery for clients caching strict schemas is disabled after the recovery window.
+  // The permanent tolerant output schemas stay enabled. A static property, so tests can turn it on.
+  static readonly enabled: boolean = false;
+
   private readonly expiresAtByClient = new Map<string, number>();
 
   async notifyIfDue(
@@ -16,7 +16,7 @@ export class McpSchemaRefresh {
     notify: () => void | Promise<void>,
     broadcast = false
   ): Promise<void> {
-    if (!MCP_SCHEMA_REFRESH_ENABLED) {
+    if (!McpSchemaRefresh.enabled) {
       this.expiresAtByClient.clear();
       return;
     }

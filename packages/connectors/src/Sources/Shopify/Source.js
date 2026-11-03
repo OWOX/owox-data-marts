@@ -17,6 +17,7 @@ export class ShopifySource extends AbstractSource {
         requiredType: 'string',
         label: 'Shop Domain',
         description: 'Shopify shop domain, e.g. example-store.myshopify.com',
+        attributes: [CONFIG_ATTRIBUTES.CREDENTIAL],
       },
       AccessToken: {
         isRequired: true,

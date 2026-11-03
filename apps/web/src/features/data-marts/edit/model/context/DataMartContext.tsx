@@ -50,6 +50,7 @@ import {
   summarizeSchemaFields,
 } from '../../../shared/utils/schema-field-summary';
 import type { DataMartIconValue } from '../../../shared/enums/data-mart-icon.enum';
+import { countSqlDataMartReferences } from '../../components/DataMartDefinitionSettings/form/sql-data-mart-references';
 
 function invalidateStorageHealthOnOAuthRefreshError(error: ApiError, storageId?: string): void {
   if (!storageId || !isStorageOAuthRefreshError(error)) {
@@ -392,32 +393,12 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
             } as UpdateDataMartTablePatternDefinitionRequestDto;
             break;
 
-          case DataMartDefinitionType.CONNECTOR: {
-            const connectorDef = definition as ConnectorDefinitionConfig;
-
-            let sourceDataMartId: string | undefined;
-
-            for (const config of connectorDef.connector.source.configuration) {
-              const configWithMetadata = config as Record<string, unknown> & {
-                _copiedFrom?: {
-                  dataMartId: string;
-                  dataMartTitle: string;
-                  configId: string;
-                };
-              };
-              if (configWithMetadata._copiedFrom) {
-                sourceDataMartId = configWithMetadata._copiedFrom.dataMartId;
-                break;
-              }
-            }
-
+          case DataMartDefinitionType.CONNECTOR:
             requestData = {
               definitionType: DataMartDefinitionType.CONNECTOR,
-              definition: mapConnectorDefinitionToDto(connectorDef),
-              sourceDataMartId,
+              definition: mapConnectorDefinitionToDto(definition as ConnectorDefinitionConfig),
             } as UpdateDataMartConnectorDefinitionRequestDto;
             break;
-          }
 
           default:
             throw new Error(`Unsupported definition type: ${String(definitionType)}`);
@@ -447,6 +428,13 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
           label: definitionType,
           context: dataMart.id,
           value: dataMart.title,
+          // How many other Data Marts the saved SQL references.
+          details:
+            definitionType === DataMartDefinitionType.SQL
+              ? `dataMartReferences:${String(
+                  countSqlDataMartReferences((definition as SqlDefinitionConfig).sqlQuery)
+                )}`
+              : undefined,
         });
       } catch (error) {
         const apiError = extractApiError(error);

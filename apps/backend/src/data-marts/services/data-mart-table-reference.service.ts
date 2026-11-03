@@ -10,6 +10,8 @@ import { CreateViewCommand } from '../dto/domain/create-view.command';
 import { DataMartService } from './data-mart.service';
 import { CreateViewService } from '../use-cases/create-view.service';
 import { DataMart } from '../entities/data-mart.entity';
+import { technicalViewNameFor } from '../utils/technical-view-name';
+import { DataMartSqlReferenceResolver } from './data-mart-sql-reference-resolver.service';
 
 /**
  * A CALLER-scoped memo for {@link DataMartTableReferenceService.resolveTableName}, for a caller
@@ -27,31 +29,46 @@ import { DataMart } from '../entities/data-mart.entity';
  */
 export type TableReferenceMemo = Map<string, Promise<string>>;
 
+export interface ResolveTableNameOptions {
+  /**
+   * Read a SQL Data Mart that references other Data Marts as a derived table holding its resolved
+   * SQL, instead of through its technical view, so a composed query shows its SQL down to the
+   * warehouse tables (Report SQL preview, Run History). Where that is not possible the view is
+   * used as before. Data Marts without references always keep the view.
+   *
+   * Only for callers that place the result in a FROM clause; the returned value is then a derived
+   * table, not a table name.
+   */
+  inlineSqlReferences?: boolean;
+}
+
 @Injectable()
 export class DataMartTableReferenceService {
   constructor(
     private readonly dataMartService: DataMartService,
-    private readonly createViewService: CreateViewService
+    private readonly createViewService: CreateViewService,
+    private readonly sqlReferenceResolver: DataMartSqlReferenceResolver
   ) {}
 
   async resolveTableName(
     dataMartId: string,
     projectId: string,
-    memo?: TableReferenceMemo
+    memo?: TableReferenceMemo,
+    options: ResolveTableNameOptions = {}
   ): Promise<string> {
     if (!memo) {
       const dataMart = await this.dataMartService.getByIdAndProjectId(dataMartId, projectId);
-      return this.resolveTableNameForDataMart(dataMart);
+      return this.resolveTableNameForDataMart(dataMart, options);
     }
     // The PROMISE is memoized, not the resolved value: two compositions racing on the same Data
     // Mart would otherwise both miss and both issue the DDL. A rejected entry is dropped so a
     // transient failure does not become a permanent one for the rest of the operation.
-    const key = `${projectId}␟${dataMartId}`;
+    const key = `${projectId}␟${dataMartId}␟${options.inlineSqlReferences ? 'inline' : 'table'}`;
     const cached = memo.get(key);
     if (cached) return cached;
     const pending = this.dataMartService
       .getByIdAndProjectId(dataMartId, projectId)
-      .then(dataMart => this.resolveTableNameForDataMart(dataMart));
+      .then(dataMart => this.resolveTableNameForDataMart(dataMart, options));
     memo.set(key, pending);
     pending.catch(() => memo.delete(key));
     return pending;
@@ -68,13 +85,16 @@ export class DataMartTableReferenceService {
     }
 
     const result = await this.createViewService.run(
-      new CreateViewCommand(dataMart.id, dataMart.projectId, this.computeViewName(dataMart.id))
+      new CreateViewCommand(dataMart.id, dataMart.projectId, technicalViewNameFor(dataMart.id))
     );
 
     return result.fullyQualifiedName;
   }
 
-  private async resolveTableNameForDataMart(dataMart: DataMart): Promise<string> {
+  private async resolveTableNameForDataMart(
+    dataMart: DataMart,
+    options: ResolveTableNameOptions
+  ): Promise<string> {
     const definition = dataMart.definition;
     if (!definition) {
       throw new Error('Data Mart definition is not available.');
@@ -93,6 +113,10 @@ export class DataMartTableReferenceService {
     }
 
     if (isSqlDefinition(definition)) {
+      if (options.inlineSqlReferences) {
+        const inline = await this.sqlReferenceResolver.inlineSource(dataMart);
+        if (inline) return inline;
+      }
       const fullyQualifiedName = await this.ensureSqlViewIsUpToDate(dataMart);
       if (!fullyQualifiedName) {
         throw new Error('Failed to refresh SQL Data Mart reference.');
@@ -101,9 +125,5 @@ export class DataMartTableReferenceService {
     }
 
     throw new Error('Unsupported Data Mart definition for table name retrieval.');
-  }
-
-  private computeViewName(dataMartId: string): string {
-    return `view_${dataMartId.replace(/-/g, '_')}`;
   }
 }

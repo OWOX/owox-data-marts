@@ -18,8 +18,8 @@
 
   <main class="min-h-screen grid grid-cols-1 lg:grid-cols-2">
 
-    <!-- Form Panel -->
-    <div class="flex flex-col">
+    <!-- Form Panel: as tall as the screen, so a taller brand panel does not push the form below the fold -->
+    <div class="flex flex-col lg:sticky lg:top-0 lg:self-start lg:min-h-screen">
 
       <!-- Logo -->
       <div class="flex gap-2 items-center p-4 lg:p-8">
@@ -39,8 +39,10 @@
           <%- body %>
       </div>
 
-      <!-- Footer -->
+      <!-- Footer: pages with the account linking notice show it under their buttons instead -->
+      <% if (!locals.accountLinkingNotice) { %>
       <%- include('../partials/footer') %>
+      <% } %>
 
     </div>
 

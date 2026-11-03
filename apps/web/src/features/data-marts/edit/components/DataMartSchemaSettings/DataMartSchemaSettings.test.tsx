@@ -322,6 +322,26 @@ describe('DataMartSchemaSettings bulk AI generation', () => {
     expect(screen.getByTestId('schema-field')).toHaveTextContent('visible:Generated alias:');
   });
 
+  it('leaves the alias of a field inherited from a referenced Data Mart to that Data Mart', async () => {
+    const generation = deferred<{ name: string; alias: string }[]>();
+    testState.generateAllFieldAliases.mockReturnValueOnce(generation.promise);
+    const schema = createSchema(false);
+    Object.assign(schema.fields[0], {
+      inheritedFrom: { dataMartId: 'dm-orders', dataMartTitle: 'Orders' },
+    });
+    testState.outletContext = createContext('data-mart-a', schema);
+
+    render(<DataMartSchemaSettings definitionType={DataMartDefinitionType.SQL} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Generate field aliases' }));
+    await act(async () => {
+      generation.resolve([{ name: 'id', alias: 'Generated alias' }]);
+      await generation.promise;
+    });
+
+    expect(screen.getByTestId('schema-field')).not.toHaveTextContent('Generated alias');
+  });
+
   it('does not overwrite an existing alias cleared while generation is pending', async () => {
     const generation = deferred<{ name: string; alias: string }[]>();
     testState.generateAllFieldAliases.mockReturnValueOnce(generation.promise);

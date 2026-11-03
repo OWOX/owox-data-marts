@@ -30,6 +30,37 @@ export function useDataMartReferences(
   }, [projectId, currentDataMartId, queryClient, user?.projectId, user?.id]);
 }
 
+/**
+ * Published Data Marts of one Storage — the ones a SQL Data Mart's query can reference. A
+ * reference cannot cross Storages, so the list is filtered by the backend, not here.
+ */
+export function useStorageDataMartReferences(
+  projectId: string,
+  storageId: string,
+  currentDataMartId?: string
+): () => Promise<DataMartReference[]> {
+  const queryClient = useQueryClient();
+  const user = useUser();
+  return useCallback(async () => {
+    if (!projectId || user?.projectId !== projectId) return [];
+    const references = await queryClient.query({
+      queryKey: ['storage-data-mart-references', projectId, user.id, storageId],
+      queryFn: async ({ signal }) => {
+        const marts = await dataMartService.getDataMarts(
+          { signal, skipLoadingIndicator: true },
+          { storageId }
+        );
+        return marts
+          .filter(mart => mart.status === DataMartStatus.PUBLISHED)
+          .map(mart => ({ id: mart.id, title: mart.title, icon: mart.icon }))
+          .sort((a, b) => a.title.localeCompare(b.title));
+      },
+      staleTime: 30_000,
+    });
+    return references.filter(reference => reference.id !== currentDataMartId);
+  }, [projectId, storageId, currentDataMartId, queryClient, user?.projectId, user?.id]);
+}
+
 export function useDataMartFieldReferences(projectId: string) {
   const queryClient = useQueryClient();
   const user = useUser();

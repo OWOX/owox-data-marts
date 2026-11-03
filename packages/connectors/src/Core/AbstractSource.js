@@ -52,15 +52,19 @@ const RETRY_PARAMETERS = Object.freeze({
  * The whole query goes, deliberately — see the note at the declarative call
  * sites on why redacting only `authentication.inject.name` is not enough.
  *
+ * A Credential run keeps the origin only: a path can spell a key out one character at a time.
+ *
  * @param {string} u
+ * @param {{ keyParameters?: Set<string> }} [context] - the run context
  * @returns {string}
  */
-export function redactUrl(u) {
+export function redactUrl(u, context) {
+  const originOnly = context?.keyParameters?.size > 0;
   try {
     const parsed = new URL(u);
-    return parsed.origin + parsed.pathname;
+    return originOnly ? parsed.origin : parsed.origin + parsed.pathname;
   } catch {
-    return String(u).split('?')[0];
+    return originOnly ? '' : String(u).split('?')[0];
   }
 }
 
@@ -356,7 +360,7 @@ export class AbstractSource {
         while (true) {
           // Redact the URL before it enters the trace: query strings commonly
           // carry credentials (?app_id=SECRET, ?token=…), and the trace is
-          // persisted to run logs. Keep origin+path for diagnosis.
+          // persisted to run logs. Keep what redactUrl keeps for diagnosis.
           this.context.emit(
             new TraceEvent('http_request', { url: this._redactUrl(currentUrl), attempt })
           );
@@ -650,7 +654,7 @@ export class AbstractSource {
    * @returns {string}
    */
   _redactUrl(u) {
-    return redactUrl(u);
+    return redactUrl(u, this.context);
   }
 
   _getRetryParam(name, defaultVal) {

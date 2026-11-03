@@ -81,7 +81,14 @@ describe('saving from an older version', () => {
       })
     );
     saveDraft.mockResolvedValue({ version: 3, status: 'draft', publishedAt: null });
-    publish.mockResolvedValue({ version: 3, status: 'published', publishedAt: 'x' });
+    publish.mockResolvedValue({
+      version: 3,
+      status: 'published',
+      publishedAt: 'x',
+      warnings: [],
+      stoppingDataMarts: [],
+      hiddenStoppingCount: 0,
+    });
   });
 
   it('confirms before a save that would replace a newer draft', async () => {

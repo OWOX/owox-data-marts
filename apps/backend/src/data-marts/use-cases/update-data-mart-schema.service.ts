@@ -1,4 +1,4 @@
-import { Injectable, Logger, ForbiddenException } from '@nestjs/common';
+import { Injectable, Logger, ForbiddenException, Optional } from '@nestjs/common';
 import { Transactional } from 'typeorm-transactional';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
 import { DataMart } from '../entities/data-mart.entity';
@@ -24,6 +24,7 @@ import { DataMartService } from '../services/data-mart.service';
 import { ReportDataCacheService } from '../services/report-data-cache.service';
 import { AccessDecisionService, EntityType, Action } from '../services/access-decision';
 import { DataMartSearchIndexInvalidationService } from '../services/data-mart-search-index-invalidation.service';
+import { DataMartSchemaInheritanceService } from '../services/data-mart-schema-inheritance.service';
 
 @Injectable()
 export class UpdateDataMartSchemaService {
@@ -37,7 +38,9 @@ export class UpdateDataMartSchemaService {
     private readonly mapper: DataMartMapper,
     private readonly accessDecisionService: AccessDecisionService,
     private readonly credentialsResolver: DataStorageCredentialsResolver,
-    private readonly searchIndexInvalidation?: DataMartSearchIndexInvalidationService
+    private readonly searchIndexInvalidation?: DataMartSearchIndexInvalidationService,
+    @Optional()
+    private readonly schemaInheritance?: DataMartSchemaInheritanceService
   ) {}
 
   async run(command: UpdateDataMartSchemaCommand): Promise<UpdateDataMartSchemaResult> {
@@ -72,7 +75,11 @@ export class UpdateDataMartSchemaService {
     // gets validated while the new one is persisted as `warehouseValidation: 'passed'`. Safe to
     // assign here: `dataMart` stays unsaved until `dataMartService.save` below, so a validation
     // failure afterwards just leaves the in-memory mutation unpersisted.
-    dataMart.schema = parsed;
+    // Alias and description of a field inherited from a referenced Data Mart are read-only: a save
+    // carrying other values gets the inherited ones back. Calculated fields are never inherited,
+    // so the objects the validator below works on are the very ones saved.
+    dataMart.schema =
+      (await this.schemaInheritance?.applyInheritance(dataMart, parsed))?.schema ?? parsed;
     if (introducesNativeField) {
       // Read as expired by actualizeSchemaIfExpired, so lazy readers re-check the warehouse.
       dataMart.schemaActualizedAt = null;
@@ -155,6 +162,8 @@ export class UpdateDataMartSchemaService {
       dataMart.id,
       command.projectId
     );
+    // Data Marts that reference this one inherit its aliases and descriptions.
+    await this.refreshDataMartsThatInherit(dataMart);
 
     this.logger.debug(`Data mart ${command.id} schema updated`);
     // Compared AFTER `validate`, which rewrites each new formula into the canonical spelling the
@@ -191,6 +200,31 @@ export class UpdateDataMartSchemaService {
   private async saveAndInvalidate(dataMart: DataMart): Promise<void> {
     await this.dataMartService.save(dataMart);
     await this.reportDataCacheService.invalidateByDataMartId(dataMart.id);
+  }
+
+  /**
+   * Pushes this Data Mart's aliases and descriptions to the Data Marts that inherit them, then
+   * drops their cached report data and reindexes them, as their own schema save would: a cached
+   * reader would otherwise keep serving the old headers. Best-effort, like the propagation: the
+   * save already succeeded.
+   */
+  private async refreshDataMartsThatInherit(dataMart: DataMart): Promise<void> {
+    const updated = (await this.schemaInheritance?.propagateFrom(dataMart)) ?? [];
+    for (const dependent of updated) {
+      try {
+        await this.reportDataCacheService.invalidateByDataMartId(dependent.id);
+        await this.searchIndexInvalidation?.scheduleDataMartSchemaChanged(
+          dependent.id,
+          dependent.projectId
+        );
+      } catch (error) {
+        this.logger.warn(
+          `Could not refresh data mart ${dependent.id} after inheriting from ${dataMart.id}: ${
+            error instanceof Error ? error.message : String(error)
+          }`
+        );
+      }
+    }
   }
 }
 

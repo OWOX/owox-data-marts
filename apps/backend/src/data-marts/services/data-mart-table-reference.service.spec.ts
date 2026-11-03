@@ -118,3 +118,70 @@ describe('DataMartTableReferenceService — the caller-scoped table reference me
     expect(dataMartService.getByIdAndProjectId).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('DataMartTableReferenceService — Data Marts that reference other Data Marts', () => {
+  const build = (inline: string | null) => {
+    const dataMartService = {
+      getByIdAndProjectId: jest.fn().mockResolvedValue({
+        id: 'dm-1',
+        projectId: 'proj-1',
+        definition: { sqlQuery: 'SELECT * FROM [Orders](dm:…) o' },
+      }),
+    };
+    const createViewService = {
+      run: jest.fn().mockResolvedValue({ fullyQualifiedName: 'proj.ds.view_dm_1' }),
+    };
+    const sqlReferenceResolver = { inlineSource: jest.fn().mockResolvedValue(inline) };
+    return {
+      service: new DataMartTableReferenceService(
+        dataMartService as never,
+        createViewService as never,
+        sqlReferenceResolver as never
+      ),
+      createViewService,
+      sqlReferenceResolver,
+    };
+  };
+
+  it('reads the resolved SQL instead of the view when the caller asks for it', async () => {
+    const { service, createViewService } = build('(\n-- Data Mart: B\nSELECT 1\n)');
+
+    const reference = await service.resolveTableName('dm-1', 'proj-1', undefined, {
+      inlineSqlReferences: true,
+    });
+
+    expect(reference).toBe('(\n-- Data Mart: B\nSELECT 1\n)');
+    expect(createViewService.run).not.toHaveBeenCalled();
+  });
+
+  it('falls back to the view when the Data Mart cannot be read inline', async () => {
+    const { service, createViewService } = build(null);
+
+    const reference = await service.resolveTableName('dm-1', 'proj-1', undefined, {
+      inlineSqlReferences: true,
+    });
+
+    expect(reference).toBe('proj.ds.view_dm_1');
+    expect(createViewService.run).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps the view for callers that need a table name', async () => {
+    const { service, sqlReferenceResolver } = build('(SELECT 1)');
+
+    await expect(service.resolveTableName('dm-1', 'proj-1')).resolves.toBe('proj.ds.view_dm_1');
+    expect(sqlReferenceResolver.inlineSource).not.toHaveBeenCalled();
+  });
+
+  it('memoizes the inline and the table lookups separately', async () => {
+    const { service, createViewService, sqlReferenceResolver } = build('(SELECT 1)');
+    const memo: TableReferenceMemo = new Map();
+
+    await service.resolveTableName('dm-1', 'proj-1', memo, { inlineSqlReferences: true });
+    await service.resolveTableName('dm-1', 'proj-1', memo);
+    await service.resolveTableName('dm-1', 'proj-1', memo, { inlineSqlReferences: true });
+    await service.resolveTableName('dm-1', 'proj-1', memo);
+
+    expect(sqlReferenceResolver.inlineSource).toHaveBeenCalledTimes(1);
+    expect(createViewService.run).toHaveBeenCalledTimes(1);
+  });
+});

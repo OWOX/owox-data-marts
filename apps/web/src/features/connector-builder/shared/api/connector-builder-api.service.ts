@@ -7,8 +7,11 @@ import type {
   CreateCustomConnectorPayload,
   CustomConnectorDetailDto,
   CustomConnectorListItemDto,
+  CredentialRequirementDto,
   CustomConnectorVersionDto,
   CustomConnectorVersionSummaryDto,
+  FittingCredentialDto,
+  FittingCredentialsQuery,
   PublishCustomConnectorResultDto,
   TestConnectorPayload,
 } from './types';
@@ -67,6 +70,18 @@ export class ConnectorBuilderApiService extends ApiService {
 
   async test(payload: TestConnectorPayload): Promise<ConnectorTestResultDto> {
     return this.post<ConnectorTestResultDto>('/test', payload);
+  }
+
+  async fittingCredentials(query: FittingCredentialsQuery): Promise<FittingCredentialDto[]> {
+    return this.post<FittingCredentialDto[]>('/fitting-credentials', query, REPORTED_BY_BUILDER);
+  }
+
+  async credentialRequirement(query: FittingCredentialsQuery): Promise<CredentialRequirementDto> {
+    return this.post<CredentialRequirementDto>(
+      '/credential-requirement',
+      query,
+      REPORTED_BY_BUILDER
+    );
   }
 
   async activateVersion(id: string, version: number): Promise<ActivateVersionResultDto> {

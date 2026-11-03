@@ -91,11 +91,28 @@ describe('ConnectorDefinitionController OpenAPI', () => {
     return operation?.responses?.[status]?.content?.['application/json']?.schema;
   }
 
-  it('publishes all twelve custom-connector endpoints with their documented status codes', () => {
+  it('publishes all fourteen custom-connector endpoints with their documented status codes', () => {
     const expected = [
       { path: BASE, method: 'get', handler: 'list', statuses: ['200'] },
       { path: BASE, method: 'post', handler: 'create', statuses: ['201', '400', '413'] },
-      { path: `${BASE}/test`, method: 'post', handler: 'test', statuses: ['201', '400', '413'] },
+      {
+        path: `${BASE}/test`,
+        method: 'post',
+        handler: 'test',
+        statuses: ['201', '400', '403', '404', '413'],
+      },
+      {
+        path: `${BASE}/fitting-credentials`,
+        method: 'post',
+        handler: 'fittingCredentials',
+        statuses: ['201', '400', '404', '413'],
+      },
+      {
+        path: `${BASE}/credential-requirement`,
+        method: 'post',
+        handler: 'credentialRequirement',
+        statuses: ['201', '400', '404', '413'],
+      },
       { path: `${BASE}/{id}`, method: 'get', handler: 'get', statuses: ['200', '404'] },
       {
         path: `${BASE}/{id}`,
@@ -277,7 +294,13 @@ describe('ConnectorDefinitionController OpenAPI', () => {
     // `warnings` is required, not optional: the builder has to be able to tell "this publish
     // reported nothing" from "this client is too old to be told", and an always-present
     // (possibly empty) array is the only shape that distinguishes them.
-    expect(publishSchema.required).toEqual(['version', 'status', 'warnings']);
+    expect(publishSchema.required).toEqual([
+      'version',
+      'status',
+      'warnings',
+      'stoppingDataMarts',
+      'hiddenStoppingCount',
+    ]);
     expect(publishSchema.properties.publishedAt).toMatchObject({
       type: 'string',
       format: 'date-time',
@@ -297,7 +320,12 @@ describe('ConnectorDefinitionController OpenAPI', () => {
     const activateSchema = resolveRef(
       '#/components/schemas/ActivateCustomConnectorVersionResponseApiDto'
     );
-    expect(activateSchema.required).toEqual(['activeVersionId', 'activeVersion']);
+    expect(activateSchema.required).toEqual([
+      'activeVersionId',
+      'activeVersion',
+      'stoppingDataMarts',
+      'hiddenStoppingCount',
+    ]);
     expect(activateSchema.properties).toMatchObject({
       activeVersionId: { type: 'string', nullable: true },
       activeVersion: { type: 'integer' },
@@ -327,6 +355,31 @@ describe('ConnectorDefinitionController OpenAPI', () => {
     expect(testSchema.properties.logs).toMatchObject({ type: 'array', items: { type: 'string' } });
     expect(testSchema.properties.error).toMatchObject({ type: 'string', nullable: true });
     expect(testSchema.properties.sample).toMatchObject({ type: 'array' });
+
+    expect(
+      jsonSchemaOf(
+        document.paths[`${BASE}/fitting-credentials`]?.post as Record<string, any>,
+        '201'
+      )
+    ).toEqual({
+      type: 'array',
+      items: { $ref: '#/components/schemas/FittingCustomConnectorCredentialResponseApiDto' },
+    });
+    const fittingSchema = resolveRef(
+      '#/components/schemas/FittingCustomConnectorCredentialResponseApiDto'
+    );
+    expect(fittingSchema.required).toEqual(['id', 'title', 'hosts', 'fieldKeys', 'refusal']);
+
+    expect(
+      jsonSchemaOf(
+        document.paths[`${BASE}/credential-requirement`]?.post as Record<string, any>,
+        '201'
+      )
+    ).toEqual({ $ref: '#/components/schemas/CustomConnectorCredentialRequirementResponseApiDto' });
+    const requirementSchema = resolveRef(
+      '#/components/schemas/CustomConnectorCredentialRequirementResponseApiDto'
+    );
+    expect(requirementSchema.required).toEqual(['hosts', 'fieldList', 'keyParameters', 'misuse']);
   });
 
   it('publishes the specification and fields payloads through the shared connector schemas', () => {

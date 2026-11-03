@@ -194,6 +194,8 @@ Adding or removing a context on a resource immediately changes who can see it:
 - **Adding a context** to a resource grants visibility to every **Selected contexts only** member who is assigned to that context.
 - **Removing a context** revokes visibility for any such member who relied on that context for the overlap (provided no other context overlap remains and they are not an owner).
 
+To check the result for a specific Data Mart, open its **Overview** tab: [Who has access to this Data Mart](ownership-and-sharing.md#see-who-has-access-to-a-data-mart) shows who has access to it, who doesn't, and why.
+
 ---
 
 ## Related

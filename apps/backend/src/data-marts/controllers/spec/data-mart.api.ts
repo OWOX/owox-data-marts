@@ -18,6 +18,7 @@ import { UpdateDataMartIconApiDto } from '../../dto/presentation/update-data-mar
 import { UpdateDataMartTitleApiDto } from '../../dto/presentation/update-data-mart-title-api.dto';
 import { BlendableSchemaDto } from '../../dto/domain/blendable-schema.dto';
 import { UpdateBlendedFieldsConfigApiDto } from '../../dto/presentation/update-blended-fields-config-api.dto';
+import { DataMartMemberAccessResponseApiDto } from '../../dto/presentation/data-mart-member-access-response-api.dto';
 import { UpdateDataMartDefinitionApiDto } from '../../dto/presentation/update-data-mart-definition-api.dto';
 import {
   UpdateDataMartSchemaApiDto,
@@ -79,10 +80,22 @@ export function GetDataMartInputSourceChangeImpactSpec() {
     ApiOperation({
       summary: 'Count what depends on a DataMart before its input source is changed',
       description:
-        'Returns how many relationships reference this DataMart in each direction and how many reports are built on it, so the caller can show the blast radius of repointing it at another input source.',
+        'Returns how many relationships reference this DataMart in each direction, how many reports are built on it, and which SQL DataMarts reference it in their query, so the caller can show the blast radius of changing its input source or deleting it. Referencing DataMarts the caller cannot see are counted but not named.',
     }),
     ApiParam({ name: 'id', description: 'DataMart ID' }),
     ApiOkResponse({ type: DataMartInputSourceChangeImpactResponseApiDto })
+  );
+}
+
+export function GetDataMartMemberAccessSpec() {
+  return applyDecorators(
+    ApiOperation({
+      summary: 'List what each project member can do with a DataMart, and why',
+      description:
+        "Returns every project member with their place in this DataMart's Ownership and whether they may take each group of actions on it — See and Use; Edit, Delete and Manage Triggers; Configure Sharing and Manage Owners — with the rule that decides each: role, ownership, sharing, or the member's contexts. MCP additionally lists only published DataMarts.",
+    }),
+    ApiParam({ name: 'id', description: 'DataMart ID' }),
+    ApiOkResponse({ type: DataMartMemberAccessResponseApiDto })
   );
 }
 

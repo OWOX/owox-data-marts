@@ -22,6 +22,11 @@ import { toast } from 'react-hot-toast';
 import { DataStorageType } from '../../../../data-storage';
 import { DataMartStatus } from '../../enums';
 import { RunDataQualityBatchDialog } from '../RunDataQualityBatchDialog';
+import {
+  ReferencingDataMartsNotice,
+  trackReferencedDeleteConfirmed,
+  useReferencingDataMarts,
+} from '../ReferencingDataMartsNotice';
 
 export interface DataMartBulkActionTarget {
   id: string;
@@ -68,6 +73,15 @@ export function DataMartBulkActions({
     () => actionDataMarts.filter(dataMart => dataMart.status === DataMartStatus.DRAFT),
     [actionDataMarts]
   );
+  // Only a published Data Mart can be referenced from another one's SQL.
+  const publishedActionIds = useMemo(
+    () =>
+      actionDataMarts
+        .filter(dataMart => dataMart.status === DataMartStatus.PUBLISHED)
+        .map(dataMart => dataMart.id),
+    [actionDataMarts]
+  );
+  const referencingDataMarts = useReferencingDataMarts(publishedActionIds, showDeleteConfirmation);
   const draftCount = dataMarts.filter(dataMart => dataMart.status === DataMartStatus.DRAFT).length;
   const hasDraftDataMarts = draftCount > 0;
 
@@ -82,6 +96,7 @@ export function DataMartBulkActions({
   const handleBatchDelete = async () => {
     if (actionDataMarts.length === 0 || isDeleting) return;
 
+    trackReferencedDeleteConfirmed(null, referencingDataMarts.total);
     setIsDeleting(true);
     let successCount = 0;
 
@@ -250,13 +265,15 @@ export function DataMartBulkActions({
               </span>
             </AlertDialogDescription>
           </AlertDialogHeader>
+          <ReferencingDataMartsNotice {...referencingDataMarts} action='delete' />
           <AlertDialogFooter>
             <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
                 void handleBatchDelete();
               }}
-              disabled={isDeleting}
+              // Held until the user has seen which Data Marts reference the selection.
+              disabled={isDeleting || referencingDataMarts.isLoading}
               className='bg-destructive hover:bg-destructive/90'
             >
               {isDeleting ? 'Deleting...' : 'Delete'}

@@ -11,6 +11,8 @@ export class ListDataMartsCommand {
     public readonly status?: DataMartStatus,
     public readonly contextIds?: string[],
     /** Callers that do not return `relationshipsCount` (MCP) skip counting relationships. */
-    public readonly includeRelationshipsCount: boolean = true
+    public readonly includeRelationshipsCount: boolean = true,
+    /** Only Data Marts in this Storage. */
+    public readonly storageId?: string
   ) {}
 }

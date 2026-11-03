@@ -5,23 +5,21 @@
   "testRegex": ".integration.ts$",
   "transform": {
     "^.+\\.(t|j)s$": [
-      "ts-jest",
+      "@swc/jest",
       {
-        "diagnostics": false,
-        "tsconfig": {
-          "module": "commonjs",
-          "moduleResolution": "node",
-          "declaration": true,
-          "emitDecoratorMetadata": true,
-          "experimentalDecorators": true,
-          "allowSyntheticDefaultImports": true,
-          "target": "ES2023",
-          "sourceMap": true,
-          "skipLibCheck": true,
-          "strictNullChecks": true,
-          "esModuleInterop": true,
-          "allowJs": true,
-          "resolveJsonModule": true
+        "jsc": {
+          "parser": {
+            "syntax": "typescript",
+            "decorators": true
+          },
+          "transform": {
+            "legacyDecorator": true,
+            "decoratorMetadata": true
+          },
+          "target": "es2023"
+        },
+        "module": {
+          "type": "commonjs"
         }
       }
     ]

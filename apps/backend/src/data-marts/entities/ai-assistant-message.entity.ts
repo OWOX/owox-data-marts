@@ -6,6 +6,7 @@ import {
   JoinColumn,
   ManyToOne,
   PrimaryGeneratedColumn,
+  type Relation,
 } from 'typeorm';
 import type { AssistantProposedAction } from '../ai-insights/agent-flow/ai-assistant-types';
 import { AiAssistantMessageRole } from '../enums/ai-assistant-message-role.enum';
@@ -22,7 +23,7 @@ export class AiAssistantMessage {
 
   @ManyToOne(() => AiAssistantSession)
   @JoinColumn({ name: 'sessionId' })
-  session: AiAssistantSession;
+  session: Relation<AiAssistantSession>;
 
   @Column({ type: 'varchar' })
   role: AiAssistantMessageRole;

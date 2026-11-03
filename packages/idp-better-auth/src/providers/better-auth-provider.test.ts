@@ -139,6 +139,9 @@ function createStoreMock(): jest.Mocked<DatabaseStore> {
     getUserCount: jest.fn<DatabaseStore['getUserCount']>().mockResolvedValue(0),
     shutdown: jest.fn<DatabaseStore['shutdown']>().mockResolvedValue(undefined),
     getAdapter: jest.fn<DatabaseStore['getAdapter']>().mockResolvedValue({}),
+    ensureVerificationIdLength: jest
+      .fn<DatabaseStore['ensureVerificationIdLength']>()
+      .mockResolvedValue(undefined),
     getUsers: jest.fn<DatabaseStore['getUsers']>().mockResolvedValue([]),
     getUserById: jest.fn<DatabaseStore['getUserById']>().mockResolvedValue(null),
     getUserByEmail: jest.fn<DatabaseStore['getUserByEmail']>().mockResolvedValue(null),
@@ -450,6 +453,20 @@ describe('BetterAuthProvider', () => {
       await provider.initialize();
 
       expect(runMigrations).toHaveBeenCalled();
+    });
+
+    it('widens verification.id after Better Auth has created it', async () => {
+      const { getMigrations } = await import('better-auth/db/migration');
+      const runMigrations = jest.fn<() => Promise<void>>().mockResolvedValue(undefined);
+      (getMigrations as jest.Mock).mockResolvedValue({ runMigrations });
+
+      const provider = await createProvider(undefined);
+      await provider.initialize();
+
+      expect(store.ensureVerificationIdLength).toHaveBeenCalledTimes(1);
+      expect(runMigrations.mock.invocationCallOrder[0]).toBeLessThan(
+        store.ensureVerificationIdLength.mock.invocationCallOrder[0]
+      );
     });
 
     it('should call runMigrations before initializePrimaryAdmin', async () => {

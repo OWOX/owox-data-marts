@@ -123,4 +123,17 @@ describe('TemplateEngine', () => {
   it('renderOptional still throws on a disallowed scope', () => {
     assert.throws(() => engine.renderOptional('{{ evil.path }}', {}), /not allowed/);
   });
+
+  it('does not index into a string or number, but still resolves arrays and objects', () => {
+    const scope = {
+      parameters: { Key: 'abc', N: 12, Obj: { field: 'x' } },
+      record: { tags: ['a', 'b'] },
+    };
+    assert.throws(() => engine.render('{{ parameters.Key.0 }}', scope), /unresolved/);
+    assert.throws(() => engine.render('{{ parameters.Key.length }}', scope), /unresolved/);
+    assert.throws(() => engine.render('{{ parameters.N.toFixed }}', scope), /unresolved/);
+    assert.strictEqual(engine.render('{{ parameters.Key.0 }}', scope, { lenient: true }), '');
+    assert.strictEqual(engine.render('{{ record.tags.1 }}', scope), 'b');
+    assert.strictEqual(engine.render('{{ parameters.Obj.field }}', scope), 'x');
+  });
 });

@@ -7,6 +7,7 @@ import {
   OneToOne,
   PrimaryColumn,
   UpdateDateColumn,
+  type Relation,
 } from 'typeorm';
 import {
   AgentFlowConversationSnapshot,
@@ -22,7 +23,7 @@ export class AiAssistantContext {
 
   @OneToOne(() => AiAssistantSession, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'sessionId' })
-  session: AiAssistantSession;
+  session: Relation<AiAssistantSession>;
 
   @Column({ type: 'json', nullable: true, default: null })
   conversationSnapshot?: AgentFlowConversationSnapshot | null;

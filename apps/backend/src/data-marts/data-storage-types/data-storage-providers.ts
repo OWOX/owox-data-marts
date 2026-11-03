@@ -94,6 +94,8 @@ import { IdentifierEscaper } from './interfaces/identifier-escaper.interface';
 import { DataStorageAccessValidator } from './interfaces/data-storage-access-validator.interface';
 import { DataStorageErrorMapper } from './interfaces/data-storage-error-mapper.interface';
 import { DataStorageReportReader } from './interfaces/data-storage-report-reader.interface';
+import { DataMartDefinitionResolver } from './interfaces/data-mart-definition-resolver.interface';
+import { DefinitionResolvingReportReaderResolver } from './definition-resolving-report-reader';
 import { ReportHeadersGenerator } from './interfaces/report-headers-generator.interface';
 import { SourceDataLastUpdatedResolver } from './interfaces/source-data-last-updated-resolver.interface';
 import { SqlDryRunExecutor } from './interfaces/sql-dry-run-executor.interface';
@@ -132,6 +134,8 @@ import { SnowflakeSqlRunExecutor } from './snowflake/services/snowflake-sql-run.
 import { SnowflakeStorageErrorMapper } from './snowflake/services/snowflake-storage-error.mapper';
 
 export const STORAGE_RESOURCE_BROWSER_RESOLVER = Symbol('STORAGE_RESOURCE_BROWSER_RESOLVER');
+/** Bound in the module to the service that resolves Data Mart references in SQL definitions. */
+export const DATA_MART_DEFINITION_RESOLVER = Symbol('DATA_MART_DEFINITION_RESOLVER');
 export const BLENDED_QUERY_BUILDER_RESOLVER = Symbol('BLENDED_QUERY_BUILDER_RESOLVER');
 export const DATA_STORAGE_ACCESS_VALIDATOR_RESOLVER = Symbol(
   'DATA_STORAGE_ACCESS_VALIDATOR_RESOLVER'
@@ -344,9 +348,12 @@ export const dataStorageResolverProviders = [
   },
   {
     provide: DATA_STORAGE_REPORT_READER_RESOLVER,
-    useFactory: (moduleRef: ModuleRef, ...storageDataProviders: DataStorageReportReader[]) =>
-      new TypeResolver<DataStorageType, DataStorageReportReader>(storageDataProviders, moduleRef),
-    inject: [ModuleRef, ...storageDataProviders],
+    useFactory: (
+      moduleRef: ModuleRef,
+      definitions: DataMartDefinitionResolver,
+      ...storageDataProviders: DataStorageReportReader[]
+    ) => new DefinitionResolvingReportReaderResolver(storageDataProviders, moduleRef, definitions),
+    inject: [ModuleRef, DATA_MART_DEFINITION_RESOLVER, ...storageDataProviders],
   },
   {
     provide: DATA_STORAGE_ERROR_MAPPER_RESOLVER,

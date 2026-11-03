@@ -40,7 +40,7 @@ export class ValidationResult {
    */
   static invalidCredentials(error: ZodError): ValidationResult {
     return new ValidationResult(false, describeInvalidInput('credentials', error), {
-      errors: sanitizeIssues(error.errors),
+      errors: sanitizeIssues(error.issues),
       fieldErrors: toFieldErrors('credentials', error),
     });
   }

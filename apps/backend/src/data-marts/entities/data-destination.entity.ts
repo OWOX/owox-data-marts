@@ -27,7 +27,7 @@ export class DataDestination implements CreatorAwareEntity {
   @Column()
   title: string;
 
-  @Column()
+  @Column({ type: 'varchar' })
   type: DataDestinationType;
 
   @Column()

@@ -8,8 +8,9 @@ import type {
   CredentialDefinitionApiDto,
   CredentialResponseApiDto,
   ResolvedCredentialDefinition,
+  UnavailableCredentialResponseApiDto,
 } from '../dto/credential-api.dto';
-import type { CredentialDto } from '../dto/credential.dto';
+import type { CredentialDto, UnavailableCredentialDto } from '../dto/credential.dto';
 import type { CredentialConsumerBinding } from '../entities/credential-consumer-binding.entity';
 import type { Credential } from '../entities/credential.entity';
 import type { CredentialConsumerTitles } from '../services/credential-consumer-titles.service';
@@ -39,6 +40,7 @@ export function mapCredentialDefinitionToApiDto(
     description: definition.contract.description,
     documentationUrl: definition.contract.documentationUrl ?? null,
     category: definition.contract.category,
+    connectors: [...(definition.contract.connectors ?? [])],
     icon: definition.contract.icon ?? null,
     storageTypes: storageTypesForDefinition(definition.definitionId),
     destinationTypes: destinationTypesForDefinition(definition.definitionId),
@@ -110,5 +112,11 @@ export class CredentialMapper {
 
   toApiResponse(dto: CredentialDto): CredentialResponseApiDto {
     return { ...dto, secretConfigured: true };
+  }
+
+  toListItem(
+    dto: CredentialDto | UnavailableCredentialDto
+  ): CredentialResponseApiDto | UnavailableCredentialResponseApiDto {
+    return 'state' in dto ? dto : this.toApiResponse(dto);
   }
 }

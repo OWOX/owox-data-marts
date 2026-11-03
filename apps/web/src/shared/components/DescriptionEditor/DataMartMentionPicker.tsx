@@ -27,18 +27,50 @@ interface Mention {
   source: string;
 }
 
+export interface DataMartMentionPickerProps {
+  editor: Monaco.editor.IStandaloneCodeEditor | null;
+  projectId: string;
+  currentDataMartId?: string;
+  disabled: boolean;
+  /**
+   * Finds the mention being typed right before the caret, given the text up to it. Defaults to
+   * an `@` in Markdown text.
+   */
+  findMention?: (prefix: string) => { query: string; start: number } | null;
+  /**
+   * Loads the Data Marts to offer. Defaults to the project's published Data Marts. Keep it stable
+   * (`useCallback`): a new function reloads the list.
+   */
+  loadDataMarts?: () => Promise<DataMartReference[]>;
+  /** The text inserted for a picked Data Mart (and field). Defaults to a Markdown link. */
+  formatReference?: (reference: DataMartReference, field?: DataMartFieldReference) => string;
+  /** Offer the picked Data Mart's fields as a second step. Defaults to true. */
+  pickFields?: boolean;
+  /** Shown under the search box, e.g. what limits the list. */
+  note?: string;
+  /** Called after a reference is inserted. */
+  onInsert?: (reference: DataMartReference, field?: DataMartFieldReference) => void;
+}
+
 export function DataMartMentionPicker({
   editor,
   projectId,
   currentDataMartId,
   disabled,
-}: {
-  editor: Monaco.editor.IStandaloneCodeEditor | null;
-  projectId: string;
-  currentDataMartId?: string;
-  disabled: boolean;
-}) {
-  const loadMarts = useDataMartReferences(projectId, currentDataMartId);
+  findMention,
+  loadDataMarts,
+  formatReference,
+  pickFields = true,
+  note,
+  onInsert,
+}: DataMartMentionPickerProps) {
+  const loadPublishedMarts = useDataMartReferences(projectId, currentDataMartId);
+  const loadMarts = loadDataMarts ?? loadPublishedMarts;
+  // Read through a ref so a caller passing an inline function does not re-subscribe the editor.
+  const findMentionRef = useRef(findMention ?? mentionAtCursor);
+  useLayoutEffect(() => {
+    findMentionRef.current = findMention ?? mentionAtCursor;
+  }, [findMention]);
   const loadFields = useDataMartFieldReferences(projectId);
   const [container, setContainer] = useState<HTMLDivElement | null>(null);
   const [mention, setMention] = useState<Mention | null>(null);
@@ -103,7 +135,7 @@ export function DataMartMentionPicker({
         endLineNumber: position.lineNumber,
         endColumn: position.column,
       });
-      const match = mentionAtCursor(prefix);
+      const match = findMentionRef.current(prefix);
       const dismissed = dismissedMention.current;
       if (
         dismissed &&
@@ -258,7 +290,9 @@ export function DataMartMentionPicker({
       return;
     }
     const offset = model.getOffsetAt(mention.position);
-    const text = dataMartMarkdownLink(reference, projectId, window.location.origin, field);
+    const text = formatReference
+      ? formatReference(reference, field)
+      : dataMartMarkdownLink(reference, projectId, window.location.origin, field);
     dismiss();
     editor.pushUndoStop();
     editor.executeEdits('description-mention', [
@@ -267,6 +301,7 @@ export function DataMartMentionPicker({
     editor.pushUndoStop();
     editor.setPosition(model.getPositionAt(offset + text.length));
     editor.focus();
+    onInsert?.(reference, field);
   };
   const back = () => {
     setMart(null);
@@ -341,6 +376,7 @@ export function DataMartMentionPicker({
         aria-label={mart ? 'Search fields' : 'Search Data Marts'}
         placeholder={mart ? 'Search fields by alias or name…' : 'Search Data Marts…'}
       />
+      {note && !mart && <p className='text-muted-foreground border-b px-3 py-2 text-xs'>{note}</p>}
       {loading && (
         <div role='status' className='text-muted-foreground flex items-center gap-2 p-3 text-sm'>
           <Loader2 className='size-4 animate-spin' />
@@ -411,6 +447,10 @@ export function DataMartMentionPicker({
                 value={reference.id}
                 keywords={[reference.title]}
                 onSelect={() => {
+                  if (!pickFields) {
+                    insert(reference);
+                    return;
+                  }
                   setMart(reference);
                   setSearch('');
                   inputRef.current?.focus();
@@ -418,7 +458,7 @@ export function DataMartMentionPicker({
               >
                 <DataMartIconGlyph icon={reference.icon} className='size-4' />
                 <span className='min-w-0 flex-1 truncate'>{reference.title}</span>
-                <ChevronRight className='size-4' />
+                {pickFields && <ChevronRight className='size-4' />}
               </CommandItem>
             ))}
           </CommandGroup>

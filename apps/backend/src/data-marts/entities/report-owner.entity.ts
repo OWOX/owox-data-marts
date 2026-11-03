@@ -1,4 +1,4 @@
-import { Entity, PrimaryColumn, ManyToOne, JoinColumn } from 'typeorm';
+import { Entity, PrimaryColumn, ManyToOne, JoinColumn, type Relation } from 'typeorm';
 import { Report } from './report.entity';
 
 @Entity('report_owners')
@@ -11,5 +11,5 @@ export class ReportOwner {
 
   @ManyToOne(() => Report, report => report.owners, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'report_id' })
-  report: Report;
+  report: Relation<Report>;
 }

@@ -255,6 +255,11 @@ export interface BaseSchemaField {
   aggregationRole?: 'dimension' | 'metric';
   allowedAggregations?: import('./relationship.types').ReportAggregateFunction[];
   calculated?: CalculatedFieldConfig;
+  /**
+   * Set by the server when the field passes through from a Data Mart referenced in this SQL Data
+   * Mart's query: its alias and description come from there and cannot be edited here.
+   */
+  inheritedFrom?: { dataMartId: string; dataMartTitle: string };
 }
 
 /**

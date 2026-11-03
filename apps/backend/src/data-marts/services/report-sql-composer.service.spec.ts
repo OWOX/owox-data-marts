@@ -15,6 +15,7 @@ import { OutputControlsValidatorService } from './output-controls-validator.serv
 import { OutputControlsCapabilityService } from './output-controls-capability.service';
 import { BigQueryBlendedQueryBuilder } from '../data-storage-types/bigquery/services/bigquery-blended-query-builder';
 import { createFormulaFunctionDialectRegistry } from '../calculated-fields/formula-function-dialect';
+import { passThroughSqlReferenceResolver } from '../sql-references/__fixtures__/pass-through-sql-reference-resolver';
 
 describe('ReportSqlComposerService', () => {
   const buildReport = (overrides: Partial<Report> = {}): Report =>
@@ -57,7 +58,8 @@ describe('ReportSqlComposerService', () => {
       tableReferenceService as never,
       capabilityService as never,
       blendableSchemaService as never,
-      outputControlsValidator as never
+      outputControlsValidator as never,
+      passThroughSqlReferenceResolver as never
     );
 
     return {
@@ -307,7 +309,8 @@ describe('ReportSqlComposerService', () => {
       blendableSchemaService as never,
       // The composer validates the REPORT's own config before deriving a Totals restriction from
       // its HAVING rules (that precondition used to hold by call order alone).
-      { validateForReport: jest.fn().mockResolvedValue(undefined) } as never
+      { validateForReport: jest.fn().mockResolvedValue(undefined) } as never,
+      passThroughSqlReferenceResolver as never
     );
     const filterConfig = [{ column: 'a', operator: 'eq', value: 1 }];
     const sortConfig = [{ column: 'a', direction: 'asc' }];
@@ -365,7 +368,8 @@ describe('ReportSqlComposerService', () => {
       blendableSchemaService as never,
       // The composer validates the REPORT's own config before deriving a Totals restriction from
       // its HAVING rules (that precondition used to hold by call order alone).
-      { validateForReport: jest.fn().mockResolvedValue(undefined) } as never
+      { validateForReport: jest.fn().mockResolvedValue(undefined) } as never,
+      passThroughSqlReferenceResolver as never
     );
     const filterConfig = [
       {
@@ -420,7 +424,8 @@ describe('ReportSqlComposerService', () => {
       blendableSchemaService as never,
       // The composer validates the REPORT's own config before deriving a Totals restriction from
       // its HAVING rules (that precondition used to hold by call order alone).
-      { validateForReport: jest.fn().mockResolvedValue(undefined) } as never
+      { validateForReport: jest.fn().mockResolvedValue(undefined) } as never,
+      passThroughSqlReferenceResolver as never
     );
     const report = {
       dataMart: {
@@ -455,7 +460,8 @@ describe('ReportSqlComposerService', () => {
       { computeBlendableSchema: jest.fn() } as never,
       // The composer validates the REPORT's own config before deriving a Totals restriction from
       // its HAVING rules (that precondition used to hold by call order alone).
-      { validateForReport: jest.fn().mockResolvedValue(undefined) } as never
+      { validateForReport: jest.fn().mockResolvedValue(undefined) } as never,
+      passThroughSqlReferenceResolver as never
     );
     const result = await composer.compose(
       {
@@ -500,7 +506,8 @@ describe('ReportSqlComposerService', () => {
       {} as never,
       { isSupported: jest.fn() } as never,
       { computeBlendableSchema: jest.fn() } as never,
-      { validateForReport: jest.fn().mockResolvedValue(undefined) } as never
+      { validateForReport: jest.fn().mockResolvedValue(undefined) } as never,
+      passThroughSqlReferenceResolver as never
     );
 
     const result = await composer.compose(
@@ -725,7 +732,8 @@ describe('ReportSqlComposerService', () => {
         blendableSchemaService as never,
         // The composer validates the REPORT's own config before deriving a Totals restriction from
         // its HAVING rules (that precondition used to hold by call order alone).
-        { validateForReport: jest.fn().mockResolvedValue(undefined) } as never
+        { validateForReport: jest.fn().mockResolvedValue(undefined) } as never,
+        passThroughSqlReferenceResolver as never
       );
     }
 
@@ -843,7 +851,8 @@ describe('ReportSqlComposerService', () => {
         blendableSchemaService as never,
         // The composer validates the REPORT's own config before deriving a Totals restriction from
         // its HAVING rules (that precondition used to hold by call order alone).
-        { validateForReport: jest.fn().mockResolvedValue(undefined) } as never
+        { validateForReport: jest.fn().mockResolvedValue(undefined) } as never,
+        passThroughSqlReferenceResolver as never
       );
     }
 
@@ -949,7 +958,8 @@ describe('ReportSqlComposerService', () => {
         blendableSchemaService as never,
         // The composer validates the REPORT's own config before deriving a Totals restriction from
         // its HAVING rules (that precondition used to hold by call order alone).
-        { validateForReport: jest.fn().mockResolvedValue(undefined) } as never
+        { validateForReport: jest.fn().mockResolvedValue(undefined) } as never,
+        passThroughSqlReferenceResolver as never
       );
 
       await expect(
@@ -997,7 +1007,8 @@ describe('ReportSqlComposerService', () => {
         blendableSchemaService as never,
         // The composer validates the REPORT's own config before deriving a Totals restriction from
         // its HAVING rules (that precondition used to hold by call order alone).
-        { validateForReport: jest.fn().mockResolvedValue(undefined) } as never
+        { validateForReport: jest.fn().mockResolvedValue(undefined) } as never,
+        passThroughSqlReferenceResolver as never
       );
     }
 
@@ -1092,7 +1103,8 @@ describe('ReportSqlComposerService', () => {
       {} as never,
       // The composer validates the REPORT's own config before deriving a Totals restriction from
       // its HAVING rules (that precondition used to hold by call order alone).
-      { validateForReport: jest.fn().mockResolvedValue(undefined) } as never
+      { validateForReport: jest.fn().mockResolvedValue(undefined) } as never,
+      passThroughSqlReferenceResolver as never
     );
 
     it('returns SQL unchanged when there are no params', () => {
@@ -1161,7 +1173,8 @@ describe('ReportSqlComposerService', () => {
         blendableSchemaService as never,
         // The composer validates the REPORT's own config before deriving a Totals restriction from
         // its HAVING rules (that precondition used to hold by call order alone).
-        { validateForReport: jest.fn().mockResolvedValue(undefined) } as never
+        { validateForReport: jest.fn().mockResolvedValue(undefined) } as never,
+        passThroughSqlReferenceResolver as never
       );
       const report = {
         filterConfig: [{ column: 'name', operator: 'eq', value: "O'Brien" }],
@@ -1200,7 +1213,8 @@ describe('ReportSqlComposerService', () => {
         { computeBlendableSchema: jest.fn() } as never,
         // The composer validates the REPORT's own config before deriving a Totals restriction from
         // its HAVING rules (that precondition used to hold by call order alone).
-        { validateForReport: jest.fn().mockResolvedValue(undefined) } as never
+        { validateForReport: jest.fn().mockResolvedValue(undefined) } as never,
+        passThroughSqlReferenceResolver as never
       );
       const report = {
         filterConfig: [{ column: 'd', operator: 'gte', value: '2024-01-01' }],
@@ -1232,7 +1246,8 @@ describe('ReportSqlComposerService', () => {
         { computeBlendableSchema: jest.fn() } as never,
         // The composer validates the REPORT's own config before deriving a Totals restriction from
         // its HAVING rules (that precondition used to hold by call order alone).
-        { validateForReport: jest.fn().mockResolvedValue(undefined) } as never
+        { validateForReport: jest.fn().mockResolvedValue(undefined) } as never,
+        passThroughSqlReferenceResolver as never
       );
       const report = {
         dataMart: {
@@ -1318,7 +1333,8 @@ describe('ReportSqlComposerService', () => {
         tableReferenceService as never,
         capabilityService as never,
         blendableSchemaService as never,
-        { validateForReport: jest.fn().mockResolvedValue(undefined) } as never
+        { validateForReport: jest.fn().mockResolvedValue(undefined) } as never,
+        passThroughSqlReferenceResolver as never
       );
     }
 
@@ -1652,7 +1668,8 @@ describe('ReportSqlComposerService', () => {
         tableReferenceService as never,
         capabilityService as never,
         blendableSchemaService as never,
-        { validateForReport: jest.fn() } as never
+        { validateForReport: jest.fn() } as never,
+        passThroughSqlReferenceResolver as never
       );
       return { composer, blendedDataService, blendableSchemaService };
     }
@@ -1944,7 +1961,8 @@ describe('ReportSqlComposerService', () => {
           new OutputControlsValidatorService(
             new OutputControlsCapabilityService(),
             blendableSchemaService as never
-          ) as never
+          ) as never,
+          passThroughSqlReferenceResolver as never
         );
         return { composer, tableReferenceService };
       }
@@ -2045,4 +2063,77 @@ describe('ReportSqlComposerService', () => {
 
   // A joined COUNT_DISTINCT reads the raw pre-join rows while COUNT counts the rows surviving the
   // join, so the pair can invert COUNT DISTINCT <= COUNT.
+});
+
+describe('ReportSqlComposerService — Data Mart references in SQL', () => {
+  const accessor = { userId: 'user-1', roles: ['editor'] };
+  const resolvedDefinition = { sqlQuery: 'SELECT * FROM (\n-- Data Mart: Orders\nSELECT 1\n) o' };
+
+  const build = () => {
+    const sqlReferenceResolver = {
+      resolveDefinition: jest.fn().mockResolvedValue(resolvedDefinition),
+    };
+    const queryBuilderFacade = { buildQuery: jest.fn().mockResolvedValue('SELECT built') };
+    const tableReferenceService = { resolveTableName: jest.fn().mockResolvedValue('(inline)') };
+    const service = new ReportSqlComposerService(
+      {
+        resolveBlendingDecision: jest
+          .fn()
+          .mockResolvedValue({ needsBlending: false, columnFilter: ['a'] }),
+      } as never,
+      queryBuilderFacade as never,
+      tableReferenceService as never,
+      { isSupported: jest.fn().mockReturnValue(true) } as never,
+      { computeBlendableSchema: jest.fn() } as never,
+      { validateForReport: jest.fn().mockResolvedValue(undefined) } as never,
+      sqlReferenceResolver as never
+    );
+    return { service, sqlReferenceResolver, queryBuilderFacade, tableReferenceService };
+  };
+
+  const reportWith = (overrides: Partial<Report> = {}): Report =>
+    ({
+      id: 'rep-1',
+      title: 'Report',
+      columnConfig: ['a'],
+      dataMart: {
+        id: 'dm-1',
+        projectId: 'p-1',
+        definition: { sqlQuery: 'SELECT * FROM [Orders](dm:…) o' },
+        storage: { id: 'storage-1', type: 'GOOGLE_BIGQUERY' },
+      },
+      ...overrides,
+    }) as unknown as Report;
+
+  it('builds a plain report from the definition with its references resolved', async () => {
+    const { service, sqlReferenceResolver, queryBuilderFacade, tableReferenceService } = build();
+    const report = reportWith();
+
+    await service.compose(report, accessor);
+
+    expect(sqlReferenceResolver.resolveDefinition).toHaveBeenCalledWith(report.dataMart);
+    expect(queryBuilderFacade.buildQuery).toHaveBeenCalledWith(
+      'GOOGLE_BIGQUERY',
+      resolvedDefinition,
+      expect.anything()
+    );
+    expect(tableReferenceService.resolveTableName).not.toHaveBeenCalled();
+  });
+
+  it('reads the Data Mart inline when the report has output controls', async () => {
+    const { service, sqlReferenceResolver, queryBuilderFacade, tableReferenceService } = build();
+    const report = reportWith({ limitConfig: 10 } as Partial<Report>);
+
+    await service.compose(report, accessor);
+
+    expect(tableReferenceService.resolveTableName).toHaveBeenCalledWith('dm-1', 'p-1', undefined, {
+      inlineSqlReferences: true,
+    });
+    expect(queryBuilderFacade.buildQuery).toHaveBeenCalledWith(
+      'GOOGLE_BIGQUERY',
+      report.dataMart.definition,
+      expect.objectContaining({ mainTableReference: '(inline)' })
+    );
+    expect(sqlReferenceResolver.resolveDefinition).not.toHaveBeenCalled();
+  });
 });

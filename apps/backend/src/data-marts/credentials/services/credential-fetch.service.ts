@@ -201,6 +201,9 @@ export class CredentialFetchService {
     if (auth.type === 'header') {
       return { header: [auth.headerName, `${auth.prefix ?? ''}${secretValue(binding.secret)}`] };
     }
+    if (auth.type === 'custom-connector') {
+      throw new BadRequestException('A custom connector Credential does not allow HTTP requests');
+    }
     if (binding.requirement.scopes.length === 0) {
       throw new BadRequestException({
         code: 'CREDENTIAL_SCOPE_INVALID',

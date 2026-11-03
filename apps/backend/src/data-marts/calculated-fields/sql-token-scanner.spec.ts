@@ -1,4 +1,4 @@
-import { scanSql } from './sql-token-scanner';
+import { scanSql, type SqlScanOptions } from './sql-token-scanner';
 
 describe('scanSql', () => {
   it('does not read a tag inside a string literal as code', () => {
@@ -94,8 +94,8 @@ describe('scanSql', () => {
     }
   });
 
-  // A quoting spelling this scanner does not know — Snowflake `$$…$$`, BigQuery `'''…'''` — leaves
-  // an odd quote behind, and the run that opens on it never closes.
+  // Without the dialect options, a quoting spelling — Snowflake `$$…$$`, BigQuery `'''…'''` —
+  // leaves an odd quote behind, and the run that opens on it never closes.
   it('flags the dialect quoting spellings that leave an odd quote behind', () => {
     expect(scanSql(`'''don't''' , other_col`).some(t => t.unterminated)).toBe(true);
     expect(scanSql(`LENGTH($$it's$$) , other_col`).some(t => t.unterminated)).toBe(true);
@@ -152,5 +152,62 @@ describe('scanSql — numeric literal boundaries', () => {
       ['punct', '.'],
       ['number', '2'],
     ]);
+  });
+});
+
+describe('scanSql — dialect options', () => {
+  const kinds = (sql: string, options: SqlScanOptions) =>
+    scanSql(sql, options).map(t => [t.kind, t.value]);
+
+  it.each([
+    ['#', { hashLineComments: true }],
+    ['//', { slashLineComments: true }],
+  ])('reads %s as a line comment when asked to', (marker, options) => {
+    expect(kinds(`a ${marker} it's\nb`, options)).toEqual([
+      ['word', 'a'],
+      ['comment', `${marker} it's`],
+      ['word', 'b'],
+    ]);
+  });
+
+  it.each([
+    [`'''don't'''`, { tripleQuotedStrings: true }],
+    [String.raw`"""say "hi\""""`, { tripleQuotedStrings: true }],
+    [`$$it's$$`, { dollarQuotedStrings: true }],
+  ])('reads %s as one string literal when asked to', (literal, options) => {
+    expect(kinds(`${literal} , x`, options)).toEqual([
+      ['string', literal],
+      ['punct', ','],
+      ['word', 'x'],
+    ]);
+  });
+
+  it('ends a literal at the quote after a backslash when backslashes are literal', () => {
+    expect(kinds(String.raw`'C:\' , x`, { backslashIsLiteral: true })).toEqual([
+      ['string', String.raw`'C:\'`],
+      ['punct', ','],
+      ['word', 'x'],
+    ]);
+  });
+
+  // BigQuery ends a raw literal the way it ends any other: the character after a backslash always
+  // goes with it, so `r'''C:\'''` does not close at `\'''`, and BigQuery rejects it as unclosed.
+  it('keeps the backslash escape inside a BigQuery raw triple-quoted string', () => {
+    const tokens = scanSql(String.raw`r'''C:\''' , x`, { tripleQuotedStrings: true });
+
+    expect(tokens.map(t => t.kind)).toEqual(['word', 'string']);
+    expect(tokens[1].unterminated).toBe(true);
+  });
+
+  it('reads formulas as before when no option is given', () => {
+    expect(scanSql('a # b // c').map(t => t.kind)).toEqual([
+      'word',
+      'punct',
+      'word',
+      'punct',
+      'punct',
+      'word',
+    ]);
+    expect(scanSql(String.raw`'C:\' , x`)).toHaveLength(1);
   });
 });

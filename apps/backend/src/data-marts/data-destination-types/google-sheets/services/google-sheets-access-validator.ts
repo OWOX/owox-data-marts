@@ -37,7 +37,7 @@ export class GoogleSheetsAccessValidator implements DataDestinationAccessValidat
     if (!configOpt.success) {
       this.logger.warn('Invalid configuration format', configOpt.error);
       return new ValidationResult(false, 'Invalid configuration', {
-        errors: configOpt.error.errors,
+        errors: configOpt.error.issues,
       });
     }
 

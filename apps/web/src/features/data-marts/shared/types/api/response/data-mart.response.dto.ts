@@ -9,6 +9,7 @@ import type { BlendedFieldsConfig } from '../../relationship.types';
 import type { DataLastUpdatedDto } from './data-mart-data-last-updated.dto';
 import type { DataMartIconValue } from '../../../enums/data-mart-icon.enum';
 import type { ContextSummary } from '../../../../../contexts/types/context.types';
+import type { CredentialSummary } from '../../../../../credentials';
 
 /**
  * Data mart response data transfer object
@@ -37,4 +38,11 @@ export interface DataMartResponseDto {
   blendedFieldsConfig?: BlendedFieldsConfig | null;
   contexts?: ContextSummary[];
   dataLastUpdated?: DataLastUpdatedDto | null;
+  /** The Credential of each connector configuration bound to one, by configuration `_id`. */
+  sourceCredentials?: DataMartSourceCredentialDto[];
+}
+
+export interface DataMartSourceCredentialDto {
+  configId: string;
+  summary: CredentialSummary;
 }

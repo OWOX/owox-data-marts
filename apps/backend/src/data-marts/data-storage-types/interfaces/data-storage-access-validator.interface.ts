@@ -45,7 +45,7 @@ export class ValidationResult {
    */
   static invalidInput(scope: FieldErrorScope, error: ZodError): ValidationResult {
     return new ValidationResult(false, describeInvalidInput(scope, error), {
-      errors: sanitizeIssues(error.errors),
+      errors: sanitizeIssues(error.issues),
       fieldErrors: toFieldErrors(scope, error),
     });
   }

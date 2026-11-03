@@ -6,6 +6,7 @@ import { DataMart } from '../entities/data-mart.entity';
 import { DataMartService } from './data-mart.service';
 import { DataMartSqlTableService } from './data-mart-sql-table.service';
 import { DataMartTableReferenceService } from './data-mart-table-reference.service';
+import { DataMartSqlReferenceResolver } from './data-mart-sql-reference-resolver.service';
 
 export interface SampleTableDataResult {
   columns: string[];
@@ -56,7 +57,8 @@ export class DataMartSampleDataService {
     private readonly dataMartService: DataMartService,
     private readonly dataMartSqlTableService: DataMartSqlTableService,
     private readonly dataMartTableReferenceService: DataMartTableReferenceService,
-    private readonly identifierEscaperFacade: IdentifierEscaperFacade
+    private readonly identifierEscaperFacade: IdentifierEscaperFacade,
+    private readonly sqlReferenceResolver: DataMartSqlReferenceResolver
   ) {}
 
   async sampleColumns(
@@ -100,7 +102,7 @@ export class DataMartSampleDataService {
     const storageType = dataMart.storage.type;
 
     if (!fullyQualifiedTableName) {
-      const definition = dataMart.definition;
+      const definition = await this.sqlReferenceResolver.resolveDefinition(dataMart);
       if (definition && isSqlDefinition(definition)) {
         const inlineSql = toInlineSubquerySql(definition.sqlQuery, storageType);
         if (inlineSql) {

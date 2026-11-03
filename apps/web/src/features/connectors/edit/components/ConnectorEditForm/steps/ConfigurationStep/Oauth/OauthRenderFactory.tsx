@@ -15,6 +15,7 @@ import type {
   OAuthStatusResponseDto,
   OAuthSettingsResponseDto,
 } from '../../../../../../shared/api/types/response/oauth.response.dto';
+import type { OAuthExchangeCredentialTarget } from '../../../../../../shared/api/types/request';
 import { Button } from '@owox/ui/components/button';
 import { NestedConfigurationField } from '../NestedConfigurationField';
 import { SECRET_MASK } from '../../../../../../../../shared/constants/secrets';
@@ -29,6 +30,9 @@ interface OauthRenderFactoryProps {
   connectorName: string;
   isEditingExisting?: boolean;
   onManagedModeChange?: (isManaged: boolean) => void;
+  /** Makes the exchange create, or with an id reconnect, this reusable Credential. */
+  credential?: OAuthExchangeCredentialTarget;
+  onExchanged?: (exchanged: OAuthCallbackResponseDto) => void;
 }
 
 export interface OauthRenderComponentProps {
@@ -41,8 +45,12 @@ export interface OauthRenderComponentProps {
   status: OAuthStatusResponseDto | null;
   settings: OAuthSettingsResponseDto | null;
   onOAuthSuccess: (
-    credentials: Record<string, unknown>
+    credentials: Record<string, unknown>,
+    /** A step a Credential's connect finishes first, such as picking files. */
+    beforeFinish?: (exchanged: OAuthCallbackResponseDto) => Promise<void>
   ) => Promise<OAuthCallbackResponseDto | null>;
+  /** Rendered for a Credential, not for a Data Mart configuration. */
+  forCredential?: boolean;
 }
 
 export function OauthRenderFactory({
@@ -53,6 +61,8 @@ export function OauthRenderFactory({
   connectorName,
   isEditingExisting = false,
   onManagedModeChange,
+  credential,
+  onExchanged,
 }: OauthRenderFactoryProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [fieldSecretEditing, setFieldSecretEditing] = useState<Record<string, boolean>>({});
@@ -164,11 +174,19 @@ export function OauthRenderFactory({
 
   const { checkStatus, getSettings, exchangeCredentials } = useOAuth();
 
-  const handleOAuthSuccess = async (credentials: Record<string, unknown>) => {
+  const handleOAuthSuccess = async (
+    credentials: Record<string, unknown>,
+    beforeFinish?: (exchanged: OAuthCallbackResponseDto) => Promise<void>
+  ) => {
     try {
       setIsLoading(true);
       setError(null);
-      const exchanged = await exchangeCredentials(connectorName, credentials, fieldPath);
+      const exchanged = await exchangeCredentials(
+        connectorName,
+        credentials,
+        fieldPath,
+        credential
+      );
       const currentConfig = configuration[specification.name] as
         | Record<string, unknown>
         | undefined;
@@ -185,6 +203,8 @@ export function OauthRenderFactory({
           [SOURCE_CREDENTIAL_KEY]: exchanged.credentialId,
         });
       }
+      await beforeFinish?.(exchanged);
+      onExchanged?.(exchanged);
       return exchanged;
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to exchange OAuth credentials';
@@ -364,6 +384,7 @@ export function OauthRenderFactory({
             status={status}
             settings={settings}
             onOAuthSuccess={handleOAuthSuccess}
+            forCredential={credential !== undefined}
           />
         );
       case 'LinkedInAds':

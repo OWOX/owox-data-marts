@@ -1,5 +1,5 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { IsNotEmpty, IsObject, IsString, MaxLength } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsNotEmpty, IsObject, IsOptional, IsString, MaxLength } from 'class-validator';
 
 export class ConnectorFieldOptionsPreviewRequestApiDto {
   @ApiProperty({
@@ -19,4 +19,12 @@ export class ConnectorFieldOptionsPreviewRequestApiDto {
   })
   @IsObject()
   configuration: Record<string, unknown>;
+
+  @ApiPropertyOptional({
+    description:
+      'Data Mart whose saved configuration is previewed; lets its editors preview with the Credential bound to that configuration.',
+  })
+  @IsOptional()
+  @IsString()
+  dataMartId?: string;
 }

@@ -147,6 +147,21 @@ describe('CredentialBindingService', () => {
       ]);
     });
 
+    it('gives a reused row the id spelling the save sent', async () => {
+      const credential = await givenCredential();
+      await bind(credential.id, { requirementKey: 'Main' });
+      await service.deactivate(installation);
+      // SQLite compares keys case-sensitively; MySQL would return the old row for 'main'.
+      const old = await bindings.findOneByOrFail({ ...installation, requirementKey: 'Main' });
+      jest.spyOn(bindings, 'findOneBy').mockResolvedValueOnce(old);
+
+      await bind(credential.id, { requirementKey: 'main' });
+
+      expect(await rows()).toEqual([
+        expect.objectContaining({ requirementKey: 'main', active: true }),
+      ]);
+    });
+
     it("refuses another definition in the consumer's words, after USE", async () => {
       const credential = await givenCredential({ definitionId: 'openai' });
 

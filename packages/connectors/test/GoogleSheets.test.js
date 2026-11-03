@@ -335,12 +335,16 @@ test('stores the verified Google account used by Google Picker', async () => {
   );
 });
 
-test('gives OAuth users Picker-specific guidance for access errors', () => {
+test('gives OAuth users guidance to add the spreadsheet for access errors', () => {
   const source = createSource({ authType: 'oauth2' });
 
   assert.match(
     source._buildSheetRequestErrorMessage({ statusCode: 403, message: 'Forbidden' }),
-    /choose the spreadsheet with Google Picker/
+    /Add spreadsheet/
+  );
+  assert.doesNotMatch(
+    source._buildSheetRequestErrorMessage({ statusCode: 403, message: 'Forbidden' }),
+    /type its ID or URL/
   );
   assert.doesNotMatch(
     source._buildSheetRequestErrorMessage({ statusCode: 403, message: 'Forbidden' }),
@@ -1024,6 +1028,76 @@ test('requires the spreadsheet before listing its tabs', async () => {
   await assert.rejects(source.fetchFieldOptions('SheetName'), error => {
     assert.ok(error instanceof ConnectorConfigurationException);
     assert.match(error.message, /Spreadsheet ID or URL is required/);
+    return true;
+  });
+});
+
+test('declares Spreadsheet ID as a dynamic-options field depending on the auth type', () => {
+  let registered;
+  new GoogleSheetsSource({
+    getParameter: () => null,
+    registerParameters(declared) {
+      registered = declared;
+    },
+    log() {},
+  });
+
+  assert.deepEqual(plain(registered.SpreadsheetId.attributes), ['DYNAMIC_OPTIONS']);
+  assert.deepEqual(plain(registered.SpreadsheetId.optionsDependsOn), ['AuthType']);
+});
+
+test('lists the spreadsheets the account can open through Drive', async () => {
+  const source = createSource({ authType: 'oauth2' });
+  const requestedUrls = [];
+  source.getAccessToken = async () => 'token';
+  source._fetchSheetResponse = async url => {
+    requestedUrls.push(url);
+    return jsonResponse({
+      files: [
+        { id: 'first-id', name: 'Budget' },
+        { id: 'spreadsheet-id', name: 'Current' },
+      ],
+    });
+  };
+  const getParameter = source.context.getParameter;
+  const stored = 'https://docs.google.com/spreadsheets/d/spreadsheet-id/edit#gid=0';
+  source.context.getParameter = name =>
+    name === 'SpreadsheetId' ? { value: stored } : getParameter(name);
+
+  assert.deepEqual(plain(await source.fetchFieldOptions('SpreadsheetId')), [
+    { value: 'first-id', label: 'Budget' },
+    { value: stored, label: 'Current' },
+  ]);
+  assert.equal(requestedUrls.length, 1);
+  assert.match(requestedUrls[0], /^https:\/\/www\.googleapis\.com\/drive\/v3\/files\?/);
+  assert.match(decodeURIComponent(requestedUrls[0]), /trashed=false/);
+  assert.match(decodeURIComponent(requestedUrls[0]), /fields=files\(id,name\)/);
+  assert.match(
+    decodeURIComponent(requestedUrls[0]),
+    /mimeType='application\/vnd\.google-apps\.spreadsheet'/
+  );
+});
+
+test('lists spreadsheets while the stored spreadsheet is still empty', async () => {
+  const source = createSource({ authType: 'oauth2' });
+  const getParameter = source.context.getParameter;
+  source.context.getParameter = name =>
+    name === 'SpreadsheetId' ? { value: '' } : getParameter(name);
+  source.getAccessToken = async () => 'token';
+  source._fetchSheetResponse = async () => jsonResponse({ files: [{ id: 'a', name: 'A' }] });
+
+  assert.deepEqual(plain(await source.fetchFieldOptions('SpreadsheetId')), [
+    { value: 'a', label: 'A' },
+  ]);
+});
+
+test('refuses to list spreadsheets for a service account', async () => {
+  const source = createSource({ authType: 'service_account' });
+  source.getAccessToken = async () => assert.fail('token should not be requested');
+
+  await assert.rejects(source.fetchFieldOptions('SpreadsheetId'), error => {
+    assert.ok(error instanceof ConnectorConfigurationException);
+    assert.match(error.message, /Enter the spreadsheet ID or URL/);
     return true;
   });
 });

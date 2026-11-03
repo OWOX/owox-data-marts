@@ -4,6 +4,11 @@ import {
   DataMartValidationCode,
   ValidationResult,
 } from '../interfaces/data-mart-validator.interface';
+import { passThroughSqlReferenceResolver } from '../../sql-references/__fixtures__/pass-through-sql-reference-resolver';
+import {
+  DataMartSqlReferenceErrorCode,
+  DataMartSqlReferenceException,
+} from '../../sql-references/data-mart-sql-reference.errors';
 
 describe('DataMartDefinitionValidatorFacade', () => {
   const createFacade = (validatorResult: ValidationResult, hasCredentials = true) => {
@@ -19,7 +24,8 @@ describe('DataMartDefinitionValidatorFacade', () => {
 
     const facade = new DataMartDefinitionValidatorFacade(
       resolver as never,
-      credentialsResolver as never
+      credentialsResolver as never,
+      passThroughSqlReferenceResolver as never
     );
 
     const dataMart = {
@@ -83,5 +89,39 @@ describe('DataMartDefinitionValidatorFacade', () => {
     expect((error as BusinessViolationException).code).toBe(
       DataMartValidationCode.STORAGE_CREDENTIALS_NOT_FOUND
     );
+  });
+
+  it('turns an unusable Data Mart reference into an authored failure', async () => {
+    const validate = jest.fn();
+    const facade = new DataMartDefinitionValidatorFacade(
+      { resolve: jest.fn().mockResolvedValue({ validate }) } as never,
+      { resolve: jest.fn().mockResolvedValue({}) } as never,
+      {
+        resolveDefinition: jest
+          .fn()
+          .mockRejectedValue(
+            new DataMartSqlReferenceException(
+              DataMartSqlReferenceErrorCode.NOT_FOUND,
+              'Referenced Data Mart "Orders" was not found. It may have been deleted.',
+              { dataMartId: 'dm-orders' }
+            )
+          ),
+        withResolvedDataMart: jest.fn(),
+      }
+    );
+
+    const result = await facade.validate({
+      id: 'dm-1',
+      definition: { sqlQuery: 'SELECT * FROM [Orders](dm:…) o' },
+      storage: { id: 'storage-1', type: 'GOOGLE_BIGQUERY', config: {}, credentialId: 'cred-1' },
+    } as never);
+
+    expect(result).toMatchObject({
+      valid: false,
+      code: DataMartValidationCode.DATA_MART_REFERENCE_INVALID,
+      errorMessage: 'Referenced Data Mart "Orders" was not found. It may have been deleted.',
+      details: { dataMartId: 'dm-orders', code: DataMartSqlReferenceErrorCode.NOT_FOUND },
+    });
+    expect(validate).not.toHaveBeenCalled();
   });
 });

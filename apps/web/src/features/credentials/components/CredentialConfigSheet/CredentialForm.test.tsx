@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen, waitFor, within } from '@testing-librar
 import { MemoryRouter } from 'react-router';
 import { describe, expect, it, vi } from 'vitest';
 import type { Credential, CredentialDefinition } from '../../types';
+import { ConnectPickedSpreadsheetContext } from '../../connect-picked-spreadsheet';
 import { CredentialForm } from './CredentialForm';
 
 const mocks = vi.hoisted(() => ({
@@ -10,6 +11,62 @@ const mocks = vi.hoisted(() => ({
   exchange: vi.fn(),
   authorize: vi.fn(),
   popup: vi.fn(),
+  loadConnected: vi.fn(),
+}));
+
+// A connector's own OAuth flow, as the connector renderers reach it.
+const connectorOAuth = vi.hoisted(() => ({
+  exchangeCredentials: vi.fn(),
+  checkStatus: vi.fn(),
+  getSettings: vi.fn(),
+}));
+const openPicker = vi.hoisted(() => vi.fn());
+
+vi.mock('../../../connectors/shared/model/hooks/useOAuth', () => ({
+  useOAuth: () => connectorOAuth,
+}));
+
+vi.mock('../../../connectors/shared/components/FacebookLoginButton', () => ({
+  FacebookLoginButton: ({
+    children,
+    onSuccess,
+  }: {
+    children?: React.ReactNode;
+    onSuccess: (response: { accessToken: string }) => void;
+  }) => (
+    <button
+      type='button'
+      onClick={() => {
+        onSuccess({ accessToken: 'facebook-token' });
+      }}
+    >
+      {children}
+    </button>
+  ),
+}));
+
+vi.mock('../../../connectors/shared/components/GoogleSheetsLoginButton', () => ({
+  GoogleSheetsLoginButton: ({
+    children,
+    onSuccess,
+  }: {
+    children?: React.ReactNode;
+    onSuccess: (response: { code: string }) => void;
+  }) => (
+    <button
+      type='button'
+      onClick={() => {
+        onSuccess({ code: 'google-code' });
+      }}
+    >
+      {children}
+    </button>
+  ),
+}));
+
+vi.mock('../../../google-oauth', async importOriginal => ({
+  ...(await importOriginal<typeof import('../../../google-oauth')>()),
+  useGoogleSheetsPicker: () => ({ openPicker }),
 }));
 
 // The real inputs, plus the onChange of the latest render.
@@ -33,6 +90,7 @@ vi.mock('../../useCredentials', () => ({
   useCredentialActions: () => ({
     authorizeGoogleOAuth: mocks.authorize,
     exchangeGoogleOAuth: mocks.exchange,
+    loadConnected: mocks.loadConnected,
   }),
 }));
 
@@ -79,6 +137,7 @@ const openAiDefinition: CredentialDefinition = {
     },
   },
   compatibilityLine: null,
+  connectors: [],
 };
 
 const githubDefinition: CredentialDefinition = {
@@ -92,6 +151,7 @@ const githubDefinition: CredentialDefinition = {
   supportsAi: false,
   ai: null,
   compatibilityLine: null,
+  connectors: [],
 };
 
 const googleDefinition: CredentialDefinition = {
@@ -106,6 +166,7 @@ const googleDefinition: CredentialDefinition = {
   supportsAi: false,
   ai: null,
   compatibilityLine: null,
+  connectors: [],
   auth: { type: 'google-service-account' },
 };
 
@@ -348,6 +409,7 @@ describe('CredentialForm', () => {
       supportsAi: false,
       ai: null,
       compatibilityLine: null,
+      connectors: [],
       auth: {
         type: 'fields',
         fields: [
@@ -446,7 +508,7 @@ describe('CredentialForm', () => {
       fireEvent.click(screen.getByText('Which provider should I choose?'));
 
       expect(screen.getByText('Google Service Account:')).toBeInTheDocument();
-      expect(screen.getByText('Sheets Google account (OAuth):')).toBeInTheDocument();
+      expect(screen.getByText('Sheets Destination Google account (OAuth):')).toBeInTheDocument();
       expect(screen.queryByText(/BigQuery Google account/)).toBeNull();
       expect(screen.queryByText(/Google Chat webhook:/)).toBeNull();
       expect(screen.queryByText(/BigQuery Data Editor/)).toBeNull();
@@ -946,6 +1008,491 @@ describe('CredentialForm', () => {
         'href',
         '/data-storages?id=storage-1'
       );
+    });
+  });
+
+  describe('Source providers', () => {
+    const sourceField = (key: string, label: string, secret: boolean) => ({
+      key,
+      label,
+      input: secret ? ('password' as const) : ('text' as const),
+      secret,
+      required: true,
+      identity: false,
+    });
+    const sourceDefinition = (
+      id: string,
+      displayName: string,
+      fields: ReturnType<typeof sourceField>[]
+    ): CredentialDefinition => ({
+      id,
+      source: 'builtin',
+      displayName,
+      description: '',
+      documentationUrl: null,
+      secretLabel: '',
+      category: 'ads',
+      connectors: [id.split(':')[1]],
+      origins: [],
+      supportsAi: false,
+      ai: null,
+      compatibilityLine: null,
+      auth: { type: 'fields', fields },
+    });
+    const facebookDefinition = sourceDefinition('source:FacebookMarketing:oauth2', 'Facebook Ads', [
+      sourceField('AccessToken', 'Access Token', true),
+    ]);
+    const sheetsSourceDefinition: CredentialDefinition = {
+      ...sourceDefinition('source:GoogleSheets:oauth2', 'Sheets Source Google account', [
+        sourceField('RefreshToken', 'Refresh Token', true),
+        sourceField('ClientId', 'Client ID', false),
+        sourceField('ClientSecret', 'Client Secret', true),
+      ]),
+      category: 'google',
+    };
+    const customDefinition: CredentialDefinition = {
+      ...sourceDefinition('custom-connector', 'Custom connector', []),
+      category: 'custom-connectors',
+      connectors: [],
+      auth: { type: 'custom-connector' },
+    };
+
+    it('the Sheets destination shows as Sheets Destination Google account', () => {
+      renderForm({
+        definitions: [
+          googleDefinition,
+          {
+            ...googleDefinition,
+            id: 'google-sheets-oauth',
+            displayName: 'Sheets Destination Google account',
+            auth: { type: 'oauth', provider: 'google', client: 'destination' },
+          },
+        ],
+      });
+
+      fireEvent.click(screen.getByText('Which provider should I choose?'));
+
+      expect(screen.getByText('Sheets Destination Google account (OAuth):')).toBeInTheDocument();
+    });
+
+    it('a Source definition with connect shows Connect when the connector OAuth is available and the fields otherwise', async () => {
+      const connected = { ...githubCredential, id: 'cred-fb', definition: facebookDefinition };
+      connectorOAuth.getSettings.mockResolvedValue({ isEnabled: true, vars: { AppId: 'app' } });
+      connectorOAuth.exchangeCredentials.mockResolvedValue({
+        success: true,
+        credentialId: 'cred-fb',
+      });
+      mocks.loadConnected.mockResolvedValue(connected);
+      const onSubmit = vi.fn();
+      const onOAuthConnected = vi.fn();
+      const { unmount } = renderForm({
+        definitions: [facebookDefinition],
+        onSubmit,
+        onOAuthConnected,
+      });
+
+      fireEvent.change(screen.getByRole('textbox', { name: 'Name' }), {
+        target: { value: 'Ads team' },
+      });
+      fireEvent.click(await screen.findByRole('button', { name: 'Continue with Facebook' }));
+
+      await waitFor(() => {
+        expect(onOAuthConnected).toHaveBeenCalledWith(connected);
+      });
+      expect(connectorOAuth.getSettings).toHaveBeenCalledWith(
+        'FacebookMarketing',
+        'AuthType.oauth2'
+      );
+      expect(connectorOAuth.exchangeCredentials).toHaveBeenCalledWith(
+        'FacebookMarketing',
+        { accessToken: 'facebook-token' },
+        'AuthType.oauth2',
+        { title: 'Ads team', availableForUse: true, availableForMaintenance: false }
+      );
+      expect(mocks.loadConnected).toHaveBeenCalledWith('cred-fb');
+      expect(screen.queryByLabelText('Access Token')).toBeNull();
+      expect(screen.queryByRole('button', { name: 'Save' })).toBeNull();
+      expect(onSubmit).not.toHaveBeenCalled();
+      unmount();
+
+      connectorOAuth.getSettings.mockResolvedValue({ isEnabled: false, vars: {} });
+      renderForm({ definitions: [facebookDefinition] });
+
+      expect(await screen.findByLabelText('Access Token')).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Continue with Facebook' })).toBeNull();
+      expect(await screen.findByRole('button', { name: 'Save' })).toBeInTheDocument();
+    });
+
+    it('a retry after a failed finish reconnects the saved Credential instead of creating another', async () => {
+      const connected = { ...githubCredential, id: 'cred-fb', definition: facebookDefinition };
+      connectorOAuth.getSettings.mockResolvedValue({ isEnabled: true, vars: { AppId: 'app' } });
+      connectorOAuth.checkStatus.mockResolvedValue({ valid: false });
+      connectorOAuth.exchangeCredentials.mockClear().mockResolvedValue({
+        success: true,
+        credentialId: 'cred-fb',
+      });
+      mocks.loadConnected
+        .mockReset()
+        .mockRejectedValueOnce(new Error('offline'))
+        .mockResolvedValue(connected);
+      const onOAuthConnected = vi.fn();
+      renderForm({ definitions: [facebookDefinition], onOAuthConnected });
+
+      fireEvent.click(await screen.findByRole('button', { name: 'Continue with Facebook' }));
+      await waitFor(() => {
+        expect(mocks.loadConnected).toHaveBeenCalledTimes(1);
+      });
+      expect(onOAuthConnected).not.toHaveBeenCalled();
+
+      fireEvent.click(await screen.findByRole('button', { name: 'Continue with Facebook' }));
+
+      await waitFor(() => {
+        expect(onOAuthConnected).toHaveBeenCalledWith(connected);
+      });
+      expect(connectorOAuth.exchangeCredentials).toHaveBeenCalledTimes(2);
+      expect(connectorOAuth.exchangeCredentials).toHaveBeenLastCalledWith(
+        'FacebookMarketing',
+        { accessToken: 'facebook-token' },
+        'AuthType.oauth2',
+        { id: 'cred-fb' }
+      );
+    });
+
+    it('shows Connect in a card titled with the provider, Manually inside it', async () => {
+      connectorOAuth.getSettings.mockResolvedValue({ isEnabled: true, vars: { AppId: 'app' } });
+      renderForm({ definitions: [facebookDefinition] });
+
+      const connect = await screen.findByRole('button', { name: 'Continue with Facebook' });
+      const card = connect.closest<HTMLElement>('[data-slot="form-item"]');
+      expect(card).not.toBeNull();
+      expect(within(card!).getByText('Connect with Facebook Ads')).toBeInTheDocument();
+      expect(within(card!).getByRole('button', { name: 'Manually' })).toBeInTheDocument();
+    });
+
+    it('Manually swaps Connect for the fields until Back to OAuth', async () => {
+      connectorOAuth.getSettings.mockResolvedValue({ isEnabled: true, vars: { AppId: 'app' } });
+      renderForm({ definitions: [facebookDefinition] });
+
+      await screen.findByRole('button', { name: 'Continue with Facebook' });
+      fireEvent.click(screen.getByRole('button', { name: 'Manually' }));
+
+      expect(screen.getByLabelText('Access Token')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Save' })).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Continue with Facebook' })).toBeNull();
+
+      fireEvent.click(screen.getByRole('button', { name: 'Back to OAuth' }));
+
+      expect(await screen.findByRole('button', { name: 'Continue with Facebook' })).toBeVisible();
+      expect(screen.queryByLabelText('Access Token')).toBeNull();
+      expect(screen.queryByRole('button', { name: 'Save' })).toBeNull();
+    });
+
+    it('a Sheets Source Google account Credential has Add spreadsheet, which signs in to the same account and opens the Picker', async () => {
+      connectorOAuth.getSettings.mockResolvedValue({
+        isEnabled: true,
+        vars: {
+          ClientId: 'sheets-client',
+          RedirectUri: 'https://app.example.com/oauth/callback',
+          PickerApiKey: 'picker-key',
+          ProjectNumber: '42',
+        },
+      });
+      connectorOAuth.checkStatus.mockResolvedValue({
+        valid: true,
+        user: { id: 'user-1', name: 'Owner', email: 'owner@example.com' },
+      });
+      openPicker.mockResolvedValue(undefined);
+      renderForm({
+        credential: {
+          ...githubCredential,
+          id: 'cred-sheets',
+          definition: sheetsSourceDefinition,
+          publicMetadata: { fields: { ClientId: 'sheets-client' } },
+        },
+        definitions: [sheetsSourceDefinition],
+      });
+
+      fireEvent.click(await screen.findByRole('button', { name: 'Add spreadsheet' }));
+
+      await waitFor(() => {
+        expect(openPicker).toHaveBeenCalledWith(
+          expect.objectContaining({
+            clientId: 'sheets-client',
+            hintEmail: 'owner@example.com',
+            apiKey: 'picker-key',
+            appId: '42',
+          })
+        );
+      });
+      expect(connectorOAuth.checkStatus).toHaveBeenCalledWith('GoogleSheets', 'cred-sheets');
+
+      connectorOAuth.exchangeCredentials.mockResolvedValue({
+        success: true,
+        credentialId: 'cred-sheets',
+      });
+      fireEvent.click(screen.getByRole('button', { name: 'Connected as Owner' }));
+
+      await waitFor(() => {
+        expect(connectorOAuth.exchangeCredentials).toHaveBeenCalledWith(
+          'GoogleSheets',
+          { code: 'google-code' },
+          'AuthType.oauth2',
+          { id: 'cred-sheets' }
+        );
+      });
+    });
+
+    it('connecting a Sheets Source Google account opens the Picker after sign-in', async () => {
+      const connected = { ...githubCredential, id: 'cred-new', definition: sheetsSourceDefinition };
+      connectorOAuth.getSettings.mockResolvedValue({
+        isEnabled: true,
+        vars: {
+          ClientId: 'sheets-client',
+          RedirectUri: 'https://app.example.com/oauth/callback',
+          PickerApiKey: 'picker-key',
+          ProjectNumber: '42',
+        },
+      });
+      connectorOAuth.exchangeCredentials.mockResolvedValue({
+        success: true,
+        credentialId: 'cred-new',
+        user: { id: 'user-2', name: 'New', email: 'new@example.com' },
+      });
+      mocks.loadConnected.mockResolvedValue(connected);
+      let closePicker = () => {};
+      openPicker.mockImplementation(
+        () =>
+          new Promise<void>(resolve => {
+            closePicker = resolve;
+          })
+      );
+      const onOAuthConnected = vi.fn();
+      renderForm({ definitions: [sheetsSourceDefinition], onOAuthConnected });
+
+      fireEvent.click(await screen.findByRole('button', { name: 'Sign in with Google' }));
+
+      await waitFor(() => {
+        expect(openPicker).toHaveBeenCalledWith(
+          expect.objectContaining({
+            clientId: 'sheets-client',
+            hintEmail: 'new@example.com',
+            apiKey: 'picker-key',
+            appId: '42',
+          })
+        );
+      });
+      expect(onOAuthConnected).not.toHaveBeenCalled();
+
+      // Closed without picking: the Credential is saved all the same.
+      act(() => {
+        closePicker();
+      });
+
+      await waitFor(() => {
+        expect(onOAuthConnected).toHaveBeenCalledWith(connected);
+      });
+    });
+
+    it('a Sheets Connect from a Data Mart hands over its spreadsheet before the Credential is selected', async () => {
+      const spreadsheetUrl = 'https://docs.google.com/spreadsheets/d/picked/edit';
+      const connected = { ...githubCredential, id: 'cred-new', definition: sheetsSourceDefinition };
+      connectorOAuth.getSettings.mockResolvedValue({
+        isEnabled: true,
+        vars: {
+          ClientId: 'sheets-client',
+          RedirectUri: 'https://app.example.com/oauth/callback',
+          PickerApiKey: 'picker-key',
+          ProjectNumber: '42',
+        },
+      });
+      connectorOAuth.exchangeCredentials.mockResolvedValue({
+        success: true,
+        credentialId: 'cred-new',
+        user: { id: 'user-2', name: 'New', email: 'new@example.com' },
+      });
+      mocks.loadConnected.mockReset().mockResolvedValue(connected);
+      openPicker.mockImplementation(
+        async (options: {
+          onPicked: (picked: { id: string; name: string; url: string }) => void;
+        }) => {
+          options.onPicked({ id: 'picked', name: 'Goals', url: spreadsheetUrl });
+        }
+      );
+      const pick = vi.fn();
+      const onOAuthConnected = vi.fn();
+      render(
+        <MemoryRouter>
+          <ConnectPickedSpreadsheetContext.Provider value={pick}>
+            <CredentialForm
+              credential={null}
+              definitions={[sheetsSourceDefinition]}
+              isSaving={false}
+              onSubmit={vi.fn()}
+              onCancel={vi.fn()}
+              onOAuthConnected={onOAuthConnected}
+            />
+          </ConnectPickedSpreadsheetContext.Provider>
+        </MemoryRouter>
+      );
+
+      fireEvent.click(await screen.findByRole('button', { name: 'Sign in with Google' }));
+
+      await waitFor(() => {
+        expect(onOAuthConnected).toHaveBeenCalledWith(connected);
+      });
+      expect(pick).toHaveBeenCalledWith('cred-new', spreadsheetUrl);
+      expect(pick.mock.invocationCallOrder[0]).toBeLessThan(
+        onOAuthConnected.mock.invocationCallOrder[0]
+      );
+    });
+
+    it('the provider help is not shown for Sheets Source Google account', () => {
+      connectorOAuth.getSettings.mockResolvedValue({ isEnabled: false, vars: {} });
+      const { unmount } = renderForm({
+        definitions: [googleDefinition, sheetsSourceDefinition],
+        initialDefinitionId: 'source:GoogleSheets:oauth2',
+      });
+
+      expect(screen.queryByText('Which provider should I choose?')).toBeNull();
+      unmount();
+
+      renderForm({
+        definitions: [googleDefinition, sheetsSourceDefinition],
+        allowedDefinitionIds: ['source:GoogleSheets:oauth2', 'google-service-account'],
+        initialDefinitionId: 'google-service-account',
+      });
+
+      expect(screen.queryByText('Which provider should I choose?')).toBeNull();
+    });
+
+    it('custom connector form shows prefilled hosts and fields read-only and asks only for values', async () => {
+      const onSubmit = vi.fn().mockResolvedValue(undefined);
+      const prefill = {
+        hosts: ['api.example.com', 'auth.example.com'],
+        fieldList: [
+          { key: 'apiKey', label: 'API key', secret: true },
+          { key: 'accountId', label: 'Account ID', secret: false },
+        ],
+      };
+      renderForm({ definitions: [customDefinition], customConnectorPrefill: prefill, onSubmit });
+
+      const hosts = screen.getByLabelText('Hosts');
+      expect(hosts).toHaveValue('api.example.com\nauth.example.com');
+      expect(hosts).toHaveAttribute('readonly');
+      expect(screen.queryByLabelText('Field 1 key')).toBeNull();
+      expect(screen.queryByRole('button', { name: 'Add field' })).toBeNull();
+
+      fireEvent.change(screen.getByRole('textbox', { name: 'Name' }), {
+        target: { value: 'Weather' },
+      });
+      fireEvent.change(screen.getByLabelText('API key'), { target: { value: 'k-1' } });
+      fireEvent.change(screen.getByLabelText('Account ID'), { target: { value: 'acc-9' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+      await waitFor(() => {
+        expect(onSubmit).toHaveBeenCalledWith({
+          title: 'Weather',
+          definitionId: 'custom-connector',
+          customConnector: { ...prefill, fields: { apiKey: 'k-1', accountId: 'acc-9' } },
+          availableForUse: true,
+          availableForMaintenance: false,
+        });
+      });
+    });
+
+    it('an optional key field may be left empty', async () => {
+      const onSubmit = vi.fn().mockResolvedValue(undefined);
+      renderForm({
+        definitions: [customDefinition],
+        customConnectorPrefill: {
+          hosts: ['api.example.com'],
+          fieldList: [
+            { key: 'apiKey', label: 'API key', secret: true, required: true },
+            { key: 'region', label: 'Region', secret: false, required: false },
+          ],
+        },
+        onSubmit,
+      });
+
+      fireEvent.change(screen.getByRole('textbox', { name: 'Name' }), {
+        target: { value: 'Weather' },
+      });
+      fireEvent.change(screen.getByLabelText('API key'), { target: { value: 'k-1' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+      // The server needs a value for every listed field, so an empty optional one is not listed.
+      await waitFor(() => {
+        expect(onSubmit).toHaveBeenCalledWith({
+          title: 'Weather',
+          definitionId: 'custom-connector',
+          customConnector: {
+            hosts: ['api.example.com'],
+            fieldList: [{ key: 'apiKey', label: 'API key', secret: true }],
+            fields: { apiKey: 'k-1' },
+          },
+          availableForUse: true,
+          availableForMaintenance: false,
+        });
+      });
+    });
+
+    it('custom connector form without prefill lets the user enter hosts and field names on create only', async () => {
+      const onSubmit = vi.fn().mockResolvedValue(undefined);
+      const { unmount } = renderForm({ definitions: [customDefinition], onSubmit });
+
+      fireEvent.change(screen.getByRole('textbox', { name: 'Name' }), {
+        target: { value: 'Weather' },
+      });
+      fireEvent.change(screen.getByLabelText('Hosts'), {
+        target: { value: ' api.example.com \n\n' },
+      });
+      fireEvent.change(screen.getByLabelText('Field 1 key'), { target: { value: 'apiKey' } });
+      fireEvent.change(screen.getByLabelText('Field 1 label'), { target: { value: 'API key' } });
+      fireEvent.change(screen.getByLabelText('API key'), { target: { value: 'k-1' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+      await waitFor(() => {
+        expect(onSubmit).toHaveBeenCalledWith({
+          title: 'Weather',
+          definitionId: 'custom-connector',
+          customConnector: {
+            hosts: ['api.example.com'],
+            fieldList: [{ key: 'apiKey', label: 'API key', secret: true }],
+            fields: { apiKey: 'k-1' },
+          },
+          availableForUse: true,
+          availableForMaintenance: false,
+        });
+      });
+      unmount();
+
+      const onEdit = vi.fn().mockResolvedValue(undefined);
+      renderForm({
+        credential: {
+          ...githubCredential,
+          definition: customDefinition,
+          publicMetadata: {
+            hosts: ['api.example.com'],
+            fieldList: [{ key: 'apiKey', label: 'API key', secret: true }],
+            fields: {},
+          },
+          setSecretFieldKeys: ['apiKey'],
+        },
+        definitions: [customDefinition],
+        onSubmit: onEdit,
+      });
+
+      expect(screen.getByLabelText('Hosts')).toHaveAttribute('readonly');
+      expect(screen.queryByLabelText('Field 1 key')).toBeNull();
+      const apiKey = screen.getByLabelText('API key');
+      expect(apiKey).toHaveValue('');
+      expect(apiKey).toHaveAttribute('placeholder', 'Saved. Enter a new value to replace it.');
+      fireEvent.change(apiKey, { target: { value: 'k-2' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+      await waitFor(() => {
+        expect(onEdit).toHaveBeenCalledWith({ fields: { apiKey: 'k-2' } });
+      });
     });
   });
 });

@@ -37,6 +37,7 @@ export class GoogleAdsSource extends AbstractSource {
             label: 'OAuth2',
             value: 'oauth2',
             requiredType: 'object',
+            credentialDisplayName: 'Google Ads',
             attributes: [CONFIG_ATTRIBUTES.OAUTH_FLOW],
             oauthParams: {
               vars: {
@@ -140,13 +141,14 @@ export class GoogleAdsSource extends AbstractSource {
             label: 'Service Account',
             value: 'service_account',
             requiredType: 'object',
+            credentialDisplayName: 'Google Ads service account',
             items: {
               ServiceAccountKey: {
                 isRequired: true,
                 requiredType: 'string',
                 label: 'Service Account Key (JSON)',
                 description: 'Google Service Account JSON key file content',
-                attributes: [CONFIG_ATTRIBUTES.SECRET],
+                attributes: [CONFIG_ATTRIBUTES.SECRET, CONFIG_ATTRIBUTES.MULTILINE],
               },
               DeveloperToken: {
                 isRequired: true,

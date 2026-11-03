@@ -7,7 +7,7 @@ const googleChatWebhookCredentialsSchema = z.object({
 
 const googleChatEmailCredentialsSchema = z.object({
   deliveryMethod: z.literal('email'),
-  to: z.array(z.string().email()).min(1, 'Enter at least one Google Chat channel email'),
+  to: z.array(z.email()).min(1, 'Enter at least one Google Chat channel email'),
 });
 
 export const googleChatCredentialsSchema = z.union([

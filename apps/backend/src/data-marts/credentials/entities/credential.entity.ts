@@ -81,6 +81,17 @@ export class Credential {
   @Column({ type: 'varchar', length: 255, nullable: true })
   createdById: string | null;
 
+  /** The run redeeming this Credential's rotated token now; not loaded, so a save never writes back an old lease. */
+  @Column({ type: 'varchar', length: 36, nullable: true, select: false })
+  rotationLeaseId: string | null;
+
+  @Column({ type: 'datetime', nullable: true, select: false })
+  rotationLeaseAt: Date | null;
+
+  /** When a leased run ended without a rotated refresh token; a stored one or a secret change clears it. */
+  @Column({ type: 'datetime', nullable: true })
+  refreshTokenStaticAt: Date | null;
+
   @OneToMany(() => CredentialOwner, owner => owner.credential)
   owners: CredentialOwner[];
 

@@ -45,7 +45,7 @@ Some parameters use a fixed list of values. Choose these before moving to field 
 
 ## Step 3: Add Access Credentials
 
-Each connector requires authentication. Here is how you can obtain the required credentials for each of the ad platforms:
+Each connector requires authentication. Here is how you can obtain the keys for each of the ad platforms and save them in a Credential:
 
 - [Facebook Ads](../../../packages/connectors/src/Sources/FacebookMarketing/CREDENTIALS.md)
 - [TikTok Ads](../../../packages/connectors/src/Sources/TikTokAds/CREDENTIALS.md)
@@ -57,30 +57,9 @@ Each connector requires authentication. Here is how you can obtain the required 
 - [Open Exchange Rates](../../../packages/connectors/src/Sources/OpenExchangeRates/CREDENTIALS.md)
 - [Other platforms](https://github.com/OWOX/owox-data-marts/tree/main/packages/connectors/src/Sources)
 
-Use the **credentials screen** to manage access per platform.
+A configuration selects a **Credential** instead of holding a key. Select one that fits the connector, or click **+ Create new Credential** to add one beside the configuration; it is selected when you save it. With exactly one fitting Credential, a new configuration selects it for you. Create and manage Credentials on the **Credentials** page; see [Source providers](../../project/credentials.md#source-providers).
 
-### Reuse a configuration from another Data Mart
-
-The **Reuse from another Data Mart** option copies a connector configuration from another Data Mart in the project, including its stored credentials. For Google Sheets that is the Google access, the spreadsheet and the sheet; you can pick another sheet afterwards.
-
-Copying credentials requires **Edit** access to the source Data Mart. You have it in one of these cases:
-
-- You are a Project Admin.
-- Your role is Data Owner, and you are a Data Owner of the source Data Mart.
-- Your role is Data Owner, and the source Data Mart is **Shared for maintenance**.
-
-Without this access, saving the Data Mart fails with this error:
-
-> You do not have permission to copy connector credentials from the source Data Mart.
-
-To resolve it, choose one of these options:
-
-- Ask an owner of the source Data Mart to add you as a Data Owner.
-- Ask them to turn on **Shared for maintenance** on the source Data Mart.
-- If you are a Business User, ask a Project Admin to change your role to Data Owner.
-- Enter your own credentials instead of copying.
-
-One more check applies when your role scope is **Selected contexts only**. You also need a context overlap with the source Data Mart. See [Ownership and Sharing](../../project/ownership-and-sharing.md) for the full access model.
+**Reuse from another Data Mart** is gone: select the same Credential in both Data Marts. To change the key everywhere, replace the Credential's values once.
 
 ## Step 4: Customize export schema
 

@@ -6,7 +6,12 @@ import {
   type Response as ExpressResponse,
 } from 'express';
 import { AUTH_BASE_PATH, parseMagicLinkIntent } from '../core/constants.js';
-import { TemplateService } from '../services/rendering/template-service.js';
+import type { ServerEventsService } from '../services/analytics/server-events-service.js';
+import {
+  SIGN_IN_PAGE_TITLE,
+  SIGN_UP_PAGE_TITLE,
+  TemplateService,
+} from '../services/rendering/template-service.js';
 import type { UiAuthProviders } from '../types/index.js';
 import {
   consumeAuthFlowError,
@@ -31,7 +36,8 @@ function resolveAutoSubmitProvider(
 export class PageController {
   constructor(
     private readonly providers: UiAuthProviders,
-    private readonly gtmContainerId?: string
+    private readonly gtmContainerId?: string,
+    private readonly serverEvents?: ServerEventsService
   ) {}
 
   private persistAuthFlowContext(req: ExpressRequest, res: ExpressResponse): void {
@@ -81,6 +87,8 @@ export class PageController {
         autoSubmitProvider,
       })
     );
+    // An auto-submitting page is a redirect leg, not a view.
+    if (!autoSubmitProvider) this.serverEvents?.pageView(req, SIGN_IN_PAGE_TITLE);
   }
 
   async signUpPage(req: ExpressRequest, res: ExpressResponse): Promise<void> {
@@ -104,6 +112,8 @@ export class PageController {
         autoSubmitProvider,
       })
     );
+    // An auto-submitting page is a redirect leg, not a view.
+    if (!autoSubmitProvider) this.serverEvents?.pageView(req, SIGN_UP_PAGE_TITLE);
   }
 
   private sanitizeCallbackURL(rawCallbackURL: string, req: ExpressRequest): string {

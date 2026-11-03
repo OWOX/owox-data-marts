@@ -10,6 +10,8 @@ export interface DatabaseStore {
 
   // Expose underlying DB adapter (pool/connection) for Better Auth
   getAdapter(): Promise<unknown>;
+  // Runs after Better Auth's migrations: widens verification.id where they size it too small.
+  ensureVerificationIdLength(): Promise<void>;
 
   // Users
   getUsers(): Promise<DatabaseUser[]>;

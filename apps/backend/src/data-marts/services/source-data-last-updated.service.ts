@@ -1,6 +1,7 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { TypeResolver } from '../../common/resolver/type-resolver';
 import { DataMartQueryBuilderFacade } from '../data-storage-types/facades/data-mart-query-builder.facade';
+import { DataMartSqlReferenceResolver } from './data-mart-sql-reference-resolver.service';
 import { SOURCE_DATA_LAST_UPDATED_RESOLVER } from '../data-storage-types/data-storage-providers';
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
 import {
@@ -41,7 +42,8 @@ export class SourceDataLastUpdatedService {
   constructor(
     @Inject(SOURCE_DATA_LAST_UPDATED_RESOLVER)
     private readonly resolverRegistry: TypeResolver<DataStorageType, SourceDataLastUpdatedResolver>,
-    private readonly queryBuilderFacade: DataMartQueryBuilderFacade
+    private readonly queryBuilderFacade: DataMartQueryBuilderFacade,
+    private readonly sqlReferenceResolver: DataMartSqlReferenceResolver
   ) {}
 
   /**
@@ -65,10 +67,9 @@ export class SourceDataLastUpdatedService {
     let sql: string;
     let params: SqlParameter[] | undefined;
     try {
-      const built = await this.queryBuilderFacade.buildQuery(
-        dataMart.storage.type,
-        dataMart.definition
-      );
+      // Referenced Data Marts' sources count as this Data Mart's sources too.
+      const definition = await this.sqlReferenceResolver.resolveDefinition(dataMart);
+      const built = await this.queryBuilderFacade.buildQuery(dataMart.storage.type, definition!);
       sql = typeof built === 'string' ? built : built.sql;
       params = typeof built === 'string' ? undefined : built.params;
     } catch (error) {

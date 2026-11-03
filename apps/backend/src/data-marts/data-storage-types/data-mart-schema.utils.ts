@@ -356,6 +356,13 @@ export function createBaseFieldSchemaForType<T extends z.ZodTypeAny>(schemaField
         .describe(
           'Server-owned field status relative to the actual data mart schema; ignored on updates'
         ),
+      inheritedFrom: z
+        .object({ dataMartId: z.string(), dataMartTitle: z.string() })
+        .optional()
+        .describe(
+          "Server-owned: the Data Mart referenced in this SQL Data Mart's query that this field " +
+            'takes its alias and description from; those two are read-only while it is set'
+        ),
     })
     // ROLLING-DEPLOY SAFETY, and it is about data loss rather than validation. This schema is a
     // TypeORM value transformer: `createZodTransformer.from` parses it on every entity LOAD, and a

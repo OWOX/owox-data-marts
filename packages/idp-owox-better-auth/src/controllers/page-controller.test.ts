@@ -3,6 +3,8 @@ import type { Request, Response } from 'express';
 import { SOURCE } from '../core/constants.js';
 import { buildPlatformRedirectUrl } from '../utils/platform-redirect-builder.js';
 import { extractAuthFlowParams } from '../utils/request-utils.js';
+import type { ServerEventsService } from '../services/analytics/server-events-service.js';
+import { SIGN_IN_PAGE_TITLE, SIGN_UP_PAGE_TITLE } from '../services/rendering/template-service.js';
 import { PageController } from './page-controller.js';
 
 function createResponse(): Response & { body?: string } {
@@ -220,5 +222,34 @@ describe('PageController.signInPage / signUpPage', () => {
     await controller.signUpPage(req, res);
 
     expect(res.body).toContain('const autoSubmitProvider = "microsoft";');
+  });
+});
+
+describe('PageController server-side page views', () => {
+  const providers = { google: true, microsoft: true, email: true };
+
+  it('reports a view of the sign-in and sign-up pages with their titles', async () => {
+    const pageView = jest.fn();
+    const serverEvents = { pageView } as unknown as ServerEventsService;
+    const controller = new PageController(providers, undefined, serverEvents);
+    const signIn = createRequest({});
+    const signUp = createRequest({});
+
+    await controller.signInPage(signIn, createResponse());
+    await controller.signUpPage(signUp, createResponse());
+
+    expect(pageView).toHaveBeenNthCalledWith(1, signIn, SIGN_IN_PAGE_TITLE);
+    expect(pageView).toHaveBeenNthCalledWith(2, signUp, SIGN_UP_PAGE_TITLE);
+  });
+
+  it('does not report the auto-submitting leg of a social sign-in', async () => {
+    const pageView = jest.fn();
+    const serverEvents = { pageView } as unknown as ServerEventsService;
+    const controller = new PageController(providers, undefined, serverEvents);
+    const req = createRequest({ state: 'fresh-state' }, socialIntentCookieHeader('google'));
+
+    await controller.signInPage(req, createResponse());
+
+    expect(pageView).not.toHaveBeenCalled();
   });
 });

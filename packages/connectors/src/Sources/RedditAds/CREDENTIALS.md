@@ -112,6 +112,5 @@ You now have all required credentials:
 - **Secret**
 - **Redirect URI**: `https://www.reddit.com/prefs/apps`  
 - **Refresh Token**  
-- **User-Agent Header**  
 
-You can now use these credentials as described in the [Getting Started guide](GETTING_STARTED.md).  
+Save the App ID, Secret, Redirect URI and Refresh Token in a Credential (on the **Credentials** page, or with **+ Create new Credential** beside the **Credential** field of the Data Mart's connector configuration). The User-Agent is not part of the Credential: enter it in the **User Agent** field of the connector configuration. Then continue as described in the [Getting Started guide](GETTING_STARTED.md).  

@@ -4,10 +4,11 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import type { ColumnDef } from '@tanstack/react-table';
 import { MemoryRouter } from 'react-router';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { DataMartTable } from './DataMartTable';
 import type { DataMartListItem } from '../../model/types';
 import { DataMartStatus } from '../../../shared';
+import { dataMartService } from '../../../shared/services/data-mart.service';
 
 vi.mock('../../../../../shared/hooks', async importOriginal => {
   const actual = await importOriginal<typeof import('../../../../../shared/hooks')>();
@@ -27,6 +28,10 @@ vi.mock('../../model/hooks/useDataMartHealthStatusPrefetch', () => ({
 }));
 
 describe('DataMartTable', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it('reports only the Data Marts visible on the current page', async () => {
     const onVisibleDataMartIdsChange = vi.fn();
     const dataMarts = Array.from({ length: 20 }, (_, index) =>
@@ -53,6 +58,14 @@ describe('DataMartTable', () => {
   });
 
   it('keeps selection attached to the same Data Mart when polling reorders rows', async () => {
+    // The delete confirmation first checks which Data Marts reference the selection: none here.
+    vi.spyOn(dataMartService, 'getInputSourceChangeImpact').mockResolvedValue({
+      outboundRelationshipsCount: 0,
+      inboundRelationshipsCount: 0,
+      reportsCount: 0,
+      referencingDataMartsCount: 0,
+      referencingDataMarts: [],
+    });
     const deleteDataMart = vi.fn().mockResolvedValue(undefined);
     const first = buildDataMart('mart-1', 'Orders');
     const second = buildDataMart('mart-2', 'Customers');
@@ -68,7 +81,11 @@ describe('DataMartTable', () => {
     const trigger = screen.getByTestId('data-mart-bulk-actions-trigger');
     fireEvent.pointerDown(trigger, { button: 0, ctrlKey: false });
     fireEvent.click(screen.getByRole('menuitem', { name: /^Delete/ }));
-    fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
+    const confirm = screen.getByRole('button', { name: 'Delete' });
+    await waitFor(() => {
+      expect(confirm).toBeEnabled();
+    });
+    fireEvent.click(confirm);
 
     await vi.waitFor(() => {
       expect(deleteDataMart).toHaveBeenCalledWith('mart-1');

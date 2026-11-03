@@ -73,11 +73,9 @@ export class AthenaReportReader implements DataStorageReportReader {
       options,
       this.type
     );
-    const builtQuery = this.athenaQueryBuilder.buildQuery(definition, {
-      columns: options?.columnFilter,
-    });
-    this.pendingQuery =
-      options?.sqlOverride ?? (isQueryBuildResult(builtQuery) ? builtQuery.sql : builtQuery);
+    // An override is the final SQL: building from the definition too would fail for a SQL Data
+    // Mart that references another, since only the override path has its references resolved.
+    this.pendingQuery = options?.sqlOverride ?? this.buildQuery(definition, options?.columnFilter);
     this.pendingParams = options?.sqlOverrideParams;
 
     await this.prepareApiAdapters(storage);
@@ -190,15 +188,17 @@ export class AthenaReportReader implements DataStorageReportReader {
   private async prepareQueryExecution(dataMartDefinition: DataMartDefinition): Promise<void> {
     this.logger.debug('Preparing query execution', dataMartDefinition);
     try {
-      const builtFallback = this.athenaQueryBuilder.buildQuery(dataMartDefinition);
-      const query =
-        this.pendingQuery ??
-        (isQueryBuildResult(builtFallback) ? builtFallback.sql : builtFallback);
+      const query = this.pendingQuery ?? this.buildQuery(dataMartDefinition);
       await this.executeQuery(query, this.pendingParams);
     } catch (error) {
       this.logger.error('Failed to prepare query execution', error);
       throw error;
     }
+  }
+
+  private buildQuery(definition: DataMartDefinition, columns?: string[]): string {
+    const built = this.athenaQueryBuilder.buildQuery(definition, { columns });
+    return isQueryBuildResult(built) ? built.sql : built;
   }
 
   private async executeQuery(query: string, params?: SqlParameter[]): Promise<void> {

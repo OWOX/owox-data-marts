@@ -136,14 +136,14 @@ export class SsrfGuard {
 
   /**
    * @param {string[]} allowedHosts - hostnames declared in the manifest
-   * @param {{ lookup?: (host: string) => Promise<Array<{address:string,family:number}>>, sleep?: (ms: number) => Promise<void> }} [deps]
-   *   `lookup` and `sleep` are injectable for tests; `lookup` defaults to a
-   *   promisified `dns.lookup(host, { all: true })`.
+   * @param {{ lookup?: (host: string) => Promise<Array<{address:string,family:number}>>, sleep?: (ms: number) => Promise<void>, context?: object }} [deps]
+   *   Test doubles for `lookup` (default `dns.lookup`, all) and `sleep`; the run's `context`.
    */
-  constructor(allowedHosts = [], { lookup, sleep } = {}) {
+  constructor(allowedHosts = [], { lookup, sleep, context } = {}) {
     this.allowedHosts = new Set(allowedHosts.map(h => h.toLowerCase().replace(/\.$/, '')));
     this.lookup = lookup || defaultLookup;
     this.sleep = sleep || (ms => new Promise(resolve => setTimeout(resolve, ms)));
+    this.context = context;
   }
 
   /**
@@ -203,8 +203,9 @@ export class SsrfGuard {
       // viewer-readable run history exactly like a log line. The string may be a
       // credential-bearing URL — `authentication.inject.into: "query"` puts the
       // credential in the query string — so only the unparsable origin+path part
-      // is echoed back, which is what identifies the offending value anyway.
-      throw new Error(`SsrfGuard: invalid URL "${redactUrl(rawUrl)}"`);
+      // is echoed back (nothing in a Credential run, see redactUrl), which is what
+      // identifies the offending value anyway.
+      throw new Error(`SsrfGuard: invalid URL "${redactUrl(rawUrl, this.context)}"`);
     }
 
     const allowLocal = SsrfGuard._allowLocalEgress();
@@ -243,7 +244,7 @@ export class SsrfGuard {
       // of the two to see a secret: the only caller passes a URL taken straight
       // out of an upstream response (AsyncRetriever's `poll.resultUrlPath`),
       // which is typically a SIGNED download link.
-      throw new Error(`SsrfGuard: invalid URL "${redactUrl(rawUrl)}"`);
+      throw new Error(`SsrfGuard: invalid URL "${redactUrl(rawUrl, this.context)}"`);
     }
     if (SsrfGuard._allowLocalEgress()) return;
     if (url.protocol !== 'https:') {

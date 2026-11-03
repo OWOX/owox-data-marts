@@ -171,7 +171,8 @@ export class ConnectorProcessSpawnerService {
       onSpawn?: (pid: number | undefined) => void;
     },
     signal?: AbortSignal,
-    manifest?: Record<string, unknown> | null
+    manifest?: Record<string, unknown> | null,
+    keyParameters?: readonly string[]
   ): Promise<void> {
     return new Promise((resolve, reject) => {
       const spawnStdio = 'pipe' as const;
@@ -190,7 +191,14 @@ export class ConnectorProcessSpawnerService {
         onSpawn = stdio.onSpawn;
       }
 
-      const env = this.buildChildEnv(datamartId, runId, configuration, runConfig, manifest);
+      const env = this.buildChildEnv(
+        datamartId,
+        runId,
+        configuration,
+        runConfig,
+        manifest,
+        keyParameters
+      );
 
       this.logger.log(
         `Spawning new process for connector runner execution for datamart ${datamartId} and run ${runId}`,
@@ -342,7 +350,8 @@ export class ConnectorProcessSpawnerService {
     runId: string,
     configuration: ConfigDto,
     runConfig: RunConfigDto,
-    manifest?: Record<string, unknown> | null
+    manifest?: Record<string, unknown> | null,
+    keyParameters?: readonly string[]
   ): Record<string, string | undefined> {
     const env: Record<string, string | undefined> = {
       ...(manifest ? inheritConnectorEnv(MANIFEST_RUN_INHERITED_ENV_VARS) : { ...process.env }),
@@ -350,6 +359,7 @@ export class ConnectorProcessSpawnerService {
       OW_RUN_ID: runId,
       OW_CONFIG: JSON.stringify(configuration.toObject()),
       OW_RUN_CONFIG: JSON.stringify(runConfig.toObject()),
+      OW_KEY_PARAMETERS: keyParameters && JSON.stringify(keyParameters),
     };
 
     if (manifest) {

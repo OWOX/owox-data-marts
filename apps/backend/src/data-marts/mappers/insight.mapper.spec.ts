@@ -1,9 +1,11 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { ClsService } from 'nestjs-cls';
 import { DataMartRun as DataMartRunEntity } from '../entities/data-mart-run.entity';
 import { Insight } from '../entities/insight.entity';
 import { DataMartRunType } from '../enums/data-mart-run-type.enum';
 import { ConnectorSecretService } from '../services/connector/connector-secret.service';
 import { DataMartMapper } from './data-mart.mapper';
+import { SourceCredentialBindingService } from '../connector-types/source-credential-binding.service';
 import { DataStorageMapper } from './data-storage.mapper';
 import { InsightMapper } from './insight.mapper';
 
@@ -46,6 +48,8 @@ describe('InsightMapper', () => {
             },
           },
           { provide: ConnectorSecretService, useValue: { mask } },
+          { provide: SourceCredentialBindingService, useValue: {} },
+          { provide: ClsService, useValue: { isActive: () => false } },
         ],
       }).compile();
 

@@ -22,6 +22,7 @@ describe('UpdateDataMartSchemaService', () => {
     parsedSchema?: unknown;
     dataMart?: Record<string, unknown>;
     resolveCredentials?: jest.Mock;
+    schemaInheritance?: { applyInheritance: jest.Mock; propagateFrom: jest.Mock };
   }) => {
     const parsedSchema = opts.parsedSchema ?? { type: 'bigquery-data-mart-schema', fields: [] };
     const dataMart = opts.dataMart ?? {
@@ -63,7 +64,8 @@ describe('UpdateDataMartSchemaService', () => {
       mapper as never,
       accessDecisionService as never,
       credentialsResolver as never,
-      searchIndexInvalidation as never
+      searchIndexInvalidation as never,
+      opts.schemaInheritance as never
     );
     return {
       service,
@@ -93,6 +95,80 @@ describe('UpdateDataMartSchemaService', () => {
       'target-1',
       'project-1'
     );
+  });
+
+  it('saves inherited field metadata over the edited one, then updates referencing Data Marts', async () => {
+    const validate = jest.fn().mockResolvedValue({ errors: [], warnings: [] });
+    const inheritedSchema = { type: 'bigquery-data-mart-schema', fields: [] };
+    const schemaInheritance = {
+      applyInheritance: jest.fn().mockResolvedValue({ schema: inheritedSchema, changed: true }),
+      propagateFrom: jest.fn().mockResolvedValue(undefined),
+    };
+    const { service, dataMartService, schemaParserFacade, dataMart } = buildService({
+      validate,
+      schemaInheritance,
+    });
+    const parsedSchema = await schemaParserFacade.validateAndParse();
+
+    await service.run(
+      new UpdateDataMartSchemaCommand('target-1', 'project-1', parsedSchema as never)
+    );
+
+    expect(schemaInheritance.applyInheritance).toHaveBeenCalledWith(dataMart, parsedSchema);
+    expect(dataMartService.save).toHaveBeenCalledWith(
+      expect.objectContaining({ schema: inheritedSchema })
+    );
+    expect(schemaInheritance.propagateFrom).toHaveBeenCalledWith(dataMart);
+    expect(schemaInheritance.propagateFrom.mock.invocationCallOrder[0]).toBeGreaterThan(
+      dataMartService.save.mock.invocationCallOrder[0]
+    );
+  });
+
+  it('drops cached report data and reindexes the Data Marts that inherited a change', async () => {
+    const validate = jest.fn().mockResolvedValue({ errors: [], warnings: [] });
+    const schemaInheritance = {
+      applyInheritance: jest.fn(async (_dataMart: unknown, schema: unknown) => ({
+        schema,
+        changed: false,
+      })),
+      propagateFrom: jest.fn().mockResolvedValue([{ id: 'retail-orders', projectId: 'project-1' }]),
+    };
+    const { service, schemaParserFacade, reportDataCacheService, searchIndexInvalidation } =
+      buildService({ validate, schemaInheritance });
+    const parsedSchema = await schemaParserFacade.validateAndParse();
+
+    await service.run(
+      new UpdateDataMartSchemaCommand('target-1', 'project-1', parsedSchema as never)
+    );
+
+    expect(reportDataCacheService.invalidateByDataMartId).toHaveBeenCalledWith('retail-orders');
+    expect(searchIndexInvalidation.scheduleDataMartSchemaChanged).toHaveBeenCalledWith(
+      'retail-orders',
+      'project-1'
+    );
+  });
+
+  it('keeps a saved schema saved when refreshing an inheriting Data Mart fails', async () => {
+    const validate = jest.fn().mockResolvedValue({ errors: [], warnings: [] });
+    const schemaInheritance = {
+      applyInheritance: jest.fn(async (_dataMart: unknown, schema: unknown) => ({
+        schema,
+        changed: false,
+      })),
+      propagateFrom: jest.fn().mockResolvedValue([{ id: 'retail-orders', projectId: 'project-1' }]),
+    };
+    const { service, schemaParserFacade, reportDataCacheService } = buildService({
+      validate,
+      schemaInheritance,
+    });
+    reportDataCacheService.invalidateByDataMartId.mockImplementation(async (id: string) => {
+      if (id === 'retail-orders') throw new Error('cache is down');
+    });
+    const parsedSchema = await schemaParserFacade.validateAndParse();
+
+    await expect(
+      service.run(new UpdateDataMartSchemaCommand('target-1', 'project-1', parsedSchema as never))
+    ).resolves.toBeDefined();
   });
 
   describe('field connection status', () => {

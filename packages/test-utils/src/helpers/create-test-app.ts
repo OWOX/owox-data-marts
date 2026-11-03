@@ -56,7 +56,10 @@ export async function createTestApp(
     /* webpackIgnore: true */ '../../../../apps/backend/src/config/plugin-collections-body-parser.config'
   );
   registerPluginCollectionsBodyParser(expressApp);
-  expressApp.set('trust proxy', 1);
+  const { configureTrustProxy } = await import(
+    /* webpackIgnore: true */ '../../../../apps/backend/src/config/trust-proxy.config'
+  );
+  configureTrustProxy(expressApp);
   const idpProvider = new NullIdpProvider();
   await idpProvider.initialize();
   expressApp.set('idp', idpProvider);

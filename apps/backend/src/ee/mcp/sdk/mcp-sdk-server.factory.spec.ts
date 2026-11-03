@@ -1,4 +1,4 @@
-import { z } from 'zod-v4';
+import { z } from 'zod';
 import type { Role } from '@owox/idp-protocol';
 import type { McpAuthContext } from '../auth/mcp-auth-context';
 import { McpConfigService } from '../config/mcp.config';
@@ -39,11 +39,7 @@ describe('McpSdkServerFactory', () => {
 
   const loadFactory = async () => {
     const refreshModule = await import('./mcp-schema-refresh');
-    jest.replaceProperty(
-      refreshModule as { MCP_SCHEMA_REFRESH_ENABLED: boolean },
-      'MCP_SCHEMA_REFRESH_ENABLED',
-      true
-    );
+    jest.replaceProperty(refreshModule.McpSchemaRefresh, 'enabled', true);
     const module = await import('./mcp-sdk-server.factory');
     return module.McpSdkServerFactory;
   };

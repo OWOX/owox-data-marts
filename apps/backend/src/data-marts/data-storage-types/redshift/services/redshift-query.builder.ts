@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { resolvedSqlQueryOf } from '../../../sql-references/data-mart-sql-reference';
 import {
   DataMartQueryBuilder,
   DataMartQueryOptions,
@@ -167,10 +168,10 @@ export class RedshiftQueryBuilder implements DataMartQueryBuilder {
     }
     if (isSqlDefinition(definition)) {
       if (queryOptions?.columns?.length) {
-        const cleanQuery = definition.sqlQuery.trim().replace(/;\s*$/, '');
+        const cleanQuery = resolvedSqlQueryOf(definition, this.type).trim().replace(/;\s*$/, '');
         return composeSelectFromClause(selectList, `(${cleanQuery}) AS subq`);
       }
-      return definition.sqlQuery.trim();
+      return resolvedSqlQueryOf(definition, this.type).trim();
     }
     if (isTablePatternDefinition(definition)) {
       throw new Error('Table pattern queries are not supported in Redshift');
@@ -195,7 +196,7 @@ export class RedshiftQueryBuilder implements DataMartQueryBuilder {
       if (options?.mainTableReference) {
         return options.mainTableReference;
       }
-      const cleanQuery = definition.sqlQuery.trim().replace(/;\s*$/, '');
+      const cleanQuery = resolvedSqlQueryOf(definition, this.type).trim().replace(/;\s*$/, '');
       return `(${cleanQuery}) AS subq`;
     }
     throw new Error('Invalid data mart definition');

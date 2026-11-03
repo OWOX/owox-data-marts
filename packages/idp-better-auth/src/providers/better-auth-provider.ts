@@ -191,6 +191,7 @@ export class BetterAuthProvider
   async initialize(): Promise<void> {
     const { runMigrations } = await getMigrations(this.auth.options);
     await runMigrations();
+    await this.store.ensureVerificationIdLength();
 
     if (this.config.primaryAdminEmail) {
       await this.initializePrimaryAdmin(this.config.primaryAdminEmail);

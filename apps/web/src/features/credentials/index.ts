@@ -13,12 +13,18 @@ export { ConsumerCredentialField } from './components/ConsumerCredentialField';
 export { trackCredentialCreated } from './track-credential-created';
 export { useCredentialFormBinding } from './useCredentialFormBinding';
 export { GoogleOAuthCredentialConnect } from './components/GoogleOAuthCredentialConnect';
+export { ConnectPickedSpreadsheetContext } from './connect-picked-spreadsheet';
 export type {
   Credential,
   CredentialDefinition,
   CredentialIcon,
   CredentialState,
   CredentialSummary,
+  CustomConnectorFieldSpec,
   PluginCredentialRequirement,
 } from './types';
-export { isCredentialEligible, normalizePluginCredentialRequirement } from './types';
+export {
+  isCredentialEligible,
+  normalizePluginCredentialRequirement,
+  sourceAuthVariant,
+} from './types';

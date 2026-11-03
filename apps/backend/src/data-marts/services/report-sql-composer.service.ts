@@ -39,6 +39,7 @@ import type {
 } from '../data-storage-types/data-mart-schema.type';
 import { OutputControlsCapabilityService } from './output-controls-capability.service';
 import { OutputControlsValidatorService } from './output-controls-validator.service';
+import { DataMartSqlReferenceResolver } from './data-mart-sql-reference-resolver.service';
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
 import { inlineAthenaPositionalParams } from '../data-storage-types/athena/adapters/athena-execution-parameters.utils';
 import { inlineBigQueryNamedParams } from '../data-storage-types/bigquery/adapters/bigquery-execution-parameters.utils';
@@ -97,7 +98,8 @@ export class ReportSqlComposerService {
     private readonly tableReferenceService: DataMartTableReferenceService,
     private readonly capabilityService: OutputControlsCapabilityService,
     private readonly blendableSchemaService: BlendableSchemaService,
-    private readonly outputControlsValidator: OutputControlsValidatorService
+    private readonly outputControlsValidator: OutputControlsValidatorService,
+    private readonly sqlReferenceResolver: DataMartSqlReferenceResolver
   ) {}
 
   async compose(
@@ -222,13 +224,21 @@ export class ReportSqlComposerService {
       });
     }
 
+    // A SQL Data Mart that references other Data Marts is read as its resolved SQL rather than its
+    // technical view, so the composed query — the Report SQL preview and Run History included —
+    // shows SQL down to the warehouse tables. On the plain path the builder reads the definition
+    // itself, so that is what gets resolved there.
     let mainTableReference: string | undefined;
+    let definition = dataMart.definition;
     if (needsOutputControlsHandling) {
       mainTableReference = await this.tableReferenceService.resolveTableName(
         dataMart.id,
         dataMart.projectId,
-        tableReferences
+        tableReferences,
+        { inlineSqlReferences: true }
       );
+    } else {
+      definition = (await this.sqlReferenceResolver.resolveDefinition(dataMart)) ?? definition;
     }
 
     const columnTypes: ReadonlyMap<string, string> | undefined = schemaFields.length
@@ -305,7 +315,7 @@ export class ReportSqlComposerService {
 
     const queryResult = await this.queryBuilderFacade.buildQuery(
       dataMart.storage.type,
-      dataMart.definition,
+      definition,
       {
         columns: nonMetricColumns,
         filters: routedFilters,

@@ -11,6 +11,9 @@ interface ConfigurationDynamicOptionsFieldProps {
   connectorName: string;
 }
 
+// Fields whose title is not a noun that takes a plural "s".
+const PLURAL_NOUN: Readonly<Record<string, string>> = { SpreadsheetId: 'spreadsheets' };
+
 /**
  * Field whose allowed values come from the source (DYNAMIC_OPTIONS): waits for
  * its dependencies, loads the options, and falls back to free-text input when
@@ -28,6 +31,7 @@ export function ConfigurationDynamicOptionsField({
 }: ConfigurationDynamicOptionsFieldProps) {
   const { name, placeholder, optionsDependsOn } = specification;
   const displayName = (specification.title ?? specification.name).toLowerCase();
+  const plural = PLURAL_NOUN[name] ?? `${displayName}s`;
   const rawValue = configuration[name];
   const currentValue = typeof rawValue === 'string' ? rawValue : '';
 
@@ -53,7 +57,7 @@ export function ConfigurationDynamicOptionsField({
         />
         <div role='alert' className='text-destructive flex items-center gap-2 text-sm'>
           <span className='min-w-0 flex-1'>
-            Could not load the list of {displayName}s: {error ?? 'unknown error'}. Enter the value
+            Could not load the list of {plural}: {error ?? 'unknown error'}. Enter the value
             manually or retry.
           </span>
           <Button type='button' variant='ghost' size='sm' onClick={reload}>
@@ -77,7 +81,7 @@ export function ConfigurationDynamicOptionsField({
             onValueChange(name, event.target.value);
           }}
         />
-        <p className='text-muted-foreground text-sm'>No {displayName}s were found.</p>
+        <p className='text-muted-foreground text-sm'>No {plural} were found.</p>
       </div>
     );
   }
@@ -104,20 +108,20 @@ export function ConfigurationDynamicOptionsField({
         }}
         placeholder={
           isWaiting
-            ? `Complete the settings above to load ${displayName}s`
+            ? `Complete the settings above to load ${plural}`
             : isLoading
-              ? `Loading ${displayName}s...`
+              ? `Loading ${plural}...`
               : (placeholder ?? `Select ${displayName}`)
         }
-        emptyMessage={`No ${displayName}s found`}
+        emptyMessage={`No ${plural} found`}
         disabled={isWaiting || isLoading}
         ariaInvalid={isMissingValue}
         className='w-full'
       />
       {isMissingValue && (
         <p role='alert' className='text-destructive text-sm'>
-          &quot;{currentValue}&quot; was not found among the available {displayName}s. Pick another
-          one or check the settings above.
+          &quot;{currentValue}&quot; was not found among the available {plural}. Pick another one or
+          check the settings above.
         </p>
       )}
     </div>

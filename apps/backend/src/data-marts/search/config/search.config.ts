@@ -19,7 +19,7 @@ const positiveIntFromString = (defaultValue: string) =>
     .pipe(z.number().int().positive());
 
 export function loadSearchConfig(env: Record<string, string | undefined>): SearchConfig {
-  const schema: z.ZodType<SearchConfig, z.ZodTypeDef, unknown> = z.object({
+  const schema: z.ZodType<SearchConfig> = z.object({
     queryMaxLength: positiveIntFromString(String(DEFAULT_SEARCH_QUERY_MAX_LENGTH)),
     queryMinLength: positiveIntFromString(String(DEFAULT_SEARCH_QUERY_MIN_LENGTH)),
     topK: positiveIntFromString('25').pipe(z.number().int().positive().max(50)),

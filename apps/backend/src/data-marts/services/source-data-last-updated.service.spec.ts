@@ -1,6 +1,7 @@
 import { SourceDataLastUpdatedService } from './source-data-last-updated.service';
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
 import { DataStorage } from '../entities/data-storage.entity';
+import { passThroughSqlReferenceResolver } from '../sql-references/__fixtures__/pass-through-sql-reference-resolver';
 
 describe('SourceDataLastUpdatedService', () => {
   const storage = {
@@ -20,7 +21,11 @@ describe('SourceDataLastUpdatedService', () => {
   };
 
   const createService = (registry: { tryResolve: jest.Mock }) =>
-    new SourceDataLastUpdatedService(registry as never, queryBuilderFacade as never);
+    new SourceDataLastUpdatedService(
+      registry as never,
+      queryBuilderFacade as never,
+      passThroughSqlReferenceResolver as never
+    );
 
   const withResolver = (resolveForSqlBatch: jest.Mock) =>
     createService({ tryResolve: jest.fn().mockResolvedValue({ resolveForSqlBatch }) });

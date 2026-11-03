@@ -9,6 +9,7 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
   DeleteDateColumn,
+  type Relation,
 } from 'typeorm';
 import { CreatorAwareEntity } from './creator-aware-entity.interface';
 import { DataStorage } from './data-storage.entity';
@@ -45,10 +46,10 @@ export class DataMart implements CreatorAwareEntity {
 
   @ManyToOne(() => DataStorage, { eager: true, cascade: true })
   @JoinColumn()
-  storage: DataStorage;
+  storage: Relation<DataStorage>;
 
   @OneToOne(() => ConnectorState, cs => cs.dataMart)
-  connectorState?: ConnectorState;
+  connectorState?: Relation<ConnectorState>;
 
   @Column({
     type: 'json',
@@ -66,7 +67,7 @@ export class DataMart implements CreatorAwareEntity {
   @Column({ type: 'json', nullable: true })
   definition?: DataMartDefinition;
 
-  @Column({ default: DataMartStatus.DRAFT })
+  @Column({ type: 'varchar', default: DataMartStatus.DRAFT })
   status: DataMartStatus;
 
   @Column({ type: 'text', nullable: true })

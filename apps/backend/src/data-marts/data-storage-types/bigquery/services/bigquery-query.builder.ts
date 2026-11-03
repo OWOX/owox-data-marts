@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { DataMartDefinition } from '../../../dto/schemas/data-mart-table-definitions/data-mart-definition';
+import { resolvedSqlQueryOf } from '../../../sql-references/data-mart-sql-reference';
 import {
   isConnectorDefinition,
   isSqlDefinition,
@@ -67,7 +68,7 @@ export class BigQueryQueryBuilder implements DataMartQueryBuilderAsync {
     if (!hasOutputControls && !hasExplicitProjection) {
       // Backward-compatible path.
       if (isSqlDefinition(definition) && !queryOptions?.columns?.length) {
-        return definition.sqlQuery;
+        return resolvedSqlQueryOf(definition, this.type);
       }
       return composeSelectFromClause(
         selectList,
@@ -184,7 +185,7 @@ export class BigQueryQueryBuilder implements DataMartQueryBuilderAsync {
     }
     if (isSqlDefinition(definition)) {
       // Reached when columns are provided without output controls — wrap user SQL.
-      const cleanQuery = definition.sqlQuery.trim().replace(/;\s*$/, '');
+      const cleanQuery = resolvedSqlQueryOf(definition, this.type).trim().replace(/;\s*$/, '');
       return `(${cleanQuery})`;
     }
     throw new Error('Invalid data mart definition');

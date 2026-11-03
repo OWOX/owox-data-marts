@@ -1,8 +1,9 @@
-// Imported by migration 1792700000000: keep it and its imports when the legacy code goes.
+// Imported by migration 1793000000000: keep it and its imports when the legacy code goes.
 import type { CredentialDefinitionContract, CredentialOAuthAuth } from '../credential.types';
 
 export const GOOGLE_SHEETS_OAUTH_DEFINITION_ID = 'google-sheets-oauth';
 export const GOOGLE_CHAT_WEBHOOK_DEFINITION_ID = 'google-chat-webhook';
+export const CUSTOM_CONNECTOR_DEFINITION_ID = 'custom-connector';
 
 export const BUILTIN_CREDENTIAL_DEFINITIONS: readonly CredentialDefinitionContract[] = [
   {
@@ -172,7 +173,7 @@ export const BUILTIN_CREDENTIAL_DEFINITIONS: readonly CredentialDefinitionContra
     id: GOOGLE_SHEETS_OAUTH_DEFINITION_ID,
     category: 'google',
     icon: 'google-sheets',
-    displayName: 'Sheets Google account',
+    displayName: 'Sheets Destination Google account',
     description: 'Google account access for Google Sheets Destinations.',
     auth: {
       type: 'oauth',
@@ -321,6 +322,13 @@ export const BUILTIN_CREDENTIAL_DEFINITIONS: readonly CredentialDefinitionContra
         },
       ],
     },
+  },
+  {
+    id: CUSTOM_CONNECTOR_DEFINITION_ID,
+    category: 'custom-connectors',
+    displayName: 'Custom connector',
+    description: 'Hosts and key values for custom connectors.',
+    auth: { type: 'custom-connector' },
   },
 ] as const;
 

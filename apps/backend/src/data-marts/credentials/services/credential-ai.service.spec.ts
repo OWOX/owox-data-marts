@@ -8,7 +8,10 @@ const mockCreateOpenAI = jest.fn(
   })
 );
 
-jest.mock('@ai-sdk/openai', () => ({ createOpenAI: mockCreateOpenAI }));
+// Lazy: SWC hoists the imports above the mocks declared here, so the factory must not read them on load.
+jest.mock('@ai-sdk/openai', () => ({
+  createOpenAI: (options: Parameters<typeof mockCreateOpenAI>[0]) => mockCreateOpenAI(options),
+}));
 jest.mock('@ai-sdk/anthropic', () => ({
   createAnthropic: jest.fn(() => ({
     chat: jest.fn(() => ({ doGenerate: mockDoGenerate, doStream: mockDoStream })),

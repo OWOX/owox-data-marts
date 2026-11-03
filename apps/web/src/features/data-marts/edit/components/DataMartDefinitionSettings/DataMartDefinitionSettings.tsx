@@ -1,9 +1,10 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { Loader2 } from 'lucide-react';
 import { useForm, FormProvider, type SubmitHandler, type Resolver } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { DataMartDefinitionTypeSelector } from './form/DataMartDefinitionTypeSelector.tsx';
 import { DataMartDefinitionForm } from './form/DataMartDefinitionForm.tsx';
-import { DataMartDefinitionType } from '../../../shared';
+import { DataMartDefinitionType, DataMartStatus, dataMartService } from '../../../shared';
 import { DataStorageType } from '../../../../data-storage';
 import { useDataMartPreset } from '../../../shared/utils/useDataMartPreset.ts';
 import { useConnectorNameParam } from '../../../shared/utils/useConnectorNameParam.ts';
@@ -19,6 +20,11 @@ import SqlValidator from '../SqlValidator/SqlValidator.tsx';
 import type { DataMartDefinitionConfig, SqlDefinitionConfig } from '../../model';
 import { ChangeInputSourceTypeDialog } from './ChangeInputSourceTypeDialog.tsx';
 import { useInputSourceChangeImpact } from './useInputSourceChangeImpact.ts';
+import { ReferencedDataMartChangeDialog } from './ReferencedDataMartChangeDialog.tsx';
+import type { SqlReferencesContext } from './form/SqlDataMartReferencePicker.tsx';
+import type { ReferencingDataMarts } from '../../../shared/components/ReferencingDataMartsNotice';
+import { useProjectId } from '../../../../../shared/hooks/useProjectId';
+import { trackEvent } from '../../../../../utils';
 
 interface DataMartDefinitionSettingsProps {
   definitionType: DataMartDefinitionType | null;
@@ -73,13 +79,30 @@ export function DataMartDefinitionSettings({
   const {
     definition: initialDefinition,
     id: dataMartId,
-    storage: { id: storageId, type: storageType, config: storageConfig },
+    storage: { id: storageId, type: storageType, config: storageConfig, title: storageTitle },
   } = dataMart;
+  const isPublished = dataMart.status.code === DataMartStatus.PUBLISHED;
+  const projectId = useProjectId();
 
   const [, setSqlValidationState] = useState<SqlValidationState>(initialSqlValidationState);
   const [shouldActualizeSchema, setShouldActualizeSchema] = useState(false);
   const [pendingTypeChange, setPendingTypeChange] = useState<DataMartDefinitionFormData | null>(
     null
+  );
+  // A same-type save of a Data Mart other Data Marts reference in their SQL, held for confirmation.
+  const [pendingReferencedSave, setPendingReferencedSave] = useState<{
+    data: DataMartDefinitionFormData;
+    referencing: ReferencingDataMarts;
+  } | null>(null);
+  const [isCheckingReferences, setIsCheckingReferences] = useState(false);
+
+  // Legacy BigQuery storages keep their SQL in the legacy system, which cannot resolve references.
+  const sqlReferences = useMemo<SqlReferencesContext | undefined>(
+    () =>
+      projectId && storageType !== DataStorageType.LEGACY_GOOGLE_BIGQUERY
+        ? { projectId, dataMartId, storageId, storageTitle }
+        : undefined,
+    [projectId, storageType, dataMartId, storageId, storageTitle]
   );
 
   // A staged type change: the user picked another type but has not saved it yet. Until they do,
@@ -238,25 +261,82 @@ export function DataMartDefinitionSettings({
     [onSubmit, runGuarded]
   );
 
+  const trackReferencedChangeConfirmed = useCallback(
+    (total: number) => {
+      trackEvent({
+        event: 'data_mart_reference_impact_confirmed',
+        category: 'DataMart',
+        action: 'ConfirmReferencedChange',
+        context: dataMartId,
+        value: String(total),
+      });
+    },
+    [dataMartId]
+  );
+
+  // Other SQL Data Marts may read this one through references. A same-type edit can still remove
+  // or rename columns they use, so it is confirmed when there are any. The check is advisory: if
+  // it fails, the save goes ahead.
+  const checkReferencesThenSubmit = useCallback(
+    async (data: DataMartDefinitionFormData) => {
+      setIsCheckingReferences(true);
+      try {
+        const impact = await dataMartService.getInputSourceChangeImpact(dataMartId, {
+          skipLoadingIndicator: true,
+        });
+        const total = impact.referencingDataMartsCount ?? 0;
+        if (total > 0) {
+          setPendingReferencedSave({
+            data,
+            referencing: { dataMarts: impact.referencingDataMarts ?? [], total },
+          });
+          return;
+        }
+      } catch (error) {
+        console.error('Failed to check which Data Marts reference this one:', error);
+      } finally {
+        setIsCheckingReferences(false);
+      }
+      runSubmitGuarded(data);
+    },
+    [dataMartId, runSubmitGuarded]
+  );
+
   const guardedSubmit = useCallback<SubmitHandler<DataMartDefinitionFormData>>(
     data => {
       // Repointing a Data Mart at another type of source can disconnect fields that reports and
-      // relationships rely on, so it is confirmed explicitly. A same-type edit saves directly.
+      // relationships rely on, so it is confirmed explicitly. A same-type edit saves directly,
+      // unless other Data Marts reference this one — only a published one can be referenced.
       if (isTypeChangeStaged) {
         setPendingTypeChange(data);
         return;
       }
+      if (isPublished) {
+        void checkReferencesThenSubmit(data);
+        return;
+      }
       runSubmitGuarded(data);
     },
-    [isTypeChangeStaged, runSubmitGuarded]
+    [isTypeChangeStaged, isPublished, checkReferencesThenSubmit, runSubmitGuarded]
   );
 
   const handleConfirmTypeChange = useCallback(() => {
     if (!pendingTypeChange) return;
     const data = pendingTypeChange;
     setPendingTypeChange(null);
+    if (impact && impact.referencingDataMartsCount > 0) {
+      trackReferencedChangeConfirmed(impact.referencingDataMartsCount);
+    }
     runSubmitGuarded(data);
-  }, [pendingTypeChange, runSubmitGuarded]);
+  }, [pendingTypeChange, impact, trackReferencedChangeConfirmed, runSubmitGuarded]);
+
+  const handleConfirmReferencedSave = useCallback(() => {
+    if (!pendingReferencedSave) return;
+    const { data, referencing } = pendingReferencedSave;
+    setPendingReferencedSave(null);
+    trackReferencedChangeConfirmed(referencing.total);
+    runSubmitGuarded(data);
+  }, [pendingReferencedSave, trackReferencedChangeConfirmed, runSubmitGuarded]);
 
   const handleFormSubmit = useCallback(
     (e?: React.SyntheticEvent<HTMLFormElement>) => {
@@ -293,10 +373,16 @@ export function DataMartDefinitionSettings({
           connectorName={connectorName}
           initialDefinitionType={initialDefinitionType}
           saveDataMartDefinition={handleFormSubmit}
+          sqlReferences={sqlReferences}
         />
         {definitionType !== DataMartDefinitionType.CONNECTOR && (
           <div className='flex items-center gap-4'>
-            <Button variant={'default'} type='submit' disabled={!isValid || !isDirty}>
+            <Button
+              variant={'default'}
+              type='submit'
+              disabled={!isValid || !isDirty || isCheckingReferences}
+            >
+              {isCheckingReferences && <Loader2 className='h-4 w-4 animate-spin' />}
               Save
             </Button>
             <Button
@@ -364,6 +450,16 @@ export function DataMartDefinitionSettings({
             onConfirm={handleConfirmTypeChange}
             onCancel={() => {
               setPendingTypeChange(null);
+            }}
+          />
+        )}
+        {pendingReferencedSave && (
+          <ReferencedDataMartChangeDialog
+            open
+            referencing={pendingReferencedSave.referencing}
+            onConfirm={handleConfirmReferencedSave}
+            onCancel={() => {
+              setPendingReferencedSave(null);
             }}
           />
         )}

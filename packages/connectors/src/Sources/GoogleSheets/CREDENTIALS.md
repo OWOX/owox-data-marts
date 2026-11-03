@@ -7,7 +7,7 @@ The Google Sheets source supports two authentication methods:
 
 ## OAuth2
 
-Use OAuth2 when a business user should connect a spreadsheet from their own Google account.
+Use OAuth2 when a business user should connect a spreadsheet from their own Google account. Create a **Sheets Source Google account** Credential and click **Connect with Google**; the Google Picker opens there, and the Credential's page has **Add spreadsheet** for adding more files. The Data Mart's configuration lists the spreadsheets the selected Credential can open.
 
 Required environment variables for the Google Sheets source connector:
 
@@ -21,7 +21,7 @@ The redirect URI should point to the web app callback route: `/oauth/google-shee
 
 Do not use `OAUTH_GOOGLE_REDIRECT_URI` unless the connector OAuth callback is explicitly refactored to use the shared Google OAuth flow. That existing variable is used by the storage/destination OAuth flow at `/oauth/google/callback`.
 
-Enable the Google Sheets API and Google Picker API in the same Google Cloud project. Configure the OAuth client as a Web application with the web app origins and callback URLs, and restrict the Picker API key to the Google Picker API and those HTTP referrers.
+Enable the Google Sheets API, Google Drive API and Google Picker API in the same Google Cloud project (the Drive API lists the spreadsheets in the Data Mart form). Configure the OAuth client as a Web application with the web app origins and callback URLs, and restrict the Picker API key to the Google Picker API and those HTTP referrers.
 
 The source requests these scopes:
 
@@ -39,8 +39,7 @@ Steps:
 1. Create a Google Cloud service account.
 2. Create and download a JSON key for it.
 3. Share the spreadsheet with the service account email.
-4. Select `Service Account` in the source authentication method.
-5. Paste the service account JSON key into `Service Account Key (JSON)`.
+4. Create a **Google Service Account** Credential and paste the JSON key into it, then select it in the Data Mart's connector configuration.
 
 The service account email is the `client_email` value inside the downloaded JSON key.
 

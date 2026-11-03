@@ -1003,3 +1003,127 @@ describe('ConnectorTestService.runTest (against a fake runner)', () => {
     });
   });
 });
+
+describe('ConnectorTestService.runTest on a Credential (against a fake runner)', () => {
+  const fakeRunner = join(__dirname, '../../../../test/fixtures/fake-test-runner.mjs');
+  const echo = { env: { FAKE_KEY_ECHO: '1' } };
+  const manifest = {
+    version: '1.0',
+    name: 'X',
+    baseUrl: 'https://api.example.com',
+    parameters: {},
+    nodes: {
+      items: {
+        request: { method: 'GET', path: '/x' },
+        recordSelector: { recordPath: ['data'] },
+        fields: { i: { type: 'integer' } },
+      },
+    },
+  };
+  // A quote, a space and a slash: each form of the value differs from the raw one.
+  const password = 'pa"ss word/1';
+  const username = 'reporting-user-42';
+
+  function makeService() {
+    const svc = new ConnectorTestService();
+    (svc as unknown as { runnerPath: () => string }).runnerPath = () => fakeRunner;
+    return svc;
+  }
+
+  const onCredential = (onRotated = jest.fn()) => ({
+    keyParameters: ['Username', 'Password'],
+    values: [username, password, 'abc', '98765', ''],
+    onRotated,
+  });
+
+  it('sets OW_KEY_PARAMETERS to the parameters the Credential filled', async () => {
+    const res = await makeService().runTest(
+      {
+        projectId: 'p',
+        manifest,
+        node: 'items',
+        configuration: { Username: username, Password: password },
+        credential: onCredential(),
+      },
+      echo
+    );
+
+    expect(capturedSpawnEnv?.OW_KEY_PARAMETERS).toBe('["Username","Password"]');
+    expect(res.logs).toContain('keys=["Username","Password"]');
+  });
+
+  it('rows and sample mask a Credential value; free text keeps a short one', async () => {
+    const res = await makeService().runTest(
+      {
+        projectId: 'p',
+        manifest,
+        node: 'items',
+        configuration: {
+          Username: username,
+          Password: password,
+          Short: 'abc',
+          AccountNo: 98765,
+          Empty: '',
+          abc: 'plain-value',
+        },
+        credential: onCredential(),
+      },
+      echo
+    );
+
+    const body = JSON.stringify(res);
+    for (const value of [username, password, 'rotated-token-from-provider']) {
+      for (const form of [value, encodeURIComponent(value), JSON.stringify(value).slice(1, -1)]) {
+        expect(body).not.toContain(form);
+      }
+    }
+    expect(res.rows[0]).toMatchObject({ Username: '***', Password: '***', rotated: '***' });
+    expect(res.sample[0]).toMatchObject({ Username: '***', Password: '***' });
+    // A whole field is masked at any length; inside free text a short value stays.
+    expect(res.rows[0]).toMatchObject({ Short: '***', AccountNo: '***' });
+    expect(res.sample[0]).toMatchObject({ Short: '***', AccountNo: '***' });
+    // An empty value is never a Credential value; a key equal to a short one is masked.
+    expect(res.rows[0]).toMatchObject({ Empty: '', '***': 'plain-value' });
+    expect(res.rows[0]).not.toHaveProperty('abc');
+    expect(res.logs.join('\n')).toContain('abc');
+    expect(res.error).toBeNull();
+  });
+
+  it('drops the rotated-token line from logs and hands the token to the caller', async () => {
+    const onRotated = jest.fn();
+    const res = await makeService().runTest(
+      {
+        projectId: 'p',
+        manifest,
+        node: 'items',
+        configuration: { Username: username, Password: password },
+        credential: onCredential(onRotated),
+      },
+      echo
+    );
+
+    expect(onRotated).toHaveBeenCalledWith({
+      generated_refresh_token: 'rotated-token-from-provider',
+    });
+    expect(res.logs.join('\n')).not.toContain('CREDENTIALS');
+  });
+
+  it('typed values behave as before', async () => {
+    const res = await makeService().runTest(
+      {
+        projectId: 'p',
+        manifest,
+        node: 'items',
+        configuration: { Username: username, Password: password },
+      },
+      echo
+    );
+
+    expect(capturedSpawnEnv).not.toHaveProperty('OW_KEY_PARAMETERS');
+    expect(res.logs).toContain('keys=none');
+    expect(res.rows[0]).toMatchObject({ Username: username, Password: password });
+    expect(res.logs).toContain(
+      'The provider issued new credentials during this test; they were not stored.'
+    );
+  });
+});

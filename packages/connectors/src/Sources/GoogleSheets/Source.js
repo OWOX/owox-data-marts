@@ -69,6 +69,7 @@ export class GoogleSheetsSource extends AbstractSource {
             label: 'OAuth2',
             value: 'oauth2',
             requiredType: 'object',
+            credentialDisplayName: 'Sheets Source Google account',
             attributes: [CONFIG_ATTRIBUTES.OAUTH_FLOW],
             oauthParams: {
               vars: {
@@ -174,6 +175,7 @@ export class GoogleSheetsSource extends AbstractSource {
             label: 'Service Account',
             value: 'service_account',
             requiredType: 'object',
+            credentialDefinitionId: 'google-service-account',
             items: {
               ServiceAccountKey: {
                 isRequired: true,
@@ -193,7 +195,9 @@ export class GoogleSheetsSource extends AbstractSource {
         requiredType: 'string',
         label: 'Spreadsheet ID or URL',
         description:
-          'Choose a spreadsheet with Google Picker for OAuth, or enter its ID or URL for a service account.',
+          'Choose a spreadsheet from the list for OAuth, or enter its ID or URL (always for a service account).',
+        attributes: [CONFIG_ATTRIBUTES.DYNAMIC_OPTIONS],
+        optionsDependsOn: ['AuthType'],
       },
       SheetName: {
         isRequired: true,
@@ -362,19 +366,21 @@ export class GoogleSheetsSource extends AbstractSource {
         email: userInfo.email,
       };
 
-      return OauthCredentialsDto.builder()
-        .withUser(userData)
-        .withSecret({
-          refresh_token: data.refresh_token,
-          access_token: data.access_token,
-          client_id: variables.ClientId,
-          client_secret: variables.ClientSecret,
-        })
-        // The stored credential is backed by the refresh token. The access
-        // token's one-hour lifetime must not make the connection look expired.
-        .withExpiresIn(data.refresh_token_expires_in ?? null)
-        .build()
-        .toObject();
+      return (
+        OauthCredentialsDto.builder()
+          .withUser(userData)
+          .withSecret({
+            refresh_token: data.refresh_token,
+            access_token: data.access_token,
+            client_id: variables.ClientId,
+            client_secret: variables.ClientSecret,
+          })
+          // The stored credential is backed by the refresh token. The access
+          // token's one-hour lifetime must not make the connection look expired.
+          .withExpiresIn(data.refresh_token_expires_in ?? null)
+          .build()
+          .toObject()
+      );
     } catch (error) {
       if (error instanceof OauthFlowException) {
         throw error;
@@ -704,14 +710,55 @@ export class GoogleSheetsSource extends AbstractSource {
   }
 
   /**
-   * Lists the values a configuration field can take, resolved from the selected
-   * spreadsheet. Only `SheetName` is dynamic: it returns the spreadsheet's tabs.
+   * Lists the spreadsheets the OAuth account can open, for the SpreadsheetId field's option list.
+   * The file matching the stored value keeps that raw value (an ID or a URL), so it stays selected.
+   *
+   * @param {AbortSignal} [signal] - Cancels the provider request
+   * @returns {Promise<Array<{value: string, label: string}>>}
+   */
+  async _fetchSpreadsheets(signal) {
+    if (this.context.getParameter('AuthType')?.value === 'service_account') {
+      throw new ConnectorConfigurationException('Enter the spreadsheet ID or URL');
+    }
+    const storedValue = this.context.getParameter('SpreadsheetId')?.value;
+    let storedId = null;
+    try {
+      storedId = this._extractSpreadsheetId(storedValue);
+    } catch {
+      // An empty or malformed value is the ordinary state of a half-filled form.
+    }
+    // ponytail: one page of 1000 files; drive.file lists only picked files. Page when an account fills it.
+    const query = "mimeType='application/vnd.google-apps.spreadsheet' and trashed=false";
+    const url =
+      'https://www.googleapis.com/drive/v3/files' +
+      `?q=${encodeURIComponent(query)}&fields=${encodeURIComponent('files(id,name)')}` +
+      '&orderBy=modifiedTime%20desc&pageSize=1000&supportsAllDrives=true&includeItemsFromAllDrives=true';
+    const payload = await this._fetchSheetsApiJson(url, {
+      signal,
+      oversizeMessage: 'Google Drive response exceeds the 50 MB limit while listing spreadsheets.',
+    });
+    const files = Array.isArray(payload.files) ? payload.files : [];
+
+    return files
+      .filter(file => typeof file?.id === 'string' && file.id !== '')
+      .map(file => ({
+        value: file.id === storedId ? storedValue : file.id,
+        label: typeof file.name === 'string' && file.name !== '' ? file.name : file.id,
+      }));
+  }
+
+  /**
+   * Lists the values a configuration field can take: `SheetName` returns the selected
+   * spreadsheet's tabs, `SpreadsheetId` the spreadsheets the account can open.
    *
    * @param {string} fieldName - Configuration field declared with DYNAMIC_OPTIONS
    * @param {AbortSignal} [signal] - Cancels the provider request
    * @returns {Promise<Array<{value: string, label: string}>>}
    */
   async fetchFieldOptions(fieldName, signal) {
+    if (fieldName === 'SpreadsheetId') {
+      return this._fetchSpreadsheets(signal);
+    }
     if (fieldName !== 'SheetName') {
       throw new ConnectorConfigurationException(
         `Field '${fieldName}' does not provide dynamic options`
@@ -797,8 +844,8 @@ export class GoogleSheetsSource extends AbstractSource {
         // attempt from the Retry-After and abort handling below. urlFetchWithRetry's
         // other extras do not apply here — its SSRF and redirect re-validation run
         // only when a `validate` callback is passed, which bundled sources never do,
-        // and the host is the hardcoded sheets.googleapis.com (the spreadsheet id is
-        // regex-validated and both id and range are percent-encoded).
+        // and every caller builds the URL on a fixed Google host (the spreadsheet id
+        // is regex-validated and both id and range are percent-encoded).
         //
         // Non-2xx is not a throw for native fetch, so the status check that
         // _fetchSheetValues and _shouldRetry depend on is explicit below.
@@ -1042,7 +1089,7 @@ export class GoogleSheetsSource extends AbstractSource {
       if (this.context.getParameter('AuthType')?.value === 'oauth2') {
         return (
           `Google Sheets access denied: ${message}. ` +
-          'Reconnect Google Sheets and choose the spreadsheet with Google Picker.'
+          'Reconnect Google Sheets and add the spreadsheet with "Add spreadsheet" on the Credential page.'
         );
       }
 

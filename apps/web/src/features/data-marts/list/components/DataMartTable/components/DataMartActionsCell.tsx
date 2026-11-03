@@ -14,6 +14,14 @@ import { useProjectRoute } from '../../../../../../shared/hooks';
 import { DataStorageType } from '../../../../../data-storage';
 import { useDataMartList } from '../../../model/hooks';
 import type { DataMartListItem } from '../../../model/types';
+import { DataMartStatus } from '../../../../shared/enums';
+import {
+  ReferencingDataMartsNotice,
+  trackReferencedDeleteConfirmed,
+  useReferencingDataMarts,
+} from '../../../../shared/components/ReferencingDataMartsNotice';
+
+const NO_DATA_MARTS: string[] = [];
 
 interface DataMartActionsCellProps {
   row: { original: DataMartListItem };
@@ -25,8 +33,14 @@ export const DataMartActionsCell = ({ row, onDeleteSuccess }: DataMartActionsCel
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const { deleteDataMart, refreshList } = useDataMartList();
+  // Only a published Data Mart can be referenced from another one's SQL.
+  const referencingDataMarts = useReferencingDataMarts(
+    row.original.status.code === DataMartStatus.PUBLISHED ? [row.original.id] : NO_DATA_MARTS,
+    isDeleteDialogOpen
+  );
 
   const handleDelete = async () => {
+    trackReferencedDeleteConfirmed(row.original.id, referencingDataMarts.total);
     try {
       await deleteDataMart(row.original.id);
       setIsDeleteDialogOpen(false);
@@ -89,10 +103,14 @@ export const DataMartActionsCell = ({ row, onDeleteSuccess }: DataMartActionsCel
                 extension.
               </p>
             )}
+
+            <ReferencingDataMartsNotice {...referencingDataMarts} action='delete' />
           </div>
         }
         confirmLabel='Delete'
         cancelLabel='Cancel'
+        // Held until the user has seen which Data Marts reference this one.
+        confirmDisabled={referencingDataMarts.isLoading}
         onConfirm={() => void handleDelete()}
         variant='destructive'
       />

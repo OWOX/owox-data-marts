@@ -2,6 +2,7 @@ import { describe, expect, it, jest } from '@jest/globals';
 import type { Request, Response } from 'express';
 import { AUTH_BASE_PATH } from './core/constants.js';
 import { OwoxBetterAuthIdp } from './owox-better-auth-idp.js';
+import { ServerEventsService } from './services/analytics/server-events-service.js';
 
 type RouteHandler = (req: Request, res: Response) => Promise<void>;
 
@@ -38,6 +39,7 @@ function createCallbackProvider(params: {
     ),
   };
   const provider = Object.assign(Object.create(OwoxBetterAuthIdp.prototype), {
+    serverEvents: new ServerEventsService(undefined),
     betterAuthProxyHandler: { setupBetterAuthHandler: jest.fn() },
     authErrorController: { registerRoutes: jest.fn() },
     onboardingController: { registerRoutes: jest.fn() },
@@ -99,6 +101,7 @@ describe('OwoxBetterAuthIdp user-bound project redirects', () => {
       }),
     };
     const provider = Object.assign(Object.create(OwoxBetterAuthIdp.prototype), {
+      serverEvents: new ServerEventsService(undefined),
       tokenFacade,
       config: {
         idpOwox: {
@@ -148,6 +151,7 @@ describe('OwoxBetterAuthIdp user-bound project redirects', () => {
       }),
     };
     const provider = Object.assign(Object.create(OwoxBetterAuthIdp.prototype), {
+      serverEvents: new ServerEventsService(undefined),
       tokenFacade,
       config: {
         idpOwox: {
@@ -193,6 +197,7 @@ describe('OwoxBetterAuthIdp user-bound project redirects', () => {
       parseToken: jest.fn().mockResolvedValue(null),
     };
     const provider = Object.assign(Object.create(OwoxBetterAuthIdp.prototype), {
+      serverEvents: new ServerEventsService(undefined),
       tokenFacade,
       config: {
         idpOwox: {
@@ -282,5 +287,21 @@ describe('OwoxBetterAuthIdp user-bound project redirects', () => {
     await callback(createCallbackRequest(), response);
 
     expect(response.redirect).toHaveBeenCalledWith(appRedirectTo);
+  });
+});
+
+describe('OwoxBetterAuthIdp server-side login event', () => {
+  it('reports the signed-in user after a completed callback', async () => {
+    const { provider, callback } = createCallbackProvider({
+      authenticatedUserId: 'user-1',
+      appRedirectTo: '/ui',
+    });
+    const login = jest.fn();
+    Object.assign(provider, { serverEvents: { login } });
+    const request = createCallbackRequest();
+
+    await callback(request, createResponse());
+
+    expect(login).toHaveBeenCalledWith(request, 'user-1');
   });
 });

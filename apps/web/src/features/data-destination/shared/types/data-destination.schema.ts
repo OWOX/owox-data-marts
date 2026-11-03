@@ -8,7 +8,7 @@ import { googleChatCredentialsSchema } from './google-chat-credentials.schema.ts
 // Base schema for all data destinations
 const baseDataDestinationSchema = z.object({
   title: z.string().min(1, 'Title is required'),
-  type: z.nativeEnum(DataDestinationType),
+  type: z.enum(DataDestinationType),
 });
 
 const SELECT_CREDENTIAL = 'Select a Credential';
@@ -89,7 +89,7 @@ export const dataDestinationSchema = z
         data.credentials.deliveryMethod === 'webhook');
     if (usesCredential && !data.reusableCredentialId) {
       context.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: 'custom',
         path: ['reusableCredentialId'],
         message: SELECT_CREDENTIAL,
       });

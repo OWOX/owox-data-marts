@@ -1,6 +1,6 @@
 import { makeContextSummariesSchema } from './context-input';
 import { Inject, Injectable } from '@nestjs/common';
-import { z } from 'zod-v4';
+import { z } from 'zod';
 import type { McpScope } from '@owox/idp-protocol';
 import {
   MCP_DATA_MARTS_FACADE,

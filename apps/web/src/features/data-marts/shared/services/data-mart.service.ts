@@ -28,6 +28,7 @@ import type {
 import type { CreateSqlDryRunTaskResponseDto } from '../types/api/response/create-sql-dry-run-task.response.dto.ts';
 import type { TaskStatusResponseDto } from '../types/api/response/task-status.response.dto.ts';
 import type { DataMartInputSourceChangeImpactResponseDto } from '../types/api/response/data-mart-input-source-change-impact.response.dto.ts';
+import type { DataMartMemberAccessResponseDto } from '../types/api/response/data-mart-member-access.response.dto.ts';
 import type { BaseSchemaField, DataMartSchema } from '../types/data-mart-schema.types.ts';
 import type { DataMartIconValue } from '../enums/data-mart-icon.enum';
 
@@ -46,9 +47,13 @@ export class DataMartService extends ApiService {
   /**
    * Fetch all data marts with automatic pagination.
    * Pagination is handled internally — callers receive the full list.
+   * @param filters `storageId` limits the list to one Storage
    * @returns Promise with all data mart items
    */
-  async getDataMarts(config?: AxiosRequestConfig): Promise<DataMartListItemResponseDto[]> {
+  async getDataMarts(
+    config?: AxiosRequestConfig,
+    filters?: { storageId?: string }
+  ): Promise<DataMartListItemResponseDto[]> {
     const allItems: DataMartListItemResponseDto[] = [];
     let nextOffset: number | null = 0;
 
@@ -56,6 +61,9 @@ export class DataMartService extends ApiService {
       const params: Record<string, unknown> = {};
       if (nextOffset > 0) {
         params.offset = nextOffset;
+      }
+      if (filters?.storageId) {
+        params.storageId = filters.storageId;
       }
 
       const page = await this.get<DataMartListResponseDto>('/', params, config);
@@ -224,6 +232,16 @@ export class DataMartService extends ApiService {
       skipLoadingIndicator: true,
       ...config,
     } as AxiosRequestConfig);
+  }
+
+  /**
+   * Every project member with whether they can see this Data Mart, and why. Admin-only.
+   */
+  async getMemberAccess(
+    id: string,
+    config?: AxiosRequestConfig
+  ): Promise<DataMartMemberAccessResponseDto> {
+    return this.get<DataMartMemberAccessResponseDto>(`/${id}/member-access`, undefined, config);
   }
 
   /**
@@ -456,15 +474,6 @@ export class DataMartService extends ApiService {
     config?: AxiosRequestConfig
   ): Promise<DataMartRunResponseDto> {
     return this.get<DataMartRunResponseDto>(`/${dataMartId}/runs/${runId}`, undefined, config);
-  }
-
-  /**
-   * Get data marts by connector name
-   * @param connectorName Connector name
-   * @returns Promise with data mart list response
-   */
-  async getDataMartsByConnectorName(connectorName: string): Promise<DataMartResponseDto[]> {
-    return this.get<DataMartResponseDto[]>(`/by-connector/${connectorName}`);
   }
 
   /**

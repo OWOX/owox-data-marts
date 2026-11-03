@@ -7,6 +7,7 @@ import { IdentifierEscaperFacade } from '../data-storage-types/facades/identifie
 import { IdentifierEscaper } from '../data-storage-types/interfaces/identifier-escaper.interface';
 import { DataMart } from '../entities/data-mart.entity';
 import { DataMartSampleDataService } from './data-mart-sample-data.service';
+import { passThroughSqlReferenceResolver } from '../sql-references/__fixtures__/pass-through-sql-reference-resolver';
 
 describe('DataMartSampleDataService', () => {
   const createDataMart = (storageType: DataStorageType, definition?: unknown): DataMart =>
@@ -43,7 +44,8 @@ describe('DataMartSampleDataService', () => {
         dataMartService as never,
         dataMartSqlTableService as never,
         dataMartTableReferenceService as never,
-        identifierEscaperFacade
+        identifierEscaperFacade,
+        passThroughSqlReferenceResolver as never
       ),
       dataMart,
       dataMartSqlTableService,
