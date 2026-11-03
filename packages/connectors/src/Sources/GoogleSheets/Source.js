@@ -1114,6 +1114,10 @@ export class GoogleSheetsSource extends AbstractSource {
 
     if (statusCode === 403) {
       if (this.context.getParameter('AuthType')?.value === 'oauth2') {
+        // A rate limit or a disabled API is also a 403; a reconnect does not fix it.
+        if (!this._isPermissionDenial(error?.payload)) {
+          return `Google Sheets access denied: ${message}.`;
+        }
         return (
           `Google Sheets access denied: ${message}. ` +
           'Reconnect Google Sheets and add the spreadsheet with "Add spreadsheet" on the Credential page.'

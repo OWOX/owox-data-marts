@@ -379,6 +379,7 @@ test('keeps the Google message of a spreadsheet list 403 that a reconnect does n
   await assert.rejects(source.fetchFieldOptions('SpreadsheetId'), error => {
     assert.match(error.message, /Drive API has not been used/);
     assert.doesNotMatch(error.message, /spreadsheet list/);
+    assert.doesNotMatch(error.message, /Reconnect/);
     assert.equal(error.statusCode, 403);
     return true;
   });
@@ -386,19 +387,15 @@ test('keeps the Google message of a spreadsheet list 403 that a reconnect does n
 
 test('gives OAuth users guidance to add the spreadsheet for access errors', () => {
   const source = createSource({ authType: 'oauth2' });
+  const denied = {
+    statusCode: 403,
+    message: 'Forbidden',
+    payload: { error: { errors: [{ reason: 'forbidden' }] } },
+  };
 
-  assert.match(
-    source._buildSheetRequestErrorMessage({ statusCode: 403, message: 'Forbidden' }),
-    /Add spreadsheet/
-  );
-  assert.doesNotMatch(
-    source._buildSheetRequestErrorMessage({ statusCode: 403, message: 'Forbidden' }),
-    /type its ID or URL/
-  );
-  assert.doesNotMatch(
-    source._buildSheetRequestErrorMessage({ statusCode: 403, message: 'Forbidden' }),
-    /service account/
-  );
+  assert.match(source._buildSheetRequestErrorMessage(denied), /Add spreadsheet/);
+  assert.doesNotMatch(source._buildSheetRequestErrorMessage(denied), /type its ID or URL/);
+  assert.doesNotMatch(source._buildSheetRequestErrorMessage(denied), /service account/);
 });
 
 test('rejects OAuth authorization when Google does not return an email address', async () => {
