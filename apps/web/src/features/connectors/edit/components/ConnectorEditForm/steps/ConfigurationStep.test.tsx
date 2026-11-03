@@ -132,7 +132,8 @@ async function openCredentialOptions() {
 }
 
 async function selectCredential(title: string) {
-  fireEvent.click(screen.getByRole('combobox', { name: 'Credential' }));
+  // An open popover hides the rest of the page until it closes.
+  fireEvent.click(await screen.findByRole('combobox', { name: 'Credential' }));
   // An option also names the provider after the title.
   fireEvent.click(
     await within(document.body).findByRole('option', { name: new RegExp(`^${title}`) })
@@ -827,7 +828,9 @@ describe('ConfigurationStep Google Sheets Credential', () => {
       target: { value: 'https://docs.google.com/spreadsheets/d/other/edit' },
     });
 
-    expect(onOptionLabelChange).toHaveBeenLastCalledWith('SpreadsheetId', undefined);
+    await waitFor(() => {
+      expect(onOptionLabelChange).toHaveBeenLastCalledWith('SpreadsheetId', undefined);
+    });
   });
 
   it('a service account keeps the plain spreadsheet input and loads no list', async () => {
