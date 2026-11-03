@@ -138,4 +138,34 @@ describe('CredentialViewService', () => {
     );
     expect(state.mapper.toDto.mock.calls[1][7]).toBeNull();
   });
+
+  it.each([
+    ['other-signer', 'member-2', true],
+    ['reconnect', undefined, true],
+    ['signer-without-edit', 'member-1', false],
+  ])('reports %s for signer %s with EDIT %s', async (expected, signer, canEdit) => {
+    const context = {
+      projectId: 'project-1',
+      userId: 'member-1',
+      roles: ['editor'],
+    } as AuthorizationContext;
+    const state = setup();
+    state.access.canAccessMany.mockImplementation((_user, _roles, _type, _ids, action) =>
+      Promise.resolve(new Map([['credential-1', action === Action.EDIT ? canEdit : true]]))
+    );
+
+    await state.view.build(
+      {
+        id: 'credential-1',
+        definitionId: 'source:GoogleSheets:oauth2',
+        publicMetadata: {
+          fields: {},
+          connection: { account: null, expiresAt: null, signedInByUserId: signer },
+        },
+      } as never,
+      context
+    );
+
+    expect(state.mapper.toDto.mock.calls[0][7]).toBe(expected);
+  });
 });

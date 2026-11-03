@@ -440,7 +440,26 @@ export class CredentialResponseApiDto {
       },
       {
         type: 'object',
-        properties: { fields: { type: 'object', additionalProperties: { type: 'string' } } },
+        properties: {
+          fields: { type: 'object', additionalProperties: { type: 'string' } },
+          connection: {
+            type: 'object',
+            description: 'The Google account a Source Credential is signed in with.',
+            properties: {
+              account: {
+                type: 'object',
+                nullable: true,
+                properties: {
+                  id: { type: 'string' },
+                  name: { type: 'string', nullable: true },
+                  email: { type: 'string', nullable: true },
+                },
+              },
+              expiresAt: { type: 'string', format: 'date-time', nullable: true },
+              signedInByUserId: { type: 'string', description: 'The member who signed in last.' },
+            },
+          },
+        },
       },
       {
         type: 'object',
@@ -473,10 +492,10 @@ export class CredentialResponseApiDto {
   @ApiProperty({ description: 'Whether the current member may bind this Credential.' })
   canUse: boolean;
   @ApiPropertyOptional({
-    enum: ['allowed', 'reconnect', 'other-signer', 'not-recorded'],
+    enum: ['allowed', 'reconnect', 'other-signer', 'signer-without-edit', 'not-recorded'],
     nullable: true,
     description:
-      'Whether the current member may add files to this Credential with Google Picker; null when its connector opens no Picker.',
+      'Whether the current member may add files to this Credential with Google Picker: allowed for the member who signed it in with edit access; reconnect when no signer is recorded and the member has edit access; other-signer when another member signed it in; signer-without-edit when the signer lacks edit access; not-recorded when no signer is recorded and the member lacks edit access. Null when its connector opens no Picker.',
   })
   filePicking: CredentialFilePicking | null;
   @ApiProperty({ type: [Object] }) ownerUsers: UserProjectionDto[];

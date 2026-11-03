@@ -218,8 +218,12 @@ describe('sourceFilePicking', () => {
     expect(sourceFilePicking(signedBy('member-1'), 'member-2', true)).toBe('other-signer');
   });
 
-  it('other-signer for the signer without EDIT', () => {
-    expect(sourceFilePicking(signedBy('member-1'), 'member-1', false)).toBe('other-signer');
+  it('other-signer for another member without EDIT', () => {
+    expect(sourceFilePicking(signedBy('member-1'), 'member-2', false)).toBe('other-signer');
+  });
+
+  it('signer-without-edit for the signer without EDIT', () => {
+    expect(sourceFilePicking(signedBy('member-1'), 'member-1', false)).toBe('signer-without-edit');
   });
 
   it('reconnect without a recorded signer for a member with EDIT', () => {

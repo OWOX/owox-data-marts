@@ -10,6 +10,7 @@ import type {
   ConnectorSpecificationItemDto,
 } from '../dto/domain/connector-specification.dto';
 import type { ConnectorFieldsDto } from '../dto/domain/connector-fields.dto';
+import type { IssuedPickerTokenDto } from '../dto/domain/issued-picker-token.dto';
 import { ConnectorFieldsSchema } from '../connector-types/connector-fields-schema';
 import { ConnectorFieldOptions } from '../connector-types/connector-field-options';
 import { ConnectorFieldOptionResponseApiDto } from '../dto/presentation/connector-field-option-response-api.dto';
@@ -167,7 +168,7 @@ export class ConnectorMapper {
     };
   }
 
-  toPickerTokenResponse(result: { accessToken: string }): ConnectorPickerTokenResponseApiDto {
+  toPickerTokenResponse(result: IssuedPickerTokenDto): ConnectorPickerTokenResponseApiDto {
     return { accessToken: result.accessToken };
   }
 }

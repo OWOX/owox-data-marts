@@ -1,8 +1,9 @@
 import { BadRequestException, ForbiddenException, Injectable, Logger } from '@nestjs/common';
 import type { AuthorizationContext } from '../../idp';
+import { IssuedPickerTokenDto } from '../dto/domain/issued-picker-token.dto';
 import { SourceCredentialBindingService } from '../connector-types/source-credential-binding.service';
 import { sourceBindingFor } from '../connector-types/source-credential-definitions';
-import { sourceFilePicking } from '../credentials/credential.types';
+import { sourceFilePicking, type CredentialFilePicking } from '../credentials/credential.types';
 import { CredentialService } from '../credentials/services/credential.service';
 import { AccessDecisionService, Action, EntityType } from '../services/access-decision';
 import {
@@ -21,6 +22,13 @@ const PICKER_TOKEN_ERROR_MESSAGES = {
 const OTHER_SIGNER =
   'Spreadsheets for this Credential are added by the person who connected its Google account. Connect your own Google account to add one.';
 
+const REFUSALS: Record<Exclude<CredentialFilePicking, 'allowed'>, string> = {
+  reconnect: 'Reconnect this Credential to add spreadsheets.',
+  'signer-without-edit': 'You need edit access to this Credential to add spreadsheets.',
+  'other-signer': OTHER_SIGNER,
+  'not-recorded': OTHER_SIGNER,
+};
+
 /** A fresh Google Picker token from a Credential's refresh token, for the member who signed it in. */
 @Injectable()
 export class IssueSourcePickerTokenService {
@@ -37,7 +45,7 @@ export class IssueSourcePickerTokenService {
     context: AuthorizationContext,
     connectorName: string,
     credentialId: string
-  ): Promise<{ accessToken: string }> {
+  ): Promise<IssuedPickerTokenDto> {
     const { projectId, userId, roles = [] } = context;
     const credential = await this.credentials.getByIdAndProjectId(credentialId, projectId);
     if (!sourceBindingFor(connectorName, credential.definitionId)?.opensPicker) {
@@ -52,9 +60,8 @@ export class IssueSourcePickerTokenService {
       projectId
     );
     // drive.file also writes to the picked files, so no one else may hold the signer's token.
-    if (sourceFilePicking(credential.publicMetadata ?? null, userId, canEdit) !== 'allowed') {
-      throw new ForbiddenException(OTHER_SIGNER);
-    }
+    const picking = sourceFilePicking(credential.publicMetadata ?? null, userId, canEdit);
+    if (picking !== 'allowed') throw new ForbiddenException(REFUSALS[picking]);
     const resolved = await this.sourceCredentials.resolveCredential(projectId, credentialId);
     try {
       const config = this.injector.previewBoundConfig({}, connectorName, resolved);
@@ -63,7 +70,7 @@ export class IssueSourcePickerTokenService {
         () => source.getAccessToken!(),
         PICKER_TOKEN_ERROR_MESSAGES.timeout
       );
-      return { accessToken };
+      return new IssuedPickerTokenDto(accessToken);
     } catch (error) {
       throw mapConnectorPreviewError(error, this.logger, PICKER_TOKEN_ERROR_MESSAGES);
     }

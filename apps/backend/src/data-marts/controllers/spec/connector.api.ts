@@ -124,7 +124,8 @@ export function IssuePickerTokenSpec() {
     }),
     ApiResponse({
       status: 403,
-      description: 'The caller is not the member who signed the Credential in, or cannot edit it',
+      description:
+        'Only the member who signed the Credential in may add spreadsheets, and only while they can edit it; a Credential with no recorded signer must first be reconnected by a member who can edit it',
     })
   );
 }

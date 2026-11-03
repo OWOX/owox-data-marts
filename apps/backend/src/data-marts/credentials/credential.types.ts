@@ -406,7 +406,12 @@ export function isCustomConnectorMetadata(
 }
 
 /** Whether a member may add files to a Picker Credential with Google Picker, or why not. */
-export type CredentialFilePicking = 'allowed' | 'reconnect' | 'other-signer' | 'not-recorded';
+export type CredentialFilePicking =
+  | 'allowed'
+  | 'reconnect'
+  | 'other-signer'
+  | 'signer-without-edit'
+  | 'not-recorded';
 
 /** Only the member who signed in last, while they have EDIT; one never recorded must reconnect. */
 export function sourceFilePicking(
@@ -416,7 +421,8 @@ export function sourceFilePicking(
 ): CredentialFilePicking {
   const signer =
     metadata && 'connection' in metadata ? metadata.connection?.signedInByUserId : undefined;
-  if (signer) return signer === userId && canEdit ? 'allowed' : 'other-signer';
+  if (signer && signer !== userId) return 'other-signer';
+  if (signer) return canEdit ? 'allowed' : 'signer-without-edit';
   return canEdit ? 'reconnect' : 'not-recorded';
 }
 

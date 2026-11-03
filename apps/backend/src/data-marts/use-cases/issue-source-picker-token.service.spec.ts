@@ -30,7 +30,7 @@ function setup(
       connection: {
         account: null,
         expiresAt: null,
-        signedInByUserId: options.signer ?? 'member-1',
+        signedInByUserId: 'signer' in options ? options.signer : 'member-1',
       },
     },
   };
@@ -86,8 +86,26 @@ describe('IssueSourcePickerTokenService', () => {
     expect(source.getAccessToken).not.toHaveBeenCalled();
   });
 
-  it('refuses the signer without EDIT', async () => {
+  it('refuses the signer without EDIT with the edit-access copy', async () => {
     const { service, source } = setup({ canEdit: false });
+
+    await expect(service.run(context, 'GoogleSheets', 'credential-1')).rejects.toEqual(
+      new ForbiddenException('You need edit access to this Credential to add spreadsheets.')
+    );
+    expect(source.getAccessToken).not.toHaveBeenCalled();
+  });
+
+  it('asks a member with EDIT to reconnect a Credential with no recorded signer', async () => {
+    const { service, source } = setup({ signer: undefined });
+
+    await expect(service.run(context, 'GoogleSheets', 'credential-1')).rejects.toEqual(
+      new ForbiddenException('Reconnect this Credential to add spreadsheets.')
+    );
+    expect(source.getAccessToken).not.toHaveBeenCalled();
+  });
+
+  it('refuses a member without EDIT on a Credential with no recorded signer', async () => {
+    const { service, source } = setup({ signer: undefined, canEdit: false });
 
     await expect(service.run(context, 'GoogleSheets', 'credential-1')).rejects.toEqual(
       new ForbiddenException(OTHER_SIGNER)
