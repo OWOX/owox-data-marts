@@ -64,8 +64,17 @@ export function applyFieldsUpdate(
   const merged = mergeFields(auth, stored, input, definitionId);
   // Only a reconnect through the connector's sign-in replaces what it recorded.
   const { publicMetadata } = current;
-  const connection =
+  const recorded =
     publicMetadata && 'connection' in publicMetadata ? publicMetadata.connection : undefined;
+  // A grant typed in by hand is not the signer's grant; the kept account still pins a reconnect.
+  const grantKeys = [...grantFieldKeys(current), 'ClientId'];
+  const grantChanged = Object.keys(input).some(
+    key => grantKeys.includes(key) && (input[key] ?? undefined) !== own(stored, key)
+  );
+  const connection =
+    recorded && grantChanged
+      ? { account: recorded.account, expiresAt: recorded.expiresAt }
+      : recorded;
   return {
     secret: withRotatedToken(merged.secret, current, input),
     publicMetadata: connection ? { ...merged.publicMetadata, connection } : merged.publicMetadata,

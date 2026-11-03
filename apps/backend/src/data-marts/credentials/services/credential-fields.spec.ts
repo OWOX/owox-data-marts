@@ -406,6 +406,43 @@ describe('a rotated refresh token on update', () => {
   });
 });
 
+describe('applyFieldsUpdate and the recorded sign-in', () => {
+  const sheets = {
+    type: 'fields',
+    fields: [
+      fixtureField('RefreshToken', true, false, true),
+      fixtureField('ClientId', false, false, true),
+      fixtureField('ClientSecret', true, false, true),
+      fixtureField('Label', false, false, false),
+    ],
+  } as Parameters<typeof applyFieldsUpdate>[0];
+  const account = { id: 'google-1', name: 'A', email: 'a@example.com' };
+  const signedIn = {
+    secret: { fields: { RefreshToken: 'refresh-1', ClientSecret: 'cs-1' } },
+    publicMetadata: {
+      fields: { ClientId: 'client-1' },
+      connection: { account, expiresAt: null, signedInByUserId: 'user-a' },
+    },
+  };
+  const connectionAfter = (input: Record<string, unknown>) =>
+    applyFieldsUpdate(sheets, signedIn, input, 'source:GoogleSheets:oauth2').publicMetadata
+      .connection;
+
+  it.each([{ RefreshToken: 'refresh-2' }, { ClientId: 'client-2' }])(
+    'drops the signer and keeps the account when %o changes the grant',
+    input => {
+      expect(connectionAfter(input)).toEqual({ account, expiresAt: null });
+    }
+  );
+
+  it.each([{ Label: 'Team' }, { RefreshToken: 'refresh-1', ClientId: 'client-1' }, {}])(
+    'keeps the signer for %o',
+    input => {
+      expect(connectionAfter(input)).toEqual(signedIn.publicMetadata.connection);
+    }
+  );
+});
+
 describe('secretFieldKeysWithValue', () => {
   it('lists the secret fields that hold a value, never the values', () => {
     const keys = secretFieldKeysWithValue(aws, {
