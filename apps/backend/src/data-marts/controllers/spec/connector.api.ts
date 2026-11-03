@@ -125,7 +125,11 @@ export function IssuePickerTokenSpec() {
     ApiResponse({
       status: 403,
       description:
-        'Only the member who signed the Credential in may add spreadsheets, and only while they can edit it; a Credential with no recorded signer must first be reconnected by a member who can edit it',
+        'The member did not sign the Credential in last, or cannot edit it. A Credential with no recorded signer, or with a grant edited by hand, must first be reconnected by a member who can edit it.',
+    }),
+    ApiResponse({
+      status: 404,
+      description: 'The Credential does not exist, or the member cannot see it',
     })
   );
 }

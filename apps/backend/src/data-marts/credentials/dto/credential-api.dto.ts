@@ -491,7 +491,7 @@ export class CredentialResponseApiDto {
   setSecretFieldKeys: string[];
   @ApiProperty({ description: 'Whether the current member may bind this Credential.' })
   canUse: boolean;
-  @ApiPropertyOptional({
+  @ApiProperty({
     enum: ['allowed', 'reconnect', 'other-signer', 'signer-without-edit', 'not-recorded'],
     nullable: true,
     description:
