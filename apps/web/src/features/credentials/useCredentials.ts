@@ -73,8 +73,7 @@ export function useCredentialDefinitions() {
   return { ...query, definitions: query.data ?? [] };
 }
 
-/** Whether Google OAuth is set up, for one client when named. */
-export function useGoogleOAuthAvailable(client?: 'storage' | 'destination') {
+export function useGoogleOAuthSettings(client?: 'storage' | 'destination') {
   const projectId = useProjectId();
   const query = useQuery({
     queryKey: ['credential-google-oauth-settings', projectId],
@@ -83,10 +82,18 @@ export function useGoogleOAuthAvailable(client?: 'storage' | 'destination') {
     retry: false,
     staleTime: 5 * 60 * 1000,
   });
-  // undefined while the settings load, so callers can wait before choosing a provider.
-  return query.isPending
-    ? undefined
-    : ((client && query.data?.clients?.[client]) ?? query.data?.available ?? false);
+  return {
+    ...query,
+    // undefined while the settings load, so callers can wait before choosing a provider.
+    available: query.isPending
+      ? undefined
+      : ((client && query.data?.clients?.[client]) ?? query.data?.available ?? false),
+  };
+}
+
+/** Whether Google OAuth is set up, for one client when named. */
+export function useGoogleOAuthAvailable(client?: 'storage' | 'destination') {
+  return useGoogleOAuthSettings(client).available;
 }
 
 export function useCredentialActions({ skipErrorToast }: { skipErrorToast?: boolean } = {}) {

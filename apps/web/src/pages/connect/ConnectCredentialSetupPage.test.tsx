@@ -89,6 +89,8 @@ let saveError: Error | null;
 let completeError: Error | null;
 let cancelError: Error | null;
 let oauthAvailable: boolean;
+let oauthSettingsError: Error | null;
+let oauthSettingsRequest: (() => Promise<{ available: boolean }>) | undefined;
 let completeRequest: (() => Promise<CredentialSetup>) | undefined;
 let setupRequest: (() => Promise<CredentialSetup>) | undefined;
 let credentialRequest: (() => Promise<Credential>) | undefined;
@@ -136,6 +138,8 @@ beforeEach(() => {
   credentialRequest = undefined;
   exchangeRequest = undefined;
   oauthAvailable = true;
+  oauthSettingsError = null;
+  oauthSettingsRequest = undefined;
   mocks.popup.mockResolvedValue({ code: 'oauth-code', state: 'oauth-state' });
 
   mocks.get.mockImplementation(async (url: string) => {
@@ -149,6 +153,8 @@ beforeEach(() => {
       return { data: definitions };
     }
     if (url === '/credentials/oauth/google/settings') {
+      if (oauthSettingsError) throw oauthSettingsError;
+      if (oauthSettingsRequest) return { data: await oauthSettingsRequest() };
       return { data: { available: oauthAvailable } };
     }
     if (url === '/credentials/credential-1') {
@@ -738,6 +744,100 @@ describe('ConnectCredentialSetupPage', () => {
 
     expect(await screen.findByText(/Google sign-in is not configured/)).toBeInTheDocument();
     expect(screen.queryByTestId('credentialConfigForm')).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ['create', 'network'],
+    ['create', '503'],
+    ['update', 'network'],
+    ['update', '503'],
+  ] as const)('recovers OAuth %s setup after a settings %s error', async (mode, failure) => {
+    const oauthDefinition: CredentialDefinition = {
+      ...definition,
+      auth: { type: 'oauth', provider: 'google', client: 'destination' },
+    };
+    definitions = [oauthDefinition];
+    savedCredential = {
+      ...credential,
+      definition: oauthDefinition,
+      validationState: 'rejected',
+    };
+    setups.set(
+      'setup-1',
+      pendingSetup({ mode, credentialId: mode === 'update' ? credential.id : null })
+    );
+    oauthSettingsError =
+      failure === 'network'
+        ? new Error('Network unavailable')
+        : Object.assign(new Error('Service unavailable'), { response: { status: 503 } });
+    renderPage();
+
+    const retry = await screen.findByRole('button', { name: 'Try again' });
+    expect(screen.queryByText(/Google sign-in is not configured/)).not.toBeInTheDocument();
+    expect(screen.queryByTestId('credentialConfigForm')).not.toBeInTheDocument();
+    expect(mocks.post).not.toHaveBeenCalled();
+
+    oauthSettingsError = null;
+    let finishSettings!: (settings: { available: boolean }) => void;
+    oauthSettingsRequest = () =>
+      new Promise(resolve => {
+        finishSettings = resolve;
+      });
+    fireEvent.click(retry);
+    expect(await screen.findByText('Loading setup…')).toBeInTheDocument();
+    await act(async () => {
+      finishSettings({ available: true });
+    });
+
+    expect(await screen.findByRole('button', { name: 'Connect with Google' })).toBeEnabled();
+    expect(screen.queryByRole('button', { name: 'Try again' })).not.toBeInTheDocument();
+    expect(
+      mocks.get.mock.calls.filter(([url]) => url === '/credentials/oauth/google/settings')
+    ).toHaveLength(2);
+    expect(mocks.post).not.toHaveBeenCalled();
+  });
+
+  it('shows unavailable OAuth only after a settings retry confirms it', async () => {
+    definitions = [{ ...definition, auth: { type: 'oauth', provider: 'google' } }];
+    oauthSettingsError = new Error('Network unavailable');
+    renderPage();
+
+    const retry = await screen.findByRole('button', { name: 'Try again' });
+    oauthSettingsError = null;
+    oauthAvailable = false;
+    fireEvent.click(retry);
+
+    expect(await screen.findByText(/Google sign-in is not configured/)).toBeInTheDocument();
+    expect(screen.queryByTestId('credentialConfigForm')).not.toBeInTheDocument();
+  });
+
+  it('allows token setup when Google OAuth settings cannot be loaded', async () => {
+    oauthSettingsError = new Error('Network unavailable');
+    renderPage();
+
+    await saveNewCredential();
+
+    expect(await screen.findByRole('heading', { name: 'Credential saved' })).toBeInTheDocument();
+  });
+
+  it('preserves OAuth form input when a background settings request fails', async () => {
+    definitions = [{ ...definition, auth: { type: 'oauth', provider: 'google' } }];
+    const page = renderPage();
+    fireEvent.change(await screen.findByPlaceholderText('Enter Credential name'), {
+      target: { value: 'Unsaved Google account name' },
+    });
+    oauthSettingsError = new Error('Network unavailable');
+
+    await act(async () => {
+      await page.client.refetchQueries({ queryKey: ['credential-google-oauth-settings'] });
+    });
+
+    expect(screen.getByPlaceholderText('Enter Credential name')).toHaveValue(
+      'Unsaved Google account name'
+    );
+    expect(screen.getByRole('button', { name: 'Connect with Google' })).toBeEnabled();
+    expect(screen.queryByText(/Google sign-in is not configured/)).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Try again' })).not.toBeInTheDocument();
   });
 
   it.each(['setup', 'credential'] as const)(

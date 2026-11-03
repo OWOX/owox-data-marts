@@ -43,7 +43,7 @@ function CredentialSetupContent({ setupId }: { setupId: string }) {
         <p>
           {forbidden
             ? 'Open setup with the account and project used to start it. To update a Credential, you need edit access.'
-            : 'OWOX could not load the setup request, provider, or Credential.'}
+            : 'Could not load Credential setup. Please try again.'}
         </p>
         <Button variant='outline' onClick={() => void flow.retryLoad()}>
           Try again

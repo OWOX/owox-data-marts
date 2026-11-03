@@ -15,7 +15,7 @@ import {
   useCredential,
   useCredentialActions,
   useCredentialDefinitions,
-  useGoogleOAuthAvailable,
+  useGoogleOAuthSettings,
 } from './useCredentials';
 
 export function useCredentialSetup(setupId: string) {
@@ -50,9 +50,10 @@ export function useCredentialSetup(setupId: string) {
     setup?.mode === 'update'
       ? credentialQuery.credential?.definition
       : definitionsQuery.definitions.find(item => item.id === setup?.definitionId);
-  const oauthAvailable = useGoogleOAuthAvailable(
+  const oauthSettingsQuery = useGoogleOAuthSettings(
     definition?.auth?.type === 'oauth' ? definition.auth.client : undefined
   );
+  const needsOAuthSettings = needsForm && definition?.auth?.type === 'oauth';
 
   useEffect(() => {
     mounted.current = true;
@@ -171,6 +172,7 @@ export function useCredentialSetup(setupId: string) {
     await Promise.all([
       query.refetch(),
       definitionsQuery.refetch(),
+      oauthSettingsQuery.refetch(),
       ...(needsForm && setup.mode === 'update' && setup.credentialId
         ? [credentialQuery.refetch()]
         : []),
@@ -183,13 +185,14 @@ export function useCredentialSetup(setupId: string) {
     credential: credentialQuery.credential,
     definitions: definitionsQuery.definitions,
     definition,
-    oauthAvailable,
+    oauthAvailable: oauthSettingsQuery.available,
     isLoading:
       query.isPending ||
       (needsForm &&
         (definitionsQuery.isLoading ||
-          (setup.mode === 'update' && Boolean(setup.credentialId) && credentialQuery.isLoading))),
-    // A temporary status error must not remove the form and its unsaved secrets.
+          (setup.mode === 'update' && Boolean(setup.credentialId) && credentialQuery.isLoading))) ||
+      (needsOAuthSettings && oauthSettingsQuery.isPending),
+    // A temporary background error must not remove the form and its unsaved secrets.
     loadError:
       (query.isLoadingError ||
       [401, 403, 404].includes((query.error as AxiosError | null)?.response?.status ?? 0)
@@ -198,7 +201,8 @@ export function useCredentialSetup(setupId: string) {
       (needsForm
         ? ((definitionsQuery.isLoadingError ? definitionsQuery.error : null) ??
           credentialQuery.error)
-        : null),
+        : null) ??
+      (needsOAuthSettings && oauthSettingsQuery.isLoadingError ? oauthSettingsQuery.error : null),
     savedCredentialId,
     operation,
     actionError,
