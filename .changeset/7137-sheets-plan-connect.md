@@ -4,11 +4,14 @@
 
 <!-- markdownlint-disable-file MD041 MD036 -->
 
-**Connecting a Google Sheets plan is easier: no blocked popup, no second Google sign-in**
+**Connect a Google Sheets plan with one Google sign-in**
 
-Adding a Sheets Source Google account on the Credentials page used to fail right after Sign in with Google with "Failed to open popup window", and choosing a spreadsheet asked for Google access a second time. Now the account is added in one sign-in and the spreadsheet picker opens straight away.
+Before this release, Sign in with Google failed on the Credentials page for a Sheets Source Google account. The error was "Failed to open popup window". When the popup opened, Google asked for access a second time to choose a spreadsheet. Now one sign-in adds the account, and the spreadsheet picker opens immediately.
 
-- The Data Mart form has "+ Add spreadsheet" at the end of the spreadsheet list, so a new plan no longer means leaving the form. Only the person who connected the Google account can add spreadsheets with it; everyone else sees who that is.
-- The suggested table name now joins the document and the sheet, such as `budget_2026_plan`, so two documents with a "Plan" tab no longer default to one table. Ukrainian and Russian names become Latin, such as `data_soft_potochni_vytraty`, and names stay within 100 characters. Tables of existing Data Marts keep their names.
-- Target Setup warns when another Data Mart already writes the chosen table, because each run replaces it.
-- When the spreadsheet list cannot load, the form says why in one sentence and keeps the manual input.
+- The spreadsheet list in the Data Mart form has a "+ Add spreadsheet" item at the end. You can add a new plan without leaving the form.
+- Only the person who connected the Google account can add spreadsheets with it. Other members see who connected the account.
+- For a Credential that was connected before this release, reconnect the Credential one time to add spreadsheets.
+- The suggested table name has the document name and the sheet name, for example `budget_2026_plan`. Two documents with a "Plan" sheet do not get the same table name.
+- Ukrainian and Russian names change to Latin letters, for example `data_soft_potochni_vytraty`. A table name has 100 characters or fewer. Tables of existing Data Marts keep their names.
+- Target Setup shows a warning when another Data Mart writes to the same table. Each run replaces the table, so the two Data Marts overwrite the data of each other.
+- If the spreadsheet list cannot load, the form shows the cause in one sentence. You can still type the spreadsheet URL manually.
