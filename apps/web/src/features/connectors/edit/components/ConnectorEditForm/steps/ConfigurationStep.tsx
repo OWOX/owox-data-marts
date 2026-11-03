@@ -514,10 +514,11 @@ export function ConfigurationStep({
   // Without a list (a service account, no Credential) the field reports no name, so drop the last one.
   const listsSpreadsheets = sheetsCredentialId !== null;
   useEffect(() => {
-    if (listsSpreadsheets) return;
+    // Before the seed the configuration is empty, so a remount would drop a kept name.
+    if (!seeded || listsSpreadsheets) return;
     pickedSpreadsheetRef.current = null;
     onOptionLabelChange?.('SpreadsheetId', undefined);
-  }, [listsSpreadsheets, onOptionLabelChange]);
+  }, [seeded, listsSpreadsheets, onOptionLabelChange]);
 
   if (loading || requirementLoading) {
     return <AppWizardStepLoading variant='list' />;
