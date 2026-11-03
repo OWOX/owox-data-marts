@@ -1,6 +1,36 @@
 import { redactMcpTelemetry } from './mcp-telemetry-redaction';
 
 describe('redactMcpTelemetry for custom connectors', () => {
+  it.each([
+    ['a numeric value', 123456],
+    ['a numeric string', '123456'],
+    ['an array', [123456]],
+    ['an object', { nested: [123456] }],
+  ])('collects secret leaves from %s', (_name, secret) => {
+    const input = {
+      manifest: { parameters: { Value: { attributes: ['SECRET'] } } },
+      configuration: { Value: secret },
+    };
+    expect(
+      redactMcpTelemetry(
+        {
+          rows: [{ '123456': 123456 }],
+          sample: [{ value: '123456' }],
+          logs: ['Value 123456'],
+          error: 'Rejected 123456',
+          publicValue: 42,
+        },
+        input
+      )
+    ).toEqual({
+      rows: [{ '[REDACTED]': '[REDACTED]' }],
+      sample: [{ value: '[REDACTED]' }],
+      logs: ['Value [REDACTED]'],
+      error: 'Rejected [REDACTED]',
+      publicValue: 42,
+    });
+  });
+
   it.each(['Authorization', 'api-key', 'X-API-Key'])(
     'masks values referenced by a %s header even without SECRET attributes',
     name => {

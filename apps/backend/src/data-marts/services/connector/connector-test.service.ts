@@ -6,6 +6,7 @@ import { spawn } from 'cross-spawn';
 import { Core } from '@owox/connectors';
 import { castError } from '@owox/internal-helpers';
 import { ConcurrencyLimitExceededException } from '../../../common/exceptions/concurrency-limit-exceeded.exception';
+import { createSecretRedactor } from '../../../common/utils/secret-redaction';
 import { MAX_MANIFEST_SIZE_BYTES } from '../../connector-types/custom-connector-limits';
 import { createCapturedLineBuffer, inheritConnectorEnv } from './connector-process-spawner.service';
 
@@ -73,8 +74,7 @@ export const CONNECTOR_TEST_CONCURRENCY_LIMIT_CODE = 'CONNECTOR_TEST_CONCURRENCY
 const CHILD_EXIT_GRACE_MS = 1000;
 
 /**
- * The runner's MIN_REDACTED_SECRET_LENGTH. A shorter value is masked only as a whole field:
- * masking it as a substring would mangle ordinary words.
+ * Match short representations only as complete values or keys to preserve ordinary text.
  */
 const MIN_REDACTED_VALUE_LENGTH = 6;
 
@@ -138,24 +138,18 @@ function readRunFailureEnvelope(line: string): string | null {
   return null;
 }
 
-/** `result` without `values`: whole strings, keys and numbers, else long values in text. */
+/** Keep API field names separate from provider data that can contain secret keys. */
 function redactValues(result: ConnectorTestResult, values: readonly string[]): ConnectorTestResult {
-  const whole = new Set(values.filter(value => value.length > 0));
-  const forms = [
-    ...new Set(
-      values
-        .filter(value => value.length >= MIN_REDACTED_VALUE_LENGTH)
-        .flatMap(value => [value, encodeURIComponent(value), JSON.stringify(value).slice(1, -1)])
-    ),
-  ].sort((a, b) => b.length - a.length);
-  const strip = (text: string) =>
-    whole.has(text) ? '***' : forms.reduce((out, form) => out.split(form).join('***'), text);
-  return JSON.parse(JSON.stringify(result), (_key, value: unknown) => {
-    if (typeof value === 'number') return whole.has(String(value)) ? '***' : value;
-    if (typeof value === 'string') return strip(value);
-    if (value === null || typeof value !== 'object' || Array.isArray(value)) return value;
-    return Object.fromEntries(Object.entries(value).map(([key, item]) => [strip(key), item]));
-  }) as ConnectorTestResult;
+  const redact = createSecretRedactor(values, {
+    replacement: '***',
+    minimumSubstringLength: MIN_REDACTED_VALUE_LENGTH,
+  });
+  return {
+    rows: redact(result.rows) as ConnectorTestResult['rows'],
+    logs: redact(result.logs) as ConnectorTestResult['logs'],
+    error: redact(result.error) as ConnectorTestResult['error'],
+    sample: redact(result.sample) as ConnectorTestResult['sample'],
+  };
 }
 
 @Injectable()

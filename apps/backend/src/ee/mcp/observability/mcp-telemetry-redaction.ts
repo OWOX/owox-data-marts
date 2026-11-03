@@ -1,5 +1,6 @@
 import { Core } from '@owox/connectors';
 import { z } from 'zod';
+import { createSecretRedactor } from '../../../common/utils/secret-redaction';
 
 export const REDACT_KEYS =
   /(authorization|bearer|cookie|token|secret|password|passwd|api[_-]?key|private[_-]?key|credential)/i;
@@ -54,6 +55,8 @@ function rememberSecret(value: unknown, context: RedactionContext, depth = 0): v
     context.secretValues.add(value);
     const unprefixed = value.replace(/^(?:Bearer|Basic|ApiKey|Token)\s+/i, '');
     if (unprefixed) context.secretValues.add(unprefixed);
+  } else if (typeof value === 'number' && Number.isFinite(value)) {
+    context.secretValues.add(String(value));
   } else if (value && typeof value === 'object') {
     for (const item of Object.values(value)) rememberSecret(item, context, depth + 1);
   }
@@ -232,26 +235,6 @@ function maskPayload(value: unknown, context: RedactionContext): unknown {
   };
 }
 
-function replaceKnownSecrets(value: unknown, secrets: readonly string[]): unknown {
-  if (typeof value === 'string') {
-    if (isCredentialReference(value)) return value;
-    let result = value;
-    for (const secret of secrets) {
-      if (result === secret) return REDACTED;
-      // Short values are masked at credential positions, not inside ordinary words.
-      if (secret.length >= 4) result = result.split(secret).join(REDACTED);
-    }
-    return result;
-  }
-  if (Array.isArray(value)) return value.map(item => replaceKnownSecrets(item, secrets));
-  if (value && typeof value === 'object') {
-    return Object.fromEntries(
-      Object.entries(value).map(([key, item]) => [key, replaceKnownSecrets(item, secrets)])
-    );
-  }
-  return value;
-}
-
 export function redactMcpTelemetry(value: unknown, input?: unknown): unknown {
   const context: RedactionContext = {
     connector: false,
@@ -261,18 +244,8 @@ export function redactMcpTelemetry(value: unknown, input?: unknown): unknown {
   if (input !== undefined && input !== value) maskPayload(input, context);
   const masked = maskPayload(value, context);
   if (context.secretValues.size === 0) return masked;
-  const forms = new Set<string>();
-  for (const secret of context.secretValues) {
-    forms.add(secret);
-    forms.add(JSON.stringify(secret).slice(1, -1));
-    try {
-      forms.add(encodeURIComponent(secret));
-    } catch {
-      /* JSON drafts can contain unpaired Unicode surrogates. */
-    }
-  }
-  return replaceKnownSecrets(
-    masked,
-    [...forms].sort((a, b) => b.length - a.length)
-  );
+  return createSecretRedactor(context.secretValues, {
+    replacement: REDACTED,
+    minimumSubstringLength: 4,
+  })(masked);
 }

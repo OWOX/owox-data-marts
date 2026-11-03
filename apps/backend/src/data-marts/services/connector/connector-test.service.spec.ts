@@ -1128,4 +1128,21 @@ describe('ConnectorTestService.runTest on a Credential (against a fake runner)',
       'The provider issued new credentials during this test; they were not stored.'
     );
   });
+
+  it('preserves API field names when a Credential value matches one of them', async () => {
+    const result = await makeService().runTest(
+      {
+        projectId: 'p',
+        manifest,
+        node: 'items',
+        configuration: { Value: 'sample' },
+        credential: { keyParameters: ['Value'], values: ['sample'], onRotated: jest.fn() },
+      },
+      echo
+    );
+
+    expect(result.rows).toEqual([expect.objectContaining({ Value: '***' })]);
+    expect(result.sample).toEqual([expect.objectContaining({ Value: '***' })]);
+    expect(result.error).toBeNull();
+  });
 });

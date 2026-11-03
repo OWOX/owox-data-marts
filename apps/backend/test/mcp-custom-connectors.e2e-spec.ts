@@ -308,8 +308,19 @@ describe('Custom connector MCP with real persistence and transport', () => {
       });
 
       expect(result).toMatchObject({
-        rows: [expect.objectContaining({ Token: '[REDACTED]', rotated: '[REDACTED]' })],
-        sample: [expect.objectContaining({ Token: '[REDACTED]' })],
+        rows: [
+          expect.objectContaining({
+            Token: '[REDACTED]',
+            rotated: '[REDACTED]',
+            echoed: expect.objectContaining({ '[REDACTED]': '[REDACTED]' }),
+          }),
+        ],
+        sample: [
+          expect.objectContaining({
+            Token: '[REDACTED]',
+            echoed: expect.objectContaining({ '[REDACTED]': '[REDACTED]' }),
+          }),
+        ],
         error: null,
       });
       expect(JSON.stringify(result)).not.toContain('mcp-private-token');
@@ -332,6 +343,14 @@ describe('Custom connector MCP with real persistence and transport', () => {
       const secret = 'temporary/"mcp-secret"';
       const cases = [
         { manifest: base, configuration: { Token: secret } },
+        { manifest: base, configuration: { Token: '123456' } },
+        {
+          manifest: {
+            ...base,
+            parameters: { Token: { requiredType: 'number', attributes: ['SECRET'] } },
+          },
+          configuration: { Token: 123456 },
+        },
         { manifest: manifestFor('McpDefaultKeyTest'), configuration: { Region: 'eu' } },
         {
           manifest: {
@@ -373,6 +392,7 @@ describe('Custom connector MCP with real persistence and transport', () => {
           secret,
           encodeURIComponent(secret),
           'private-default',
+          '123456',
           'rotated-token-from-provider',
         ]) {
           expect(JSON.stringify(result)).not.toContain(value);
@@ -381,6 +401,20 @@ describe('Custom connector MCP with real persistence and transport', () => {
           expect(result.structuredContent).toMatchObject({
             rows: [expect.objectContaining({ Value: '[REDACTED]', PageToken: 'next-page' })],
             sample: [expect.objectContaining({ Value: '[REDACTED]', PageToken: 'next-page' })],
+          });
+        }
+        if ('Token' in args.configuration) {
+          expect(result.structuredContent).toMatchObject({
+            rows: [
+              expect.objectContaining({
+                echoed: expect.objectContaining({ '[REDACTED]': '[REDACTED]' }),
+              }),
+            ],
+            sample: [
+              expect.objectContaining({
+                echoed: expect.objectContaining({ '[REDACTED]': '[REDACTED]' }),
+              }),
+            ],
           });
         }
       }

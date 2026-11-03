@@ -14,7 +14,12 @@ import { testConnectorSchema, connectorTestOutputSchema } from './custom-connect
 import { boundTestLogsForMcp } from './custom-connector-test-logs';
 
 const inputSchema = testConnectorSchema;
-const resultSchema = z.object(connectorTestOutputSchema);
+const resultValuesSchema = z.tuple([
+  connectorTestOutputSchema.rows,
+  connectorTestOutputSchema.logs,
+  connectorTestOutputSchema.error,
+  connectorTestOutputSchema.sample,
+]);
 type Input = z.infer<typeof inputSchema>;
 
 @Injectable()
@@ -58,16 +63,21 @@ export class TestCustomConnectorTool implements McpToolDefinition<Input> {
         throw safeError;
       });
     // Mask complete values before log limits can cut a secret into an unrecognized fragment.
-    const safeResult = resultSchema.parse(redactMcpTelemetry(result, parsed));
+    // Preserve the API field names when a secret happens to equal one of them.
+    const [rows, logs, error, sample] = resultValuesSchema.parse(
+      redactMcpTelemetry([result.rows, result.logs, result.error, result.sample], parsed)
+    );
     const response = jsonToolResult({
-      ...safeResult,
-      logs: boundTestLogsForMcp(safeResult.logs),
+      rows,
+      logs: boundTestLogsForMcp(logs),
+      error,
+      sample,
     });
-    return safeResult.error
+    return error
       ? {
           ...response,
           isError: true,
-          content: [{ type: 'text', text: safeResult.error }, ...response.content],
+          content: [{ type: 'text', text: error }, ...response.content],
         }
       : response;
   }
