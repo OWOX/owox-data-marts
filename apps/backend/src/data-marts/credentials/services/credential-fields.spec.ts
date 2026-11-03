@@ -429,9 +429,9 @@ describe('applyFieldsUpdate and the recorded sign-in', () => {
       .connection;
 
   it.each([{ RefreshToken: 'refresh-2' }, { ClientId: 'client-2' }])(
-    'drops the signer and keeps the account when %o changes the grant',
+    'drops the recorded sign-in when %o changes the grant',
     input => {
-      expect(connectionAfter(input)).toEqual({ account, expiresAt: null });
+      expect(connectionAfter(input)).toBeUndefined();
     }
   );
 

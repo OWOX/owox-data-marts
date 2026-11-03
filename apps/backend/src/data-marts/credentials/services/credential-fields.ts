@@ -66,15 +66,12 @@ export function applyFieldsUpdate(
   const { publicMetadata } = current;
   const recorded =
     publicMetadata && 'connection' in publicMetadata ? publicMetadata.connection : undefined;
-  // A grant typed in by hand is not the signer's grant; the kept account still pins a reconnect.
+  // A grant typed in by hand is not the signer's grant, and any Google account may reconnect it.
   const grantKeys = [...grantFieldKeys(current), 'ClientId'];
   const grantChanged = Object.keys(input).some(
     key => grantKeys.includes(key) && (input[key] ?? undefined) !== own(stored, key)
   );
-  const connection =
-    recorded && grantChanged
-      ? { account: recorded.account, expiresAt: recorded.expiresAt }
-      : recorded;
+  const connection = grantChanged ? undefined : recorded;
   return {
     secret: withRotatedToken(merged.secret, current, input),
     publicMetadata: connection ? { ...merged.publicMetadata, connection } : merged.publicMetadata,
