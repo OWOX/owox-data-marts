@@ -353,6 +353,25 @@ describe('ConnectSourceOAuthCredentialService', () => {
       );
     });
 
+    it('a Google Sheets reconnect returns the sign-in token to the caller and stores it nowhere', async () => {
+      const existing = existingCredential();
+      const { service, exchangeOauth, credentials } = setup({
+        existing: { ...existing, definitionId: 'source:GoogleSheets:oauth2' },
+      });
+      exchangeOauth.mockResolvedValue(googleSheetsSignIn());
+
+      const result = await service.run(context, 'GoogleSheets', {
+        fieldPath: 'AuthType.oauth2',
+        payload: { code: 'code-value' },
+        credential: { id: 'credential-1' },
+      });
+
+      expect(credentials.replaceSignIn).toHaveBeenCalledTimes(1);
+      expect(JSON.stringify(credentials.replaceSignIn.mock.calls[0])).not.toContain('access-value');
+      expect(result.credentialId).toBe('credential-1');
+      expect(result.pickerAccessToken).toBe('access-value');
+    });
+
     it('refuses another account', async () => {
       const { service, exchangeOauth, credentials } = setup();
       exchangeOauth.mockResolvedValue(googleAdsSignIn('99'));
