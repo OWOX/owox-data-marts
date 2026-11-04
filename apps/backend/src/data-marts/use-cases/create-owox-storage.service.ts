@@ -2,12 +2,14 @@ import { ForbiddenException, Injectable, Inject, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Transactional } from 'typeorm-transactional';
+import { OwoxEventDispatcher } from '../../common/event-dispatcher/owox-event-dispatcher';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
 import { isUniqueConstraintViolation } from '../../common/typeorm/query-error.utils';
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
 import { CreateOwoxStorageCommand } from '../dto/domain/create-owox-storage.command';
 import { DataStorageDto } from '../dto/domain/data-storage.dto';
 import { DataStorage } from '../entities/data-storage.entity';
+import { StorageConfigSetEvent } from '../events/storage-config-set.event';
 import { ProjectPlanType } from '../enums/project-plan-type.enum';
 import {
   MANAGED_STORAGE_ENGINE,
@@ -36,7 +38,8 @@ export class CreateOwoxStorageService {
     private readonly createDataStorageService: CreateDataStorageService,
     @InjectRepository(DataStorage)
     private readonly dataStorageRepository: Repository<DataStorage>,
-    private readonly idpProjectionsFacade: IdpProjectionsFacade
+    private readonly idpProjectionsFacade: IdpProjectionsFacade,
+    private readonly eventDispatcher: OwoxEventDispatcher
   ) {}
 
   async run(command: CreateOwoxStorageCommand): Promise<DataStorageDto> {
@@ -67,8 +70,9 @@ export class CreateOwoxStorageService {
       location: command.location,
     });
 
+    let saved: DataStorageDto;
     try {
-      return await this.save(command, provisioned);
+      saved = await this.save(command, provisioned);
     } catch (error) {
       try {
         await this.engine.deprovision(provisioned);
@@ -83,6 +87,10 @@ export class CreateOwoxStorageService {
       }
       throw error;
     }
+    await this.eventDispatcher.publishExternal(
+      new StorageConfigSetEvent(saved.id, command.projectId, command.userId)
+    );
+    return saved;
   }
 
   @Transactional()

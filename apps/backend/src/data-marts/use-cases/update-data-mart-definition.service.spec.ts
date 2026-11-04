@@ -9,6 +9,7 @@ import { ConnectorService } from '../services/connector/connector.service';
 import { UpdateDataMartDefinitionCommand } from '../dto/domain/update-data-mart-definition.command';
 import { DataMartDefinitionType } from '../enums/data-mart-definition-type.enum';
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
+import { DataMartValidationCode } from '../data-storage-types/interfaces/data-mart-validator.interface';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
 import { passThroughSqlReferenceValidator } from '../sql-references/__fixtures__/pass-through-sql-reference-resolver';
 import { SECRET_MASK } from '../services/connector/connector-secret.service';
@@ -93,6 +94,7 @@ describe('UpdateDataMartDefinitionService', () => {
     const sourceCredentials = sourceCredentialsMock(overrides.bound);
     const definitionValidatorFacade = {
       checkIsValid: jest.fn().mockResolvedValue(undefined),
+      validate: jest.fn().mockResolvedValue({ valid: true }),
     };
     const managedStorages = {
       findByStorageId: jest
@@ -1220,21 +1222,52 @@ describe('UpdateDataMartDefinitionService', () => {
     describe('a same-type SQL save', () => {
       const sqlAt = (sqlQuery: string) => ({ sqlQuery });
 
-      it('on an OWOX Storage is refused when the validator rejects it, and nothing is written', async () => {
+      it('on an OWOX Storage is refused for a non-SELECT statement, and nothing is written', async () => {
         const { service, dataMartService, definitionValidatorFacade } = createService({
           definitionType: DataMartDefinitionType.SQL,
           definition: sqlAt('SELECT 1'),
           managed: true,
         });
-        definitionValidatorFacade.checkIsValid.mockRejectedValue(
-          new BusinessViolationException('OWOX Storage runs SELECT queries only.')
-        );
+        definitionValidatorFacade.validate.mockResolvedValue({
+          valid: false,
+          errorMessage: 'OWOX Storage runs SELECT queries only.',
+          code: DataMartValidationCode.STATEMENT_NOT_ALLOWED,
+        });
 
         await expect(
           service.run(commandFor(DataMartDefinitionType.SQL, sqlAt('DELETE FROM t WHERE true')))
         ).rejects.toThrow('SELECT queries only');
 
         expect(dataMartService.save).not.toHaveBeenCalled();
+        expect(definitionValidatorFacade.checkIsValid).not.toHaveBeenCalled();
+      });
+
+      it('on an OWOX Storage is saved when the dry run fails for another reason', async () => {
+        const { service, dataMartService, definitionValidatorFacade } = createService({
+          definitionType: DataMartDefinitionType.SQL,
+          definition: sqlAt('SELECT 1'),
+          managed: true,
+        });
+        definitionValidatorFacade.validate.mockResolvedValue({
+          valid: false,
+          errorMessage: 'Not found: Table proj:owox_abc.sales was not found',
+        });
+
+        await service.run(commandFor(DataMartDefinitionType.SQL, sqlAt('SELECT * FROM sales')));
+
+        expect(dataMartService.save).toHaveBeenCalled();
+      });
+
+      it('on an OWOX Storage is saved when the query is a SELECT', async () => {
+        const { service, dataMartService } = createService({
+          definitionType: DataMartDefinitionType.SQL,
+          definition: sqlAt('SELECT 1'),
+          managed: true,
+        });
+
+        await service.run(commandFor(DataMartDefinitionType.SQL, sqlAt('SELECT 2')));
+
+        expect(dataMartService.save).toHaveBeenCalled();
       });
 
       it('on a regular storage is not validated, as before', async () => {
@@ -1246,6 +1279,7 @@ describe('UpdateDataMartDefinitionService', () => {
         await service.run(commandFor(DataMartDefinitionType.SQL, sqlAt('SELECT 2')));
 
         expect(definitionValidatorFacade.checkIsValid).not.toHaveBeenCalled();
+        expect(definitionValidatorFacade.validate).not.toHaveBeenCalled();
         expect(dataMartService.save).toHaveBeenCalled();
       });
     });

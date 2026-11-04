@@ -331,7 +331,7 @@ describe('BigQueryManagedStorageEngine', () => {
     });
   });
 
-  it('deprovision ignores resources that are already gone', async () => {
+  it('deprovision forgets the identity, then revokes the role and deletes the account and both datasets', async () => {
     const { engine, client, calls, identity } = setup();
     await engine.deprovision({
       engine: 'bigquery',
