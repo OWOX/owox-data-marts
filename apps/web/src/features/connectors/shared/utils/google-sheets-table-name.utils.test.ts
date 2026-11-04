@@ -34,6 +34,7 @@ describe('suggestGoogleSheetsTableName', () => {
     expect(suggestGoogleSheetsTableName('Йогурт')).toBe('iohurt');
     expect(suggestGoogleSheetsTableName('Щоденний звіт')).toBe('shchodennyi_zvit');
     expect(suggestGoogleSheetsTableName('Объём')).toBe('obem');
+    expect(suggestGoogleSheetsTableName('Розгляд Згода')).toBe('rozghliad_zghoda');
   });
 
   it('transliterates a decomposed Cyrillic name as its composed form', () => {

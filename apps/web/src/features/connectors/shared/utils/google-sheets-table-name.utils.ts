@@ -1,6 +1,6 @@
 const FALLBACK_TABLE_NAME = 'google_sheets';
 const MAX_TABLE_NAME_LENGTH = 100;
-// Ukrainian national transliteration (KMU 2010, non-initial forms) plus Russian ё ы э ъ.
+// Ukrainian national transliteration (KMU 2010, non-initial forms, зг → zgh) plus Russian ё ы э ъ.
 const CYRILLIC_TO_LATIN: Readonly<Record<string, string>> = {
   а: 'a',
   б: 'b',
@@ -70,6 +70,7 @@ function toIdentifierPart(value: unknown): string {
     .normalize('NFC')
     .toLowerCase()
     .replace(CYRILLIC_APOSTROPHE, '')
+    .replace(/зг/g, 'zgh')
     .replace(/[\u0400-\u04ff]/g, letter => CYRILLIC_TO_LATIN[letter] ?? letter)
     .normalize('NFKD')
     .replace(/[\u0300-\u036f]/g, '')
