@@ -7,6 +7,8 @@ import {
   ApiOkResponse,
   ApiNoContentResponse,
   ApiQuery,
+  ApiForbiddenResponse,
+  ApiNotFoundResponse,
 } from '@nestjs/swagger';
 import { CreateDataMartRequestApiDto } from '../../dto/presentation/create-data-mart-request-api.dto';
 import { DataMartResponseApiDto } from '../../dto/presentation/data-mart-response-api.dto';
@@ -395,7 +397,9 @@ export function GetConnectorTargetConflictSpec() {
         'Compares the target name without quotes and brackets. BigQuery names keep their case; Snowflake keeps the case of quoted parts and upper-cases unquoted parts; other storages ignore case. The other DataMart is named only when the caller can see it.',
     }),
     ApiParam({ name: 'id', description: 'DataMart ID' }),
-    ApiOkResponse({ type: ConnectorTargetConflictResponseApiDto })
+    ApiOkResponse({ type: ConnectorTargetConflictResponseApiDto }),
+    ApiForbiddenResponse({ description: 'EDIT access to the DataMart is required' }),
+    ApiNotFoundResponse({ description: 'DataMart was not found in the current project' })
   );
 }
 
