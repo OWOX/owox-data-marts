@@ -15,6 +15,11 @@ export interface OwoxStorageSettings {
 
 const GIB = 2 ** 30;
 
+/** True when OWOX Storage is configured; a partial configuration throws. */
+export function isOwoxStorageEnabled(env: Record<string, unknown>): boolean {
+  return readOwoxStorageSettings(env) !== null;
+}
+
 /** Returns null when OWOX Storage is off; a partial or unknown configuration throws. */
 export function readOwoxStorageSettings(env: Record<string, unknown>): OwoxStorageSettings | null {
   // ConfigService returns validated values, so a limit can already be a number.

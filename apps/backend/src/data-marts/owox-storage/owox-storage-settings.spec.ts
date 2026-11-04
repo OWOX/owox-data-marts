@@ -1,4 +1,4 @@
-import { readOwoxStorageSettings } from './owox-storage-settings';
+import { isOwoxStorageEnabled, readOwoxStorageSettings } from './owox-storage-settings';
 
 describe('readOwoxStorageSettings', () => {
   it('returns null when OWOX_STORAGE_ENGINE is unset', () => {
@@ -89,6 +89,27 @@ describe('readOwoxStorageSettings', () => {
   it('throws on an unknown engine', () => {
     expect(() => readOwoxStorageSettings({ OWOX_STORAGE_ENGINE: 'motherduck' })).toThrow(
       /bigquery/
+    );
+  });
+});
+
+describe('isOwoxStorageEnabled', () => {
+  it('is false without OWOX_STORAGE_ENGINE', () => {
+    expect(isOwoxStorageEnabled({})).toBe(false);
+  });
+
+  it('is true with the engine and the project id', () => {
+    expect(
+      isOwoxStorageEnabled({
+        OWOX_STORAGE_ENGINE: 'bigquery',
+        OWOX_STORAGE_GCP_PROJECT_ID: 'owox-storage',
+      })
+    ).toBe(true);
+  });
+
+  it('throws on the engine without the project id', () => {
+    expect(() => isOwoxStorageEnabled({ OWOX_STORAGE_ENGINE: 'bigquery' })).toThrow(
+      'partially configured'
     );
   });
 });
