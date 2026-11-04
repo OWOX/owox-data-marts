@@ -53,6 +53,10 @@ var OAuthUtils = {
       } catch (_) {
         throw new Error(`Invalid JSON response (HTTP ${response.status})`);
       }
+      // A JSON body that is not an object (e.g. `null`) would crash on json.error below.
+      if (json === null || typeof json !== 'object') {
+        throw new Error(`Invalid JSON response (HTTP ${response.status})`);
+      }
 
       if (!response.ok || json.error) {
         const tokenError = new Error(
