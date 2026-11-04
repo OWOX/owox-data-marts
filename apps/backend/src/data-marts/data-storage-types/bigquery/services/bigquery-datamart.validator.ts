@@ -79,7 +79,10 @@ export class BigQueryDataMartValidator implements DataMartValidator {
         isSqlDefinition(definition) &&
         result.statementType !== 'SELECT'
       ) {
-        throw new OwoxStorageStatementException(result.statementType);
+        return ValidationResult.authoredFailure(
+          DataMartValidationCode.STATEMENT_NOT_ALLOWED,
+          new OwoxStorageStatementException(result.statementType).message
+        );
       }
       return ValidationResult.success(result);
     } catch (error) {

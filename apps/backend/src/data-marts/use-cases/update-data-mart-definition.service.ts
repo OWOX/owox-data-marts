@@ -5,6 +5,7 @@ import { BusinessViolationException } from '../../common/exceptions/business-vio
 import { OwoxEventDispatcher } from '../../common/event-dispatcher/owox-event-dispatcher';
 import { DataMartDefinitionValidatorFacade } from '../data-storage-types/facades/data-mart-definition-validator-facade.service';
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
+import { DataMartValidationCode } from '../data-storage-types/interfaces/data-mart-validator.interface';
 import { DataMartDto } from '../dto/domain/data-mart.dto';
 import { DataMart } from '../entities/data-mart.entity';
 import { UpdateDataMartDefinitionCommand } from '../dto/domain/update-data-mart-definition.command';
@@ -43,7 +44,6 @@ import {
   type SourceKeys,
 } from '../connector-types/source-key-fields';
 import { DATA_MART_ERROR_MESSAGES } from '../errors/data-mart-error-messages';
-import { DataMartValidationCode } from '../data-storage-types/interfaces/data-mart-validator.interface';
 import { isValidBigQueryConnectorTableName } from '../data-storage-types/bigquery/utils/bigquery-validation.utils';
 import { isValidAthenaConnectorTableName } from '../data-storage-types/athena/utils/athena-validation.utils';
 
@@ -142,14 +142,18 @@ export class UpdateDataMartDefinitionService {
     // gate Save, and API callers never run it at all — so exempting SQL would let an invalid
     // query silently replace a working table definition.
     //
-    // On an OWOX Storage a same-type SQL save is checked too (like a connector save), so a
-    // non-SELECT statement is refused at save time.
-    if (
-      definitionTypeChanged ||
-      (command.definitionType === DataMartDefinitionType.SQL &&
-        (await this.managedStorages.findByStorageId(dataMart.storage.id)))
-    ) {
+    // On an OWOX Storage a same-type SQL save is refused only for a non-SELECT statement: any other
+    // dry-run error (such as a table the first connector run has not created yet) must not block it.
+    if (definitionTypeChanged) {
       await this.definitionValidatorFacade.checkIsValid(dataMart);
+    } else if (
+      command.definitionType === DataMartDefinitionType.SQL &&
+      (await this.managedStorages.findByStorageId(dataMart.storage.id))
+    ) {
+      const result = await this.definitionValidatorFacade.validate(dataMart);
+      if (result.code === DataMartValidationCode.STATEMENT_NOT_ALLOWED) {
+        throw new BusinessViolationException(result.errorMessage!, result.details, result.code);
+      }
     }
 
     await this.dataMartService.save(dataMart);

@@ -10,6 +10,7 @@ import { DataStorageType } from '../data-storage-types/enums/data-storage-type.e
 import { CreateOwoxStorageCommand } from '../dto/domain/create-owox-storage.command';
 import { DataStorageDto } from '../dto/domain/data-storage.dto';
 import { ProjectPlanType } from '../enums/project-plan-type.enum';
+import { StorageConfigSetEvent } from '../events/storage-config-set.event';
 import { CreateOwoxStorageService } from './create-owox-storage.service';
 
 describe('CreateOwoxStorageService', () => {
@@ -48,6 +49,7 @@ describe('CreateOwoxStorageService', () => {
     const idp = {
       getProjectMembers: jest.fn().mockResolvedValue([{ userId: 'u1', isOutbound: false }]),
     };
+    const eventDispatcher = { publishExternal: jest.fn().mockResolvedValue(undefined) };
     const service = new CreateOwoxStorageService(
       configService as never,
       billing as never,
@@ -55,12 +57,23 @@ describe('CreateOwoxStorageService', () => {
       engine as never,
       createDataStorage as never,
       repo as never,
-      idp as never
+      idp as never,
+      eventDispatcher as never
     );
-    return { service, configService, billing, managed, engine, createDataStorage, repo, idp };
+    return {
+      service,
+      eventDispatcher,
+      configService,
+      billing,
+      managed,
+      engine,
+      createDataStorage,
+      repo,
+      idp,
+    };
   }
 
-  it('creates the storage, its record and returns owoxStorage', async () => {
+  it('provisions, creates the storage and its record, and returns the titled storage', async () => {
     const s = setup();
     const dto = await s.service.run(command);
     expect(s.engine.provision).toHaveBeenCalledWith({ projectId: 'p1', location: 'EU' });
@@ -87,6 +100,22 @@ describe('CreateOwoxStorageService', () => {
     });
     expect(dto.title).toBe('Mine');
     expect(dto.config).toEqual({ projectId: 'owox-managed', location: 'EU' });
+  });
+
+  it('publishes StorageConfigSetEvent once after a successful create', async () => {
+    const s = setup();
+    await s.service.run(command);
+    expect(s.eventDispatcher.publishExternal).toHaveBeenCalledTimes(1);
+    expect(s.eventDispatcher.publishExternal).toHaveBeenCalledWith(
+      new StorageConfigSetEvent('st-1', 'p1', 'u1')
+    );
+  });
+
+  it('publishes nothing when the save fails', async () => {
+    const s = setup();
+    s.managed.create.mockRejectedValue(new Error('db down'));
+    await expect(s.service.run(command)).rejects.toThrow('db down');
+    expect(s.eventDispatcher.publishExternal).not.toHaveBeenCalled();
   });
 
   it('refuses a plugin token', async () => {

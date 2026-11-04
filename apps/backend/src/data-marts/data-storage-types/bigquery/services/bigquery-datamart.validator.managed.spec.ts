@@ -1,3 +1,4 @@
+import { DataMartValidationCode } from '../../interfaces/data-mart-validator.interface';
 import { BigQueryDataMartValidator } from './bigquery-datamart.validator';
 import { DataMartDefinitionType } from '../../../enums/data-mart-definition-type.enum';
 import type { DataMartDefinition } from '../../../dto/schemas/data-mart-table-definitions/data-mart-definition';
@@ -28,6 +29,7 @@ describe('BigQueryDataMartValidator (managed)', () => {
 
     expect(result.valid).toBe(false);
     expect(result.errorMessage).toContain('SELECT queries only');
+    expect(result.code).toBe(DataMartValidationCode.STATEMENT_NOT_ALLOWED);
   });
 
   it('passes a SELECT definition', async () => {
