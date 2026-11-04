@@ -116,6 +116,15 @@ export const DataMartDataStorageView = ({
       case DataStorageType.LEGACY_GOOGLE_BIGQUERY: {
         const projectId = dataStorage.config.projectId;
         const location = dataStorage.config.location;
+        if (dataStorage.owoxStorage) {
+          return withHealthError(
+            <div className='flex flex-wrap gap-2'>
+              {formatParam('Location', dataStorage.owoxStorage.location)}
+              <span className='text-muted-foreground'>•</span>
+              {formatParam('Dataset', dataStorage.owoxStorage.datasetId)}
+            </div>
+          );
+        }
         const bigQueryConsoleLink = `https://console.cloud.google.com/bigquery?project=${projectId}`;
         return withHealthError(
           <div className='flex flex-wrap gap-2'>
