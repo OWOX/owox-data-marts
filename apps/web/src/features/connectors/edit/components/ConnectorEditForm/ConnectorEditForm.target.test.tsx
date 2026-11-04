@@ -176,7 +176,8 @@ function createHook() {
 
 function renderForm(
   existingConnector: ConnectorConfig | null = null,
-  mode?: 'full' | 'configuration-only' | 'fields-only'
+  mode?: 'full' | 'configuration-only' | 'fields-only',
+  configurationOnly = false
 ) {
   return render(
     <MemoryRouter>
@@ -185,6 +186,7 @@ function renderForm(
         dataStorageType={DataStorageType.GOOGLE_BIGQUERY}
         existingConnector={existingConnector}
         mode={mode}
+        configurationOnly={configurationOnly}
       />
     </MemoryRouter>
   );
@@ -375,9 +377,13 @@ describe('ConnectorEditForm target reset', () => {
     expect(last(targets).replacesTable).toBe(true);
   });
 
-  it.each(['fields-only', 'configuration-only'] as const)(
-    'asks for no target conflict in %s mode, which has no Target step',
-    async mode => {
+  it.each([
+    ['fields-only', false],
+    ['configuration-only', false],
+    ['full', true],
+  ] as const)(
+    'asks for no target conflict in %s mode with configurationOnly=%s, which has no Target step',
+    async (mode, configurationOnly) => {
       const existing: ConnectorConfig = {
         source: {
           name: 'GoogleSheets',
@@ -387,7 +393,7 @@ describe('ConnectorEditForm target reset', () => {
         },
         storage: { fullyQualifiedName: 'google_sheets_owox.saved_plan' },
       };
-      renderForm(existing, mode);
+      renderForm(existing, mode, configurationOnly);
       await waitFor(() => {
         expect(conflictCalls.length).toBeGreaterThan(1);
       });
