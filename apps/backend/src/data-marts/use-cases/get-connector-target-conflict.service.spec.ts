@@ -18,6 +18,7 @@ describe('GetConnectorTargetConflictService', () => {
   const createService = (options: {
     canEdit?: boolean;
     canSee?: boolean;
+    visibleIds?: string[];
     others?: unknown[];
     storageType?: DataStorageType;
   }) => {
@@ -39,7 +40,9 @@ describe('GetConnectorTargetConflictService', () => {
       canAccessMany: jest
         .fn()
         .mockImplementation((_u, _r, _t, ids: string[]) =>
-          Promise.resolve(new Map(ids.map(id => [id, options.canSee ?? true])))
+          Promise.resolve(
+            new Map(ids.map(id => [id, options.visibleIds?.includes(id) ?? options.canSee ?? true]))
+          )
         ),
     };
     const service = new GetConnectorTargetConflictService(
@@ -105,6 +108,33 @@ describe('GetConnectorTargetConflictService', () => {
       dataMart: null,
     });
   });
+
+  it('names the visible match when an earlier match is hidden from the caller', async () => {
+    const { service } = createService({
+      others: [connectorDm('dm-2', 'Hidden', fqn), connectorDm('dm-3', 'Visible', fqn)],
+      visibleIds: ['dm-3'],
+    });
+
+    await expect(service.run(command('dm-1', fqn))).resolves.toEqual({
+      conflict: true,
+      dataMart: { id: 'dm-3', title: 'Visible' },
+    });
+  });
+
+  it.each([DataStorageType.DATABRICKS, DataStorageType.AWS_REDSHIFT])(
+    'ignores case in %s names',
+    async storageType => {
+      const { service } = createService({
+        storageType,
+        others: [connectorDm('dm-2', 'Plan 2026', 'schema.table')],
+      });
+
+      await expect(service.run(command('dm-1', 'Schema.Table'))).resolves.toEqual({
+        conflict: true,
+        dataMart: { id: 'dm-2', title: 'Plan 2026' },
+      });
+    }
+  );
 
   it('skips a draft whose definition holds no valid target', async () => {
     const { service, accessDecisionService } = createService({
