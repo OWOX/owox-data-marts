@@ -310,15 +310,15 @@ describe('Custom connector MCP with real persistence and transport', () => {
       expect(result).toMatchObject({
         rows: [
           expect.objectContaining({
-            Token: '[REDACTED]',
-            rotated: '[REDACTED]',
-            echoed: expect.objectContaining({ '[REDACTED]': '[REDACTED]' }),
+            Token: '***',
+            rotated: '***',
+            echoed: expect.objectContaining({ '***': '***' }),
           }),
         ],
         sample: [
           expect.objectContaining({
-            Token: '[REDACTED]',
-            echoed: expect.objectContaining({ '[REDACTED]': '[REDACTED]' }),
+            Token: '***',
+            echoed: expect.objectContaining({ '***': '***' }),
           }),
         ],
         error: null,

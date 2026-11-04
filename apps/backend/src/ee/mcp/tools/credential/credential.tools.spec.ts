@@ -1,6 +1,7 @@
 import { Client } from '@modelcontextprotocol/client';
 import { InMemoryTransport } from '@modelcontextprotocol/server';
 import { ConfigService } from '@nestjs/config';
+import { OFFLOAD_KEY } from '@owox/internal-helpers';
 import { PublicOriginService } from '../../../../common/config/public-origin.service';
 import type { McpCredentialsFacade } from '../../../../data-marts/credentials/facades/mcp-credentials.facade';
 import { adminMcpContext } from '../../../../../test/fixtures/mcp-auth-context';
@@ -67,7 +68,7 @@ const setup = {
   expiresAt: date,
   completedAt: null,
 };
-const actor = { projectId: 'project-1', userId: 'user-1', roles: ['admin'], authFlow: 'mcp' };
+const actor = { projectId: 'project-1', userId: 'user-1', roles: ['admin'] };
 
 describe('Credential tools through the MCP SDK', () => {
   let facade: jest.Mocked<McpCredentialsFacade>;
@@ -156,7 +157,9 @@ describe('Credential tools through the MCP SDK', () => {
       owner_ids: ['user-1'],
     });
     expect(JSON.stringify(result)).not.toContain('secret-marker');
+    expect(events).toHaveLength(1);
     expect(JSON.stringify(events)).not.toContain('secret-marker');
+    expect(events[0].payload[OFFLOAD_KEY]?.arguments).toEqual({ credential_id: 'credential' });
     expect(facade[method]).toHaveBeenCalledWith(actor, 'credential');
   });
 
@@ -190,6 +193,8 @@ describe('Credential tools through the MCP SDK', () => {
       ],
     });
     expect(facade.list).toHaveBeenCalledWith(actor);
+    const listEvent = events.find(event => event.payload.mcp_tool_name === 'list_credentials');
+    expect(listEvent?.payload[OFFLOAD_KEY]?.result).toEqual(list.structuredContent);
   });
 
   it('reads stored model identifiers without applying new input length limits', async () => {
@@ -338,7 +343,7 @@ describe('Credential tools through the MCP SDK', () => {
     expect(result.isError).toBe(true);
     for (const method of Object.values(facade)) expect(method).not.toHaveBeenCalled();
     expect(JSON.stringify(result)).not.toContain('secret-marker');
-    expect(JSON.stringify(events)).not.toContain('secret-marker');
+    expect(events).toEqual([]);
   });
 
   it('uses resource permissions for viewer writes, and still requires the write scope', async () => {

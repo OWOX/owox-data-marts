@@ -9,6 +9,9 @@ import type { Role } from '../types';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { ConnectFlowLayout } from '../../../layouts/ConnectFlowLayout';
 import { AppBootstrap, AppStoreProvider } from '../../../app/store';
+import apiClient from '../../../app/api/apiClient';
+import { DefaultTokenProvider, setTokenProvider } from '../../../app/api/token-provider';
+import { AxiosError } from 'axios';
 
 const api = vi.hoisted(() => ({
   refreshAccessToken: vi.fn(),
@@ -363,7 +366,7 @@ describe('AuthProvider connect project', () => {
     });
   });
 
-  it('uses the original connect target when a refresh fails after navigation', async () => {
+  it('uses the current project when a refresh fails after leaving setup', async () => {
     renderAuth();
     await screen.findByText('authenticated:project-a');
     window.history.replaceState({}, '', '/ui/project-b/data-marts');
@@ -377,8 +380,143 @@ describe('AuthProvider connect project', () => {
     });
 
     expect(api.signIn).toHaveBeenCalledExactlyOnceWith({
-      projectId: 'project-a',
-      redirect: target,
+      projectId: 'project-b',
     });
+  });
+
+  it('uses the current setup when an earlier request reports a refresh failure', async () => {
+    renderAuth();
+    await screen.findByText('authenticated:project-a');
+    const next = '/ui/project-b/connect/credentials/setup-2?source=chat#form';
+    window.history.replaceState({}, '', next);
+
+    act(() => {
+      window.dispatchEvent(
+        new CustomEvent('auth:logout', {
+          detail: { reason: 'token_refresh_failed', connectTarget: target },
+        })
+      );
+    });
+
+    expect(api.signIn).toHaveBeenCalledExactlyOnceWith({ projectId: 'project-b', redirect: next });
+    expect(RedirectStorageService.retrieve()).toBe(next);
+  });
+
+  it.each(['connect_project_mismatch', 'connect_account_changed'])(
+    'ignores a stale %s event after opening another setup',
+    async reason => {
+      renderAuth();
+      await screen.findByText('authenticated:project-a');
+      window.history.replaceState({}, '', '/ui/project-b/connect/credentials/setup-2');
+      const provider = getTokenProvider();
+
+      act(() => {
+        window.dispatchEvent(
+          new CustomEvent('auth:logout', {
+            detail: { reason, connectTarget: target },
+          })
+        );
+      });
+
+      expect(api.signIn).not.toHaveBeenCalled();
+      expect(RedirectStorageService.retrieve()).toBeNull();
+      expect(getTokenProvider()).toBe(provider);
+    }
+  );
+
+  it('validates a pending refresh against the setup open when the user response arrives', async () => {
+    renderAuth();
+    await screen.findByText('authenticated:project-a');
+    const provider = getTokenProvider();
+    if (!provider) throw new Error('The authenticated token provider is missing');
+    let resolveUser!: (user: { id: string; projectId: string; roles: Role[] }) => void;
+    api.getUserApi.mockImplementation(
+      () =>
+        new Promise(resolve => {
+          resolveUser = resolve;
+        })
+    );
+    const refresh = provider.refreshToken();
+    await waitFor(() => {
+      expect(resolveUser).toBeDefined();
+    });
+    window.history.replaceState({}, '', '/ui/project-b/connect/credentials/setup-2');
+
+    await act(async () => {
+      resolveUser({ id: 'user-1', projectId: 'project-b', roles: ['editor'] });
+      await expect(refresh).resolves.toBe('token-a');
+    });
+
+    expect(await screen.findByText('authenticated:project-b')).toBeInTheDocument();
+    expect(getTokenProvider()?.getProjectId?.()).toBe('project-b');
+    expect(api.signIn).not.toHaveBeenCalled();
+  });
+
+  it('starts sign-in and blocks transport when a setup request has the wrong project token', async () => {
+    renderAuth();
+    await screen.findByText('authenticated:project-a');
+    setTokenProvider(
+      new DefaultTokenProvider(
+        () => 'wrong-token',
+        async () => 'wrong-token',
+        () => 'project-b',
+        () => 'user-1'
+      )
+    );
+    const adapter = vi.fn();
+
+    await act(async () => {
+      await expect(apiClient.get('/credential-setup/setup-1', { adapter })).rejects.toThrow(
+        'This setup requires project project-a'
+      );
+    });
+
+    await waitFor(() => {
+      expect(api.signIn).toHaveBeenCalledExactlyOnceWith({
+        projectId: 'project-a',
+        redirect: target,
+      });
+    });
+    expect(adapter).not.toHaveBeenCalled();
+    expect(getTokenProvider()).toBeNull();
+    expect(RedirectStorageService.retrieve()).toBe(target);
+  });
+
+  it('returns an actual failed API refresh to the setup opened while refresh was pending', async () => {
+    renderAuth();
+    await screen.findByText('authenticated:project-a');
+    let failRefresh!: (error: Error) => void;
+    api.refreshAccessToken.mockImplementation(
+      () =>
+        new Promise((_resolve, reject) => {
+          failRefresh = reject;
+        })
+    );
+    const request = apiClient.get('/credential-setup/setup-1', {
+      adapter: config =>
+        Promise.reject(
+          new AxiosError('Unauthorized', 'ERR_BAD_REQUEST', config, undefined, {
+            config,
+            data: {},
+            headers: {},
+            status: 401,
+            statusText: 'Unauthorized',
+          })
+        ),
+    });
+    const rejection = expect(request).rejects.toThrow('Token refresh failed');
+    await waitFor(() => {
+      expect(failRefresh).toBeDefined();
+    });
+    const next = '/ui/project-b/connect/credentials/setup-2?source=chat#form';
+    window.history.replaceState({}, '', next);
+
+    await act(async () => {
+      failRefresh(new Error('The session expired'));
+      await rejection;
+    });
+
+    expect(api.signIn).toHaveBeenCalledExactlyOnceWith({ projectId: 'project-b', redirect: next });
+    expect(RedirectStorageService.retrieve()).toBe(next);
   });
 });

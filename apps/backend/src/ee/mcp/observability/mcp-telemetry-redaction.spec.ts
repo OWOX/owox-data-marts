@@ -1,6 +1,63 @@
 import { redactMcpTelemetry } from './mcp-telemetry-redaction';
 
 describe('redactMcpTelemetry for custom connectors', () => {
+  it('preserves Credential IDs without masking their copies as secret values', () => {
+    const input = { credential_id: 'credential-1' };
+    const result = { credential_id: 'credential-1', message: 'Updated credential-1' };
+
+    expect(redactMcpTelemetry(input)).toEqual(input);
+    expect(redactMcpTelemetry(result, input)).toEqual(result);
+  });
+
+  it('preserves safe Credential list metadata and removes undeclared fields', () => {
+    const credential = {
+      credential_id: 'credential-1',
+      title: 'API account',
+      definition_id: 'provider',
+      state: 'unavailable',
+      created_at: '2026-11-04T00:00:00Z',
+      modified_at: '2026-11-04T00:00:00Z',
+    };
+    const value = {
+      credentials: [
+        {
+          ...credential,
+          keyValues: { Value: 'private-key' },
+          access_token: 'private-token',
+        },
+      ],
+    };
+
+    expect(redactMcpTelemetry(value, {})).toEqual({ credentials: [credential] });
+  });
+
+  it.each(['private-key', ['private-key'], { Value: 'private-key' }])(
+    'masks raw credentials without a metadata contract: %j',
+    credentials => {
+      expect(redactMcpTelemetry({ credentials })).toEqual({ credentials: '[REDACTED]' });
+    }
+  );
+
+  it('masks a secret parameter named credentials even when its value resembles list metadata', () => {
+    const input = {
+      manifest: { parameters: { credentials: { attributes: ['SECRET'] } } },
+      configuration: {
+        credentials: [
+          {
+            credential_id: 'private-id',
+            title: 'private-title',
+            definition_id: 'private-definition',
+            state: 'unavailable',
+            created_at: '2026-11-04T00:00:00Z',
+            modified_at: '2026-11-04T00:00:00Z',
+          },
+        ],
+      },
+    };
+
+    expect(JSON.stringify(redactMcpTelemetry(input))).not.toContain('private-');
+  });
+
   it.each([
     ['a numeric value', 123456],
     ['a numeric string', '123456'],

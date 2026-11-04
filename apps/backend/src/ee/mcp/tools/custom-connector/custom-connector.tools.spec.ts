@@ -396,6 +396,22 @@ describe('custom connector tools through the MCP SDK', () => {
       },
       configuration: {},
     },
+    {
+      label: 'a literal OAuth client secret in an authentication option',
+      manifest: {
+        parameters: {
+          Auth: {
+            oneOf: [{ value: 'oauth', oauthParams: { clientSecret: 'temporary/"secret-value"' } }],
+          },
+        },
+      },
+      configuration: {},
+    },
+    {
+      label: 'a literal secret in the request URL',
+      manifest: { baseUrl: 'https://example.test?api_key=temporary%2F%22secret-value%22' },
+      configuration: {},
+    },
   ])('masks $label in test results and telemetry before truncating logs', async args => {
     const client = await open();
     const secret = 'temporary/"secret-value"';
@@ -464,6 +480,86 @@ describe('custom connector tools through the MCP SDK', () => {
     }
   );
 
+  it.each([false, true])(
+    'preserves provider data with public token counters in input: %s',
+    async withCounters => {
+      const client = await open();
+      const row = {
+        id: 'inv_1500',
+        amount: 1500,
+        errors: 0,
+        total_tokens: 1500,
+        cached_tokens: 0,
+        password_changed_at: '2026-11-04',
+        updated_at: '2026-11-04',
+        authorization_status: 'approved',
+        status: 'approved',
+        NextToken: 'page-1500',
+        next_page: 'page-1500',
+      };
+      const raw = {
+        rows: [row],
+        sample: [row],
+        logs: ['inv_1500 took 1500 ms with 0 errors on 2026-11-04; approved; page-1500'],
+        error: null,
+      };
+      const before = structuredClone(raw);
+      facade.test.mockResolvedValue(raw);
+
+      const result = await client.callTool({
+        name: 'test_custom_connector',
+        arguments: {
+          manifest: {
+            nodes: {
+              items: {
+                request: {
+                  path: '/items?cached_tokens=0',
+                  queryParameters: { total_tokens: '{{ parameters.total_tokens }}' },
+                },
+              },
+            },
+            ...(withCounters
+              ? { parameters: { total_tokens: { default: 1500 }, cached_tokens: { default: 0 } } }
+              : {}),
+          },
+          node: 'items',
+          configuration: withCounters ? { total_tokens: 1500, cached_tokens: 0 } : {},
+        },
+      });
+
+      expect(result.isError).not.toBe(true);
+      expect(result.structuredContent).toEqual(before);
+      expect(JSON.parse((result.content[0] as { text: string }).text)).toEqual(before);
+      expect(events[0].payload[OFFLOAD_KEY]?.result).toEqual(before);
+      expect(raw).toEqual(before);
+    }
+  );
+
+  it('masks a zero-valued temporary key as complete values and keys', async () => {
+    const client = await open();
+    facade.test.mockResolvedValue({
+      rows: [{ value: 0, id: 'inv_1500', amount: 1500 }],
+      sample: [{ '0': 0 }],
+      logs: ['0', 'took 1500 ms'],
+      error: '0',
+    });
+
+    const result = await client.callTool({
+      name: 'test_custom_connector',
+      arguments: { manifest, node: 'items', configuration: { Value: 0 } },
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.structuredContent).toEqual({
+      rows: [{ value: '[REDACTED]', id: 'inv_1500', amount: 1500 }],
+      sample: [{ '[REDACTED]': '[REDACTED]' }],
+      logs: ['[REDACTED]', 'took 1500 ms'],
+      error: '[REDACTED]',
+    });
+    expect(events[0].payload.error_message).toBe('[REDACTED]');
+    expect(events[0].payload[OFFLOAD_KEY]?.result).toEqual(result.structuredContent);
+  });
+
   it.each(['runtime-secret', 123456, '123456'])(
     'masks the temporary key %j in a thrown error and its telemetry',
     async secret => {
@@ -501,8 +597,8 @@ describe('custom connector tools through the MCP SDK', () => {
       result.structuredContent
     );
     expect(result.structuredContent).toEqual({
-      rows: [{ email: 'private@example.test', password: '[REDACTED]' }],
-      sample: [{ access_token: '[REDACTED]' }],
+      rows: [{ email: 'private@example.test', password: 'private-password' }],
+      sample: [{ access_token: 'private-sample-token' }],
       logs: ['Fetched one row using ***'],
       error: 'Request failed using ***',
     });
@@ -518,8 +614,8 @@ describe('custom connector tools through the MCP SDK', () => {
     expect(offload).toMatchObject({
       arguments: { configuration: { Value: '[REDACTED]' }, manifest: loggedManifest },
       result: {
-        rows: [{ email: 'private@example.test', password: '[REDACTED]' }],
-        sample: [{ access_token: '[REDACTED]' }],
+        rows: [{ email: 'private@example.test', password: 'private-password' }],
+        sample: [{ access_token: 'private-sample-token' }],
         logs: ['Fetched one row using ***'],
         error: 'Request failed using ***',
       },

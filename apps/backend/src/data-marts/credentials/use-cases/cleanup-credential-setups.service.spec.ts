@@ -79,4 +79,25 @@ describe('Credential setup cleanup', () => {
       await runner.release();
     }
   });
+
+  it('repairs the cleanup index after table creation was interrupted', async () => {
+    const row = await repository.save(expired);
+    const runner = database.createQueryRunner();
+    try {
+      await runner.dropIndex('credential_setup', 'idx_credential_setup_created_at');
+      await new CreateCredentialSetup1793628000000().up(runner);
+      const table = await runner.getTable('credential_setup');
+      expect(table?.indices).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            name: 'idx_credential_setup_created_at',
+            columnNames: ['createdAt'],
+          }),
+        ])
+      );
+      expect(await repository.findOneBy({ id: row.id })).toEqual(row);
+    } finally {
+      await runner.release();
+    }
+  });
 });

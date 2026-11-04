@@ -110,7 +110,10 @@ describe('buildMcpToolCallEvent', () => {
       const secret = `private-${'long-credential-'.repeat(200)}`;
       const error = `Rejected ${secret} at /items?api_key=private-query&page=2`;
       const input = {
-        manifest: { parameters: { Value: { attributes: ['SECRET'] } } },
+        manifest: {
+          parameters: { Value: { attributes: ['SECRET'] } },
+          nodes: { items: { request: { path: '/items?api_key=private-query&page=2' } } },
+        },
         configuration: { Value: secret },
       };
       const event = buildMcpToolCallEvent(

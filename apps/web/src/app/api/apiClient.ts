@@ -14,6 +14,7 @@ import {
   ConnectProjectMismatchError,
   ConnectAccountMismatchError,
   getConnectProjectTarget,
+  getPendingConnectProjectTarget,
   type ConnectProjectTarget,
 } from '../../features/idp/utils/connect-project';
 
@@ -74,14 +75,17 @@ function assertConnectSession(request: ExtendedInternalAxiosRequestConfig, token
   const error = projectMatches
     ? new ConnectAccountMismatchError(target)
     : new ConnectProjectMismatchError(target);
-  window.dispatchEvent(
-    new CustomEvent('auth:logout', {
-      detail: {
-        reason: projectMatches ? 'connect_account_changed' : 'connect_project_mismatch',
-        connectTarget: target.url,
-      },
-    })
-  );
+  // Reject stale requests without redirecting a different page the user has since opened.
+  if (getPendingConnectProjectTarget()?.url === target.url) {
+    window.dispatchEvent(
+      new CustomEvent('auth:logout', {
+        detail: {
+          reason: projectMatches ? 'connect_account_changed' : 'connect_project_mismatch',
+          connectTarget: target.url,
+        },
+      })
+    );
+  }
   throw error;
 }
 
@@ -137,13 +141,15 @@ apiClient.interceptors.response.use(
       originalRequest._retry = true;
 
       const signOut = (cause: unknown) => {
-        authStateManager.clear();
-        const connectTarget =
-          originalRequest.connectProjectTarget ??
+        const connectTarget = getPendingConnectProjectTarget();
+        if (
           (cause instanceof ConnectProjectMismatchError ||
-          cause instanceof ConnectAccountMismatchError
-            ? cause.target
-            : null);
+            cause instanceof ConnectAccountMismatchError) &&
+          cause.target.url !== connectTarget?.url
+        ) {
+          return Promise.reject(cause);
+        }
+        authStateManager.clear();
 
         window.dispatchEvent(
           new CustomEvent('auth:logout', {

@@ -205,24 +205,42 @@ describe('Credential browser setup', () => {
       .set(owner)
       .send({ definitionId: 'missing' })
       .expect(400);
-    await agent
+    const credentialId = await createCredential();
+    const response = await agent
       .post('/api/credential-setup')
       .set(owner)
-      .send({ definitionId: 'databricks-token', credentialId: 'target' })
+      .send({ definitionId: 'databricks-token', credentialId })
       .expect(400);
+    expect(response.body.message).toBe(
+      'Select either a provider for a new Credential or an existing Credential to update.'
+    );
   });
 
-  it('rechecks access after the initiating user loses admin rights', async () => {
-    const credentialId = await createCredential(other);
-    const setup = await start({ credentialId });
-    const limited = { 'x-owox-authorization': 'limited' };
-    await agent.get(`/api/credential-setup/${setup.id}`).set(limited).expect(403);
-    await agent
-      .post(`/api/credential-setup/${setup.id}/complete`)
-      .set(limited)
-      .send({ credentialId })
-      .expect(403);
-  });
+  it.each(['deleted', 'invisible'] as const)(
+    'keeps an owned pending setup readable and cancellable when its Credential becomes %s',
+    async state => {
+      const credentialId = await createCredential(other);
+      const setup = await start({ credentialId });
+      const reader = state === 'deleted' ? owner : { 'x-owox-authorization': 'limited' };
+      if (state === 'deleted') {
+        await agent.delete(`/api/credentials/${credentialId}`).set(other).expect(204);
+      }
+      const read = await agent.get(`/api/credential-setup/${setup.id}`).set(reader).expect(200);
+      expect(read.body).toMatchObject({ status: 'pending', credentialId });
+      await agent
+        .post(`/api/credential-setup/${setup.id}/complete`)
+        .set(reader)
+        .send({ credentialId })
+        .expect(state === 'deleted' ? 404 : 403);
+      await agent.get(`/api/credential-setup/${setup.id}`).set(other).expect(404);
+      const cancelled = await agent
+        .post(`/api/credential-setup/${setup.id}/cancel`)
+        .set(reader)
+        .send({})
+        .expect(200);
+      expect(cancelled.body.status).toBe('cancelled');
+    }
+  );
 
   it.each(['deleted', 'invisible'] as const)(
     'keeps a completed receipt when its Credential becomes %s',

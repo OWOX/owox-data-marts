@@ -7,7 +7,7 @@ import {
   type McpCustomConnectorsFacade,
 } from '../../../../data-marts/facades/mcp-custom-connectors.facade';
 import type { McpAuthContext } from '../../auth/mcp-auth-context';
-import { redactMcpTelemetry } from '../../observability/mcp-telemetry-redaction';
+import { createMcpInputSecretRedactor } from '../../observability/mcp-telemetry-redaction';
 import { jsonToolResult, type McpToolDefinition, type McpToolResult } from '../mcp-tool.definition';
 import { testConnectorSchema, connectorTestOutputSchema } from './custom-connector.schemas';
 
@@ -44,6 +44,7 @@ export class TestCustomConnectorTool implements McpToolDefinition<Input> {
 
   async handler(input: Input, context: McpAuthContext): Promise<McpToolResult> {
     const parsed = inputSchema.parse(input);
+    const redactResult = createMcpInputSecretRedactor(parsed);
     const result = await this.connectors
       .test(
         { projectId: context.projectId, userId: context.userId, roles: context.roles },
@@ -58,14 +59,14 @@ export class TestCustomConnectorTool implements McpToolDefinition<Input> {
       )
       .catch((error: unknown) => {
         const cause = castError(error);
-        const safeError = new Error(z.string().parse(redactMcpTelemetry(cause.message, parsed)));
+        const safeError = new Error(z.string().parse(redactResult(cause.message)));
         safeError.name = cause.name;
         throw safeError;
       });
     // Mask complete values before log limits can cut a secret into an unrecognized fragment.
     // Preserve the API field names when a secret happens to equal one of them.
     const [rows, logs, error, sample] = resultValuesSchema.parse(
-      redactMcpTelemetry([result.rows, result.logs, result.error, result.sample], parsed)
+      redactResult([result.rows, result.logs, result.error, result.sample])
     );
     const response = jsonToolResult({
       rows,

@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { SystemTimeService } from '../../../common/scheduler/services/system-time.service';
 import { CredentialSetupService } from '../services/credential-setup.service';
-import { CREDENTIAL_SETUP_TTL_MS } from '../credential-setup.constants';
+import { CREDENTIAL_SETUP_RETENTION_MS } from '../credential-setup.constants';
 
 @Injectable()
 export class CleanupCredentialSetupsService {
@@ -12,7 +12,7 @@ export class CleanupCredentialSetupsService {
 
   async run(signal?: AbortSignal): Promise<number> {
     const now = this.time.now();
-    const createdBefore = new Date(now.getTime() - 2 * CREDENTIAL_SETUP_TTL_MS);
+    const createdBefore = new Date(now.getTime() - CREDENTIAL_SETUP_RETENTION_MS);
     let deleted = 0;
     while (!signal?.aborted) {
       const count = await this.setups.deleteCreatedBeforeBatch(createdBefore);

@@ -2,7 +2,12 @@ import { BaseEvent, deriveTraceId, OFFLOAD_KEY } from '@owox/internal-helpers';
 import { createHash } from 'node:crypto';
 import type { McpToolResult } from '../tools/mcp-tool.definition';
 import type { McpLogContext } from './mcp-log-context';
-import { REDACTED, REDACT_KEYS, redactMcpTelemetry as redact } from './mcp-telemetry-redaction';
+import {
+  REDACTED,
+  REDACT_KEYS,
+  createMcpInputSecretRedactor,
+  redactMcpTelemetry as redact,
+} from './mcp-telemetry-redaction';
 
 export interface McpToolCallEventPayload {
   mcp_method_name: string;
@@ -181,7 +186,10 @@ export function buildMcpToolCallEvent(p: BuildMcpToolCallEventParams): McpToolCa
     occurred_at: occurredAt.toISOString(),
     // Bulky (heterogeneous per tool → load into BQ JSON-typed columns).
     arguments: redact(p.input),
-    result: redact(p.result?.structuredContent ?? p.result?.content, p.input),
+    result:
+      p.toolName === 'test_custom_connector'
+        ? createMcpInputSecretRedactor(p.input)(p.result?.structuredContent ?? p.result?.content)
+        : redact(p.result?.structuredContent ?? p.result?.content, p.input),
   };
   if (p.executedSql) offload.sql = p.executedSql;
   payload[OFFLOAD_KEY] = offload;

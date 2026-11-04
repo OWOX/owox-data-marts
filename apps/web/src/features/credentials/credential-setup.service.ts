@@ -11,15 +11,15 @@ class CredentialSetupService extends ApiService {
   }
 
   getById(id: string): Promise<CredentialSetup> {
-    return this.get(`/${id}`, undefined, requestConfig);
+    return this.get(`/${encodeURIComponent(id)}`, undefined, requestConfig);
   }
 
   complete(id: string, credentialId: string): Promise<CredentialSetup> {
-    return this.post(`/${id}/complete`, { credentialId }, requestConfig);
+    return this.post(`/${encodeURIComponent(id)}/complete`, { credentialId }, requestConfig);
   }
 
   cancel(id: string): Promise<CredentialSetup> {
-    return this.post(`/${id}/cancel`, {}, requestConfig);
+    return this.post(`/${encodeURIComponent(id)}/cancel`, {}, requestConfig);
   }
 }
 

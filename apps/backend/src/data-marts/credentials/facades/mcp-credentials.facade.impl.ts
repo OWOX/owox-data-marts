@@ -1,6 +1,4 @@
 import { Injectable } from '@nestjs/common';
-import type { AuthorizationContext } from '../../../idp';
-import type { CredentialAiModelMappings, CredentialAiModelMappingModes } from '../credential.types';
 import { McpCredentialMapper } from '../mappers/mcp-credential.mapper';
 import { ConsentCredentialDefinitionService } from '../use-cases/consent-credential-definition.service';
 import { DeleteCredentialService } from '../use-cases/delete-credential.service';
@@ -13,6 +11,7 @@ import { ValidateCredentialService } from '../use-cases/validate-credential.serv
 import { WaitCredentialSetupService } from '../use-cases/wait-credential-setup.service';
 import type {
   McpCredentialsFacade,
+  McpCredentialsActor,
   McpStartCredentialSetupInput,
   McpUpdateCredentialInput,
 } from './mcp-credentials.facade';
@@ -38,62 +37,54 @@ export class McpCredentialsFacadeImpl implements McpCredentialsFacade {
     );
   }
 
-  async list(actor: AuthorizationContext) {
-    return (await this.listCredentials.run(actor)).map(dto => this.mapper.toListItem(dto));
-  }
-
-  async get(actor: AuthorizationContext, id: string) {
-    return this.mapper.toCredential(await this.getCredential.run(id, actor));
-  }
-
-  async update(actor: AuthorizationContext, id: string, input: McpUpdateCredentialInput) {
-    const mappings: CredentialAiModelMappings | null | undefined =
-      input.aiModelMappings == null ? input.aiModelMappings : {};
-    const modes: CredentialAiModelMappingModes | null | undefined =
-      input.aiModelMappingModes == null ? input.aiModelMappingModes : {};
-    for (const capability of ['fast', 'reasoning', 'embedding'] as const) {
-      if (mappings && input.aiModelMappings?.[capability] !== undefined) {
-        mappings[capability] = input.aiModelMappings[capability];
-      }
-      if (modes && input.aiModelMappingModes?.[capability] !== undefined) {
-        modes[capability] = input.aiModelMappingModes[capability];
-      }
-    }
-    return this.mapper.toCredential(
-      await this.updateCredential.run(id, actor, {
-        title: input.title,
-        ownerIds: input.ownerIds,
-        contextIds: input.contextIds,
-        enabled: input.enabled,
-        availableForUse: input.availableForUse,
-        availableForMaintenance: input.availableForMaintenance,
-        aiModelMappings: mappings,
-        aiModelMappingModes: modes,
-      })
+  async list(actor: McpCredentialsActor) {
+    return (await this.listCredentials.run(this.mapper.toAuthorizationContext(actor))).map(dto =>
+      this.mapper.toListItem(dto)
     );
   }
 
-  async validate(actor: AuthorizationContext, id: string) {
-    return this.mapper.toCredential(await this.validateCredential.run(id, actor));
+  async get(actor: McpCredentialsActor, id: string) {
+    return this.mapper.toCredential(
+      await this.getCredential.run(id, this.mapper.toAuthorizationContext(actor))
+    );
   }
 
-  async consentDefinition(actor: AuthorizationContext, id: string) {
-    return this.mapper.toCredential(await this.consentCredentialDefinition.run(id, actor));
+  async update(actor: McpCredentialsActor, id: string, input: McpUpdateCredentialInput) {
+    return this.mapper.toCredential(
+      await this.updateCredential.run(
+        id,
+        this.mapper.toAuthorizationContext(actor),
+        this.mapper.toUpdateInput(input)
+      )
+    );
   }
 
-  async delete(actor: AuthorizationContext, id: string): Promise<void> {
-    await this.deleteCredential.run(id, actor);
+  async validate(actor: McpCredentialsActor, id: string) {
+    return this.mapper.toCredential(
+      await this.validateCredential.run(id, this.mapper.toAuthorizationContext(actor))
+    );
   }
 
-  startSetup(actor: AuthorizationContext, input: McpStartCredentialSetupInput) {
-    return this.startCredentialSetup.run(actor, {
-      definitionId: input.definitionId,
-      credentialId: input.credentialId,
-      title: input.title,
+  async consentDefinition(actor: McpCredentialsActor, id: string) {
+    return this.mapper.toCredential(
+      await this.consentCredentialDefinition.run(id, this.mapper.toAuthorizationContext(actor))
+    );
+  }
+
+  async delete(actor: McpCredentialsActor, id: string): Promise<void> {
+    await this.deleteCredential.run(id, this.mapper.toAuthorizationContext(actor));
+  }
+
+  startSetup(actor: McpCredentialsActor, input: McpStartCredentialSetupInput) {
+    return this.startCredentialSetup.run(this.mapper.toStartSetupCommand(actor, input));
+  }
+
+  getSetupStatus(actor: McpCredentialsActor, id: string, waitSeconds = 0, signal?: AbortSignal) {
+    return this.waitCredentialSetup.run({
+      id,
+      context: this.mapper.toAuthorizationContext(actor),
+      waitSeconds,
+      signal,
     });
-  }
-
-  getSetupStatus(actor: AuthorizationContext, id: string, waitSeconds = 0, signal?: AbortSignal) {
-    return this.waitCredentialSetup.run(id, actor, waitSeconds, signal);
   }
 }

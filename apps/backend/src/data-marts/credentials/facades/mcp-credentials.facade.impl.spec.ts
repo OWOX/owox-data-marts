@@ -1,12 +1,13 @@
 jest.mock('typeorm-transactional', () => ({ Transactional: () => () => {} }));
 
 import { ForbiddenException } from '@nestjs/common';
-import type { AuthorizationContext } from '../../../idp';
-import type { McpUpdateCredentialInput } from './mcp-credentials.facade';
+import type { McpCredentialsActor, McpUpdateCredentialInput } from './mcp-credentials.facade';
+import { McpCredentialMapper } from '../mappers/mcp-credential.mapper';
 import { McpCredentialsFacadeImpl } from './mcp-credentials.facade.impl';
 
 describe('McpCredentialsFacadeImpl', () => {
-  const actor: AuthorizationContext = { projectId: 'project', userId: 'user', roles: ['viewer'] };
+  const actor: McpCredentialsActor = { projectId: 'project', userId: 'user', roles: ['viewer'] };
+  const context = { ...actor, authFlow: 'mcp' };
   const safe = { id: 'safe' };
   const raw = { id: 'credential', validationMessage: 'secret-marker' };
   const service = () => ({ run: jest.fn().mockResolvedValue(raw) });
@@ -19,11 +20,11 @@ describe('McpCredentialsFacadeImpl', () => {
   const deleteCredential = service();
   const startSetup = service();
   const waitSetup = service();
-  const mapper = {
+  const mapper = Object.assign(new McpCredentialMapper(), {
     toResolvedDefinition: jest.fn().mockReturnValue(safe),
     toCredential: jest.fn().mockReturnValue(safe),
     toListItem: jest.fn().mockReturnValue(safe),
-  };
+  });
   const facade = new McpCredentialsFacadeImpl(
     listDefinitions as never,
     listCredentials as never,
@@ -44,7 +45,7 @@ describe('McpCredentialsFacadeImpl', () => {
     listCredentials.run.mockResolvedValueOnce([raw]);
     expect(await facade.listDefinitions()).toEqual([safe]);
     expect(await facade.list(actor)).toEqual([safe]);
-    expect(listCredentials.run).toHaveBeenCalledWith(actor);
+    expect(listCredentials.run).toHaveBeenCalledWith(context);
     expect(mapper.toResolvedDefinition).toHaveBeenCalledWith(raw);
     expect(mapper.toListItem).toHaveBeenCalledWith(raw);
   });
@@ -55,7 +56,7 @@ describe('McpCredentialsFacadeImpl', () => {
     ['consentDefinition', consentCredentialDefinition],
   ] as const)('%s retains the actor and maps the result', async (method, dependency) => {
     expect(await facade[method](actor, 'credential')).toEqual(safe);
-    expect(dependency.run).toHaveBeenCalledWith('credential', actor);
+    expect(dependency.run).toHaveBeenCalledWith('credential', context);
     expect(mapper.toCredential).toHaveBeenCalledWith(raw);
   });
 
@@ -76,7 +77,7 @@ describe('McpCredentialsFacadeImpl', () => {
       publicMetadata: { leaked: 'secret-marker' },
     } as McpUpdateCredentialInput;
     expect(await facade.update(actor, 'credential', input)).toEqual(safe);
-    expect(updateCredential.run).toHaveBeenCalledWith('credential', actor, {
+    expect(updateCredential.run).toHaveBeenCalledWith('credential', context, {
       title: 'Updated',
       enabled: false,
       ownerIds: ['owner'],
@@ -113,14 +114,14 @@ describe('McpCredentialsFacadeImpl', () => {
     await expect(facade.get(actor, 'credential')).rejects.toThrow(ForbiddenException);
     expect(mapper.toCredential).not.toHaveBeenCalled();
     await facade.delete(actor, 'credential');
-    expect(deleteCredential.run).toHaveBeenCalledWith('credential', actor);
+    expect(deleteCredential.run).toHaveBeenCalledWith('credential', context);
   });
 
   it('propagates setup identity, bounded wait and cancellation', async () => {
     const signal = new AbortController().signal;
     await facade.startSetup(actor, { credentialId: 'credential' });
-    expect(startSetup.run).toHaveBeenCalledWith(actor, { credentialId: 'credential' });
+    expect(startSetup.run).toHaveBeenCalledWith({ context, input: { credentialId: 'credential' } });
     await facade.getSetupStatus(actor, 'setup', 25, signal);
-    expect(waitSetup.run).toHaveBeenCalledWith('setup', actor, 25, signal);
+    expect(waitSetup.run).toHaveBeenCalledWith({ id: 'setup', context, waitSeconds: 25, signal });
   });
 });

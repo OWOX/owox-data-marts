@@ -199,7 +199,8 @@ determine which Credentials you can see, use, maintain or delete.
 | `get_credential_setup_status`   | `mcp:read`  | Supply `setup_id`. Optionally, set `wait_seconds` from 0 to 25. The tool returns `pending`, `completed`, `cancelled` or `expired`. After completion, it returns the exact `credential_id`.                      |
 
 To create a Credential or replace its secret, open the URL from
-`start_credential_setup`. Complete the authenticated OWOX form. Enter provider
+`start_credential_setup`. Sign in with the same OWOX account that connected MCP.
+Complete the authenticated OWOX form in the connected project. Enter provider
 secrets only in that form.
 
 The assistant can pass an optional `title` to prefill the name of a new Credential.
@@ -218,7 +219,7 @@ do not need background notifications.
 
 Completion means that the form was saved. It does not mean that the provider
 verified the Credential. Read `validation_state` or use `validate_credential`
-when provider validation is needed. Start a new request after cancellation or expiry.
+when provider validation is needed.
 Until cleanup, the completed status remains available if the Credential is deleted
 or its access changes. Reading or using that Credential still requires current access.
 
@@ -228,8 +229,12 @@ five minutes on instances with `SCHEDULER_EXECUTION_ENABLED=true`.
 The page explains when a link has expired or is no longer available and asks you to
 request a new link. Deleting a setup request does not delete its Credential.
 
-OAuth can finish after setup expires or is cancelled. If the page shows a saved
-Credential ID, you can reuse that Credential without repeating provider sign-in.
+Saving can finish after setup expires or is cancelled. If the page shows a saved
+Credential ID, share that ID with your assistant. The assistant checks access with
+`get_credential` before reusing it. If the ID is unavailable, the assistant uses
+`list_credentials` and asks you to confirm a match by provider and title.
+It starts a new setup only if no suitable Credential is confirmed. The same recovery
+steps apply after the setup request is removed.
 
 `update_credential` accepts `title`, `enabled`, `owner_ids`, `context_ids`,
 `available_for_use`, `available_for_maintenance`, `ai_model_mappings` and
@@ -241,8 +246,9 @@ Mapping modes are `recommended` or `override`.
 Provider-specific AI requirements still apply. These tools reject unknown input
 fields, including secret values, field dictionaries and OAuth tokens.
 
-Responses omit stored provider fields, account identity derived from those
-fields, authentication contracts and raw validation messages. Visible consumers
+Responses omit stored provider fields, authentication contracts and raw validation
+messages. They include the Credential title, which can contain an account email
+or other identity information. Visible consumers
 appear in `used_by`. Hidden consumers contribute only to
 `hidden_consumer_count`. Deletion checks every active consumer. Remove bindings
 in the OWOX web app before retrying a blocked deletion.
@@ -564,7 +570,8 @@ It returns `authorization_url` and `setup_id`. This call does not create a desti
 
 The follow-up call creates the destination. Its title names the destination, which can differ from the Credential title.
 New Credentials and destinations start unshared. Other project members need permission to use them.
-If setup is `cancelled` or `expired`, start a new request.
+If setup is `cancelled`, `expired` or missing, first recover the saved Credential
+as described in [Credential management](#credential-management).
 Existing links to the legacy Google Sheets setup page remain valid.
 
 For `email`, `slack` and `teams`, the tool creates the destination directly and returns `destination_id`.
@@ -949,7 +956,8 @@ Call `get_credential_setup_status` with the returned `setup_id`.
 If the status is `pending`, repeat the call after the user completes the form.
 If the status is `completed`, call `add_destination` again with the exact `credential_id` and the intended destination title.
 Use the returned `destination_id` for reports.
-If setup is `cancelled` or `expired`, start a new request.
+If setup is `cancelled`, `expired` or missing, first recover the saved Credential
+as described in [Credential management](#credential-management).
 
 ### A `run_report` call fails
 

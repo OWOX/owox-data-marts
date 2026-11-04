@@ -1,8 +1,8 @@
 import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common';
 import { SystemTimeService } from '../../../common/scheduler/services/system-time.service';
-import type { AuthorizationContext } from '../../../idp';
 import { AccessDecisionService, Action, EntityType } from '../../services/access-decision';
-import type { CredentialSetupDto, StartCredentialSetupInput } from '../dto/credential-setup.dto';
+import type { CredentialSetupDto } from '../dto/credential-setup.dto';
+import type { StartCredentialSetupCommand } from '../dto/credential-setup-command.dto';
 import { CredentialSetupMapper } from '../mappers/credential-setup.mapper';
 import { CredentialDefinitionService } from '../services/credential-definition.service';
 import { CredentialSetupService } from '../services/credential-setup.service';
@@ -20,10 +20,7 @@ export class StartCredentialSetupService {
     private readonly time: SystemTimeService
   ) {}
 
-  async run(
-    context: AuthorizationContext,
-    input: StartCredentialSetupInput
-  ): Promise<CredentialSetupDto> {
+  async run({ context, input }: StartCredentialSetupCommand): Promise<CredentialSetupDto> {
     if (input.definitionId !== undefined && input.credentialId !== undefined) {
       throw new BadRequestException(
         'Select either a provider for a new Credential or an existing Credential to update.'

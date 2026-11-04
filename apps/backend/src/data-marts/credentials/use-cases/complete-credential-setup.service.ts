@@ -6,7 +6,7 @@ import {
   Injectable,
 } from '@nestjs/common';
 import { SystemTimeService } from '../../../common/scheduler/services/system-time.service';
-import type { AuthorizationContext } from '../../../idp';
+import type { CompleteCredentialSetupCommand } from '../dto/credential-setup-command.dto';
 import { AccessDecisionService, Action, EntityType } from '../../services/access-decision';
 import type { CredentialSetupDto } from '../dto/credential-setup.dto';
 import { CredentialSetupService } from '../services/credential-setup.service';
@@ -23,12 +23,12 @@ export class CompleteCredentialSetupService {
     private readonly time: SystemTimeService
   ) {}
 
-  async run(
-    id: string,
-    context: AuthorizationContext,
-    credentialId: string
-  ): Promise<CredentialSetupDto> {
-    const setup = await this.getSetup.run(id, context);
+  async run({
+    id,
+    context,
+    credentialId,
+  }: CompleteCredentialSetupCommand): Promise<CredentialSetupDto> {
+    const setup = await this.getSetup.run({ id, context });
     if (setup.status === 'expired')
       throw new GoneException('The Credential setup request expired.');
     if (setup.status === 'completed' && setup.credentialId === credentialId) return setup;
@@ -54,7 +54,7 @@ export class CompleteCredentialSetupService {
       throw new ForbiddenException('You do not have permission to maintain this Credential');
     }
     await this.setups.finish(id, context, 'completed', credentialId, this.time.now());
-    const current = await this.getSetup.run(id, context);
+    const current = await this.getSetup.run({ id, context });
     if (current.status === 'expired')
       throw new GoneException('The Credential setup request expired.');
     if (current.status !== 'completed' || current.credentialId !== credentialId) {

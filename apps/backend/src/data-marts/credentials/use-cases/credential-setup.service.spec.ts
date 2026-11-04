@@ -3,7 +3,10 @@ import {
   ConflictException,
   ForbiddenException,
   GoneException,
+  NotFoundException,
 } from '@nestjs/common';
+import { getEventListeners } from 'node:events';
+import { setImmediate, setTimeout } from 'node:timers/promises';
 import { SystemTimeService } from '../../../common/scheduler/services/system-time.service';
 import { Action } from '../../services/access-decision';
 import { CredentialSetupMapper } from '../mappers/credential-setup.mapper';
@@ -48,12 +51,7 @@ function setup() {
   };
   const access = { canAccess: jest.fn(async () => true) };
   const mapper = new CredentialSetupMapper(clock);
-  const get = new GetCredentialSetupService(
-    store as never,
-    getCredential as never,
-    access as never,
-    mapper
-  );
+  const get = new GetCredentialSetupService(store as never, mapper);
   const complete = new CompleteCredentialSetupService(
     store as never,
     getCredential as never,
@@ -86,14 +84,12 @@ function setup() {
 }
 
 describe('Credential setup use cases', () => {
-  afterEach(() => jest.useRealTimers());
-
   it('checks maintenance permission before issuing an update link', async () => {
     const { start, store, access } = setup();
     access.canAccess.mockResolvedValue(false);
-    await expect(start.run(context, { credentialId: 'credential' })).rejects.toBeInstanceOf(
-      ForbiddenException
-    );
+    await expect(
+      start.run({ context, input: { credentialId: 'credential' } })
+    ).rejects.toBeInstanceOf(ForbiddenException);
     expect(store.create).not.toHaveBeenCalled();
     expect(access.canAccess).toHaveBeenCalledWith(
       'owner',
@@ -108,7 +104,10 @@ describe('Credential setup use cases', () => {
   it('rejects ambiguous setup input before creating a request', async () => {
     const { start, store } = setup();
     await expect(
-      start.run(context, { credentialId: 'credential', definitionId: 'databricks-token' })
+      start.run({
+        context,
+        input: { credentialId: 'credential', definitionId: 'databricks-token' },
+      })
     ).rejects.toBeInstanceOf(BadRequestException);
     expect(store.create).not.toHaveBeenCalled();
   });
@@ -116,49 +115,69 @@ describe('Credential setup use cases', () => {
   it('does not complete an expired request', async () => {
     const { complete, setRow, store } = setup();
     setRow({ ...pending(), expiresAt: now });
-    await expect(complete.run('setup', context, 'credential')).rejects.toBeInstanceOf(
-      GoneException
-    );
+    await expect(
+      complete.run({ id: 'setup', context, credentialId: 'credential' })
+    ).rejects.toBeInstanceOf(GoneException);
     expect(store.finish).not.toHaveBeenCalled();
   });
 
   it('checks access before completion and keeps the completed receipt after access is revoked', async () => {
     const { complete, get, access, store, getCredential } = setup();
     access.canAccess.mockResolvedValue(false);
-    await expect(complete.run('setup', context, 'credential')).rejects.toBeInstanceOf(
-      ForbiddenException
-    );
+    await expect(
+      complete.run({ id: 'setup', context, credentialId: 'credential' })
+    ).rejects.toBeInstanceOf(ForbiddenException);
     expect(store.finish).not.toHaveBeenCalled();
     access.canAccess.mockResolvedValue(true);
-    await expect(complete.run('setup', context, 'credential')).resolves.toMatchObject({
+    await expect(
+      complete.run({ id: 'setup', context, credentialId: 'credential' })
+    ).resolves.toMatchObject({
       status: 'completed',
       credentialId: 'credential',
     });
     getCredential.run.mockRejectedValue(new ForbiddenException());
     access.canAccess.mockResolvedValue(false);
-    await expect(get.run('setup', context)).resolves.toMatchObject({
+    await expect(get.run({ id: 'setup', context })).resolves.toMatchObject({
       status: 'completed',
       credentialId: 'credential',
     });
-    await expect(complete.run('setup', context, 'credential')).resolves.toMatchObject({
+    await expect(
+      complete.run({ id: 'setup', context, credentialId: 'credential' })
+    ).resolves.toMatchObject({
       status: 'completed',
       credentialId: 'credential',
     });
     expect(store.finish).toHaveBeenCalledTimes(1);
   });
 
-  it('still requires access to read and complete a pending update', async () => {
-    const { get, complete, getCredential, access, setRow, store } = setup();
-    setRow({ ...pending(), mode: 'update', credentialId: 'credential' });
-    access.canAccess.mockResolvedValue(false);
-    await expect(get.run('setup', context)).rejects.toBeInstanceOf(ForbiddenException);
-    await expect(complete.run('setup', context, 'credential')).rejects.toBeInstanceOf(
-      ForbiddenException
-    );
-    expect(store.finish).not.toHaveBeenCalled();
-    getCredential.run.mockRejectedValue(new ForbiddenException());
-    await expect(get.run('setup', context)).rejects.toBeInstanceOf(ForbiddenException);
-  });
+  it.each([
+    ['read access is revoked', ForbiddenException],
+    ['the Credential is deleted', NotFoundException],
+    ['maintenance permission is revoked', null],
+  ] as const)(
+    'keeps an owned pending update readable and cancellable after %s',
+    async (_state, ErrorType) => {
+      const { get, complete, cancel, getCredential, access, setRow, store } = setup();
+      setRow({ ...pending(), mode: 'update', credentialId: 'credential' });
+      if (ErrorType) getCredential.run.mockRejectedValue(new ErrorType());
+      access.canAccess.mockResolvedValue(false);
+      await expect(get.run({ id: 'setup', context })).resolves.toMatchObject({ status: 'pending' });
+      await expect(
+        new WaitCredentialSetupService(get).run({ id: 'setup', context })
+      ).resolves.toMatchObject({
+        status: 'pending',
+      });
+      expect(getCredential.run).not.toHaveBeenCalled();
+      expect(access.canAccess).not.toHaveBeenCalled();
+      await expect(
+        complete.run({ id: 'setup', context, credentialId: 'credential' })
+      ).rejects.toBeInstanceOf(ErrorType ?? ForbiddenException);
+      expect(store.finish).not.toHaveBeenCalled();
+      await expect(cancel.run({ id: 'setup', context })).resolves.toMatchObject({
+        status: 'cancelled',
+      });
+    }
+  );
 
   it('does not overwrite a concurrent cancellation', async () => {
     const { complete, store, setRow } = setup();
@@ -166,36 +185,39 @@ describe('Credential setup use cases', () => {
       setRow({ ...pending(), status: 'cancelled' });
       return false;
     });
-    await expect(complete.run('setup', context, 'credential')).rejects.toBeInstanceOf(
-      ConflictException
-    );
+    await expect(
+      complete.run({ id: 'setup', context, credentialId: 'credential' })
+    ).rejects.toBeInstanceOf(ConflictException);
   });
 
   it('returns the completed request from a bounded wait', async () => {
-    jest.useFakeTimers();
     const { get, setRow } = setup();
     const wait = new WaitCredentialSetupService(get);
-    const result = wait.run('setup', context, 25);
-    await jest.advanceTimersByTimeAsync(500);
+    const reads = jest.spyOn(get, 'run');
+    const result = wait.run({ id: 'setup', context, waitSeconds: 25 });
+    await setImmediate();
+    expect(reads).toHaveBeenCalledTimes(1);
     setRow({ ...pending(), status: 'completed', credentialId: 'credential', completedAt: now });
-    await jest.advanceTimersByTimeAsync(500);
     await expect(result).resolves.toMatchObject({
       status: 'completed',
       credentialId: 'credential',
     });
-    expect(jest.getTimerCount()).toBe(0);
+    expect(reads).toHaveBeenCalledTimes(2);
   });
 
   it('aborts waiting and releases its timer when the MCP client disconnects', async () => {
-    jest.useFakeTimers();
     const { get } = setup();
     const wait = new WaitCredentialSetupService(get);
+    const reads = jest.spyOn(get, 'run');
     const abort = new AbortController();
-    const result = wait.run('setup', context, 25, abort.signal);
+    const result = wait.run({ id: 'setup', context, waitSeconds: 25, signal: abort.signal });
     const rejected = expect(result).rejects.toMatchObject({ name: 'AbortError' });
-    await jest.advanceTimersByTimeAsync(1);
+    await setImmediate();
+    expect(getEventListeners(abort.signal, 'abort')).toHaveLength(1);
     abort.abort();
     await rejected;
-    expect(jest.getTimerCount()).toBe(0);
+    expect(getEventListeners(abort.signal, 'abort')).toHaveLength(0);
+    await setTimeout(1100);
+    expect(reads).toHaveBeenCalledTimes(1);
   });
 });

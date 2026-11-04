@@ -2,13 +2,15 @@ import { Button } from '@owox/ui/components/button';
 import { CopyableField } from '@owox/ui/components/common/copyable-field';
 import type { AxiosError } from 'axios';
 import { useState, type ReactNode } from 'react';
-import { Link, useParams } from 'react-router';
+import { Link, useLocation, useParams } from 'react-router';
 import { CredentialForm } from '../../features/credentials/components/CredentialConfigSheet/CredentialForm';
 import { ReplaceSecretDialog } from '../../features/credentials/components/ReplaceSecretDialog';
 import { useCredentialPermissions } from '../../features/credentials/useCredentialPermissions';
 import { useCredentialSetup } from '../../features/credentials/useCredentialSetup';
 import { CredentialSetupRecoveryContext } from '../../features/credentials/credential-setup-recovery';
 import { useAuth } from '../../features/idp';
+import { RedirectStorageService } from '../../features/idp/services/redirect-storage.service';
+import { getConnectProjectTarget } from '../../features/idp/utils/connect-project';
 
 export function ConnectCredentialSetupPage() {
   const { projectId, setupId = '' } = useParams<{ projectId: string; setupId: string }>();
@@ -25,11 +27,16 @@ function CredentialSetupContent({ setupId }: { setupId: string }) {
   const permissions = useCredentialPermissions();
   const [replacingSecret, setReplacingSecret] = useState(false);
   const { setup, credential } = flow;
+  const formDisabled = flow.operation !== null || Boolean(flow.verificationError);
 
   if (flow.setupNotFound) {
     return (
       <SetupMessage title='Setup link unavailable'>
-        <p>This setup link is no longer available. Return to your chat to request a new link.</p>
+        <p>
+          This setup link is unavailable. Open it with the same account that started setup. If you
+          already use that account, return to your chat to request a new link.
+        </p>
+        <SwitchSetupAccount />
         {flow.savedCredentialId && (
           <SavedCredentialRecovery credentialId={flow.savedCredentialId} />
         )}
@@ -48,6 +55,7 @@ function CredentialSetupContent({ setupId }: { setupId: string }) {
         <Button variant='outline' onClick={() => void flow.retryLoad()}>
           Try again
         </Button>
+        {setup?.status === 'pending' && <CancelSetup flow={flow} />}
         {flow.savedCredentialId && (
           <SavedCredentialRecovery credentialId={flow.savedCredentialId} />
         )}
@@ -85,6 +93,12 @@ function CredentialSetupContent({ setupId }: { setupId: string }) {
     return (
       <SetupMessage title='Complete setup'>
         <p>OWOX saved your Credential.</p>
+        {flow.verificationError && (
+          <>
+            <SetupVerificationError flow={flow} />
+            <SavedCredentialRecovery credentialId={flow.savedCredentialId} />
+          </>
+        )}
         {flow.operation === 'completing' ? (
           <p role='status'>Finishing setup…</p>
         ) : (
@@ -94,7 +108,7 @@ function CredentialSetupContent({ setupId }: { setupId: string }) {
                 {flow.actionError}
               </p>
             )}
-            <Button disabled={flow.operation !== null} onClick={() => void flow.retryCompletion()}>
+            <Button disabled={formDisabled} onClick={() => void flow.retryCompletion()}>
               Retry completion
             </Button>
             <p>Complete setup to continue in your chat.</p>
@@ -107,6 +121,7 @@ function CredentialSetupContent({ setupId }: { setupId: string }) {
     return (
       <SetupMessage title='Access denied'>
         <p>You need permission to edit this Credential.</p>
+        <CancelSetup flow={flow} />
       </SetupMessage>
     );
   }
@@ -116,14 +131,7 @@ function CredentialSetupContent({ setupId }: { setupId: string }) {
         <p>
           This provider is no longer available. Return to your chat to start another setup request.
         </p>
-        <Button variant='outline' onClick={() => void flow.cancel()}>
-          Cancel setup
-        </Button>
-        {flow.actionError && (
-          <p role='alert' className='text-destructive'>
-            {flow.actionError}
-          </p>
-        )}
+        <CancelSetup flow={flow} />
       </SetupMessage>
     );
   }
@@ -133,6 +141,7 @@ function CredentialSetupContent({ setupId }: { setupId: string }) {
         <p>
           Google sign-in is not configured on this server. Ask your administrator to configure it.
         </p>
+        <CancelSetup flow={flow} />
       </SetupMessage>
     );
   }
@@ -149,17 +158,19 @@ function CredentialSetupContent({ setupId }: { setupId: string }) {
             : 'Enter your provider credentials here. Keep secrets out of your chat. New Credentials are not shared.'}
         </p>
       </header>
-      {flow.actionError && !replacingSecret && (
+      {flow.verificationError && (
+        <div className='mb-4 space-y-4 text-sm'>
+          <SetupVerificationError flow={flow} />
+          <CancelSetup flow={flow} />
+        </div>
+      )}
+      {flow.actionError && !replacingSecret && !flow.verificationError && (
         <p role='alert' className='text-destructive mb-4 text-sm'>
           {flow.actionError}
         </p>
       )}
       {/* Keep the form in the card's flex layout while the fieldset disables its controls. */}
-      <fieldset
-        disabled={flow.operation !== null}
-        className='contents'
-        aria-busy={flow.operation !== null}
-      >
+      <fieldset disabled={formDisabled} className='contents' aria-busy={flow.operation !== null}>
         <CredentialSetupRecoveryContext.Provider value={flow.recordOAuthSave}>
           <CredentialForm
             credential={credential}
@@ -182,12 +193,66 @@ function CredentialSetupContent({ setupId }: { setupId: string }) {
       <ReplaceSecretDialog
         key={`${credential?.id}:${replacingSecret}`}
         credential={replacingSecret ? credential : null}
-        isSaving={flow.operation !== null}
+        isSaving={formDisabled}
         error={flow.actionError}
         onOpenChange={setReplacingSecret}
         onReplace={secret => flow.save({ secret: { value: secret } })}
       />
     </>
+  );
+}
+
+function CancelSetup({ flow }: { flow: ReturnType<typeof useCredentialSetup> }) {
+  return (
+    <>
+      <Button
+        variant='outline'
+        disabled={flow.operation !== null}
+        onClick={() => void flow.cancel()}
+      >
+        Cancel setup
+      </Button>
+      {flow.actionError && (
+        <p role='alert' className='text-destructive'>
+          {flow.actionError}
+        </p>
+      )}
+    </>
+  );
+}
+
+function SetupVerificationError({ flow }: { flow: ReturnType<typeof useCredentialSetup> }) {
+  const status = (flow.verificationError as AxiosError | null)?.response?.status;
+  return (
+    <div className='space-y-4'>
+      <p role='alert' className='text-destructive'>
+        Could not verify this setup. Your input is kept in this tab. Try again before saving.
+        {status === 404 &&
+          ' The link may be unavailable. Use the same account that started setup, or request a new link in your chat.'}
+        {status === 403 && ' You may no longer have access to setup.'}
+      </p>
+      <Button variant='outline' disabled={flow.isVerifying} onClick={() => void flow.retryLoad()}>
+        Try again
+      </Button>
+      {status === 404 && <SwitchSetupAccount />}
+    </div>
+  );
+}
+
+function SwitchSetupAccount() {
+  const { signOut } = useAuth();
+  const location = useLocation();
+  return (
+    <Button
+      variant='outline'
+      onClick={() => {
+        const target = getConnectProjectTarget(location.pathname + location.search + location.hash);
+        if (target) RedirectStorageService.save(target.url);
+        signOut();
+      }}
+    >
+      Sign out and switch account
+    </Button>
   );
 }
 

@@ -1,8 +1,15 @@
+import type { Role } from '@owox/idp-protocol';
 import type {
   CredentialCategory,
   CredentialDefinitionSource,
   CredentialValidationState,
 } from '../credential.types';
+
+export interface McpCredentialsActor {
+  projectId: string;
+  userId: string;
+  roles?: Role[];
+}
 
 export interface McpCredentialAiModelMappings {
   fast?: string;

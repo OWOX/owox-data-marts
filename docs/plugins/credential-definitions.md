@@ -7,6 +7,11 @@ expressions, environment-variable references, or a way to read the stored secret
 For project ownership, sharing, and runtime behavior, see
 [Credentials](../project/credentials.md).
 
+External definitions belong to the deployment, not to an individual project. Project Admins can
+add definitions from GitHub. Plugin release synchronization also registers definitions that a
+plugin requires, including for personal publications. Definition metadata is visible across
+projects. Saved Credentials and their secrets remain scoped to their project.
+
 Public Credential definition repositories work without deployment credentials. Private
 repositories use the same configured GitHub access as private plugin repositories: the deployment
 GitHub App or, on a self-managed deployment, a `GITHUB_TOKEN` that can read the repository. If the

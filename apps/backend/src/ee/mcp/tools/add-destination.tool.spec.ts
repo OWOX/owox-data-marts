@@ -104,7 +104,7 @@ describe('AddDestinationTool', () => {
     const structured = result.structuredContent as any;
     expect(structured.authorization_url).toContain('/ui/project-1/connect/credentials/setup-1');
     expect(credentialsFacade.startSetup).toHaveBeenCalledWith(
-      { projectId: context.projectId, userId: context.userId, roles: ['viewer'], authFlow: 'mcp' },
+      { projectId: context.projectId, userId: context.userId, roles: ['viewer'] },
       { definitionId: 'google-sheets-oauth' }
     );
     expect(destinationsFacade.createDestination).not.toHaveBeenCalled();

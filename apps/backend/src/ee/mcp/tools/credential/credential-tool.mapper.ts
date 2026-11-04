@@ -1,27 +1,24 @@
-import type { AuthorizationContext } from '../../../../idp';
 import type {
   CredentialSetupDto,
+  McpCredentialsActor,
   McpCredentialDefinitionDto,
   McpCredentialDto,
   McpUnavailableCredentialDto,
 } from '../../../../data-marts/credentials/facades/mcp-credentials.facade';
 import type { McpAuthContext } from '../../auth/mcp-auth-context';
+import { buildCredentialSetupUiPath } from '../data-mart-ui-path';
 import { joinPublicOrigin } from '../mcp-public-url.util';
 
 export class CredentialToolMapper {
   toSetupUrl(projectId: string, setupId: string, publicOrigin: string): string {
-    return joinPublicOrigin(
-      publicOrigin,
-      `/ui/${encodeURIComponent(projectId)}/connect/credentials/${encodeURIComponent(setupId)}`
-    );
+    return joinPublicOrigin(publicOrigin, buildCredentialSetupUiPath(projectId, setupId));
   }
 
-  toActor(context: McpAuthContext): AuthorizationContext {
+  toActor(context: McpAuthContext): McpCredentialsActor {
     return {
       projectId: context.projectId,
       userId: context.userId,
       roles: context.roles,
-      authFlow: 'mcp',
     };
   }
 

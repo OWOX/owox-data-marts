@@ -132,27 +132,27 @@ describe('apiClient connect project', () => {
       await expect(reject({ response: { status: 401 }, config: request })).rejects.toThrow();
 
       expect(client).not.toHaveBeenCalled();
-      expect(logout).toHaveBeenCalledTimes(1);
-      expect((logout.mock.calls[0][0] as CustomEvent).detail).toMatchObject({
-        reason: 'connect_project_mismatch',
-        connectTarget: target,
-      });
+      expect(logout).not.toHaveBeenCalled();
     }
   );
 
   it('refuses the first send when the active token belongs to another project', async () => {
-    const { send, client } = await load();
+    const { send } = await load();
     mocks.projectId = 'project-b';
     mocks.token = 'token-b';
 
     await expect(
       Promise.resolve().then(() => send({ url: '/credentials', method: 'post', headers: {} }))
     ).rejects.toThrow();
-    expect(client).not.toHaveBeenCalled();
+    expect(logout).toHaveBeenCalledTimes(1);
+    expect((logout.mock.calls[0][0] as CustomEvent).detail).toEqual({
+      reason: 'connect_project_mismatch',
+      connectTarget: target,
+    });
   });
 
   it.each(['mismatch', 'refresh failure'])(
-    'keeps the original target after navigation and a %s',
+    'uses the current setup target after navigation and a %s',
     async failure => {
       const { send, reject } = await load();
       const request = await send({ url: '/credentials', method: 'post', headers: {} });
@@ -171,7 +171,7 @@ describe('apiClient connect project', () => {
       await expect(reject({ response: { status: 401 }, config: request })).rejects.toThrow();
 
       expect((logout.mock.calls[0][0] as CustomEvent).detail).toMatchObject({
-        connectTarget: target,
+        connectTarget: '/ui/project-b/connect/credentials/setup-2',
       });
     }
   );
@@ -201,5 +201,6 @@ describe('apiClient connect project', () => {
     await refusedA;
     expect(mocks.refresh).toHaveBeenCalledTimes(1);
     expect(client).toHaveBeenCalledTimes(1);
+    expect(logout).not.toHaveBeenCalled();
   });
 });

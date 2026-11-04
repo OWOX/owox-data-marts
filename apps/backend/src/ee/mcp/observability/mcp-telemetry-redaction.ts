@@ -1,16 +1,19 @@
 import { Core } from '@owox/connectors';
 import { z } from 'zod';
 import { createSecretRedactor } from '../../../common/utils/secret-redaction';
+import { credentialListItemSchema } from '../tools/credential/credential.schemas';
 
 export const REDACT_KEYS =
-  /(authorization|bearer|cookie|token|secret|password|passwd|api[_-]?key|private[_-]?key|credential)/i;
+  /(authorization|bearer|cookie|token|secret|password|passwd|api[_-]?key|private[_-]?key|credential(?![_-]?id$))/i;
 export const REDACTED = '[REDACTED]';
 const MAX_DEPTH = 16;
 const objectSchema = z.record(z.string(), z.unknown());
 const connectorPayloadSchema = z.object({ manifest: objectSchema }).loose();
+const credentialListSchema = z.array(credentialListItemSchema);
 
 interface RedactionContext {
   connector: boolean;
+  inferCredentialNames: boolean;
   secretNames: Set<string>;
   secretValues: Set<string>;
 }
@@ -25,8 +28,16 @@ function isCredentialName(name: string): boolean {
   return REDACT_KEYS.test(name) || /(?:access|subscription|app|auth|secret)key/.test(normalized);
 }
 
-function isRequestCredentialName(name: string): boolean {
-  return isCredentialName(name) || /^(?:key|auth|appid)$/i.test(name);
+function isRequestCredentialName(name: string, inferCredentialNames: boolean): boolean {
+  if (inferCredentialNames) return isCredentialName(name) || /^(?:key|auth|appid)$/i.test(name);
+  const normalized = name.replace(/[_\-\s]/g, '').toLowerCase();
+  return (
+    /^(?:(?:x|proxy)?authorization|bearer|cookie|password|passwd|token|clientsecret|key|auth|appid)$/.test(
+      normalized
+    ) ||
+    /(?:api|access|subscription|app|auth|secret|private)key$/.test(normalized) ||
+    /(?:api|access|refresh|developer|personalaccess|auth|session|bearer)token$/.test(normalized)
+  );
 }
 
 function isCredentialReference(value: string): boolean {
@@ -117,7 +128,7 @@ function redactUrlCredentials(text: string, context: RedactionContext): string {
         } catch {
           /* unfinished URL */
         }
-        if (!isRequestCredentialName(decodedName)) return match;
+        if (!isRequestCredentialName(decodedName, context.inferCredentialNames)) return match;
         return `${separator}${name}=${redactCredential(decodedValue, context) === decodedValue ? value : REDACTED}`;
       }
     );
@@ -130,6 +141,13 @@ function redact(value: unknown, context: RedactionContext, depth = 0, container 
   if (!value || typeof value !== 'object') return value;
   const out: Record<string, unknown> = Object.create(null);
   for (const [key, item] of Object.entries(value)) {
+    if (!context.connector && key === 'credentials') {
+      const metadata = credentialListSchema.safeParse(item);
+      if (metadata.success) {
+        out[key] = redact(metadata.data, context, depth + 1, key);
+        continue;
+      }
+    }
     if (context.connector && container === 'oauthParams' && key === 'vars') {
       out[key] = maskParameters(item, context, depth + 1);
       continue;
@@ -140,9 +158,10 @@ function redact(value: unknown, context: RedactionContext, depth = 0, container 
       !schemaName &&
       (namedSecret ||
         (context.connector
-          ? isCredentialName(key) ||
+          ? ((context.inferCredentialNames || container === 'oauthParams') &&
+              isCredentialName(key)) ||
             ((container === 'headers' || container === 'queryParameters') &&
-              isRequestCredentialName(key))
+              isRequestCredentialName(key, context.inferCredentialNames))
           : REDACT_KEYS.test(key)));
     if (credential) {
       rememberSecret(item, context);
@@ -160,7 +179,7 @@ function maskParameters(value: unknown, context: RedactionContext, depth = 0): u
   if (!parsed.success) return redactCredential(value, context, depth);
   return Object.fromEntries(
     Object.entries(parsed.data).map(([name, raw]) => {
-      if (isCredentialName(name)) context.secretNames.add(name);
+      if (context.inferCredentialNames && isCredentialName(name)) context.secretNames.add(name);
       const definition = objectSchema.safeParse(raw);
       if (!definition.success) {
         if (context.secretNames.has(name)) {
@@ -235,9 +254,25 @@ function maskPayload(value: unknown, context: RedactionContext): unknown {
   };
 }
 
+/** Derive secrets from request credentials, never from arbitrary provider fields. */
+export function createMcpInputSecretRedactor(input: unknown): (value: unknown) => unknown {
+  const context: RedactionContext = {
+    connector: false,
+    inferCredentialNames: false,
+    secretNames: new Set(),
+    secretValues: new Set(),
+  };
+  maskPayload(input, context);
+  return createSecretRedactor(context.secretValues, {
+    replacement: REDACTED,
+    minimumSubstringLength: 4,
+  });
+}
+
 export function redactMcpTelemetry(value: unknown, input?: unknown): unknown {
   const context: RedactionContext = {
     connector: false,
+    inferCredentialNames: true,
     secretNames: new Set(),
     secretValues: new Set(),
   };

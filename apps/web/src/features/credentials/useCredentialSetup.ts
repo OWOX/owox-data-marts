@@ -37,8 +37,11 @@ export function useCredentialSetup(setupId: string) {
     queryFn: () => credentialSetupService.getById(setupId),
     enabled: Boolean(projectId && setupId),
     retry: false,
-    // Detect cancellation or expiry while the user keeps this page open.
-    refetchInterval: current => (current.state.data?.status === 'pending' ? 5_000 : false),
+    refetchOnWindowFocus: current => !current.state.error,
+    refetchOnReconnect: current => !current.state.error,
+    // Keep input after a failed read, and require an explicit retry before polling resumes.
+    refetchInterval: current =>
+      current.state.data?.status === 'pending' && !current.state.error ? 5_000 : false,
   });
   const setup = query.data;
   const needsForm = setup?.status === 'pending' && !savedCredentialId;
@@ -53,7 +56,12 @@ export function useCredentialSetup(setupId: string) {
   const oauthSettingsQuery = useGoogleOAuthSettings(
     definition?.auth?.type === 'oauth' ? definition.auth.client : undefined
   );
-  const needsOAuthSettings = needsForm && definition?.auth?.type === 'oauth';
+  const needsOAuthSettings =
+    needsForm &&
+    (definition?.auth?.type === 'oauth' ||
+      (setup.mode === 'create' &&
+        !setup.definitionId &&
+        definitionsQuery.definitions.some(item => item.auth?.type === 'oauth')));
 
   useEffect(() => {
     mounted.current = true;
@@ -69,6 +77,7 @@ export function useCredentialSetup(setupId: string) {
   }, [setup, storageKey]);
 
   const currentSetup = () => queryClient.getQueryData<CredentialSetup>(queryKey);
+  const isSetupVerified = () => queryClient.getQueryState(queryKey)?.status === 'success';
   const rememberSavedId = (id: string) => {
     savedIdRef.current = id;
     if (mounted.current) setSavedCredentialId(id);
@@ -79,14 +88,17 @@ export function useCredentialSetup(setupId: string) {
     savedIdRef.current = id;
     storeSavedId(storageKey, id);
     // Keep any provider finish step mounted; recovery never invokes a stale completion callback.
-    if (mounted.current && (interrupted || currentSetup()?.status !== 'pending')) {
+    if (
+      mounted.current &&
+      (interrupted || !isSetupVerified() || currentSetup()?.status !== 'pending')
+    ) {
       setSavedCredentialId(id);
     }
   };
 
   const completeSaved = async (credentialId: string) => {
     rememberSavedId(credentialId);
-    if (!mounted.current || currentSetup()?.status !== 'pending') return;
+    if (!mounted.current || !isSetupVerified() || currentSetup()?.status !== 'pending') return;
     setOperation('completing');
     try {
       const completed = await credentialSetupService.complete(setupId, credentialId);
@@ -105,6 +117,7 @@ export function useCredentialSetup(setupId: string) {
     if (
       !mounted.current ||
       busyRef.current ||
+      !isSetupVerified() ||
       !savedIdRef.current ||
       currentSetup()?.status !== 'pending'
     )
@@ -121,7 +134,7 @@ export function useCredentialSetup(setupId: string) {
 
   const save = async (input: CreateCredentialRequest | UpdateCredentialRequest) => {
     const current = currentSetup();
-    if (busyRef.current || current?.status !== 'pending') return;
+    if (busyRef.current || !isSetupVerified() || current?.status !== 'pending') return;
     if (savedIdRef.current) return retryCompletion();
     busyRef.current = true;
     setOperation('saving');
@@ -181,11 +194,14 @@ export function useCredentialSetup(setupId: string) {
 
   return {
     setup,
-    setupNotFound: (query.error as AxiosError | null)?.response?.status === 404,
+    setupNotFound:
+      query.isLoadingError && (query.error as AxiosError | null)?.response?.status === 404,
     credential: credentialQuery.credential,
     definitions: definitionsQuery.definitions,
     definition,
     oauthAvailable: oauthSettingsQuery.available,
+    verificationError: setup?.status === 'pending' && query.isRefetchError ? query.error : null,
+    isVerifying: query.isFetching,
     isLoading:
       query.isPending ||
       (needsForm &&
@@ -194,10 +210,7 @@ export function useCredentialSetup(setupId: string) {
       (needsOAuthSettings && oauthSettingsQuery.isPending),
     // A temporary background error must not remove the form and its unsaved secrets.
     loadError:
-      (query.isLoadingError ||
-      [401, 403, 404].includes((query.error as AxiosError | null)?.response?.status ?? 0)
-        ? query.error
-        : null) ??
+      (query.isLoadingError ? query.error : null) ??
       (needsForm
         ? ((definitionsQuery.isLoadingError ? definitionsQuery.error : null) ??
           credentialQuery.error)

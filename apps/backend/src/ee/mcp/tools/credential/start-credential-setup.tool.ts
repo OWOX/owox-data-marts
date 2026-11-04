@@ -17,7 +17,7 @@ type Input = z.infer<typeof startCredentialSetupSchema>;
 export class StartCredentialSetupTool implements McpToolDefinition<Input> {
   readonly name = 'start_credential_setup';
   readonly description =
-    'Start authenticated browser setup to create a Credential, replace its secrets or reconnect an account. Use definition_id to create a Credential. Use credential_id to update a Credential. Omit both IDs to select the provider in the browser. For a new Credential, optionally pass title to prefill its name. The user can change this name. Omit title to use the provider or connected account name. Do not pass title with credential_id. Never supply secrets.\n\nThe tool returns an expiring setup_id and a url for the current user and project. Use get_credential_setup_status to identify the exact saved Credential. Do not infer completion from the newest list item.';
+    'Start authenticated browser setup to create a Credential, replace its secrets or reconnect an account. Use definition_id to create a Credential. Use credential_id to update a Credential. Omit both IDs to select the provider in the browser. For a new Credential, optionally pass title to prefill its name. The user can change this name. Omit title to use the provider or connected account name. Do not pass title with credential_id. Never supply secrets.\n\nThe tool returns an expiring setup_id and a url for the current user and project. The user must sign in with the same OWOX account that connected MCP and remain in the connected project. Use get_credential_setup_status to identify the exact saved Credential. Do not infer completion from the newest list item.';
   readonly zodSchema = startCredentialSetupSchema;
   readonly outputSchema = {
     ...credentialSetupOutputSchema,
@@ -54,7 +54,7 @@ export class StartCredentialSetupTool implements McpToolDefinition<Input> {
         this.publicOrigin.getPublicOrigin()
       ),
       instructions:
-        'Open this URL. Complete the Credential form in OWOX. Enter secrets only in that form. Then call get_credential_setup_status with this setup_id. Use wait_seconds to wait up to 25 seconds.\n\nA completed status identifies the saved Credential. This status does not mean that the provider verified it. The tool does not promise a background notification when setup completes.',
+        'Open this URL. Sign in with the same OWOX account that connected MCP. Complete the Credential form in the connected project. Enter secrets only in that form. Then call get_credential_setup_status with this setup_id. Use wait_seconds to wait up to 25 seconds.\n\nA completed status identifies the saved Credential. This status does not mean that the provider verified it. The tool does not promise a background notification when setup completes.',
     });
   }
 }

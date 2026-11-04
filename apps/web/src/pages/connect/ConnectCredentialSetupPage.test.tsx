@@ -8,12 +8,14 @@ import type {
   CredentialSetup,
 } from '../../features/credentials/types';
 import { ConnectCredentialSetupPage } from './ConnectCredentialSetupPage';
+import { RedirectStorageService } from '../../features/idp/services/redirect-storage.service';
 
 const mocks = vi.hoisted(() => ({
   get: vi.fn(),
   post: vi.fn(),
   put: vi.fn(),
   popup: vi.fn(),
+  signOut: vi.fn(),
   user: { id: 'user-1', projectId: 'project-1', roles: ['editor'] },
 }));
 
@@ -21,7 +23,7 @@ vi.mock('../../app/api/apiClient', () => ({
   default: { get: mocks.get, post: mocks.post, put: mocks.put },
 }));
 vi.mock('../../features/idp', () => ({
-  useAuth: () => ({ user: mocks.user, status: 'authenticated' }),
+  useAuth: () => ({ user: mocks.user, status: 'authenticated', signOut: mocks.signOut }),
 }));
 vi.mock('../../features/google-oauth/utils/open-google-oauth-popup', () => ({
   openGoogleOAuthPopup: mocks.popup,
@@ -517,7 +519,7 @@ describe('ConnectCredentialSetupPage', () => {
     );
   });
 
-  it('recovers an OAuth save when a forbidden status response removes the form', async () => {
+  it('recovers an OAuth save when a forbidden status response disables the form', async () => {
     definitions = [{ ...definition, auth: { type: 'oauth', provider: 'google' } }];
     let finishExchange!: (saved: Credential) => void;
     exchangeRequest = () =>
@@ -533,7 +535,7 @@ describe('ConnectCredentialSetupPage', () => {
     await act(async () => {
       await page.client.refetchQueries({ queryKey: ['credential-setup'] });
     });
-    await screen.findByRole('heading', { name: 'Access denied' });
+    expect(await screen.findByRole('alert')).toHaveTextContent(/could not verify this setup/i);
 
     await act(async () => {
       finishExchange(savedCredential);
@@ -543,7 +545,10 @@ describe('ConnectCredentialSetupPage', () => {
     expect(mocks.post.mock.calls.some(([url]) => String(url).endsWith('/complete'))).toBe(false);
     setupError = null;
     fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Retry completion' }));
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Retry completion' })).toBeEnabled();
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Retry completion' }));
 
     expect(await screen.findByRole('heading', { name: 'Credential saved' })).toBeInTheDocument();
     expect(
@@ -657,6 +662,73 @@ describe('ConnectCredentialSetupPage', () => {
     });
 
     expect(screen.getByPlaceholderText('Enter Credential name')).toHaveValue('Unsaved name');
+    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Try again' })).toBeEnabled();
+  });
+
+  it.each([401, 403, 404])(
+    'keeps input and pauses status polling after a background %s until an explicit retry',
+    async status => {
+      vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
+      const page = renderPage();
+      try {
+        const name = await screen.findByPlaceholderText('Enter Credential name');
+        const secret = screen.getByLabelText('Personal access token');
+        fireEvent.change(name, { target: { value: 'Unsaved name' } });
+        fireEvent.change(secret, { target: { value: 'Unsaved secret' } });
+        setupError = Object.assign(new Error('Setup unavailable'), { response: { status } });
+
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(5_000);
+        });
+        expect(await screen.findByRole('alert')).toHaveTextContent(/could not verify this setup/i);
+
+        expect(screen.getByPlaceholderText('Enter Credential name')).toBe(name);
+        expect(name).toHaveValue('Unsaved name');
+        expect(secret).toHaveValue('Unsaved secret');
+        expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
+        fireEvent.submit(screen.getByTestId('credentialConfigForm'));
+        await act(async () => {
+          await Promise.resolve();
+        });
+        expect(mocks.post).not.toHaveBeenCalled();
+
+        const reads = mocks.get.mock.calls.filter(
+          ([url]) => url === '/credential-setup/setup-1'
+        ).length;
+        expect(reads).toBe(2);
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(15_000);
+        });
+        expect(
+          mocks.get.mock.calls.filter(([url]) => url === '/credential-setup/setup-1')
+        ).toHaveLength(reads);
+        setupError = null;
+        fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+        await waitFor(() => {
+          expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled();
+        });
+        expect(screen.getByPlaceholderText('Enter Credential name')).toBe(name);
+        expect(secret).toHaveValue('Unsaved secret');
+      } finally {
+        page.unmount();
+        vi.useRealTimers();
+      }
+    }
+  );
+
+  it('allows cancellation while a known setup cannot be verified', async () => {
+    const page = renderPage();
+    await screen.findByPlaceholderText('Enter Credential name');
+    setupError = Object.assign(new Error('Setup unavailable'), { response: { status: 404 } });
+    await act(async () => {
+      await page.client.refetchQueries({ queryKey: ['credential-setup'] });
+    });
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Cancel setup' }));
+
+    expect(await screen.findByRole('heading', { name: 'Setup cancelled' })).toBeInTheDocument();
+    expect(mocks.post.mock.calls.filter(([url]) => url === '/credentials')).toHaveLength(0);
   });
 
   it('does not replace completed setup with an earlier status response', async () => {
@@ -736,6 +808,22 @@ describe('ConnectCredentialSetupPage', () => {
       }
     }
   );
+
+  it('offers account switching for an unavailable link without assuming that another account owns it', async () => {
+    setupError = Object.assign(new Error('Not found'), { response: { status: 404 } });
+    const target = '/ui/project-1/connect/credentials/setup-1?source=chat#form';
+    renderPage(target);
+
+    const switchAccount = await screen.findByRole('button', {
+      name: 'Sign out and switch account',
+    });
+    expect(screen.getByText(/same account that started setup/i)).toBeInTheDocument();
+    expect(mocks.signOut).not.toHaveBeenCalled();
+    fireEvent.click(switchAccount);
+
+    expect(RedirectStorageService.retrieve()).toBe(target);
+    expect(mocks.signOut).toHaveBeenCalledTimes(1);
+  });
 
   it('shows unavailable OAuth instead of an empty provider form', async () => {
     definitions = [{ ...definition, auth: { type: 'oauth', provider: 'google' } }];
@@ -820,25 +908,58 @@ describe('ConnectCredentialSetupPage', () => {
     expect(await screen.findByRole('heading', { name: 'Credential saved' })).toBeInTheDocument();
   });
 
-  it('preserves OAuth form input when a background settings request fails', async () => {
-    definitions = [{ ...definition, auth: { type: 'oauth', provider: 'google' } }];
-    const page = renderPage();
-    fireEvent.change(await screen.findByPlaceholderText('Enter Credential name'), {
-      target: { value: 'Unsaved Google account name' },
-    });
-    oauthSettingsError = new Error('Network unavailable');
+  it.each(['network', '503'] as const)(
+    'retries a provider picker after an OAuth settings %s error',
+    async failure => {
+      definitions = [
+        definition,
+        {
+          ...definition,
+          id: 'google',
+          displayName: 'Google',
+          auth: { type: 'oauth', provider: 'google' },
+        },
+      ];
+      setups.set('setup-1', pendingSetup({ definitionId: null }));
+      oauthSettingsError =
+        failure === 'network'
+          ? new Error('Network unavailable')
+          : Object.assign(new Error('Service unavailable'), { response: { status: 503 } });
+      renderPage();
 
-    await act(async () => {
-      await page.client.refetchQueries({ queryKey: ['credential-google-oauth-settings'] });
-    });
+      const retry = await screen.findByRole('button', { name: 'Try again' });
+      expect(screen.queryByTestId('credentialConfigForm')).not.toBeInTheDocument();
+      oauthSettingsError = null;
+      fireEvent.click(retry);
+      fireEvent.mouseDown(await screen.findByRole('combobox', { name: 'Provider' }), { button: 0 });
 
-    expect(screen.getByPlaceholderText('Enter Credential name')).toHaveValue(
-      'Unsaved Google account name'
-    );
-    expect(screen.getByRole('button', { name: 'Connect with Google' })).toBeEnabled();
-    expect(screen.queryByText(/Google sign-in is not configured/)).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Try again' })).not.toBeInTheDocument();
-  });
+      expect(await screen.findByRole('option', { name: 'Google' })).toBeInTheDocument();
+    }
+  );
+
+  it.each([false, true])(
+    'preserves OAuth form input when a background settings request fails (picker: %s)',
+    async picker => {
+      definitions = [{ ...definition, auth: { type: 'oauth', provider: 'google' } }];
+      if (picker) setups.set('setup-1', pendingSetup({ definitionId: null }));
+      const page = renderPage();
+      fireEvent.change(await screen.findByPlaceholderText('Enter Credential name'), {
+        target: { value: 'Unsaved Google account name' },
+      });
+      oauthSettingsError = new Error('Network unavailable');
+
+      await act(async () => {
+        await page.client.refetchQueries({ queryKey: ['credential-google-oauth-settings'] });
+      });
+
+      expect(screen.getByPlaceholderText('Enter Credential name')).toHaveValue(
+        'Unsaved Google account name'
+      );
+      expect(screen.getByRole('button', { name: 'Connect with Google' })).toBeEnabled();
+      expect(screen.queryByText(/Google sign-in is not configured/)).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Try again' })).not.toBeInTheDocument();
+    }
+  );
 
   it.each(['setup', 'credential'] as const)(
     'does not render the form after a forbidden %s response',
@@ -866,6 +987,35 @@ describe('ConnectCredentialSetupPage', () => {
     expect(await screen.findByRole('heading', { name: 'Access denied' })).toBeInTheDocument();
     expect(screen.queryByTestId('credentialConfigForm')).not.toBeInTheDocument();
   });
+
+  it.each(['read-only', 'forbidden', 'deleted', 'oauth-disabled'] as const)(
+    'lets the requester cancel a pending setup when the form is %s',
+    async reason => {
+      if (reason === 'oauth-disabled') {
+        definitions = [{ ...definition, auth: { type: 'oauth', provider: 'google' } }];
+        oauthAvailable = false;
+      } else {
+        setups.set('setup-1', pendingSetup({ mode: 'update', credentialId: credential.id }));
+        if (reason === 'read-only')
+          savedCredential = { ...credential, availableForMaintenance: false };
+        else
+          credentialError = Object.assign(new Error('Credential unavailable'), {
+            response: { status: reason === 'deleted' ? 404 : 403 },
+          });
+      }
+      cancelError = new Error('Network unavailable');
+      renderPage();
+
+      fireEvent.click(await screen.findByRole('button', { name: 'Cancel setup' }));
+      expect(await screen.findByRole('alert')).toHaveTextContent(/could not cancel setup/i);
+      cancelError = null;
+      fireEvent.click(screen.getByRole('button', { name: 'Cancel setup' }));
+
+      expect(await screen.findByRole('heading', { name: 'Setup cancelled' })).toBeInTheDocument();
+      expect(mocks.post.mock.calls.filter(([url]) => url === '/credentials')).toHaveLength(0);
+      expect(mocks.put).not.toHaveBeenCalled();
+    }
+  );
 
   it.each(['setup', 'definitions'] as const)('recovers a failed %s load', async resource => {
     if (resource === 'setup') setupError = new Error('Network unavailable');

@@ -1,1 +1,2 @@
 export const CREDENTIAL_SETUP_TTL_MS = 15 * 60_000;
+export const CREDENTIAL_SETUP_RETENTION_MS = 30 * 60_000;

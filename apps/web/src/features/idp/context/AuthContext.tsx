@@ -156,6 +156,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }, []);
 
   const handleConnectMismatch = useCallback((target: ConnectProjectTarget) => {
+    if (getPendingConnectProjectTarget()?.url !== target.url) return;
     clearTokenProvider();
     dispatch({ type: 'SET_ERROR', payload: new ConnectProjectMismatchError(target).message });
     // Keep the return URL when another auth result arrives before sign-in navigation completes.
@@ -175,6 +176,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }, []);
 
   const handleAccountMismatch = useCallback((target: ConnectProjectTarget) => {
+    if (getPendingConnectProjectTarget()?.url !== target.url) return;
     clearTokenProvider();
     RedirectStorageService.save(target.url);
     dispatch({
@@ -203,14 +205,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
         const user = await getUserApi(accessToken);
 
-        for (const target of [expectedTarget, getPendingConnectProjectTarget()]) {
-          if (target && user.projectId !== target.projectId) {
-            throw new ConnectProjectMismatchError(target);
-          }
+        const currentTarget = getPendingConnectProjectTarget();
+        if (currentTarget && user.projectId !== currentTarget.projectId) {
+          throw new ConnectProjectMismatchError(currentTarget);
         }
 
-        if (expectedTarget && expectedUserId && user.id !== expectedUserId) {
-          throw new ConnectAccountMismatchError(expectedTarget);
+        if (currentTarget && expectedUserId && user.id !== expectedUserId) {
+          throw new ConnectAccountMismatchError(currentTarget);
         }
 
         // Install the verified token, project, and account before requests can use the new session.
@@ -222,7 +223,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
             () => user.id
           )
         );
-        if (expectedTarget) sessionStorage.removeItem(CONNECT_SWITCH_ATTEMPT_KEY);
+        if (currentTarget) sessionStorage.removeItem(CONNECT_SWITCH_ATTEMPT_KEY);
 
         dispatch({
           type: 'SET_USER',
@@ -240,7 +241,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
           handleAccountMismatch(error.target);
         } else if (error instanceof ConnectProjectMismatchError) {
           dispatch({ type: 'SET_ERROR', payload: error.message });
-        } else if (expectedTarget) {
+        } else if (getPendingConnectProjectTarget()) {
           dispatch({
             type: 'SET_ERROR',
             payload:
@@ -421,13 +422,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
       // Blocked/inactive users need sign-out
       if (detail.reason === 'user_blocked') {
-        if (connectTarget) RedirectStorageService.save(connectTarget.url);
+        const currentTarget = getPendingConnectProjectTarget();
+        if (currentTarget) RedirectStorageService.save(currentTarget.url);
         signOut();
-      } else if (connectTarget) {
-        pendingConnectSignIn.current = connectTarget.url;
-        signInApi({ projectId: connectTarget.projectId, redirect: connectTarget.url });
       } else {
-        // Regular token refresh failure - just redirect to sign-in
+        // A refresh failure returns to the current page, even when an older request triggered it.
         signIn();
       }
     };

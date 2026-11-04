@@ -5,7 +5,17 @@ export class CreateCredentialSetup1793628000000 implements MigrationInterface {
   readonly name = 'CreateCredentialSetup1793628000000';
 
   async up(queryRunner: QueryRunner): Promise<void> {
-    if (await queryRunner.hasTable('credential_setup')) return;
+    const createdAtIndex = new TableIndex({
+      name: 'idx_credential_setup_created_at',
+      columnNames: ['createdAt'],
+    });
+    const existing = await queryRunner.getTable('credential_setup');
+    if (existing) {
+      if (!existing.indices.some(index => index.name === createdAtIndex.name)) {
+        await queryRunner.createIndex(existing, createdAtIndex);
+      }
+      return;
+    }
     await queryRunner.createTable(
       new Table({
         name: 'credential_setup',
@@ -22,13 +32,7 @@ export class CreateCredentialSetup1793628000000 implements MigrationInterface {
           { name: 'expiresAt', type: 'datetime' },
           { name: 'completedAt', type: 'datetime', isNullable: true },
         ],
-      })
-    );
-    await queryRunner.createIndex(
-      'credential_setup',
-      new TableIndex({
-        name: 'idx_credential_setup_created_at',
-        columnNames: ['createdAt'],
+        indices: [createdAtIndex],
       })
     );
   }

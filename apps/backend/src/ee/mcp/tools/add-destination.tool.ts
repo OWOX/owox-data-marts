@@ -244,7 +244,10 @@ Share the setup guide with the user — it walks through every step: ${LOOKER_ST
           'If the status is completed, use its exact credential_id. ' +
           `After completion, call add_destination again with destination_type "google_sheets", that credential_id and title ${JSON.stringify(title)}. ` +
           'The title in this follow-up call names the destination.\n\n' +
-          'If setup is cancelled or expired, start a new request.',
+          'If setup is cancelled, expired or missing, ask for the saved Credential ID shown on the page. ' +
+          'Verify that ID with get_credential before reusing it. ' +
+          'If unavailable, use list_credentials and ask the user to confirm the provider and title. ' +
+          'Start a new request only if no suitable Credential is confirmed.',
       });
     }
 
