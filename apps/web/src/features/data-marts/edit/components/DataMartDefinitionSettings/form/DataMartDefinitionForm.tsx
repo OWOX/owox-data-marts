@@ -18,7 +18,10 @@ interface DataMartDefinitionFormProps {
   preset?: string;
   connectorName?: string | null;
   initialDefinitionType?: DataMartDefinitionType | null;
-  saveDataMartDefinition?: (e?: React.SyntheticEvent<HTMLFormElement>) => void;
+  saveDataMartDefinition?: (
+    e?: React.SyntheticEvent<HTMLFormElement>,
+    onSaved?: () => void
+  ) => void;
   /** Lets a SQL query reference other Data Marts; absent where references are not supported. */
   sqlReferences?: SqlReferencesContext;
 }

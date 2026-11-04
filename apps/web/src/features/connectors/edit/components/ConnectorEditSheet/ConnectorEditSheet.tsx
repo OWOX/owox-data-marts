@@ -16,7 +16,7 @@ interface ConnectorEditSheetProps {
   isOpen: boolean;
   onClose: () => void;
   dataStorageType: DataStorageType;
-  onSubmit: (configuredConnector: ConnectorConfig) => void;
+  onSubmit: (configuredConnector: ConnectorConfig, runAfterSave: boolean) => void;
   configurationOnly?: boolean;
   existingConnector?: ConnectorConfig | null;
   mode?: 'full' | 'configuration-only' | 'fields-only';
@@ -73,8 +73,8 @@ export function ConnectorEditSheet({
           </SheetDescription>
         </SheetHeader>
         <ConnectorEditForm
-          onSubmit={configuredConnector => {
-            onSubmit(configuredConnector);
+          onSubmit={(configuredConnector, runAfterSave) => {
+            onSubmit(configuredConnector, runAfterSave);
             handleFormSubmitSuccess();
           }}
           dataStorageType={dataStorageType}

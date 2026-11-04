@@ -13,6 +13,8 @@ import {
 } from '../../../model/types/connector-definition-config';
 import { useOutletContext } from 'react-router';
 import type { DataMartContextType } from '../../../model/context/types';
+import { useDataMartContext } from '../../../model/context/useDataMartContext';
+import { RunType } from '../../../../../connectors/shared/enums/run-type.enum';
 import { DataMartStatus, DataMartDefinitionType } from '../../../../shared/enums';
 import { getEmptyDefinition } from '../../../utils/definition-helpers';
 import {
@@ -34,7 +36,10 @@ interface ConnectorDefinitionFieldProps {
   preset?: string;
   connectorName?: string | null;
   autoOpen?: boolean;
-  saveDataMartDefinition?: (e?: React.SyntheticEvent<HTMLFormElement>) => void;
+  saveDataMartDefinition?: (
+    e?: React.SyntheticEvent<HTMLFormElement>,
+    onSaved?: () => void
+  ) => void;
 }
 
 export function ConnectorDefinitionField({
@@ -46,6 +51,8 @@ export function ConnectorDefinitionField({
   saveDataMartDefinition,
 }: ConnectorDefinitionFieldProps) {
   const { dataMart } = useOutletContext<DataMartContextType>();
+  // The page outlet does not pass publishDataMart, so the actions come from the provider.
+  const { publishDataMart, runDataMart, getDataMartRuns } = useDataMartContext();
   const { setValue, getValues, trigger } = useFormContext<DataMartDefinitionFormData>();
   const [isEditSheetOpen, setIsEditSheetOpen] = useState(false);
   const [isSetupSheetOpen, setIsSetupSheetOpen] = useState(false);
@@ -58,15 +65,33 @@ export function ConnectorDefinitionField({
 
   const datamartStatus = dataMart?.status ?? DataMartStatus.DRAFT;
 
-  const applyDefinitionAndSave = async (definition: ConnectorDefinitionConfig) => {
+  // Publishing a draft starts its first run on the backend, so only a published one runs here.
+  const runSavedDataMart = async () => {
+    if (!dataMart) return;
+    if (dataMart.status.code === DataMartStatus.DRAFT) {
+      try {
+        await publishDataMart(dataMart.id);
+        void getDataMartRuns(dataMart.id);
+      } catch {
+        // The API client shows the error; the saved definition stays.
+      }
+      return;
+    }
+    await runDataMart({ id: dataMart.id, payload: { runType: RunType.INCREMENTAL } });
+  };
+
+  const applyDefinitionAndSave = async (
+    definition: ConnectorDefinitionConfig,
+    runAfterSave = false
+  ) => {
     setValue('definition', definition, { shouldDirty: true, shouldTouch: true });
     const isValid = await trigger('definition');
     if (isValid && saveDataMartDefinition) {
-      saveDataMartDefinition();
+      saveDataMartDefinition(undefined, runAfterSave ? () => void runSavedDataMart() : undefined);
     }
   };
 
-  const setupConnector = async (connector: ConnectorConfig) => {
+  const setupConnector = async (connector: ConnectorConfig, runAfterSave: boolean) => {
     const source: ConnectorSourceConfig = connector.source;
 
     const storage: ConnectorStorageConfig = connector.storage;
@@ -77,11 +102,11 @@ export function ConnectorDefinitionField({
         storage,
       },
     };
-    await applyDefinitionAndSave(newDefinition);
+    await applyDefinitionAndSave(newDefinition, runAfterSave);
   };
 
   const updateConnectorConfiguration =
-    (configIndex: number) => async (connector: ConnectorConfig) => {
+    (configIndex: number) => async (connector: ConnectorConfig, runAfterSave: boolean) => {
       const currentValues = getValues();
       const currentDefinition = currentValues.definition as ConnectorDefinitionConfig;
 
@@ -117,11 +142,11 @@ export function ConnectorDefinitionField({
             },
           },
         };
-        await applyDefinitionAndSave(updatedDefinition);
+        await applyDefinitionAndSave(updatedDefinition, runAfterSave);
       }
     };
 
-  const updateConnectorFields = async (connector: ConnectorConfig) => {
+  const updateConnectorFields = async (connector: ConnectorConfig, runAfterSave: boolean) => {
     const currentValues = getValues();
     const currentDefinition = currentValues.definition as ConnectorDefinitionConfig;
 
@@ -138,7 +163,7 @@ export function ConnectorDefinitionField({
           },
         },
       };
-      await applyDefinitionAndSave(updatedDefinition);
+      await applyDefinitionAndSave(updatedDefinition, runAfterSave);
     }
     setIsEditSheetOpen(false);
   };
@@ -228,7 +253,7 @@ export function ConnectorDefinitionField({
     }
   };
 
-  const addConfiguration = async (connector: ConnectorConfig) => {
+  const addConfiguration = async (connector: ConnectorConfig, runAfterSave: boolean) => {
     const currentValues = getValues();
     const currentDefinition = currentValues.definition as ConnectorDefinitionConfig;
 
@@ -254,7 +279,7 @@ export function ConnectorDefinitionField({
           source: updatedSource,
         },
       };
-      await applyDefinitionAndSave(updatedDefinition);
+      await applyDefinitionAndSave(updatedDefinition, runAfterSave);
     }
   };
 
@@ -274,8 +299,8 @@ export function ConnectorDefinitionField({
                 datamartStatus === DataMartStatus.DRAFT ? (
                   <ConnectorSetupButton
                     storageType={storageType}
-                    onSetupConnector={(connector: ConnectorConfig) => {
-                      void setupConnector(connector);
+                    onSetupConnector={(connector: ConnectorConfig, runAfterSave: boolean) => {
+                      void setupConnector(connector, runAfterSave);
                       setIsSetupSheetOpen(false);
                     }}
                     preset={preset}
@@ -293,7 +318,9 @@ export function ConnectorDefinitionField({
                           GOOGLE_SHEETS_CONNECTOR_NAME && (
                           <AddConfigurationButton
                             storageType={storageType}
-                            onAddConfiguration={newConfig => void addConfiguration(newConfig)}
+                            onAddConfiguration={(newConfig, runAfterSave) =>
+                              void addConfiguration(newConfig, runAfterSave)
+                            }
                             existingConnector={
                               isConnectorConfigured(field.value as ConnectorDefinitionConfig)
                                 ? {
@@ -372,7 +399,9 @@ export function ConnectorDefinitionField({
           onClose={() => {
             setIsEditSheetOpen(false);
           }}
-          onSubmit={connector => void updateConnectorFields(connector)}
+          onSubmit={(connector, runAfterSave) =>
+            void updateConnectorFields(connector, runAfterSave)
+          }
           dataStorageType={storageType}
           existingConnector={
             isConnectorConfigured(getValues().definition as ConnectorDefinitionConfig)

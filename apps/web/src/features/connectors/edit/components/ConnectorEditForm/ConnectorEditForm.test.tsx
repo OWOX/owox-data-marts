@@ -17,7 +17,9 @@ interface RecordedFieldsProps {
 
 interface RecordedNavigationProps {
   canGoNext: boolean;
+  canRunAfterSave?: boolean;
   onNext: () => void;
+  onFinish: (runAfterSave: boolean) => void;
 }
 
 const { connectorHook, recorded, recordedFields, recordedNavigation, toastError } = vi.hoisted(
@@ -292,5 +294,59 @@ describe('ConnectorEditForm configuration echo', () => {
     });
 
     expect(toastError).toHaveBeenCalledWith('Connector provider is temporarily unavailable');
+  });
+
+  describe('Save & Run', () => {
+    const renderInDataMart = (config: Record<string, string>, onSubmit = vi.fn()) => {
+      render(
+        <MemoryRouter>
+          <DataMartContext.Provider
+            value={
+              {
+                dataMart: {
+                  id: 'dm-1',
+                  storage: { type: DataStorageType.GOOGLE_BIGQUERY, config },
+                },
+              } as never
+            }
+          >
+            <ConnectorEditForm
+              onSubmit={onSubmit}
+              dataStorageType={DataStorageType.GOOGLE_BIGQUERY}
+              configurationOnly
+            />
+          </DataMartContext.Provider>
+        </MemoryRouter>
+      );
+      return onSubmit;
+    };
+
+    it('is offered when the Data Mart has a configured Storage', () => {
+      renderInDataMart({ projectId: 'project', location: 'US' });
+
+      expect(recordedNavigation.at(-1)?.canRunAfterSave).toBe(true);
+    });
+
+    it('is not offered when the Storage is not configured', () => {
+      renderInDataMart({ projectId: '', location: '' });
+
+      expect(recordedNavigation.at(-1)?.canRunAfterSave).toBe(false);
+    });
+
+    it('is not offered outside a Data Mart', () => {
+      renderForm();
+
+      expect(recordedNavigation.at(-1)?.canRunAfterSave).toBe(false);
+    });
+
+    it.each([true, false])('passes runAfterSave=%s on to the caller', runAfterSave => {
+      const onSubmit = renderInDataMart({ projectId: 'project', location: 'US' });
+
+      act(() => {
+        recordedNavigation.at(-1)?.onFinish(runAfterSave);
+      });
+
+      expect(onSubmit).toHaveBeenCalledWith(expect.anything(), runAfterSave);
+    });
   });
 });

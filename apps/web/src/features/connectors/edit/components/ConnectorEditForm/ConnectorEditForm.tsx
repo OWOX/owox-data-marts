@@ -1,7 +1,7 @@
 import { useConnector } from '../../../shared/model/hooks/useConnector';
 import type { ConnectorListItem } from '../../../shared/model/types/connector';
 import { useContext, useEffect, useState, useCallback, useMemo, useRef } from 'react';
-import { DataStorageType } from '../../../../data-storage';
+import { DataStorageType, isDataStorageConfigValid } from '../../../../data-storage';
 import {
   ConnectorSelectionStep,
   ConfigurationStep,
@@ -50,7 +50,7 @@ const connectorKey = (c: ConnectorListItem) =>
 const BUILDER_STATE = { builderEntryPoint: 'data_mart_wizard' };
 
 interface ConnectorEditFormProps {
-  onSubmit: (connector: ConnectorConfig) => void;
+  onSubmit: (connector: ConnectorConfig, runAfterSave: boolean) => void;
   dataStorageType: DataStorageType;
   configurationOnly?: boolean;
   existingConnector?: ConnectorConfig | null;
@@ -74,8 +74,11 @@ export function ConnectorEditForm({
 }: ConnectorEditFormProps) {
   const { navigate } = useProjectRoute();
   const { canEdit } = usePermissions();
+  const dataMart = useContext(DataMartContext)?.dataMart;
   // Lets an editor of this Data Mart preview a configuration bound to a Credential.
-  const dataMartId = useContext(DataMartContext)?.dataMart?.id;
+  const dataMartId = dataMart?.id;
+  // A run needs a configured Storage; without one the sheet only saves.
+  const canRunAfterSave = !!dataMart?.storage && isDataStorageConfigValid(dataMart.storage);
   const [customConnectors, setCustomConnectors] = useState<CustomConnectorListItemDto[]>([]);
   const [isDirty, setIsDirty] = useState(false);
   const [selectedConnector, setSelectedConnector] = useState<ConnectorListItem | null>(null);
@@ -1021,7 +1024,11 @@ export function ConnectorEditForm({
             void handleNext();
           }}
           onBack={handleBack}
-          onFinish={() => {
+          canRunAfterSave={canRunAfterSave}
+          onFinish={runAfterSave => {
+            const submit = (connector: ConnectorConfig) => {
+              onSubmit(connector, runAfterSave);
+            };
             const availableFields = availableSelectedNodeFields;
             // A saved field the connector no longer has gets no checkbox, so nothing could
             // unselect it. It is dropped once the node's fields have loaded; until then the
@@ -1040,7 +1047,7 @@ export function ConnectorEditForm({
                     existingConnector?.source.fields
                   )
                 : connectorConfiguration;
-              onSubmit({
+              submit({
                 source: {
                   name: selectedConnector.name,
                   configuration: [configuration],
@@ -1062,7 +1069,7 @@ export function ConnectorEditForm({
                 ...connectorSetupProperties(selectedConnector, pinnedVersion),
               });
             } else if (mode === 'fields-only' && existingConnector) {
-              onSubmit({
+              submit({
                 source: {
                   ...existingConnector.source,
                   configuration:
@@ -1088,7 +1095,7 @@ export function ConnectorEditForm({
                 ...connectorSetupProperties(selectedConnector, existingConnector.source.version),
               });
             } else if (selectedConnector && target) {
-              onSubmit({
+              submit({
                 source: {
                   name: selectedConnector.name,
                   configuration: [
