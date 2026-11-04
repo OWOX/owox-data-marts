@@ -10,7 +10,7 @@ Before this release, Sign in with Google failed on the Credentials page for a Sh
 
 The video connects two plans to Data Marts with one Google account. The second plan uses "+ Add spreadsheet" in the Data Mart form, and the form shows a warning when you choose a plan that another Data Mart already loads.
 
-<https://customer-4geatlj66rtkaxtz.cloudflarestream.com/9e291ee9948594cae9807b318cba56e3/iframe>
+<https://customer-4geatlj66rtkaxtz.cloudflarestream.com/58a165f0d51ac5ce59dd95177940f617/iframe>
 
 - The spreadsheet list in the Data Mart form has a "+ Add spreadsheet" item at the end. You can add a new plan without leaving the form. A Google window opens and closes by itself, then the spreadsheet picker opens.
 - To add spreadsheets, sign in to Google with the account of the Credential. If the form shows "Sign in to Google as … to add spreadsheets.", click "+ Add spreadsheet" again and choose that account.
