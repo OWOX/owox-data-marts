@@ -17,17 +17,23 @@ const specification = {
   current: [dateField('StartDate', 'Start Date'), dateField('EndDate', 'End Date')] as unknown[],
 };
 
+/** The connector's node list; `null` until the form's fetch would have answered. */
+const fields = { current: null as { name: string; isTimeSeries?: boolean }[] | null };
+
 vi.mock('../../../shared/model/hooks/useConnector', () => ({
   useConnector: () => ({
     loading: false,
     loadingSpecification: false,
     connectorSpecification: specification.current,
+    connectorFields: fields.current,
     fetchConnectorSpecification: vi.fn(),
+    fetchConnectorFields: vi.fn(),
   }),
 }));
 
 beforeEach(() => {
   specification.current = [dateField('StartDate', 'Start Date'), dateField('EndDate', 'End Date')];
+  fields.current = [{ name: 'ad_insights', isTimeSeries: true }];
 });
 
 vi.mock('../../../../data-marts/edit/model', () => ({
@@ -39,7 +45,7 @@ vi.mock('./ConnectorStateSection', () => ({
 }));
 
 const configuration = {
-  connector: { source: { name: 'FacebookMarketing' } },
+  connector: { source: { name: 'FacebookMarketing', node: 'ad_insights' } },
 } as unknown as ConnectorDefinitionConfig;
 
 const todayIso = new Date().toISOString().slice(0, 10);
@@ -63,10 +69,10 @@ const notice = () => screen.getByTestId('backfill-limit-notice');
 const runButton = () => screen.getByRole('button', { name: 'Run' });
 
 describe('ConnectorRunForm backfill period', () => {
-  it('explains segmentation before any dates are chosen, without flagging an error', async () => {
+  it('explains the parts before any dates are chosen, without flagging an error', async () => {
     const onSubmit = await openBackfill();
 
-    expect(notice()).toHaveTextContent('runs automatically in segments of up to 31 days');
+    expect(notice()).toHaveTextContent('loads in parts of up to 31 days, one run each');
     // The untouched state is a hint, not a validation failure.
     expect(notice().className).not.toContain('destructive');
     // Validation runs on submit, so the empty required dates block the run there.
@@ -103,12 +109,38 @@ describe('ConnectorRunForm backfill period', () => {
 
     await waitFor(() => {
       expect(notice()).toHaveTextContent(
-        'This backfill covers 90 days and runs in 3 segments of up to 31 days. It counts as 3 runs.'
+        'This backfill covers 90 days, loaded in 3 parts of up to 31 days. It counts as 3 runs.'
       );
       expect(runButton()).toBeEnabled();
     });
     expect(notice().className).not.toContain('destructive');
-    expect(notice()).not.toHaveTextContent('Large backfills');
+    expect(notice()).not.toHaveTextContent('This can take hours');
+  });
+
+  it('says a dateless node loads once, whatever the period, and never mentions parts', async () => {
+    fields.current = [{ name: 'ad_insights', isTimeSeries: false }];
+    await openBackfill();
+
+    expect(notice()).toHaveTextContent('loads the whole catalog in one run');
+
+    setPeriod('2026-01-01', '2026-03-31');
+
+    await waitFor(() => {
+      expect(runButton()).toBeEnabled();
+    });
+    expect(notice()).toHaveTextContent('loads the whole catalog in one run');
+    expect(notice()).not.toHaveTextContent('parts');
+  });
+
+  it('describes the period as dated until the node list has loaded', async () => {
+    fields.current = null;
+    await openBackfill();
+
+    setPeriod('2026-01-01', '2026-03-31');
+
+    await waitFor(() => {
+      expect(notice()).toHaveTextContent('loaded in 3 parts');
+    });
   });
 
   it('warns that a period over a year can take hours, without blocking it', async () => {
@@ -117,8 +149,8 @@ describe('ConnectorRunForm backfill period', () => {
     setPeriod('2024-01-01', '2025-06-30');
 
     await waitFor(() => {
-      expect(notice()).toHaveTextContent('runs in 18 segments');
-      expect(notice()).toHaveTextContent('Large backfills can take hours');
+      expect(notice()).toHaveTextContent('loaded in 18 parts');
+      expect(notice()).toHaveTextContent('This can take hours');
       expect(runButton()).toBeEnabled();
     });
   });
@@ -227,7 +259,21 @@ describe('ConnectorRunForm backfill confirmation', () => {
     });
   const dialog = () => screen.queryByRole('dialog');
 
-  it('submits a one-segment period straight through, without asking', async () => {
+  it('submits a dateless node straight through, however long the period', async () => {
+    fields.current = [{ name: 'ad_insights', isTimeSeries: false }];
+    const onSubmit = await openBackfill();
+    setPeriod('2026-01-01', '2026-03-31');
+    await waitFor(() => {
+      expect(runButton()).toBeEnabled();
+    });
+
+    await clickRun();
+
+    expect(dialog()).not.toBeInTheDocument();
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+  });
+
+  it('submits a one-part period straight through, without asking', async () => {
     const onSubmit = await openBackfill();
     setPeriod('2026-07-01', '2026-07-31');
     await waitFor(() => {
@@ -245,7 +291,7 @@ describe('ConnectorRunForm backfill confirmation', () => {
     );
   });
 
-  it('asks how many runs a multi-segment period costs before submitting', async () => {
+  it('asks how many runs a multi-part period costs before submitting', async () => {
     const onSubmit = await openBackfill();
     setPeriod('2026-01-01', '2026-03-31');
     await waitFor(() => {
@@ -255,9 +301,11 @@ describe('ConnectorRunForm backfill confirmation', () => {
     await clickRun();
 
     expect(onSubmit).not.toHaveBeenCalled();
-    expect(await screen.findByText('Start a backfill of 3 runs?')).toBeInTheDocument();
-    expect(dialog()).toHaveTextContent('This backfill covers 90 days.');
-    expect(screen.getByRole('button', { name: 'Start 3 runs' })).toBeInTheDocument();
+    expect(await screen.findByText('Start backfill?')).toBeInTheDocument();
+    expect(dialog()).toHaveTextContent(
+      '90 days, loaded in 3 parts of up to 31 days. It counts as 3 runs'
+    );
+    expect(screen.getByRole('button', { name: 'Start backfill' })).toBeInTheDocument();
   });
 
   it('submits the same payload once when the user confirms', async () => {
@@ -269,7 +317,7 @@ describe('ConnectorRunForm backfill confirmation', () => {
     await clickRun();
 
     await act(async () => {
-      fireEvent.click(await screen.findByRole('button', { name: 'Start 3 runs' }));
+      fireEvent.click(await screen.findByRole('button', { name: 'Start backfill' }));
     });
 
     expect(onSubmit).toHaveBeenCalledTimes(1);

@@ -18,8 +18,7 @@ describe('buildSegmentMarker', () => {
     expect(buildSegmentMarker(META, WINDOW, 'started', AT)).toMatchObject({
       metric: 'backfill_segment',
       value: 3,
-      message:
-        'Backfill 2024-01-01 – 2025-06-30: loading segment 3 of 18 (2024-03-03 – 2024-04-02)',
+      message: 'Backfill 2024-01-01 – 2025-06-30: loading part 3 of 18 (2024-03-03 – 2024-04-02)',
       tags: {
         phase: 'started',
         segmentStart: '2024-03-03',
@@ -38,7 +37,7 @@ describe('buildSegmentMarker', () => {
     });
 
     expect(marker.message).toBe(
-      'Backfill 2024-01-01 – 2025-06-30: segment 3 of 18 (2024-03-03 – 2024-04-02) completed — counted as 1 run'
+      'Backfill 2024-01-01 – 2025-06-30: part 3 of 18 (2024-03-03 – 2024-04-02) loaded — counted as 1 run'
     );
     expect(marker.tags).toMatchObject({
       phase: 'completed',
@@ -54,7 +53,7 @@ describe('buildSegmentMarker', () => {
         chainContinues: true,
       }).message
     ).toBe(
-      'Backfill 2024-01-01 – 2025-06-30: segment 3 of 18 (2024-03-03 – 2024-04-02) failed; days through 2024-03-20 were loaded'
+      'Backfill 2024-01-01 – 2025-06-30: part 3 of 18 (2024-03-03 – 2024-04-02) failed; days through 2024-03-20 were loaded'
     );
     expect(
       buildSegmentMarker(META, WINDOW, 'failed', AT, { chainContinues: true }).message
@@ -69,7 +68,7 @@ describe('buildSegmentMarker', () => {
     });
 
     expect(marker.message).toBe(
-      'Backfill 2024-01-01 – 2025-06-30: segment 3 of 18 (2024-03-03 – 2024-04-02) failed; days through 2024-03-20 were loaded — counted as 1 run'
+      'Backfill 2024-01-01 – 2025-06-30: part 3 of 18 (2024-03-03 – 2024-04-02) failed; days through 2024-03-20 were loaded — counted as 1 run'
     );
   });
 
@@ -112,7 +111,7 @@ describe('buildSegmentMarker', () => {
     });
 
     expect(marker.message).toBe(
-      'Backfill stopped: the project is restricted; segments 3–18 (2024-03-03 – 2025-06-30) were not loaded.'
+      'Backfill stopped: the project is restricted; parts 3–18 (2024-03-03 – 2025-06-30) were not loaded.'
     );
     expect(marker.tags).toMatchObject({
       phase: 'failed',
@@ -128,7 +127,7 @@ describe('buildSegmentMarker', () => {
     expect(
       buildSegmentMarker(lastMeta, lastWindow, 'failed', AT, { chainEnd: 'stopped' }).message
     ).toBe(
-      'Backfill stopped: the project is restricted; segment 18 (2025-06-01 – 2025-06-30) was not loaded.'
+      'Backfill stopped: the project is restricted; part 18 (2025-06-01 – 2025-06-30) was not loaded.'
     );
   });
 

@@ -45,8 +45,12 @@ interface ConnectorRunFormProps {
   onSubmit?: (data: ConnectorRunFormData) => void;
 }
 
-/** From this many segments a backfill asks for confirmation: each segment is a billed run. */
+/** From this many parts a backfill asks for confirmation: each part is a billed run. */
 const MIN_CONFIRMED_BACKFILL_SEGMENTS = 2;
+
+/** A node with no date filter loads the whole catalog once, so no period arithmetic applies. */
+const DATELESS_NODE_SUMMARY =
+  'This node has no date filter: the backfill loads the whole catalog in one run, whatever period you pick.';
 
 type BackfillPeriod =
   | { status: 'incomplete' }
@@ -69,10 +73,13 @@ function readBackfillPeriod(startDate: unknown, endDate: unknown, today: string)
   return { status: 'ok', days };
 }
 
-function getBackfillSummary(period: BackfillPeriod): string {
+function getBackfillSummary(period: BackfillPeriod, isDatelessNode: boolean): string {
+  if (isDatelessNode && (period.status === 'incomplete' || period.status === 'ok')) {
+    return DATELESS_NODE_SUMMARY;
+  }
   switch (period.status) {
     case 'incomplete':
-      return `A long period runs automatically in segments of up to ${MAX_MANUAL_BACKFILL_DAYS} days. Pick a start and end date to see how many days and runs it takes.`;
+      return `A period over ${MAX_MANUAL_BACKFILL_DAYS} days loads in parts of up to ${MAX_MANUAL_BACKFILL_DAYS} days, one run each. Pick a start and end date to see how many.`;
     case 'startInFuture':
       return 'The start date cannot be in the future. Pick a date up to today.';
     case 'startTooEarly':
@@ -84,10 +91,10 @@ function getBackfillSummary(period: BackfillPeriod): string {
     case 'ok': {
       const covers = `This backfill covers ${period.days} ${period.days === 1 ? 'day' : 'days'}`;
       if (period.days <= MAX_MANUAL_BACKFILL_DAYS) return `${covers}.`;
-      const segments = countBackfillSegments(period.days);
-      const summary = `${covers} and runs in ${segments} segments of up to ${MAX_MANUAL_BACKFILL_DAYS} days. It counts as ${segments} runs.`;
+      const parts = countBackfillSegments(period.days);
+      const summary = `${covers}, loaded in ${parts} parts of up to ${MAX_MANUAL_BACKFILL_DAYS} days. It counts as ${parts} runs.`;
       return period.days > LARGE_BACKFILL_DAYS
-        ? `${summary} Large backfills can take hours, hold one of the project's concurrent run slots and use source API quota.`
+        ? `${summary} This can take hours, holds one of the project's concurrent run slots and uses source API quota.`
         : summary;
     }
   }
@@ -146,8 +153,14 @@ export function ConnectorRunForm({ configuration, onClose, onSubmit }: Connector
     },
   });
 
-  const { loading, loadingSpecification, connectorSpecification, fetchConnectorSpecification } =
-    useConnector();
+  const {
+    loading,
+    loadingSpecification,
+    connectorSpecification,
+    connectorFields,
+    fetchConnectorSpecification,
+    fetchConnectorFields,
+  } = useConnector();
 
   const { dataMart } = useDataMartContext();
 
@@ -182,12 +195,12 @@ export function ConnectorRunForm({ configuration, onClose, onSubmit }: Connector
       // is only the connector's ACTIVE version. The pin wins so the form renders the
       // MANUAL_BACKFILL parameters of the version that will actually run; `undefined`
       // means "follow active", which is exactly what `info.version` holds.
-      await fetchConnectorSpecification({
-        ...connector,
-        version: source.version ?? connector.version,
-      });
+      const pinned = { ...connector, version: source.version ?? connector.version };
+      // The node list says whether the Data Mart's node is fetched by date, which decides
+      // whether a long period is quoted in parts or runs once as a whole.
+      await Promise.all([fetchConnectorSpecification(pinned), fetchConnectorFields(pinned)]);
     },
-    [loadedSpecifications, loadingSpecification, fetchConnectorSpecification]
+    [loadedSpecifications, loadingSpecification, fetchConnectorSpecification, fetchConnectorFields]
   );
 
   useEffect(() => {
@@ -231,14 +244,21 @@ export function ConnectorRunForm({ configuration, onClose, onSubmit }: Connector
   // A connector with no date fields treats a backfill as a full refresh, so a period notice
   // would describe a period it never reads.
   const hasBackfillPeriod = backfillFields.some(field => field.name === 'StartDate');
+  // Known only once the node list has loaded; until then the period is described as dated,
+  // which is what the backend assumes for a node it cannot classify.
+  const isDatelessNode =
+    connectorFields?.find(field => field.name === configuration?.connector.source.node)
+      ?.isTimeSeries === false;
   const backfillDays = backfillPeriod.status === 'ok' ? backfillPeriod.days : 0;
   const backfillSegments = countBackfillSegments(backfillDays);
 
   const handleSubmit = (data: ConnectorRunFormData) => {
-    // Every segment of a long backfill is its own billed run, so ask before starting several.
+    // Every part of a long backfill is its own billed run, so ask before starting several.
+    // A dateless node runs once whatever the period, so there is nothing to confirm.
     if (
       runType === RunType.MANUAL_BACKFILL &&
       hasBackfillPeriod &&
+      !isDatelessNode &&
       backfillSegments >= MIN_CONFIRMED_BACKFILL_SEGMENTS
     ) {
       setPendingRun(data);
@@ -346,7 +366,9 @@ export function ConnectorRunForm({ configuration, onClose, onSubmit }: Connector
                     }
                     data-testid='backfill-limit-notice'
                   >
-                    <AlertDescription>{getBackfillSummary(backfillPeriod)}</AlertDescription>
+                    <AlertDescription>
+                      {getBackfillSummary(backfillPeriod, isDatelessNode)}
+                    </AlertDescription>
                   </Alert>
                 )}
               </FormSection>
@@ -367,9 +389,9 @@ export function ConnectorRunForm({ configuration, onClose, onSubmit }: Connector
         onOpenChange={open => {
           if (!open) setPendingRun(null);
         }}
-        title={`Start a backfill of ${String(backfillSegments)} runs?`}
-        description={`This backfill covers ${String(backfillDays)} days. OWOX loads it as ${String(backfillSegments)} segments of up to ${String(MAX_MANUAL_BACKFILL_DAYS)} days, one run each. A segment counts as one run for your consumption once any of its accounts loads data.`}
-        confirmLabel={`Start ${String(backfillSegments)} runs`}
+        title='Start backfill?'
+        description={`${String(backfillDays)} days, loaded in ${String(backfillSegments)} parts of up to ${String(MAX_MANUAL_BACKFILL_DAYS)} days. It counts as ${String(backfillSegments)} runs: a part counts once any of its accounts loads data.`}
+        confirmLabel='Start backfill'
         cancelLabel='Keep editing'
         variant='brand'
         onConfirm={handleConfirmRun}

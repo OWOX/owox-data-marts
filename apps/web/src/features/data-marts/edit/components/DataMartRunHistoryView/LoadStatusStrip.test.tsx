@@ -105,7 +105,7 @@ describe('LoadStatusStrip', () => {
     );
 
     expect(screen.getByTestId('backfill-progress')).toHaveTextContent(
-      'Backfill 2024-01-01 – 2025-06-30 · segment 2 of 18 failed · loaded through 2024-02-20'
+      'Backfill 2024-01-01 – 2025-06-30 · part 2 of 18 failed · loaded through 2024-02-20'
     );
   });
 
@@ -113,7 +113,7 @@ describe('LoadStatusStrip', () => {
     render(<LoadStatusStrip entries={[segmentMarker(6, 'failed', undefined, 'stopped')]} />);
 
     expect(screen.getByTestId('backfill-progress')).toHaveTextContent(
-      'segment 6 of 18 failed · backfill stopped'
+      'part 6 of 18 failed · backfill stopped'
     );
   });
 
@@ -128,7 +128,7 @@ describe('LoadStatusStrip', () => {
   it('shows the segment being loaded while the run is live', () => {
     render(<LoadStatusStrip entries={[segmentMarker(2, 'started')]} isLive />);
 
-    expect(screen.getByTestId('backfill-progress')).toHaveTextContent('loading segment 2 of 18');
+    expect(screen.getByTestId('backfill-progress')).toHaveTextContent('loading part 2 of 18');
   });
 
   it('shows no backfill progress for a run without segment markers', () => {

@@ -59,5 +59,7 @@ export interface ConnectorFieldsResponseApiDto {
   uniqueKeysByDataLevel?: Record<string, string[]>;
   defaultFields?: string[];
   destinationName?: string;
+  /** Fetched by date window; absent or false for a catalog that a backfill loads once. */
+  isTimeSeries?: boolean;
   fields?: ConnectorFieldResponseApiDto[];
 }

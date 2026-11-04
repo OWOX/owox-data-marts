@@ -27,6 +27,7 @@ import type {
 import type { DataMartResponseDto } from '../../../shared/types/api/response/data-mart.response.dto';
 import type { DataStorage } from '../../../../data-storage/shared/model/types/data-storage';
 import type { ConnectorListItem } from '../../../../connectors/shared/model/types/connector';
+import { RunType } from '../../../../connectors/shared/enums/run-type.enum';
 import type {
   ConnectorDefinitionConfig,
   DataMartDefinitionConfig,
@@ -575,7 +576,11 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
   // Run a data mart
   const runDataMart = useCallback(
     async (request: RunDataMartRequestDto) => {
-      const toastId = toast.loading('Manual run started');
+      const toastId = toast.loading(
+        request.payload.runType === RunType.MANUAL_BACKFILL
+          ? 'Backfill started'
+          : 'Manual run started'
+      );
       try {
         dispatch({ type: 'RUN_DATA_MART_START' });
         trackEvent({

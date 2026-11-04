@@ -10,6 +10,8 @@ export const ConnectorFieldsSchema = z.array(
     uniqueKeysByDataLevel: z.record(z.string(), z.array(z.string())).optional(),
     defaultFields: z.array(z.string()).optional(),
     destinationName: z.string().optional(),
+    /** Fetched by date window; absent or false for a catalog loaded whole. */
+    isTimeSeries: z.boolean().optional(),
     fields: z
       .array(
         z.object({

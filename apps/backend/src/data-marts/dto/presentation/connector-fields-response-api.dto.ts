@@ -27,6 +27,14 @@ export class ConnectorFieldsResponseApiDto {
   @ApiProperty({ example: ['field1', 'field2'], required: false })
   defaultFields?: string[];
 
+  @ApiProperty({
+    example: true,
+    required: false,
+    description:
+      'Whether the node is fetched by date window. A node without it loads the whole catalog regardless of dates, so a manual backfill runs it once.',
+  })
+  isTimeSeries?: boolean;
+
   @ApiProperty({ example: 'Field Fields', required: false })
   fields?: ConnectorFieldResponseApiDto[];
 }

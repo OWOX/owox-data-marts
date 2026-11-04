@@ -67,6 +67,7 @@ export class ConnectorMapper {
       uniqueKeysByDataLevel: field.uniqueKeysByDataLevel,
       defaultFields: field.defaultFields,
       destinationName: field.destinationName,
+      isTimeSeries: field.isTimeSeries,
       fields: field.fields?.map(field => ({
         name: field.name,
         type: field.type,
