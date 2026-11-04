@@ -1,7 +1,7 @@
 import { useConnector } from '../../../shared/model/hooks/useConnector';
 import type { ConnectorListItem } from '../../../shared/model/types/connector';
 import { useContext, useEffect, useState, useCallback, useMemo, useRef } from 'react';
-import { DataStorageType, isDataStorageConfigValid } from '../../../../data-storage';
+import { DataStorageType } from '../../../../data-storage';
 import {
   ConnectorSelectionStep,
   ConfigurationStep,
@@ -42,6 +42,7 @@ import { isUnpublishedCustomConnector } from '../../../shared/utils/custom-conne
 import { suggestGoogleSheetsTableName } from '../../../shared/utils/google-sheets-table-name.utils';
 import { useConnectorTargetConflict } from '../../../shared/model/hooks/useConnectorTargetConflict';
 import { DataMartContext } from '../../../../data-marts/edit/model/context/context';
+import { useRunAfterSave } from '../../../../data-marts/edit/components/DataMartDefinitionSettings/useRunAfterSave';
 
 const connectorKey = (c: ConnectorListItem) =>
   c.isCustom && c.id ? `custom:${c.id}` : `bundled:${c.name}`;
@@ -74,15 +75,9 @@ export function ConnectorEditForm({
 }: ConnectorEditFormProps) {
   const { navigate } = useProjectRoute();
   const { canEdit } = usePermissions();
-  const dataMartContext = useContext(DataMartContext);
-  const dataMart = dataMartContext?.dataMart;
   // Lets an editor of this Data Mart preview a configuration bound to a Credential.
-  const dataMartId = dataMart?.id;
-  // A run needs a configured Storage and no active run; otherwise the sheet only saves.
-  const canRunAfterSave =
-    !!dataMart?.storage &&
-    isDataStorageConfigValid(dataMart.storage) &&
-    !dataMartContext?.hasActiveRuns;
+  const dataMartId = useContext(DataMartContext)?.dataMart?.id;
+  const { canRunAfterSave } = useRunAfterSave();
   const [customConnectors, setCustomConnectors] = useState<CustomConnectorListItemDto[]>([]);
   const [isDirty, setIsDirty] = useState(false);
   const [selectedConnector, setSelectedConnector] = useState<ConnectorListItem | null>(null);

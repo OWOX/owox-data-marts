@@ -13,8 +13,6 @@ import {
 } from '../../../model/types/connector-definition-config';
 import { useOutletContext } from 'react-router';
 import type { DataMartContextType } from '../../../model/context/types';
-import { useDataMartContext } from '../../../model/context/useDataMartContext';
-import { RunType } from '../../../../../connectors/shared/enums/run-type.enum';
 import { DataMartStatus, DataMartDefinitionType } from '../../../../shared/enums';
 import { getEmptyDefinition } from '../../../utils/definition-helpers';
 import {
@@ -29,6 +27,7 @@ import { ConnectorEditSheet } from '../../../../../connectors/edit/components/Co
 import { ConnectorContextProvider } from '../../../../../connectors/shared/model/context';
 import { GOOGLE_SHEETS_CONNECTOR_NAME } from '../../../../../connectors/shared/utils/google-sheets-fields.utils';
 import { ConfirmationDialog } from '../../../../../../shared/components/ConfirmationDialog/ConfirmationDialog';
+import { useRunAfterSave } from '../useRunAfterSave';
 
 interface ConnectorDefinitionFieldProps {
   control: Control<DataMartDefinitionFormData>;
@@ -51,8 +50,7 @@ export function ConnectorDefinitionField({
   saveDataMartDefinition,
 }: ConnectorDefinitionFieldProps) {
   const { dataMart } = useOutletContext<DataMartContextType>();
-  // The page outlet does not pass publishDataMart, so the actions come from the provider.
-  const { publishDataMart, runDataMart, getDataMartRuns } = useDataMartContext();
+  const { runSavedDataMart } = useRunAfterSave();
   const { setValue, getValues, trigger } = useFormContext<DataMartDefinitionFormData>();
   const [isEditSheetOpen, setIsEditSheetOpen] = useState(false);
   const [isSetupSheetOpen, setIsSetupSheetOpen] = useState(false);
@@ -64,22 +62,6 @@ export function ConnectorDefinitionField({
   }, [autoOpen]);
 
   const datamartStatus = dataMart?.status ?? DataMartStatus.DRAFT;
-
-  // Publishing a draft starts its first run on the backend, so only a published one runs here.
-  const runSavedDataMart = async () => {
-    if (!dataMart) return;
-    if (dataMart.status.code === DataMartStatus.DRAFT) {
-      try {
-        await publishDataMart(dataMart.id);
-        // The context keeps the refresh error; the run itself has started.
-        void getDataMartRuns(dataMart.id).catch(() => undefined);
-      } catch {
-        // The API client shows the error; the saved definition stays.
-      }
-      return;
-    }
-    await runDataMart({ id: dataMart.id, payload: { runType: RunType.INCREMENTAL } });
-  };
 
   const applyDefinitionAndSave = async (
     definition: ConnectorDefinitionConfig,

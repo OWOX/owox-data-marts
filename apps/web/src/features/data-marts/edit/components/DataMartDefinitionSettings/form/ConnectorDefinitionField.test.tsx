@@ -6,6 +6,7 @@ import { DataMartDefinitionType, DataMartStatus } from '../../../../shared/enums
 import type { ConnectorConfig } from '../../../model/types/connector-definition-config';
 import type { DataMartDefinitionFormData } from '../../../model/schema/data-mart-definition.schema';
 import { getEmptyDefinition } from '../../../utils/definition-helpers';
+import { DataMartContext } from '../../../model/context/context';
 import { ConnectorDefinitionField } from './ConnectorDefinitionField';
 
 const testState = vi.hoisted(() => ({
@@ -18,14 +19,6 @@ const testState = vi.hoisted(() => ({
 vi.mock('react-router', async importOriginal => ({
   ...(await importOriginal<typeof import('react-router')>()),
   useOutletContext: () => testState.outletContext,
-}));
-
-vi.mock('../../../model/context/useDataMartContext', () => ({
-  useDataMartContext: () => ({
-    publishDataMart: testState.publishDataMart,
-    runDataMart: testState.runDataMart,
-    getDataMartRuns: testState.getDataMartRuns,
-  }),
 }));
 
 const connector: ConnectorConfig = {
@@ -107,14 +100,26 @@ function Field({ status, saveSucceeds }: { status: DataMartStatus; saveSucceeds:
 }
 
 const renderField = (status: DataMartStatus, saveSucceeds = true) => {
-  testState.outletContext = {
-    dataMart: {
-      id: 'dm-1',
-      status: { code: status },
-      storage: { id: 'storage-1', type: DataStorageType.GOOGLE_BIGQUERY, config: {} },
-    },
+  const dataMart = {
+    id: 'dm-1',
+    status: { code: status },
+    storage: { id: 'storage-1', type: DataStorageType.GOOGLE_BIGQUERY, config: {} },
   };
-  render(<Field status={status} saveSucceeds={saveSucceeds} />);
+  testState.outletContext = { dataMart };
+  render(
+    <DataMartContext.Provider
+      value={
+        {
+          dataMart,
+          publishDataMart: testState.publishDataMart,
+          runDataMart: testState.runDataMart,
+          getDataMartRuns: testState.getDataMartRuns,
+        } as never
+      }
+    >
+      <Field status={status} saveSucceeds={saveSucceeds} />
+    </DataMartContext.Provider>
+  );
 };
 
 const settle = () => new Promise(resolve => setTimeout(resolve, 0));
