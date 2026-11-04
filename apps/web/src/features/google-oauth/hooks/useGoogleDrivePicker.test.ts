@@ -497,6 +497,34 @@ describe('useGoogleSheetsPicker', () => {
       });
     });
 
+    it('ends the state when the sign-in popup token passes the account check', async () => {
+      const { requestAccessToken, respond, setVisible } = mockPickerApi();
+      accountIs('popup@example.com');
+      const { result } = renderHook(() => useGoogleSheetsPicker());
+      const popup = open('popup@example.com');
+
+      const signIn = result.current.openPicker(popup.options);
+      await vi.waitFor(() => {
+        expect(requestAccessToken).toHaveBeenCalledTimes(1);
+      });
+      respond(0, { error: 'interaction_required' });
+      await signIn;
+
+      void result.current.openPicker({ ...popup.options, accessToken: 'popup-token' });
+      await vi.waitFor(() => {
+        expect(setVisible).toHaveBeenCalledWith(true);
+      });
+
+      void result.current.openPicker(popup.options);
+      await vi.waitFor(() => {
+        expect(requestAccessToken).toHaveBeenCalledTimes(2);
+      });
+      expect(requestAccessToken).toHaveBeenLastCalledWith({
+        prompt: 'none',
+        login_hint: 'popup@example.com',
+      });
+    });
+
     it('stays silent after a failed account check', async () => {
       const { requestAccessToken, respond, granted } = mockPickerApi();
       accountIs('unverified@example.com', 500);

@@ -363,10 +363,8 @@ export function useGoogleSheetsPicker() {
         const [token] = await Promise.all([tokenRequest, loadPicker()]);
         if (superseded()) return;
         await verifyGooglePickerAccount(token, hintEmail);
-        if (!accessToken) {
-          chooseAccountRef.current = false;
-          if (hintEmail) accountsToChoose.delete(hintEmail.toLowerCase());
-        }
+        if (!accessToken) chooseAccountRef.current = false;
+        if (hintEmail) accountsToChoose.delete(hintEmail.toLowerCase());
         if (superseded()) return;
 
         const picker = googleWindow.google?.picker;
