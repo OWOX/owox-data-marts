@@ -17,7 +17,16 @@ type Input = z.infer<typeof startCredentialSetupSchema>;
 export class StartCredentialSetupTool implements McpToolDefinition<Input> {
   readonly name = 'start_credential_setup';
   readonly description =
-    'Start authenticated browser setup to create a Credential, replace its secrets or reconnect an account. Use definition_id to create a Credential. Use credential_id to update a Credential. Omit both IDs to select the provider in the browser. For a new Credential, optionally pass title to prefill its name. The user can change this name. Omit title to use the provider or connected account name. Do not pass title with credential_id. Never supply secrets.\n\nThe tool returns an expiring setup_id and a url for the current user and project. The user must sign in with the same OWOX account that connected MCP and remain in the connected project. Use get_credential_setup_status to identify the exact saved Credential. Do not infer completion from the newest list item.';
+    'Start authenticated browser setup to create a Credential, replace its secrets or reconnect an account. ' +
+    'For a known Storage or Destination, select a compatible definition_id using storage_types or destination_types from list_credential_definitions. ' +
+    'Match the requested authentication method. Always pass that definition_id when creating a Credential for the known target. ' +
+    'For BigQuery, use google-oauth for Google sign-in or google-service-account for a service-account key. ' +
+    'Use credential_id to update an existing Credential. Omit both IDs only if the user explicitly requests a provider picker without a known target. ' +
+    'For a new Credential, optionally pass title to prefill its name. The user can change this name. ' +
+    'Omit title to use the provider or connected account name. Do not pass title with credential_id. Never supply secrets.\n\n' +
+    'The tool returns an expiring setup_id and a url for the current user and project. ' +
+    'The user must sign in with the same OWOX account that connected MCP and remain in the connected project. ' +
+    'Use get_credential_setup_status to identify the exact saved Credential. Do not infer completion from the newest list item.';
   readonly zodSchema = startCredentialSetupSchema;
   readonly outputSchema = {
     ...credentialSetupOutputSchema,

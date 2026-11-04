@@ -1,6 +1,6 @@
+import type { AuthorizationContext } from '../../../../idp';
 import type {
   CredentialSetupDto,
-  McpCredentialsActor,
   McpCredentialDefinitionDto,
   McpCredentialDto,
   McpUnavailableCredentialDto,
@@ -14,7 +14,7 @@ export class CredentialToolMapper {
     return joinPublicOrigin(publicOrigin, buildCredentialSetupUiPath(projectId, setupId));
   }
 
-  toActor(context: McpAuthContext): McpCredentialsActor {
+  toActor(context: McpAuthContext): AuthorizationContext {
     return {
       projectId: context.projectId,
       userId: context.userId,

@@ -1,10 +1,10 @@
-import type { McpAuthContext } from '../auth/mcp-auth-context';
-import type { McpDataDestinationsFacade } from '../../../data-marts/facades/mcp-data-destinations.facade';
-import type { PublicOriginService } from '../../../common/config/public-origin.service';
+import type { McpAuthContext } from '../../auth/mcp-auth-context';
+import type { McpDataDestinationsFacade } from '../../../../data-marts/facades/mcp-data-destinations.facade';
+import type { PublicOriginService } from '../../../../common/config/public-origin.service';
 import type {
   CredentialSetupDto,
   McpCredentialsFacade,
-} from '../../../data-marts/credentials/facades/mcp-credentials.facade';
+} from '../../../../data-marts/credentials/facades/mcp-credentials.facade';
 import { AddDestinationTool } from './add-destination.tool';
 
 describe('AddDestinationTool', () => {
@@ -29,7 +29,9 @@ describe('AddDestinationTool', () => {
     authFlow: 'mcp',
   };
 
-  let destinationsFacade: jest.Mocked<McpDataDestinationsFacade>;
+  let destinationsFacade: jest.Mocked<
+    Pick<McpDataDestinationsFacade, 'listDestinations' | 'createDestination'>
+  >;
   let publicOriginService: jest.Mocked<PublicOriginService>;
   let credentialsFacade: jest.Mocked<Pick<McpCredentialsFacade, 'startSetup'>>;
   let tool: AddDestinationTool;
@@ -47,7 +49,7 @@ describe('AddDestinationTool', () => {
     };
 
     tool = new AddDestinationTool(
-      destinationsFacade,
+      destinationsFacade as unknown as McpDataDestinationsFacade,
       publicOriginService,
       credentialsFacade as never
     );
@@ -61,7 +63,7 @@ describe('AddDestinationTool', () => {
         title: 'Add Destination',
         readOnlyHint: false,
         destructiveHint: false,
-        openWorldHint: false,
+        openWorldHint: true,
       },
     });
     expect(tool.description).toContain('google_sheets');
@@ -76,6 +78,44 @@ describe('AddDestinationTool', () => {
       title: 'My Google Sheets',
     };
     expect(tool.parseInput(valid)).toEqual(valid);
+  });
+
+  it('passes a Drive folder to direct creation', async () => {
+    destinationsFacade.createDestination.mockResolvedValue({ id: 'destination', name: 'Sheets' });
+    const folderUrl = 'https://drive.google.com/drive/folders/folder';
+    await tool.handler(
+      {
+        destination_type: 'google_sheets',
+        credential_id: 'credential',
+        drive_folder_url: folderUrl,
+      },
+      context
+    );
+    expect(destinationsFacade.createDestination).toHaveBeenCalledWith(
+      expect.objectContaining({
+        credentialId: 'credential',
+        folderUrl,
+      })
+    );
+  });
+
+  it('keeps the folder URL in the browser setup follow-up instructions', async () => {
+    const folderUrl = 'https://drive.google.com/drive/folders/folder';
+    const result = await tool.handler(
+      { destination_type: 'google_sheets', drive_folder_url: folderUrl },
+      context
+    );
+    expect((result.structuredContent as Record<string, unknown>).instructions).toContain(folderUrl);
+    expect(destinationsFacade.createDestination).not.toHaveBeenCalled();
+  });
+
+  it('rejects folder configuration for other destination types', () => {
+    expect(() =>
+      tool.parseInput({
+        destination_type: 'looker_studio',
+        drive_folder_url: 'https://drive.google.com/drive/folders/folder',
+      })
+    ).toThrow();
   });
 
   it.each(['', '   '])('rejects blank destination titles', title => {
@@ -200,11 +240,11 @@ describe('AddDestinationTool', () => {
     });
   });
 
-  it('does not create a destination if Credential setup fails', async () => {
-    credentialsFacade.startSetup.mockRejectedValueOnce(new Error('Setup denied'));
-    await expect(tool.handler({ destination_type: 'google_sheets' }, context)).rejects.toThrow(
-      'Setup denied'
-    );
+  it('does not expose setup errors or create a destination if Credential setup fails', async () => {
+    credentialsFacade.startSetup.mockRejectedValueOnce(new Error('NEVER_EXPOSE'));
+    const result = tool.handler({ destination_type: 'google_sheets' }, context);
+    await expect(result).rejects.toMatchObject({ status: 500 });
+    await result.catch(error => expect(error.message).not.toContain('NEVER_EXPOSE'));
     expect(destinationsFacade.createDestination).not.toHaveBeenCalled();
   });
 
@@ -234,7 +274,7 @@ describe('AddDestinationTool', () => {
 
     const structured = result.structuredContent as any;
     expect(structured.destination_id).toBe('new-dest-id');
-    expect(structured.instructions).toContain('Successfully connected Email destination');
+    expect(structured.instructions).toContain('Created Email Destination');
   });
 
   it.each(['google_sheets', 'google_chat'] as const)(
@@ -258,7 +298,7 @@ describe('AddDestinationTool', () => {
       expect(result.structuredContent).toEqual({
         destination_id: 'new-dest',
         destination_url: 'https://app.owox.com/ui/project-1/data-destinations?id=new-dest',
-        instructions: expect.stringContaining('Successfully connected'),
+        instructions: expect.stringContaining('Created'),
       });
       expect(credentialsFacade.startSetup).not.toHaveBeenCalled();
     }
@@ -308,9 +348,9 @@ describe('AddDestinationTool', () => {
     const structured = result.structuredContent as any;
     expect(structured.destination_id).toBe('looker-dest-id');
     expect(structured.instructions).toContain(
-      'Data Studio Destination "Looker Studio MCP Destination" has been successfully enabled'
+      'Created Looker Studio Destination "Looker Studio MCP Destination"'
     );
-    expect(structured.instructions).toContain('Data Destinations in OWOX Data Marts');
+    expect(structured.instructions).toContain('open destination_url in OWOX');
     expect(JSON.stringify(structured)).not.toContain('destinationSecretKey');
     expect(JSON.stringify(structured)).not.toContain('lookerStudioCredentials');
   });
@@ -345,9 +385,7 @@ describe('AddDestinationTool', () => {
         },
         context
       )
-    ).rejects.toThrow(
-      "The 'emails' parameter is required for email, slack, teams, and channel-email Google Chat"
-    );
+    ).rejects.toThrow('Supply at least one email address');
 
     expect(destinationsFacade.createDestination).not.toHaveBeenCalled();
   });

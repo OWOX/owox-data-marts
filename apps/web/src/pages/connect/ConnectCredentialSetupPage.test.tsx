@@ -252,6 +252,10 @@ describe('ConnectCredentialSetupPage', () => {
   );
 
   it('creates a private Credential with the server provider and completes the exact request', async () => {
+    definitions = [
+      { ...definition, id: 'openai', displayName: 'OpenAI', secretLabel: 'OpenAI API key' },
+      definition,
+    ];
     renderPage(
       '/ui/project-1/connect/credentials/setup-1?definitionId=evil&title=Injected&secret=bad'
     );

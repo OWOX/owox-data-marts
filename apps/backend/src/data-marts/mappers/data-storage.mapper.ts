@@ -50,24 +50,25 @@ export class DataStorageMapper {
     context: AuthorizationContext,
     dto: UpdateDataStorageApiDto
   ): UpdateDataStorageCommand {
-    return new UpdateDataStorageCommand(
+    return new UpdateDataStorageCommand({
       id,
-      context.projectId,
-      dto.config,
-      dto.title.trim(),
-      dto.reusableCredentialId,
+      projectId: context.projectId,
+      config: dto.config,
+      title: dto.title.trim(),
+      reusableCredentialId: dto.reusableCredentialId,
       // Legacy: the old credential fields go with LegacyStorageCredentialReader.
-      dto.credentials !== undefined ||
+      sentOldCredentialFields:
+        dto.credentials !== undefined ||
         dto.credentialId !== undefined ||
         dto.sourceStorageId !== undefined,
-      context.authFlow === 'plugin',
-      dto.ownerIds,
-      context.userId,
-      context.roles ?? [],
-      dto.availableForUse,
-      dto.availableForMaintenance,
-      dto.contextIds
-    );
+      isPluginAuth: context.authFlow === 'plugin',
+      ownerIds: dto.ownerIds,
+      userId: context.userId,
+      roles: context.roles,
+      availableForUse: dto.availableForUse,
+      availableForMaintenance: dto.availableForMaintenance,
+      contextIds: dto.contextIds,
+    });
   }
 
   toDomainDto(

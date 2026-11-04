@@ -42,6 +42,7 @@ import { extractContextSummaries } from '../utils/extract-context-summaries';
 import { DestinationConfig } from '../entities/destination-config.type';
 import { DestinationConfigDto } from '../dto/presentation/destination-config.dto';
 import { extractDriveFolderId } from '../data-destination-types/google-sheets/utils/drive-folder-url.utils';
+import { EmailCredentialsSchema } from '../data-destination-types/ee/email/schemas/email-credentials.schema';
 
 @Injectable()
 export class DataDestinationMapper {
@@ -120,22 +121,23 @@ export class DataDestinationMapper {
     context: AuthorizationContext,
     dto: UpdateDataDestinationApiDto
   ): UpdateDataDestinationCommand {
-    return new UpdateDataDestinationCommand(
+    return new UpdateDataDestinationCommand({
       id,
-      context.projectId,
-      dto.title,
-      dto.credentials,
-      dto.reusableCredentialId,
-      dto.credentialId !== undefined || dto.sourceDestinationId !== undefined,
-      dto.ownerIds,
-      context.userId,
-      context.roles ?? [],
-      dto.availableForUse,
-      dto.availableForMaintenance,
-      dto.contextIds,
-      this.normalizeDestinationConfig(dto.config),
-      this.isPluginRuntimeCall()
-    );
+      projectId: context.projectId,
+      title: dto.title,
+      credentials: dto.credentials,
+      reusableCredentialId: dto.reusableCredentialId,
+      sentOldCredentialFields:
+        dto.credentialId !== undefined || dto.sourceDestinationId !== undefined,
+      ownerIds: dto.ownerIds,
+      userId: context.userId,
+      roles: context.roles,
+      availableForUse: dto.availableForUse,
+      availableForMaintenance: dto.availableForMaintenance,
+      contextIds: dto.contextIds,
+      config: this.normalizeDestinationConfig(dto.config),
+      isPluginCall: this.isPluginRuntimeCall(),
+    });
   }
 
   /**
@@ -171,6 +173,10 @@ export class DataDestinationMapper {
     summaries?: ReadonlyMap<string, DestinationCredentialSummary>
   ): DataDestinationDto {
     const summary = summaries?.get(dataDestination.id);
+    const emailCredentials =
+      dataDestination.credential?.type === DestinationCredentialType.EMAIL
+        ? EmailCredentialsSchema.safeParse(dataDestination.credential.credentials)
+        : undefined;
     return new DataDestinationDto(
       dataDestination.id,
       dataDestination.title,
@@ -185,7 +191,8 @@ export class DataDestinationMapper {
       dataDestination.availableForMaintenance,
       extractContextSummaries(dataDestination.contexts),
       dataDestination.config ?? null,
-      summaries && selectsCredential(dataDestination, summary) ? (summary ?? null) : undefined
+      summaries && selectsCredential(dataDestination, summary) ? (summary ?? null) : undefined,
+      emailCredentials?.success ? [...emailCredentials.data.to] : undefined
     );
   }
 

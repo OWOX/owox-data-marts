@@ -97,7 +97,7 @@ describe('DataDestination API (e2e)', () => {
       .set(AUTH_HEADER)
       .send({ title: 'Updated Destination' });
 
-    expect(res.status).toBe(200);
+    expect({ status: res.status, body: res.body }).toMatchObject({ status: 200 });
     expect(res.body.title).toBe('Updated Destination');
   });
 

@@ -45,8 +45,14 @@ export const updateCredentialSchema = credentialTargetSchema
 
 export const startCredentialSetupSchema = z
   .object({
-    definition_id: idSchema.optional(),
-    credential_id: idSchema.optional(),
+    definition_id: idSchema
+      .optional()
+      .describe(
+        'For a new Credential, copy a compatible ID from list_credential_definitions. Always supply it for a known Storage or Destination and match the authentication method. Omit it when updating an existing Credential, or for an explicit provider-picker request without a known target.'
+      ),
+    credential_id: idSchema
+      .optional()
+      .describe('Existing Credential to update or reconnect. Do not combine with definition_id.'),
     title: titleSchema.optional(),
   })
   .strict()

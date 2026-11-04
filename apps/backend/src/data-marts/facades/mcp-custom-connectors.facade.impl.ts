@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import type { AuthorizationContext } from '../../idp';
 import { ListCustomConnectorsService } from '../use-cases/custom-connectors/list-custom-connectors.service';
 import { GetCustomConnectorService } from '../use-cases/custom-connectors/get-custom-connector.service';
 import { CreateCustomConnectorService } from '../use-cases/custom-connectors/create-custom-connector.service';
@@ -14,7 +15,6 @@ import { TestCustomConnectorService } from '../use-cases/custom-connectors/test-
 import { ConnectorDefinitionMapper } from '../mappers/connector-definition.mapper';
 import type {
   McpCreateCustomConnectorInput,
-  McpCustomConnectorActor,
   McpCustomConnectorMetadataInput,
   McpCustomConnectorsFacade,
   McpCustomConnectorTestInput,
@@ -46,7 +46,7 @@ export class McpCustomConnectorsFacadeImpl implements McpCustomConnectorsFacade 
     return this.getCustomConnector.run(this.mapper.toGetCommand(projectId, id));
   }
 
-  create(actor: McpCustomConnectorActor, input: McpCreateCustomConnectorInput) {
+  create(actor: AuthorizationContext, input: McpCreateCustomConnectorInput) {
     return this.createCustomConnector.run(this.mapper.toCreateCommand(actor, input));
   }
 
@@ -68,11 +68,11 @@ export class McpCustomConnectorsFacadeImpl implements McpCustomConnectorsFacade 
     );
   }
 
-  publish(actor: McpCustomConnectorActor, id: string) {
+  publish(actor: AuthorizationContext, id: string) {
     return this.publishCustomConnector.run(this.mapper.toPublishCommand(actor, id));
   }
 
-  activate(actor: McpCustomConnectorActor, id: string, version: number) {
+  activate(actor: AuthorizationContext, id: string, version: number) {
     return this.activateCustomConnectorVersion.run(
       this.mapper.toActivateCommand(actor, id, version)
     );
@@ -92,7 +92,7 @@ export class McpCustomConnectorsFacadeImpl implements McpCustomConnectorsFacade 
     return this.getCustomConnectorFields.run(this.mapper.toFieldsCommand(projectId, id, version));
   }
 
-  test(actor: McpCustomConnectorActor, input: McpCustomConnectorTestInput) {
+  test(actor: AuthorizationContext, input: McpCustomConnectorTestInput) {
     return this.testCustomConnector.run(
       this.mapper.toTestCommand(actor.projectId, input, {
         userId: actor.userId,

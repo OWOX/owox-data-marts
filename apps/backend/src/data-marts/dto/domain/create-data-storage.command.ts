@@ -5,6 +5,7 @@ export class CreateDataStorageCommand {
     public readonly projectId: string,
     public readonly type: DataStorageType,
     public readonly userId: string,
-    public readonly ownerIds?: string[]
+    public readonly ownerIds?: string[],
+    public readonly title?: string
   ) {}
 }

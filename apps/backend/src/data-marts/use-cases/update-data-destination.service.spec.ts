@@ -20,7 +20,7 @@ jest.mock('../../idp/facades/idp-projections.facade', () => ({
   IdpProjectionsFacade: jest.fn(),
 }));
 
-import { ForbiddenException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { UpdateDataDestinationCommand } from '../dto/domain/update-data-destination.command';
 import { UpdateDataDestinationService } from './update-data-destination.service';
 import { DataDestinationType } from '../data-destination-types/enums/data-destination-type.enum';
@@ -52,22 +52,21 @@ describe('UpdateDataDestinationService', () => {
       availableForMaintenance?: boolean;
     } = {}
   ): UpdateDataDestinationCommand =>
-    new UpdateDataDestinationCommand(
-      targetId,
+    new UpdateDataDestinationCommand({
+      id: targetId,
       projectId,
-      overrides.title ?? 'Target Destination',
-      overrides.credentials as never,
-      overrides.reusableCredentialId,
-      overrides.sentOldCredentialFields,
-      overrides.ownerIds,
-      overrides.userId ?? 'user-1',
-      overrides.roles ?? ['editor'],
-      overrides.availableForUse,
-      overrides.availableForMaintenance,
-      undefined, // contextIds
-      overrides.config,
-      overrides.isPluginCall
-    );
+      title: overrides.title ?? 'Target Destination',
+      credentials: overrides.credentials as never,
+      reusableCredentialId: overrides.reusableCredentialId,
+      sentOldCredentialFields: overrides.sentOldCredentialFields,
+      ownerIds: overrides.ownerIds,
+      userId: overrides.userId ?? 'user-1',
+      roles: overrides.roles ?? ['editor'],
+      availableForUse: overrides.availableForUse,
+      availableForMaintenance: overrides.availableForMaintenance,
+      config: overrides.config,
+      isPluginCall: overrides.isPluginCall,
+    });
 
   const makeTarget = (
     overrides: {
@@ -208,6 +207,28 @@ describe('UpdateDataDestinationService', () => {
       accessDecisionService,
     };
   };
+
+  it('preserves the locked title when a partial update omits it', async () => {
+    const { service, target, dataDestinationRepository, advancedSearchIndexSync } = createService(
+      makeTarget({ title: 'Concurrent HTTP title', config: { folderId: 'existing-folder' } })
+    );
+
+    await service.run(
+      new UpdateDataDestinationCommand({
+        id: targetId,
+        projectId,
+        userId: 'user-1',
+        roles: ['editor'],
+        availableForUse: false,
+      })
+    );
+
+    expect(dataDestinationRepository.save).toHaveBeenCalledWith(
+      expect.objectContaining({ title: 'Concurrent HTTP title', availableForUse: false })
+    );
+    expect(target.config).toEqual({ folderId: 'existing-folder' });
+    expect(advancedSearchIndexSync.scheduleReportsReindex).not.toHaveBeenCalled();
+  });
 
   describe('Credential', () => {
     it('checks the folder with the chosen Credential, then binds it last', async () => {
@@ -644,6 +665,60 @@ describe('UpdateDataDestinationService', () => {
   });
 
   describe('Drive folder validation (only on folder change)', () => {
+    it.each([{ folderId: 'folder' }, { folderUrl: null, folderId: null }, {}])(
+      'rejects folder configuration for other destination types before writing: %j',
+      async config => {
+        const {
+          service,
+          dataDestinationRepository,
+          dataDestinationCredentialService,
+          folderValidator,
+        } = createService(makeTarget({ type: DataDestinationType.EMAIL }));
+
+        await expect(
+          service.run(
+            makeCommand({
+              config,
+              credentials: { type: 'email-credentials', to: ['new@example.com'] },
+            })
+          )
+        ).rejects.toThrow(
+          new BadRequestException('Only Google Sheets destinations support a Drive folder.')
+        );
+        expect(dataDestinationCredentialService.create).not.toHaveBeenCalled();
+        expect(dataDestinationCredentialService.update).not.toHaveBeenCalled();
+        expect(dataDestinationRepository.save).not.toHaveBeenCalled();
+        expect(folderValidator.validateConfiguredFolder).not.toHaveBeenCalled();
+      }
+    );
+
+    it('checks EDIT before rejecting folder configuration for another destination type', async () => {
+      const { service, accessDecisionService, dataDestinationRepository } = createService(
+        makeTarget({ type: DataDestinationType.EXCEL })
+      );
+      accessDecisionService.canAccess.mockResolvedValue(false);
+
+      await expect(
+        service.run(makeCommand({ config: { folderId: 'folder' } }))
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      expect(dataDestinationRepository.save).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      { config: undefined, expected: { folderId: 'old-folder' } },
+      { config: null, expected: null },
+    ])('preserves omission and explicit null configuration: %j', async ({ config, expected }) => {
+      const { service, dataDestinationRepository } = createService(
+        makeTarget({ type: DataDestinationType.EXCEL, config: { folderId: 'old-folder' } })
+      );
+
+      await service.run(makeCommand({ config }));
+
+      expect(dataDestinationRepository.save).toHaveBeenCalledWith(
+        expect.objectContaining({ type: DataDestinationType.EXCEL, config: expected })
+      );
+    });
+
     it('skips folder validation when config is not provided (folder untouched)', async () => {
       const { service, folderValidator } = createService(
         makeTarget({ config: { folderId: 'folder-x' } })

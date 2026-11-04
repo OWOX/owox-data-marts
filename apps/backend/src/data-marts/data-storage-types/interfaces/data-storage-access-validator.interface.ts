@@ -12,6 +12,8 @@ import { DataStorageCredentials } from '../data-storage-credentials.type';
 
 export enum ValidationResultCode {
   UNCONFIGURED = 'UNCONFIGURED',
+  INVALID_CONFIGURATION = 'INVALID_CONFIGURATION',
+  CREDENTIAL_UNAVAILABLE = 'CREDENTIAL_UNAVAILABLE',
   OAUTH_REAUTH_REQUIRED = 'OAUTH_REAUTH_REQUIRED',
 }
 
@@ -44,14 +46,28 @@ export class ValidationResult {
    * `reason.errors` keeps the raw issues for existing API consumers, without the submitted values.
    */
   static invalidInput(scope: FieldErrorScope, error: ZodError): ValidationResult {
-    return new ValidationResult(false, describeInvalidInput(scope, error), {
-      errors: sanitizeIssues(error.issues),
-      fieldErrors: toFieldErrors(scope, error),
-    });
+    return new ValidationResult(
+      false,
+      describeInvalidInput(scope, error),
+      {
+        errors: sanitizeIssues(error.issues),
+        fieldErrors: toFieldErrors(scope, error),
+      },
+      scope === 'config' ? ValidationResultCode.INVALID_CONFIGURATION : undefined
+    );
   }
 
   static unconfigured(errorMessage: string): ValidationResult {
     return new ValidationResult(false, errorMessage, undefined, ValidationResultCode.UNCONFIGURED);
+  }
+
+  static credentialUnavailable(errorMessage: string): ValidationResult {
+    return new ValidationResult(
+      false,
+      errorMessage,
+      undefined,
+      ValidationResultCode.CREDENTIAL_UNAVAILABLE
+    );
   }
 
   static oauthReauthRequired(errorMessage: string): ValidationResult {

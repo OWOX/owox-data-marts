@@ -1,11 +1,5 @@
 import type { StoppingDataMarts } from '../../services/connector/connector-definition.service';
 
-export interface CustomConnectorActor {
-  projectId: string;
-  userId: string;
-  roles?: string[];
-}
-
 export interface CustomConnectorMetadataInput {
   title?: string;
   description?: string | null;

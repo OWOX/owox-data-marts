@@ -1,7 +1,7 @@
+import type { AuthorizationContext } from '../../../idp';
 import type { CredentialSetupDto } from '../dto/credential-setup.dto';
 import type {
   McpCredentialDefinitionDto,
-  McpCredentialsActor,
   McpCredentialDto,
   McpStartCredentialSetupInput,
   McpUnavailableCredentialDto,
@@ -10,7 +10,6 @@ import type {
 
 export type {
   McpCredentialDefinitionDto,
-  McpCredentialsActor,
   McpCredentialDto,
   McpStartCredentialSetupInput,
   McpUnavailableCredentialDto,
@@ -23,22 +22,22 @@ export const MCP_CREDENTIALS_FACADE = Symbol('MCP_CREDENTIALS_FACADE');
 
 export interface McpCredentialsFacade {
   listDefinitions(): Promise<McpCredentialDefinitionDto[]>;
-  list(actor: McpCredentialsActor): Promise<(McpCredentialDto | McpUnavailableCredentialDto)[]>;
-  get(actor: McpCredentialsActor, id: string): Promise<McpCredentialDto>;
+  list(actor: AuthorizationContext): Promise<(McpCredentialDto | McpUnavailableCredentialDto)[]>;
+  get(actor: AuthorizationContext, id: string): Promise<McpCredentialDto>;
   update(
-    actor: McpCredentialsActor,
+    actor: AuthorizationContext,
     id: string,
     input: McpUpdateCredentialInput
   ): Promise<McpCredentialDto>;
-  validate(actor: McpCredentialsActor, id: string): Promise<McpCredentialDto>;
-  consentDefinition(actor: McpCredentialsActor, id: string): Promise<McpCredentialDto>;
-  delete(actor: McpCredentialsActor, id: string): Promise<void>;
+  validate(actor: AuthorizationContext, id: string): Promise<McpCredentialDto>;
+  consentDefinition(actor: AuthorizationContext, id: string): Promise<McpCredentialDto>;
+  delete(actor: AuthorizationContext, id: string): Promise<void>;
   startSetup(
-    actor: McpCredentialsActor,
+    actor: AuthorizationContext,
     input: McpStartCredentialSetupInput
   ): Promise<CredentialSetupDto>;
   getSetupStatus(
-    actor: McpCredentialsActor,
+    actor: AuthorizationContext,
     id: string,
     waitSeconds?: number,
     signal?: AbortSignal

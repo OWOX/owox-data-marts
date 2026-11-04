@@ -11,7 +11,7 @@ import {
   ListStorageResourcesCommand,
   StorageResourceLevel,
 } from '../dto/domain/list-storage-resources.command';
-import { ListStorageResourcesResponseDto } from '../dto/presentation/storage-resources/list-storage-resources-response.dto';
+import type { ListStorageResourcesDto } from '../dto/domain/list-storage-resources.dto';
 import { DataStorageService } from '../services/data-storage.service';
 import { AccessDecisionService, Action, EntityType } from '../services/access-decision';
 import { StorageResourceBrowserFacade } from '../data-storage-types/facades/storage-resource-browser.facade';
@@ -44,7 +44,7 @@ export class ListStorageResourcesService {
     private readonly browserFacade: StorageResourceBrowserFacade
   ) {}
 
-  async run(command: ListStorageResourcesCommand): Promise<ListStorageResourcesResponseDto> {
+  async run(command: ListStorageResourcesCommand): Promise<ListStorageResourcesDto> {
     const storage = await this.dataStorageService.getByProjectIdAndId(
       command.projectIdContext,
       command.storageId
@@ -62,6 +62,10 @@ export class ListStorageResourcesService {
       if (!allowed) {
         throw new ForbiddenException('You do not have access to this Storage');
       }
+    }
+
+    if (!storage.config) {
+      throw new BadRequestException('Configure this Storage before listing resources.');
     }
 
     try {

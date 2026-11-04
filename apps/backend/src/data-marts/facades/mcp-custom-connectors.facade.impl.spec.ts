@@ -1,3 +1,4 @@
+import type { AuthorizationContext } from '../../idp';
 import { ListCustomConnectorsService } from '../use-cases/custom-connectors/list-custom-connectors.service';
 import { GetCustomConnectorService } from '../use-cases/custom-connectors/get-custom-connector.service';
 import { CreateCustomConnectorService } from '../use-cases/custom-connectors/create-custom-connector.service';
@@ -23,7 +24,7 @@ jest.mock('../services/connector/connector-test.service', () => ({
 }));
 
 describe('McpCustomConnectorsFacadeImpl', () => {
-  const actor = { projectId: 'project', userId: 'editor', roles: ['editor'] };
+  const actor: AuthorizationContext = { projectId: 'project', userId: 'editor', roles: ['editor'] };
   const manifest = { name: 'CustomApi', arbitrary: 'private authoring value' };
   const definition = {
     id: 'connector',

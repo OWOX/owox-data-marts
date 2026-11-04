@@ -792,7 +792,8 @@ export class McpReportsFacadeImpl implements McpReportsFacade {
               request.projectId,
               name,
               request.userId,
-              request.userEmail
+              request.userEmail,
+              request.roles
             )
           );
 

@@ -1,7 +1,7 @@
 const mockCreateSpreadsheet = jest.fn();
 const mockCreateSpreadsheetViaDrive = jest.fn();
 const mockCreateSpreadsheetInFolder = jest.fn();
-const mockCreateServiceAccountClient = jest.fn(() => ({}));
+const mockCreateServiceAccountClient = jest.fn<Record<string, never>, unknown[]>(() => ({}));
 const mockShareFileWithUser = jest.fn();
 const mockRenameSheet = jest.fn();
 
@@ -38,7 +38,7 @@ jest.mock('../../data-destination-types/google-sheets/adapters/google-sheets-api
   return { GoogleSheetsApiAdapter: ctor };
 });
 
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { CreateGoogleSheetDocumentService } from './create-google-sheet-document.service';
 import { CreateGoogleSheetDocumentCommand } from '../../dto/domain/google-sheets/create-google-sheet-document.command';
 import { DataDestinationType } from '../../data-destination-types/enums/data-destination-type.enum';
@@ -51,6 +51,7 @@ import {
   SheetFolderCreateFailedException,
 } from '../../exceptions/google-oauth.exceptions';
 import { DestinationCredentialUnavailableException } from '../../exceptions/destination-credential-unavailable.exception';
+import { Action, EntityType } from '../../services/access-decision';
 
 const VALID_SA_KEY = {
   type: 'service_account',
@@ -101,11 +102,13 @@ describe('CreateGoogleSheetDocumentService', () => {
         .fn()
         .mockResolvedValue(idpUserEmail ? { email: idpUserEmail } : undefined),
     };
+    const accessDecisionService = { canAccess: jest.fn().mockResolvedValue(true) };
     const service = new CreateGoogleSheetDocumentService(
       dataDestinationService as never,
       googleOAuthClientService as never,
       credentialsResolver as never,
-      idpProjectionsFacade as never
+      idpProjectionsFacade as never,
+      accessDecisionService as never
     );
     return {
       service,
@@ -113,6 +116,7 @@ describe('CreateGoogleSheetDocumentService', () => {
       googleOAuthClientService,
       credentialsResolver,
       idpProjectionsFacade,
+      accessDecisionService,
     };
   };
 
@@ -124,6 +128,44 @@ describe('CreateGoogleSheetDocumentService', () => {
     mockCreateServiceAccountClient.mockReturnValue({});
     mockShareFileWithUser.mockResolvedValue(undefined);
     mockRenameSheet.mockResolvedValue(undefined);
+  });
+
+  it('requires USE before resolving the requester, credentials, or creating a document', async () => {
+    const {
+      service,
+      dataDestinationService,
+      accessDecisionService,
+      credentialsResolver,
+      googleOAuthClientService,
+      idpProjectionsFacade,
+    } = createService(buildDestination(DestinationCredentialType.GOOGLE_OAUTH));
+    accessDecisionService.canAccess.mockResolvedValue(false);
+
+    await expect(
+      service.run(
+        new CreateGoogleSheetDocumentCommand('dest-1', 'proj-1', 'Revenue', 'user-2', undefined, [
+          'viewer',
+        ])
+      )
+    ).rejects.toBeInstanceOf(ForbiddenException);
+
+    expect(dataDestinationService.getByIdAndProjectId).toHaveBeenCalledWith('dest-1', 'proj-1');
+    expect(accessDecisionService.canAccess).toHaveBeenCalledWith(
+      'user-2',
+      ['viewer'],
+      EntityType.DESTINATION,
+      'dest-1',
+      Action.USE,
+      'proj-1'
+    );
+    expect(idpProjectionsFacade.getUserProjection).not.toHaveBeenCalled();
+    expect(credentialsResolver.resolveAuth).not.toHaveBeenCalled();
+    expect(googleOAuthClientService.getDestinationOAuth2Client).not.toHaveBeenCalled();
+    expect(mockCreateServiceAccountClient).not.toHaveBeenCalled();
+    expect(mockCreateSpreadsheet).not.toHaveBeenCalled();
+    expect(mockCreateSpreadsheetViaDrive).not.toHaveBeenCalled();
+    expect(mockCreateSpreadsheetInFolder).not.toHaveBeenCalled();
+    expect(mockShareFileWithUser).not.toHaveBeenCalled();
   });
 
   it('creates a sheet via the OAuth client for an OAuth destination', async () => {
@@ -335,7 +377,7 @@ describe('CreateGoogleSheetDocumentService', () => {
   });
 
   it('resolves the requester email via the IDP when the command has none', async () => {
-    const { service, idpProjectionsFacade } = createService(
+    const { service, idpProjectionsFacade, accessDecisionService } = createService(
       buildDestination(
         DestinationCredentialType.GOOGLE_OAUTH,
         undefined,
@@ -345,8 +387,18 @@ describe('CreateGoogleSheetDocumentService', () => {
       'idp@example.com'
     );
 
-    await service.run(new CreateGoogleSheetDocumentCommand('dest-1', 'proj-1', 'R', 'user-2'));
+    await service.run(
+      new CreateGoogleSheetDocumentCommand('dest-1', 'proj-1', 'R', 'user-2', undefined, ['viewer'])
+    );
 
+    expect(accessDecisionService.canAccess).toHaveBeenCalledWith(
+      'user-2',
+      ['viewer'],
+      EntityType.DESTINATION,
+      'dest-1',
+      Action.USE,
+      'proj-1'
+    );
     expect(idpProjectionsFacade.getUserProjection).toHaveBeenCalledWith('user-2');
     expect(mockShareFileWithUser).toHaveBeenCalledWith('sheet-id', 'idp@example.com', 'writer');
   });

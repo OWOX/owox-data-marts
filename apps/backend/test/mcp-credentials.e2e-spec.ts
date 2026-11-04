@@ -175,6 +175,36 @@ describe('Credential management through MCP and browser handoff', () => {
     }
   );
 
+  it.each([
+    ['google-oauth', 'storage_types', 'GOOGLE_BIGQUERY'],
+    ['google-service-account', 'storage_types', 'GOOGLE_BIGQUERY'],
+    ['google-sheets-oauth', 'destination_types', 'GOOGLE_SHEETS'],
+    ['google-service-account', 'destination_types', 'GOOGLE_SHEETS'],
+    ['google-chat-webhook', 'destination_types', 'GOOGLE_CHAT'],
+  ] as const)(
+    'preserves the selected %s definition for %s %s in browser setup',
+    async (definitionId, consumerField, consumerType) => {
+      const client = await connect('modern');
+      const { definitions } = await call(client, 'list_credential_definitions');
+      expect(definitions).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            definition_id: definitionId,
+            [consumerField]: expect.arrayContaining([consumerType]),
+          }),
+        ])
+      );
+
+      const setup = await call(client, 'start_credential_setup', { definition_id: definitionId });
+      expect(setup).toMatchObject({ definition_id: definitionId, status: 'pending' });
+      const response = await agent
+        .get(`/api/credential-setup/${setup.setup_id}`)
+        .set(browser)
+        .expect(200);
+      expect(response.body).toMatchObject({ definitionId, mode: 'create', status: 'pending' });
+    }
+  );
+
   it.each(['legacy', 'modern'] as const)(
     'uses Credential setup before creating a Google Sheets destination over %s MCP',
     async era => {

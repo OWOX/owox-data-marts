@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import type { AuthorizationContext } from '../../idp';
 import { CreateContextCommand } from '../dto/domain/create-context.command';
 import { UpdateContextMetadataCommand } from '../dto/domain/update-context-metadata.command';
 import { GetContextImpactCommand } from '../dto/domain/get-context-impact.command';
@@ -18,12 +19,7 @@ import { SetContextMembersService } from '../use-cases/contexts/set-context-memb
 import { ListContextsService } from '../use-cases/contexts/list-contexts.service';
 import { ValidateContextIdsService } from '../use-cases/contexts/validate-context-ids.service';
 import { GetDataMartContextsService } from '../use-cases/contexts/get-data-mart-contexts.service';
-import type {
-  McpContextsFacade,
-  McpProjectActor,
-  McpContext,
-  McpContextSummary,
-} from './mcp-contexts.facade';
+import type { McpContextsFacade, McpContext, McpContextSummary } from './mcp-contexts.facade';
 
 @Injectable()
 export class McpContextsFacadeImpl implements McpContextsFacade {
@@ -40,7 +36,7 @@ export class McpContextsFacadeImpl implements McpContextsFacade {
   ) {}
 
   createContext(
-    actor: McpProjectActor,
+    actor: AuthorizationContext,
     input: { name: string; description?: string | null; icon?: DataMartIconValue | null }
   ): Promise<ContextDto> {
     return this.createContextService.run(
@@ -55,7 +51,7 @@ export class McpContextsFacadeImpl implements McpContextsFacade {
   }
 
   updateContextMetadata(
-    actor: McpProjectActor,
+    actor: AuthorizationContext,
     input: {
       contextId: string;
       name?: string;
@@ -75,7 +71,7 @@ export class McpContextsFacadeImpl implements McpContextsFacade {
   }
 
   getContextImpact(
-    actor: McpProjectActor,
+    actor: AuthorizationContext,
     input: { contextId: string }
   ): Promise<ContextImpactDto> {
     return this.getContextImpactService.run(
@@ -83,14 +79,14 @@ export class McpContextsFacadeImpl implements McpContextsFacade {
     );
   }
 
-  deleteContext(actor: McpProjectActor, input: { contextId: string }): Promise<void> {
+  deleteContext(actor: AuthorizationContext, input: { contextId: string }): Promise<void> {
     return this.deleteContextService.run(
       new DeleteContextCommand(input.contextId, actor.projectId)
     );
   }
 
   setContextMembers(
-    actor: McpProjectActor,
+    actor: AuthorizationContext,
     input: { contextId: string; assignedUserIds: string[] }
   ): Promise<{ assignedUserIds: string[]; droppedAdminIds: string[] }> {
     return this.setContextMembersService.run(
