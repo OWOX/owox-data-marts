@@ -52,7 +52,7 @@ A project with an unpaid subscription gets the Free limit.
 
 Connector loads count toward the limit, with at least 10 MiB for each load, but the limit does not stop them. A query that is already running can take usage past the limit, and new queries are then refused until midnight Pacific Time.
 
-The limit resets at midnight Pacific Time. When a project has used it, queries fail with the error "This project has used today's OWOX Storage query limit. It resets at midnight Pacific Time."
+The limit resets at midnight Pacific Time. When a project has used it, queries fail with the error "This project has used today's OWOX Storage query limit. It resets at midnight Pacific Time." A query that would scan more than what is left today is refused before it runs.
 
 ## Storage size
 
