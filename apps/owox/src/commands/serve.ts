@@ -187,6 +187,7 @@ export default class Serve extends BaseCommand {
       bootstrap,
       configureTrustProxy,
       createHealthProbe,
+      isOwoxStorageEnabled,
       registerPluginCollectionsBodyParser,
     } = await import('@owox/backend');
 
@@ -216,8 +217,12 @@ export default class Serve extends BaseCommand {
     expressApp.set('idp', idpProvider);
     currentIdp = idpProvider;
 
+    // Computed before routing so a partial OWOX Storage configuration fails startup, not the flags call.
+    const owoxStorageEnabled = String(isOwoxStorageEnabled(process.env));
     // Register public route to expose whitelisted flags
-    registerPublicFlagsRoute(expressApp);
+    registerPublicFlagsRoute(expressApp, {
+      computed: { OWOX_STORAGE_ENABLED: () => owoxStorageEnabled },
+    });
 
     // Configure web static assets if web interface is enabled
     if (flags['web-enabled']) {
