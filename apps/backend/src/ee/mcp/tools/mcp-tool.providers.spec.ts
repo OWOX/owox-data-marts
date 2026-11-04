@@ -1,4 +1,5 @@
 import { MCP_CONTEXTS_FACADE } from '../../../data-marts/facades/mcp-contexts.facade';
+import { MCP_CREDENTIALS_FACADE } from '../../../data-marts/credentials/facades/mcp-credentials.facade';
 import { MCP_CUSTOM_CONNECTORS_FACADE } from '../../../data-marts/facades/mcp-custom-connectors.facade';
 import { MCP_PROJECT_MEMBERS_FACADE } from '../../../data-marts/facades/mcp-project-members.facade';
 jest.mock(
@@ -57,6 +58,7 @@ describe('MCP tool providers', () => {
     expect(moduleMetadata(MODULE_METADATA.EXPORTS, DataMartsModule)).toEqual(
       expect.arrayContaining([
         MCP_CONTEXTS_FACADE,
+        MCP_CREDENTIALS_FACADE,
         MCP_CUSTOM_CONNECTORS_FACADE,
         MCP_PROJECT_MEMBERS_FACADE,
         MCP_DATA_MARTS_FACADE,
@@ -92,6 +94,7 @@ describe('MCP tool providers', () => {
         ...MCP_TOOL_PROVIDER_CLASSES,
         MCP_TOOL_DEFINITIONS_PROVIDER,
         { provide: MCP_CONTEXTS_FACADE, useValue: {} },
+        { provide: MCP_CREDENTIALS_FACADE, useValue: {} },
         { provide: MCP_CUSTOM_CONNECTORS_FACADE, useValue: {} },
         { provide: MCP_PROJECT_MEMBERS_FACADE, useValue: membersFacade },
         { provide: MCP_DATA_MARTS_FACADE, useValue: {} },
@@ -124,6 +127,15 @@ describe('MCP tool providers', () => {
       expect(toolNames).toEqual(
         expect.arrayContaining([
           'create_context',
+          'list_credential_definitions',
+          'list_credentials',
+          'get_credential',
+          'update_credential',
+          'validate_credential',
+          'consent_credential_definition',
+          'delete_credential',
+          'start_credential_setup',
+          'get_credential_setup_status',
           'update_context_metadata',
           'get_context_impact',
           'set_context_members',
@@ -152,6 +164,15 @@ describe('MCP tool providers', () => {
         )
       ).toMatchObject({
         create_context: 'admin',
+        list_credential_definitions: 'viewer',
+        list_credentials: 'viewer',
+        get_credential: 'viewer',
+        update_credential: 'viewer',
+        validate_credential: 'viewer',
+        consent_credential_definition: 'viewer',
+        delete_credential: 'viewer',
+        start_credential_setup: 'viewer',
+        get_credential_setup_status: 'viewer',
         update_context_metadata: 'admin',
         get_context_impact: 'admin',
         set_context_members: 'admin',

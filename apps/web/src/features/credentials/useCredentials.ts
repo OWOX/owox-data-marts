@@ -1,5 +1,13 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  skipToken,
+  useMutation,
+  useQuery,
+  useQueryClient,
+  type UseMutationOptions,
+} from '@tanstack/react-query';
+import { useEffect } from 'react';
 import { useProjectId } from '../../shared/hooks';
+import { useAuth } from '../idp';
 import { credentialsService } from './credentials.service';
 import type {
   CreateCredentialRequest,
@@ -35,6 +43,24 @@ export function useCredentials() {
   };
 }
 
+export function useCredential(id: string | null) {
+  const projectId = useProjectId();
+  const { user } = useAuth();
+  const query = useQuery({
+    queryKey: [CREDENTIALS_KEY, projectId, user?.id, id],
+    queryFn: id ? () => credentialsService.getById(id) : skipToken,
+    enabled: Boolean(projectId && id),
+    retry: false,
+    refetchOnWindowFocus: false,
+  });
+  return {
+    ...query,
+    credential: query.data ?? null,
+    // Wait for the first read on each mount, even when metadata is cached.
+    isLoading: query.isLoading || (query.isFetching && !query.isFetchedAfterMount),
+  };
+}
+
 export function useCredentialDefinitions() {
   const projectId = useProjectId();
   const query = useQuery({
@@ -47,8 +73,7 @@ export function useCredentialDefinitions() {
   return { ...query, definitions: query.data ?? [] };
 }
 
-/** Whether Google OAuth is set up, for one client when named. */
-export function useGoogleOAuthAvailable(client?: 'storage' | 'destination') {
+export function useGoogleOAuthSettings(client?: 'storage' | 'destination') {
   const projectId = useProjectId();
   const query = useQuery({
     queryKey: ['credential-google-oauth-settings', projectId],
@@ -57,13 +82,21 @@ export function useGoogleOAuthAvailable(client?: 'storage' | 'destination') {
     retry: false,
     staleTime: 5 * 60 * 1000,
   });
-  // undefined while the settings load, so callers can wait before choosing a provider.
-  return query.isPending
-    ? undefined
-    : ((client && query.data?.clients?.[client]) ?? query.data?.available ?? false);
+  return {
+    ...query,
+    // undefined while the settings load, so callers can wait before choosing a provider.
+    available: query.isPending
+      ? undefined
+      : ((client && query.data?.clients?.[client]) ?? query.data?.available ?? false),
+  };
 }
 
-export function useCredentialActions() {
+/** Whether Google OAuth is set up, for one client when named. */
+export function useGoogleOAuthAvailable(client?: 'storage' | 'destination') {
+  return useGoogleOAuthSettings(client).available;
+}
+
+export function useCredentialActions({ skipErrorToast }: { skipErrorToast?: boolean } = {}) {
   const queryClient = useQueryClient();
   const projectId = useProjectId();
   const invalidate = () =>
@@ -76,13 +109,14 @@ export function useCredentialActions() {
     return invalidate();
   };
 
-  const create = useMutation({
-    mutationFn: (input: CreateCredentialRequest) => credentialsService.create(input),
+  const create = useSecretMutation({
+    mutationFn: (input: CreateCredentialRequest) =>
+      credentialsService.create(input, skipErrorToast),
     onSuccess: invalidate,
   });
-  const update = useMutation({
+  const update = useSecretMutation({
     mutationFn: ({ id, input }: { id: string; input: UpdateCredentialRequest }) =>
-      credentialsService.update(id, input),
+      credentialsService.update(id, input, skipErrorToast),
     onSuccess: invalidateWithListeners,
   });
   const authorizeGoogleOAuth = useMutation({
@@ -97,7 +131,7 @@ export function useCredentialActions() {
       skipErrorToast?: boolean;
     }) => credentialsService.authorizeGoogleOAuth(input, skipErrorToast),
   });
-  const exchangeGoogleOAuth = useMutation({
+  const exchangeGoogleOAuth = useSecretMutation({
     mutationFn: ({
       skipErrorToast,
       ...input
@@ -143,4 +177,14 @@ export function useCredentialActions() {
     isValidating: validate.isPending,
     isDeleting: remove.isPending,
   };
+}
+
+function useSecretMutation<TVariables>(options: UseMutationOptions<Credential, Error, TVariables>) {
+  const mutation = useMutation({ ...options, gcTime: 0 });
+  const { status, reset } = mutation;
+  useEffect(() => {
+    // Reset detaches the observer; gcTime also removes the cached request and its secrets.
+    if (status === 'success' || status === 'error') reset();
+  }, [status, reset]);
+  return mutation;
 }

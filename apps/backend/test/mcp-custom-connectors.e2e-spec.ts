@@ -10,11 +10,22 @@ import {
 } from '@owox/test-utils';
 import type { AddressInfo } from 'node:net';
 import { join } from 'node:path';
+import { DataSource } from 'typeorm';
 import { z } from 'zod';
 import { IdpProviderService } from '../src/idp/services/idp-provider.service';
-import { ConnectorTestService } from '../src/data-marts/services/connector/connector-test.service';
+import {
+  ConnectorTestService,
+  type ConnectorTestRequest,
+} from '../src/data-marts/services/connector/connector-test.service';
 import { DataMartDefinitionValidatorFacade } from '../src/data-marts/data-storage-types/facades/data-mart-definition-validator-facade.service';
 import { createCredential } from './fixtures/storage-credentials';
+import { Credential } from '../src/data-marts/credentials/entities/credential.entity';
+import { ConnectorDefinition } from '../src/data-marts/entities/connector-definition.entity';
+import {
+  boundDestinationCredentialId,
+  CHAT_WEBHOOK_URL,
+  createChatWebhookCredential,
+} from './fixtures/destination-credentials';
 
 const manifestFor = (name: string) => ({
   version: '1.0',
@@ -38,6 +49,11 @@ const manifestFor = (name: string) => ({
 class LocalConnectorTestService extends ConnectorTestService {
   protected runnerPath(): string {
     return join(__dirname, 'fixtures/fake-test-runner.mjs');
+  }
+
+  async runTest(args: ConnectorTestRequest) {
+    const echo = args.credential || Object.keys(args.configuration).length > 0;
+    return super.runTest(args, echo ? { env: { FAKE_KEY_ECHO: '1' } } : undefined);
   }
 }
 
@@ -87,6 +103,28 @@ describe('Custom connector MCP with real persistence and transport', () => {
       manifest,
     });
     return { connector_id: z.string().parse(result.connector_id), name, manifest };
+  }
+
+  const referenceManifest = () => ({
+    ...manifestFor('McpCredentialTest'),
+    parameters: { Token: { requiredType: 'string', isRequired: true } },
+  });
+
+  async function testCredential(overrides: Partial<Parameters<typeof createCredential>[1]> = {}) {
+    return createCredential(app, {
+      projectId: '0',
+      definitionId: 'custom-connector',
+      title: 'MCP test Credential',
+      secret: { fields: { Token: 'mcp-private-token' } },
+      publicMetadata: {
+        hosts: ['api.example.test'],
+        fieldList: [{ key: 'Token', label: 'Token', secret: true }],
+        fields: {},
+      },
+      ownerIds: ['0'],
+      contextIds: [],
+      ...overrides,
+    });
   }
 
   beforeAll(async () => {
@@ -242,11 +280,11 @@ describe('Custom connector MCP with real persistence and transport', () => {
 
   it('returns bounded rows and raw samples through the child-process runner', async () => {
     const client = await connect();
-    const manifest = manifestFor('McpLiveTest');
+    const manifest = { ...manifestFor('McpLiveTest'), authentication: undefined, parameters: {} };
     const result = await call(client, 'test_custom_connector', {
       manifest,
       node: 'items',
-      configuration: { Token: 'test-only' },
+      configuration: {},
       max_rows: 2,
       max_pages: 1,
     });
@@ -256,6 +294,240 @@ describe('Custom connector MCP with real persistence and transport', () => {
       sample: [{ id: 1, name: 'a', nested: { k: 'v' } }],
     });
   });
+
+  it.each(['legacy', 'modern'] as const)(
+    'tests with a saved Credential over %s MCP and masks echoed and rotated secrets',
+    async era => {
+      const credentialId = await testCredential();
+      const client = await connect(era);
+      const result = await call(client, 'test_custom_connector', {
+        manifest: referenceManifest(),
+        node: 'items',
+        configuration: {},
+        credential_id: credentialId,
+      });
+
+      expect(result).toMatchObject({
+        rows: [
+          expect.objectContaining({
+            Token: '***',
+            rotated: '***',
+            echoed: expect.objectContaining({ '***': '***' }),
+          }),
+        ],
+        sample: [
+          expect.objectContaining({
+            Token: '***',
+            echoed: expect.objectContaining({ '***': '***' }),
+          }),
+        ],
+        error: null,
+      });
+      expect(JSON.stringify(result)).not.toContain('mcp-private-token');
+      expect(JSON.stringify(result)).not.toContain('rotated-token-from-provider');
+    }
+  );
+
+  it.each(['legacy', 'modern'] as const)(
+    'tests temporary credentials over %s MCP without saving them or exposing their values',
+    async era => {
+      const client = await connect(era);
+      const dataSource = app.get(DataSource);
+      const counts = () =>
+        Promise.all([
+          dataSource.getRepository(Credential).count(),
+          dataSource.getRepository(ConnectorDefinition).count(),
+        ]);
+      const before = await counts();
+      const base = referenceManifest();
+      const secret = 'temporary/"mcp-secret"';
+      const cases = [
+        { manifest: base, configuration: { Token: secret } },
+        { manifest: base, configuration: { Token: '123456' } },
+        {
+          manifest: {
+            ...base,
+            parameters: { Token: { requiredType: 'number', attributes: ['SECRET'] } },
+          },
+          configuration: { Token: 123456 },
+        },
+        { manifest: manifestFor('McpDefaultKeyTest'), configuration: { Region: 'eu' } },
+        {
+          manifest: {
+            ...base,
+            authentication: undefined,
+            parameters: {
+              Value: { requiredType: 'string' },
+              PageToken: { requiredType: 'string' },
+            },
+            nodes: {
+              items: {
+                ...base.nodes.items,
+                request: {
+                  ...base.nodes.items.request,
+                  headers: { Authorization: 'Bearer {{ parameters.Value }}' },
+                  queryParameters: { page_token: '{{ parameters.PageToken }}' },
+                },
+              },
+            },
+          },
+          configuration: { Value: secret, PageToken: 'next-page' },
+        },
+      ];
+
+      for (const args of cases) {
+        const result = await client.callTool({
+          name: 'test_custom_connector',
+          arguments: { ...args, node: 'items' },
+        });
+        expect(result.isError).not.toBe(true);
+        expect(result.structuredContent).toMatchObject({
+          rows: [expect.objectContaining({ rotated: '***' })],
+          logs: expect.arrayContaining([
+            'The provider issued new credentials during this test; they were not stored.',
+          ]),
+          error: null,
+        });
+        for (const value of [
+          secret,
+          encodeURIComponent(secret),
+          'private-default',
+          '123456',
+          'rotated-token-from-provider',
+        ]) {
+          expect(JSON.stringify(result)).not.toContain(value);
+        }
+        if ('Value' in args.configuration) {
+          expect(result.structuredContent).toMatchObject({
+            rows: [expect.objectContaining({ Value: '[REDACTED]', PageToken: 'next-page' })],
+            sample: [expect.objectContaining({ Value: '[REDACTED]', PageToken: 'next-page' })],
+          });
+        }
+        if ('Token' in args.configuration) {
+          expect(result.structuredContent).toMatchObject({
+            rows: [
+              expect.objectContaining({
+                echoed: expect.objectContaining({ '[REDACTED]': '[REDACTED]' }),
+              }),
+            ],
+            sample: [
+              expect.objectContaining({
+                echoed: expect.objectContaining({ '[REDACTED]': '[REDACTED]' }),
+              }),
+            ],
+          });
+        }
+      }
+      expect(await counts()).toEqual(before);
+    }
+  );
+
+  it.each(['legacy', 'modern'] as const)(
+    'rejects unknown secret fields over %s MCP before starting a test',
+    async era => {
+      const client = await connect(era);
+      const runner = jest.spyOn(testService, 'runTest');
+      try {
+        const result = await client.callTool({
+          name: 'test_custom_connector',
+          arguments: {
+            manifest: referenceManifest(),
+            node: 'items',
+            configuration: {},
+            credential: { secret: 'do-not-run' },
+          },
+        });
+        expect(result.isError).toBe(true);
+        expect(JSON.stringify(result)).not.toContain('do-not-run');
+        expect(runner).not.toHaveBeenCalled();
+      } finally {
+        runner.mockRestore();
+      }
+    }
+  );
+
+  it.each(['use', 'host', 'project', 'provider'] as const)(
+    'refuses a Credential with incompatible %s before starting a test',
+    async restriction => {
+      const credentialId = await testCredential(
+        restriction === 'host'
+          ? {
+              publicMetadata: {
+                hosts: ['elsewhere.test'],
+                fieldList: [{ key: 'Token', label: 'Token', secret: true }],
+                fields: {},
+              },
+            }
+          : restriction === 'project'
+            ? { projectId: 'other-project' }
+            : restriction === 'provider'
+              ? {
+                  definitionId: 'google-chat-webhook',
+                  publicMetadata: null,
+                  secret: { fields: { webhookUrl: CHAT_WEBHOOK_URL } },
+                }
+              : {}
+      );
+      if (restriction === 'use') roles = ['editor'];
+      const client = await connect();
+      const runner = jest.spyOn(testService, 'runTest');
+      try {
+        const result = await client.callTool({
+          name: 'test_custom_connector',
+          arguments: {
+            manifest: referenceManifest(),
+            node: 'items',
+            configuration: {},
+            credential_id: credentialId,
+          },
+        });
+        expect(result.isError).toBe(true);
+        expect(runner).not.toHaveBeenCalled();
+        expect(JSON.stringify(result)).not.toContain('mcp-private-token');
+        expect(JSON.stringify(result)).not.toContain(CHAT_WEBHOOK_URL);
+      } finally {
+        runner.mockRestore();
+      }
+    }
+  );
+
+  it.each(['legacy', 'modern'] as const)(
+    'creates an unshared webhook destination from a Credential over %s MCP',
+    async era => {
+      const credentialId = await createChatWebhookCredential(app, {
+        projectId: '0',
+        title: 'MCP Chat key',
+        ownerIds: ['0'],
+      });
+      const client = await connect(era);
+      const result = await call(client, 'add_destination', {
+        destination_type: 'google_chat',
+        title: 'MCP Chat target',
+        credential_id: credentialId,
+      });
+      const destinationId = z.string().parse(result.destination_id);
+
+      expect(await boundDestinationCredentialId(app, destinationId)).toBe(credentialId);
+      const saved = await agent
+        .get(`/api/data-destinations/${destinationId}`)
+        .set(AUTH_HEADER)
+        .expect(200);
+      expect(saved.body).toMatchObject({ availableForUse: false, title: 'MCP Chat target' });
+      expect(JSON.stringify(result)).not.toContain(CHAT_WEBHOOK_URL);
+      expect(JSON.stringify(result)).not.toContain('webhookUrl');
+
+      const rejected = await client.callTool({
+        name: 'add_destination',
+        arguments: {
+          destination_type: 'google_chat',
+          credential_id: credentialId,
+          webhookUrl: CHAT_WEBHOOK_URL,
+        },
+      });
+      expect(rejected.isError).toBe(true);
+      expect(JSON.stringify(rejected)).not.toContain(CHAT_WEBHOOK_URL);
+    }
+  );
 
   it.each(['viewer', 'read-scope'] as const)(
     'enforces %s access before changing persisted data',

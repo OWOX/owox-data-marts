@@ -101,10 +101,10 @@ To switch projects, disconnect, then reconnect and sign in again. If you use the
 
 ## Available tools
 
-Once connected, the MCP server exposes forty-one tools across two scopes:
+Once connected, the MCP server exposes fifty tools across two scopes:
 
-- **`mcp:read`**: discovery and status tools — `summarize_data_catalog`, `get_project_context`, `list_contexts`, `get_context_impact`, `list_project_members`, `get_project_settings`, `list_custom_connectors`, `get_custom_connector`, `get_custom_connector_version`, `get_custom_connector_specification`, `get_custom_connector_fields`, `list_data_marts`, `get_relevant_data_marts_by_prompt`, `get_data_mart_details_by_id`, `list_destinations`, `get_data_mart_reports`, `get_relevant_reports_by_prompt`, `get_report_output_schema`, `list_report_run_schedules`, `get_report_run_status`.
-- **`mcp:write`**: tools that create, change, run, or bill something — `create_context`, `update_context_metadata`, `set_context_members`, `delete_context`, `update_project_description`, `create_custom_connector`, `update_custom_connector`, `save_custom_connector_draft`, `test_custom_connector`, `publish_custom_connector`, `activate_custom_connector_version`, `delete_custom_connector`, `query_data_mart`, `add_destination`, `add_report`, `update_report`, `delete_report`, `create_report_run_schedule`, `update_report_run_schedule`, `delete_report_run_schedule`, `run_report`. `query_data_mart` and the report-run schedule mutation tools also require `mcp:read`. `query_data_mart` reads data rows, records each call in Run History, and costs [credits](../billing/consumption-units.md) per call. Your MCP client may ask you to confirm before it calls one of these.
+- **`mcp:read`**: discovery and status tools — `summarize_data_catalog`, `get_project_context`, `list_contexts`, `get_context_impact`, `list_project_members`, `get_project_settings`, `list_custom_connectors`, `get_custom_connector`, `get_custom_connector_version`, `get_custom_connector_specification`, `get_custom_connector_fields`, `list_data_marts`, `get_relevant_data_marts_by_prompt`, `get_data_mart_details_by_id`, `list_destinations`, `get_data_mart_reports`, `get_relevant_reports_by_prompt`, `get_report_output_schema`, `list_report_run_schedules`, `get_report_run_status`, `list_credential_definitions`, `list_credentials`, `get_credential`, `get_credential_setup_status`.
+- **`mcp:write`**: tools that create, change, run, or bill something — `create_context`, `update_context_metadata`, `set_context_members`, `delete_context`, `update_project_description`, `create_custom_connector`, `update_custom_connector`, `save_custom_connector_draft`, `test_custom_connector`, `publish_custom_connector`, `activate_custom_connector_version`, `delete_custom_connector`, `query_data_mart`, `add_destination`, `add_report`, `update_report`, `delete_report`, `create_report_run_schedule`, `update_report_run_schedule`, `delete_report_run_schedule`, `run_report`, `update_credential`, `validate_credential`, `consent_credential_definition`, `delete_credential`, `start_credential_setup`. `query_data_mart` and the report-run schedule mutation tools also require `mcp:read`. `query_data_mart` reads data rows, records each call in Run History, and costs [credits](../billing/consumption-units.md) per call. Your MCP client may ask you to confirm before it calls one of these.
 
 Custom connector metadata and schema reads require `mcp:read`. Reading a complete
 version manifest also requires editor access. Custom connector writes and live
@@ -179,6 +179,80 @@ Removed project members are excluded from discovery and cannot be assigned. If m
 
 Before deletion, `get_context_impact` reports the attachments that must be removed. Its `affected_member_ids` lists members with selected-context access whose only assigned Context is this one. With your approval, the assistant can remove member assignments using `set_context_members`; Data Marts, storages, destinations and user provisioning defaults must be detached in the OWOX web app. These detach operations are not available through MCP.
 
+### Credential management
+
+Manage reusable Credentials in the connected project without sending provider
+secrets through your AI client. These tools require at least the viewer role and
+retain the same resource permissions as the OWOX web app. Ownership and sharing
+determine which Credentials you can see, use, maintain or delete.
+
+| Tool                            | Scope       | Inputs and behavior                                                                                                                                                                                             |
+| ------------------------------- | ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `list_credential_definitions`   | `mcp:read`  | This tool takes no inputs. It returns provider IDs, names, authentication types, supported consumers and AI support.                                                                                            |
+| `list_credentials`              | `mcp:read`  | This tool takes no inputs. It returns visible Credentials with safe metadata, access settings, validation state and usage. Check `can_use` before you select one.                                               |
+| `get_credential`                | `mcp:read`  | Supply `credential_id`. The tool returns safe metadata for one visible Credential.                                                                                                                              |
+| `update_credential`             | `mcp:write` | Supply `credential_id` and at least one metadata, access or AI mapping field. Existing permissions to edit, manage owners and configure sharing apply.                                                          |
+| `validate_credential`           | `mcp:write` | Supply `credential_id`. You must have edit access. The tool checks the stored Credential with its provider and returns `validation_state`. It may refresh an OAuth grant.                                       |
+| `consent_credential_definition` | `mcp:write` | Supply `credential_id`. You must have edit access. The tool accepts the current external provider definition after you review the change.                                                                       |
+| `delete_credential`             | `mcp:write` | Supply `credential_id`. You must have delete access. The tool refuses to delete a Credential with active consumers.                                                                                             |
+| `start_credential_setup`        | `mcp:write` | To create a Credential, supply `definition_id`. To replace secrets or reconnect an account, supply `credential_id`. Omit both IDs to select a provider in the browser. The tool returns a `setup_id` and `url`. |
+| `get_credential_setup_status`   | `mcp:read`  | Supply `setup_id`. Optionally, set `wait_seconds` from 0 to 25. The tool returns `pending`, `completed`, `cancelled` or `expired`. After completion, it returns the exact `credential_id`.                      |
+
+To create a Credential or replace its secret, open the URL from
+`start_credential_setup`. Sign in with the same OWOX account that connected MCP.
+Complete the authenticated OWOX form in the connected project. Enter provider
+secrets only in that form.
+
+The assistant can pass an optional `title` to prefill the name of a new Credential.
+You can change this name in the form. If no name is supplied, manual setup uses
+the provider name. OAuth uses the connected account details when available.
+Reconnecting an existing Credential keeps its current name.
+
+The setup request belongs to the initiating user and project. It expires after
+15 minutes. Its URL contains no secret material. New Credentials created through
+this flow start unshared. The form opens only when the active project matches
+the project in the setup link.
+
+The assistant checks the same request with `get_credential_setup_status`. It can
+wait up to 25 seconds per call and repeat while the status is `pending`. Clients
+do not need background notifications.
+
+Completion means that the form was saved. It does not mean that the provider
+verified the Credential. Read `validation_state` or use `validate_credential`
+when provider validation is needed.
+Until cleanup, the completed status remains available if the Credential is deleted
+or its access changes. Reading or using that Credential still requires current access.
+
+All setup requests are removed after 30 minutes from creation, regardless of status.
+Completing or cancelling setup does not extend this time. The cleanup task runs every
+five minutes on instances with `SCHEDULER_EXECUTION_ENABLED=true`.
+The page explains when a link has expired or is no longer available and asks you to
+request a new link. Deleting a setup request does not delete its Credential.
+
+Saving can finish after setup expires or is cancelled. If the page shows a saved
+Credential ID, share that ID with your assistant. The assistant checks access with
+`get_credential` before reusing it. If the ID is unavailable, the assistant uses
+`list_credentials` and asks you to confirm a match by provider and title.
+It starts a new setup only if no suitable Credential is confirmed. The same recovery
+steps apply after the setup request is removed.
+
+`update_credential` accepts `title`, `enabled`, `owner_ids`, `context_ids`,
+`available_for_use`, `available_for_maintenance`, `ai_model_mappings` and
+`ai_model_mapping_modes`. Omitted fields stay unchanged. Owner and Context arrays
+replace their complete lists. At least one owner must remain.
+
+AI mapping keys are `fast`, `reasoning` and `embedding`.
+Mapping modes are `recommended` or `override`.
+Provider-specific AI requirements still apply. These tools reject unknown input
+fields, including secret values, field dictionaries and OAuth tokens.
+
+Responses omit stored provider fields, authentication contracts and raw validation
+messages. They include the Credential title, which can contain an account email
+or other identity information. Visible consumers
+appear in `used_by`. Hidden consumers contribute only to
+`hidden_consumer_count`. Deletion checks every active consumer. Remove bindings
+in the OWOX web app before retrying a blocked deletion.
+
 ### Custom connector authoring
 
 You can create and maintain [custom connectors](../../connectors/custom-connectors.md)
@@ -186,20 +260,20 @@ through your assistant. This includes creating drafts, testing, publishing and
 rollback. Every operation uses the connected project. Use `list_custom_connectors`
 to find `connector_id`. Use `get_custom_connector` to find version numbers.
 
-| Tool                                 | Scope       | Minimum role | Inputs and behavior                                                                                                                                                                                                                                                |
-| ------------------------------------ | ----------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `list_custom_connectors`             | `mcp:read`  | Viewer       | This tool takes no inputs. The result contains `connectors` with metadata and active version numbers. It does not contain manifests.                                                                                                                               |
-| `get_custom_connector`               | `mcp:read`  | Viewer       | Provide `connector_id`. The result includes metadata, a Connector Builder `url` and `versions`. Versions appear oldest first, with status and publication date.                                                                                                    |
-| `create_custom_connector`            | `mcp:write` | Editor       | Provide `name`, `title` and `manifest`. Optional inputs are `description`, `logo` and `doc_url`. The tool creates version 1 as a draft. It returns `connector_id`, `name`, `title` and a Connector Builder `url`.                                                  |
-| `update_custom_connector`            | `mcp:write` | Editor       | Provide `connector_id` and any metadata fields to update. Omitted fields remain unchanged. Use `null` to clear `description`, `logo` or `doc_url`. The connector name cannot change.                                                                               |
-| `get_custom_connector_version`       | `mcp:read`  | Editor       | Provide `connector_id` and `version`. The tool returns the complete draft or published manifest. You must be an editor because manifests can contain credentials.                                                                                                  |
-| `save_custom_connector_draft`        | `mcp:write` | Editor       | Provide `connector_id` and the complete `manifest`. The tool replaces the current draft, or creates the next draft if none exists. Published versions remain unchanged.                                                                                            |
-| `test_custom_connector`              | `mcp:write` | Editor       | Provide `manifest`, `node` and a flat `configuration` map. Optional inputs are `max_rows` (1–1000, default 25) and `max_pages` (1–50, default 1). The test makes real upstream API requests without saving. It returns `rows`, `logs`, `error` and a raw `sample`. |
-| `publish_custom_connector`           | `mcp:write` | Editor       | Provide `connector_id`. The tool validates the latest draft and publishes it. This version becomes active immediately. The result contains version status, publication date, `warnings` and a Connector Builder `url`.                                             |
-| `activate_custom_connector_version`  | `mcp:write` | Editor       | Provide `connector_id` and a published `version`. The tool makes that version active. This includes rollback to an earlier published version.                                                                                                                      |
-| `delete_custom_connector`            | `mcp:write` | Editor       | Provide `connector_id`. The tool soft-deletes an unused connector and makes its name available for reuse. Deletion fails if any Data Mart references the connector.                                                                                                |
-| `get_custom_connector_specification` | `mcp:read`  | Viewer       | Provide `connector_id`. Optionally, provide a published `version`. The tool uses the active version by default. The result contains `specification` without secret parameter values or OAuth internals.                                                            |
-| `get_custom_connector_fields`        | `mcp:read`  | Viewer       | Provide `connector_id`. Optionally, provide a published `version`. The tool uses the active version by default. The result contains node and field schemas, including primary keys and default fields.                                                             |
+| Tool                                 | Scope       | Minimum role | Inputs and behavior                                                                                                                                                                                                                                                                                                                                                        |
+| ------------------------------------ | ----------- | ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `list_custom_connectors`             | `mcp:read`  | Viewer       | This tool takes no inputs. The result contains `connectors` with metadata and active version numbers. It does not contain manifests.                                                                                                                                                                                                                                       |
+| `get_custom_connector`               | `mcp:read`  | Viewer       | Provide `connector_id`. The result includes metadata, a Connector Builder `url` and `versions`. Versions appear oldest first, with status and publication date.                                                                                                                                                                                                            |
+| `create_custom_connector`            | `mcp:write` | Editor       | Provide `name`, `title` and `manifest`. Optional inputs are `description`, `logo` and `doc_url`. The tool creates version 1 as a draft. It returns `connector_id`, `name`, `title` and a Connector Builder `url`.                                                                                                                                                          |
+| `update_custom_connector`            | `mcp:write` | Editor       | Provide `connector_id` and any metadata fields to update. Omitted fields remain unchanged. Use `null` to clear `description`, `logo` or `doc_url`. The connector name cannot change.                                                                                                                                                                                       |
+| `get_custom_connector_version`       | `mcp:read`  | Editor       | Provide `connector_id` and `version`. The tool returns the complete draft or published manifest. You must be an editor because manifests can contain credentials.                                                                                                                                                                                                          |
+| `save_custom_connector_draft`        | `mcp:write` | Editor       | Provide `connector_id` and the complete `manifest`. The tool replaces the current draft, or creates the next draft if none exists. Published versions remain unchanged.                                                                                                                                                                                                    |
+| `test_custom_connector`              | `mcp:write` | Editor       | Provide `manifest`, `node` and a flat `configuration` map. For authentication, use a compatible saved `credential_id` or supply temporary keys in `configuration`. Optional inputs are `max_rows` (1–1000, default 25) and `max_pages` (1–50, default 1). The test makes real upstream API requests without saving. It returns `rows`, `logs`, `error` and a raw `sample`. |
+| `publish_custom_connector`           | `mcp:write` | Editor       | Provide `connector_id`. The tool validates the latest draft and publishes it. This version becomes active immediately. The result contains version status, publication date, `warnings` and a Connector Builder `url`.                                                                                                                                                     |
+| `activate_custom_connector_version`  | `mcp:write` | Editor       | Provide `connector_id` and a published `version`. The tool makes that version active. This includes rollback to an earlier published version.                                                                                                                                                                                                                              |
+| `delete_custom_connector`            | `mcp:write` | Editor       | Provide `connector_id`. The tool soft-deletes an unused connector and makes its name available for reuse. Deletion fails if any Data Mart references the connector.                                                                                                                                                                                                        |
+| `get_custom_connector_specification` | `mcp:read`  | Viewer       | Provide `connector_id`. Optionally, provide a published `version`. The tool uses the active version by default. The result contains `specification` without secret parameter values or OAuth internals.                                                                                                                                                                    |
+| `get_custom_connector_fields`        | `mcp:read`  | Viewer       | Provide `connector_id`. Optionally, provide a published `version`. The tool uses the active version by default. The result contains node and field schemas, including primary keys and default fields.                                                                                                                                                                     |
 
 Use the [manifest reference](../../connectors/manifest-reference.md) to write a
 connector manifest:
@@ -240,19 +314,25 @@ and `published_at`. The nested `manifest`, `specification` and `fields` keep the
 native connector JSON keys, including camelCase names. MCP metadata responses do
 not include base64 logos. Logos remain available in the Connector Builder.
 
-Do not put literal credentials in a manifest. Declare credential parameters with
-`attributes: ["SECRET"]`. Use parameter references in the manifest. Supply actual
-values in test `configuration` or when connecting the connector to a Data Mart.
+Do not put literal secrets in a saved manifest. Declare secret parameters with
+`attributes: ["SECRET"]` and use parameter references in the manifest.
+For tests, you can reuse a compatible saved Credential with `credential_id`.
+Omit fields supplied by that Credential from `configuration`.
+Use `start_credential_setup` to create or update a Credential in the browser.
+
+You can also test with temporary keys in `configuration` and omit `credential_id`.
+The test does not create a Credential or save its configuration.
+This option lets you test a connector before you save provider access.
 
 Manifests, test configuration, sample rows and logs pass through your AI client.
 The client may send this content to its provider.
 
-OWOX MCP tool-call telemetry masks `SECRET` parameter values in test configuration.
-It also masks their defaults, placeholders and options. The same masking applies
-to parameters that the manifest parser identifies as credentials from
-`authentication`. Telemetry also masks credential keys such as `Authorization`,
-`token` and `api_key` elsewhere in the manifest. Other manifest content and test
-diagnostics remain available. The connector runner masks secrets in logs and errors.
+OWOX masks recognized credential values in MCP test results, errors and tool-call
+telemetry. This includes `SECRET` parameters and values referenced by authentication
+fields or credential headers such as `Authorization` and `X-API-Key`.
+Telemetry also masks credential defaults, placeholders, options and literal values
+in recognized credential fields. Public settings, such as pagination tokens, remain
+visible. Test results can still contain sensitive upstream data.
 
 ### `list_data_marts`
 
@@ -445,7 +525,10 @@ Lists the destinations in the current project — such as Google Sheets, Looker 
 | `connectedGoogleAccount` | For Google Sheets destinations, the Google account that completed OAuth consent                           |
 | `createdAt`              | Destination creation timestamp                                                                            |
 
-The list reflects your access: it includes only the destinations your [project role](../../project/roles-and-permissions.md) permits you to use. If you are identifying a Google Sheets destination just created through `add_destination`, match by `connectedGoogleAccount`, not by `createdAt` or "newest" — someone else can create a destination at the same time. To add or manage destinations, see [Destination Management](../../destinations/manage-destinations.md).
+The list includes only destinations that your [project role](../../project/roles-and-permissions.md) permits you to use.
+When `add_destination` creates a destination, use its returned `destination_id` to identify the result.
+Do not select the newest destination by `createdAt`.
+To add or manage destinations, see [Destination Management](../../destinations/manage-destinations.md).
 
 ### `add_destination` (requires `mcp:write`)
 
@@ -453,24 +536,51 @@ Starts or completes setup for a report-delivery destination. The exact flow depe
 
 **Input:**
 
-| Field              | Description                                                                                                                                                    |
-| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `destination_type` | Destination type to connect or create: `google_sheets`, `looker_studio`, `email`, `slack`, `teams`, or `google_chat`                                           |
-| `title`            | Optional destination name. Applies to `email`, `slack`, `teams`, `google_chat`, and `looker_studio`; Google Sheets names are entered in the browser setup form |
-| `emails`           | Required for `email`, `slack`, `teams`, and `google_chat`; target email addresses or delivery addresses for the destination                                    |
+| Field              | Description                                                                                                                                                                                       |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `destination_type` | Destination type to connect or create: `google_sheets`, `looker_studio`, `email`, `slack`, `teams`, or `google_chat`                                                                              |
+| `title`            | Supply an optional destination name. For Google Sheets browser setup, keep this title for the follow-up `add_destination` call. The browser form title names the Credential.                      |
+| `emails`           | Supply target email addresses or delivery addresses. This field is required for `email`, `slack`, `teams` and Google Chat delivery through channel email. Do not combine it with `credential_id`. |
+| `credential_id`    | Select a compatible saved Credential for `google_sheets` or `google_chat` webhook delivery. You must have permission to use it. Get its ID from `list_credentials` or completed browser setup.    |
 
 **Returns:**
 
-| Field               | Description                                                                                                                                               |
-| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `authorization_url` | For `google_sheets`, a link to the OWOX "Connect Google Sheets" page where the user completes Google OAuth                                                |
-| `destination_id`    | New destination identifier. Returned for `looker_studio`, `email`, `slack`, `teams`, and `google_chat`; absent for Google Sheets until setup is completed |
-| `destination_url`   | Link to open the created destination; absent for Google Sheets until OAuth creates it                                                                     |
-| `instructions`      | Human-readable next steps for finishing setup or using the new destination                                                                                |
+| Field               | Description                                                                                                                                                                        |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `authorization_url` | For `google_sheets` without `credential_id`, open this link to create a Google Sheets Credential in OWOX.                                                                          |
+| `setup_id`          | Use this ID with `get_credential_setup_status` to identify the exact saved Credential. The tool returns it when browser setup is required.                                         |
+| `destination_id`    | The tool returns the new destination ID when it creates a destination. This includes `google_sheets` with `credential_id`. The initial browser setup call does not return this ID. |
+| `destination_url`   | Open the created destination in OWOX. The tool returns this URL only when it creates a destination.                                                                                |
+| `instructions`      | Human-readable next steps for finishing setup or using the new destination                                                                                                         |
 
-For `google_sheets`, this tool does not create the destination immediately. It returns a project-scoped setup link; the user opens it, signs in to OWOX if needed, clicks **Connect with Google**, and approves Google access. After the user confirms setup is complete, call `list_destinations` and match the new Google Sheets destination by `connectedGoogleAccount`. The created destination is usable by the person who connected it, but it starts unshared for other project members until someone shares it in the UI.
+For `google_sheets` or `google_chat`, supply `credential_id` to use a compatible saved Credential.
+You must have permission to use it. For Google Chat, this selects webhook delivery.
+The tool creates the destination directly and returns `destination_id`.
+New destinations start unshared. Never send Credential values or secret webhook URLs through MCP or chat.
 
-For `email`, `slack`, `teams`, and `google_chat`, the tool creates the destination directly and returns `destination_id`. For `looker_studio`, the tool also creates the destination directly, but it never sends connector credentials or secret keys through MCP/chat; the user opens the destination in OWOX Data Marts to copy those credentials, and the returned `instructions` include a link to the [Data Studio destination](../../destinations/supported-destinations/data-studio.md) guide with the full walkthrough.
+For `google_sheets` without `credential_id`, the tool starts the same Credential setup flow as `start_credential_setup`.
+It returns `authorization_url` and `setup_id`. This call does not create a destination.
+
+1. Open `authorization_url` in the browser.
+2. Sign in to OWOX with the same account that connected MCP. You must be a member of this project.
+3. Complete the Google Sheets Credential form. Its title names the Credential.
+4. Call `get_credential_setup_status` with `setup_id`. If the status is `pending`, repeat the call as needed.
+5. If the status is `completed`, call `add_destination` again with `destination_type: "google_sheets"`, the exact `credential_id`, and the intended destination `title`.
+6. Use the returned `destination_id` for reports.
+
+The follow-up call creates the destination. Its title names the destination, which can differ from the Credential title.
+New Credentials and destinations start unshared. Other project members need permission to use them.
+If setup is `cancelled`, `expired` or missing, first recover the saved Credential
+as described in [Credential management](#credential-management).
+Existing links to the legacy Google Sheets setup page remain valid.
+
+For `email`, `slack` and `teams`, the tool creates the destination directly and returns `destination_id`.
+For `google_chat` without `credential_id`, the tool uses channel-email delivery and requires `emails`.
+
+For `looker_studio`, the tool creates the destination directly and returns `destination_id`.
+The tool never sends connector credentials or secret keys through MCP or chat.
+Open the destination in OWOX Data Marts to copy those credentials.
+The returned `instructions` include the [Data Studio destination](../../destinations/supported-destinations/data-studio.md) guide with the full walkthrough.
 
 ### `get_data_mart_reports`
 
@@ -836,9 +946,18 @@ A failed query costs nothing — OWOX bills a call only after it succeeds. This 
 
 If the assistant reports that the project is out of credits, `query_data_mart` has hit its credit limit — upgrade the plan to keep querying (the read-only tools keep working). If it says a field wasn't found, it likely guessed a field name; ask it to check the data mart's fields first with `get_data_mart_details_by_id`, then re-run the query.
 
-### A Google Sheets destination created through `add_destination` is missing
+### A Google Sheets destination is missing after browser setup
 
-For Google Sheets, `add_destination` only returns a setup link; the destination appears after the user opens the link and completes Google OAuth. Make sure the user signed in to OWOX with the same account that connected MCP, completed the browser flow, and has access to the project. Then call `list_destinations` and match the destination by `connectedGoogleAccount`. Do not pick the newest destination by `createdAt`.
+For Google Sheets without `credential_id`, `add_destination` starts Credential setup. It does not create a destination.
+The user must complete the browser form with the same OWOX account that connected MCP.
+The user must also be a member of the connected project.
+
+Call `get_credential_setup_status` with the returned `setup_id`.
+If the status is `pending`, repeat the call after the user completes the form.
+If the status is `completed`, call `add_destination` again with the exact `credential_id` and the intended destination title.
+Use the returned `destination_id` for reports.
+If setup is `cancelled`, `expired` or missing, first recover the saved Credential
+as described in [Credential management](#credential-management).
 
 ### A `run_report` call fails
 

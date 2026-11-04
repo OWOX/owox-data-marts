@@ -3,6 +3,11 @@ import { z } from 'zod';
 import type { McpScope } from '@owox/idp-protocol';
 import { PublicOriginService } from '../../../common/config/public-origin.service';
 import {
+  GOOGLE_SHEETS_OAUTH_DEFINITION_ID,
+  MCP_CREDENTIALS_FACADE,
+  type McpCredentialsFacade,
+} from '../../../data-marts/credentials/facades/mcp-credentials.facade';
+import {
   MCP_DATA_DESTINATIONS_FACADE,
   type McpDataDestinationsFacade,
 } from '../../../data-marts/facades/mcp-data-destinations.facade';
@@ -13,9 +18,9 @@ import {
 import type { McpAuthContext } from '../auth/mcp-auth-context';
 import { jsonToolResult, type McpToolDefinition, type McpToolResult } from './mcp-tool.definition';
 import { buildDataDestinationsUiPath } from './data-mart-ui-path';
-import { buildConnectGoogleSheetsUiPath } from './mcp-flow-ui-path';
 import { LOOKER_STUDIO_DESTINATION_GUIDE_URL } from './mcp-docs-urls';
 import { joinPublicOrigin } from './mcp-public-url.util';
+import { CredentialToolMapper } from './credential/credential-tool.mapper';
 
 const MCP_CHANNEL_EMAIL_TYPES = ['email', 'slack', 'teams', 'google_chat'];
 
@@ -48,23 +53,51 @@ const inputSchema = z
       .min(1)
       .optional()
       .describe(
-        'Optional custom name for the new destination itself (e.g. "Marketing Team Google ' +
-          'Sheet"), NOT the name of the report you may be creating this destination for. A ' +
-          'destination is a standalone, reusable connection target — once created, it can be ' +
-          'reused by any number of future reports, so name it after what it represents (the ' +
-          'team, tool, or channel it points to), not after the specific report that prompted ' +
-          'you to create it. Does NOT apply to google_sheets: that page never pre-fills its ' +
-          "name from this parameter — the user always sets it directly in the form, so it's " +
-          'ignored there. Applies to email, slack, teams, google_chat, and looker_studio only.'
+        'Supply an optional name for the destination, such as "Marketing Team Google Sheet". ' +
+          'The destination is a separate connection that any number of future reports can reuse. ' +
+          'Name it for the team, tool or channel it represents. Do not name it for the report that requires its creation. ' +
+          'This title applies to destinations that the tool creates directly.\n\n' +
+          'For google_sheets without credential_id, the first call starts Credential setup only. ' +
+          'Keep this title for the follow-up add_destination call. The browser form title names the Credential.'
       ),
     emails: z
       .array(z.string().email())
       .optional()
       .describe(
-        'Mandatory list of target email addresses/delivery targets. This parameter is STRICTLY REQUIRED for email, slack, teams, and google_chat through MCP. MCP creates Google Chat destinations using channel-email delivery only; direct webhook delivery must be configured in the OWOX UI/API, and the secret webhook URL must not be sent through MCP/chat.'
+        'Supply target email addresses. This field is required for email, slack, teams and Google Chat delivery through channel email. Do not combine emails with credential_id.'
+      ),
+    credential_id: z
+      .string()
+      .min(1)
+      .optional()
+      .describe(
+        'Select the ID of a saved Credential that you can use. This field supports google_sheets and google_chat webhook delivery. Get the ID from list_credentials or from completed browser setup. Never send a key, token, webhook URL or service-account JSON.'
       ),
   })
-  .strict();
+  .strict()
+  .refine(
+    data => !data.credential_id || ['google_sheets', 'google_chat'].includes(data.destination_type),
+    {
+      message: 'credential_id is supported only for google_sheets and google_chat.',
+      path: ['credential_id'],
+    }
+  )
+  .refine(data => !data.credential_id || data.emails === undefined, {
+    message: 'Do not combine emails with credential_id.',
+    path: ['emails'],
+  })
+  .refine(
+    data =>
+      !MCP_CHANNEL_EMAIL_TYPES.includes(data.destination_type) ||
+      (data.destination_type === 'google_chat' && !!data.credential_id) ||
+      (data.emails && data.emails.length > 0),
+    {
+      message:
+        "The 'emails' parameter is required for email, slack, teams, and channel-email Google Chat destinations created through MCP. " +
+        'Please ask the user to specify one or more email addresses first before calling this tool.',
+      path: ['emails'],
+    }
+  );
 
 type AddDestinationInput = z.infer<typeof inputSchema>;
 
@@ -72,47 +105,47 @@ type AddDestinationInput = z.infer<typeof inputSchema>;
 export class AddDestinationTool implements McpToolDefinition<AddDestinationInput> {
   readonly name = 'add_destination';
   readonly description =
-    'Adds a report-delivery destination. Behavior depends on destination_type: ' +
-    'for google_sheets, returns a link to a simple in-app "Connect Google Sheets" page — ' +
-    'the user must be signed in to OWOX (prompted if not) and a member of this project ' +
-    '(asked to request access if not); on the page they click to start Google OAuth, and ' +
-    'the destination is created automatically as soon as they approve access — no extra ' +
-    'save step; the person who completed it can use it in their own reports right away, ' +
-    'but it starts unshared for everyone else on the project — another project member ' +
-    'cannot use it until a human shares it — this call does NOT return a destination_id, ' +
-    'because the destination does not exist yet, and its name is not known in advance ' +
-    'either (the user sets it directly in the form, this tool never pre-fills it); ' +
-    'after the user confirms they completed it, ' +
-    'call list_destinations and filter to google_sheets entries whose ' +
-    'connectedGoogleAccount matches who the user expected — never pick by createdAt/recency, ' +
-    'another destination may be created concurrently by someone else; if more than one ' +
-    'entry still matches, ask the user which one they mean instead of guessing; ' +
-    'for email, slack, and teams, creates the destination directly and requires the emails ' +
-    'parameter; for google_chat, MCP supports channel-email delivery only and also requires ' +
-    'emails — direct webhook delivery is configured in the OWOX UI/API, and its secret URL ' +
-    'must not be sent through MCP/chat; no OAuth is involved and destination_id is returned ' +
-    'immediately; ' +
-    'for looker_studio (pull-based connector), creates the destination directly and returns ' +
-    'destination_id immediately — no OAuth, no emails needed; the connector credentials ' +
-    '(including the Destination Secret Key/Token) are never sent through MCP/chat — the ' +
-    'user must open the destination in the OWOX Data Marts UI to copy them.';
-  readonly zodSchema = inputSchema.shape;
+    'Create a destination for report delivery. The behavior depends on destination_type.\n\n' +
+    'If you supply credential_id, the tool creates a google_sheets destination or a google_chat destination for webhook delivery. ' +
+    'You must have permission to use the saved Credential. The tool returns destination_id. New destinations start unshared. ' +
+    'Never send Credential values or a secret webhook URL.\n\n' +
+    'For google_sheets without credential_id, the tool starts browser setup for a Google Sheets Credential. ' +
+    'It returns authorization_url and setup_id. This call does not create a destination. ' +
+    'The user must be signed in to OWOX with the same account that connected MCP. ' +
+    'The user must be a member of this project. The browser title names the Credential.\n\n' +
+    'After browser setup, call get_credential_setup_status with setup_id. ' +
+    'If the status is pending, repeat the status call as needed. ' +
+    'If the status is completed, call add_destination again with its exact credential_id and the requested destination title. ' +
+    'This follow-up creates the destination and returns destination_id. Its title names the destination.\n\n' +
+    'For email, slack and teams, the tool creates the destination directly and requires emails. ' +
+    'For google_chat without credential_id, the tool uses channel-email delivery and requires emails. ' +
+    'These operations do not use OAuth. The tool returns destination_id immediately.\n\n' +
+    'For looker_studio, the tool creates a destination for a pull-based connector. ' +
+    'The tool returns destination_id immediately. This operation does not use OAuth or require emails. ' +
+    'The tool never sends connector credentials, including the Destination Secret Key/Token, through MCP or chat. ' +
+    'The user must open the destination in OWOX Data Marts to copy those credentials.';
+  readonly zodSchema = inputSchema;
   readonly outputSchema = {
     authorization_url: z.string().optional(),
+    setup_id: z
+      .string()
+      .optional()
+      .describe(
+        'Use this ID with get_credential_setup_status to identify the exact saved Credential.'
+      ),
     instructions: z.string(),
     destination_id: z
       .string()
       .optional()
       .describe(
-        'The new destination id. Present for every destination_type EXCEPT google_sheets ' +
-          '(returned immediately, before any external action is needed). For google_sheets, ' +
-          'this is absent — use list_destinations after the user confirms setup instead.'
+        'The tool returns destination_id when it creates a destination directly. This includes google_sheets with credential_id. ' +
+          'The initial Credential setup call does not return a destination ID. After setup, call add_destination with the exact credential_id.'
       ),
     destination_url: z
       .string()
       .optional()
       .describe(
-        'Open the created destination in OWOX. Absent until Google Sheets OAuth creates it.'
+        'Open the created destination in OWOX. The tool returns this URL only when it creates a destination.'
       ),
   };
   readonly annotations = {
@@ -122,27 +155,17 @@ export class AddDestinationTool implements McpToolDefinition<AddDestinationInput
     openWorldHint: false,
   };
   readonly requiredScopes: McpScope[] = ['mcp:write'];
+  private readonly credentialMapper = new CredentialToolMapper();
 
   constructor(
     @Inject(MCP_DATA_DESTINATIONS_FACADE)
     private readonly destinations: McpDataDestinationsFacade,
-    private readonly publicOriginService: PublicOriginService
+    private readonly publicOriginService: PublicOriginService,
+    @Inject(MCP_CREDENTIALS_FACADE) private readonly credentials: McpCredentialsFacade
   ) {}
 
   parseInput(input: unknown): AddDestinationInput {
-    return inputSchema
-      .refine(
-        data =>
-          !MCP_CHANNEL_EMAIL_TYPES.includes(data.destination_type) ||
-          (data.emails && data.emails.length > 0),
-        {
-          message:
-            "The 'emails' parameter is required for email, slack, teams, and channel-email Google Chat destinations created through MCP. " +
-            'Please ask the user to specify one or more email addresses first before calling this tool.',
-          path: ['emails'],
-        }
-      )
-      .parse(input);
+    return inputSchema.parse(input);
   }
 
   async handler(input: AddDestinationInput, context: McpAuthContext): Promise<McpToolResult> {
@@ -151,14 +174,16 @@ export class AddDestinationTool implements McpToolDefinition<AddDestinationInput
     const humanType = toDisplayLabel(destinationType);
     const title = parsed.title ?? humanType;
 
-    if (MCP_CHANNEL_EMAIL_TYPES.includes(destinationType)) {
+    if (parsed.credential_id || MCP_CHANNEL_EMAIL_TYPES.includes(destinationType)) {
       const created = await this.destinations.createDestination({
         projectId: context.projectId,
         userId: context.userId,
         roles: context.roles,
         type: destinationType,
         title,
-        emails: parsed.emails,
+        ...(parsed.credential_id
+          ? { credentialId: parsed.credential_id }
+          : { emails: parsed.emails }),
       });
 
       return jsonToolResult({
@@ -199,38 +224,30 @@ Share the setup guide with the user — it walks through every step: ${LOOKER_ST
     }
 
     if (destinationType === 'google_sheets') {
-      // A link into a normal, authenticated, project-scoped in-app page (ConnectFlowLayout /
-      // ConnectGoogleSheetsPage) — no token minted, no unauthenticated backend route. The
-      // user must already be signed in to OWOX and a member of this project; the existing
-      // route guards (ProjectIdGuard/ProjectRoleGuard) handle sign-in prompts, project
-      // switching, and access requests. Deliberately no title/name is passed through the
-      // URL — the page never pre-fills its Title field from a query param (an unverified
-      // value from a link isn't proof of what the user actually wants), so the agent can
-      // never predict the final name in advance; the user always sets it in the form.
-      const setupUrl = joinPublicOrigin(
-        this.publicOriginService.getPublicOrigin(),
-        buildConnectGoogleSheetsUiPath(context.projectId)
-      );
+      const setup = await this.credentials.startSetup(this.credentialMapper.toActor(context), {
+        definitionId: GOOGLE_SHEETS_OAUTH_DEFINITION_ID,
+      });
 
       return jsonToolResult({
-        authorization_url: setupUrl,
+        authorization_url: this.credentialMapper.toSetupUrl(
+          context.projectId,
+          setup.id,
+          this.publicOriginService.getPublicOrigin()
+        ),
+        setup_id: setup.id,
         instructions:
-          'Open this link in your browser. You must be signed in to OWOX with the same account ' +
-          'that connected MCP and be a member of this project; otherwise MCP will not be ' +
-          'able to find the unshared destination afterward. If needed, you will be prompted ' +
-          'to sign in or request project access. It opens a simple "Connect Google Sheets" ' +
-          'page — click "Connect with ' +
-          'Google" there. Your Google Sheets destination is created automatically as soon ' +
-          'as you approve access, no extra save step. You can use it in your own reports ' +
-          'right away, but it starts unshared for everyone else on the project — other ' +
-          'project members cannot use it until a human shares it. This response does NOT ' +
-          "include a destination_id — it doesn't exist yet. Once the user says they're " +
-          'done: call list_destinations, filter to google_sheets entries, and match by ' +
-          'connectedGoogleAccount against who the user expected — never pick by createdAt ' +
-          'or recency, someone else could create a destination at the same time. Its name ' +
-          'is whatever the user set in the form and cannot be predicted in advance. If ' +
-          'exactly one entry matches connectedGoogleAccount, use it; if more than one ' +
-          'still matches, do not guess — ask the user which one they mean.',
+          'Open authorization_url in your browser. Sign in to OWOX with the same account that connected MCP. ' +
+          'You must be a member of this project. Complete the Google Sheets Credential form. ' +
+          'The form title names the Credential. This call does not create a destination.\n\n' +
+          'Call get_credential_setup_status with setup_id. Use wait_seconds to wait up to 25 seconds. ' +
+          'If the status is pending, repeat the status call as needed. ' +
+          'If the status is completed, use its exact credential_id. ' +
+          `After completion, call add_destination again with destination_type "google_sheets", that credential_id and title ${JSON.stringify(title)}. ` +
+          'The title in this follow-up call names the destination.\n\n' +
+          'If setup is cancelled, expired or missing, ask for the saved Credential ID shown on the page. ' +
+          'Verify that ID with get_credential before reusing it. ' +
+          'If unavailable, use list_credentials and ask the user to confirm the provider and title. ' +
+          'Start a new request only if no suitable Credential is confirmed.',
       });
     }
 

@@ -36,12 +36,20 @@ class CredentialsService extends ApiService {
     return this.post<CredentialDefinition>('/definitions/github', { repository });
   }
 
-  create(input: CreateCredentialRequest): Promise<Credential> {
-    return this.post<Credential>('', input);
+  create(input: CreateCredentialRequest, skipErrorToast = false): Promise<Credential> {
+    return this.post<Credential>(
+      '',
+      input,
+      skipErrorToast ? ({ skipErrorToast } as AxiosRequestConfig) : undefined
+    );
   }
 
-  update(id: string, input: UpdateCredentialRequest): Promise<Credential> {
-    return this.put<Credential>(`/${id}`, input);
+  update(id: string, input: UpdateCredentialRequest, skipErrorToast = false): Promise<Credential> {
+    return this.put<Credential>(
+      `/${id}`,
+      input,
+      skipErrorToast ? ({ skipErrorToast } as AxiosRequestConfig) : undefined
+    );
   }
 
   validate(id: string): Promise<Credential> {

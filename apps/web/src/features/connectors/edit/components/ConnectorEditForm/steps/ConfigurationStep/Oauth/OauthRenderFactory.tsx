@@ -9,7 +9,7 @@ import { MicrosoftOauthRender } from './impl/MicrosoftOauthRender';
 import { GoogleAdsOauthRender } from './impl/GoogleAdsOauthRender';
 import { GoogleSheetsOauthRender } from './impl/GoogleSheetsOauthRender';
 import { LinkedInOauthRender } from './impl/LinkedInOauthRender';
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef, useContext } from 'react';
 import type {
   OAuthCallbackResponseDto,
   OAuthStatusResponseDto,
@@ -19,6 +19,7 @@ import type { OAuthExchangeCredentialTarget } from '../../../../../../shared/api
 import { Button } from '@owox/ui/components/button';
 import { NestedConfigurationField } from '../NestedConfigurationField';
 import { SECRET_MASK } from '../../../../../../../../shared/constants/secrets';
+import { CredentialSetupRecoveryContext } from '../../../../../../../credentials/credential-setup-recovery';
 
 const SOURCE_CREDENTIAL_KEY = '_source_credential_id';
 
@@ -64,12 +65,21 @@ export function OauthRenderFactory({
   credential,
   onExchanged,
 }: OauthRenderFactoryProps) {
+  const recordOAuthSave = useContext(CredentialSetupRecoveryContext);
   const [isLoading, setIsLoading] = useState(false);
   const [fieldSecretEditing, setFieldSecretEditing] = useState<Record<string, boolean>>({});
   const [status, setStatus] = useState<OAuthStatusResponseDto | null>(null);
   const [settings, setSettings] = useState<OAuthSettingsResponseDto | null>(null);
   const [settingsLoaded, setSettingsLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const mounted = useRef(true);
+  const isMounted = () => mounted.current;
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
 
   const credentialId = useMemo(() => {
     const savedConfig = configuration[specification.name] as Record<string, unknown> | undefined;
@@ -178,6 +188,7 @@ export function OauthRenderFactory({
     credentials: Record<string, unknown>,
     beforeFinish?: (exchanged: OAuthCallbackResponseDto) => Promise<void>
   ) => {
+    if (!isMounted()) return null;
     try {
       setIsLoading(true);
       setError(null);
@@ -187,6 +198,8 @@ export function OauthRenderFactory({
         fieldPath,
         credential
       );
+      if (credential) recordOAuthSave?.(exchanged.credentialId, !isMounted());
+      if (!isMounted()) return null;
       const currentConfig = configuration[specification.name] as
         | Record<string, unknown>
         | undefined;
@@ -204,15 +217,20 @@ export function OauthRenderFactory({
         });
       }
       await beforeFinish?.(exchanged);
+      if (!isMounted()) {
+        if (credential) recordOAuthSave?.(exchanged.credentialId, true);
+        return null;
+      }
       onExchanged?.(exchanged);
       return exchanged;
     } catch (err) {
+      if (!isMounted()) return null;
       const message = err instanceof Error ? err.message : 'Failed to exchange OAuth credentials';
       console.error('Failed to exchange OAuth credentials:', err);
       setError(message);
       return null;
     } finally {
-      setIsLoading(false);
+      if (isMounted()) setIsLoading(false);
     }
   };
 

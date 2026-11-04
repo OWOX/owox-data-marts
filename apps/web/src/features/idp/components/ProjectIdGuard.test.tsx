@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const signIn = vi.fn();
 let user: { projectId: string } | null = { projectId: '42' };
@@ -18,27 +18,31 @@ function Where() {
   return <p>at {`${location.pathname}${location.search}${location.hash}`}</p>;
 }
 
-const renderAt = (path: string) =>
-  render(
-    <MemoryRouter initialEntries={[path]}>
-      <Routes>
-        <Route
-          path='/ui/:projectId/*'
-          element={
-            <ProjectIdGuard>
-              <Where />
-            </ProjectIdGuard>
-          }
-        />
-      </Routes>
-    </MemoryRouter>
-  );
+const viewAt = (path: string) => (
+  <MemoryRouter initialEntries={[path]}>
+    <Routes>
+      <Route
+        path='/ui/:projectId/*'
+        element={
+          <ProjectIdGuard>
+            <Where />
+          </ProjectIdGuard>
+        }
+      />
+    </Routes>
+  </MemoryRouter>
+);
+const renderAt = (path: string) => render(viewAt(path));
 
 describe('ProjectIdGuard', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     user = { projectId: '42' };
     authState = { isLoading: false };
+    sessionStorage.clear();
+  });
+  afterEach(() => {
+    sessionStorage.clear();
   });
 
   it('opens a placeholder link in the member project, keeping search and hash', () => {
@@ -76,5 +80,36 @@ describe('ProjectIdGuard', () => {
     renderAt('/ui/none/plugins/p1');
     expect(screen.getByText('at /ui/none/plugins/p1')).toBeInTheDocument();
     expect(signIn).not.toHaveBeenCalled();
+  });
+
+  it('removes a loaded connect form when the active project changes', () => {
+    const target = '/ui/42/connect/credentials/setup-1?source=chat#form';
+    const page = renderAt(target);
+    expect(screen.getByText(`at ${target}`)).toBeInTheDocument();
+    user = { projectId: '7' };
+
+    page.rerender(viewAt(target));
+
+    expect(screen.queryByText(/^at /)).not.toBeInTheDocument();
+    expect(signIn).toHaveBeenCalledExactlyOnceWith({ projectId: '42', redirect: target });
+  });
+
+  it('does not repeat a failed automatic switch for a connect URL', () => {
+    const target = '/ui/7/connect/credentials/setup-1';
+    sessionStorage.setItem('owox_connect_project_switch', target);
+    const logout = vi.fn();
+    window.addEventListener('auth:logout', logout);
+    try {
+      renderAt(target);
+
+      expect(screen.queryByText(/^at /)).not.toBeInTheDocument();
+      expect(signIn).not.toHaveBeenCalled();
+      expect((logout.mock.calls[0][0] as CustomEvent).detail).toEqual({
+        reason: 'connect_project_mismatch',
+        connectTarget: target,
+      });
+    } finally {
+      window.removeEventListener('auth:logout', logout);
+    }
   });
 });

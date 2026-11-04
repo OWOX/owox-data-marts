@@ -23,6 +23,7 @@ import { CredentialDefinitionService } from '../services/credential-definition.s
 import { CredentialViewService } from '../services/credential-view.service';
 import { AuthorizeGoogleOAuthCredentialService } from '../use-cases/authorize-google-oauth-credential.service';
 import { ConnectGoogleOAuthCredentialService } from '../use-cases/connect-google-oauth-credential.service';
+import { ListCredentialDefinitionsService } from '../use-cases/list-credential-definitions.service';
 import { CredentialsController } from './credentials.controller';
 
 const context = {
@@ -72,7 +73,7 @@ function setup() {
     {} as never,
     {} as never,
     {} as never,
-    definitions,
+    new ListCredentialDefinitionsService(definitions),
     mapper,
     new AuthorizeGoogleOAuthCredentialService(credentials as never, access as never, flow),
     new ConnectGoogleOAuthCredentialService(

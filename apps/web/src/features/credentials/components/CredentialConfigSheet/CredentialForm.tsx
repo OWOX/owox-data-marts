@@ -27,7 +27,7 @@ import {
 } from '@owox/ui/components/select';
 import { Switch } from '@owox/ui/components/switch';
 import { Loader2 } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';
 import { z } from 'zod';
@@ -71,11 +71,7 @@ const GITHUB_REPOSITORY_PATTERN = /^@[^/]+\/[^/]+$/;
 const aiMappingModeSchema = z.enum(['recommended', 'override', 'off']);
 
 const credentialFormSchema = z.object({
-  title: z
-    .string()
-    .trim()
-    .min(1, 'Name is required')
-    .max(255, 'Name must be 255 characters or less'),
+  title: z.string().trim().max(255, 'Name must be 255 characters or less'),
   definitionId: z.string().min(1, 'Provider is required'),
   githubRepository: z.string().max(512, 'Repository is too long'),
   secret: z.string().max(32_768, 'Secret is too long'),
@@ -116,6 +112,7 @@ export interface CredentialFormProps {
   credential: Credential | null;
   definitions: CredentialDefinition[];
   initialDefinitionId?: string;
+  initialTitle?: string;
   allowedDefinitionIds?: readonly string[];
   isSaving: boolean;
   onSubmit: (input: CreateCredentialRequest | UpdateCredentialRequest) => Promise<void>;
@@ -159,6 +156,7 @@ function CredentialFormBody({
   credential,
   definitions,
   initialDefinitionId,
+  initialTitle,
   allowedDefinitionIds,
   isSaving,
   onSubmit,
@@ -173,6 +171,7 @@ function CredentialFormBody({
   oauthAvailable,
 }: CredentialFormProps & { oauthAvailable: { storage: boolean; destination: boolean } }) {
   const isEditMode = credential !== null;
+  const titleEdited = useRef(Boolean(initialTitle));
   // A saved custom connector Credential keeps its hosts and field list; a prefill fixes them too.
   const fixedCustom = isCustomConnectorMetadata(credential?.publicMetadata)
     ? credential.publicMetadata
@@ -201,9 +200,19 @@ function CredentialFormBody({
     definitionOptions.find(({ id }) => id === defaultDefinitionId) ?? credential?.definition;
 
   const form = useForm<CredentialFormValues>({
-    resolver: zodResolver(credentialFormSchema),
+    resolver: zodResolver(
+      credentialFormSchema.refine(
+        values =>
+          values.title.length > 0 ||
+          (!isEditMode &&
+            (sourceConnectShown ||
+              definitionOptions.find(definition => definition.id === values.definitionId)?.auth
+                ?.type === 'oauth')),
+        { path: ['title'], message: 'Name is required' }
+      )
+    ),
     defaultValues: {
-      title: credential?.title ?? '',
+      title: credential?.title ?? initialTitle ?? '',
       definitionId: defaultDefinitionId,
       githubRepository: '',
       secret: '',
@@ -267,6 +276,18 @@ function CredentialFormBody({
   const isOAuth = auth?.type === 'oauth';
   const sourceVariant =
     auth?.type === 'fields' && selectedDefinition ? sourceAuthVariant(selectedDefinition.id) : null;
+  const usesAccountName = isOAuth || (sourceVariant !== null && sourceConnectShown);
+
+  useEffect(() => {
+    if (isEditMode) return;
+    if (!titleEdited.current) {
+      form.setValue(
+        'title',
+        usesAccountName ? '' : (selectedDefinition?.displayName ?? '').slice(0, 255)
+      );
+    }
+    if (usesAccountName && !form.getValues('title')) form.clearErrors('title');
+  }, [form, isEditMode, selectedDefinition, usesAccountName]);
   // Fields definitions have an empty label.
   const secretLabel = selectedDefinition?.secretLabel.trim()
     ? selectedDefinition.secretLabel
@@ -473,6 +494,7 @@ function CredentialFormBody({
   return (
     <Form {...form}>
       <AppForm
+        className='min-h-0'
         data-testid='credentialConfigForm'
         noValidate
         onSubmit={event => {
@@ -490,8 +512,22 @@ function CredentialFormBody({
                     Name
                   </FormLabel>
                   <FormControl>
-                    <Input {...field} maxLength={255} placeholder='Enter Credential name' />
+                    <Input
+                      {...field}
+                      maxLength={255}
+                      placeholder='Enter Credential name'
+                      onChange={event => {
+                        titleEdited.current = true;
+                        field.onChange(event);
+                      }}
+                    />
                   </FormControl>
+                  {!isEditMode && usesAccountName && (
+                    <FormDescription>
+                      If you leave the name blank, OWOX uses the account name, email, or provider
+                      name.
+                    </FormDescription>
+                  )}
                   <FormMessage />
                 </FormItem>
               )}
@@ -734,7 +770,7 @@ function CredentialFormBody({
                         {selectedDefinition?.auth?.type === 'google-service-account' ? (
                           <FileDropTextarea
                             {...field}
-                            className='min-h-[150px] font-mono'
+                            className='field-sizing-fixed max-h-64 min-h-[150px] resize-y overflow-y-auto font-mono'
                             rows={8}
                             spellCheck={false}
                             autoComplete='off'
@@ -896,7 +932,7 @@ function CredentialFormBody({
           )}
         </FormLayout>
 
-        <FormActions>
+        <FormActions className='shrink-0'>
           {(isEditMode || !(isOAuth || sourceConnectShown)) && (
             <Button
               type='submit'

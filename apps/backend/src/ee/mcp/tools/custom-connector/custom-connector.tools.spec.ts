@@ -178,7 +178,7 @@ describe('custom connector tools through the MCP SDK', () => {
     }
   );
 
-  it('maps test configuration and MCP limit names to the domain request', async () => {
+  it('maps the Credential reference, actor, configuration and MCP limits to the domain request', async () => {
     const client = await open();
     await client.callTool({
       name: 'test_custom_connector',
@@ -186,17 +186,22 @@ describe('custom connector tools through the MCP SDK', () => {
         manifest,
         node: 'items',
         configuration: { Value: 'sensitive-content' },
+        credential_id: 'credential-1',
         max_rows: 2,
         max_pages: 3,
       },
     });
-    expect(facade.test).toHaveBeenCalledWith('project-1', {
-      manifest,
-      node: 'items',
-      configuration: { Value: 'sensitive-content' },
-      maxRows: 2,
-      maxPages: 3,
-    });
+    expect(facade.test).toHaveBeenCalledWith(
+      { projectId: 'project-1', userId: 'user-1', roles: ['admin'] },
+      {
+        manifest,
+        node: 'items',
+        configuration: { Value: 'sensitive-content' },
+        credentialId: 'credential-1',
+        maxRows: 2,
+        maxPages: 3,
+      }
+    );
     expect(events[0].payload[OFFLOAD_KEY]?.arguments).toMatchObject({
       manifest: loggedManifest,
       configuration: { Value: '[REDACTED]' },
@@ -331,6 +336,11 @@ describe('custom connector tools through the MCP SDK', () => {
     ['test_custom_connector', { manifest, node: 'items', configuration: {}, max_rows: 1001 }],
     ['test_custom_connector', { manifest, node: 'items', configuration: {}, max_pages: 51 }],
     ['test_custom_connector', { manifest, node: 'items', configuration: {}, max_pages: 1.5 }],
+    ['test_custom_connector', { manifest, node: 'items', configuration: {}, credential_id: '' }],
+    [
+      'test_custom_connector',
+      { manifest, node: 'items', configuration: {}, credential: { secret: 'private-token' } },
+    ],
   ])('rejects invalid %s input before reaching the domain', async (name, args) => {
     const client = await open();
     const result = await client.callTool({
@@ -354,6 +364,218 @@ describe('custom connector tools through the MCP SDK', () => {
     });
     expect(result.isError).not.toBe(true);
   });
+
+  it.each([
+    {
+      label: 'an unmarked Authorization parameter',
+      manifest: {
+        parameters: { Value: { requiredType: 'string' } },
+        nodes: {
+          items: { request: { headers: { Authorization: 'Bearer {{ parameters.Value }}' } } },
+        },
+      },
+      configuration: { Value: 'temporary/"secret-value"' },
+    },
+    {
+      label: 'a literal api-key in a token exchange body',
+      manifest: {
+        authentication: {
+          type: 'tokenExchange',
+          exchange: { body: { 'api-key': 'temporary/"secret-value"' } },
+        },
+      },
+      configuration: {},
+    },
+    {
+      label: 'a literal X-API-Key in a token exchange header',
+      manifest: {
+        authentication: {
+          type: 'tokenExchange',
+          exchange: { headers: { 'X-API-Key': 'temporary/"secret-value"' } },
+        },
+      },
+      configuration: {},
+    },
+    {
+      label: 'a literal OAuth client secret in an authentication option',
+      manifest: {
+        parameters: {
+          Auth: {
+            oneOf: [{ value: 'oauth', oauthParams: { clientSecret: 'temporary/"secret-value"' } }],
+          },
+        },
+      },
+      configuration: {},
+    },
+    {
+      label: 'a literal secret in the request URL',
+      manifest: { baseUrl: 'https://example.test?api_key=temporary%2F%22secret-value%22' },
+      configuration: {},
+    },
+  ])('masks $label in test results and telemetry before truncating logs', async args => {
+    const client = await open();
+    const secret = 'temporary/"secret-value"';
+    const raw = {
+      rows: [{ echoed: secret, region: 'eu' }],
+      sample: [{ echoed: encodeURIComponent(secret) }],
+      logs: [`${'x'.repeat(1990)}${secret}`],
+      error: `Request rejected ${JSON.stringify(secret)}`,
+    };
+    facade.test.mockResolvedValue(raw);
+
+    const result = await client.callTool({
+      name: 'test_custom_connector',
+      arguments: { manifest: args.manifest, node: 'items', configuration: args.configuration },
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.structuredContent).toMatchObject({
+      rows: [{ echoed: '[REDACTED]', region: 'eu' }],
+      sample: [{ echoed: '[REDACTED]' }],
+      error: 'Request rejected "[REDACTED]"',
+    });
+    expect(result.content[0]).toEqual({ type: 'text', text: 'Request rejected "[REDACTED]"' });
+    expect(JSON.stringify({ result, events })).not.toContain('temporary');
+    expect(raw.rows[0].echoed).toBe(secret);
+  });
+
+  it.each(['sk_live_A1B2C3D4', 123456, '123456', 'sample'])(
+    'masks the temporary key %j in every result position and telemetry',
+    async secret => {
+      const client = await open();
+      const text = String(secret);
+      const echo = text === '123456' ? 123456 : secret;
+      const raw = {
+        rows: [{ [text]: { echoed: echo }, region: 'eu', count: 7 }],
+        sample: [{ [`prefix-${text}`]: [text, { echoed: echo }] }],
+        logs: [`Received ${text}`],
+        error: `Rejected ${text}`,
+      };
+      const before = structuredClone(raw);
+      facade.test.mockResolvedValue(raw);
+
+      const result = await client.callTool({
+        name: 'test_custom_connector',
+        arguments: { manifest, node: 'items', configuration: { Value: secret } },
+      });
+
+      expect(result.isError).toBe(true);
+      expect(result.structuredContent).toEqual({
+        rows: [{ '[REDACTED]': { echoed: '[REDACTED]' }, region: 'eu', count: 7 }],
+        sample: [{ 'prefix-[REDACTED]': ['[REDACTED]', { echoed: '[REDACTED]' }] }],
+        logs: ['Received [REDACTED]'],
+        error: 'Rejected [REDACTED]',
+      });
+      expect(result.content[0]).toEqual({ type: 'text', text: 'Rejected [REDACTED]' });
+      expect(JSON.parse((result.content[1] as { text: string }).text)).toEqual(
+        result.structuredContent
+      );
+      expect(events[0].payload.error_message).toBe('Rejected [REDACTED]');
+      expect(events[0].payload[OFFLOAD_KEY]?.arguments).toMatchObject({
+        configuration: { Value: '[REDACTED]' },
+      });
+      const logged = events[0].payload[OFFLOAD_KEY]?.result as Record<string, unknown>;
+      expect(logged.rows).toEqual((result.structuredContent as Record<string, unknown>).rows);
+      expect(raw).toEqual(before);
+    }
+  );
+
+  it.each([false, true])(
+    'preserves provider data with public token counters in input: %s',
+    async withCounters => {
+      const client = await open();
+      const row = {
+        id: 'inv_1500',
+        amount: 1500,
+        errors: 0,
+        total_tokens: 1500,
+        cached_tokens: 0,
+        password_changed_at: '2026-11-04',
+        updated_at: '2026-11-04',
+        authorization_status: 'approved',
+        status: 'approved',
+        NextToken: 'page-1500',
+        next_page: 'page-1500',
+      };
+      const raw = {
+        rows: [row],
+        sample: [row],
+        logs: ['inv_1500 took 1500 ms with 0 errors on 2026-11-04; approved; page-1500'],
+        error: null,
+      };
+      const before = structuredClone(raw);
+      facade.test.mockResolvedValue(raw);
+
+      const result = await client.callTool({
+        name: 'test_custom_connector',
+        arguments: {
+          manifest: {
+            nodes: {
+              items: {
+                request: {
+                  path: '/items?cached_tokens=0',
+                  queryParameters: { total_tokens: '{{ parameters.total_tokens }}' },
+                },
+              },
+            },
+            ...(withCounters
+              ? { parameters: { total_tokens: { default: 1500 }, cached_tokens: { default: 0 } } }
+              : {}),
+          },
+          node: 'items',
+          configuration: withCounters ? { total_tokens: 1500, cached_tokens: 0 } : {},
+        },
+      });
+
+      expect(result.isError).not.toBe(true);
+      expect(result.structuredContent).toEqual(before);
+      expect(JSON.parse((result.content[0] as { text: string }).text)).toEqual(before);
+      expect(events[0].payload[OFFLOAD_KEY]?.result).toEqual(before);
+      expect(raw).toEqual(before);
+    }
+  );
+
+  it('masks a zero-valued temporary key as complete values and keys', async () => {
+    const client = await open();
+    facade.test.mockResolvedValue({
+      rows: [{ value: 0, id: 'inv_1500', amount: 1500 }],
+      sample: [{ '0': 0 }],
+      logs: ['0', 'took 1500 ms'],
+      error: '0',
+    });
+
+    const result = await client.callTool({
+      name: 'test_custom_connector',
+      arguments: { manifest, node: 'items', configuration: { Value: 0 } },
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.structuredContent).toEqual({
+      rows: [{ value: '[REDACTED]', id: 'inv_1500', amount: 1500 }],
+      sample: [{ '[REDACTED]': '[REDACTED]' }],
+      logs: ['[REDACTED]', 'took 1500 ms'],
+      error: '[REDACTED]',
+    });
+    expect(events[0].payload.error_message).toBe('[REDACTED]');
+    expect(events[0].payload[OFFLOAD_KEY]?.result).toEqual(result.structuredContent);
+  });
+
+  it.each(['runtime-secret', 123456, '123456'])(
+    'masks the temporary key %j in a thrown error and its telemetry',
+    async secret => {
+      const client = await open();
+      facade.test.mockRejectedValue(new Error(`Rejected ${secret}`));
+
+      const result = await client.callTool({
+        name: 'test_custom_connector',
+        arguments: { manifest, node: 'items', configuration: { Value: secret } },
+      });
+
+      expect(result.isError).toBe(true);
+      expect(result.content).toEqual([{ type: 'text', text: 'Rejected [REDACTED]' }]);
+      expect(JSON.stringify({ result, events })).not.toContain(String(secret));
+    }
+  );
 
   it('reports a failed test without copying partial upstream data into inline telemetry', async () => {
     const client = await open();
@@ -392,8 +614,8 @@ describe('custom connector tools through the MCP SDK', () => {
     expect(offload).toMatchObject({
       arguments: { configuration: { Value: '[REDACTED]' }, manifest: loggedManifest },
       result: {
-        rows: [{ email: 'private@example.test', password: '[REDACTED]' }],
-        sample: [{ access_token: '[REDACTED]' }],
+        rows: [{ email: 'private@example.test', password: 'private-password' }],
+        sample: [{ access_token: 'private-sample-token' }],
         logs: ['Fetched one row using ***'],
         error: 'Request failed using ***',
       },

@@ -6,6 +6,7 @@ import { projectReducer, setProject, type ProjectState } from './reducers/projec
 import { flagsReducer, fetchFlags, type FlagsState } from './reducers/flags.reducer';
 import { useAuth } from '../../features/idp';
 import { AuthStatus } from '../../features/idp';
+import { getConnectProjectTarget } from '../../features/idp/utils/connect-project';
 import { LoadingSpinner } from '@owox/ui/components/common/loading-spinner';
 import { RequestStatus } from '../../shared/types/request-status.ts';
 import {
@@ -82,6 +83,16 @@ export function AppBootstrap({ children }: { children: React.ReactNode }) {
   }, [status, user?.projectId, hasEmptyProjectRoles, flagsStatus, dispatch]);
 
   const loader = useMemo(() => <LoadingSpinner fullScreen message='Loading application...' />, []);
+
+  // Connect routes must show their auth error and retry action before app flags can load.
+  if (
+    status === AuthStatus.ERROR &&
+    getConnectProjectTarget(
+      window.location.pathname + window.location.search + window.location.hash
+    )
+  ) {
+    return <>{children}</>;
+  }
 
   if (!isReady) {
     if (flagsStatus === RequestStatus.ERROR) {

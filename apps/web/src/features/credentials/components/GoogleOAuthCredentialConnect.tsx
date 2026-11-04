@@ -1,6 +1,6 @@
 import { CopyableField } from '@owox/ui/components/common/copyable-field';
 import { FormItem } from '@owox/ui/components/form';
-import { useState } from 'react';
+import { useContext, useEffect, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import { wasErrorToastShown } from '../../../app/api';
 import { apiErrorMessage } from '../../../app/api/extract-api-error.util';
@@ -12,6 +12,7 @@ import {
 import { isOAuthMetadata, type Credential } from '../types';
 import { credentialFieldHelp, HelpLabel } from './CredentialHelp';
 import { useCredentialActions, useGoogleOAuthAvailable } from '../useCredentials';
+import { CredentialSetupRecoveryContext } from '../credential-setup-recovery';
 
 const QUICK_CONNECT_TOOLTIP = 'Authorize OWOX to access your Google Sheets';
 
@@ -42,8 +43,17 @@ export function GoogleOAuthCredentialConnect({
   const quick = variant === 'quick-connect';
   const available = useGoogleOAuthAvailable(client);
   const actions = useCredentialActions();
+  const recordOAuthSave = useContext(CredentialSetupRecoveryContext);
   const [connecting, setConnecting] = useState(false);
   const [connectError, setConnectError] = useState<string | null>(null);
+  const mounted = useRef(true);
+  const isMounted = () => mounted.current;
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
   const account = isOAuthMetadata(credential?.publicMetadata)
     ? credential.publicMetadata.account
     : null;
@@ -54,6 +64,7 @@ export function GoogleOAuthCredentialConnect({
   const connected = Boolean(credential) && credential?.validationState !== 'rejected';
 
   const connect = async () => {
+    if (!isMounted()) return;
     setConnecting(true);
     setConnectError(null);
     try {
@@ -65,7 +76,9 @@ export function GoogleOAuthCredentialConnect({
         ...(credential ? { credentialId: credential.id } : {}),
         ...(quick ? { skipErrorToast: true } : {}),
       });
+      if (!isMounted()) return;
       const { code, state } = await openGoogleOAuthPopup(authorizationUrl);
+      if (!isMounted()) return;
       const title = draft.title.trim();
       const saved = await actions.exchangeGoogleOAuth({
         ...(credential
@@ -79,8 +92,10 @@ export function GoogleOAuthCredentialConnect({
             }),
         ...(quick ? { skipErrorToast: true } : {}),
       });
-      onConnected(saved);
+      recordOAuthSave?.(saved.id, !isMounted());
+      if (isMounted()) onConnected(saved);
     } catch (caught) {
+      if (!isMounted()) return;
       if (caught instanceof GoogleOAuthPopupClosedError) return;
       if (quick) {
         setConnectError(
@@ -90,7 +105,7 @@ export function GoogleOAuthCredentialConnect({
         toast.error(apiErrorMessage(caught, 'Could not connect your Google account'));
       }
     } finally {
-      setConnecting(false);
+      if (isMounted()) setConnecting(false);
     }
   };
 

@@ -322,3 +322,16 @@ export interface GoogleOAuthExchangeRequest {
   availableForUse?: boolean;
   availableForMaintenance?: boolean;
 }
+
+/** Browser setup state contains no provider secrets or authorization material. */
+export interface CredentialSetup {
+  id: string;
+  mode: 'create' | 'update';
+  status: 'pending' | 'completed' | 'cancelled' | 'expired';
+  definitionId: string | null;
+  credentialId: string | null;
+  title: string | null;
+  createdAt: string;
+  expiresAt: string;
+  completedAt: string | null;
+}

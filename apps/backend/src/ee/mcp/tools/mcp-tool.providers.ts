@@ -42,8 +42,26 @@ import { ActivateCustomConnectorVersionTool } from './custom-connector/activate-
 import { DeleteCustomConnectorTool } from './custom-connector/delete-custom-connector.tool';
 import { GetCustomConnectorSpecificationTool } from './custom-connector/get-custom-connector-specification.tool';
 import { GetCustomConnectorFieldsTool } from './custom-connector/get-custom-connector-fields.tool';
+import { ListCredentialDefinitionsTool } from './credential/list-credential-definitions.tool';
+import { ListCredentialsTool } from './credential/list-credentials.tool';
+import { GetCredentialTool } from './credential/get-credential.tool';
+import { UpdateCredentialTool } from './credential/update-credential.tool';
+import { ValidateCredentialTool } from './credential/validate-credential.tool';
+import { ConsentCredentialDefinitionTool } from './credential/consent-credential-definition.tool';
+import { DeleteCredentialTool } from './credential/delete-credential.tool';
+import { StartCredentialSetupTool } from './credential/start-credential-setup.tool';
+import { GetCredentialSetupStatusTool } from './credential/get-credential-setup-status.tool';
 
 export const MCP_TOOL_PROVIDER_CLASSES: Array<Type<McpToolDefinition>> = [
+  ListCredentialDefinitionsTool,
+  ListCredentialsTool,
+  GetCredentialTool,
+  UpdateCredentialTool,
+  ValidateCredentialTool,
+  ConsentCredentialDefinitionTool,
+  DeleteCredentialTool,
+  StartCredentialSetupTool,
+  GetCredentialSetupStatusTool,
   ListContextsTool,
   ListCustomConnectorsTool,
   GetCustomConnectorTool,

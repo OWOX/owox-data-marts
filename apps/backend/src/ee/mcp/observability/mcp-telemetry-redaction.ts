@@ -1,15 +1,19 @@
 import { Core } from '@owox/connectors';
 import { z } from 'zod';
+import { createSecretRedactor } from '../../../common/utils/secret-redaction';
+import { credentialListItemSchema } from '../tools/credential/credential.schemas';
 
 export const REDACT_KEYS =
-  /(authorization|bearer|cookie|token|secret|password|passwd|api[_-]?key|private[_-]?key|credential)/i;
+  /(authorization|bearer|cookie|token|secret|password|passwd|api[_-]?key|private[_-]?key|credential(?![_-]?id$))/i;
 export const REDACTED = '[REDACTED]';
 const MAX_DEPTH = 16;
 const objectSchema = z.record(z.string(), z.unknown());
 const connectorPayloadSchema = z.object({ manifest: objectSchema }).loose();
+const credentialListSchema = z.array(credentialListItemSchema);
 
 interface RedactionContext {
   connector: boolean;
+  inferCredentialNames: boolean;
   secretNames: Set<string>;
   secretValues: Set<string>;
 }
@@ -24,8 +28,16 @@ function isCredentialName(name: string): boolean {
   return REDACT_KEYS.test(name) || /(?:access|subscription|app|auth|secret)key/.test(normalized);
 }
 
-function isRequestCredentialName(name: string): boolean {
-  return isCredentialName(name) || /^(?:key|auth|appid)$/i.test(name);
+function isRequestCredentialName(name: string, inferCredentialNames: boolean): boolean {
+  if (inferCredentialNames) return isCredentialName(name) || /^(?:key|auth|appid)$/i.test(name);
+  const normalized = name.replace(/[_\-\s]/g, '').toLowerCase();
+  return (
+    /^(?:(?:x|proxy)?authorization|bearer|cookie|password|passwd|token|clientsecret|key|auth|appid)$/.test(
+      normalized
+    ) ||
+    /(?:api|access|subscription|app|auth|secret|private)key$/.test(normalized) ||
+    /(?:api|access|refresh|developer|personalaccess|auth|session|bearer)token$/.test(normalized)
+  );
 }
 
 function isCredentialReference(value: string): boolean {
@@ -54,6 +66,8 @@ function rememberSecret(value: unknown, context: RedactionContext, depth = 0): v
     context.secretValues.add(value);
     const unprefixed = value.replace(/^(?:Bearer|Basic|ApiKey|Token)\s+/i, '');
     if (unprefixed) context.secretValues.add(unprefixed);
+  } else if (typeof value === 'number' && Number.isFinite(value)) {
+    context.secretValues.add(String(value));
   } else if (value && typeof value === 'object') {
     for (const item of Object.values(value)) rememberSecret(item, context, depth + 1);
   }
@@ -66,6 +80,23 @@ function redactCredential(value: unknown, context: RedactionContext, depth = 0):
     return Object.fromEntries(
       Object.entries(value).map(([key, item]) => [key, redactCredential(item, context, depth + 1)])
     );
+  }
+  if (typeof value === 'string' && value.includes('{{')) {
+    try {
+      new Core.TemplateEngine().render(
+        value,
+        {},
+        {
+          lenient: true,
+          onUnresolved: (path: string) => {
+            const [scope, name] = path.split('.');
+            if (scope === 'parameters' && name) context.secretNames.add(name);
+          },
+        }
+      );
+    } catch {
+      // Invalid templates are still masked as credential values.
+    }
   }
   if (value == null || value === '' || (typeof value === 'string' && isCredentialReference(value)))
     return value;
@@ -97,7 +128,7 @@ function redactUrlCredentials(text: string, context: RedactionContext): string {
         } catch {
           /* unfinished URL */
         }
-        if (!isRequestCredentialName(decodedName)) return match;
+        if (!isRequestCredentialName(decodedName, context.inferCredentialNames)) return match;
         return `${separator}${name}=${redactCredential(decodedValue, context) === decodedValue ? value : REDACTED}`;
       }
     );
@@ -110,6 +141,13 @@ function redact(value: unknown, context: RedactionContext, depth = 0, container 
   if (!value || typeof value !== 'object') return value;
   const out: Record<string, unknown> = Object.create(null);
   for (const [key, item] of Object.entries(value)) {
+    if (!context.connector && key === 'credentials') {
+      const metadata = credentialListSchema.safeParse(item);
+      if (metadata.success) {
+        out[key] = redact(metadata.data, context, depth + 1, key);
+        continue;
+      }
+    }
     if (context.connector && container === 'oauthParams' && key === 'vars') {
       out[key] = maskParameters(item, context, depth + 1);
       continue;
@@ -120,9 +158,10 @@ function redact(value: unknown, context: RedactionContext, depth = 0, container 
       !schemaName &&
       (namedSecret ||
         (context.connector
-          ? isCredentialName(key) ||
+          ? ((context.inferCredentialNames || container === 'oauthParams') &&
+              isCredentialName(key)) ||
             ((container === 'headers' || container === 'queryParameters') &&
-              isRequestCredentialName(key))
+              isRequestCredentialName(key, context.inferCredentialNames))
           : REDACT_KEYS.test(key)));
     if (credential) {
       rememberSecret(item, context);
@@ -140,7 +179,7 @@ function maskParameters(value: unknown, context: RedactionContext, depth = 0): u
   if (!parsed.success) return redactCredential(value, context, depth);
   return Object.fromEntries(
     Object.entries(parsed.data).map(([name, raw]) => {
-      if (isCredentialName(name)) context.secretNames.add(name);
+      if (context.inferCredentialNames && isCredentialName(name)) context.secretNames.add(name);
       const definition = objectSchema.safeParse(raw);
       if (!definition.success) {
         if (context.secretNames.has(name)) {
@@ -195,7 +234,6 @@ function maskPayload(value: unknown, context: RedactionContext): unknown {
   for (const name of parser.getAuthenticationParameterNames(manifest.authentication))
     context.secretNames.add(name);
   const { parameters, authentication, ...manifestContent } = manifest;
-  const maskedParameters = maskParameters(parameters, context);
   const maskedManifest = {
     ...(redact(manifestContent, context) as Record<string, unknown>),
     ...('authentication' in manifest
@@ -207,7 +245,7 @@ function maskPayload(value: unknown, context: RedactionContext): unknown {
           ),
         }
       : {}),
-    ...('parameters' in manifest ? { parameters: maskedParameters } : {}),
+    ...('parameters' in manifest ? { parameters: maskParameters(parameters, context) } : {}),
   };
   return {
     ...(redact(rest, context) as Record<string, unknown>),
@@ -216,47 +254,33 @@ function maskPayload(value: unknown, context: RedactionContext): unknown {
   };
 }
 
-function replaceKnownSecrets(value: unknown, secrets: readonly string[]): unknown {
-  if (typeof value === 'string') {
-    if (isCredentialReference(value)) return value;
-    let result = value;
-    for (const secret of secrets) {
-      if (result === secret) return REDACTED;
-      // Short values are masked at credential positions, not inside ordinary words.
-      if (secret.length >= 4) result = result.split(secret).join(REDACTED);
-    }
-    return result;
-  }
-  if (Array.isArray(value)) return value.map(item => replaceKnownSecrets(item, secrets));
-  if (value && typeof value === 'object') {
-    return Object.fromEntries(
-      Object.entries(value).map(([key, item]) => [key, replaceKnownSecrets(item, secrets)])
-    );
-  }
-  return value;
+/** Derive secrets from request credentials, never from arbitrary provider fields. */
+export function createMcpInputSecretRedactor(input: unknown): (value: unknown) => unknown {
+  const context: RedactionContext = {
+    connector: false,
+    inferCredentialNames: false,
+    secretNames: new Set(),
+    secretValues: new Set(),
+  };
+  maskPayload(input, context);
+  return createSecretRedactor(context.secretValues, {
+    replacement: REDACTED,
+    minimumSubstringLength: 4,
+  });
 }
 
 export function redactMcpTelemetry(value: unknown, input?: unknown): unknown {
   const context: RedactionContext = {
     connector: false,
+    inferCredentialNames: true,
     secretNames: new Set(),
     secretValues: new Set(),
   };
   if (input !== undefined && input !== value) maskPayload(input, context);
   const masked = maskPayload(value, context);
   if (context.secretValues.size === 0) return masked;
-  const forms = new Set<string>();
-  for (const secret of context.secretValues) {
-    forms.add(secret);
-    forms.add(JSON.stringify(secret).slice(1, -1));
-    try {
-      forms.add(encodeURIComponent(secret));
-    } catch {
-      /* JSON drafts can contain unpaired Unicode surrogates. */
-    }
-  }
-  return replaceKnownSecrets(
-    masked,
-    [...forms].sort((a, b) => b.length - a.length)
-  );
+  return createSecretRedactor(context.secretValues, {
+    replacement: REDACTED,
+    minimumSubstringLength: 4,
+  })(masked);
 }

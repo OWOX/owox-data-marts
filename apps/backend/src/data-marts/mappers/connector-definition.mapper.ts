@@ -145,7 +145,7 @@ export class ConnectorDefinitionMapper {
     return new GetCustomConnectorFieldsCommand(projectId, connectorId, version);
   }
 
-  /** Without `caller.credentialId` the test runs on the typed values, as MCP tests do. */
+  /** Tests can use temporary keys or a saved Credential. */
   toTestCommand(
     projectId: string,
     input: CustomConnectorTestInput,

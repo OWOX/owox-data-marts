@@ -1,9 +1,24 @@
 import type { McpAuthContext } from '../auth/mcp-auth-context';
 import type { McpDataDestinationsFacade } from '../../../data-marts/facades/mcp-data-destinations.facade';
 import type { PublicOriginService } from '../../../common/config/public-origin.service';
+import type {
+  CredentialSetupDto,
+  McpCredentialsFacade,
+} from '../../../data-marts/credentials/facades/mcp-credentials.facade';
 import { AddDestinationTool } from './add-destination.tool';
 
 describe('AddDestinationTool', () => {
+  const setup: CredentialSetupDto = {
+    id: 'setup-1',
+    mode: 'create',
+    status: 'pending',
+    definitionId: 'google-sheets-oauth',
+    credentialId: null,
+    title: null,
+    createdAt: new Date('2026-11-02T12:00:00Z'),
+    expiresAt: new Date('2026-11-02T12:30:00Z'),
+    completedAt: null,
+  };
   const context: McpAuthContext = {
     clientId: 'mcp-client-1',
     userId: 'user-1',
@@ -16,6 +31,7 @@ describe('AddDestinationTool', () => {
 
   let destinationsFacade: jest.Mocked<McpDataDestinationsFacade>;
   let publicOriginService: jest.Mocked<PublicOriginService>;
+  let credentialsFacade: jest.Mocked<Pick<McpCredentialsFacade, 'startSetup'>>;
   let tool: AddDestinationTool;
 
   beforeEach(() => {
@@ -26,8 +42,15 @@ describe('AddDestinationTool', () => {
     publicOriginService = {
       getPublicOrigin: jest.fn(() => 'https://app.owox.com'),
     } as unknown as jest.Mocked<PublicOriginService>;
+    credentialsFacade = {
+      startSetup: jest.fn().mockResolvedValue(setup),
+    };
 
-    tool = new AddDestinationTool(destinationsFacade, publicOriginService);
+    tool = new AddDestinationTool(
+      destinationsFacade,
+      publicOriginService,
+      credentialsFacade as never
+    );
   });
 
   it('describes metadata properly', () => {
@@ -42,8 +65,8 @@ describe('AddDestinationTool', () => {
       },
     });
     expect(tool.description).toContain('google_sheets');
-    expect(tool.description).toContain('channel-email delivery only');
-    expect(tool.description).toContain('secret URL');
+    expect(tool.description).toContain('credential_id');
+    expect(tool.description).toContain('webhook');
     expect(tool.description).toContain('looker_studio');
   });
 
@@ -71,40 +94,43 @@ describe('AddDestinationTool', () => {
     // creation flow for it. Refusing it here — instead of letting it fall through to the
     // "no creation flow is implemented" backstop — keeps the option out of what an agent
     // is shown in the first place.
-    expect(tool.zodSchema.destination_type.options).not.toContain('excel');
+    expect(tool.zodSchema.shape.destination_type.options).not.toContain('excel');
     expect(() => tool.parseInput({ destination_type: 'excel' })).toThrow();
   });
 
-  // No role gate here: creating a destination has no parent entity to check access
-  // against (unlike reports/schedules, which check access on the data mart/report they
-  // attach to), and the REST API allows any project member (viewer included) to create
-  // one via POST /data-destinations — this tool matches that, not a stricter policy.
-  it('allows creation for a caller with only the viewer role', async () => {
+  it('allows a viewer to start Google Sheets Credential setup', async () => {
     const result = await tool.handler({ destination_type: 'google_sheets' }, context);
 
     const structured = result.structuredContent as any;
-    expect(structured.authorization_url).toContain('/ui/project-1/connect/google-sheets');
+    expect(structured.authorization_url).toContain('/ui/project-1/connect/credentials/setup-1');
+    expect(credentialsFacade.startSetup).toHaveBeenCalledWith(
+      { projectId: context.projectId, userId: context.userId, roles: ['viewer'] },
+      { definitionId: 'google-sheets-oauth' }
+    );
+    expect(destinationsFacade.createDestination).not.toHaveBeenCalled();
   });
 
-  it('builds a Connect Google Sheets page link with defaults', async () => {
+  it('returns the exact Credential setup request without creating a destination', async () => {
     const result = await tool.handler({ destination_type: 'google_sheets' }, context);
 
     const structured = result.structuredContent as any;
     expect(structured.authorization_url).toBe(
-      'https://app.owox.com/ui/project-1/connect/google-sheets'
+      'https://app.owox.com/ui/project-1/connect/credentials/setup-1'
     );
-    expect(structured.instructions).toContain('signed in to OWOX');
+    expect(structured.setup_id).toBe('setup-1');
+    expect(structured.instructions).toContain('Sign in to OWOX');
     expect(structured.instructions).toContain('member of');
     expect(structured.instructions).toContain('same account');
-    // No destination_id is returned for google_sheets — the entity doesn't exist yet —
-    // and the agent must be told explicitly how to find it afterward.
     expect(structured.destination_id).toBeUndefined();
-    expect(structured.instructions).toContain('does NOT include a destination_id');
-    expect(structured.instructions).toContain('list_destinations');
-    expect(structured.instructions).toContain('never pick by createdAt');
-    expect(structured.instructions).toContain('cannot be predicted in advance');
-    expect(structured.instructions).toContain('connectedGoogleAccount');
-    expect(structured.instructions).toContain('ask the user which one they mean');
+    expect(structured.instructions).toContain('does not create a destination');
+    expect(structured.instructions).toContain('get_credential_setup_status');
+    expect(structured.instructions).toContain('exact credential_id');
+    expect(structured.instructions).toContain('call add_destination again');
+    expect(structured.instructions).not.toContain('list_destinations');
+    expect(structured.instructions).not.toContain('createdAt');
+    expect(structured.instructions).not.toContain('connectedGoogleAccount');
+    expect(destinationsFacade.createDestination).not.toHaveBeenCalled();
+    expect(destinationsFacade.listDestinations).not.toHaveBeenCalled();
 
     expect(result.content[0]).toEqual({
       type: 'text',
@@ -112,10 +138,7 @@ describe('AddDestinationTool', () => {
     });
   });
 
-  // The Connect Google Sheets page never pre-fills its Title field from a link — an
-  // unverified query param isn't proof of what the user wants — so `title` is ignored
-  // entirely for google_sheets, unlike the directly-created types below.
-  it('ignores the title parameter for google_sheets — no query param on the link at all', async () => {
+  it('keeps the requested destination title separate from the browser Credential title', async () => {
     const result = await tool.handler(
       { destination_type: 'google_sheets', title: 'My Google Sheets' },
       context
@@ -123,8 +146,66 @@ describe('AddDestinationTool', () => {
 
     const structured = result.structuredContent as any;
     const url = new URL(structured.authorization_url);
-    expect(url.pathname).toBe('/ui/project-1/connect/google-sheets');
+    expect(url.pathname).toBe('/ui/project-1/connect/credentials/setup-1');
     expect(url.search).toBe('');
+    expect(structured.instructions).toContain('title "My Google Sheets"');
+    expect(structured.instructions).toContain('The form title names the Credential');
+    expect(credentialsFacade.startSetup).toHaveBeenCalledWith(expect.anything(), {
+      definitionId: 'google-sheets-oauth',
+    });
+  });
+
+  it('creates the destination only when the follow-up supplies the exact Credential ID', async () => {
+    await tool.handler({ destination_type: 'google_sheets', title: 'Marketing export' }, context);
+    expect(destinationsFacade.createDestination).not.toHaveBeenCalled();
+    destinationsFacade.createDestination.mockResolvedValue({
+      id: 'destination',
+      name: 'Marketing export',
+    });
+
+    const result = await tool.handler(
+      {
+        destination_type: 'google_sheets',
+        credential_id: 'credential-from-status',
+        title: 'Marketing export',
+      },
+      context
+    );
+
+    expect(credentialsFacade.startSetup).toHaveBeenCalledTimes(1);
+    expect(destinationsFacade.createDestination).toHaveBeenCalledTimes(1);
+    expect(destinationsFacade.createDestination).toHaveBeenCalledWith(
+      expect.objectContaining({
+        credentialId: 'credential-from-status',
+        title: 'Marketing export',
+      })
+    );
+    expect(result.structuredContent).toMatchObject({ destination_id: 'destination' });
+    expect(result.structuredContent).not.toHaveProperty('setup_id');
+  });
+
+  it('encodes the project and setup ID in the shared Credential setup route', async () => {
+    credentialsFacade.startSetup.mockResolvedValueOnce({
+      ...setup,
+      id: 'setup /#é',
+    });
+    const result = await tool.handler(
+      { destination_type: 'google_sheets' },
+      { ...context, projectId: 'project /?é' }
+    );
+    expect(result.structuredContent).toMatchObject({
+      setup_id: 'setup /#é',
+      authorization_url:
+        'https://app.owox.com/ui/project%20%2F%3F%C3%A9/connect/credentials/setup%20%2F%23%C3%A9',
+    });
+  });
+
+  it('does not create a destination if Credential setup fails', async () => {
+    credentialsFacade.startSetup.mockRejectedValueOnce(new Error('Setup denied'));
+    await expect(tool.handler({ destination_type: 'google_sheets' }, context)).rejects.toThrow(
+      'Setup denied'
+    );
+    expect(destinationsFacade.createDestination).not.toHaveBeenCalled();
   });
 
   it('supports direct creation of email-based destination if emails are provided', async () => {
@@ -154,6 +235,52 @@ describe('AddDestinationTool', () => {
     const structured = result.structuredContent as any;
     expect(structured.destination_id).toBe('new-dest-id');
     expect(structured.instructions).toContain('Successfully connected Email destination');
+  });
+
+  it.each(['google_sheets', 'google_chat'] as const)(
+    'creates %s from a saved Credential without a browser handoff or secret fields',
+    async destinationType => {
+      destinationsFacade.createDestination.mockResolvedValue({ id: 'new-dest', name: 'My target' });
+
+      const result = await tool.handler(
+        { destination_type: destinationType, title: 'My target', credential_id: 'credential-1' },
+        context
+      );
+
+      expect(destinationsFacade.createDestination).toHaveBeenCalledWith({
+        projectId: context.projectId,
+        userId: context.userId,
+        roles: context.roles,
+        type: destinationType,
+        title: 'My target',
+        credentialId: 'credential-1',
+      });
+      expect(result.structuredContent).toEqual({
+        destination_id: 'new-dest',
+        destination_url: 'https://app.owox.com/ui/project-1/data-destinations?id=new-dest',
+        instructions: expect.stringContaining('Successfully connected'),
+      });
+      expect(credentialsFacade.startSetup).not.toHaveBeenCalled();
+    }
+  );
+
+  it.each([
+    { destination_type: 'google_chat', credential_id: 'credential-1', emails: [] },
+    { destination_type: 'google_sheets', credential_id: 'credential-1', emails: ['a@b.test'] },
+    { destination_type: 'email', credential_id: 'credential-1', emails: ['a@b.test'] },
+    { destination_type: 'looker_studio', credential_id: 'credential-1' },
+    { destination_type: 'google_sheets', credential_id: '' },
+    { destination_type: 'google_sheets', credential_id: 'credential-1', secret: 'private-token' },
+  ])('rejects invalid Credential input before creating anything: %j', async input => {
+    await expect(tool.handler(input as never, context)).rejects.toThrow();
+    expect(destinationsFacade.createDestination).not.toHaveBeenCalled();
+    expect(credentialsFacade.startSetup).not.toHaveBeenCalled();
+  });
+
+  it('exposes the complete strict schema to the SDK', () => {
+    expect(() =>
+      tool.zodSchema.parse({ destination_type: 'google_sheets', secret: 'private-token' })
+    ).toThrow();
   });
 
   it('supports direct creation of looker_studio destination without returning credentials', async () => {

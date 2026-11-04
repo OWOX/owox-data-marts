@@ -41,7 +41,6 @@ export class TestCustomConnectorService {
   }: TestCustomConnectorCommand): Promise<CustomConnectorTestResultDto> {
     if (!caller) return this.tests.runTest({ ...input, projectId });
 
-    const { credentialId, userId, roles } = caller;
     const { manifest, node, configuration } = input;
     // The runner gets only this node, so fit and misuse are judged on it, not its siblings.
     const runs = this.tests.pruneToNode(manifest, node);
@@ -53,10 +52,11 @@ export class TestCustomConnectorService {
     const typed = Object.keys(configuration).filter(name => model.keyParameters.includes(name));
     if (typed.length > 0) {
       throw new BadRequestException(
-        `Remove ${typed.join(', ')} from the configuration: the Credential provides the keys.`
+        `Remove ${typed.join(', ')} from the configuration. The selected Credential supplies these keys.`
       );
     }
 
+    const { credentialId, userId, roles } = caller;
     const connectorName = String(manifest.name ?? 'Custom');
     await this.sourceCredentials.checkConfigCredential({
       projectId,

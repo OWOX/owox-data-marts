@@ -14,6 +14,29 @@ describe('MCP instructions', () => {
     expect(service.getInstructions()).toBe(MCP_SYSTEM_INSTRUCTIONS);
   });
 
+  it('keeps saved Credential secrets in browser setup and permits temporary connector tests', () => {
+    expect(MCP_SYSTEM_INSTRUCTIONS).toContain('start_credential_setup');
+    expect(MCP_SYSTEM_INSTRUCTIONS).toContain('get_credential_setup_status');
+    expect(MCP_SYSTEM_INSTRUCTIONS).toContain('wait_seconds');
+    expect(MCP_SYSTEM_INSTRUCTIONS).toContain(
+      'Never accept provider secrets in Credential management tool arguments'
+    );
+    expect(MCP_SYSTEM_INSTRUCTIONS).toContain('Completion does not prove provider validation');
+    expect(MCP_SYSTEM_INSTRUCTIONS).toContain(
+      'Do not promise a background completion notification'
+    );
+    expect(MCP_SYSTEM_INSTRUCTIONS).toContain(
+      'If the user chooses a test with temporary keys, omit credential_id'
+    );
+  });
+
+  it('uses the exact saved Credential when creating a Google Sheets destination', () => {
+    expect(MCP_SYSTEM_INSTRUCTIONS).toContain('add_destination returns setup_id');
+    expect(MCP_SYSTEM_INSTRUCTIONS).toContain('call get_credential_setup_status');
+    expect(MCP_SYSTEM_INSTRUCTIONS).toContain('call add_destination again');
+    expect(MCP_SYSTEM_INSTRUCTIONS).toContain('The browser title names the Credential');
+  });
+
   // The rule the tool ENFORCES (UniqueCountFieldUnsupportedClauseError): a model that reads only
   // half of it retries the same rejected call, since the error tells it to drop the clause rather
   // than to add the field back to "fields". Both halves have to survive an instructions edit.

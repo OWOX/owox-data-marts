@@ -129,6 +129,9 @@ if (process.env.FAKE_IGNORE_SIGTERM === '1') {
   const params = Object.fromEntries(
     Object.entries(cfg.source.config).map(([name, parameter]) => [name, parameter.value])
   );
+  // Echo credential values as property names and numeric values.
+  const echoed = Object.fromEntries(Object.values(params).map(value => [String(value), value]));
+  const record = { ...params, echoed };
   const rotated = 'rotated-token-from-provider';
   const query = Object.entries(params)
     .map(([name, value]) => `${name}=${encodeURIComponent(String(value))}`)
@@ -138,12 +141,12 @@ if (process.env.FAKE_IGNORE_SIGTERM === '1') {
   process.stdout.write(
     JSON.stringify({ type: 'LOG', level: 'info', message: Object.values(params).join(' ') }) + '\n'
   );
-  process.stdout.write(JSON.stringify({ type: 'SAMPLE', records: [params] }) + '\n');
+  process.stdout.write(JSON.stringify({ type: 'SAMPLE', records: [record] }) + '\n');
   process.stdout.write(
     JSON.stringify({ type: 'CREDENTIALS', credentials: { generated_refresh_token: rotated } }) +
       '\n'
   );
-  process.stdout.write(`${MARKER}${JSON.stringify({ ...params, rotated })}\n`);
+  process.stdout.write(`${MARKER}${JSON.stringify({ ...record, rotated })}\n`);
   process.exit(0);
 } else if (process.env.FAKE_BIG_ROWS === '1') {
   // Rows each under the per-line cap that add up to far more than one test may hold.
