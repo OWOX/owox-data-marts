@@ -22,6 +22,8 @@ function makeService(dataMarts: unknown[] = [], managed: unknown = null) {
   const storageCredentials = { deactivateStorage: jest.fn().mockResolvedValue(undefined) };
   const managedStorages = {
     findByStorageId: jest.fn().mockResolvedValue(managed),
+    markDeleting: jest.fn().mockResolvedValue(true),
+    setDeprovisionPending: jest.fn().mockResolvedValue(undefined),
     remove: jest.fn().mockResolvedValue(undefined),
   };
   const engine = { deprovision: jest.fn().mockResolvedValue(undefined) };
@@ -59,28 +61,44 @@ describe('DeleteDataStorageService', () => {
     expect(storageCredentials.deactivateStorage).not.toHaveBeenCalled();
   });
 
-  it('deprovisions an OWOX Storage, then soft-deletes it and its record', async () => {
+  it('marks an OWOX Storage deleted, deprovisions it, then soft-deletes it and its record', async () => {
     const { service, dataStorageRepository, managedStorages, engine } = makeService([], record);
 
     await service.run(command);
 
+    expect(managedStorages.markDeleting).toHaveBeenCalledWith('storage-1', expect.any(Date));
     expect(engine.deprovision).toHaveBeenCalledWith(record);
     expect(dataStorageRepository.softDelete).toHaveBeenCalled();
     expect(managedStorages.remove).toHaveBeenCalledWith('storage-1');
+    expect(managedStorages.setDeprovisionPending).not.toHaveBeenCalled();
+    expect(managedStorages.markDeleting.mock.invocationCallOrder[0]).toBeLessThan(
+      engine.deprovision.mock.invocationCallOrder[0]
+    );
     expect(engine.deprovision.mock.invocationCallOrder[0]).toBeLessThan(
       dataStorageRepository.softDelete.mock.invocationCallOrder[0]
     );
+  });
+
+  it('still deprovisions and removes an OWOX Storage that is already deleted', async () => {
+    const { service, managedStorages, engine } = makeService([], record);
+    managedStorages.markDeleting.mockResolvedValue(false);
+
+    await service.run(command);
+
+    expect(engine.deprovision).toHaveBeenCalledWith(record);
+    expect(managedStorages.remove).toHaveBeenCalledWith('storage-1');
   });
 
   it('refuses an OWOX Storage used by Data Marts without deprovisioning', async () => {
     const { service, engine, managedStorages } = makeService([{ id: 'mart-1' }], record);
 
     await expect(service.run(command)).rejects.toThrow(BusinessViolationException);
+    expect(managedStorages.markDeleting).not.toHaveBeenCalled();
     expect(engine.deprovision).not.toHaveBeenCalled();
     expect(managedStorages.remove).not.toHaveBeenCalled();
   });
 
-  it('keeps the storage when deprovisioning fails', async () => {
+  it('keeps the storage deleted and pending when deprovisioning fails', async () => {
     const { service, engine, dataStorageRepository, storageCredentials, managedStorages } =
       makeService([], record);
     engine.deprovision.mockRejectedValue(new Error('boom'));
@@ -89,6 +107,7 @@ describe('DeleteDataStorageService', () => {
     await expect(service.run(command)).rejects.toThrow(
       'OWOX Storage could not be deleted. Try again later.'
     );
+    expect(managedStorages.setDeprovisionPending).toHaveBeenCalledWith('storage-1', true);
     expect(dataStorageRepository.softDelete).not.toHaveBeenCalled();
     expect(storageCredentials.deactivateStorage).not.toHaveBeenCalled();
     expect(managedStorages.remove).not.toHaveBeenCalled();

@@ -108,6 +108,7 @@ export class CreateOwoxStorageService {
       notPaidSince: null,
       lastActivityAt: null,
       deprovisionedAt: null,
+      deprovisionPending: false,
     });
     return new DataStorageDto(
       created.id,

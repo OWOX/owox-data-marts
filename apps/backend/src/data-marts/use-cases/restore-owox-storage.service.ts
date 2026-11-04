@@ -4,6 +4,7 @@ import { BusinessViolationException } from '../../common/exceptions/business-vio
 import { ConnectorStateService } from '../connector-types/connector-message/services/connector-state.service';
 import { RestoreOwoxStorageCommand } from '../dto/domain/restore-owox-storage.command';
 import { ProjectPlanType } from '../enums/project-plan-type.enum';
+import { describeGoogleError } from '../owox-storage/engine/bigquery-managed-storage.engine';
 import {
   MANAGED_STORAGE_ENGINE,
   ManagedStorageEngine,
@@ -66,22 +67,43 @@ export class RestoreOwoxStorageService {
       );
     }
 
+    // Keeps the daily retry from deleting what this restore creates.
+    await this.managedStorages.setDeprovisionPending(record.storageId, false);
     try {
       await this.engine.restore(record, command.projectId);
     } catch {
       // The engine has logged the failed step.
+      try {
+        await this.managedStorages.setDeprovisionPending(record.storageId, true);
+      } catch (error) {
+        this.logger.error(
+          `OWOX Storage ${record.datasetId} could not be marked for cleanup after a failed restore${describeGoogleError(error)}`
+        );
+      }
       throw new OwoxStorageRestoreException();
     }
 
     const dataMartIds = (await this.dataMartService.findByStorage(storage)).map(({ id }) => id);
-    await this.finishRestore(record.storageId, dataMartIds);
-    this.logger.log(`OWOX Storage ${record.datasetId} restored`);
+    if (await this.finishRestore(record.storageId, dataMartIds)) {
+      this.logger.log(`OWOX Storage ${record.datasetId} restored`);
+      return;
+    }
+    // Another restore won, or the storage was deleted meanwhile and what this one created has no record.
+    if (await this.managedStorages.findByStorageId(record.storageId)) return;
+    try {
+      await this.engine.deprovision(record);
+    } catch (error) {
+      this.logger.error(
+        `OWOX Storage ${record.datasetId} was deleted during its restore; deleting what the restore created failed${describeGoogleError(error)}`
+      );
+    }
   }
 
   @Transactional()
-  private async finishRestore(storageId: string, dataMartIds: string[]): Promise<void> {
-    if (!(await this.managedStorages.markRestored(storageId, new Date()))) return;
+  private async finishRestore(storageId: string, dataMartIds: string[]): Promise<boolean> {
+    if (!(await this.managedStorages.markRestored(storageId, new Date()))) return false;
     // The restored tables are empty: the next runs must load from each connector's start.
     await this.connectorStates.deleteByDataMartIds(dataMartIds);
+    return true;
   }
 }
