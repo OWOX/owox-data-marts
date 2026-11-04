@@ -16,12 +16,6 @@ const PICKER_MIN_HEIGHT = 350;
 const PICKER_MAX_WIDTH = 1051;
 const PICKER_MAX_HEIGHT = 650;
 const PICKER_VIEWPORT_MARGIN = 32;
-// With prompt 'none' Google sends these when it must show a screen, which needs a new click.
-const SIGN_IN_REQUIRED_ERRORS = new Set([
-  'interaction_required',
-  'consent_required',
-  'login_required',
-]);
 
 export interface PickedGoogleSpreadsheet {
   id: string;
@@ -196,13 +190,26 @@ function loadPicker(): Promise<void> {
   );
 }
 
+function loadGis(): Promise<void> {
+  return googleWindow.google?.accounts?.oauth2 ? Promise.resolve() : loadScript(GIS_SRC);
+}
+
+/** Loads the Google scripts ahead of a click, so the token popup opens while the click still allows it. */
+export function preloadGoogleSheetsPicker(): void {
+  void Promise.all([loadGis(), loadPicker()]).catch(() => undefined);
+}
+
 function requestAccessToken(
   clientId: string,
   hintEmail: string | undefined,
   prompt: TokenPrompt
 ): Promise<string> {
-  const loadGis = googleWindow.google?.accounts?.oauth2 ? Promise.resolve() : loadScript(GIS_SRC);
-  return loadGis.then(
+  // A silent request that fails needs a screen, and only a new click may open one.
+  const failed = (code?: string, message?: string) =>
+    prompt === 'none' && code !== 'popup_failed_to_open'
+      ? new GoogleSignInRequiredError(hintEmail)
+      : new Error(message ?? code ?? 'Could not obtain a Google access token');
+  return loadGis().then(
     () =>
       new Promise<string>((resolve, reject) => {
         const oauth2 = googleWindow.google?.accounts?.oauth2;
@@ -224,18 +231,12 @@ function requestAccessToken(
                 return;
               }
               resolve(response.access_token);
-            } else if (response.error && SIGN_IN_REQUIRED_ERRORS.has(response.error)) {
-              reject(new GoogleSignInRequiredError(hintEmail));
             } else {
-              reject(new Error(response.error ?? 'Could not obtain a Google access token'));
+              reject(failed(response.error, response.error));
             }
           },
           error_callback: error => {
-            reject(
-              error.type && SIGN_IN_REQUIRED_ERRORS.has(error.type)
-                ? new GoogleSignInRequiredError(hintEmail)
-                : new Error(error.message ?? 'Google authorization was cancelled')
-            );
+            reject(failed(error.type, error.message ?? 'Google authorization was cancelled'));
           },
         });
         client.requestAccessToken({ prompt, login_hint: hintEmail });
@@ -338,21 +339,18 @@ export function useGoogleSheetsPicker() {
 
       try {
         closeActivePicker();
-        await loadPicker();
-        if (superseded()) return;
-        let token: string;
+        // The token popup goes first: a browser lets a click open a popup only for a short time.
+        let tokenRequest: Promise<string>;
         if (accessToken) {
-          token = accessToken;
+          tokenRequest = Promise.resolve(accessToken);
         } else if (clientId) {
-          token = await requestAccessToken(
-            clientId,
-            hintEmail,
-            chooseAccountRef.current ? 'select_account' : 'none'
-          );
-          chooseAccountRef.current = false;
+          const prompt = chooseAccountRef.current ? 'select_account' : 'none';
+          tokenRequest = requestAccessToken(clientId, hintEmail, prompt);
         } else {
           throw new Error('Google Picker configuration is incomplete');
         }
+        const [token] = await Promise.all([tokenRequest, loadPicker()]);
+        if (!accessToken) chooseAccountRef.current = false;
         if (superseded()) return;
         await verifyGooglePickerAccount(token, hintEmail);
         if (superseded()) return;

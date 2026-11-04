@@ -66,6 +66,7 @@ vi.mock('../../../connectors/shared/components/GoogleSheetsLoginButton', () => (
 
 vi.mock('../../../google-oauth', async importOriginal => ({
   ...(await importOriginal<typeof import('../../../google-oauth')>()),
+  preloadGoogleSheetsPicker: vi.fn(),
   useGoogleSheetsPicker: () => ({ openPicker }),
 }));
 

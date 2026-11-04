@@ -27,6 +27,7 @@ vi.mock('../../../../shared/model/hooks/useOAuth', () => ({
 const picker = vi.hoisted(() => ({ openPicker: vi.fn() }));
 vi.mock('../../../../../google-oauth', async importOriginal => ({
   ...(await importOriginal<typeof import('../../../../../google-oauth')>()),
+  preloadGoogleSheetsPicker: vi.fn(),
   useGoogleSheetsPicker: () => picker,
 }));
 

@@ -1,6 +1,7 @@
+import { useEffect, useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { useCredentials } from '../../../../../../credentials/useCredentials';
-import { useGoogleSheetsPicker } from '../../../../../../google-oauth';
+import { preloadGoogleSheetsPicker, useGoogleSheetsPicker } from '../../../../../../google-oauth';
 import { useOAuth } from '../../../../../shared/model/hooks/useOAuth';
 import {
   connectedEmail,
@@ -8,6 +9,7 @@ import {
   UNAVAILABLE_HINT,
 } from '../../../../../shared/utils/add-spreadsheet-hint.utils';
 import { GOOGLE_SHEETS_CONNECTOR_NAME } from '../../../../../shared/utils/google-sheets-fields.utils';
+import type { OAuthSettingsResponseDto } from '../../../../../shared/api/types/response';
 import type { DynamicOptionsAction } from './ConfigurationField';
 
 const LABEL = '+ Add spreadsheet';
@@ -31,6 +33,22 @@ export function useAddSpreadsheetAction(
   const { credentials, isPending, isSuccess } = useCredentials();
   const { getSettings } = useOAuth();
   const { openPicker } = useGoogleSheetsPicker();
+  const [settings, setSettings] = useState<OAuthSettingsResponseDto>();
+
+  // Settings and scripts load before the click: the token popup must open soon after the click.
+  useEffect(() => {
+    if (!credentialId) return;
+    preloadGoogleSheetsPicker();
+    let active = true;
+    getSettings(GOOGLE_SHEETS_CONNECTOR_NAME, 'AuthType.oauth2')
+      .then(loaded => {
+        if (active) setSettings(loaded);
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, [credentialId, getSettings]);
 
   // While the list loads nothing is known yet, so nothing is offered rather than a flashing hint.
   if (!credentialId || isPending) return undefined;
@@ -46,7 +64,8 @@ export function useAddSpreadsheetAction(
     label: LABEL,
     onSelect: async () => {
       try {
-        const { vars } = await getSettings(GOOGLE_SHEETS_CONNECTOR_NAME, 'AuthType.oauth2');
+        const { vars } =
+          settings ?? (await getSettings(GOOGLE_SHEETS_CONNECTOR_NAME, 'AuthType.oauth2'));
         const apiKey = vars.PickerApiKey as string | undefined;
         const appId = vars.ProjectNumber as string | undefined;
         const clientId = vars.ClientId as string | undefined;

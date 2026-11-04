@@ -13,7 +13,7 @@ The video connects two plans to Data Marts with one Google account. The second p
 <https://customer-4geatlj66rtkaxtz.cloudflarestream.com/9e291ee9948594cae9807b318cba56e3/iframe>
 
 - The spreadsheet list in the Data Mart form has a "+ Add spreadsheet" item at the end. You can add a new plan without leaving the form. A Google window opens and closes by itself, then the spreadsheet picker opens.
-- To add spreadsheets, sign in to Google with the account of the Credential. If Google asks you to sign in, click "+ Add spreadsheet" again and choose that account.
+- To add spreadsheets, sign in to Google with the account of the Credential. If the form shows "Sign in to Google as … to add spreadsheets.", click "+ Add spreadsheet" again and choose that account.
 - If a Credential shows no Google account, reconnect it to add spreadsheets.
 - When you choose the spreadsheet from the list or with "+ Add spreadsheet", the suggested table name has the document name and the sheet name, for example `budget_2026_plan`. Two documents with a "Plan" sheet then do not get the same table name.
 - When you type the spreadsheet URL, or the Credential is a service account, the suggested table name has the sheet name only, for example `plan`.

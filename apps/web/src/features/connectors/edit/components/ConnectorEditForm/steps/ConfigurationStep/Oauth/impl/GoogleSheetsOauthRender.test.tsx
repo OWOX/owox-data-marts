@@ -15,6 +15,7 @@ vi.mock('react-hot-toast', () => ({
 }));
 
 vi.mock('../../../../../../../../google-oauth', () => ({
+  preloadGoogleSheetsPicker: vi.fn(),
   useGoogleSheetsPicker: () => ({ openPicker }),
 }));
 

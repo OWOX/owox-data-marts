@@ -3,11 +3,14 @@ import {
   type GoogleSheetsLoginResponse,
 } from '../../../../../../../shared/components/GoogleSheetsLoginButton';
 import type { OauthRenderComponentProps } from '../OauthRenderFactory';
-import { useGoogleSheetsPicker } from '../../../../../../../../google-oauth';
+import {
+  preloadGoogleSheetsPicker,
+  useGoogleSheetsPicker,
+} from '../../../../../../../../google-oauth';
 import { Button } from '@owox/ui/components/button';
 import { ExternalAnchor } from '@owox/ui/components/common/external-anchor';
 import { CircleCheck, FileSpreadsheet } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { toast } from 'react-hot-toast';
 
 export function GoogleSheetsOauthRender({
@@ -22,6 +25,10 @@ export function GoogleSheetsOauthRender({
   const [isPickingSpreadsheet, setIsPickingSpreadsheet] = useState(false);
   const [pickerError, setPickerError] = useState<string | null>(null);
   const { openPicker } = useGoogleSheetsPicker();
+  // A later "Add spreadsheet" asks Google for a token in the click, so the scripts load first.
+  useEffect(() => {
+    preloadGoogleSheetsPicker();
+  }, []);
 
   const connectedEmail = status?.user?.email ?? status?.user?.name;
   const spreadsheetUrl =
