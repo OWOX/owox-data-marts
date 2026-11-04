@@ -56,7 +56,11 @@ export class DeleteOwoxStorageTableService {
     }
 
     try {
-      await this.engine.dropTable(record, command.tableName);
+      await this.engine.dropTable(
+        record,
+        command.tableName,
+        record.modifiedAt.getTime().toString()
+      );
     } catch (error) {
       if (error instanceof NotFoundException) throw error;
       this.logger.error(

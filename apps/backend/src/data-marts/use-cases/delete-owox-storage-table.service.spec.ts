@@ -9,6 +9,7 @@ const record = {
   storageId: 'storage-1',
   datasetId: 'owox_abc',
   serviceAccountEmail: 'sa-secret@proj.iam.gserviceaccount.com',
+  modifiedAt: new Date(1_700_000_000_000),
 };
 
 function makeService(managed: unknown = record, canEdit = true) {
@@ -58,7 +59,7 @@ describe('DeleteOwoxStorageTableService', () => {
 
     await service.run(command);
 
-    expect(engine.dropTable).toHaveBeenCalledWith(record, 'events');
+    expect(engine.dropTable).toHaveBeenCalledWith(record, 'events', '1700000000000');
   });
 
   it('forgets the cached table list after a successful delete only', async () => {

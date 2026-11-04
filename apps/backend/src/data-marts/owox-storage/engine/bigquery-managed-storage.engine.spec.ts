@@ -451,11 +451,24 @@ describe('BigQueryManagedStorageEngine', () => {
       expect(identity.bigQueryAs).toHaveBeenCalledWith(
         target.serviceAccountEmail,
         'owox-gcp',
-        'US'
+        'US',
+        undefined
       );
       expect(dataset).toHaveBeenCalledWith('owox_abc');
       expect(table).toHaveBeenCalledWith('holidays');
       expect(del).toHaveBeenCalledTimes(1);
+    });
+
+    it("drops a table with the restored account's client generation", async () => {
+      const { engine, identity } = setup();
+      await engine.dropTable(target, 'holidays', '1700000000000');
+
+      expect(identity.bigQueryAs).toHaveBeenCalledWith(
+        target.serviceAccountEmail,
+        'owox-gcp',
+        'US',
+        '1700000000000'
+      );
     });
 
     it.each(['other', 'owox_other.t', '../owox_abc_internal', 'x/../../datasets/y'])(
