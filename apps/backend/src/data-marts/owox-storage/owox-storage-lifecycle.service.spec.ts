@@ -120,7 +120,7 @@ describe('OwoxStorageLifecycleService.runDaily', () => {
     const { service, engine, managed } = setup([r], { 'p-a': ProjectPlanType.FREE });
     await service.runDaily(now);
     expect(engine.deprovision).toHaveBeenCalled();
-    expect(managed.markDeleting.mock.calls).toEqual([['a', now]]);
+    expect(managed.markDeleting.mock.calls).toEqual([['a', now, r.lastActivityAt]]);
     expect(managed.updateActive).not.toHaveBeenCalled();
     expect(logs).toContain('OWOX Storage ds_a deleted: INACTIVE');
   });
@@ -242,6 +242,15 @@ describe('OwoxStorageLifecycleService.runDaily', () => {
     expect(managed.findByStorageId.mock.calls).toEqual([['a'], ['b'], ['c']]);
     expect(managed.markDeleting).not.toHaveBeenCalled();
     expect(managed.updateActive).not.toHaveBeenCalled();
+    expect(engine.deprovision).not.toHaveBeenCalled();
+  });
+
+  it('does not delete an idle storage when a use was recorded after the decision', async () => {
+    const r = record('a', { lastActivityAt: ago(31) });
+    const { service, engine, managed } = setup([r], { 'p-a': ProjectPlanType.FREE });
+    managed.markDeleting.mockResolvedValue(false);
+    await service.runDaily(now);
+    expect(managed.markDeleting.mock.calls).toEqual([['a', now, r.lastActivityAt]]);
     expect(engine.deprovision).not.toHaveBeenCalled();
   });
 

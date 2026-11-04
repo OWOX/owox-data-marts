@@ -83,4 +83,27 @@ describe('ReportRunService.finish', () => {
       expect(dataMartRunService.recordStorageUse).toHaveBeenCalledWith('storage-1', 'run-1');
     }
   );
+
+  it('records use after the run is persisted and still resolves when recording rejects', async () => {
+    const order: string[] = [];
+    const dataMartRun = { id: 'run-1', logs: [], errors: [] };
+    const report = { id: 'report-1', dataMart: { storage: { id: 'storage-1' } } };
+    const dataMartRunService = {
+      markReportRunAsFinished: jest.fn(async () => void order.push('persist')),
+      recordStorageUse: jest.fn(async () => {
+        order.push('record');
+        throw new Error('deadlock');
+      }),
+    };
+    const service = new ReportRunService(
+      { updateLastRunOutcome: jest.fn() } as never,
+      dataMartRunService as never,
+      {} as never
+    );
+
+    await expect(
+      service.finish({ getReport: () => report, getDataMartRun: () => dataMartRun } as never)
+    ).resolves.toBeUndefined();
+    expect(order).toEqual(['persist', 'record']);
+  });
 });

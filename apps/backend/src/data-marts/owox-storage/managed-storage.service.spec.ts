@@ -1,4 +1,4 @@
-import { IsNull, Not, Repository } from 'typeorm';
+import { IsNull, LessThanOrEqual, Not, Repository } from 'typeorm';
 import { ManagedStorage } from '../entities/managed-storage.entity';
 import { ManagedStorageService } from './managed-storage.service';
 
@@ -112,6 +112,20 @@ describe('ManagedStorageService', () => {
       );
     }
   );
+
+  it.each([
+    [null, IsNull()],
+    [new Date('2026-10-01T00:00:00Z'), LessThanOrEqual(new Date('2026-10-01T00:00:00Z'))],
+  ])('markDeleting with activityAtMost %s also requires no newer use', async (at, condition) => {
+    const now = new Date('2026-11-02T10:00:00Z');
+    repository.update.mockResolvedValue({ affected: 0 });
+
+    expect(await service.markDeleting('s1', now, at)).toBe(false);
+    expect(repository.update).toHaveBeenCalledWith(
+      { storageId: 's1', deprovisionedAt: IsNull(), lastActivityAt: condition },
+      { deprovisionedAt: now, deprovisionPending: true }
+    );
+  });
 
   it.each([true, false])(
     'setDeprovisionPending(%s) changes only a deleted record',

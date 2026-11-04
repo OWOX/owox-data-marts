@@ -123,8 +123,24 @@ export class ReportRunService {
    *                  - logs: array of log entries to append to DataMartRun.logs
    *                  - errors: array of error entries to append to DataMartRun.errors
    */
-  @Transactional()
   async finish(
+    reportRun: ReportRun,
+    context?: { logs?: string[]; errors?: string[] }
+  ): Promise<void> {
+    await this.persistFinish(reportRun, context);
+    // After the commit, so a failed use write cannot roll back the run's final state.
+    try {
+      await this.dataMartRunService.recordStorageUse(
+        reportRun.getReport().dataMart.storage.id,
+        reportRun.getDataMartRun().id
+      );
+    } catch {
+      // The run is already final; recordStorageUse logs its own failures.
+    }
+  }
+
+  @Transactional()
+  private async persistFinish(
     reportRun: ReportRun,
     context?: { logs?: string[]; errors?: string[] }
   ): Promise<void> {
@@ -138,9 +154,5 @@ export class ReportRunService {
       dmRun.errors = [...(dmRun.errors || []), ...context.errors];
     }
     await this.dataMartRunService.markReportRunAsFinished(reportRun.getDataMartRun());
-    await this.dataMartRunService.recordStorageUse(
-      reportRun.getReport().dataMart.storage.id,
-      reportRun.getDataMartRun().id
-    );
   }
 }

@@ -78,7 +78,7 @@ export class OwoxStorageUsageService {
 
     let usage: OwoxStorageUsage;
     try {
-      usage = await this.measure(record, plan);
+      usage = await this.measure(record, plan, true);
     } catch (error) {
       this.logger.warn(
         `Could not read the size of OWOX Storage ${record.datasetId}${describeGoogleError(error)}; the connector run goes ahead.`
@@ -105,16 +105,21 @@ export class OwoxStorageUsageService {
     this.tableLists.delete(storageId);
   }
 
-  private async listTables(record: ManagedStorage): Promise<ManagedTable[]> {
+  // The cache is for the panel; the size gate reads the live list (fresh).
+  private async listTables(record: ManagedStorage, fresh: boolean): Promise<ManagedTable[]> {
     const cached = this.tableLists.get(record.storageId);
-    if (cached && cached.expiresAt > Date.now()) return cached.value;
+    if (!fresh && cached && cached.expiresAt > Date.now()) return cached.value;
     const value = await this.engine.listTables(record);
     this.tableLists.set(record.storageId, { value, expiresAt: Date.now() + TABLES_TTL_MS });
     return value;
   }
 
-  private async measure(record: ManagedStorage, plan: ProjectPlanType): Promise<OwoxStorageUsage> {
-    const tables = await this.listTables(record);
+  private async measure(
+    record: ManagedStorage,
+    plan: ProjectPlanType,
+    fresh = false
+  ): Promise<OwoxStorageUsage> {
+    const tables = await this.listTables(record, fresh);
     const now = new Date();
     const settings = this.config.getSettings();
     const deletion = scheduledDeletion(record, plan, settings, now);
