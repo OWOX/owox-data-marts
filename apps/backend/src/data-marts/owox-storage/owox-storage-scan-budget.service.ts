@@ -28,6 +28,8 @@ export class OwoxStorageScanBudgetService implements OwoxStorageScanBudgetFactor
   private readonly logger = new Logger(OwoxStorageScanBudgetService.name);
   private readonly usage = new Map<string, Cached<number>>();
   private readonly inFlight = new Map<string, number>();
+  // Bytes released while a usage load is running; that load's snapshot may not hold those jobs.
+  private readonly releasedDuringLoad = new Map<string, number>();
 
   constructor(
     private readonly identity: OwoxStorageIdentity,
@@ -42,7 +44,7 @@ export class OwoxStorageScanBudgetService implements OwoxStorageScanBudgetFactor
       reserve: async estimatedBytes => {
         const remaining = this.remaining(id, await this.allowance(record));
         // No await between check and reservation, so concurrent queries cannot take the same bytes.
-        if (!(estimatedBytes <= remaining)) throw new OwoxStorageQueryLimitException(true);
+        if (!(estimatedBytes <= remaining)) throw OwoxStorageQueryLimitException.tooLarge();
         this.inFlight.set(id, (this.inFlight.get(id) ?? 0) + estimatedBytes);
         let released = false;
         return {
@@ -54,8 +56,12 @@ export class OwoxStorageScanBudgetService implements OwoxStorageScanBudgetFactor
             if (left > 0) this.inFlight.set(id, left);
             else this.inFlight.delete(id);
             // The finished job counts as used until the next usage read replaces the cached value.
-            const cached = this.usage.get(id);
-            if (cached) cached.value += estimatedBytes;
+            const loading = this.releasedDuringLoad.get(id);
+            if (loading !== undefined) this.releasedDuringLoad.set(id, loading + estimatedBytes);
+            else {
+              const cached = this.usage.get(id);
+              if (cached) cached.value += estimatedBytes;
+            }
           },
         };
       },
@@ -107,15 +113,20 @@ WHERE user_email = @email
     }
   }
 
-  private async cached<T>(
-    cache: Map<string, Cached<T>>,
+  private async cached(
+    cache: Map<string, Cached<number>>,
     key: string,
-    load: () => Promise<T>
-  ): Promise<T> {
+    load: () => Promise<number>
+  ): Promise<number> {
     const hit = cache.get(key);
     if (hit && hit.expiresAt > Date.now()) return hit.value;
-    const value = await load();
-    cache.set(key, { value, expiresAt: Date.now() + CACHE_TTL_MS });
-    return value;
+    if (!this.releasedDuringLoad.has(key)) this.releasedDuringLoad.set(key, 0);
+    try {
+      const value = (await load()) + (this.releasedDuringLoad.get(key) ?? 0);
+      cache.set(key, { value, expiresAt: Date.now() + CACHE_TTL_MS });
+      return value;
+    } finally {
+      this.releasedDuringLoad.delete(key);
+    }
   }
 }
