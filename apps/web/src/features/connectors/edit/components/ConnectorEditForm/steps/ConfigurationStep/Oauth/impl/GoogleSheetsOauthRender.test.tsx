@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { OpenGoogleSheetsPickerOptions } from '../../../../../../../../google-oauth';
 import type { OauthRenderComponentProps } from '../OauthRenderFactory';
@@ -349,6 +349,43 @@ describe('GoogleSheetsOauthRender', () => {
           })
         );
       });
+    });
+  });
+
+  it('keeps the button disabled until the newest Picker call settles', async () => {
+    const settle: (() => void)[] = [];
+    openPicker.mockImplementation(
+      () =>
+        new Promise<void>(resolve => {
+          settle.push(resolve);
+        })
+    );
+    const user = { id: 'user-1', name: 'analyst@example.com', email: 'analyst@example.com' };
+    // Connect starts two Picker calls at once, as a double click before the button re-renders would.
+    renderGoogleSheetsOAuth({
+      forCredential: true,
+      onOAuthSuccess: vi.fn(async (_payload, beforeFinish) => {
+        void beforeFinish?.({ success: true, credentialId: 'credential-1', user });
+        void beforeFinish?.({ success: true, credentialId: 'credential-1', user });
+        return { success: true, credentialId: 'credential-1', user };
+      }) as unknown as OauthRenderComponentProps['onOAuthSuccess'],
+    });
+    const button = screen.getByRole('button', { name: 'Add spreadsheet' });
+
+    fireEvent.click(screen.getByTestId('google-login'));
+    await waitFor(() => {
+      expect(settle).toHaveLength(2);
+      expect(button).toBeDisabled();
+    });
+
+    await act(async () => {
+      settle[0]();
+      await Promise.resolve();
+    });
+    expect(button).toBeDisabled();
+    settle[1]();
+    await waitFor(() => {
+      expect(button).toBeEnabled();
     });
   });
 

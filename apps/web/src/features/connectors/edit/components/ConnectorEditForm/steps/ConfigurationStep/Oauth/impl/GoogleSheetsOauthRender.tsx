@@ -10,7 +10,7 @@ import {
 import { Button } from '@owox/ui/components/button';
 import { ExternalAnchor } from '@owox/ui/components/common/external-anchor';
 import { CircleCheck, FileSpreadsheet } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { toast } from 'react-hot-toast';
 
 export function GoogleSheetsOauthRender({
@@ -25,6 +25,8 @@ export function GoogleSheetsOauthRender({
   const [isPickingSpreadsheet, setIsPickingSpreadsheet] = useState(false);
   const [pickerError, setPickerError] = useState<string | null>(null);
   const { openPicker } = useGoogleSheetsPicker();
+  // A newer open resolves the older call early, so the button waits for the last one.
+  const pickingCountRef = useRef(0);
   // A later "Add spreadsheet" asks Google for a token in the click, so the scripts load first.
   useEffect(() => {
     preloadGoogleSheetsPicker();
@@ -95,6 +97,7 @@ export function GoogleSheetsOauthRender({
 
     setPickerError(null);
     setIsPickingSpreadsheet(true);
+    pickingCountRef.current += 1;
     await openPicker({
       apiKey: pickerApiKey,
       appId: projectNumber,
@@ -106,7 +109,8 @@ export function GoogleSheetsOauthRender({
       },
       onError: report,
     }).finally(() => {
-      setIsPickingSpreadsheet(false);
+      pickingCountRef.current -= 1;
+      if (pickingCountRef.current === 0) setIsPickingSpreadsheet(false);
     });
   };
 
