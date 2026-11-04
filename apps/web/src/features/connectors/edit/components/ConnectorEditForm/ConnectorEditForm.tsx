@@ -74,11 +74,15 @@ export function ConnectorEditForm({
 }: ConnectorEditFormProps) {
   const { navigate } = useProjectRoute();
   const { canEdit } = usePermissions();
-  const dataMart = useContext(DataMartContext)?.dataMart;
+  const dataMartContext = useContext(DataMartContext);
+  const dataMart = dataMartContext?.dataMart;
   // Lets an editor of this Data Mart preview a configuration bound to a Credential.
   const dataMartId = dataMart?.id;
-  // A run needs a configured Storage; without one the sheet only saves.
-  const canRunAfterSave = !!dataMart?.storage && isDataStorageConfigValid(dataMart.storage);
+  // A run needs a configured Storage and no active run; otherwise the sheet only saves.
+  const canRunAfterSave =
+    !!dataMart?.storage &&
+    isDataStorageConfigValid(dataMart.storage) &&
+    !dataMartContext?.hasActiveRuns;
   const [customConnectors, setCustomConnectors] = useState<CustomConnectorListItemDto[]>([]);
   const [isDirty, setIsDirty] = useState(false);
   const [selectedConnector, setSelectedConnector] = useState<ConnectorListItem | null>(null);

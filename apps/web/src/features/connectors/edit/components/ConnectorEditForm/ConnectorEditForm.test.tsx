@@ -297,7 +297,11 @@ describe('ConnectorEditForm configuration echo', () => {
   });
 
   describe('Save & Run', () => {
-    const renderInDataMart = (config: Record<string, string>, onSubmit = vi.fn()) => {
+    const renderInDataMart = (
+      config: Record<string, string>,
+      onSubmit = vi.fn(),
+      hasActiveRuns = false
+    ) => {
       render(
         <MemoryRouter>
           <DataMartContext.Provider
@@ -307,6 +311,7 @@ describe('ConnectorEditForm configuration echo', () => {
                   id: 'dm-1',
                   storage: { type: DataStorageType.GOOGLE_BIGQUERY, config },
                 },
+                hasActiveRuns,
               } as never
             }
           >
@@ -329,6 +334,12 @@ describe('ConnectorEditForm configuration echo', () => {
 
     it('is not offered when the Storage is not configured', () => {
       renderInDataMart({ projectId: '', location: '' });
+
+      expect(recordedNavigation.at(-1)?.canRunAfterSave).toBe(false);
+    });
+
+    it('is not offered while a run is active', () => {
+      renderInDataMart({ projectId: 'project', location: 'US' }, vi.fn(), true);
 
       expect(recordedNavigation.at(-1)?.canRunAfterSave).toBe(false);
     });
