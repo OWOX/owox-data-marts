@@ -28,5 +28,9 @@ export interface ManagedStorageEngine {
   listTables(target: ProvisionedManagedStorage): Promise<ManagedTable[]>;
   /** Newest job per service account since `since`, keyed by email; accounts with no job are absent. */
   lastJobTimes(targets: ProvisionedManagedStorage[], since: Date): Promise<Map<string, Date>>;
-  dropTable(target: ProvisionedManagedStorage, tableName: string): Promise<void>;
+  dropTable(
+    target: ProvisionedManagedStorage,
+    tableName: string,
+    generation?: string
+  ): Promise<void>;
 }

@@ -183,7 +183,11 @@ export class BigQueryManagedStorageEngine implements ManagedStorageEngine {
     return result;
   }
 
-  async dropTable(target: ProvisionedManagedStorage, tableName: string): Promise<void> {
+  async dropTable(
+    target: ProvisionedManagedStorage,
+    tableName: string,
+    generation?: string
+  ): Promise<void> {
     // Only a name the dataset itself lists reaches the delete call.
     const listed = (await this.listTables(target)).some(table => table.name === tableName);
     if (!listed) {
@@ -192,7 +196,8 @@ export class BigQueryManagedStorageEngine implements ManagedStorageEngine {
     const bigQuery = await this.identity.bigQueryAs(
       target.serviceAccountEmail,
       target.gcpProjectId,
-      target.location
+      target.location,
+      generation
     );
     await bigQuery.dataset(target.datasetId).table(tableName).delete();
   }
