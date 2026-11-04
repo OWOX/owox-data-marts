@@ -74,6 +74,8 @@ export function ConnectorEditSheet({
         </SheetHeader>
         <ConnectorEditForm
           onSubmit={(configuredConnector, runAfterSave) => {
+            // A second click while the sheet closes must not save, publish or run again.
+            if (!isOpen) return;
             onSubmit(configuredConnector, runAfterSave);
             handleFormSubmitSuccess();
           }}
