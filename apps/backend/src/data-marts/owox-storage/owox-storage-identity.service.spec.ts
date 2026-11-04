@@ -34,6 +34,17 @@ describe('OwoxStorageIdentity', () => {
     );
   });
 
+  it('replaces the client when the record generation changes and reuses it for an empty one', async () => {
+    const identity = new OwoxStorageIdentity();
+    const g1 = await identity.impersonate('a@x', '1');
+    expect(await identity.impersonate('a@x', '1')).toBe(g1);
+    expect(await identity.impersonate('a@x')).toBe(g1);
+    const g2 = await identity.impersonate('a@x', '2');
+    expect(g2).not.toBe(g1);
+    expect(await identity.impersonate('a@x')).toBe(g2);
+    expect(await identity.impersonate('a@x', '2')).toBe(g2);
+  });
+
   it('forgets the cached client of one email only', async () => {
     const identity = new OwoxStorageIdentity();
     const a = await identity.impersonate('a@x');
