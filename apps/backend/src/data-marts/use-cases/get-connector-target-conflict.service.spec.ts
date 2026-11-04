@@ -84,16 +84,23 @@ describe('GetConnectorTargetConflictService', () => {
     }
   );
 
-  it('keeps a quoted Snowflake part as typed and upper-cases an unquoted one', async () => {
+  it('upper-cases only an unquoted Snowflake database, as the connector writes it', async () => {
     const { service } = createService({
       storageType: DataStorageType.SNOWFLAKE,
       others: [connectorDm('dm-2', 'Plan 2026', 'DB.public.plan')],
     });
 
-    await expect(service.run(command('dm-1', '"DB"."PUBLIC"."PLAN"'))).resolves.toMatchObject({
+    await expect(service.run(command('dm-1', 'db."public"."plan"'))).resolves.toMatchObject({
       conflict: true,
     });
-    await expect(service.run(command('dm-1', '"DB"."PUBLIC"."plan"'))).resolves.toEqual({
+    await expect(service.run(command('dm-1', '"DB"."public"."plan"'))).resolves.toMatchObject({
+      conflict: true,
+    });
+    await expect(service.run(command('dm-1', 'DB.PUBLIC.PLAN'))).resolves.toEqual({
+      conflict: false,
+      dataMart: null,
+    });
+    await expect(service.run(command('dm-1', '"db".public.plan'))).resolves.toEqual({
       conflict: false,
       dataMart: null,
     });

@@ -7,7 +7,7 @@ import { ConnectorStorageSchema } from '../dto/schemas/data-mart-table-definitio
 import { Action, AccessDecisionService, EntityType } from '../services/access-decision';
 import { DataMartService } from '../services/data-mart.service';
 
-// BigQuery names are case-sensitive; Snowflake folds only unquoted parts; other storages fold case.
+// BigQuery names are case-sensitive; Snowflake folds only an unquoted database; others fold case.
 const CASE_SENSITIVE_STORAGES: ReadonlySet<DataStorageType> = new Set([
   DataStorageType.GOOGLE_BIGQUERY,
   DataStorageType.LEGACY_GOOGLE_BIGQUERY,
@@ -18,11 +18,16 @@ const TargetSchema = z.object({ connector: z.object({ storage: ConnectorStorageS
 
 export function normalizeTargetName(name: string, storageType: DataStorageType): string {
   if (storageType === DataStorageType.SNOWFLAKE) {
+    // The connector quotes schema and table as typed and uses the database as typed.
     // ponytail: splits on every dot, so a quoted part with a dot inside compares by its pieces.
     return name
       .split('.')
       .map(part => part.trim())
-      .map(part => (/^".*"$/.test(part) ? part.slice(1, -1) : part.toUpperCase()))
+      .map((part, index) => {
+        const quoted = /^".*"$/.test(part);
+        const bare = quoted ? part.slice(1, -1) : part;
+        return index === 0 && !quoted ? bare.toUpperCase() : bare;
+      })
       .join('.');
   }
   const unquoted = name.replace(/[`"[\]]/g, '').trim();
