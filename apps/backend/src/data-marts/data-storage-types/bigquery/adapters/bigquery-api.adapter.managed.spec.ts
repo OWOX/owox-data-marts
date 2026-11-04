@@ -34,10 +34,20 @@ describe('BigQueryApiAdapter (OWOX Storage)', () => {
     getMetadata: jest.fn(),
     cancel: jest.fn(),
   };
-  const dryRunReports = (statementType: string, totalBytesProcessed = '0') =>
+  const dryRunReports = (
+    statementType: string,
+    totalBytesProcessed = '0',
+    referencedTables: unknown[] = []
+  ) =>
     createQueryJob.mockImplementation(async (cfg: { dryRun?: boolean }) =>
       cfg.dryRun
-        ? [{ metadata: { statistics: { totalBytesProcessed, query: { statementType } } } }]
+        ? [
+            {
+              metadata: {
+                statistics: { totalBytesProcessed, query: { statementType, referencedTables } },
+              },
+            },
+          ]
         : [job]
     );
   const jobConfigs = () => createQueryJob.mock.calls.map(([cfg]) => cfg).filter(cfg => !cfg.dryRun);
@@ -91,8 +101,74 @@ describe('BigQueryApiAdapter (OWOX Storage)', () => {
     expect(release).toHaveBeenCalledTimes(1);
   });
 
+  it('releases the reservation when the job cannot be created', async () => {
+    createQueryJob.mockImplementation(async (cfg: { dryRun?: boolean }) => {
+      if (!cfg.dryRun) throw new Error('quota');
+      return [
+        {
+          metadata: {
+            statistics: { totalBytesProcessed: '0', query: { statementType: 'SELECT' } },
+          },
+        },
+      ];
+    });
+
+    await expect(new BigQueryApiAdapter(managed, config).executeQuery('SELECT 1')).rejects.toThrow(
+      'quota'
+    );
+    expect(reserve).toHaveBeenCalledTimes(1);
+    expect(release).toHaveBeenCalledTimes(1);
+  });
+
+  it('releases the reservation of a job cancelled through the abort signal after it reports DONE', async () => {
+    const controller = new AbortController();
+    job.cancel.mockImplementation(async () => {
+      job.getMetadata.mockResolvedValue([
+        { status: { state: 'DONE', errorResult: { message: 'Job execution was cancelled' } } },
+      ]);
+    });
+    job.getMetadata.mockImplementationOnce(async () => {
+      controller.abort();
+      return [{ status: { state: 'RUNNING' } }];
+    });
+
+    await expect(
+      new BigQueryApiAdapter(managed, config).executeQuery(
+        'SELECT 1',
+        undefined,
+        undefined,
+        controller.signal
+      )
+    ).rejects.toThrow('cancelled');
+    expect(job.cancel).toHaveBeenCalledTimes(1);
+    expect(release).toHaveBeenCalledTimes(1);
+    expect(release.mock.invocationCallOrder[0]).toBeGreaterThan(
+      job.getMetadata.mock.invocationCallOrder.at(-1) as number
+    );
+  });
+
+  it.each([
+    ['one 10 MB minimum for a small query with unknown tables', '1048576', 0, 10 * 2 ** 20],
+    ['10 MB for each referenced table', '1048576', 3, 30 * 2 ** 20],
+    ['the estimate when it is larger', String(50 * 2 ** 20), 2, 50 * 2 ** 20],
+  ])('reserves %s', async (_name, bytes, tables, expected) => {
+    dryRunReports(
+      'SELECT',
+      bytes,
+      Array.from({ length: tables }, (_, i) => ({
+        projectId: 'p',
+        datasetId: 'd',
+        tableId: `t${i}`,
+      }))
+    );
+
+    await new BigQueryApiAdapter(managed, config).executeQuery('SELECT 1');
+
+    expect(reserve).toHaveBeenCalledWith(expected);
+  });
+
   it('creates no job when the reservation is refused', async () => {
-    reserve.mockRejectedValue(new OwoxStorageQueryLimitException(true));
+    reserve.mockRejectedValue(OwoxStorageQueryLimitException.tooLarge());
 
     await expect(new BigQueryApiAdapter(managed, config).executeQuery('SELECT 1')).rejects.toThrow(
       OwoxStorageQueryLimitException
