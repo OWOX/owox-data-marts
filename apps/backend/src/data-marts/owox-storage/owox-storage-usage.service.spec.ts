@@ -71,6 +71,23 @@ describe('OwoxStorageUsageService', () => {
     });
   });
 
+  describe('size gate', () => {
+    beforeEach(() => jest.useFakeTimers());
+    afterEach(() => jest.useRealTimers());
+
+    it('lists tables on every assertCanLoad but once for two panel reads within 60 s', async () => {
+      await service.assertCanLoad('s1');
+      await service.assertCanLoad('s1');
+      expect(engine.listTables).toHaveBeenCalledTimes(2);
+
+      engine.listTables.mockClear();
+      service.forgetTables('s1');
+      await service.getUsage(record);
+      await service.getUsage(record);
+      expect(engine.listTables).toHaveBeenCalledTimes(1);
+    });
+  });
+
   describe('getUsage', () => {
     it('sums table sizes against the FREE limit', async () => {
       await expect(service.getUsage(record)).resolves.toMatchObject({

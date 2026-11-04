@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, IsNull, LessThan, Not, Or, Repository } from 'typeorm';
+import { In, IsNull, LessThan, LessThanOrEqual, Not, Or, Repository } from 'typeorm';
 import { ManagedStorage } from '../entities/managed-storage.entity';
 
 @Injectable()
@@ -55,9 +55,18 @@ export class ManagedStorageService {
   }
 
   // Before the first destructive call, so a deletion that fails partway stays deleted and retryable.
-  async markDeleting(storageId: string, now: Date): Promise<boolean> {
+  // With activityAtMost, a use recorded after the decision (<=: datetime keeps whole seconds) blocks it.
+  async markDeleting(storageId: string, now: Date, activityAtMost?: Date | null): Promise<boolean> {
     const { affected } = await this.repository.update(
-      { storageId, deprovisionedAt: IsNull() },
+      {
+        storageId,
+        deprovisionedAt: IsNull(),
+        ...(activityAtMost === undefined
+          ? {}
+          : {
+              lastActivityAt: activityAtMost === null ? IsNull() : LessThanOrEqual(activityAtMost),
+            }),
+      },
       { deprovisionedAt: now, deprovisionPending: true }
     );
     return affected === 1;

@@ -140,7 +140,7 @@ export class BigQueryApiAdapter {
         await this.executeDryRunQuery(query, params);
       if (statementType !== 'SELECT') throw new OwoxStorageStatementException(statementType);
       reservation = await this.scanBudget.reserve(
-        Math.max(totalBytesProcessed, MIN_BILLED_BYTES * Math.max(1, referencedTables.length))
+        totalBytesProcessed + MIN_BILLED_BYTES * Math.max(1, referencedTables.length)
       );
     }
 

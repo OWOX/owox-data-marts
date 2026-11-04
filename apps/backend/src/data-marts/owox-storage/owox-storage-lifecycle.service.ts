@@ -119,7 +119,16 @@ export class OwoxStorageLifecycleService {
       return;
     }
     if (!reason) return;
-    if (!(await this.managedStorages.markDeleting(record.storageId, now))) return;
+    // An inactivity decision stands only while no use was recorded since it was made.
+    const marked =
+      reason === 'INACTIVE'
+        ? await this.managedStorages.markDeleting(
+            record.storageId,
+            now,
+            changes.lastActivityAt ?? record.lastActivityAt ?? null
+          )
+        : await this.managedStorages.markDeleting(record.storageId, now);
+    if (!marked) return;
 
     try {
       await this.engine.deprovision(record);
