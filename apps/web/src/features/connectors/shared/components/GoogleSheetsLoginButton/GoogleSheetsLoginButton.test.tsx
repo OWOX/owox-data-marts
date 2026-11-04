@@ -46,4 +46,28 @@ describe('GoogleSheetsLoginButton', () => {
 
     expect(onSuccess).toHaveBeenCalledWith({ code: 'code-1', accessToken: 'token-1' });
   });
+
+  it('reports a blocked popup and stays ready for another try', () => {
+    vi.spyOn(window, 'open').mockReturnValue(null);
+    const onSuccess = vi.fn();
+    const onError = vi.fn();
+    render(
+      <GoogleSheetsLoginButton
+        clientId='client-1'
+        redirectUri={REDIRECT_URI}
+        onSuccess={onSuccess}
+        onError={onError}
+      />
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in with Google' }));
+
+    const message = 'Failed to open popup window. Please allow popups for this site.';
+    expect(screen.getByRole('alert').textContent).toBe(message);
+    expect(onError).toHaveBeenCalledWith(new Error(message));
+    expect(onSuccess).not.toHaveBeenCalled();
+    expect(
+      screen.getByRole('button', { name: 'Sign in with Google' }).hasAttribute('disabled')
+    ).toBe(false);
+  });
 });
