@@ -15,12 +15,15 @@ export class OwoxStorageIdentity {
   private readonly auth = new GoogleAuth({
     scopes: ['https://www.googleapis.com/auth/cloud-platform'],
   });
-  private readonly impersonated = new Map<string, Impersonated>();
+  private readonly impersonated = new Map<string, { client: Impersonated; generation: string }>();
   private readonly bigQueries = new Map<string, BigQuery>();
 
-  async impersonate(serviceAccountEmail: string): Promise<OAuth2Client> {
-    const cached = this.impersonated.get(serviceAccountEmail);
-    if (cached) return cached;
+  /** An empty `generation` reuses any cached client; a different non-empty one replaces it. */
+  async impersonate(serviceAccountEmail: string, generation = ''): Promise<OAuth2Client> {
+    const fits = (entry?: { client: Impersonated; generation: string }) =>
+      entry && (!generation || entry.generation === generation) ? entry : undefined;
+    const cached = fits(this.impersonated.get(serviceAccountEmail));
+    if (cached) return cached.client;
     const client = new Impersonated({
       sourceClient: await this.auth.getClient(),
       targetPrincipal: serviceAccountEmail,
@@ -28,10 +31,10 @@ export class OwoxStorageIdentity {
       lifetime: 3600,
     });
     // A concurrent caller may have stored one while the source resolved; keep the first.
-    return (
-      this.impersonated.get(serviceAccountEmail) ??
-      this.impersonated.set(serviceAccountEmail, client).get(serviceAccountEmail)!
-    );
+    const stored = fits(this.impersonated.get(serviceAccountEmail));
+    if (stored) return stored.client;
+    this.impersonated.set(serviceAccountEmail, { client, generation });
+    return client;
   }
 
   // A recreated account rejects the old token; other pods keep theirs until it expires.
@@ -52,12 +55,13 @@ export class OwoxStorageIdentity {
   async bigQueryAs(
     serviceAccountEmail: string,
     projectId: string,
-    location: OwoxStorageLocation
+    location: OwoxStorageLocation,
+    generation = ''
   ): Promise<BigQuery> {
     return new BigQuery({
       projectId,
       location,
-      authClient: await this.impersonate(serviceAccountEmail),
+      authClient: await this.impersonate(serviceAccountEmail, generation),
     });
   }
 }

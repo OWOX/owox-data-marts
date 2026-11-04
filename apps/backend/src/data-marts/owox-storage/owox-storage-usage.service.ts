@@ -26,10 +26,12 @@ export interface OwoxStorageUsage {
 }
 
 const IDLE_NOTICE_DAYS = 7;
+const TABLES_TTL_MS = 60_000;
 
 @Injectable()
 export class OwoxStorageUsageService {
   private readonly logger = new Logger(OwoxStorageUsageService.name);
+  private readonly tableLists = new Map<string, { value: ManagedTable[]; expiresAt: number }>();
 
   constructor(
     @Inject(MANAGED_STORAGE_ENGINE) private readonly engine: ManagedStorageEngine,
@@ -98,8 +100,21 @@ export class OwoxStorageUsageService {
     );
   }
 
+  /** Drops the cached table list, so the panel shows a change at once. */
+  forgetTables(storageId: string): void {
+    this.tableLists.delete(storageId);
+  }
+
+  private async listTables(record: ManagedStorage): Promise<ManagedTable[]> {
+    const cached = this.tableLists.get(record.storageId);
+    if (cached && cached.expiresAt > Date.now()) return cached.value;
+    const value = await this.engine.listTables(record);
+    this.tableLists.set(record.storageId, { value, expiresAt: Date.now() + TABLES_TTL_MS });
+    return value;
+  }
+
   private async measure(record: ManagedStorage, plan: ProjectPlanType): Promise<OwoxStorageUsage> {
-    const tables = await this.engine.listTables(record);
+    const tables = await this.listTables(record);
     const now = new Date();
     const settings = this.config.getSettings();
     const deletion = scheduledDeletion(record, plan, settings, now);

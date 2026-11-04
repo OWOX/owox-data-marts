@@ -7,6 +7,7 @@ import {
   ManagedStorageEngine,
 } from '../owox-storage/engine/managed-storage-engine';
 import { ManagedStorageService } from '../owox-storage/managed-storage.service';
+import { OwoxStorageUsageService } from '../owox-storage/owox-storage-usage.service';
 import { OwoxStorageTableDeleteException } from '../owox-storage/owox-storage.exceptions';
 import { AccessDecisionService, Action, EntityType } from '../services/access-decision';
 import { DataStorageService } from '../services/data-storage.service';
@@ -19,6 +20,7 @@ export class DeleteOwoxStorageTableService {
     private readonly dataStorageService: DataStorageService,
     private readonly accessDecisionService: AccessDecisionService,
     private readonly managedStorages: ManagedStorageService,
+    private readonly usage: OwoxStorageUsageService,
     @Inject(MANAGED_STORAGE_ENGINE) private readonly engine: ManagedStorageEngine
   ) {}
 
@@ -62,5 +64,6 @@ export class DeleteOwoxStorageTableService {
       );
       throw new OwoxStorageTableDeleteException();
     }
+    this.usage.forgetTables(record.storageId);
   }
 }

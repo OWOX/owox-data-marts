@@ -143,6 +143,23 @@ describe('DataStorageMapper', () => {
       expect(response.owoxStorage).toEqual({ location: 'EU', datasetId: 'owox_0123456789ab' });
     });
 
+    it('looks the record up unless the caller passes it, and null means none', async () => {
+      const findByStorageId = jest.fn().mockResolvedValue(managed);
+      const m = new DataStorageMapper(clsWith(), { findByStorageId } as never);
+
+      expect(await m.toApiResponse(m.toDomainDto(storage), null)).not.toHaveProperty('owoxStorage');
+      expect(findByStorageId).not.toHaveBeenCalled();
+      expect((await m.toApiResponse(m.toDomainDto(storage), managed as never)).owoxStorage).toEqual(
+        {
+          location: 'EU',
+          datasetId: 'owox_0123456789ab',
+        }
+      );
+      expect(findByStorageId).not.toHaveBeenCalled();
+      await m.toApiResponse(m.toDomainDto(storage));
+      expect(findByStorageId).toHaveBeenCalledTimes(1);
+    });
+
     it('omits it otherwise', async () => {
       const response = await mapper.toApiResponse(mapper.toDomainDto(storage));
       const [item] = await mapper.toResponseList([mapper.toDomainDto(storage)]);
