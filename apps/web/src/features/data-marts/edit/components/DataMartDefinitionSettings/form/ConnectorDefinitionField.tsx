@@ -319,7 +319,7 @@ export function ConnectorDefinitionField({
                         )}
                       </div>
                     </div>
-                    <div className='space-y-3'>
+                    <div className='space-y-1'>
                       {isConnectorConfigured(field.value as ConnectorDefinitionConfig) &&
                       dataMart?.storage
                         ? ((field.value as ConnectorDefinitionConfig).connector.source.name ===
