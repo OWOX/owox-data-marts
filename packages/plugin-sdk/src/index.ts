@@ -14,6 +14,7 @@ import {
   PluginTransportError,
 } from './iframe-transport.js';
 import { createPluginCredentials, type PluginCredentials } from './credentials.js';
+import { createPluginLoading, type PluginLoading } from './loading.js';
 import {
   isHostInit,
   PLUGIN_PROTOCOL_VERSION,
@@ -39,6 +40,7 @@ export type {
   PluginCollectionPutOptions,
 } from './collections.js';
 export type { PluginSchedule, PluginScheduleReader, PluginSchedules } from './schedules.js';
+export type { PluginLoading } from './loading.js';
 
 /** Long enough for a slow host, short enough that a broken embed fails visibly. */
 const HANDSHAKE_TIMEOUT_MS = 10_000;
@@ -64,6 +66,14 @@ export interface PluginUi {
 
   /** Asks the host to copy a link to `path`, or the current page; call it from a click handler — the host refuses outside a member's interaction, while another copy is pending, and on older hosts. */
   copyLink(path?: string): Promise<void>;
+
+  /**
+   * Shows the host's loading bar at the top of the page until you call `stop()` on the result.
+   *
+   * Start one for each piece of work: the bar stays while any of them runs. Call
+   * `setProgress(fraction)` to show an amount. An older host shows nothing.
+   */
+  startLoading(): PluginLoading;
 }
 
 export interface PluginContext extends Omit<PluginHostContext, 'actions' | 'schedules'> {
@@ -208,6 +218,8 @@ function bind(
 
   window.addEventListener('pagehide', () => {
     teardown.abort();
+    // A reloaded frame gets no new channel, so the host would otherwise wait for this page.
+    port.postMessage({ id: crypto.randomUUID(), kind: 'loading', active: false });
   });
 
   const requester = createIframeRequester(port);
@@ -238,6 +250,9 @@ function bind(
         );
         if (!response.ok) throw new PluginTransportError(response.error);
       },
+      startLoading: createPluginLoading(state => {
+        port.postMessage({ id: crypto.randomUUID(), kind: 'loading', ...state });
+      }),
     },
     signal: teardown.signal,
   };

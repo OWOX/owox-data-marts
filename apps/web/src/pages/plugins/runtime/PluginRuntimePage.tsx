@@ -11,6 +11,7 @@ import {
   routeFromLocation,
   useCopyLink,
 } from '../../../features/plugins';
+import { setPluginLoading } from '../../../app/api/api-loading';
 import { useAuth } from '../../../features/idp';
 import { useProjectId, useProjectRoute } from '../../../shared/hooks';
 
@@ -170,6 +171,7 @@ export function PluginRuntime({
       onNavigate: navigateInApp,
       onRouteChange,
       onCopyLink,
+      onLoadingChange: setPluginLoading,
       onBroken: () => {
         setBroken(true);
       },
@@ -177,6 +179,8 @@ export function PluginRuntime({
 
     return () => {
       bridge.dispose();
+      // A closed plugin cannot stop its own loading, so the bar must not wait for it.
+      setPluginLoading({ active: false });
     };
     // `broken` is a dependency because it unmounts the frame: without it, clearing the
     // flag for the next installation would leave the remounted frame with no bridge.

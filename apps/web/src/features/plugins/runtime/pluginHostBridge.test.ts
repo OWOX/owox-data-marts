@@ -73,6 +73,7 @@ interface Harness {
   onNavigate: ReturnType<typeof vi.fn>;
   onRouteChange: ReturnType<typeof vi.fn>;
   onCopyLink: ReturnType<typeof vi.fn>;
+  onLoadingChange: ReturnType<typeof vi.fn>;
   onBroken: ReturnType<typeof vi.fn>;
 }
 
@@ -91,6 +92,7 @@ async function harness(
   const onNavigate = vi.fn();
   const onRouteChange = vi.fn();
   const onCopyLink = vi.fn(() => Promise.resolve());
+  const onLoadingChange = vi.fn();
   const onBroken = vi.fn();
   const fetchRuntimeToken = vi.fn(() =>
     Promise.resolve({ runtimeToken: RUNTIME_TOKEN, expiresIn: 900 })
@@ -106,6 +108,7 @@ async function harness(
     onNavigate,
     onRouteChange,
     onCopyLink,
+    onLoadingChange,
     onBroken,
   });
 
@@ -159,6 +162,7 @@ async function harness(
     onNavigate,
     onRouteChange,
     onCopyLink,
+    onLoadingChange,
     onBroken,
   };
 }
@@ -1378,6 +1382,15 @@ describe('plugin host bridge', () => {
       expect(h.fetchMock).not.toHaveBeenCalled();
     });
 
+    it('shows no loading until the frame echoes the nonce', async () => {
+      const h = await harness(ok, false);
+
+      const response = await h.send({ kind: 'loading', active: true });
+
+      expect(response).toMatchObject({ ok: false, error: { code: 'PROTOCOL_ERROR' } });
+      expect(h.onLoadingChange).not.toHaveBeenCalled();
+    });
+
     // The port went to this frame and nowhere else, so a wrong nonce is not a race -- it is
     // an end that failed the only check it was given.
     it('closes the channel on a wrong nonce instead of serving it', async () => {
@@ -1715,6 +1728,47 @@ describe('plugin host bridge', () => {
         error: { code: 'FORBIDDEN', message: 'The link could not be copied' },
       });
       expect(JSON.stringify(response)).not.toContain(RUNTIME_TOKEN);
+    });
+
+    it('hands the loading state to the host and answers nothing', async () => {
+      const h = await harness();
+
+      h.tell({ kind: 'loading', active: true, progress: 0.4 });
+      h.tell({ kind: 'loading', active: false });
+      await flush();
+
+      expect(h.onLoadingChange.mock.calls).toEqual([
+        [{ active: true, progress: 0.4 }],
+        [{ active: false, progress: undefined }],
+      ]);
+      expect(h.fetchMock).not.toHaveBeenCalled();
+    });
+
+    it.each([0, 1])('accepts progress %s at the ends of the range', async progress => {
+      const h = await harness();
+
+      h.tell({ kind: 'loading', active: true, progress });
+      await flush();
+
+      expect(h.onLoadingChange).toHaveBeenCalledWith({ active: true, progress });
+    });
+
+    it.each([
+      { active: 'yes' },
+      { active: true, progress: 40 },
+      { active: true, progress: -0.1 },
+      { active: true, progress: Number.NaN },
+      { active: true, progress: '0.5' },
+    ])('refuses the loading state %j', async state => {
+      const h = await harness();
+
+      const response = await h.send({ kind: 'loading', ...state } as unknown as PluginRequestInput);
+
+      expect(response).toMatchObject({
+        ok: false,
+        error: { code: 'PROTOCOL_ERROR', message: 'The loading state is invalid' },
+      });
+      expect(h.onLoadingChange).not.toHaveBeenCalled();
     });
   });
 

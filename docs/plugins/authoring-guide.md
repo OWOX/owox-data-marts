@@ -124,6 +124,7 @@ Marts frame or if no host answers within 10 seconds.
 | `ctx.route`                                | The plugin's own route the member opened, e.g. `/dashboards/42`; `undefined` on a host without page links.                                                                                                                                                                                                                                                      |
 | `ctx.ui.setRoute(path)`                    | Tells the host which of your pages is showing, so the address in the browser is a link to it.                                                                                                                                                                                                                                                                   |
 | `ctx.ui.copyLink(path?)`                   | Asks the host to copy a link to one of your pages (the current one by default) and confirm it.                                                                                                                                                                                                                                                                  |
+| `ctx.ui.startLoading()`                    | Shows the host's loading bar until you call `stop()` on the result; see [loading bar](#show-the-loading-bar).                                                                                                                                                                                                                                                   |
 | `ctx.signal`                               | Aborts when the host tears the plugin down.                                                                                                                                                                                                                                                                                                                     |
 | `ctx.userId`, `ctx.projectId`, `ctx.theme` | Provides display context without exposing tokens. The member's name and avatar are available through `ctx.owox.auth` when needed.                                                                                                                                                                                                                               |
 
@@ -213,6 +214,50 @@ whenever the member moves to another page, and `ctx.ui.copyLink()` from your own
   leaves the plugin instead of stepping through its pages.
 - A member without the plugin who opens such a link is offered the install: automatically if a
   publication lists the plugin for them, otherwise via a banner on the page.
+
+### Show the loading bar
+
+Use the host's loading bar instead of your own. It is the bar that OWOX Data Marts shows at the top
+of the page for its own requests.
+
+When you do not know how long the work takes, start and stop the bar. It moves on its own:
+
+```ts
+async function loadDataMarts() {
+  const loading = ctx.ui.startLoading();
+  try {
+    return await ctx.owox.dataMarts.list();
+  } finally {
+    loading.stop();
+  }
+}
+```
+
+When you can count the work, also set the progress:
+
+```ts
+const loading = ctx.ui.startLoading();
+try {
+  for (const [index, item] of items.entries()) {
+    await save(item);
+    loading.setProgress((index + 1) / items.length);
+  }
+} finally {
+  loading.stop();
+}
+```
+
+- Start one loading for each piece of work. The bar stays while any of them runs and hides when the
+  last one stops. A second `stop()` does nothing.
+- `setProgress(fraction)` takes a fraction from 0 to 1. A value below 0 counts as 0, and a value
+  above 1 counts as 1. `NaN` and non-numbers are ignored.
+- Without a fraction, the bar moves on its own. With more than one loading, the bar shows their mean
+  progress, or moves on its own while one of them has no fraction.
+- The bar never moves back. If your fraction is below what the bar already shows, the bar waits
+  until your fraction passes it.
+- Call `stop()` in a `finally` block. The host clears the bar when your plugin closes or its page
+  reloads.
+- An older host shows no bar, and the calls do not fail.
 
 ### Use project Credentials
 

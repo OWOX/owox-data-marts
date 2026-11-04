@@ -102,7 +102,7 @@ function MainLayoutContent() {
   const user = useUser();
   const isCollapsed = state === 'collapsed';
   const showTrigger = isMobile || isCollapsed;
-  const { isLoading } = useLoading();
+  const { isLoading, progress } = useLoading();
   const hasEmptyProjectRoles = Array.isArray(user?.roles) && user.roles.length === 0;
 
   return (
@@ -111,7 +111,7 @@ function MainLayoutContent() {
       <SonnerToaster position='bottom-right' closeButton />
       {/* Legacy react-hot-toast Toaster to keep previously configured toasts working */}
       <HotToaster />
-      <GlobalLoader isLoading={isLoading} />
+      <GlobalLoader isLoading={isLoading} progress={progress} />
       <ProjectAuthGuards>
         {user && hasEmptyProjectRoles ? (
           <>

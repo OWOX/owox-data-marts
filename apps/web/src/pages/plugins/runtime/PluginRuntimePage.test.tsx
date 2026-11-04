@@ -29,6 +29,7 @@ interface CapturedBridgeOptions {
   onNavigate?: (path: string) => void;
   onRouteChange?: (route: string) => void;
   onCopyLink?: (route: string | undefined) => Promise<void> | void;
+  onLoadingChange?: (state: { active: boolean; progress?: number }) => void;
 }
 const bridgeOptions: CapturedBridgeOptions = {};
 let bridgeCreations = 0;
@@ -49,6 +50,7 @@ vi.mock('../../../features/plugins', async () => ({
     bridgeOptions.onNavigate = options.onNavigate;
     bridgeOptions.onRouteChange = options.onRouteChange;
     bridgeOptions.onCopyLink = options.onCopyLink;
+    bridgeOptions.onLoadingChange = options.onLoadingChange;
     return { dispose: () => undefined };
   },
   fetchRuntimeToken: () => () => Promise.resolve({ runtimeToken: 't', expiresIn: 900 }),
@@ -56,6 +58,7 @@ vi.mock('../../../features/plugins', async () => ({
   PluginPageMessage: ActualPluginPageMessage,
 }));
 
+import { getLoadingProgress, isApiLoading } from '../../../app/api/api-loading';
 import { pluginsService } from '../../../features/plugins';
 import { PluginRuntime } from './PluginRuntimePage';
 
@@ -116,6 +119,28 @@ describe('PluginRuntimePage', () => {
    * is the classic sandbox escape, and it is exactly the kind of thing someone reaches
    * for when debugging a plugin that will not load.
    */
+  /**
+   * The single most important assertion in the web app.
+   *
+   * Omitting allow-same-origin forces an opaque origin, which is what keeps the plugin
+   * away from cookies, storage and this document. Adding it back alongside allow-scripts
+   * is the classic sandbox escape, and it is exactly the kind of thing someone reaches
+   * for when debugging a plugin that will not load.
+   */
+  it('shows the plugin loading in the app loading bar until the plugin closes', async () => {
+    const view = await mountWithBridge();
+
+    act(() => {
+      bridgeOptions.onLoadingChange?.({ active: true, progress: 0.4 });
+    });
+    expect(isApiLoading()).toBe(true);
+    expect(getLoadingProgress()).toBe(0.4);
+
+    view.unmount();
+    expect(isApiLoading()).toBe(false);
+    expect(getLoadingProgress()).toBeUndefined();
+  });
+
   it('sandboxes the plugin with exactly two tokens', async () => {
     renderPage();
 
@@ -123,6 +148,23 @@ describe('PluginRuntimePage', () => {
 
     expect(frame).toHaveAttribute('sandbox', 'allow-scripts allow-downloads');
     expect(frame.getAttribute('sandbox')).not.toContain('allow-same-origin');
+  });
+
+  it('clears the previous plugin loading when another installation opens', async () => {
+    const view = renderPage();
+    await waitFor(() => {
+      expect(bridgeCreations).toBe(1);
+    });
+    act(() => {
+      bridgeOptions.onLoadingChange?.({ active: true, progress: 0.4 });
+    });
+
+    view.rerender(<PluginRuntime installationId='i2' initialRoute='/' openBase={OPEN_BASE} />);
+    await waitFor(() => {
+      expect(bridgeCreations).toBe(2);
+    });
+
+    expect(isApiLoading()).toBe(false);
   });
 
   it('delegates no permissions and leaks no referrer', async () => {
