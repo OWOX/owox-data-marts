@@ -1,12 +1,7 @@
 import { Button } from '@owox/ui/components/button';
-import { ButtonGroup } from '@owox/ui/components/button-group';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@owox/ui/components/dropdown-menu';
-import { ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react';
+import { DropdownMenuItem } from '@owox/ui/components/dropdown-menu';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { SplitButton } from '../../../../../../shared/components/SplitButton';
 
 interface StepNavigationProps {
   currentStep: number;
@@ -43,42 +38,25 @@ export function StepNavigation({
 
   const renderFinish = (fullWidth: boolean) =>
     canRunAfterSave ? (
-      <ButtonGroup className={fullWidth ? 'w-full' : undefined}>
-        <Button
-          className={fullWidth ? 'flex-1' : undefined}
-          variant='default'
-          onClick={() => {
-            onFinish(true);
-          }}
-          disabled={isFinishDisabled}
-        >
-          Save & Run
-        </Button>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              variant='default'
-              disabled={isFinishDisabled}
-              aria-label='More actions'
-              className='group'
-            >
-              <ChevronDown
-                className='size-4 transition-transform duration-200 group-data-[state=open]:rotate-180'
-                aria-hidden='true'
-              />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align='end' side='top'>
-            <DropdownMenuItem
-              onClick={() => {
-                onFinish(false);
-              }}
-            >
-              {finishLabel}
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </ButtonGroup>
+      <SplitButton
+        groupClassName={fullWidth ? 'w-full' : undefined}
+        className={fullWidth ? 'flex-1' : undefined}
+        onClick={() => {
+          onFinish(true);
+        }}
+        disabled={isFinishDisabled}
+        menu={
+          <DropdownMenuItem
+            onClick={() => {
+              onFinish(false);
+            }}
+          >
+            {finishLabel}
+          </DropdownMenuItem>
+        }
+      >
+        Save & Run
+      </SplitButton>
     ) : (
       <Button
         className={fullWidth ? 'w-full' : undefined}
