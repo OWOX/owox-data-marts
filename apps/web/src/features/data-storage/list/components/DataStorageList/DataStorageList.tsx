@@ -344,7 +344,11 @@ export const DataStorageList = ({
         open={deleteDialogOpen}
         onOpenChange={setDeleteDialogOpen}
         title='Delete Storage'
-        description='Are you sure you want to delete this storage? This action cannot be undone.'
+        description={
+          dataStorages.find(s => s.id === storageToDelete)?.owoxStorage
+            ? 'This deletes the OWOX Storage and all its tables. The data cannot be restored.'
+            : 'Are you sure you want to delete this storage? This action cannot be undone.'
+        }
         confirmLabel='Delete'
         cancelLabel='Cancel'
         onConfirm={() => {

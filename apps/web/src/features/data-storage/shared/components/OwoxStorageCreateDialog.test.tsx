@@ -110,4 +110,33 @@ describe('OwoxStorageCreateDialog', () => {
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
     expect(onClose).toHaveBeenCalled();
   });
+
+  it('ignores Escape while a create runs and honours it afterwards', async () => {
+    let finish: (storage: unknown) => void = () => undefined;
+    createOwoxStorage.mockReturnValue(
+      new Promise(resolve => {
+        finish = resolve;
+      })
+    );
+    const { onClose } = setup();
+    pick('US');
+    fireEvent.click(screen.getByRole('button', { name: 'Create' }));
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Cancel' })).toBeDisabled();
+    });
+
+    fireEvent.keyDown(screen.getByTestId('owoxStorageCreateDialog'), { key: 'Escape' });
+    expect(onClose).not.toHaveBeenCalled();
+
+    finish({ id: 's1' });
+    await waitFor(() => {
+      expect(onClose).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it('closes on Escape when no create runs', () => {
+    const { onClose } = setup();
+    fireEvent.keyDown(screen.getByTestId('owoxStorageCreateDialog'), { key: 'Escape' });
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
 });
