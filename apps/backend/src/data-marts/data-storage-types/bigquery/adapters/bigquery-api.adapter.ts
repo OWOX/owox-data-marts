@@ -20,6 +20,9 @@ import {
 } from '../services/bigquery-sharded-tables.util';
 import { OwoxStorageStatementException } from '../../../owox-storage/owox-storage.exceptions';
 
+// BigQuery bills at least 10 MB per query and per referenced table.
+const MIN_BILLED_BYTES = 10 * 2 ** 20;
+
 /** Fully-qualified BigQuery table coordinates, as returned by a dry run's `referencedTables`. */
 export interface BigQueryTableReference {
   projectId: string;
@@ -133,22 +136,25 @@ export class BigQueryApiAdapter {
   ): Promise<{ jobId: string }> {
     let reservation: ScanReservation | undefined;
     if (this.scanBudget) {
-      const { statementType, totalBytesProcessed } = await this.executeDryRunQuery(query, params);
+      const { statementType, totalBytesProcessed, referencedTables } =
+        await this.executeDryRunQuery(query, params);
       if (statementType !== 'SELECT') throw new OwoxStorageStatementException(statementType);
-      reservation = await this.scanBudget.reserve(totalBytesProcessed);
+      reservation = await this.scanBudget.reserve(
+        Math.max(totalBytesProcessed, MIN_BILLED_BYTES * Math.max(1, referencedTables.length))
+      );
     }
 
-    const queryConfig: Query = {
-      query,
-      ...this.getLocationOption(),
-      ...(jobTimeoutMs !== undefined ? { jobTimeoutMs } : {}),
-      ...(reservation ? { maximumBytesBilled: String(reservation.maximumBytesBilled) } : {}),
-    };
-    if (params && params.length > 0) {
-      queryConfig.params = Object.fromEntries(params.map(p => [p.name, p.value]));
-      queryConfig.parameterMode = 'NAMED';
-    }
     try {
+      const queryConfig: Query = {
+        query,
+        ...this.getLocationOption(),
+        ...(jobTimeoutMs !== undefined ? { jobTimeoutMs } : {}),
+        ...(reservation ? { maximumBytesBilled: String(reservation.maximumBytesBilled) } : {}),
+      };
+      if (params && params.length > 0) {
+        queryConfig.params = Object.fromEntries(params.map(p => [p.name, p.value]));
+        queryConfig.parameterMode = 'NAMED';
+      }
       return await this.runJob(queryConfig, signal);
     } finally {
       reservation?.release();
