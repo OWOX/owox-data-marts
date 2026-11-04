@@ -186,4 +186,31 @@ describe('ConnectorDefinitionField — Save & Run', () => {
     });
     expect(testState.getDataMartRuns).not.toHaveBeenCalled();
   });
+
+  it('keeps a failed run refresh after publish handled', async () => {
+    const unhandled = vi.fn();
+    process.on('unhandledRejection', unhandled);
+    try {
+      testState.getDataMartRuns.mockImplementation(() => {
+        const failed = Promise.reject(new Error('Runs unavailable'));
+        // Not a Promise instance, so the spy does not mark the rejection as handled.
+        return {
+          then: failed.then.bind(failed),
+          catch: failed.catch.bind(failed),
+        } as unknown as Promise<void>;
+      });
+      renderField(DataMartStatus.DRAFT);
+
+      fireEvent.click(screen.getByRole('button', { name: 'Save & Run' }));
+
+      await waitFor(() => {
+        expect(testState.getDataMartRuns).toHaveBeenCalledWith('dm-1');
+      });
+      await new Promise(resolve => setImmediate(resolve));
+
+      expect(unhandled).not.toHaveBeenCalled();
+    } finally {
+      process.off('unhandledRejection', unhandled);
+    }
+  });
 });

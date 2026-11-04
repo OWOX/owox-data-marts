@@ -71,7 +71,8 @@ export function ConnectorDefinitionField({
     if (dataMart.status.code === DataMartStatus.DRAFT) {
       try {
         await publishDataMart(dataMart.id);
-        void getDataMartRuns(dataMart.id);
+        // The context keeps the refresh error; the run itself has started.
+        void getDataMartRuns(dataMart.id).catch(() => undefined);
       } catch {
         // The API client shows the error; the saved definition stays.
       }
