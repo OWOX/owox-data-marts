@@ -93,7 +93,11 @@ export class DataStorageCredentialsResolver {
       }
       return {
         type: BIGQUERY_MANAGED_TYPE,
-        authClient: await this.identity.impersonate(managed.serviceAccountEmail),
+        // A restore changes the record, so a recreated account gets a new client on every pod.
+        authClient: await this.identity.impersonate(
+          managed.serviceAccountEmail,
+          managed.modifiedAt.getTime().toString()
+        ),
         serviceAccountEmail: managed.serviceAccountEmail,
         datasetId: managed.datasetId,
         internalDatasetId: managed.internalDatasetId,

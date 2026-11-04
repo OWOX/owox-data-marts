@@ -35,6 +35,7 @@ import type { StorageCredentialSummary } from '../data-storage-types/storage-cre
 import { ListDataStoragesByTypeItemDto } from '../dto/domain/list-data-storages-by-type-item.dto';
 import { ListDataStoragesByTypeCommand } from '../dto/domain/list-data-storages-by-type.command';
 import { DataStorage } from '../entities/data-storage.entity';
+import type { ManagedStorage } from '../entities/managed-storage.entity';
 import { UserProjectionDto } from '../../idp/dto/domain/user-projection.dto';
 import { OwnerFilter } from '../enums/owner-filter.enum';
 import { ManagedStorageService } from '../owox-storage/managed-storage.service';
@@ -122,8 +123,14 @@ export class DataStorageMapper {
     );
   }
 
-  async toApiResponse(dataStorageDto: DataStorageDto): Promise<DataStorageResponseApiDto> {
-    const managed = await this.managedStorageService.findByStorageId(dataStorageDto.id);
+  /** `managed` is the caller's batched lookup; `null` means the storage has no record. */
+  async toApiResponse(
+    dataStorageDto: DataStorageDto,
+    managed?: ManagedStorage | null
+  ): Promise<DataStorageResponseApiDto> {
+    if (managed === undefined) {
+      managed = await this.managedStorageService.findByStorageId(dataStorageDto.id);
+    }
     return {
       id: dataStorageDto.id,
       title: dataStorageDto.title,
@@ -142,6 +149,10 @@ export class DataStorageMapper {
       }),
       ...(managed && { owoxStorage: { location: managed.location, datasetId: managed.datasetId } }),
     };
+  }
+
+  findManagedByStorageIds(ids: readonly string[]): Promise<Map<string, ManagedStorage>> {
+    return this.managedStorageService.findByStorageIds(ids);
   }
 
   toGetCommand(id: string, context: AuthorizationContext) {

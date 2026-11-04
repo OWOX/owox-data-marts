@@ -52,6 +52,25 @@ describe('OwoxStorageUsageService', () => {
     tables(100, 200);
   });
 
+  describe('table list cache', () => {
+    beforeEach(() => jest.useFakeTimers());
+    afterEach(() => jest.useRealTimers());
+
+    it('lists tables once within 60 s, again after forgetTables or past 60 s', async () => {
+      await service.getUsage(record);
+      await service.getUsage(record);
+      expect(engine.listTables).toHaveBeenCalledTimes(1);
+
+      service.forgetTables(record.storageId);
+      await service.getUsage(record);
+      expect(engine.listTables).toHaveBeenCalledTimes(2);
+
+      jest.advanceTimersByTime(60_001);
+      await service.getUsage(record);
+      expect(engine.listTables).toHaveBeenCalledTimes(3);
+    });
+  });
+
   describe('getUsage', () => {
     it('sums table sizes against the FREE limit', async () => {
       await expect(service.getUsage(record)).resolves.toMatchObject({

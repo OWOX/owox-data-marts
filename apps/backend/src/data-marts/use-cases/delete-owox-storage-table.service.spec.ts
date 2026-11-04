@@ -16,13 +16,15 @@ function makeService(managed: unknown = record, canEdit = true) {
   const accessDecisionService = { canAccess: jest.fn().mockResolvedValue(canEdit) };
   const managedStorages = { findByStorageId: jest.fn().mockResolvedValue(managed) };
   const engine = { dropTable: jest.fn().mockResolvedValue(undefined) };
+  const usage = { forgetTables: jest.fn() };
   const service = new DeleteOwoxStorageTableService(
     dataStorageService as never,
     accessDecisionService as never,
     managedStorages as never,
+    usage as never,
     engine as never
   );
-  return { service, accessDecisionService, dataStorageService, engine };
+  return { service, accessDecisionService, dataStorageService, engine, usage };
 }
 
 const command = new DeleteOwoxStorageTableCommand('storage-1', 'proj-1', 'events', 'user-1', [
@@ -57,6 +59,17 @@ describe('DeleteOwoxStorageTableService', () => {
     await service.run(command);
 
     expect(engine.dropTable).toHaveBeenCalledWith(record, 'events');
+  });
+
+  it('forgets the cached table list after a successful delete only', async () => {
+    const ok = makeService();
+    await ok.service.run(command);
+    expect(ok.usage.forgetTables).toHaveBeenCalledWith('storage-1');
+
+    const failed = makeService();
+    failed.engine.dropTable.mockRejectedValue(new Error('boom'));
+    await expect(failed.service.run(command)).rejects.toThrow(OwoxStorageTableDeleteException);
+    expect(failed.usage.forgetTables).not.toHaveBeenCalled();
   });
 
   it('refuses a plugin token before any lookup', async () => {

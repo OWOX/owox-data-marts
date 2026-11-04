@@ -9,6 +9,7 @@ const record = (storageId: string, email: string) =>
     serviceAccountEmail: email,
     datasetId: `ds_${storageId}`,
     internalDatasetId: `ds_${storageId}_internal`,
+    modifiedAt: new Date(1700000000000),
   }) as ManagedStorage;
 
 describe('DataStorageCredentialsResolver (managed storage)', () => {
@@ -17,7 +18,9 @@ describe('DataStorageCredentialsResolver (managed storage)', () => {
     ['b', record('b', 'b@x.iam')],
   ]);
   const managed = { findByStorageId: jest.fn(async (id: string) => records.get(id) ?? null) };
-  const identity = { impersonate: jest.fn(async (email: string) => ({ email })) };
+  const identity = {
+    impersonate: jest.fn(async (email: string, _generation?: string) => ({ email })),
+  };
   const budget = { remainingBytes: jest.fn() };
   const binding = { resolveForStorage: jest.fn(), findBoundStorageIds: jest.fn() };
   const legacy = { resolve: jest.fn(), hasOldKey: jest.fn() };
@@ -41,13 +44,15 @@ describe('DataStorageCredentialsResolver (managed storage)', () => {
       internalDatasetId: 'ds_a_internal',
       scanBudget: budget,
     });
+    expect(result).toHaveProperty('authClient', await identity.impersonate.mock.results[0].value);
+    expect(identity.impersonate).toHaveBeenCalledWith('a@x.iam', '1700000000000');
     expect(binding.resolveForStorage).not.toHaveBeenCalled();
     expect(legacy.resolve).not.toHaveBeenCalled();
   });
 
   it('resolves each managed storage to its own account', async () => {
     const result = await resolver.resolve({ id: 'b' } as DataStorage);
-    expect(identity.impersonate).toHaveBeenCalledWith('b@x.iam');
+    expect(identity.impersonate).toHaveBeenCalledWith('b@x.iam', '1700000000000');
     expect(result).toMatchObject({ serviceAccountEmail: 'b@x.iam' });
   });
 
