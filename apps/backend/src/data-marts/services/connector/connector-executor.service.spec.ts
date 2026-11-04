@@ -77,6 +77,7 @@ import { GracefulShutdownService } from '../../../common/scheduler/services/grac
 import { SystemTimeService } from '../../../common/scheduler/services/system-time.service';
 import { ProjectBillingService } from '../project-billing/project-billing.service';
 import { OwoxStorageUsageService } from '../../owox-storage/owox-storage-usage.service';
+import { ManagedStorageService } from '../../owox-storage/managed-storage.service';
 import { DataMartService } from '../data-mart.service';
 import { DataMartRunStatus } from '../../enums/data-mart-run-status.enum';
 import { DataMartRunType } from '../../enums/data-mart-run-type.enum';
@@ -233,6 +234,8 @@ describe('ConnectorExecutorService', () => {
       assertCanLoad: jest.fn().mockResolvedValue(undefined),
     } as unknown as OwoxStorageUsageService;
 
+    const managedStorage = { recordUse: jest.fn().mockResolvedValue(undefined) };
+
     const service = new ConnectorExecutorService(
       dataMartRunRepository,
       processSpawner,
@@ -252,13 +255,15 @@ describe('ConnectorExecutorService', () => {
       connectorRunTriggerService,
       credentialService,
       sourceCredentialInjector,
-      owoxStorageUsage
+      owoxStorageUsage,
+      managedStorage as unknown as ManagedStorageService
     );
 
     return {
       service,
       credentialService,
       owoxStorageUsage,
+      managedStorage,
       connectorRunTriggerService,
       dataMartRunRepository,
       processSpawner,
@@ -818,6 +823,41 @@ describe('ConnectorExecutorService', () => {
         status: DataMartRunStatus.RESTRICTED,
         errors: expect.arrayContaining([expect.stringContaining(blocked.message)]),
       })
+    );
+  });
+
+  it('records use of the storage when a run ends restricted by a full storage', async () => {
+    const { service, owoxStorageUsage, managedStorage } = createService();
+    const { ProjectOperationBlockedException } =
+      await import('../../../common/exceptions/project-operation-blocked.exception');
+    (owoxStorageUsage.assertCanLoad as jest.Mock).mockRejectedValue(
+      new ProjectOperationBlockedException([ProjectBlockedReason.OWOX_STORAGE_FULL])
+    );
+
+    await service.executeInBackground(createDataMart(), createRun(), null);
+
+    expect(managedStorage.recordUse).toHaveBeenCalledWith('storage-1', expect.any(Date));
+  });
+
+  it('records use of the storage when a run succeeds', async () => {
+    const { service, managedStorage } = createService();
+
+    await service.executeInBackground(createDataMart(), createRun(), null);
+
+    expect(managedStorage.recordUse).toHaveBeenCalledWith('storage-1', expect.any(Date));
+  });
+
+  it('keeps the persisted status when recording use fails', async () => {
+    const { service, managedStorage, dataMartRunRepository } = createService();
+    managedStorage.recordUse.mockRejectedValue(new Error('db down'));
+
+    await expect(
+      service.executeInBackground(createDataMart(), createRun(), null)
+    ).resolves.toBeUndefined();
+
+    expect(dataMartRunRepository.update).toHaveBeenCalledWith(
+      { id: 'run-1', status: expect.anything() },
+      expect.objectContaining({ status: DataMartRunStatus.SUCCESS })
     );
   });
 

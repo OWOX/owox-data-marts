@@ -78,9 +78,16 @@ function createService() {
     publishLocalOnCommit: jest.fn(),
   } as unknown as jest.Mocked<OwoxEventDispatcher>;
 
-  const service = new DataMartRunService(dataMartRunRepository, systemClock, eventDispatcher);
+  const managedStorage = { recordUse: jest.fn().mockResolvedValue(undefined) };
 
-  return { service, dataMartRunRepository, systemClock, eventDispatcher, saved };
+  const service = new DataMartRunService(
+    dataMartRunRepository,
+    systemClock,
+    eventDispatcher,
+    managedStorage as never
+  );
+
+  return { service, dataMartRunRepository, systemClock, eventDispatcher, managedStorage, saved };
 }
 
 function createQueryBuilderMock() {
@@ -121,6 +128,23 @@ function createQueryBuilderMock() {
 const context: ReportRunContext = { createdById: 'user-1', runType: RunType.manual };
 
 describe('DataMartRunService', () => {
+  describe('recordStorageUse', () => {
+    it('records use of the storage at the current time', async () => {
+      const { service, managedStorage, systemClock } = createService();
+
+      await service.recordStorageUse('storage-1', 'run-1');
+
+      expect(managedStorage.recordUse).toHaveBeenCalledWith('storage-1', systemClock.now());
+    });
+
+    it('swallows a failure to record', async () => {
+      const { service, managedStorage } = createService();
+      managedStorage.recordUse.mockRejectedValue(new Error('db down'));
+
+      await expect(service.recordStorageUse('storage-1', 'run-1')).resolves.toBeUndefined();
+    });
+  });
+
   describe('listByDataMartId', () => {
     it('loads the compact DQ summary without selecting heavy DQ columns', async () => {
       const { service, dataMartRunRepository } = createService();
@@ -465,7 +489,8 @@ describe('DataMartRunService', () => {
         new OwoxEventDispatcher(
           { produceEvent: jest.fn(), produceEventSafely: jest.fn() } as never,
           emitter
-        )
+        ),
+        { recordUse: jest.fn() } as never
       );
 
       await expect(
@@ -499,7 +524,8 @@ describe('DataMartRunService', () => {
         new OwoxEventDispatcher(
           { produceEvent: jest.fn(), produceEventSafely: jest.fn() } as never,
           emitter
-        )
+        ),
+        { recordUse: jest.fn() } as never
       );
 
       await expect(
@@ -707,7 +733,8 @@ describe('DataMartRunService', () => {
         new OwoxEventDispatcher(
           { produceEvent: jest.fn(), produceEventSafely: jest.fn() } as never,
           emitter
-        )
+        ),
+        { recordUse: jest.fn() } as never
       );
 
       await expect(
@@ -737,7 +764,8 @@ describe('DataMartRunService', () => {
         new OwoxEventDispatcher(
           { produceEvent: jest.fn(), produceEventSafely: jest.fn() } as never,
           emitter
-        )
+        ),
+        { recordUse: jest.fn() } as never
       );
 
       await expect(

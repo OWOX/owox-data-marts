@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, IsNull, Not, Repository } from 'typeorm';
+import { In, IsNull, LessThan, Not, Or, Repository } from 'typeorm';
 import { ManagedStorage } from '../entities/managed-storage.entity';
 
 @Injectable()
@@ -67,6 +67,18 @@ export class ManagedStorageService {
     await this.repository.update(
       { storageId, deprovisionedAt: Not(IsNull()) },
       { deprovisionPending: pending }
+    );
+  }
+
+  // At most one write an hour per storage: the inactivity rule counts days.
+  async recordUse(storageId: string, at: Date): Promise<void> {
+    await this.repository.update(
+      {
+        storageId,
+        deprovisionedAt: IsNull(),
+        lastActivityAt: Or(IsNull(), LessThan(new Date(at.getTime() - 60 * 60 * 1000))),
+      },
+      { lastActivityAt: at }
     );
   }
 
