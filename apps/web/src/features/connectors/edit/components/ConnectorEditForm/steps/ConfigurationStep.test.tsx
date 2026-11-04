@@ -8,11 +8,18 @@ import { ConnectorApiService, RequiredType } from '../../../../shared/api';
 import type { ConnectorListItem } from '../../../../shared/model/types/connector';
 import {
   ConnectPickedSpreadsheetContext,
+  credentialsService,
   type CredentialConfigSheetProps,
 } from '../../../../../credentials';
 import { DataMartContext } from '../../../../../data-marts/edit/model/context/context';
+import { dataMartService } from '../../../../../data-marts/shared/services/data-mart.service';
+import type { DataMartResponseDto } from '../../../../../data-marts/shared/types/api';
+import { trackEvent } from '../../../../../../utils';
 
 vi.mock('../../../../../../utils', () => ({ trackEvent: vi.fn() }));
+
+const toastMock = vi.hoisted(() => Object.assign(vi.fn(), { error: vi.fn(), success: vi.fn() }));
+vi.mock('react-hot-toast', () => ({ default: toastMock, toast: toastMock }));
 
 const oauthMocks = vi.hoisted(() => ({
   exchangeCredentials: vi.fn(),
@@ -130,6 +137,37 @@ async function selectCredential(title: string) {
   fireEvent.click(
     await within(document.body).findByRole('option', { name: new RegExp(`^${title}`) })
   );
+}
+
+/** A Data Mart of the same connector, as GET /data-marts/by-connector lists it. */
+function sourceDataMart(
+  configuration: Record<string, unknown>,
+  { id = 'dm-2', title = 'Ads EU', connectorName = 'GoogleAds' } = {}
+) {
+  return {
+    id,
+    title,
+    definition: { connector: { source: { name: connectorName, configuration: [configuration] } } },
+  } as unknown as DataMartResponseDto;
+}
+
+/** Opens "Reuse from another Data Mart" and picks a Data Mart; the member's Credentials come from `list`. */
+async function reuseFrom(
+  dataMarts: DataMartResponseDto[],
+  {
+    title = 'Ads EU',
+    list = () =>
+      Promise.resolve({ credentials: credentialsState.credentials as never, unavailable: [] }),
+  }: { title?: string; list?: () => ReturnType<typeof credentialsService.list> } = {}
+) {
+  vi.spyOn(dataMartService, 'getDataMartsByConnectorName').mockResolvedValue(dataMarts);
+  vi.spyOn(credentialsService, 'list').mockImplementation(list);
+  // Found, not got: a combobox that just closed keeps the page hidden for a moment.
+  fireEvent.pointerDown(await screen.findByRole('button', { name: /Reuse from another Data/ }), {
+    button: 0,
+    ctrlKey: false,
+  });
+  fireEvent.click(await within(document.body).findByRole('menuitem', { name: title }));
 }
 
 beforeEach(() => {
@@ -875,6 +913,45 @@ describe('ConfigurationStep Google Sheets Credential', () => {
       expect(screen.getByRole('combobox', { name: 'Spreadsheet ID or URL *' })).toHaveTextContent(
         'Goals'
       );
+    });
+  });
+
+  it('a reused spreadsheet comes only with the Credential that can open it', async () => {
+    toastMock.mockClear();
+    credentialsState.credentials = [
+      credential('sheets-oauth', 'source:GoogleSheets:oauth2', 'Marketing sheets'),
+      credential('sheets-sa', 'google-service-account', 'Reporting robot'),
+      { ...credential('sheets-private', 'source:GoogleSheets:oauth2', 'Colleague'), canUse: false },
+    ];
+    const onConfigurationChange = renderNewSheets();
+    await selectCredential('Reporting robot');
+    const sheetsMart = (title: string, credentialId: string) =>
+      sourceDataMart(
+        {
+          AuthType: { oauth2: {} },
+          SpreadsheetId: `${title}-sheet`,
+          _credential_id: credentialId,
+        },
+        { id: title, title, connectorName: 'GoogleSheets' }
+      );
+
+    // The colleague's Credential stays theirs, so their spreadsheet does not come beside ours.
+    await reuseFrom([sheetsMart('Colleague plan', 'sheets-private')], { title: 'Colleague plan' });
+    await waitFor(() => {
+      expect(toastMock).toHaveBeenCalled();
+    });
+    expect(onConfigurationChange).toHaveBeenLastCalledWith({
+      AuthType: { service_account: {} },
+      _credential_id: 'sheets-sa',
+    });
+
+    await reuseFrom([sheetsMart('Team plan', 'sheets-oauth')], { title: 'Team plan' });
+    await waitFor(() => {
+      expect(onConfigurationChange).toHaveBeenLastCalledWith({
+        AuthType: { oauth2: {} },
+        _credential_id: 'sheets-oauth',
+        SpreadsheetId: 'Team plan-sheet',
+      });
     });
   });
 });
@@ -1701,9 +1778,349 @@ describe('ConfigurationStep Credential', () => {
     expect(screen.getByText('Credential disabled')).toBeInTheDocument();
   });
 
-  it('the copy-from-another-Data-Mart button is gone', () => {
-    render(inDataMart(<Harness />));
+  describe('Reuse from another Data Mart', () => {
+    const customConnector: ConnectorListItem = {
+      name: 'MyApi',
+      displayName: 'My API',
+      description: '',
+      logoBase64: null,
+      docUrl: null,
+      isCustom: true,
+      id: 'cdef-1',
+      version: 2,
+    };
+    const customSpecification: ConnectorSpecificationResponseApiDto[] = [
+      { name: 'Mode', title: 'Mode', requiredType: RequiredType.STRING, required: true },
+      { name: 'ClientId', title: 'Client ID', requiredType: RequiredType.STRING, required: true },
+      { name: 'Account', title: 'Account', requiredType: RequiredType.STRING, required: true },
+    ];
 
-    expect(screen.queryByRole('button', { name: /another Data/ })).not.toBeInTheDocument();
+    beforeEach(() => {
+      toastMock.mockClear();
+      vi.mocked(trackEvent).mockClear();
+    });
+
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it('takes the settings and the Credential of the selected Data Mart', async () => {
+      credentialsState.credentials = [
+        credential('ads-sa', 'source:GoogleAds:service_account', 'Ads robot'),
+        credential('ads-oauth', 'source:GoogleAds:oauth2', 'Ads sign-in'),
+      ];
+      const onChange = vi.fn();
+      render(
+        inDataMart(
+          <Harness
+            initial={{ _id: 'cfg-1', CustomerId: '123', AuthType: { service_account: {} } }}
+            onChange={onChange}
+            isEditingExisting
+          />
+        )
+      );
+
+      await reuseFrom([
+        sourceDataMart({
+          _id: 'cfg-src',
+          CustomerId: '999',
+          AuthType: { oauth2: {} },
+          _credential_id: 'ads-oauth',
+        }),
+      ]);
+
+      // Its own id stays: the copy fills this configuration, it does not take the other one's place.
+      await waitFor(() => {
+        expect(onChange).toHaveBeenLastCalledWith({
+          _id: 'cfg-1',
+          CustomerId: '999',
+          AuthType: { oauth2: {} },
+          _credential_id: 'ads-oauth',
+        });
+      });
+      expect(dataMartService.getDataMartsByConnectorName).toHaveBeenCalledWith('GoogleAds');
+      expect(screen.getByRole('combobox', { name: 'Credential' })).toHaveTextContent('Ads sign-in');
+      expect(toastMock).not.toHaveBeenCalled();
+      expect(trackEvent).toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'configuration_reused', label: 'with-credential' })
+      );
+    });
+
+    it('on an old key takes the Credential variant only, and drops the old key', async () => {
+      credentialsState.credentials = [
+        credential('ads-sa', 'source:GoogleAds:service_account', 'Ads robot'),
+        credential('ads-oauth', 'source:GoogleAds:oauth2', 'Ads sign-in'),
+      ];
+      const onChange = vi.fn();
+      render(
+        inDataMart(
+          <Harness
+            initial={{
+              _id: 'cfg-1',
+              _secrets_id: 'secret-1',
+              CustomerId: '123',
+              AuthType: { service_account: { ServiceAccountKey: '**********' } },
+            }}
+            onChange={onChange}
+            isEditingExisting
+          />
+        )
+      );
+
+      await reuseFrom([
+        sourceDataMart({
+          CustomerId: '999',
+          // A stored item can still hold values in its variant; the server refuses any beside a Credential.
+          AuthType: { oauth2: { ClientId: 'public-id' }, service_account: {} },
+          _credential_id: 'ads-oauth',
+        }),
+      ]);
+
+      await waitFor(() => {
+        expect(onChange).toHaveBeenLastCalledWith({
+          _id: 'cfg-1',
+          CustomerId: '999',
+          AuthType: { oauth2: {} },
+          _credential_id: 'ads-oauth',
+        });
+      });
+    });
+
+    it.each([
+      {
+        name: 'the member cannot use it',
+        credentials: () => [
+          { ...credential('ads-oauth', 'source:GoogleAds:oauth2'), canUse: false },
+        ],
+        message: 'Its Credential is not available to you: select a Credential.',
+      },
+      {
+        name: 'it is disabled',
+        credentials: () => [
+          { ...credential('ads-oauth', 'source:GoogleAds:oauth2'), enabled: false },
+        ],
+        message: 'Its Credential is not available to you: select a Credential.',
+      },
+      {
+        name: 'the member does not have it',
+        credentials: () => [],
+        message: 'Its Credential is not available to you: select a Credential.',
+      },
+      {
+        name: 'the Credentials cannot be loaded',
+        credentials: null,
+        message: 'Your Credentials could not be loaded: select a Credential.',
+      },
+    ])('takes only the settings when $name', async ({ credentials, message }) => {
+      credentialsState.credentials = [
+        credential('ads-sa', 'source:GoogleAds:service_account', 'Ads robot'),
+      ];
+      const onChange = vi.fn();
+      render(
+        inDataMart(
+          <Harness
+            initial={{ _id: 'cfg-1', AuthType: { service_account: {} }, _credential_id: 'ads-sa' }}
+            onChange={onChange}
+            isEditingExisting
+          />
+        )
+      );
+
+      await reuseFrom(
+        [
+          sourceDataMart({
+            _id: 'cfg-src',
+            CustomerId: '999',
+            AuthType: { oauth2: {} },
+            _credential_id: 'ads-oauth',
+          }),
+        ],
+        {
+          list: credentials
+            ? () => Promise.resolve({ credentials: credentials() as never, unavailable: [] })
+            : () => Promise.reject(new Error('offline')),
+        }
+      );
+
+      await waitFor(() => {
+        expect(toastMock).toHaveBeenCalledWith(`Copied the settings of Ads EU. ${message}`);
+      });
+      expect(onChange).toHaveBeenLastCalledWith({
+        _id: 'cfg-1',
+        CustomerId: '999',
+        AuthType: { service_account: {} },
+        _credential_id: 'ads-sa',
+      });
+      expect(trackEvent).toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'configuration_reused', label: 'without-credential' })
+      );
+    });
+
+    it('from a Data Mart with no Credential takes the shown settings it can read', async () => {
+      const onChange = vi.fn();
+      render(
+        inDataMart(<Harness initial={{ _id: 'cfg-1', CustomerId: '123' }} onChange={onChange} />)
+      );
+
+      await reuseFrom([
+        sourceDataMart({
+          _secrets_id: 'secret-9',
+          CustomerId: '**********',
+          AuthType: { oauth2: { RefreshToken: '**********' } },
+          Legacy: 'not in the specification',
+        }),
+      ]);
+
+      await waitFor(() => {
+        expect(toastMock).toHaveBeenCalledWith(
+          'Copied the settings of Ads EU. It has no Credential yet: select a Credential.'
+        );
+      });
+      expect(credentialsService.list).not.toHaveBeenCalled();
+      // Nothing it could read was copied: the masked value and the unshown field stay out.
+      const last = onChange.mock.lastCall?.[0] as Record<string, unknown> | undefined;
+      expect(last?.CustomerId ?? '123').toBe('123');
+      expect(last).not.toHaveProperty('Legacy');
+      expect(last).not.toHaveProperty('_secrets_id');
+    });
+
+    it('a custom connector takes the Credential only when it fits this version, and never a key value', async () => {
+      builderApi.credentialRequirement.mockResolvedValue({
+        hosts: ['api.example.com'],
+        keyParameters: ['ClientId'],
+        selectionParameter: 'Mode',
+        fieldList: [],
+      });
+      builderApi.fittingCredentials.mockResolvedValue([
+        {
+          id: 'cc-fit',
+          title: 'Fits',
+          hosts: ['api.example.com'],
+          fieldKeys: ['ClientId'],
+          refusal: null,
+        },
+        {
+          id: 'cc-unfit',
+          title: 'Unfit',
+          hosts: ['other.example.com'],
+          fieldKeys: [],
+          refusal: { reason: 'unfit', message: 'Hosts differ' },
+        },
+      ]);
+      credentialsState.credentials = [
+        credential('cc-fit', 'custom-connector', 'Fitting key'),
+        credential('cc-unfit', 'custom-connector', 'Other key'),
+      ];
+      const onChange = vi.fn();
+      render(
+        inDataMart(
+          <Harness
+            connectorItem={customConnector}
+            specification={customSpecification}
+            initial={{ _id: 'cfg-1', Mode: 'oauth' }}
+            pinnedVersion={3}
+            onChange={onChange}
+          />
+        )
+      );
+      await screen.findByRole('combobox', { name: 'Credential' });
+
+      // A parameter the source's version kept plain is a key here.
+      await reuseFrom([
+        sourceDataMart(
+          { Mode: 'oauth', ClientId: 'plain-in-v1', Account: 'acc-9', _credential_id: 'cc-fit' },
+          { connectorName: 'MyApi' }
+        ),
+      ]);
+
+      await waitFor(() => {
+        expect(onChange).toHaveBeenLastCalledWith({
+          _id: 'cfg-1',
+          Mode: 'oauth',
+          Account: 'acc-9',
+          _credential_id: 'cc-fit',
+        });
+      });
+      expect(builderApi.fittingCredentials).toHaveBeenLastCalledWith({
+        connectorName: 'MyApi',
+        version: 3,
+        selection: 'oauth',
+      });
+
+      await reuseFrom(
+        [
+          sourceDataMart(
+            { Mode: 'oauth', Account: 'acc-7', _credential_id: 'cc-unfit' },
+            { title: 'Other API', connectorName: 'MyApi' }
+          ),
+        ],
+        { title: 'Other API' }
+      );
+
+      await waitFor(() => {
+        expect(toastMock).toHaveBeenCalledWith(
+          'Copied the settings of Other API. Its Credential does not fit this connector version: select a Credential.'
+        );
+      });
+      expect(onChange).toHaveBeenLastCalledWith({
+        _id: 'cfg-1',
+        Mode: 'oauth',
+        Account: 'acc-7',
+        _credential_id: 'cc-fit',
+      });
+    });
+
+    it('applies only the latest copy when an earlier one is still reading the Credentials', async () => {
+      credentialsState.credentials = [
+        credential('ads-sa', 'source:GoogleAds:service_account', 'Ads robot'),
+        credential('ads-oauth', 'source:GoogleAds:oauth2', 'Ads sign-in'),
+      ];
+      let release: () => void = () => undefined;
+      const slowList = () =>
+        new Promise<Awaited<ReturnType<typeof credentialsService.list>>>(resolve => {
+          release = () => {
+            resolve({ credentials: credentialsState.credentials as never, unavailable: [] });
+          };
+        });
+      const onChange = vi.fn();
+      render(
+        inDataMart(<Harness initial={{ _id: 'cfg-1', CustomerId: '123' }} onChange={onChange} />)
+      );
+      const dataMarts = [
+        sourceDataMart({
+          CustomerId: '111',
+          AuthType: { oauth2: {} },
+          _credential_id: 'ads-oauth',
+        }),
+        sourceDataMart({ CustomerId: '222' }, { id: 'dm-3', title: 'Ads US' }),
+      ];
+
+      await reuseFrom(dataMarts, { list: slowList });
+      await reuseFrom(dataMarts, { title: 'Ads US', list: slowList });
+      await waitFor(() => {
+        expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ CustomerId: '222' }));
+      });
+      await act(async () => {
+        release();
+        await Promise.resolve();
+      });
+
+      expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ CustomerId: '222' }));
+      expect(onChange).not.toHaveBeenCalledWith(expect.objectContaining({ CustomerId: '111' }));
+    });
+
+    it('does not offer the Data Mart being edited', async () => {
+      render(inDataMart(<Harness />));
+
+      vi.spyOn(dataMartService, 'getDataMartsByConnectorName').mockResolvedValue([
+        sourceDataMart({ CustomerId: '1' }, { id: 'dm-1', title: 'This one' }),
+      ]);
+      fireEvent.pointerDown(screen.getByRole('button', { name: /Reuse from another Data/ }), {
+        button: 0,
+        ctrlKey: false,
+      });
+
+      expect(await within(document.body).findByText('No matching Data Marts')).toBeInTheDocument();
+    });
   });
 });

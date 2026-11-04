@@ -303,7 +303,10 @@ export function CancelDataMartRunSpec() {
 
 export function ListDataMartsByConnectorNameSpec() {
   return applyDecorators(
-    ApiOperation({ summary: 'List DataMarts by connector name' }),
+    ApiOperation({
+      summary: 'List DataMarts by connector name',
+      description: 'Returns the connector Data Marts of the project that the member can see.',
+    }),
     ApiParam({ name: 'connectorName', description: 'Connector name' }),
     ApiOkResponse({ type: DataMartResponseApiDto, isArray: true })
   );

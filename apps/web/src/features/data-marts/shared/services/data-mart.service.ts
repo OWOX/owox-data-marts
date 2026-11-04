@@ -476,6 +476,11 @@ export class DataMartService extends ApiService {
     return this.get<DataMartRunResponseDto>(`/${dataMartId}/runs/${runId}`, undefined, config);
   }
 
+  /** The connector Data Marts of the project that the member can open. */
+  async getDataMartsByConnectorName(connectorName: string): Promise<DataMartResponseDto[]> {
+    return this.get<DataMartResponseDto[]>(`/by-connector/${encodeURIComponent(connectorName)}`);
+  }
+
   /**
    * Batch get health status for multiple data marts
    * @param ids Array of Data Mart IDs
