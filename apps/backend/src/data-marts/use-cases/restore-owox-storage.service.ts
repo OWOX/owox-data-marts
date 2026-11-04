@@ -3,6 +3,7 @@ import { Transactional } from 'typeorm-transactional';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
 import { ConnectorStateService } from '../connector-types/connector-message/services/connector-state.service';
 import { RestoreOwoxStorageCommand } from '../dto/domain/restore-owox-storage.command';
+import { ManagedStorage } from '../entities/managed-storage.entity';
 import { ProjectPlanType } from '../enums/project-plan-type.enum';
 import { describeGoogleError } from '../owox-storage/engine/bigquery-managed-storage.engine';
 import {
@@ -69,27 +70,50 @@ export class RestoreOwoxStorageService {
 
     // Keeps the daily retry from deleting what this restore creates.
     await this.managedStorages.setDeprovisionPending(record.storageId, false);
+    let restored: boolean;
     try {
-      await this.engine.restore(record, command.projectId);
-    } catch {
-      // The engine has logged the failed step.
       try {
-        await this.managedStorages.setDeprovisionPending(record.storageId, true);
-      } catch (error) {
-        this.logger.error(
-          `OWOX Storage ${record.datasetId} could not be marked for cleanup after a failed restore${describeGoogleError(error)}`
-        );
+        await this.engine.restore(record, command.projectId);
+      } catch {
+        // The engine has logged the failed step.
+        throw new OwoxStorageRestoreException();
       }
-      throw new OwoxStorageRestoreException();
+      const dataMartIds = (await this.dataMartService.findByStorage(storage)).map(({ id }) => id);
+      restored = await this.finishRestore(record.storageId, dataMartIds);
+    } catch (error) {
+      await this.cleanUpAfterFailure(record);
+      throw error;
     }
-
-    const dataMartIds = (await this.dataMartService.findByStorage(storage)).map(({ id }) => id);
-    if (await this.finishRestore(record.storageId, dataMartIds)) {
+    if (restored) {
       this.logger.log(`OWOX Storage ${record.datasetId} restored`);
       return;
     }
     // Another restore won, or the storage was deleted meanwhile and what this one created has no record.
     if (await this.managedStorages.findByStorageId(record.storageId)) return;
+    await this.deprovisionOrphan(record);
+  }
+
+  // Keeps the record deleted and marked for the daily cleanup; a record deleted meanwhile is cleaned here.
+  private async cleanUpAfterFailure(record: ManagedStorage): Promise<void> {
+    try {
+      await this.managedStorages.setDeprovisionPending(record.storageId, true);
+    } catch (error) {
+      this.logger.error(
+        `OWOX Storage ${record.datasetId} could not be marked for cleanup after a failed restore${describeGoogleError(error)}`
+      );
+    }
+    try {
+      if (!(await this.managedStorages.findByStorageId(record.storageId))) {
+        await this.deprovisionOrphan(record);
+      }
+    } catch (error) {
+      this.logger.error(
+        `OWOX Storage ${record.datasetId} could not be checked after a failed restore${describeGoogleError(error)}`
+      );
+    }
+  }
+
+  private async deprovisionOrphan(record: ManagedStorage): Promise<void> {
     try {
       await this.engine.deprovision(record);
     } catch (error) {

@@ -242,4 +242,52 @@ describe('RestoreOwoxStorageService', () => {
     await expect(s.service.run(command)).rejects.toThrow(OwoxStorageRestoreException);
     expect(logs.some(line => line.startsWith('OWOX Storage owox_abc'))).toBe(true);
   });
+
+  it('sets the flag back and rethrows when the DB fails after a successful engine restore', async () => {
+    const s = makeService();
+    s.managedStorages.markRestored.mockRejectedValue(new Error('db down'));
+
+    await expect(s.service.run(command)).rejects.toThrow('db down');
+    expect(s.managedStorages.setDeprovisionPending.mock.calls).toEqual([
+      ['storage-1', false],
+      ['storage-1', true],
+    ]);
+    expect(s.engine.deprovision).not.toHaveBeenCalled();
+  });
+
+  it('sets the flag back and rethrows when the Data Marts lookup fails', async () => {
+    const s = makeService();
+    s.dataMartService.findByStorage.mockRejectedValue(new Error('db down'));
+
+    await expect(s.service.run(command)).rejects.toThrow('db down');
+    expect(s.managedStorages.setDeprovisionPending.mock.calls).toEqual([
+      ['storage-1', false],
+      ['storage-1', true],
+    ]);
+    expect(s.managedStorages.markRestored).not.toHaveBeenCalled();
+  });
+
+  it('deletes what a failed restore created when the storage was deleted meanwhile', async () => {
+    const record = deletedRecord();
+    const s = makeService({ record });
+    s.engine.restore.mockRejectedValue(new Error('restore failed'));
+    s.managedStorages.findByStorageId.mockResolvedValueOnce(record).mockResolvedValueOnce(null);
+
+    await expect(s.service.run(command)).rejects.toThrow(OwoxStorageRestoreException);
+    expect(s.engine.deprovision).toHaveBeenCalledWith(record);
+  });
+
+  it('logs, and still refuses the restore, when that cleanup fails too', async () => {
+    const s = makeService();
+    s.engine.restore.mockRejectedValue(new Error('restore failed'));
+    s.managedStorages.findByStorageId
+      .mockResolvedValueOnce(deletedRecord())
+      .mockResolvedValueOnce(null);
+    s.engine.deprovision.mockRejectedValue(Object.assign(new Error('x'), { code: 500 }));
+
+    await expect(s.service.run(command)).rejects.toThrow(OwoxStorageRestoreException);
+    expect(
+      logs.some(line => line.startsWith('OWOX Storage owox_abc') && line.includes('code 500'))
+    ).toBe(true);
+  });
 });
