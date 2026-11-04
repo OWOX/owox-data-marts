@@ -967,6 +967,7 @@ export function ConnectorEditForm({
               connectorName={selectedConnector.displayName}
               target={target}
               onTargetChange={handleTargetChange}
+              replacesTable
             />
           ) : null;
         }

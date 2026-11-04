@@ -29,10 +29,9 @@ interface TargetSetupStepProps {
   connectorName: string;
   onTargetChange: (target: { fullyQualifiedName: string; isValid: boolean } | null) => void;
   conflict?: ConnectorTargetConflictResponseDto | null;
+  // Only some connectors replace the whole table on each run; others merge rows by keys.
+  replacesTable?: boolean;
 }
-
-const SAME_TABLE_WARNING =
-  'Each run replaces the table, so the two Data Marts will overwrite each other.';
 
 export function TargetSetupStep({
   dataStorageType,
@@ -41,8 +40,12 @@ export function TargetSetupStep({
   connectorName,
   onTargetChange,
   conflict,
+  replacesTable = false,
 }: TargetSetupStepProps) {
   const { scope } = useProjectRoute();
+  const sameTableWarning = replacesTable
+    ? 'Each run replaces the table, so the two Data Marts will overwrite each other.'
+    : 'Both Data Marts will write to this table.';
   const sanitizedDestinationName = destinationName.replace(/[^a-zA-Z0-9_]/g, '_');
   const sanitizedConnectorName = connectorName.replace(/[^a-zA-Z0-9_]/g, '_').toLowerCase();
 
@@ -846,7 +849,7 @@ export function TargetSetupStep({
       )}
       <p role='status' className='sr-only'>
         {conflict?.conflict &&
-          `Already used by ${conflict.dataMart?.title ?? 'another Data Mart'}. ${SAME_TABLE_WARNING}`}
+          `Already used by ${conflict.dataMart?.title ?? 'another Data Mart'}. ${sameTableWarning}`}
       </p>
       {conflict?.conflict && (
         <p className='text-warning text-sm'>
@@ -864,7 +867,7 @@ export function TargetSetupStep({
           ) : (
             'another Data Mart'
           )}
-          . {SAME_TABLE_WARNING}
+          . {sameTableWarning}
         </p>
       )}
       <AppWizardStepSection title='Schedule updates'>

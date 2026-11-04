@@ -11,6 +11,7 @@ vi.mock('../../../../../../shared/hooks/useProjectRoute', () => ({
 }));
 
 const SAME_TABLE = 'Each run replaces the table, so the two Data Marts will overwrite each other.';
+const SHARED_TABLE = 'Both Data Marts will write to this table.';
 
 type Target = { fullyQualifiedName: string; isValid: boolean } | null;
 
@@ -23,9 +24,11 @@ function TargetSetupStepHarness({
   dataStorageType,
   stepKey = 1,
   conflict,
+  replacesTable,
 }: {
   conflict?: ConnectorTargetConflictResponseDto | null;
   dataStorageType: DataStorageType;
+  replacesTable?: boolean;
   stepKey?: number;
 }) {
   const [target, setTarget] = useState<Target>(null);
@@ -40,6 +43,7 @@ function TargetSetupStepHarness({
         target={target}
         onTargetChange={setTarget}
         conflict={conflict}
+        replacesTable={replacesTable}
       />
     </MemoryRouter>
   );
@@ -103,6 +107,7 @@ describe('TargetSetupStep', () => {
       <TargetSetupStepHarness
         dataStorageType={DataStorageType.GOOGLE_BIGQUERY}
         conflict={{ conflict: true, dataMart: { id: 'dm-2', title: 'Plan 2026' } }}
+        replacesTable
       />
     );
     const status = screen.getByRole('status');
@@ -117,6 +122,19 @@ describe('TargetSetupStep', () => {
     expect(link).toHaveAttribute('rel', 'noopener noreferrer');
   });
 
+  it('does not say the table is replaced for a connector that merges rows', () => {
+    render(
+      <TargetSetupStepHarness
+        dataStorageType={DataStorageType.GOOGLE_BIGQUERY}
+        conflict={{ conflict: true, dataMart: { id: 'dm-2', title: 'Ads 2026' } }}
+      />
+    );
+    expect(screen.getByRole('status')).toHaveTextContent(
+      `Already used by Ads 2026. ${SHARED_TABLE}`
+    );
+    expect(screen.queryByText(/replaces the table/)).toBeNull();
+  });
+
   it('says another Data Mart when the member cannot see it', () => {
     render(
       <TargetSetupStepHarness
@@ -125,7 +143,7 @@ describe('TargetSetupStep', () => {
       />
     );
     expect(screen.getByRole('status')).toHaveTextContent(
-      `Already used by another Data Mart. ${SAME_TABLE}`
+      `Already used by another Data Mart. ${SHARED_TABLE}`
     );
     expect(screen.queryByRole('link', { name: /another data mart/i })).toBeNull();
   });

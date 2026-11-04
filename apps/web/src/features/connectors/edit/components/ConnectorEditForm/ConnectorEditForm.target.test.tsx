@@ -18,6 +18,7 @@ interface TargetProps {
   onTargetChange: (target: { fullyQualifiedName: string; isValid: boolean } | null) => void;
   destinationName: string;
   conflict?: unknown;
+  replacesTable?: boolean;
 }
 interface NavigationProps {
   onNext: () => void;
@@ -354,5 +355,6 @@ describe('ConnectorEditForm target reset', () => {
     await reachTargetStep();
 
     expect(last(targets).conflict).toEqual(conflict);
+    expect(last(targets).replacesTable).toBe(true);
   });
 });
