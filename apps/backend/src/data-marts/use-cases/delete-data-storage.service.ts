@@ -84,7 +84,13 @@ export class DeleteDataStorageService {
         this.logger.error(
           `OWOX Storage ${managed.datasetId} deprovision failed on delete${describeGoogleError(error)}`
         );
-        await this.managedStorages.setDeprovisionPending(managed.storageId, true);
+        try {
+          await this.managedStorages.setDeprovisionPending(managed.storageId, true);
+        } catch (pendingError) {
+          this.logger.warn(
+            `OWOX Storage ${managed.datasetId} could not be marked for cleanup after a failed delete${describeGoogleError(pendingError)}`
+          );
+        }
         throw new BusinessViolationException('OWOX Storage could not be deleted. Try again later.');
       }
     }
