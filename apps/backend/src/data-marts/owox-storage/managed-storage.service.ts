@@ -29,10 +29,14 @@ export class ManagedStorageService {
     return this.repository.find({ where: { deprovisionedAt: IsNull() } });
   }
 
+  findPendingDeprovision(): Promise<ManagedStorage[]> {
+    return this.repository.find({ where: { deprovisionPending: true } });
+  }
+
   // An update, never an insert: a record the customer deleted meanwhile stays deleted.
   async updateActive(
     storageId: string,
-    changes: Partial<Pick<ManagedStorage, 'notPaidSince' | 'lastActivityAt' | 'deprovisionedAt'>>
+    changes: Partial<Pick<ManagedStorage, 'notPaidSince' | 'lastActivityAt'>>
   ): Promise<boolean> {
     const { affected } = await this.repository.update(
       { storageId, deprovisionedAt: IsNull() },
@@ -45,9 +49,25 @@ export class ManagedStorageService {
   async markRestored(storageId: string, now: Date): Promise<boolean> {
     const { affected } = await this.repository.update(
       { storageId, deprovisionedAt: Not(IsNull()) },
-      { deprovisionedAt: null, notPaidSince: null, lastActivityAt: now }
+      { deprovisionedAt: null, deprovisionPending: false, notPaidSince: null, lastActivityAt: now }
     );
     return affected === 1;
+  }
+
+  // Before the first destructive call, so a deletion that fails partway stays deleted and retryable.
+  async markDeleting(storageId: string, now: Date): Promise<boolean> {
+    const { affected } = await this.repository.update(
+      { storageId, deprovisionedAt: IsNull() },
+      { deprovisionedAt: now, deprovisionPending: true }
+    );
+    return affected === 1;
+  }
+
+  async setDeprovisionPending(storageId: string, pending: boolean): Promise<void> {
+    await this.repository.update(
+      { storageId, deprovisionedAt: Not(IsNull()) },
+      { deprovisionPending: pending }
+    );
   }
 
   create(record: Omit<ManagedStorage, 'createdAt' | 'modifiedAt'>): Promise<ManagedStorage> {

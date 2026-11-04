@@ -10,8 +10,8 @@ import { DAY_MS, scheduledDeletion } from './owox-storage-lifecycle';
 import type { OwoxStorageSettings } from './owox-storage-settings';
 import { OwoxStoragePlanService } from './owox-storage-plan.service';
 
-// The daily run starts up to a minute late; an hour of slack keeps a due deletion from slipping a day.
-const RUN_SLACK_MS = 3_600_000;
+// One hour for a DST shift of the scheduler's time zone, one for the run's start delay.
+const RUN_SLACK_MS = 2 * 3_600_000;
 
 @Injectable()
 export class OwoxStorageLifecycleService {
@@ -27,6 +27,18 @@ export class OwoxStorageLifecycleService {
   async runDaily(now: Date, signal?: AbortSignal): Promise<void> {
     if (!this.config.isEnabled()) return;
     const days = this.config.getSettings();
+
+    for (const pending of await this.managedStorages.findPendingDeprovision()) {
+      if (signal?.aborted) return;
+      try {
+        await this.retryDeprovision(pending.storageId);
+      } catch (error) {
+        this.logger.error(
+          `OWOX Storage ${pending.datasetId} leftovers could not be deleted${describeGoogleError(error)}; retried at the next run.`
+        );
+      }
+    }
+
     const records = await this.managedStorages.findActive();
     if (records.length === 0) return;
 
@@ -53,12 +65,24 @@ export class OwoxStorageLifecycleService {
     }
   }
 
+  private async retryDeprovision(storageId: string): Promise<void> {
+    const record = await this.managedStorages.findByStorageId(storageId);
+    if (!record?.deprovisionedAt || !record.deprovisionPending) return;
+    await this.engine.deprovision(record);
+    await this.managedStorages.setDeprovisionPending(storageId, false);
+    this.logger.log(`OWOX Storage ${record.datasetId} leftovers deleted`);
+  }
+
   private async processRecord(
-    record: ManagedStorage,
+    snapshot: ManagedStorage,
     jobTimes: Map<string, Date> | null,
     days: Pick<OwoxStorageSettings, 'notPaidDeletionDays' | 'inactivityDeletionDays'>,
     now: Date
   ): Promise<void> {
+    // The snapshot can be stale: a restore or a delete may have run since.
+    const record = await this.managedStorages.findByStorageId(snapshot.storageId);
+    if (!record || record.deprovisionedAt) return;
+
     const plan = await this.plans.planFor(record.projectId);
     if (!plan) {
       this.logger.warn(
@@ -95,18 +119,17 @@ export class OwoxStorageLifecycleService {
       return;
     }
     if (!reason) return;
+    if (!(await this.managedStorages.markDeleting(record.storageId, now))) return;
 
     try {
       await this.engine.deprovision(record);
     } catch (error) {
       this.logger.error(
-        `OWOX Storage ${record.datasetId} deletion failed${describeGoogleError(error)}; retried tomorrow.`
+        `OWOX Storage ${record.datasetId} deletion failed${describeGoogleError(error)}; retried at the next run.`
       );
       return;
     }
-    if (!(await this.managedStorages.updateActive(record.storageId, { deprovisionedAt: now }))) {
-      return;
-    }
+    await this.managedStorages.setDeprovisionPending(record.storageId, false);
     this.logger.log(`OWOX Storage ${record.datasetId} deleted: ${reason}`);
   }
 }

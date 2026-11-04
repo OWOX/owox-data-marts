@@ -41,6 +41,7 @@ describe('CreateManagedStorageTable migration', () => {
         'notPaidSince',
         'lastActivityAt',
         'deprovisionedAt',
+        'deprovisionPending',
         'createdAt',
         'modifiedAt',
       ].sort()

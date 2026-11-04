@@ -72,12 +72,15 @@ export class DeleteDataStorageService {
 
     const managed = await this.managedStorages.findByStorageId(command.id);
     if (managed) {
+      // An already deleted record keeps its date.
+      await this.managedStorages.markDeleting(managed.storageId, new Date());
       try {
         await this.engine.deprovision(managed);
       } catch (error) {
         this.logger.error(
           `OWOX Storage ${managed.datasetId} deprovision failed on delete${describeGoogleError(error)}`
         );
+        await this.managedStorages.setDeprovisionPending(managed.storageId, true);
         throw new BusinessViolationException('OWOX Storage could not be deleted. Try again later.');
       }
     }
