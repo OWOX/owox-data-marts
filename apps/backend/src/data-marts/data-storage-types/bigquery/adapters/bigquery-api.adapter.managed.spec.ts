@@ -72,14 +72,14 @@ describe('BigQueryApiAdapter (OWOX Storage)', () => {
     expect(reserve).not.toHaveBeenCalled();
   });
 
-  it("reserves the dry run's estimate and caps the job at the reservation", async () => {
+  it("reserves the dry run's estimate plus the table minimum and caps the job at the reservation", async () => {
     dryRunReports('SELECT', '1073741824');
 
     await new BigQueryApiAdapter(managed, config).executeQuery('SELECT 1');
 
     expect(createQueryJob.mock.calls[0][0]).toMatchObject({ dryRun: true });
     expect(createQueryJob.mock.calls[0][0]).not.toHaveProperty('maximumBytesBilled');
-    expect(reserve).toHaveBeenCalledWith(1073741824);
+    expect(reserve).toHaveBeenCalledWith(1073741824 + 10 * 2 ** 20);
     expect(jobConfigs()).toEqual([
       expect.objectContaining({ query: 'SELECT 1', maximumBytesBilled: '3221225472' }),
     ]);
@@ -148,9 +148,14 @@ describe('BigQueryApiAdapter (OWOX Storage)', () => {
   });
 
   it.each([
-    ['one 10 MB minimum for a small query with unknown tables', '1048576', 0, 10 * 2 ** 20],
-    ['10 MB for each referenced table', '1048576', 3, 30 * 2 ** 20],
-    ['the estimate when it is larger', String(50 * 2 ** 20), 2, 50 * 2 ** 20],
+    ['the estimate plus one 10 MB minimum for unknown tables', '1048576', 0, 11 * 2 ** 20],
+    ['the estimate plus 10 MB for each referenced table', '1048576', 3, 31 * 2 ** 20],
+    [
+      'the estimate plus the minimum of every table when it is large',
+      String(5 * 2 ** 30),
+      2,
+      5 * 2 ** 30 + 20 * 2 ** 20,
+    ],
   ])('reserves %s', async (_name, bytes, tables, expected) => {
     dryRunReports(
       'SELECT',
