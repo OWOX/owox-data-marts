@@ -3,7 +3,7 @@ import { bootstrap } from './bootstrap';
 import express from 'express';
 import { Logger } from '@nestjs/common';
 import { loadEnv } from './load-env';
-import { readOwoxStorageSettings } from './data-marts/owox-storage/owox-storage-settings';
+import { isOwoxStorageEnabled } from './data-marts/owox-storage/owox-storage-settings';
 import { registerPluginCollectionsBodyParser } from './config/plugin-collections-body-parser.config';
 import { configureTrustProxy } from './config/trust-proxy.config';
 
@@ -26,7 +26,7 @@ export async function main() {
     registerPluginCollectionsBodyParser(app);
     configureTrustProxy(app);
     // Read before routing so a partial configuration fails startup, not the flags call.
-    const owoxStorageEnabled = readOwoxStorageSettings(process.env) ? 'true' : 'false';
+    const owoxStorageEnabled = String(isOwoxStorageEnabled(process.env));
     app.get('/api/flags', (_req, res) => {
       res.setHeader('Cache-Control', 'no-store');
       res.json({
