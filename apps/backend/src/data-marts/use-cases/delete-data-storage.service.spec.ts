@@ -113,6 +113,17 @@ describe('DeleteDataStorageService', () => {
     expect(managedStorages.remove).not.toHaveBeenCalled();
   });
 
+  it('still refuses the delete when the pending flag cannot be set', async () => {
+    const { service, engine, managedStorages } = makeService([], record);
+    engine.deprovision.mockRejectedValue(new Error('boom'));
+    managedStorages.setDeprovisionPending.mockRejectedValue(new Error('db down'));
+    jest.spyOn(Logger.prototype, 'error').mockImplementation();
+    const warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation();
+
+    await expect(service.run(command)).rejects.toThrow(BusinessViolationException);
+    expect(warn).toHaveBeenCalled();
+  });
+
   describe('when a plugin deletes', () => {
     const pluginCommand = new DeleteDataStorageCommand('storage-1', 'proj-1', '', [], true);
 
