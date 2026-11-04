@@ -7,6 +7,7 @@ import {
   BIGQUERY_OAUTH_TYPE,
   BigQueryCredentials,
   ScanBudget,
+  ScanReservation,
 } from '../schemas/bigquery-credentials.schema';
 import type { SqlParameter } from '../../utils/sql-clause-renderer';
 import {
@@ -121,7 +122,8 @@ export class BigQueryApiAdapter {
    * `signal` (client disconnect/cancel) cancels the running job immediately — the poll loop then
    * surfaces the cancellation as a thrown error. Unset = no cancellation hook.
    *
-   * On an OWOX Storage the query is dry-run first and refused unless it is a single SELECT.
+   * On an OWOX Storage the query is dry-run first and refused unless it is a single SELECT, and its
+   * estimate is reserved from today's scan budget until the job ends.
    */
   public async executeQuery(
     query: string,
@@ -129,33 +131,41 @@ export class BigQueryApiAdapter {
     jobTimeoutMs?: number,
     signal?: AbortSignal
   ): Promise<{ jobId: string }> {
+    let reservation: ScanReservation | undefined;
     if (this.scanBudget) {
-      const { statementType } = await this.executeDryRunQuery(query, params);
+      const { statementType, totalBytesProcessed } = await this.executeDryRunQuery(query, params);
       if (statementType !== 'SELECT') throw new OwoxStorageStatementException(statementType);
+      reservation = await this.scanBudget.reserve(totalBytesProcessed);
     }
 
     const queryConfig: Query = {
       query,
       ...this.getLocationOption(),
       ...(jobTimeoutMs !== undefined ? { jobTimeoutMs } : {}),
+      ...(reservation ? { maximumBytesBilled: String(reservation.maximumBytesBilled) } : {}),
     };
     if (params && params.length > 0) {
       queryConfig.params = Object.fromEntries(params.map(p => [p.name, p.value]));
       queryConfig.parameterMode = 'NAMED';
     }
-    return this.runJob(queryConfig, signal);
+    try {
+      return await this.runJob(queryConfig, signal);
+    } finally {
+      reservation?.release();
+    }
   }
 
   /** Runs ODM's own view DDL: an OWOX Storage keeps the scan budget but skips the SELECT check. */
   public async executeViewDdl(ddl: string): Promise<void> {
-    await this.runJob({ query: ddl, ...this.getLocationOption() });
+    await this.runJob({
+      query: ddl,
+      ...this.getLocationOption(),
+      ...(await this.getScanBudgetOption()),
+    });
   }
 
   private async runJob(queryConfig: Query, signal?: AbortSignal): Promise<{ jobId: string }> {
-    const [job] = await this.bigQuery.createQueryJob({
-      ...queryConfig,
-      ...(await this.getScanBudgetOption()),
-    });
+    const [job] = await this.bigQuery.createQueryJob(queryConfig);
 
     // Best-effort warehouse cancel: on abort, ask BigQuery to cancel the job. The poll loop below
     // then sees the job finish (cancelled) and throws, so we stop billing compute for a gone client.
