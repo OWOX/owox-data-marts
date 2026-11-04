@@ -2,37 +2,13 @@ import { ForbiddenException, Injectable } from '@nestjs/common';
 import { z } from 'zod';
 import { GetConnectorTargetConflictCommand } from '../dto/domain/get-connector-target-conflict.command';
 import { ConnectorTargetConflictDto } from '../dto/domain/connector-target-conflict.dto';
-import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
 import { ConnectorStorageSchema } from '../dto/schemas/data-mart-table-definitions/connector-definition.schema';
 import { Action, AccessDecisionService, EntityType } from '../services/access-decision';
 import { DataMartService } from '../services/data-mart.service';
-
-// BigQuery names are case-sensitive; Snowflake folds only an unquoted database; others fold case.
-const CASE_SENSITIVE_STORAGES: ReadonlySet<DataStorageType> = new Set([
-  DataStorageType.GOOGLE_BIGQUERY,
-  DataStorageType.LEGACY_GOOGLE_BIGQUERY,
-]);
+import { normalizeTargetName } from '../utils/normalize-target-name';
 
 // Only the target: the rest of a draft's definition may be partial.
 const TargetSchema = z.object({ connector: z.object({ storage: ConnectorStorageSchema }) });
-
-export function normalizeTargetName(name: string, storageType: DataStorageType): string {
-  if (storageType === DataStorageType.SNOWFLAKE) {
-    // The connector quotes schema and table as typed and uses the database as typed.
-    // ponytail: splits on every dot, so a quoted part with a dot inside compares by its pieces.
-    return name
-      .split('.')
-      .map(part => part.trim())
-      .map((part, index) => {
-        const quoted = /^".*"$/.test(part);
-        const bare = quoted ? part.slice(1, -1) : part;
-        return index === 0 && !quoted ? bare.toUpperCase() : bare;
-      })
-      .join('.');
-  }
-  const unquoted = name.replace(/[`"[\]]/g, '').trim();
-  return CASE_SENSITIVE_STORAGES.has(storageType) ? unquoted : unquoted.toLowerCase();
-}
 
 /** Tells whether another Data Mart's connector already writes the same target table. */
 @Injectable()
