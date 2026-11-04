@@ -26,8 +26,14 @@ export type BigQueryOAuthCredentials = z.infer<typeof BigQueryOAuthCredentialsSc
 /** An OWOX Storage: queries run as its own service account, impersonated from ODM's identity. */
 export const BIGQUERY_MANAGED_TYPE = 'bigquery_managed' as const;
 
+export interface ScanReservation {
+  maximumBytesBilled: number;
+  release(): void;
+}
+
 export interface ScanBudget {
   remainingBytes(): Promise<number>;
+  reserve(estimatedBytes: number): Promise<ScanReservation>;
 }
 
 export interface BigQueryManagedCredentials {
