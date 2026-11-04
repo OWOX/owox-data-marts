@@ -17,6 +17,7 @@ function record(storageId: string, projectId = 'project-1'): ManagedStorage {
     notPaidSince: null,
     lastActivityAt: null,
     deprovisionedAt: null,
+    deprovisionPending: false,
     createdAt: new Date(),
     modifiedAt: new Date(),
   };
@@ -85,10 +86,54 @@ describe('ManagedStorageService', () => {
       expect(await service.markRestored('s1', now)).toBe(result);
       expect(repository.update).toHaveBeenCalledWith(
         { storageId: 's1', deprovisionedAt: Not(IsNull()) },
-        { deprovisionedAt: null, notPaidSince: null, lastActivityAt: now }
+        {
+          deprovisionedAt: null,
+          deprovisionPending: false,
+          notPaidSince: null,
+          lastActivityAt: now,
+        }
       );
     }
   );
+
+  it.each([
+    [1, true],
+    [0, false],
+  ])(
+    'markDeleting marks only a record that is not deleted, as deleted and pending (%i row)',
+    async (affected, result) => {
+      const now = new Date('2026-11-02T10:00:00Z');
+      repository.update.mockResolvedValue({ affected });
+
+      expect(await service.markDeleting('s1', now)).toBe(result);
+      expect(repository.update).toHaveBeenCalledWith(
+        { storageId: 's1', deprovisionedAt: IsNull() },
+        { deprovisionedAt: now, deprovisionPending: true }
+      );
+    }
+  );
+
+  it.each([true, false])(
+    'setDeprovisionPending(%s) changes only a deleted record',
+    async pending => {
+      repository.update.mockResolvedValue({ affected: 1 });
+
+      await service.setDeprovisionPending('s1', pending);
+
+      expect(repository.update).toHaveBeenCalledWith(
+        { storageId: 's1', deprovisionedAt: Not(IsNull()) },
+        { deprovisionPending: pending }
+      );
+    }
+  );
+
+  it('findPendingDeprovision queries pending rows', async () => {
+    const pending = { ...record('s1'), deprovisionPending: true };
+    repository.find.mockResolvedValue([pending]);
+
+    expect(await service.findPendingDeprovision()).toEqual([pending]);
+    expect(repository.find).toHaveBeenCalledWith({ where: { deprovisionPending: true } });
+  });
 
   it('findActive queries rows that are not deprovisioned', async () => {
     repository.find.mockResolvedValue([record('s1')]);
