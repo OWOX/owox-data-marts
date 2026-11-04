@@ -28,16 +28,25 @@ interface NodesProps {
   onFieldSelect: (fieldName: string) => void;
 }
 
-const { conflictHook, connectorHook, selection, configuration, targets, navigation, nodes } =
-  vi.hoisted(() => ({
-    conflictHook: { current: null as unknown },
-    connectorHook: { current: {} as Record<string, unknown> },
-    selection: [] as SelectionProps[],
-    configuration: [] as ConfigurationProps[],
-    targets: [] as TargetProps[],
-    navigation: [] as NavigationProps[],
-    nodes: [] as NodesProps[],
-  }));
+const {
+  conflictCalls,
+  conflictHook,
+  connectorHook,
+  selection,
+  configuration,
+  targets,
+  navigation,
+  nodes,
+} = vi.hoisted(() => ({
+  conflictCalls: [] as unknown[],
+  conflictHook: { current: null as unknown },
+  connectorHook: { current: {} as Record<string, unknown> },
+  selection: [] as SelectionProps[],
+  configuration: [] as ConfigurationProps[],
+  targets: [] as TargetProps[],
+  navigation: [] as NavigationProps[],
+  nodes: [] as NodesProps[],
+}));
 
 vi.mock('react-hot-toast', () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 
@@ -93,7 +102,10 @@ vi.mock('../../../../connector-builder/shared/api/connector-builder-api.service'
 }));
 
 vi.mock('../../../shared/model/hooks/useConnectorTargetConflict', () => ({
-  useConnectorTargetConflict: () => conflictHook.current,
+  useConnectorTargetConflict: (_dataMartId: unknown, target: unknown) => {
+    conflictCalls.push(target);
+    return conflictHook.current;
+  },
 }));
 
 vi.mock('../../../shared/model/hooks/useConnector', () => ({
@@ -162,13 +174,17 @@ function createHook() {
   return hook;
 }
 
-function renderForm(existingConnector: ConnectorConfig | null = null) {
+function renderForm(
+  existingConnector: ConnectorConfig | null = null,
+  mode?: 'full' | 'configuration-only' | 'fields-only'
+) {
   return render(
     <MemoryRouter>
       <ConnectorEditForm
         onSubmit={vi.fn()}
         dataStorageType={DataStorageType.GOOGLE_BIGQUERY}
         existingConnector={existingConnector}
+        mode={mode}
       />
     </MemoryRouter>
   );
@@ -205,6 +221,7 @@ describe('ConnectorEditForm target reset', () => {
     nodes.length = 0;
     connectorHook.current = createHook();
     conflictHook.current = null;
+    conflictCalls.length = 0;
   });
 
   it('drops the seeded target when the sheet changes while creating a Data Mart', async () => {
@@ -357,4 +374,25 @@ describe('ConnectorEditForm target reset', () => {
     expect(last(targets).conflict).toEqual(conflict);
     expect(last(targets).replacesTable).toBe(true);
   });
+
+  it.each(['fields-only', 'configuration-only'] as const)(
+    'asks for no target conflict in %s mode, which has no Target step',
+    async mode => {
+      const existing: ConnectorConfig = {
+        source: {
+          name: 'GoogleSheets',
+          configuration: [{ SpreadsheetId: 'doc-1', SheetName: 'Plan' }],
+          node: 'sheet',
+          fields: ['_owox_row_number', 'Campaign'],
+        },
+        storage: { fullyQualifiedName: 'google_sheets_owox.saved_plan' },
+      };
+      renderForm(existing, mode);
+      await waitFor(() => {
+        expect(conflictCalls.length).toBeGreaterThan(1);
+      });
+
+      expect(conflictCalls.every(target => target === null)).toBe(true);
+    }
+  );
 });

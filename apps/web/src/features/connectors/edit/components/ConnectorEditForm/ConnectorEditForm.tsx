@@ -145,7 +145,11 @@ export function ConnectorEditForm({
   const [target, setTarget] = useState<{ fullyQualifiedName: string; isValid: boolean } | null>(
     null
   );
-  const conflict = useConnectorTargetConflict(dataMartId, target);
+  // Only the full wizard shows Target Setup; other modes must not ask for a conflict.
+  const conflict = useConnectorTargetConflict(
+    dataMartId,
+    mode === 'full' && !configurationOnly ? target : null
+  );
   const isGoogleSheetsConnector = selectedConnector?.name === GOOGLE_SHEETS_CONNECTOR_NAME;
   const isUnpublishedConnector = selectedConnector
     ? isUnpublishedCustomConnector(selectedConnector)
