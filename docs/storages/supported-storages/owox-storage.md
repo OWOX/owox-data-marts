@@ -87,7 +87,7 @@ To delete a table, click its delete button and confirm. A connector that loads i
 OWOX deletes an OWOX Storage and its data in two cases:
 
 - **Unpaid subscription.** Connector runs into the storage stop at once and show as RESTRICTED in Run History. The storage and its data are deleted 30 days after the subscription became unpaid. Pay for the subscription before then to keep them.
-- **No use on the Free plan.** A Free storage that is not used for 30 days is deleted. Any query or connector run counts as use, scheduled ones included. After an unpaid period, the 30 days count from the day the subscription is paid again. After a Paid period, they count from the day the project moves to Free.
+- **No use on the Free plan.** A Free storage that is not used for 30 days is deleted. Any query, report run (Google Sheets, Looker Studio and others) or connector run counts as use, scheduled ones included. A connector run that stops because the storage is full counts too. After an unpaid period, the 30 days count from the day the subscription is paid again. After a Paid period, they count from the day the project moves to Free.
 
 A Paid storage is never deleted for inactivity.
 

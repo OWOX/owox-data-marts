@@ -81,5 +81,9 @@ export class LookerStudioReportRunService {
       dmRun.errors = [...(dmRun.errors ?? []), ...context.errors];
     }
     await this.dataMartRunService.markReportRunAsFinished(dmRun);
+    await this.dataMartRunService.recordStorageUse(
+      reportRun.getReport().dataMart.storage.id,
+      dmRun.id
+    );
   }
 }

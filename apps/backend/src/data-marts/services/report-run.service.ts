@@ -138,5 +138,9 @@ export class ReportRunService {
       dmRun.errors = [...(dmRun.errors || []), ...context.errors];
     }
     await this.dataMartRunService.markReportRunAsFinished(reportRun.getDataMartRun());
+    await this.dataMartRunService.recordStorageUse(
+      reportRun.getReport().dataMart.storage.id,
+      reportRun.getDataMartRun().id
+    );
   }
 }
