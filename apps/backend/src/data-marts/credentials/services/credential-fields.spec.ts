@@ -421,7 +421,7 @@ describe('applyFieldsUpdate and the recorded sign-in', () => {
     secret: { fields: { RefreshToken: 'refresh-1', ClientSecret: 'cs-1' } },
     publicMetadata: {
       fields: { ClientId: 'client-1' },
-      connection: { account, expiresAt: null, signedInByUserId: 'user-a' },
+      connection: { account, expiresAt: null },
     },
   };
   const connectionAfter = (input: Record<string, unknown>) =>
@@ -436,7 +436,7 @@ describe('applyFieldsUpdate and the recorded sign-in', () => {
   );
 
   it.each([{ Label: 'Team' }, { RefreshToken: 'refresh-1', ClientId: 'client-1' }, {}])(
-    'keeps the signer for %o',
+    'keeps the recorded sign-in for %o',
     input => {
       expect(connectionAfter(input)).toEqual(signedIn.publicMetadata.connection);
     }

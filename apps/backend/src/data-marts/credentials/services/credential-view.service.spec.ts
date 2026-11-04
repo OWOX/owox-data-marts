@@ -53,8 +53,7 @@ describe('CredentialViewService', () => {
       null,
       false,
       state.titles,
-      undefined,
-      null
+      undefined
     );
   });
 
@@ -83,89 +82,7 @@ describe('CredentialViewService', () => {
       null,
       true,
       batch.titles,
-      undefined,
-      null
+      undefined
     );
-  });
-
-  it('reports filePicking for a Picker Credential and null for any other', async () => {
-    const context = {
-      projectId: 'project-1',
-      userId: 'member-1',
-      roles: ['editor'],
-    } as AuthorizationContext;
-    const state = setup();
-    state.access.canAccessMany.mockResolvedValue(new Map([['credential-1', true]]));
-    const signedIn = {
-      fields: {},
-      connection: { account: null, expiresAt: null, signedInByUserId: 'member-1' },
-    };
-
-    await state.view.build(
-      {
-        id: 'credential-1',
-        definitionId: 'source:GoogleSheets:oauth2',
-        publicMetadata: signedIn,
-      } as never,
-      context
-    );
-    expect(state.access.canAccessMany).toHaveBeenCalledWith(
-      'member-1',
-      ['editor'],
-      EntityType.CREDENTIAL,
-      ['credential-1'],
-      Action.EDIT,
-      'project-1'
-    );
-    expect(state.mapper.toDto.mock.calls[0][7]).toBe('allowed');
-
-    state.access.canAccessMany.mockClear();
-    await state.view.build(
-      {
-        id: 'credential-1',
-        definitionId: 'google-service-account',
-        publicMetadata: signedIn,
-      } as never,
-      context
-    );
-    expect(state.access.canAccessMany).not.toHaveBeenCalledWith(
-      expect.anything(),
-      expect.anything(),
-      expect.anything(),
-      expect.anything(),
-      Action.EDIT,
-      expect.anything()
-    );
-    expect(state.mapper.toDto.mock.calls[1][7]).toBeNull();
-  });
-
-  it.each([
-    ['other-signer', 'member-2', true],
-    ['reconnect', undefined, true],
-    ['signer-without-edit', 'member-1', false],
-  ])('reports %s for signer %s with EDIT %s', async (expected, signer, canEdit) => {
-    const context = {
-      projectId: 'project-1',
-      userId: 'member-1',
-      roles: ['editor'],
-    } as AuthorizationContext;
-    const state = setup();
-    state.access.canAccessMany.mockImplementation((_user, _roles, _type, _ids, action) =>
-      Promise.resolve(new Map([['credential-1', action === Action.EDIT ? canEdit : true]]))
-    );
-
-    await state.view.build(
-      {
-        id: 'credential-1',
-        definitionId: 'source:GoogleSheets:oauth2',
-        publicMetadata: {
-          fields: {},
-          connection: { account: null, expiresAt: null, signedInByUserId: signer },
-        },
-      } as never,
-      context
-    );
-
-    expect(state.mapper.toDto.mock.calls[0][7]).toBe(expected);
   });
 });

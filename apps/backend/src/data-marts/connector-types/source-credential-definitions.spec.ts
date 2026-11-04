@@ -6,7 +6,6 @@ import { grantFieldKeys } from '../credentials/services/credential-fields';
 import { ConnectorService } from '../services/connector/connector.service';
 import {
   buildSourceCredentialDefinitions,
-  opensPicker,
   sourceBindingFor,
   sourceCredentialDefinitions,
   sourceDefinitionIdsFor,
@@ -134,15 +133,6 @@ describe('Source credential definitions', () => {
     expect(sourceBindingFor('GoogleAds', 'source:GoogleAds:oauth2')).not.toHaveProperty(
       'rotatesRefreshToken'
     );
-  });
-
-  it('a variant whose connector opens Google Picker says so: Google Sheets OAuth', () => {
-    expect(sourceBindingFor('GoogleSheets', 'source:GoogleSheets:oauth2')?.opensPicker).toBe(true);
-    expect(sourceBindingFor('GoogleAds', 'source:GoogleAds:oauth2')).not.toHaveProperty(
-      'opensPicker'
-    );
-    expect(opensPicker('source:GoogleSheets:oauth2')).toBe(true);
-    expect(opensPicker('google-service-account')).toBe(false);
   });
 
   it('every rotating variant holds a refresh field that grantFieldKeys checks', () => {

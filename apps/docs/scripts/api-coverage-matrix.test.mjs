@@ -359,7 +359,6 @@ test('checked-in matrix excludes OAuth-flow-only business routes', () => {
     'GET /api/connectors/{connectorName}/oauth/settings',
     'POST /api/connectors/{connectorName}/oauth/exchange',
     'GET /api/connectors/{connectorName}/oauth/status/{credentialId}',
-    'POST /api/connectors/{connectorName}/oauth/picker-token/{credentialId}',
     'POST /api/data-destinations/connect/google-sheets',
     'GET /api/data-destinations/oauth/settings',
   ];

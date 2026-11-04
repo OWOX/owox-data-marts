@@ -6,7 +6,6 @@ import { CredentialDefinitionUnavailableException } from '../services/credential
 import { CredentialConsumerTitlesService } from '../services/credential-consumer-titles.service';
 import { CredentialService } from '../services/credential.service';
 import { CredentialViewService } from '../services/credential-view.service';
-import { opensPicker } from '../../connector-types/source-credential-definitions';
 
 @Injectable()
 export class ListCredentialsService {
@@ -34,12 +33,8 @@ export class ListCredentialsService {
     );
     const visible = credentials.filter(credential => canSee.get(credential.id) === true);
     const visibleIds = visible.map(credential => credential.id);
-    const pickerIds = visible
-      .filter(credential => opensPicker(credential.definitionId))
-      .map(credential => credential.id);
-    const [canUse, canEdit, bindings] = await Promise.all([
+    const [canUse, bindings] = await Promise.all([
       decide(Action.USE, visibleIds),
-      decide(Action.EDIT, pickerIds),
       this.credentials.listBindingsOf(visibleIds),
     ]);
     const titles = await this.consumerTitles.visibleTitles(context, bindings);
@@ -47,7 +42,6 @@ export class ListCredentialsService {
       visible.map(credential =>
         this.view.build(credential, context, undefined, {
           canUse: canUse.get(credential.id) === true,
-          canEdit: canEdit.get(credential.id) === true,
           bindings: bindings.filter(binding => binding.credentialId === credential.id),
           titles,
         })

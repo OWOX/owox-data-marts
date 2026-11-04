@@ -61,7 +61,6 @@ export const ConnectorOAuthExchangeResultSchema = z.object({
   credentialId: z.string(),
   user: ConnectorOAuthUser.optional(),
   reasons: z.array(z.string()).optional(),
-  pickerAccessToken: z.string().optional(),
 });
 
 export type ConnectorOAuthExchangeResultSchema = z.infer<typeof ConnectorOAuthExchangeResultSchema>;

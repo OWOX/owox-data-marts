@@ -10,7 +10,6 @@ import type {
   ConnectorSpecificationItemDto,
 } from '../dto/domain/connector-specification.dto';
 import type { ConnectorFieldsDto } from '../dto/domain/connector-fields.dto';
-import type { IssuedPickerTokenDto } from '../dto/domain/issued-picker-token.dto';
 import { ConnectorFieldsSchema } from '../connector-types/connector-fields-schema';
 import { ConnectorFieldOptions } from '../connector-types/connector-field-options';
 import { ConnectorFieldOptionResponseApiDto } from '../dto/presentation/connector-field-option-response-api.dto';
@@ -25,7 +24,6 @@ import {
   ConnectorOAuthExchangeResultSchema,
 } from '../connector-types/connector-oauth-schema';
 import { ConnectorOAuthSettingsResponseApiDto } from '../dto/presentation/connector-oauth-settings-response-api.dto';
-import { ConnectorPickerTokenResponseApiDto } from '../dto/presentation/connector-picker-token-response-api.dto';
 
 @Injectable()
 export class ConnectorMapper {
@@ -164,11 +162,6 @@ export class ConnectorMapper {
           }
         : undefined,
       reasons: result.reasons,
-      pickerAccessToken: result.pickerAccessToken,
     };
-  }
-
-  toPickerTokenResponse(result: IssuedPickerTokenDto): ConnectorPickerTokenResponseApiDto {
-    return { accessToken: result.accessToken };
   }
 }

@@ -30,11 +30,7 @@ interface SourceVariant extends CredentialDeclaration {
   readonly attributes?: readonly string[];
   readonly items: Readonly<Record<string, SourceParameter>>;
   /** Each parameter's key in the connector's OAuth output. */
-  readonly oauthParams?: {
-    readonly mapping?: Readonly<Record<string, unknown>>;
-    /** The sign-in also opens Google Picker, which needs its access token. */
-    readonly opensPicker?: boolean;
-  };
+  readonly oauthParams?: { readonly mapping?: Readonly<Record<string, unknown>> };
 }
 
 /** A connector as its package declares it: manifest and Source parameters. */
@@ -54,8 +50,6 @@ export interface SourceCredentialBinding {
   readonly fieldMap: Readonly<Record<string, string>>;
   /** Runs on the Credential take turns under its rotation lease, from the first. */
   readonly rotatesRefreshToken?: true;
-  /** The connect exchange hands the signer's access token to Google Picker. */
-  readonly opensPicker?: true;
 }
 
 export interface SourceCredentialDefinitions {
@@ -112,7 +106,6 @@ export function buildSourceCredentialDefinitions(
           reused ? [['value', keys[0][0]]] : keys.map(([key]) => [key, key])
         ),
         ...(declaration.rotatesRefreshToken && { rotatesRefreshToken: true }),
-        ...(variant?.oauthParams?.opensPicker === true && { opensPicker: true }),
       });
       if (reused) continue;
 
@@ -163,13 +156,6 @@ export function sourceConnectorsOf(definitionId: string): string[] {
   const { bindings } = sourceCredentialDefinitions();
   return Object.keys(bindings).filter(name =>
     bindings[name].some(binding => binding.definitionId === definitionId)
-  );
-}
-
-/** A bundled binding of the definition opens Google Picker. */
-export function opensPicker(definitionId: string): boolean {
-  return Object.values(sourceCredentialDefinitions().bindings).some(list =>
-    list.some(binding => binding.definitionId === definitionId && binding.opensPicker)
   );
 }
 

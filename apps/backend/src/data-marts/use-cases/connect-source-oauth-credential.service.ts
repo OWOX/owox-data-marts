@@ -76,7 +76,6 @@ export class ConnectSourceOAuthCredentialService {
           ? { id: user.id, name: user.name ?? null, email: user.email ?? null }
           : null,
       expiresAt: exchanged.expiresAt?.toISOString() ?? null,
-      signedInByUserId: context.userId,
     };
     const values: ConnectedValues = {
       secret,
@@ -89,14 +88,11 @@ export class ConnectSourceOAuthCredentialService {
       ? await this.reconnect(context, target.id, values, connection)
       : await this.create(context, target, definition, values, connection);
 
-    const pickerAccessToken = exchanged.credentials.access_token;
     return {
       success: true,
       credentialId,
       user,
       reasons: exchanged.warnings,
-      // Only the member who just signed in gets it; it is stored nowhere.
-      ...(binding.opensPicker && typeof pickerAccessToken === 'string' && { pickerAccessToken }),
     };
   }
 

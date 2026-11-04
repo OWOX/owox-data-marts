@@ -66,7 +66,7 @@ export function applyFieldsUpdate(
   const { publicMetadata } = current;
   const recorded =
     publicMetadata && 'connection' in publicMetadata ? publicMetadata.connection : undefined;
-  // A grant typed in by hand is not the signer's grant, and any Google account may reconnect it.
+  // A grant typed in by hand can belong to any Google account, so the recorded account is unknown.
   const grantKeys = [...grantFieldKeys(current), 'ClientId'];
   const grantChanged = Object.keys(input).some(
     key => grantKeys.includes(key) && (input[key] ?? undefined) !== own(stored, key)

@@ -44,7 +44,6 @@ jest.mock('../services/connector/connector-field-options-preview.service', () =>
 jest.mock('../mappers/connector.mapper', () => ({}));
 jest.mock('../services/connector/connector-oauth.service', () => ({}));
 jest.mock('../use-cases/connect-source-oauth-credential.service', () => ({}));
-jest.mock('../use-cases/issue-source-picker-token.service', () => ({}));
 jest.mock('../use-cases/create-data-destination.service', () => ({}));
 jest.mock('../use-cases/update-data-destination.service', () => ({}));
 jest.mock('../use-cases/get-data-destination.service', () => ({}));
@@ -63,7 +62,7 @@ jest.mock('../services/access-decision', () => ({
 jest.mock('../use-cases/google-sheets/create-google-sheet-document.service', () => ({}));
 
 import { RequestMethod, Type } from '@nestjs/common';
-import { HEADERS_METADATA, METHOD_METADATA, PATH_METADATA } from '@nestjs/common/constants';
+import { METHOD_METADATA, PATH_METADATA } from '@nestjs/common/constants';
 import { REJECT_API_KEY_AUTH_METADATA } from '../../idp/decorators/reject-api-key-auth.decorator';
 import { ConnectorController } from './connector.controller';
 import { DataDestinationController } from './data-destination.controller';
@@ -93,11 +92,6 @@ const oauthFlowOnlyRoutes: Array<{
     controller: ConnectorController,
     handlerName: 'getConnectorOAuthStatus',
     endpoint: 'GET /api/connectors/{connectorName}/oauth/status/{credentialId}',
-  },
-  {
-    controller: ConnectorController,
-    handlerName: 'issuePickerToken',
-    endpoint: 'POST /api/connectors/{connectorName}/oauth/picker-token/{credentialId}',
   },
   {
     controller: DataDestinationController,
@@ -160,13 +154,4 @@ describe('OAuth-flow-only controller routes', () => {
     expect(rejectedControllers).toEqual([]);
     expect(rejectedHandlers).toEqual(expectedRejectedHandlers);
   });
-
-  it.each(['handleOAuthCallback', 'issuePickerToken'] as const)(
-    'keeps the Google token %s returns out of caches',
-    handlerName => {
-      expect(
-        Reflect.getMetadata(HEADERS_METADATA, ConnectorController.prototype[handlerName])
-      ).toContainEqual({ name: 'Cache-Control', value: 'no-store' });
-    }
-  );
 });

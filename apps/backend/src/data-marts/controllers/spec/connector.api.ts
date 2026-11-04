@@ -18,7 +18,6 @@ import { ExchangeOAuthCredentialsDto } from '../../dto/presentation/exchange-oau
 import { ConnectorFieldsPreviewRequestApiDto } from '../../dto/presentation/connector-fields-preview-request-api.dto';
 import { ConnectorFieldOptionsPreviewRequestApiDto } from '../../dto/presentation/connector-field-options-preview-request-api.dto';
 import { ConnectorFieldOptionResponseApiDto } from '../../dto/presentation/connector-field-option-response-api.dto';
-import { ConnectorPickerTokenResponseApiDto } from '../../dto/presentation/connector-picker-token-response-api.dto';
 
 export function GetAvailableConnectorsSpec() {
   return applyDecorators(
@@ -80,7 +79,7 @@ export function ExchangeOAuthCredentialsSpec() {
     ApiOperation({
       summary: "Connect a Source Credential through the connector's OAuth app",
       description:
-        "Creates a Credential of the sign-in variant, or reconnects `credential.id`; returns Google Picker's access token only for a connector that opens Picker.",
+        'Creates a Credential of the sign-in variant, or reconnects `credential.id`; returns no token.',
     }),
     ApiParam({ name: 'connectorName', description: 'Connector name' }),
     ApiBody({ type: ExchangeOAuthCredentialsDto }),
@@ -103,33 +102,6 @@ export function GetConnectorOAuthStatusSpec() {
     ApiOkResponse({
       type: ConnectorOAuthStatusResponseApiDto,
       description: 'OAuth credential status',
-    })
-  );
-}
-
-export function IssuePickerTokenSpec() {
-  return applyDecorators(
-    ApiOperation({
-      summary: 'Issue a Google Picker token for a Source Credential',
-      description:
-        "Refreshes the Credential's access token for Google Picker; only for the member who signed the Credential in last, while they can edit it.",
-    }),
-    ApiParam({ name: 'connectorName', description: 'Connector name' }),
-    ApiParam({ name: 'credentialId', description: 'Source Credential ID' }),
-    ApiCreatedResponse({ type: ConnectorPickerTokenResponseApiDto }),
-    ApiResponse({
-      status: 400,
-      description:
-        "The Credential's connector opens no Google Picker, or its connector credentials are invalid or expired",
-    }),
-    ApiResponse({
-      status: 403,
-      description:
-        'The member did not sign the Credential in last, or cannot edit it. A Credential with no recorded signer, or with a grant edited by hand, must first be reconnected by a member who can edit it.',
-    }),
-    ApiResponse({
-      status: 404,
-      description: 'The Credential does not exist, or the member cannot see it',
     })
   );
 }

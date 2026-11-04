@@ -21,7 +21,6 @@ describe('ListCredentialsService', () => {
         ['usable', true],
         ['hidden', false],
       ]),
-      [Action.EDIT]: new Map(),
     };
     const access = {
       canAccessMany: jest.fn(async (...args: unknown[]) => decisions[args[4] as string]),
@@ -44,7 +43,7 @@ describe('ListCredentialsService', () => {
 
     await expect(service.run(context)).resolves.toEqual([visible, usable]);
 
-    expect(access.canAccessMany).toHaveBeenCalledTimes(3);
+    expect(access.canAccessMany).toHaveBeenCalledTimes(2);
     expect(access.canAccessMany).toHaveBeenCalledWith(
       'm1',
       ['editor'],
@@ -60,52 +59,8 @@ describe('ListCredentialsService', () => {
       usableBinding,
     ]);
     expect(view.build.mock.calls).toEqual([
-      [
-        visible,
-        context,
-        undefined,
-        { canUse: false, canEdit: false, bindings: [visibleBinding], titles },
-      ],
-      [
-        usable,
-        context,
-        undefined,
-        { canUse: true, canEdit: false, bindings: [usableBinding], titles },
-      ],
-    ]);
-  });
-
-  it('decides EDIT only for Picker Credentials', async () => {
-    const context = { projectId: 'p1', userId: 'm1', roles: ['editor'] } as AuthorizationContext;
-    const sheets = { id: 'sheets', definitionId: 'source:GoogleSheets:oauth2' };
-    const key = { id: 'key', definitionId: 'google-service-account' };
-    const access = {
-      canAccessMany: jest.fn(
-        async (...args: unknown[]) =>
-          new Map((args[3] as string[]).map(id => [id, true] as [string, boolean]))
-      ),
-    };
-    const view = { build: jest.fn(async (credential: { id: string }) => credential) };
-    const service = new ListCredentialsService(
-      { listByProjectId: async () => [sheets, key], listBindingsOf: async () => [] } as never,
-      access as never,
-      view as never,
-      { visibleTitles: async () => new Map() } as never
-    );
-
-    await service.run(context);
-
-    expect(access.canAccessMany).toHaveBeenCalledWith(
-      'm1',
-      ['editor'],
-      EntityType.CREDENTIAL,
-      ['sheets'],
-      Action.EDIT,
-      'p1'
-    );
-    expect(view.build.mock.calls.map(call => (call[3] as { canEdit: boolean }).canEdit)).toEqual([
-      true,
-      false,
+      [visible, context, undefined, { canUse: false, bindings: [visibleBinding], titles }],
+      [usable, context, undefined, { canUse: true, bindings: [usableBinding], titles }],
     ]);
   });
 

@@ -336,16 +336,6 @@ test('stores the verified Google account used by Google Picker', async () => {
   );
 });
 
-test('marks the OAuth sign-in as the one Google Picker opens with', () => {
-  const source = new GoogleSheetsSource({
-    getParameter: () => null,
-    registerParameters() {},
-    log() {},
-  });
-  assert.equal(source.parameters.AuthType.oneOf[0].oauthParams.opensPicker, true);
-  assert.equal(source.parameters.AuthType.oneOf[1].oauthParams, undefined);
-});
-
 test('answers a denied spreadsheet list with one actionable sentence', async () => {
   const source = createSource({ authType: 'oauth2' });
   source.getAccessToken = async () => 'token';

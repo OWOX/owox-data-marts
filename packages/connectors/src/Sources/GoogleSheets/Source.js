@@ -72,7 +72,6 @@ export class GoogleSheetsSource extends AbstractSource {
             credentialDisplayName: 'Sheets Source Google account',
             attributes: [CONFIG_ATTRIBUTES.OAUTH_FLOW],
             oauthParams: {
-              opensPicker: true,
               vars: {
                 ClientId: {
                   type: 'string',

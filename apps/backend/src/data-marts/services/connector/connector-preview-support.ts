@@ -37,8 +37,6 @@ export interface ConnectorPreviewSource {
   context: { validate(): void };
   fetchFieldsSchema(signal: AbortSignal): Promise<unknown>;
   fetchFieldOptions(fieldName: string, signal: AbortSignal): Promise<unknown>;
-  /** Only sources that sign in with OAuth have it. */
-  getAccessToken?(): Promise<string>;
 }
 
 /**

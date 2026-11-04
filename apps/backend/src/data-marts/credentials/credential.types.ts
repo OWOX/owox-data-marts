@@ -382,8 +382,6 @@ export interface SourceConnection {
   readonly account: { id: string; name: string | null; email: string | null } | null;
   /** ISO time the token expires, when the connector says. */
   readonly expiresAt: string | null;
-  /** The member who signed in last. */
-  readonly signedInByUserId?: string;
 }
 
 export type CredentialPublicMetadata =
@@ -403,27 +401,6 @@ export function isCustomConnectorMetadata(
   metadata: CredentialPublicMetadata | null
 ): metadata is CustomConnectorPublicMetadata {
   return metadata !== null && 'hosts' in metadata;
-}
-
-/** Whether a member may add files to a Picker Credential with Google Picker, or why not. */
-export type CredentialFilePicking =
-  | 'allowed'
-  | 'reconnect'
-  | 'other-signer'
-  | 'signer-without-edit'
-  | 'not-recorded';
-
-/** Only the member who signed in last, while they have EDIT; one never recorded must reconnect. */
-export function sourceFilePicking(
-  metadata: CredentialPublicMetadata | null,
-  userId: string,
-  canEdit: boolean
-): CredentialFilePicking {
-  const signer =
-    metadata && 'connection' in metadata ? metadata.connection?.signedInByUserId : undefined;
-  if (signer && signer !== userId) return 'other-signer';
-  if (signer) return canEdit ? 'allowed' : 'signer-without-edit';
-  return canEdit ? 'reconnect' : 'not-recorded';
 }
 
 export function secretValue(secret: CredentialSecret): string {
