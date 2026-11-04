@@ -44,9 +44,9 @@ A connector Data Mart on an OWOX Storage writes into the storage's one dataset. 
 Each project has a limit on the data its OWOX Storage queries scan per day.
 
 | Project plan | Daily limit |
-| --- | --- |
-| Free | 10 GiB |
-| Paid | 100 GiB |
+| ------------ | ----------- |
+| Free         | 10 GiB      |
+| Paid         | 100 GiB     |
 
 A project with an unpaid subscription gets the Free limit.
 
@@ -58,10 +58,10 @@ The limit resets at midnight Pacific Time. When a project has used it, queries f
 
 On the Free plan, each OWOX Storage has a size limit.
 
-| Project plan | Size |
-| --- | --- |
-| Free | 1 GiB |
-| Paid | 10 GiB included |
+| Project plan | Size            |
+| ------------ | --------------- |
+| Free         | 1 GiB           |
+| Paid         | 10 GiB included |
 
 When a Free storage reaches its limit, new connector runs are refused. They show as RESTRICTED in Run History with the message "This project's OWOX Storage has reached its size limit. Delete tables in the storage or upgrade the plan to load more data."
 
