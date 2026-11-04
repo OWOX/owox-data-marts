@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState, type RefObject } from 'react';
 import { Button } from '@owox/ui/components/button';
 import {
   Dialog,
@@ -34,29 +34,47 @@ export const OwoxStorageCreateDialog = ({
   isOpen,
   onClose,
   onCreated,
-}: OwoxStorageCreateDialogProps) => (
-  <Dialog
-    open={isOpen}
-    onOpenChange={open => {
-      if (!open) onClose();
-    }}
-  >
-    <DialogContent className='sm:max-w-sm' data-testid='owoxStorageCreateDialog'>
-      {/* Its state unmounts with the dialog, so a reopened dialog starts empty. */}
-      <OwoxStorageCreateForm onClose={onClose} onCreated={onCreated} />
-    </DialogContent>
-  </Dialog>
-);
+}: OwoxStorageCreateDialogProps) => {
+  // Set by the form while a create runs; the dialog ignores close requests then.
+  const isCreatingRef = useRef(false);
+  return (
+    <Dialog
+      open={isOpen}
+      onOpenChange={open => {
+        if (!open && !isCreatingRef.current) onClose();
+      }}
+    >
+      <DialogContent className='sm:max-w-sm' data-testid='owoxStorageCreateDialog'>
+        {/* Its state unmounts with the dialog, so a reopened dialog starts empty. */}
+        <OwoxStorageCreateForm
+          onClose={onClose}
+          onCreated={onCreated}
+          isCreatingRef={isCreatingRef}
+        />
+      </DialogContent>
+    </Dialog>
+  );
+};
 
 const OwoxStorageCreateForm = ({
   onClose,
   onCreated,
-}: Pick<OwoxStorageCreateDialogProps, 'onClose' | 'onCreated'>) => {
+  isCreatingRef,
+}: Pick<OwoxStorageCreateDialogProps, 'onClose' | 'onCreated'> & {
+  isCreatingRef: RefObject<boolean>;
+}) => {
   const { createOwoxStorage } = useDataStorage();
   const [title, setTitle] = useState('OWOX Storage');
   const [location, setLocation] = useState<OwoxStorageLocation | ''>('');
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    isCreatingRef.current = isCreating;
+    return () => {
+      isCreatingRef.current = false;
+    };
+  }, [isCreating, isCreatingRef]);
 
   const canCreate = title.trim().length > 0 && location !== '' && !isCreating;
 
