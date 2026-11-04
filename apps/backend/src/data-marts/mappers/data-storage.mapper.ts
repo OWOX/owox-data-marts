@@ -232,7 +232,13 @@ export class DataStorageMapper {
   }
 
   toDeleteCommand(id: string, context: AuthorizationContext): DeleteDataStorageCommand {
-    return new DeleteDataStorageCommand(id, context.projectId, context.userId, context.roles ?? []);
+    return new DeleteDataStorageCommand(
+      id,
+      context.projectId,
+      context.userId,
+      context.roles ?? [],
+      context.authFlow === 'plugin'
+    );
   }
 
   toGetOwoxStorageUsageCommand(

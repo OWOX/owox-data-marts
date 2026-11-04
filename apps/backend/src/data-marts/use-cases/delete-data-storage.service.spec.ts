@@ -2,7 +2,7 @@ jest.mock('typeorm-transactional', () => ({
   Transactional: () => () => undefined,
 }));
 
-import { Logger } from '@nestjs/common';
+import { ForbiddenException, Logger } from '@nestjs/common';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
 import { DeleteDataStorageCommand } from '../dto/domain/delete-data-storage.command';
@@ -111,5 +111,27 @@ describe('DeleteDataStorageService', () => {
     expect(dataStorageRepository.softDelete).not.toHaveBeenCalled();
     expect(storageCredentials.deactivateStorage).not.toHaveBeenCalled();
     expect(managedStorages.remove).not.toHaveBeenCalled();
+  });
+
+  describe('when a plugin deletes', () => {
+    const pluginCommand = new DeleteDataStorageCommand('storage-1', 'proj-1', '', [], true);
+
+    it('refuses an OWOX Storage before marking, deprovisioning or deleting it', async () => {
+      const { service, dataStorageRepository, managedStorages, engine } = makeService([], record);
+
+      await expect(service.run(pluginCommand)).rejects.toThrow(ForbiddenException);
+      expect(managedStorages.markDeleting).not.toHaveBeenCalled();
+      expect(engine.deprovision).not.toHaveBeenCalled();
+      expect(dataStorageRepository.softDelete).not.toHaveBeenCalled();
+      expect(managedStorages.remove).not.toHaveBeenCalled();
+    });
+
+    it('still deletes a storage that is not an OWOX Storage', async () => {
+      const { service, dataStorageRepository } = makeService();
+
+      await service.run(pluginCommand);
+
+      expect(dataStorageRepository.softDelete).toHaveBeenCalled();
+    });
   });
 });
