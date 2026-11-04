@@ -27,4 +27,33 @@ describe('LookerStudioReportRunService.finish', () => {
 
     expect(dataMartRunService.recordStorageUse).toHaveBeenCalledWith('storage-1', 'run-1');
   });
+
+  it('records use after the run is persisted and still resolves when recording rejects', async () => {
+    const order: string[] = [];
+    const report = {
+      id: 'report-1',
+      lastRunStatus: 'SUCCESS',
+      lastRunError: null,
+      dataMart: { storage: { id: 'storage-1' } },
+    };
+    const dataMartRunService = {
+      markReportRunAsFinished: jest.fn(async () => void order.push('persist')),
+      recordStorageUse: jest.fn(async () => {
+        order.push('record');
+        throw new Error('deadlock');
+      }),
+    };
+    const service = new LookerStudioReportRunService(
+      { updateRunStatus: jest.fn() } as never,
+      dataMartRunService as never
+    );
+
+    await expect(
+      service.finish({
+        getReport: () => report,
+        getDataMartRun: () => ({ id: 'run-1' }),
+      } as never)
+    ).resolves.toBeUndefined();
+    expect(order).toEqual(['persist', 'record']);
+  });
 });
