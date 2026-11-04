@@ -88,6 +88,11 @@ class GoogleSignInRequiredError extends Error {
   }
 }
 
+class GooglePickerAccountMismatchError extends Error {}
+
+// Kept per Credential account, so Back/Next in the wizard (a remount) does not forget it.
+const accountsToChoose = new Set<string>();
+
 interface TokenResponse {
   access_token?: string;
   error?: string;
@@ -261,7 +266,9 @@ export async function verifyGooglePickerAccount(
 
   const userInfo = (await response.json()) as { email?: string };
   if (userInfo.email?.toLowerCase() !== expectedEmail.toLowerCase()) {
-    throw new Error(`Open Google Picker with the connected account ${expectedEmail}`);
+    throw new GooglePickerAccountMismatchError(
+      `Open Google Picker with the connected account ${expectedEmail}`
+    );
   }
 }
 
@@ -308,7 +315,7 @@ export function useGoogleSheetsPicker() {
   const pendingPickerResolveRef = useRef<(() => void) | null>(null);
   const isMountedRef = useRef(true);
   const generationRef = useRef(0);
-  // After Google asked for a sign-in, the next click lets the member choose the account.
+  // Without a hint email there is no account to key on, so this stays per hook instance.
   const chooseAccountRef = useRef(false);
 
   const closeActivePicker = useCallback(() => {
@@ -344,15 +351,22 @@ export function useGoogleSheetsPicker() {
         if (accessToken) {
           tokenRequest = Promise.resolve(accessToken);
         } else if (clientId) {
-          const prompt = chooseAccountRef.current ? 'select_account' : 'none';
+          // After a sign-in request or a wrong account, the next click lets the member choose.
+          const chooseAccount = hintEmail
+            ? accountsToChoose.has(hintEmail.toLowerCase())
+            : chooseAccountRef.current;
+          const prompt = chooseAccount ? 'select_account' : 'none';
           tokenRequest = requestAccessToken(clientId, hintEmail, prompt);
         } else {
           throw new Error('Google Picker configuration is incomplete');
         }
         const [token] = await Promise.all([tokenRequest, loadPicker()]);
-        if (!accessToken) chooseAccountRef.current = false;
         if (superseded()) return;
         await verifyGooglePickerAccount(token, hintEmail);
+        if (!accessToken) {
+          chooseAccountRef.current = false;
+          if (hintEmail) accountsToChoose.delete(hintEmail.toLowerCase());
+        }
         if (superseded()) return;
 
         const picker = googleWindow.google?.picker;
@@ -410,7 +424,14 @@ export function useGoogleSheetsPicker() {
           builtPicker.setVisible(true);
         });
       } catch (error) {
-        if (error instanceof GoogleSignInRequiredError) chooseAccountRef.current = true;
+        if (
+          !accessToken &&
+          (error instanceof GoogleSignInRequiredError ||
+            error instanceof GooglePickerAccountMismatchError)
+        ) {
+          chooseAccountRef.current = true;
+          if (hintEmail) accountsToChoose.add(hintEmail.toLowerCase());
+        }
         // A superseded call must not close the Picker a newer one opened.
         if (superseded()) return;
         closeActivePicker();

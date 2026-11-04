@@ -424,8 +424,138 @@ describe('useGoogleSheetsPicker', () => {
     }
   );
 
+  describe('choose-account state', () => {
+    const accountIs = (email: string, status = 200) => {
+      vi.mocked(fetch).mockImplementation(() =>
+        Promise.resolve(new Response(JSON.stringify({ email }), { status }))
+      );
+    };
+    const open = (hintEmail: string) => {
+      const onError = vi.fn();
+      return { onError, options: { ...gisOpen, hintEmail, onPicked: vi.fn(), onError } };
+    };
+
+    it('keeps asking for the account after the form is remounted', async () => {
+      const { requestAccessToken, respond } = mockPickerApi();
+      const first = renderHook(() => useGoogleSheetsPicker());
+      const firstOpen = first.result.current.openPicker(open('remount@example.com').options);
+      await vi.waitFor(() => {
+        expect(requestAccessToken).toHaveBeenCalledTimes(1);
+      });
+      respond(0, { error: 'interaction_required' });
+      await firstOpen;
+      first.unmount();
+
+      const second = renderHook(() => useGoogleSheetsPicker());
+      void second.result.current.openPicker(open('remount@example.com').options);
+      await vi.waitFor(() => {
+        expect(requestAccessToken).toHaveBeenCalledTimes(2);
+      });
+      expect(requestAccessToken).toHaveBeenLastCalledWith({
+        prompt: 'select_account',
+        login_hint: 'remount@example.com',
+      });
+    });
+
+    it('keeps asking after a token for another account, until a verified token arrives', async () => {
+      const { requestAccessToken, respond, granted, setOAuthToken } = mockPickerApi();
+      accountIs('other@example.com');
+      const { result } = renderHook(() => useGoogleSheetsPicker());
+      const wrong = open('wrong@example.com');
+
+      const firstOpen = result.current.openPicker(wrong.options);
+      await vi.waitFor(() => {
+        expect(requestAccessToken).toHaveBeenCalledTimes(1);
+      });
+      respond(0, granted('wrong-token'));
+      await firstOpen;
+      expect(wrong.onError).toHaveBeenCalledWith(
+        'Open Google Picker with the connected account wrong@example.com'
+      );
+
+      accountIs('wrong@example.com');
+      void result.current.openPicker(wrong.options);
+      await vi.waitFor(() => {
+        expect(requestAccessToken).toHaveBeenCalledTimes(2);
+      });
+      expect(requestAccessToken).toHaveBeenLastCalledWith({
+        prompt: 'select_account',
+        login_hint: 'wrong@example.com',
+      });
+      respond(1, granted('right-token'));
+      await vi.waitFor(() => {
+        expect(setOAuthToken).toHaveBeenCalledWith('right-token');
+      });
+
+      void result.current.openPicker(wrong.options);
+      await vi.waitFor(() => {
+        expect(requestAccessToken).toHaveBeenCalledTimes(3);
+      });
+      expect(requestAccessToken).toHaveBeenLastCalledWith({
+        prompt: 'none',
+        login_hint: 'wrong@example.com',
+      });
+    });
+
+    it('stays silent after a failed account check', async () => {
+      const { requestAccessToken, respond, granted } = mockPickerApi();
+      accountIs('unverified@example.com', 500);
+      const { result } = renderHook(() => useGoogleSheetsPicker());
+      const unverified = open('unverified@example.com');
+
+      const firstOpen = result.current.openPicker(unverified.options);
+      await vi.waitFor(() => {
+        expect(requestAccessToken).toHaveBeenCalledTimes(1);
+      });
+      respond(0, granted('token'));
+      await firstOpen;
+      expect(unverified.onError).toHaveBeenCalledWith(
+        'Could not verify the Google account used by Google Picker'
+      );
+
+      void result.current.openPicker(unverified.options);
+      await vi.waitFor(() => {
+        expect(requestAccessToken).toHaveBeenCalledTimes(2);
+      });
+      expect(requestAccessToken).toHaveBeenLastCalledWith({
+        prompt: 'none',
+        login_hint: 'unverified@example.com',
+      });
+    });
+
+    it('keeps asking when the account check of a chosen token fails', async () => {
+      const { requestAccessToken, respond, granted } = mockPickerApi();
+      accountIs('check@example.com', 500);
+      const { result } = renderHook(() => useGoogleSheetsPicker());
+      const check = open('check@example.com');
+
+      const signIn = result.current.openPicker(check.options);
+      await vi.waitFor(() => {
+        expect(requestAccessToken).toHaveBeenCalledTimes(1);
+      });
+      respond(0, { error: 'interaction_required' });
+      await signIn;
+
+      const chosen = result.current.openPicker(check.options);
+      await vi.waitFor(() => {
+        expect(requestAccessToken).toHaveBeenCalledTimes(2);
+      });
+      respond(1, granted('token'));
+      await chosen;
+
+      void result.current.openPicker(check.options);
+      await vi.waitFor(() => {
+        expect(requestAccessToken).toHaveBeenCalledTimes(3);
+      });
+      expect(requestAccessToken).toHaveBeenLastCalledWith({
+        prompt: 'select_account',
+        login_hint: 'check@example.com',
+      });
+    });
+  });
+
   it('treats a closed silent window like a sign-in request', async () => {
-    const { requestAccessToken, fail } = mockPickerApi();
+    const { requestAccessToken, fail, respond, granted, setOAuthToken } = mockPickerApi();
     const onError = vi.fn();
     const { result } = renderHook(() => useGoogleSheetsPicker());
 
@@ -444,6 +574,11 @@ describe('useGoogleSheetsPicker', () => {
     expect(requestAccessToken).toHaveBeenLastCalledWith({
       prompt: 'select_account',
       login_hint: 'a@example.com',
+    });
+    // A verified token ends the choose-account state, which lives beyond this test.
+    respond(1, granted('chosen-token'));
+    await vi.waitFor(() => {
+      expect(setOAuthToken).toHaveBeenCalledWith('chosen-token');
     });
   });
 
