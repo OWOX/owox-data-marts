@@ -398,8 +398,8 @@ export function GetConnectorTargetConflictSpec() {
     }),
     ApiParam({ name: 'id', description: 'DataMart ID' }),
     ApiOkResponse({ type: ConnectorTargetConflictResponseApiDto }),
-    ApiForbiddenResponse({ description: 'EDIT access to the DataMart is required' }),
-    ApiNotFoundResponse({ description: 'DataMart was not found in the current project' })
+    ApiForbiddenResponse({ description: 'EDIT access is required' }),
+    ApiNotFoundResponse({ description: 'Data Mart was not found in the current project' })
   );
 }
 

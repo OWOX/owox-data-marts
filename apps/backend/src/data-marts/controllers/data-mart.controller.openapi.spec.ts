@@ -488,10 +488,10 @@ describe('DataMartController list OpenAPI', () => {
       },
     });
     expect(operation?.responses['403']).toMatchObject({
-      description: 'EDIT access to the DataMart is required',
+      description: 'EDIT access is required',
     });
     expect(operation?.responses['404']).toMatchObject({
-      description: 'DataMart was not found in the current project',
+      description: 'Data Mart was not found in the current project',
     });
   });
 
