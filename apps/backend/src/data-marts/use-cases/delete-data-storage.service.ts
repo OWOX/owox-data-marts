@@ -61,6 +61,11 @@ export class DeleteDataStorageService {
       );
     }
 
+    const managed = await this.managedStorages.findByStorageId(command.id);
+    if (managed && command.fromPlugin) {
+      throw new ForbiddenException('Plugins cannot delete an OWOX Storage.');
+    }
+
     const dataMartsForStorage = await this.dataMartService.findByStorage(dataStorage);
 
     if (dataMartsForStorage.length > 0) {
@@ -70,7 +75,6 @@ export class DeleteDataStorageService {
       );
     }
 
-    const managed = await this.managedStorages.findByStorageId(command.id);
     if (managed) {
       // An already deleted record keeps its date.
       await this.managedStorages.markDeleting(managed.storageId, new Date());
