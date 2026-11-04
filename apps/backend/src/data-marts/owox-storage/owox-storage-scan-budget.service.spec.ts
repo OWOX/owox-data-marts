@@ -97,6 +97,28 @@ describe('OwoxStorageScanBudgetService', () => {
     }
   });
 
+  it('keeps a release that happens while the usage is being reloaded', async () => {
+    jest.useFakeTimers();
+    try {
+      const budget = service.forStorage(record);
+      const held = await budget.reserve(6 * GIB);
+      jest.advanceTimersByTime(61_000);
+      // The reload starts, then the job ends before the reload's snapshot returns.
+      let finishReload: (rows: unknown) => void = () => undefined;
+      query.mockReturnValueOnce(new Promise(resolve => (finishReload = resolve)));
+      const reading = budget.remainingBytes();
+      await Promise.resolve();
+      await Promise.resolve();
+      held.release();
+      finishReload([[{ used: 0 }]]);
+
+      await expect(reading).resolves.toBe(4 * GIB);
+      await expect(budget.remainingBytes()).resolves.toBe(4 * GIB);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
   it('lets only one of two concurrent reservations take the same bytes', async () => {
     const budget = service.forStorage(record);
 
