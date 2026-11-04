@@ -12,7 +12,8 @@ export function GoogleSheetsCallback() {
       code: params.get('code') ?? '',
       accessToken: params.get('access_token') ?? '',
     }),
-    hasSuccessData: params => !!params.get('code') && !!params.get('access_token'),
+    // No token comes back to a page opened before the update; that page asks for the code only.
+    hasSuccessData: params => !!params.get('code'),
   });
 
   return <OAuthCallbackUI status={status} errorMessage={errorMessage} />;

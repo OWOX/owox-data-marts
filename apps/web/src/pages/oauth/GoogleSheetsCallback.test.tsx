@@ -71,8 +71,23 @@ describe('GoogleSheetsCallback', () => {
     );
   });
 
-  it('refuses a fragment without an access token', () => {
-    window.history.replaceState(null, '', `${CALLBACK_PATH}#state=state-1&code=code-1`);
+  it('reads a code-only answer from the query string', () => {
+    window.history.replaceState(null, '', `${CALLBACK_PATH}?state=state-1&code=code-1`);
+
+    render(
+      <MemoryRouter initialEntries={[`${CALLBACK_PATH}?state=state-1&code=code-1`]}>
+        <GoogleSheetsCallback />
+      </MemoryRouter>
+    );
+
+    expect(postMessage).toHaveBeenCalledWith(
+      { type: 'GOOGLE_SHEETS_AUTH_SUCCESS', state: 'state-1', code: 'code-1', accessToken: '' },
+      window.location.origin
+    );
+  });
+
+  it('refuses a fragment without a code', () => {
+    window.history.replaceState(null, '', `${CALLBACK_PATH}#state=state-1&access_token=token-1`);
 
     render(
       <MemoryRouter initialEntries={[CALLBACK_PATH]}>
@@ -80,6 +95,7 @@ describe('GoogleSheetsCallback', () => {
       </MemoryRouter>
     );
 
+    expect(window.location.hash).toBe('');
     expect(postMessage).toHaveBeenCalledWith(
       { type: 'GOOGLE_SHEETS_AUTH_ERROR', error: 'No authorization data received from provider' },
       window.location.origin

@@ -7,7 +7,7 @@ interface UseOAuthCallbackOptions {
   errorType: string;
   getSuccessPayload: (searchParams: URLSearchParams) => Record<string, string>;
   hasSuccessData: (searchParams: URLSearchParams) => boolean;
-  /** Reads the result from the URL fragment, where Google puts an access token. */
+  /** Reads the result from the URL fragment, where Google puts an access token, when the fragment is not empty. */
   fromFragment?: boolean;
 }
 
@@ -29,7 +29,8 @@ export function useOAuthCallback({
     processed.current = true;
 
     let params = searchParams;
-    if (fromFragment) {
+    // A page opened before an update still asks for the code only, and Google sends it in the query string.
+    if (fromFragment && window.location.hash) {
       params = new URLSearchParams(window.location.hash.slice(1));
       // Remove the token from the address bar and the history before anything else runs.
       window.history.replaceState(
