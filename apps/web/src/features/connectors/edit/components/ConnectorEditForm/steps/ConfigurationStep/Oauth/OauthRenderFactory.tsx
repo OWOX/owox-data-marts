@@ -33,8 +33,6 @@ interface OauthRenderFactoryProps {
   /** Makes the exchange create, or with an id reconnect, this reusable Credential. */
   credential?: OAuthExchangeCredentialTarget;
   onExchanged?: (exchanged: OAuthCallbackResponseDto) => void;
-  /** Why the member may not add files to the saved Credential with Google Picker. */
-  pickerHint?: string;
 }
 
 export interface OauthRenderComponentProps {
@@ -53,10 +51,6 @@ export interface OauthRenderComponentProps {
   ) => Promise<OAuthCallbackResponseDto | null>;
   /** Rendered for a Credential, not for a Data Mart configuration. */
   forCredential?: boolean;
-  /** Fetches a Picker token for the saved Credential, so Picker opens without a Google popup. */
-  pickerToken?: () => Promise<string>;
-  /** Why Picker is disabled for the saved Credential. */
-  pickerHint?: string;
 }
 
 export function OauthRenderFactory({
@@ -69,7 +63,6 @@ export function OauthRenderFactory({
   onManagedModeChange,
   credential,
   onExchanged,
-  pickerHint,
 }: OauthRenderFactoryProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [fieldSecretEditing, setFieldSecretEditing] = useState<Record<string, boolean>>({});
@@ -179,11 +172,7 @@ export function OauthRenderFactory({
     handleNestedValueChange(itemName, enable ? '' : SECRET_MASK);
   };
 
-  const { checkStatus, getSettings, exchangeCredentials, getPickerToken } = useOAuth();
-  const savedCredentialId = credential?.id;
-  const pickerToken = savedCredentialId
-    ? () => getPickerToken(connectorName, savedCredentialId)
-    : undefined;
+  const { checkStatus, getSettings, exchangeCredentials } = useOAuth();
 
   const handleOAuthSuccess = async (
     credentials: Record<string, unknown>,
@@ -396,8 +385,6 @@ export function OauthRenderFactory({
             settings={settings}
             onOAuthSuccess={handleOAuthSuccess}
             forCredential={credential !== undefined}
-            pickerToken={pickerToken}
-            pickerHint={pickerHint}
           />
         );
       case 'LinkedInAds':

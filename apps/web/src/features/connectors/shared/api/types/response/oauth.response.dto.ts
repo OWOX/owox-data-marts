@@ -32,8 +32,6 @@ export interface OAuthCallbackResponseDto {
   success: boolean;
   credentialId: string;
   user?: OAuthUserInfoDto;
-  /** Google Sheets sign-in only: opens Picker without a second Google popup. */
-  pickerAccessToken?: string;
 }
 
 /**

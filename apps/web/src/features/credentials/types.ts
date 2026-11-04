@@ -127,7 +127,6 @@ export interface CredentialFieldsMetadata {
   connection?: {
     account: { id: string; name: string | null; email: string | null } | null;
     expiresAt: string | null;
-    signedInByUserId?: string;
   };
 }
 
@@ -234,14 +233,6 @@ export interface Credential {
   publicMetadata?: CredentialPublicMetadataValue | null;
   identity?: string | null;
   canUse?: boolean;
-  /** Whether the member may open Google Picker with this Credential; null when it opens none. */
-  filePicking?:
-    | 'allowed'
-    | 'reconnect'
-    | 'signer-without-edit'
-    | 'other-signer'
-    | 'not-recorded'
-    | null;
   createdAt: string;
   modifiedAt: string;
 }

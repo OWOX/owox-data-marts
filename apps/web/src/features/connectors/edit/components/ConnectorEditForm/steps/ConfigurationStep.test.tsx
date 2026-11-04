@@ -18,7 +18,6 @@ const oauthMocks = vi.hoisted(() => ({
   exchangeCredentials: vi.fn(),
   checkStatus: vi.fn(),
   getSettings: vi.fn(),
-  getPickerToken: vi.fn(),
 }));
 
 vi.mock('../../../../shared/model/hooks/useOAuth', () => ({
@@ -744,7 +743,13 @@ describe('ConfigurationStep Google Sheets Credential', () => {
     credentialsState.credentials = [
       {
         ...credential('sheets-oauth', 'source:GoogleSheets:oauth2', 'Marketing sheets'),
-        filePicking: 'allowed',
+        publicMetadata: {
+          fields: {},
+          connection: {
+            account: { id: 'g-1', name: 'Owner', email: 'owner@example.com' },
+            expiresAt: null,
+          },
+        },
       },
     ];
     const pickedUrl = 'https://docs.google.com/spreadsheets/d/picked/edit';
@@ -781,6 +786,9 @@ describe('ConfigurationStep Google Sheets Credential', () => {
     await waitFor(() => {
       expect(input).toHaveValue(pickedUrl);
     });
+    expect(picker.openPicker).toHaveBeenCalledWith(
+      expect.objectContaining({ clientId: 'client-id', hintEmail: 'owner@example.com' })
+    );
     await waitFor(() => {
       expect(onOptionLabelChange).toHaveBeenLastCalledWith('SpreadsheetId', 'Budget 2026');
     });

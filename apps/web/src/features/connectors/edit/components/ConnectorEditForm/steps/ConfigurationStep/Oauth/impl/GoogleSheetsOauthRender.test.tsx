@@ -24,13 +24,13 @@ vi.mock('../../../../../../../shared/components/GoogleSheetsLoginButton', () => 
     onSuccess,
   }: {
     children?: React.ReactNode;
-    onSuccess: (response: { code: string }) => void;
+    onSuccess: (response: { code: string; accessToken: string }) => void;
   }) => (
     <button
       type='button'
       data-testid='google-login'
       onClick={() => {
-        onSuccess({ code: 'code' });
+        onSuccess({ code: 'code', accessToken: 'popup-token' });
       }}
     >
       {children}
@@ -265,7 +265,6 @@ describe('GoogleSheetsOauthRender', () => {
             success: true,
             credentialId: 'credential-1',
             user: exchangedUser,
-            pickerAccessToken: 'exchange-token',
           });
           return { success: true, credentialId: 'credential-1', user: exchangedUser };
         }) as unknown as OauthRenderComponentProps['onOAuthSuccess'],
@@ -318,83 +317,43 @@ describe('GoogleSheetsOauthRender', () => {
       expect(openPicker).not.toHaveBeenCalled();
     });
 
-    it('Connect opens Picker with the token the exchange returned', async () => {
+    it("Connect sends only the code and opens Picker with the sign-in popup's token", async () => {
       openPicker.mockResolvedValue();
-      connecting({
-        onOAuthSuccess: vi.fn(async (_payload, beforeFinish) => {
-          const exchanged = {
-            success: true,
-            credentialId: 'credential-1',
-            user: exchangedUser,
-            pickerAccessToken: 'exchange-token',
-          };
-          await beforeFinish?.(exchanged);
-          return exchanged;
-        }) as unknown as OauthRenderComponentProps['onOAuthSuccess'],
-      });
+      const props = connecting();
 
       fireEvent.click(screen.getByTestId('google-login'));
 
       await waitFor(() => {
         expect(openPicker).toHaveBeenCalledWith(
-          expect.objectContaining({ accessToken: 'exchange-token' })
+          expect.objectContaining({ accessToken: 'popup-token', hintEmail: 'analyst@example.com' })
         );
       });
+      expect(props.onOAuthSuccess).toHaveBeenCalledWith({ code: 'code' }, expect.any(Function));
     });
 
-    it('Connect without a Picker token reports it and opens no Google popup', async () => {
-      connecting({
-        onOAuthSuccess: vi.fn(async (_payload, beforeFinish) => {
-          const exchanged = { success: true, credentialId: 'credential-1', user: exchangedUser };
-          await beforeFinish?.(exchanged);
-          return exchanged;
-        }) as unknown as OauthRenderComponentProps['onOAuthSuccess'],
-      });
-
-      fireEvent.click(screen.getByTestId('google-login'));
-
-      await waitFor(() => {
-        expect(toastError).toHaveBeenCalledWith(
-          'Google did not return a Picker token. Use "Add spreadsheet" on the Credential to choose a spreadsheet.'
-        );
-      });
-      expect(openPicker).not.toHaveBeenCalled();
-    });
-
-    it('Add spreadsheet on a saved Credential takes its token from the backend', async () => {
+    it('Add spreadsheet on a saved Credential asks Google for its account', async () => {
       openPicker.mockResolvedValue();
-      const pickerToken = vi.fn().mockResolvedValue('backend-token');
-      renderGoogleSheetsOAuth({ forCredential: true, pickerToken });
-
-      fireEvent.click(screen.getByRole('button', { name: 'Add spreadsheet' }));
-
-      await waitFor(() => {
-        expect(openPicker).toHaveBeenCalledWith(
-          expect.objectContaining({ accessToken: pickerToken })
-        );
-      });
-    });
-
-    it('Add spreadsheet is disabled with its hint when the member may not open Picker', () => {
-      const hint = 'You need edit access to this Credential to add spreadsheets.';
-      renderGoogleSheetsOAuth({
-        forCredential: true,
-        pickerToken: vi.fn(),
-        pickerHint: hint,
-      });
+      renderGoogleSheetsOAuth({ forCredential: true });
 
       const button = screen.getByRole('button', { name: 'Add spreadsheet' });
-      expect(button).toBeDisabled();
-      expect(button).toHaveAccessibleDescription(hint);
-      expect(screen.getByText(hint)).toBeVisible();
+      expect(button).toBeEnabled();
       fireEvent.click(button);
-      expect(openPicker).not.toHaveBeenCalled();
+
+      await waitFor(() => {
+        expect(openPicker).toHaveBeenCalledWith(
+          expect.objectContaining({
+            clientId: 'client-id',
+            hintEmail: 'analyst@example.com',
+            accessToken: undefined,
+          })
+        );
+      });
     });
   });
 
-  it('Choose spreadsheet in a Data Mart configuration still asks Google', async () => {
+  it('Choose spreadsheet in a Data Mart configuration asks Google', async () => {
     openPicker.mockResolvedValue();
-    renderGoogleSheetsOAuth({ pickerToken: vi.fn().mockResolvedValue('backend-token') });
+    renderGoogleSheetsOAuth();
 
     fireEvent.click(screen.getByRole('button', { name: 'Choose spreadsheet' }));
 

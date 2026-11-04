@@ -6,10 +6,13 @@ export function GoogleSheetsCallback() {
     providerName: 'GoogleSheets',
     successType: 'GOOGLE_SHEETS_AUTH_SUCCESS',
     errorType: 'GOOGLE_SHEETS_AUTH_ERROR',
-    getSuccessPayload: searchParams => ({
-      code: searchParams.get('code') ?? '',
+    // response_type=code token: Google returns both in the fragment.
+    fromFragment: true,
+    getSuccessPayload: params => ({
+      code: params.get('code') ?? '',
+      accessToken: params.get('access_token') ?? '',
     }),
-    hasSuccessData: searchParams => !!searchParams.get('code'),
+    hasSuccessData: params => !!params.get('code') && !!params.get('access_token'),
   });
 
   return <OAuthCallbackUI status={status} errorMessage={errorMessage} />;

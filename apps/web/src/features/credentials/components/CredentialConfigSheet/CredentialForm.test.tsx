@@ -19,7 +19,6 @@ const connectorOAuth = vi.hoisted(() => ({
   exchangeCredentials: vi.fn(),
   checkStatus: vi.fn(),
   getSettings: vi.fn(),
-  getPickerToken: vi.fn(),
 }));
 const openPicker = vi.hoisted(() => vi.fn());
 
@@ -52,12 +51,12 @@ vi.mock('../../../connectors/shared/components/GoogleSheetsLoginButton', () => (
     onSuccess,
   }: {
     children?: React.ReactNode;
-    onSuccess: (response: { code: string }) => void;
+    onSuccess: (response: { code: string; accessToken: string }) => void;
   }) => (
     <button
       type='button'
       onClick={() => {
-        onSuccess({ code: 'google-code' });
+        onSuccess({ code: 'google-code', accessToken: 'popup-token' });
       }}
     >
       {children}
@@ -1188,7 +1187,7 @@ describe('CredentialForm', () => {
       expect(screen.queryByRole('button', { name: 'Save' })).toBeNull();
     });
 
-    it("a Sheets Source Google account Credential has Add spreadsheet, which opens the Picker with the saved Credential's token", async () => {
+    it('a Sheets Source Google account Credential has Add spreadsheet, which signs in to the same account and opens the Picker', async () => {
       connectorOAuth.getSettings.mockResolvedValue({
         isEnabled: true,
         vars: {
@@ -1203,14 +1202,12 @@ describe('CredentialForm', () => {
         user: { id: 'user-1', name: 'Owner', email: 'owner@example.com' },
       });
       openPicker.mockResolvedValue(undefined);
-      connectorOAuth.getPickerToken.mockResolvedValue('picker-token-1');
       renderForm({
         credential: {
           ...githubCredential,
           id: 'cred-sheets',
           definition: sheetsSourceDefinition,
           publicMetadata: { fields: { ClientId: 'sheets-client' } },
-          filePicking: 'allowed',
         },
         definitions: [sheetsSourceDefinition],
       });
@@ -1220,18 +1217,14 @@ describe('CredentialForm', () => {
       await waitFor(() => {
         expect(openPicker).toHaveBeenCalledWith(
           expect.objectContaining({
+            clientId: 'sheets-client',
             hintEmail: 'owner@example.com',
             apiKey: 'picker-key',
             appId: '42',
-            accessToken: expect.any(Function),
+            accessToken: undefined,
           })
         );
       });
-      const { accessToken } = openPicker.mock.lastCall?.[0] as {
-        accessToken: () => Promise<string>;
-      };
-      await expect(accessToken()).resolves.toBe('picker-token-1');
-      expect(connectorOAuth.getPickerToken).toHaveBeenCalledWith('GoogleSheets', 'cred-sheets');
       expect(connectorOAuth.checkStatus).toHaveBeenCalledWith('GoogleSheets', 'cred-sheets');
 
       connectorOAuth.exchangeCredentials.mockResolvedValue({
@@ -1250,32 +1243,6 @@ describe('CredentialForm', () => {
       });
     });
 
-    it('Add spreadsheet on a Credential the member may not pick for is disabled with the reason', async () => {
-      connectorOAuth.getSettings.mockResolvedValue({
-        isEnabled: true,
-        vars: { ClientId: 'sheets-client', PickerApiKey: 'picker-key', ProjectNumber: '42' },
-      });
-      connectorOAuth.checkStatus.mockResolvedValue({
-        valid: true,
-        user: { id: 'user-1', name: 'Owner', email: 'owner@example.com' },
-      });
-      const hint = 'You need edit access to this Credential to add spreadsheets.';
-      renderForm({
-        credential: {
-          ...githubCredential,
-          id: 'cred-sheets',
-          definition: sheetsSourceDefinition,
-          publicMetadata: { fields: { ClientId: 'sheets-client' } },
-          filePicking: 'signer-without-edit',
-        },
-        definitions: [sheetsSourceDefinition],
-      });
-
-      const button = await screen.findByRole('button', { name: 'Add spreadsheet' });
-      expect(button).toBeDisabled();
-      expect(button).toHaveAccessibleDescription(hint);
-    });
-
     it('connecting a Sheets Source Google account opens the Picker after sign-in', async () => {
       const connected = { ...githubCredential, id: 'cred-new', definition: sheetsSourceDefinition };
       connectorOAuth.getSettings.mockResolvedValue({
@@ -1291,7 +1258,6 @@ describe('CredentialForm', () => {
         success: true,
         credentialId: 'cred-new',
         user: { id: 'user-2', name: 'New', email: 'new@example.com' },
-        pickerAccessToken: 'exchange-token',
       });
       mocks.loadConnected.mockResolvedValue(connected);
       let closePicker = () => {};
@@ -1309,12 +1275,16 @@ describe('CredentialForm', () => {
       await waitFor(() => {
         expect(openPicker).toHaveBeenCalledWith(
           expect.objectContaining({
-            accessToken: 'exchange-token',
+            accessToken: 'popup-token',
             hintEmail: 'new@example.com',
             apiKey: 'picker-key',
             appId: '42',
           })
         );
+      });
+      // The Picker token stays in the page; the backend gets only the code.
+      expect(connectorOAuth.exchangeCredentials.mock.lastCall?.[1]).toEqual({
+        code: 'google-code',
       });
       expect(onOAuthConnected).not.toHaveBeenCalled();
 
@@ -1344,7 +1314,6 @@ describe('CredentialForm', () => {
         success: true,
         credentialId: 'cred-new',
         user: { id: 'user-2', name: 'New', email: 'new@example.com' },
-        pickerAccessToken: 'exchange-token',
       });
       mocks.loadConnected.mockReset().mockResolvedValue(connected);
       openPicker.mockImplementation(

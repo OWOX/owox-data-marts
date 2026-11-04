@@ -504,8 +504,7 @@ export function ConfigurationStep({
     connector.name === GOOGLE_SHEETS_CONNECTOR_NAME && selectedAuthType === 'oauth2'
       ? credentialId
       : null;
-  // Offered by the Credential's own capability, not by the connector's name.
-  const addSpreadsheet = useAddSpreadsheetAction(credentialId, (url, name) => {
+  const addSpreadsheet = useAddSpreadsheetAction(sheetsCredentialId, (url, name) => {
     pickedSpreadsheetRef.current = { url, name };
     handleValueChange('SpreadsheetId', url);
     onOptionLabelChange?.('SpreadsheetId', name);

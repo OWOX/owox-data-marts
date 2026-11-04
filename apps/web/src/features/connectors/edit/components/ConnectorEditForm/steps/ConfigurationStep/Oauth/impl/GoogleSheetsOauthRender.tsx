@@ -7,7 +7,7 @@ import { useGoogleSheetsPicker } from '../../../../../../../../google-oauth';
 import { Button } from '@owox/ui/components/button';
 import { ExternalAnchor } from '@owox/ui/components/common/external-anchor';
 import { CircleCheck, FileSpreadsheet } from 'lucide-react';
-import { useId, useState } from 'react';
+import { useState } from 'react';
 import { toast } from 'react-hot-toast';
 
 export function GoogleSheetsOauthRender({
@@ -18,11 +18,7 @@ export function GoogleSheetsOauthRender({
   configuration,
   onValueChange,
   forCredential = false,
-  pickerToken,
-  pickerHint,
 }: OauthRenderComponentProps) {
-  const pickerHintId = useId();
-  const pickerRefused = forCredential && Boolean(pickerHint);
   const [isPickingSpreadsheet, setIsPickingSpreadsheet] = useState(false);
   const [pickerError, setPickerError] = useState<string | null>(null);
   const { openPicker } = useGoogleSheetsPicker();
@@ -35,22 +31,16 @@ export function GoogleSheetsOauthRender({
   const handleGoogleLogin = async (response: GoogleSheetsLoginResponse) => {
     // With drive.file a Credential opens only files its account picked, so its connect picks first.
     const result = await (forCredential
-      ? onOAuthSuccess({ code: response.code }, async exchanged => {
-          // Without a click Chrome blocks the Google Identity Services popup, so never fall back to it here.
-          if (!exchanged.pickerAccessToken) {
-            toast.error(
-              'Google did not return a Picker token. Use "Add spreadsheet" on the Credential to choose a spreadsheet.'
-            );
-            return;
-          }
-          await pickSpreadsheet(
+      ? onOAuthSuccess({ code: response.code }, exchanged =>
+          // The sign-in popup's own token: a second Google popup without a click would be blocked.
+          pickSpreadsheet(
             exchanged.user?.email ?? exchanged.user?.name,
             message => {
               toast.error(message);
             },
-            exchanged.pickerAccessToken
-          );
-        })
+            response.accessToken
+          )
+        )
       : onOAuthSuccess({ code: response.code }));
     const nextEmail = result?.user?.email ?? result?.user?.name;
 
@@ -85,7 +75,7 @@ export function GoogleSheetsOauthRender({
   const pickSpreadsheet = async (
     hintEmail: string | undefined,
     report: (message: string) => void = setPickerError,
-    accessToken?: string | (() => Promise<string>)
+    accessToken?: string
   ) => {
     if (!pickerApiKey || !projectNumber || (!accessToken && !clientId)) {
       report('Google Picker configuration is incomplete');
@@ -136,14 +126,9 @@ export function GoogleSheetsOauthRender({
             type='button'
             variant='outline'
             onClick={() => {
-              void pickSpreadsheet(
-                connectedEmail,
-                setPickerError,
-                forCredential ? pickerToken : undefined
-              );
+              void pickSpreadsheet(connectedEmail);
             }}
-            disabled={isLoading || isPickingSpreadsheet || pickerRefused}
-            aria-describedby={pickerRefused ? pickerHintId : undefined}
+            disabled={isLoading || isPickingSpreadsheet}
             className='w-full'
           >
             <FileSpreadsheet className='h-4 w-4' />
@@ -155,11 +140,6 @@ export function GoogleSheetsOauthRender({
                   ? 'Change spreadsheet'
                   : 'Choose spreadsheet'}
           </Button>
-          {pickerRefused && (
-            <p id={pickerHintId} className='text-muted-foreground text-xs'>
-              {pickerHint}
-            </p>
-          )}
           {spreadsheetSelected && (
             <ExternalAnchor href={spreadsheetUrl} variant='field'>
               {spreadsheetUrl}

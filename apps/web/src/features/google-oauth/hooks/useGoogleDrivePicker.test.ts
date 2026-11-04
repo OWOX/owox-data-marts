@@ -209,7 +209,10 @@ describe('useGoogleSheetsPicker', () => {
     expect(initTokenClient).toHaveBeenCalledWith(
       expect.objectContaining({ login_hint: 'analyst@example.com' })
     );
-    expect(requestAccessToken).toHaveBeenCalledWith({ login_hint: 'analyst@example.com' });
+    expect(requestAccessToken).toHaveBeenCalledWith({
+      prompt: 'none',
+      login_hint: 'analyst@example.com',
+    });
     expect(pickerSize).toEqual(getPickerDialogSize(window));
 
     unmount();
@@ -252,12 +255,31 @@ describe('useGoogleSheetsPicker', () => {
         return this;
       }
     }
+    // Each GIS request waits until the test answers it with respond(index, response).
+    const tokenCallbacks: ((response: Record<string, unknown>) => void)[] = [];
+    const requestAccessToken = vi.fn();
+    const initTokenClient = vi.fn(
+      (config: { callback: (response: Record<string, unknown>) => void }) => ({
+        requestAccessToken: (overrides: unknown) => {
+          requestAccessToken(overrides);
+          tokenCallbacks.push(config.callback);
+        },
+      })
+    );
+    const respond = (index: number, response: Record<string, unknown>) => {
+      tokenCallbacks[index](response);
+    };
+    const granted = (token: string) => ({
+      access_token: token,
+      scope: `${DRIVE_FILE_SCOPE} ${USERINFO_EMAIL_SCOPE}`,
+    });
     (window as unknown as { gapi: { load: (_api: string, callback: () => void) => void } }).gapi = {
       load: (_api, callback) => {
         callback();
       },
     };
-    (window as unknown as { google: { picker: Record<string, unknown> } }).google = {
+    (window as unknown as { google: Record<string, unknown> }).google = {
+      accounts: { oauth2: { initTokenClient } },
       picker: {
         PickerBuilder,
         DocsView,
@@ -267,45 +289,44 @@ describe('useGoogleSheetsPicker', () => {
         Feature: { SUPPORT_DRIVES: 'support-drives' },
       },
     };
-    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-      new Response(JSON.stringify({ email: 'a@example.com' }), { status: 200 })
+    vi.spyOn(globalThis, 'fetch').mockImplementation(() =>
+      Promise.resolve(new Response(JSON.stringify({ email: 'a@example.com' }), { status: 200 }))
     );
-    return { setOAuthToken, setVisible, PickerBuilder };
+    return { setOAuthToken, setVisible, PickerBuilder, requestAccessToken, respond, granted };
   }
 
+  const gisOpen = {
+    apiKey: 'api-key',
+    appId: 'project-number',
+    clientId: 'client-id',
+    hintEmail: 'a@example.com',
+  };
+
   it('builds one Picker for two rapid opens and settles the older one', async () => {
-    const { setOAuthToken, setVisible, PickerBuilder } = mockPickerApi();
+    const { setOAuthToken, setVisible, PickerBuilder, requestAccessToken, respond, granted } =
+      mockPickerApi();
     const { result } = renderHook(() => useGoogleSheetsPicker());
-    let releaseFirstToken: ((token: string) => void) | undefined;
     const onFirstError = vi.fn();
 
     const first = result.current.openPicker({
-      apiKey: 'api-key',
-      appId: 'project-number',
-      accessToken: () =>
-        new Promise<string>(resolve => {
-          releaseFirstToken = resolve;
-        }),
-      hintEmail: 'a@example.com',
+      ...gisOpen,
       onPicked: vi.fn(),
       onError: onFirstError,
     });
     // The second click lands while the first still waits for its token.
     await vi.waitFor(() => {
-      expect(releaseFirstToken).toBeDefined();
+      expect(requestAccessToken).toHaveBeenCalledTimes(1);
     });
-    void result.current.openPicker({
-      apiKey: 'api-key',
-      appId: 'project-number',
-      accessToken: () => Promise.resolve('second-token'),
-      hintEmail: 'a@example.com',
-      onPicked: vi.fn(),
+    void result.current.openPicker({ ...gisOpen, onPicked: vi.fn() });
+    await vi.waitFor(() => {
+      expect(requestAccessToken).toHaveBeenCalledTimes(2);
     });
 
+    respond(1, granted('second-token'));
     await vi.waitFor(() => {
       expect(setVisible).toHaveBeenCalledWith(true);
     });
-    releaseFirstToken?.('first-token');
+    respond(0, granted('first-token'));
     await first;
 
     expect(PickerBuilder).toHaveBeenCalledOnce();
@@ -315,14 +336,15 @@ describe('useGoogleSheetsPicker', () => {
     expect(onFirstError).not.toHaveBeenCalled();
   });
 
-  it('opens Picker with a ready token and never loads Google Identity Services', async () => {
-    const { setOAuthToken, setVisible } = mockPickerApi();
+  it("opens Picker with the sign-in popup's token and never loads Google Identity Services", async () => {
+    const { setOAuthToken, setVisible, requestAccessToken } = mockPickerApi();
+    delete (window as unknown as { google: { accounts?: unknown } }).google.accounts;
     const { result } = renderHook(() => useGoogleSheetsPicker());
 
     void result.current.openPicker({
       apiKey: 'api-key',
       appId: 'project-number',
-      accessToken: 'backend-token',
+      accessToken: 'popup-token',
       hintEmail: 'a@example.com',
       onPicked: vi.fn(),
     });
@@ -330,74 +352,63 @@ describe('useGoogleSheetsPicker', () => {
     await vi.waitFor(() => {
       expect(setVisible).toHaveBeenCalledWith(true);
     });
-    expect(setOAuthToken).toHaveBeenCalledWith('backend-token');
+    expect(setOAuthToken).toHaveBeenCalledWith('popup-token');
+    expect(requestAccessToken).not.toHaveBeenCalled();
     expect(
       document.querySelector('script[src="https://accounts.google.com/gsi/client"]')
     ).toBeNull();
   });
 
-  it('opens Picker with the token a getter resolves to', async () => {
-    const { setOAuthToken, setVisible } = mockPickerApi();
-    const { result } = renderHook(() => useGoogleSheetsPicker());
+  it.each(['interaction_required', 'consent_required', 'login_required'])(
+    'on %s asks the member to sign in, then lets the next click choose the account',
+    async error => {
+      const { setOAuthToken, PickerBuilder, requestAccessToken, respond, granted } =
+        mockPickerApi();
+      const onError = vi.fn();
+      const { result } = renderHook(() => useGoogleSheetsPicker());
 
-    void result.current.openPicker({
-      apiKey: 'api-key',
-      appId: 'project-number',
-      accessToken: () => Promise.resolve('fetched-token'),
-      hintEmail: 'a@example.com',
-      onPicked: vi.fn(),
-    });
+      const first = result.current.openPicker({ ...gisOpen, onPicked: vi.fn(), onError });
+      await vi.waitFor(() => {
+        expect(requestAccessToken).toHaveBeenCalledTimes(1);
+      });
+      respond(0, { error });
+      await first;
 
-    await vi.waitFor(() => {
-      expect(setVisible).toHaveBeenCalledWith(true);
-    });
-    expect(setOAuthToken).toHaveBeenCalledWith('fetched-token');
-  });
+      expect(requestAccessToken).toHaveBeenLastCalledWith({
+        prompt: 'none',
+        login_hint: 'a@example.com',
+      });
+      expect(onError).toHaveBeenCalledWith(
+        'Sign in to Google as a@example.com to add spreadsheets.'
+      );
+      expect(PickerBuilder).not.toHaveBeenCalled();
+      // No retry without a click: the browser would block the popup.
+      expect(requestAccessToken).toHaveBeenCalledTimes(1);
 
-  it('prefers the token getter over Google Identity Services even with a client ID', async () => {
-    const { setOAuthToken, setVisible } = mockPickerApi();
-    const { result } = renderHook(() => useGoogleSheetsPicker());
+      void result.current.openPicker({ ...gisOpen, onPicked: vi.fn() });
+      await vi.waitFor(() => {
+        expect(requestAccessToken).toHaveBeenCalledTimes(2);
+      });
+      expect(requestAccessToken).toHaveBeenLastCalledWith({
+        prompt: 'select_account',
+        login_hint: 'a@example.com',
+      });
+      respond(1, granted('chosen-token'));
+      await vi.waitFor(() => {
+        expect(setOAuthToken).toHaveBeenCalledWith('chosen-token');
+      });
 
-    void result.current.openPicker({
-      apiKey: 'api-key',
-      appId: 'project-number',
-      clientId: 'client-id',
-      accessToken: () => Promise.resolve('fetched-token'),
-      hintEmail: 'a@example.com',
-      onPicked: vi.fn(),
-    });
-
-    await vi.waitFor(() => {
-      expect(setVisible).toHaveBeenCalledWith(true);
-    });
-    expect(setOAuthToken).toHaveBeenCalledWith('fetched-token');
-    expect(
-      document.querySelector('script[src="https://accounts.google.com/gsi/client"]')
-    ).toBeNull();
-  });
-
-  it('reports a rejected token getter and opens no Picker and no popup', async () => {
-    const { PickerBuilder } = mockPickerApi();
-    const onError = vi.fn();
-    const message =
-      'Spreadsheets for this Credential are added by the person who connected its Google account. Connect your own Google account to add one.';
-    const { result } = renderHook(() => useGoogleSheetsPicker());
-
-    await result.current.openPicker({
-      apiKey: 'api-key',
-      appId: 'project-number',
-      accessToken: () => Promise.reject(new Error(message)),
-      hintEmail: 'a@example.com',
-      onPicked: vi.fn(),
-      onError,
-    });
-
-    expect(onError).toHaveBeenCalledWith(message);
-    expect(PickerBuilder).not.toHaveBeenCalled();
-    expect(
-      document.querySelector('script[src="https://accounts.google.com/gsi/client"]')
-    ).toBeNull();
-  });
+      // Once Google gave a token, a later click is silent again.
+      void result.current.openPicker({ ...gisOpen, onPicked: vi.fn() });
+      await vi.waitFor(() => {
+        expect(requestAccessToken).toHaveBeenCalledTimes(3);
+      });
+      expect(requestAccessToken).toHaveBeenLastCalledWith({
+        prompt: 'none',
+        login_hint: 'a@example.com',
+      });
+    }
+  );
 
   it('needs a client ID when no token is given', async () => {
     mockPickerApi();
