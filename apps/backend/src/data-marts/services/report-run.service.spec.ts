@@ -5,6 +5,7 @@ jest.mock('typeorm-transactional', () => ({
 
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
 import { DataDestinationType } from '../data-destination-types/enums/data-destination-type.enum';
+import { DataMartRunStatus } from '../enums/data-mart-run-status.enum';
 import { RunReportCommand } from '../dto/domain/run-report.command';
 import { ReportRunService } from './report-run.service';
 
@@ -56,4 +57,30 @@ describe('ReportRunService.createPending', () => {
 
     expect(reportService.getById).toHaveBeenCalledWith('report-1');
   });
+});
+
+describe('ReportRunService.finish', () => {
+  it.each([DataMartRunStatus.SUCCESS, DataMartRunStatus.FAILED])(
+    'records use of the Data Mart storage for a %s run',
+    async status => {
+      const dataMartRun = { id: 'run-1', status, logs: [], errors: [] };
+      const report = { id: 'report-1', dataMart: { storage: { id: 'storage-1' } } };
+      const dataMartRunService = {
+        markReportRunAsFinished: jest.fn(),
+        recordStorageUse: jest.fn(),
+      };
+      const service = new ReportRunService(
+        { updateLastRunOutcome: jest.fn() } as never,
+        dataMartRunService as never,
+        {} as never
+      );
+
+      await service.finish({
+        getReport: () => report,
+        getDataMartRun: () => dataMartRun,
+      } as never);
+
+      expect(dataMartRunService.recordStorageUse).toHaveBeenCalledWith('storage-1', 'run-1');
+    }
+  );
 });
