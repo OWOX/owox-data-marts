@@ -47,9 +47,13 @@ export class ManagedStorage {
   @Column({ type: 'datetime', nullable: true })
   lastActivityAt: Date | null;
 
-  // Set when the datasets and service account were deleted.
+  // Set when the storage was deleted for the customer.
   @Column({ type: 'datetime', nullable: true })
   deprovisionedAt: Date | null;
+
+  // Set while Google resources of a deleted storage may remain; the daily job deletes them.
+  @Column({ type: 'boolean', default: false })
+  deprovisionPending: boolean;
 
   @CreateDateColumn()
   createdAt: Date;

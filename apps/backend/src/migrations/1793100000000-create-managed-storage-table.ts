@@ -26,6 +26,7 @@ export class CreateManagedStorageTable1793100000000 implements MigrationInterfac
           { name: 'notPaidSince', type: 'datetime', isNullable: true },
           { name: 'lastActivityAt', type: 'datetime', isNullable: true },
           { name: 'deprovisionedAt', type: 'datetime', isNullable: true },
+          { name: 'deprovisionPending', type: 'boolean', isNullable: false, default: false },
           { name: 'createdAt', type: 'datetime', default: 'CURRENT_TIMESTAMP' },
           { name: 'modifiedAt', type: 'datetime', default: 'CURRENT_TIMESTAMP' },
         ],
