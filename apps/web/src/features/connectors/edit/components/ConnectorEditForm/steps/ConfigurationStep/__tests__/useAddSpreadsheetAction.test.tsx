@@ -93,6 +93,30 @@ describe('useAddSpreadsheetAction', () => {
     expect(onPicked).toHaveBeenCalledWith('https://docs.google.com/x', 'Budget');
   });
 
+  it('drops a pick when the Credential changed while Google was open', async () => {
+    credentialsState.credentials = [credential(), credential({ id: 'cred-2' }, 'b@example.com')];
+    oauth.getSettings.mockResolvedValue(SETTINGS);
+    let pick: OpenGoogleSheetsPickerOptions['onPicked'] = () => undefined;
+    picker.openPicker.mockImplementation(async (options: OpenGoogleSheetsPickerOptions) => {
+      pick = options.onPicked;
+    });
+    const onPicked = vi.fn();
+    const { result, rerender } = renderHook(
+      ({ credentialId }) => useAddSpreadsheetAction(credentialId, onPicked),
+      { initialProps: { credentialId: 'cred-1' } }
+    );
+
+    await act(async () => {
+      await result.current?.onSelect();
+    });
+    rerender({ credentialId: 'cred-2' });
+    act(() => {
+      pick({ id: 'id-9', name: 'Budget', url: 'https://docs.google.com/x' });
+    });
+
+    expect(onPicked).not.toHaveBeenCalled();
+  });
+
   it('reports a Picker error with a toast', async () => {
     credentialsState.credentials = [credential()];
     oauth.getSettings.mockResolvedValue(SETTINGS);

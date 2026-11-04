@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { useCredentials } from '../../../../../../credentials/useCredentials';
 import { preloadGoogleSheetsPicker, useGoogleSheetsPicker } from '../../../../../../google-oauth';
@@ -34,6 +34,10 @@ export function useAddSpreadsheetAction(
   const { getSettings } = useOAuth();
   const { openPicker } = useGoogleSheetsPicker();
   const [settings, setSettings] = useState<OAuthSettingsResponseDto>();
+  const currentCredentialId = useRef(credentialId);
+  useEffect(() => {
+    currentCredentialId.current = credentialId;
+  }, [credentialId]);
 
   // Settings and scripts load before the click: the token popup must open soon after the click.
   useEffect(() => {
@@ -78,6 +82,8 @@ export function useAddSpreadsheetAction(
           clientId,
           hintEmail: email,
           onPicked: spreadsheet => {
+            // The Credential changed while Google was open: the file is for the old Credential.
+            if (currentCredentialId.current !== credentialId) return;
             onPicked(spreadsheet.url, spreadsheet.name);
           },
           onError: message => {
