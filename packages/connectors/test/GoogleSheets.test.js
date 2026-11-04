@@ -388,6 +388,31 @@ test('gives OAuth users guidance to add the spreadsheet for access errors', () =
   assert.doesNotMatch(source._buildSheetRequestErrorMessage(denied), /service account/);
 });
 
+test('gives the reconnect hint for a bare PERMISSION_DENIED with no reason', () => {
+  const source = createSource({ authType: 'oauth2' });
+  const bare = {
+    statusCode: 403,
+    message: 'The caller does not have permission',
+    payload: {
+      error: {
+        code: 403,
+        message: 'The caller does not have permission',
+        status: 'PERMISSION_DENIED',
+      },
+    },
+  };
+  const disabledApi = {
+    statusCode: 403,
+    message: 'Google Sheets API has not been used',
+    payload: {
+      error: { code: 403, status: 'PERMISSION_DENIED', details: [{ reason: 'SERVICE_DISABLED' }] },
+    },
+  };
+
+  assert.match(source._buildSheetRequestErrorMessage(bare), /Reconnect Google Sheets/);
+  assert.doesNotMatch(source._buildSheetRequestErrorMessage(disabledApi), /Reconnect/);
+});
+
 test('rejects OAuth authorization when Google does not return an email address', async () => {
   const responses = [
     {

@@ -1097,11 +1097,17 @@ export class GoogleSheetsSource extends AbstractSource {
    * @return {boolean}
    */
   _isPermissionDenial(payload) {
-    const { errors, details } = payload?.error ?? {};
+    const { errors, details, status } = payload?.error ?? {};
     const reasons = [
       ...(Array.isArray(errors) ? errors : []),
       ...(Array.isArray(details) ? details : []),
-    ].map(item => item?.reason);
+    ]
+      .map(item => item?.reason)
+      .filter(Boolean);
+    // Sheets answers a file the app may not open with a bare PERMISSION_DENIED and no reason.
+    if (reasons.length === 0) {
+      return status === 'PERMISSION_DENIED';
+    }
     return reasons.some(reason =>
       ['insufficientPermissions', 'forbidden', 'ACCESS_TOKEN_SCOPE_INSUFFICIENT'].includes(reason)
     );
