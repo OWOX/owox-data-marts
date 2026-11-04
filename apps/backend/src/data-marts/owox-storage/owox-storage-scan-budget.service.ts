@@ -19,11 +19,15 @@ interface Cached<T> {
   expiresAt: number;
 }
 
-/** Today's scan allowance of an OWOX Storage: its daily limit minus what its account billed today. */
+/**
+ * Today's scan allowance of an OWOX Storage: its daily limit minus what its account billed today
+ * and what its queries running on this pod have reserved.
+ */
 @Injectable()
 export class OwoxStorageScanBudgetService implements OwoxStorageScanBudgetFactory {
   private readonly logger = new Logger(OwoxStorageScanBudgetService.name);
   private readonly usage = new Map<string, Cached<number>>();
+  private readonly inFlight = new Map<string, number>();
 
   constructor(
     private readonly identity: OwoxStorageIdentity,
@@ -32,16 +36,41 @@ export class OwoxStorageScanBudgetService implements OwoxStorageScanBudgetFactor
   ) {}
 
   forStorage(record: ManagedStorage): ScanBudget {
+    const id = record.storageId;
     return {
-      remainingBytes: async () => {
-        // BigQuery takes maximumBytesBilled as an INT64; a GiB limit like 0.1 is fractional.
-        const remaining = Math.floor(
-          (await this.limitFor(record)) - (await this.usedToday(record))
-        );
-        if (!(remaining > 0)) throw new OwoxStorageQueryLimitException();
-        return remaining;
+      remainingBytes: async () => this.remaining(id, await this.allowance(record)),
+      reserve: async estimatedBytes => {
+        const remaining = this.remaining(id, await this.allowance(record));
+        // No await between check and reservation, so concurrent queries cannot take the same bytes.
+        if (!(estimatedBytes <= remaining)) throw new OwoxStorageQueryLimitException(true);
+        this.inFlight.set(id, (this.inFlight.get(id) ?? 0) + estimatedBytes);
+        let released = false;
+        return {
+          maximumBytesBilled: remaining,
+          release: () => {
+            if (released) return;
+            released = true;
+            const left = (this.inFlight.get(id) ?? 0) - estimatedBytes;
+            if (left > 0) this.inFlight.set(id, left);
+            else this.inFlight.delete(id);
+            // The finished job counts as used until the next usage read replaces the cached value.
+            const cached = this.usage.get(id);
+            if (cached) cached.value += estimatedBytes;
+          },
+        };
       },
     };
+  }
+
+  private async allowance(record: ManagedStorage): Promise<number> {
+    return (await this.limitFor(record)) - (await this.usedToday(record));
+  }
+
+  private remaining(storageId: string, allowance: number): number {
+    // BigQuery takes maximumBytesBilled as an INT64; a GiB limit like 0.1 is fractional.
+    const remaining = Math.floor(allowance - (this.inFlight.get(storageId) ?? 0));
+    if (!(remaining > 0)) throw new OwoxStorageQueryLimitException();
+    return remaining;
   }
 
   private async limitFor(record: ManagedStorage): Promise<number> {
@@ -56,10 +85,12 @@ export class OwoxStorageScanBudgetService implements OwoxStorageScanBudgetFactor
   private async usedToday(record: ManagedStorage): Promise<number> {
     try {
       return await this.cached(this.usage, record.storageId, async () => {
+        // A script's row already holds the bytes of its child jobs, which have rows of their own.
         const [rows] = await this.identity.bigQuery(record.gcpProjectId, record.location).query({
           query: `SELECT COALESCE(SUM(total_bytes_billed), 0) AS used
 FROM \`${record.gcpProjectId}.region-${record.location.toLowerCase()}.INFORMATION_SCHEMA.JOBS_BY_PROJECT\`
 WHERE user_email = @email
+  AND IFNULL(statement_type, '') != 'SCRIPT'
   AND creation_time >= TIMESTAMP(CURRENT_DATE('America/Los_Angeles'), 'America/Los_Angeles')`,
           params: { email: record.serviceAccountEmail },
         });
