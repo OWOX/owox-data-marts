@@ -168,6 +168,17 @@ describe('getSourceFlowParams', () => {
     expect(params[0].href).toContain('abc');
   });
 
+  it('links the Google Sheets sheet name to its tab once the tab link is known', () => {
+    const tabUrl = 'https://docs.google.com/spreadsheets/d/abc/edit#gid=42';
+    const params = getSourceFlowParams(
+      definition('GoogleSheets', 'sheet', [{ SheetName: 'Leads', SpreadsheetId: 'abc' }]),
+      0,
+      tabUrl
+    );
+
+    expect(params).toEqual([{ label: 'Sheet', value: 'Leads', href: tabUrl }]);
+  });
+
   it('falls back to the node for Google Sheets without a sheet name', () => {
     expect(getSourceFlowParams(definition('GoogleSheets', 'sheet'), 0)).toEqual([
       { label: 'Data', value: 'sheet' },

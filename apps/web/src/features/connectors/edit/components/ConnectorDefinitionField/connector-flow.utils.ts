@@ -171,11 +171,13 @@ export function getStorageFlowParams(
 
 /**
  * The params of the Source node: the connector node (data entity) it reads, or, for
- * Google Sheets, the sheet name linked to its spreadsheet, since the node is always "sheet".
+ * Google Sheets, the sheet name, since the node is always "sheet". The sheet name links
+ * to its tab when `sheetTabUrl` is known, and to the spreadsheet otherwise.
  */
 export function getSourceFlowParams(
   connectorDef: ConnectorDefinitionConfig,
-  configIndex: number
+  configIndex: number,
+  sheetTabUrl?: string
 ): FlowParam[] {
   const { source } = connectorDef.connector;
 
@@ -188,7 +190,7 @@ export function getSourceFlowParams(
         {
           label: 'Sheet',
           value: sheetName,
-          href: spreadsheet ? spreadsheetUrlFrom(spreadsheet) : undefined,
+          href: sheetTabUrl ?? (spreadsheet ? spreadsheetUrlFrom(spreadsheet) : undefined),
         },
       ];
     }

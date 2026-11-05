@@ -4,6 +4,7 @@ import { DataMartConnectorView } from '../../DataMartConnectorView';
 import type { ConnectorConfig, ConnectorDefinitionConfig } from '../../../../data-marts/edit/model';
 import { getStorageDisplayName } from './connector-definition.helpers';
 import { getSourceFlowParams, getStorageFlowParams } from './connector-flow.utils';
+import { useSheetTabUrl } from './useSheetTabUrl';
 import { DataFlowNode } from './DataFlow/DataFlowNode';
 import { DataFlowConnector } from './DataFlow/DataFlowConnector';
 import { DataFlowParams } from './DataFlow/DataFlowParams';
@@ -74,7 +75,8 @@ export function ConnectorConfigurationItem({
   }, [bundledTitle, connectors.length, sourceName]);
 
   const StorageIcon = DataStorageTypeModel.getInfo(dataStorage.type).icon;
-  const sourceParams = getSourceFlowParams(connectorDef, configIndex);
+  const sheetTabUrl = useSheetTabUrl(connectorDef, configIndex);
+  const sourceParams = getSourceFlowParams(connectorDef, configIndex, sheetTabUrl);
   const storageParams = getStorageFlowParams(
     dataStorage,
     connectorDef.connector.storage.fullyQualifiedName

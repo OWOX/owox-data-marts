@@ -15,6 +15,8 @@ interface UseConnectorFieldOptionsParams {
   field: string;
   configuration: Record<string, unknown>;
   dependsOn?: string[];
+  /** When false, nothing is requested and the state stays 'waiting'. Defaults to true. */
+  enabled?: boolean;
 }
 
 export type ConnectorFieldOptionsStatus = 'waiting' | 'loading' | 'loaded' | 'error';
@@ -38,10 +40,11 @@ export function useConnectorFieldOptions({
   field,
   configuration,
   dependsOn,
+  enabled = true,
 }: UseConnectorFieldOptionsParams): ConnectorFieldOptionsState {
   const dataMartId = useContext(DataMartContext)?.dataMart?.id;
   const dependencyKey = getDynamicOptionsDependencyKey(configuration, dependsOn);
-  const dependenciesReady = areDynamicOptionDependenciesReady(configuration, dependsOn);
+  const dependenciesReady = enabled && areDynamicOptionDependenciesReady(configuration, dependsOn);
 
   const [status, setStatus] = useState<ConnectorFieldOptionsStatus>('waiting');
   const [options, setOptions] = useState<ConnectorFieldOptionResponseApiDto[]>([]);
