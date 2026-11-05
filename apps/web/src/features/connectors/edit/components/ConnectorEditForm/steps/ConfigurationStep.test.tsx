@@ -1945,6 +1945,8 @@ describe('ConfigurationStep Credential', () => {
       await waitFor(() => {
         expect(toastMock).toHaveBeenCalledWith(`Copied the settings of Ads EU. ${message}`);
       });
+      // The copy's toast says what failed; the generic error toast stays off for this read.
+      expect(credentialsService.list).toHaveBeenCalledWith({ skipErrorToast: true });
       expect(onChange).toHaveBeenLastCalledWith({
         _id: 'cfg-1',
         CustomerId: '999',
@@ -1978,8 +1980,10 @@ describe('ConfigurationStep Credential', () => {
       });
       expect(credentialsService.list).not.toHaveBeenCalled();
       // Nothing it could read was copied: the masked value and the unshown field stay out.
-      const last = onChange.mock.lastCall?.[0] as Record<string, unknown> | undefined;
-      expect(last?.CustomerId ?? '123').toBe('123');
+      expect(onChange).toHaveBeenLastCalledWith(
+        expect.objectContaining({ _id: 'cfg-1', CustomerId: '123' })
+      );
+      const last = onChange.mock.lastCall?.[0] as Record<string, unknown>;
       expect(last).not.toHaveProperty('Legacy');
       expect(last).not.toHaveProperty('_secrets_id');
     });
@@ -2109,6 +2113,69 @@ describe('ConfigurationStep Credential', () => {
       expect(onChange).not.toHaveBeenCalledWith(expect.objectContaining({ CustomerId: '111' }));
     });
 
+    it('reads the cached Credentials again when the reused one is newer than them', async () => {
+      // The cache predates a Credential shared with the member after the page loaded.
+      credentialsState.credentials = [
+        credential('ads-sa', 'source:GoogleAds:service_account', 'Ads robot'),
+      ];
+      credentialsState.refetch.mockClear();
+      const onChange = vi.fn();
+      render(
+        inDataMart(
+          <Harness
+            initial={{ _id: 'cfg-1', AuthType: { service_account: {} } }}
+            onChange={onChange}
+            isEditingExisting
+          />
+        )
+      );
+
+      await reuseFrom(
+        [
+          sourceDataMart({
+            CustomerId: '999',
+            AuthType: { oauth2: {} },
+            _credential_id: 'ads-oauth',
+          }),
+        ],
+        {
+          list: () =>
+            Promise.resolve({
+              credentials: [
+                ...credentialsState.credentials,
+                credential('ads-oauth', 'source:GoogleAds:oauth2', 'Shared sign-in'),
+              ] as never,
+              unavailable: [],
+            }),
+        }
+      );
+
+      await waitFor(() => {
+        expect(onChange).toHaveBeenLastCalledWith(
+          expect.objectContaining({ _credential_id: 'ads-oauth' })
+        );
+      });
+      expect(credentialsState.refetch).toHaveBeenCalledTimes(1);
+    });
+
+    it('says the list could not be loaded instead of saying no Data Mart exists', async () => {
+      render(inDataMart(<Harness />));
+
+      vi.spyOn(dataMartService, 'getDataMartsByConnectorName').mockRejectedValue(new Error('500'));
+      fireEvent.pointerDown(
+        await screen.findByRole('button', { name: /Reuse from another Data/ }),
+        {
+          button: 0,
+          ctrlKey: false,
+        }
+      );
+
+      expect(await within(document.body).findByRole('alert')).toHaveTextContent(
+        'Could not load Data Marts'
+      );
+      expect(within(document.body).queryByText('No matching Data Marts')).not.toBeInTheDocument();
+    });
+
     it('does not offer the Data Mart being edited', async () => {
       render(inDataMart(<Harness />));
 
@@ -2121,6 +2188,7 @@ describe('ConfigurationStep Credential', () => {
       });
 
       expect(await within(document.body).findByText('No matching Data Marts')).toBeInTheDocument();
+      expect(within(document.body).getByText(/that you can open/)).toBeInTheDocument();
     });
   });
 });

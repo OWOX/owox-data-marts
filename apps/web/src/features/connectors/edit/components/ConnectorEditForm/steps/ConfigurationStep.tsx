@@ -491,7 +491,8 @@ export function ConfigurationStep({
   ): Promise<{ status: 'usable'; credential: Credential } | { status: ReuseRefusal }> => {
     try {
       const [{ credentials }, fitting] = await Promise.all([
-        credentialsService.list(),
+        // The copy's own toast says the list failed; the generic one would repeat it.
+        credentialsService.list({ skipErrorToast: true }),
         // A custom connector's Credential must fit the version and selection this form runs.
         connector.isCustom
           ? new ConnectorBuilderApiService().fittingCredentials({

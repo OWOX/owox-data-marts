@@ -476,9 +476,14 @@ export class DataMartService extends ApiService {
     return this.get<DataMartRunResponseDto>(`/${dataMartId}/runs/${runId}`, undefined, config);
   }
 
-  /** The connector Data Marts of the project that the member can open. */
+  /** The connector Data Marts of the project that the member can open. Its caller reports a failure. */
   async getDataMartsByConnectorName(connectorName: string): Promise<DataMartResponseDto[]> {
-    return this.get<DataMartResponseDto[]>(`/by-connector/${encodeURIComponent(connectorName)}`);
+    const config: AxiosRequestConfig = { skipErrorToast: true };
+    return this.get<DataMartResponseDto[]>(
+      `/by-connector/${encodeURIComponent(connectorName)}`,
+      undefined,
+      config
+    );
   }
 
   /**

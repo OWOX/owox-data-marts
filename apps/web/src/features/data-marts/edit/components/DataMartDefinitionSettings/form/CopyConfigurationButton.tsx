@@ -37,6 +37,8 @@ export function CopyConfigurationButton({
 }: CopyConfigurationButtonProps) {
   const [dataMarts, setDataMarts] = useState<DataMartResponseDto[]>([]);
   const [loading, setLoading] = useState(false);
+  // A failed list is not an empty one: the member is told to try again, not that none exists.
+  const [failed, setFailed] = useState(false);
   const [open, setOpen] = useState(false);
   // Radix returns focus to the trigger when the menu closes, and a focused trigger opens
   // the tooltip. Keep that focus return (keyboard users rely on it) and swallow only the
@@ -50,11 +52,13 @@ export function CopyConfigurationButton({
 
   const loadDataMarts = useCallback(async () => {
     setLoading(true);
+    setFailed(false);
     try {
       const response = await dataMartService.getDataMartsByConnectorName(currentConnectorName);
       setDataMarts(response.filter(dataMart => dataMart.id !== currentDataMartId));
     } catch {
       setDataMarts([]);
+      setFailed(true);
     } finally {
       setLoading(false);
     }
@@ -179,6 +183,11 @@ export function CopyConfigurationButton({
         >
           {loading ? (
             <DropdownMenuItem disabled>Loading&hellip;</DropdownMenuItem>
+          ) : failed ? (
+            <div role='alert' className='flex flex-col gap-1 p-4 text-center text-sm'>
+              <span className='text-foreground font-medium'>Could not load Data&nbsp;Marts</span>
+              <span className='text-muted-foreground'>Close the list and open it again.</span>
+            </div>
           ) : dataMarts.length === 0 ? (
             <div className='flex flex-col items-center justify-center gap-2 p-4 text-center'>
               <div className='bg-muted/70 rounded-full p-3'>
@@ -189,7 +198,7 @@ export function CopyConfigurationButton({
               </span>
               <span className='text-muted-foreground text-sm'>
                 You can reuse settings only from connector-based Data&nbsp;Marts that use the same
-                source.
+                source and that you can open.
               </span>
             </div>
           ) : (
