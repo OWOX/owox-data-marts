@@ -104,18 +104,31 @@ export class GetDataMartRelationshipGraphService {
       throw new ForbiddenException('You do not have access to this DataMart');
     }
 
+    const hiddenPaths = command.omitInaccessible
+      ? collected
+          .filter(
+            node =>
+              !accessByDataMartId.get(node.relationship.sourceDataMart.id) ||
+              !accessByDataMartId.get(node.relationship.targetDataMart.id)
+          )
+          .map(node => node.aliasPath)
+      : [];
+    const visible = collected.filter(
+      node =>
+        !hiddenPaths.some(path => node.aliasPath === path || node.aliasPath.startsWith(`${path}.`))
+    );
     const nodes: RelationshipGraphNodeDto[] = this.mapper
       .toDomainDtoList(
-        collected.map(n => n.relationship),
+        visible.map(n => n.relationship),
         userProjectionsList,
         accessByDataMartId
       )
       .map((relationship, i) => ({
         relationship,
-        aliasPath: collected[i].aliasPath,
-        depth: collected[i].depth,
-        isCycleStub: collected[i].isCycleStub,
-        isBlocked: collected[i].isBlocked,
+        aliasPath: visible[i].aliasPath,
+        depth: visible[i].depth,
+        isCycleStub: visible[i].isCycleStub,
+        isBlocked: visible[i].isBlocked,
       }));
 
     return { rootDataMartId: rootDataMart.id, nodes };

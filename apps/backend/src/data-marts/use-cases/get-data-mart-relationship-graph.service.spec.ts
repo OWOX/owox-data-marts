@@ -104,6 +104,39 @@ const command = (rootId = 'dm-root') =>
 describe('GetDataMartRelationshipGraphService', () => {
   beforeEach(() => jest.clearAllMocks());
 
+  it('can omit inaccessible nodes and every descendant while preserving the HTTP default graph', async () => {
+    const { service } = build({
+      relationships: [
+        { id: 'hidden-edge', sourceId: 'dm-root', targetId: 'hidden', targetAlias: 'private' },
+        { id: 'child-edge', sourceId: 'hidden', targetId: 'visible-child', targetAlias: 'child' },
+        {
+          id: 'descendant-edge',
+          sourceId: 'visible-child',
+          targetId: 'visible-grandchild',
+          targetAlias: 'grandchild',
+        },
+        {
+          id: 'public-edge',
+          sourceId: 'dm-root',
+          targetId: 'visible-child',
+          targetAlias: 'public',
+        },
+      ],
+      accessMap: new Map([
+        ['dm-root', true],
+        ['hidden', false],
+        ['visible-child', true],
+        ['visible-grandchild', true],
+      ]),
+    });
+    const publicGraph = await service.run(
+      new GetRelationshipGraphCommand('dm-root', 'proj-1', 'user-1', ['viewer'], true)
+    );
+    expect(publicGraph.nodes.map(node => node.aliasPath)).toEqual(['public', 'public.grandchild']);
+    const httpGraph = await service.run(command());
+    expect(httpGraph.nodes.map(node => node.aliasPath)).toContain('private.child.grandchild');
+  });
+
   it('throws UnauthorizedException when userId is empty', async () => {
     const { service } = build({ relationships: [] });
 

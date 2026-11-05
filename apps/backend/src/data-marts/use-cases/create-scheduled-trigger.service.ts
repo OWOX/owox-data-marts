@@ -1,6 +1,7 @@
 import { Injectable, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { CronTime } from 'cron';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
 import { OwoxEventDispatcher } from '../../common/event-dispatcher/owox-event-dispatcher';
 import { CreateScheduledTriggerCommand } from '../dto/domain/create-scheduled-trigger.command';
@@ -15,6 +16,7 @@ import { ReportAccessService } from '../services/report-access.service';
 import { ScheduledTriggerType } from '../scheduled-trigger-types/enums/scheduled-trigger-type.enum';
 import { isScheduledReportRunConfig } from '../scheduled-trigger-types/scheduled-trigger-config.guards';
 import { AccessDecisionService, Action, EntityType } from '../services/access-decision';
+import { DATA_MART_ERROR_MESSAGES } from '../errors/data-mart-error-messages';
 
 @Injectable()
 export class CreateScheduledTriggerService {
@@ -39,7 +41,7 @@ export class CreateScheduledTriggerService {
 
     if (dataMart.status !== DataMartStatus.PUBLISHED) {
       throw new BusinessViolationException(
-        'Cannot create a trigger for a data mart that is not published'
+        DATA_MART_ERROR_MESSAGES.CREATE_TRIGGER_REQUIRES_PUBLISHED
       );
     }
 
@@ -55,15 +57,16 @@ export class CreateScheduledTriggerService {
 
     await this.scheduledTriggerValidatorFacade.validate(trigger);
 
-    // Schedule the next run based on the cron expression
-    if (trigger.isActive) {
-      try {
+    try {
+      new CronTime(command.cronExpression, command.timeZone).getNextDateFrom(
+        new Date(),
+        command.timeZone
+      );
+      if (trigger.isActive) {
         trigger.scheduleNextRun();
-      } catch {
-        throw new BusinessViolationException('Invalid cron expression', {
-          cronExpression: command.cronExpression,
-        });
       }
+    } catch {
+      throw new BusinessViolationException(DATA_MART_ERROR_MESSAGES.INVALID_SCHEDULE);
     }
 
     const newTrigger = await this.triggerRepository.save(trigger);

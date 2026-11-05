@@ -1,3 +1,7 @@
+import { MCP_CONNECTORS_FACADE } from '../../../data-marts/facades/mcp-connectors.facade';
+import { MCP_DATA_MART_MANAGEMENT_FACADE } from '../../../data-marts/facades/mcp-data-mart-management.facade';
+import { MCP_DATA_MART_EXECUTION_FACADE } from '../../../data-marts/facades/mcp-data-mart-execution.facade';
+import { MCP_DATA_MART_MODEL_FACADE } from '../../../data-marts/facades/mcp-data-mart-model.facade';
 import { MCP_CONTEXTS_FACADE } from '../../../data-marts/facades/mcp-contexts.facade';
 import { MCP_CREDENTIALS_FACADE } from '../../../data-marts/credentials/facades/mcp-credentials.facade';
 import { MCP_CUSTOM_CONNECTORS_FACADE } from '../../../data-marts/facades/mcp-custom-connectors.facade';
@@ -58,6 +62,10 @@ describe('MCP tool providers', () => {
     );
     expect(moduleMetadata(MODULE_METADATA.EXPORTS, DataMartsModule)).toEqual(
       expect.arrayContaining([
+        MCP_CONNECTORS_FACADE,
+        MCP_DATA_MART_MANAGEMENT_FACADE,
+        MCP_DATA_MART_EXECUTION_FACADE,
+        MCP_DATA_MART_MODEL_FACADE,
         MCP_CONTEXTS_FACADE,
         MCP_CREDENTIALS_FACADE,
         MCP_CUSTOM_CONNECTORS_FACADE,
@@ -95,6 +103,10 @@ describe('MCP tool providers', () => {
       providers: [
         ...MCP_TOOL_PROVIDER_CLASSES,
         MCP_TOOL_DEFINITIONS_PROVIDER,
+        { provide: MCP_CONNECTORS_FACADE, useValue: {} },
+        { provide: MCP_DATA_MART_MANAGEMENT_FACADE, useValue: {} },
+        { provide: MCP_DATA_MART_EXECUTION_FACADE, useValue: {} },
+        { provide: MCP_DATA_MART_MODEL_FACADE, useValue: {} },
         { provide: MCP_CONTEXTS_FACADE, useValue: {} },
         { provide: MCP_CREDENTIALS_FACADE, useValue: {} },
         { provide: MCP_CUSTOM_CONNECTORS_FACADE, useValue: {} },
@@ -129,6 +141,40 @@ describe('MCP tool providers', () => {
       expect(toolNames).toEqual(expect.arrayContaining(['run_report', 'get_report_run_status']));
       expect(toolNames).toEqual(
         expect.arrayContaining([
+          'get_connector_fields',
+          'get_connector_specification',
+          'list_connectors',
+          'preview_connector_field_options',
+          'preview_connector_fields',
+          'actualize_data_mart_schema',
+          'create_data_mart',
+          'delete_data_mart',
+          'get_data_mart_change_impact',
+          'get_data_mart_setup',
+          'list_setup_data_marts',
+          'publish_data_mart',
+          'set_data_mart_contexts',
+          'set_data_mart_owners',
+          'set_data_mart_sharing',
+          'update_data_mart_definition',
+          'update_data_mart_description',
+          'update_data_mart_icon',
+          'update_data_mart_schema',
+          'update_data_mart_title',
+          'validate_data_mart',
+          'cancel_data_mart_run',
+          'create_data_mart_run_schedule',
+          'delete_data_mart_run_schedule',
+          'get_data_mart_run',
+          'list_data_mart_run_schedules',
+          'list_data_mart_runs',
+          'run_data_mart',
+          'update_data_mart_run_schedule',
+          'create_data_mart_relationship',
+          'delete_data_mart_relationship',
+          'list_data_mart_relationships',
+          'preview_data_mart',
+          'update_data_mart_relationship',
           'create_context',
           'list_storages',
           'get_storage',

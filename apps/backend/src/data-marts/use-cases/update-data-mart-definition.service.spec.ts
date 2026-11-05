@@ -146,9 +146,10 @@ describe('UpdateDataMartDefinitionService', () => {
     'should succeed when saving a %s definition type without performing storage validation',
     async definitionType => {
       const { service, dataMartService, dataMart } = createService();
-      const definition = {
-        tableName: 'my_table',
-      };
+      const definition =
+        definitionType === DataMartDefinitionType.TABLE_PATTERN
+          ? { pattern: 'dataset.table_*' }
+          : { fullyQualifiedName: 'dataset.my_table' };
       const command = new UpdateDataMartDefinitionCommand(
         'dm-1',
         'proj-1',
@@ -278,7 +279,7 @@ describe('UpdateDataMartDefinitionService', () => {
       'dm-1',
       'proj-1',
       DataMartDefinitionType.TABLE,
-      { tableName: 'my_table' },
+      { fullyQualifiedName: 'dataset.my_table' },
       undefined,
       undefined,
       'user-1',
@@ -810,6 +811,69 @@ describe('UpdateDataMartDefinitionService', () => {
 
       expect(stored()).toEqual([{ _id: 'c-1', ...oauth, RepositoryName: 'a/b' }]);
       expect(sourceCredentials.bindConfig).not.toHaveBeenCalled();
+    });
+
+    it('restores omitted legacy Credential fields and references on an unbound configuration', async () => {
+      const previous = {
+        _id: 'c-1',
+        AuthType: { oauth2: { AppId: 'existing-app', _source_credential_id: 'oauth-row' } },
+        RepositoryName: 'a/b',
+      };
+      const { save, stored, connectorService, sourceCredentials } = givenDataMart([previous]);
+      connectorService.resolveSourceKeys.mockResolvedValue({
+        fields: [{ path: ['AuthType', 'oauth2'], parameters: ['AppId', 'RefreshToken'] }],
+        model: null,
+      });
+
+      await save([{ _id: 'c-1', AuthType: { oauth2: {} }, RepositoryName: 'a/c' }]);
+
+      expect(stored()).toEqual([{ ...previous, RepositoryName: 'a/c' }]);
+      expect(sourceCredentials.bindConfig).not.toHaveBeenCalled();
+    });
+
+    it('restores root legacy key metadata without restoring removed settings', async () => {
+      const { save, stored, connectorService } = givenDataMart([
+        { _id: 'c-1', _secrets_id: 'old-row', AppId: 'existing-app', RepositoryName: 'a/b' },
+      ]);
+      connectorService.resolveSourceKeys.mockResolvedValue({
+        fields: [{ path: [], parameters: ['AppId', 'AccessToken'] }],
+        model: null,
+      });
+
+      await save([{ _id: 'c-1' }]);
+
+      expect(stored()).toEqual([{ _id: 'c-1', _secrets_id: 'old-row', AppId: 'existing-app' }]);
+    });
+
+    it.each(['', null])(
+      'preserves an explicitly cleared legacy key value: %p',
+      async AccessToken => {
+        const { save, stored, connectorSecretService } = givenDataMart([
+          { _id: 'c-1', AccessToken: 'existing-token' },
+        ]);
+        connectorSecretService.getAllSecretFieldNames.mockResolvedValue(new Set(['AccessToken']));
+
+        await save([{ _id: 'c-1', AccessToken }]);
+
+        expect(stored()).toEqual([{ _id: 'c-1', AccessToken }]);
+      }
+    );
+
+    it('does not restore a removed authentication variant', async () => {
+      const { save, stored, connectorService } = givenDataMart([
+        {
+          _id: 'c-1',
+          AuthType: { oauth2: { AppId: 'old-app', _source_credential_id: 'old-row' } },
+        },
+      ]);
+      connectorService.resolveSourceKeys.mockResolvedValue({
+        fields: [{ path: ['AuthType', 'oauth2'], parameters: ['AppId'] }],
+        model: null,
+      });
+
+      await save([{ _id: 'c-1', AuthType: { service_account: {} } }]);
+
+      expect(stored()).toEqual([{ _id: 'c-1', AuthType: { service_account: {} } }]);
     });
 
     it('switching the auth variant keeps no stray variant and a later Credential change is accepted', async () => {

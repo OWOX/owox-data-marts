@@ -18,6 +18,7 @@ import {
   isViewDefinition,
   isConnectorDefinition,
 } from '../../../dto/schemas/data-mart-table-definitions/data-mart-definition.guards';
+import { DATA_MART_ERROR_MESSAGES } from '../../../errors/data-mart-error-messages';
 
 @Injectable()
 export class RedshiftDataMartValidator implements DataMartValidator {
@@ -88,7 +89,7 @@ export class RedshiftDataMartValidator implements DataMartValidator {
     if (identifierToValidate && !isValidRedshiftFullyQualifiedName(identifierToValidate)) {
       return ValidationResult.authoredFailure(
         DataMartValidationCode.INVALID_IDENTIFIER_FORMAT,
-        'Invalid identifier format. Expected: schema.table or database.schema.table'
+        DATA_MART_ERROR_MESSAGES.REDSHIFT_IDENTIFIER_INVALID
       );
     }
 

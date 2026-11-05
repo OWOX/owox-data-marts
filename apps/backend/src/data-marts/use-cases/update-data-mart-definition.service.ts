@@ -33,12 +33,14 @@ import {
   bindingIdKey,
   keyValuesOf,
   oldKeyIdsOf,
+  withMissingKeyValues,
   withOldKeysOf,
   withoutKeyValues,
   withoutSecretKeyValues,
   withoutOldKeys,
   type SourceKeys,
 } from '../connector-types/source-key-fields';
+import { DATA_MART_ERROR_MESSAGES } from '../errors/data-mart-error-messages';
 
 @Injectable()
 export class UpdateDataMartDefinitionService {
@@ -101,9 +103,7 @@ export class UpdateDataMartDefinitionService {
 
     if (dataMart.storage.type === DataStorageType.LEGACY_GOOGLE_BIGQUERY) {
       if (command.definitionType !== DataMartDefinitionType.SQL) {
-        throw new BusinessViolationException(
-          'Only SQL definition type is supported for Legacy Google BigQuery data storages.'
-        );
+        throw new BusinessViolationException(DATA_MART_ERROR_MESSAGES.LEGACY_STORAGE_REQUIRES_SQL);
       }
 
       await this.legacyDataMartsService.updateQuery(
@@ -217,9 +217,12 @@ export class UpdateDataMartDefinitionService {
     const definition = command.definition as ConnectorDefinition;
     const source = definition?.connector?.source;
     if (source?.configuration?.length !== 1) {
-      throw new BadRequestException(
-        `Connector '${source?.name}' requires exactly one source configuration`
-      );
+      throw new BadRequestException({
+        statusCode: 400,
+        error: 'Bad Request',
+        message: `Connector '${source?.name}' requires exactly one source configuration`,
+        code: 'DATA_MART_SINGLE_SOURCE_CONFIGURATION_REQUIRED',
+      });
     }
   }
 
@@ -252,9 +255,21 @@ export class UpdateDataMartDefinitionService {
       throw new BadRequestException(OUT_OF_DATE);
     }
 
+    // Preserve omitted legacy keys only for the same configuration and surviving auth variant.
+    const withLegacyKeys = withConfiguration(
+      incoming,
+      (source.configuration as Config[]).map(config => {
+        if (config._credential_id !== undefined) return config;
+        const previousConfig = previousOf(config, previousItems);
+        return withOldKeysOf(
+          withMissingKeyValues(config, previousConfig, keys.fields),
+          previousConfig
+        );
+      })
+    );
     const merged = await this.connectorSecretService.mergeDefinitionSecrets(
       projectId,
-      incoming,
+      withLegacyKeys,
       previous
     );
     if (switchedConnector) await this.sourceCredentials.deactivateDataMart(dataMartId);
@@ -401,16 +416,15 @@ export class UpdateDataMartDefinitionService {
       nextType === DataMartDefinitionType.CONNECTOR
     ) {
       throw new BusinessViolationException(
-        'Input source type cannot be changed to or from a connector. Create a separate Data Mart instead.'
+        DATA_MART_ERROR_MESSAGES.CONNECTOR_TYPE_CHANGE_NOT_ALLOWED
       );
     }
   }
 }
 
-const OUT_OF_DATE = 'This page is out of date. Reload it.';
-const SELECT_CREDENTIAL = 'Select a Credential for each configuration.';
-const AUTH_TYPE_KEPT =
-  "This configuration uses a Credential, so its authentication type can't be changed.";
+const OUT_OF_DATE = DATA_MART_ERROR_MESSAGES.CONFIGURATION_OUT_OF_DATE;
+const SELECT_CREDENTIAL = DATA_MART_ERROR_MESSAGES.CREDENTIAL_REQUIRED;
+const AUTH_TYPE_KEPT = DATA_MART_ERROR_MESSAGES.CREDENTIAL_AUTH_TYPE_CHANGE_NOT_ALLOWED;
 
 type Config = Record<string, unknown>;
 

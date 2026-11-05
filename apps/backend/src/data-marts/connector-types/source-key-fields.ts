@@ -61,6 +61,25 @@ export function withoutKeyValues(config: Config, fields: readonly SourceKeyField
   return copy;
 }
 
+/** Keep omitted legacy key fields at existing paths; explicit clears and removed variants stay. */
+export function withMissingKeyValues(
+  config: Config,
+  previous: Config | undefined,
+  fields: readonly SourceKeyFields[]
+): Config {
+  const copy = structuredClone(config);
+  for (const { path, parameters } of fields) {
+    const values = objectAt(copy, path);
+    const before = objectAt(previous ?? {}, path);
+    for (const name of parameters) {
+      if (values && values[name] === undefined && before?.[name] !== undefined) {
+        values[name] = structuredClone(before[name]);
+      }
+    }
+  }
+  return copy;
+}
+
 /** `withoutKeyValues`, except the non-secret values `previous` held, which are public and stay. */
 export function withoutSecretKeyValues(
   config: Config,

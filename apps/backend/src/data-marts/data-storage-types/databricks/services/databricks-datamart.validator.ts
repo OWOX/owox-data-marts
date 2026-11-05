@@ -18,6 +18,7 @@ import {
   isViewDefinition,
 } from '../../../dto/schemas/data-mart-table-definitions/data-mart-definition.guards';
 import { isValidDatabricksFullyQualifiedName } from '../utils/databricks-validation.utils';
+import { DATA_MART_ERROR_MESSAGES } from '../../../errors/data-mart-error-messages';
 
 @Injectable()
 export class DatabricksDataMartValidator implements DataMartValidator {
@@ -74,7 +75,7 @@ export class DatabricksDataMartValidator implements DataMartValidator {
       if (!isValidDatabricksFullyQualifiedName(definition.fullyQualifiedName)) {
         return ValidationResult.authoredFailure(
           DataMartValidationCode.INVALID_IDENTIFIER_FORMAT,
-          'Invalid identifier format. Expected: catalog.schema.table'
+          DATA_MART_ERROR_MESSAGES.DATABRICKS_IDENTIFIER_INVALID
         );
       }
     } else if (isConnectorDefinition(definition)) {
@@ -85,7 +86,7 @@ export class DatabricksDataMartValidator implements DataMartValidator {
       ) {
         return ValidationResult.authoredFailure(
           DataMartValidationCode.INVALID_IDENTIFIER_FORMAT,
-          'Invalid identifier format. Expected: schema.table or catalog.schema.table'
+          DATA_MART_ERROR_MESSAGES.DATABRICKS_CONNECTOR_IDENTIFIER_INVALID
         );
       }
     }

@@ -1,4 +1,5 @@
 // connector-source-config.service.spec.ts
+import { Logger } from '@nestjs/common';
 import { ConnectorSourceConfigService } from './connector-source-config.service';
 import { ConnectorCredentialInjectorService } from './connector-credential-injector.service';
 import type { DataMartSchema } from '../../data-storage-types/data-mart-schema.type';
@@ -165,6 +166,30 @@ describe('ConnectorSourceConfigService', () => {
   });
 
   describe('buildRunConfig', () => {
+    it('never logs raw run payload, data values, or state on replay', () => {
+      const logged = jest.spyOn(Logger.prototype, 'debug').mockImplementation(() => undefined);
+      try {
+        const { service } = createService();
+        const result = service.buildRunConfig(
+          {
+            payload: {
+              runType: 'MANUAL_BACKFILL',
+              data: { ApiKey: 'synthetic-private-value', StartDate: '2026-01-01' },
+            },
+          },
+          { _id: 'cfg', state: { private: 'synthetic-state-value' }, at: '2026-01-01' }
+        );
+        expect(result.toObject().data).toContainEqual({
+          configField: 'ApiKey',
+          value: 'synthetic-private-value',
+        });
+        expect(JSON.stringify(logged.mock.calls)).not.toContain('synthetic-private-value');
+        expect(JSON.stringify(logged.mock.calls)).not.toContain('synthetic-state-value');
+      } finally {
+        logged.mockRestore();
+      }
+    });
+
     it('returns INCREMENTAL type by default when no payload', () => {
       const { service } = createService();
 

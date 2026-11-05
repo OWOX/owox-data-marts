@@ -79,8 +79,13 @@ describe('MCP instructions', () => {
     expect(MCP_SYSTEM_INSTRUCTIONS).toContain('returns getting_started');
     expect(MCP_SYSTEM_INSTRUCTIONS).toContain('Follow getting_started.instructions');
     expect(MCP_SYSTEM_INSTRUCTIONS).toContain('do not rephrase and retry discovery tools');
-    expect(MCP_SYSTEM_INSTRUCTIONS).toContain(
+    expect(MCP_SYSTEM_INSTRUCTIONS).not.toContain(
       'A Data Mart cannot be created or published through MCP'
+    );
+    expect(MCP_SYSTEM_INSTRUCTIONS).toContain('create_data_mart');
+    expect(MCP_SYSTEM_INSTRUCTIONS).toContain('publish_data_mart');
+    expect(MCP_SYSTEM_INSTRUCTIONS).toContain(
+      'Reporting discovery and query tools still require published Data Marts'
     );
   });
 
@@ -98,6 +103,60 @@ describe('MCP instructions', () => {
     expect(MCP_SYSTEM_INSTRUCTIONS).toContain(
       'as spreadsheet_id in the following add_report calls'
     );
+  });
+
+  it('guides setup through shared permissions, full replacements, and safe run status', () => {
+    for (const tool of [
+      'list_setup_data_marts',
+      'get_data_mart_setup',
+      'create_data_mart',
+      'update_data_mart_definition',
+      'validate_data_mart',
+      'actualize_data_mart_schema',
+      'preview_data_mart',
+      'publish_data_mart',
+      'get_data_mart_change_impact',
+      'update_data_mart_schema',
+      'set_data_mart_owners',
+      'set_data_mart_contexts',
+      'list_connectors',
+      'get_connector_specification',
+      'get_connector_fields',
+      'list_data_mart_relationships',
+      'create_data_mart_relationship',
+      'update_data_mart_relationship',
+      'delete_data_mart_relationship',
+      'run_data_mart',
+      'get_data_mart_run',
+      'list_data_mart_runs',
+      'cancel_data_mart_run',
+      'list_data_mart_run_schedules',
+      'create_data_mart_run_schedule',
+      'update_data_mart_run_schedule',
+      'delete_data_mart_run_schedule',
+    ]) {
+      expect(MCP_SYSTEM_INSTRUCTIONS).toContain(tool);
+    }
+    expect(MCP_SYSTEM_INSTRUCTIONS).toContain(
+      'get_data_mart_setup requires visibility, not edit permission'
+    );
+    expect(MCP_SYSTEM_INSTRUCTIONS).toContain('replace complete lists');
+    expect(MCP_SYSTEM_INSTRUCTIONS).toContain('Preserve configuration _id and _credential_id');
+    expect(MCP_SYSTEM_INSTRUCTIONS).toContain('Never pass raw secrets');
+    expect(MCP_SYSTEM_INSTRUCTIONS).toContain('obtain user authorization before delete_data_mart');
+    expect(MCP_SYSTEM_INSTRUCTIONS).toContain('published status does not prove data readiness');
+    expect(MCP_SYSTEM_INSTRUCTIONS).toContain('Do not call run_data_mart again just to poll');
+  });
+
+  it('distinguishes a backfill segment from completion of the requested period', () => {
+    expect(MCP_SYSTEM_INSTRUCTIONS).toContain(
+      'should_poll describes only the returned run segment'
+    );
+    expect(MCP_SYSTEM_INSTRUCTIONS).toContain('backfill.chain_id');
+    expect(MCP_SYSTEM_INSTRUCTIONS).toContain('segment_index');
+    expect(MCP_SYSTEM_INSTRUCTIONS).toContain('segments_total');
+    expect(MCP_SYSTEM_INSTRUCTIONS).toContain('offset');
+    expect(MCP_SYSTEM_INSTRUCTIONS).toContain('A failed segment can be followed by later segments');
   });
 
   it('round-trips the complete system instructions through MCP initialization', async () => {

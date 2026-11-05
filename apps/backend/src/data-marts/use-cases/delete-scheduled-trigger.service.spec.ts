@@ -1,4 +1,4 @@
-import { ForbiddenException } from '@nestjs/common';
+import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { DeleteScheduledTriggerCommand } from '../dto/domain/delete-scheduled-trigger.command';
 import { Action } from '../services/access-decision';
 import { ScheduledTriggerType } from '../scheduled-trigger-types/enums/scheduled-trigger-type.enum';
@@ -32,6 +32,7 @@ describe('DeleteScheduledTriggerService', () => {
       getByIdAndDataMartIdAndProjectId: jest.fn(),
     };
     const accessDecisionService = {
+      canAccess: jest.fn().mockResolvedValue(true),
       canAccessDmTrigger: jest.fn().mockResolvedValue(true),
     };
 
@@ -43,12 +44,44 @@ describe('DeleteScheduledTriggerService', () => {
       accessDecisionService as never
     );
 
-    return { service, triggerRepository, accessDecisionService };
+    return { service, triggerRepository, accessDecisionService, scheduledTriggerService };
   };
 
   const command = new DeleteScheduledTriggerCommand('trigger-1', 'dm-1', 'project-1', 'user-1', [
     'editor',
   ]);
+
+  it('requires Data Mart SEE before any trigger deletion, as the HTTP route does', async () => {
+    const f = createService();
+    f.accessDecisionService.canAccess.mockResolvedValue(false);
+    await expect(f.service.run(command)).rejects.toThrow(ForbiddenException);
+    expect(f.triggerRepository.delete).not.toHaveBeenCalled();
+    expect(f.accessDecisionService.canAccessDmTrigger).not.toHaveBeenCalled();
+  });
+
+  it.each([ScheduledTriggerType.REPORT_RUN, ScheduledTriggerType.DATA_QUALITY_RUN])(
+    'refuses expected-type mismatch %s without deleting',
+    async type => {
+      const f = createService();
+      f.scheduledTriggerService.getByIdAndDataMartIdAndProjectId.mockResolvedValue({
+        ...connectorRunTrigger,
+        type,
+      });
+      await expect(
+        f.service.run(
+          new DeleteScheduledTriggerCommand(
+            'trigger-1',
+            'dm-1',
+            'project-1',
+            'user-1',
+            ['editor'],
+            ScheduledTriggerType.CONNECTOR_RUN
+          )
+        )
+      ).rejects.toThrow(NotFoundException);
+      expect(f.triggerRepository.delete).not.toHaveBeenCalled();
+    }
+  );
 
   it('deletes connector-run triggers when Data Mart trigger management is allowed', async () => {
     const { service, triggerRepository, accessDecisionService } = createService();

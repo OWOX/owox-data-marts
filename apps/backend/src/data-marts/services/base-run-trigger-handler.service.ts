@@ -8,6 +8,7 @@ import { TriggerStatus } from '../../common/scheduler/shared/entities/trigger-st
 import { DataMartRun } from '../entities/data-mart-run.entity';
 import { DataMartRunStatus } from '../enums/data-mart-run-status.enum';
 import { DataMartRunService } from './data-mart-run.service';
+import { DATA_MART_RUN_ERROR_MESSAGES } from '../errors/data-mart-error-messages';
 
 const ORPHANED_RUN_CLEANUP_INTERVAL_MS = 5 * 60 * 1000;
 const ORPHANED_RUN_GRACE_PERIOD_MS = 10 * 60 * 1000;
@@ -51,9 +52,7 @@ export abstract class BaseRunTriggerHandlerService<T extends Trigger>
 
   protected async failOrphanedRun(run: DataMartRun): Promise<void> {
     run.status = DataMartRunStatus.FAILED;
-    run.errors = [
-      'The run was not started because the maximum number of concurrent runs for this project was reached. Please wait for the current runs to finish and try again.',
-    ];
+    run.errors = [DATA_MART_RUN_ERROR_MESSAGES.CONCURRENCY_LIMIT_REACHED];
     await this.dataMartRunRepository.save(run);
   }
 

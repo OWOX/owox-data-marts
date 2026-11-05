@@ -4,11 +4,11 @@
 
 OWOX Data Marts exposes a Model Context Protocol (MCP) server. It lets AI assistants and MCP-compatible clients connect to your project data using standard OAuth authorization.
 
-Use the MCP server to explore your [data marts](../core-concepts.md) in plain language with an AI assistant like Claude or ChatGPT. You never have to leave the assistant. The assistant can summarize the available catalog and inspect data mart fields. It can run bounded queries, list destinations and reports, and set up report delivery. It can also manage report schedules and start report runs for supported push destinations. Editors can also create, test, publish and maintain custom connectors. See [Available tools](#available-tools) for exactly what it can and cannot do.
+Use the MCP server to explore your [data marts](../core-concepts.md) in plain language with an AI assistant like Claude or ChatGPT. You never have to leave the assistant. The assistant can summarize the available catalog and inspect data mart fields. It can run bounded queries, list destinations and reports, and set up report delivery. It can also manage report schedules and start report runs for supported push destinations. Authorized users can also configure and publish Data Marts, maintain their models, inspect previews, and manage connector runs. Editors can create, test, publish and maintain custom connectors. See [Available tools](#available-tools) for exactly what it can and cannot do.
 
 ## Prerequisites
 
-- An active OWOX Data Marts project with at least one published data mart. New to Data Marts? See how to create a [connector-based](./connector-data-mart.md) or [SQL-based](./sql-data-mart.md) Data Mart. You can connect before creating one — the assistant then explains what a data mart is and where to create it (see [The assistant says there are no data marts](#the-assistant-says-there-are-no-data-marts)).
+- An active OWOX Data Marts project. Reporting queries require a published Data Mart that you can see. Authorized users can create and finish Data Marts through [setup tools](#data-mart-setup-models-and-execution) or the web app. See the [connector-based](./connector-data-mart.md) and [SQL-based](./sql-data-mart.md) guides for source requirements.
 - One of the supported clients: Claude Desktop or Claude web (claude.ai) — the recommended way to connect — or ChatGPT. Any other client that supports the MCP Streamable HTTP transport with OAuth 2.0 will also work.
 - A client plan that allows MCP connectors. Adding an MCP server like OWOX may require a paid plan in Claude or ChatGPT. Check your client's current plan requirements.
 
@@ -103,12 +103,14 @@ To switch projects, disconnect, then reconnect and sign in again. If you use the
 
 Once connected, the MCP server exposes the following tools across two scopes:
 
-- **`mcp:read`**: discovery and status tools — `summarize_data_catalog`, `get_project_context`, `list_contexts`, `get_context_impact`, `list_project_members`, `get_project_settings`, `list_custom_connectors`, `get_custom_connector`, `get_custom_connector_version`, `get_custom_connector_specification`, `get_custom_connector_fields`, `list_data_marts`, `get_relevant_data_marts_by_prompt`, `get_data_mart_details_by_id`, `list_storages`, `get_storage`, `validate_storage_access`, `list_storage_resources`, `list_destinations`, `get_destination`, `get_destination_impact`, `get_data_mart_reports`, `get_relevant_reports_by_prompt`, `get_report_output_schema`, `list_report_run_schedules`, `get_report_run_status`, `list_credential_definitions`, `list_credentials`, `get_credential`, `get_credential_setup_status`.
-- **`mcp:write`**: tools that create, change, run, or bill something — `create_context`, `update_context_metadata`, `set_context_members`, `delete_context`, `update_project_description`, `create_custom_connector`, `update_custom_connector`, `save_custom_connector_draft`, `test_custom_connector`, `publish_custom_connector`, `activate_custom_connector_version`, `delete_custom_connector`, `query_data_mart`, `create_storage`, `update_storage`, `set_storage_access`, `delete_storage`, `add_destination`, `update_destination`, `set_destination_access`, `delete_destination`, `rotate_destination_secret_key`, `add_report`, `update_report`, `delete_report`, `create_report_run_schedule`, `update_report_run_schedule`, `delete_report_run_schedule`, `run_report`, `update_credential`, `validate_credential`, `consent_credential_definition`, `delete_credential`, `start_credential_setup`. `query_data_mart` and the report-run schedule mutation tools also require `mcp:read`. `query_data_mart` reads data rows, records each call in Run History, and costs [credits](../billing/consumption-units.md) per call. Your MCP client may ask you to confirm before it calls one of these.
+- **`mcp:read`**: discovery and status tools — `summarize_data_catalog`, `get_project_context`, `list_contexts`, `get_context_impact`, `list_project_members`, `get_project_settings`, `list_custom_connectors`, `get_custom_connector`, `get_custom_connector_version`, `get_custom_connector_specification`, `get_custom_connector_fields`, `list_data_marts`, `get_relevant_data_marts_by_prompt`, `get_data_mart_details_by_id`, `list_storages`, `get_storage`, `validate_storage_access`, `list_storage_resources`, `list_destinations`, `get_destination`, `get_destination_impact`, `get_data_mart_reports`, `get_relevant_reports_by_prompt`, `get_report_output_schema`, `list_report_run_schedules`, `get_report_run_status`, `list_credential_definitions`, `list_credentials`, `get_credential`, `get_credential_setup_status`, `get_connector_fields`, `get_connector_specification`, `list_connectors`, `get_data_mart_change_impact`, `get_data_mart_setup`, `list_setup_data_marts`, `get_data_mart_run`, `list_data_mart_run_schedules`, `list_data_mart_runs`, `list_data_mart_relationships`.
+- **`mcp:write`**: tools that create, change, run, or bill something — `create_context`, `update_context_metadata`, `set_context_members`, `delete_context`, `update_project_description`, `create_custom_connector`, `update_custom_connector`, `save_custom_connector_draft`, `test_custom_connector`, `publish_custom_connector`, `activate_custom_connector_version`, `delete_custom_connector`, `query_data_mart`, `create_storage`, `update_storage`, `set_storage_access`, `delete_storage`, `add_destination`, `update_destination`, `set_destination_access`, `delete_destination`, `rotate_destination_secret_key`, `add_report`, `update_report`, `delete_report`, `create_report_run_schedule`, `update_report_run_schedule`, `delete_report_run_schedule`, `run_report`, `update_credential`, `validate_credential`, `consent_credential_definition`, `delete_credential`, `start_credential_setup`, `preview_connector_field_options`, `preview_connector_fields`, `actualize_data_mart_schema`, `create_data_mart`, `delete_data_mart`, `publish_data_mart`, `set_data_mart_contexts`, `set_data_mart_owners`, `set_data_mart_sharing`, `update_data_mart_definition`, `update_data_mart_description`, `update_data_mart_icon`, `update_data_mart_schema`, `update_data_mart_title`, `validate_data_mart`, `cancel_data_mart_run`, `create_data_mart_run_schedule`, `delete_data_mart_run_schedule`, `run_data_mart`, `update_data_mart_run_schedule`, `create_data_mart_relationship`, `delete_data_mart_relationship`, `preview_data_mart`, `update_data_mart_relationship`. `query_data_mart` and the report-run schedule mutation tools also require `mcp:read`. `query_data_mart` reads data rows, records each call in Run History, and costs [credits](../billing/consumption-units.md) per call. Your MCP client may ask you to confirm before it calls one of these.
 
 Custom connector metadata and schema reads require `mcp:read`. Reading a complete
 version manifest also requires editor access. Custom connector writes and live
 tests require `mcp:write`. See [Custom connector authoring](#custom-connector-authoring).
+
+Data Mart setup, model, connector, and execution tools follow the scope and permission rules in [Data Mart setup, models, and execution](#data-mart-setup-models-and-execution).
 
 Storage and Destination operations enforce resource permissions. See [Storage management](#storage-management)
 and [Destination management](#destination-management).
@@ -184,7 +186,7 @@ Before deletion, `get_context_impact` reports the attachments that must be remov
 Its `affected_member_ids` lists members whose only Context assignment is this one.
 With your approval, the assistant can remove assignments through `set_context_members`.
 Use `set_storage_access` or `set_destination_access` to change a resource's `context_ids`.
-Keep the other Context IDs that still apply. Detach Data Marts and user provisioning defaults in the OWOX web app.
+Keep the other Context IDs that still apply. Use `set_data_mart_contexts` to replace the complete Context list for a Data Mart. Detach user provisioning defaults in the OWOX web app.
 
 ### Credential management
 
@@ -341,9 +343,107 @@ Telemetry also masks credential defaults, placeholders, options and literal valu
 in recognized credential fields. Public settings, such as pagination tokens, remain
 visible. Test results can still contain sensitive upstream data.
 
+### Data Mart setup, models, and execution
+
+Setup tools can work with visible drafts. Reporting discovery, `get_data_mart_details_by_id`,
+`query_data_mart`, and report tools still require published Data Marts.
+Use `list_setup_data_marts` and `get_data_mart_setup` for setup work.
+The setup getter requires visibility. It does not grant permission to edit.
+If a connector specification cannot be read safely, the getter still returns metadata,
+schema, and access settings. It returns `definition: null` with `definition_read_error`.
+Repair the connector in OWOX before replacing its definition. This is not an empty draft.
+
+All calls use the connected project, current user, and existing OWOX resource permissions.
+Read tools require `mcp:read`. Changes and provider queries require `mcp:write` as well.
+Most mutations require an editor or admin role. Resource ownership, sharing, and Contexts
+still control each action. A role or a visible resource alone does not grant maintenance access.
+
+| Tools                                                                                                                             | Purpose and access                                                                                                                                                                                               |
+| --------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `list_setup_data_marts`, `get_data_mart_setup`                                                                                    | Find drafts or published Data Marts and inspect saved setup, SQL, schema, and access settings. Viewer role and visibility are sufficient. The response omits connector secrets.                                  |
+| `create_data_mart`                                                                                                                | Create a draft on a Storage that you can use. Requires editor or admin. Keep the returned `data_mart_id`.                                                                                                        |
+| `update_data_mart_title`, `update_data_mart_description`, `update_data_mart_icon`                                                 | Change Data Mart metadata. Requires permission to edit.                                                                                                                                                          |
+| `update_data_mart_definition`                                                                                                     | Replace the complete source definition. Requires permission to edit. Supports SQL, Table, View, Table Pattern, and Connector definitions.                                                                        |
+| `validate_data_mart`, `get_data_mart_change_impact`                                                                               | Validate saved source settings or inspect dependencies before a source change or deletion. Both require editor or admin. The shared API permission checks remain in effect.                                      |
+| `actualize_data_mart_schema`, `update_data_mart_schema`                                                                           | Refresh source fields or replace the complete saved schema. Both require permission to edit. Actualization retains the HTTP viewer role requirement. Schema replacement requires editor or admin.                |
+| `publish_data_mart`, `delete_data_mart`                                                                                           | Publish or delete the selected Data Mart with the existing API permissions. Requires editor or admin. Review impact and authorize deletion first.                                                                |
+| `set_data_mart_owners`, `set_data_mart_contexts`, `set_data_mart_sharing`                                                         | Replace owner or Context assignments, or set reporting and maintenance sharing. Each retains the existing ownership and sharing checks. Sharing retains the HTTP viewer role requirement.                        |
+| `list_data_mart_relationships`                                                                                                    | Inspect the visible relationship model. The response omits inaccessible Data Marts.                                                                                                                              |
+| `create_data_mart_relationship`, `update_data_mart_relationship`, `delete_data_mart_relationship`                                 | Make requested model changes using the existing API permissions. Creating a relationship requires edit access to both Data Marts. Requires editor or admin.                                                      |
+| `preview_data_mart`                                                                                                               | Read a bounded sample through the saved source and model. Requires viewer role, Data Mart visibility, and write scope. It can call the warehouse.                                                                |
+| `list_connectors`, `get_connector_specification`, `get_connector_fields`                                                          | Inspect bundled connector metadata and source requirements. Requires read scope. Use custom connector tools for custom connector versions.                                                                       |
+| `preview_connector_fields`, `preview_connector_field_options`                                                                     | Check live fields or dynamic options with non-secret parameters and an optional saved Credential. Requires editor or admin and write scope.                                                                      |
+| `run_data_mart`, `get_data_mart_run`, `list_data_mart_runs`, `cancel_data_mart_run`                                               | Queue a manual connector run, inspect run status/history, or cancel a supported active run. Starting and cancelling require edit permission and write scope. Reading history requires visibility and read scope. |
+| `list_data_mart_run_schedules`, `create_data_mart_run_schedule`, `update_data_mart_run_schedule`, `delete_data_mart_run_schedule` | Inspect or manage connector run schedules. Management requires the existing trigger permission and write scope. These tools do not change Report or Data Quality schedules.                                      |
+
+#### Create and publish a Data Mart
+
+1. Select a Storage that you can use. Configure and validate its saved Credential if needed.
+2. Call `create_data_mart` and retain its returned `data_mart_id`.
+3. Call `update_data_mart_definition` with the complete source definition.
+4. Call `validate_data_mart` and resolve reported errors.
+5. Read `get_data_mart_setup`. Refresh the schema or inspect `preview_data_mart` when the source is available.
+6. Review warnings, intended owners, Contexts, and sharing. Call `publish_data_mart` when setup is ready.
+7. For connectors, inspect `list_data_mart_runs` for the initial run. Poll `get_data_mart_run` with its `run_id`.
+
+Validation and schema updates return safe application diagnostics. Schema updates include up to
+50 warning summaries. `warning_count` includes all warnings. Provider errors can contain connection
+details, so their full text stays in OWOX. Follow the returned guidance if you need more detail.
+
+An unloaded connector source can need publication and its initial run before schema or preview is available.
+Connector publication starts an asynchronous initial run. Published status does not prove data readiness or execution success.
+If no initial run appears, check the Data Mart in OWOX before starting another run.
+Use the actual run status and source preview to report the result.
+
+#### Credentials and complete replacements
+
+Use existing compatible Credential IDs. Use `start_credential_setup` and
+`get_credential_setup_status` when authorization must be created or renewed in the browser.
+Never put raw secrets in a Data Mart definition or connector preview.
+Use `_credential_id` in a connector definition. Preserve an existing configuration's `_id`
+and `_credential_id` when replacing it. The definition save path uses the same checks as HTTP.
+For older configurations without a reusable Credential binding, the server retains omitted
+Credential-owned values and legacy references for the same configuration and authentication variant.
+Selecting a different Credential does not retain the old sign-in.
+
+`update_data_mart_definition` replaces the complete definition, including its connector configuration list.
+`update_data_mart_schema` replaces the complete schema. Owner and Context setters replace complete lists.
+Preserve fields and assignments that still apply. A supplied relationship join-condition list also replaces that list.
+Use project member and Context discovery tools to obtain valid IDs. Do not guess IDs.
+
+#### Destructive changes and execution
+
+Inspect `get_data_mart_change_impact` before replacing an existing input source or deleting a Data Mart.
+Review affected Reports, relationships, schedules, and referencing Data Marts with the user.
+Obtain authorization for destructive source changes and deletion.
+Deleting a Data Mart deletes its dependent Reports, schedules, and relationships. Warehouse tables remain.
+Never delete dependencies to bypass another operation's restriction.
+
+`run_data_mart` returns `status: "queued"` and a `run_id`. It does not wait for completion.
+Poll `get_data_mart_run` until `should_poll` is false, waiting up to 15 seconds between checks.
+Use `error_summary` to explain a known failure. If it points to Run History, inspect the details
+in OWOX. MCP does not return raw provider errors.
+This flag describes the selected run, which can be one segment of a longer backfill.
+Do not call `run_data_mart` again to check progress. Each run can load data and incur usage.
+Cancellation of a backfill-chain segment stops the active segment and remaining chain.
+
+Backfill segments include `backfill.chain_id`, `segment_index`, and `segments_total`.
+Use `list_data_mart_runs` with `limit` and `offset` to find later runs with the same
+`chain_id`, then poll their run IDs. Inspect the outcomes of all visible segments.
+Another segment can follow a failed segment. Success of the last segment does not prove
+that earlier segments succeeded. The source can also finish a chain early.
+If no later segment is visible and completion is uncertain, check Run History in OWOX.
+do not report the whole backfill as complete or start a duplicate run.
+It retains data already loaded and usage already incurred.
+
+Creating a run schedule adds a new schedule. List schedules before changing or deleting a specific `trigger_id`.
+Use the intended IANA timezone. Creation defaults to UTC and an active schedule.
+Cron expressions and timezones must be valid even when a schedule is inactive.
+Use the separate Report schedule tools for recurring report delivery.
+
 ### `list_data_marts`
 
-Lists data marts visible to you in the current project. By default, it returns published data marts. You can explicitly request draft data mart metadata, but drafts cannot be inspected or queried through other MCP data mart tools.
+Lists Data Marts visible to you in the current project. By default, it returns published Data Marts. You can request draft metadata for catalog browsing. Use `get_data_mart_setup` to inspect a visible draft. Reporting details and queries still require publication.
 
 **Input:**
 
@@ -985,9 +1085,9 @@ Once the OWOX server is connected, just ask your assistant in plain language. Yo
 - "Turn off the schedule you just created."
 - "Delete the old 'Test export' report from the Sales data mart."
 
-> **What these tools can and cannot do:** They let the assistant discover your project, summarize the published data mart catalog, inspect data mart metadata, list destinations, list reports and schedules, and check report-run status. With `query_data_mart`, the assistant can run a bounded structured query and read the resulting data rows and totals; this is billable and recorded in Run History. With your confirmation, the assistant can also create destinations (`add_destination`), create a report for a Google Sheets, Looker Studio, email, Slack, Microsoft Teams, or Google Chat destination — optionally with the same filters, slices, aggregations, date buckets, and sort as a `query_data_mart` call, so the export matches the numbers you saw (`add_report`). New push-destination reports run once by default and return a `run_id` to poll; `run_immediately: false` creates configuration only. Related Google Sheets exports can share one spreadsheet as separate sheets. The assistant can also rename a report, change which fields it exports, replace its output controls, or edit the message of email-family reports (`update_report`) — it does this, rather than creating a second report, when you ask to change one that exists — delete a report (`delete_report`), create, update, or delete report-run schedules, and start a later manual run for supported push-destination reports (`run_report`). Editors can also create, configure, validate, share, and delete Storages. Destination management includes settings, ownership, sharing, deletion, and Looker Studio key rotation. These operations enforce resource permissions. Editors can create, test, publish, update and delete custom connectors, and activate earlier published versions. The tools cannot run arbitrary SQL — only structured queries built from the fields, filters, and aggregations described above — and cannot edit a data mart, change project settings other than the description, retrieve destination secret keys, or run pull-based Looker Studio reports through `run_report`.
+> **What these tools can and cannot do:** They let the assistant discover your project, summarize the published data mart catalog, inspect data mart metadata, list destinations, list reports and schedules, and check report-run status. With `query_data_mart`, the assistant can run a bounded structured query and read the resulting data rows and totals; this is billable and recorded in Run History. With your confirmation, the assistant can also create destinations (`add_destination`), create a report for a Google Sheets, Looker Studio, email, Slack, Microsoft Teams, or Google Chat destination — optionally with the same filters, slices, aggregations, date buckets, and sort as a `query_data_mart` call, so the export matches the numbers you saw (`add_report`). New push-destination reports run once by default and return a `run_id` to poll; `run_immediately: false` creates configuration only. Related Google Sheets exports can share one spreadsheet as separate sheets. The assistant can also rename a report, change which fields it exports, replace its output controls, or edit the message of email-family reports (`update_report`) — it does this, rather than creating a second report, when you ask to change one that exists — delete a report (`delete_report`), create, update, or delete report-run schedules, and start a later manual run for supported push-destination reports (`run_report`). Editors can also create, configure, validate, share, and delete Storages. Destination management includes settings, ownership, sharing, deletion, and Looker Studio key rotation. These operations enforce resource permissions. Editors can create, test, publish, update and delete custom connectors, and activate earlier published versions. Authorized users can create and maintain Data Marts through the setup tools. `query_data_mart` uses structured fields and controls. SQL source definitions use `update_data_mart_definition` and the existing validation and preview workflow. The tools cannot change project settings other than the description, retrieve destination secret keys, or run pull-based Looker Studio reports through `run_report`.
 >
-> **What is shared with your AI provider:** Tool inputs and results can reach the AI provider behind your client, such as Anthropic or OpenAI. These include project and data mart metadata, report and schedule metadata, report-run status, and your project roles. Storage tools also return configuration, such as warehouse hosts, project IDs, accounts, and workgroups, plus discovered resource names. Storage and Destination details include owners, Contexts, and sharing settings. Destination details can include existing recipient addresses for email, Slack, Microsoft Teams, and Google Chat, plus Drive folder URLs and connected account identities. Addresses that you supply when you create or update a Destination also pass through the client.
+> **What is shared with your AI provider:** Tool inputs and results can reach the AI provider behind your client, such as Anthropic or OpenAI. These include project and data mart metadata, report and schedule metadata, report-run status, and your project roles. Data Mart setup can also expose SQL, schemas, non-secret connector settings, ownership, and sharing. Preview results include source data rows. Storage tools also return configuration, such as warehouse hosts, project IDs, accounts, and workgroups, plus discovered resource names. Storage and Destination details include owners, Contexts, and sharing settings. Destination details can include existing recipient addresses for email, Slack, Microsoft Teams, and Google Chat, plus Drive folder URLs and connected account identities. Addresses that you supply when you create or update a Destination also pass through the client.
 >
 > When the assistant runs `query_data_mart`, the **resulting data rows and totals are sent** to that provider. This includes only data you are permitted to query. Custom connector authoring can also send complete manifests, test configuration, upstream sample rows, and logs. Connect OWOX only to clients your organization permits to receive this information.
 
@@ -1017,7 +1117,7 @@ The token does not include the write scope required for tools that create, chang
 
 ### The assistant says there are no data marts
 
-MCP works only with **published** data marts that your [project role](../../project/roles-and-permissions.md) lets you see. When there is none, `list_data_marts`, `get_relevant_data_marts_by_prompt`, and `summarize_data_catalog` return `getting_started` instead of a bare empty list, and the assistant explains what a data mart is and what to do next rather than retrying the search or querying data:
+Reporting tools use **published** Data Marts that your [project role](../../project/roles-and-permissions.md) lets you see. Setup tools can inspect visible drafts and complete authorized configuration. When there is none, `list_data_marts`, `get_relevant_data_marts_by_prompt`, and `summarize_data_catalog` return `getting_started` instead of a bare empty list, and the assistant explains what a data mart is and what to do next rather than retrying the search or querying data:
 
 | Field                   | Description                                                                                                                                          |
 | ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -1025,15 +1125,15 @@ MCP works only with **published** data marts that your [project role](../../proj
 | `create_data_mart_url`  | The page in OWOX Data Marts where a new data mart is created                                                                                         |
 | `data_marts_url`        | The Data Marts list of the connected project                                                                                                         |
 | `guides`                | Links to the [core concepts](../core-concepts.md), [connector-based](./connector-data-mart.md), and [SQL-based](./sql-data-mart.md) data mart guides |
-| `draft_data_marts`      | Draft data marts you can see; they become available to MCP once published                                                                            |
+| `draft_data_marts`      | Visible drafts available through setup tools; reporting tools require publication                                                                    |
 | `instructions`          | Internal guidance the assistant relays to you                                                                                                        |
 
-A data mart cannot be created or published through MCP. To continue:
+Authorized users can create and publish Data Marts through MCP. To continue:
 
-- **Project Admin or Data Owner:** open `create_data_mart_url`, connect a data source or define the data mart from SQL, a table, or a view on a connected storage, then save and **Publish** it. If the assistant lists drafts, open each one, finish its setup, and publish it.
+- **Project Admin or Data Owner with write scope:** use the [Data Mart setup workflow](#create-and-publish-a-data-mart). Inspect an existing draft before creating another Data Mart. You can also use `create_data_mart_url` in the web app. A connection with read scope alone must obtain write scope before setup mutations.
 - **Business User:** ask a Project Admin or a Data Owner of the project to create and publish a data mart and share it with you for reporting.
 
-Then ask the assistant again — no reconnection is needed.
+After publication and any initial connector run, ask the assistant to continue reporting discovery. Reconnection is only needed if the connection lacks required write scope.
 
 ### The wrong project is connected
 

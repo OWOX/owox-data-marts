@@ -13,6 +13,7 @@ import { DataStorage } from '../entities/data-storage.entity';
 import { RelationshipMapper } from '../mappers/relationship.mapper';
 import { DataMartRelationshipRepository } from '../repositories/data-mart-relationship.repository';
 import { DataMartRelationshipService } from './data-mart-relationship.service';
+import { safeMcpDataMartErrorMessage } from '../facades/mcp-data-mart-diagnostics';
 
 function makeRelationship(
   sourceId: string,
@@ -94,6 +95,15 @@ describe('DataMartRelationshipService', () => {
     it('does not throw when storage IDs are the same', () => {
       expect(() => service.validateSameStorage('storage-1', 'storage-1')).not.toThrow();
     });
+  });
+
+  it('makes a taken alias diagnosable without echoing its value or private details', async () => {
+    repository.findOne.mockResolvedValue(makeRelationship('dm-1', 'dm-2'));
+    const error = await service.validateUniqueAlias('dm-1', 'private-alias').catch(value => value);
+    expect(error).toBeInstanceOf(BusinessViolationException);
+    expect(error.message).toContain('private-alias');
+    expect(safeMcpDataMartErrorMessage(error)).toMatch(/alias.*already.*used/i);
+    expect(safeMcpDataMartErrorMessage(error)).not.toContain('private-alias');
   });
 
   describe('findBySourceDataMartId', () => {
@@ -242,6 +252,13 @@ describe('DataMartRelationshipService', () => {
           makeCondition('nested', 'user_id'),
         ])
       ).toThrow(BusinessViolationException);
+      try {
+        service.validateJoinFieldTypes(sourceSchema, targetSchema, [
+          makeCondition('nested', 'user_id'),
+        ]);
+      } catch (error) {
+        expect(safeMcpDataMartErrorMessage(error)).toMatch(/primitive types/);
+      }
     });
 
     it('throws when target field has complex type ARRAY', () => {
@@ -251,6 +268,11 @@ describe('DataMartRelationshipService', () => {
       expect(() =>
         service.validateJoinFieldTypes(sourceSchema, targetSchema, [makeCondition('id', 'tags')])
       ).toThrow(BusinessViolationException);
+      try {
+        service.validateJoinFieldTypes(sourceSchema, targetSchema, [makeCondition('id', 'tags')]);
+      } catch (error) {
+        expect(safeMcpDataMartErrorMessage(error)).toMatch(/primitive types/);
+      }
     });
 
     it('throws when types are incompatible (STRING vs INTEGER)', () => {
@@ -260,6 +282,13 @@ describe('DataMartRelationshipService', () => {
       expect(() =>
         service.validateJoinFieldTypes(sourceSchema, targetSchema, [makeCondition('name', 'count')])
       ).toThrow(BusinessViolationException);
+      try {
+        service.validateJoinFieldTypes(sourceSchema, targetSchema, [
+          makeCondition('name', 'count'),
+        ]);
+      } catch (error) {
+        expect(safeMcpDataMartErrorMessage(error)).toMatch(/incompatible types/);
+      }
     });
 
     it('does not throw for compatible numeric types (INTEGER vs FLOAT)', () => {

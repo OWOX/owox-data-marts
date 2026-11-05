@@ -58,6 +58,31 @@ describe('MCP getting-started guidance', () => {
     });
   });
 
+  it('uses MCP setup tools for a creator with write scope while keeping reporting gated', async () => {
+    const guidance = await buildGettingStarted(
+      { dataMarts: facadeWith({}), publicOrigin },
+      { ...baseContext, scopes: ['mcp:read', 'mcp:write'] }
+    );
+    expect(guidance.instructions).toContain('create_data_mart');
+    expect(guidance.instructions).toContain('update_data_mart_definition');
+    expect(guidance.instructions).toContain('validate_data_mart');
+    expect(guidance.instructions).toContain('publish_data_mart');
+    expect(guidance.instructions).toContain('get_data_mart_setup');
+    expect(guidance.instructions).toContain('published status does not prove data readiness');
+    expect(guidance.instructions).toContain('Do not retry discovery tools');
+    expect(guidance.instructions).not.toContain('MCP works only with published Data Marts');
+  });
+
+  it('keeps read-only creator guidance in the web app until write scope is available', async () => {
+    const guidance = await buildGettingStarted(
+      { dataMarts: facadeWith({}), publicOrigin },
+      baseContext
+    );
+    expect(guidance.instructions).toContain('mcp:write');
+    expect(guidance.instructions).toContain('open create_data_mart_url');
+    expect(guidance.instructions).toContain('get_data_mart_setup');
+  });
+
   it('tells a business user to ask a creator role instead of sending them to the create page', async () => {
     const guidance = await buildGettingStarted(
       { dataMarts: facadeWith({}), publicOrigin },
@@ -117,7 +142,8 @@ describe('MCP getting-started guidance', () => {
       },
     ]);
     expect(guidance.instructions).toContain('1 draft Data Mart(s) listed in draft_data_marts');
-    expect(guidance.instructions).toContain('finished, and published');
+    expect(guidance.instructions).toContain('get_data_mart_setup');
+    expect(guidance.instructions).not.toContain('Drafts are not available through MCP');
   });
 
   it('asks a business user to have drafts published by someone else', async () => {

@@ -18,6 +18,7 @@ import {
   isViewDefinition,
 } from '../../../dto/schemas/data-mart-table-definitions/data-mart-definition.guards';
 import { isValidSnowflakeFullyQualifiedName } from '../utils/snowflake-validation.utils';
+import { DATA_MART_ERROR_MESSAGES } from '../../../errors/data-mart-error-messages';
 
 @Injectable()
 export class SnowflakeDataMartValidator implements DataMartValidator {
@@ -79,7 +80,7 @@ export class SnowflakeDataMartValidator implements DataMartValidator {
     if (identifierToValidate && !isValidSnowflakeFullyQualifiedName(identifierToValidate)) {
       return ValidationResult.authoredFailure(
         DataMartValidationCode.INVALID_IDENTIFIER_FORMAT,
-        'Invalid identifier format. Expected: database.schema.table'
+        DATA_MART_ERROR_MESSAGES.SNOWFLAKE_IDENTIFIER_INVALID
       );
     }
 

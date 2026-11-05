@@ -1,4 +1,9 @@
-import { Injectable, ForbiddenException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  ForbiddenException,
+  BadRequestException,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { DeleteScheduledTriggerCommand } from '../dto/domain/delete-scheduled-trigger.command';
@@ -8,7 +13,7 @@ import { ReportAccessService } from '../services/report-access.service';
 import { ReportService } from '../services/report.service';
 import { ScheduledTriggerType } from '../scheduled-trigger-types/enums/scheduled-trigger-type.enum';
 import { isScheduledReportRunConfig } from '../scheduled-trigger-types/scheduled-trigger-config.guards';
-import { AccessDecisionService, Action } from '../services/access-decision';
+import { AccessDecisionService, Action, EntityType } from '../services/access-decision';
 
 @Injectable()
 export class DeleteScheduledTriggerService {
@@ -22,11 +27,28 @@ export class DeleteScheduledTriggerService {
   ) {}
 
   async run(command: DeleteScheduledTriggerCommand): Promise<void> {
+    if (
+      !command.userId ||
+      !(await this.accessDecisionService.canAccess(
+        command.userId,
+        command.roles,
+        EntityType.DATA_MART,
+        command.dataMartId,
+        Action.SEE,
+        command.projectId
+      ))
+    )
+      throw new ForbiddenException('You do not have access to this DataMart');
+
     const trigger = await this.scheduledTriggerService.getByIdAndDataMartIdAndProjectId(
       command.id,
       command.dataMartId,
       command.projectId
     );
+
+    if (command.expectedType !== undefined && trigger.type !== command.expectedType) {
+      throw new NotFoundException('Scheduled trigger was not found');
+    }
 
     await this.checkAccess(command, trigger);
 

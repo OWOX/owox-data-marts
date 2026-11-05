@@ -1,3 +1,16 @@
+import { MCP_CONNECTORS_FACADE } from './facades/mcp-connectors.facade';
+import { McpConnectorsFacadeImpl } from './facades/mcp-connectors.facade.impl';
+import { MCP_DATA_MART_MANAGEMENT_FACADE } from './facades/mcp-data-mart-management.facade';
+import { McpDataMartManagementFacadeImpl } from './facades/mcp-data-mart-management.facade.impl';
+import { MCP_DATA_MART_EXECUTION_FACADE } from './facades/mcp-data-mart-execution.facade';
+import { McpDataMartExecutionFacadeImpl } from './facades/mcp-data-mart-execution.facade.impl';
+import { MCP_DATA_MART_MODEL_FACADE } from './facades/mcp-data-mart-model.facade';
+import { McpDataMartModelFacadeImpl } from './facades/mcp-data-mart-model.facade.impl';
+import { McpConnectorConfigurationService } from './services/connector/mcp-connector-configuration.service';
+import { McpConnectorMapper } from './mappers/mcp-connector.mapper';
+import { McpDataMartManagementMapper } from './mappers/mcp-data-mart-management.mapper';
+import { McpDataMartExecutionMapper } from './mappers/mcp-data-mart-execution.mapper';
+import { McpDataMartModelMapper } from './mappers/mcp-data-mart-model.mapper';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Module, MiddlewareConsumer, RequestMethod } from '@nestjs/common';
 import { DataMartController } from './controllers/data-mart.controller';
@@ -660,6 +673,16 @@ import { McpCredentialsFacadeImpl } from './credentials/facades/mcp-credentials.
     CredentialSetupController,
   ],
   providers: [
+    McpConnectorConfigurationService,
+    McpConnectorMapper,
+    McpDataMartManagementMapper,
+    McpDataMartExecutionMapper,
+    McpDataMartModelMapper,
+    { provide: MCP_CONNECTORS_FACADE, useClass: McpConnectorsFacadeImpl },
+    { provide: MCP_DATA_MART_MANAGEMENT_FACADE, useClass: McpDataMartManagementFacadeImpl },
+    { provide: MCP_DATA_MART_EXECUTION_FACADE, useClass: McpDataMartExecutionFacadeImpl },
+    { provide: MCP_DATA_MART_MODEL_FACADE, useClass: McpDataMartModelFacadeImpl },
+
     McpStorageMapper,
     McpDestinationMapper,
     {
@@ -1122,6 +1145,11 @@ import { McpCredentialsFacadeImpl } from './credentials/facades/mcp-credentials.
     ConsentCredentialDefinitionService,
   ],
   exports: [
+    MCP_CONNECTORS_FACADE,
+    MCP_DATA_MART_MANAGEMENT_FACADE,
+    MCP_DATA_MART_EXECUTION_FACADE,
+    MCP_DATA_MART_MODEL_FACADE,
+
     MCP_STORAGE_MANAGEMENT_FACADE,
     MCP_CREDENTIALS_FACADE,
     MCP_CONTEXTS_FACADE,

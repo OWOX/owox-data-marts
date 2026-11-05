@@ -55,6 +55,18 @@ export interface BuildMcpToolCallEventParams {
 const MAX_META_VALUE_LEN = 1024;
 const MAX_META_KEYS = 64;
 
+// Configuration can carry arbitrary provider fields, including rejected secret input.
+const PRIVATE_CONFIGURATION_TOOLS = new Set([
+  'get_data_mart_setup',
+  'update_data_mart_definition',
+  'update_data_mart_schema',
+  'actualize_data_mart_schema',
+  'preview_data_mart',
+  'preview_connector_fields',
+  'preview_connector_field_options',
+  'run_data_mart',
+]);
+
 /** _meta keys that carry a stable conversation id, in priority order. */
 const CONVERSATION_ID_META_KEYS = ['openai/session'] as const;
 
@@ -121,6 +133,7 @@ function extractResultErrorMessage(result?: McpToolResult): string {
 
 export function buildMcpToolCallEvent(p: BuildMcpToolCallEventParams): McpToolCallEvent {
   const occurredAt = new Date();
+  const privateConfiguration = PRIVATE_CONFIGURATION_TOOLS.has(p.toolName);
   const status: 'ok' | 'error' = p.error != null || p.result?.isError ? 'error' : 'ok';
 
   const realConversationId = extractConversationId(p.meta);
@@ -165,7 +178,9 @@ export function buildMcpToolCallEvent(p: BuildMcpToolCallEventParams): McpToolCa
       payload.error_message = extractResultErrorMessage(p.result);
     }
     // Mask before truncation so a cut token cannot escape value-based masking.
-    const message = redact(payload.error_message, p.input) as string;
+    const message = privateConfiguration
+      ? 'Data Mart configuration operation failed.'
+      : (redact(payload.error_message, p.input) as string);
     payload.error_message =
       message.length > MAX_META_VALUE_LEN
         ? `${message.slice(0, MAX_META_VALUE_LEN)}…[truncated]`
@@ -185,13 +200,14 @@ export function buildMcpToolCallEvent(p: BuildMcpToolCallEventParams): McpToolCa
     mcp_tool_status: status,
     occurred_at: occurredAt.toISOString(),
     // Bulky (heterogeneous per tool → load into BQ JSON-typed columns).
-    arguments: redact(p.input),
-    result:
-      p.toolName === 'test_custom_connector'
+    arguments: privateConfiguration ? REDACTED : redact(p.input),
+    result: privateConfiguration
+      ? REDACTED
+      : p.toolName === 'test_custom_connector'
         ? createMcpInputSecretRedactor(p.input)(p.result?.structuredContent ?? p.result?.content)
         : redact(p.result?.structuredContent ?? p.result?.content, p.input),
   };
-  if (p.executedSql) offload.sql = p.executedSql;
+  if (p.executedSql) offload.sql = privateConfiguration ? REDACTED : p.executedSql;
   payload[OFFLOAD_KEY] = offload;
 
   return new McpToolCallEvent(payload, occurredAt);
