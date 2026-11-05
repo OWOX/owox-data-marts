@@ -18,7 +18,7 @@ A **calculated field** is a formula you add to a Data Mart's output schema — p
 - Apply a report **aggregation** to a dimension — `Count Unique` over `CONCAT(session_id, user_id)`, say. The field then stops being a grouping key and becomes a metric of that report, exactly as an aggregation on an ordinary column does.
 - **Bucket a calculated date** — a row-level field declared `DATE` or `TIMESTAMP` can be grouped by day, week, month, quarter or year, and the report's metrics are computed at that bucket's grain.
 
-Every supported storage has its own formula dialect: **BigQuery, Athena, Snowflake, Redshift, and Databricks**.
+Every supported storage has its own formula dialect: **BigQuery, Athena, Snowflake, Redshift, Databricks, and DuckDB**.
 
 ## How It Works
 

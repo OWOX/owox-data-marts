@@ -36,9 +36,21 @@ function extractSupportedMembers(filePath: string): Set<string> {
   return new Set(members.map(m => m.replace('DataStorageType.', '')));
 }
 
+/**
+ * Backend members allowed to be temporarily ahead of the web mirror. Each entry here
+ * MUST correspond to work explicitly deferred to a later, already-planned sub-project —
+ * never add one just to silence an accidental drift.
+ *
+ * (currently empty — SP-B3 closed the last pending entry, DUCKDB, by adding the
+ * DataStorageType.DUCKDB enum member and Set entry to the web mirror.)
+ */
+const PENDING_FE_MIRROR = new Set<string>([]);
+
 describe('output controls capability — FE/BE contract', () => {
-  it('web mirror matches backend source of truth', () => {
-    const backend = [...extractSupportedMembers(BACKEND_FILE)].sort();
+  it('web mirror matches backend source of truth (excluding entries pending an FE mirror update)', () => {
+    const backend = [...extractSupportedMembers(BACKEND_FILE)]
+      .filter(member => !PENDING_FE_MIRROR.has(member))
+      .sort();
     const web = [...extractSupportedMembers(WEB_FILE)].sort();
     expect(web).toEqual(backend);
   });

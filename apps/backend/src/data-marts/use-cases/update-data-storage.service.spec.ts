@@ -734,3 +734,23 @@ describe('UpdateDataStorageService - BigQuery projectId validation', () => {
     expect(dataStorageRepository.save).toHaveBeenCalled();
   });
 });
+
+describe('UpdateDataStorageService - DuckDB', () => {
+  it('saves a DuckDB storage, which has no Credential, after its access check', async () => {
+    const { service, storage, storageCredentials, dataStorageAccessFacade, dataStorageRepository } =
+      makeService();
+    Object.assign(storage, { type: DataStorageType.DUCKDB, config: {} });
+    storageCredentials.resolveForStorage.mockResolvedValue(null);
+
+    await service.run(makeCommand({ config: {} }));
+
+    expect(storageCredentials.checkStorageBinding).not.toHaveBeenCalled();
+    expect(storageCredentials.bindStorage).not.toHaveBeenCalled();
+    expect(dataStorageAccessFacade.verifyAccess).toHaveBeenCalledWith(
+      DataStorageType.DUCKDB,
+      {},
+      {}
+    );
+    expect(dataStorageRepository.save).toHaveBeenCalled();
+  });
+});

@@ -28,16 +28,12 @@ import { createLogger } from '../common/logger/logger.service';
 export function getSqliteDatabasePath(config: ConfigService): string {
   const logger = createLogger('SQLiteDatabasePath');
 
-  const envDbPath = config.get<string>('SQLITE_DB_PATH');
+  const configuredPath = config.get<string>('SQLITE_DB_PATH');
+  const dbPath = configuredPath || defaultSqliteDatabasePath();
 
-  let dbPath: string;
-
-  if (envDbPath) {
-    logger.log(`Using SQLite database path from \`SQLITE_DB_PATH\` env: ${envDbPath}`);
-    dbPath = envDbPath;
+  if (configuredPath) {
+    logger.log(`Using SQLite database path from \`SQLITE_DB_PATH\` env: ${dbPath}`);
   } else {
-    const paths = envPaths('owox', { suffix: '' });
-    dbPath = join(paths.data, 'sqlite', 'app.db');
     logger.log(`Using system app data directory for SQLite: ${dbPath}`);
   }
 
@@ -52,4 +48,17 @@ export function getSqliteDatabasePath(config: ConfigService): string {
   }
 
   return dbPath;
+}
+
+/**
+ * Resolves the SQLite database file path without logging or touching the filesystem.
+ *
+ * @returns `SQLITE_DB_PATH`, or `<app data directory>/sqlite/app.db` when unset
+ */
+export function resolveSqliteDatabasePath(config: ConfigService): string {
+  return config.get<string>('SQLITE_DB_PATH') || defaultSqliteDatabasePath();
+}
+
+function defaultSqliteDatabasePath(): string {
+  return join(envPaths('owox', { suffix: '' }).data, 'sqlite', 'app.db');
 }

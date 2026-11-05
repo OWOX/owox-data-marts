@@ -6,6 +6,7 @@ import { DataStorageReportReader } from '../data-storage-types/interfaces/data-s
 import { ReportLike } from '../dto/domain/report-like-read-plan';
 import { BlendableSchemaAccessor } from './blendable-schema.service';
 import { ReportSqlComposerService } from './report-sql-composer.service';
+import type { TableReferenceMemo } from './data-mart-table-reference.service';
 import { columnFilterWithoutCalculatedFields } from '../calculated-fields/calculated-field.utils';
 
 export type ReportTotals = Record<string, number | string | boolean | null>;
@@ -40,9 +41,14 @@ export class ReportTotalsService {
     accessor: BlendableSchemaAccessor,
     storageType: DataStorageType,
     queryTimeoutMs?: number,
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    tableReferences?: TableReferenceMemo
   ): Promise<ReportTotals | null> {
-    const totals = await this.reportSqlComposerService.composeTotals(report, accessor);
+    const totals = await this.reportSqlComposerService.composeTotals(
+      report,
+      accessor,
+      tableReferences
+    );
     if (!totals) {
       return null;
     }

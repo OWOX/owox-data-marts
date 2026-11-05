@@ -109,6 +109,24 @@ describe('ReportTotalsService', () => {
     expect(reader.finalize).toHaveBeenCalled();
   });
 
+  it("hands the caller's table-reference memo to composeTotals", async () => {
+    const { service, reportSqlComposerService } = createService();
+    const report = buildReport();
+    const accessor = { userId: 'u1', roles: ['admin'] };
+    const memo = new Map<string, Promise<string>>();
+
+    await service.computeTotals(
+      report,
+      accessor,
+      DataStorageType.DUCKDB,
+      undefined,
+      undefined,
+      memo
+    );
+
+    expect(reportSqlComposerService.composeTotals).toHaveBeenCalledWith(report, accessor, memo);
+  });
+
   it('forwards composeTotals blendedDataHeaders to the reader so joined-numeric totals resolve a type', async () => {
     const blendedHeader = new ReportDataHeader(
       'partner__cost',

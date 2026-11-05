@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 import { Repository } from 'typeorm';
 import { SchedulerFacade } from '../../common/scheduler/shared/scheduler.facade';
 import { TriggerStatus } from '../../common/scheduler/shared/entities/trigger-status';
@@ -10,6 +11,7 @@ import { DataMartRunService } from './data-mart-run.service';
 import { RunDataQualityService } from '../use-cases/run-data-quality.service';
 import { DataQualityRunTriggerHandlerService } from './data-quality-run-trigger-handler.service';
 import { DataQualityRunService } from './data-quality-run.service';
+import { ConcurrencyLimitExceededException } from '../../common/exceptions/concurrency-limit-exceeded.exception';
 
 describe('DataQualityRunTriggerHandlerService', () => {
   const create = () => {
@@ -22,6 +24,7 @@ describe('DataQualityRunTriggerHandlerService', () => {
     });
     const triggerRepository = {
       update: jest.fn().mockResolvedValue({ affected: 1 }),
+      save: jest.fn(async (value: unknown) => value),
     } as unknown as jest.Mocked<Repository<DataQualityRunTrigger>>;
     const dataMartRunRepository = {
       save: jest.fn(),
@@ -73,6 +76,26 @@ describe('DataQualityRunTriggerHandlerService', () => {
     await service.handleTrigger(trigger);
 
     expect(execution.executeExistingRun).toHaveBeenCalledWith('run-1', 'project-1', undefined);
+  });
+
+  it('returns the trigger to IDLE while a load holds the DuckDB storage', async () => {
+    const { service, trigger, triggerRepository, execution, qualityRunService } = create();
+    execution.executeExistingRun.mockRejectedValue(
+      new ConcurrencyLimitExceededException('DuckDB storage s1 has a load in progress')
+    );
+    const debug = jest
+      .spyOn((service as unknown as { logger: Logger }).logger, 'debug')
+      .mockImplementation();
+
+    await service.handleTrigger(trigger);
+
+    expect(debug).toHaveBeenCalledWith(
+      `DuckDB storage s1 has a load in progress, trigger ${trigger.id} will retry`
+    );
+    expect(trigger.status).toBe(TriggerStatus.IDLE);
+    expect(trigger.isActive).toBe(true);
+    expect(triggerRepository.save).toHaveBeenCalledWith(trigger);
+    expect(qualityRunService.markRunAndSummaryAsExecutionFailed).not.toHaveBeenCalled();
   });
 
   it('refreshes a processing trigger heartbeat during a long Data Quality run', async () => {

@@ -18,7 +18,7 @@ describe('ValidateDataStorageAccessService', () => {
   const storage = { id: 's1', type: 'GOOGLE_BIGQUERY', config: {}, credentialId: null };
   const command = { projectId: 'p', id: 's1' } as never;
 
-  function create() {
+  function create(onStorage: object = storage) {
     const facade = { validateAccess: jest.fn().mockResolvedValue(ValidationResult.success()) };
     const resolver = {
       hasCredentials: jest.fn().mockResolvedValue(true),
@@ -26,7 +26,7 @@ describe('ValidateDataStorageAccessService', () => {
       lostGrantFor: jest.fn().mockResolvedValue(null),
     };
     const service = new ValidateDataStorageAccessService(
-      { getByProjectIdAndId: jest.fn().mockResolvedValue(storage) } as never,
+      { getByProjectIdAndId: jest.fn().mockResolvedValue(onStorage) } as never,
       facade as never,
       resolver as never,
       {} as never
@@ -100,5 +100,40 @@ describe('ValidateDataStorageAccessService', () => {
     expect(warned).toHaveBeenCalledWith(
       'Failed to resolve credentials for storage s1: Lock wait timeout exceeded'
     );
+  });
+
+  it('returns the DuckDB access validator result for a configured DuckDB storage', async () => {
+    const duckDb = { id: 's1', type: 'DUCKDB', config: {}, credentialId: null };
+    const { service, facade, resolver } = create(duckDb);
+    resolver.resolve.mockResolvedValue({ databasePath: '/data/duckdb/s1.duckdb' });
+
+    const result = await service.run(command);
+
+    expect(result.valid).toBe(true);
+    expect(resolver.hasCredentials).not.toHaveBeenCalled();
+    expect(facade.validateAccess).toHaveBeenCalledWith(
+      'DUCKDB',
+      {},
+      { databasePath: '/data/duckdb/s1.duckdb' }
+    );
+  });
+
+  it('reports a DuckDB storage without config as unconfigured', async () => {
+    const { service, facade } = create({ id: 's1', type: 'DUCKDB', config: null });
+
+    const result = await service.run(command);
+
+    expect(result.code).toBe(ValidationResultCode.UNCONFIGURED);
+    expect(facade.validateAccess).not.toHaveBeenCalled();
+  });
+
+  it('reports a non-DuckDB storage without credentials as unconfigured', async () => {
+    const { service, facade, resolver } = create();
+    resolver.hasCredentials.mockResolvedValue(false);
+
+    const result = await service.run(command);
+
+    expect(result.code).toBe(ValidationResultCode.UNCONFIGURED);
+    expect(facade.validateAccess).not.toHaveBeenCalled();
   });
 });

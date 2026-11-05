@@ -14,7 +14,7 @@ Summarize Data Mart data directly in a report — group by dimensions, apply agg
 - Get **Totals** for numeric fields and any aggregated metric — each by its allowed functions — returned as a separate block.
 - Govern, at the Data Mart level, which functions each field may use.
 
-Works across all supported storages: **BigQuery, Athena, Snowflake, Redshift, and Databricks**.
+Works across all supported storages: **BigQuery, Athena, Snowflake, Redshift, Databricks, and DuckDB**.
 
 ## How It Works
 
@@ -205,7 +205,7 @@ The SQL OWOX builds for an aggregated report is fully transparent — preview it
 - Conditional aggregation (`COUNT(DISTINCT … WHERE …)`) and pivoting values into columns are not supported — model these as pre-aggregated Data Marts instead.
 - `Count Unique` (`COUNT_DISTINCT`) and `Combined` (`STRING_AGG`) are not available for complex column types (JSON, geography, array, struct, and similar) — those values are neither comparable nor reliably text-convertible across warehouses, so only `Count` and `Sample` apply.
 - A date bucket's time zone affects only the bucketing. Date **filters** on the same field are evaluated in the warehouse's session time zone, so rows near midnight can land on different sides of a bucket boundary than of a filter boundary. Keep this in mind when combining a non-session time-zone bucket with a date filter on the same field.
-- Percentiles (`P25`/`P50`/`P75`/`P95`) are **approximate** on BigQuery and Athena and **exact** (continuous-interpolated) on Redshift, Snowflake, and Databricks, so the same percentile can differ slightly between storages.
+- Percentiles (`P25`/`P50`/`P75`/`P95`) are **approximate** on BigQuery and Athena and **exact** (continuous-interpolated) on Redshift, Snowflake, Databricks, and DuckDB, so the same percentile can differ slightly between storages.
 - A Unique Count — the report's own Data Mart's or a **joined** one's — can be selected as a column and used as a sort column, but not in a filter or as the input to another aggregation.
 - Unique Count ignores rows whose primary key is **empty** — an empty key is not an identity, so such rows are neither counted nor merged together. Declare a primary key only on columns that are genuinely unique and always filled.
 - **Turning on any Unique Count makes the report aggregated.** The remaining selected columns become `GROUP BY` keys, so a report that returned one row per underlying record now returns one row per combination of those columns. That is what makes the count meaningful per group, but it is not announced: the report looks the same while each row now stands for several records.

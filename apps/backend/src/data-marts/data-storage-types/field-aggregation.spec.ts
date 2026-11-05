@@ -5,6 +5,7 @@ import { AthenaFieldType } from './athena/enums/athena-field-type.enum';
 import { SnowflakeFieldType } from './snowflake/enums/snowflake-field-type.enum';
 import { RedshiftFieldType } from './redshift/enums/redshift-field-type.enum';
 import { DatabricksFieldType } from './databricks/enums/databricks-field-type.enum';
+import { DuckdbFieldType } from './duckdb/enums/duckdb-field-type.enum';
 
 describe('computeEffectiveType', () => {
   describe('passes raw type through when no aggregation', () => {
@@ -152,6 +153,7 @@ describe('integerTypeFor (COUNT effective type)', () => {
     [DataStorageType.SNOWFLAKE, SnowflakeFieldType.INTEGER],
     [DataStorageType.AWS_REDSHIFT, RedshiftFieldType.INTEGER],
     [DataStorageType.DATABRICKS, DatabricksFieldType.INT],
+    [DataStorageType.DUCKDB, DuckdbFieldType.BIGINT],
   ])('returns the integer type for %s', (storageType, expected) => {
     expect(integerTypeFor(storageType)).toBe(expected);
   });

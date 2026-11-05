@@ -69,6 +69,15 @@ describe('DataQualityCheckCompiler', () => {
       date: 'DATE',
       complex: 'MAP',
     },
+    // TIMESTAMPTZ, not TIMESTAMP: DuckDB's bare TIMESTAMP carries no zone and is
+    // deliberately excluded from freshness, so it would skip the freshness category here.
+    [DataStorageType.DUCKDB]: {
+      string: 'VARCHAR',
+      integer: 'BIGINT',
+      timestamp: 'TIMESTAMPTZ',
+      date: 'DATE',
+      complex: 'STRUCT',
+    },
   };
 
   function schema(storageType: DataStorageType, options: { primaryKey?: boolean } = {}) {

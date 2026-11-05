@@ -6,6 +6,15 @@ import { SCALAR_WORD_OPERATORS, scalarFunctionsFor } from './formula-scalar-func
 const STORAGES = ['GOOGLE_BIGQUERY', 'AWS_ATHENA', 'SNOWFLAKE', 'AWS_REDSHIFT', 'DATABRICKS'];
 
 describe('scalarFunctionsFor', () => {
+  it('suggests DuckDB scalar functions', () => {
+    const list = scalarFunctionsFor(DataStorageType.DUCKDB);
+    expect(list).toEqual(expect.arrayContaining(['STRFTIME', 'DATE_TRUNC']));
+    expect(list).toEqual([...new Set(list)].sort());
+    expect(list.length).toBeLessThan(100);
+    const aggregates = new Set(aggregateFunctionsFor(DataStorageType.DUCKDB));
+    expect(list.filter(n => aggregates.has(n))).toEqual([]);
+  });
+
   it.each(STORAGES)('%s: returns a sorted, de-duplicated, upper-case list', storage => {
     const list = scalarFunctionsFor(storage);
     expect(list).toEqual([...new Set(list)]);

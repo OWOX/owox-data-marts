@@ -13,6 +13,11 @@ import { DataMartRunType } from '../enums/data-mart-run-type.enum';
 import { DataMartRunService } from './data-mart-run.service';
 import { RunReportService } from '../use-cases/run-report.service';
 import { BaseRunTriggerHandlerService } from './base-run-trigger-handler.service';
+import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
+import {
+  DuckDbLoadHoldException,
+  holdBehindDuckDbLoads,
+} from '../utils/count-running-storage-runs';
 
 const REPORT_RUN_TYPES = [
   DataMartRunType.GOOGLE_SHEETS_EXPORT,
@@ -71,9 +76,9 @@ export class ReportRunTriggerHandlerService extends BaseRunTriggerHandlerService
       }
     } catch (error) {
       if (error instanceof ConcurrencyLimitExceededException) {
-        this.logger.warn(
-          `Report concurrency limit reached for project ${trigger.projectId}, trigger ${trigger.id} will retry`
-        );
+        const message = `${error.message}, trigger ${trigger.id} will retry`;
+        if (error instanceof DuckDbLoadHoldException) this.logger.debug(message);
+        else this.logger.warn(message);
         trigger.status = TriggerStatus.IDLE;
         trigger.isActive = true;
         await this.repository.save(trigger);
@@ -105,10 +110,12 @@ export class ReportRunTriggerHandlerService extends BaseRunTriggerHandlerService
   }
 
   /**
-   * Claims a run slot using optimistic approach: claim first, then verify the limit.
+   * Claims a run slot using optimistic approach: claim first, then verify the limits.
    * 1. Atomically set run status to RUNNING (UPDATE WHERE status=PENDING)
-   * 2. Count all RUNNING runs for the project
-   * 3. If over limit — throw (transaction rolls back, run returns to PENDING)
+   * 2. Count all RUNNING report runs for the project
+   * 3. On a DuckDB storage, wait for a running load and for an older load still waiting:
+   *    a load holds the file, and it must not wait behind a stream of reports
+   * 4. If over a limit — throw (transaction rolls back, run returns to PENDING)
    *
    * TODO: This approach has a potential race condition under MySQL REPEATABLE READ isolation.
    * Two workers may simultaneously claim slots and both pass the limit check because
@@ -140,6 +147,21 @@ export class ReportRunTriggerHandlerService extends BaseRunTriggerHandlerService
       if (activeCount >= maxRuns) {
         throw new ConcurrencyLimitExceededException(
           `Project ${projectId} has reached the limit of ${maxRuns} concurrent report runs`
+        );
+      }
+
+      const run = await manager.findOneOrFail(DataMartRun, {
+        where: { id: dataMartRunId },
+        relations: { dataMart: { storage: true } },
+      });
+      // A deleted Data Mart or storage is left to the report run, which reports it.
+      const storage = run.dataMart?.storage;
+      if (storage?.type === DataStorageType.DUCKDB) {
+        await holdBehindDuckDbLoads(
+          manager,
+          storage,
+          run,
+          this.configService.get<number>('MAX_CONNECTOR_RUNS_PER_PROJECT', 3)
         );
       }
     });

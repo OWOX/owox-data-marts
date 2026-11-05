@@ -185,6 +185,13 @@ export const DataMartDataStorageView = ({
           </div>
         );
       }
+      case DataStorageType.DUCKDB: {
+        return (
+          <div className='flex flex-wrap gap-2'>
+            <span className='text-muted-foreground'>Local, zero-configuration storage</span>
+          </div>
+        );
+      }
       default:
         return 'Unknown storage type configuration';
     }

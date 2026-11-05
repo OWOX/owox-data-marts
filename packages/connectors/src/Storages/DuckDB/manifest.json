@@ -1,0 +1,15 @@
+{
+  "name": "DuckDBStorage",
+  "description": "Storage for DuckDB (local analytical database)",
+  "title": "DuckDB",
+  "version": "0.0.0",
+  "author": "OWOX, Inc.",
+  "license": "MIT",
+  "environment": {
+    "node": {
+      "enabled": true,
+      "dependencies": [{ "name": "@duckdb/node-api", "version": "2.0.0-r.1", "global": [] }]
+    },
+    "appscript": { "enabled": false }
+  }
+}

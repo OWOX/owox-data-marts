@@ -52,6 +52,7 @@ import { ReportSqlComposerService } from '../services/report-sql-composer.servic
 import { ReportAccessService } from '../services/report-access.service';
 import { ReportService } from '../services/report.service';
 import { ReportTotals, ReportTotalsService } from '../services/report-totals.service';
+import type { TableReferenceMemo } from '../services/data-mart-table-reference.service';
 import { SourceDataLastUpdatedService } from '../services/source-data-last-updated.service';
 import { HttpDataColumnResolver } from '../services/http-data/http-data-column-resolver.service';
 import { HttpDataColumnValidator } from '../services/http-data/http-data-column-validator.service';
@@ -456,11 +457,13 @@ export class StreamHttpDataService {
         runContext: baseMetadata.runContext,
       };
 
+      // Decision, rows and totals share one memo: a SQL Data Mart's view is created once.
+      const tableReferences: TableReferenceMemo = new Map();
       const decision = await this.blendedReportDataService.resolveBlendingDecision(
         readPlan,
         accessor,
         undefined,
-        undefined,
+        tableReferences,
         // See StreamPlanContext.degradesStaleSort: on for a stored report's read only.
         degradesStaleSort ? { degradeStaleSort: true } : undefined
       );
@@ -490,7 +493,13 @@ export class StreamHttpDataService {
       let sqlOverrideParams = decision.params;
       let calculatedFields: CalculatedFieldPlan[] | undefined = decision.calculatedFields;
       if (!decision.needsBlending && hasOutputControls(readPlan)) {
-        const composed = await this.reportSqlComposerService.compose(readPlan, accessor, decision);
+        const composed = await this.reportSqlComposerService.compose(
+          readPlan,
+          accessor,
+          decision,
+          undefined,
+          tableReferences
+        );
         sqlOverride = composed.sql;
         sqlOverrideParams = composed.params;
         calculatedFields = composed.calculatedFields;
@@ -524,7 +533,8 @@ export class StreamHttpDataService {
       const { totals, totalsError } = await this.computeTotalsBestEffort(
         readPlan,
         accessor,
-        dataMart
+        dataMart,
+        tableReferences
       );
 
       // Journalled into the run metadata regardless of outcome; persisted as the Data Mart's
@@ -694,14 +704,18 @@ export class StreamHttpDataService {
   private async computeTotalsBestEffort(
     readPlan: ReportLikeReadPlan,
     accessor: BlendableSchemaAccessor,
-    dataMart: DataMart
+    dataMart: DataMart,
+    tableReferences: TableReferenceMemo
   ): Promise<{ totals: ReportTotals | null; totalsError?: string }> {
     try {
       return {
         totals: await this.reportTotalsService.computeTotals(
           readPlan,
           accessor,
-          dataMart.storage.type
+          dataMart.storage.type,
+          undefined,
+          undefined,
+          tableReferences
         ),
       };
     } catch (err) {

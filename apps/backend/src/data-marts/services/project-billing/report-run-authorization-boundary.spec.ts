@@ -51,7 +51,7 @@ const entrypoints: ReportRunEntrypoint[] = [
     ),
     declaration: 'private async getFullDataExtractionStreaming(',
     runKinds: [RunKind.LOOKER_REPORT_RUN],
-    firstStorageBoundary: 'this.getCachedReader(',
+    firstStorageBoundary: 'this.withCachedReader(',
   },
   {
     name: 'Looker Studio reports (non-streaming)',
@@ -61,7 +61,7 @@ const entrypoints: ReportRunEntrypoint[] = [
     ),
     declaration: 'private async getFullDataExtraction(',
     runKinds: [RunKind.LOOKER_REPORT_RUN],
-    firstStorageBoundary: 'this.getCachedReader(',
+    firstStorageBoundary: 'this.withCachedReader(',
   },
 ];
 

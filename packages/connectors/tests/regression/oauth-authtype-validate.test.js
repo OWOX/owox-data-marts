@@ -50,7 +50,7 @@ test('GoogleAdsSource: AuthType oneOf selector ("oauth2") passes validate() with
         },
       },
     },
-    storage: { name: 'GoogleBigQueryStorage', config: {} },
+    storage: { name: 'DuckDB', config: { DatabasePath: { value: '/tmp/oauth-authtype.duckdb' } } },
     runConfig: null,
     env: { datamartId: 'dm', runId: 'run' },
   });
@@ -74,7 +74,7 @@ test('GoogleAdsSource: AuthType oneOf selector rejects an unknown value with a c
         AuthType: { value: 'not-a-real-option' },
       },
     },
-    storage: { name: 'GoogleBigQueryStorage', config: {} },
+    storage: { name: 'DuckDB', config: { DatabasePath: { value: '/tmp/oauth-authtype.duckdb' } } },
     runConfig: null,
     env: { datamartId: 'dm', runId: 'run' },
   });
