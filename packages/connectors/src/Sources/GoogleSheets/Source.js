@@ -1115,7 +1115,8 @@ export class GoogleSheetsSource extends AbstractSource {
 
   _buildSheetRequestErrorMessage(error) {
     const statusCode = error?.statusCode;
-    const message = error instanceof Error ? error.message : String(error);
+    // Google's message often ends with a period; the strings below add their own.
+    const message = (error instanceof Error ? error.message : String(error)).replace(/\.$/, '');
 
     if (statusCode === 403) {
       if (this.context.getParameter('AuthType')?.value === 'oauth2') {
@@ -1145,7 +1146,7 @@ export class GoogleSheetsSource extends AbstractSource {
       return `Google Sheets could not read the selected range: ${message}. Check the sheet tab name and range.`;
     }
 
-    return `Google Sheets request failed: ${message}`;
+    return `Google Sheets request failed: ${message}.`;
   }
 
   _getConfiguredServiceAccountEmail() {

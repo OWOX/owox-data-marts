@@ -17,6 +17,7 @@ describe('GoogleSheetsLoginButton', () => {
         clientId='client-1'
         redirectUri={REDIRECT_URI}
         onSuccess={onSuccess}
+        withPickerToken
       />
     );
 
@@ -45,6 +46,18 @@ describe('GoogleSheetsLoginButton', () => {
     });
 
     expect(onSuccess).toHaveBeenCalledWith({ code: 'code-1', accessToken: 'token-1' });
+  });
+
+  it('asks Google for the code only without the Picker token', () => {
+    const open = vi.spyOn(window, 'open').mockReturnValue({ closed: false } as unknown as Window);
+    render(
+      <GoogleSheetsLoginButton clientId='client-1' redirectUri={REDIRECT_URI} onSuccess={vi.fn()} />
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in with Google' }));
+
+    const url = new URL(open.mock.calls[0][0] as string);
+    expect(url.searchParams.get('response_type')).toBe('code');
   });
 
   it('reports a blocked popup and stays ready for another try', () => {

@@ -104,7 +104,7 @@ vi.mock('../../../../connector-builder/shared/api/connector-builder-api.service'
 vi.mock('../../../shared/model/hooks/useConnectorTargetConflict', () => ({
   useConnectorTargetConflict: (_dataMartId: unknown, target: unknown) => {
     conflictCalls.push(target);
-    return conflictHook.current;
+    return { conflict: conflictHook.current, isPending: false };
   },
 }));
 

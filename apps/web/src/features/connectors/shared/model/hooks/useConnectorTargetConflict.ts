@@ -8,22 +8,26 @@ const DEBOUNCE_MS = 400;
 export function useConnectorTargetConflict(
   dataMartId: string | undefined,
   target: { fullyQualifiedName: string; isValid: boolean } | null
-): ConnectorTargetConflictResponseDto | null {
-  const [answer, setAnswer] = useState<ConnectorTargetConflictResponseDto | null>(null);
+): { conflict: ConnectorTargetConflictResponseDto | null; isPending: boolean } {
+  // The answer records its target, so a changed target is pending at once, with no stale answer.
+  const [stored, setStored] = useState<{
+    fqn: string;
+    answer: ConnectorTargetConflictResponseDto | null;
+  }>({ fqn: '', answer: null });
   const fqn = target?.isValid && dataMartId ? target.fullyQualifiedName : '';
 
   useEffect(() => {
-    setAnswer(null);
     if (!fqn || !dataMartId) return;
     let stale = false;
     const timer = setTimeout(() => {
       dataMartService
         .getConnectorTargetConflict(dataMartId, fqn)
         .then(result => {
-          if (!stale) setAnswer(result);
+          if (!stale) setStored({ fqn, answer: result });
         })
         .catch(() => {
-          // The warning is advisory: a failed lookup shows nothing.
+          // The warning is advisory: a failed lookup counts as answered with no conflict.
+          if (!stale) setStored({ fqn, answer: null });
         });
     }, DEBOUNCE_MS);
     return () => {
@@ -32,5 +36,6 @@ export function useConnectorTargetConflict(
     };
   }, [dataMartId, fqn]);
 
-  return answer;
+  const answered = stored.fqn === fqn;
+  return { conflict: answered ? stored.answer : null, isPending: fqn !== '' && !answered };
 }

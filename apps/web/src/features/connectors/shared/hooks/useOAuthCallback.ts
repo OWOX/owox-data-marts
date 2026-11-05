@@ -32,7 +32,7 @@ export function useOAuthCallback({
     // A page opened before an update still asks for the code only, and Google sends it in the query string.
     if (fromFragment && window.location.hash) {
       params = new URLSearchParams(window.location.hash.slice(1));
-      // Remove the token from the address bar and the history before anything else runs.
+      // replaceState clears the token from the address bar and this history entry before anything else runs.
       window.history.replaceState(
         window.history.state,
         '',

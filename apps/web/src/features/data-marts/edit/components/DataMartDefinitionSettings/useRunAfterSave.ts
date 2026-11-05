@@ -15,10 +15,13 @@ export function useRunAfterSave() {
   const canRunAfterSave =
     !!dataMart?.storage && isDataStorageConfigValid(dataMart.storage) && !context?.hasActiveRuns;
 
+  // A draft runs on the main button; a published Data Mart already runs on its schedule.
+  const isDraft = dataMart?.status.code === DataMartStatus.DRAFT;
+
   // Publishing a draft starts its first run on the backend, so only a published one runs here.
   const runSavedDataMart = async () => {
     if (!context || !dataMart) return;
-    if (dataMart.status.code === DataMartStatus.DRAFT) {
+    if (isDraft) {
       try {
         await context.publishDataMart(dataMart.id);
         // The context keeps the refresh error; the run itself has started.
@@ -31,5 +34,5 @@ export function useRunAfterSave() {
     await context.runDataMart({ id: dataMart.id, payload: { runType: RunType.INCREMENTAL } });
   };
 
-  return { canRunAfterSave, runSavedDataMart };
+  return { canRunAfterSave, isDraft, runSavedDataMart };
 }

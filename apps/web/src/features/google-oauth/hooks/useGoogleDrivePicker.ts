@@ -315,8 +315,6 @@ export function useGoogleSheetsPicker() {
   const pendingPickerResolveRef = useRef<(() => void) | null>(null);
   const isMountedRef = useRef(true);
   const generationRef = useRef(0);
-  // Without a hint email there is no account to key on, so this stays per hook instance.
-  const chooseAccountRef = useRef(false);
 
   const closeActivePicker = useCallback(() => {
     const picker = activePickerRef.current;
@@ -352,9 +350,7 @@ export function useGoogleSheetsPicker() {
           tokenRequest = Promise.resolve(accessToken);
         } else if (clientId) {
           // After a sign-in request or a wrong account, the next click lets the member choose.
-          const chooseAccount = hintEmail
-            ? accountsToChoose.has(hintEmail.toLowerCase())
-            : chooseAccountRef.current;
+          const chooseAccount = hintEmail ? accountsToChoose.has(hintEmail.toLowerCase()) : false;
           const prompt = chooseAccount ? 'select_account' : 'none';
           tokenRequest = requestAccessToken(clientId, hintEmail, prompt);
         } else {
@@ -363,7 +359,6 @@ export function useGoogleSheetsPicker() {
         const [token] = await Promise.all([tokenRequest, loadPicker()]);
         if (superseded()) return;
         await verifyGooglePickerAccount(token, hintEmail);
-        if (!accessToken) chooseAccountRef.current = false;
         if (hintEmail) accountsToChoose.delete(hintEmail.toLowerCase());
         if (superseded()) return;
 
@@ -427,7 +422,6 @@ export function useGoogleSheetsPicker() {
           (error instanceof GoogleSignInRequiredError ||
             error instanceof GooglePickerAccountMismatchError)
         ) {
-          chooseAccountRef.current = true;
           if (hintEmail) accountsToChoose.add(hintEmail.toLowerCase());
         }
         // A superseded call must not close the Picker a newer one opened.

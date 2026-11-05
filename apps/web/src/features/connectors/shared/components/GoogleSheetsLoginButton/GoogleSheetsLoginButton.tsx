@@ -7,6 +7,8 @@ interface GoogleSheetsLoginButtonProps {
   onSuccess: (response: GoogleSheetsLoginResponse) => void;
   onError?: (error: Error) => void;
   disabled?: boolean;
+  /** Also ask Google for a token the page can hand to Picker. */
+  withPickerToken?: boolean;
   children?: React.ReactNode;
 }
 
@@ -66,6 +68,7 @@ export function GoogleSheetsLoginButton({
   onSuccess,
   onError,
   disabled = false,
+  withPickerToken = false,
   children,
 }: GoogleSheetsLoginButtonProps) {
   const { openPopup, isLoading, error } = useOAuthPopup<
@@ -76,8 +79,8 @@ export function GoogleSheetsLoginButton({
     buildAuthUrl: (state: string) => {
       const url = new URL(GOOGLE_AUTH_URL);
       url.searchParams.set('client_id', clientId);
-      // One popup gives the refresh code for the backend and a token for Picker in the page.
-      url.searchParams.set('response_type', 'code token');
+      // One popup gives the refresh code for the backend and, when asked, a token for Picker in the page.
+      url.searchParams.set('response_type', withPickerToken ? 'code token' : 'code');
       url.searchParams.set('redirect_uri', redirectUri);
       url.searchParams.set('scope', SCOPE);
       url.searchParams.set('state', state);

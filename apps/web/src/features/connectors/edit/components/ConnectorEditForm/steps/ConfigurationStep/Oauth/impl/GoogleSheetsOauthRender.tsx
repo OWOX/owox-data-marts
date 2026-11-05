@@ -121,6 +121,7 @@ export function GoogleSheetsOauthRender({
         redirectUri={settings?.vars.RedirectUri as string}
         onSuccess={response => void handleGoogleLogin(response)}
         disabled={isLoading}
+        withPickerToken={forCredential}
       >
         {status?.user ? (
           <>

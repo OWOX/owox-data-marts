@@ -41,6 +41,14 @@ describe('useRunAfterSave', () => {
     expect(renderInDataMart().result.current.canRunAfterSave).toBe(true);
   });
 
+  it('reports a draft Data Mart so Save & Run is the main action', () => {
+    expect(renderInDataMart({ status: DataMartStatus.DRAFT }).result.current.isDraft).toBe(true);
+  });
+
+  it('reports a published Data Mart as not a draft', () => {
+    expect(renderInDataMart().result.current.isDraft).toBe(false);
+  });
+
   it('does not offer Save & Run for an unconfigured Storage', () => {
     const { result } = renderInDataMart({ config: { projectId: '', location: '' } });
 

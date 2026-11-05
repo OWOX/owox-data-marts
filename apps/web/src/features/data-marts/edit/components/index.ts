@@ -6,3 +6,4 @@ export { DataMartDataStorageView } from './DataMartDataStorageView.tsx';
 export { DataMartDefinitionSettings } from './DataMartDefinitionSettings/DataMartDefinitionSettings.tsx';
 export { DataMartSchemaSettings } from './DataMartSchemaSettings/DataMartSchemaSettings.tsx';
 export { ConnectorManualRunButton } from './DataMartDefinitionSettings/ConnectorManualRunButton.tsx';
+export { useRunAfterSave } from './DataMartDefinitionSettings/useRunAfterSave.ts';

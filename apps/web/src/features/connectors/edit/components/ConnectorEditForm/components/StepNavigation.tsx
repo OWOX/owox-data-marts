@@ -12,8 +12,10 @@ interface StepNavigationProps {
   onNext: () => void;
   onBack: () => void;
   onFinish: (runAfterSave: boolean) => void;
-  /** Makes "Save & Run" the final action and moves the plain save into its menu. */
+  /** Offers "Save & Run" next to the plain save. */
   canRunAfterSave?: boolean;
+  /** Makes "Save & Run" the main button; otherwise the plain save is main and the run is in the menu. */
+  runIsMainAction?: boolean;
   nextLabel?: string;
   backLabel?: string;
   finishLabel?: string;
@@ -29,6 +31,7 @@ export function StepNavigation({
   onBack,
   onFinish,
   canRunAfterSave = false,
+  runIsMainAction = false,
   nextLabel = 'Next',
   backLabel = 'Back',
   finishLabel = 'Save',
@@ -42,20 +45,20 @@ export function StepNavigation({
         groupClassName={fullWidth ? 'w-full' : undefined}
         className={fullWidth ? 'flex-1' : undefined}
         onClick={() => {
-          onFinish(true);
+          onFinish(runIsMainAction);
         }}
         disabled={isFinishDisabled}
         menu={
           <DropdownMenuItem
             onClick={() => {
-              onFinish(false);
+              onFinish(!runIsMainAction);
             }}
           >
-            {finishLabel}
+            {runIsMainAction ? finishLabel : 'Save & Run'}
           </DropdownMenuItem>
         }
       >
-        Save & Run
+        {runIsMainAction ? 'Save & Run' : finishLabel}
       </SplitButton>
     ) : (
       <Button

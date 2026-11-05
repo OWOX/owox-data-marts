@@ -29,13 +29,14 @@ A [Connector Data Mart](./setup-guide/connector-data-mart.md) imports data from 
 1. Click **+ New Data Mart**, enter a title, select your Storage, and click **Create Data Mart**.
 2. On the **Data Setup** tab, in **Input Source**, set **Definition Type** to **Connector**. Pick a platform, such as Facebook Ads.
 3. Add the platform credentials — each connector's guide shows [how to obtain them](./setup-guide/connector-data-mart.md#step-3-add-access-credentials).
-4. Select the data node and fields to import. Confirm where to store the data, and click **Save**. BigQuery asks for a dataset name; other warehouses ask for a database, schema, or catalog.
+4. Select the data node and fields to import. Confirm where to store the data. BigQuery asks for a dataset name; other warehouses ask for a database, schema, or catalog.
+5. Click **Save & Run** at the end of the wizard. It saves the settings, publishes the Data Mart, and starts the first import. To only save, click **Save** in the menu next to the button.
 
 Already have data in your warehouse? Create a [SQL](./setup-guide/sql-data-mart.md), [Table](./setup-guide/table-data-mart.md), or [View](./setup-guide/view-data-mart.md) Data Mart instead and skip to Step 4.
 
 ## Step 3: Run it and check the data
 
-1. Click **Publish & Run Data Mart** in the page header — the first import starts automatically.
+1. If you clicked only **Save**, click **Publish & Run Data Mart** in the page header. The first import starts automatically.
 2. Watch the **Run History** tab for logs and results.
 3. To load data again later, click **Manual Run** in the **Input Source** card header.
 

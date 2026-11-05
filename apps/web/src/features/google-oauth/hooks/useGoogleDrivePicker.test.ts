@@ -346,7 +346,8 @@ describe('useGoogleSheetsPicker', () => {
   });
 
   it("opens Picker with the sign-in popup's token and never loads Google Identity Services", async () => {
-    const { setOAuthToken, setVisible, requestAccessToken } = mockPickerApi();
+    const { setOAuthToken, setVisible } = mockPickerApi();
+    // Without GIS on the page, any token request would inject its script.
     delete (window as unknown as { google: { accounts?: unknown } }).google.accounts;
     const { result } = renderHook(() => useGoogleSheetsPicker());
 
@@ -362,7 +363,6 @@ describe('useGoogleSheetsPicker', () => {
       expect(setVisible).toHaveBeenCalledWith(true);
     });
     expect(setOAuthToken).toHaveBeenCalledWith('popup-token');
-    expect(requestAccessToken).not.toHaveBeenCalled();
     expect(
       document.querySelector('script[src="https://accounts.google.com/gsi/client"]')
     ).toBeNull();

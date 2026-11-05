@@ -392,9 +392,9 @@ export function GetBlendableSchemaSpec() {
 export function GetConnectorTargetConflictSpec() {
   return applyDecorators(
     ApiOperation({
-      summary: 'Check whether another DataMart writes the same connector target table',
+      summary: 'Check whether another Data Mart writes the same connector target table',
       description:
-        'Compares the target name without quotes and brackets. BigQuery names keep their case; Snowflake keeps the case of quoted parts and upper-cases unquoted parts; other storages ignore case. The other DataMart is named only when the caller can see it.',
+        'Compares the target name without quotes and brackets. BigQuery names keep their case; Snowflake upper-cases only an unquoted database, because the connector always quotes the schema and the table; other storages ignore case. The other Data Mart is named only when the caller can see it.',
     }),
     ApiParam({ name: 'id', description: 'DataMart ID' }),
     ApiOkResponse({ type: ConnectorTargetConflictResponseApiDto }),

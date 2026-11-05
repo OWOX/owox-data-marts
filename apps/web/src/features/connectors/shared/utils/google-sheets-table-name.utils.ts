@@ -41,7 +41,8 @@ const CYRILLIC_TO_LATIN: Readonly<Record<string, string>> = {
   ъ: '',
 };
 // An apostrophe inside a Cyrillic word marks pronunciation (п'ять); anywhere else it separates.
-const CYRILLIC_APOSTROPHE = /(?<=[\u0400-\u04ff])['\u2019\u02bc](?=[\u0400-\u04ff])/g;
+// No lookbehind: Safari before 16.4 throws on it.
+const CYRILLIC_APOSTROPHE = /([\u0400-\u04ff])['\u2019\u02bc](?=[\u0400-\u04ff])/g;
 
 // Latin letters that NFKD does not split into a base letter plus a mark.
 const LETTER_REPLACEMENTS: Record<string, string> = {
@@ -69,7 +70,7 @@ function toIdentifierPart(value: unknown): string {
   return value
     .normalize('NFC')
     .toLowerCase()
-    .replace(CYRILLIC_APOSTROPHE, '')
+    .replace(CYRILLIC_APOSTROPHE, '$1')
     .replace(/зг/g, 'zgh')
     .replace(/[\u0400-\u04ff]/g, letter => CYRILLIC_TO_LATIN[letter] ?? letter)
     .normalize('NFKD')

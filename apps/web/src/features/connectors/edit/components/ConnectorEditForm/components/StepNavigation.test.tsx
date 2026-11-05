@@ -30,8 +30,20 @@ describe('StepNavigation — final action', () => {
     expect(onFinish).toHaveBeenCalledWith(false);
   });
 
-  it('makes Save & Run the main action when a run is possible', () => {
+  it('makes Save the main action and puts Save & Run in the menu by default', async () => {
     const onFinish = renderLastStep({ canRunAfterSave: true });
+
+    expect(screen.queryByRole('button', { name: 'Save & Run' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    expect(onFinish).toHaveBeenLastCalledWith(false);
+
+    fireEvent.pointerDown(screen.getByRole('button', { name: 'More actions' }));
+    fireEvent.click(await within(document.body).findByRole('menuitem', { name: 'Save & Run' }));
+    expect(onFinish).toHaveBeenLastCalledWith(true);
+  });
+
+  it('makes Save & Run the main action when asked', () => {
+    const onFinish = renderLastStep({ canRunAfterSave: true, runIsMainAction: true });
 
     fireEvent.click(screen.getByRole('button', { name: 'Save & Run' }));
 
@@ -39,7 +51,7 @@ describe('StepNavigation — final action', () => {
   });
 
   it('keeps a plain Save in the menu of Save & Run', async () => {
-    const onFinish = renderLastStep({ canRunAfterSave: true });
+    const onFinish = renderLastStep({ canRunAfterSave: true, runIsMainAction: true });
 
     fireEvent.pointerDown(screen.getByRole('button', { name: 'More actions' }));
     fireEvent.click(await within(document.body).findByRole('menuitem', { name: 'Save' }));
@@ -49,7 +61,12 @@ describe('StepNavigation — final action', () => {
   });
 
   it('shows the same split action in the one-step layout', () => {
-    const onFinish = renderLastStep({ canRunAfterSave: true, currentStep: 1, totalSteps: 1 });
+    const onFinish = renderLastStep({
+      canRunAfterSave: true,
+      runIsMainAction: true,
+      currentStep: 1,
+      totalSteps: 1,
+    });
 
     fireEvent.click(screen.getByRole('button', { name: 'Save & Run' }));
 
@@ -58,7 +75,7 @@ describe('StepNavigation — final action', () => {
   });
 
   it('disables both halves until the step is complete', () => {
-    renderLastStep({ canRunAfterSave: true, canGoNext: false });
+    renderLastStep({ canRunAfterSave: true, runIsMainAction: true, canGoNext: false });
 
     expect(screen.getByRole('button', { name: 'Save & Run' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'More actions' })).toBeDisabled();

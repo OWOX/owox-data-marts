@@ -25,7 +25,7 @@ describe('useConnectorTargetConflict', () => {
     });
 
     expect(spy).toHaveBeenCalledWith('dm-1', 'ds.plan');
-    expect(result.current).toEqual(hit);
+    expect(result.current).toEqual({ conflict: hit, isPending: false });
   });
 
   it('skips an invalid target or a form outside a Data Mart', async () => {
@@ -39,17 +39,31 @@ describe('useConnectorTargetConflict', () => {
     });
 
     expect(spy).not.toHaveBeenCalled();
-    expect(invalid.result.current).toBeNull();
-    expect(outside.result.current).toBeNull();
+    expect(invalid.result.current).toEqual({ conflict: null, isPending: false });
+    expect(outside.result.current).toEqual({ conflict: null, isPending: false });
   });
 
-  it('returns null when the request fails', async () => {
-    vi.spyOn(dataMartService, 'getConnectorTargetConflict').mockRejectedValue(new Error('x'));
-    const { result } = renderHook(() => useConnectorTargetConflict('dm-1', valid));
+  it('counts a failed lookup as answered with no conflict, and drops the previous answer', async () => {
+    const spy = vi
+      .spyOn(dataMartService, 'getConnectorTargetConflict')
+      .mockResolvedValueOnce(hit)
+      .mockRejectedValueOnce(new Error('x'));
+    const { result, rerender } = renderHook(
+      ({ target }) => useConnectorTargetConflict('dm-1', target),
+      { initialProps: { target: valid } }
+    );
     await act(async () => {
       await vi.advanceTimersByTimeAsync(400);
     });
-    expect(result.current).toBeNull();
+    expect(result.current).toEqual({ conflict: hit, isPending: false });
+
+    rerender({ target: { fullyQualifiedName: 'ds.fact', isValid: true } });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(400);
+    });
+
+    expect(spy).toHaveBeenLastCalledWith('dm-1', 'ds.fact');
+    expect(result.current).toEqual({ conflict: null, isPending: false });
   });
 
   it('drops a stale answer', async () => {
@@ -74,6 +88,43 @@ describe('useConnectorTargetConflict', () => {
     });
 
     expect(spy).toHaveBeenCalledTimes(2);
-    expect(result.current).toEqual({ conflict: false, dataMart: null });
+    expect(result.current).toEqual({
+      conflict: { conflict: false, dataMart: null },
+      isPending: false,
+    });
+  });
+
+  it('is pending as soon as the target changes, before the debounce ends', async () => {
+    vi.spyOn(dataMartService, 'getConnectorTargetConflict').mockResolvedValue(hit);
+    const { result, rerender } = renderHook(
+      ({ target }) => useConnectorTargetConflict('dm-1', target),
+      { initialProps: { target: valid } }
+    );
+    expect(result.current).toEqual({ conflict: null, isPending: true });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(400);
+    });
+    expect(result.current).toEqual({ conflict: hit, isPending: false });
+
+    rerender({ target: { fullyQualifiedName: 'ds.fact', isValid: true } });
+
+    expect(result.current).toEqual({ conflict: null, isPending: true });
+  });
+
+  it('reports a no-conflict answer as answered', async () => {
+    const none = { conflict: false, dataMart: null };
+    vi.spyOn(dataMartService, 'getConnectorTargetConflict').mockResolvedValue(none);
+    const { result } = renderHook(() => useConnectorTargetConflict('dm-1', valid));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(400);
+    });
+
+    expect(result.current).toEqual({ conflict: none, isPending: false });
+  });
+
+  it('is not pending without a lookup for a null target', () => {
+    const { result } = renderHook(() => useConnectorTargetConflict('dm-1', null));
+
+    expect(result.current).toEqual({ conflict: null, isPending: false });
   });
 });

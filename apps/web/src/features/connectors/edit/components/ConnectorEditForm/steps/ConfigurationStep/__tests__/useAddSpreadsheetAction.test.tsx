@@ -1,6 +1,9 @@
 import { act, renderHook } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { OpenGoogleSheetsPickerOptions } from '../../../../../../../google-oauth';
+import {
+  preloadGoogleSheetsPicker,
+  type OpenGoogleSheetsPickerOptions,
+} from '../../../../../../../google-oauth';
 import { useAddSpreadsheetAction } from '../useAddSpreadsheetAction';
 
 const credentialsState = vi.hoisted(() => ({
@@ -57,6 +60,7 @@ describe('useAddSpreadsheetAction', () => {
     credentialsState.isPending = false;
     credentialsState.isSuccess = true;
     vi.clearAllMocks();
+    oauth.getSettings.mockResolvedValue(SETTINGS);
   });
 
   it('offers nothing without a Credential', () => {
@@ -65,7 +69,6 @@ describe('useAddSpreadsheetAction', () => {
 
   it("opens Picker through Google Identity Services for the Credential's account", async () => {
     credentialsState.credentials = [credential()];
-    oauth.getSettings.mockResolvedValue(SETTINGS);
     picker.openPicker.mockImplementation(async (options: OpenGoogleSheetsPickerOptions) => {
       options.onPicked({ id: 'id-9', name: 'Budget', url: 'https://docs.google.com/x' });
     });
@@ -74,11 +77,16 @@ describe('useAddSpreadsheetAction', () => {
 
     expect(result.current).toMatchObject({ label: '+ Add spreadsheet' });
     expect(result.current?.disabled).toBeFalsy();
+    expect(preloadGoogleSheetsPicker).toHaveBeenCalledTimes(1);
 
+    // Let the preloaded settings resolve before the click.
+    await act(async () => undefined);
+    expect(oauth.getSettings).toHaveBeenCalledTimes(1);
     await act(async () => {
       await result.current?.onSelect();
     });
 
+    expect(oauth.getSettings).toHaveBeenCalledTimes(1);
     expect(oauth.getSettings).toHaveBeenCalledWith('GoogleSheets', 'AuthType.oauth2');
     expect(picker.openPicker).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -95,7 +103,6 @@ describe('useAddSpreadsheetAction', () => {
 
   it('drops a pick when the Credential changed while Google was open', async () => {
     credentialsState.credentials = [credential(), credential({ id: 'cred-2' }, 'b@example.com')];
-    oauth.getSettings.mockResolvedValue(SETTINGS);
     let pick: OpenGoogleSheetsPickerOptions['onPicked'] = () => undefined;
     picker.openPicker.mockImplementation(async (options: OpenGoogleSheetsPickerOptions) => {
       pick = options.onPicked;
@@ -119,7 +126,6 @@ describe('useAddSpreadsheetAction', () => {
 
   it('reports a Picker error with a toast', async () => {
     credentialsState.credentials = [credential()];
-    oauth.getSettings.mockResolvedValue(SETTINGS);
     picker.openPicker.mockImplementation(async (options: OpenGoogleSheetsPickerOptions) => {
       options.onError?.('Sign in to Google as a@example.com to add spreadsheets.');
     });

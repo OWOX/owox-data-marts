@@ -23,13 +23,16 @@ vi.mock('../../../../../../../shared/components/GoogleSheetsLoginButton', () => 
   GoogleSheetsLoginButton: ({
     children,
     onSuccess,
+    withPickerToken,
   }: {
     children?: React.ReactNode;
+    withPickerToken?: boolean;
     onSuccess: (response: { code: string; accessToken: string }) => void;
   }) => (
     <button
       type='button'
       data-testid='google-login'
+      data-with-picker-token={String(withPickerToken ?? false)}
       onClick={() => {
         onSuccess({ code: 'code', accessToken: 'popup-token' });
       }}
@@ -350,6 +353,16 @@ describe('GoogleSheetsOauthRender', () => {
         );
       });
     });
+  });
+
+  it('asks the sign-in for the code only in a Data Mart configuration', () => {
+    renderGoogleSheetsOAuth();
+    expect(screen.getByTestId('google-login').getAttribute('data-with-picker-token')).toBe('false');
+  });
+
+  it('asks the sign-in for a Picker token for a Credential connect', () => {
+    renderGoogleSheetsOAuth({ forCredential: true });
+    expect(screen.getByTestId('google-login').getAttribute('data-with-picker-token')).toBe('true');
   });
 
   it('keeps the button disabled until the newest Picker call settles', async () => {

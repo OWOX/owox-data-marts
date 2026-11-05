@@ -10,7 +10,7 @@ import {
   TargetSetupStep,
 } from './steps';
 import { StepNavigation } from './components';
-import type { ConnectorConfig } from '../../../../data-marts/edit';
+import { useRunAfterSave, type ConnectorConfig } from '../../../../data-marts/edit';
 import type { ConnectorFieldsResponseApiDto } from '../../../shared/api';
 import {
   AppWizard,
@@ -42,7 +42,6 @@ import { isUnpublishedCustomConnector } from '../../../shared/utils/custom-conne
 import { suggestGoogleSheetsTableName } from '../../../shared/utils/google-sheets-table-name.utils';
 import { useConnectorTargetConflict } from '../../../shared/model/hooks/useConnectorTargetConflict';
 import { DataMartContext } from '../../../../data-marts/edit/model/context/context';
-import { useRunAfterSave } from '../../../../data-marts/edit/components/DataMartDefinitionSettings/useRunAfterSave';
 
 const connectorKey = (c: ConnectorListItem) =>
   c.isCustom && c.id ? `custom:${c.id}` : `bundled:${c.name}`;
@@ -77,7 +76,7 @@ export function ConnectorEditForm({
   const { canEdit } = usePermissions();
   // Lets an editor of this Data Mart preview a configuration bound to a Credential.
   const dataMartId = useContext(DataMartContext)?.dataMart?.id;
-  const { canRunAfterSave } = useRunAfterSave();
+  const { canRunAfterSave, isDraft } = useRunAfterSave();
   const [customConnectors, setCustomConnectors] = useState<CustomConnectorListItemDto[]>([]);
   const [isDirty, setIsDirty] = useState(false);
   const [selectedConnector, setSelectedConnector] = useState<ConnectorListItem | null>(null);
@@ -141,7 +140,7 @@ export function ConnectorEditForm({
     null
   );
   // Only the full wizard shows Target Setup; other modes must not ask for a conflict.
-  const conflict = useConnectorTargetConflict(
+  const { conflict, isPending: isConflictPending } = useConnectorTargetConflict(
     dataMartId,
     mode === 'full' && !configurationOnly ? target : null
   );
@@ -1028,7 +1027,9 @@ export function ConnectorEditForm({
             void handleNext();
           }}
           onBack={handleBack}
-          canRunAfterSave={canRunAfterSave}
+          // Each run replaces a conflicting table, so Save & Run waits for a clear answer.
+          canRunAfterSave={canRunAfterSave && !isConflictPending && !conflict?.conflict}
+          runIsMainAction={isDraft}
           onFinish={runAfterSave => {
             const submit = (connector: ConnectorConfig) => {
               onSubmit(connector, runAfterSave);

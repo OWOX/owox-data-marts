@@ -47,6 +47,7 @@ describe('suggestGoogleSheetsTableName', () => {
     expect(suggestGoogleSheetsTableName('м’ясо')).toBe('miaso');
     expect(suggestGoogleSheetsTableName("O'Brien Plan")).toBe('o_brien_plan');
     expect(suggestGoogleSheetsTableName("'План'")).toBe('plan');
+    expect(suggestGoogleSheetsTableName("а'б'в")).toBe('abv');
   });
 
   it('joins the document and the sheet', () => {

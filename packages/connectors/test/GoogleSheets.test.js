@@ -413,6 +413,28 @@ test('gives the reconnect hint for a bare PERMISSION_DENIED with no reason', () 
   assert.doesNotMatch(source._buildSheetRequestErrorMessage(disabledApi), /Reconnect/);
 });
 
+test('keeps a single period after a Google message that already ends with one', () => {
+  const source = createSource({ authType: 'oauth2' });
+  const withDot = Object.assign(new Error('Missing scopes.'), { statusCode: 403 });
+  const withoutDot = Object.assign(new Error('Missing scopes'), { statusCode: 403 });
+
+  assert.match(source._buildSheetRequestErrorMessage(withDot), /: Missing scopes\.$/);
+  assert.match(source._buildSheetRequestErrorMessage(withoutDot), /: Missing scopes\.$/);
+
+  const generic = Object.assign(new Error('Backend error.'), { statusCode: 500 });
+  assert.match(source._buildSheetRequestErrorMessage(generic), /: Backend error\.$/);
+});
+
+test('gives no reconnect hint for a 403 without a JSON body', () => {
+  const source = createSource({ authType: 'oauth2' });
+  const message = source._buildSheetRequestErrorMessage(
+    Object.assign(new Error('Forbidden'), { statusCode: 403 })
+  );
+
+  assert.match(message, /access denied: Forbidden\./);
+  assert.doesNotMatch(message, /Reconnect/);
+});
+
 test('rejects OAuth authorization when Google does not return an email address', async () => {
   const responses = [
     {
