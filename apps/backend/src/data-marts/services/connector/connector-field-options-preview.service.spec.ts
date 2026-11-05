@@ -225,6 +225,31 @@ describe(ConnectorFieldOptionsPreviewService.name, () => {
     );
   });
 
+  it('keeps an https link of an option and drops any other link without failing the list', async () => {
+    const { service } = createService();
+    fetchFieldOptionsMock.mockResolvedValue([
+      {
+        value: 'Summary',
+        label: 'Summary',
+        url: 'https://docs.google.com/spreadsheets/d/a/edit#gid=0',
+      },
+      { value: 'Data', label: 'Data', url: 'javascript:alert(1)' },
+      { value: 'Plan', label: 'Plan', url: 'http://example.com' },
+      { value: 'Notes', label: 'Notes', url: 42 },
+    ]);
+
+    await expect(service.run(context, 'GoogleSheets', 'SheetName', {})).resolves.toEqual([
+      {
+        value: 'Summary',
+        label: 'Summary',
+        url: 'https://docs.google.com/spreadsheets/d/a/edit#gid=0',
+      },
+      { value: 'Data', label: 'Data' },
+      { value: 'Plan', label: 'Plan' },
+      { value: 'Notes', label: 'Notes' },
+    ]);
+  });
+
   it('rejects malformed connector responses', async () => {
     const { service } = createService();
     fetchFieldOptionsMock.mockResolvedValue([{ value: 1 }]);
