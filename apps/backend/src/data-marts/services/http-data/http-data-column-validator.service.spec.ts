@@ -121,6 +121,23 @@ describe('HttpDataColumnValidator', () => {
     ).toThrow(BusinessViolationException);
   });
 
+  // Whether a filter, aggregation, bucket or field selection may name it is the shared
+  // validator's call, with its own UNIQUE_COUNT_* code; here it only must not read as unknown.
+  it('leaves every other clause naming a requested Unique Count to the shared validator', () => {
+    expect(() =>
+      validator.validate(
+        {
+          selectedColumns: ['date', 'Unique Count'],
+          filter: [{ column: 'Unique Count', operator: 'gt', value: 1 }] as never,
+          aggregation: [{ column: 'Unique Count', function: 'SUM' }] as never,
+          dateTrunc: [{ column: 'Unique Count', unit: 'MONTH' }] as never,
+          uniqueCount: [''],
+        },
+        columns
+      )
+    ).not.toThrow();
+  });
+
   // An excluded or inaccessible source is dropped from the SQL downstream, so counting it would
   // return rows without the count; the endpoint already treats its fields as unknown.
   it('rejects a joined Unique Count source outside the reportable sources', () => {
@@ -129,7 +146,7 @@ describe('HttpDataColumnValidator', () => {
 
     expect(() => validator.validate(read(['', 'orders']), withOrders)).not.toThrow();
     expect(() => validator.validate(read(['orders', 'refunds']), withOrders)).toThrow(
-      'Unknown Unique Count source: refunds'
+      'Unique Count source not available for reporting: refunds'
     );
     expect(() => validator.validate(read(['']), columns)).not.toThrow();
   });

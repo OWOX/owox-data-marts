@@ -193,10 +193,10 @@ export type TraverseDataOptions = {
   aggregation?: TraverseDataAggregationRule[] | null;
   dateTrunc?: TraverseDataDateTruncRule[] | null;
   /**
-   * Unique Count sources: alias paths of joined Data Marts, with `''` for this Data Mart. Each
-   * adds a distinct count of the source's primary key, keyed `Unique Count` for this Data Mart
-   * and `<alias path>__unique_count` for a joined one (dots in the path become `_`). A `sort`
-   * rule may name that key.
+   * Unique Count sources, at least one: alias paths of joined Data Marts, with `''` for this
+   * Data Mart. Each adds a distinct count of the source's primary key, keyed `Unique Count` for
+   * this Data Mart and `<alias path>__unique_count` for a joined one (dots in the path become
+   * `_`). A `sort` rule may name that key. The server rejects an empty list.
    */
   uniqueCount?: string[] | null;
   limit?: number;

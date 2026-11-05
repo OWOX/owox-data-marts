@@ -167,9 +167,10 @@ export type ValidationError =
   // A joined Data Mart's Unique Count is configured for a source that can never produce the
   // column — the alias path is gone from the schema, or the source has no primary key the metric
   // can count. The run path drops such a source from the SQL and the headers alike, so accepting
-  // it at save persists a column that silently never appears. Raised on the SAVE paths only (see
-  // `rejectUnavailableUniqueCountSources`); a source merely EXCLUDED from reporting is not
-  // rejected — the picker keeps its entry so the user can clear it.
+  // it at save persists a column that silently never appears. Raised on the SAVE paths and the
+  // ad-hoc HTTP Data read only (see `rejectUnavailableUniqueCountSources`); a source merely
+  // EXCLUDED from reporting is not rejected here — the picker keeps its entry so the user can
+  // clear it, and the HTTP Data read refuses it before this validator runs.
   | { code: 'JOINED_UNIQUE_COUNT_SOURCE_UNAVAILABLE'; aliasPath: string; message: string }
   // A filter (or pre-join slice) names a Unique Count output column. The metric is computed over
   // the whole projection, so there is no row-level column to bind a predicate to — it can only be
@@ -744,8 +745,8 @@ export class OutputControlsValidatorService {
     // Reuse an already-resolved schema (e.g. the totals path) instead of recomputing it.
     precomputedBlendableSchema?: BlendableSchemaDto;
     /**
-     * Set by the paths that SAVE a config (create/update report, the MCP report tools) to reject a
-     * joined Unique Count source that can never emit its column. The same method re-validates a
+     * Set by the paths that SAVE a config (create/update report, the MCP report tools) and by the
+     * ad-hoc HTTP Data read to reject a joined Unique Count source that can never emit its column. The same method re-validates a
      * STORED config on every run, and there such a source is dropped from the SQL and the headers
      * alike by design — failing it would turn that degradation into a 400 on every schedule.
      */
@@ -1223,7 +1224,7 @@ export class OutputControlsValidatorService {
           errors.push({
             code: 'UNIQUE_COUNT_COLUMN_NOT_PROJECTABLE',
             column,
-            message: `"${column}" is a Unique Count metric, not a column of this Data Mart: it is turned on by the report's Unique Count setting, not by listing it among the fields. Remove it from the field selection.`,
+            message: `"${column}" is a Unique Count metric, not a column of this Data Mart: it is turned on through Unique Count, not by listing it among the fields. Remove it from the field selection.`,
           });
         }
 
@@ -1406,7 +1407,7 @@ export class OutputControlsValidatorService {
             errors.push({
               code: 'JOINED_UNIQUE_COUNT_SOURCE_UNAVAILABLE',
               aliasPath,
-              message: `The joined Data Mart "${source?.defaultAlias || source?.title || aliasPath}" cannot supply its Unique Count: ${reason}. Remove it from the report’s Unique Count selection.`,
+              message: `The joined Data Mart "${source?.defaultAlias || source?.title || aliasPath}" cannot supply its Unique Count: ${reason}. Remove it from the Unique Count selection.`,
             });
           }
         }

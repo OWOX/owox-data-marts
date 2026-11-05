@@ -1707,6 +1707,28 @@ describe('StreamHttpDataService', () => {
       );
     });
 
+    it("does not journal a stored report's Unique Count config, which may be dropped at run time", async () => {
+      reportService.getByIdAndProjectId.mockResolvedValueOnce({
+        id: 'report-1',
+        dataMart: { id: 'dm-1' },
+        dataDestination: { type: DataDestinationType.GOOGLE_SHEETS },
+        columnConfig: ['date'],
+        filterConfig: null,
+        sortConfig: null,
+        aggregationConfig: null,
+        dateTruncConfig: null,
+        uniqueCountConfig: ['', 'orders'],
+        limitConfig: null,
+      } as never);
+
+      await service.streamReport(fakeReportCommand(), mockResponse());
+
+      const { metadata } = dataMartRunService.recordHttpDataRun.mock.calls.at(-1)![0] as {
+        metadata: Record<string, unknown>;
+      };
+      expect(metadata.uniqueCount).toBeUndefined();
+    });
+
     it('rejects with NotFoundException for a report belonging to another project, and does no work', async () => {
       // reportService.getByIdAndProjectId inner-joins on dataMart.projectId, so a report from
       // another project (or an unknown id) resolves to nothing and throws 404 — identical to the

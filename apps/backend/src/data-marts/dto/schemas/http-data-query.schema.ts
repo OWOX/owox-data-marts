@@ -3,8 +3,7 @@ import { FilterConfigSchema } from './filter-config.schema';
 import { SortConfigSchema } from './sort-config.schema';
 import { AggregationConfigSchema } from './aggregation-config.schema';
 import { DateTruncConfigSchema } from './date-trunc-config.schema';
-import { UniqueCountConfigRequestSchema } from './unique-count-config.schema';
-import { normalizeUniqueCountSources } from './unique-count-sources';
+import { UNIQUE_COUNT_CONFIG_MAX_SOURCES } from './unique-count-config.schema';
 
 export const HTTP_DATA_MAX_ENCODED_PARAM_LENGTH = 8192;
 
@@ -88,8 +87,16 @@ const FilterParamSchema = makeEncodedConfigParam(FilterConfigSchema, 'filter');
 const SortParamSchema = makeEncodedConfigParam(SortConfigSchema, 'sort');
 const AggregationParamSchema = makeEncodedConfigParam(AggregationConfigSchema, 'aggregation');
 const DateTruncParamSchema = makeEncodedConfigParam(DateTruncConfigSchema, 'dateTrunc');
+// Sources only, at least one: the Reports union's `true`/`false`/`null` stay out of this new
+// contract, and `[]` would read every native row of the Data Mart instead of counting anything.
 const UniqueCountParamSchema = makeEncodedConfigParam(
-  UniqueCountConfigRequestSchema,
+  z
+    .array(z.string())
+    .min(1, 'list at least one source')
+    .max(
+      UNIQUE_COUNT_CONFIG_MAX_SOURCES,
+      `at most ${String(UNIQUE_COUNT_CONFIG_MAX_SOURCES)} sources`
+    ),
   'uniqueCount'
 );
 
@@ -182,7 +189,7 @@ export const HttpDataQuerySchema = z
     }
     // Same footgun for Unique Count: a wildcard makes every column a grouping key, so each count
     // degenerates to its own row. An empty selection is allowed — it reads as metrics-only.
-    if (normalizeUniqueCountSources(value.uniqueCount).length > 0 && value.columns !== undefined) {
+    if (value.uniqueCount !== undefined && value.columns !== undefined) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ['uniqueCount'],
@@ -194,11 +201,7 @@ export const HttpDataQuerySchema = z
     }
   })
   .transform(value => ({
-    columnSelector: toColumnSelector(
-      value.columns,
-      value.column,
-      normalizeUniqueCountSources(value.uniqueCount).length > 0
-    ),
+    columnSelector: toColumnSelector(value.columns, value.column, value.uniqueCount !== undefined),
     filter: value.filter,
     sort: value.sort,
     aggregation: value.aggregation,

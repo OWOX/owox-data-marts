@@ -208,12 +208,18 @@ describe('HttpDataQuerySchema — uniqueCount', () => {
     }
   });
 
-  it('keeps "all native columns" for an empty source list', () => {
-    const result = parse({ uniqueCount: b64([]) });
-    expect(result.success).toBe(true);
-    if (result.success) {
-      expect(result.data.columnSelector).toEqual({ mode: 'allNative', explicit: [] });
+  // `[]` would otherwise mean "no Unique Count" and read every native row instead of counting.
+  it.each([[[]], [true], [false], [null]])('rejects %j: only a non-empty source list', value => {
+    const result = parse({ uniqueCount: b64(value) });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues[0].message).toMatch(/^Invalid uniqueCount: /);
     }
+  });
+
+  it('accepts exactly the cap', () => {
+    const result = parse({ uniqueCount: b64(Array.from({ length: 50 }, (_, i) => `s${i}`)) });
+    expect(result.success).toBe(true);
   });
 
   it('rejects more sources than the cap', () => {

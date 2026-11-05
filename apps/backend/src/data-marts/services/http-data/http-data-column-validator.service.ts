@@ -38,14 +38,16 @@ export class HttpDataColumnValidator {
       );
     }
 
+    // One message whether the source is missing, excluded or inaccessible, so the answer cannot
+    // tell a caller that a source it may not read exists.
     const reportableSources = new Set(columns.reportableSources);
-    const unknownSources = joinedUniqueCountSources(input.uniqueCount).filter(
+    const unavailableSources = joinedUniqueCountSources(input.uniqueCount).filter(
       aliasPath => !reportableSources.has(aliasPath)
     );
-    if (unknownSources.length > 0) {
+    if (unavailableSources.length > 0) {
       throw new InvalidQueryColumnsException(
-        `Unknown Unique Count source${unknownSources.length > 1 ? 's' : ''}: ${unknownSources.join(', ')}`,
-        { columns: unknownSources }
+        `Unique Count source${unavailableSources.length > 1 ? 's' : ''} not available for reporting: ${unavailableSources.join(', ')}`,
+        { sources: unavailableSources }
       );
     }
   }
@@ -57,14 +59,8 @@ export class HttpDataColumnValidator {
         referenced.add(rule.column);
       }
     }
-    // A requested Unique Count is an output column a sort may name, as in Reports; whether the
-    // rule is valid is then OutputControlsValidatorService's call, same as for a Report.
-    const uniqueCountColumns = new Set(
-      joinedUniqueCountSources(input.uniqueCount).map(buildJoinedUniqueCountColumnName)
-    );
-    if (hasMainUniqueCount(input.uniqueCount)) uniqueCountColumns.add(UNIQUE_COUNT_LABEL);
     for (const rule of input.sort ?? []) {
-      if (!uniqueCountColumns.has(rule.column)) referenced.add(rule.column);
+      referenced.add(rule.column);
     }
     for (const rule of input.aggregation ?? []) {
       referenced.add(rule.column);
@@ -72,6 +68,13 @@ export class HttpDataColumnValidator {
     for (const rule of input.dateTrunc ?? []) {
       referenced.add(rule.column);
     }
+    // A requested Unique Count is an output column, as in Reports: what a clause may do with it
+    // (sort: yes; filter, aggregate, bucket, list as a field: no, each with its own error) is
+    // OutputControlsValidatorService's call, not a bare "Unknown column".
+    for (const aliasPath of joinedUniqueCountSources(input.uniqueCount)) {
+      referenced.delete(buildJoinedUniqueCountColumnName(aliasPath));
+    }
+    if (hasMainUniqueCount(input.uniqueCount)) referenced.delete(UNIQUE_COUNT_LABEL);
     return referenced;
   }
 }

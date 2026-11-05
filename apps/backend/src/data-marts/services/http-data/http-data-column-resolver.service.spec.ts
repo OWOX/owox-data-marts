@@ -55,6 +55,21 @@ describe('HttpDataColumnResolver', () => {
     expect(resolver.resolve({ mode: 'explicit', explicit: [] }, columns)).toEqual([]);
   });
 
+  it('refuses a metrics-only read of a Data Mart with no reporting columns', () => {
+    expect(() =>
+      resolver.resolve(
+        { mode: 'explicit', explicit: [] },
+        {
+          native: [],
+          implicitAllNative: [],
+          blended: [],
+          implicitAllBlended: [],
+          reportableSources: [],
+        }
+      )
+    ).toThrow(BusinessViolationException);
+  });
+
   describe('a calculated field — named selection only', () => {
     // `native` still carries it (existence-checking authority for HttpDataColumnValidator);
     // `implicitAllNative` does not (what a wildcard actually resolves to).

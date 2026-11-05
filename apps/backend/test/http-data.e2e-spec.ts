@@ -1079,12 +1079,11 @@ describe('HTTP Data API (e2e)', () => {
 
     it('still refuses COUNT_DISTINCT aggregation on the integer key', async () => {
       const aggregation = b64([{ column: 'customer_id', function: 'COUNT_DISTINCT' }]);
-      const res = await agent
-        .get(
-          `/api/external/http-data/data-marts/${customersId}.ndjson?column=customer_id&aggregation=${aggregation}`
-        )
-        .set(AUTH_HEADER);
-      expect(res.status).toBe(400);
+      await rejectsWithoutRun(
+        customersId,
+        `column=customer_id&aggregation=${aggregation}`,
+        'AGGREGATION_FUNCTION_NOT_ALLOWED_FOR_FIELD'
+      );
     });
 
     it('counts the integer key as a single metrics-only row', async () => {
@@ -1129,26 +1128,48 @@ describe('HTTP Data API (e2e)', () => {
 
     it('rejects a sort on the Unique Count column when no Unique Count is requested', async () => {
       const sort = b64([{ column: 'Unique Count', direction: 'desc' }]);
-      const res = await agent
-        .get(`/api/external/http-data/data-marts/${customersId}.ndjson?column=country&sort=${sort}`)
-        .set(AUTH_HEADER);
-      expect(res.status).toBe(400);
+      await rejectsWithoutRun(
+        customersId,
+        `column=country&sort=${sort}`,
+        'Unknown column: Unique Count'
+      );
     });
 
     it('rejects a Unique Count combined with a wildcard column selector', async () => {
-      const res = await agent
-        .get(
-          `/api/external/http-data/data-marts/${customersId}.ndjson?columns=*&uniqueCount=${b64([''])}`
-        )
-        .set(AUTH_HEADER);
-      expect(res.status).toBe(400);
+      await rejectsWithoutRun(
+        customersId,
+        `columns=*&uniqueCount=${b64([''])}`,
+        'cannot combine with'
+      );
+    });
+
+    // The requested key is an output column, so the shared validator answers with the same
+    // specific code a Report gets rather than "Unknown column".
+    it.each([
+      [
+        'a filter',
+        `filter=${b64([{ column: 'Unique Count', operator: 'gt', value: 1 }])}`,
+        'UNIQUE_COUNT_FILTER_UNSUPPORTED',
+      ],
+      [
+        'an aggregation',
+        `aggregation=${b64([{ column: 'Unique Count', function: 'SUM' }])}`,
+        'UNIQUE_COUNT_AGGREGATION_UNSUPPORTED',
+      ],
+      ['a column', 'column=Unique%20Count', 'UNIQUE_COUNT_COLUMN_NOT_PROJECTABLE'],
+    ])('rejects %s on the requested Unique Count, without a run', async (_, clause, code) => {
+      await rejectsWithoutRun(
+        customersId,
+        `column=country&${clause}&uniqueCount=${b64([''])}`,
+        code
+      );
     });
 
     it('rejects a joined source that is not joined to the Data Mart, without a run', async () => {
       await rejectsWithoutRun(
         customersId,
         `uniqueCount=${b64(['orders'])}`,
-        'Unknown Unique Count source: orders'
+        'Unique Count source not available for reporting: orders'
       );
     });
 
@@ -1159,7 +1180,7 @@ describe('HTTP Data API (e2e)', () => {
       await rejectsWithoutRun(
         customersId,
         `uniqueCount=${b64(['orders'])}`,
-        'Unknown Unique Count source: orders'
+        'Unique Count source not available for reporting: orders'
       );
     });
 
@@ -1168,7 +1189,7 @@ describe('HTTP Data API (e2e)', () => {
       await rejectsWithoutRun(
         customersId,
         `column=country&uniqueCount=${b64(['orders'])}`,
-        'Unknown Unique Count source: orders'
+        'Unique Count source not available for reporting: orders'
       );
     });
 

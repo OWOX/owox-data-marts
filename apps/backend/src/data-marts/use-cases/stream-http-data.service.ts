@@ -354,7 +354,6 @@ export class StreamHttpDataService {
         sort: report.sortConfig ?? undefined,
         aggregation: report.aggregationConfig ?? undefined,
         dateTrunc: report.dateTruncConfig ?? undefined,
-        uniqueCount: report.uniqueCountConfig ?? undefined,
         limit: limit ?? report.limitConfig ?? undefined,
         // Only a caller that places the rows itself can say where they went, so this is
         // recorded exactly as reported and never derived.
@@ -459,12 +458,15 @@ export class StreamHttpDataService {
         sort: readPlan.sortConfig ?? undefined,
         aggregation: readPlan.aggregationConfig ?? undefined,
         dateTrunc: readPlan.dateTruncConfig ?? undefined,
-        uniqueCount: readPlan.uniqueCountConfig ?? undefined,
         limit: readPlan.limitConfig ?? undefined,
         // Carried over rather than re-derived: every other field here is restated from the
         // plan, which is why replacing the object wholesale is safe for them. This one comes
         // from the caller and exists nowhere else, so it has to be carried across explicitly.
         runContext: baseMetadata.runContext,
+        // Also the caller's, and only an ad-hoc read sets it: there every requested source is
+        // rendered or the read is refused. A stored report's sources can be dropped at run time,
+        // so journalling its config would claim a count the rows never had.
+        uniqueCount: baseMetadata.uniqueCount,
       };
 
       const decision = await this.blendedReportDataService.resolveBlendingDecision(
