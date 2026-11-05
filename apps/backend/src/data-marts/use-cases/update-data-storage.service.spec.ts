@@ -911,6 +911,22 @@ describe('UpdateDataStorageService - config change on a bound Storage', () => {
     expect(dataStorageRepository.save).not.toHaveBeenCalled();
   });
 
+  it('allows an unchanged-config save after a concurrent rebind', async () => {
+    const { service, storageCredentials, dataStorageAccessFacade, dataStorageRepository } =
+      makeService();
+    storageCredentials.lockBoundCredentialId.mockResolvedValue('rebound-cred');
+
+    await expect(service.run(makeFullCommand({ title: 'Renamed' }))).resolves.toEqual({
+      id: storageId,
+    });
+
+    expect(dataStorageAccessFacade.verifyAccess).not.toHaveBeenCalled();
+    expect(storageCredentials.lockBoundCredentialId).not.toHaveBeenCalled();
+    expect(dataStorageRepository.save).toHaveBeenCalledWith(
+      expect.objectContaining({ title: 'Renamed' })
+    );
+  });
+
   it('rechecks USE when the same bound Credential will receive a changed target', async () => {
     const { service, storageCredentials } = makeService();
 

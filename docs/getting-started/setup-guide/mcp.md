@@ -522,6 +522,9 @@ These tools manage Storage connections in the connected project.
 They enforce resource permissions for reading, use, editing, ownership, and sharing.
 They accept saved Credential IDs. Enter provider secrets only in the OWOX Credential form.
 
+`list_storages`, `get_storage`, `create_storage`, and `update_storage` return `url`,
+a direct link to the Storage in the OWOX Data Marts web UI.
+
 | Tool                      | Inputs and behavior                                                                                                                                                                                                            |
 | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `list_storages`           | Optional `storage_type`, `owner_id`, and `owner_filter`. Returns visible Storage IDs, names, types, and timestamps. Use `get_storage` for details.                                                                             |
@@ -575,7 +578,14 @@ for Google Chat webhook delivery.
 For Google Sheets, `drive_folder_url` selects the folder for newly created spreadsheets.
 Pass `null` to `update_destination` to clear the folder.
 Changing the Google account can clear an omitted folder setting.
-For service accounts, OWOX checks access to the supplied folder.
+
+For service accounts, use a Shared Drive folder.
+If folder access fails, grant the service account permission to create files there.
+
+For Google sign-in, both the connected account and OWOX must already have access to the folder.
+Supplying its URL does not grant access.
+If folder access fails, select the folder through the OWOX Picker with the connected Google account.
+OAuth folder access errors can occur when OWOX creates a spreadsheet.
 
 Use `emails` for email, Slack, Teams, or Google Chat channel-email delivery.
 Use `credential_id` to select a saved Credential for Google Sheets or a webhook Credential for Google Chat.
@@ -629,7 +639,7 @@ Starts or completes setup for a report-delivery destination. The exact flow depe
 | `title`            | Supply an optional destination name. For Google Sheets browser setup, keep this title for the follow-up `add_destination` call. The browser form title names the Credential.                      |
 | `emails`           | Supply target email addresses or delivery addresses. This field is required for `email`, `slack`, `teams` and Google Chat delivery through channel email. Do not combine it with `credential_id`. |
 | `credential_id`    | Select a compatible saved Credential for `google_sheets` or `google_chat` webhook delivery. You must have permission to use it. Get its ID from `list_credentials` or completed browser setup.    |
-| `drive_folder_url` | Optional Google Drive folder URL for a Google Sheets Destination. Keep it for the creation call after browser setup.                                                                              |
+| `drive_folder_url` | Optional Google Drive folder URL for a Google Sheets Destination. Requires folder access for the connected account and, with Google sign-in, for OWOX. Keep it for creation after setup.          |
 
 **Returns:**
 

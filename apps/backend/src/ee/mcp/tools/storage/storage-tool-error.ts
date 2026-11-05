@@ -8,6 +8,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { BusinessViolationException } from '../../../../common/exceptions/business-violation.exception';
+import { logMcpToolError } from '../../observability/log-mcp-tool-error';
 
 const SAFE_BAD_REQUEST_MESSAGES = new Set([
   'Set the Storage configuration before selecting a Credential.',
@@ -46,6 +47,7 @@ export async function storageToolCall<T>(
           'Check the Storage type, namespace, and saved connection before listing resources.'
         );
       }
+      logMcpToolError(error, 'Storage resource listing');
       throw new BadGatewayException(
         'Storage resources could not be listed. Check the saved connection and provider permissions.'
       );
@@ -78,6 +80,7 @@ export async function storageToolCall<T>(
     if (status === 400 || error instanceof BusinessViolationException) {
       throw new BadRequestException(message);
     }
+    logMcpToolError(error, `Storage ${operation}`);
     throw new InternalServerErrorException(message);
   }
 }

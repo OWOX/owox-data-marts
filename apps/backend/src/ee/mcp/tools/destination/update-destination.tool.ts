@@ -29,7 +29,9 @@ const inputSchema = z
     drive_folder_url: driveFolderUrlSchema
       .nullable()
       .optional()
-      .describe('Google Sheets folder for new spreadsheets. Use null to clear it.'),
+      .describe(
+        'Google Drive folder URL for new spreadsheets. Service accounts require a Shared Drive folder with permission to create files. Google sign-in requires access for both the connected account and OWOX. Use null to clear it.'
+      ),
     credential_id: z
       .string()
       .min(1)
@@ -58,8 +60,9 @@ export class UpdateDestinationTool implements McpToolDefinition<Input> {
   readonly name = 'update_destination';
   readonly description =
     'Update Destination settings. For Google Chat, emails replaces webhook delivery, and credential_id replaces saved recipients with webhook delivery. ' +
-    'Changing the Google account can clear the Drive folder unless you supply drive_folder_url. ' +
-    'For service accounts, OWOX checks access to the supplied folder.';
+    'Changing the Google account can clear an omitted Drive folder. ' +
+    'On folder access errors with a service account, grant it permission to create files in the Shared Drive folder. ' +
+    'On folder access errors with Google sign-in, select the folder through the OWOX Picker with the connected account.';
   readonly zodSchema = inputSchema;
   readonly outputSchema = destinationDetailsOutput;
   readonly annotations = {

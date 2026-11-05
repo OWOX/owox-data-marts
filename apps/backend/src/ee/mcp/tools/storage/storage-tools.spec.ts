@@ -27,6 +27,7 @@ const context: McpAuthContext = {
   authFlow: 'mcp',
 };
 const actor = { projectId: 'project', userId: 'user', roles: ['editor'] };
+const publicOrigin = { getPublicOrigin: () => 'https://app.example/' };
 const storage = {
   id: 'storage',
   title: 'Storage',
@@ -69,7 +70,7 @@ describe('Storage MCP tools', () => {
     '%s publishes a full strict schema and rejects caller identity',
     async (Tool, method, input) => {
       const api = facade();
-      const tool = new Tool(api as never);
+      const tool = new Tool(api as never, publicOrigin as never);
       expect(tool.zodSchema).toBeInstanceOf(z.ZodType);
       await expect(
         tool.handler({ ...input, project_id: 'other', password: 'secret' } as never, context)
@@ -82,15 +83,19 @@ describe('Storage MCP tools', () => {
     '%s delegates with authenticated actor and schema-valid output',
     async (Tool, method, input) => {
       const api = facade();
-      const tool = new Tool(api as never);
+      const tool = new Tool(api as never, publicOrigin as never);
       const result = await tool.handler(input as never, context);
       expect(api[method].mock.calls[0][0]).toEqual(actor);
-      expect(z.object(tool.outputSchema).safeParse(result.structuredContent).success).toBe(true);
+      const output = z.object(tool.outputSchema).parse(result.structuredContent);
+      if (['list', 'get', 'create', 'update'].includes(method)) {
+        const expected = { url: 'https://app.example/ui/project/data-storages?id=storage' };
+        expect(output).toMatchObject(method === 'list' ? { storages: [expected] } : expected);
+      }
     }
   );
 
   it('rejects Legacy creation', async () => {
-    const tool = new CreateStorageTool(facade() as never);
+    const tool = new CreateStorageTool(facade() as never, publicOrigin as never);
     await expect(
       tool.handler(
         {
@@ -102,7 +107,7 @@ describe('Storage MCP tools', () => {
   });
 
   it('rejects secret fields in configuration and empty mutations', async () => {
-    const update = new UpdateStorageTool(facade() as never);
+    const update = new UpdateStorageTool(facade() as never, publicOrigin as never);
     await expect(
       update.handler(
         {
@@ -123,7 +128,7 @@ describe('Storage MCP tools', () => {
 
   it('preserves omitted update fields and maps a Credential ID', async () => {
     const api = facade();
-    await new UpdateStorageTool(api as never).handler(
+    await new UpdateStorageTool(api as never, publicOrigin as never).handler(
       { storage_id: 'storage', credential_id: 'credential' },
       context
     );
@@ -159,7 +164,7 @@ describe('Storage MCP tools', () => {
       api[method].mockRejectedValue(
         new BadRequestException({ message, providerDetails: 'NEVER_EXPOSE' })
       );
-      const result = new Tool(api as never).handler(input as never, context);
+      const result = new Tool(api as never, publicOrigin as never).handler(input as never, context);
 
       await expect(result).rejects.toMatchObject({ status: 400, message });
       await result.catch(error => expect(JSON.stringify(error)).not.toContain('NEVER_EXPOSE'));
@@ -171,7 +176,7 @@ describe('Storage MCP tools', () => {
     async (Tool, method, input, message) => {
       const api = facade();
       api[method].mockRejectedValue(new BadRequestException(`${message} token=NEVER_EXPOSE`));
-      const result = new Tool(api as never).handler(input as never, context);
+      const result = new Tool(api as never, publicOrigin as never).handler(input as never, context);
 
       await expect(result).rejects.toMatchObject({ status: 400 });
       await result.catch(error => expect(JSON.stringify(error)).not.toContain('NEVER_EXPOSE'));
@@ -183,7 +188,7 @@ describe('Storage MCP tools', () => {
     async (Tool, method, input) => {
       const api = facade();
       api[method].mockRejectedValue(new Error('NEVER_EXPOSE'));
-      const result = new Tool(api as never).handler(input as never, context);
+      const result = new Tool(api as never, publicOrigin as never).handler(input as never, context);
 
       await expect(result).rejects.toMatchObject({ status: 500 });
       await result.catch(error => expect(error.message).not.toContain('NEVER_EXPOSE'));
@@ -205,7 +210,7 @@ describe('Storage MCP tools', () => {
   ])('preserves the update error status and removes private details: %s', async (error, status) => {
     const api = facade();
     api.update.mockRejectedValue(error);
-    const result = new UpdateStorageTool(api as never).handler(
+    const result = new UpdateStorageTool(api as never, publicOrigin as never).handler(
       { storage_id: 'storage', title: 'New' },
       context
     );

@@ -7,6 +7,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { BusinessViolationException } from '../../../../common/exceptions/business-violation.exception';
+import { logMcpToolError } from '../../observability/log-mcp-tool-error';
 
 const SAFE_BAD_REQUEST_MESSAGES = new Set([
   'Only Looker Studio destinations support key rotation.',
@@ -45,6 +46,7 @@ export async function destinationToolCall<T>(
         'Check the supplied fields, Credential access, and Drive folder in OWOX before retrying this operation.'
       );
     }
+    logMcpToolError(error, 'Destination operation');
     throw new InternalServerErrorException(
       'The Destination operation failed. Check its configuration in OWOX before retrying.'
     );

@@ -140,6 +140,7 @@ const credential = z.discriminatedUnion('access', [
 ]);
 export const storageSummaryOutputSchema = {
   storage_id: z.string(),
+  url: z.string().describe('URL of this Storage in the OWOX Data Marts web UI.'),
   title: z.string(),
   storage_type: storageTypeSchema,
   created_at: z.string(),
@@ -147,6 +148,7 @@ export const storageSummaryOutputSchema = {
 };
 export const storageOutputSchema = {
   storage_id: z.string(),
+  url: storageSummaryOutputSchema.url,
   title: z.string(),
   storage_type: storageTypeSchema,
   configuration: storageConfigurationSchema.nullable(),

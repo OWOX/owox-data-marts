@@ -461,8 +461,10 @@ describe('Storage and Destination management through MCP', () => {
       const before = await database.getRepository(DataStorage).count();
       const created = await call(client, 'create_storage', input);
       const storage_id = created.storage_id as string;
+      const url = `https://app.owox.com/ui/0/data-storages?id=${storage_id}`;
       expect(created).toMatchObject({
         storage_id: expect.any(String),
+        url,
         available_for_use: true,
         available_for_maintenance: false,
       });
@@ -472,19 +474,20 @@ describe('Storage and Destination management through MCP', () => {
       await call(client, 'delete_storage', { storage_id: second.storage_id });
       expect(
         await call(client, 'update_storage', { storage_id, title: 'Finance warehouse' })
-      ).toMatchObject({ storage_id, title: 'Finance warehouse', configuration: null });
+      ).toMatchObject({ storage_id, url, title: 'Finance warehouse', configuration: null });
       await call(client, 'set_storage_access', {
         storage_id,
         available_for_use: true,
         available_for_maintenance: false,
       });
       expect(await call(client, 'get_storage', { storage_id })).toMatchObject({
+        url,
         available_for_use: true,
         title: 'Finance warehouse',
       });
-      expect(JSON.stringify(await call(client, 'list_storages', { owner_id: '1' }))).toContain(
-        storage_id
-      );
+      expect(await call(client, 'list_storages', { owner_id: '1' })).toMatchObject({
+        storages: expect.arrayContaining([expect.objectContaining({ storage_id, url })]),
+      });
       await call(client, 'validate_storage_access', { storage_id });
       await call(client, 'delete_storage', { storage_id });
       await denied(client, 'get_storage', { storage_id });

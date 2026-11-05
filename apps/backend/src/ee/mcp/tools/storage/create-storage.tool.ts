@@ -1,6 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import type { McpScope, Role } from '@owox/idp-protocol';
 import { z } from 'zod';
+import { PublicOriginService } from '../../../../common/config/public-origin.service';
 import {
   MCP_STORAGE_MANAGEMENT_FACADE,
   type McpStorageManagementFacade,
@@ -17,7 +18,7 @@ type Input = z.infer<typeof createStorageSchema>;
 export class CreateStorageTool implements McpToolDefinition<Input> {
   readonly name = 'create_storage';
   readonly description =
-    'Create an unconfigured Storage and return its ID. Sharing allows use but not maintenance.';
+    'Create an unconfigured Storage and return its ID and UI URL. Sharing allows use but not maintenance.';
   readonly zodSchema = createStorageSchema;
   readonly outputSchema = storageOutputSchema;
   readonly annotations = {
@@ -32,7 +33,8 @@ export class CreateStorageTool implements McpToolDefinition<Input> {
   private readonly mapper = new StorageToolMapper();
 
   constructor(
-    @Inject(MCP_STORAGE_MANAGEMENT_FACADE) private readonly storages: McpStorageManagementFacade
+    @Inject(MCP_STORAGE_MANAGEMENT_FACADE) private readonly storages: McpStorageManagementFacade,
+    private readonly publicOriginService: PublicOriginService
   ) {}
 
   async handler(input: Input, context: McpAuthContext): Promise<McpToolResult> {
@@ -45,6 +47,8 @@ export class CreateStorageTool implements McpToolDefinition<Input> {
         }),
       'create'
     );
-    return jsonToolResult(this.mapper.toStorage(storage));
+    return jsonToolResult(
+      this.mapper.toStorage(storage, context.projectId, this.publicOriginService.getPublicOrigin())
+    );
   }
 }

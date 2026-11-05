@@ -1,6 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import type { McpScope, Role } from '@owox/idp-protocol';
 import { z } from 'zod';
+import { PublicOriginService } from '../../../../common/config/public-origin.service';
 import {
   MCP_STORAGE_MANAGEMENT_FACADE,
   type McpStorageManagementFacade,
@@ -31,7 +32,8 @@ export class ListStoragesTool implements McpToolDefinition<Input> {
   private readonly mapper = new StorageToolMapper();
 
   constructor(
-    @Inject(MCP_STORAGE_MANAGEMENT_FACADE) private readonly storages: McpStorageManagementFacade
+    @Inject(MCP_STORAGE_MANAGEMENT_FACADE) private readonly storages: McpStorageManagementFacade,
+    private readonly publicOriginService: PublicOriginService
   ) {}
 
   async handler(input: Input, context: McpAuthContext): Promise<McpToolResult> {
@@ -45,6 +47,11 @@ export class ListStoragesTool implements McpToolDefinition<Input> {
         }),
       'list'
     );
-    return jsonToolResult({ storages: storages.map(storage => this.mapper.toSummary(storage)) });
+    const publicOrigin = this.publicOriginService.getPublicOrigin();
+    return jsonToolResult({
+      storages: storages.map(storage =>
+        this.mapper.toSummary(storage, context.projectId, publicOrigin)
+      ),
+    });
   }
 }

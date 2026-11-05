@@ -34,8 +34,8 @@ Storage and Destination management:
 - Use list_project_members and list_contexts to find valid IDs. Permission to use a resource does not grant permission to change its owners or sharing.
 - update_storage changes only supplied title, configuration, or credential_id. update_destination accepts title, emails, drive_folder_url, and credential_id, subject to the Destination type.
 - For Google Chat, emails replaces webhook delivery, and credential_id replaces saved recipients with webhook delivery. Do not combine these fields.
-- Changing the Google account can clear an omitted Drive folder. Supply drive_folder_url to keep the folder during that change. For service accounts, OWOX checks access to the supplied folder.
-- For Google Sheets, keep drive_folder_url for the add_destination call that creates the Destination after Credential setup. Omitted fields are not stored by browser setup.
+- For Google Sheets, drive_folder_url requires permission to create files in the folder. With a service account, use a Shared Drive folder and grant that account access if needed. With Google sign-in, OWOX also needs access for the connected Google account. On OAuth folder access errors, select the folder through the OWOX Picker with that account.
+- Keep drive_folder_url for the add_destination call after Credential setup. Browser Credential setup does not store Destination settings. Changing the Google account can clear an omitted folder. Reuse a folder only if the new account and OWOX have access.
 - Use list_storage_resources to browse supported warehouse resources. It currently supports BigQuery. It does not create a Data Mart.
 - Repeating a successful creation creates another Storage or Destination. Each key-rotation call replaces the current key. If a response is lost, check the result in OWOX before repeating the operation.
 - Storage deletion fails while Data Marts reference it. Destination deletion fails while Reports reference it. Inspect get_destination_impact before deletion.

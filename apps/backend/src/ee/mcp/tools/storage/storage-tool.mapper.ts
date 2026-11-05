@@ -6,15 +6,18 @@ import type {
   McpStorageSummary,
 } from '../../../../data-marts/facades/mcp-storage-management.facade';
 import type { McpAuthContext } from '../../auth/mcp-auth-context';
+import { buildDataStoragesUiPath } from '../data-mart-ui-path';
+import { joinPublicOrigin } from '../mcp-public-url.util';
 
 export class StorageToolMapper {
   toActor(context: McpAuthContext): AuthorizationContext {
     return { projectId: context.projectId, userId: context.userId, roles: context.roles };
   }
 
-  toSummary(dto: McpStorageSummary) {
+  toSummary(dto: McpStorageSummary, projectId: string, publicOrigin: string) {
     return {
       storage_id: dto.id,
+      url: this.toUrl(dto.id, projectId, publicOrigin),
       title: dto.title,
       storage_type: dto.type,
       created_at: dto.createdAt,
@@ -22,9 +25,10 @@ export class StorageToolMapper {
     };
   }
 
-  toStorage(dto: McpStorageDto) {
+  toStorage(dto: McpStorageDto, projectId: string, publicOrigin: string) {
     return {
       storage_id: dto.id,
+      url: this.toUrl(dto.id, projectId, publicOrigin),
       title: dto.title,
       storage_type: dto.type,
       configuration: dto.configuration,
@@ -79,5 +83,9 @@ export class StorageToolMapper {
           }
         : {}),
     };
+  }
+
+  private toUrl(id: string, projectId: string, publicOrigin: string): string {
+    return joinPublicOrigin(publicOrigin, buildDataStoragesUiPath(projectId, id));
   }
 }

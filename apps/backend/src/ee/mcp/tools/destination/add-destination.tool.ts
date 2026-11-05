@@ -57,7 +57,7 @@ const inputSchema = z
     drive_folder_url: driveFolderUrlSchema
       .optional()
       .describe(
-        'A Google Drive folder URL for Google Sheets. Keep this value for the follow-up call after browser Credential setup.'
+        'Google Drive folder URL for new spreadsheets. Service accounts require a Shared Drive folder with permission to create files. Google sign-in requires access for both the connected account and OWOX. Keep this URL for creation after Credential setup.'
       ),
     credential_id: z
       .string()
@@ -112,6 +112,8 @@ export class AddDestinationTool implements McpToolDefinition<AddDestinationInput
     'The browser form title names the Credential.\n\n' +
     'Call get_credential_setup_status with setup_id. Repeat while the status is pending. ' +
     'When completed, call add_destination with the exact credential_id, requested title, and drive_folder_url if supplied.\n\n' +
+    'On folder access errors with a service account, grant it permission to create files in the Shared Drive folder. ' +
+    'On folder access errors with Google sign-in, select the folder through the OWOX Picker with the connected account.\n\n' +
     'For email, slack, and teams, supply emails. ' +
     'For google_chat, supply emails for channel-email delivery or credential_id for webhook delivery. ' +
     'Never send Credential values or a secret webhook URL.\n\n' +
@@ -243,7 +245,9 @@ Share this setup guide: ${LOOKER_STUDIO_DESTINATION_GUIDE_URL}`;
           'If the status is completed, use its exact credential_id. ' +
           `After completion, call add_destination again with destination_type "google_sheets", that credential_id and title ${JSON.stringify(title)}. ` +
           (parsed.drive_folder_url
-            ? `Include drive_folder_url ${JSON.stringify(parsed.drive_folder_url)}. `
+            ? `Include drive_folder_url ${JSON.stringify(parsed.drive_folder_url)}. ` +
+              'For Google sign-in, OWOX must already have access to this folder with the connected account. ' +
+              'If folder access fails, select it through the OWOX Picker with that account. '
             : '') +
           '\n\n' +
           'If setup is cancelled, expired or missing, ask for the saved Credential ID shown on the page. ' +

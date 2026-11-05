@@ -184,7 +184,10 @@ export class UpdateDataStorageService {
       config,
       previousConfig: storage.config,
       legacyCredentialId: storage.credentialId ?? null,
-      boundCredentialId: bound === undefined ? undefined : (bound?.credentialId ?? null),
+      boundCredentialId:
+        bound === undefined || sameStorageConfig(storage.type, storage.config, config)
+          ? undefined
+          : (bound?.credentialId ?? null),
     };
     await this.verifyCredential(command, storage, config, bound);
     return validation;
