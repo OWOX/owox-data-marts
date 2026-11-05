@@ -27,7 +27,7 @@ The preview lists `_owox_row_number` and `_owox_imported_at` alongside sheet fie
 
 `SpreadsheetId` is a dynamic-options field for OAuth: `fetchFieldOptions('SpreadsheetId')` lists the spreadsheets the account can open through Drive `files.list` (first 1000, newest first). A service account types the ID or URL.
 
-`SheetName` is a dynamic-options field: once the spreadsheet is known (chosen from the list for OAuth, or entered as an ID or URL when no list loads and for a service account), the setup wizard lists the spreadsheet's tabs through the connector's `fetchFieldOptions('SheetName')` method, which reads `spreadsheets.get` with `fields=sheets.properties`. The list needs no permissions beyond the ones the import already uses. When the list cannot be loaded, the tab name can still be typed.
+`SheetName` is a dynamic-options field: once the spreadsheet is known (chosen from the list for OAuth, or entered as an ID or URL when no list loads and for a service account), the setup wizard lists the spreadsheet's tabs through the connector's `fetchFieldOptions('SheetName')` method, which reads `spreadsheets.get` with `fields=sheets.properties`. The list needs no permissions beyond the ones the import already uses. When the list cannot be loaded, the tab name can still be typed. Each tab also carries its `#gid=` link, so the Data Mart's source card opens the selected tab rather than the first one.
 
 ## Ranges and headers
 

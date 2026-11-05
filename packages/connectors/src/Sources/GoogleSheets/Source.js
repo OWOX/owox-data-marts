@@ -681,10 +681,11 @@ export class GoogleSheetsSource extends AbstractSource {
    * Lists the tabs of the selected spreadsheet, for the SheetName field's option list.
    *
    * Sorted by the spreadsheet's own tab order rather than alphabetically: the picker should
-   * read like the tab strip the user is looking at.
+   * read like the tab strip the user is looking at. Each tab carries the link that opens it,
+   * since a spreadsheet URL without the tab's `gid` always opens the first tab.
    *
    * @param {AbortSignal} [signal] - Cancels the provider request
-   * @returns {Promise<Array<{value: string, label: string}>>}
+   * @returns {Promise<Array<{value: string, label: string, url?: string}>>}
    */
   async _fetchSheetTabs(signal) {
     const spreadsheetId = this._extractSpreadsheetId(
@@ -706,7 +707,13 @@ export class GoogleSheetsSource extends AbstractSource {
       .map(sheet => sheet?.properties)
       .filter(properties => typeof properties?.title === 'string' && properties.title !== '')
       .sort((left, right) => (left.index ?? 0) - (right.index ?? 0))
-      .map(properties => ({ value: properties.title, label: properties.title }));
+      .map(properties => {
+        const option = { value: properties.title, label: properties.title };
+        if (Number.isInteger(properties.sheetId)) {
+          option.url = `https://docs.google.com/spreadsheets/d/${encodedSpreadsheetId}/edit#gid=${properties.sheetId}`;
+        }
+        return option;
+      });
   }
 
   /**

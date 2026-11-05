@@ -192,7 +192,8 @@ Configuration parameters are declared in the Source constructor as `this.paramet
 - `CONFIG_ATTRIBUTES.ADVANCED` — shown under Advanced Settings in the config UI
 - `CONFIG_ATTRIBUTES.DYNAMIC_OPTIONS` — allowed values are loaded from the source while the
   form is being filled. The source implements `fetchFieldOptions(fieldName, signal)` and
-  returns `[{ value, label }]`; list the parameters the lookup needs in `optionsDependsOn`.
+  returns `[{ value, label, url? }]`, where the optional `url` is an `https://` link that opens
+  the value in the provider; list the parameters the lookup needs in `optionsDependsOn`.
   The lookup runs before the configuration is validated, so it must not rely on defaults
   or on other parameters being present.
 
