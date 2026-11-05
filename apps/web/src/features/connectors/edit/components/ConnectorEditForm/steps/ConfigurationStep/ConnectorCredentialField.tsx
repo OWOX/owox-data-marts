@@ -77,10 +77,19 @@ export function ConnectorCredentialField({
   onChange,
   children,
 }: ConnectorCredentialFieldProps) {
-  const { credentials } = useCredentials();
+  const { credentials, isFetching, refetch } = useCredentials();
   const { definitions } = useCredentialDefinitions();
   // Named before onChange fires for it, while the list does not have it yet.
   const created = useRef<Credential | null>(null);
+  // A Credential set from outside the field (a reuse from another Data Mart) can be newer than the
+  // cached list, which then shows it without its title: read the list once more for that id.
+  const refetchedFor = useRef<string | null>(null);
+  useEffect(() => {
+    if (!value || isFetching || refetchedFor.current === value) return;
+    if (created.current?.id === value || credentials.some(item => item.id === value)) return;
+    refetchedFor.current = value;
+    void refetch();
+  }, [value, credentials, isFetching, refetch]);
   const connectPick = useRef<{ credentialId: string; spreadsheetId: string } | null>(null);
   const takeConnectPick = useCallback((credentialId: string, spreadsheetId: string) => {
     connectPick.current = { credentialId, spreadsheetId };

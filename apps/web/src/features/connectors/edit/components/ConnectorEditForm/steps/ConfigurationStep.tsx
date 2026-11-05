@@ -11,6 +11,7 @@ import {
 } from '@owox/ui/components/common/wizard';
 import { OpenIssueLink } from '../components';
 import { Unplug } from 'lucide-react';
+import { toast } from 'react-hot-toast';
 import { SECRET_MASK } from '../../../../../../shared/constants/secrets';
 import { ConfigurationListRender } from './ConfigurationStep/ConfigurationListRender';
 import {
@@ -19,6 +20,9 @@ import {
 } from './ConfigurationStep/ConnectorCredentialField';
 import { AUTH_TYPE, bundledKeyNames } from './ConfigurationStep/connector-credential-keys';
 import { DataMartContext } from '../../../../../data-marts/edit/model/context/context';
+import { CopyConfigurationButton } from '../../../../../data-marts/edit/components/DataMartDefinitionSettings/form/CopyConfigurationButton';
+import type { DataMartResponseDto } from '../../../../../data-marts/shared/types/api';
+import { credentialsService, sourceAuthVariant, type Credential } from '../../../../../credentials';
 import { ConnectorBuilderApiService } from '../../../../../connector-builder/shared/api/connector-builder-api.service';
 import type {
   CredentialRequirementDto,
@@ -153,6 +157,16 @@ function seedConfiguration(
 
   return config;
 }
+
+type ReuseRefusal = 'none' | 'unavailable' | 'unfit' | 'failed';
+
+/** Why a copy from another Data Mart did not take its Credential. */
+const REUSE_REFUSAL_MESSAGE: Record<ReuseRefusal, string> = {
+  none: 'It has no Credential yet: select a Credential.',
+  unavailable: 'Its Credential is not available to you: select a Credential.',
+  unfit: 'Its Credential does not fit this connector version: select a Credential.',
+  failed: 'Your Credentials could not be loaded: select a Credential.',
+};
 
 const credentialIdOf = (config: Record<string, unknown> | undefined) =>
   typeof config?._credential_id === 'string' ? config._credential_id : null;
@@ -461,6 +475,115 @@ export function ConfigurationStep({
     });
   };
 
+  // Bumped by every copy and on unmount: only the latest copy of a mounted form applies.
+  const copySeqRef = useRef(0);
+  useEffect(
+    () => () => {
+      copySeqRef.current += 1;
+    },
+    []
+  );
+
+  /** Whether this form may take the source's Credential, read at the click: the field's list may be loading or stale. */
+  const checkSourceCredential = async (
+    credentialId: string,
+    selection: unknown
+  ): Promise<{ status: 'usable'; credential: Credential } | { status: ReuseRefusal }> => {
+    try {
+      const [{ credentials }, fitting] = await Promise.all([
+        // The copy's own toast says the list failed; the generic one would repeat it.
+        credentialsService.list({ skipErrorToast: true }),
+        // A custom connector's Credential must fit the version and selection this form runs.
+        connector.isCustom
+          ? new ConnectorBuilderApiService().fittingCredentials({
+              connectorName: connector.name,
+              ...(pinnedVersion !== undefined ? { version: pinnedVersion } : {}),
+              ...(typeof selection === 'string' ? { selection } : {}),
+            })
+          : null,
+      ]);
+      const credential = credentials.find(item => item.id === credentialId);
+      if (!credential?.enabled || credential.canUse === false) return { status: 'unavailable' };
+      if (fitting && !fitting.some(item => item.id === credentialId && !item.refusal)) {
+        return { status: 'unfit' };
+      }
+      return { status: 'usable', credential };
+    } catch {
+      return { status: 'failed' };
+    }
+  };
+
+  // The shown settings of another Data Mart, and its Credential when this form may take it; no key value is ever copied.
+  const handleCopyConfiguration = async (
+    copied: Record<string, unknown>,
+    from: DataMartResponseDto
+  ) => {
+    const seq = ++copySeqRef.current;
+    const specs = connectorSpecification ?? [];
+    const source = migrateNestedConfigValuesToTopLevel(copied, specs);
+    const shown = new Set(
+      specs
+        .filter(
+          spec =>
+            spec.name !== 'Fields' &&
+            !allKeyNames.has(spec.name) &&
+            !spec.attributes?.includes(ConnectorSpecificationAttribute.HIDE_IN_CONFIG_FORM) &&
+            !spec.attributes?.includes(ConnectorSpecificationAttribute.DEPRECATED)
+        )
+        .map(spec => spec.name)
+    );
+    // A masked value is not the source's value: the server masks what it cannot show.
+    const settings = Object.fromEntries(
+      Object.entries(source).filter(
+        ([name, value]) => shown.has(name) && !JSON.stringify(value ?? null).includes(SECRET_MASK)
+      )
+    );
+    const sourceCredentialId = credentialIdOf(source);
+    const selectionParameter = customKeys?.selectionParameter;
+    const check = sourceCredentialId
+      ? await checkSourceCredential(
+          sourceCredentialId,
+          selectionParameter ? settings[selectionParameter] : undefined
+        )
+      : ({ status: 'none' } as const);
+    if (seq !== copySeqRef.current) return;
+
+    if (check.status === 'usable') {
+      // As a pick in the Credential field: the Credential's variant, never a key value.
+      const storedVariant = isRecord(source[AUTH_TYPE])
+        ? Object.keys(source[AUTH_TYPE])[0]
+        : undefined;
+      const variant = sourceAuthVariant(check.credential.definition.id)?.variant ?? storedVariant;
+      setConfiguration(prev => ({
+        ...Object.fromEntries(
+          Object.entries(prev).filter(([name]) => !allKeyNames.has(name) && name !== '_secrets_id')
+        ),
+        ...settings,
+        ...(variant && keyNames.has(AUTH_TYPE) ? { [AUTH_TYPE]: { [variant]: {} } } : {}),
+        _credential_id: sourceCredentialId,
+      }));
+    } else {
+      // A spreadsheet belongs to the account that picked it, and this form keeps its own.
+      const kept =
+        connector.name === GOOGLE_SHEETS_CONNECTOR_NAME
+          ? Object.fromEntries(
+              Object.entries(settings).filter(
+                ([name]) => name !== 'SpreadsheetId' && name !== 'SheetName'
+              )
+            )
+          : settings;
+      setConfiguration(prev => ({ ...prev, ...kept }));
+      toast(`Copied the settings of ${from.title}. ${REUSE_REFUSAL_MESSAGE[check.status]}`);
+    }
+    trackEvent({
+      event: 'connector_setup',
+      category: connector.name,
+      action: 'configuration_reused',
+      label: check.status === 'usable' ? 'with-credential' : 'without-credential',
+      ...connectorSetupProperties(connector, pinnedVersion),
+    });
+  };
+
   const handleCredentialClear = () => {
     setConfiguration(prev =>
       Object.fromEntries(Object.entries(prev).filter(([name]) => name !== '_credential_id'))
@@ -646,6 +769,14 @@ export function ConfigurationStep({
                     onChangeVersion={onChangeVersion}
                   />
                 )}
+                <CopyConfigurationButton
+                  currentConnectorName={connector.name}
+                  currentDataMartId={dataMart?.id}
+                  onCopyConfiguration={(copied, from) => {
+                    void handleCopyConfiguration(copied, from);
+                  }}
+                  connectorSpecification={connectorSpecification}
+                />
               </div>
             </div>
             {requiredFields.length > 0 && (

@@ -14,7 +14,7 @@ vi.mock('../../../../../../connector-builder/shared/model/hooks/useTestCredentia
 
 vi.mock('../../../../../../credentials', async importOriginal => ({
   ...(await importOriginal<typeof import('../../../../../../credentials')>()),
-  useCredentials: () => ({ credentials: [] }),
+  useCredentials: () => ({ credentials: [], isFetching: false, refetch: vi.fn() }),
   useCredentialDefinitions: () => ({ definitions: [] }),
   ConsumerCredentialField: (props: Record<string, unknown>) => {
     select.props = props;

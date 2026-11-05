@@ -59,7 +59,7 @@ Each connector requires authentication. Here is how you can obtain the keys for 
 
 A configuration selects a **Credential** instead of holding a key. Select one that fits the connector, or click **+ Create new Credential** to add one beside the configuration; it is selected when you save it. With exactly one fitting Credential, a new configuration selects it for you. Create and manage Credentials on the **Credentials** page; see [Source providers](../../project/credentials.md#source-providers).
 
-**Reuse from another Data Mart** is gone: select the same Credential in both Data Marts. To change the key everywhere, replace the Credential's values once.
+To set up a Data Mart like one you already have, click **Reuse from another Data Mart** and pick a Data Mart with the same source. The configuration gets the same Credential and settings, such as account IDs. If that Data Mart's Credential is not available to you, only the settings are copied, and you select a Credential yourself. No key is copied: Data Marts that share a Credential all get its new values when you replace them once.
 
 ## Step 4: Customize export schema
 

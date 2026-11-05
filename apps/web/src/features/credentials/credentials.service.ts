@@ -1,4 +1,4 @@
-import type { AxiosRequestConfig } from 'axios';
+import type { AxiosRequestConfig } from '../../app/api';
 import { ApiService } from '../../services';
 import type {
   CreateCredentialRequest,
@@ -16,8 +16,10 @@ class CredentialsService extends ApiService {
   }
 
   /** Splits the rows once, so every other consumer only ever sees available Credentials. */
-  async list(): Promise<{ credentials: Credential[]; unavailable: UnavailableCredential[] }> {
-    const rows = await this.get<(Credential | UnavailableCredential)[]>('');
+  async list(
+    config?: AxiosRequestConfig
+  ): Promise<{ credentials: Credential[]; unavailable: UnavailableCredential[] }> {
+    const rows = await this.get<(Credential | UnavailableCredential)[]>('', undefined, config);
     return {
       credentials: rows.filter((row): row is Credential => !isUnavailableCredential(row)),
       unavailable: rows.filter(isUnavailableCredential),

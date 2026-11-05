@@ -873,7 +873,12 @@ export class DataMartMapper {
     connectorName: string,
     context: AuthorizationContext
   ): ListDataMartsByConnectorNameCommand {
-    return new ListDataMartsByConnectorNameCommand(connectorName, context.projectId);
+    return new ListDataMartsByConnectorNameCommand(
+      connectorName,
+      context.projectId,
+      context.userId,
+      context.roles ?? []
+    );
   }
 
   toGetDataMartRunCommand(
