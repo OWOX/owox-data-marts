@@ -22,7 +22,11 @@ import { DataStorageErrorMapper } from '../data-storage-types/interfaces/data-st
 import { DataStorageReportReader } from '../data-storage-types/interfaces/data-storage-report-reader.interface';
 import { CalculatedFieldPlan, SqlParameter } from '../data-storage-types/utils/sql-clause-renderer';
 import { columnFilterWithoutCalculatedFields } from '../calculated-fields/calculated-field.utils';
-import { ReportLikeReadPlan, hasOutputControls } from '../dto/domain/report-like-read-plan';
+import {
+  ReportLikeReadPlan,
+  hasOutputControls,
+  isMetricsOnlyProjection,
+} from '../dto/domain/report-like-read-plan';
 import {
   applyAutoCollapse,
   autoAppliedOutputConfig,
@@ -59,6 +63,7 @@ import {
   nativeColumnNames,
   implicitAllNativeColumnNames,
   implicitAllBlendedColumnNames,
+  reportableSourcePaths,
   visibleBlendedColumnNames,
   ReportingColumns,
 } from '../services/http-data/http-data-column-sets.util';
@@ -253,6 +258,7 @@ export class StreamHttpDataService {
         sort: query.sort,
         aggregation: query.aggregation,
         dateTrunc: query.dateTrunc,
+        uniqueCount: query.uniqueCount,
         limit,
       },
       buildPlan: async currentDataMart => {
@@ -266,6 +272,7 @@ export class StreamHttpDataService {
           implicitAllNative: implicitAllNativeColumnNames(blendableSchema),
           blended: visibleBlendedColumnNames(blendableSchema),
           implicitAllBlended: implicitAllBlendedColumnNames(blendableSchema),
+          reportableSources: reportableSourcePaths(blendableSchema),
         };
         const columns = this.columnResolver.resolve(query.columnSelector, reportingColumns);
         this.columnValidator.validate(
@@ -275,6 +282,7 @@ export class StreamHttpDataService {
             sort: query.sort,
             aggregation: query.aggregation,
             dateTrunc: query.dateTrunc,
+            uniqueCount: query.uniqueCount,
           },
           reportingColumns
         );
@@ -286,6 +294,7 @@ export class StreamHttpDataService {
           sortConfig: query.sort,
           aggregationConfig: query.aggregation,
           dateTruncConfig: query.dateTrunc,
+          uniqueCountConfig: query.uniqueCount,
           limitConfig: limit ?? null,
         };
 
@@ -345,6 +354,7 @@ export class StreamHttpDataService {
         sort: report.sortConfig ?? undefined,
         aggregation: report.aggregationConfig ?? undefined,
         dateTrunc: report.dateTruncConfig ?? undefined,
+        uniqueCount: report.uniqueCountConfig ?? undefined,
         limit: limit ?? report.limitConfig ?? undefined,
         // Only a caller that places the rows itself can say where they went, so this is
         // recorded exactly as reported and never derived.
@@ -449,6 +459,7 @@ export class StreamHttpDataService {
         sort: readPlan.sortConfig ?? undefined,
         aggregation: readPlan.aggregationConfig ?? undefined,
         dateTrunc: readPlan.dateTruncConfig ?? undefined,
+        uniqueCount: readPlan.uniqueCountConfig ?? undefined,
         limit: readPlan.limitConfig ?? undefined,
         // Carried over rather than re-derived: every other field here is restated from the
         // plan, which is why replacing the object wholesale is safe for them. This one comes
@@ -461,8 +472,12 @@ export class StreamHttpDataService {
         accessor,
         undefined,
         undefined,
-        // See StreamPlanContext.degradesStaleSort: on for a stored report's read only.
-        degradesStaleSort ? { degradeStaleSort: true } : undefined
+        // See StreamPlanContext.degradesStaleSort: on for a stored report's read only. The ad-hoc
+        // read named its Unique Count sources itself, so an unusable one is its own mistake (400),
+        // not a column to drop silently.
+        degradesStaleSort
+          ? { degradeStaleSort: true }
+          : { rejectUnavailableUniqueCountSources: true }
       );
       // The run record must describe the sort the query APPLIED: a degraded decision carries the
       // stored rules minus the ones it dropped, and journalling the stored list beside the
@@ -559,8 +574,11 @@ export class StreamHttpDataService {
       // up by. Missing it does not error: `buildFieldIndexMap` looks a name up in `dataHeaders`
       // by NAME, so a name absent from `dataHeaders` resolves to index -1 and streams as a
       // silent `null` — the metric's own name and any header this composition renamed alike.
+      // A Unique Count is the same case again: its `Unique Count` / `<alias>__unique_count` column
+      // is in `dataHeaders` only, never among the requested names.
       const aggregated =
-        (readPlan.aggregationConfig?.length ?? 0) > 0 || (calculatedFields?.length ?? 0) > 0;
+        isMetricsOnlyProjection(readPlan.aggregationConfig, readPlan.uniqueCountConfig) ||
+        (calculatedFields?.length ?? 0) > 0;
       const outputColumns =
         projectsByResolvedHeaders || aggregated
           ? description.dataHeaders.map(header => header.name)
@@ -576,7 +594,8 @@ export class StreamHttpDataService {
 
       // F2: an all-columns report has no explicit columnConfig, so the plan's metadata columns are
       // empty; fall back to the resolved header names now that they're known. The data-mart path
-      // always has explicit resolved columns, so its recorded columns are left untouched.
+      // records the columns it was asked for — `[]` for a metrics-only Unique Count read, whose
+      // output column is in `dataDescription` and whose request is in `uniqueCount`.
       const runColumns =
         projectsByResolvedHeaders && metadataColumns.length === 0
           ? description.dataHeaders.map(h => h.name)

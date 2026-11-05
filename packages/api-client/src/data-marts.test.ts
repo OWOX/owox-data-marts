@@ -256,7 +256,7 @@ describe('DataMartsApi.traverseData', () => {
     ).toEqual(sort);
   });
 
-  it('encodes aggregation and dateTrunc as base64url query params', async () => {
+  it('encodes aggregation, dateTrunc and uniqueCount as base64url query params', async () => {
     const aggregation = [
       { column: 'revenue', function: 'SUM' },
     ] satisfies TraverseDataAggregationRule[];
@@ -278,7 +278,7 @@ describe('DataMartsApi.traverseData', () => {
 
     const client = new OWOXApiClient({ apiKey, fetchImpl: fetchMock.fetchImpl });
 
-    await client.dataMarts.traverseData('dm-1', { aggregation, dateTrunc });
+    await client.dataMarts.traverseData('dm-1', { aggregation, dateTrunc, uniqueCount: [''] });
 
     const request = fetchMock.requests.find(({ method }) => method === 'GET');
     expect(request).toBeDefined();
@@ -289,6 +289,7 @@ describe('DataMartsApi.traverseData', () => {
     expect(
       JSON.parse(Buffer.from(url.searchParams.get('dateTrunc')!, 'base64url').toString('utf8'))
     ).toEqual(dateTrunc);
+    expect(url.searchParams.get('uniqueCount')).toBe('WyIiXQ');
   });
 
   it('reports malformed NDJSON lines with line and run context', async () => {

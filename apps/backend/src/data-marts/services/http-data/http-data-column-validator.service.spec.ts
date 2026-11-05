@@ -9,6 +9,7 @@ describe('HttpDataColumnValidator', () => {
     implicitAllNative: ['date', 'revenue'],
     blended: ['orders__cost'],
     implicitAllBlended: ['orders__cost'],
+    reportableSources: [],
   };
 
   // The existence check binds against `blended`, never `implicitAllBlended`: a joined calculated
@@ -21,6 +22,7 @@ describe('HttpDataColumnValidator', () => {
       implicitAllNative: ['date'],
       blended: ['orders__cost', 'orders__margin'],
       implicitAllBlended: ['orders__cost'],
+      reportableSources: [],
     };
 
     expect(() =>
@@ -98,6 +100,38 @@ describe('HttpDataColumnValidator', () => {
         columns
       )
     ).toThrow(BusinessViolationException);
+  });
+
+  it('lets a sort name a requested Unique Count column, and only a requested one', () => {
+    const sortBy = (column: string) => ({
+      selectedColumns: ['date'],
+      sort: [{ column, direction: 'desc' as const }],
+      uniqueCount: ['', 'orders.items'],
+    });
+
+    const withItems: ReportingColumns = { ...columns, reportableSources: ['orders.items'] };
+
+    expect(() => validator.validate(sortBy('Unique Count'), withItems)).not.toThrow();
+    expect(() => validator.validate(sortBy('orders_items__unique_count'), withItems)).not.toThrow();
+    expect(() => validator.validate(sortBy('orders__unique_count'), withItems)).toThrow(
+      BusinessViolationException
+    );
+    expect(() =>
+      validator.validate({ ...sortBy('Unique Count'), uniqueCount: undefined }, withItems)
+    ).toThrow(BusinessViolationException);
+  });
+
+  // An excluded or inaccessible source is dropped from the SQL downstream, so counting it would
+  // return rows without the count; the endpoint already treats its fields as unknown.
+  it('rejects a joined Unique Count source outside the reportable sources', () => {
+    const withOrders: ReportingColumns = { ...columns, reportableSources: ['orders'] };
+    const read = (uniqueCount: string[]) => ({ selectedColumns: ['date'], uniqueCount });
+
+    expect(() => validator.validate(read(['', 'orders']), withOrders)).not.toThrow();
+    expect(() => validator.validate(read(['orders', 'refunds']), withOrders)).toThrow(
+      'Unknown Unique Count source: refunds'
+    );
+    expect(() => validator.validate(read(['']), columns)).not.toThrow();
   });
 
   it('ignores pre-join filter columns (resolved by aliasPath downstream, not by name here)', () => {

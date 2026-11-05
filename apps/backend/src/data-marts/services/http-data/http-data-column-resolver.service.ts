@@ -7,7 +7,8 @@ import { ReportingColumns } from './http-data-column-sets.util';
 export class HttpDataColumnResolver {
   resolve(selector: ColumnSelector, columns: ReportingColumns): string[] {
     const resolved = [...new Set(this.select(selector, columns))];
-    if (resolved.length === 0) {
+    // An empty EXPLICIT selection is a metrics-only Unique Count read (see `toColumnSelector`).
+    if (resolved.length === 0 && selector.mode !== 'explicit') {
       throw new BusinessViolationException('No columns available for the requested Data Mart');
     }
     return resolved;

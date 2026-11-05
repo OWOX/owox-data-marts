@@ -19,6 +19,7 @@ import { DataStorageReportReader } from '../src/data-marts/data-storage-types/in
 import { ReportDataBatch } from '../src/data-marts/dto/domain/report-data-batch.dto';
 import { ReportDataDescription } from '../src/data-marts/dto/domain/report-data-description.dto';
 import { ReportDataHeader } from '../src/data-marts/dto/domain/report-data-header.dto';
+import { resolveReportDataHeaders } from '../src/data-marts/data-storage-types/utils/report-data-headers.utils';
 import { BlendableSchemaService } from '../src/data-marts/services/blendable-schema.service';
 import { DataMartTableReferenceService } from '../src/data-marts/services/data-mart-table-reference.service';
 import { Report } from '../src/data-marts/entities/report.entity';
@@ -973,6 +974,256 @@ describe('HTTP Data API (e2e)', () => {
       // Without output controls the service skips the composer path entirely —
       // sqlOverride is undefined (not set).
       expect(capturedPrepareOptions!['sqlOverride']).toBeUndefined();
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Unique Count — an INTEGER primary key, the case COUNT_DISTINCT aggregation refuses
+  // ---------------------------------------------------------------------------
+  // Same shape as the calculated-fields block below: a dedicated Data Mart whose persisted schema
+  // carries the key (the composer reads it from there), mirrored into the mocked
+  // BlendableSchemaService and the warehouse schema. Composition and validation run for real;
+  // only the DWH read is faked, so these assert on the composed SQL, not on a computed count.
+  // ---------------------------------------------------------------------------
+  describe('Unique Count', () => {
+    const b64 = (v: unknown) => Buffer.from(JSON.stringify(v)).toString('base64url');
+    const FIELDS = [
+      {
+        name: 'customer_id',
+        type: 'INTEGER',
+        mode: 'NULLABLE',
+        status: 'CONNECTED',
+        isPrimaryKey: true,
+      },
+      { name: 'country', type: 'STRING', mode: 'NULLABLE', status: 'CONNECTED' },
+    ];
+    let customersId: string;
+    let restore: (() => void) | undefined;
+    // Joined sources the mocked blendable schema offers for `customersId`; reset after each test.
+    let customersSources: Record<string, unknown>[] = [];
+    const ordersSource = (overrides: Record<string, unknown> = {}) => ({
+      aliasPath: 'orders',
+      title: 'Orders',
+      defaultAlias: 'Orders',
+      depth: 1,
+      fieldCount: 1,
+      isIncluded: true,
+      isAccessibleForReporting: true,
+      relationshipId: 'rel-orders',
+      dataMartId: 'dm-orders',
+      uniqueCountAvailability: 'available',
+      uniqueCountKeyFields: ['order_id'],
+      ...overrides,
+    });
+    const rejectsWithoutRun = async (martId: string, query: string, expected: string) => {
+      const runRepo = app.get<Repository<DataMartRun>>(getRepositoryToken(DataMartRun));
+      const runsBefore = await runRepo.count();
+      const res = await agent
+        .get(`/api/external/http-data/data-marts/${martId}.ndjson?${query}`)
+        .set(AUTH_HEADER);
+      expect(res.status).toBe(400);
+      expect(JSON.stringify(res.body)).toContain(expected);
+      expect(res.headers['x-owox-run-id']).toBeUndefined();
+      expect(await runRepo.count()).toBe(runsBefore);
+    };
+
+    beforeAll(async () => {
+      customersId = (await setupPublishedDataMart(agent)).dataMartId;
+      await setDataMartSchema(agent, app, customersId, {
+        type: 'bigquery-data-mart-schema',
+        fields: FIELDS,
+      });
+
+      const originalBlendableImpl =
+        blendableSchemaMock.computeBlendableSchema.getMockImplementation();
+      // Keyed by id: the last test reads the shared, keyless `dataMartId` through the same mock.
+      blendableSchemaMock.computeBlendableSchema.mockImplementation(async (...args: unknown[]) =>
+        args[0] === customersId
+          ? {
+              nativeFields: [
+                { name: 'customer_id', type: 'INTEGER', isPrimaryKey: true },
+                { name: 'country', type: 'STRING' },
+              ],
+              blendedFields: [],
+              availableSources: customersSources as never[],
+              mainUniqueCountKeyFields: ['customer_id'],
+            }
+          : originalBlendableImpl!()
+      );
+      const originalSchemaProviderImpl =
+        schemaProviderFacadeMock.getActualDataMartSchema.getMockImplementation();
+      schemaProviderFacadeMock.getActualDataMartSchema.mockImplementation(async () => ({
+        type: 'bigquery-data-mart-schema',
+        fields: FIELDS,
+      }));
+
+      restore = () => {
+        blendableSchemaMock.computeBlendableSchema.mockImplementation(originalBlendableImpl!);
+        schemaProviderFacadeMock.getActualDataMartSchema.mockImplementation(
+          originalSchemaProviderImpl!
+        );
+      };
+    });
+
+    afterAll(() => {
+      restore?.();
+    });
+
+    beforeEach(() => {
+      capturedPrepareOptions = null;
+    });
+
+    afterEach(() => {
+      customersSources = [];
+    });
+
+    it('still refuses COUNT_DISTINCT aggregation on the integer key', async () => {
+      const aggregation = b64([{ column: 'customer_id', function: 'COUNT_DISTINCT' }]);
+      const res = await agent
+        .get(
+          `/api/external/http-data/data-marts/${customersId}.ndjson?column=customer_id&aggregation=${aggregation}`
+        )
+        .set(AUTH_HEADER);
+      expect(res.status).toBe(400);
+    });
+
+    it('counts the integer key as a single metrics-only row', async () => {
+      const res = await agent
+        .get(`/api/external/http-data/data-marts/${customersId}.ndjson?uniqueCount=${b64([''])}`)
+        .set(AUTH_HEADER);
+
+      expect(res.status).toBe(200);
+      expect(capturedPrepareOptions!['uniqueCount']).toBe(true);
+      const sql = capturedPrepareOptions!['sqlOverride'] as string;
+      expect(sql).toContain('COUNT(DISTINCT');
+      expect(sql).toContain('`customer_id`');
+      expect(sql).not.toContain('GROUP BY');
+      expect(sql).not.toContain('`country`');
+    });
+
+    it('counts per group for explicit columns', async () => {
+      const res = await agent
+        .get(
+          `/api/external/http-data/data-marts/${customersId}.ndjson?column=country&uniqueCount=${b64([''])}`
+        )
+        .set(AUTH_HEADER);
+
+      expect(res.status).toBe(200);
+      const sql = capturedPrepareOptions!['sqlOverride'] as string;
+      expect(sql).toContain('COUNT(DISTINCT');
+      expect(sql).toContain('GROUP BY');
+    });
+
+    it('sorts by the Unique Count column, as Reports do', async () => {
+      const sort = b64([{ column: 'Unique Count', direction: 'desc' }]);
+      const res = await agent
+        .get(
+          `/api/external/http-data/data-marts/${customersId}.ndjson?column=country&uniqueCount=${b64([''])}&sort=${sort}&limit=10`
+        )
+        .set(AUTH_HEADER);
+
+      expect(res.status).toBe(200);
+      const sql = capturedPrepareOptions!['sqlOverride'] as string;
+      expect(sql).toMatch(/ORDER BY\s+`Unique Count` DESC/);
+    });
+
+    it('rejects a sort on the Unique Count column when no Unique Count is requested', async () => {
+      const sort = b64([{ column: 'Unique Count', direction: 'desc' }]);
+      const res = await agent
+        .get(`/api/external/http-data/data-marts/${customersId}.ndjson?column=country&sort=${sort}`)
+        .set(AUTH_HEADER);
+      expect(res.status).toBe(400);
+    });
+
+    it('rejects a Unique Count combined with a wildcard column selector', async () => {
+      const res = await agent
+        .get(
+          `/api/external/http-data/data-marts/${customersId}.ndjson?columns=*&uniqueCount=${b64([''])}`
+        )
+        .set(AUTH_HEADER);
+      expect(res.status).toBe(400);
+    });
+
+    it('rejects a joined source that is not joined to the Data Mart, without a run', async () => {
+      await rejectsWithoutRun(
+        customersId,
+        `uniqueCount=${b64(['orders'])}`,
+        'Unknown Unique Count source: orders'
+      );
+    });
+
+    // Both are dropped from the SQL downstream: accepting them would return every row with no
+    // count (or, for an inaccessible one, fail after the run started).
+    it('rejects a joined source excluded from reporting, without a run', async () => {
+      customersSources = [ordersSource({ isIncluded: false })];
+      await rejectsWithoutRun(
+        customersId,
+        `uniqueCount=${b64(['orders'])}`,
+        'Unknown Unique Count source: orders'
+      );
+    });
+
+    it('rejects a joined source the caller cannot access, without a run', async () => {
+      customersSources = [ordersSource({ isAccessibleForReporting: false })];
+      await rejectsWithoutRun(
+        customersId,
+        `column=country&uniqueCount=${b64(['orders'])}`,
+        'Unknown Unique Count source: orders'
+      );
+    });
+
+    it('rejects a reportable joined source without a usable key, without a run', async () => {
+      customersSources = [
+        ordersSource({ uniqueCountAvailability: 'no-primary-key', uniqueCountKeyFields: [] }),
+      ];
+      await rejectsWithoutRun(
+        customersId,
+        `uniqueCount=${b64(['orders'])}`,
+        'JOINED_UNIQUE_COUNT_SOURCE_UNAVAILABLE'
+      );
+    });
+
+    it('rejects a Unique Count on a Data Mart without a primary key, without a run', async () => {
+      await rejectsWithoutRun(
+        dataMartId,
+        `uniqueCount=${b64([''])}`,
+        'UNIQUE_COUNT_REQUIRES_PRIMARY_KEY'
+      );
+    });
+
+    // Headers come from the REAL resolveReportDataHeaders over the Data Mart's fields; only the
+    // values are the mock's, so this pins the row KEYS and the run record, not a computed count.
+    it.each([
+      ['a single total row', '', ['Unique Count']],
+      ['a count per group', 'column=country&', ['country', 'Unique Count']],
+    ])('streams %s under the Unique Count output key and journals it', async (_, query, keys) => {
+      jest.mocked(mockReader.prepareReportData).mockImplementationOnce(async (_plan, options) => {
+        const headers = resolveReportDataHeaders(
+          [new ReportDataHeader('customer_id'), new ReportDataHeader('country')],
+          options,
+          DataStorageType.GOOGLE_BIGQUERY
+        );
+        return new ReportDataDescription(headers);
+      });
+
+      const res = await agent
+        .get(
+          `/api/external/http-data/data-marts/${customersId}.ndjson?${query}uniqueCount=${b64([''])}`
+        )
+        .set(AUTH_HEADER);
+
+      expect(res.status).toBe(200);
+      const rows = parseNdjson(res.text);
+      expect(rows.length).toBeGreaterThan(0);
+      for (const row of rows) expect(Object.keys(row as object)).toEqual(keys);
+
+      const run = await agent
+        .get(`/api/data-marts/${customersId}/runs/${res.headers['x-owox-run-id']}`)
+        .set(AUTH_HEADER);
+      expect(run.body.additionalParams?.httpData).toMatchObject({
+        uniqueCount: [''],
+        dataDescription: { dataHeaders: keys.map(name => expect.objectContaining({ name })) },
+      });
     });
   });
 

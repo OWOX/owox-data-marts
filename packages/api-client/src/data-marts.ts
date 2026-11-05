@@ -192,6 +192,13 @@ export type TraverseDataOptions = {
   sort?: TraverseDataSortRule[] | null;
   aggregation?: TraverseDataAggregationRule[] | null;
   dateTrunc?: TraverseDataDateTruncRule[] | null;
+  /**
+   * Unique Count sources: alias paths of joined Data Marts, with `''` for this Data Mart. Each
+   * adds a distinct count of the source's primary key, keyed `Unique Count` for this Data Mart
+   * and `<alias path>__unique_count` for a joined one (dots in the path become `_`). A `sort`
+   * rule may name that key.
+   */
+  uniqueCount?: string[] | null;
   limit?: number;
 };
 
@@ -311,6 +318,9 @@ function buildTraverseDataQuery(options: TraverseDataOptions): URLSearchParams |
   }
   if (options.dateTrunc != null) {
     query.append('dateTrunc', encodeBase64UrlJson(options.dateTrunc));
+  }
+  if (options.uniqueCount != null) {
+    query.append('uniqueCount', encodeBase64UrlJson(options.uniqueCount));
   }
   if (options.limit !== undefined) {
     query.append('limit', String(options.limit));

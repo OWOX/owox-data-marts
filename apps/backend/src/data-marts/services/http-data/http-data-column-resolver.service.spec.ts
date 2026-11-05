@@ -10,6 +10,7 @@ describe('HttpDataColumnResolver', () => {
     implicitAllNative: ['date', 'revenue'],
     blended: ['orders__cost'],
     implicitAllBlended: ['orders__cost'],
+    reportableSources: [],
   };
 
   it('expands "*" to all native columns', () => {
@@ -39,9 +40,19 @@ describe('HttpDataColumnResolver', () => {
     expect(() =>
       resolver.resolve(
         { mode: 'allNative', explicit: [] },
-        { native: [], implicitAllNative: [], blended: [], implicitAllBlended: [] }
+        {
+          native: [],
+          implicitAllNative: [],
+          blended: [],
+          implicitAllBlended: [],
+          reportableSources: [],
+        }
       )
     ).toThrow(BusinessViolationException);
+  });
+
+  it('returns an empty explicit selection as is (metrics-only Unique Count read)', () => {
+    expect(resolver.resolve({ mode: 'explicit', explicit: [] }, columns)).toEqual([]);
   });
 
   describe('a calculated field — named selection only', () => {
@@ -52,6 +63,7 @@ describe('HttpDataColumnResolver', () => {
       implicitAllNative: ['date', 'revenue'],
       blended: [],
       implicitAllBlended: [],
+      reportableSources: [],
     };
 
     it('is absent from "*"', () => {
@@ -89,6 +101,7 @@ describe('HttpDataColumnResolver', () => {
       implicitAllNative: ['date'],
       blended: ['orders__cost', 'orders__margin'],
       implicitAllBlended: ['orders__cost'],
+      reportableSources: [],
     };
 
     it('is absent from "**"', () => {

@@ -941,6 +941,7 @@ describe('StreamHttpDataService', () => {
       sort: undefined,
       aggregation: undefined,
       dateTrunc: undefined,
+      uniqueCount: undefined,
       limit: 5,
     });
     await service.stream(fakeCommand(), mockResponse());
@@ -1139,6 +1140,43 @@ describe('StreamHttpDataService', () => {
     await service.stream(fakeCommand(), res);
 
     expect(res._writes).toEqual(['{"date":"2026-05-01","revenue | SUM":93}\n']);
+  });
+
+  it('streams a metrics-only Unique Count by the resolved header names', async () => {
+    // No requested column carries the count, so projecting by the request would drop it.
+    requestValidator.validate.mockReturnValueOnce({
+      columnSelector: { mode: 'explicit', explicit: [] },
+      filter: undefined,
+      sort: undefined,
+      aggregation: undefined,
+      dateTrunc: undefined,
+      uniqueCount: [''],
+      limit: undefined,
+    } as never);
+    reader.prepareReportData.mockResolvedValueOnce(
+      new ReportDataDescription([new ReportDataHeader('Unique Count')])
+    );
+    reader.readReportDataBatch.mockResolvedValueOnce(new ReportDataBatch([[1234]], null));
+    const res = mockResponse();
+
+    await service.stream(fakeCommand(), res);
+
+    expect(sqlComposer.compose).toHaveBeenCalledWith(
+      expect.objectContaining({ columnConfig: [], uniqueCountConfig: [''] }),
+      expect.anything(),
+      expect.anything()
+    );
+    expect(reader.prepareReportData).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ uniqueCount: true })
+    );
+    expect(res._writes).toEqual(['{"Unique Count":1234}\n']);
+    // The request is journalled: `columns: []` alone would not say where the count came from.
+    expect(dataMartRunService.recordHttpDataRun).toHaveBeenCalledWith(
+      expect.objectContaining({
+        metadata: expect.objectContaining({ columns: [], uniqueCount: [''] }),
+      })
+    );
   });
 
   it('streams a date-bucket-only request by the requested column names (headers are not renamed)', async () => {
@@ -1349,6 +1387,7 @@ describe('StreamHttpDataService', () => {
       sort: undefined,
       aggregation: undefined,
       dateTrunc: undefined,
+      uniqueCount: undefined,
       limit: undefined,
     });
     columnResolver.resolve.mockReturnValueOnce(['date', 'revenue', 'orders__cost']);
@@ -1382,6 +1421,7 @@ describe('StreamHttpDataService', () => {
       sort: undefined,
       aggregation: undefined,
       dateTrunc: undefined,
+      uniqueCount: undefined,
       limit: undefined,
     });
     blendableSchema.computeBlendableSchema.mockResolvedValueOnce({
@@ -1418,17 +1458,18 @@ describe('StreamHttpDataService', () => {
         implicitAllNative: ['date'],
         blended: ['orders__cost'],
         implicitAllBlended: ['orders__cost'],
+        reportableSources: ['orders'],
       }
     );
     // An ad-hoc plan's sort names were just checked against the current schema, so nothing
-    // degrades here — an unknown one is the caller's own mistake and must stay a 400: the
-    // options slot stays empty.
+    // degrades here — an unknown one is the caller's own mistake and must stay a 400. For the
+    // same reason a Unique Count source it named that cannot be counted is rejected, not dropped.
     expect(blended.resolveBlendingDecision).toHaveBeenCalledWith(
       expect.objectContaining({ columnConfig: ['date', 'orders__cost'] }),
       { userId: 'user-1', roles: ['viewer'] },
       undefined,
       undefined,
-      undefined
+      { rejectUnavailableUniqueCountSources: true }
     );
   });
 
