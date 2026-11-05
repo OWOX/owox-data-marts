@@ -55,6 +55,23 @@ describe('PluginsService.lookupByRepository', () => {
   });
 });
 
+describe('PluginsService.getCredentialSelections', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(apiClient.get).mockResolvedValue({ data: { credentialSelections: {} } });
+  });
+
+  // Uninstalling from the Credentials tab refetches this for an installation that answers 404.
+  it('skips the global error toast, so the Credentials tab reports a failure itself', async () => {
+    await pluginsService.getCredentialSelections('installation-1');
+
+    expect(apiClient.get).toHaveBeenCalledWith(
+      '/plugins/installations/installation-1/credential-selections',
+      { skipErrorToast: true }
+    );
+  });
+});
+
 describe('PluginsService.getHistory', () => {
   beforeEach(() => {
     vi.clearAllMocks();

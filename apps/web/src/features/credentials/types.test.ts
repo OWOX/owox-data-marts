@@ -86,6 +86,13 @@ describe('Credential installation eligibility', () => {
       false
     );
   });
+
+  // Listed to the member for something other than use: saving or running it is refused.
+  it('rejects a Credential the member may see but not use', () => {
+    const requirement = normalizePluginCredentialRequirement('github');
+    expect(isCredentialEligible(credential({ canUse: false }), requirement)).toBe(false);
+    expect(isCredentialEligible(credential({ canUse: true }), requirement)).toBe(true);
+  });
 });
 
 describe('normalizePluginCredentialRequirement scopes', () => {

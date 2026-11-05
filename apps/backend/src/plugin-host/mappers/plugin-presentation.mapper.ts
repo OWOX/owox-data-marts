@@ -19,6 +19,7 @@ import {
 import { FindPluginByRepositoryCommand } from '../dto/domain/find-plugin-by-repository.command';
 import { GetPluginDetailsCommand } from '../dto/domain/get-plugin-details.command';
 import { GetPluginGalleryCommand } from '../dto/domain/get-plugin-gallery.command';
+import { GetPluginInstallationCredentialSelectionsCommand } from '../dto/domain/get-plugin-installation-credential-selections.command';
 import { GetPluginInstallationEntryCommand } from '../dto/domain/get-plugin-installation-entry.command';
 import { resolveBackendUrl } from '../utils/plugin-manifest.util';
 import { InstallPluginCommand } from '../dto/domain/install-plugin.command';
@@ -36,6 +37,7 @@ import { ListInstallationsCommand } from '../dto/domain/list-installations.comma
 import { ListPublicationsCommand } from '../dto/domain/list-publications.command';
 import {
   InstalledPluginDto,
+  PluginCredentialSelectionsDto,
   PluginInstallationDto,
   PluginInstallationEntryDto,
 } from '../dto/domain/plugin-installation.dto';
@@ -56,6 +58,7 @@ import { PluginUpdateResultDto, UpdatePluginCommand } from '../dto/domain/update
 import {
   InstalledPluginApiDto,
   InstallPluginApiDto,
+  PluginCredentialSelectionsApiDto,
   PluginEntryApiDto,
   PluginInstallationApiDto,
   PluginUpdateResultApiDto,
@@ -179,6 +182,13 @@ export class PluginPresentationMapper {
     context: AuthorizationContext
   ): GetPluginInstallationEntryCommand {
     return new GetPluginInstallationEntryCommand(installationId, context);
+  }
+
+  toGetPluginInstallationCredentialSelectionsCommand(
+    installationId: string,
+    context: AuthorizationContext
+  ): GetPluginInstallationCredentialSelectionsCommand {
+    return new GetPluginInstallationCredentialSelectionsCommand(installationId, context);
   }
 
   toInstallCommand(
@@ -341,6 +351,12 @@ export class PluginPresentationMapper {
 
   toInstalledPluginResponseList(dtos: InstalledPluginDto[]): InstalledPluginApiDto[] {
     return dtos.map(dto => this.toInstalledPluginResponse(dto));
+  }
+
+  toCredentialSelectionsResponse(
+    dto: PluginCredentialSelectionsDto
+  ): PluginCredentialSelectionsApiDto {
+    return { credentialSelections: { ...dto.credentialSelections } };
   }
 
   toInstallationEntryResponse(dto: PluginInstallationEntryDto): PluginEntryApiDto {

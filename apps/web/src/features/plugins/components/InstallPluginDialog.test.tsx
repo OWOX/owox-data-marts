@@ -196,30 +196,6 @@ describe('InstallPluginDialog', () => {
     expect(screen.getByTestId('install-data-notice')).not.toHaveTextContent('Runs code on');
   });
 
-  it('uses configuration copy when only installed Credential bindings are changing', () => {
-    credentialState.definitions = [definition({ id: 'github', displayName: 'GitHub' })];
-
-    render(
-      <InstallPluginDialog
-        plugin={plugin({ credentialRequirements: ['github'] })}
-        open
-        onOpenChange={vi.fn()}
-        onConfirm={vi.fn()}
-        isInstalling={false}
-        mode='configure'
-      />
-    );
-
-    expect(screen.getByText('Configure plugin Credentials?')).toBeInTheDocument();
-    expect(
-      screen.getByText('Choose which project Credentials this installed plugin may use.')
-    ).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
-    expect(
-      screen.getByText('Changing Credential access does not clear plugin data.')
-    ).toBeInTheDocument();
-  });
-
   it('shows display metadata and the current SemVer required by §13', () => {
     render(
       <InstallPluginDialog
@@ -236,10 +212,7 @@ describe('InstallPluginDialog', () => {
   });
 
   describe('a plugin that is not listed for the member', () => {
-    const renderDialog = (
-      over: Partial<PluginGalleryEntry>,
-      mode: 'install' | 'configure' = 'install'
-    ) =>
+    const renderDialog = (over: Partial<PluginGalleryEntry>) =>
       render(
         <InstallPluginDialog
           plugin={plugin(over)}
@@ -247,7 +220,6 @@ describe('InstallPluginDialog', () => {
           onOpenChange={vi.fn()}
           onConfirm={vi.fn()}
           isInstalling={false}
-          mode={mode}
         />
       );
 
@@ -275,14 +247,6 @@ describe('InstallPluginDialog', () => {
 
       expect(screen.getByTestId('install-data-notice')).toHaveTextContent(
         "This plugin isn't listed for you. Install it only if you trust whoever sent you the link."
-      );
-    });
-
-    it('adds no install warning while configuring an installed plugin', () => {
-      renderDialog({ visibleViaScopes: [] }, 'configure');
-
-      expect(screen.getByTestId('install-data-notice')).not.toHaveTextContent(
-        "isn't listed for you"
       );
     });
   });

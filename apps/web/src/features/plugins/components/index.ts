@@ -1,6 +1,7 @@
 export { AudienceIcon } from './AudienceIcon';
 export { InstallPluginDialog } from './InstallPluginDialog';
 export { PluginCard } from './PluginCard';
+export { PluginCredentialsCard, type CredentialsSaveOutcome } from './PluginCredentialsCard';
 export { PluginPageMessage } from './PluginPageMessage';
 export { PluginReleaseIssuesCard } from './PluginReleaseIssuesCard';
 export { PluginSchedulesCard } from './PluginSchedulesCard';

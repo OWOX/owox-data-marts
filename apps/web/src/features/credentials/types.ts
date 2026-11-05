@@ -308,6 +308,8 @@ export function isCredentialEligible(
   requirement: NormalizedPluginCredentialRequirement
 ): boolean {
   if (!credential.enabled || credential.definitionConsentRequired) return false;
+  // Listed, but shared with the member for something other than use: saving it is refused.
+  if (credential.canUse === false) return false;
   if (requirement.definitionId !== null) {
     return credential.definition.id === requirement.definitionId;
   }

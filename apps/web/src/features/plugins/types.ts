@@ -70,6 +70,11 @@ export interface InstalledPlugin extends PluginGalleryEntry {
   uninstalledAt: string | null;
 }
 
+/** The Credential granted to each requirement now; an ungranted requirement is absent. */
+export interface PluginCredentialSelections {
+  credentialSelections: Record<string, string>;
+}
+
 export interface PluginEntryPoint {
   deliveryUrl: string;
   displayName: string;

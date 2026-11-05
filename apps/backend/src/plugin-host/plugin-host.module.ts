@@ -53,6 +53,7 @@ import { ReleaseCandidateRulesService } from './services/release-candidate-rules
 import { PluginPresentationMapper } from './mappers/plugin-presentation.mapper';
 import { FindPluginByRepositoryService } from './use-cases/find-plugin-by-repository.service';
 import { GetPluginDetailsService } from './use-cases/get-plugin-details.service';
+import { GetPluginInstallationCredentialSelectionsService } from './use-cases/get-plugin-installation-credential-selections.service';
 import { GetPluginInstallationEntryService } from './use-cases/get-plugin-installation-entry.service';
 import { InstallPluginService } from './use-cases/install-plugin.service';
 import { ListInstallationsService } from './use-cases/list-installations.service';
@@ -216,6 +217,7 @@ import { PutPluginCollectionDocumentService } from './collections/use-cases/put-
     ProjectPluginRunsService,
     ListPluginHistoryService,
     GetPluginInstallationEntryService,
+    GetPluginInstallationCredentialSelectionsService,
     UpdatePluginService,
     CheckPluginReleaseService,
     IssuePluginRuntimeTokenService,

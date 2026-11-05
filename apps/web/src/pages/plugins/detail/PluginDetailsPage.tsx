@@ -10,6 +10,7 @@ import {
   DropdownMenuTrigger,
 } from '@owox/ui/components/dropdown-menu';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
+import { cn } from '@owox/ui/lib/utils';
 import {
   ArrowLeft,
   BookOpenIcon,
@@ -21,16 +22,19 @@ import {
   Tag,
 } from 'lucide-react';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { useNavigate, useParams } from 'react-router';
+import toast from 'react-hot-toast';
+import { Link, Navigate, useNavigate, useParams } from 'react-router';
 import { useAuth } from '../../../features/idp';
 import {
   AudienceIcon,
   InstallPluginDialog,
+  PluginCredentialsCard,
   PluginReleaseIssuesCard,
   PluginSchedulesCard,
   findReleaseIssues,
   usePlugin,
   usePluginActions,
+  usePluginCredentialSelections,
   usePluginInstallations,
   usePluginManageablePublications,
   usePluginPublishing,
@@ -39,6 +43,7 @@ import {
   useUninstallConfirmation,
   repositoryPath,
   safeHttpsUrl,
+  type CredentialsSaveOutcome,
   type PluginGalleryEntry,
   describeVisibility,
 } from '../../../features/plugins';
@@ -64,22 +69,34 @@ const UNPUBLISH_LABELS: Record<string, string> = {
 /** The version action's tooltip and accessible name: one string, so they cannot drift. */
 const CHECK_AND_UPDATE_LABEL = 'Check and Update';
 
+const TAB_CLASS = 'border-b-2 px-4 py-4 text-sm font-medium whitespace-nowrap';
+const ACTIVE_TAB_CLASS = 'border-primary text-primary';
+const INACTIVE_TAB_CLASS =
+  'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 dark:text-gray-400 dark:hover:border-gray-200 dark:hover:text-gray-200';
+
 /**
  * One plugin's own page.
  *
  * Structured like the Data Mart details page -- back arrow pulled into the gutter, a tab
  * strip, then collapsible sections of cards -- and built from the same pieces, so a
- * plugin does not read as a different product. Overview is the only tab this iteration
- * has: permissions, logs and per-plugin collections are explicit non-goals.
+ * plugin does not read as a different product. Credentials is a tab only while the
+ * member's installation has Credential grants to change: permissions, logs and
+ * per-plugin collections are explicit non-goals.
  */
 export default function PluginDetailsPage({
   installOnOpen = false,
-}: { installOnOpen?: boolean } = {}) {
+  tab = 'overview',
+}: { installOnOpen?: boolean; tab?: 'overview' | 'credentials' } = {}) {
   const { pluginId } = useParams<{ pluginId: string }>();
   const { plugin, isLoading } = usePlugin(pluginId);
   const { install, uninstall, checkNow, isInstalling, isUninstalling, isUpdating } =
     usePluginActions();
-  const { installations } = usePluginInstallations();
+  const { installations, isLoading: installationsLoading } = usePluginInstallations();
+  const installation = installations.find(item => item.pluginId === pluginId);
+  // Read only on the tab that shows and changes them.
+  const grants = usePluginCredentialSelections(
+    tab === 'credentials' ? installation?.installationId : undefined
+  );
   // Only the history list holds an uninstalled installation, whose schedules can still be deleted.
   const { installations: history } = usePluginInstallations(true);
   const publications = usePluginManageablePublications(pluginId ?? '');
@@ -91,12 +108,6 @@ export default function PluginDetailsPage({
   const navigate = useNavigate();
 
   const [confirming, setConfirming] = useState<PluginGalleryEntry | null>(null);
-  /**
-   * Fixed when the dialog opens. A stale-version retry can bring a version without Credential
-   * requirements, which must not turn an installed plugin's Configure Credentials into
-   * "Install this plugin?".
-   */
-  const [confirmingMode, setConfirmingMode] = useState<'install' | 'configure'>('install');
   const actionsTriggerRef = useRef<HTMLButtonElement>(null);
   const { requestUninstall, uninstallDialog } = useUninstallConfirmation({
     uninstall,
@@ -116,7 +127,6 @@ export default function PluginDetailsPage({
     // An unlisted plugin waits for the member to choose Install on the banner instead.
     if (isInstallableFromLink(plugin) && plugin.visibleViaScopes.length > 0) {
       leaveLinkOnCancel.current = true;
-      setConfirmingMode('install');
       setConfirming(plugin);
     }
   }, [installOnOpen, plugin]);
@@ -130,8 +140,8 @@ export default function PluginDetailsPage({
   }
 
   /**
-   * Runs the install mutation after the confirmation dialog: a first install, a restore of
-   * an uninstalled plugin, or a change to an installed plugin's Credential grants.
+   * Runs the install mutation after the confirmation dialog: a first install or a restore of
+   * an uninstalled plugin.
    *
    * Backend soft-deletes only: an uninstalled row is reactivated, not recreated. UI still
    * asks again after uninstall so the member re-agrees to what they are restoring.
@@ -157,12 +167,28 @@ export default function PluginDetailsPage({
     installOnOpen && isInstallableFromLink(plugin) && plugin.visibleViaScopes.length === 0;
   const isInstalled = plugin.installationState === 'installed';
   const isConfiguringCredentials = isInstalled && (plugin.credentialRequirements?.length ?? 0) > 0;
-  // No "Reinstall": OWOX neither hosts nor packages a plugin, so installing a live one again
-  // would rebuild, replace or reset nothing. Once installed, the header keeps an action only
-  // when there are Credential grants to change. Uninstalled still reads Install (dialog),
-  // even though the API reactivates the same installation row.
-  const showHeaderAction = !isInstalled || isConfiguringCredentials;
-  const installation = installations.find(item => item.pluginId === plugin.pluginId);
+  const pluginPath = scope(`/plugins/${plugin.pluginId}`);
+  // Uninstalling from this tab, or a release that drops every requirement, leaves nothing to show.
+  if (tab === 'credentials' && !isConfiguringCredentials) {
+    return <Navigate to={pluginPath} replace />;
+  }
+  /**
+   * The Credentials tab saves through the same install call, which on a live installation
+   * changes only its grants. No dialog: the member agreed to the plugin when installing it.
+   */
+  const saveCredentials = async (
+    credentialSelections: Readonly<Record<string, string | null>>
+  ): Promise<CredentialsSaveOutcome> => {
+    try {
+      const stale = await install(plugin.pluginId, plugin.currentVersionId, credentialSelections);
+      if (stale) return 'stale';
+      toast.success('Credentials saved');
+      return 'saved';
+    } catch {
+      // The hook has already toasted the failure.
+      return 'failed';
+    }
+  };
   const schedulesInstallation = isInstalled
     ? installation
     : plugin.installationState === 'uninstalled'
@@ -222,7 +248,11 @@ export default function PluginDetailsPage({
           <div className='flex shrink-0 items-center gap-2'>
             {plugin.suspended && <Badge variant='destructive'>Temporarily unavailable</Badge>}
 
-            {showHeaderAction && (
+            {/* No "Reinstall": OWOX neither hosts nor packages a plugin, so installing a live
+                one again would rebuild, replace or reset nothing; Credential grants change on
+                the Credentials tab. Uninstalled still reads Install (dialog), even though the
+                API reactivates the same installation row. */}
+            {!isInstalled && (
               <Button
                 variant='outline'
                 disabled={isInstalling || plugin.suspended || !plugin.currentVersionId}
@@ -230,19 +260,11 @@ export default function PluginDetailsPage({
                   if (isInstalling) {
                     return;
                   }
-                  // Every install/restore/reconfigure uses the same explicit Credential grant flow.
-                  setConfirmingMode(isConfiguringCredentials ? 'configure' : 'install');
                   setConfirming(plugin);
                 }}
               >
                 {isInstalling && <Loader2 className='size-4 animate-spin' aria-hidden />}
-                {isInstalling
-                  ? isConfiguringCredentials
-                    ? 'Saving…'
-                    : 'Installing…'
-                  : isConfiguringCredentials
-                    ? 'Configure Credentials'
-                    : 'Install'}
+                {isInstalling ? 'Installing…' : 'Install'}
               </Button>
             )}
 
@@ -319,75 +341,129 @@ export default function PluginDetailsPage({
           className='no-scrollbar -mb-px flex gap-2 overflow-x-auto border-b whitespace-nowrap'
           aria-label='Tabs'
         >
-          <span className='border-primary text-primary border-b-2 px-4 py-4 text-sm font-medium'>
-            Overview
-          </span>
+          {isConfiguringCredentials ? (
+            <>
+              <Link
+                to={pluginPath}
+                aria-current={tab === 'overview' ? 'page' : undefined}
+                className={cn(
+                  TAB_CLASS,
+                  tab === 'overview' ? ACTIVE_TAB_CLASS : INACTIVE_TAB_CLASS
+                )}
+              >
+                Overview
+              </Link>
+              <Link
+                to={`${pluginPath}/credentials`}
+                aria-current={tab === 'credentials' ? 'page' : undefined}
+                className={cn(
+                  TAB_CLASS,
+                  tab === 'credentials' ? ACTIVE_TAB_CLASS : INACTIVE_TAB_CLASS
+                )}
+              >
+                Credentials
+              </Link>
+            </>
+          ) : (
+            <span className={cn(TAB_CLASS, ACTIVE_TAB_CLASS)}>Overview</span>
+          )}
         </nav>
 
-        <div className='flex flex-col gap-4 pt-4'>
-          {offersInstallBanner && (
-            <Alert>
-              <Info />
-              <AlertTitle>Install to open this page</AlertTitle>
-              <AlertDescription>
-                <p>The link you opened points to a page inside this plugin.</p>
-                <Button
-                  variant='outline'
-                  size='sm'
-                  className='mt-2'
-                  disabled={isInstalling}
-                  onClick={() => {
-                    setConfirmingMode('install');
-                    setConfirming(plugin);
-                  }}
+        {tab === 'credentials' ? (
+          <div className='flex flex-col gap-4 pt-4'>
+            <PluginCredentialsCard
+              plugin={plugin}
+              // A failed refetch keeps the previous answer, which is no longer the truth.
+              granted={grants.isError ? undefined : grants.credentialSelections}
+              grantsState={
+                installationsLoading || grants.isLoading
+                  ? 'loading'
+                  : grants.isError || !installation
+                    ? 'failed'
+                    : 'loaded'
+              }
+              isSaving={isInstalling}
+              disabled={plugin.suspended || !plugin.currentVersionId}
+              onSave={saveCredentials}
+            />
+          </div>
+        ) : (
+          <div className='flex flex-col gap-4 pt-4'>
+            {offersInstallBanner && (
+              <Alert>
+                <Info />
+                <AlertTitle>Install to open this page</AlertTitle>
+                <AlertDescription>
+                  <p>The link you opened points to a page inside this plugin.</p>
+                  <Button
+                    variant='outline'
+                    size='sm'
+                    className='mt-2'
+                    disabled={isInstalling}
+                    onClick={() => {
+                      setConfirming(plugin);
+                    }}
+                  >
+                    Install
+                  </Button>
+                </AlertDescription>
+              </Alert>
+            )}
+
+            <CollapsibleCard collapsible name='plugin-description'>
+              <CollapsibleCardHeader>
+                <CollapsibleCardHeaderTitle
+                  icon={BookOpenIcon}
+                  tooltip='What the publisher says this plugin does'
                 >
-                  Install
-                </Button>
-              </AlertDescription>
-            </Alert>
-          )}
-
-          <CollapsibleCard collapsible name='plugin-description'>
-            <CollapsibleCardHeader>
-              <CollapsibleCardHeaderTitle
-                icon={BookOpenIcon}
-                tooltip='What the publisher says this plugin does'
-              >
-                Description
-              </CollapsibleCardHeaderTitle>
-            </CollapsibleCardHeader>
-            <CollapsibleCardContent>
-              <p className='max-w-prose text-sm'>
-                {plugin.description || 'This plugin has no description.'}
-              </p>
-              {plugin.backendOrigin && (
-                <p className='text-muted-foreground mt-2 max-w-prose text-sm'>
-                  Runs code on {plugin.backendOrigin} with your access, including when the plugin is
-                  closed.
+                  Description
+                </CollapsibleCardHeaderTitle>
+              </CollapsibleCardHeader>
+              <CollapsibleCardContent>
+                <p className='max-w-prose text-sm'>
+                  {plugin.description || 'This plugin has no description.'}
                 </p>
-              )}
-            </CollapsibleCardContent>
-            <CollapsibleCardFooter></CollapsibleCardFooter>
-          </CollapsibleCard>
+                {plugin.backendOrigin && (
+                  <p className='text-muted-foreground mt-2 max-w-prose text-sm'>
+                    Runs code on {plugin.backendOrigin} with your access, including when the plugin
+                    is closed.
+                  </p>
+                )}
+              </CollapsibleCardContent>
+              <CollapsibleCardFooter></CollapsibleCardFooter>
+            </CollapsibleCard>
 
-          <CollapsibleCard collapsible name='plugin-source'>
-            <CollapsibleCardHeader>
-              <CollapsibleCardHeaderTitle
-                icon={GitHubIcon}
-                tooltip='Where this plugin comes from and which version is current'
-              >
-                Source
-              </CollapsibleCardHeaderTitle>
-            </CollapsibleCardHeader>
+            <CollapsibleCard collapsible name='plugin-source'>
+              <CollapsibleCardHeader>
+                <CollapsibleCardHeaderTitle
+                  icon={GitHubIcon}
+                  tooltip='Where this plugin comes from and which version is current'
+                >
+                  Source
+                </CollapsibleCardHeaderTitle>
+              </CollapsibleCardHeader>
 
-            <CollapsibleCardContent>
-              <div className='flex flex-col gap-4 md:flex-row'>
-                {/* §16: the owner is always disclosed. Shown with the same avatar pill the
+              <CollapsibleCardContent>
+                <div className='flex flex-col gap-4 md:flex-row'>
+                  {/* §16: the owner is always disclosed. Shown with the same avatar pill the
                     project's member lists use -- a GitHub owner is not an OWOX user and has
                     no avatar, but it should not read as a different kind of thing either. */}
-                <InfoCard label='Author' hint='The GitHub account that controls future releases'>
-                  {ownerHref ? (
-                    <ExternalAnchor href={ownerHref}>
+                  <InfoCard label='Author' hint='The GitHub account that controls future releases'>
+                    {ownerHref ? (
+                      <ExternalAnchor href={ownerHref}>
+                        <Pill
+                          icon={
+                            <UserAvatar
+                              initials={generateInitials(plugin.source.ownerName)}
+                              displayName={plugin.source.ownerName}
+                              size={UserAvatarSize.SMALL}
+                            />
+                          }
+                        >
+                          {plugin.source.ownerName}
+                        </Pill>
+                      </ExternalAnchor>
+                    ) : (
                       <Pill
                         icon={
                           <UserAvatar
@@ -399,60 +475,47 @@ export default function PluginDetailsPage({
                       >
                         {plugin.source.ownerName}
                       </Pill>
-                    </ExternalAnchor>
-                  ) : (
-                    <Pill
-                      icon={
-                        <UserAvatar
-                          initials={generateInitials(plugin.source.ownerName)}
-                          displayName={plugin.source.ownerName}
-                          size={UserAvatarSize.SMALL}
-                        />
-                      }
-                    >
-                      {plugin.source.ownerName}
-                    </Pill>
-                  )}
-                </InfoCard>
+                    )}
+                  </InfoCard>
 
-                {/* §16: withheld for a private repository -- naming it would confirm that
+                  {/* §16: withheld for a private repository -- naming it would confirm that
                     one specific private repository exists. */}
-                <InfoCard label='Repository' hint='The plugin identity is this repository'>
-                  {repositoryHref ? (
-                    // owner/name runs long often enough that it has to truncate; the
-                    // tooltip is how the full path stays reachable once it does.
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <ExternalAnchor href={repositoryHref} className='max-w-full min-w-0'>
-                          <Pill icon={<GitHubIcon size={14} className='shrink-0' />}>
-                            {repositoryPath(repositoryHref)}
-                          </Pill>
-                        </ExternalAnchor>
-                      </TooltipTrigger>
-                      <TooltipContent className='max-w-72 break-all'>
-                        {repositoryPath(repositoryHref)}
-                      </TooltipContent>
-                    </Tooltip>
-                  ) : (
-                    <Pill icon={<GitHubIcon size={14} className='shrink-0' />}>
-                      {plugin.source.repositoryUrl
-                        ? 'Repository link unavailable'
-                        : 'Private repository'}
-                    </Pill>
-                  )}
-                </InfoCard>
+                  <InfoCard label='Repository' hint='The plugin identity is this repository'>
+                    {repositoryHref ? (
+                      // owner/name runs long often enough that it has to truncate; the
+                      // tooltip is how the full path stays reachable once it does.
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <ExternalAnchor href={repositoryHref} className='max-w-full min-w-0'>
+                            <Pill icon={<GitHubIcon size={14} className='shrink-0' />}>
+                              {repositoryPath(repositoryHref)}
+                            </Pill>
+                          </ExternalAnchor>
+                        </TooltipTrigger>
+                        <TooltipContent className='max-w-72 break-all'>
+                          {repositoryPath(repositoryHref)}
+                        </TooltipContent>
+                      </Tooltip>
+                    ) : (
+                      <Pill icon={<GitHubIcon size={14} className='shrink-0' />}>
+                        {plugin.source.repositoryUrl
+                          ? 'Repository link unavailable'
+                          : 'Private repository'}
+                      </Pill>
+                    )}
+                  </InfoCard>
 
-                {/*
+                  {/*
                   The daily-cadence sentence lives in this tooltip rather than as a line
                   under the card: it belongs to the version, and a member reads it when they
                   ask what the version is, not as standing body text. The time is rendered in
                   the member's own timezone.
                 */}
-                <InfoCard label='Version' hint={versionHint(plugin.nextCheckAt)}>
-                  <Pill icon={<Tag className='text-muted-foreground size-3.5 shrink-0' />}>
-                    {plugin.currentSemver ? `v${plugin.currentSemver}` : 'No eligible release'}
-                  </Pill>
-                  {/*
+                  <InfoCard label='Version' hint={versionHint(plugin.nextCheckAt)}>
+                    <Pill icon={<Tag className='text-muted-foreground size-3.5 shrink-0' />}>
+                      {plugin.currentSemver ? `v${plugin.currentSemver}` : 'No eligible release'}
+                    </Pill>
+                    {/*
                     Beside the value, not in the title row: a button there is taller than
                     a line of text, which would push this card's content below the other
                     two in the same row.
@@ -461,107 +524,108 @@ export default function PluginDetailsPage({
                     member who can reach this page (§6.3) -- an installation requirement
                     would only delay a check that is scheduled and inevitable anyway.
                   */}
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant='ghost'
-                        size='icon'
-                        className='shrink-0'
-                        disabled={isUpdating}
-                        aria-label={CHECK_AND_UPDATE_LABEL}
-                        onClick={() => void checkNow(plugin.pluginId)}
-                      >
-                        <RefreshCw className={isUpdating ? 'size-4 animate-spin' : 'size-4'} />
-                      </Button>
-                    </TooltipTrigger>
-                    {/*
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant='ghost'
+                          size='icon'
+                          className='shrink-0'
+                          disabled={isUpdating}
+                          aria-label={CHECK_AND_UPDATE_LABEL}
+                          onClick={() => void checkNow(plugin.pluginId)}
+                        >
+                          <RefreshCw className={isUpdating ? 'size-4 animate-spin' : 'size-4'} />
+                        </Button>
+                      </TooltipTrigger>
+                      {/*
                       The deployment owns activation, so this only brings the already
                       scheduled check forward. No confirmation: nothing here is a choice. The
                       label says Update because a newer valid release this check finds becomes
                       current at once.
                     */}
-                    <TooltipContent>{CHECK_AND_UPDATE_LABEL}</TooltipContent>
-                  </Tooltip>
-                </InfoCard>
-              </div>
-            </CollapsibleCardContent>
-
-            <CollapsibleCardFooter
-              left={
-                /* Icon then plain language, matching the Gallery card so the two read as one
-                   product. The audience mark is the same glyph the card uses. */
-                visibility ? (
-                  <span className='text-muted-foreground flex items-center gap-2 text-sm'>
-                    <AudienceIcon audience={visibility.audience} className='size-4 shrink-0' />
-                    {visibility.detail}
-                  </span>
-                ) : undefined
-              }
-            />
-          </CollapsibleCard>
-
-          {releaseIssues && <PluginReleaseIssuesCard issues={releaseIssues} />}
-
-          {schedulesInstallation && (
-            <PluginSchedulesCard
-              pluginId={plugin.pluginId}
-              installationId={schedulesInstallation.installationId}
-              hasBackend={Boolean(plugin.backendOrigin)}
-              uninstalled={!isInstalled}
-            />
-          )}
-
-          <CollapsibleCard collapsible name='plugin-details'>
-            <CollapsibleCardHeader>
-              <CollapsibleCardHeaderTitle icon={Info} tooltip='Your installation of this plugin'>
-                Details
-              </CollapsibleCardHeaderTitle>
-            </CollapsibleCardHeader>
-            <CollapsibleCardContent>
-              {installation ? (
-                <div className='flex flex-col gap-4 md:flex-row'>
-                  {/* Always the reader: an installation belongs to one member in one
-                      project, and nobody ever sees anyone else's. */}
-                  <InfoCard label='Installed By' hint='Installations are personal, never shared'>
-                    <Pill
-                      icon={
-                        <UserAvatar
-                          avatar={user?.avatar}
-                          initials={generateInitials(user?.fullName, user?.email)}
-                          displayName={user?.fullName ?? 'You'}
-                          size={UserAvatarSize.SMALL}
-                        />
-                      }
-                    >
-                      {user?.fullName ?? 'You'}
-                    </Pill>
-                  </InfoCard>
-
-                  <InfoCard label='Installed At' hint='When you last installed or restored it'>
-                    <Pill
-                      icon={<CalendarIcon className='text-muted-foreground size-3.5 shrink-0' />}
-                    >
-                      {formatDateOnly(installation.installedAt)}
-                    </Pill>
+                      <TooltipContent>{CHECK_AND_UPDATE_LABEL}</TooltipContent>
+                    </Tooltip>
                   </InfoCard>
                 </div>
-              ) : (
-                <p className='text-muted-foreground text-sm'>
-                  You have not installed this plugin in this project.
-                </p>
-              )}
-            </CollapsibleCardContent>
-            <CollapsibleCardFooter></CollapsibleCardFooter>
-          </CollapsibleCard>
+              </CollapsibleCardContent>
 
-          {publications.length > 0 && (
-            <p className='text-muted-foreground text-sm'>
-              Unpublishing only removes the listing. Nobody is uninstalled, anyone who already
-              installed it keeps it, and publishing again restores this listing rather than creating
-              a second one.
-            </p>
-          )}
-        </div>
+              <CollapsibleCardFooter
+                left={
+                  /* Icon then plain language, matching the Gallery card so the two read as one
+                   product. The audience mark is the same glyph the card uses. */
+                  visibility ? (
+                    <span className='text-muted-foreground flex items-center gap-2 text-sm'>
+                      <AudienceIcon audience={visibility.audience} className='size-4 shrink-0' />
+                      {visibility.detail}
+                    </span>
+                  ) : undefined
+                }
+              />
+            </CollapsibleCard>
+
+            {releaseIssues && <PluginReleaseIssuesCard issues={releaseIssues} />}
+
+            {schedulesInstallation && (
+              <PluginSchedulesCard
+                pluginId={plugin.pluginId}
+                installationId={schedulesInstallation.installationId}
+                hasBackend={Boolean(plugin.backendOrigin)}
+                uninstalled={!isInstalled}
+              />
+            )}
+
+            <CollapsibleCard collapsible name='plugin-details'>
+              <CollapsibleCardHeader>
+                <CollapsibleCardHeaderTitle icon={Info} tooltip='Your installation of this plugin'>
+                  Details
+                </CollapsibleCardHeaderTitle>
+              </CollapsibleCardHeader>
+              <CollapsibleCardContent>
+                {installation ? (
+                  <div className='flex flex-col gap-4 md:flex-row'>
+                    {/* Always the reader: an installation belongs to one member in one
+                      project, and nobody ever sees anyone else's. */}
+                    <InfoCard label='Installed By' hint='Installations are personal, never shared'>
+                      <Pill
+                        icon={
+                          <UserAvatar
+                            avatar={user?.avatar}
+                            initials={generateInitials(user?.fullName, user?.email)}
+                            displayName={user?.fullName ?? 'You'}
+                            size={UserAvatarSize.SMALL}
+                          />
+                        }
+                      >
+                        {user?.fullName ?? 'You'}
+                      </Pill>
+                    </InfoCard>
+
+                    <InfoCard label='Installed At' hint='When you last installed or restored it'>
+                      <Pill
+                        icon={<CalendarIcon className='text-muted-foreground size-3.5 shrink-0' />}
+                      >
+                        {formatDateOnly(installation.installedAt)}
+                      </Pill>
+                    </InfoCard>
+                  </div>
+                ) : (
+                  <p className='text-muted-foreground text-sm'>
+                    You have not installed this plugin in this project.
+                  </p>
+                )}
+              </CollapsibleCardContent>
+              <CollapsibleCardFooter></CollapsibleCardFooter>
+            </CollapsibleCard>
+
+            {publications.length > 0 && (
+              <p className='text-muted-foreground text-sm'>
+                Unpublishing only removes the listing. Nobody is uninstalled, anyone who already
+                installed it keeps it, and publishing again restores this listing rather than
+                creating a second one.
+              </p>
+            )}
+          </div>
+        )}
       </div>
 
       {confirming && (
@@ -579,7 +643,6 @@ export default function PluginDetailsPage({
           }}
           onConfirm={credentialSelections => void installPlugin(confirming, credentialSelections)}
           isInstalling={isInstalling}
-          mode={confirmingMode}
         />
       )}
       {uninstallDialog}

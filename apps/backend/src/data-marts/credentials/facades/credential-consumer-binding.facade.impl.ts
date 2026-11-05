@@ -24,6 +24,7 @@ import { CredentialService } from '../services/credential.service';
 import {
   isExpectedUnusableCredentialError,
   type CredentialConsumerBindingFacade,
+  type ListCredentialSelectionsRequest,
   type MarkCredentialUsedRequest,
   type ReconcileCredentialBindingsRequest,
   type ReplaceCredentialBindingsRequest,
@@ -135,6 +136,35 @@ export class CredentialConsumerBindingFacadeImpl implements CredentialConsumerBi
       byKey.set(requirement.key, binding);
     }
     await this.bindings.save([...byKey.values()]);
+  }
+
+  async listSelections(
+    request: ListCredentialSelectionsRequest
+  ): Promise<Readonly<Record<string, string>>> {
+    const declared = new Map(
+      request.requirements
+        .map(normalizeCredentialRequirement)
+        .map(requirement => [requirement.key, requirement])
+    );
+    if (declared.size === 0) return {};
+    const active = await this.bindings.find({
+      where: {
+        consumerType: request.consumerType,
+        consumerId: request.consumerId,
+        projectId: request.projectId,
+        active: true,
+      },
+      select: { requirementKey: true, credentialId: true, requirementSnapshot: true },
+    });
+    // A binding made before a release changed its requirement is one runtime refuses (resolveBinding).
+    return Object.fromEntries(
+      active.flatMap(binding => {
+        const requirement = declared.get(binding.requirementKey);
+        return requirement && sameRequirement(binding.requirementSnapshot, requirement)
+          ? [[binding.requirementKey, binding.credentialId]]
+          : [];
+      })
+    );
   }
 
   async deactivateConsumer(consumerType: 'plugin-installation', consumerId: string): Promise<void> {
