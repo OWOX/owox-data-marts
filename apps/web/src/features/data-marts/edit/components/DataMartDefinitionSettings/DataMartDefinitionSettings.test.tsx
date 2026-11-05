@@ -11,6 +11,7 @@ const testState = vi.hoisted(() => ({
   updateDataMartDefinition: vi.fn(),
   runSchemaActualization: vi.fn(),
   getInputSourceChangeImpact: vi.fn(),
+  onSaved: vi.fn(),
 }));
 
 vi.mock('react-router', async importOriginal => {
@@ -74,13 +75,28 @@ vi.mock('../SqlValidator/SqlValidator.tsx', () => ({
 vi.mock('./form/DataMartDefinitionForm.tsx', async () => {
   const { useFormContext } = await import('react-hook-form');
   return {
-    DataMartDefinitionForm: ({ definitionType }: { definitionType: DataMartDefinitionType }) => {
+    DataMartDefinitionForm: ({
+      definitionType,
+      saveDataMartDefinition,
+    }: {
+      definitionType: DataMartDefinitionType;
+      saveDataMartDefinition?: (e?: unknown, onSaved?: () => void) => void;
+    }) => {
       const { register } = useFormContext();
       return (
         <div data-testid='definition-form'>
           <span>{definitionType}</span>
           <input aria-label='SQL query' {...register('definition.sqlQuery')} />
           <input aria-label='Table name' {...register('definition.fullyQualifiedName')} />
+          {/* Stands in for a connector sheet that waits for the save, as Save & Run does. */}
+          <button
+            type='button'
+            onClick={() => {
+              saveDataMartDefinition?.(undefined, testState.onSaved);
+            }}
+          >
+            Save and wait
+          </button>
         </div>
       );
     },
@@ -386,6 +402,56 @@ describe('DataMartDefinitionSettings — changing the input source type', () => 
 
       await waitFor(() => {
         expect(testState.updateDataMartDefinition).toHaveBeenCalled();
+      });
+    });
+  });
+
+  describe('a caller that waits for the save', () => {
+    it('hears about a successful save', async () => {
+      renderSettings(DataMartDefinitionType.SQL, DataMartDefinitionType.SQL);
+
+      fireEvent.click(screen.getByRole('button', { name: 'Save and wait' }));
+
+      await waitFor(() => {
+        expect(testState.onSaved).toHaveBeenCalledTimes(1);
+      });
+      expect(testState.updateDataMartDefinition).toHaveBeenCalled();
+    });
+
+    it('hears nothing when the backend rejects the save', async () => {
+      testState.updateDataMartDefinition.mockRejectedValue(new Error('Rejected'));
+      vi.spyOn(console, 'error').mockImplementation(() => undefined);
+      renderSettings(DataMartDefinitionType.SQL, DataMartDefinitionType.SQL);
+
+      fireEvent.click(screen.getByRole('button', { name: 'Save and wait' }));
+
+      await waitFor(() => {
+        expect(console.error).toHaveBeenCalled();
+      });
+      expect(testState.onSaved).not.toHaveBeenCalled();
+    });
+
+    it('hears about the save only after a referenced Data Mart is confirmed', async () => {
+      testState.getInputSourceChangeImpact.mockResolvedValue({
+        outboundRelationshipsCount: 0,
+        inboundRelationshipsCount: 0,
+        reportsCount: 0,
+        referencingDataMartsCount: 1,
+        referencingDataMarts: [{ id: 'dm-retail', title: 'Retail orders' }],
+      });
+      renderSettings(
+        DataMartDefinitionType.SQL,
+        DataMartDefinitionType.SQL,
+        vi.fn(),
+        DataStorageType.GOOGLE_BIGQUERY,
+        DataMartStatus.PUBLISHED
+      );
+
+      fireEvent.click(screen.getByRole('button', { name: 'Save and wait' }));
+      fireEvent.click(await screen.findByRole('button', { name: 'Save anyway' }));
+
+      await waitFor(() => {
+        expect(testState.onSaved).toHaveBeenCalledTimes(1);
       });
     });
   });

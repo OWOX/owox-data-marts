@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Loader2 } from 'lucide-react';
-import { useForm, FormProvider, type SubmitHandler, type Resolver } from 'react-hook-form';
+import { useForm, FormProvider, type Resolver } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { DataMartDefinitionTypeSelector } from './form/DataMartDefinitionTypeSelector.tsx';
 import { DataMartDefinitionForm } from './form/DataMartDefinitionForm.tsx';
@@ -93,6 +93,7 @@ export function DataMartDefinitionSettings({
   const [pendingReferencedSave, setPendingReferencedSave] = useState<{
     data: DataMartDefinitionFormData;
     referencing: ReferencingDataMarts;
+    onSaved?: () => void;
   } | null>(null);
   const [isCheckingReferences, setIsCheckingReferences] = useState(false);
 
@@ -222,8 +223,9 @@ export function DataMartDefinitionSettings({
     [setDefinitionType]
   );
 
-  const onSubmit: SubmitHandler<DataMartDefinitionFormData> = useCallback(
-    async (data: DataMartDefinitionFormData) => {
+  /** Resolves to whether the definition was saved. */
+  const onSubmit = useCallback(
+    async (data: DataMartDefinitionFormData): Promise<boolean> => {
       if (definitionType && dataMartId) {
         try {
           await updateDataMartDefinition(dataMartId, data.definitionType, data.definition);
@@ -232,10 +234,12 @@ export function DataMartDefinitionSettings({
           // values: anything typed while the request was in flight stays in the editor and
           // simply leaves the form dirty again instead of being snapped back to the snapshot.
           reset(data, { keepValues: true });
+          return true;
         } catch (error) {
           console.error('Failed to update data mart definition:', error);
         }
       }
+      return false;
     },
     [dataMartId, definitionType, updateDataMartDefinition, reset]
   );
@@ -248,9 +252,11 @@ export function DataMartDefinitionSettings({
   }, [shouldActualizeSchema, runSchemaActualization]);
 
   const runSubmitGuarded = useCallback(
-    (data: DataMartDefinitionFormData) => {
+    (data: DataMartDefinitionFormData, onSaved?: () => void) => {
       const runSubmit = () => {
-        void onSubmit(data);
+        void onSubmit(data).then(saved => {
+          if (saved) onSaved?.();
+        });
       };
       if (runGuarded) {
         runGuarded(runSubmit, { intent: 'definition' });
@@ -278,7 +284,7 @@ export function DataMartDefinitionSettings({
   // or rename columns they use, so it is confirmed when there are any. The check is advisory: if
   // it fails, the save goes ahead.
   const checkReferencesThenSubmit = useCallback(
-    async (data: DataMartDefinitionFormData) => {
+    async (data: DataMartDefinitionFormData, onSaved?: () => void) => {
       setIsCheckingReferences(true);
       try {
         const impact = await dataMartService.getInputSourceChangeImpact(dataMartId, {
@@ -289,6 +295,7 @@ export function DataMartDefinitionSettings({
           setPendingReferencedSave({
             data,
             referencing: { dataMarts: impact.referencingDataMarts ?? [], total },
+            onSaved,
           });
           return;
         }
@@ -297,25 +304,26 @@ export function DataMartDefinitionSettings({
       } finally {
         setIsCheckingReferences(false);
       }
-      runSubmitGuarded(data);
+      runSubmitGuarded(data, onSaved);
     },
     [dataMartId, runSubmitGuarded]
   );
 
-  const guardedSubmit = useCallback<SubmitHandler<DataMartDefinitionFormData>>(
-    data => {
+  const guardedSubmit = useCallback(
+    (data: DataMartDefinitionFormData, onSaved?: () => void) => {
       // Repointing a Data Mart at another type of source can disconnect fields that reports and
       // relationships rely on, so it is confirmed explicitly. A same-type edit saves directly,
       // unless other Data Marts reference this one — only a published one can be referenced.
       if (isTypeChangeStaged) {
+        // `onSaved` is dropped: only a connector Data Mart passes it, and its type never changes.
         setPendingTypeChange(data);
         return;
       }
       if (isPublished) {
-        void checkReferencesThenSubmit(data);
+        void checkReferencesThenSubmit(data, onSaved);
         return;
       }
-      runSubmitGuarded(data);
+      runSubmitGuarded(data, onSaved);
     },
     [isTypeChangeStaged, isPublished, checkReferencesThenSubmit, runSubmitGuarded]
   );
@@ -332,19 +340,21 @@ export function DataMartDefinitionSettings({
 
   const handleConfirmReferencedSave = useCallback(() => {
     if (!pendingReferencedSave) return;
-    const { data, referencing } = pendingReferencedSave;
+    const { data, referencing, onSaved } = pendingReferencedSave;
     setPendingReferencedSave(null);
     trackReferencedChangeConfirmed(referencing.total);
-    runSubmitGuarded(data);
+    runSubmitGuarded(data, onSaved);
   }, [pendingReferencedSave, trackReferencedChangeConfirmed, runSubmitGuarded]);
 
   const handleFormSubmit = useCallback(
-    (e?: React.SyntheticEvent<HTMLFormElement>) => {
+    (e?: React.SyntheticEvent<HTMLFormElement>, onSaved?: () => void) => {
       e?.preventDefault();
       // Validate the definition form BEFORE involving the schema guard. Only a
       // valid submission opens the guard dialog, so we never save/discard schema
       // edits for a definition change that fails validation and never fires.
-      void handleSubmit(guardedSubmit)();
+      void handleSubmit(data => {
+        guardedSubmit(data, onSaved);
+      })();
     },
     [handleSubmit, guardedSubmit]
   );

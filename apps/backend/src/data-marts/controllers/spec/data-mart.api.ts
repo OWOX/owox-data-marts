@@ -7,6 +7,8 @@ import {
   ApiOkResponse,
   ApiNoContentResponse,
   ApiQuery,
+  ApiForbiddenResponse,
+  ApiNotFoundResponse,
 } from '@nestjs/swagger';
 import { CreateDataMartRequestApiDto } from '../../dto/presentation/create-data-mart-request-api.dto';
 import { DataMartResponseApiDto } from '../../dto/presentation/data-mart-response-api.dto';
@@ -16,6 +18,7 @@ import { BatchDataMartHealthStatusResponseApiDto } from '../../dto/presentation/
 import { UpdateDataMartDescriptionApiDto } from '../../dto/presentation/update-data-mart-description-api.dto';
 import { UpdateDataMartIconApiDto } from '../../dto/presentation/update-data-mart-icon-api.dto';
 import { UpdateDataMartTitleApiDto } from '../../dto/presentation/update-data-mart-title-api.dto';
+import { ConnectorTargetConflictResponseApiDto } from '../../dto/presentation/connector-target-conflict-api.dto';
 import { BlendableSchemaDto } from '../../dto/domain/blendable-schema.dto';
 import { UpdateBlendedFieldsConfigApiDto } from '../../dto/presentation/update-blended-fields-config-api.dto';
 import { DataMartMemberAccessResponseApiDto } from '../../dto/presentation/data-mart-member-access-response-api.dto';
@@ -386,6 +389,20 @@ export function GetBlendableSchemaSpec() {
         'Include draft relationship targets and disconnected target fields for configuration. Reporting consumers should keep the default so only published targets and report-eligible fields are returned.',
     }),
     ApiOkResponse({ type: BlendableSchemaDto })
+  );
+}
+
+export function GetConnectorTargetConflictSpec() {
+  return applyDecorators(
+    ApiOperation({
+      summary: 'Check whether another Data Mart writes the same connector target table',
+      description:
+        'Compares the target name without quotes and brackets. BigQuery names keep their case; Snowflake upper-cases only an unquoted database, because the connector always quotes the schema and the table; other storages ignore case. The other Data Mart is named only when the caller can see it.',
+    }),
+    ApiParam({ name: 'id', description: 'DataMart ID' }),
+    ApiOkResponse({ type: ConnectorTargetConflictResponseApiDto }),
+    ApiForbiddenResponse({ description: 'EDIT access is required' }),
+    ApiNotFoundResponse({ description: 'Data Mart was not found in the current project' })
   );
 }
 

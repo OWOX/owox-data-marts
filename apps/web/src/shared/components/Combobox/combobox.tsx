@@ -23,6 +23,7 @@ export interface ComboboxOption {
   forceMount?: boolean;
   group?: string;
   separator?: boolean;
+  disabled?: boolean;
 }
 
 interface ComboboxProps {
@@ -116,6 +117,7 @@ export function Combobox({
         }}
         keywords={option.keywords ?? [option.value, option.label]}
         forceMount={option.forceMount}
+        disabled={option.disabled}
         className='min-w-0 justify-between'
       >
         {renderLabel ? (

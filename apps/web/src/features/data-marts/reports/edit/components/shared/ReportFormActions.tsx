@@ -1,14 +1,8 @@
 import { FormActions } from '@owox/ui/components/form';
 import { Button } from '@owox/ui/components/button';
-import { ButtonGroup } from '@owox/ui/components/button-group';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@owox/ui/components/dropdown-menu';
-import { ChevronDown } from 'lucide-react';
+import { DropdownMenuItem } from '@owox/ui/components/dropdown-menu';
 import { ReportFormMode } from '../../../shared';
+import { SplitButton } from '../../../../../../shared/components/SplitButton';
 import { useRef, useEffect } from 'react';
 import type { RefObject } from 'react';
 
@@ -78,60 +72,41 @@ export const ReportFormActions = ({
 
   return (
     <FormActions>
-      <ButtonGroup className='w-full'>
-        <Button
-          variant='default'
-          type='submit'
-          disabled={disabledPrimary}
-          className='flex-1'
-          onClick={e => {
-            if (submitPendingRef.current) {
-              e.preventDefault();
-              return;
-            }
-            submitPendingRef.current = true;
-            // For CREATE: run after save. For EDIT: don't run
-            runAfterSaveRef.current = canRunAfterSave && mode === ReportFormMode.CREATE;
-          }}
-        >
-          {primaryLabel}
-        </Button>
-
-        {/* Every entry in this menu is a variation on running the report, so with no
-            server-side run there is nothing left to offer. */}
-        {canRunAfterSave && (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant='default'
-                type='button'
-                disabled={disabledPrimary}
-                aria-label='More actions'
-                className='group'
-              >
-                <ChevronDown
-                  className='size-4 transition-transform duration-200 group-data-[state=open]:rotate-180'
-                  aria-hidden='true'
-                />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align='end' side='top'>
-              <DropdownMenuItem
-                onClick={() => {
-                  if (submitPendingRef.current || isSubmitting) return;
-                  submitPendingRef.current = true;
-                  // For CREATE: don't run. For EDIT: run after save
-                  runAfterSaveRef.current = mode === ReportFormMode.EDIT;
-                  onSubmit();
-                }}
-                disabled={isSubmitting}
-              >
-                {dropdownItemLabel}
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        )}
-      </ButtonGroup>
+      <SplitButton
+        groupClassName='w-full'
+        type='submit'
+        disabled={disabledPrimary}
+        className='flex-1'
+        onClick={e => {
+          if (submitPendingRef.current) {
+            e.preventDefault();
+            return;
+          }
+          submitPendingRef.current = true;
+          // For CREATE: run after save. For EDIT: don't run
+          runAfterSaveRef.current = canRunAfterSave && mode === ReportFormMode.CREATE;
+        }}
+        // Every entry in this menu is a variation on running the report, so with no
+        // server-side run there is nothing left to offer.
+        menu={
+          canRunAfterSave && (
+            <DropdownMenuItem
+              onClick={() => {
+                if (submitPendingRef.current || isSubmitting) return;
+                submitPendingRef.current = true;
+                // For CREATE: don't run. For EDIT: run after save
+                runAfterSaveRef.current = mode === ReportFormMode.EDIT;
+                onSubmit();
+              }}
+              disabled={isSubmitting}
+            >
+              {dropdownItemLabel}
+            </DropdownMenuItem>
+          )
+        }
+      >
+        {primaryLabel}
+      </SplitButton>
 
       {onCancel && (
         <Button variant='outline' type='button' onClick={onCancel} disabled={isSubmitting}>

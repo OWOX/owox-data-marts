@@ -10,7 +10,7 @@ import {
   TargetSetupStep,
 } from './steps';
 import { StepNavigation } from './components';
-import type { ConnectorConfig } from '../../../../data-marts/edit';
+import { useRunAfterSave, type ConnectorConfig } from '../../../../data-marts/edit';
 import type { ConnectorFieldsResponseApiDto } from '../../../shared/api';
 import {
   AppWizard,
@@ -40,6 +40,7 @@ import { useProjectRoute } from '../../../../../shared/hooks/useProjectRoute';
 import { usePermissions } from '../../../../../app/permissions';
 import { isUnpublishedCustomConnector } from '../../../shared/utils/custom-connector-publish.utils';
 import { suggestGoogleSheetsTableName } from '../../../shared/utils/google-sheets-table-name.utils';
+import { useConnectorTargetConflict } from '../../../shared/model/hooks/useConnectorTargetConflict';
 import { DataMartContext } from '../../../../data-marts/edit/model/context/context';
 
 const connectorKey = (c: ConnectorListItem) =>
@@ -49,7 +50,7 @@ const connectorKey = (c: ConnectorListItem) =>
 const BUILDER_STATE = { builderEntryPoint: 'data_mart_wizard' };
 
 interface ConnectorEditFormProps {
-  onSubmit: (connector: ConnectorConfig) => void;
+  onSubmit: (connector: ConnectorConfig, runAfterSave: boolean) => void;
   dataStorageType: DataStorageType;
   configurationOnly?: boolean;
   existingConnector?: ConnectorConfig | null;
@@ -75,12 +76,17 @@ export function ConnectorEditForm({
   const { canEdit } = usePermissions();
   // Lets an editor of this Data Mart preview a configuration bound to a Credential.
   const dataMartId = useContext(DataMartContext)?.dataMart?.id;
+  const { canRunAfterSave, isDraft } = useRunAfterSave();
   const [customConnectors, setCustomConnectors] = useState<CustomConnectorListItemDto[]>([]);
   const [isDirty, setIsDirty] = useState(false);
   const [selectedConnector, setSelectedConnector] = useState<ConnectorListItem | null>(null);
   const [selectedNode, setSelectedNode] = useState<string>('');
   const [selectedFields, setSelectedFields] = useState<string[]>([]);
   const [currentStep, setCurrentStep] = useState<number>(1);
+  const [spreadsheetName, setSpreadsheetName] = useState<string | undefined>();
+  const handleOptionLabelChange = useCallback((field: string, label: string | undefined) => {
+    if (field === 'SpreadsheetId') setSpreadsheetName(label);
+  }, []);
   const [connectorConfiguration, setConnectorConfiguration] = useState<Record<string, unknown>>({});
   const [configurationIsValid, setConfigurationIsValid] = useState<boolean>(false);
   const [loadedSpecifications, setLoadedSpecifications] = useState<Set<string>>(new Set());
@@ -132,6 +138,11 @@ export function ConnectorEditForm({
 
   const [target, setTarget] = useState<{ fullyQualifiedName: string; isValid: boolean } | null>(
     null
+  );
+  // Only the full wizard shows Target Setup; other modes must not ask for a conflict.
+  const { conflict, isPending: isConflictPending } = useConnectorTargetConflict(
+    dataMartId,
+    mode === 'full' && !configurationOnly ? target : null
   );
   const isGoogleSheetsConnector = selectedConnector?.name === GOOGLE_SHEETS_CONNECTOR_NAME;
   const isUnpublishedConnector = selectedConnector
@@ -380,6 +391,7 @@ export function ConnectorEditForm({
   const handleConnectorSelect = (connector: ConnectorListItem) => {
     setSelectedConnector(connector);
     setConnectorConfiguration({});
+    setSpreadsheetName(undefined);
     setConfigurationIsValid(false);
     if (
       !existingConnector &&
@@ -771,6 +783,7 @@ export function ConnectorEditForm({
           connector={selectedConnector}
           connectorSpecification={connectorSpecification}
           onConfigurationChange={handleConfigurationChange}
+          onOptionLabelChange={handleOptionLabelChange}
           onValidationChange={handleConfigurationValidationChange}
           initialConfiguration={connectorConfiguration}
           loading={loadingSpecification}
@@ -900,6 +913,7 @@ export function ConnectorEditForm({
             connector={selectedConnector}
             connectorSpecification={connectorSpecification}
             onConfigurationChange={handleConfigurationChange}
+            onOptionLabelChange={handleOptionLabelChange}
             onValidationChange={handleConfigurationValidationChange}
             initialConfiguration={connectorConfiguration}
             loading={loadingSpecification}
@@ -943,10 +957,15 @@ export function ConnectorEditForm({
           return selectedNode && connectorFields ? (
             <TargetSetupStep
               dataStorageType={dataStorageType}
-              destinationName={suggestGoogleSheetsTableName(connectorConfiguration.SheetName)}
+              destinationName={suggestGoogleSheetsTableName(
+                connectorConfiguration.SheetName,
+                spreadsheetName
+              )}
+              conflict={conflict}
               connectorName={selectedConnector.displayName}
               target={target}
               onTargetChange={handleTargetChange}
+              replacesTable
             />
           ) : null;
         }
@@ -970,6 +989,7 @@ export function ConnectorEditForm({
             connectorName={selectedConnector?.displayName ?? ''}
             target={target}
             onTargetChange={handleTargetChange}
+            conflict={conflict}
           />
         ) : null;
       default:
@@ -1007,7 +1027,13 @@ export function ConnectorEditForm({
             void handleNext();
           }}
           onBack={handleBack}
-          onFinish={() => {
+          // Each run replaces a conflicting table, so Save & Run waits for a clear answer.
+          canRunAfterSave={canRunAfterSave && !isConflictPending && !conflict?.conflict}
+          runIsMainAction={isDraft}
+          onFinish={runAfterSave => {
+            const submit = (connector: ConnectorConfig) => {
+              onSubmit(connector, runAfterSave);
+            };
             const availableFields = availableSelectedNodeFields;
             // A saved field the connector no longer has gets no checkbox, so nothing could
             // unselect it. It is dropped once the node's fields have loaded; until then the
@@ -1026,7 +1052,7 @@ export function ConnectorEditForm({
                     existingConnector?.source.fields
                   )
                 : connectorConfiguration;
-              onSubmit({
+              submit({
                 source: {
                   name: selectedConnector.name,
                   configuration: [configuration],
@@ -1048,7 +1074,7 @@ export function ConnectorEditForm({
                 ...connectorSetupProperties(selectedConnector, pinnedVersion),
               });
             } else if (mode === 'fields-only' && existingConnector) {
-              onSubmit({
+              submit({
                 source: {
                   ...existingConnector.source,
                   configuration:
@@ -1074,7 +1100,7 @@ export function ConnectorEditForm({
                 ...connectorSetupProperties(selectedConnector, existingConnector.source.version),
               });
             } else if (selectedConnector && target) {
-              onSubmit({
+              submit({
                 source: {
                   name: selectedConnector.name,
                   configuration: [

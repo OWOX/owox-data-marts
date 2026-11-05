@@ -304,6 +304,23 @@ export class DataMartService {
     return this.dataMartRepository.find({ where: { projectId, definitionType } });
   }
 
+  /** Non-deleted connector Data Marts of a storage, drafts included. */
+  async findConnectorTargetsByStorage(
+    projectId: string,
+    storageId: string
+  ): Promise<Pick<DataMart, 'id' | 'title' | 'definition'>[]> {
+    return this.dataMartRepository.find({
+      select: { id: true, title: true, definition: true },
+      where: {
+        projectId,
+        storage: { id: storageId },
+        definitionType: DataMartDefinitionType.CONNECTOR,
+      },
+      // A select does not stop the eager storage and its credential from loading for each row.
+      loadEagerRelations: false,
+    });
+  }
+
   async findByStorage(storage: DataStorage): Promise<DataMart[]> {
     return this.dataMartRepository.find({ where: { storage: { id: storage.id } } });
   }

@@ -7,7 +7,7 @@ import { ConnectorContextProvider } from '../shared/model/context';
 
 interface DataMartConnectorViewProps {
   dataStorageType: DataStorageType;
-  onSubmit: (configuredConnector: ConnectorConfig) => void;
+  onSubmit: (configuredConnector: ConnectorConfig, runAfterSave: boolean) => void;
   children?: ReactNode;
   configurationOnly?: boolean;
   existingConnector?: ConnectorConfig | null;

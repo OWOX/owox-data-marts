@@ -26,7 +26,7 @@ A [Connector Data Mart](../getting-started/setup-guide/connector-data-mart.md) i
 
 1. [Add a Storage](../storages/) to receive the data.
 2. Create a [Connector Data Mart](../getting-started/setup-guide/connector-data-mart.md) and pick your platform.
-3. Click **Publish & Run Data Mart** to start the first import.
+3. Click **Save & Run** at the end of the connector wizard. It publishes the Data Mart and starts the first import.
 4. Add a [Connector Trigger](../getting-started/setup-guide/connector-triggers.md) to import data on a schedule.
 
 ## Learn more

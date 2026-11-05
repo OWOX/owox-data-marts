@@ -53,6 +53,10 @@ var OAuthUtils = {
       } catch (_) {
         throw new Error(`Invalid JSON response (HTTP ${response.status})`);
       }
+      // A JSON body that is not an object (e.g. `null`) would crash on json.error below.
+      if (json === null || typeof json !== 'object') {
+        throw new Error(`Invalid JSON response (HTTP ${response.status})`);
+      }
 
       if (!response.ok || json.error) {
         const tokenError = new Error(
@@ -62,6 +66,10 @@ var OAuthUtils = {
         // reconnect the account — a warning, not an ops-actionable error
         tokenError.isWarning = json.error === 'invalid_grant';
         throw tokenError;
+      }
+      // Without this check a caller sends "Bearer undefined".
+      if (typeof json.access_token !== 'string' || json.access_token === '') {
+        throw new Error(`Token response has no access_token (HTTP ${response.status})`);
       }
 
       // Write the token back into context.sourceConfig so callers can read it

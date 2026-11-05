@@ -10,6 +10,7 @@ import {
   ConfigurationDateField,
   ConfigurationStringField,
   ConfigurationDynamicOptionsField,
+  type DynamicOptionsExtras,
 } from './ConfigurationField';
 import { OauthRenderFactory } from './Oauth/OauthRenderFactory';
 import { hasDynamicOptions } from '../../../../../shared/utils/dynamic-options.utils';
@@ -20,6 +21,7 @@ interface ConfigurationStepFieldRenderProps {
   onValueChange: (name: string, value: unknown) => void;
   flags?: { isSecret?: boolean; isEditingExisting?: boolean; isSecretEditing?: boolean };
   connectorName: string;
+  dynamicOptionsExtras?: DynamicOptionsExtras;
 }
 
 export function configurationFieldRender({
@@ -28,6 +30,7 @@ export function configurationFieldRender({
   onValueChange,
   flags,
   connectorName,
+  dynamicOptionsExtras,
 }: ConfigurationStepFieldRenderProps) {
   const { requiredType, options: specOptions } = specification;
   const { isSecret = false, isEditingExisting = false, isSecretEditing = false } = flags ?? {};
@@ -66,6 +69,8 @@ export function configurationFieldRender({
         configuration={configuration}
         onValueChange={onValueChange}
         connectorName={connectorName}
+        action={dynamicOptionsExtras?.actions?.[specification.name]}
+        onLabelChange={label => dynamicOptionsExtras?.onLabelChange?.(specification.name, label)}
       />
     );
   }

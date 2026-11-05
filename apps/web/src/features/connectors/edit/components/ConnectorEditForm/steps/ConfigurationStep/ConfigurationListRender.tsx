@@ -6,6 +6,7 @@ import {
 } from '../../../../../shared/api/types';
 import { ConfigurationItemRender } from './ConfigurationItemRender';
 import { ConfigurationOneOfRender } from './ConfigurationOneOfRender';
+import type { DynamicOptionsExtras } from './ConfigurationField';
 
 interface ConfigurationListRenderProps {
   items: ConnectorSpecificationResponseApiDto[];
@@ -20,6 +21,7 @@ interface ConfigurationListRenderProps {
   connectorName: string;
   onManagedOAuthModeChange?: (specificationName: string, isManaged: boolean) => void;
   keyFields?: KeyFields;
+  dynamicOptionsExtras?: DynamicOptionsExtras;
 }
 
 /** The auth fields a Credential fills: its field stands in place of the first one. */
@@ -41,7 +43,8 @@ function renderItems(
   storedSecrets: ReadonlySet<string> | undefined,
   connectorName: string,
   onManagedOAuthModeChange?: (specificationName: string, isManaged: boolean) => void,
-  keyFields?: KeyFields
+  keyFields?: KeyFields,
+  dynamicOptionsExtras?: DynamicOptionsExtras
 ) {
   return items.map(specification => {
     const item = renderItem(specification);
@@ -93,6 +96,7 @@ function renderItems(
         onValueChange={onValueChange}
         onSecretEditToggle={onSecretEditToggle}
         connectorName={connectorName}
+        dynamicOptionsExtras={dynamicOptionsExtras}
       />
     );
   }
@@ -110,6 +114,7 @@ export function ConfigurationListRender({
   connectorName,
   onManagedOAuthModeChange,
   keyFields,
+  dynamicOptionsExtras,
 }: ConfigurationListRenderProps) {
   return collapsibleTitle ? (
     <AppWizardCollapsible title={collapsibleTitle}>
@@ -123,7 +128,8 @@ export function ConfigurationListRender({
         storedSecrets,
         connectorName,
         onManagedOAuthModeChange,
-        keyFields
+        keyFields,
+        dynamicOptionsExtras
       )}
     </AppWizardCollapsible>
   ) : (
@@ -137,7 +143,8 @@ export function ConfigurationListRender({
       storedSecrets,
       connectorName,
       onManagedOAuthModeChange,
-      keyFields
+      keyFields,
+      dynamicOptionsExtras
     )
   );
 }

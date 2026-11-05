@@ -86,8 +86,9 @@ The **table name** will be created automatically based on the selected node name
 
 Don’t forget to:
 
-- Click **Save** at the end of the setup wizard
-- Click **Publish & Run Data Mart** in the page header — publishing starts the first import automatically
+- Click **Save & Run** at the end of the setup wizard. It saves the settings, publishes the Data Mart and starts the first import.
+- To only save, click **Save** in the menu next to the button.
+- To start the first import later, click **Publish & Run Data Mart** in the page header.
 
 To load data again later, use the **Manual Run** button. It sits in the header of the **Input Source** card on the **Data Setup** tab. You can start a run while the card is collapsed.
 

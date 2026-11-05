@@ -52,6 +52,12 @@ vi.mock('../../../../../app/permissions', () => ({
   usePermissions: () => ({ canEdit: true }),
 }));
 
+// The Configuration step reads the Credentials list, which needs the query and auth providers.
+vi.mock('../../../../credentials/useCredentials', async importOriginal => ({
+  ...(await importOriginal<typeof import('../../../../credentials/useCredentials')>()),
+  useCredentials: () => ({ credentials: [] }),
+}));
+
 const CUSTOM_ID = 'cdef-1';
 const CUSTOM_NAME = 'MyCustomApi';
 const CUSTOM_ACTIVE_VERSION = 2;

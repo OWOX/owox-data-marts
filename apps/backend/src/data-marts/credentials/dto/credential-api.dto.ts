@@ -439,7 +439,25 @@ export class CredentialResponseApiDto {
       },
       {
         type: 'object',
-        properties: { fields: { type: 'object', additionalProperties: { type: 'string' } } },
+        properties: {
+          fields: { type: 'object', additionalProperties: { type: 'string' } },
+          connection: {
+            type: 'object',
+            description: 'The Google account a Source Credential is signed in with.',
+            properties: {
+              account: {
+                type: 'object',
+                nullable: true,
+                properties: {
+                  id: { type: 'string' },
+                  name: { type: 'string', nullable: true },
+                  email: { type: 'string', nullable: true },
+                },
+              },
+              expiresAt: { type: 'string', format: 'date-time', nullable: true },
+            },
+          },
+        },
       },
       {
         type: 'object',
