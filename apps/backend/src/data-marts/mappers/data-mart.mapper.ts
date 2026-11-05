@@ -77,6 +77,7 @@ import { DataMartDefinition } from '../dto/schemas/data-mart-table-definitions/d
 import { isConnectorDefinition } from '../dto/schemas/data-mart-table-definitions/data-mart-definition.guards';
 import { DataMartRun } from '../entities/data-mart-run.entity';
 import { DataMart } from '../entities/data-mart.entity';
+import type { ManagedStorage } from '../entities/managed-storage.entity';
 import { DataMartDefinitionType } from '../enums/data-mart-definition-type.enum';
 import { OwnerFilter } from '../enums/owner-filter.enum';
 import { DataMartRunType, usesHttpDataRunShape } from '../enums/data-mart-run-type.enum';
@@ -180,6 +181,7 @@ export class DataMartMapper {
     batched?: {
       boundCredentialIds: ReadonlyMap<string, string | null>;
       secretFieldsCache: SecretFieldsCache;
+      managedStorages?: ReadonlyMap<string, ManagedStorage>;
     }
   ): Promise<DataMartResponseApiDto> {
     const isConnector = dto.definitionType === DataMartDefinitionType.CONNECTOR && !!dto.definition;
@@ -205,7 +207,10 @@ export class DataMartMapper {
       id: dto.id,
       title: dto.title,
       status: dto.status,
-      storage: await this.dataStorageMapper.toApiResponse(dto.storage),
+      storage: await this.dataStorageMapper.toApiResponse(
+        dto.storage,
+        batched?.managedStorages && (batched.managedStorages.get(dto.storage.id) ?? null)
+      ),
       definitionType: dto.definitionType,
       definition: maskedDefinition,
       ...(summaries && {
@@ -316,11 +321,15 @@ export class DataMartMapper {
       }
     }
     const secretFieldsCache: SecretFieldsCache = new Map();
+    const managedStorages = await this.dataStorageMapper.findManagedByStorageIds([
+      ...new Set(dtos.map(dto => dto.storage.id)),
+    ]);
     return Promise.all(
       dtos.map(dto =>
         this.toResponse(dto, undefined, {
           boundCredentialIds: idsByDataMart.get(dto.id) ?? new Map(),
           secretFieldsCache,
+          managedStorages,
         })
       )
     );

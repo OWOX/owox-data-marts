@@ -11,6 +11,7 @@ import { dataStorageApiService } from '../../api';
 import { invalidateDataStorageHealthStatus } from '../../services/data-storage-health-status.service';
 import type { DataStorageFormData } from '../../types/data-storage.schema.ts';
 import { DataStorageType } from '../types';
+import type { OwoxStorageLocation } from '../../api/types';
 import { extractApiError, type AxiosRequestConfig } from '../../../../../app/api';
 import toast from 'react-hot-toast';
 import { trackEvent } from '../../../../../utils/data-layer';
@@ -83,6 +84,35 @@ export function useDataStorage() {
           payload: extractApiError(error),
         });
         return null;
+      }
+    },
+    [dispatch, refreshSetupProgress]
+  );
+
+  // Throws on failure so the create dialog can show the server's message.
+  const createOwoxStorage = useCallback(
+    async (data: { title: string; location: OwoxStorageLocation; ownerIds?: string[] }) => {
+      dispatch({ type: DataStorageActionType.CREATE_STORAGE_START });
+      try {
+        const response = await dataStorageApiService.createOwoxStorage(data);
+        const newStorage = mapDataStorageFromDto(response);
+        dispatch({ type: DataStorageActionType.CREATE_STORAGE_SUCCESS, payload: newStorage });
+        trackEvent({
+          event: 'data_storage_created',
+          category: 'DataStorage',
+          action: 'Create',
+          label: newStorage.type,
+          details: newStorage.title,
+        });
+        toast.success('Storage created');
+        refreshSetupProgress();
+        return newStorage;
+      } catch (error) {
+        dispatch({
+          type: DataStorageActionType.CREATE_STORAGE_ERROR,
+          payload: extractApiError(error),
+        });
+        throw error;
       }
     },
     [dispatch, refreshSetupProgress]
@@ -171,6 +201,7 @@ export function useDataStorage() {
     fetchDataStorages,
     getDataStorageById,
     createDataStorage,
+    createOwoxStorage,
     updateDataStorage,
     deleteDataStorage,
     clearCurrentDataStorage,

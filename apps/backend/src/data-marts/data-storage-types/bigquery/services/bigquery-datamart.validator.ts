@@ -2,7 +2,10 @@ import { Injectable, Logger } from '@nestjs/common';
 import { DataMartDefinition } from '../../../dto/schemas/data-mart-table-definitions/data-mart-definition';
 import { isBigQueryConfig } from '../../data-storage-config.guards';
 import { DataStorageConfig } from '../../data-storage-config.type';
-import { isBigQueryCredentials } from '../../data-storage-credentials.guards';
+import {
+  isBigQueryCredentials,
+  isBigQueryManagedCredentials,
+} from '../../data-storage-credentials.guards';
 import { DataStorageCredentials } from '../../data-storage-credentials.type';
 import { DataStorageType } from '../../enums/data-storage-type.enum';
 import {
@@ -10,10 +13,12 @@ import {
   ValidationResult,
   DataMartValidationCode,
 } from '../../interfaces/data-mart-validator.interface';
+import { OwoxStorageStatementException } from '../../../owox-storage/owox-storage.exceptions';
 import { BigQueryApiAdapterFactory } from '../adapters/bigquery-api-adapter.factory';
 import { BigQueryQueryBuilder } from './bigquery-query.builder';
 import {
   isConnectorDefinition,
+  isSqlDefinition,
   isTableDefinition,
   isViewDefinition,
 } from '../../../dto/schemas/data-mart-table-definitions/data-mart-definition.guards';
@@ -40,6 +45,17 @@ export class BigQueryDataMartValidator implements DataMartValidator {
     }
 
     if (isConnectorDefinition(definition)) {
+      // Runs load only into `<datasetId>.<table>`; any other name would be read but never written.
+      const parts = definition.connector.storage.fullyQualifiedName.split('.');
+      if (
+        isBigQueryManagedCredentials(credentials) &&
+        (parts.length !== 2 || parts[0] !== credentials.datasetId)
+      ) {
+        return ValidationResult.authoredFailure(
+          DataMartValidationCode.INVALID_IDENTIFIER_FORMAT,
+          `Connectors on an OWOX Storage write into dataset ${credentials.datasetId}.`
+        );
+      }
       return ValidationResult.success();
     }
 
@@ -54,6 +70,16 @@ export class BigQueryDataMartValidator implements DataMartValidator {
       const built = await this.bigQueryQueryBuilder.buildQuery(definition);
       const query = typeof built === 'string' ? built : built.sql;
       const result = await adapter.executeDryRunQuery(query);
+      if (
+        isBigQueryManagedCredentials(credentials) &&
+        isSqlDefinition(definition) &&
+        result.statementType !== 'SELECT'
+      ) {
+        return ValidationResult.authoredFailure(
+          DataMartValidationCode.STATEMENT_NOT_ALLOWED,
+          new OwoxStorageStatementException(result.statementType).message
+        );
+      }
       return ValidationResult.success(result);
     } catch (error) {
       this.logger.warn('Dry run failed', error);

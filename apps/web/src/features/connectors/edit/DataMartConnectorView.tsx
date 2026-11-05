@@ -7,6 +7,7 @@ import { ConnectorContextProvider } from '../shared/model/context';
 
 interface DataMartConnectorViewProps {
   dataStorageType: DataStorageType;
+  fixedDatasetName?: string;
   onSubmit: (configuredConnector: ConnectorConfig) => void;
   children?: ReactNode;
   configurationOnly?: boolean;
@@ -19,6 +20,7 @@ interface DataMartConnectorViewProps {
 
 export const DataMartConnectorView = ({
   dataStorageType,
+  fixedDatasetName,
   onSubmit,
   children,
   configurationOnly = false,
@@ -93,6 +95,7 @@ export const DataMartConnectorView = ({
           isOpen={isSheetOpen}
           onClose={handleClose}
           dataStorageType={dataStorageType}
+          fixedDatasetName={fixedDatasetName}
           onSubmit={onSubmit}
           configurationOnly={configurationOnly}
           existingConnector={existingConnector}

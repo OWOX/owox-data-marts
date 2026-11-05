@@ -56,6 +56,33 @@ describe('registerPublicFlagsRoute', () => {
     expect(body?.PUBLIC_ORIGIN).to.equal('https://public.example.test');
   });
 
+  it('returns a computed value for a whitelisted key and prefers it over process.env', () => {
+    const original = process.env.OWOX_STORAGE_ENABLED;
+    process.env.OWOX_STORAGE_ENABLED = 'false';
+    try {
+      const app = {
+        get(path: string, handler: (req: Request, res: Response) => void) {
+          routes.push({ handler, path });
+        },
+      } as unknown as Express;
+      registerPublicFlagsRoute(app, { computed: { OWOX_STORAGE_ENABLED: () => 'true' } });
+      let body: Record<string, unknown> | undefined;
+      const res = {
+        json(payload: Record<string, unknown>) {
+          body = payload;
+        },
+        setHeader() {},
+      } as unknown as Response;
+
+      routes.find(route => route.path === '/api/flags')?.handler({} as Request, res);
+
+      expect(body?.OWOX_STORAGE_ENABLED).to.equal('true');
+    } finally {
+      if (original === undefined) delete process.env.OWOX_STORAGE_ENABLED;
+      else process.env.OWOX_STORAGE_ENABLED = original;
+    }
+  });
+
   it('exposes fallback PUBLIC_ORIGIN when the environment value is absent', async () => {
     delete process.env.PUBLIC_ORIGIN;
     const app = {

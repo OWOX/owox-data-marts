@@ -9,6 +9,7 @@ import { ConnectorService } from '../services/connector/connector.service';
 import { UpdateDataMartDefinitionCommand } from '../dto/domain/update-data-mart-definition.command';
 import { DataMartDefinitionType } from '../enums/data-mart-definition-type.enum';
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
+import { DataMartValidationCode } from '../data-storage-types/interfaces/data-mart-validator.interface';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
 import { passThroughSqlReferenceValidator } from '../sql-references/__fixtures__/pass-through-sql-reference-resolver';
 import { SECRET_MASK } from '../services/connector/connector-secret.service';
@@ -44,6 +45,7 @@ describe('UpdateDataMartDefinitionService', () => {
       storageType?: DataStorageType;
       sqlReferenceValidator?: { prepareForSave: jest.Mock };
       bound?: Record<string, string | null>;
+      managed?: boolean;
     } = {}
   ) => {
     const dataMart = {
@@ -91,6 +93,14 @@ describe('UpdateDataMartDefinitionService', () => {
     const sourceCredentials = sourceCredentialsMock(overrides.bound);
     const definitionValidatorFacade = {
       checkIsValid: jest.fn().mockResolvedValue(undefined),
+      validate: jest.fn().mockResolvedValue({ valid: true }),
+    };
+    const managedStorages = {
+      findByStorageId: jest
+        .fn()
+        .mockResolvedValue(
+          overrides.managed ? { storageId: 'storage-1', datasetId: 'owox_abc' } : null
+        ),
     };
     const service = new UpdateDataMartDefinitionService(
       dataMartService as any,
@@ -102,7 +112,8 @@ describe('UpdateDataMartDefinitionService', () => {
       eventDispatcher as any,
       connectorService as any,
       (overrides.sqlReferenceValidator ?? passThroughSqlReferenceValidator) as never,
-      sourceCredentials as any
+      sourceCredentials as any,
+      managedStorages as any
     );
 
     return {
@@ -1139,6 +1150,71 @@ describe('UpdateDataMartDefinitionService', () => {
       expect(dataMartService.save).toHaveBeenCalled();
     });
 
+    describe('a same-type SQL save', () => {
+      const sqlAt = (sqlQuery: string) => ({ sqlQuery });
+
+      it('on an OWOX Storage is refused for a non-SELECT statement, and nothing is written', async () => {
+        const { service, dataMartService, definitionValidatorFacade } = createService({
+          definitionType: DataMartDefinitionType.SQL,
+          definition: sqlAt('SELECT 1'),
+          managed: true,
+        });
+        definitionValidatorFacade.validate.mockResolvedValue({
+          valid: false,
+          errorMessage: 'OWOX Storage runs SELECT queries only.',
+          code: DataMartValidationCode.STATEMENT_NOT_ALLOWED,
+        });
+
+        await expect(
+          service.run(commandFor(DataMartDefinitionType.SQL, sqlAt('DELETE FROM t WHERE true')))
+        ).rejects.toThrow('SELECT queries only');
+
+        expect(dataMartService.save).not.toHaveBeenCalled();
+        expect(definitionValidatorFacade.checkIsValid).not.toHaveBeenCalled();
+      });
+
+      it('on an OWOX Storage is saved when the dry run fails for another reason', async () => {
+        const { service, dataMartService, definitionValidatorFacade } = createService({
+          definitionType: DataMartDefinitionType.SQL,
+          definition: sqlAt('SELECT 1'),
+          managed: true,
+        });
+        definitionValidatorFacade.validate.mockResolvedValue({
+          valid: false,
+          errorMessage: 'Not found: Table proj:owox_abc.sales was not found',
+        });
+
+        await service.run(commandFor(DataMartDefinitionType.SQL, sqlAt('SELECT * FROM sales')));
+
+        expect(dataMartService.save).toHaveBeenCalled();
+      });
+
+      it('on an OWOX Storage is saved when the query is a SELECT', async () => {
+        const { service, dataMartService } = createService({
+          definitionType: DataMartDefinitionType.SQL,
+          definition: sqlAt('SELECT 1'),
+          managed: true,
+        });
+
+        await service.run(commandFor(DataMartDefinitionType.SQL, sqlAt('SELECT 2')));
+
+        expect(dataMartService.save).toHaveBeenCalled();
+      });
+
+      it('on a regular storage is not validated, as before', async () => {
+        const { service, dataMartService, definitionValidatorFacade } = createService({
+          definitionType: DataMartDefinitionType.SQL,
+          definition: sqlAt('SELECT 1'),
+        });
+
+        await service.run(commandFor(DataMartDefinitionType.SQL, sqlAt('SELECT 2')));
+
+        expect(definitionValidatorFacade.checkIsValid).not.toHaveBeenCalled();
+        expect(definitionValidatorFacade.validate).not.toHaveBeenCalled();
+        expect(dataMartService.save).toHaveBeenCalled();
+      });
+    });
+
     it('does not re-validate a same-type edit', async () => {
       const { service, definitionValidatorFacade } = createService({
         definitionType: DataMartDefinitionType.TABLE,
@@ -1150,6 +1226,74 @@ describe('UpdateDataMartDefinitionService', () => {
       );
 
       expect(definitionValidatorFacade.checkIsValid).not.toHaveBeenCalled();
+    });
+
+    describe('a same-type connector save', () => {
+      const connectorAt = (fullyQualifiedName: string) => ({
+        connector: {
+          source: { name: 'src', configuration: [{ _id: 'cfg-1' }], node: 'n', fields: ['f'] },
+          storage: { fullyQualifiedName },
+        },
+      });
+
+      const createConnectorService = (managed: boolean) => {
+        const harness = createService({
+          definitionType: DataMartDefinitionType.CONNECTOR,
+          definition: connectorAt('owox_abc.table'),
+          managed,
+        });
+        harness.connectorSecretService.mergeDefinitionSecrets.mockImplementation(
+          async (_projectId: string, incoming: unknown) => incoming
+        );
+        harness.connectorSecretService.extractAndSaveSecrets.mockImplementation(
+          async (_id: string, _projectId: string, _name: string, merged: unknown) => merged
+        );
+        // Stands in for the BigQuery validator's managed-dataset rule.
+        harness.definitionValidatorFacade.checkIsValid.mockImplementation(
+          async (dm: { definition: ReturnType<typeof connectorAt> }) => {
+            if (dm.definition.connector.storage.fullyQualifiedName.split('.')[0] !== 'owox_abc') {
+              throw new BusinessViolationException(
+                'Connectors on an OWOX Storage write into dataset owox_abc.'
+              );
+            }
+          }
+        );
+        return harness;
+      };
+
+      it('to an OWOX Storage is refused for another dataset, and nothing is written', async () => {
+        const { service, dataMartService, connectorSecretService } = createConnectorService(true);
+
+        await expect(
+          service.run(commandFor(DataMartDefinitionType.CONNECTOR, connectorAt('other.table')))
+        ).rejects.toThrow('Connectors on an OWOX Storage write into dataset owox_abc.');
+
+        expect(connectorSecretService.extractAndSaveSecrets).not.toHaveBeenCalled();
+        expect(connectorSecretService.deleteOrphanedSecrets).not.toHaveBeenCalled();
+        expect(dataMartService.save).not.toHaveBeenCalled();
+      });
+
+      it('to an OWOX Storage succeeds for its own dataset', async () => {
+        const { service, dataMartService, definitionValidatorFacade, dataMart } =
+          createConnectorService(true);
+
+        await service.run(
+          commandFor(DataMartDefinitionType.CONNECTOR, connectorAt('owox_abc.other_table'))
+        );
+
+        expect(definitionValidatorFacade.checkIsValid).toHaveBeenCalledWith(dataMart);
+        expect(dataMartService.save).toHaveBeenCalledWith(dataMart);
+      });
+
+      it('to a regular storage is not validated, as before', async () => {
+        const { service, dataMartService, definitionValidatorFacade } =
+          createConnectorService(false);
+
+        await service.run(commandFor(DataMartDefinitionType.CONNECTOR, connectorAt('other.table')));
+
+        expect(definitionValidatorFacade.checkIsValid).not.toHaveBeenCalled();
+        expect(dataMartService.save).toHaveBeenCalled();
+      });
     });
 
     it('does not publish a definition type changed event on a same-type edit', async () => {
@@ -1232,7 +1376,8 @@ describe('UpdateDataMartDefinitionService with the real ConnectorService', () =>
       { publishExternal: jest.fn() } as never,
       connectorService,
       passThroughSqlReferenceValidator as never,
-      sourceCredentialsMock() as never
+      sourceCredentialsMock() as never,
+      { findByStorageId: jest.fn().mockResolvedValue(null) } as never
     );
 
     return { service, dataMartService, dataMart, tryResolveManifest };

@@ -57,6 +57,7 @@ import {
   DataStorageStatus,
   DataStorageType,
 } from '../../../shared';
+import { OwoxStorageUsage } from '../../../shared/components/OwoxStorageUsage';
 import type { UseFormReturn } from 'react-hook-form';
 import type { DataStorage } from '../../../shared/model/types/data-storage.ts';
 import { DataStorageTypeModel } from '../../../shared/types/data-storage-type.model.ts';
@@ -88,6 +89,7 @@ export function DataStorageForm({
   onCancel,
   onDirtyChange,
 }: DataStorageFormProps) {
+  const owoxStorage = initialData?.owoxStorage;
   const {
     form,
     initialCredential,
@@ -98,7 +100,7 @@ export function DataStorageForm({
   } = useCredentialFormBinding<DataStorageFormData, StorageCredentialSummary>(
     initialData?.reusableCredential,
     ({ hasBinding, initialCredentialId }) => ({
-      resolver: createDataStorageFormResolver(hasBinding),
+      resolver: createDataStorageFormResolver(hasBinding, Boolean(owoxStorage)),
       defaultValues: { ...initialData, reusableCredentialId: initialCredentialId ?? '' },
     })
   );
@@ -273,33 +275,37 @@ export function DataStorageForm({
                     Storage Type
                   </FormLabel>
                   <FormControl>
-                    <Select
-                      value={field.value}
-                      onValueChange={field.onChange}
-                      disabled={!!initialData}
-                    >
-                      <SelectTrigger className='w-full'>
-                        <SelectValue placeholder='Select a storage type' />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectGroup>
-                          {DataStorageTypeModel.getAllTypes().map(
-                            ({ type, displayName, icon: Icon, status }) => (
-                              <SelectItem
-                                key={type}
-                                value={type}
-                                disabled={status === DataStorageStatus.COMING_SOON}
-                              >
-                                <div className='flex items-center gap-2'>
-                                  <Icon size={20} />
-                                  {displayName}
-                                </div>
-                              </SelectItem>
-                            )
-                          )}
-                        </SelectGroup>
-                      </SelectContent>
-                    </Select>
+                    {owoxStorage ? (
+                      <Input value='OWOX Storage' disabled />
+                    ) : (
+                      <Select
+                        value={field.value}
+                        onValueChange={field.onChange}
+                        disabled={!!initialData}
+                      >
+                        <SelectTrigger className='w-full'>
+                          <SelectValue placeholder='Select a storage type' />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectGroup>
+                            {DataStorageTypeModel.getAllTypes().map(
+                              ({ type, displayName, icon: Icon, status }) => (
+                                <SelectItem
+                                  key={type}
+                                  value={type}
+                                  disabled={status === DataStorageStatus.COMING_SOON}
+                                >
+                                  <div className='flex items-center gap-2'>
+                                    <Icon size={20} />
+                                    {displayName}
+                                  </div>
+                                </SelectItem>
+                              )
+                            )}
+                          </SelectGroup>
+                        </SelectContent>
+                      </Select>
+                    )}
                   </FormControl>
                   <FormDescription>
                     {selectedType === DataStorageType.GOOGLE_BIGQUERY && (
@@ -326,7 +332,26 @@ export function DataStorageForm({
               )}
             />
           </FormSection>
-          {selectedType === DataStorageType.GOOGLE_BIGQUERY && (
+          {owoxStorage && (
+            <FormSection title='Connection Settings'>
+              <FormItem>
+                <FormLabel htmlFor='owox-storage-location'>Location</FormLabel>
+                <Input id='owox-storage-location' value={owoxStorage.location} disabled />
+              </FormItem>
+              <FormItem>
+                <FormLabel htmlFor='owox-storage-dataset'>Dataset</FormLabel>
+                <Input id='owox-storage-dataset' value={owoxStorage.datasetId} disabled />
+              </FormItem>
+            </FormSection>
+          )}
+          {owoxStorage && initialData.id && (
+            <FormSection title='Usage and Tables' name='owox-storage-usage'>
+              <FormItem>
+                <OwoxStorageUsage storageId={initialData.id} />
+              </FormItem>
+            </FormSection>
+          )}
+          {!owoxStorage && selectedType === DataStorageType.GOOGLE_BIGQUERY && (
             <GoogleBigQueryFields form={form as UseFormReturn<GoogleBigQueryFormData>} />
           )}
           {selectedType === DataStorageType.LEGACY_GOOGLE_BIGQUERY && (
@@ -338,35 +363,37 @@ export function DataStorageForm({
           {selectedType === DataStorageType.SNOWFLAKE && <SnowflakeFields form={form} />}
           {selectedType === DataStorageType.AWS_REDSHIFT && <RedshiftFields form={form} />}
           {selectedType === DataStorageType.DATABRICKS && <DatabricksFields form={form} />}
-          <FormSection title='Authentication' fields={['reusableCredentialId']}>
-            <FormField
-              control={control}
-              name='reusableCredentialId'
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel tooltip='Choose the Credential this Storage connects with'>
-                    Credential
-                  </FormLabel>
-                  <FormControl>
-                    <ConsumerCredentialField
-                      consumer='storage'
-                      consumerType={selectedType}
-                      isNew={!hasBinding}
-                      value={field.value || null}
-                      summary={initialCredential}
-                      onChange={handleCredentialChange}
-                    />
-                  </FormControl>
-                  {initialCredential?.access === 'pending' && !field.value && (
-                    <FormDescription>
-                      Uses its own key until you select a Credential
-                    </FormDescription>
-                  )}
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </FormSection>
+          {!owoxStorage && (
+            <FormSection title='Authentication' fields={['reusableCredentialId']}>
+              <FormField
+                control={control}
+                name='reusableCredentialId'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel tooltip='Choose the Credential this Storage connects with'>
+                      Credential
+                    </FormLabel>
+                    <FormControl>
+                      <ConsumerCredentialField
+                        consumer='storage'
+                        consumerType={selectedType}
+                        isNew={!hasBinding}
+                        value={field.value || null}
+                        summary={initialCredential}
+                        onChange={handleCredentialChange}
+                      />
+                    </FormControl>
+                    {initialCredential?.access === 'pending' && !field.value && (
+                      <FormDescription>
+                        Uses its own key until you select a Credential
+                      </FormDescription>
+                    )}
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </FormSection>
+          )}
 
           <FormSection title='Ownership' defaultOpen={false} name='storage-ownership'>
             <FormItem>

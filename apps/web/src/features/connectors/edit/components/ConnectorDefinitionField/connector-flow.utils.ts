@@ -52,6 +52,17 @@ export function getStorageFlowParams(
     case DataStorageType.GOOGLE_BIGQUERY: {
       const projectId = dataStorage.config.projectId;
       const [dataset, table] = parts;
+      // An OWOX Storage runs in OWOX's own project: no console link, and the short name resolves.
+      if (dataStorage.owoxStorage) {
+        return {
+          primary: [
+            { label: 'Dataset', value: dataset, copyValue: pathTo(1) },
+            { label: 'Table', value: table, copyValue: pathTo(2) },
+          ],
+          secondary: [],
+          hint: "The dataset and table are automatically created during the first run of the data mart, if they don't already exist",
+        };
+      }
       return {
         primary: [
           {

@@ -10,6 +10,8 @@ import type {
 import type { CredentialState, CredentialSummary } from '../../../../credentials/types';
 import type { ContextSummary } from '../../../../contexts/types/context.types';
 
+import type { OwoxStorageDto } from '../../api/types/response/data-storage.response.dto.ts';
+
 export type StorageCredentialState = CredentialState;
 
 export type StorageCredentialSummary = CredentialSummary;
@@ -26,6 +28,7 @@ export interface BaseDataStorage<C extends DataStorageConfig> {
   availableForUse?: boolean;
   availableForMaintenance?: boolean;
   contexts?: ContextSummary[];
+  owoxStorage?: OwoxStorageDto;
   /** null when the Storage has neither a Credential nor its own key; absent on a Storage embedded in a Data Mart. */
   reusableCredential?: StorageCredentialSummary | null;
 }

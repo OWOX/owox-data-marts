@@ -17,6 +17,7 @@ Each project needs at least one Storage. You can add several Storages to isolate
 | Storage | Read |
 | --- | --- |
 | Google BigQuery | [Setup guide](./supported-storages/google-bigquery.md) |
+| OWOX Storage (OWOX Cloud only) | [Setup guide](./supported-storages/owox-storage.md) |
 | AWS Athena | [Setup guide](./supported-storages/aws-athena.md) |
 | AWS Redshift | [Setup guide](./supported-storages/aws-redshift.md) |
 | Snowflake | [Setup guide](./supported-storages/snowflake.md) |

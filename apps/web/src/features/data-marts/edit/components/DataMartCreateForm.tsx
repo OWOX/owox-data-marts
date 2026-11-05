@@ -18,6 +18,8 @@ import { useForm } from 'react-hook-form';
 import { Combobox } from '../../../../shared/components/Combobox/combobox';
 import { DataStorageHealthIndicator, DataStorageType } from '../../../data-storage';
 import { DataStorageTypeDialog } from '../../../data-storage/shared/components/DataStorageTypeDialog';
+import { OwoxStorageCreateDialog } from '../../../data-storage/shared/components/OwoxStorageCreateDialog';
+import type { DataStorage } from '../../../data-storage/shared/model/types/data-storage';
 import { useDataStorage } from '../../../data-storage/shared/model/hooks/useDataStorage';
 import type { DataStorageList } from '../../../data-storage/shared/model/types/data-storage-list.ts';
 import { DataStorageTypeModel } from '../../../data-storage/shared/types/data-storage-type.model.ts';
@@ -55,6 +57,7 @@ export function DataMartCreateForm({ initialData, onSuccess }: DataMartFormProps
     createDataStorage,
     getDataStorageById,
   } = useDataStorage();
+  const [isOwoxCreateOpen, setIsOwoxCreateOpen] = useState(false);
   const [isDataStorageTypeDialogOpen, setIsDataStorageTypeDialogOpen] = useState(false);
   const [isCreatingDataStorage, setIsCreatingDataStorage] = useState(false);
   const hasAppliedSingleStorageAutoSelectRef = useRef(false);
@@ -118,6 +121,11 @@ export function DataMartCreateForm({ initialData, onSuccess }: DataMartFormProps
     }
     setIsDataStorageTypeDialogOpen(false);
     setIsCreatingDataStorage(false);
+  };
+
+  const selectOwoxStorage = async (storage: DataStorage) => {
+    await getDataStorageById(storage.id);
+    form.setValue('storageId', storage.id);
   };
 
   const storageOptions = useMemo(() => {
@@ -246,6 +254,18 @@ export function DataMartCreateForm({ initialData, onSuccess }: DataMartFormProps
         }}
         onSelect={type => createNewDataStorage(type)}
         isCreatingDataStorage={isCreatingDataStorage}
+        onSelectOwoxStorage={() => {
+          setIsDataStorageTypeDialogOpen(false);
+          setIsOwoxCreateOpen(true);
+        }}
+      />
+
+      <OwoxStorageCreateDialog
+        isOpen={isOwoxCreateOpen}
+        onClose={() => {
+          setIsOwoxCreateOpen(false);
+        }}
+        onCreated={selectOwoxStorage}
       />
     </>
   );

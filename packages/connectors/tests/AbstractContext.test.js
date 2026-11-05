@@ -245,6 +245,65 @@ describe('AbstractContext', () => {
         'orders target_table'
       );
     });
+
+    it('reads the destination dataset the host wires from the storage config first', () => {
+      const ctx = new AbstractContext({
+        source: {
+          name: 'S',
+          config: {
+            DestinationDatasetID: { value: 'p.other' },
+            DestinationDatasetName: { value: 'other' },
+            DestinationProjectID: { value: 'other-project' },
+            ProjectID: { value: 'other-project' },
+          },
+        },
+        storage: {
+          name: 'S',
+          config: {
+            DestinationDatasetID: { value: 'p.owox_abc' },
+            DestinationDatasetName: { value: 'owox_abc' },
+            DestinationProjectID: { value: 'p' },
+            ProjectID: { value: 'p' },
+          },
+        },
+      });
+      assert.strictEqual(ctx.getParameter('DestinationDatasetID').value, 'p.owox_abc');
+      assert.strictEqual(ctx.getParameter('DestinationDatasetName').value, 'owox_abc');
+      assert.strictEqual(ctx.getParameter('DestinationProjectID').value, 'p');
+      assert.strictEqual(ctx.getParameter('ProjectID').value, 'p');
+    });
+
+    it('never takes the account a run acts as from a Data Mart configuration', () => {
+      const ctx = new AbstractContext({
+        source: {
+          name: 'S',
+          config: {
+            ImpersonateServiceAccount: { value: 'someone-else@p.iam.gserviceaccount.com' },
+            DestinationDatasetExists: { value: true },
+          },
+        },
+        storage: { name: 'S', config: {} },
+      });
+      assert.strictEqual(ctx.getParameter('ImpersonateServiceAccount'), null);
+      assert.strictEqual(ctx.getParameter('DestinationDatasetExists'), null);
+
+      const wired = new AbstractContext({
+        source: {
+          name: 'S',
+          config: {
+            ImpersonateServiceAccount: { value: 'someone-else@p.iam.gserviceaccount.com' },
+          },
+        },
+        storage: {
+          name: 'S',
+          config: { ImpersonateServiceAccount: { value: 'owox-st-abc@p.iam.gserviceaccount.com' } },
+        },
+      });
+      assert.strictEqual(
+        wired.getParameter('ImpersonateServiceAccount').value,
+        'owox-st-abc@p.iam.gserviceaccount.com'
+      );
+    });
   });
 
   describe('emit', () => {

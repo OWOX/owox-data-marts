@@ -42,6 +42,8 @@ import { AccessDecisionService, EntityType, Action } from '../services/access-de
 import { ContextAccessService } from '../services/context/context-access.service';
 import { AdvancedSearchIndexSyncService } from '../services/advanced-search-index-sync.service';
 import { SearchableEntityType } from '../../common/search/search.facade';
+import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
+import { ManagedStorageService } from '../owox-storage/managed-storage.service';
 
 @Injectable()
 export class UpdateDataStorageService {
@@ -61,6 +63,7 @@ export class UpdateDataStorageService {
     private readonly eventDispatcher: OwoxEventDispatcher,
     private readonly accessDecisionService: AccessDecisionService,
     private readonly contextAccessService: ContextAccessService,
+    private readonly managedStorages: ManagedStorageService,
     private readonly advancedSearchIndexSync?: AdvancedSearchIndexSyncService
   ) {}
 
@@ -124,6 +127,18 @@ export class UpdateDataStorageService {
       }
     }
 
+    const managed = await this.managedStorages.findByStorageId(dataStorageEntity.id);
+    if (
+      managed &&
+      (command.reusableCredentialId !== undefined ||
+        (command.hasConfig() &&
+          !sameStorageConfig(dataStorageEntity.type, dataStorageEntity.config, command.config)))
+    ) {
+      throw new BusinessViolationException(
+        "An OWOX Storage's connection and Credential are managed by OWOX and cannot be changed."
+      );
+    }
+
     if (dataStorageEntity.type === DataStorageType.LEGACY_GOOGLE_BIGQUERY && command.hasConfig()) {
       (command.config as BigQueryConfig).projectId = (
         dataStorageEntity.config as BigQueryConfig
@@ -155,7 +170,7 @@ export class UpdateDataStorageService {
 
     const configWasEmpty = !dataStorageEntity.config;
     // No transaction yet: a token refresh or lost-grant mark commits even when the check fails.
-    const redirected = await this.verifyCredential(command, dataStorageEntity);
+    const redirected = managed ? null : await this.verifyCredential(command, dataStorageEntity);
     const saved = await this.save(command, redirected);
     // After the commit, so a save rolled back by its last checks sends nothing.
     if (configWasEmpty && saved.config) {

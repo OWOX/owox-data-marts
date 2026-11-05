@@ -39,6 +39,7 @@ import { InsightTemplateController } from './controllers/insight-template.contro
 import { ScheduledTriggerController } from './controllers/scheduled-trigger.controller';
 import { SyncDataMartsByGcpTrigger } from './entities/legacy-data-marts/sync-data-marts-by-gcp-trigger.entity';
 import { SyncGcpStoragesForProjectTrigger } from './entities/legacy-data-marts/sync-gcp-storages-for-project-trigger.entity';
+import { OwoxStorageConfigService } from './owox-storage/owox-storage-config.service';
 import { InternalProjectBillingService } from './services/project-billing/internal-project-billing.service';
 import { LicenseProjectBillingService } from './services/project-billing/license-project-billing.service';
 import { RestrictedProjectBillingService } from './services/project-billing/restricted-project-billing.service';
@@ -89,6 +90,10 @@ import { DataDestinationMapper } from './mappers/data-destination.mapper';
 import { ReportMapper } from './mappers/report.mapper';
 import { GetDataStorageService } from './use-cases/get-data-storage.service';
 import { CreateDataStorageService } from './use-cases/create-data-storage.service';
+import { CreateOwoxStorageService } from './use-cases/create-owox-storage.service';
+import { GetOwoxStorageUsageService } from './use-cases/get-owox-storage-usage.service';
+import { DeleteOwoxStorageTableService } from './use-cases/delete-owox-storage-table.service';
+import { RestoreOwoxStorageService } from './use-cases/restore-owox-storage.service';
 import { UpdateDataStorageService } from './use-cases/update-data-storage.service';
 import { GetDataDestinationService } from './use-cases/get-data-destination.service';
 import { CreateDataDestinationService } from './use-cases/create-data-destination.service';
@@ -111,6 +116,18 @@ import { DataMart } from './entities/data-mart.entity';
 import { DataMartBusinessOwner } from './entities/data-mart-business-owner.entity';
 import { DataMartTechnicalOwner } from './entities/data-mart-technical-owner.entity';
 import { StorageOwner } from './entities/storage-owner.entity';
+import { ManagedStorage } from './entities/managed-storage.entity';
+import { ManagedStorageService } from './owox-storage/managed-storage.service';
+import { OwoxStorageIdentity } from './owox-storage/owox-storage-identity.service';
+import { GcpProvisioningClient } from './owox-storage/engine/gcp-provisioning.client';
+import { BigQueryManagedStorageEngine } from './owox-storage/engine/bigquery-managed-storage.engine';
+import { MANAGED_STORAGE_ENGINE } from './owox-storage/engine/managed-storage-engine';
+import { OwoxStorageScanBudgetService } from './owox-storage/owox-storage-scan-budget.service';
+import { OwoxStoragePlanService } from './owox-storage/owox-storage-plan.service';
+import { OwoxStorageUsageService } from './owox-storage/owox-storage-usage.service';
+import { OwoxStorageLifecycleService } from './owox-storage/owox-storage-lifecycle.service';
+import { OwoxStorageLifecycleProcessor } from './system-triggers/processors/owox-storage-lifecycle.processor';
+import { OWOX_STORAGE_SCAN_BUDGET } from './owox-storage/owox-storage-scan-budget.token';
 import { DestinationOwner } from './entities/destination-owner.entity';
 import { ReportOwner } from './entities/report-owner.entity';
 import { DataStorage } from './entities/data-storage.entity';
@@ -556,6 +573,7 @@ import { McpCredentialsFacadeImpl } from './credentials/facades/mcp-credentials.
       DataMartBusinessOwner,
       DataMartTechnicalOwner,
       StorageOwner,
+      ManagedStorage,
       DestinationOwner,
       ReportOwner,
       DataStorage,
@@ -656,6 +674,15 @@ import { McpCredentialsFacadeImpl } from './credentials/facades/mcp-credentials.
     CredentialSetupController,
   ],
   providers: [
+    ManagedStorageService,
+    OwoxStorageIdentity,
+    GcpProvisioningClient,
+    { provide: MANAGED_STORAGE_ENGINE, useClass: BigQueryManagedStorageEngine },
+    OwoxStoragePlanService,
+    OwoxStorageUsageService,
+    OwoxStorageLifecycleService,
+    OwoxStorageScanBudgetService,
+    { provide: OWOX_STORAGE_SCAN_BUDGET, useExisting: OwoxStorageScanBudgetService },
     CredentialConsumerBindingFacadeImpl,
     {
       provide: CREDENTIAL_CONSUMER_BINDING_FACADE,
@@ -769,6 +796,10 @@ import { McpCredentialsFacadeImpl } from './credentials/facades/mcp-credentials.
     GetDataStorageService,
     GetDataDestinationService,
     CreateDataStorageService,
+    CreateOwoxStorageService,
+    GetOwoxStorageUsageService,
+    DeleteOwoxStorageTableService,
+    RestoreOwoxStorageService,
     CreateDataDestinationService,
     UpdateDataStorageService,
     UpdateDataDestinationService,
@@ -893,6 +924,7 @@ import { McpCredentialsFacadeImpl } from './credentials/facades/mcp-credentials.
     AiHelperTriggerHandlerService,
     RetryInterruptedConnectorRunsProcessor,
     RepairBackfillChainsProcessor,
+    OwoxStorageLifecycleProcessor,
     LegacyStorageCredentialReader,
     ScheduledTriggerService,
     ScheduledTriggerMapper,
@@ -914,6 +946,7 @@ import { McpCredentialsFacadeImpl } from './credentials/facades/mcp-credentials.
     ConnectorMessageParserService,
     ConnectorStateService,
     InternalProjectBillingService,
+    OwoxStorageConfigService,
     LicenseProjectBillingService,
     RestrictedProjectBillingService,
     projectBillingProvider,
