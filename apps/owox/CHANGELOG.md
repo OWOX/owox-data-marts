@@ -1,5 +1,135 @@
 # owox
 
+## 0.42.0
+
+### Minor Changes
+
+- 47370ba: **Manage integration access with your AI assistant and keep secrets out of chat**
+
+  Data Owners previously had to manage provider access separately when setting up
+  integrations with an AI assistant. The assistant can now find and reuse Credentials,
+  the access details saved in OWOX, and guide you through adding or updating them.
+
+  To save or reconnect provider access, you enter secrets in a dedicated OWOX form.
+  After you finish, the assistant can check the result and continue setup.
+  You can reuse the saved access for
+  Google Sheets, Google Chat webhooks, and custom connector tests without entering
+  secrets again. The form checks your project and account before you make changes.
+  New Credentials start unshared, and existing permissions still apply.
+
+  These tools are currently available through the custom MCP connection flow.
+  They will become available in public agent directories later.
+  See [Credential management](../../docs/getting-started/setup-guide/mcp.md#credential-management)
+  for setup details.
+
+  <!-- markdownlint-disable-file MD036 MD041 -->
+
+- 90d0bb5: **Set up and manage Storages and Destinations with AI agents**
+
+  Data Owners previously had to open the web UI to configure Storages or change
+  Destination settings while working with an AI agent. AI agents can now create,
+  configure, and manage Storages and Destinations in OWOX Data Marts through MCP.
+
+  The new tools are currently available only through a custom MCP connection.
+  They will become available through AI agents' public connector directories later.
+
+  See [Storage management](../../docs/getting-started/setup-guide/mcp.md#storage-management)
+  and [Destination management](../../docs/getting-started/setup-guide/mcp.md#destination-management)
+  for supported operations and setup details.
+
+  <!-- markdownlint-disable-file MD036 MD041 -->
+
+- bd757b0: <!-- markdownlint-disable-file MD041 MD036 -->
+
+  **A new connector Data Mart starts loading data right after setup**
+
+  Before this release, Save in the connector sheet only saved the settings. A new Data Mart stayed a draft, and no data loaded until you found Publish & Run Data Mart. Now a draft Data Mart gets a "Save & Run" button as the last button of the Set Up Connector, Edit Connector and Connector Fields sheets. See [Set up a connector Data Mart](../../docs/getting-started/setup-guide/connector-data-mart.md#step-5-set-up-the-target-in-your-storage).
+  - For a draft Data Mart, "Save & Run" saves the settings, publishes the Data Mart and starts the first run. "Save" is in the menu next to it.
+  - For a published Data Mart, "Save" is the last button. "Save & Run" is in its menu. Save & Run saves the settings and starts a run.
+  - The sheet shows only "Save" if the Storage is not set up, a run is in progress, or Target Setup shows that another Data Mart writes to the same table.
+
+- bd757b0: <!-- markdownlint-disable-file MD041 MD036 -->
+
+  **Connect a Google Sheets plan with one Google sign-in**
+
+  Before this release, Sign in with Google failed on the Credentials page for a Sheets Source Google account. The error was "Failed to open popup window". When the popup opened, Google asked for access a second time to choose a spreadsheet. Now one sign-in adds the account, and the spreadsheet picker opens immediately.
+
+  The video connects two plans to Data Marts with one Google account. The second plan uses "+ Add spreadsheet" in the Data Mart form, and the form shows a warning when another Data Mart already writes to the same table.
+
+  <https://customer-4geatlj66rtkaxtz.cloudflarestream.com/58a165f0d51ac5ce59dd95177940f617/iframe>
+  - The spreadsheet list in the Data Mart form has a "+ Add spreadsheet" item at the end. You can add a new plan without leaving the form. A Google window opens and closes by itself, then the spreadsheet picker opens.
+  - To add spreadsheets, sign in to Google with the account of the Credential. If the form shows "Sign in to Google as … to add spreadsheets.", click "+ Add spreadsheet" again and choose that account.
+  - If a Credential shows no Google account, reconnect it to add spreadsheets.
+  - When you choose the spreadsheet from the list or with "+ Add spreadsheet", the suggested table name has the document name and the sheet name, for example `budget_2026_plan`. Two documents with a "Plan" sheet then do not get the same table name.
+  - When you type the spreadsheet URL, or the Credential is a service account, the suggested table name has the sheet name only, for example `plan`.
+  - The form suggests a table name only when the target table is empty.
+  - Ukrainian and Russian names change to Latin letters, for example `data_soft_potochni_vytraty`. A table name has 100 characters or fewer. Tables of existing Data Marts keep their names.
+  - Target Setup shows a warning when another Data Mart writes to the same table. Each run replaces the table, so the two Data Marts overwrite the data of each other.
+  - If the spreadsheet list cannot load, the form shows "Could not load the list of spreadsheets." and the cause from Google Sheets. You can still type the spreadsheet URL manually.
+
+- 80c62f9: **Compare LinkedIn Ads results across markets: spend by country, region, and county**
+
+  Teams that run LinkedIn campaigns in several countries could not split LinkedIn spend by location in their warehouse: the LinkedIn Ads connector imported metrics only by creative, campaign, and account, so a market-by-market comparison had no LinkedIn numbers. Now three new endpoints, **Ad Analytics by Country**, **Ad Analytics by Region**, and **Ad Analytics by County**, import each campaign's daily impressions, clicks, spend, and conversions per location, with the location's English name (such as `United States`) next to its LinkedIn URN.
+  - LinkedIn breaks location down for one campaign at a time, so these endpoints make more API requests than **Ad Analytics**: at least one for every campaign that ran that day, and one more per campaign for every further 18 metrics you select.
+  - LinkedIn drops a location with fewer than 3 events, so totals can be lower than in **Ad Analytics**, and location data arrives 12–24 hours late; the default **Reimport Lookback Window** of 2 days picks it up on the next run.
+
+  See [spend by country, region, or county](../../packages/connectors/src/Sources/LinkedInAds/GETTING_STARTED.md#how-do-i-see-spend-by-country-region-or-county) in the LinkedIn Ads guide.
+
+  <!-- markdownlint-disable-file MD041 MD036 -->
+
+- 9a765e4: **Plugins show loading in the same bar as OWOX Data Marts**
+
+  Plugin authors had to build their own loading indicator, so each plugin showed loading in a
+  different way. Now a plugin asks the host to show the loading bar that OWOX Data Marts shows at
+  the top of the page for its own requests.
+  - `ctx.ui.startLoading()` shows the bar and returns a loading with `setProgress(fraction)` and
+    `stop()`.
+  - The bar stays while any started loading runs. When every running loading sets a fraction, the
+    bar shows how much of the work is done.
+
+  The change is backward compatible. To use the new member, update `@owox/plugin-sdk` to this
+  release. On an older OWOX Data Marts deployment, the bar does not show and the calls do not fail.
+
+  See [Show the loading bar](../../docs/plugins/authoring-guide.md#show-the-loading-bar).
+
+  <!-- markdownlint-disable-file MD041 MD036 -->
+
+- c875200: **Set up a connector Data Mart from another one again, with its Credential and account**
+
+  Since connector keys moved to Credentials, a new connector Data Mart could take only the Credential: account IDs and the other settings had to be looked up in an existing Data Mart and entered by hand. **Reuse from another Data Mart** is back in the connector settings. Pick a Data Mart with the same source, and the new configuration uses the same Credential and gets the same settings, such as account IDs. No key is copied: both Data Marts use one Credential, so replacing its values updates both.
+  - If the selected Data Mart's Credential is not available to you, only the settings are copied, and you select a Credential yourself.
+  - The list shows only Data Marts you can open.
+
+  See [Add access Credentials](../../docs/getting-started/setup-guide/connector-data-mart.md#step-3-add-access-credentials).
+
+  <!-- markdownlint-disable-file MD041 MD036 -->
+
+- 1371345: **Count unique records when reading a Data Mart over the HTTP Data API**
+
+  Plugins and scripts that read a Data Mart through the HTTP Data API, or through
+  `dataMarts.traverseData()` in `@owox/api-client` and `@owox/plugin-sdk`, can now ask
+  for a Unique Count, the same one reports already offer. Before, `COUNT_DISTINCT`
+  worked only on text columns, so a numeric or composite primary key, or a joined Data
+  Mart's records, could not be counted at all.
+
+  Pass `uniqueCount` with the sources to count: `''` for the Data Mart itself, or the
+  alias path of a joined Data Mart. Each source counts distinct values of its primary
+  key, whatever the key type. Without a column selection you get a single total row;
+  with columns you get a count per group. You can also sort by the Unique Count column,
+  as in reports. See
+  [Stream Data Mart rows](../../docs/api/api-client.md#stream-data-mart-rows) for details.
+
+  <!-- markdownlint-disable-file MD036 MD041 -->
+
+### Patch Changes
+
+- @owox/internal-helpers@0.42.0
+- @owox/idp-protocol@0.42.0
+- @owox/idp-better-auth@0.42.0
+- @owox/idp-owox-better-auth@0.42.0
+- @owox/backend@0.42.0
+- @owox/web@0.42.0
+
 ## 0.41.0
 
 ### Minor Changes 0.41.0
