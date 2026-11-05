@@ -6,7 +6,7 @@ import type { ConnectorConfig } from '../../../../data-marts/edit/model';
 
 interface ConnectorSetupButtonProps {
   storageType: DataStorageType;
-  onSetupConnector: (connector: ConnectorConfig) => void;
+  onSetupConnector: (connector: ConnectorConfig, runAfterSave: boolean) => void;
   preset?: string;
   connectorName?: string | null;
   isOpen?: boolean;

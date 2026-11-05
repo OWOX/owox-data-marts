@@ -4,6 +4,8 @@ import { MemoryRouter } from 'react-router';
 import { ConnectorEditForm } from './ConnectorEditForm';
 import { DataStorageType } from '../../../../data-storage';
 import { DataMartContext } from '../../../../data-marts/edit/model/context/context';
+import { DataMartStatus } from '../../../../data-marts/shared/enums';
+import type { useConnectorTargetConflict } from '../../../shared/model/hooks/useConnectorTargetConflict';
 
 interface RecordedProps {
   initialConfiguration?: Record<string, unknown>;
@@ -17,18 +19,25 @@ interface RecordedFieldsProps {
 
 interface RecordedNavigationProps {
   canGoNext: boolean;
+  canRunAfterSave?: boolean;
+  runIsMainAction?: boolean;
   onNext: () => void;
+  onFinish: (runAfterSave: boolean) => void;
 }
 
-const { connectorHook, recorded, recordedFields, recordedNavigation, toastError } = vi.hoisted(
-  () => ({
+const { conflictHook, connectorHook, recorded, recordedFields, recordedNavigation, toastError } =
+  vi.hoisted(() => ({
+    conflictHook: {
+      current: { conflict: null, isPending: false } as ReturnType<
+        typeof useConnectorTargetConflict
+      >,
+    },
     connectorHook: { current: {} as Record<string, unknown> },
     recorded: [] as RecordedProps[],
     recordedFields: [] as RecordedFieldsProps[],
     recordedNavigation: [] as RecordedNavigationProps[],
     toastError: vi.fn(),
-  })
-);
+  }));
 
 vi.mock('react-hot-toast', () => ({
   toast: { error: toastError },
@@ -69,6 +78,10 @@ vi.mock('../../../../idp', () => ({
 
 vi.mock('../../../../../app/permissions', () => ({
   usePermissions: () => ({ canEdit: true }),
+}));
+
+vi.mock('../../../shared/model/hooks/useConnectorTargetConflict', () => ({
+  useConnectorTargetConflict: () => conflictHook.current,
 }));
 
 vi.mock('../../../shared/model/hooks/useConnector', () => ({
@@ -156,6 +169,7 @@ const lastProps = () => recorded[recorded.length - 1];
 describe('ConnectorEditForm configuration echo', () => {
   beforeEach(() => {
     connectorHook.current = createGoogleAdsConnectorHook();
+    conflictHook.current = { conflict: null, isPending: false };
     recorded.length = 0;
     recordedFields.length = 0;
     recordedNavigation.length = 0;
@@ -250,7 +264,9 @@ describe('ConnectorEditForm configuration echo', () => {
     connectorHook.current = hook;
     render(
       <MemoryRouter>
-        <DataMartContext.Provider value={{ dataMart: { id: 'dm-1' } } as never}>
+        <DataMartContext.Provider
+          value={{ dataMart: { id: 'dm-1', status: { code: DataMartStatus.PUBLISHED } } } as never}
+        >
           <ConnectorEditForm
             onSubmit={vi.fn()}
             dataStorageType={DataStorageType.GOOGLE_BIGQUERY}
@@ -292,5 +308,108 @@ describe('ConnectorEditForm configuration echo', () => {
     });
 
     expect(toastError).toHaveBeenCalledWith('Connector provider is temporarily unavailable');
+  });
+
+  describe('Save & Run', () => {
+    const renderInDataMart = (
+      config: Record<string, string>,
+      onSubmit = vi.fn(),
+      hasActiveRuns = false,
+      status = DataMartStatus.PUBLISHED,
+      configurationOnly = false
+    ) => {
+      render(
+        <MemoryRouter>
+          <DataMartContext.Provider
+            value={
+              {
+                dataMart: {
+                  id: 'dm-1',
+                  status: { code: status },
+                  storage: { type: DataStorageType.GOOGLE_BIGQUERY, config },
+                },
+                hasActiveRuns,
+              } as never
+            }
+          >
+            <ConnectorEditForm
+              onSubmit={onSubmit}
+              dataStorageType={DataStorageType.GOOGLE_BIGQUERY}
+              configurationOnly={configurationOnly}
+            />
+          </DataMartContext.Provider>
+        </MemoryRouter>
+      );
+      return onSubmit;
+    };
+
+    it('is offered when the Data Mart has a configured Storage', () => {
+      renderInDataMart({ projectId: 'project', location: 'US' });
+
+      expect(recordedNavigation.at(-1)?.canRunAfterSave).toBe(true);
+    });
+
+    it.each([
+      [DataMartStatus.DRAFT, true],
+      [DataMartStatus.PUBLISHED, false],
+    ])('makes Save & Run the main action only for a %s Data Mart', (status, runIsMainAction) => {
+      renderInDataMart({ projectId: 'project', location: 'US' }, vi.fn(), false, status);
+
+      expect(recordedNavigation.at(-1)?.runIsMainAction).toBe(runIsMainAction);
+    });
+
+    it.each([
+      ['never, while the conflict lookup is pending', { conflict: null, isPending: true }, false],
+      [
+        'never, when another Data Mart uses the table',
+        { conflict: { conflict: true, dataMart: null }, isPending: false },
+        false,
+      ],
+      [
+        'when the lookup found no conflict',
+        { conflict: { conflict: false, dataMart: null }, isPending: false },
+        true,
+      ],
+    ])('Save & Run is offered %s', (_name, answer, offered) => {
+      conflictHook.current = answer;
+      renderInDataMart({ projectId: 'project', location: 'US' });
+
+      expect(recordedNavigation.at(-1)?.canRunAfterSave).toBe(offered);
+    });
+
+    it('is not offered when the Storage is not configured', () => {
+      renderInDataMart({ projectId: '', location: '' });
+
+      expect(recordedNavigation.at(-1)?.canRunAfterSave).toBe(false);
+    });
+
+    it('is not offered while a run is active', () => {
+      renderInDataMart({ projectId: 'project', location: 'US' }, vi.fn(), true);
+
+      expect(recordedNavigation.at(-1)?.canRunAfterSave).toBe(false);
+    });
+
+    it('is not offered outside a Data Mart', () => {
+      renderForm();
+
+      expect(recordedNavigation.at(-1)?.canRunAfterSave).toBe(false);
+    });
+
+    it.each([true, false])('passes runAfterSave=%s on to the caller', runAfterSave => {
+      // Only the configuration-only sheet submits from its first step.
+      const onSubmit = renderInDataMart(
+        { projectId: 'project', location: 'US' },
+        vi.fn(),
+        false,
+        DataMartStatus.PUBLISHED,
+        true
+      );
+
+      act(() => {
+        recordedNavigation.at(-1)?.onFinish(runAfterSave);
+      });
+
+      expect(onSubmit).toHaveBeenCalledWith(expect.anything(), runAfterSave);
+    });
   });
 });

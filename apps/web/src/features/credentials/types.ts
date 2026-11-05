@@ -123,6 +123,11 @@ export interface CredentialPublicMetadata {
 /** Non-secret fields of a `fields` Credential. */
 export interface CredentialFieldsMetadata {
   fields: Record<string, string>;
+  /** The Google account a Source OAuth Credential is signed in with. */
+  connection?: {
+    account: { id: string; name: string | null; email: string | null } | null;
+    expiresAt: string | null;
+  };
 }
 
 /** The connected Google account of an `oauth` Credential. */

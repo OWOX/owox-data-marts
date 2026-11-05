@@ -9,7 +9,7 @@ import type { ConnectorConfig } from '../../../../data-marts/edit/model';
 interface EditFieldsButtonProps {
   existingConnector: ConnectorConfig;
   storageType: DataStorageType;
-  onUpdateFields: (updatedConnector: ConnectorConfig) => void;
+  onUpdateFields: (updatedConnector: ConnectorConfig, runAfterSave: boolean) => void;
   disabled?: boolean;
 }
 
@@ -21,8 +21,8 @@ export function EditFieldsButton({
 }: EditFieldsButtonProps) {
   const [isEditSheetOpen, setIsEditSheetOpen] = useState(false);
 
-  const handleUpdateFields = (updatedConnector: ConnectorConfig) => {
-    onUpdateFields(updatedConnector);
+  const handleUpdateFields = (updatedConnector: ConnectorConfig, runAfterSave: boolean) => {
+    onUpdateFields(updatedConnector, runAfterSave);
     setIsEditSheetOpen(false);
   };
 

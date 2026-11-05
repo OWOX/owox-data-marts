@@ -26,7 +26,10 @@ export interface PickedGoogleSpreadsheet {
 export interface OpenGoogleSheetsPickerOptions {
   apiKey: string;
   appId: string;
-  clientId: string;
+  /** Needed only without accessToken, to ask Google Identity Services for a token. */
+  clientId?: string;
+  /** A token Google already gave this page, so Picker opens without a Google popup. */
+  accessToken?: string;
   hintEmail?: string;
   onPicked: (spreadsheet: PickedGoogleSpreadsheet) => void;
   onError?: (message: string) => void;
@@ -73,9 +76,22 @@ interface GooglePicker {
   Feature: { SUPPORT_DRIVES: unknown };
 }
 
+type TokenPrompt = 'none' | 'select_account';
+
 interface TokenClient {
-  requestAccessToken(overrides?: { login_hint?: string }): void;
+  requestAccessToken(overrides?: { login_hint?: string; prompt?: TokenPrompt }): void;
 }
+
+class GoogleSignInRequiredError extends Error {
+  constructor(email?: string) {
+    super(`Sign in to Google as ${email ?? 'the connected account'} to add spreadsheets.`);
+  }
+}
+
+class GooglePickerAccountMismatchError extends Error {}
+
+// Kept per Credential account, so Back/Next in the wizard (a remount) does not forget it.
+const accountsToChoose = new Set<string>();
 
 interface TokenResponse {
   access_token?: string;
@@ -179,9 +195,26 @@ function loadPicker(): Promise<void> {
   );
 }
 
-function requestAccessToken(clientId: string, hintEmail?: string): Promise<string> {
-  const loadGis = googleWindow.google?.accounts?.oauth2 ? Promise.resolve() : loadScript(GIS_SRC);
-  return loadGis.then(
+function loadGis(): Promise<void> {
+  return googleWindow.google?.accounts?.oauth2 ? Promise.resolve() : loadScript(GIS_SRC);
+}
+
+/** Loads the Google scripts ahead of a click, so the token popup opens while the click still allows it. */
+export function preloadGoogleSheetsPicker(): void {
+  void Promise.all([loadGis(), loadPicker()]).catch(() => undefined);
+}
+
+function requestAccessToken(
+  clientId: string,
+  hintEmail: string | undefined,
+  prompt: TokenPrompt
+): Promise<string> {
+  // A silent request that fails needs a screen, and only a new click may open one.
+  const failed = (code?: string, message?: string) =>
+    prompt === 'none' && code !== 'popup_failed_to_open'
+      ? new GoogleSignInRequiredError(hintEmail)
+      : new Error(message ?? code ?? 'Could not obtain a Google access token');
+  return loadGis().then(
     () =>
       new Promise<string>((resolve, reject) => {
         const oauth2 = googleWindow.google?.accounts?.oauth2;
@@ -204,14 +237,14 @@ function requestAccessToken(clientId: string, hintEmail?: string): Promise<strin
               }
               resolve(response.access_token);
             } else {
-              reject(new Error(response.error ?? 'Could not obtain a Google access token'));
+              reject(failed(response.error, response.error));
             }
           },
           error_callback: error => {
-            reject(new Error(error.message ?? 'Google authorization was cancelled'));
+            reject(failed(error.type, error.message ?? 'Google authorization was cancelled'));
           },
         });
-        client.requestAccessToken({ login_hint: hintEmail });
+        client.requestAccessToken({ prompt, login_hint: hintEmail });
       })
   );
 }
@@ -233,7 +266,9 @@ export async function verifyGooglePickerAccount(
 
   const userInfo = (await response.json()) as { email?: string };
   if (userInfo.email?.toLowerCase() !== expectedEmail.toLowerCase()) {
-    throw new Error(`Open Google Picker with the connected account ${expectedEmail}`);
+    throw new GooglePickerAccountMismatchError(
+      `Open Google Picker with the connected account ${expectedEmail}`
+    );
   }
 }
 
@@ -279,6 +314,7 @@ export function useGoogleSheetsPicker() {
   const activePickerRef = useRef<PickerInstanceLike | null>(null);
   const pendingPickerResolveRef = useRef<(() => void) | null>(null);
   const isMountedRef = useRef(true);
+  const generationRef = useRef(0);
 
   const closeActivePicker = useCallback(() => {
     const picker = activePickerRef.current;
@@ -301,14 +337,30 @@ export function useGoogleSheetsPicker() {
 
   const openPicker = useCallback(
     async (options: OpenGoogleSheetsPickerOptions): Promise<void> => {
-      const { apiKey, appId, clientId, hintEmail, onPicked, onError } = options;
+      const { apiKey, appId, clientId, accessToken, hintEmail, onPicked, onError } = options;
+      // A newer open supersedes this one, so a double click builds a single Picker.
+      const generation = ++generationRef.current;
+      const superseded = () => !isMountedRef.current || generationRef.current !== generation;
 
       try {
         closeActivePicker();
-        await loadPicker();
-        const token = await requestAccessToken(clientId, hintEmail);
+        // The token popup goes first: a browser lets a click open a popup only for a short time.
+        let tokenRequest: Promise<string>;
+        if (accessToken) {
+          tokenRequest = Promise.resolve(accessToken);
+        } else if (clientId) {
+          // After a sign-in request or a wrong account, the next click lets the member choose.
+          const chooseAccount = hintEmail ? accountsToChoose.has(hintEmail.toLowerCase()) : false;
+          const prompt = chooseAccount ? 'select_account' : 'none';
+          tokenRequest = requestAccessToken(clientId, hintEmail, prompt);
+        } else {
+          throw new Error('Google Picker configuration is incomplete');
+        }
+        const [token] = await Promise.all([tokenRequest, loadPicker()]);
+        if (superseded()) return;
         await verifyGooglePickerAccount(token, hintEmail);
-        if (!isMountedRef.current) return;
+        if (hintEmail) accountsToChoose.delete(hintEmail.toLowerCase());
+        if (superseded()) return;
 
         const picker = googleWindow.google?.picker;
         if (!picker) {
@@ -365,12 +417,19 @@ export function useGoogleSheetsPicker() {
           builtPicker.setVisible(true);
         });
       } catch (error) {
-        closeActivePicker();
-        if (isMountedRef.current) {
-          onError?.(
-            error instanceof Error ? error.message : 'Failed to open the Google Sheets picker'
-          );
+        if (
+          !accessToken &&
+          (error instanceof GoogleSignInRequiredError ||
+            error instanceof GooglePickerAccountMismatchError)
+        ) {
+          if (hintEmail) accountsToChoose.add(hintEmail.toLowerCase());
         }
+        // A superseded call must not close the Picker a newer one opened.
+        if (superseded()) return;
+        closeActivePicker();
+        onError?.(
+          error instanceof Error ? error.message : 'Failed to open the Google Sheets picker'
+        );
       }
     },
     [closeActivePicker]

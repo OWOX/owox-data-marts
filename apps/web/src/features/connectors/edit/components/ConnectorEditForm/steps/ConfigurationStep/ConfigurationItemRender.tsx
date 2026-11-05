@@ -2,6 +2,7 @@ import { AppWizardStepLabel, AppWizardStepItem } from '@owox/ui/components/commo
 import { RequiredType, type ConnectorSpecificationResponseApiDto } from '../../../../../shared/api';
 import { configurationFieldRender } from './ConfigurationFieldRender';
 import { Button } from '@owox/ui/components/button';
+import type { DynamicOptionsExtras } from './ConfigurationField';
 
 interface ConfigurationItemRenderProps {
   specification: ConnectorSpecificationResponseApiDto;
@@ -12,6 +13,7 @@ interface ConfigurationItemRenderProps {
   onValueChange: (name: string, value: unknown) => void;
   onSecretEditToggle: (name: string, enable: boolean) => void;
   connectorName: string;
+  dynamicOptionsExtras?: DynamicOptionsExtras;
 }
 
 export function ConfigurationItemRender({
@@ -23,6 +25,7 @@ export function ConfigurationItemRender({
   onValueChange,
   onSecretEditToggle,
   connectorName,
+  dynamicOptionsExtras,
 }: ConfigurationItemRenderProps) {
   return (
     <AppWizardStepItem key={specification.name}>
@@ -60,6 +63,7 @@ export function ConfigurationItemRender({
           isSecretEditing,
         },
         connectorName: connectorName,
+        dynamicOptionsExtras,
       })}
     </AppWizardStepItem>
   );

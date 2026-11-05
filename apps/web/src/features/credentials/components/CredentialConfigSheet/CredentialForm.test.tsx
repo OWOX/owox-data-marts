@@ -51,12 +51,12 @@ vi.mock('../../../connectors/shared/components/GoogleSheetsLoginButton', () => (
     onSuccess,
   }: {
     children?: React.ReactNode;
-    onSuccess: (response: { code: string }) => void;
+    onSuccess: (response: { code: string; accessToken: string }) => void;
   }) => (
     <button
       type='button'
       onClick={() => {
-        onSuccess({ code: 'google-code' });
+        onSuccess({ code: 'google-code', accessToken: 'popup-token' });
       }}
     >
       {children}
@@ -66,6 +66,7 @@ vi.mock('../../../connectors/shared/components/GoogleSheetsLoginButton', () => (
 
 vi.mock('../../../google-oauth', async importOriginal => ({
   ...(await importOriginal<typeof import('../../../google-oauth')>()),
+  preloadGoogleSheetsPicker: vi.fn(),
   useGoogleSheetsPicker: () => ({ openPicker }),
 }));
 
@@ -1272,6 +1273,7 @@ describe('CredentialForm', () => {
             hintEmail: 'owner@example.com',
             apiKey: 'picker-key',
             appId: '42',
+            accessToken: undefined,
           })
         );
       });
@@ -1325,12 +1327,16 @@ describe('CredentialForm', () => {
       await waitFor(() => {
         expect(openPicker).toHaveBeenCalledWith(
           expect.objectContaining({
-            clientId: 'sheets-client',
+            accessToken: 'popup-token',
             hintEmail: 'new@example.com',
             apiKey: 'picker-key',
             appId: '42',
           })
         );
+      });
+      // The Picker token stays in the page; the backend gets only the code.
+      expect(connectorOAuth.exchangeCredentials.mock.lastCall?.[1]).toEqual({
+        code: 'google-code',
       });
       expect(onOAuthConnected).not.toHaveBeenCalled();
 

@@ -17,13 +17,53 @@ describe('suggestGoogleSheetsTableName', () => {
     expect(suggestGoogleSheetsTableName('2026 Plan')).toBe('sheet_2026_plan');
   });
 
-  it('keeps only the digits of a non-Latin name', () => {
-    expect(suggestGoogleSheetsTableName('Лист1')).toBe('sheet_1');
+  it('transliterates a Cyrillic name', () => {
+    expect(suggestGoogleSheetsTableName('Лист1')).toBe('lyst1');
+    expect(suggestGoogleSheetsTableName('План')).toBe('plan');
   });
 
   it('falls back to google_sheets when nothing usable is left', () => {
-    expect(suggestGoogleSheetsTableName('План')).toBe('google_sheets');
     expect(suggestGoogleSheetsTableName('***')).toBe('google_sheets');
     expect(suggestGoogleSheetsTableName(undefined)).toBe('google_sheets');
+  });
+
+  it('transliterates Ukrainian and Russian Cyrillic', () => {
+    expect(suggestGoogleSheetsTableName('Дата Софт поточні витрати')).toBe(
+      'data_soft_potochni_vytraty'
+    );
+    expect(suggestGoogleSheetsTableName('Йогурт')).toBe('iohurt');
+    expect(suggestGoogleSheetsTableName('Щоденний звіт')).toBe('shchodennyi_zvit');
+    expect(suggestGoogleSheetsTableName('Объём')).toBe('obem');
+    expect(suggestGoogleSheetsTableName('Розгляд Згода')).toBe('rozghliad_zghoda');
+  });
+
+  it('transliterates a decomposed Cyrillic name as its composed form', () => {
+    expect(suggestGoogleSheetsTableName('Йогурт'.normalize('NFD'))).toBe('iohurt');
+    expect(suggestGoogleSheetsTableName('Їжа'.normalize('NFD'))).toBe('izha');
+  });
+
+  it('drops an apostrophe only inside a Cyrillic word', () => {
+    expect(suggestGoogleSheetsTableName("п'ять")).toBe('piat');
+    expect(suggestGoogleSheetsTableName('м’ясо')).toBe('miaso');
+    expect(suggestGoogleSheetsTableName("O'Brien Plan")).toBe('o_brien_plan');
+    expect(suggestGoogleSheetsTableName("'План'")).toBe('plan');
+    expect(suggestGoogleSheetsTableName("а'б'в")).toBe('abv');
+  });
+
+  it('joins the document and the sheet', () => {
+    expect(suggestGoogleSheetsTableName('Plan', 'Дата Софт поточні витрати')).toBe(
+      'data_soft_potochni_vytraty_plan'
+    );
+    expect(suggestGoogleSheetsTableName('Plan', '2026 Budget')).toBe('sheet_2026_budget_plan');
+    expect(suggestGoogleSheetsTableName('***', 'Budget')).toBe('budget');
+    expect(suggestGoogleSheetsTableName('Plan', '')).toBe('plan');
+  });
+
+  it('caps the name at 100 characters, cutting the document first', () => {
+    const name = suggestGoogleSheetsTableName('Plan', 'Д'.repeat(120));
+    expect(name).toHaveLength(100);
+    expect(name.endsWith('_plan')).toBe(true);
+    expect(suggestGoogleSheetsTableName('a'.repeat(99) + ' b', 'Doc')).toBe('a'.repeat(99));
+    expect(suggestGoogleSheetsTableName('x'.repeat(120))).toHaveLength(100);
   });
 });

@@ -26,6 +26,7 @@ import type {
   PreviewDataMartResponseDto,
 } from '../types/api';
 import type { CreateSqlDryRunTaskResponseDto } from '../types/api/response/create-sql-dry-run-task.response.dto.ts';
+import type { ConnectorTargetConflictResponseDto } from '../types/api/response/connector-target-conflict.response.dto.ts';
 import type { TaskStatusResponseDto } from '../types/api/response/task-status.response.dto.ts';
 import type { DataMartInputSourceChangeImpactResponseDto } from '../types/api/response/data-mart-input-source-change-impact.response.dto.ts';
 import type { DataMartMemberAccessResponseDto } from '../types/api/response/data-mart-member-access.response.dto.ts';
@@ -318,6 +319,22 @@ export class DataMartService extends ApiService {
       skipErrorToast: true,
       ...config,
     } as AxiosRequestConfig);
+  }
+
+  /**
+   * Ask whether another Data Mart already writes the same connector target table.
+   * Silent: it only drives a warning, so no spinner and no error toast.
+   */
+  async getConnectorTargetConflict(
+    id: string,
+    fullyQualifiedName: string,
+    config?: AxiosRequestConfig
+  ): Promise<ConnectorTargetConflictResponseDto> {
+    return this.get<ConnectorTargetConflictResponseDto>(
+      `/${id}/connector-target-conflict`,
+      { fullyQualifiedName },
+      { skipLoadingIndicator: true, skipErrorToast: true, ...config } as AxiosRequestConfig
+    );
   }
 
   /**

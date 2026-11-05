@@ -7,15 +7,19 @@ interface GoogleSheetsLoginButtonProps {
   onSuccess: (response: GoogleSheetsLoginResponse) => void;
   onError?: (error: Error) => void;
   disabled?: boolean;
+  /** Also ask Google for a token the page can hand to Picker. */
+  withPickerToken?: boolean;
   children?: React.ReactNode;
 }
 
 export interface GoogleSheetsLoginResponse {
   code: string;
+  /** Google's token for Picker; the backend never sees it. */
+  accessToken: string;
 }
 
 type GoogleSheetsAuthMessage =
-  | { type: 'GOOGLE_SHEETS_AUTH_SUCCESS'; code: string; state: string | null }
+  | { type: 'GOOGLE_SHEETS_AUTH_SUCCESS'; code: string; accessToken: string; state: string | null }
   | { type: 'GOOGLE_SHEETS_AUTH_ERROR'; error: string };
 
 const GOOGLE_AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
@@ -48,7 +52,7 @@ function isGoogleSheetsAuthMessage(data: unknown): data is GoogleSheetsAuthMessa
   const message = data as Record<string, unknown>;
 
   if (message.type === 'GOOGLE_SHEETS_AUTH_SUCCESS') {
-    return typeof message.code === 'string';
+    return typeof message.code === 'string' && typeof message.accessToken === 'string';
   }
 
   if (message.type === 'GOOGLE_SHEETS_AUTH_ERROR') {
@@ -64,6 +68,7 @@ export function GoogleSheetsLoginButton({
   onSuccess,
   onError,
   disabled = false,
+  withPickerToken = false,
   children,
 }: GoogleSheetsLoginButtonProps) {
   const { openPopup, isLoading, error } = useOAuthPopup<
@@ -74,7 +79,8 @@ export function GoogleSheetsLoginButton({
     buildAuthUrl: (state: string) => {
       const url = new URL(GOOGLE_AUTH_URL);
       url.searchParams.set('client_id', clientId);
-      url.searchParams.set('response_type', 'code');
+      // One popup gives the refresh code for the backend and, when asked, a token for Picker in the page.
+      url.searchParams.set('response_type', withPickerToken ? 'code token' : 'code');
       url.searchParams.set('redirect_uri', redirectUri);
       url.searchParams.set('scope', SCOPE);
       url.searchParams.set('state', state);
@@ -87,7 +93,7 @@ export function GoogleSheetsLoginButton({
     isAuthMessage: isGoogleSheetsAuthMessage,
     getSuccessResponse: message => {
       if (message.type === 'GOOGLE_SHEETS_AUTH_SUCCESS') {
-        return { code: message.code };
+        return { code: message.code, accessToken: message.accessToken };
       }
       throw new Error('Invalid response');
     },

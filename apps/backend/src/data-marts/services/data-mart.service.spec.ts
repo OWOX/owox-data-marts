@@ -5,6 +5,7 @@ import { DataSource, EntitySchema, type Repository } from 'typeorm';
 import { DataMartStatus } from '../enums/data-mart-status.enum';
 import { RoleScope } from '../enums/role-scope.enum';
 import { DataMartIcon } from '../enums/data-mart-icon.enum';
+import { DataMartDefinitionType } from '../enums/data-mart-definition-type.enum';
 
 function makeDataMart(overrides: Partial<DataMart> = {}): DataMart {
   return {
@@ -871,3 +872,23 @@ function canvasRow(id: string, title: string, overrides: Partial<DataMart> = {})
     ...overrides,
   } as unknown as DataMart;
 }
+
+describe('DataMartService connector targets by storage', () => {
+  it('reads only the id, title and definition of connector Data Marts of the storage, without eager relations', async () => {
+    const rows = [{ id: 'dm-2', title: 'Plan', definition: null }];
+    const repository = { find: jest.fn().mockResolvedValue(rows) };
+    const service = new DataMartService(repository as any, {} as any, {} as any, {} as any);
+
+    await expect(service.findConnectorTargetsByStorage('proj-1', 'storage-1')).resolves.toBe(rows);
+
+    expect(repository.find).toHaveBeenCalledWith({
+      select: { id: true, title: true, definition: true },
+      where: {
+        projectId: 'proj-1',
+        storage: { id: 'storage-1' },
+        definitionType: DataMartDefinitionType.CONNECTOR,
+      },
+      loadEagerRelations: false,
+    });
+  });
+});

@@ -31,6 +31,13 @@ vi.mock('../../../../shared/model/hooks/useOAuth', () => ({
   useOAuth: () => oauthMocks,
 }));
 
+const picker = vi.hoisted(() => ({ openPicker: vi.fn() }));
+vi.mock('../../../../../google-oauth', async importOriginal => ({
+  ...(await importOriginal<typeof import('../../../../../google-oauth')>()),
+  preloadGoogleSheetsPicker: vi.fn(),
+  useGoogleSheetsPicker: () => picker,
+}));
+
 const credentialsState = vi.hoisted(() => ({
   credentials: [] as unknown[],
   isLoading: false,
@@ -132,7 +139,8 @@ async function openCredentialOptions() {
 }
 
 async function selectCredential(title: string) {
-  fireEvent.click(screen.getByRole('combobox', { name: 'Credential' }));
+  // An open popover hides the rest of the page until it closes.
+  fireEvent.click(await screen.findByRole('combobox', { name: 'Credential' }));
   // An option also names the provider after the title.
   fireEvent.click(
     await within(document.body).findByRole('option', { name: new RegExp(`^${title}`) })
@@ -745,6 +753,131 @@ describe('ConfigurationStep Google Sheets Credential', () => {
     expect(
       await screen.findByRole('textbox', { name: 'Spreadsheet ID or URL *' })
     ).toBeInTheDocument();
+  });
+
+  it("shows a 403 from the API as the prefix and the source's message only", async () => {
+    const denied =
+      'Google denied access to the spreadsheet list. Reconnect the Credential and try again.';
+    vi.spyOn(ConnectorApiService.prototype, 'previewConnectorFieldOptions').mockRejectedValue(
+      Object.assign(new Error('Request failed with status code 403'), {
+        isAxiosError: true,
+        response: { status: 403, data: { statusCode: 403, message: denied, error: 'Forbidden' } },
+      })
+    );
+    renderNewSheets();
+
+    await selectCredential('Marketing sheets');
+
+    expect((await screen.findByRole('alert')).textContent).toBe(
+      `Could not load the list of spreadsheets. ${denied}`
+    );
+    expect(screen.getByRole('textbox', { name: 'Spreadsheet ID or URL *' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument();
+  });
+
+  it('names the table after the spreadsheet Picker added even when the list cannot reload', async () => {
+    const previewSpy = vi
+      .spyOn(ConnectorApiService.prototype, 'previewConnectorFieldOptions')
+      .mockRejectedValue(new Error('Network down'));
+    credentialsState.credentials = [
+      {
+        ...credential('sheets-oauth', 'source:GoogleSheets:oauth2', 'Marketing sheets'),
+        publicMetadata: {
+          fields: {},
+          connection: {
+            account: { id: 'g-1', name: 'Owner', email: 'owner@example.com' },
+            expiresAt: null,
+          },
+        },
+      },
+    ];
+    const pickedUrl = 'https://docs.google.com/spreadsheets/d/picked/edit';
+    picker.openPicker.mockImplementation(
+      async (options: { onPicked: (spreadsheet: object) => void }) => {
+        options.onPicked({ id: 'picked', name: 'Budget 2026', url: pickedUrl });
+      }
+    );
+    const onOptionLabelChange = vi.fn();
+    function Harness() {
+      const [configuration, setConfiguration] = useState<Record<string, unknown>>({});
+      return (
+        <ConfigurationStep
+          connector={googleSheetsConnector}
+          connectorSpecification={freshSpecification}
+          initialConfiguration={configuration}
+          onConfigurationChange={setConfiguration}
+          onOptionLabelChange={onOptionLabelChange}
+        />
+      );
+    }
+    render(inDataMart(<Harness />));
+
+    await selectCredential('Marketing sheets');
+    const addButton = await screen.findByRole('button', { name: '+ Add spreadsheet' });
+    onOptionLabelChange.mockClear();
+    const loadsBefore = previewSpy.mock.calls.length;
+    fireEvent.click(addButton);
+    await waitFor(() => {
+      expect(previewSpy.mock.calls.length).toBeGreaterThan(loadsBefore);
+    });
+
+    const input = await screen.findByRole('textbox', { name: 'Spreadsheet ID or URL *' });
+    await waitFor(() => {
+      expect(input).toHaveValue(pickedUrl);
+    });
+    expect(picker.openPicker).toHaveBeenCalledWith(
+      expect.objectContaining({ clientId: 'client-id', hintEmail: 'owner@example.com' })
+    );
+    await waitFor(() => {
+      expect(onOptionLabelChange).toHaveBeenLastCalledWith('SpreadsheetId', 'Budget 2026');
+    });
+    expect(onOptionLabelChange).not.toHaveBeenCalledWith('SpreadsheetId', undefined);
+
+    // The reload after the action renders the input anew.
+    fireEvent.change(await screen.findByRole('textbox', { name: 'Spreadsheet ID or URL *' }), {
+      target: { value: 'typed-id' },
+    });
+    expect(onOptionLabelChange).toHaveBeenLastCalledWith('SpreadsheetId', undefined);
+  });
+
+  it('forgets the listed spreadsheet name when a service-account Credential replaces the list', async () => {
+    vi.spyOn(ConnectorApiService.prototype, 'previewConnectorFieldOptions').mockResolvedValue([
+      { value: 'budget-id', label: 'Budget 2026' },
+    ]);
+    const onOptionLabelChange = vi.fn();
+    function Harness() {
+      const [configuration, setConfiguration] = useState<Record<string, unknown>>({});
+      return (
+        <ConfigurationStep
+          connector={googleSheetsConnector}
+          connectorSpecification={freshSpecification}
+          initialConfiguration={configuration}
+          onConfigurationChange={setConfiguration}
+          onOptionLabelChange={onOptionLabelChange}
+        />
+      );
+    }
+    render(inDataMart(<Harness />));
+
+    await selectCredential('Marketing sheets');
+    const combobox = await screen.findByRole('combobox', { name: 'Spreadsheet ID or URL *' });
+    await waitFor(() => {
+      expect(combobox).toBeEnabled();
+    });
+    fireEvent.click(combobox);
+    fireEvent.click(await within(document.body).findByRole('option', { name: 'Budget 2026' }));
+    await waitFor(() => {
+      expect(onOptionLabelChange).toHaveBeenLastCalledWith('SpreadsheetId', 'Budget 2026');
+    });
+
+    await selectCredential('Reporting robot');
+    fireEvent.change(await screen.findByRole('textbox', { name: 'Spreadsheet ID or URL *' }), {
+      target: { value: 'https://docs.google.com/spreadsheets/d/other/edit' },
+    });
+
+    await waitFor(() => {
+      expect(onOptionLabelChange).toHaveBeenLastCalledWith('SpreadsheetId', undefined);
+    });
   });
 
   it('a service account keeps the plain spreadsheet input and loads no list', async () => {

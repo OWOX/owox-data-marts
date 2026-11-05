@@ -11,10 +11,14 @@ interface SelectionProps {
 }
 interface ConfigurationProps {
   onConfigurationChange?: (configuration: Record<string, unknown>) => void;
+  onOptionLabelChange?: (field: string, label: string | undefined) => void;
 }
 interface TargetProps {
   target: { fullyQualifiedName: string; isValid: boolean } | null;
   onTargetChange: (target: { fullyQualifiedName: string; isValid: boolean } | null) => void;
+  destinationName: string;
+  conflict?: unknown;
+  replacesTable?: boolean;
 }
 interface NavigationProps {
   onNext: () => void;
@@ -24,7 +28,18 @@ interface NodesProps {
   onFieldSelect: (fieldName: string) => void;
 }
 
-const { connectorHook, selection, configuration, targets, navigation, nodes } = vi.hoisted(() => ({
+const {
+  conflictCalls,
+  conflictHook,
+  connectorHook,
+  selection,
+  configuration,
+  targets,
+  navigation,
+  nodes,
+} = vi.hoisted(() => ({
+  conflictCalls: [] as unknown[],
+  conflictHook: { current: null as unknown },
   connectorHook: { current: {} as Record<string, unknown> },
   selection: [] as SelectionProps[],
   configuration: [] as ConfigurationProps[],
@@ -83,6 +98,13 @@ vi.mock('../../../../../shared/hooks/useProjectRoute', () => ({
 vi.mock('../../../../connector-builder/shared/api/connector-builder-api.service', () => ({
   ConnectorBuilderApiService: class {
     list = vi.fn().mockResolvedValue([]);
+  },
+}));
+
+vi.mock('../../../shared/model/hooks/useConnectorTargetConflict', () => ({
+  useConnectorTargetConflict: (_dataMartId: unknown, target: unknown) => {
+    conflictCalls.push(target);
+    return { conflict: conflictHook.current, isPending: false };
   },
 }));
 
@@ -152,13 +174,19 @@ function createHook() {
   return hook;
 }
 
-function renderForm(existingConnector: ConnectorConfig | null = null) {
+function renderForm(
+  existingConnector: ConnectorConfig | null = null,
+  mode?: 'full' | 'configuration-only' | 'fields-only',
+  configurationOnly = false
+) {
   return render(
     <MemoryRouter>
       <ConnectorEditForm
         onSubmit={vi.fn()}
         dataStorageType={DataStorageType.GOOGLE_BIGQUERY}
         existingConnector={existingConnector}
+        mode={mode}
+        configurationOnly={configurationOnly}
       />
     </MemoryRouter>
   );
@@ -194,6 +222,8 @@ describe('ConnectorEditForm target reset', () => {
     navigation.length = 0;
     nodes.length = 0;
     connectorHook.current = createHook();
+    conflictHook.current = null;
+    conflictCalls.length = 0;
   });
 
   it('drops the seeded target when the sheet changes while creating a Data Mart', async () => {
@@ -293,4 +323,82 @@ describe('ConnectorEditForm target reset', () => {
 
     expect(last(targets).target?.fullyQualifiedName).toBe('google_sheets_owox.saved_plan');
   });
+
+  it("suggests the table from the picked spreadsheet's name and its sheet", async () => {
+    renderForm();
+    act(() => {
+      last(selection).onConnectorSelect(googleSheets);
+    });
+    await next();
+    await configure({ SpreadsheetId: 'doc-1', SheetName: 'Plan' });
+    act(() => {
+      last(configuration).onOptionLabelChange?.('SpreadsheetId', 'Budget 2026');
+    });
+    await reachTargetStep();
+
+    expect(last(targets).destinationName).toBe('budget_2026_plan');
+  });
+
+  it('forgets the spreadsheet name when another connector is picked', async () => {
+    renderForm();
+    act(() => {
+      last(selection).onConnectorSelect(googleSheets);
+    });
+    await next();
+    act(() => {
+      last(configuration).onOptionLabelChange?.('SpreadsheetId', 'Budget 2026');
+    });
+    await back(); // step 1
+    act(() => {
+      last(selection).onConnectorSelect(facebookAds);
+    });
+    act(() => {
+      last(selection).onConnectorSelect(googleSheets);
+    });
+    await next();
+    await configure({ SpreadsheetId: 'doc-2', SheetName: 'Plan' });
+    await reachTargetStep();
+
+    expect(last(targets).destinationName).toBe('plan');
+  });
+
+  it('passes the target conflict to Target Setup', async () => {
+    const conflict = { conflict: true, dataMart: null };
+    conflictHook.current = conflict;
+    renderForm();
+    act(() => {
+      last(selection).onConnectorSelect(googleSheets);
+    });
+    await next();
+    await configure({ SpreadsheetId: 'doc-1', SheetName: 'Plan' });
+    await reachTargetStep();
+
+    expect(last(targets).conflict).toEqual(conflict);
+    expect(last(targets).replacesTable).toBe(true);
+  });
+
+  it.each([
+    ['fields-only', false],
+    ['configuration-only', false],
+    ['full', true],
+  ] as const)(
+    'asks for no target conflict in %s mode with configurationOnly=%s, which has no Target step',
+    async (mode, configurationOnly) => {
+      const existing: ConnectorConfig = {
+        source: {
+          name: 'GoogleSheets',
+          configuration: [{ SpreadsheetId: 'doc-1', SheetName: 'Plan' }],
+          node: 'sheet',
+          fields: ['_owox_row_number', 'Campaign'],
+        },
+        storage: { fullyQualifiedName: 'google_sheets_owox.saved_plan' },
+      };
+      renderForm(existing, mode, configurationOnly);
+      await waitFor(() => {
+        expect(conflictCalls.length).toBeGreaterThan(1);
+      });
+
+      expect(conflictCalls.every(target => target === null)).toBe(true);
+    }
+  );
 });

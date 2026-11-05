@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { Combobox, type ComboboxOption } from './combobox';
 
 async function search(options: ComboboxOption[], text: string) {
@@ -49,5 +49,26 @@ describe('Combobox search', () => {
     await waitFor(() => {
       expect(listed()).toEqual(['+ Create']);
     });
+  });
+});
+
+describe('Combobox options', () => {
+  it('a disabled option cannot be selected', async () => {
+    const onValueChange = vi.fn();
+    render(
+      <Combobox
+        options={[{ value: 'off', label: 'Off', disabled: true }]}
+        value=''
+        onValueChange={onValueChange}
+        ariaLabel='Pick'
+      />
+    );
+    fireEvent.click(screen.getByRole('combobox', { name: 'Pick' }));
+    const option = await screen.findByRole('option', { name: 'Off' });
+
+    fireEvent.click(option);
+
+    expect(option).toHaveAttribute('aria-disabled', 'true');
+    expect(onValueChange).not.toHaveBeenCalled();
   });
 });

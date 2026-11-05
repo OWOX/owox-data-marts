@@ -21,7 +21,9 @@ interface ConnectorConfigurationItemProps {
   configIndex: number;
   connectorDef: ConnectorDefinitionConfig;
   onRemoveConfiguration: (configIndex: number) => void;
-  onUpdateConfiguration: (configIndex: number) => (connector: ConnectorConfig) => void;
+  onUpdateConfiguration: (
+    configIndex: number
+  ) => (connector: ConnectorConfig, runAfterSave: boolean) => void;
   dataMartStatus: DataMartStatus;
   totalConfigurations: number;
   dataStorage: DataStorage;

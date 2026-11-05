@@ -18,7 +18,7 @@ means the dimension has not been evaluated and does not imply a gap.
 
 | API-key endpoints | Fully covered | OpenAPI covered | API client covered | Unassessed |
 | ----------------: | ------------: | ---------------: | -----------------: | ---------: |
-|               141 |  16/141 (11%) |    16/141 (11%) |       16/141 (11%) |        125 |
+|               142 |  16/142 (11%) |    16/142 (11%) |       16/142 (11%) |        126 |
 
 Fully covered means both OpenAPI and API client coverage are complete. All
 percentages use the complete endpoint inventory below as their denominator.
@@ -113,6 +113,7 @@ as API-client coverage.
 | `PUT /api/data-marts/{id}/availability` | Unassessed | Unassessed |
 | `GET /api/data-marts/{id}/blendable-schema` | Unassessed | Unassessed |
 | `PUT /api/data-marts/{id}/blended-fields-config` | Unassessed | Unassessed |
+| `GET /api/data-marts/{id}/connector-target-conflict` | Unassessed | Unassessed |
 | `PUT /api/data-marts/{id}/contexts` | Unassessed | Unassessed |
 | `PUT /api/data-marts/{id}/definition` | Unassessed | Unassessed |
 | `PUT /api/data-marts/{id}/description` | Unassessed | Unassessed |

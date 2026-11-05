@@ -1,0 +1,98 @@
+import { useEffect, useRef, useState } from 'react';
+import { toast } from 'react-hot-toast';
+import { useCredentials } from '../../../../../../credentials/useCredentials';
+import { preloadGoogleSheetsPicker, useGoogleSheetsPicker } from '../../../../../../google-oauth';
+import { useOAuth } from '../../../../../shared/model/hooks/useOAuth';
+import {
+  connectedEmail,
+  RECONNECT_HINT,
+  UNAVAILABLE_HINT,
+} from '../../../../../shared/utils/add-spreadsheet-hint.utils';
+import { GOOGLE_SHEETS_CONNECTOR_NAME } from '../../../../../shared/utils/google-sheets-fields.utils';
+import type { OAuthSettingsResponseDto } from '../../../../../shared/api/types/response';
+import type { DynamicOptionsAction } from './ConfigurationField';
+
+const LABEL = '+ Add spreadsheet';
+const noop = () => undefined;
+
+const disabledAction = (hint: string): DynamicOptionsAction => ({
+  label: LABEL,
+  onSelect: noop,
+  disabled: true,
+  hint,
+});
+
+/**
+ * "+ Add spreadsheet" for the spreadsheet list of a Google Sheets Source Credential. Google gives
+ * the Picker token only to a person signed in to the Credential's account.
+ */
+export function useAddSpreadsheetAction(
+  credentialId: string | null,
+  onPicked: (spreadsheetUrl: string, spreadsheetName: string) => void
+): DynamicOptionsAction | undefined {
+  const { credentials, isPending, isSuccess } = useCredentials();
+  const { getSettings } = useOAuth();
+  const { openPicker } = useGoogleSheetsPicker();
+  const [settings, setSettings] = useState<OAuthSettingsResponseDto>();
+  const currentCredentialId = useRef(credentialId);
+  useEffect(() => {
+    currentCredentialId.current = credentialId;
+  }, [credentialId]);
+
+  // Settings and scripts load before the click: the token popup must open soon after the click.
+  useEffect(() => {
+    if (!credentialId) return;
+    preloadGoogleSheetsPicker();
+    let active = true;
+    getSettings(GOOGLE_SHEETS_CONNECTOR_NAME, 'AuthType.oauth2')
+      .then(loaded => {
+        if (active) setSettings(loaded);
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, [credentialId, getSettings]);
+
+  // While the list loads nothing is known yet, so nothing is offered rather than a flashing hint.
+  if (!credentialId || isPending) return undefined;
+
+  const credential = credentials.find(item => item.id === credentialId);
+  // A loaded list without the Credential: the member cannot use it.
+  if (!credential) return isSuccess ? undefined : disabledAction(UNAVAILABLE_HINT);
+  if (credential.canUse === false) return undefined;
+  const email = connectedEmail(credential);
+  if (!email) return disabledAction(RECONNECT_HINT);
+
+  return {
+    label: LABEL,
+    onSelect: async () => {
+      try {
+        const { vars } =
+          settings ?? (await getSettings(GOOGLE_SHEETS_CONNECTOR_NAME, 'AuthType.oauth2'));
+        const apiKey = vars.PickerApiKey as string | undefined;
+        const appId = vars.ProjectNumber as string | undefined;
+        const clientId = vars.ClientId as string | undefined;
+        if (!apiKey || !appId || !clientId) {
+          throw new Error('Google Picker configuration is incomplete');
+        }
+        await openPicker({
+          apiKey,
+          appId,
+          clientId,
+          hintEmail: email,
+          onPicked: spreadsheet => {
+            // The Credential changed while Google was open: the file is for the old Credential.
+            if (currentCredentialId.current !== credentialId) return;
+            onPicked(spreadsheet.url, spreadsheet.name);
+          },
+          onError: message => {
+            toast.error(message);
+          },
+        });
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : 'Could not open Google Picker');
+      }
+    },
+  };
+}

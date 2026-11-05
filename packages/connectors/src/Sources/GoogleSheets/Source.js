@@ -736,6 +736,8 @@ export class GoogleSheetsSource extends AbstractSource {
     const payload = await this._fetchSheetsApiJson(url, {
       signal,
       oversizeMessage: 'Google Drive response exceeds the 50 MB limit while listing spreadsheets.',
+      deniedMessage:
+        'Google denied access to the spreadsheet list. Reconnect the Credential and try again.',
     });
     const files = Array.isArray(payload.files) ? payload.files : [];
 
@@ -780,6 +782,7 @@ export class GoogleSheetsSource extends AbstractSource {
     {
       signal,
       oversizeMessage = 'Google Sheets response exceeds the 50 MB import limit. Narrow the Range and try again.',
+      deniedMessage,
     } = {}
   ) {
     for (let authorizationAttempt = 0; authorizationAttempt < 2; authorizationAttempt += 1) {
@@ -816,7 +819,12 @@ export class GoogleSheetsSource extends AbstractSource {
         }
 
         const requestError = new HttpRequestException({
-          message: this._buildSheetRequestErrorMessage(error),
+          message:
+            deniedMessage &&
+            error?.statusCode === HTTP_STATUS.FORBIDDEN &&
+            this._isPermissionDenial(error?.payload)
+              ? deniedMessage
+              : this._buildSheetRequestErrorMessage(error),
           statusCode: error?.statusCode,
           payload: error?.payload,
         });
@@ -1081,12 +1089,41 @@ export class GoogleSheetsSource extends AbstractSource {
     return retryable;
   }
 
+  /**
+   * Whether a Google 403 body names a missing permission. A rate limit or a disabled API
+   * is also a 403, but a reconnect does not fix it.
+   *
+   * @param {Object|null} [payload] - The parsed Google error body
+   * @return {boolean}
+   */
+  _isPermissionDenial(payload) {
+    const { errors, details, status } = payload?.error ?? {};
+    const reasons = [
+      ...(Array.isArray(errors) ? errors : []),
+      ...(Array.isArray(details) ? details : []),
+    ]
+      .map(item => item?.reason)
+      .filter(Boolean);
+    // Sheets answers a file the app may not open with a bare PERMISSION_DENIED and no reason.
+    if (reasons.length === 0) {
+      return status === 'PERMISSION_DENIED';
+    }
+    return reasons.some(reason =>
+      ['insufficientPermissions', 'forbidden', 'ACCESS_TOKEN_SCOPE_INSUFFICIENT'].includes(reason)
+    );
+  }
+
   _buildSheetRequestErrorMessage(error) {
     const statusCode = error?.statusCode;
-    const message = error instanceof Error ? error.message : String(error);
+    // Google's message often ends with a period; the strings below add their own.
+    const message = (error instanceof Error ? error.message : String(error)).replace(/\.$/, '');
 
     if (statusCode === 403) {
       if (this.context.getParameter('AuthType')?.value === 'oauth2') {
+        // A rate limit or a disabled API is also a 403; a reconnect does not fix it.
+        if (!this._isPermissionDenial(error?.payload)) {
+          return `Google Sheets access denied: ${message}.`;
+        }
         return (
           `Google Sheets access denied: ${message}. ` +
           'Reconnect Google Sheets and add the spreadsheet with "Add spreadsheet" on the Credential page.'
@@ -1109,7 +1146,7 @@ export class GoogleSheetsSource extends AbstractSource {
       return `Google Sheets could not read the selected range: ${message}. Check the sheet tab name and range.`;
     }
 
-    return `Google Sheets request failed: ${message}`;
+    return `Google Sheets request failed: ${message}.`;
   }
 
   _getConfiguredServiceAccountEmail() {

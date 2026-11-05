@@ -58,6 +58,11 @@ import { RunDataMartService } from '../use-cases/run-data-mart.service';
 import { UpdateDataMartDefinitionService } from '../use-cases/update-data-mart-definition.service';
 import { UpdateDataMartDescriptionService } from '../use-cases/update-data-mart-description.service';
 import { UpdateDataMartIconService } from '../use-cases/update-data-mart-icon.service';
+import { GetConnectorTargetConflictService } from '../use-cases/get-connector-target-conflict.service';
+import {
+  ConnectorTargetConflictQueryApiDto,
+  ConnectorTargetConflictResponseApiDto,
+} from '../dto/presentation/connector-target-conflict-api.dto';
 import { GetBlendableSchemaService } from '../use-cases/get-blendable-schema.service';
 import { UpdateBlendedFieldsConfigService } from '../use-cases/update-blended-fields-config.service';
 import { UpdateDataMartSchemaService } from '../use-cases/update-data-mart-schema.service';
@@ -82,6 +87,7 @@ import {
   CreateDataMartSpec,
   DeleteDataMartSpec,
   GetBlendableSchemaSpec,
+  GetConnectorTargetConflictSpec,
   GetMemberOwnershipWarningsSpec,
   GetDataMartRunByIdSpec,
   GetDataMartRunsSpec,
@@ -135,6 +141,7 @@ export class DataMartController {
     private readonly updateAvailabilityService: UpdateAvailabilityService,
     private readonly memberOwnershipWarningsService: MemberOwnershipWarningsService,
     private readonly getBlendableSchemaService: GetBlendableSchemaService,
+    private readonly getConnectorTargetConflictService: GetConnectorTargetConflictService,
     private readonly updateBlendedFieldsConfigService: UpdateBlendedFieldsConfigService,
     private readonly contextAccessService: ContextAccessService,
     private readonly aiInsightsConfig: AiInsightsConfigService,
@@ -506,5 +513,22 @@ export class DataMartController {
       includeDraftTargets
     );
     return this.getBlendableSchemaService.run(command);
+  }
+
+  @Auth(Role.editor(Strategy.INTROSPECT))
+  @Get(':id/connector-target-conflict')
+  @GetConnectorTargetConflictSpec()
+  async getConnectorTargetConflict(
+    @AuthContext() context: AuthorizationContext,
+    @Param('id') dataMartId: string,
+    @Query() query: ConnectorTargetConflictQueryApiDto
+  ): Promise<ConnectorTargetConflictResponseApiDto> {
+    const command = this.mapper.toGetConnectorTargetConflictCommand(
+      dataMartId,
+      query.fullyQualifiedName,
+      context
+    );
+    const result = await this.getConnectorTargetConflictService.run(command);
+    return this.mapper.toConnectorTargetConflictResponse(result);
   }
 }

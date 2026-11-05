@@ -475,6 +475,26 @@ describe('DataMartController list OpenAPI', () => {
     expect(detailSchema.properties.dataQuality).toMatchObject({ nullable: true });
   });
 
+  it('publishes the connector-target-conflict query, response and 403/404 errors', () => {
+    const operation = document.paths['/api/data-marts/{id}/connector-target-conflict']?.get;
+    expect(operation?.parameters).toContainEqual(
+      expect.objectContaining({ name: 'fullyQualifiedName', in: 'query', required: true })
+    );
+    expect(operation?.responses['200']).toMatchObject({
+      content: {
+        'application/json': {
+          schema: { $ref: '#/components/schemas/ConnectorTargetConflictResponseApiDto' },
+        },
+      },
+    });
+    expect(operation?.responses['403']).toMatchObject({
+      description: 'EDIT access is required',
+    });
+    expect(operation?.responses['404']).toMatchObject({
+      description: 'Data Mart was not found in the current project',
+    });
+  });
+
   it('publishes the blendable-schema response, including uniqueCountAvailability, through named component schemas', () => {
     const operation = document.paths['/api/data-marts/{id}/blendable-schema']?.get;
     expect(operation?.parameters).toContainEqual(

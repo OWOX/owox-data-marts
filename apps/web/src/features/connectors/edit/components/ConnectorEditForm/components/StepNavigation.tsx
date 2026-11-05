@@ -1,5 +1,7 @@
 import { Button } from '@owox/ui/components/button';
+import { DropdownMenuItem } from '@owox/ui/components/dropdown-menu';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { SplitButton } from '../../../../../../shared/components/SplitButton';
 
 interface StepNavigationProps {
   currentStep: number;
@@ -9,7 +11,11 @@ interface StepNavigationProps {
   isLoading?: boolean;
   onNext: () => void;
   onBack: () => void;
-  onFinish: () => void;
+  onFinish: (runAfterSave: boolean) => void;
+  /** Offers "Save & Run" next to the plain save. */
+  canRunAfterSave?: boolean;
+  /** Makes "Save & Run" the main button; otherwise the plain save is main and the run is in the menu. */
+  runIsMainAction?: boolean;
   nextLabel?: string;
   backLabel?: string;
   finishLabel?: string;
@@ -24,26 +30,52 @@ export function StepNavigation({
   onNext,
   onBack,
   onFinish,
+  canRunAfterSave = false,
+  runIsMainAction = false,
   nextLabel = 'Next',
   backLabel = 'Back',
   finishLabel = 'Save',
 }: StepNavigationProps) {
   const isLastStep = currentStep === totalSteps;
+  const isFinishDisabled = !canGoNext || isLoading;
+
+  const renderFinish = (fullWidth: boolean) =>
+    canRunAfterSave ? (
+      <SplitButton
+        groupClassName={fullWidth ? 'w-full' : undefined}
+        className={fullWidth ? 'flex-1' : undefined}
+        onClick={() => {
+          onFinish(runIsMainAction);
+        }}
+        disabled={isFinishDisabled}
+        menu={
+          <DropdownMenuItem
+            onClick={() => {
+              onFinish(!runIsMainAction);
+            }}
+          >
+            {runIsMainAction ? finishLabel : 'Save & Run'}
+          </DropdownMenuItem>
+        }
+      >
+        {runIsMainAction ? 'Save & Run' : finishLabel}
+      </SplitButton>
+    ) : (
+      <Button
+        className={fullWidth ? 'w-full' : undefined}
+        variant='default'
+        onClick={() => {
+          onFinish(false);
+        }}
+        disabled={isFinishDisabled}
+      >
+        {finishLabel}
+      </Button>
+    );
 
   // Single-step layout
   if (totalSteps === 1) {
-    return (
-      <div className='w-full'>
-        <Button
-          className='w-full'
-          variant='default'
-          onClick={onFinish}
-          disabled={!canGoNext || isLoading}
-        >
-          {finishLabel}
-        </Button>
-      </div>
-    );
+    return <div className='w-full'>{renderFinish(true)}</div>;
   }
 
   // Multi-step layout
@@ -64,9 +96,7 @@ export function StepNavigation({
 
       <div className='flex flex-1 justify-end'>
         {isLastStep ? (
-          <Button variant='default' onClick={onFinish} disabled={!canGoNext || isLoading}>
-            {finishLabel}
-          </Button>
+          renderFinish(false)
         ) : (
           <Button variant='default' onClick={onNext} disabled={!canGoNext || isLoading}>
             {nextLabel}

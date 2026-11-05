@@ -76,6 +76,7 @@ Object.assign(globalThis, {
   LOG_LEVEL: { INFO: 'info', WARN: 'warn', ERROR: 'error' },
   HTTP_STATUS: {
     UNAUTHORIZED: 401,
+    FORBIDDEN: 403,
     TOO_MANY_REQUESTS: 429,
     SUCCESS_MIN: 200,
     SUCCESS_MAX: 299,
@@ -335,21 +336,103 @@ test('stores the verified Google account used by Google Picker', async () => {
   );
 });
 
+test('answers a denied spreadsheet list with one actionable sentence', async () => {
+  const source = createSource({ authType: 'oauth2' });
+  source.getAccessToken = async () => 'token';
+  source._fetchSheetResponse = async () => {
+    throw new HttpRequestException({
+      message: 'Request had insufficient authentication scopes.',
+      statusCode: 403,
+      payload: { error: { details: [{ reason: 'ACCESS_TOKEN_SCOPE_INSUFFICIENT' }] } },
+    });
+  };
+  await assert.rejects(source.fetchFieldOptions('SpreadsheetId'), error => {
+    assert.equal(
+      error.message,
+      'Google denied access to the spreadsheet list. Reconnect the Credential and try again.'
+    );
+    assert.equal(error.statusCode, 403);
+    return true;
+  });
+});
+
+test('keeps the Google message of a spreadsheet list 403 that a reconnect does not fix', async () => {
+  const source = createSource({ authType: 'oauth2' });
+  source.getAccessToken = async () => 'token';
+  source._fetchSheetResponse = async () => {
+    throw new HttpRequestException({
+      message: 'Drive API has not been used',
+      statusCode: 403,
+      payload: { error: { errors: [{ reason: 'accessNotConfigured' }] } },
+    });
+  };
+  await assert.rejects(source.fetchFieldOptions('SpreadsheetId'), error => {
+    assert.match(error.message, /Drive API has not been used/);
+    assert.doesNotMatch(error.message, /spreadsheet list/);
+    assert.doesNotMatch(error.message, /Reconnect/);
+    assert.equal(error.statusCode, 403);
+    return true;
+  });
+});
+
 test('gives OAuth users guidance to add the spreadsheet for access errors', () => {
   const source = createSource({ authType: 'oauth2' });
+  const denied = {
+    statusCode: 403,
+    message: 'Forbidden',
+    payload: { error: { errors: [{ reason: 'forbidden' }] } },
+  };
 
-  assert.match(
-    source._buildSheetRequestErrorMessage({ statusCode: 403, message: 'Forbidden' }),
-    /Add spreadsheet/
+  assert.match(source._buildSheetRequestErrorMessage(denied), /Add spreadsheet/);
+  assert.doesNotMatch(source._buildSheetRequestErrorMessage(denied), /type its ID or URL/);
+  assert.doesNotMatch(source._buildSheetRequestErrorMessage(denied), /service account/);
+});
+
+test('gives the reconnect hint for a bare PERMISSION_DENIED with no reason', () => {
+  const source = createSource({ authType: 'oauth2' });
+  const bare = {
+    statusCode: 403,
+    message: 'The caller does not have permission',
+    payload: {
+      error: {
+        code: 403,
+        message: 'The caller does not have permission',
+        status: 'PERMISSION_DENIED',
+      },
+    },
+  };
+  const disabledApi = {
+    statusCode: 403,
+    message: 'Google Sheets API has not been used',
+    payload: {
+      error: { code: 403, status: 'PERMISSION_DENIED', details: [{ reason: 'SERVICE_DISABLED' }] },
+    },
+  };
+
+  assert.match(source._buildSheetRequestErrorMessage(bare), /Reconnect Google Sheets/);
+  assert.doesNotMatch(source._buildSheetRequestErrorMessage(disabledApi), /Reconnect/);
+});
+
+test('keeps a single period after a Google message that already ends with one', () => {
+  const source = createSource({ authType: 'oauth2' });
+  const withDot = Object.assign(new Error('Missing scopes.'), { statusCode: 403 });
+  const withoutDot = Object.assign(new Error('Missing scopes'), { statusCode: 403 });
+
+  assert.match(source._buildSheetRequestErrorMessage(withDot), /: Missing scopes\.$/);
+  assert.match(source._buildSheetRequestErrorMessage(withoutDot), /: Missing scopes\.$/);
+
+  const generic = Object.assign(new Error('Backend error.'), { statusCode: 500 });
+  assert.match(source._buildSheetRequestErrorMessage(generic), /: Backend error\.$/);
+});
+
+test('gives no reconnect hint for a 403 without a JSON body', () => {
+  const source = createSource({ authType: 'oauth2' });
+  const message = source._buildSheetRequestErrorMessage(
+    Object.assign(new Error('Forbidden'), { statusCode: 403 })
   );
-  assert.doesNotMatch(
-    source._buildSheetRequestErrorMessage({ statusCode: 403, message: 'Forbidden' }),
-    /type its ID or URL/
-  );
-  assert.doesNotMatch(
-    source._buildSheetRequestErrorMessage({ statusCode: 403, message: 'Forbidden' }),
-    /service account/
-  );
+
+  assert.match(message, /access denied: Forbidden\./);
+  assert.doesNotMatch(message, /Reconnect/);
 });
 
 test('rejects OAuth authorization when Google does not return an email address', async () => {
