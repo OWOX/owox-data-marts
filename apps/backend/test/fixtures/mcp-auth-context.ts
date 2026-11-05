@@ -1,5 +1,5 @@
+import type { AuthorizationContext } from '../../src/idp';
 import type { McpAuthContext } from '../../src/ee/mcp/auth/mcp-auth-context';
-import type { McpProjectActor } from '../../src/data-marts/facades/mcp-contexts.facade';
 
 export const adminMcpContext: McpAuthContext = {
   clientId: 'client-1',
@@ -11,7 +11,7 @@ export const adminMcpContext: McpAuthContext = {
   authFlow: 'mcp',
 };
 
-export const mcpProjectActor: McpProjectActor = {
+export const mcpProjectActor: AuthorizationContext = {
   projectId: 'project-1',
   userId: 'user-1',
 };

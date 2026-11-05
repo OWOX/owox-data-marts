@@ -2,6 +2,7 @@ import { MCP_CONTEXTS_FACADE } from '../../../data-marts/facades/mcp-contexts.fa
 import { MCP_CREDENTIALS_FACADE } from '../../../data-marts/credentials/facades/mcp-credentials.facade';
 import { MCP_CUSTOM_CONNECTORS_FACADE } from '../../../data-marts/facades/mcp-custom-connectors.facade';
 import { MCP_PROJECT_MEMBERS_FACADE } from '../../../data-marts/facades/mcp-project-members.facade';
+import { MCP_STORAGE_MANAGEMENT_FACADE } from '../../../data-marts/facades/mcp-storage-management.facade';
 jest.mock(
   '../../../common/producer/producer.module.js',
   () => ({
@@ -63,6 +64,7 @@ describe('MCP tool providers', () => {
         MCP_PROJECT_MEMBERS_FACADE,
         MCP_DATA_MARTS_FACADE,
         MCP_DATA_DESTINATIONS_FACADE,
+        MCP_STORAGE_MANAGEMENT_FACADE,
         MCP_REPORTS_FACADE,
         MCP_SCHEDULED_TRIGGERS_FACADE,
       ])
@@ -99,6 +101,7 @@ describe('MCP tool providers', () => {
         { provide: MCP_PROJECT_MEMBERS_FACADE, useValue: membersFacade },
         { provide: MCP_DATA_MARTS_FACADE, useValue: {} },
         { provide: MCP_DATA_DESTINATIONS_FACADE, useValue: {} },
+        { provide: MCP_STORAGE_MANAGEMENT_FACADE, useValue: {} },
         { provide: MCP_REPORTS_FACADE, useValue: {} },
         { provide: MCP_SCHEDULED_TRIGGERS_FACADE, useValue: {} },
         { provide: MCP_PROJECT_CONTEXT_FACADE, useValue: {} },
@@ -127,6 +130,20 @@ describe('MCP tool providers', () => {
       expect(toolNames).toEqual(
         expect.arrayContaining([
           'create_context',
+          'list_storages',
+          'get_storage',
+          'create_storage',
+          'update_storage',
+          'set_storage_access',
+          'validate_storage_access',
+          'list_storage_resources',
+          'delete_storage',
+          'get_destination',
+          'update_destination',
+          'set_destination_access',
+          'get_destination_impact',
+          'delete_destination',
+          'rotate_destination_secret_key',
           'list_credential_definitions',
           'list_credentials',
           'get_credential',

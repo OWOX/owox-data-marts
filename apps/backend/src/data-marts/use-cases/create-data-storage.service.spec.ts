@@ -61,6 +61,27 @@ describe('CreateDataStorageService', () => {
     jest.clearAllMocks();
   });
 
+  it('creates an unconfigured Storage with the requested title and default sharing', async () => {
+    const { service, dataStorageRepository } = createService();
+    await service.run(
+      new CreateDataStorageCommand(
+        'proj-1',
+        DataStorageType.GOOGLE_BIGQUERY,
+        'user-0',
+        undefined,
+        'New Storage'
+      )
+    );
+    expect(dataStorageRepository.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: 'New Storage',
+        availableForUse: true,
+        availableForMaintenance: false,
+      })
+    );
+    expect(dataStorageRepository.create.mock.calls[0][0]).not.toHaveProperty('config');
+  });
+
   it('should call syncOwners with creator userId when ownerIds not provided', async () => {
     const { service } = createService();
     const command = new CreateDataStorageCommand(

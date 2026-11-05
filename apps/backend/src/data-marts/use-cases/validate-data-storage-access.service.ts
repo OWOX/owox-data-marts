@@ -11,6 +11,7 @@ import { DataStorageService } from '../services/data-storage.service';
 import { AccessDecisionService, EntityType, Action } from '../services/access-decision';
 import { StorageCredentialUnavailableException } from '../exceptions/storage-credential-unavailable.exception';
 import { CredentialsExpiredException } from '../exceptions/google-oauth.exceptions';
+import { invalidStorageConfig } from '../data-storage-types/storage-credential-definitions';
 
 const GOOGLE_OAUTH_REAUTH_MESSAGE =
   'Google authorization could not be refreshed. Reconnect the Credential on the Credentials page to restore access.';
@@ -50,35 +51,40 @@ export class ValidateDataStorageAccessService {
       return ValidationResult.unconfigured('Complete setup to activate Storage');
     }
 
-    if (await this.dataStorageCredentialsResolver.hasCredentials(dataStorage)) {
-      try {
-        const resolvedCredentials = await this.dataStorageCredentialsResolver.resolve(dataStorage);
-        const result = await this.dataStorageValidationFacade.validateAccess(
-          dataStorage.type,
-          dataStorage.config,
-          resolvedCredentials
-        );
-        if (!result.valid && result.code === ValidationResultCode.OAUTH_REAUTH_REQUIRED) {
-          const lostGrant = await this.dataStorageCredentialsResolver.lostGrantFor(dataStorage);
-          if (lostGrant) return ValidationResult.oauthReauthRequired(lostGrant.message);
-        }
-        return result;
-      } catch (error) {
-        this.logger.warn(
-          `Failed to resolve credentials for storage ${dataStorage.id}: ${castError(error).message}`
-        );
-        if (error instanceof StorageCredentialUnavailableException && error.reauthRequired) {
-          return ValidationResult.oauthReauthRequired(error.message);
-        }
-        if (error instanceof CredentialsExpiredException) {
-          return ValidationResult.oauthReauthRequired(GOOGLE_OAUTH_REAUTH_MESSAGE);
-        }
-        return ValidationResult.failure(
-          error instanceof Error ? error.message : 'Failed to resolve credentials'
-        );
+    try {
+      if (!(await this.dataStorageCredentialsResolver.hasCredentials(dataStorage))) {
+        return ValidationResult.unconfigured('Complete setup to activate Storage');
       }
-    }
 
-    return ValidationResult.unconfigured('Complete setup to activate Storage');
+      const invalidConfig = invalidStorageConfig(dataStorage.type, dataStorage.config);
+      if (invalidConfig) return invalidConfig;
+
+      const resolvedCredentials = await this.dataStorageCredentialsResolver.resolve(dataStorage);
+      const result = await this.dataStorageValidationFacade.validateAccess(
+        dataStorage.type,
+        dataStorage.config,
+        resolvedCredentials
+      );
+      if (!result.valid && result.code === ValidationResultCode.OAUTH_REAUTH_REQUIRED) {
+        const lostGrant = await this.dataStorageCredentialsResolver.lostGrantFor(dataStorage);
+        if (lostGrant) return ValidationResult.oauthReauthRequired(lostGrant.message);
+      }
+      return result;
+    } catch (error) {
+      this.logger.warn(
+        `Failed to resolve credentials for storage ${dataStorage.id}: ${castError(error).message}`
+      );
+      if (error instanceof StorageCredentialUnavailableException) {
+        return error.reauthRequired
+          ? ValidationResult.oauthReauthRequired(error.message)
+          : ValidationResult.credentialUnavailable(error.message);
+      }
+      if (error instanceof CredentialsExpiredException) {
+        return ValidationResult.oauthReauthRequired(GOOGLE_OAUTH_REAUTH_MESSAGE);
+      }
+      return ValidationResult.failure(
+        error instanceof Error ? error.message : 'Failed to resolve credentials'
+      );
+    }
   }
 }

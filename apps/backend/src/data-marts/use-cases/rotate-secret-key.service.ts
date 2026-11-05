@@ -1,4 +1,9 @@
-import { Injectable, ForbiddenException } from '@nestjs/common';
+import {
+  Injectable,
+  ForbiddenException,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { DataDestination } from '../entities/data-destination.entity';
@@ -10,6 +15,7 @@ import { DataDestinationCredentialService } from '../services/data-destination-c
 import { DataDestinationCredentials } from '../data-destination-types/data-destination-credentials.type';
 import type { StoredDestinationCredentials } from '../entities/stored-destination-credentials.type';
 import { AccessDecisionService, EntityType, Action } from '../services/access-decision';
+import { DataDestinationType } from '../data-destination-types/enums/data-destination-type.enum';
 
 @Injectable()
 export class RotateSecretKeyService {
@@ -28,7 +34,7 @@ export class RotateSecretKeyService {
     });
 
     if (!entity) {
-      throw new Error('Data destination not found');
+      throw new NotFoundException('Data destination not found');
     }
 
     if (command.userId) {
@@ -45,6 +51,10 @@ export class RotateSecretKeyService {
           'You do not have permission to rotate credentials for this Destination'
         );
       }
+    }
+
+    if (entity.type !== DataDestinationType.LOOKER_STUDIO) {
+      throw new BadRequestException('Only Looker Studio destinations support key rotation.');
     }
 
     if (!entity.credentialId) {

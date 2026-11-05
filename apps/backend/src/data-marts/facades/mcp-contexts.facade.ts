@@ -1,14 +1,10 @@
+import type { AuthorizationContext } from '../../idp';
 import type { ContextDto, ContextImpactDto } from '../dto/domain/context.dto';
 import type { DataMartIconValue } from '../enums/data-mart-icon.enum';
 
 export { DataMartIcon, DATA_MART_ICON_MAX_LENGTH } from '../enums/data-mart-icon.enum';
 
 export const MCP_CONTEXTS_FACADE = Symbol('MCP_CONTEXTS_FACADE');
-
-export interface McpProjectActor {
-  projectId: string;
-  userId: string;
-}
 
 export interface McpContextSummary {
   id: string;
@@ -21,11 +17,11 @@ export interface McpContext extends McpContextSummary {
 
 export interface McpContextsFacade {
   createContext(
-    actor: McpProjectActor,
+    actor: AuthorizationContext,
     input: { name: string; description?: string | null; icon?: DataMartIconValue | null }
   ): Promise<ContextDto>;
   updateContextMetadata(
-    actor: McpProjectActor,
+    actor: AuthorizationContext,
     input: {
       contextId: string;
       name?: string;
@@ -33,10 +29,13 @@ export interface McpContextsFacade {
       icon?: DataMartIconValue | null;
     }
   ): Promise<ContextDto>;
-  getContextImpact(actor: McpProjectActor, input: { contextId: string }): Promise<ContextImpactDto>;
-  deleteContext(actor: McpProjectActor, input: { contextId: string }): Promise<void>;
+  getContextImpact(
+    actor: AuthorizationContext,
+    input: { contextId: string }
+  ): Promise<ContextImpactDto>;
+  deleteContext(actor: AuthorizationContext, input: { contextId: string }): Promise<void>;
   setContextMembers(
-    actor: McpProjectActor,
+    actor: AuthorizationContext,
     input: { contextId: string; assignedUserIds: string[] }
   ): Promise<{ assignedUserIds: string[]; droppedAdminIds: string[] }>;
   listContexts(projectId: string): Promise<McpContext[]>;

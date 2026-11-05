@@ -9,7 +9,7 @@ import { DeleteReportRunScheduleTool } from './delete-report-run-schedule.tool';
 import { GetDataMartReportsTool } from './get-data-mart-reports.tool';
 import { GetReportOutputSchemaTool } from './get-report-output-schema.tool';
 import { GetReportRunStatusTool } from './get-report-run-status.tool';
-import { ListDestinationsTool } from './list-destinations.tool';
+import { ListDestinationsTool } from './destination/list-destinations.tool';
 import { ListReportRunSchedulesTool } from './list-report-run-schedules.tool';
 import { MCP_TOOL_DEFINITIONS, type McpToolDefinition } from './mcp-tool.definition';
 import { GetProjectContextTool } from './project-context.tool';
@@ -20,7 +20,7 @@ import { SearchReportsTool } from './search-reports.tool';
 import { SummarizeDataCatalogTool } from './summarize-data-catalog.tool';
 import { UpdateReportRunScheduleTool } from './update-report-run-schedule.tool';
 import { UpdateReportTool } from './update-report.tool';
-import { AddDestinationTool } from './add-destination.tool';
+import { AddDestinationTool } from './destination/add-destination.tool';
 import { CreateContextTool } from './context/create-context.tool';
 import { UpdateContextMetadataTool } from './context/update-context-metadata.tool';
 import { GetContextImpactTool } from './context/get-context-impact.tool';
@@ -51,8 +51,30 @@ import { ConsentCredentialDefinitionTool } from './credential/consent-credential
 import { DeleteCredentialTool } from './credential/delete-credential.tool';
 import { StartCredentialSetupTool } from './credential/start-credential-setup.tool';
 import { GetCredentialSetupStatusTool } from './credential/get-credential-setup-status.tool';
+import { ListStoragesTool } from './storage/list-storages.tool';
+import { GetStorageTool } from './storage/get-storage.tool';
+import { CreateStorageTool } from './storage/create-storage.tool';
+import { UpdateStorageTool } from './storage/update-storage.tool';
+import { SetStorageAccessTool } from './storage/set-storage-access.tool';
+import { ValidateStorageAccessTool } from './storage/validate-storage-access.tool';
+import { ListStorageResourcesTool } from './storage/list-storage-resources.tool';
+import { DeleteStorageTool } from './storage/delete-storage.tool';
+import { GetDestinationTool } from './destination/get-destination.tool';
+import { UpdateDestinationTool } from './destination/update-destination.tool';
+import { SetDestinationAccessTool } from './destination/set-destination-access.tool';
+import { GetDestinationImpactTool } from './destination/get-destination-impact.tool';
+import { DeleteDestinationTool } from './destination/delete-destination.tool';
+import { RotateDestinationSecretKeyTool } from './destination/rotate-destination-secret-key.tool';
 
 export const MCP_TOOL_PROVIDER_CLASSES: Array<Type<McpToolDefinition>> = [
+  ListStoragesTool,
+  GetStorageTool,
+  CreateStorageTool,
+  UpdateStorageTool,
+  SetStorageAccessTool,
+  ValidateStorageAccessTool,
+  ListStorageResourcesTool,
+  DeleteStorageTool,
   ListCredentialDefinitionsTool,
   ListCredentialsTool,
   GetCredentialTool,
@@ -90,6 +112,12 @@ export const MCP_TOOL_PROVIDER_CLASSES: Array<Type<McpToolDefinition>> = [
   GetDataMartDetailsTool,
   GetProjectContextTool,
   ListDestinationsTool,
+  GetDestinationTool,
+  UpdateDestinationTool,
+  SetDestinationAccessTool,
+  GetDestinationImpactTool,
+  DeleteDestinationTool,
+  RotateDestinationSecretKeyTool,
   GetDataMartReportsTool,
   GetReportOutputSchemaTool,
   ListReportRunSchedulesTool,

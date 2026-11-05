@@ -1,6 +1,6 @@
+import type { AuthorizationContext } from '../../idp';
 import type { ConnectorFieldsDto } from '../dto/domain/connector-fields.dto';
 import type {
-  CustomConnectorActor,
   CustomConnectorMetadataInput,
   CreateCustomConnectorInput,
   CustomConnectorCreatedDto,
@@ -26,7 +26,6 @@ export {
 
 export const MCP_CUSTOM_CONNECTORS_FACADE = Symbol('MCP_CUSTOM_CONNECTORS_FACADE');
 
-export type McpCustomConnectorActor = CustomConnectorActor;
 export type McpCustomConnectorMetadataInput = CustomConnectorMetadataInput;
 export type McpCreateCustomConnectorInput = CreateCustomConnectorInput;
 export type McpCustomConnectorCreated = CustomConnectorCreatedDto;
@@ -47,7 +46,7 @@ export interface McpCustomConnectorsFacade {
   list(projectId: string): Promise<McpCustomConnector[]>;
   get(projectId: string, id: string): Promise<McpCustomConnectorDetail>;
   create(
-    actor: McpCustomConnectorActor,
+    actor: AuthorizationContext,
     input: McpCreateCustomConnectorInput
   ): Promise<McpCustomConnectorCreated>;
   updateMetadata(
@@ -61,9 +60,9 @@ export interface McpCustomConnectorsFacade {
     id: string,
     manifest: Record<string, unknown>
   ): Promise<McpCustomConnectorVersionState>;
-  publish(actor: McpCustomConnectorActor, id: string): Promise<McpCustomConnectorPublished>;
+  publish(actor: AuthorizationContext, id: string): Promise<McpCustomConnectorPublished>;
   activate(
-    actor: McpCustomConnectorActor,
+    actor: AuthorizationContext,
     id: string,
     version: number
   ): Promise<McpCustomConnectorActivated>;
@@ -75,7 +74,7 @@ export interface McpCustomConnectorsFacade {
   ): Promise<McpCustomConnectorSpecification[]>;
   getFields(projectId: string, id: string, version?: number): Promise<ConnectorFieldsDto[]>;
   test(
-    actor: McpCustomConnectorActor,
+    actor: AuthorizationContext,
     input: McpCustomConnectorTestInput
   ): Promise<McpCustomConnectorTestResult>;
 }

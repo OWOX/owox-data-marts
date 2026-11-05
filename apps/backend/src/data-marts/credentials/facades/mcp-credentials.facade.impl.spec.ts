@@ -1,12 +1,12 @@
+import type { AuthorizationContext } from '../../../idp';
 jest.mock('typeorm-transactional', () => ({ Transactional: () => () => {} }));
-
 import { ForbiddenException } from '@nestjs/common';
-import type { McpCredentialsActor, McpUpdateCredentialInput } from './mcp-credentials.facade';
+import type { McpUpdateCredentialInput } from './mcp-credentials.facade';
 import { McpCredentialMapper } from '../mappers/mcp-credential.mapper';
 import { McpCredentialsFacadeImpl } from './mcp-credentials.facade.impl';
 
 describe('McpCredentialsFacadeImpl', () => {
-  const actor: McpCredentialsActor = { projectId: 'project', userId: 'user', roles: ['viewer'] };
+  const actor: AuthorizationContext = { projectId: 'project', userId: 'user', roles: ['viewer'] };
   const context = { ...actor, authFlow: 'mcp' };
   const safe = { id: 'safe' };
   const raw = { id: 'credential', validationMessage: 'secret-marker' };

@@ -1,3 +1,4 @@
+import { UpdateDataStorageCommand } from '../src/data-marts/dto/domain/update-data-storage.command';
 import { BadRequestException, INestApplication } from '@nestjs/common';
 import type { IdpProvider, Payload } from '@owox/idp-protocol';
 import { AUTH_HEADER, closeTestApp, createTestApp, StorageBuilder } from '@owox/test-utils';
@@ -13,6 +14,8 @@ import { PluginInstallation } from '../src/plugin-host/entities/plugin-installat
 import { Plugin } from '../src/plugin-host/entities/plugin.entity';
 import { PluginRuntimeAuthorizerService } from '../src/plugin-host/services/plugin-runtime-authorizer.service';
 import { createCredential } from './fixtures/storage-credentials';
+import { UpdateDataStorageService } from '../src/data-marts/use-cases/update-data-storage.service';
+import { StorageCredentialUnavailableException } from '../src/data-marts/exceptions/storage-credential-unavailable.exception';
 
 const OWNER_AUTH_HEADER = { 'x-owox-authorization': 'owner-token' };
 const OTHER_AUTH_HEADER = { 'x-owox-authorization': 'other-token' };
@@ -272,10 +275,9 @@ describe('Binding a Credential to a Storage (e2e)', () => {
     expect(await storedConfig(storageId)).toEqual(config);
   });
 
-  it('keeps a lost grant found during the bind marked rejected after the 400', async () => {
-    const storageId = await givenBoundStorage(ownerKeyId);
+  async function givenExpiredGoogleCredential(): Promise<string> {
     // An expired grant without a refresh token: the first use finds it lost.
-    const expiredGoogleId = await createCredential(app, {
+    return createCredential(app, {
       projectId: '0',
       definitionId: 'google-oauth',
       title: 'Expired grant',
@@ -298,6 +300,11 @@ describe('Binding a Credential to a Storage (e2e)', () => {
       ownerIds: ['0'],
       contextIds: [],
     });
+  }
+
+  it('keeps a lost grant found during the bind marked rejected after the 400', async () => {
+    const storageId = await givenBoundStorage(ownerKeyId);
+    const expiredGoogleId = await givenExpiredGoogleCredential();
 
     const res = await put(storageId, AUTH_HEADER, { reusableCredentialId: expiredGoogleId });
 
@@ -309,6 +316,32 @@ describe('Binding a Credential to a Storage (e2e)', () => {
     )) as Array<{ validationState: string }>;
     expect(credential.validationState).toBe('rejected');
     expect(await boundCredentialId(storageId)).toBe(ownerKeyId);
+  });
+
+  it('keeps a lost grant marked rejected after a partial Storage update fails', async () => {
+    const storageId = await givenBoundStorage(ownerKeyId);
+    const expiredGoogleId = await givenExpiredGoogleCredential();
+
+    await expect(
+      app.get(UpdateDataStorageService).run(
+        new UpdateDataStorageCommand({
+          id: storageId,
+          projectId: '0',
+          reusableCredentialId: expiredGoogleId,
+          userId: '0',
+          roles: ['admin'],
+        })
+      )
+    ).rejects.toBeInstanceOf(StorageCredentialUnavailableException);
+
+    const [credential] = (await dataSource.query(
+      'SELECT validationState FROM credential WHERE id = ?',
+      [expiredGoogleId]
+    )) as Array<{ validationState: string }>;
+    expect(credential.validationState).toBe('rejected');
+    expect(await boundCredentialId(storageId)).toBe(ownerKeyId);
+    expect(await storedConfig(storageId)).toEqual(config);
+    expect(verifyAccess).not.toHaveBeenCalled();
   });
 
   it('saves an unchanged config without an access check', async () => {

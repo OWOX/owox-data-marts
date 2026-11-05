@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import type { AuthorizationContext } from '../../idp';
 import { ListCustomConnectorsCommand } from '../dto/domain/list-custom-connectors.command';
 import { GetCustomConnectorCommand } from '../dto/domain/get-custom-connector.command';
 import { CreateCustomConnectorCommand } from '../dto/domain/create-custom-connector.command';
@@ -17,7 +18,6 @@ import {
 import type { CustomConnectorCredentialRequirement } from '../connector-types/custom-connector-credential-fit';
 import { TestCustomConnectorCommand } from '../dto/domain/test-custom-connector.command';
 import type {
-  CustomConnectorActor,
   CreateCustomConnectorInput,
   CustomConnectorMetadataInput,
   CustomConnectorTestInput,
@@ -62,7 +62,7 @@ export class ConnectorDefinitionMapper {
   }
 
   toCreateCommand(
-    actor: CustomConnectorActor,
+    actor: AuthorizationContext,
     input: CreateCustomConnectorInput
   ): CreateCustomConnectorCommand {
     return new CreateCustomConnectorCommand(actor.projectId, actor.userId, {
@@ -100,7 +100,7 @@ export class ConnectorDefinitionMapper {
   }
 
   toPublishCommand(
-    actor: CustomConnectorActor,
+    actor: AuthorizationContext,
     connectorId: string
   ): PublishCustomConnectorCommand {
     return new PublishCustomConnectorCommand(
@@ -112,7 +112,7 @@ export class ConnectorDefinitionMapper {
   }
 
   toActivateCommand(
-    actor: CustomConnectorActor,
+    actor: AuthorizationContext,
     connectorId: string,
     version: number
   ): ActivateCustomConnectorVersionCommand {
@@ -304,7 +304,7 @@ export class ConnectorDefinitionMapper {
   }
 
   toFittingCredentialsCommand(
-    caller: { projectId: string; userId: string; roles?: string[] },
+    caller: AuthorizationContext,
     body: FittingCredentialsQuery
   ): ListFittingCustomConnectorCredentialsCommand {
     return new ListFittingCustomConnectorCredentialsCommand(

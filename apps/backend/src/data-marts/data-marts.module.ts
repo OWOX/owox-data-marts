@@ -2,6 +2,10 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { Module, MiddlewareConsumer, RequestMethod } from '@nestjs/common';
 import { DataMartController } from './controllers/data-mart.controller';
 import { DataStorageController } from './controllers/data-storage.controller';
+import { MCP_STORAGE_MANAGEMENT_FACADE } from './facades/mcp-storage-management.facade';
+import { McpStorageManagementFacadeImpl } from './facades/mcp-storage-management.facade.impl';
+import { McpStorageMapper } from './mappers/mcp-storage.mapper';
+import { McpDestinationMapper } from './mappers/mcp-destination.mapper';
 import { DataDestinationController } from './controllers/data-destination.controller';
 import { ReportAccessService } from './services/report-access.service';
 import { AccessDecisionService } from './services/access-decision';
@@ -656,6 +660,12 @@ import { McpCredentialsFacadeImpl } from './credentials/facades/mcp-credentials.
     CredentialSetupController,
   ],
   providers: [
+    McpStorageMapper,
+    McpDestinationMapper,
+    {
+      provide: MCP_STORAGE_MANAGEMENT_FACADE,
+      useClass: McpStorageManagementFacadeImpl,
+    },
     CredentialConsumerBindingFacadeImpl,
     {
       provide: CREDENTIAL_CONSUMER_BINDING_FACADE,
@@ -1112,6 +1122,7 @@ import { McpCredentialsFacadeImpl } from './credentials/facades/mcp-credentials.
     ConsentCredentialDefinitionService,
   ],
   exports: [
+    MCP_STORAGE_MANAGEMENT_FACADE,
     MCP_CREDENTIALS_FACADE,
     MCP_CONTEXTS_FACADE,
     MCP_CUSTOM_CONNECTORS_FACADE,

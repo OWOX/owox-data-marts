@@ -10,7 +10,12 @@ jest.mock('../../idp/facades/idp-projections.facade', () => ({
   IdpProjectionsFacade: jest.fn(),
 }));
 
-import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
 import { UpdateDataStorageCommand } from '../dto/domain/update-data-storage.command';
 import { UpdateDataStorageService } from './update-data-storage.service';
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
@@ -67,6 +72,10 @@ function makeService() {
   const eventDispatcher = { publishExternal: jest.fn().mockResolvedValue(undefined) };
   const accessDecisionService = { canAccess: jest.fn().mockResolvedValue(true) };
   const contextAccessService = { updateStorageContexts: jest.fn().mockResolvedValue(undefined) };
+  const storageOwnerRepository = {
+    delete: jest.fn().mockResolvedValue(undefined),
+    save: jest.fn().mockResolvedValue(undefined),
+  };
 
   const service = new UpdateDataStorageService(
     dataStorageRepository as never,
@@ -78,7 +87,7 @@ function makeService() {
     new LegacyStorageCredentialReader({} as never, {} as never, {} as never, {} as never),
     userProjectionsFetcherService as never,
     {} as never,
-    {} as never,
+    storageOwnerRepository as never,
     eventDispatcher as never,
     accessDecisionService as never,
     contextAccessService as never
@@ -98,39 +107,368 @@ function makeService() {
     storageCredentials,
     accessDecisionService,
     eventDispatcher,
+    contextAccessService,
+    storageOwnerRepository,
   };
 }
 
 function makeCommand(
   input: {
     config?: Record<string, unknown>;
+    title?: string;
     reusableCredentialId?: string | null;
     sentOldCredentialFields?: boolean;
     isPluginAuth?: boolean;
+    ownerIds?: string[];
+    contextIds?: string[];
+    availableForUse?: boolean;
+    availableForMaintenance?: boolean;
   } = {}
 ): UpdateDataStorageCommand {
-  return new UpdateDataStorageCommand(
-    storageId,
+  return new UpdateDataStorageCommand({
+    id: storageId,
     projectId,
-    (input.config ?? { projectId: 'my-valid-project-1', location: 'US' }) as never,
-    'Title',
-    input.reusableCredentialId,
-    input.sentOldCredentialFields ?? false,
-    input.isPluginAuth ?? false,
-    undefined,
-    'user-1',
-    ['editor']
-  );
+    config: input.config as never,
+    title: input.title,
+    reusableCredentialId: input.reusableCredentialId,
+    sentOldCredentialFields: input.sentOldCredentialFields,
+    isPluginAuth: input.isPluginAuth,
+    ownerIds: input.ownerIds,
+    userId: 'user-1',
+    roles: ['editor'],
+    availableForUse: input.availableForUse,
+    availableForMaintenance: input.availableForMaintenance,
+    contextIds: input.contextIds,
+  });
+}
+
+function makeFullCommand(input: Parameters<typeof makeCommand>[0] = {}): UpdateDataStorageCommand {
+  return makeCommand({
+    config: { projectId: 'my-valid-project-1', location: 'US' },
+    title: 'Title',
+    ...input,
+  });
 }
 
 const callOrder = (mock: jest.Mock) => mock.mock.invocationCallOrder[0];
+
+describe('UpdateDataStorageService - partial updates', () => {
+  const actor = { projectId, userId: 'user-1', roles: ['editor'] };
+
+  it.each(['bound', 'legacy'] as const)(
+    'allows a rename with an unchanged invalid config and a %s Credential',
+    async credentialKind => {
+      const fixture = makeService();
+      const config = { account: 'existing-account' };
+      Object.assign(fixture.storage, { type: DataStorageType.SNOWFLAKE, config });
+      if (credentialKind === 'legacy') {
+        fixture.storage.credentialId = 'old-credential';
+        fixture.storageCredentials.resolveForStorage.mockResolvedValue(null);
+        fixture.storageCredentials.lockBoundCredentialId.mockResolvedValue(null);
+      }
+
+      await fixture.service.run(makeFullCommand({ title: 'Renamed', config }));
+
+      expect(fixture.dataStorageRepository.save).toHaveBeenCalledWith(
+        expect.objectContaining({ title: 'Renamed', config })
+      );
+      expect(fixture.dataStorageAccessFacade.verifyAccess).not.toHaveBeenCalled();
+    }
+  );
+
+  it.each([
+    { config: { account: 'changed-account' } },
+    { config: { account: 'existing-account' }, reusableCredentialId: 'new-credential' },
+  ])('rejects an invalid config when the connection or Credential changes: %j', async input => {
+    const fixture = makeService();
+    Object.assign(fixture.storage, {
+      type: DataStorageType.SNOWFLAKE,
+      config: { account: 'existing-account' },
+    });
+
+    await expect(fixture.service.run(makeFullCommand(input))).rejects.toBeInstanceOf(
+      AccessValidationException
+    );
+
+    expect(fixture.dataStorageRepository.save).not.toHaveBeenCalled();
+    expect(fixture.storageCredentials.bindStorage).not.toHaveBeenCalled();
+  });
+
+  it('keeps the current config and Credential when only the title is supplied', async () => {
+    const fixture = makeService();
+    fixture.dataStorageRepository.findOne.mockResolvedValue({
+      ...fixture.storage,
+      config: { projectId: 'current-project', location: 'EU' },
+    });
+
+    await fixture.service.run(makeCommand({ title: 'Renamed' }));
+
+    expect(fixture.dataStorageRepository.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: 'Renamed',
+        config: { projectId: 'current-project', location: 'EU' },
+      })
+    );
+    expect(fixture.dataStorageAccessFacade.verifyAccess).not.toHaveBeenCalled();
+    expect(fixture.storageCredentials.bindStorage).not.toHaveBeenCalled();
+    expect(fixture.storageCredentials.resolveForStorage).not.toHaveBeenCalled();
+    expect(fixture.storageCredentials.lockBoundCredentialId).not.toHaveBeenCalled();
+  });
+
+  it('updates sharing for an unconfigured Storage without validating its connection', async () => {
+    const fixture = makeService();
+    fixture.dataStorageRepository.findOne.mockResolvedValue({
+      ...fixture.storage,
+      config: undefined,
+      availableForUse: false,
+    });
+    fixture.accessDecisionService.canAccess.mockImplementation(
+      async (...args) => args[4] === Action.CONFIGURE_SHARING
+    );
+
+    await fixture.service.run(makeCommand({ availableForUse: true }));
+
+    expect(fixture.dataStorageRepository.save).toHaveBeenCalledWith(
+      expect.objectContaining({ config: undefined, availableForUse: true, title: 'Title' })
+    );
+    expect(fixture.dataStorageAccessFacade.verifyAccess).not.toHaveBeenCalled();
+    expect(fixture.accessDecisionService.canAccess).toHaveBeenCalledWith(
+      actor.userId,
+      actor.roles,
+      'STORAGE',
+      storageId,
+      Action.CONFIGURE_SHARING,
+      projectId
+    );
+  });
+
+  it('updates Contexts with CONFIGURE_SHARING permission alone', async () => {
+    const { service, accessDecisionService, contextAccessService, dataStorageAccessFacade } =
+      makeService();
+    accessDecisionService.canAccess.mockImplementation(
+      async (...args) => args[4] === Action.CONFIGURE_SHARING
+    );
+
+    await service.run(makeCommand({ contextIds: ['context'] }));
+
+    expect(contextAccessService.updateStorageContexts).toHaveBeenCalledWith(
+      storageId,
+      projectId,
+      ['context'],
+      actor.userId,
+      actor.roles
+    );
+    expect(dataStorageAccessFacade.verifyAccess).not.toHaveBeenCalled();
+  });
+
+  it('updates owners with MANAGE_OWNERS permission alone', async () => {
+    const { service, accessDecisionService, storageOwnerRepository, dataStorageAccessFacade } =
+      makeService();
+    accessDecisionService.canAccess.mockImplementation(
+      async (...args) => args[4] === Action.MANAGE_OWNERS
+    );
+
+    await service.run(makeCommand({ ownerIds: [] }));
+
+    expect(storageOwnerRepository.delete).toHaveBeenCalledWith({ storageId });
+    expect(dataStorageAccessFacade.verifyAccess).not.toHaveBeenCalled();
+  });
+
+  it('requires MANAGE_OWNERS for owner changes', async () => {
+    const { service, accessDecisionService, dataStorageRepository, storageOwnerRepository } =
+      makeService();
+    accessDecisionService.canAccess.mockImplementation(
+      async (...args) => args[4] !== Action.MANAGE_OWNERS
+    );
+
+    await expect(service.run(makeCommand({ ownerIds: [] }))).rejects.toBeInstanceOf(
+      ForbiddenException
+    );
+
+    expect(dataStorageRepository.save).not.toHaveBeenCalled();
+    expect(storageOwnerRepository.delete).not.toHaveBeenCalled();
+  });
+
+  it('rejects an update without fields', async () => {
+    const { service, dataStorageRepository } = makeService();
+
+    await expect(service.run(makeCommand())).rejects.toThrow('Supply at least one Storage field.');
+
+    expect(dataStorageRepository.save).not.toHaveBeenCalled();
+  });
+
+  it('rejects selecting a Credential before the Storage has a configuration', async () => {
+    const { service, storage, storageCredentials, dataStorageRepository } = makeService();
+    storage.config = undefined as never;
+
+    await expect(
+      service.run(makeCommand({ reusableCredentialId: 'cred-1' }))
+    ).rejects.toBeInstanceOf(BadRequestException);
+
+    expect(storageCredentials.checkStorageBinding).not.toHaveBeenCalled();
+    expect(dataStorageRepository.save).not.toHaveBeenCalled();
+  });
+
+  it('rechecks field permissions after validation and before saving', async () => {
+    const { service, accessDecisionService, dataStorageAccessFacade, dataStorageRepository } =
+      makeService();
+    accessDecisionService.canAccess.mockResolvedValueOnce(true).mockResolvedValueOnce(false);
+
+    await expect(
+      service.run(makeCommand({ reusableCredentialId: 'cred-1' }))
+    ).rejects.toBeInstanceOf(ForbiddenException);
+
+    expect(dataStorageAccessFacade.verifyAccess).toHaveBeenCalled();
+    expect(dataStorageRepository.save).not.toHaveBeenCalled();
+  });
+
+  it('requires sharing permission for Context changes before saving', async () => {
+    const fixture = makeService();
+    fixture.accessDecisionService.canAccess.mockImplementation(
+      async (...args) => args[4] !== Action.CONFIGURE_SHARING
+    );
+
+    await expect(
+      fixture.service.run(makeCommand({ contextIds: ['context'] }))
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(fixture.dataStorageRepository.save).not.toHaveBeenCalled();
+  });
+
+  it('validates the saved configuration before taking the Storage lock', async () => {
+    const fixture = makeService();
+
+    await fixture.service.run(makeCommand({ reusableCredentialId: 'cred-1' }));
+
+    expect(fixture.dataStorageAccessFacade.verifyAccess).toHaveBeenCalledWith(
+      DataStorageType.GOOGLE_BIGQUERY,
+      fixture.storage.config,
+      { type: 'service_account' }
+    );
+    expect(callOrder(fixture.dataStorageAccessFacade.verifyAccess)).toBeLessThan(
+      callOrder(fixture.dataStorageRepository.findOne)
+    );
+  });
+
+  it('rejects a config change committed while a selected Credential was validated', async () => {
+    const fixture = makeService();
+    fixture.dataStorageRepository.findOne.mockResolvedValue({
+      ...fixture.storage,
+      config: { projectId: 'current-project', location: 'EU' },
+    });
+
+    await expect(
+      fixture.service.run(
+        makeCommand({
+          reusableCredentialId: 'cred-1',
+        })
+      )
+    ).rejects.toBeInstanceOf(ConflictException);
+
+    expect(fixture.dataStorageRepository.save).not.toHaveBeenCalled();
+    expect(fixture.storageCredentials.bindStorage).not.toHaveBeenCalled();
+  });
+
+  it('rejects a rebind committed while a config-only update was validated', async () => {
+    const fixture = makeService();
+    fixture.storageCredentials.lockBoundCredentialId.mockResolvedValue('new-bound-credential');
+
+    await expect(
+      fixture.service.run(
+        makeCommand({
+          config: { ...fixture.storage.config, location: 'EU' },
+        })
+      )
+    ).rejects.toBeInstanceOf(ConflictException);
+
+    expect(fixture.dataStorageRepository.save).not.toHaveBeenCalled();
+    expect(fixture.storageCredentials.bindStorage).not.toHaveBeenCalled();
+  });
+
+  it('preserves omitted title and sharing edits committed during validation', async () => {
+    const fixture = makeService();
+    fixture.dataStorageRepository.findOne.mockResolvedValue({
+      ...fixture.storage,
+      title: 'Concurrent title',
+      availableForUse: false,
+    });
+
+    await fixture.service.run(
+      makeCommand({
+        config: { ...fixture.storage.config, location: 'EU' },
+      })
+    );
+
+    expect(fixture.dataStorageRepository.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: 'Concurrent title',
+        availableForUse: false,
+        config: { ...fixture.storage.config, location: 'EU' },
+      })
+    );
+  });
+
+  it('rechecks USE after validation when the config redirects the bound Credential', async () => {
+    const fixture = makeService();
+    fixture.storageCredentials.assertCanUseCredential
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new ForbiddenException('Credential access was revoked'));
+
+    await expect(
+      fixture.service.run(
+        makeCommand({
+          config: { projectId: 'other-project', location: 'EU' },
+        })
+      )
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(fixture.storageCredentials.assertCanUseCredential).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('UpdateDataStorageService - Legacy BigQuery', () => {
+  it('preserves the project ID and title while changing another configuration field', async () => {
+    const { service, storage, storageCredentials, dataStorageAccessFacade, dataStorageRepository } =
+      makeService();
+    storage.type = DataStorageType.LEGACY_GOOGLE_BIGQUERY;
+    const command = makeCommand({
+      title: 'Replacement title',
+      config: { projectId: 'replacement-project', location: 'EU' },
+    });
+
+    await service.run(command);
+
+    expect(dataStorageAccessFacade.verifyAccess).toHaveBeenCalledWith(
+      DataStorageType.LEGACY_GOOGLE_BIGQUERY,
+      { projectId: 'my-valid-project-1', location: 'EU' },
+      { type: 'service_account' }
+    );
+    expect(dataStorageRepository.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: 'Title',
+        config: { projectId: 'my-valid-project-1', location: 'EU' },
+      })
+    );
+    expect(storageCredentials.assertCanUseCredential).not.toHaveBeenCalled();
+    expect(command.config).toEqual({ projectId: 'replacement-project', location: 'EU' });
+  });
+
+  it('preserves the title in a title-only update', async () => {
+    const { service, storage, dataStorageRepository } = makeService();
+    storage.type = DataStorageType.LEGACY_GOOGLE_BIGQUERY;
+
+    await service.run(makeCommand({ title: 'Replacement title' }));
+
+    expect(dataStorageRepository.save).toHaveBeenCalledWith(
+      expect.objectContaining({ title: 'Title' })
+    );
+  });
+});
 
 describe('UpdateDataStorageService - reusableCredentialId', () => {
   it('keeps the binding and skips the access check when the config is unchanged', async () => {
     const { service, storageCredentials, dataStorageAccessFacade, dataStorageRepository } =
       makeService();
 
-    await service.run(makeCommand());
+    await service.run(makeFullCommand());
 
     expect(storageCredentials.checkStorageBinding).not.toHaveBeenCalled();
     expect(storageCredentials.bindStorage).not.toHaveBeenCalled();
@@ -150,7 +488,7 @@ describe('UpdateDataStorageService - reusableCredentialId', () => {
       dataStorageRepository,
     } = makeService();
 
-    await service.run(makeCommand({ reusableCredentialId: 'cred-1' }));
+    await service.run(makeFullCommand({ reusableCredentialId: 'cred-1' }));
 
     const bindInput = {
       projectId,
@@ -186,7 +524,7 @@ describe('UpdateDataStorageService - reusableCredentialId', () => {
     const { service, dataStorageAccessFacade, credentialsResolver } = makeService();
 
     await service.run(
-      makeCommand({ config: { location: 'US', projectId: 'my-valid-project-1', extra: 'x' } })
+      makeFullCommand({ config: { location: 'US', projectId: 'my-valid-project-1', extra: 'x' } })
     );
 
     expect(credentialsResolver.resolveCredential).not.toHaveBeenCalled();
@@ -198,10 +536,11 @@ describe('UpdateDataStorageService - reusableCredentialId', () => {
       makeService();
     dataStorageAccessFacade.verifyAccess.mockRejectedValue(new BadRequestException('denied'));
 
-    await expect(service.run(makeCommand({ reusableCredentialId: 'cred-1' }))).rejects.toThrow(
+    await expect(service.run(makeFullCommand({ reusableCredentialId: 'cred-1' }))).rejects.toThrow(
       'denied'
     );
     expect(storageCredentials.bindStorage).not.toHaveBeenCalled();
+    expect(dataStorageRepository.findOne).not.toHaveBeenCalled();
     expect(dataStorageRepository.save).not.toHaveBeenCalled();
   });
 
@@ -211,7 +550,7 @@ describe('UpdateDataStorageService - reusableCredentialId', () => {
       return args[4] !== Action.EDIT;
     });
 
-    await expect(service.run(makeCommand({ reusableCredentialId: 'cred-1' }))).rejects.toThrow(
+    await expect(service.run(makeFullCommand({ reusableCredentialId: 'cred-1' }))).rejects.toThrow(
       ForbiddenException
     );
     expect(storageCredentials.checkStorageBinding).not.toHaveBeenCalled();
@@ -221,7 +560,7 @@ describe('UpdateDataStorageService - reusableCredentialId', () => {
   it('rejects null', async () => {
     const { service, storageCredentials } = makeService();
 
-    await expect(service.run(makeCommand({ reusableCredentialId: null }))).rejects.toThrow(
+    await expect(service.run(makeFullCommand({ reusableCredentialId: null }))).rejects.toThrow(
       new BadRequestException('reusableCredentialId cannot be null.')
     );
     expect(storageCredentials.bindStorage).not.toHaveBeenCalled();
@@ -231,7 +570,9 @@ describe('UpdateDataStorageService - reusableCredentialId', () => {
     const { service, storageCredentials } = makeService();
 
     await expect(
-      service.run(makeCommand({ reusableCredentialId: 'cred-1', sentOldCredentialFields: true }))
+      service.run(
+        makeFullCommand({ reusableCredentialId: 'cred-1', sentOldCredentialFields: true })
+      )
     ).rejects.toThrow(
       new BadRequestException(
         'Send reusableCredentialId without credentials, credentialId or sourceStorageId.'
@@ -243,7 +584,7 @@ describe('UpdateDataStorageService - reusableCredentialId', () => {
   it('tells a tab loaded before the upgrade to reload when it sends the old fields alone', async () => {
     const { service, dataStorageRepository } = makeService();
 
-    await expect(service.run(makeCommand({ sentOldCredentialFields: true }))).rejects.toThrow(
+    await expect(service.run(makeFullCommand({ sentOldCredentialFields: true }))).rejects.toThrow(
       new BadRequestException('This page is out of date. Reload it.')
     );
     expect(dataStorageRepository.save).not.toHaveBeenCalled();
@@ -254,7 +595,7 @@ describe('UpdateDataStorageService - reusableCredentialId', () => {
 
     await expect(
       service.run(
-        makeCommand({
+        makeFullCommand({
           reusableCredentialId: null,
           sentOldCredentialFields: true,
           isPluginAuth: true,
@@ -269,7 +610,7 @@ describe('UpdateDataStorageService - reusableCredentialId', () => {
     const { service, storageCredentials, dataStorageRepository } = makeService();
 
     await expect(
-      service.run(makeCommand({ reusableCredentialId: 'cred-1', isPluginAuth: true }))
+      service.run(makeFullCommand({ reusableCredentialId: 'cred-1', isPluginAuth: true }))
     ).rejects.toThrow(new ForbiddenException("Plugins cannot change a Storage's Credential."));
     expect(storageCredentials.checkStorageBinding).not.toHaveBeenCalled();
     expect(storageCredentials.bindStorage).not.toHaveBeenCalled();
@@ -279,7 +620,7 @@ describe('UpdateDataStorageService - reusableCredentialId', () => {
   it('lets a plugin-authenticated request change other settings', async () => {
     const { service, dataStorageRepository } = makeService();
 
-    await service.run(makeCommand({ isPluginAuth: true }));
+    await service.run(makeFullCommand({ isPluginAuth: true }));
 
     expect(dataStorageRepository.save).toHaveBeenCalled();
   });
@@ -291,7 +632,7 @@ describe('UpdateDataStorageService - reusableCredentialId', () => {
 
     await expect(
       service.run(
-        makeCommand({
+        makeFullCommand({
           config: { host: 'collector.vendor.example', httpPath: '/sql/1' },
           isPluginAuth: true,
         })
@@ -309,7 +650,7 @@ describe('UpdateDataStorageService - reusableCredentialId', () => {
     storage.config = { host: 'workspace.cloud.databricks.com', httpPath: '/sql/1' } as never;
 
     await service.run(
-      makeCommand({
+      makeFullCommand({
         config: { host: 'workspace.cloud.databricks.com', httpPath: '/sql/2' },
         isPluginAuth: true,
       })
@@ -327,8 +668,9 @@ describe('UpdateDataStorageService - reusableCredentialId', () => {
     const { service, credentialsResolver, storageCredentials, dataStorageAccessFacade } =
       makeService();
     storageCredentials.resolveForStorage.mockResolvedValue(null);
+    storageCredentials.lockBoundCredentialId.mockResolvedValue(null);
 
-    await service.run(makeCommand());
+    await service.run(makeFullCommand());
 
     expect(credentialsResolver.resolveCredential).not.toHaveBeenCalled();
     expect(dataStorageAccessFacade.verifyAccess).toHaveBeenCalledWith(
@@ -342,8 +684,9 @@ describe('UpdateDataStorageService - reusableCredentialId', () => {
     const { service, storage, storageCredentials, dataStorageAccessFacade } = makeService();
     storage.credentialId = 'old-row';
     storageCredentials.resolveForStorage.mockResolvedValue(null);
+    storageCredentials.lockBoundCredentialId.mockResolvedValue(null);
 
-    await service.run(makeCommand({ config: { projectId: 'other-project-1' } }));
+    await service.run(makeFullCommand({ config: { projectId: 'other-project-1' } }));
 
     expect(dataStorageAccessFacade.verifyAccess).not.toHaveBeenCalled();
   });
@@ -355,13 +698,16 @@ describe('UpdateDataStorageService - reusableCredentialId', () => {
     storage.config = { host: 'workspace.cloud.databricks.com', httpPath: '/sql/1' } as never;
     storage.credentialId = 'old-row';
     storageCredentials.resolveForStorage.mockResolvedValue(null);
+    storageCredentials.lockBoundCredentialId.mockResolvedValue(null);
     const malformed = { host: 'workspace.cloud.databricks.com', httpPath: '' };
     const expected = ValidationResult.invalidInput(
       'config',
       DatabricksConfigSchema.safeParse(malformed).error!
     );
 
-    const error = await service.run(makeCommand({ config: malformed })).catch((e: unknown) => e);
+    const error = await service
+      .run(makeFullCommand({ config: malformed }))
+      .catch((e: unknown) => e);
 
     expect(error).toBeInstanceOf(AccessValidationException);
     expect(error).toMatchObject({ message: expected.errorMessage, errorDetails: expected.reason });
@@ -372,7 +718,7 @@ describe('UpdateDataStorageService - reusableCredentialId', () => {
   it('answers with the Credential summary the member sees', async () => {
     const { service, storage, summary, credentialsResolver, dataStorageMapper } = makeService();
 
-    await service.run(makeCommand({ reusableCredentialId: 'cred-1' }));
+    await service.run(makeFullCommand({ reusableCredentialId: 'cred-1' }));
 
     expect(credentialsResolver.summarize).toHaveBeenCalledWith(
       projectId,
@@ -403,7 +749,9 @@ describe('UpdateDataStorageService - config change on a bound Storage', () => {
       dataStorageAccessFacade,
     } = makeService();
 
-    await service.run(makeCommand({ config: { projectId: 'my-valid-project-1', location: 'EU' } }));
+    await service.run(
+      makeFullCommand({ config: { projectId: 'my-valid-project-1', location: 'EU' } })
+    );
 
     expect(storageCredentials.resolveForStorage).toHaveBeenCalledWith(storage);
     expect(credentialsResolver.resolveCredential).toHaveBeenCalledWith(storage, bound);
@@ -421,7 +769,9 @@ describe('UpdateDataStorageService - config change on a bound Storage', () => {
       new ForbiddenException('You cannot use this Credential.')
     );
 
-    await service.run(makeCommand({ config: { projectId: 'my-valid-project-1', location: 'EU' } }));
+    await service.run(
+      makeFullCommand({ config: { projectId: 'my-valid-project-1', location: 'EU' } })
+    );
 
     expect(storageCredentials.assertCanUseCredential).not.toHaveBeenCalled();
     expect(dataStorageRepository.save).toHaveBeenCalled();
@@ -435,7 +785,7 @@ describe('UpdateDataStorageService - config change on a bound Storage', () => {
     );
 
     await expect(
-      service.run(makeCommand({ config: { projectId: 'other-project-1', location: 'US' } }))
+      service.run(makeFullCommand({ config: { projectId: 'other-project-1', location: 'US' } }))
     ).rejects.toThrow(new ForbiddenException('You cannot use this Credential.'));
     expect(storageCredentials.assertCanUseCredential).toHaveBeenCalledWith({
       projectId,
@@ -457,7 +807,9 @@ describe('UpdateDataStorageService - config change on a bound Storage', () => {
       )
     );
 
-    await service.run(makeCommand({ config: { projectId: 'my-valid-project-1', location: 'EU' } }));
+    await service.run(
+      makeFullCommand({ config: { projectId: 'my-valid-project-1', location: 'EU' } })
+    );
 
     expect(dataStorageAccessFacade.verifyAccess).not.toHaveBeenCalled();
     expect(dataStorageRepository.save).toHaveBeenCalled();
@@ -482,7 +834,9 @@ describe('UpdateDataStorageService - config change on a bound Storage', () => {
       DatabricksConfigSchema.safeParse(malformed).error!
     );
 
-    const error = await service.run(makeCommand({ config: malformed })).catch((e: unknown) => e);
+    const error = await service
+      .run(makeFullCommand({ config: malformed }))
+      .catch((e: unknown) => e);
 
     expect(error).toBeInstanceOf(AccessValidationException);
     expect(error).toMatchObject({ message: expected.errorMessage, errorDetails: expected.reason });
@@ -499,7 +853,7 @@ describe('UpdateDataStorageService - config change on a bound Storage', () => {
     );
 
     const error = await service
-      .run(makeCommand({ config: { host: 'collector.vendor.example', httpPath: '/sql/1' } }))
+      .run(makeFullCommand({ config: { host: 'collector.vendor.example', httpPath: '/sql/1' } }))
       .catch((e: unknown) => e);
 
     expect(error).toBeInstanceOf(AccessValidationException);
@@ -514,7 +868,7 @@ describe('UpdateDataStorageService - config change on a bound Storage', () => {
     credentialsResolver.resolveCredential.mockRejectedValue(new Error('db down'));
 
     await expect(
-      service.run(makeCommand({ config: { projectId: 'my-valid-project-1', location: 'EU' } }))
+      service.run(makeFullCommand({ config: { projectId: 'my-valid-project-1', location: 'EU' } }))
     ).rejects.toThrow('db down');
     expect(dataStorageRepository.save).not.toHaveBeenCalled();
   });
@@ -523,11 +877,11 @@ describe('UpdateDataStorageService - config change on a bound Storage', () => {
     const { service, dataStorageRepository } = makeService();
     dataStorageRepository.findOne.mockResolvedValue(null);
 
-    await expect(service.run(makeCommand())).rejects.toBeInstanceOf(NotFoundException);
+    await expect(service.run(makeFullCommand())).rejects.toBeInstanceOf(NotFoundException);
     expect(dataStorageRepository.save).not.toHaveBeenCalled();
   });
 
-  it('saves onto the row read under the lock and checks the target against it', async () => {
+  it('rejects a concurrent config change after taking the Storage lock', async () => {
     const { service, storage, storageCredentials, dataStorageRepository } = makeService();
     dataStorageRepository.manager.connection.options.type = 'mysql';
     // Rebound to another Credential and target by another member after the first read.
@@ -535,56 +889,64 @@ describe('UpdateDataStorageService - config change on a bound Storage', () => {
     dataStorageRepository.findOne.mockResolvedValue(fresh);
     storageCredentials.lockBoundCredentialId.mockResolvedValue('cred-2');
 
-    await service.run(makeCommand());
+    await expect(service.run(makeFullCommand())).rejects.toBeInstanceOf(ConflictException);
 
     expect(dataStorageRepository.findOne).toHaveBeenCalledWith({
       where: { id: storageId, projectId },
       loadEagerRelations: false,
       lock: { mode: 'pessimistic_write' },
     });
-    expect(dataStorageRepository.save).toHaveBeenCalledWith(fresh);
-    expect(storageCredentials.assertCanUseCredential).toHaveBeenCalledWith(
-      expect.objectContaining({ credentialId: 'cred-2' })
-    );
+    expect(dataStorageRepository.save).not.toHaveBeenCalled();
+    expect(storageCredentials.assertCanUseCredential).not.toHaveBeenCalled();
   });
 
-  it('checks USE again under the lock when the Storage was rebound meanwhile', async () => {
+  it('rejects a concurrent rebind before saving a changed target', async () => {
     const { service, storageCredentials, dataStorageRepository } = makeService();
     storageCredentials.lockBoundCredentialId.mockResolvedValue('rebound-cred');
-    storageCredentials.assertCanUseCredential
-      .mockResolvedValueOnce(undefined)
-      .mockRejectedValueOnce(new ForbiddenException('You cannot use this Credential.'));
 
     await expect(
-      service.run(makeCommand({ config: { projectId: 'other-project-1', location: 'US' } }))
-    ).rejects.toThrow(new ForbiddenException('You cannot use this Credential.'));
+      service.run(makeFullCommand({ config: { projectId: 'other-project-1', location: 'US' } }))
+    ).rejects.toBeInstanceOf(ConflictException);
     expect(storageCredentials.lockBoundCredentialId).toHaveBeenCalledWith(projectId, storageId);
-    expect(storageCredentials.assertCanUseCredential).toHaveBeenLastCalledWith({
-      projectId,
-      userId: 'user-1',
-      roles: ['editor'],
-      credentialId: 'rebound-cred',
+    expect(dataStorageRepository.save).not.toHaveBeenCalled();
+  });
+
+  it('allows an unchanged-config save after a concurrent rebind', async () => {
+    const { service, storageCredentials, dataStorageAccessFacade, dataStorageRepository } =
+      makeService();
+    storageCredentials.lockBoundCredentialId.mockResolvedValue('rebound-cred');
+
+    await expect(service.run(makeFullCommand({ title: 'Renamed' }))).resolves.toEqual({
+      id: storageId,
     });
-    expect(callOrder(dataStorageRepository.save)).toBeLessThan(
-      callOrder(storageCredentials.lockBoundCredentialId)
+
+    expect(dataStorageAccessFacade.verifyAccess).not.toHaveBeenCalled();
+    expect(storageCredentials.lockBoundCredentialId).not.toHaveBeenCalled();
+    expect(dataStorageRepository.save).toHaveBeenCalledWith(
+      expect.objectContaining({ title: 'Renamed' })
     );
   });
 
-  it('does not ask again when the binding is unchanged under the lock', async () => {
+  it('rechecks USE when the same bound Credential will receive a changed target', async () => {
     const { service, storageCredentials } = makeService();
 
-    await service.run(makeCommand({ config: { projectId: 'other-project-1', location: 'US' } }));
+    await service.run(
+      makeFullCommand({ config: { projectId: 'other-project-1', location: 'US' } })
+    );
 
     expect(storageCredentials.lockBoundCredentialId).toHaveBeenCalledTimes(1);
-    expect(storageCredentials.assertCanUseCredential).toHaveBeenCalledTimes(1);
+    expect(storageCredentials.assertCanUseCredential).toHaveBeenCalledTimes(2);
   });
 
-  it('locks nothing when the connection target stays', async () => {
+  it('checks for a concurrent rebind even when the connection target stays', async () => {
     const { service, storageCredentials } = makeService();
 
-    await service.run(makeCommand({ config: { projectId: 'my-valid-project-1', location: 'EU' } }));
+    await service.run(
+      makeFullCommand({ config: { projectId: 'my-valid-project-1', location: 'EU' } })
+    );
 
-    expect(storageCredentials.lockBoundCredentialId).not.toHaveBeenCalled();
+    expect(storageCredentials.lockBoundCredentialId).toHaveBeenCalledWith(projectId, storageId);
+    expect(storageCredentials.assertCanUseCredential).not.toHaveBeenCalled();
   });
 
   it('asks for USE before resolving an unavailable bound Credential when the target moves', async () => {
@@ -598,43 +960,55 @@ describe('UpdateDataStorageService - config change on a bound Storage', () => {
     );
 
     await expect(
-      service.run(makeCommand({ config: { projectId: 'other-project-1', location: 'US' } }))
+      service.run(makeFullCommand({ config: { projectId: 'other-project-1', location: 'US' } }))
     ).rejects.toThrow(new ForbiddenException('You cannot use this Credential.'));
     expect(credentialsResolver.resolveCredential).not.toHaveBeenCalled();
     expect(dataStorageRepository.save).not.toHaveBeenCalled();
   });
 
-  it('checks USE under the lock when a Storage unbound at the first read is bound by the end', async () => {
+  it('rejects a legacy key changed while the unconverted Storage was validated', async () => {
     const { service, storage, storageCredentials, dataStorageRepository } = makeService();
     storage.credentialId = 'old-row';
     storageCredentials.resolveForStorage.mockResolvedValue(null);
-    storageCredentials.lockBoundCredentialId.mockResolvedValue('new-cred');
-    storageCredentials.assertCanUseCredential.mockRejectedValue(
-      new ForbiddenException('You cannot use this Credential.')
-    );
+    storageCredentials.lockBoundCredentialId.mockResolvedValue(null);
+    dataStorageRepository.findOne.mockResolvedValue({
+      ...storage,
+      credentialId: 'replacement-row',
+    });
 
     await expect(
-      service.run(makeCommand({ config: { projectId: 'other-project-1', location: 'US' } }))
-    ).rejects.toThrow(new ForbiddenException('You cannot use this Credential.'));
-    expect(storageCredentials.assertCanUseCredential).toHaveBeenCalledWith({
-      projectId,
-      userId: 'user-1',
-      roles: ['editor'],
-      credentialId: 'new-cred',
-    });
-    expect(callOrder(dataStorageRepository.save)).toBeLessThan(
-      callOrder(storageCredentials.lockBoundCredentialId)
-    );
+      service.run(makeFullCommand({ config: { projectId: 'my-valid-project-1', location: 'EU' } }))
+    ).rejects.toBeInstanceOf(ConflictException);
+
+    expect(dataStorageRepository.save).not.toHaveBeenCalled();
   });
 
-  it('locks nothing on an unbound Storage when the connection target stays', async () => {
+  it('rejects a binding added while an unbound Storage was validated', async () => {
+    const { service, storage, storageCredentials, dataStorageRepository } = makeService();
+    storage.credentialId = 'old-row';
+    storageCredentials.resolveForStorage.mockResolvedValue(null);
+    storageCredentials.lockBoundCredentialId.mockResolvedValue(null);
+    storageCredentials.lockBoundCredentialId.mockResolvedValue('new-cred');
+
+    await expect(
+      service.run(makeFullCommand({ config: { projectId: 'other-project-1', location: 'US' } }))
+    ).rejects.toBeInstanceOf(ConflictException);
+    expect(dataStorageRepository.save).not.toHaveBeenCalled();
+    expect(storageCredentials.assertCanUseCredential).not.toHaveBeenCalled();
+  });
+
+  it('checks that an unbound Storage remains unbound when the connection target stays', async () => {
     const { service, storage, storageCredentials } = makeService();
     storage.credentialId = 'old-row';
     storageCredentials.resolveForStorage.mockResolvedValue(null);
+    storageCredentials.lockBoundCredentialId.mockResolvedValue(null);
 
-    await service.run(makeCommand({ config: { projectId: 'my-valid-project-1', location: 'EU' } }));
+    await service.run(
+      makeFullCommand({ config: { projectId: 'my-valid-project-1', location: 'EU' } })
+    );
 
-    expect(storageCredentials.lockBoundCredentialId).not.toHaveBeenCalled();
+    expect(storageCredentials.lockBoundCredentialId).toHaveBeenCalledWith(projectId, storageId);
+    expect(storageCredentials.assertCanUseCredential).not.toHaveBeenCalled();
   });
 });
 
@@ -656,7 +1030,7 @@ describe('UpdateDataStorageService - Redshift connection type', () => {
 
     await expect(
       service.run(
-        makeCommand({
+        makeFullCommand({
           config: { ...provisioned, connectionType: 'SERVERLESS', workgroupName: 'w2' },
         })
       )
@@ -669,7 +1043,7 @@ describe('UpdateDataStorageService - Redshift connection type', () => {
     storage.type = DataStorageType.AWS_REDSHIFT;
     storage.config = { ...provisioned } as never;
 
-    await service.run(makeCommand({ config: { ...provisioned, workgroupName: 'w2' } }));
+    await service.run(makeFullCommand({ config: { ...provisioned, workgroupName: 'w2' } }));
 
     expect(storageCredentials.assertCanUseCredential).not.toHaveBeenCalled();
     expect(dataStorageRepository.save.mock.calls[0][0].config).toStrictEqual(provisioned);
@@ -681,7 +1055,7 @@ describe('UpdateDataStorageService - storage.config.set event', () => {
     const { service, storage, storageCredentials, eventDispatcher } = makeService();
     storage.config = null as never;
 
-    await service.run(makeCommand({ reusableCredentialId: 'cred-1' }));
+    await service.run(makeFullCommand({ reusableCredentialId: 'cred-1' }));
 
     expect(eventDispatcher.publishExternal).toHaveBeenCalledTimes(1);
     expect(callOrder(storageCredentials.bindStorage)).toBeLessThan(
@@ -696,7 +1070,7 @@ describe('UpdateDataStorageService - storage.config.set event', () => {
       new ForbiddenException('You cannot use this Credential.')
     );
 
-    await expect(service.run(makeCommand({ reusableCredentialId: 'cred-1' }))).rejects.toThrow(
+    await expect(service.run(makeFullCommand({ reusableCredentialId: 'cred-1' }))).rejects.toThrow(
       ForbiddenException
     );
     expect(eventDispatcher.publishExternal).not.toHaveBeenCalled();
@@ -708,7 +1082,7 @@ describe('UpdateDataStorageService - BigQuery projectId validation', () => {
     const { service, dataStorageRepository, dataStorageAccessFacade } = makeService();
 
     const error = (await service
-      .run(makeCommand({ config: { projectId: 'GTM-NC2077' } }))
+      .run(makeFullCommand({ config: { projectId: 'GTM-NC2077' } }))
       .catch((e: unknown) => e)) as BadRequestException;
     expect(error).toBeInstanceOf(BadRequestException);
     expect(error.message).toMatch(/^Invalid config — projectId: /);
@@ -730,7 +1104,7 @@ describe('UpdateDataStorageService - BigQuery projectId validation', () => {
   it('passes validation for an update with a valid projectId', async () => {
     const { service, dataStorageRepository } = makeService();
 
-    await expect(service.run(makeCommand())).resolves.toBeDefined();
+    await expect(service.run(makeFullCommand())).resolves.toBeDefined();
     expect(dataStorageRepository.save).toHaveBeenCalled();
   });
 });

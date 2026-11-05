@@ -101,14 +101,17 @@ To switch projects, disconnect, then reconnect and sign in again. If you use the
 
 ## Available tools
 
-Once connected, the MCP server exposes fifty tools across two scopes:
+Once connected, the MCP server exposes the following tools across two scopes:
 
-- **`mcp:read`**: discovery and status tools — `summarize_data_catalog`, `get_project_context`, `list_contexts`, `get_context_impact`, `list_project_members`, `get_project_settings`, `list_custom_connectors`, `get_custom_connector`, `get_custom_connector_version`, `get_custom_connector_specification`, `get_custom_connector_fields`, `list_data_marts`, `get_relevant_data_marts_by_prompt`, `get_data_mart_details_by_id`, `list_destinations`, `get_data_mart_reports`, `get_relevant_reports_by_prompt`, `get_report_output_schema`, `list_report_run_schedules`, `get_report_run_status`, `list_credential_definitions`, `list_credentials`, `get_credential`, `get_credential_setup_status`.
-- **`mcp:write`**: tools that create, change, run, or bill something — `create_context`, `update_context_metadata`, `set_context_members`, `delete_context`, `update_project_description`, `create_custom_connector`, `update_custom_connector`, `save_custom_connector_draft`, `test_custom_connector`, `publish_custom_connector`, `activate_custom_connector_version`, `delete_custom_connector`, `query_data_mart`, `add_destination`, `add_report`, `update_report`, `delete_report`, `create_report_run_schedule`, `update_report_run_schedule`, `delete_report_run_schedule`, `run_report`, `update_credential`, `validate_credential`, `consent_credential_definition`, `delete_credential`, `start_credential_setup`. `query_data_mart` and the report-run schedule mutation tools also require `mcp:read`. `query_data_mart` reads data rows, records each call in Run History, and costs [credits](../billing/consumption-units.md) per call. Your MCP client may ask you to confirm before it calls one of these.
+- **`mcp:read`**: discovery and status tools — `summarize_data_catalog`, `get_project_context`, `list_contexts`, `get_context_impact`, `list_project_members`, `get_project_settings`, `list_custom_connectors`, `get_custom_connector`, `get_custom_connector_version`, `get_custom_connector_specification`, `get_custom_connector_fields`, `list_data_marts`, `get_relevant_data_marts_by_prompt`, `get_data_mart_details_by_id`, `list_storages`, `get_storage`, `validate_storage_access`, `list_storage_resources`, `list_destinations`, `get_destination`, `get_destination_impact`, `get_data_mart_reports`, `get_relevant_reports_by_prompt`, `get_report_output_schema`, `list_report_run_schedules`, `get_report_run_status`, `list_credential_definitions`, `list_credentials`, `get_credential`, `get_credential_setup_status`.
+- **`mcp:write`**: tools that create, change, run, or bill something — `create_context`, `update_context_metadata`, `set_context_members`, `delete_context`, `update_project_description`, `create_custom_connector`, `update_custom_connector`, `save_custom_connector_draft`, `test_custom_connector`, `publish_custom_connector`, `activate_custom_connector_version`, `delete_custom_connector`, `query_data_mart`, `create_storage`, `update_storage`, `set_storage_access`, `delete_storage`, `add_destination`, `update_destination`, `set_destination_access`, `delete_destination`, `rotate_destination_secret_key`, `add_report`, `update_report`, `delete_report`, `create_report_run_schedule`, `update_report_run_schedule`, `delete_report_run_schedule`, `run_report`, `update_credential`, `validate_credential`, `consent_credential_definition`, `delete_credential`, `start_credential_setup`. `query_data_mart` and the report-run schedule mutation tools also require `mcp:read`. `query_data_mart` reads data rows, records each call in Run History, and costs [credits](../billing/consumption-units.md) per call. Your MCP client may ask you to confirm before it calls one of these.
 
 Custom connector metadata and schema reads require `mcp:read`. Reading a complete
 version manifest also requires editor access. Custom connector writes and live
 tests require `mcp:write`. See [Custom connector authoring](#custom-connector-authoring).
+
+Storage and Destination operations enforce resource permissions. See [Storage management](#storage-management)
+and [Destination management](#destination-management).
 
 ### `summarize_data_catalog`
 
@@ -177,7 +180,11 @@ Before assigning members, use `list_project_members` to identify the intended pe
 
 Removed project members are excluded from discovery and cannot be assigned. If member lookup is unavailable, the tool reports an error instead of an empty project. Configuration tools reject unknown input fields, including misspelled optional fields.
 
-Before deletion, `get_context_impact` reports the attachments that must be removed. Its `affected_member_ids` lists members with selected-context access whose only assigned Context is this one. With your approval, the assistant can remove member assignments using `set_context_members`; Data Marts, storages, destinations and user provisioning defaults must be detached in the OWOX web app. These detach operations are not available through MCP.
+Before deletion, `get_context_impact` reports the attachments that must be removed.
+Its `affected_member_ids` lists members whose only Context assignment is this one.
+With your approval, the assistant can remove assignments through `set_context_members`.
+Use `set_storage_access` or `set_destination_access` to change a resource's `context_ids`.
+Keep the other Context IDs that still apply. Detach Data Marts and user provisioning defaults in the OWOX web app.
 
 ### Credential management
 
@@ -186,17 +193,17 @@ secrets through your AI client. These tools require at least the viewer role and
 retain the same resource permissions as the OWOX web app. Ownership and sharing
 determine which Credentials you can see, use, maintain or delete.
 
-| Tool                            | Scope       | Inputs and behavior                                                                                                                                                                                             |
-| ------------------------------- | ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `list_credential_definitions`   | `mcp:read`  | This tool takes no inputs. It returns provider IDs, names, authentication types, supported consumers and AI support.                                                                                            |
-| `list_credentials`              | `mcp:read`  | This tool takes no inputs. It returns visible Credentials with safe metadata, access settings, validation state and usage. Check `can_use` before you select one.                                               |
-| `get_credential`                | `mcp:read`  | Supply `credential_id`. The tool returns safe metadata for one visible Credential.                                                                                                                              |
-| `update_credential`             | `mcp:write` | Supply `credential_id` and at least one metadata, access or AI mapping field. Existing permissions to edit, manage owners and configure sharing apply.                                                          |
-| `validate_credential`           | `mcp:write` | Supply `credential_id`. You must have edit access. The tool checks the stored Credential with its provider and returns `validation_state`. It may refresh an OAuth grant.                                       |
-| `consent_credential_definition` | `mcp:write` | Supply `credential_id`. You must have edit access. The tool accepts the current external provider definition after you review the change.                                                                       |
-| `delete_credential`             | `mcp:write` | Supply `credential_id`. You must have delete access. The tool refuses to delete a Credential with active consumers.                                                                                             |
-| `start_credential_setup`        | `mcp:write` | To create a Credential, supply `definition_id`. To replace secrets or reconnect an account, supply `credential_id`. Omit both IDs to select a provider in the browser. The tool returns a `setup_id` and `url`. |
-| `get_credential_setup_status`   | `mcp:read`  | Supply `setup_id`. Optionally, set `wait_seconds` from 0 to 25. The tool returns `pending`, `completed`, `cancelled` or `expired`. After completion, it returns the exact `credential_id`.                      |
+| Tool                            | Scope       | Inputs and behavior                                                                                                                                                                                                                                                                  |
+| ------------------------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `list_credential_definitions`   | `mcp:read`  | This tool takes no inputs. It returns provider IDs, names, authentication types, supported consumers and AI support.                                                                                                                                                                 |
+| `list_credentials`              | `mcp:read`  | This tool takes no inputs. It returns visible Credentials with safe metadata, access settings, validation state and usage. Check `can_use` before you select one.                                                                                                                    |
+| `get_credential`                | `mcp:read`  | Supply `credential_id`. The tool returns safe metadata for one visible Credential.                                                                                                                                                                                                   |
+| `update_credential`             | `mcp:write` | Supply `credential_id` and at least one metadata, access or AI mapping field. Existing permissions to edit, manage owners and configure sharing apply.                                                                                                                               |
+| `validate_credential`           | `mcp:write` | Supply `credential_id`. You must have edit access. The tool checks the stored Credential with its provider and returns `validation_state`. It may refresh an OAuth grant.                                                                                                            |
+| `consent_credential_definition` | `mcp:write` | Supply `credential_id`. You must have edit access. The tool accepts the current external provider definition after you review the change.                                                                                                                                            |
+| `delete_credential`             | `mcp:write` | Supply `credential_id`. You must have delete access. The tool refuses to delete a Credential with active consumers.                                                                                                                                                                  |
+| `start_credential_setup`        | `mcp:write` | To create a Credential for a known Storage or Destination, supply a compatible `definition_id`. To replace secrets or reconnect an account, supply `credential_id`. Omit both IDs only for an explicit provider-picker request without a known target. Returns `setup_id` and `url`. |
+| `get_credential_setup_status`   | `mcp:read`  | Supply `setup_id`. Optionally, set `wait_seconds` from 0 to 25. The tool returns `pending`, `completed`, `cancelled` or `expired`. After completion, it returns the exact `credential_id`.                                                                                           |
 
 To create a Credential or replace its secret, open the URL from
 `start_credential_setup`. Sign in with the same OWOX account that connected MCP.
@@ -509,9 +516,99 @@ Read the value precisely. It is a **storage** timestamp, not a statement about t
 
 Coverage is best effort per storage. Google BigQuery, AWS Redshift, AWS Athena, Snowflake, and Databricks are supported. OWOX resolves views and SQL data marts through to their underlying base tables. Sharded and wildcard table sets collapse into one entry. Other storages currently report `unavailable`. `sources` deliberately omits views: a view's own modification time reflects a change to its definition, not to any data. Redshift metadata can lag real writes by up to ~5 minutes. Older Redshift releases do not report modification times at all. Athena is exact for Iceberg tables; Hive tables report `null` with a note, because their catalog stores no data-change time. See [Data Last Updated](./data-last-updated.md) for storage-specific caveats.
 
+### Storage management
+
+These tools manage Storage connections in the connected project.
+They enforce resource permissions for reading, use, editing, ownership, and sharing.
+They accept saved Credential IDs. Enter provider secrets only in the OWOX Credential form.
+
+`list_storages`, `get_storage`, `create_storage`, and `update_storage` return `url`,
+a direct link to the Storage in the OWOX Data Marts web UI.
+
+| Tool                      | Inputs and behavior                                                                                                                                                                                                            |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `list_storages`           | Optional `storage_type`, `owner_id`, and `owner_filter`. Returns visible Storage IDs, names, types, and timestamps. Use `get_storage` for details.                                                                             |
+| `get_storage`             | Supply `storage_id`. Returns safe configuration, Credential state, owners, Contexts, and sharing settings.                                                                                                                     |
+| `create_storage`          | Supply `storage_type`. An optional `title` names the Storage. Returns an unconfigured Storage with use sharing enabled and maintenance sharing disabled.                                                                       |
+| `update_storage`          | Supply `storage_id` and the changed `title`, `configuration`, or `credential_id`. Omitted fields stay unchanged. The Storage type cannot change.                                                                               |
+| `set_storage_access`      | Supply `storage_id` and the changed `owner_ids`, `context_ids`, `available_for_use`, or `available_for_maintenance`. Supplied lists replace their complete lists.                                                              |
+| `validate_storage_access` | Supply `storage_id`. Checks the saved configuration and Credential. Returns a safe validation state and the next step when setup is incomplete.                                                                                |
+| `list_storage_resources`  | Supply `storage_id` and `level`: `namespaces` or `resources`. The `resources` level requires `namespace_id`. Optional `resource_type` filters tables, views, or table patterns. Resource browsing currently supports BigQuery. |
+| `delete_storage`          | Supply `storage_id`. Deletion fails while Data Marts reference the Storage. It preserves the saved Credential and warehouse data.                                                                                              |
+
+To configure a Storage:
+
+1. Call `list_credential_definitions` and match `storage_types` and the required authentication method to the Storage.
+2. Select a usable saved Credential. To create one, pass the matching `definition_id` to `start_credential_setup` and complete browser setup.
+3. Call `create_storage` with the required type.
+4. Keep the returned `storage_id`.
+5. Call `update_storage` with that ID, the provider configuration, and `credential_id`.
+6. Call `validate_storage_access` to check the connection.
+7. Use `set_storage_access` to change owners, Contexts, or sharing as requested.
+
+Legacy BigQuery Storages cannot be created or deleted through these tools.
+Their titles and BigQuery project IDs stay unchanged when you update them.
+For access changes, use `list_project_members` and `list_contexts` to find valid IDs.
+Keep every owner or Context that the user still needs in a replacement list.
+
+### Destination management
+
+Use `list_destinations` and `get_destination` to identify the intended Destination.
+Use `add_destination` to create a Destination.
+
+| Tool                            | Inputs and behavior                                                                                                                               |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `get_destination`               | Supply `destination_id`. Returns safe settings, recipients, Drive folder, Credential state, owners, and Contexts.                                 |
+| `update_destination`            | Supply `destination_id` and the changed `title`, `emails`, `drive_folder_url`, or `credential_id`. Field support depends on the Destination type. |
+| `set_destination_access`        | Supply `destination_id` and the changed owners, Contexts, or sharing flags. Input names and list replacement rules match `set_storage_access`.    |
+| `get_destination_impact`        | Supply `destination_id`. Returns the dependent Report and Data Mart counts. This operation requires permission to delete the Destination.         |
+| `delete_destination`            | Supply `destination_id`. Deletion fails while Reports reference the Destination. It preserves saved Credentials and external documents.           |
+| `rotate_destination_secret_key` | Supply `destination_id`. Rotates the Looker Studio key. Returns the Destination URL, never the key.                                               |
+
+`get_destination` and `update_destination` return `destination_id`,
+`connected_google_account`, and `created_at`.
+`list_destinations` returns `id`, `connectedGoogleAccount`, and `createdAt`.
+
+To create a Credential, use `list_credential_definitions` to match `destination_types`
+and the required authentication method. Pass the matching `definition_id` to
+`start_credential_setup`. Use `google-sheets-oauth` for Google Sheets sign-in,
+`google-service-account` for a service-account key, or `google-chat-webhook`
+for Google Chat webhook delivery.
+
+For Google Sheets, `drive_folder_url` selects the folder for newly created spreadsheets.
+Pass `null` to `update_destination` to clear the folder.
+Changing the Google account can clear an omitted folder setting.
+
+For service accounts, use a Shared Drive folder.
+If folder access fails, grant the service account permission to create files there.
+
+For Google sign-in, both the connected account and OWOX must already have access to the folder.
+Supplying its URL does not grant access.
+If folder access fails, select the folder through the OWOX Picker with the connected Google account.
+OAuth folder access errors can occur when OWOX creates a spreadsheet.
+
+Use `emails` for email, Slack, Teams, or Google Chat channel-email delivery.
+Use `credential_id` to select a saved Credential for Google Sheets or a webhook Credential for Google Chat.
+For Google Chat, `emails` replaces webhook delivery, and `credential_id` replaces saved recipients with webhook delivery.
+Do not combine these fields. Never send a secret webhook URL through MCP.
+Existing Excel Destinations can be managed, but `add_destination` does not create them.
+
+Before key rotation, explain that the old Looker Studio key will stop working.
+The user must open the returned Destination URL to copy the new key into Looker Studio.
+
+### Creation and key rotation
+
+Repeating a successful creation creates another Storage or Destination.
+Each key-rotation call replaces the current key.
+If a response is lost, check the result in OWOX before repeating the operation.
+The initial Google Sheets browser setup call creates a Credential setup request, not a Destination.
+
 ### `list_destinations`
 
 Lists the destinations in the current project — such as Google Sheets, Looker Studio, or messaging destinations — so the assistant knows where a report could be sent.
+
+Optional `destination_type`, `owner_id`, and `owner_filter` inputs narrow the list.
+The result includes the fields below, current owners, Contexts, sharing settings, and safe Credential state.
 
 **Returns** an array of destination objects:
 
@@ -521,7 +618,7 @@ Lists the destinations in the current project — such as Google Sheets, Looker 
 | `url`                    | Link to open this destination in OWOX                                                                     |
 | `name`                   | Destination name                                                                                          |
 | `type`                   | Destination type (for example `google_sheets`, `looker_studio`, `slack`, `email`, `teams`, `google_chat`) |
-| `owner`                  | The user who created the destination, or `null` when unavailable                                          |
+| `owner`                  | Email of the member who created the Destination, or `null` when unavailable                               |
 | `connectedGoogleAccount` | For Google Sheets destinations, the Google account that completed OAuth consent                           |
 | `createdAt`              | Destination creation timestamp                                                                            |
 
@@ -542,6 +639,7 @@ Starts or completes setup for a report-delivery destination. The exact flow depe
 | `title`            | Supply an optional destination name. For Google Sheets browser setup, keep this title for the follow-up `add_destination` call. The browser form title names the Credential.                      |
 | `emails`           | Supply target email addresses or delivery addresses. This field is required for `email`, `slack`, `teams` and Google Chat delivery through channel email. Do not combine it with `credential_id`. |
 | `credential_id`    | Select a compatible saved Credential for `google_sheets` or `google_chat` webhook delivery. You must have permission to use it. Get its ID from `list_credentials` or completed browser setup.    |
+| `drive_folder_url` | Optional Google Drive folder URL for a Google Sheets Destination. Requires folder access for the connected account and, with Google sign-in, for OWOX. Keep it for creation after setup.          |
 
 **Returns:**
 
@@ -572,7 +670,6 @@ The follow-up call creates the destination. Its title names the destination, whi
 New Credentials and destinations start unshared. Other project members need permission to use them.
 If setup is `cancelled`, `expired` or missing, first recover the saved Credential
 as described in [Credential management](#credential-management).
-Existing links to the legacy Google Sheets setup page remain valid.
 
 For `email`, `slack` and `teams`, the tool creates the destination directly and returns `destination_id`.
 For `google_chat` without `credential_id`, the tool uses channel-email delivery and requires `emails`.
@@ -888,9 +985,11 @@ Once the OWOX server is connected, just ask your assistant in plain language. Yo
 - "Turn off the schedule you just created."
 - "Delete the old 'Test export' report from the Sales data mart."
 
-> **What these tools can and cannot do:** They let the assistant discover your project, summarize the published data mart catalog, inspect data mart metadata, list destinations, list reports and schedules, and check report-run status. With `query_data_mart`, the assistant can run a bounded structured query and read the resulting data rows and totals; this is billable and recorded in Run History. With your confirmation, the assistant can also create destinations (`add_destination`), create a report for a Google Sheets, Looker Studio, email, Slack, Microsoft Teams, or Google Chat destination — optionally with the same filters, slices, aggregations, date buckets, and sort as a `query_data_mart` call, so the export matches the numbers you saw (`add_report`). New push-destination reports run once by default and return a `run_id` to poll; `run_immediately: false` creates configuration only. Related Google Sheets exports can share one spreadsheet as separate sheets. The assistant can also rename a report, change which fields it exports, replace its output controls, or edit the message of email-family reports (`update_report`) — it does this, rather than creating a second report, when you ask to change one that exists — delete a report (`delete_report`), create, update, or delete report-run schedules, and start a later manual run for supported push-destination reports (`run_report`). Editors can also create, test, publish, update and delete custom connectors, and activate earlier published versions. They cannot run arbitrary SQL — only structured queries built from the fields, filters, and aggregations described above — and cannot edit a data mart, edit an existing destination, change project settings other than the description, retrieve destination secret keys, or run pull-based Looker Studio reports through `run_report`.
+> **What these tools can and cannot do:** They let the assistant discover your project, summarize the published data mart catalog, inspect data mart metadata, list destinations, list reports and schedules, and check report-run status. With `query_data_mart`, the assistant can run a bounded structured query and read the resulting data rows and totals; this is billable and recorded in Run History. With your confirmation, the assistant can also create destinations (`add_destination`), create a report for a Google Sheets, Looker Studio, email, Slack, Microsoft Teams, or Google Chat destination — optionally with the same filters, slices, aggregations, date buckets, and sort as a `query_data_mart` call, so the export matches the numbers you saw (`add_report`). New push-destination reports run once by default and return a `run_id` to poll; `run_immediately: false` creates configuration only. Related Google Sheets exports can share one spreadsheet as separate sheets. The assistant can also rename a report, change which fields it exports, replace its output controls, or edit the message of email-family reports (`update_report`) — it does this, rather than creating a second report, when you ask to change one that exists — delete a report (`delete_report`), create, update, or delete report-run schedules, and start a later manual run for supported push-destination reports (`run_report`). Editors can also create, configure, validate, share, and delete Storages. Destination management includes settings, ownership, sharing, deletion, and Looker Studio key rotation. These operations enforce resource permissions. Editors can create, test, publish, update and delete custom connectors, and activate earlier published versions. The tools cannot run arbitrary SQL — only structured queries built from the fields, filters, and aggregations described above — and cannot edit a data mart, change project settings other than the description, retrieve destination secret keys, or run pull-based Looker Studio reports through `run_report`.
 >
-> **What is shared with your AI provider:** To answer your prompts, the project description and other project metadata, data-mart metadata, destination metadata, report and schedule metadata, report-run status, and your project roles can be sent to the AI provider behind your client, such as Anthropic for Claude or OpenAI for ChatGPT. If you ask the assistant to create an email-based destination, the email addresses you provide are also sent through that client. Whenever the assistant runs `query_data_mart`, the **resulting data rows and totals are sent** to that provider so it can answer with the data — only data you are permitted to query. Custom connector authoring can also send complete manifests, test configuration, upstream sample rows and logs to that provider. Connect OWOX only to clients your organization permits to receive this information.
+> **What is shared with your AI provider:** Tool inputs and results can reach the AI provider behind your client, such as Anthropic or OpenAI. These include project and data mart metadata, report and schedule metadata, report-run status, and your project roles. Storage tools also return configuration, such as warehouse hosts, project IDs, accounts, and workgroups, plus discovered resource names. Storage and Destination details include owners, Contexts, and sharing settings. Destination details can include existing recipient addresses for email, Slack, Microsoft Teams, and Google Chat, plus Drive folder URLs and connected account identities. Addresses that you supply when you create or update a Destination also pass through the client.
+>
+> When the assistant runs `query_data_mart`, the **resulting data rows and totals are sent** to that provider. This includes only data you are permitted to query. Custom connector authoring can also send complete manifests, test configuration, upstream sample rows, and logs. Connect OWOX only to clients your organization permits to receive this information.
 
 ## Troubleshooting
 

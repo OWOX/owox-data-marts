@@ -1,4 +1,9 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Transactional } from 'typeorm-transactional';
 import { DataDestination } from '../entities/data-destination.entity';
@@ -107,7 +112,7 @@ export class UpdateDataDestinationService {
       }
     }
 
-    const titleChanged = entity.title !== command.title;
+    const titleChanged = command.title !== undefined && entity.title !== command.title;
 
     // Only re-validate the Drive folder (a live Drive API round-trip inside the
     // transaction) when the configured folder actually changes. Updates that
@@ -140,6 +145,9 @@ export class UpdateDataDestinationService {
     }
 
     const credentials = checkDestinationCredentialFields(entity.type, command);
+    if (command.config && entity.type !== DataDestinationType.GOOGLE_SHEETS) {
+      throw new BadRequestException('Only Google Sheets destinations support a Drive folder.');
+    }
 
     let candidate: ResolvedDestinationCredential | undefined;
     // A folder the save sends stays and is checked below; one it leaves out goes with the account that picked it.
@@ -218,7 +226,9 @@ export class UpdateDataDestinationService {
       }
     }
 
-    entity.title = command.title;
+    if (command.title !== undefined) {
+      entity.title = command.title;
+    }
 
     if (command.availableForUse !== undefined) {
       entity.availableForUse = command.availableForUse;

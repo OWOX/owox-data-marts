@@ -2,7 +2,6 @@ import {
   Body,
   Controller,
   Delete,
-  ForbiddenException,
   Get,
   HttpCode,
   Param,
@@ -54,12 +53,12 @@ import {
 import { ApiTags } from '@nestjs/swagger';
 import { DeleteDataDestinationService } from '../use-cases/delete-data-destination.service';
 import { GetDataDestinationImpactService } from '../use-cases/get-data-destination-impact.service';
+import { GetDataDestinationImpactCommand } from '../dto/domain/get-data-destination-impact.command';
 import { DataDestinationImpactResponseApiDto } from '../dto/presentation/data-destination-impact-response-api.dto';
 import { RotateSecretKeyService } from '../use-cases/rotate-secret-key.service';
 import { GoogleOAuthFlowService } from '../services/google-oauth/google-oauth-flow.service';
 import { UpdateAvailabilityService } from '../use-cases/update-availability.service';
 import { UpdateDestinationAvailabilityApiDto } from '../dto/presentation/update-availability-api.dto';
-import { AccessDecisionService, EntityType, Action } from '../services/access-decision';
 import { CreateGoogleSheetDocumentService } from '../use-cases/google-sheets/create-google-sheet-document.service';
 import { CreateGoogleSheetDocumentCommand } from '../dto/domain/google-sheets/create-google-sheet-document.command';
 import { CreateGoogleSheetDocumentRequestDto } from '../dto/presentation/google-sheets/create-google-sheet-document-request.dto';
@@ -81,28 +80,8 @@ export class DataDestinationController {
     private readonly listByTypeService: ListDataDestinationsByTypeService,
     private readonly resolveExcelService: ResolveExcelDestinationService,
     private readonly updateAvailabilityService: UpdateAvailabilityService,
-    private readonly accessDecisionService: AccessDecisionService,
     private readonly createGoogleSheetDocumentService: CreateGoogleSheetDocumentService
   ) {}
-
-  private async checkDestinationAccess(
-    id: string,
-    context: AuthorizationContext,
-    action: Action
-  ): Promise<void> {
-    if (!context.userId) return;
-    const allowed = await this.accessDecisionService.canAccess(
-      context.userId,
-      context.roles ?? [],
-      EntityType.DESTINATION,
-      id,
-      action,
-      context.projectId
-    );
-    if (!allowed) {
-      throw new ForbiddenException('You do not have access to this Destination');
-    }
-  }
 
   @Auth(Role.viewer(Strategy.INTROSPECT))
   @Post()
@@ -204,7 +183,6 @@ export class DataDestinationController {
     @AuthContext() context: AuthorizationContext,
     @Param('id') id: string
   ): Promise<DataDestinationResponseApiDto> {
-    await this.checkDestinationAccess(id, context, Action.SEE);
     const command = this.mapper.toGetCommand(id, context);
     const dataDestinationDto = await this.getService.run(command);
     return await this.mapper.toApiResponse(dataDestinationDto);
@@ -217,8 +195,14 @@ export class DataDestinationController {
     @AuthContext() context: AuthorizationContext,
     @Param('id') id: string
   ): Promise<DataDestinationImpactResponseApiDto> {
-    await this.checkDestinationAccess(id, context, Action.DELETE);
-    const impact = await this.getImpactService.run(id, context.projectId);
+    const impact = await this.getImpactService.run(
+      new GetDataDestinationImpactCommand(
+        id,
+        context.projectId,
+        context.userId,
+        context.roles ?? []
+      )
+    );
     return {
       destinationId: impact.destinationId,
       destinationTitle: impact.destinationTitle,
@@ -234,7 +218,6 @@ export class DataDestinationController {
     @AuthContext() context: AuthorizationContext,
     @Param('id') id: string
   ): Promise<void> {
-    await this.checkDestinationAccess(id, context, Action.DELETE);
     const command = this.mapper.toDeleteCommand(id, context);
     await this.deleteService.run(command);
   }
@@ -246,7 +229,6 @@ export class DataDestinationController {
     @AuthContext() context: AuthorizationContext,
     @Param('id') id: string
   ): Promise<DataDestinationResponseApiDto> {
-    await this.checkDestinationAccess(id, context, Action.EDIT);
     const command = this.mapper.toRotateSecretKeyCommand(id, context);
     const dataDestinationDto = await this.rotateSecretKeyService.run(command);
     return await this.mapper.toApiResponse(dataDestinationDto);
@@ -280,13 +262,13 @@ export class DataDestinationController {
     @Param('id') id: string,
     @Body() dto: CreateGoogleSheetDocumentRequestDto
   ): Promise<CreateGoogleSheetDocumentResponseDto> {
-    await this.checkDestinationAccess(id, context, Action.USE);
     const command = new CreateGoogleSheetDocumentCommand(
       id,
       context.projectId,
       dto.title,
       context.userId,
-      context.email
+      context.email,
+      context.roles ?? []
     );
     return this.createGoogleSheetDocumentService.run(command);
   }

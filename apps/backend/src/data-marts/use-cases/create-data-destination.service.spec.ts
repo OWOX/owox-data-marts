@@ -230,6 +230,68 @@ describe('CreateDataDestinationService', () => {
     );
   });
 
+  it.each([{ folderId: 'folder' }, { folderUrl: null, folderId: null }, {}])(
+    'rejects folder configuration for other destination types before writing: %j',
+    async config => {
+      const { service, repository, dataDestinationCredentialService } = createService();
+      const command = new CreateDataDestinationCommand({
+        projectId: 'proj-1',
+        title: 'Looker reports',
+        type: DataDestinationType.LOOKER_STUDIO,
+        userId: 'user-0',
+        credentials: { type: 'looker-studio-credentials' },
+        config,
+      });
+
+      await expect(service.run(command)).rejects.toThrow(
+        new BadRequestException('Only Google Sheets destinations support a Drive folder.')
+      );
+      expect(dataDestinationCredentialService.create).not.toHaveBeenCalled();
+      expect(repository.save).not.toHaveBeenCalled();
+    }
+  );
+
+  it('keeps null configuration valid for a destination without folder support', async () => {
+    const { service, repository } = createService();
+
+    await service.run(
+      new CreateDataDestinationCommand({
+        projectId: 'proj-1',
+        title: 'Excel reports',
+        type: DataDestinationType.EXCEL,
+        userId: 'user-0',
+        config: null,
+      })
+    );
+
+    expect(repository.create).toHaveBeenCalledWith(
+      expect.objectContaining({ type: DataDestinationType.EXCEL, config: null })
+    );
+  });
+
+  it('stores folder configuration for Google Sheets', async () => {
+    const { service, repository } = createService();
+    const config = {
+      folderUrl: 'https://drive.google.com/drive/folders/folder',
+      folderId: 'folder',
+    };
+
+    await service.run(
+      new CreateDataDestinationCommand({
+        projectId: 'proj-1',
+        title: 'Sheets reports',
+        type: DataDestinationType.GOOGLE_SHEETS,
+        userId: 'user-0',
+        reusableCredentialId: 'credential-1',
+        config,
+      })
+    );
+
+    expect(repository.create).toHaveBeenCalledWith(
+      expect.objectContaining({ type: DataDestinationType.GOOGLE_SHEETS, config })
+    );
+  });
+
   describe('credentialless destination types', () => {
     // requiresCredentials(EXCEL) is false, and the guard has to run before every
     // credential-bearing branch: inline credentials would otherwise reach a validator that does

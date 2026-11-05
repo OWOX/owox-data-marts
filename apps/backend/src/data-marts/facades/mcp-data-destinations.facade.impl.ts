@@ -1,124 +1,120 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
-import { DataDestinationType } from '../data-destination-types/enums/data-destination-type.enum';
+import { Injectable } from '@nestjs/common';
+import type { AuthorizationContext } from '../../idp';
+import { DeleteDataDestinationCommand } from '../dto/domain/delete-data-destination.command';
+import { GetDataDestinationCommand } from '../dto/domain/get-data-destination.command';
+import { GetDataDestinationImpactCommand } from '../dto/domain/get-data-destination-impact.command';
+import type { DataDestinationImpact } from '../dto/domain/data-destination-impact.dto';
 import { ListDataDestinationsCommand } from '../dto/domain/list-data-destinations.command';
-import { ListDataDestinationsService } from '../use-cases/list-data-destinations.service';
-import { CreateDataDestinationService } from '../use-cases/create-data-destination.service';
-import { CreateDataDestinationCommand } from '../dto/domain/create-data-destination.command';
-import { DataDestinationCredentials } from '../data-destination-types/data-destination-credentials.type';
-import type { DestinationCredentialSummary } from '../data-destination-types/destination-credential-state';
-import { GOOGLE_SHEETS_OAUTH_DEFINITION_ID } from '../credentials/services/builtin-credential-definitions';
-import { toMcpDestinationType, type McpDestinationType } from './mcp-destination-type';
-import {
-  McpDataDestinationsFacade,
-  McpListDestinationsRequest,
-  McpListDestinationsResponse,
+import { RotateSecretKeyCommand } from '../dto/domain/rotate-secret-key.command';
+import type {
   McpCreateDestinationRequest,
   McpCreateDestinationResponse,
+  McpDestinationDto,
+  McpDestinationMutationResponse,
+  McpListDestinationsRequest,
+  McpListDestinationsResponse,
+  McpSetDestinationAccessRequest,
+  McpUpdateDestinationRequest,
 } from './mcp-data-destinations.facade';
-
-const REVERSE_DESTINATION_TYPE_MAP: Record<McpDestinationType, DataDestinationType> = {
-  google_sheets: DataDestinationType.GOOGLE_SHEETS,
-  looker_studio: DataDestinationType.LOOKER_STUDIO,
-  excel: DataDestinationType.EXCEL,
-  email: DataDestinationType.EMAIL,
-  slack: DataDestinationType.SLACK,
-  teams: DataDestinationType.MS_TEAMS,
-  google_chat: DataDestinationType.GOOGLE_CHAT,
-};
+import { McpDestinationMapper } from '../mappers/mcp-destination.mapper';
+import { CreateDataDestinationService } from '../use-cases/create-data-destination.service';
+import { DeleteDataDestinationService } from '../use-cases/delete-data-destination.service';
+import { GetDataDestinationService } from '../use-cases/get-data-destination.service';
+import { GetDataDestinationImpactService } from '../use-cases/get-data-destination-impact.service';
+import { ListDataDestinationsService } from '../use-cases/list-data-destinations.service';
+import { RotateSecretKeyService } from '../use-cases/rotate-secret-key.service';
+import { UpdateDataDestinationService } from '../use-cases/update-data-destination.service';
+import type { McpDataDestinationsFacade } from './mcp-data-destinations.facade';
+import { toMcpDestinationType } from './mcp-destination-type';
 
 @Injectable()
 export class McpDataDestinationsFacadeImpl implements McpDataDestinationsFacade {
   constructor(
-    private readonly listDataDestinationsService: ListDataDestinationsService,
-    private readonly createDataDestinationService: CreateDataDestinationService
+    private readonly list: ListDataDestinationsService,
+    private readonly create: CreateDataDestinationService,
+    private readonly get: GetDataDestinationService,
+    private readonly update: UpdateDataDestinationService,
+    private readonly impact: GetDataDestinationImpactService,
+    private readonly remove: DeleteDataDestinationService,
+    private readonly rotate: RotateSecretKeyService,
+    private readonly mapper: McpDestinationMapper
   ) {}
 
   async listDestinations(
     request: McpListDestinationsRequest
   ): Promise<McpListDestinationsResponse> {
-    const items = await this.listDataDestinationsService.run(
-      new ListDataDestinationsCommand(request.projectId, request.userId, request.roles)
+    const items = await this.list.run(
+      new ListDataDestinationsCommand(
+        request.projectId,
+        request.userId,
+        request.roles ?? [],
+        request.ownerFilter
+      )
     );
-
     return {
-      destinations: items.map(destination => ({
-        id: destination.id,
-        name: destination.title,
-        type: toMcpDestinationType(destination.type),
-        // Report the creator as the owner. The `owners` relation has no stable
-        // ordering, so picking one of potentially several owners would be
-        // non-deterministic; the creator is a single, stable value.
-        owner: destination.createdByUser?.email ?? null,
-        connectedGoogleAccount:
-          destination.type === DataDestinationType.GOOGLE_SHEETS
-            ? connectedAccount(destination.reusableCredential)
-            : null,
-        createdAt: destination.createdAt.toISOString(),
-      })),
+      destinations: items
+        .filter(item => !request.type || toMcpDestinationType(item.type) === request.type)
+        .map(item => this.mapper.toDto(item))
+        .filter(
+          item => !request.ownerId || item.owners.some(owner => owner.userId === request.ownerId)
+        ),
     };
   }
 
   async createDestination(
     request: McpCreateDestinationRequest
   ): Promise<McpCreateDestinationResponse> {
-    const dataDestinationType = REVERSE_DESTINATION_TYPE_MAP[request.type];
-
-    if (request.credentialId && !['google_sheets', 'google_chat'].includes(request.type)) {
-      throw new BadRequestException(
-        'You can select a Credential only for Google Sheets or Google Chat.'
-      );
-    }
-    if (request.credentialId && request.emails !== undefined) {
-      throw new BadRequestException('Do not combine emails with a Credential.');
-    }
-    if (request.type === 'google_sheets' && !request.credentialId) {
-      throw new BadRequestException(
-        'google_sheets destinations cannot be created directly; use the OAuth connect flow instead'
-      );
-    }
-
-    let credentials: DataDestinationCredentials | undefined;
-    if (request.type === 'looker_studio') {
-      credentials = {
-        type: 'looker-studio-credentials',
-      };
-    } else if (!request.credentialId) {
-      if (!request.emails || request.emails.length === 0) {
-        throw new BadRequestException('Emails list is required for direct destination creation');
-      }
-      credentials = {
-        type: 'email-credentials',
-        to: request.emails as [string, ...string[]],
-      };
-    }
-
-    const command = new CreateDataDestinationCommand({
-      projectId: request.projectId,
-      // The MCP tool always resolves a title before calling — this is a defensive
-      // backstop only, not a formatting concern this facade should own.
-      title: request.title ?? request.type,
-      type: dataDestinationType,
-      userId: request.userId,
-      credentials,
-      reusableCredentialId: request.credentialId,
-      roles: request.roles,
-      // MCP-created destinations start unshared — an agent-created destination shouldn't
-      // silently become available to the whole project's reports before a human reviews it.
-      availableForUse: false,
-    });
-
-    const result = await this.createDataDestinationService.run(command);
-
-    return {
-      id: result.id,
-      name: result.title,
-    };
+    const result = await this.create.run(this.mapper.toCreateCommand(request));
+    return { id: result.id, name: result.title };
   }
-}
 
-/** The Google account that completed OAuth consent, as the Destinations list names it to the member. */
-function connectedAccount(summary: DestinationCredentialSummary | null | undefined): string | null {
-  return summary?.definitionId === GOOGLE_SHEETS_OAUTH_DEFINITION_ID
-    ? (summary.identity ?? null)
-    : null;
+  async getDestination(actor: AuthorizationContext, id: string): Promise<McpDestinationDto> {
+    const item = await this.get.run(
+      new GetDataDestinationCommand(id, actor.projectId, actor.userId, actor.roles)
+    );
+    return this.mapper.toDto(item);
+  }
+
+  async updateDestination(
+    actor: AuthorizationContext,
+    request: McpUpdateDestinationRequest
+  ): Promise<McpDestinationDto> {
+    const destination = await this.update.run(this.mapper.toUpdateCommand(actor, request));
+    return this.mapper.toDto(destination);
+  }
+
+  async setDestinationAccess(
+    actor: AuthorizationContext,
+    request: McpSetDestinationAccessRequest
+  ): Promise<McpDestinationMutationResponse> {
+    await this.update.run(this.mapper.toAccessCommand(actor, request));
+    // The caller can lose access after a successful update.
+    return { id: request.destinationId, status: 'updated' };
+  }
+
+  getDestinationImpact(actor: AuthorizationContext, id: string): Promise<DataDestinationImpact> {
+    return this.impact.run(
+      new GetDataDestinationImpactCommand(id, actor.projectId, actor.userId, actor.roles ?? [])
+    );
+  }
+
+  async deleteDestination(
+    actor: AuthorizationContext,
+    id: string
+  ): Promise<McpDestinationMutationResponse> {
+    await this.remove.run(
+      new DeleteDataDestinationCommand(id, actor.projectId, actor.userId, actor.roles)
+    );
+    return { id, status: 'deleted' };
+  }
+
+  async rotateDestinationSecretKey(
+    actor: AuthorizationContext,
+    id: string
+  ): Promise<McpDestinationMutationResponse> {
+    await this.rotate.run(
+      new RotateSecretKeyCommand(id, actor.projectId, actor.userId, actor.roles)
+    );
+    return { id, status: 'rotated' };
+  }
 }

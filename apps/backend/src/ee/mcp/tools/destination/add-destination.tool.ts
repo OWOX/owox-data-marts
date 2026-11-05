@@ -1,35 +1,31 @@
 import { BadRequestException, Inject, Injectable } from '@nestjs/common';
 import { z } from 'zod';
-import type { McpScope } from '@owox/idp-protocol';
-import { PublicOriginService } from '../../../common/config/public-origin.service';
+import type { McpScope, Role } from '@owox/idp-protocol';
+import { PublicOriginService } from '../../../../common/config/public-origin.service';
 import {
   GOOGLE_SHEETS_OAUTH_DEFINITION_ID,
   MCP_CREDENTIALS_FACADE,
   type McpCredentialsFacade,
-} from '../../../data-marts/credentials/facades/mcp-credentials.facade';
+} from '../../../../data-marts/credentials/facades/mcp-credentials.facade';
 import {
   MCP_DATA_DESTINATIONS_FACADE,
   type McpDataDestinationsFacade,
-} from '../../../data-marts/facades/mcp-data-destinations.facade';
+} from '../../../../data-marts/facades/mcp-data-destinations.facade';
 import {
   MCP_DESTINATION_TYPES,
   MCP_NON_CREATABLE_DESTINATION_TYPES,
-} from '../../../data-marts/facades/mcp-destination-type';
-import type { McpAuthContext } from '../auth/mcp-auth-context';
-import { jsonToolResult, type McpToolDefinition, type McpToolResult } from './mcp-tool.definition';
-import { buildDataDestinationsUiPath } from './data-mart-ui-path';
-import { LOOKER_STUDIO_DESTINATION_GUIDE_URL } from './mcp-docs-urls';
-import { joinPublicOrigin } from './mcp-public-url.util';
-import { CredentialToolMapper } from './credential/credential-tool.mapper';
+} from '../../../../data-marts/facades/mcp-destination-type';
+import type { McpAuthContext } from '../../auth/mcp-auth-context';
+import { jsonToolResult, type McpToolDefinition, type McpToolResult } from '../mcp-tool.definition';
+import { buildDataDestinationsUiPath } from '../data-mart-ui-path';
+import { LOOKER_STUDIO_DESTINATION_GUIDE_URL } from '../mcp-docs-urls';
+import { joinPublicOrigin } from '../mcp-public-url.util';
+import { CredentialToolMapper } from '../credential/credential-tool.mapper';
+import { driveFolderUrlSchema } from './destination-tool.mapper';
+import { destinationToolCall } from './destination-tool-error';
 
 const MCP_CHANNEL_EMAIL_TYPES = ['email', 'slack', 'teams', 'google_chat'];
 
-/**
- * Plain, mechanical label for a destination type — used both in agent-facing messages and
- * as the default destination name when the caller doesn't provide a title. No curated
- * per-type mapping to maintain: "google_chat" -> "Google Chat", "teams" -> "Teams", etc. —
- * just enough to avoid an all-caps or "_"-ridden name, nothing more.
- */
 function toDisplayLabel(type: string): string {
   return type
     .split('_')
@@ -40,31 +36,28 @@ function toDisplayLabel(type: string): string {
 const inputSchema = z
   .object({
     destination_type: z
-      // Subtracted rather than listed out, so the creatable set follows the vocabulary instead
-      // of being a second copy of it that drifts when a type is added.
       .enum(MCP_DESTINATION_TYPES)
       .exclude(MCP_NON_CREATABLE_DESTINATION_TYPES)
-      .describe(
-        'The type of destination to connect/create (e.g. google_sheets, looker_studio, email, slack, teams, google_chat).'
-      ),
+      .describe('The Destination type to create.'),
     title: z
       .string()
       .trim()
       .min(1)
       .optional()
       .describe(
-        'Supply an optional name for the destination, such as "Marketing Team Google Sheet". ' +
-          'The destination is a separate connection that any number of future reports can reuse. ' +
-          'Name it for the team, tool or channel it represents. Do not name it for the report that requires its creation. ' +
-          'This title applies to destinations that the tool creates directly.\n\n' +
-          'For google_sheets without credential_id, the first call starts Credential setup only. ' +
-          'Keep this title for the follow-up add_destination call. The browser form title names the Credential.'
+        'Name the Destination for its team, tool, or channel. A Destination can serve multiple Reports. ' +
+          'Keep this title for creation after browser Credential setup.'
       ),
     emails: z
       .array(z.string().email())
       .optional()
       .describe(
         'Supply target email addresses. This field is required for email, slack, teams and Google Chat delivery through channel email. Do not combine emails with credential_id.'
+      ),
+    drive_folder_url: driveFolderUrlSchema
+      .optional()
+      .describe(
+        'Google Drive folder URL for new spreadsheets. Service accounts require a Shared Drive folder with permission to create files. Google sign-in requires access for both the connected account and OWOX. Keep this URL for creation after Credential setup.'
       ),
     credential_id: z
       .string()
@@ -75,6 +68,13 @@ const inputSchema = z
       ),
   })
   .strict()
+  .refine(
+    data => data.drive_folder_url === undefined || data.destination_type === 'google_sheets',
+    {
+      message: 'Only Google Sheets destinations support a Drive folder.',
+      path: ['drive_folder_url'],
+    }
+  )
   .refine(
     data => !data.credential_id || ['google_sheets', 'google_chat'].includes(data.destination_type),
     {
@@ -93,8 +93,7 @@ const inputSchema = z
       (data.emails && data.emails.length > 0),
     {
       message:
-        "The 'emails' parameter is required for email, slack, teams, and channel-email Google Chat destinations created through MCP. " +
-        'Please ask the user to specify one or more email addresses first before calling this tool.',
+        'Supply at least one email address for email, slack, teams, or Google Chat channel-email delivery.',
       path: ['emails'],
     }
   );
@@ -105,25 +104,21 @@ type AddDestinationInput = z.infer<typeof inputSchema>;
 export class AddDestinationTool implements McpToolDefinition<AddDestinationInput> {
   readonly name = 'add_destination';
   readonly description =
-    'Create a destination for report delivery. The behavior depends on destination_type.\n\n' +
-    'If you supply credential_id, the tool creates a google_sheets destination or a google_chat destination for webhook delivery. ' +
-    'You must have permission to use the saved Credential. The tool returns destination_id. New destinations start unshared. ' +
+    'Create an unshared Destination for report delivery. Direct creation returns destination_id.\n\n' +
+    'For google_sheets, supply a saved credential_id that you can use. ' +
+    'Without credential_id, this tool starts browser Credential setup and returns authorization_url and setup_id. ' +
+    'That call does not create a Destination. ' +
+    'The user must sign in with the OWOX account that connected MCP and must belong to this project. ' +
+    'The browser form title names the Credential.\n\n' +
+    'Call get_credential_setup_status with setup_id. Repeat while the status is pending. ' +
+    'When completed, call add_destination with the exact credential_id, requested title, and drive_folder_url if supplied.\n\n' +
+    'On folder access errors with a service account, grant it permission to create files in the Shared Drive folder. ' +
+    'On folder access errors with Google sign-in, select the folder through the OWOX Picker with the connected account.\n\n' +
+    'For email, slack, and teams, supply emails. ' +
+    'For google_chat, supply emails for channel-email delivery or credential_id for webhook delivery. ' +
     'Never send Credential values or a secret webhook URL.\n\n' +
-    'For google_sheets without credential_id, the tool starts browser setup for a Google Sheets Credential. ' +
-    'It returns authorization_url and setup_id. This call does not create a destination. ' +
-    'The user must be signed in to OWOX with the same account that connected MCP. ' +
-    'The user must be a member of this project. The browser title names the Credential.\n\n' +
-    'After browser setup, call get_credential_setup_status with setup_id. ' +
-    'If the status is pending, repeat the status call as needed. ' +
-    'If the status is completed, call add_destination again with its exact credential_id and the requested destination title. ' +
-    'This follow-up creates the destination and returns destination_id. Its title names the destination.\n\n' +
-    'For email, slack and teams, the tool creates the destination directly and requires emails. ' +
-    'For google_chat without credential_id, the tool uses channel-email delivery and requires emails. ' +
-    'These operations do not use OAuth. The tool returns destination_id immediately.\n\n' +
-    'For looker_studio, the tool creates a destination for a pull-based connector. ' +
-    'The tool returns destination_id immediately. This operation does not use OAuth or require emails. ' +
-    'The tool never sends connector credentials, including the Destination Secret Key/Token, through MCP or chat. ' +
-    'The user must open the destination in OWOX Data Marts to copy those credentials.';
+    'For looker_studio, omit emails and credential_id. This creates a Destination without browser setup. ' +
+    'The user must copy connector credentials from OWOX. The tool never returns the Destination Secret Key.';
   readonly zodSchema = inputSchema;
   readonly outputSchema = {
     authorization_url: z.string().optional(),
@@ -152,9 +147,11 @@ export class AddDestinationTool implements McpToolDefinition<AddDestinationInput
     title: 'Add Destination',
     readOnlyHint: false,
     destructiveHint: false,
-    openWorldHint: false,
+    idempotentHint: false,
+    openWorldHint: true,
   };
   readonly requiredScopes: McpScope[] = ['mcp:write'];
+  readonly requiredRole: Role = 'viewer';
   private readonly credentialMapper = new CredentialToolMapper();
 
   constructor(
@@ -175,16 +172,19 @@ export class AddDestinationTool implements McpToolDefinition<AddDestinationInput
     const title = parsed.title ?? humanType;
 
     if (parsed.credential_id || MCP_CHANNEL_EMAIL_TYPES.includes(destinationType)) {
-      const created = await this.destinations.createDestination({
-        projectId: context.projectId,
-        userId: context.userId,
-        roles: context.roles,
-        type: destinationType,
-        title,
-        ...(parsed.credential_id
-          ? { credentialId: parsed.credential_id }
-          : { emails: parsed.emails }),
-      });
+      const created = await destinationToolCall(() =>
+        this.destinations.createDestination({
+          projectId: context.projectId,
+          userId: context.userId,
+          roles: context.roles,
+          type: destinationType,
+          title,
+          ...(parsed.drive_folder_url !== undefined && { folderUrl: parsed.drive_folder_url }),
+          ...(parsed.credential_id
+            ? { credentialId: parsed.credential_id }
+            : { emails: parsed.emails }),
+        })
+      );
 
       return jsonToolResult({
         destination_id: created.id,
@@ -192,26 +192,25 @@ export class AddDestinationTool implements McpToolDefinition<AddDestinationInput
           this.publicOriginService.getPublicOrigin(),
           buildDataDestinationsUiPath(context.projectId, created.id)
         ),
-        instructions: `Successfully connected ${humanType} destination "${created.name}" for report delivery.`,
+        instructions: `Created ${humanType} Destination "${created.name}" for report delivery.`,
       });
     }
 
-    // Direct creation for Looker Studio (no browser OAuth popup is needed)
     if (destinationType === 'looker_studio') {
-      const created = await this.destinations.createDestination({
-        projectId: context.projectId,
-        userId: context.userId,
-        roles: context.roles,
-        type: destinationType,
-        title,
-      });
+      const created = await destinationToolCall(() =>
+        this.destinations.createDestination({
+          projectId: context.projectId,
+          userId: context.userId,
+          roles: context.roles,
+          type: destinationType,
+          title,
+        })
+      );
 
-      // The Destination Secret Key (Token) must never be sent through MCP/chat, even for a
-      // destination just created in this same call — it's a live credential, not a display
-      // value, so the user retrieves it themselves from the OWOX Data Marts UI.
-      const instructions = `Data Studio Destination "${created.name}" has been successfully enabled!
-Open Data Destinations in OWOX Data Marts and edit "${created.name}" to copy its connector credentials (Deployment URL, Destination ID, and Destination Secret Key) into the OWOX Data Marts Data Studio connector interface.
-Share the setup guide with the user — it walks through every step: ${LOOKER_STUDIO_DESTINATION_GUIDE_URL}`;
+      const instructions = `Created Looker Studio Destination "${created.name}".
+Ask the user to open destination_url in OWOX.
+They must copy Deployment URL, Destination ID, and Destination Secret Key into the Looker Studio connector.
+Share this setup guide: ${LOOKER_STUDIO_DESTINATION_GUIDE_URL}`;
 
       return jsonToolResult({
         destination_id: created.id,
@@ -224,9 +223,11 @@ Share the setup guide with the user — it walks through every step: ${LOOKER_ST
     }
 
     if (destinationType === 'google_sheets') {
-      const setup = await this.credentials.startSetup(this.credentialMapper.toActor(context), {
-        definitionId: GOOGLE_SHEETS_OAUTH_DEFINITION_ID,
-      });
+      const setup = await destinationToolCall(() =>
+        this.credentials.startSetup(this.credentialMapper.toActor(context), {
+          definitionId: GOOGLE_SHEETS_OAUTH_DEFINITION_ID,
+        })
+      );
 
       return jsonToolResult({
         authorization_url: this.credentialMapper.toSetupUrl(
@@ -243,7 +244,12 @@ Share the setup guide with the user — it walks through every step: ${LOOKER_ST
           'If the status is pending, repeat the status call as needed. ' +
           'If the status is completed, use its exact credential_id. ' +
           `After completion, call add_destination again with destination_type "google_sheets", that credential_id and title ${JSON.stringify(title)}. ` +
-          'The title in this follow-up call names the destination.\n\n' +
+          (parsed.drive_folder_url
+            ? `Include drive_folder_url ${JSON.stringify(parsed.drive_folder_url)}. ` +
+              'For Google sign-in, OWOX must already have access to this folder with the connected account. ' +
+              'If folder access fails, select it through the OWOX Picker with that account. '
+            : '') +
+          '\n\n' +
           'If setup is cancelled, expired or missing, ask for the saved Credential ID shown on the page. ' +
           'Verify that ID with get_credential before reusing it. ' +
           'If unavailable, use list_credentials and ask the user to confirm the provider and title. ' +
@@ -251,10 +257,6 @@ Share the setup guide with the user — it walks through every step: ${LOOKER_ST
       });
     }
 
-    // Unreachable for everything this tool offers: email-based, looker_studio and
-    // google_sheets above cover the vocabulary minus MCP_NON_CREATABLE_DESTINATION_TYPES, and
-    // an excluded type is refused by the schema before it ever reaches here. Guards against a
-    // future destination type being added to the enum without a matching branch.
     throw new BadRequestException(
       `No creation flow is implemented for destination type '${destinationType}'.`
     );

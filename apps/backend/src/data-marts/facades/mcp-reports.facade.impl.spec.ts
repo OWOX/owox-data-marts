@@ -562,6 +562,7 @@ describe('McpReportsFacadeImpl.addReport', () => {
         title: 'Weekly revenue',
         requestedByUserId: 'user-1',
         userEmail: 'ann@owox.com',
+        roles: ['editor'],
       })
     );
     expect(createReportService.run).toHaveBeenCalledWith(
@@ -601,6 +602,7 @@ describe('McpReportsFacadeImpl.addReport', () => {
       spreadsheetId: 'ss-existing',
       sheetId: 4242,
       sheetTitle: 'Weekly revenue',
+      sharedWithRequester: false,
     });
     createReportService.run.mockResolvedValue({
       id: 'report-2',
@@ -635,10 +637,10 @@ describe('McpReportsFacadeImpl.addReport', () => {
       initial_run: { status: 'not_requested' },
       spreadsheet_id: 'ss-existing',
       sheet_url: 'https://docs.google.com/spreadsheets/d/ss-existing/edit#gid=4242',
+      shared_with_requester: false,
     });
-    // Placement and sharing describe a new file; a sheet inherits both.
+    // Folder placement describes a new file; sharing also applies to an existing spreadsheet.
     expect(result).not.toHaveProperty('placed_in_root');
-    expect(result).not.toHaveProperty('shared_with_requester');
   });
 
   it('rejects spreadsheetId for a non-Google-Sheets destination before any side effect', async () => {
@@ -993,16 +995,24 @@ describe('McpReportsFacadeImpl.addReport', () => {
     expect(createGoogleSheetDocumentService.run).not.toHaveBeenCalled();
   });
 
-  it('rejects a caller without destination access before creating the sheet', async () => {
-    const { facade, createGoogleSheetDocumentService, accessDecisionService } = createFacade({
-      reports: [],
-      triggers: [],
-    });
-    accessDecisionService.canAccess.mockResolvedValueOnce(true).mockResolvedValueOnce(false);
+  it.each([undefined, 'ss-existing'])(
+    'rejects a caller without destination access before creating a file or tab: %s',
+    async spreadsheetId => {
+      const {
+        facade,
+        createGoogleSheetDocumentService,
+        addGoogleSheetToSpreadsheetService,
+        accessDecisionService,
+      } = createFacade({ reports: [], triggers: [] });
+      accessDecisionService.canAccess.mockResolvedValueOnce(true).mockResolvedValueOnce(false);
 
-    await expect(facade.addReport(addRequest)).rejects.toThrow('access to the Destination');
-    expect(createGoogleSheetDocumentService.run).not.toHaveBeenCalled();
-  });
+      await expect(facade.addReport({ ...addRequest, spreadsheetId })).rejects.toThrow(
+        'access to the Destination'
+      );
+      expect(createGoogleSheetDocumentService.run).not.toHaveBeenCalled();
+      expect(addGoogleSheetToSpreadsheetService.run).not.toHaveBeenCalled();
+    }
+  );
 
   it('rejects invalid fields before creating the sheet', async () => {
     const { facade, createGoogleSheetDocumentService, outputControlsValidator } = createFacade({

@@ -66,6 +66,9 @@ export class CreateDataDestinationService {
   @Transactional()
   async run(command: CreateDataDestinationCommand): Promise<DataDestinationDto> {
     const credentials = checkDestinationCredentialFields(command.type, command);
+    if (command.config && command.type !== DataDestinationType.GOOGLE_SHEETS) {
+      throw new BadRequestException('Only Google Sheets destinations support a Drive folder.');
+    }
     const { reusableCredentialId } = command;
     if (requiresCredentials(command.type) && !credentials && !reusableCredentialId) {
       throw new BadRequestException(

@@ -1,33 +1,41 @@
-import { Injectable } from '@nestjs/common';
+import { ForbiddenException, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Report } from '../entities/report.entity';
 import { DataDestinationService } from '../services/data-destination.service';
-
-export interface DataDestinationImpact {
-  destinationId: string;
-  destinationTitle: string;
-  reportsCount: number;
-  dataMartCount: number;
-}
+import { AccessDecisionService, Action, EntityType } from '../services/access-decision';
+import { GetDataDestinationImpactCommand } from '../dto/domain/get-data-destination-impact.command';
+import type { DataDestinationImpact } from '../dto/domain/data-destination-impact.dto';
 
 @Injectable()
 export class GetDataDestinationImpactService {
   constructor(
     @InjectRepository(Report)
     private readonly reportRepository: Repository<Report>,
-    private readonly dataDestinationService: DataDestinationService
+    private readonly dataDestinationService: DataDestinationService,
+    private readonly accessDecisionService: AccessDecisionService
   ) {}
 
-  async run(destinationId: string, projectId: string): Promise<DataDestinationImpact> {
+  async run(command: GetDataDestinationImpactCommand): Promise<DataDestinationImpact> {
     const destination = await this.dataDestinationService.getByIdAndProjectId(
-      destinationId,
-      projectId
+      command.destinationId,
+      command.projectId
     );
 
-    // Reports reference both a destination and (via report.dataMart) a data mart;
-    // the popup wants the totals separately so admins can see whether one data
-    // mart owns all the reports or it spans many.
+    const canDelete = await this.accessDecisionService.canAccess(
+      command.userId,
+      command.roles,
+      EntityType.DESTINATION,
+      command.destinationId,
+      Action.DELETE,
+      command.projectId
+    );
+    if (!canDelete) {
+      throw new ForbiddenException(
+        'You do not have permission to inspect deletion impact for this Destination'
+      );
+    }
+
     const rows = await this.reportRepository
       .createQueryBuilder('report')
       .innerJoin('report.dataMart', 'dataMart')

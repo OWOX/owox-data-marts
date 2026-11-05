@@ -30,6 +30,7 @@ export class DataDestinationDto {
     public readonly contexts: ContextSummary[] = [],
     public readonly config: DestinationConfig | null = null,
     /** Absent for a Destination that selects no Credential, or where none was summarized. */
-    public readonly reusableCredential?: DestinationCredentialSummary | null
+    public readonly reusableCredential?: DestinationCredentialSummary | null,
+    public readonly emails?: string[]
   ) {}
 }

@@ -48,6 +48,7 @@ export class CreateDataStorageService {
       createdById: command.userId,
       availableForUse: true,
       availableForMaintenance: false,
+      title: command.title,
     });
 
     const savedEntity = await this.dataStorageRepository.save(entity);

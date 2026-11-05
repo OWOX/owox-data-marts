@@ -80,9 +80,16 @@ describe('ConnectorDefinitionMapper commands', () => {
   });
 
   it('keeps the fitting and requirement response shapes', () => {
-    const withExtra = { id: 'c', title: 'T', hosts: ['h'], fieldKeys: ['k'], extra: 1 };
+    const withExtra = {
+      id: 'c',
+      title: 'T',
+      hosts: ['h'],
+      fieldKeys: ['k'],
+      refusal: null,
+      extra: 1,
+    };
     expect(mapper.toFittingCredentialsApiResponse([withExtra])).toEqual([
-      { id: 'c', title: 'T', hosts: ['h'], fieldKeys: ['k'] },
+      { id: 'c', title: 'T', hosts: ['h'], fieldKeys: ['k'], refusal: null },
     ]);
     expect(
       mapper.toCredentialRequirementApiResponse({

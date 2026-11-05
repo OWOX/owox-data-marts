@@ -11,7 +11,6 @@ import type { CredentialDto, UnavailableCredentialDto } from '../dto/credential.
 import type {
   McpCredentialDefinitionDto,
   McpCredentialDto,
-  McpCredentialsActor,
   McpStartCredentialSetupInput,
   McpUnavailableCredentialDto,
   McpUpdateCredentialInput,
@@ -20,7 +19,7 @@ import { mapCredentialDefinitionToApiDto } from './credential.mapper';
 
 @Injectable()
 export class McpCredentialMapper {
-  toAuthorizationContext(actor: McpCredentialsActor): AuthorizationContext {
+  toAuthorizationContext(actor: AuthorizationContext): AuthorizationContext {
     return {
       projectId: actor.projectId,
       userId: actor.userId,
@@ -55,7 +54,7 @@ export class McpCredentialMapper {
   }
 
   toStartSetupCommand(
-    actor: McpCredentialsActor,
+    actor: AuthorizationContext,
     input: McpStartCredentialSetupInput
   ): StartCredentialSetupCommand {
     return {

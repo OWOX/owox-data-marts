@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, Logger } from '@nestjs/common';
 import { castError } from '@owox/internal-helpers';
 import type { OAuth2Client } from 'google-auth-library';
 import { CreateGoogleSheetDocumentCommand } from '../../dto/domain/google-sheets/create-google-sheet-document.command';
@@ -14,6 +14,7 @@ import { DataDestinationType } from '../../data-destination-types/enums/data-des
 import { DestinationCredentialType } from '../../enums/destination-credential-type.enum';
 import { IdpProjectionsFacade } from '../../../idp/facades/idp-projections.facade';
 import type { GoogleOAuthTokens } from '../../services/google-oauth/google-oauth-flow.service';
+import { AccessDecisionService, Action, EntityType } from '../../services/access-decision';
 import {
   CredentialsNotFoundException,
   GoogleApiException,
@@ -57,7 +58,8 @@ export class CreateGoogleSheetDocumentService {
     private readonly dataDestinationService: DataDestinationService,
     private readonly googleOAuthClientService: GoogleOAuthClientService,
     private readonly credentialsResolver: DataDestinationCredentialsResolver,
-    private readonly idpProjectionsFacade: IdpProjectionsFacade
+    private readonly idpProjectionsFacade: IdpProjectionsFacade,
+    private readonly accessDecisionService: AccessDecisionService
   ) {}
 
   async run(
@@ -67,6 +69,20 @@ export class CreateGoogleSheetDocumentService {
       command.destinationId,
       command.projectId
     );
+
+    if (command.requestedByUserId) {
+      const canUse = await this.accessDecisionService.canAccess(
+        command.requestedByUserId,
+        command.roles,
+        EntityType.DESTINATION,
+        command.destinationId,
+        Action.USE,
+        command.projectId
+      );
+      if (!canUse) {
+        throw new ForbiddenException('You do not have access to this Destination');
+      }
+    }
 
     if (destination.type !== DataDestinationType.GOOGLE_SHEETS) {
       throw new BadRequestException('Destination is not a Google Sheets destination');
