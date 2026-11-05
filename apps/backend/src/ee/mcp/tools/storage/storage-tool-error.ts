@@ -9,6 +9,11 @@ import {
 } from '@nestjs/common';
 import { BusinessViolationException } from '../../../../common/exceptions/business-violation.exception';
 
+const SAFE_BAD_REQUEST_MESSAGES = new Set([
+  'Set the Storage configuration before selecting a Credential.',
+  'Configure this Storage before listing resources.',
+]);
+
 export async function storageToolCall<T>(
   execute: () => Promise<T>,
   operation:
@@ -25,6 +30,10 @@ export async function storageToolCall<T>(
     return await execute();
   } catch (error) {
     const status = error instanceof HttpException ? error.getStatus() : undefined;
+    if (error instanceof BadRequestException && SAFE_BAD_REQUEST_MESSAGES.has(error.message)) {
+      // Rebuild the exception to discard extra fields in its response.
+      throw new BadRequestException(error.message);
+    }
     if (operation === 'list_resources') {
       if (status === 403) {
         throw new ForbiddenException(

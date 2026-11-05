@@ -44,11 +44,14 @@ describe('Storage and Destination management through MCP', () => {
     OWOX_AUTH_PUBLIC_BASE_URL: process.env.OWOX_AUTH_PUBLIC_BASE_URL,
     PUBLIC_ORIGIN: process.env.PUBLIC_ORIGIN,
     MCP_PUBLIC_BASE_URL: process.env.MCP_PUBLIC_BASE_URL,
+    SCHEDULER_EXECUTION_ENABLED: process.env.SCHEDULER_EXECUTION_ENABLED,
   };
 
   beforeAll(async () => {
     process.env.OWOX_AUTH_PUBLIC_BASE_URL = 'https://app.owox.com';
     process.env.PUBLIC_ORIGIN = 'https://app.owox.com';
+    // Keep background jobs out of the SQL query count.
+    process.env.SCHEDULER_EXECUTION_ENABLED = 'false';
     ({ app, agent } = await createTestApp());
     database = app.get(DataSource);
     const provider = app.get(IdpProviderService).getProviderFromApp();
@@ -143,6 +146,7 @@ describe('Storage and Destination management through MCP', () => {
     const result = await client.callTool({ name, arguments: input });
     expect(result.isError).toBe(true);
     expect(JSON.stringify(result)).not.toContain(secret);
+    return result;
   }
 
   it.each(['legacy', 'modern'] as const)(
@@ -207,6 +211,37 @@ describe('Storage and Destination management through MCP', () => {
       listNamespaces.mockRestore();
       await repository.delete(storageId);
     }
+  });
+
+  it('explains when Storage configuration is required before the next setup step', async () => {
+    const client = await connect('modern');
+    const credentialId = await createServiceAccountCredential(app, {
+      projectId: '0',
+      title: 'Storage setup account',
+      ownerIds: ['1'],
+      clientEmail: 'storage-setup@example.iam.gserviceaccount.com',
+    });
+    const { storage_id } = await call(client, 'create_storage', {
+      storage_type: 'GOOGLE_BIGQUERY',
+    });
+
+    const binding = await denied(client, 'update_storage', {
+      storage_id,
+      credential_id: credentialId,
+    });
+    expect(JSON.stringify(binding)).toContain(
+      'Set the Storage configuration before selecting a Credential.'
+    );
+    const browsing = await denied(client, 'list_storage_resources', {
+      storage_id,
+      level: 'namespaces',
+    });
+    expect(JSON.stringify(browsing)).toContain('Configure this Storage before listing resources.');
+    expect(await call(client, 'get_storage', { storage_id })).toMatchObject({
+      configuration: null,
+      credential: null,
+    });
+    await call(client, 'delete_storage', { storage_id });
   });
 
   it('lists namespaces and filtered resources without exposing extra provider fields', async () => {
@@ -473,14 +508,30 @@ describe('Storage and Destination management through MCP', () => {
       expect(second.destination_id).not.toBe(destination_id);
       expect(await database.getRepository(DataDestination).count()).toBe(before + 2);
       await call(client, 'delete_destination', { destination_id: second.destination_id });
-      expect(await call(client, 'get_destination', { destination_id })).toMatchObject({
-        id: destination_id,
+      const details = await call(client, 'get_destination', { destination_id });
+      expect(details).toMatchObject({
+        destination_id,
+        connected_google_account: null,
+        created_at: expect.any(String),
         available_for_use: false,
         emails: ['finance@example.test'],
       });
-      expect(
-        await call(client, 'update_destination', { destination_id, title: 'Weekly delivery' })
-      ).toMatchObject({ name: 'Weekly delivery', emails: ['finance@example.test'] });
+      const updated = await call(client, 'update_destination', {
+        destination_id,
+        title: 'Weekly delivery',
+      });
+      expect(updated).toMatchObject({
+        destination_id,
+        connected_google_account: null,
+        created_at: details.created_at,
+        name: 'Weekly delivery',
+        emails: ['finance@example.test'],
+      });
+      for (const response of [details, updated]) {
+        for (const field of ['id', 'connectedGoogleAccount', 'createdAt']) {
+          expect(response).not.toHaveProperty(field);
+        }
+      }
       await call(client, 'set_destination_access', { destination_id, available_for_use: true });
       expect(await call(client, 'get_destination', { destination_id })).toMatchObject({
         name: 'Weekly delivery',
@@ -491,11 +542,19 @@ describe('Storage and Destination management through MCP', () => {
         reports_count: 0,
         data_mart_count: 0,
       });
-      expect(
-        JSON.stringify(
-          await call(client, 'list_destinations', { owner_id: '1', destination_type: 'email' })
-        )
-      ).toContain(destination_id);
+      const listed = await call(client, 'list_destinations', {
+        owner_id: '1',
+        destination_type: 'email',
+      });
+      expect(listed.destinations).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            id: destination_id,
+            connectedGoogleAccount: null,
+            createdAt: details.created_at,
+          }),
+        ])
+      );
       await call(client, 'delete_destination', { destination_id });
       await denied(client, 'get_destination', { destination_id });
       expect(
@@ -606,10 +665,13 @@ describe('Storage and Destination management through MCP', () => {
         type,
         emails: ['updated@example.test'],
       });
-      await denied(client, 'update_destination', {
+      const rejectedFolder = await denied(client, 'update_destination', {
         destination_id,
         drive_folder_url: 'https://drive.google.com/drive/folders/not-for-email',
       });
+      expect(JSON.stringify(rejectedFolder)).toContain(
+        'Only Google Sheets destinations support a Drive folder.'
+      );
       expect(await call(client, 'get_destination', { destination_id })).toMatchObject({
         emails: ['updated@example.test'],
         drive_folder_url: null,
@@ -877,7 +939,7 @@ describe('Storage and Destination management through MCP', () => {
     const target = { destination_id: destinationId };
     await denied(client, 'add_destination', { destination_type: 'excel' });
     expect(await call(client, 'get_destination', target)).toMatchObject({
-      id: destinationId,
+      destination_id: destinationId,
       type: 'excel',
     });
     expect(
@@ -1045,7 +1107,7 @@ describe('Storage and Destination management through MCP', () => {
     userId = '2';
     roles = ['viewer'];
     expect(await call(client, 'get_destination', { destination_id })).toMatchObject({
-      id: destination_id,
+      destination_id,
       available_for_use: true,
     });
     await denied(client, 'get_destination_impact', { destination_id });
@@ -1068,7 +1130,12 @@ describe('Storage and Destination management through MCP', () => {
     const credentials = database.getRepository(DataDestinationCredential);
     const before = await credentials.findOneByOrFail({ id: row.credentialId! });
 
-    await denied(client, 'rotate_destination_secret_key', { destination_id });
+    const rejectedRotation = await denied(client, 'rotate_destination_secret_key', {
+      destination_id,
+    });
+    expect(JSON.stringify(rejectedRotation)).toContain(
+      'Only Looker Studio destinations support key rotation.'
+    );
 
     expect(await credentials.findOneByOrFail({ id: row.credentialId! })).toEqual(before);
     expect(await call(client, 'get_destination', { destination_id })).toMatchObject({

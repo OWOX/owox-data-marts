@@ -67,11 +67,16 @@ export const destinationSummaryOutput = {
     .nullable(),
 };
 
-export const destinationDetailsOutput = {
-  ...destinationSummaryOutput,
-  emails: z.array(z.string()).nullable(),
-  drive_folder_url: z.string().nullable(),
-};
+export const destinationDetailsOutput = z
+  .object(destinationSummaryOutput)
+  .omit({ id: true, connectedGoogleAccount: true, createdAt: true })
+  .extend({
+    destination_id: destinationSummaryOutput.id,
+    connected_google_account: destinationSummaryOutput.connectedGoogleAccount,
+    created_at: destinationSummaryOutput.createdAt,
+    emails: z.array(z.string()).nullable(),
+    drive_folder_url: z.string().nullable(),
+  }).shape;
 
 export const destinationMutationOutput = {
   destination_id: z.string(),
@@ -125,8 +130,16 @@ export class DestinationToolMapper {
   }
 
   toDetails(dto: McpDestinationDto, projectId: string, publicOrigin: string) {
+    const { id, connectedGoogleAccount, createdAt, ...summary } = this.toSummary(
+      dto,
+      projectId,
+      publicOrigin
+    );
     return {
-      ...this.toSummary(dto, projectId, publicOrigin),
+      ...summary,
+      destination_id: id,
+      connected_google_account: connectedGoogleAccount,
+      created_at: createdAt,
       emails: dto.emails,
       drive_folder_url: dto.folderUrl,
     };

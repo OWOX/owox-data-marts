@@ -8,6 +8,7 @@ import { DeleteDestinationTool } from './delete-destination.tool';
 import { RotateDestinationSecretKeyTool } from './rotate-destination-secret-key.tool';
 import { AccessValidationException } from '../../../../common/exceptions/access-validation.exception';
 import { BusinessViolationException } from '../../../../common/exceptions/business-violation.exception';
+import { z } from 'zod';
 
 const context: McpAuthContext = {
   projectId: 'project',
@@ -45,24 +46,49 @@ describe('Destination MCP tools', () => {
     const result = await tool.handler({ destination_id: 'destination' }, context);
     expect(facade.getDestination).toHaveBeenCalledWith(actor, 'destination');
     expect(result.structuredContent).toMatchObject({
-      id: 'destination',
+      destination_id: 'destination',
       type: 'looker_studio',
       url: 'https://app.example/ui/project/data-destinations?id=destination',
+      connected_google_account: null,
+      created_at: source.createdAt,
       owners: [{ user_id: 'owner', name: 'Owner', email: 'owner@example.com' }],
       contexts: [{ context_id: 'context', name: 'Finance', icon: null }],
       drive_folder_url: null,
     });
+    for (const field of ['id', 'connectedGoogleAccount', 'createdAt']) {
+      expect(result.structuredContent).not.toHaveProperty(field);
+      expect(tool.outputSchema).not.toHaveProperty(field);
+    }
+    expect(z.object(tool.outputSchema).strict().parse(result.structuredContent)).toEqual(
+      result.structuredContent
+    );
     expect(JSON.stringify(result)).not.toMatch(/NEVER_EXPOSE|private-row|destinationSecretKey/);
   });
 
   it('maps supplied update fields without supplying defaults for omitted fields', async () => {
     const facade = { updateDestination: jest.fn().mockResolvedValue(source) };
     const tool = new UpdateDestinationTool(facade as never, origin as never);
-    await tool.handler({ destination_id: 'destination', drive_folder_url: null }, context);
+    const result = await tool.handler(
+      { destination_id: 'destination', drive_folder_url: null },
+      context
+    );
     expect(facade.updateDestination).toHaveBeenCalledWith(actor, {
       destinationId: 'destination',
       folderUrl: null,
     });
+    expect(result.structuredContent).toMatchObject({
+      destination_id: 'destination',
+      connected_google_account: null,
+      created_at: source.createdAt,
+      drive_folder_url: null,
+    });
+    for (const field of ['id', 'connectedGoogleAccount', 'createdAt']) {
+      expect(result.structuredContent).not.toHaveProperty(field);
+      expect(tool.outputSchema).not.toHaveProperty(field);
+    }
+    expect(z.object(tool.outputSchema).strict().parse(result.structuredContent)).toEqual(
+      result.structuredContent
+    );
     expect(() => tool.parseInput({ destination_id: 'destination' })).toThrow();
     expect(() =>
       tool.parseInput({
@@ -218,6 +244,52 @@ describe('Destination MCP tools', () => {
       tool.handler({ destination_id: 'destination', title: 'Title' }, context)
     ).rejects.not.toThrow('NEVER_EXPOSE');
   });
+
+  const unsupportedOperations = [
+    [
+      UpdateDestinationTool,
+      'updateDestination',
+      {
+        destination_id: 'destination',
+        drive_folder_url: 'https://drive.google.com/drive/folders/folder',
+      },
+      'Only Google Sheets destinations support a Drive folder.',
+    ],
+    [
+      RotateDestinationSecretKeyTool,
+      'rotateDestinationSecretKey',
+      { destination_id: 'destination' },
+      'Only Looker Studio destinations support key rotation.',
+    ],
+  ] as const;
+
+  it.each(unsupportedOperations)(
+    '%s explains unsupported operations without extra error data',
+    async (Tool, method, input, message) => {
+      const facade = {
+        [method]: jest
+          .fn()
+          .mockRejectedValue(new BadRequestException({ message, providerDetails: 'NEVER_EXPOSE' })),
+      };
+      const result = new Tool(facade as never, origin as never).handler(input as never, context);
+
+      await expect(result).rejects.toMatchObject({ status: 400, message });
+      await result.catch(error => expect(JSON.stringify(error)).not.toContain('NEVER_EXPOSE'));
+    }
+  );
+
+  it.each(unsupportedOperations)(
+    '%s does not expose diagnostics appended to a known message',
+    async (Tool, method, input, message) => {
+      const facade = {
+        [method]: jest.fn().mockRejectedValue(new BadRequestException(`${message} NEVER_EXPOSE`)),
+      };
+      const result = new Tool(facade as never, origin as never).handler(input as never, context);
+
+      await expect(result).rejects.toMatchObject({ status: 400 });
+      await result.catch(error => expect(JSON.stringify(error)).not.toContain('NEVER_EXPOSE'));
+    }
+  );
 
   it('preserves a provider validation failure as a bad request without its diagnostic text', async () => {
     const facade = {

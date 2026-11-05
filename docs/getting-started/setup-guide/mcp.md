@@ -562,6 +562,10 @@ Use `add_destination` to create a Destination.
 | `delete_destination`            | Supply `destination_id`. Deletion fails while Reports reference the Destination. It preserves saved Credentials and external documents.           |
 | `rotate_destination_secret_key` | Supply `destination_id`. Rotates the Looker Studio key. Returns the Destination URL, never the key.                                               |
 
+`get_destination` and `update_destination` return `destination_id`,
+`connected_google_account`, and `created_at`.
+`list_destinations` returns `id`, `connectedGoogleAccount`, and `createdAt`.
+
 To create a Credential, use `list_credential_definitions` to match `destination_types`
 and the required authentication method. Pass the matching `definition_id` to
 `start_credential_setup`. Use `google-sheets-oauth` for Google Sheets sign-in,

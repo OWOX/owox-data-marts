@@ -8,6 +8,11 @@ import {
 } from '@nestjs/common';
 import { BusinessViolationException } from '../../../../common/exceptions/business-violation.exception';
 
+const SAFE_BAD_REQUEST_MESSAGES = new Set([
+  'Only Looker Studio destinations support key rotation.',
+  'Only Google Sheets destinations support a Drive folder.',
+]);
+
 /** Provider errors can contain saved Credential values. Return only fixed messages. */
 export async function destinationToolCall<T>(
   execute: () => Promise<T>,
@@ -17,6 +22,10 @@ export async function destinationToolCall<T>(
     return await execute();
   } catch (error) {
     const status = error instanceof HttpException ? error.getStatus() : undefined;
+    if (error instanceof BadRequestException && SAFE_BAD_REQUEST_MESSAGES.has(error.message)) {
+      // Rebuild the exception to discard extra fields in its response.
+      throw new BadRequestException(error.message);
+    }
     if (status === 403) {
       throw new ForbiddenException('You do not have permission for this Destination operation.');
     }

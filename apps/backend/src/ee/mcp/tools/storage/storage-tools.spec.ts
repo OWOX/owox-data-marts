@@ -137,6 +137,47 @@ describe('Storage MCP tools', () => {
     ).rejects.toBeInstanceOf(z.ZodError);
   });
 
+  const setupErrors = [
+    [
+      UpdateStorageTool,
+      'update',
+      { storage_id: 'storage', credential_id: 'credential' },
+      'Set the Storage configuration before selecting a Credential.',
+    ],
+    [
+      ListStorageResourcesTool,
+      'listResources',
+      { storage_id: 'storage', level: 'namespaces' },
+      'Configure this Storage before listing resources.',
+    ],
+  ] as const;
+
+  it.each(setupErrors)(
+    '%s returns setup guidance without extra error data',
+    async (Tool, method, input, message) => {
+      const api = facade();
+      api[method].mockRejectedValue(
+        new BadRequestException({ message, providerDetails: 'NEVER_EXPOSE' })
+      );
+      const result = new Tool(api as never).handler(input as never, context);
+
+      await expect(result).rejects.toMatchObject({ status: 400, message });
+      await result.catch(error => expect(JSON.stringify(error)).not.toContain('NEVER_EXPOSE'));
+    }
+  );
+
+  it.each(setupErrors)(
+    '%s does not expose diagnostics appended to a known message',
+    async (Tool, method, input, message) => {
+      const api = facade();
+      api[method].mockRejectedValue(new BadRequestException(`${message} token=NEVER_EXPOSE`));
+      const result = new Tool(api as never).handler(input as never, context);
+
+      await expect(result).rejects.toMatchObject({ status: 400 });
+      await result.catch(error => expect(JSON.stringify(error)).not.toContain('NEVER_EXPOSE'));
+    }
+  );
+
   it.each(cases.filter(([, method]) => ['list', 'get', 'create', 'validate'].includes(method)))(
     '%s removes private details from unexpected errors',
     async (Tool, method, input) => {
