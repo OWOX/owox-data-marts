@@ -333,7 +333,8 @@ from the rows:
 - **Grand totals.** Rows do not carry them. OWOX computes totals for the read's metrics in a
   separate query and records them on the run. Read every row first, then call
   `ctx.owox.runs.forDataMart(id).get(data.runId)`; its `totals` is `null` when there was nothing to
-  total or the totals query failed.
+  total or the totals query failed. They never include a Unique Count, and per-group counts do not
+  add up to it: for the overall count, read again without `column`.
 - **Errors.** A failure while opening the stream arrives wrapped, as described in
   [Handle request errors](#handle-request-errors).
 
