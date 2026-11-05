@@ -2,7 +2,7 @@
 
 ## 0.42.0
 
-### Minor Changes
+### Minor Changes 0.42.0
 
 - 47370ba: **Manage integration access with your AI assistant and keep secrets out of chat**
 
@@ -121,7 +121,7 @@
 
   <!-- markdownlint-disable-file MD036 MD041 -->
 
-### Patch Changes
+### Patch Changes 0.42.0
 
 - @owox/internal-helpers@0.42.0
 - @owox/idp-protocol@0.42.0
