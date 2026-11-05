@@ -168,6 +168,8 @@ Use `--aggregation` and `--date-bucket` with JSON arrays to group the streamed r
 
 Aggregation and date buckets require an explicit `--column` projection; they cannot combine with `--columns '*'` or `--columns '**'`, because a wildcard selection would turn every column into a grouping key. For a single grand total, select only the aggregated column (no grouping keys → one row). When you aggregate, the streamed row keys are the resolved output labels — an aggregated column becomes `"<column> | <TOKEN>"`. `<TOKEN>` is an uppercase spreadsheet-style token for the function: most match the function name, but `COUNT_DISTINCT` becomes `COUNTUNIQUE`, `P50` becomes `MEDIAN`, `STRING_AGG` becomes `STRINGAGG`, and `ANY_VALUE` becomes `ANYVALUE`.
 
+Use `--unique-count` with a JSON array of source alias paths to count distinct records by primary key, the same as a report's Unique Count: `""` is the Data Mart itself, and a joined Data Mart is named by its alias path, for example `--unique-count '["","orders"]'`. Without `--column` you get a single total row; with `--column` values you get a count per group. It cannot combine with `--columns '*'` or `--columns '**'`. See [Stream Data Mart rows](api-client.md#stream-data-mart-rows) for the output keys and rules.
+
 ## Use owox-ctl with AI agents
 
 AI agents can call `owox-ctl` as a regular terminal command. This lets AI agents inspect available data marts, storages, destinations, and Data Mart rows without building a direct integration with the OWOX Data Marts API.

@@ -84,6 +84,8 @@ export interface BlendingDecisionOptions {
    * validator's disconnected error, so the caller learns about the drift.
    */
   degradeStaleSort?: boolean;
+  /** See `OutputControlsValidatorService.validateForReport`; set by the ad-hoc HTTP Data read. */
+  rejectUnavailableUniqueCountSources?: boolean;
 }
 
 @Injectable()
@@ -182,6 +184,7 @@ export class BlendedReportDataService {
       accessor,
       dataMartSchemaFields: dataMart.schema?.fields,
       precomputedBlendableSchema: blendableSchema,
+      rejectUnavailableUniqueCountSources: options?.rejectUnavailableUniqueCountSources,
     });
 
     const postJoinFilterColumns: string[] = [];

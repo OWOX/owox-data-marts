@@ -3,6 +3,7 @@ import { FilterConfigSchema } from './filter-config.schema';
 import { SortConfigSchema } from './sort-config.schema';
 import { AggregationConfigSchema } from './aggregation-config.schema';
 import { DateTruncConfigSchema } from './date-trunc-config.schema';
+import { UNIQUE_COUNT_CONFIG_MAX_SOURCES } from './unique-count-config.schema';
 
 export const HTTP_DATA_MAX_ENCODED_PARAM_LENGTH = 8192;
 
@@ -20,8 +21,14 @@ type ColumnSetSelector = typeof ALL_NATIVE_COLUMNS | typeof ALL_BLENDABLE_COLUMN
 
 function toColumnSelector(
   columnsSelector: ColumnSetSelector | undefined,
-  exactColumns: string[]
+  exactColumns: string[],
+  hasUniqueCount: boolean
 ): ColumnSelector {
+  // A Unique Count with no column selection is a metrics-only read (one total row), the same
+  // reading Reports give an empty `columnConfig` beside a Unique Count.
+  if (hasUniqueCount && columnsSelector === undefined && exactColumns.length === 0) {
+    return { mode: 'explicit', explicit: [] };
+  }
   if (columnsSelector === ALL_BLENDABLE_COLUMNS) {
     return { mode: 'allBlendable' };
   }
@@ -80,6 +87,18 @@ const FilterParamSchema = makeEncodedConfigParam(FilterConfigSchema, 'filter');
 const SortParamSchema = makeEncodedConfigParam(SortConfigSchema, 'sort');
 const AggregationParamSchema = makeEncodedConfigParam(AggregationConfigSchema, 'aggregation');
 const DateTruncParamSchema = makeEncodedConfigParam(DateTruncConfigSchema, 'dateTrunc');
+// Sources only, at least one: the Reports union's `true`/`false`/`null` stay out of this new
+// contract, and `[]` would read every native row of the Data Mart instead of counting anything.
+const UniqueCountParamSchema = makeEncodedConfigParam(
+  z
+    .array(z.string())
+    .min(1, 'list at least one source')
+    .max(
+      UNIQUE_COUNT_CONFIG_MAX_SOURCES,
+      `at most ${String(UNIQUE_COUNT_CONFIG_MAX_SOURCES)} sources`
+    ),
+  'uniqueCount'
+);
 
 export const LimitParamSchema = z.coerce
   .number({ error: 'limit must be an integer' })
@@ -129,6 +148,7 @@ export const HttpDataQuerySchema = z
     sort: SortParamSchema.optional(),
     aggregation: AggregationParamSchema.optional(),
     dateTrunc: DateTruncParamSchema.optional(),
+    uniqueCount: UniqueCountParamSchema.optional(),
     limit: LimitParamSchema.optional(),
   })
   .passthrough()
@@ -167,13 +187,26 @@ export const HttpDataQuerySchema = z
           'selection (which would group by every column)',
       });
     }
+    // Same footgun for Unique Count: a wildcard makes every column a grouping key, so each count
+    // degenerates to its own row. An empty selection is allowed — it reads as metrics-only.
+    if (value.uniqueCount !== undefined && value.columns !== undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['uniqueCount'],
+        message:
+          `"uniqueCount" cannot combine with "${ALL_NATIVE_COLUMNS}"/"${ALL_BLENDABLE_COLUMNS}" ` +
+          '(which would group by every column); omit the column selection for a single total ' +
+          'row, or pass explicit "column" values to count per group',
+      });
+    }
   })
   .transform(value => ({
-    columnSelector: toColumnSelector(value.columns, value.column),
+    columnSelector: toColumnSelector(value.columns, value.column, value.uniqueCount !== undefined),
     filter: value.filter,
     sort: value.sort,
     aggregation: value.aggregation,
     dateTrunc: value.dateTrunc,
+    uniqueCount: value.uniqueCount,
     limit: value.limit,
   }));
 

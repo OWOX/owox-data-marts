@@ -485,6 +485,15 @@ To filter an aggregated value after grouping, set the filter rule's `function` t
 
 Use `aggregation` and `dateTrunc` arrays to group the streamed rows, with the same rule shapes as report output controls. `aggregation` takes `{ column, function }` rules; `function` is any report aggregate function — `SUM`, `AVG`, `MIN`, `MAX`, `COUNT`, `COUNT_DISTINCT`, `STRING_AGG`, `ANY_VALUE`, or a percentile (`P25`, `P50`, `P75`, `P95`). `dateTrunc` takes `{ column, unit, timeZone? }` rules that bucket a date/timestamp dimension by `DAY`, `WEEK`, `MONTH`, `QUARTER`, or `YEAR`. Any selected column without an aggregation rule becomes a grouping key. Aggregation and `dateTrunc` require an explicit `column` list — they cannot combine with `columns: '*'` or `columns: '**'` (a wildcard would group by every column). The streamed row keys are the resolved labels: an aggregated column becomes `"<column> | <TOKEN>"`, where `<TOKEN>` is an uppercase spreadsheet-style token — most match the function name, but `COUNT_DISTINCT` becomes `COUNTUNIQUE`, `P50` becomes `MEDIAN`, `STRING_AGG` becomes `STRINGAGG`, and `ANY_VALUE` becomes `ANYVALUE`.
 
+Use `uniqueCount` to count distinct records, the same as a report's Unique Count. It takes a non-empty list of source alias paths: `''` is the Data Mart itself, and a joined Data Mart is named by its alias path. Each source counts distinct values of its primary key, whatever the key type — unlike `COUNT_DISTINCT` in `aggregation`, which numeric fields do not allow. The row key is `Unique Count` for the Data Mart itself and `<alias path>__unique_count` for a joined source (dots in the path become `_`, so `orders.items` gives `orders_items__unique_count`); a `sort` rule may name that key, as in reports. Omit `columns` and `column` to get a single total row, or pass a `column` list to count per group. Run `totals` do not include a Unique Count, and per-group counts do not add up to the overall count, since one record can fall into several groups; for the overall number, make a separate read without `column`. `uniqueCount` cannot combine with `columns: '*'` or `columns: '**'`, and a single-total-row read cannot take a `pre-join` filter (`PRE_JOIN_FILTERS_REQUIRE_COLUMN_CONFIG`). A Unique Count key cannot be listed in `column` or used in a `filter`, `aggregation`, or `dateTrunc` rule. An empty list, a source without a primary key, or a joined Data Mart that is not joined, excluded from reporting, or not accessible to you, is rejected with a 400.
+
+```ts
+const counts = await client.dataMarts.traverseData('dm_123', { uniqueCount: [''] });
+for await (const rows of counts.rowChunks()) {
+  console.log(rows[0]?.['Unique Count']);
+}
+```
+
 ## List storages
 
 ```ts

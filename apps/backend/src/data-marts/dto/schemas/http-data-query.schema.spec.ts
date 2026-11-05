@@ -182,6 +182,52 @@ describe('HttpDataQuerySchema — aggregation/dateTrunc require an explicit proj
   });
 });
 
+describe('HttpDataQuerySchema — uniqueCount', () => {
+  it('decodes the source list and reads an empty column selection as metrics-only', () => {
+    const result = parse({ uniqueCount: b64(['', 'orders']) });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.uniqueCount).toEqual(['', 'orders']);
+      expect(result.data.columnSelector).toEqual({ mode: 'explicit', explicit: [] });
+    }
+  });
+
+  it('groups by explicit columns', () => {
+    const result = parse({ column: 'country', uniqueCount: b64(['']) });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.columnSelector).toEqual({ mode: 'explicit', explicit: ['country'] });
+    }
+  });
+
+  it('rejects a wildcard selector beside a Unique Count and points the issue at uniqueCount', () => {
+    const result = parse({ columns: '*', uniqueCount: b64(['']) });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues.map(i => i.path)).toContainEqual(['uniqueCount']);
+    }
+  });
+
+  // `[]` would otherwise mean "no Unique Count" and read every native row instead of counting.
+  it.each([[[]], [true], [false], [null]])('rejects %j: only a non-empty source list', value => {
+    const result = parse({ uniqueCount: b64(value) });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues[0].message).toMatch(/^Invalid uniqueCount: /);
+    }
+  });
+
+  it('accepts exactly the cap', () => {
+    const result = parse({ uniqueCount: b64(Array.from({ length: 50 }, (_, i) => `s${i}`)) });
+    expect(result.success).toBe(true);
+  });
+
+  it('rejects more sources than the cap', () => {
+    const result = parse({ uniqueCount: b64(Array.from({ length: 51 }, (_, i) => `s${i}`)) });
+    expect(result.success).toBe(false);
+  });
+});
+
 describe('HttpReportDataQuerySchema', () => {
   it('coerces a numeric limit', () => {
     expect(HttpReportDataQuerySchema.parse({ limit: '5' })).toEqual({ limit: 5 });

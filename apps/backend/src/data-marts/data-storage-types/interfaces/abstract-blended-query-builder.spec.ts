@@ -3087,6 +3087,31 @@ describe('AbstractBlendedQueryBuilder — calculated field', () => {
     expect(sql.slice(sql.lastIndexOf('GROUP BY'))).toBe('GROUP BY\n  main.channel');
   });
 
+  // An HTTP Data read with `uniqueCount=["orders"]` and no column selection: a metrics-only joined
+  // count projects no dimension, so the outer query is one total row — never a `SELECT *`.
+  it('renders a metrics-only joined Unique Count as a single total row', () => {
+    const { sql } = builder.buildBlendedQuery({
+      ...buildContext([ordersChain()], []),
+      uniqueCountSources: [
+        {
+          aliasPath: 'orders',
+          cteName: 'orders',
+          pkColumns: ['order_id'],
+          outputLabel: 'orders__unique_count',
+        },
+      ],
+    });
+
+    const outer = sql.slice(sql.lastIndexOf('\n\nSELECT\n'));
+    expect(outer).toBe(
+      '\n\nSELECT\n' +
+        '  COALESCE(ANY_VALUE(sleeve_uc_orders.orders__unique_count), 0) AS orders__unique_count\n' +
+        'FROM main\n' +
+        'LEFT JOIN orders ON main.customer_id = orders.customer_id\n' +
+        'CROSS JOIN sleeve_uc_orders'
+    );
+  });
+
   // Sorting by a calculated field is SUPPORTED and `validateSort` only checks the column is
   // selected — so this saves as a 200 and
   // then has to run. The metric's name is an outer-SELECT alias, never a warehouse column: leaving

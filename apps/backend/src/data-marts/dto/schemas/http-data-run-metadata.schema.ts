@@ -3,6 +3,7 @@ import { FilterConfigSchema } from './filter-config.schema';
 import { SortConfigSchema } from './sort-config.schema';
 import { AggregationConfigSchema } from './aggregation-config.schema';
 import { DateTruncConfigSchema } from './date-trunc-config.schema';
+import { UniqueCountConfigSchema } from './unique-count-config.schema';
 import { SourceDataLastUpdatedSchema } from './source-data-last-updated.schema';
 
 export const HTTP_DATA_FORMAT = 'ndjson' as const;
@@ -42,6 +43,7 @@ export const HttpDataRunMetadataSchema = z.object({
   sort: SortConfigSchema.optional(),
   aggregation: AggregationConfigSchema.optional(),
   dateTrunc: DateTruncConfigSchema.optional(),
+  uniqueCount: UniqueCountConfigSchema.optional(),
   limit: z.number().int().positive().optional(),
   dataDescription: z.object({ dataHeaders: z.array(DataHeaderSchema) }).optional(),
   rowCount: z.number().int().nonnegative().optional(),

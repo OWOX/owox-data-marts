@@ -321,8 +321,8 @@ the declared scopes, the request fails with `CREDENTIAL_SCOPE_INVALID` (400); fi
 ## Read Data Mart data
 
 `ctx.owox.dataMarts.traverseData()` streams a Data Mart's rows. Its columns, filters, sorting,
-aggregation, and date buckets are documented in the
-[API client reference](../api/api-client.md#stream-data-mart-rows). Four things are not visible
+aggregation, date buckets, and Unique Count (`uniqueCount`) are documented in the
+[API client reference](../api/api-client.md#stream-data-mart-rows). Three things are not visible
 from the rows:
 
 - **Schema.** `dataMarts.list()` returns no schema. Read a Data Mart's fields, with their types and
@@ -330,13 +330,11 @@ from the rows:
   joined fields, read ``ctx.owox.getJson(`/api/data-marts/${id}/blendable-schema`)``:
   `blendedFields[].name` is the column name to request, and `availableSources[].aliasPath`
   identifies a joined source. A `pre-join` filter may reference only a joined source's columns.
-- **Unique count.** The Unique Count metric that reports offer is not available here. For a
-  single-column primary key, aggregate it with `COUNT_DISTINCT`; `blendable-schema` lists the key
-  in `mainUniqueCountKeyFields`.
 - **Grand totals.** Rows do not carry them. OWOX computes totals for the read's metrics in a
   separate query and records them on the run. Read every row first, then call
   `ctx.owox.runs.forDataMart(id).get(data.runId)`; its `totals` is `null` when there was nothing to
-  total or the totals query failed.
+  total or the totals query failed. They never include a Unique Count, and per-group counts do not
+  add up to it: for the overall count, read again without `column`.
 - **Errors.** A failure while opening the stream arrives wrapped, as described in
   [Handle request errors](#handle-request-errors).
 

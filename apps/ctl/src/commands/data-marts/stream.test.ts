@@ -115,4 +115,14 @@ describe('data-marts stream', () => {
       '--date-bucket must be valid JSON'
     );
   });
+
+  it('parses the unique-count flag as a JSON array of source alias paths', () => {
+    expect(buildTraverseDataOptions({ 'unique-count': '["","orders"]' }).uniqueCount).toEqual([
+      '',
+      'orders',
+    ]);
+    expect(() => buildTraverseDataOptions({ 'unique-count': '""' })).toThrow(
+      '--unique-count must be a JSON array'
+    );
+  });
 });

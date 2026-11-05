@@ -3603,6 +3603,24 @@ describe('BlendedReportDataService', () => {
           expect.objectContaining({ uniqueCountConfig: true })
         );
       });
+
+      it('forwards rejectUnavailableUniqueCountSources for an ad-hoc read', async () => {
+        const report = makeReport({ columnConfig: ['native_field'], uniqueCountConfig: [''] });
+
+        blendableSchemaService.computeBlendableSchema.mockResolvedValue(makeBlendableSchema([]));
+
+        await service.resolveBlendingDecision(
+          report,
+          { userId: 'user-1', roles: ['admin'] },
+          undefined,
+          undefined,
+          { rejectUnavailableUniqueCountSources: true }
+        );
+
+        expect(outputControlsValidator.validateForReport).toHaveBeenCalledWith(
+          expect.objectContaining({ rejectUnavailableUniqueCountSources: true })
+        );
+      });
     });
 
     describe('joined Unique Count sources (#6792)', () => {

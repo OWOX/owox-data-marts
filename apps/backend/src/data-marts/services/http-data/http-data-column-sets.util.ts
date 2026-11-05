@@ -22,6 +22,10 @@ export interface ReportingColumns {
    * be projected at all, so sweeping it in would turn an existing, unchanged wildcard request
    * into a 400 the day someone adds a formula to a Data Mart it merely joins. */
   implicitAllBlended: string[];
+  /** Alias paths of the joined sources this endpoint reads — included and accessible, the same
+   * predicate `blended` is filtered by. A Unique Count may name only these: any other source is
+   * dropped from the SQL downstream, and the read would silently lose its count. */
+  reportableSources: string[];
 }
 
 export function nativeColumnNames(schema: BlendableSchemaDto): string[] {
@@ -34,12 +38,14 @@ export function implicitAllNativeColumnNames(schema: BlendableSchemaDto): string
 }
 
 // Must stay in sync with the web ReportColumnPicker visibility predicate.
+export function reportableSourcePaths(schema: BlendableSchemaDto): string[] {
+  return schema.availableSources
+    .filter(source => source.isIncluded && source.isAccessibleForReporting)
+    .map(source => source.aliasPath);
+}
+
 export function visibleBlendedColumnNames(schema: BlendableSchemaDto): string[] {
-  const includedPaths = new Set(
-    schema.availableSources
-      .filter(source => source.isIncluded && source.isAccessibleForReporting)
-      .map(source => source.aliasPath)
-  );
+  const includedPaths = new Set(reportableSourcePaths(schema));
   return schema.blendedFields
     .filter(field => includedPaths.has(field.aliasPath) && !field.isHidden)
     .map(field => field.name);

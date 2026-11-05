@@ -10,6 +10,7 @@ import {
 } from '@nestjs/swagger';
 import { IN_LIST_MAX_VALUES } from '../../../dto/schemas/filter-config.schema';
 import { HTTP_DATA_MAX_ENCODED_PARAM_LENGTH } from '../../../dto/schemas/http-data-query.schema';
+import { UNIQUE_COUNT_CONFIG_MAX_SOURCES } from '../../../dto/schemas/unique-count-config.schema';
 
 const ENCODED_HTTP_DATA_QUERY_SCHEMA = {
   type: 'string',
@@ -26,7 +27,8 @@ export function StreamHttpDataSpec() {
         '(one data row per line, no envelope). Output selectors use `columns=*` or ' +
         '`columns=**`; exact column names use repeated `column` parameters. Row objects ' +
         'use resolved column names as keys in the requested order. Omit both `columns` ' +
-        'and `column`, or pass `columns=*`, for all native columns. Pass `columns=**` ' +
+        'and `column` (without `uniqueCount`), or pass `columns=*`, for all native columns. ' +
+        'Pass `columns=**` ' +
         'for all native plus all reporting-visible blended columns. When `aggregation` or ' +
         '`dateTrunc` is used the row keys are the RESOLVED output labels — an aggregated ' +
         'column becomes `"<column> | <TOKEN>"`, where `<TOKEN>` is an uppercase ' +
@@ -34,7 +36,10 @@ export function StreamHttpDataSpec() {
         '`COUNT_DISTINCT` becomes `COUNTUNIQUE`, `P50` becomes `MEDIAN`, `STRING_AGG` becomes ' +
         '`STRINGAGG`, `ANY_VALUE` becomes `ANYVALUE`) — and an explicit `column` projection is ' +
         'required (a wildcard selector ' +
-        'would group by every column). Authenticated ' +
+        'would group by every column). With `uniqueCount` each requested source adds a ' +
+        '`COUNT(DISTINCT <primary key>)` column, keyed `Unique Count` for the Data Mart itself ' +
+        'and `<alias path>__unique_count` for a joined source (dots in the path become `_`). ' +
+        'Authenticated ' +
         'with the ODM member token via `x-owox-authorization`. Successful executions and ' +
         'execution failures are recorded as DataMartRuns of type HTTP_DATA, available through ' +
         'the run history endpoint. Requests rejected because of invalid query configuration ' +
@@ -52,7 +57,8 @@ export function StreamHttpDataSpec() {
         '`**` selects all columns available to Reports, including joined fields. ' +
         '`columns=*` may be combined with repeated `column` values. `columns=**` cannot ' +
         'be combined with `column` or another `columns` value. Omit `columns` and ' +
-        '`column` to select all current Data Mart output columns.',
+        '`column` to select all current Data Mart output columns, unless `uniqueCount` is ' +
+        'given: then the read returns a single total row.',
       required: false,
       enum: ['*', '**'],
       example: '*',
@@ -127,6 +133,26 @@ export function StreamHttpDataSpec() {
       example: 'W3siY29sdW1uIjoiZGF0ZSIsInVuaXQiOiJNT05USCJ9XQ',
     }),
     ApiQuery({
+      name: 'uniqueCount',
+      description:
+        'Optional base64url-encoded non-empty JSON array of Unique Count sources: source alias ' +
+        'paths, where an empty string is the Data Mart itself. Each source counts distinct ' +
+        'values of its primary key, whatever the key type, and the array holds 1 to ' +
+        `${String(UNIQUE_COUNT_CONFIG_MAX_SOURCES)} sources. ` +
+        'The output key is `Unique Count` for the Data Mart itself and ' +
+        '`<alias path>__unique_count` for a joined source (dots in the path become `_`); a ' +
+        '`sort` rule may name that key, as in Reports. Omit `columns` and `column` for a ' +
+        'single total row, or pass explicit `column` values to count per group; `columns=*` and ' +
+        '`columns=**` are rejected, and so is a `pre-join` filter on a single-total-row read. ' +
+        'A source without a primary key, or a joined Data Mart that is not joined, excluded ' +
+        'from reporting or not accessible to the caller, is rejected. A Unique Count key cannot ' +
+        'be listed in `column` or used in a `filter`, `aggregation` or `dateTrunc` rule. ' +
+        'Example JSON: `[""]` → base64url `WyIiXQ`.',
+      required: false,
+      schema: ENCODED_HTTP_DATA_QUERY_SCHEMA,
+      example: 'WyIiXQ',
+    }),
+    ApiQuery({
       name: 'limit',
       description: 'Optional row cap (positive integer).',
       required: false,
@@ -162,8 +188,12 @@ export function StreamHttpDataSpec() {
       description:
         'Invalid request: unknown column (including in an aggregation or dateTrunc rule), ' +
         'forbidden pagination parameter (`pageToken`/`offset`), malformed ' +
-        'filter/sort/aggregation/dateTrunc/limit, aggregation or dateTrunc without an explicit ' +
-        '`column` projection, unsupported storage type, or a project blocked because it is ' +
+        'filter/sort/aggregation/dateTrunc/uniqueCount/limit, aggregation or dateTrunc without an ' +
+        'explicit `column` projection, an empty uniqueCount, uniqueCount with ' +
+        '`columns=*`/`columns=**`, a Unique Count source without a primary key or not available ' +
+        'for reporting, a Unique Count key in `column`/filter/aggregation/dateTrunc, ' +
+        'unsupported storage type, ' +
+        'or a project blocked because it is ' +
         'inactive or has exceeded its credit limit. Invalid query parameters create no run. ' +
         'Errors in saved Data Mart configuration create a FAILED run. Project blocks create ' +
         'RESTRICTED runs. No 400 response carries an `x-owox-run-id` header.',

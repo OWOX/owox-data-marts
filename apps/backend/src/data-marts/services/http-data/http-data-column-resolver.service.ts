@@ -7,7 +7,11 @@ import { ReportingColumns } from './http-data-column-sets.util';
 export class HttpDataColumnResolver {
   resolve(selector: ColumnSelector, columns: ReportingColumns): string[] {
     const resolved = [...new Set(this.select(selector, columns))];
-    if (resolved.length === 0) {
+    // An empty EXPLICIT selection is a metrics-only Unique Count read (see `toColumnSelector`). It
+    // still needs a Data Mart with reporting columns, like any read: with none, the shared
+    // validator has no actualized schema and skips the primary-key check the count relies on.
+    const offersNoColumn = columns.native.length === 0 && columns.blended.length === 0;
+    if (resolved.length === 0 && (selector.mode !== 'explicit' || offersNoColumn)) {
       throw new BusinessViolationException('No columns available for the requested Data Mart');
     }
     return resolved;

@@ -26,12 +26,13 @@ type DataMartsStreamFlags = {
   sort?: string;
   aggregation?: string;
   'date-bucket'?: string;
+  'unique-count'?: string;
   limit?: number;
 };
 
 function parseJsonArrayFlag<T>(
   value: string | undefined,
-  flagName: '--filter' | '--sort' | '--aggregation' | '--date-bucket'
+  flagName: '--filter' | '--sort' | '--aggregation' | '--date-bucket' | '--unique-count'
 ): T[] | undefined {
   if (value === undefined) {
     return undefined;
@@ -64,6 +65,7 @@ export function buildTraverseDataOptions(flags: DataMartsStreamFlags): TraverseD
       '--aggregation'
     ),
     dateTrunc: parseJsonArrayFlag<TraverseDataDateTruncRule>(flags['date-bucket'], '--date-bucket'),
+    uniqueCount: parseJsonArrayFlag<string>(flags['unique-count'], '--unique-count'),
     limit: flags.limit,
   };
 }
@@ -126,6 +128,10 @@ export default class DataMartsStream extends BaseCommand {
     'date-bucket': Flags.string({
       description:
         'Date-bucket config as a JSON array of {column, unit, timeZone?}, truncating a date/timestamp dimension by DAY/WEEK/MONTH/QUARTER/YEAR.',
+    }),
+    'unique-count': Flags.string({
+      description:
+        'Unique Count sources as a JSON array of alias paths, with "" for the Data Mart itself.',
     }),
   };
 
