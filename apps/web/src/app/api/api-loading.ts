@@ -2,6 +2,8 @@ import type { AxiosInstance } from 'axios';
 import type { AxiosRequestConfig } from './apiClient';
 
 let pendingRequests = 0;
+/** The open plugin's loading work, if any; `progress` is a fraction from 0 to 1. */
+let pluginLoading: { progress?: number } | undefined;
 const listeners = new Set<() => void>();
 
 export function subscribeToApiLoading(listener: () => void) {
@@ -11,13 +13,26 @@ export function subscribeToApiLoading(listener: () => void) {
   };
 }
 
-export const isApiLoading = () => pendingRequests > 0;
+/** Also true while the open plugin reports loading. */
+export const isApiLoading = () => pendingRequests > 0 || pluginLoading !== undefined;
 
-function updatePendingRequests(change: number) {
-  pendingRequests += change;
+export const getLoadingProgress = () => pluginLoading?.progress;
+
+function notify() {
   listeners.forEach(listener => {
     listener();
   });
+}
+
+function updatePendingRequests(change: number) {
+  pendingRequests += change;
+  notify();
+}
+
+/** Only one plugin is open at a time, so its state replaces the previous one. */
+export function setPluginLoading(state: { active: boolean; progress?: number }) {
+  pluginLoading = state.active ? { progress: state.progress } : undefined;
+  notify();
 }
 
 export function withLoadingIndicator(client: AxiosInstance): AxiosInstance {

@@ -419,3 +419,136 @@ describe('connect', () => {
     await refused;
   });
 });
+
+describe('ctx.ui.startLoading', () => {
+  beforeEach(() => {
+    __resetForTests();
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    unframe();
+  });
+
+  async function connectedLoading() {
+    const parent = pretendToBeFramed();
+    const channel = new MessageChannel();
+    const sent: unknown[] = [];
+    const raw: unknown[] = [];
+    channel.port1.onmessage = event => {
+      const message = event.data as { kind?: string; active?: boolean; progress?: number };
+      if (message.kind === 'loading') {
+        raw.push(message);
+        sent.push({ active: message.active, progress: message.progress });
+      }
+    };
+    channel.port1.start();
+
+    const pending = connect();
+    await vi.advanceTimersByTimeAsync(0);
+    deliverFromParent(parent, hostInit(), [channel.port2]);
+    const context = await pending;
+    const flush = async () => {
+      await vi.advanceTimersByTimeAsync(0);
+      return sent.splice(0);
+    };
+    return { ui: context.ui, flush, raw };
+  }
+
+  it('posts a request the host can accept', async () => {
+    const { ui, flush, raw } = await connectedLoading();
+
+    ui.startLoading();
+    await flush();
+
+    expect(raw).toEqual([{ id: expect.any(String), kind: 'loading', active: true }]);
+  });
+
+  it('shows the bar until the last loading stops, and a repeated stop sends nothing', async () => {
+    const { ui, flush } = await connectedLoading();
+
+    const first = ui.startLoading();
+    const second = ui.startLoading();
+    expect(await flush()).toEqual([{ active: true, progress: undefined }]);
+
+    first.stop();
+    first.stop();
+    expect(await flush()).toEqual([]);
+
+    second.stop();
+    expect(await flush()).toEqual([{ active: false, progress: undefined }]);
+  });
+
+  it('reports the mean progress, and none while any loading has no progress', async () => {
+    const { ui, flush } = await connectedLoading();
+
+    const rows = ui.startLoading();
+    rows.setProgress(0.4);
+    expect(await flush()).toEqual([
+      { active: true, progress: undefined },
+      { active: true, progress: 0.4 },
+    ]);
+
+    const charts = ui.startLoading();
+    expect(await flush()).toEqual([{ active: true, progress: undefined }]);
+
+    charts.setProgress(0.8);
+    expect(await flush()).toEqual([{ active: true, progress: 0.6 }]);
+
+    charts.stop();
+    charts.setProgress(1);
+    expect(await flush()).toEqual([{ active: true, progress: 0.4 }]);
+  });
+
+  it('sends a progress change only when it moves by a whole percent', async () => {
+    const { ui, flush } = await connectedLoading();
+
+    const loading = ui.startLoading();
+    loading.setProgress(0.5);
+    loading.setProgress(0.501);
+    loading.setProgress(0.504);
+    loading.setProgress(0.51);
+    expect(await flush()).toEqual([
+      { active: true, progress: undefined },
+      { active: true, progress: 0.5 },
+      { active: true, progress: 0.51 },
+    ]);
+  });
+
+  it.each([
+    [40, 1],
+    [Number.POSITIVE_INFINITY, 1],
+    [-0.1, 0],
+  ])('clamps progress %s to %s', async (value, shown) => {
+    const { ui, flush } = await connectedLoading();
+
+    ui.startLoading().setProgress(value);
+
+    expect(await flush()).toEqual([
+      { active: true, progress: undefined },
+      { active: true, progress: shown },
+    ]);
+  });
+
+  it.each([Number.NaN, '0.5', null, true])(
+    'ignores progress %j, which is not a number',
+    async value => {
+      const { ui, flush } = await connectedLoading();
+
+      ui.startLoading().setProgress(value as number);
+
+      expect(await flush()).toEqual([{ active: true, progress: undefined }]);
+    }
+  );
+
+  it('hides the bar when the plugin page goes away while loading', async () => {
+    const { ui, flush } = await connectedLoading();
+    ui.startLoading();
+    await flush();
+
+    window.dispatchEvent(new Event('pagehide'));
+
+    expect(await flush()).toContainEqual({ active: false, progress: undefined });
+  });
+});

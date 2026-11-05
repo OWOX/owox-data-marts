@@ -1,7 +1,8 @@
 import type { ReactNode } from 'react';
-import { render, screen } from '@testing-library/react';
+import { act, render, screen } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { setPluginLoading } from '../app/api/api-loading';
 import type { User } from '../features/idp/types';
 import MainLayout from './MainLayout';
 
@@ -52,6 +53,22 @@ vi.mock('../components/Logo', () => ({
 describe('MainLayout', () => {
   beforeEach(() => {
     currentUser.value = user([]);
+  });
+
+  afterEach(() => {
+    act(() => {
+      setPluginLoading({ active: false });
+    });
+  });
+
+  it('shows the plugin progress in the top loading bar', () => {
+    const { container } = renderLayout();
+
+    act(() => {
+      setPluginLoading({ active: true, progress: 0.4 });
+    });
+
+    expect(container.querySelector('[style*="width: 40%"]')).not.toBeNull();
   });
 
   it('renders the restricted project shell for users with empty project roles', () => {

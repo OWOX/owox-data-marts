@@ -1,6 +1,7 @@
 import { act, cleanup, renderHook } from '@testing-library/react';
 import { AxiosError, CanceledError, type AxiosAdapter, type AxiosResponse } from 'axios';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { setPluginLoading } from '../../../app/api/api-loading';
 import apiClient, { type AxiosRequestConfig } from '../../../app/api/apiClient';
 import { clearTokenProvider, setTokenProvider } from '../../../app/api/token-provider';
 import { LoadingProvider } from './LoadingContext';
@@ -346,5 +347,58 @@ describe('LoadingProvider with the API client', () => {
       });
     }
     expect(remounted.result.current.isLoading).toBe(false);
+  });
+});
+
+describe('LoadingProvider with a plugin', () => {
+  afterEach(() => {
+    act(() => {
+      setPluginLoading({ active: false });
+    });
+    cleanup();
+  });
+
+  it('shows the plugin loading and its progress until the plugin stops', () => {
+    const { result } = renderHook(useLoading, { wrapper: LoadingProvider });
+
+    act(() => {
+      setPluginLoading({ active: true });
+    });
+    expect(result.current).toEqual({ isLoading: true, progress: undefined });
+
+    act(() => {
+      setPluginLoading({ active: true, progress: 0.4 });
+    });
+    expect(result.current).toEqual({ isLoading: true, progress: 0.4 });
+
+    act(() => {
+      setPluginLoading({ active: false, progress: 0.4 });
+    });
+    expect(result.current).toEqual({ isLoading: false, progress: undefined });
+  });
+
+  it('keeps loading for a host request after the plugin stops', async () => {
+    const { result } = renderHook(useLoading, { wrapper: LoadingProvider });
+    const pending = pendingResponse();
+    let request!: Promise<AxiosResponse>;
+
+    await act(async () => {
+      request = apiClient.get('/data-marts', { adapter: pending.adapter });
+    });
+    try {
+      act(() => {
+        setPluginLoading({ active: true, progress: 0.4 });
+      });
+      act(() => {
+        setPluginLoading({ active: false });
+      });
+      expect(result.current).toEqual({ isLoading: true, progress: undefined });
+    } finally {
+      await act(async () => {
+        pending.finish();
+        await request;
+      });
+    }
+    expect(result.current.isLoading).toBe(false);
   });
 });

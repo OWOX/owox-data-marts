@@ -29,6 +29,7 @@ interface CapturedBridgeOptions {
   onNavigate?: (path: string) => void;
   onRouteChange?: (route: string) => void;
   onCopyLink?: (route: string | undefined) => Promise<void> | void;
+  onLoadingChange?: (state: { active: boolean; progress?: number }) => void;
 }
 const bridgeOptions: CapturedBridgeOptions = {};
 let bridgeCreations = 0;
@@ -49,6 +50,7 @@ vi.mock('../../../features/plugins', async () => ({
     bridgeOptions.onNavigate = options.onNavigate;
     bridgeOptions.onRouteChange = options.onRouteChange;
     bridgeOptions.onCopyLink = options.onCopyLink;
+    bridgeOptions.onLoadingChange = options.onLoadingChange;
     return { dispose: () => undefined };
   },
   fetchRuntimeToken: () => () => Promise.resolve({ runtimeToken: 't', expiresIn: 900 }),
@@ -56,6 +58,7 @@ vi.mock('../../../features/plugins', async () => ({
   PluginPageMessage: ActualPluginPageMessage,
 }));
 
+import { getLoadingProgress, isApiLoading } from '../../../app/api/api-loading';
 import { pluginsService } from '../../../features/plugins';
 import { PluginRuntime } from './PluginRuntimePage';
 
@@ -123,6 +126,37 @@ describe('PluginRuntimePage', () => {
 
     expect(frame).toHaveAttribute('sandbox', 'allow-scripts allow-downloads');
     expect(frame.getAttribute('sandbox')).not.toContain('allow-same-origin');
+  });
+
+  it('shows the plugin loading in the app loading bar until the plugin closes', async () => {
+    const view = await mountWithBridge();
+
+    act(() => {
+      bridgeOptions.onLoadingChange?.({ active: true, progress: 0.4 });
+    });
+    expect(isApiLoading()).toBe(true);
+    expect(getLoadingProgress()).toBe(0.4);
+
+    view.unmount();
+    expect(isApiLoading()).toBe(false);
+    expect(getLoadingProgress()).toBeUndefined();
+  });
+
+  it('clears the previous plugin loading when another installation opens', async () => {
+    const view = renderPage();
+    await waitFor(() => {
+      expect(bridgeCreations).toBe(1);
+    });
+    act(() => {
+      bridgeOptions.onLoadingChange?.({ active: true, progress: 0.4 });
+    });
+
+    view.rerender(<PluginRuntime installationId='i2' initialRoute='/' openBase={OPEN_BASE} />);
+    await waitFor(() => {
+      expect(bridgeCreations).toBe(2);
+    });
+
+    expect(isApiLoading()).toBe(false);
   });
 
   it('delegates no permissions and leaks no referrer', async () => {

@@ -34,6 +34,8 @@ export interface PluginHostBridgeOptions {
   onRouteChange: (route: string) => void;
   /** A rejection declines the copy; the plugin gets a refusal without the reason. */
   onCopyLink: (route: string | undefined) => Promise<void> | void;
+  /** The plugin's loading bar state; `progress` is a fraction from 0 to 1, or undefined for no amount. */
+  onLoadingChange?: (state: { active: boolean; progress?: number }) => void;
   /**
    * The bridge closed the channel on its own, and the frame is now inert.
    *
@@ -67,7 +69,7 @@ const REFRESH_MARGIN_MS = 60_000;
 /** Everything else the backend returns is host detail the plugin has no use for. */
 const FORWARDED_RESPONSE_HEADERS = ['content-type', 'x-owox-run-id'];
 
-const HOST_ONLY_KINDS = new Set(['openExternal', 'navigate', 'route', 'copyLink']);
+const HOST_ONLY_KINDS = new Set(['openExternal', 'navigate', 'route', 'copyLink', 'loading']);
 const EXECUTION_START_PATH = /^\/api\/plugins\/runtime\/actions\/[^/?#]+\/executions$/;
 const EXECUTION_PATH = /^\/api\/plugins\/runtime\/executions\/([^/?#]+)$/;
 /** Locked to OWOX and the SDK by `test/contracts/plugin-action-contract.mjs`. */
@@ -441,6 +443,8 @@ export function createPluginHostBridge(options: PluginHostBridgeOptions): Plugin
           options.onNavigate(request.path);
         } else if (request.kind === 'route') {
           options.onRouteChange(request.path);
+        } else if (request.kind === 'loading') {
+          options.onLoadingChange?.({ active: request.active, progress: request.progress });
         } else if (request.kind === 'copyLink') {
           try {
             await options.onCopyLink(request.path);
@@ -675,6 +679,17 @@ function validateRequest(candidate: unknown): ValidatedPluginRequest {
   if (candidate.kind === 'route') {
     if (!isValidPluginRoute(candidate.path)) {
       throw protocolError('The plugin route is invalid');
+    }
+    return candidate as unknown as ValidatedPluginRequest;
+  }
+
+  if (candidate.kind === 'loading') {
+    const { active, progress } = candidate;
+    if (
+      typeof active !== 'boolean' ||
+      (progress !== undefined && !(typeof progress === 'number' && progress >= 0 && progress <= 1))
+    ) {
+      throw protocolError('The loading state is invalid');
     }
     return candidate as unknown as ValidatedPluginRequest;
   }
