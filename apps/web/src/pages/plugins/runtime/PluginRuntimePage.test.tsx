@@ -119,14 +119,15 @@ describe('PluginRuntimePage', () => {
    * is the classic sandbox escape, and it is exactly the kind of thing someone reaches
    * for when debugging a plugin that will not load.
    */
-  /**
-   * The single most important assertion in the web app.
-   *
-   * Omitting allow-same-origin forces an opaque origin, which is what keeps the plugin
-   * away from cookies, storage and this document. Adding it back alongside allow-scripts
-   * is the classic sandbox escape, and it is exactly the kind of thing someone reaches
-   * for when debugging a plugin that will not load.
-   */
+  it('sandboxes the plugin with exactly two tokens', async () => {
+    renderPage();
+
+    const frame = await screen.findByTitle('Example Plugin');
+
+    expect(frame).toHaveAttribute('sandbox', 'allow-scripts allow-downloads');
+    expect(frame.getAttribute('sandbox')).not.toContain('allow-same-origin');
+  });
+
   it('shows the plugin loading in the app loading bar until the plugin closes', async () => {
     const view = await mountWithBridge();
 
@@ -139,15 +140,6 @@ describe('PluginRuntimePage', () => {
     view.unmount();
     expect(isApiLoading()).toBe(false);
     expect(getLoadingProgress()).toBeUndefined();
-  });
-
-  it('sandboxes the plugin with exactly two tokens', async () => {
-    renderPage();
-
-    const frame = await screen.findByTitle('Example Plugin');
-
-    expect(frame).toHaveAttribute('sandbox', 'allow-scripts allow-downloads');
-    expect(frame.getAttribute('sandbox')).not.toContain('allow-same-origin');
   });
 
   it('clears the previous plugin loading when another installation opens', async () => {
