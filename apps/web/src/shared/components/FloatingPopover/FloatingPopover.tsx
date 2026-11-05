@@ -11,7 +11,8 @@ export type FloatingPopoverPosition =
 
 interface FloatingPopoverProps {
   width?: number;
-  height?: number;
+  /** `auto` fits the content, up to the viewport height. */
+  height?: number | 'auto';
   position?: FloatingPopoverPosition;
   children: React.ReactNode;
   onClose?: () => void;
@@ -34,16 +35,16 @@ export function FloatingPopover({
   return (
     <div
       className={cn(
-        'fixed z-[999] rounded-2xl border bg-white dark:bg-neutral-900',
+        'fixed z-[999] flex flex-col rounded-2xl border bg-white dark:bg-neutral-900',
         'border-neutral-200 dark:border-neutral-800',
         'hover:shadow-3xl transform shadow-2xl transition-all duration-200 ease-out',
-        'max-w-[calc(100vw-2rem)]',
+        'max-h-[calc(100vh-2rem)] max-w-[calc(100vw-2rem)]',
         positionClasses[position]
       )}
-      style={{ width, height }}
+      style={{ width, height: height === 'auto' ? undefined : height }}
       data-slot='floating-popover'
     >
-      <div className='flex h-full flex-col'>{children}</div>
+      <div className='flex h-full min-h-0 flex-col'>{children}</div>
     </div>
   );
 }

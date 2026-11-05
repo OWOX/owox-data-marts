@@ -29,6 +29,8 @@ const DEFAULT_PUBLIC_ENV_WHITELIST = [
   'INTERCOM_APP_ID',
   'INSIGHTS_ENABLED',
   'INSIGHT_ASSISTANT_ENABLED_PROJECT_IDS',
+  // The running version, so the app announces only releases it already contains.
+  'APP_OWOX_VERSION',
 ] as const;
 
 /**

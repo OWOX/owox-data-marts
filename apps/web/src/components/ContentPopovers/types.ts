@@ -2,9 +2,10 @@ import type React from 'react';
 
 export interface PopoverConfig {
   width?: number;
-  height?: number;
+  /** `auto` fits the content, up to the viewport height. */
+  height?: number | 'auto';
   position?: 'center' | 'bottom-left' | 'bottom-right' | 'top-left' | 'top-right';
-  title?: string;
+  title?: React.ReactNode;
   content: React.ComponentType<{ onClose?: () => void }>;
 }
 

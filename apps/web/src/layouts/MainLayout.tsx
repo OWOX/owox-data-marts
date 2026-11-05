@@ -29,6 +29,7 @@ import { ArchiveRestore, Box, DatabaseIcon, LockKeyhole } from 'lucide-react';
 import { HelpMenu } from '../components/AppSidebar/HelpMenu';
 import { UserMenu } from '../components/AppSidebar/UserMenu';
 import { SidebarProjectMenu } from '../components/AppSidebar/ProjectMenu';
+import { WhatsNewAnnouncer } from '../features/whats-new';
 
 // Constants
 const SIDEBAR_STATE_KEY = 'sidebar_state';
@@ -124,6 +125,7 @@ function MainLayoutContent() {
         ) : (
           <>
             <AppSidebar variant='inset' collapsible='icon' />
+            <WhatsNewAnnouncer />
             <SidebarInset className='min-w-0'>
               {showTrigger && <SidebarTrigger />}
               <Outlet />
