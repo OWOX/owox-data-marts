@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { ConnectorApiService } from '../../../shared/api';
 import { DataStorageType } from '../../../../data-storage';
 import type { DataStorage } from '../../../../data-storage/shared/model/types/data-storage';
 import type { ConnectorDefinitionConfig } from '../../../../data-marts/edit/model';
@@ -15,6 +17,11 @@ vi.mock('../../../shared/model/hooks/useConnector', () => ({
 
 vi.mock('../../../shared/utils', () => ({
   getConnectorInfoByName: vi.fn().mockResolvedValue(null),
+}));
+
+vi.mock('../../../../idp', async importOriginal => ({
+  ...(await importOriginal<typeof import('../../../../idp')>()),
+  useCanEdit: () => true,
 }));
 
 // The edit sheet itself is out of scope: expose only whether it is open.
@@ -50,25 +57,64 @@ const connectorDef: ConnectorDefinitionConfig = {
   },
 };
 
-const renderItem = (props: { totalConfigurations?: number; configIndex?: number } = {}) => {
+const renderItem = (
+  props: {
+    totalConfigurations?: number;
+    configIndex?: number;
+    definition?: ConnectorDefinitionConfig;
+  } = {}
+) => {
   const onRemoveConfiguration = vi.fn();
   render(
-    <ConnectorConfigurationItem
-      configIndex={props.configIndex ?? 1}
-      connectorDef={connectorDef}
-      onRemoveConfiguration={onRemoveConfiguration}
-      onUpdateConfiguration={() => vi.fn()}
-      dataMartStatus={DataMartStatus.PUBLISHED}
-      totalConfigurations={props.totalConfigurations ?? 2}
-      dataStorage={dataStorage}
-    />
+    <QueryClientProvider client={new QueryClient()}>
+      <ConnectorConfigurationItem
+        configIndex={props.configIndex ?? 1}
+        connectorDef={props.definition ?? connectorDef}
+        onRemoveConfiguration={onRemoveConfiguration}
+        onUpdateConfiguration={() => vi.fn()}
+        dataMartStatus={DataMartStatus.PUBLISHED}
+        totalConfigurations={props.totalConfigurations ?? 2}
+        dataStorage={dataStorage}
+      />
+    </QueryClientProvider>
   );
   return { onRemoveConfiguration };
 };
 
 describe('ConnectorConfigurationItem', () => {
   beforeEach(() => {
+    vi.restoreAllMocks();
     vi.clearAllMocks();
+  });
+
+  it('links the Google Sheets sheet name to the tab it imports', async () => {
+    const tabUrl = 'https://docs.google.com/spreadsheets/d/abc/edit#gid=42';
+    vi.spyOn(ConnectorApiService.prototype, 'previewConnectorFieldOptions').mockResolvedValue([
+      {
+        value: 'Summary',
+        label: 'Summary',
+        url: 'https://docs.google.com/spreadsheets/d/abc/edit#gid=0',
+      },
+      { value: 'Leads', label: 'Leads', url: tabUrl },
+    ]);
+    const sheets: ConnectorDefinitionConfig = {
+      connector: {
+        source: {
+          name: 'GoogleSheets',
+          node: 'sheet',
+          configuration: [{ SpreadsheetId: 'abc', SheetName: 'Leads' }],
+          fields: ['a'],
+        },
+        storage: { fullyQualifiedName: 'raw.leads' },
+      },
+    };
+
+    renderItem({ definition: sheets, configIndex: 0, totalConfigurations: 1 });
+
+    // The spreadsheet link shows first and is replaced once the tab list loads.
+    await waitFor(() => {
+      expect(screen.getByRole('link', { name: 'Leads' })).toHaveAttribute('href', tabUrl);
+    });
   });
 
   it('shows the flow from the source to the storage', () => {

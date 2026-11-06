@@ -48,6 +48,8 @@ export interface ConnectorFieldResponseApiDto {
 export interface ConnectorFieldOptionResponseApiDto {
   value: string;
   label: string;
+  /** Opens this value in the provider (for example one tab of a spreadsheet), when known. */
+  url?: string;
 }
 
 export interface ConnectorFieldsResponseApiDto {

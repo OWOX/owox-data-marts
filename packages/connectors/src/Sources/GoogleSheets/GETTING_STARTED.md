@@ -9,6 +9,8 @@
 7. Choose a storage table.
 8. Run a refresh to materialize the sheet into storage.
 
+On the Data Mart's **Data Setup** tab, the **Sheet** link in **Input Source** opens the spreadsheet on the tab the Data Mart imports. For a project Viewer, or when the tab list cannot be loaded (for example, without access to the source's Credential), it opens the spreadsheet on its first tab.
+
 The connector treats row 1 as headers by default. `HeaderRow` and `Range` live under Advanced Settings. `HeaderRow` is an absolute, one-based sheet row. If `Range` is `A5:D` and its first row contains headers, set `HeaderRow` to `5`. Blank header cells receive generated names such as `column_2`.
 
 By default, `ImportAllColumns` is `true`, so every refresh imports all current columns and automatically includes schema additions. The web configuration persists `ImportAllColumns: false` only when the user chooses an explicit subset; runtime `Fields` tracks the latest materialized schema.

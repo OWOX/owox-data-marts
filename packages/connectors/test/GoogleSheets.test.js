@@ -1067,10 +1067,11 @@ test('lists the spreadsheet tabs in sheet order as Sheet Name options', async ()
 
   const options = await source.fetchFieldOptions('SheetName');
 
+  const tabUrl = gid => `https://docs.google.com/spreadsheets/d/spreadsheet-id/edit#gid=${gid}`;
   assert.deepEqual(plain(options), [
-    { value: 'Summary', label: 'Summary' },
-    { value: 'Data', label: 'Data' },
-    { value: 'Targets', label: 'Targets' },
+    { value: 'Summary', label: 'Summary', url: tabUrl(0) },
+    { value: 'Data', label: 'Data', url: tabUrl(3) },
+    { value: 'Targets', label: 'Targets', url: tabUrl(7) },
   ]);
   assert.equal(requestedUrls.length, 1);
   assert.match(

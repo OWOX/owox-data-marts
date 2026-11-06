@@ -76,7 +76,11 @@ export class ConnectorMapper {
   }
 
   toFieldOptionsResponse(options: ConnectorFieldOptions): ConnectorFieldOptionResponseApiDto[] {
-    return options.map(option => ({ value: option.value, label: option.label }));
+    return options.map(option => ({
+      value: option.value,
+      label: option.label,
+      ...(option.url && { url: option.url }),
+    }));
   }
 
   private mapSpecificationItem(item: ConnectorSpecificationItem): ConnectorSpecificationItemDto {
