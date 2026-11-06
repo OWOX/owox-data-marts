@@ -2,7 +2,7 @@
 
 ## 0.43.0
 
-### Minor Changes
+### Minor Changes 0.43.0
 
 - 70d2ce1: **Set up and maintain Data Marts from your AI assistant**
 
@@ -40,7 +40,7 @@
 
   <!-- markdownlint-disable-file MD041 MD036 -->
 
-### Patch Changes
+### Patch Changes 0.43.0
 
 - @owox/internal-helpers@0.43.0
 - @owox/idp-protocol@0.43.0
