@@ -1,5 +1,5 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { MemoryRouter } from 'react-router';
+import { MemoryRouter, Route, Routes } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type {
   InstalledPlugin,
@@ -21,10 +21,20 @@ const uninstall = vi.fn();
 const checkNow = vi.fn();
 const navigate = vi.fn();
 const copyLink = vi.fn(() => Promise.resolve());
+const toastSuccess = vi.hoisted(() => vi.fn());
 
 let publications: PluginPublication[] = [];
 let installations: InstalledPlugin[] = [];
 let plugin: PluginGalleryEntry;
+let installationsLoading = false;
+let grants: {
+  credentialSelections: Record<string, string> | undefined;
+  isLoading: boolean;
+  isError: boolean;
+} = { credentialSelections: undefined, isLoading: false, isError: false };
+const usePluginCredentialSelections = vi.fn<(installationId: string | undefined) => typeof grants>(
+  () => grants
+);
 
 vi.mock('react-router', async () => {
   const actual = await vi.importActual<typeof import('react-router')>('react-router');
@@ -45,8 +55,10 @@ vi.mock('../../../features/plugins', () => ({
     installations: includeUninstalled
       ? installations
       : installations.filter(item => !item.uninstalledAt),
-    isLoading: false,
+    isLoading: installationsLoading,
   }),
+  usePluginCredentialSelections: (installationId: string | undefined) =>
+    usePluginCredentialSelections(installationId),
   usePluginManageablePublications: () => publications,
   usePluginPublishing: () => ({ publish, unpublish, isPublishing: false, isUnpublishing: false }),
   usePublishableScopes: () => publishableScopes,
@@ -78,22 +90,47 @@ vi.mock('../../../features/plugins', () => ({
       data-uninstalled={String(Boolean(uninstalled))}
     />
   ),
+  // The card's own behaviour has its own tests; the page owes it the grants and the save.
+  PluginCredentialsCard: ({
+    granted,
+    grantsState,
+    disabled,
+    onSave,
+  }: {
+    granted: Record<string, string> | undefined;
+    grantsState: string;
+    disabled: boolean;
+    onSave: (selections: Record<string, string | null>) => Promise<string>;
+  }) => (
+    <div
+      data-testid='credentials-card'
+      data-granted={JSON.stringify(granted ?? null)}
+      data-state={grantsState}
+      data-disabled={String(disabled)}
+    >
+      <button
+        onClick={event => {
+          const button = event.currentTarget;
+          void onSave({ ai: 'credential-2' }).then(outcome => {
+            button.dataset.outcome = outcome;
+          });
+        }}
+      >
+        Save Credentials
+      </button>
+    </div>
+  ),
   InstallPluginDialog: ({
     open,
     onOpenChange,
     onConfirm,
-    mode,
   }: {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     onConfirm: (selections: Record<string, string | null>) => void;
-    mode?: 'install' | 'configure';
   }) =>
     open ? (
-      <div
-        role='dialog'
-        aria-label={mode === 'configure' ? 'Configure plugin Credentials?' : 'Install this plugin?'}
-      >
+      <div role='dialog' aria-label='Install this plugin?'>
         <button
           onClick={() => {
             onConfirm({});
@@ -111,6 +148,7 @@ vi.mock('../../../features/plugins', () => ({
       </div>
     ) : null,
 }));
+vi.mock('react-hot-toast', () => ({ default: { success: toastSuccess } }));
 vi.mock('../../../shared/hooks', () => ({
   useProjectRoute: () => ({ scope: (path: string) => `/ui/project-1${path}` }),
 }));
@@ -158,6 +196,48 @@ const renderPage = () =>
     </MemoryRouter>
   );
 
+const PLUGIN_PATH = '/ui/project-1/plugins/p1';
+
+/**
+ * The Credentials tab under real routes. Overview is a marker by default, so leaving the tab
+ * lands somewhere visible, or the real page, as in the app.
+ */
+const renderCredentialsTab = (overview = <p>Overview route</p>) =>
+  render(
+    <MemoryRouter initialEntries={[`${PLUGIN_PATH}/credentials`]}>
+      <Routes>
+        <Route
+          path={`${PLUGIN_PATH}/credentials`}
+          element={<PluginDetailsPage tab='credentials' />}
+        />
+        <Route path={PLUGIN_PATH} element={overview} />
+      </Routes>
+    </MemoryRouter>
+  );
+
+const installedWithAi = () => {
+  plugin = entry({ installationState: 'installed', credentialRequirements: ['ai'] });
+  installations = [
+    {
+      ...plugin,
+      installationId: 'i1',
+      installedAt: '2026-07-01T00:00:00.000Z',
+      uninstalledAt: null,
+    },
+  ];
+  grants = { credentialSelections: { ai: 'credential-1' }, isLoading: false, isError: false };
+};
+
+const card = () => screen.getByTestId('credentials-card');
+const saveCredentials = async () => {
+  const save = screen.getByRole('button', { name: 'Save Credentials' });
+  fireEvent.click(save);
+  await waitFor(() => {
+    expect(save.dataset.outcome).toBeDefined();
+  });
+  return save.dataset.outcome;
+};
+
 const openMenu = () =>
   fireEvent.keyDown(screen.getByRole('button', { name: 'More plugin actions' }), { key: 'Enter' });
 
@@ -172,6 +252,8 @@ describe('PluginDetailsPage', () => {
     uninstall.mockResolvedValue(undefined);
     unpublish.mockResolvedValue(undefined);
     plugin = entry();
+    installationsLoading = false;
+    grants = { credentialSelections: undefined, isLoading: false, isError: false };
   });
 
   // Header owns Install; the version chip carries Check and Update regardless. An installed
@@ -213,42 +295,138 @@ describe('PluginDetailsPage', () => {
     expect(await screen.findByRole('tooltip')).toHaveTextContent('Check and Update');
   });
 
-  it('offers Credential configuration for an installed plugin with Credential requirements', () => {
-    plugin = entry({ installationState: 'installed', credentialRequirements: ['github'] });
+  it('moves Credential configuration from the header to a Credentials tab', () => {
+    installedWithAi();
 
     renderPage();
 
-    expect(screen.getByRole('button', { name: 'Configure Credentials' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Configure Credentials' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Reinstall' })).toBeNull();
+    expect(screen.getByRole('link', { name: 'Overview' })).toHaveAttribute('aria-current', 'page');
+    expect(screen.getByRole('link', { name: 'Credentials' })).toHaveAttribute(
+      'href',
+      `${PLUGIN_PATH}/credentials`
+    );
+    // Grants are read for the tab that shows them, not for every Overview.
+    expect(usePluginCredentialSelections).toHaveBeenCalledWith(undefined);
+    expect(usePluginCredentialSelections).not.toHaveBeenCalledWith('i1');
   });
 
-  // A newer version can drop every Credential requirement while the member is configuring
-  // them; the retry must not turn into "Install this plugin?" for an installed plugin.
-  it('keeps configuring Credentials when a newer version arrives mid-dialog', async () => {
-    plugin = entry({ installationState: 'installed', credentialRequirements: ['github'] });
-    const newer = entry({
-      installationState: 'installed',
-      currentVersionId: 'v2',
-      currentSemver: '2.0.0',
-      credentialRequirements: [],
-    });
-    install.mockResolvedValueOnce(newer);
+  it('offers no Credentials tab without Credential grants to change', () => {
+    plugin = entry({ installationState: 'installed' });
     renderPage();
+    expect(screen.queryByRole('link', { name: 'Credentials' })).toBeNull();
+    cleanup();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Configure Credentials' }));
-    expect(screen.getByRole('dialog', { name: 'Configure plugin Credentials?' })).toBeTruthy();
+    plugin = entry({ installationState: 'not_installed', credentialRequirements: ['ai'] });
+    renderPage();
+    expect(screen.queryByRole('link', { name: 'Credentials' })).toBeNull();
+  });
 
-    // The page refetches the plugin as well, now without requirements.
-    plugin = newer;
-    fireEvent.click(screen.getByRole('button', { name: 'Confirm install' }));
+  it('shows the Credentials tab with what the installation is granted now', () => {
+    installedWithAi();
 
-    await waitFor(() => {
-      expect(install).toHaveBeenCalledWith('p1', 'v1', {});
-    });
-    expect(
-      await screen.findByRole('dialog', { name: 'Configure plugin Credentials?' })
-    ).toBeTruthy();
-    expect(screen.queryByRole('dialog', { name: 'Install this plugin?' })).toBeNull();
+    renderCredentialsTab();
+
+    expect(usePluginCredentialSelections).toHaveBeenCalledWith('i1');
+    expect(screen.getByRole('link', { name: 'Credentials' })).toHaveAttribute(
+      'aria-current',
+      'page'
+    );
+    expect(card()).toHaveAttribute('data-granted', JSON.stringify({ ai: 'credential-1' }));
+    expect(card()).toHaveAttribute('data-state', 'loaded');
+    expect(card()).toHaveAttribute('data-disabled', 'false');
+    expect(screen.queryByText('Description')).toBeNull();
+  });
+
+  it('waits for the grants, and for the installation they hang on', () => {
+    installedWithAi();
+    grants = { credentialSelections: undefined, isLoading: true, isError: false };
+    renderCredentialsTab();
+    expect(card()).toHaveAttribute('data-state', 'loading');
+    cleanup();
+
+    installationsLoading = true;
+    installations = [];
+    grants = { credentialSelections: undefined, isLoading: false, isError: false };
+    renderCredentialsTab();
+    expect(card()).toHaveAttribute('data-state', 'loading');
+  });
+
+  // An older backend answers 404; the member can still choose every Credential again.
+  it('says the grants could not be loaded when the request fails', () => {
+    installedWithAi();
+    grants = { credentialSelections: undefined, isLoading: false, isError: true };
+
+    renderCredentialsTab();
+
+    expect(card()).toHaveAttribute('data-state', 'failed');
+  });
+
+  // TanStack keeps the last answer after a failed refetch; preselecting it would let Discard or
+  // Save put back grants the member already changed.
+  it('hands the card no grants when a refetch failed after an earlier answer', () => {
+    installedWithAi();
+    grants = { credentialSelections: { ai: 'credential-1' }, isLoading: false, isError: true };
+
+    renderCredentialsTab();
+
+    expect(card()).toHaveAttribute('data-state', 'failed');
+    expect(card()).toHaveAttribute('data-granted', 'null');
+  });
+
+  it('refuses changes to a suspended plugin', () => {
+    installedWithAi();
+    plugin = { ...plugin, suspended: true };
+
+    renderCredentialsTab();
+
+    expect(card()).toHaveAttribute('data-disabled', 'true');
+  });
+
+  // No dialog: the tab saves through the install call, which on a live installation
+  // changes only its grants.
+  it('saves the Credentials through install, against the version on screen', async () => {
+    installedWithAi();
+    renderCredentialsTab();
+
+    expect(await saveCredentials()).toBe('saved');
+    expect(install).toHaveBeenCalledWith('p1', 'v1', { ai: 'credential-2' });
+    expect(toastSuccess).toHaveBeenCalledWith('Credentials saved');
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('tells the card a newer version arrived instead of claiming the save', async () => {
+    installedWithAi();
+    install.mockResolvedValueOnce(
+      entry({ installationState: 'installed', currentVersionId: 'v2' })
+    );
+    renderCredentialsTab();
+
+    expect(await saveCredentials()).toBe('stale');
+    expect(toastSuccess).not.toHaveBeenCalled();
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  // The hook has already toasted the error; the card keeps the member's choices.
+  it('reports a failed save to the card', async () => {
+    installedWithAi();
+    install.mockRejectedValueOnce(new Error('boom'));
+    renderCredentialsTab();
+
+    expect(await saveCredentials()).toBe('failed');
+    expect(toastSuccess).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['is uninstalled', { installationState: 'uninstalled', credentialRequirements: ['ai'] }],
+    ['no longer needs Credentials', { installationState: 'installed', credentialRequirements: [] }],
+  ] as const)('leaves the Credentials tab for Overview once the plugin %s', (_case, over) => {
+    plugin = entry({ ...over, credentialRequirements: [...over.credentialRequirements] });
+
+    renderCredentialsTab();
+
+    expect(screen.getByText('Overview route')).toBeTruthy();
   });
 
   // §6.3: Check and Update is open to any project member who can reach the page, not only

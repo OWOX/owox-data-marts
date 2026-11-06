@@ -51,6 +51,16 @@ export class InstalledPluginApiDto extends PluginGalleryEntryApiDto {
   @ApiProperty({ type: Date, nullable: true }) uninstalledAt: Date | null;
 }
 
+export class PluginCredentialSelectionsApiDto {
+  @ApiProperty({
+    type: 'object',
+    additionalProperties: { type: 'string' },
+    description:
+      'Credential requirement handle to the project Credential id granted now. An ungranted requirement is absent.',
+  })
+  credentialSelections: Record<string, string>;
+}
+
 export class PluginEntryApiDto {
   @ApiProperty({ description: 'What the sandboxed iframe loads.' })
   deliveryUrl: string;

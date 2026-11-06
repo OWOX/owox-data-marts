@@ -48,6 +48,11 @@ export const pluginsRoutes: RouteObject[] = [
     errorElement: <LayoutErrorBoundary />,
   },
   {
+    path: 'plugins/:pluginId/credentials',
+    element: <PluginDetailsPage tab='credentials' />,
+    errorElement: <LayoutErrorBoundary />,
+  },
+  {
     path: 'plugins/:pluginId',
     element: <PluginDetailsPage />,
     errorElement: <LayoutErrorBoundary />,

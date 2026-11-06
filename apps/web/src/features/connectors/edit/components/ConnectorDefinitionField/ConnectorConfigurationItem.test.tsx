@@ -141,17 +141,43 @@ describe('ConnectorConfigurationItem', () => {
   it('removes the configuration from the Delete button', () => {
     const { onRemoveConfiguration } = renderItem();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Delete configuration 2' }));
+    // Delete renders twice, on the Source heading row (narrow) and in the right column (wide);
+    // container queries hide one of them, which jsdom does not apply.
+    const deleteButtons = screen.getAllByRole('button', { name: 'Delete configuration 2' });
+    expect(deleteButtons).toHaveLength(2);
 
+    for (const button of deleteButtons) {
+      fireEvent.click(button);
+    }
+    expect(onRemoveConfiguration).toHaveBeenCalledTimes(2);
     expect(onRemoveConfiguration).toHaveBeenCalledWith(1);
   });
 
-  it('does not allow deleting the last configuration', () => {
-    const { onRemoveConfiguration } = renderItem({ totalConfigurations: 1, configIndex: 0 });
+  it('shows no Delete for the only configuration', () => {
+    renderItem({ totalConfigurations: 1, configIndex: 0 });
 
-    const deleteButton = screen.getByRole('button', { name: 'Delete configuration 1' });
-    expect(deleteButton).toBeDisabled();
-    fireEvent.click(deleteButton);
-    expect(onRemoveConfiguration).not.toHaveBeenCalled();
+    expect(screen.queryAllByRole('button', { name: /^Delete configuration/ })).toHaveLength(0);
+    expect(screen.getByRole('button', { name: 'Edit configuration 1' })).toBeInTheDocument();
+  });
+
+  it('shows the Source and Storage headings with their hints on the first configuration', () => {
+    renderItem({ configIndex: 0 });
+
+    expect(screen.getByText('Source')).toBeInTheDocument();
+    expect(screen.getByText('Storage')).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /extracts this data from the source/ })
+    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /automatically created/ })).toBeInTheDocument();
+  });
+
+  it('leaves the headings out of later configurations', () => {
+    renderItem({ configIndex: 1 });
+
+    expect(screen.queryByText('Source')).not.toBeInTheDocument();
+    expect(screen.queryByText('Storage')).not.toBeInTheDocument();
+    // The blocks are still named for assistive tech.
+    expect(screen.getByRole('region', { name: 'Source' })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Storage' })).toBeInTheDocument();
   });
 });

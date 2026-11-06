@@ -220,6 +220,11 @@ describe('MCP tool providers', () => {
         await client.connect(clientTransport);
         const catalog = await client.listTools();
         expect(new Set(catalog.tools.map(tool => tool.name))).toEqual(new Set(toolNames));
+        for (const name of ['update_storage', 'update_credential']) {
+          expect(catalog.tools.find(tool => tool.name === name)).toMatchObject({
+            annotations: { readOnlyHint: false, destructiveHint: true },
+          });
+        }
         const result = await client.callTool({ name: 'list_project_members', arguments: {} });
         expect(result.isError).not.toBe(true);
         expect(result.structuredContent).toEqual({

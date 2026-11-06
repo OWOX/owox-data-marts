@@ -783,7 +783,7 @@ A failed action rejects with a `PluginActionError`. Find it by `error.name` and 
 | `ACTION_FAILED`                 | The handler threw an error with no valid `code`, or one with a reserved code.                       |
 | `INSTALLATION_INACTIVE`         | Rare: the plugin was uninstalled while the action started or a run waited.                          |
 | `PLUGIN_SUSPENDED`              | A queued run was due to start while the plugin was suspended.                                       |
-| `OWNER_NOT_MEMBER`              | The installing member left the project, or their account is locked, before a scheduled run started. |
+| `OWNER_NOT_MEMBER`              | The schedule's owner left the project, or their account was locked, before a scheduled run started. |
 | `UNAUTHORIZED`                  | The backend did not accept the execution token or the request.                                      |
 | `HOST_NOT_ALLOWED`              | The calling host is not in `hosts` or, without `hosts`, not public HTTPS.                           |
 | `PLUGIN_MISMATCH`               | The execution belongs to a plugin other than the backend's `repositoryId`.                          |
@@ -933,12 +933,13 @@ gcloud run deploy acme-docs-backend --source . --region europe-west1 --allow-una
 
 ## Run actions on a schedule
 
-A plugin can create schedules for its own installation. OWOX Data Marts then starts the
-scheduled action on time with the installing member's access, whether or not anyone has the
-plugin open. In OWOX Data Marts, the plugin's page lists its schedules, and members pause, resume
-and delete them under **Plugins → Schedules**. That page also lists their runs; a queued or running
-run can be cancelled there. A project admin sees and manages every plugin schedule and run of the
-project on the same page.
+A plugin can create schedules for its own installation. Each member installs a plugin separately,
+so each member creates their own schedules. As with Data Mart schedules, OWOX Data Marts starts a
+scheduled action on time with the access of the member who created the schedule, its owner. It
+starts the action whether or not anyone has the plugin open. In OWOX Data Marts, the plugin's page
+lists its schedules, and members pause, resume and delete them under **Plugins → Schedules**. That
+page also lists their runs; a queued or running run can be cancelled there. A project admin sees
+and manages every plugin schedule and run of the project on the same page.
 
 ```ts
 import type { PluginContext } from '@owox/plugin-sdk';
@@ -1003,7 +1004,7 @@ A disabled schedule does not run until `resume`, which checks it again. A run th
 queue with `ACTION_NOT_DECLARED` or `INVALID_INPUT` disables its schedule the same way. A run that
 the action fails, or that times out, does not.
 
-While the member who installed the plugin is not an active project member, or their account is
+While the member who created the schedule is not an active project member, or their account is
 locked, OWOX skips the schedule's runs and leaves it enabled, so it runs again once they are back. A
 run already queued then fails with `OWNER_NOT_MEMBER`. **Plugins → Schedules** shows a project admin
 which schedules wait for their owner.

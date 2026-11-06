@@ -5,7 +5,9 @@ import { describe, expect, it, vi } from 'vitest';
 
 // Stubbed to their names: this suite is about which page a path reaches.
 vi.mock('../../pages/plugins/detail/PluginDetailsPage', () => ({
-  default: () => <p>Plugin details page</p>,
+  default: ({ tab }: { tab?: string }) => (
+    <p>{tab === 'credentials' ? 'Plugin credentials tab' : 'Plugin details page'}</p>
+  ),
 }));
 vi.mock('../../pages/plugins/gallery/PluginsGalleryPage', () => ({
   default: () => <p>Plugins page</p>,
@@ -41,5 +43,11 @@ describe('pluginsRoutes', () => {
     renderAt('/plugins/p1');
 
     expect(await screen.findByText('Plugin details page')).toBeInTheDocument();
+  });
+
+  it("reaches a plugin's Credentials tab", async () => {
+    renderAt('/plugins/p1/credentials');
+
+    expect(await screen.findByText('Plugin credentials tab')).toBeInTheDocument();
   });
 });

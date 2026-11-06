@@ -186,8 +186,8 @@ export function ScheduleSidePanel({
                 {schedule.owner ? <UserReference userProjection={schedule.owner} /> : '—'}
               </Value>
               <Hint question='Whose access does a run use?'>
-                The plugin installation owner&apos;s, whoever resumed the schedule. If the owner
-                leaves the project or their account is locked, the schedule stops.
+                The owner&apos;s: the member who created the schedule, whoever resumed it. If the
+                owner leaves the project or their account is locked, the schedule stops.
               </Hint>
             </FormItem>
           </FormSection>

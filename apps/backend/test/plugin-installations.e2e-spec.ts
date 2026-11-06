@@ -1,6 +1,9 @@
 import { INestApplication } from '@nestjs/common';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { createTestApp } from '@owox/test-utils';
+import { normalizeCredentialRequirement } from 'src/data-marts/credentials/credential.types';
+import { CredentialConsumerBinding } from 'src/data-marts/credentials/entities/credential-consumer-binding.entity';
+import { requirementRevision } from 'src/data-marts/credentials/services/credential-requirement-revision';
 import { AuthorizationContext } from 'src/idp/types/auth.types';
 import { PluginInstallation } from 'src/plugin-host/entities/plugin-installation.entity';
 import { PluginVersion } from 'src/plugin-host/entities/plugin-version.entity';
@@ -10,16 +13,19 @@ import {
   PluginInstallationLookupPort,
 } from 'src/plugin-host/facades/plugin-installation-lookup.facade';
 import { GetPluginDetailsCommand } from 'src/plugin-host/dto/domain/get-plugin-details.command';
+import { GetPluginInstallationCredentialSelectionsCommand } from 'src/plugin-host/dto/domain/get-plugin-installation-credential-selections.command';
 import { GetPluginInstallationEntryCommand } from 'src/plugin-host/dto/domain/get-plugin-installation-entry.command';
 import { InstallPluginCommand } from 'src/plugin-host/dto/domain/install-plugin.command';
 import { ListInstallationsCommand } from 'src/plugin-host/dto/domain/list-installations.command';
 import { UninstallPluginCommand } from 'src/plugin-host/dto/domain/uninstall-plugin.command';
 import { GetPluginDetailsService } from 'src/plugin-host/use-cases/get-plugin-details.service';
+import { GetPluginInstallationCredentialSelectionsService } from 'src/plugin-host/use-cases/get-plugin-installation-credential-selections.service';
 import { GetPluginInstallationEntryService } from 'src/plugin-host/use-cases/get-plugin-installation-entry.service';
 import { InstallPluginService } from 'src/plugin-host/use-cases/install-plugin.service';
 import { ListInstallationsService } from 'src/plugin-host/use-cases/list-installations.service';
 import { UninstallPluginService } from 'src/plugin-host/use-cases/uninstall-plugin.service';
 import { Repository } from 'typeorm';
+import { createCredential } from './fixtures/storage-credentials';
 
 const ALICE: AuthorizationContext = { projectId: 'project-1', userId: 'alice' };
 const BOB: AuthorizationContext = { projectId: 'project-1', userId: 'bob' };
@@ -31,6 +37,8 @@ describe('Plugin installations (e2e)', () => {
   let listService: ListInstallationsService;
   let entryService: GetPluginInstallationEntryService;
   let detailsService: GetPluginDetailsService;
+  let selectionsService: GetPluginInstallationCredentialSelectionsService;
+  let bindings: Repository<CredentialConsumerBinding>;
   let lookup: PluginInstallationLookupPort;
   let plugins: Repository<Plugin>;
   let versions: Repository<PluginVersion>;
@@ -45,6 +53,8 @@ describe('Plugin installations (e2e)', () => {
     listService = app.get(ListInstallationsService);
     entryService = app.get(GetPluginInstallationEntryService);
     detailsService = app.get(GetPluginDetailsService);
+    selectionsService = app.get(GetPluginInstallationCredentialSelectionsService);
+    bindings = app.get(getRepositoryToken(CredentialConsumerBinding));
     lookup = app.get(PLUGIN_INSTALLATION_LOOKUP);
     plugins = app.get(getRepositoryToken(Plugin));
     versions = app.get(getRepositoryToken(PluginVersion));
@@ -86,6 +96,7 @@ describe('Plugin installations (e2e)', () => {
   });
 
   afterEach(async () => {
+    await bindings.createQueryBuilder().delete().execute();
     await installations.createQueryBuilder().delete().execute();
     await versions.createQueryBuilder().delete().execute();
     await plugins.createQueryBuilder().delete().execute();
@@ -101,6 +112,10 @@ describe('Plugin installations (e2e)', () => {
     entryService.run(new GetPluginInstallationEntryCommand(installationId, context));
   const details = (context: AuthorizationContext) =>
     detailsService.run(new GetPluginDetailsCommand(pluginId, context));
+  const selections = (installationId: string, context: AuthorizationContext) =>
+    selectionsService.run(
+      new GetPluginInstallationCredentialSelectionsCommand(installationId, context)
+    );
 
   it('preserves the first-install date across an uninstall and restore', async () => {
     const first = await install(ALICE);
@@ -209,6 +224,77 @@ describe('Plugin installations (e2e)', () => {
       expect(point.pluginId).toBe(pluginId);
       expect(point.versionId).toBe(versionId);
       expect(point.pluginId).not.toBe(point.versionId);
+    });
+  });
+
+  describe('Credential grants', () => {
+    let credentialId: string;
+
+    beforeEach(async () => {
+      credentialId = await createCredential(app, {
+        projectId: 'project-1',
+        definitionId: 'openai',
+        title: 'Team OpenAI',
+        secret: { value: 'sk-test' },
+        publicMetadata: null,
+        ownerIds: ['alice'],
+        contextIds: [],
+      });
+    });
+
+    const bind = (
+      consumerId: string,
+      requirementKey: string,
+      over: Partial<CredentialConsumerBinding> = {}
+    ) => {
+      const snapshot = normalizeCredentialRequirement(requirementKey);
+      return bindings.save(
+        bindings.create({
+          projectId: 'project-1',
+          credentialId,
+          consumerType: 'plugin-installation',
+          consumerId,
+          requirementKey,
+          requirementSnapshot: snapshot,
+          requirementRevision: requirementRevision(snapshot),
+          configuredById: 'alice',
+          active: true,
+          ...over,
+        })
+      );
+    };
+
+    it('returns only the active grants made for the current version', async () => {
+      const installed = await install(ALICE);
+      await versions.update(versionId, {
+        credentialRequirements: ['ai', 'github', 'slack', 'jira'],
+      });
+      await bind(installed.installationId, 'ai');
+      await bind(installed.installationId, 'github', { projectId: 'project-2' });
+      await bind(installed.installationId, 'slack', { active: false });
+      const stale = { ...normalizeCredentialRequirement('jira'), optional: true };
+      await bind(installed.installationId, 'jira', {
+        requirementSnapshot: stale,
+        requirementRevision: requirementRevision(stale),
+      });
+
+      await expect(selections(installed.installationId, ALICE)).resolves.toEqual({
+        credentialSelections: { ai: credentialId },
+      });
+    });
+
+    it("answers 404 for another member's installation and for a removed one", async () => {
+      const installed = await install(ALICE);
+      await versions.update(versionId, { credentialRequirements: ['ai'] });
+      await bind(installed.installationId, 'ai');
+
+      await expect(selections(installed.installationId, BOB)).rejects.toMatchObject({
+        status: 404,
+      });
+      await uninstall(ALICE);
+      await expect(selections(installed.installationId, ALICE)).rejects.toMatchObject({
+        status: 404,
+      });
     });
   });
 

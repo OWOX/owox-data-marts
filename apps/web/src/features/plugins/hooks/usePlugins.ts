@@ -81,6 +81,26 @@ export function usePluginInstallations(includeUninstalled = false) {
   return { installations: data ?? EMPTY_INSTALLATIONS, isLoading, isError, refetch };
 }
 
+/**
+ * The Credential each requirement of one live installation is granted now.
+ *
+ * Keyed under the installations, so the install mutation that changes the grants
+ * refreshes it with them.
+ */
+export function usePluginCredentialSelections(installationId: string | undefined) {
+  const projectId = useProjectId();
+
+  const { data, isLoading, isError } = useQuery({
+    queryKey: [INSTALLATIONS_KEY, projectId, 'credential-selections', installationId],
+    queryFn: () => pluginsService.getCredentialSelections(installationId ?? ''),
+    enabled: Boolean(projectId && installationId),
+    retry: false,
+    refetchOnWindowFocus: false,
+  });
+
+  return { credentialSelections: data?.credentialSelections, isLoading, isError };
+}
+
 interface StaleVersionSignal {
   currentVersionId: string | null;
   currentSemver: string | null;

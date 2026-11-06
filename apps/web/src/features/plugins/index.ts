@@ -2,6 +2,7 @@ export {
   AudienceIcon,
   InstallPluginDialog,
   PluginCard,
+  PluginCredentialsCard,
   PluginPageMessage,
   PluginReleaseIssuesCard,
   PluginSchedulesCard,
@@ -9,6 +10,7 @@ export {
   useCopyLink,
   useUninstallConfirmation,
 } from './components';
+export type { CredentialsSaveOutcome } from './components';
 export { findReleaseIssues, type ReleaseIssues, type ReleaseRejection } from './rejections';
 export { pluginsService } from './services/plugins.service';
 export { repositoryPath } from './repository';
@@ -54,11 +56,13 @@ export {
 export {
   usePlugin,
   usePluginActions,
+  usePluginCredentialSelections,
   usePluginGallery,
   usePluginInstallations,
 } from './hooks/usePlugins';
 export type {
   InstalledPlugin,
+  PluginCredentialSelections,
   PluginEntryPoint,
   PluginGalleryEntry,
   PluginHistoryAction,

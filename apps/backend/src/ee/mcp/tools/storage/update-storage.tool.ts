@@ -18,13 +18,13 @@ type Input = z.infer<typeof updateStorageSchema>;
 export class UpdateStorageTool implements McpToolDefinition<Input> {
   readonly name = 'update_storage';
   readonly description =
-    'Update the supplied Storage title, configuration, or Credential. Omitted fields stay unchanged. Storage types cannot change. Legacy BigQuery titles and project IDs stay unchanged. Use saved Credential IDs only.';
+    'Update the supplied Storage title, configuration, or Credential. Supplied configuration replaces the saved configuration. Changing configuration or Credential can disrupt dependent Data Marts and reports. Omitted fields stay unchanged.\n\nStorage types cannot change. Legacy BigQuery titles and project IDs stay unchanged. Use saved Credential IDs only.';
   readonly zodSchema = updateStorageSchema;
   readonly outputSchema = storageOutputSchema;
   readonly annotations = {
     title: 'Update Storage',
     readOnlyHint: false,
-    destructiveHint: false,
+    destructiveHint: true,
     openWorldHint: true,
   };
   readonly requiredScopes: McpScope[] = ['mcp:write'];

@@ -99,7 +99,7 @@ export class ProjectPluginSchedulesController {
   @ApiOperation({
     summary: 'Resume a paused or disabled plugin schedule',
     description:
-      "Checks the schedule against the plugin's current version first; a refusal leaves it as it was. Clears disabledReason, PAUSED_BY_ADMIN included. Its runs keep the installation owner's access, whoever resumed it.",
+      "Checks the schedule against the plugin's current version first; a refusal leaves it as it was. Clears disabledReason, PAUSED_BY_ADMIN included. Its runs keep the access of the member who created it, whoever resumed it.",
   })
   @ApiOkResponse({ type: ProjectPluginScheduleApiDto })
   async resume(

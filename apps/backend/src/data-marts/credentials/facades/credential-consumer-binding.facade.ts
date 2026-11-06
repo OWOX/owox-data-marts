@@ -63,8 +63,24 @@ export interface ReconcileCredentialBindingsRequest {
   readonly requirements: readonly StoredCredentialRequirement[];
 }
 
+export interface ListCredentialSelectionsRequest {
+  readonly projectId: string;
+  readonly consumerType: 'plugin-installation';
+  readonly consumerId: string;
+  /** The requirements declared now; a binding made for another shape of one is no grant. */
+  readonly requirements: readonly StoredCredentialRequirement[];
+}
+
 export interface CredentialConsumerBindingFacade {
   replaceBindings(request: ReplaceCredentialBindingsRequest): Promise<void>;
+  /**
+   * The consumer's active grants made for the current shape of each requirement, requirement
+   * key to Credential id. The Credential itself may since have been disabled or lost to the
+   * member: runtime refuses those, and the UI marks them as no longer usable.
+   */
+  listSelections(
+    request: ListCredentialSelectionsRequest
+  ): Promise<Readonly<Record<string, string>>>;
   deactivateConsumer(consumerType: 'plugin-installation', consumerId: string): Promise<void>;
   resolveBinding(request: ResolveCredentialBindingRequest): Promise<ResolvedCredentialBinding>;
   assertConsumerReady(request: {

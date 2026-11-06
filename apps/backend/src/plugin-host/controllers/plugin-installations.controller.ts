@@ -27,6 +27,7 @@ import { Role, Strategy } from '../../idp/types/role-config.types';
 import {
   InstallPluginApiDto,
   InstalledPluginApiDto,
+  PluginCredentialSelectionsApiDto,
   PluginEntryApiDto,
   PluginInstallationApiDto,
   PluginRuntimeTokenApiDto,
@@ -35,6 +36,7 @@ import {
 import { UpdatePluginByRepositoryApiDto } from '../dto/presentation/publication-api.dto';
 import { PluginHostExceptionFilter } from '../filters/plugin-host-exception.filter';
 import { PluginPresentationMapper } from '../mappers/plugin-presentation.mapper';
+import { GetPluginInstallationCredentialSelectionsService } from '../use-cases/get-plugin-installation-credential-selections.service';
 import { GetPluginInstallationEntryService } from '../use-cases/get-plugin-installation-entry.service';
 import { InstallPluginService } from '../use-cases/install-plugin.service';
 import { ListInstallationsService } from '../use-cases/list-installations.service';
@@ -54,7 +56,8 @@ import { UpdatePluginService } from '../use-cases/update-plugin.service';
  * plugin must not be able to spend it here: installing another plugin, uninstalling
  * itself, or activating a new version for every installation in the deployment are
  * decisions of the member at the keyboard, not of the third-party page they opened. The
- * reads stay open -- a plugin learning its own delivery URL tells it nothing new.
+ * reads stay open -- a plugin learning its own delivery URL tells it nothing new -- except
+ * which Credentials the member granted, which is not a plugin's to learn.
  */
 @ApiTags('Plugins')
 @Controller('plugins')
@@ -65,6 +68,7 @@ export class PluginInstallationsController {
     private readonly uninstallPluginService: UninstallPluginService,
     private readonly listInstallationsService: ListInstallationsService,
     private readonly getPluginInstallationEntryService: GetPluginInstallationEntryService,
+    private readonly getCredentialSelectionsService: GetPluginInstallationCredentialSelectionsService,
     private readonly updatePluginService: UpdatePluginService,
     private readonly issuePluginRuntimeTokenService: IssuePluginRuntimeTokenService,
     private readonly mapper: PluginPresentationMapper
@@ -105,6 +109,25 @@ export class PluginInstallationsController {
       this.mapper.toGetPluginInstallationEntryCommand(installationId, context)
     );
     return this.mapper.toInstallationEntryResponse(result);
+  }
+
+  @Auth(Role.viewer(Strategy.PARSE))
+  @RejectPluginAuth()
+  @Get('installations/:installationId/credential-selections')
+  @ApiOperation({
+    summary: 'Which Credential each requirement of one active installation is granted',
+    description:
+      "Only for the caller's own live installation, and only grants made for the current version's requirements. The granted Credential may since have been disabled or deleted. Refuses plugin runtime tokens.",
+  })
+  @ApiOkResponse({ type: PluginCredentialSelectionsApiDto })
+  async credentialSelections(
+    @AuthContext() context: AuthorizationContext,
+    @Param('installationId') installationId: string
+  ): Promise<PluginCredentialSelectionsApiDto> {
+    const result = await this.getCredentialSelectionsService.run(
+      this.mapper.toGetPluginInstallationCredentialSelectionsCommand(installationId, context)
+    );
+    return this.mapper.toCredentialSelectionsResponse(result);
   }
 
   @Auth(Role.viewer(Strategy.INTROSPECT))
