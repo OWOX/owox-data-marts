@@ -37,6 +37,7 @@ import {
   RunKind,
 } from '../services/project-billing/project-billing.service';
 import { ReportSqlComposerService } from '../services/report-sql-composer.service';
+import { DATA_MART_ERROR_MESSAGES } from '../errors/data-mart-error-messages';
 
 export const PREVIEW_DEFAULT_LIMIT = 10;
 export const PREVIEW_MAX_LIMIT = 1000;
@@ -155,9 +156,7 @@ export class PreviewDataMartService {
       .map(field => field.name)
       .filter(name => !calculatedNames.has(name));
     if (fields.length === 0) {
-      throw new BadRequestException(
-        'This Data Mart has no visible fields in its Output Schema yet. Refresh the schema, then preview again.'
-      );
+      throw new BadRequestException(DATA_MART_ERROR_MESSAGES.PREVIEW_SCHEMA_REQUIRED);
     }
 
     // Read one extra row to learn whether more rows matched, without a separate COUNT query.

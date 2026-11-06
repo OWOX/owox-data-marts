@@ -14,6 +14,7 @@ import { RunType } from '../../common/scheduler/shared/types';
 import { ConnectorExecutionService } from '../services/connector/connector-execution.service';
 import { AdvancedSearchIndexSyncService } from '../services/advanced-search-index-sync.service';
 import { SearchableEntityType } from '../../common/search/search.facade';
+import { DATA_MART_ERROR_MESSAGES } from '../errors/data-mart-error-messages';
 
 /**
  * Failure reasons authored here, and therefore safe to show to end users.
@@ -30,11 +31,11 @@ export const PUBLISH_DATA_MART_ERRORS = {
   },
   ALREADY_PUBLISHED: {
     code: 'DATA_MART_ALREADY_PUBLISHED',
-    message: 'Data Mart is already published',
+    message: DATA_MART_ERROR_MESSAGES.ALREADY_PUBLISHED,
   },
   NO_DEFINITION: {
     code: 'DATA_MART_NO_DEFINITION',
-    message: 'Data Mart has no definition',
+    message: DATA_MART_ERROR_MESSAGES.DEFINITION_NOT_FOUND,
   },
 } as const;
 

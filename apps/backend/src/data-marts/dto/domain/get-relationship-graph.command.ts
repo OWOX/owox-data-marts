@@ -3,6 +3,7 @@ export class GetRelationshipGraphCommand {
     public readonly rootDataMartId: string,
     public readonly projectId: string,
     public readonly userId: string,
-    public readonly roles: string[]
+    public readonly roles: string[],
+    public readonly omitInaccessible = false
   ) {}
 }

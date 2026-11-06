@@ -18,6 +18,7 @@ import {
   isViewDefinition,
 } from '../../../dto/schemas/data-mart-table-definitions/data-mart-definition.guards';
 import { isValidBigQueryFullyQualifiedName } from '../utils/bigquery-validation.utils';
+import { DATA_MART_ERROR_MESSAGES } from '../../../errors/data-mart-error-messages';
 
 @Injectable()
 export class BigQueryDataMartValidator implements DataMartValidator {
@@ -66,7 +67,7 @@ export class BigQueryDataMartValidator implements DataMartValidator {
       if (!isValidBigQueryFullyQualifiedName(definition.fullyQualifiedName)) {
         return ValidationResult.authoredFailure(
           DataMartValidationCode.INVALID_IDENTIFIER_FORMAT,
-          'Invalid identifier format. Expected: project.dataset.table'
+          DATA_MART_ERROR_MESSAGES.BIGQUERY_IDENTIFIER_INVALID
         );
       }
     } else if (isConnectorDefinition(definition)) {
@@ -77,7 +78,7 @@ export class BigQueryDataMartValidator implements DataMartValidator {
       ) {
         return ValidationResult.authoredFailure(
           DataMartValidationCode.INVALID_IDENTIFIER_FORMAT,
-          'Invalid identifier format. Expected: dataset.table or project.dataset.table'
+          DATA_MART_ERROR_MESSAGES.BIGQUERY_CONNECTOR_IDENTIFIER_INVALID
         );
       }
     }

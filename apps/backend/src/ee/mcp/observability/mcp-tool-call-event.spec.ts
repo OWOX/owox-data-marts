@@ -18,6 +18,34 @@ function baseParams(
 }
 
 describe('buildMcpToolCallEvent', () => {
+  it.each([
+    'update_data_mart_definition',
+    'get_data_mart_setup',
+    'preview_connector_fields',
+    'preview_connector_field_options',
+    'run_data_mart',
+    'update_data_mart_schema',
+  ])('does not log private configuration or echoed diagnostics for %s', toolName => {
+    const value = 'private-unusual-config-value-7136';
+    const event = buildMcpToolCallEvent(
+      baseParams({
+        toolName,
+        input: { configuration: { Value: value } },
+        result: {
+          isError: true,
+          content: [{ type: 'text', text: value }],
+          structuredContent: { diagnostics: value },
+        },
+      })
+    );
+    expect(JSON.stringify(event)).not.toContain(value);
+    expect(event.payload[OFFLOAD_KEY]).toMatchObject({
+      arguments: '[REDACTED]',
+      result: '[REDACTED]',
+    });
+    expect(event.payload.error_message).toBe('Data Mart configuration operation failed.');
+  });
+
   it('успіх: OTel-conv поля + status ok + context', () => {
     const ev = buildMcpToolCallEvent({
       methodName: 'tools/call',
@@ -28,7 +56,7 @@ describe('buildMcpToolCallEvent', () => {
       context: ctx,
     });
     expect(ev.name).toBe('mcp.tool_call');
-    const p = ev.payload as Record<string, unknown>;
+    const p = ev.payload;
     expect(p['mcp_method_name']).toBe('tools/call');
     expect(p['mcp_tool_name']).toBe('query_data_mart');
     expect(p['mcp_tool_status']).toBe('ok');
@@ -160,7 +188,7 @@ describe('buildMcpToolCallEvent', () => {
       durationMs: 42,
       context: ctx,
     });
-    const p = ev.payload as Record<string, unknown>;
+    const p = ev.payload;
     const blob = p[OFFLOAD_KEY] as Record<string, unknown>;
     expect(blob['owox_request_id']).toBe(p['owox_request_id']);
     expect(blob['owox_project_id']).toBe(p['owox_project_id']);
@@ -180,7 +208,7 @@ describe('buildMcpToolCallEvent', () => {
       durationMs: 5,
       context: ctx,
     });
-    const p = ev.payload as Record<string, unknown>;
+    const p = ev.payload;
     expect(p['mcp_tool_status']).toBe('error');
     expect(p['error_type']).toBe('TypeError');
     expect(p['error_message']).toBe('bad');
@@ -195,7 +223,7 @@ describe('buildMcpToolCallEvent', () => {
       durationMs: 1,
       context: ctx,
     });
-    expect((ev.payload as Record<string, unknown>)['mcp_tool_status']).toBe('error');
+    expect(ev.payload['mcp_tool_status']).toBe('error');
   });
 
   it('structured error (result.isError) hoists a top-level reason so it survives offload', () => {
@@ -207,7 +235,7 @@ describe('buildMcpToolCallEvent', () => {
       durationMs: 1,
       context: ctx,
     });
-    const p = ev.payload as Record<string, unknown>;
+    const p = ev.payload;
     expect(p['error_type']).toBe('ToolError');
     expect(p['error_message']).toBe('field_not_found: foo');
   });
@@ -221,7 +249,7 @@ describe('buildMcpToolCallEvent', () => {
       durationMs: 1,
       context: ctx,
     });
-    const p = ev.payload as Record<string, unknown>;
+    const p = ev.payload;
     expect(p['error_type']).toBe('ToolError');
     expect(p['error_message']).toBe('tool returned isError');
   });
@@ -234,7 +262,7 @@ describe('buildMcpToolCallEvent', () => {
       durationMs: 1,
       context: ctx,
     });
-    const blob = (ev.payload as Record<string, unknown>)[OFFLOAD_KEY] as Record<string, unknown>;
+    const blob = ev.payload[OFFLOAD_KEY] as Record<string, unknown>;
     const args = blob['arguments'] as Record<string, unknown>;
     expect(args['id']).toBe('ok');
     expect(args['authorization']).toBe('[REDACTED]');
@@ -252,7 +280,7 @@ describe('buildMcpToolCallEvent', () => {
       context: ctx,
       executedSql: 'SELECT 1',
     });
-    const blob = (ev.payload as Record<string, unknown>)[OFFLOAD_KEY] as Record<string, unknown>;
+    const blob = ev.payload[OFFLOAD_KEY] as Record<string, unknown>;
     expect(blob['sql']).toBe('SELECT 1');
   });
 
@@ -271,7 +299,7 @@ describe('buildMcpToolCallEvent', () => {
         traceparent: '00-89f08b698684e76d81cf47333ab2a174-85d2acb4c5e0403b-01',
       },
     });
-    const p = ev.payload as Record<string, unknown>;
+    const p = ev.payload;
     expect(p['mcp_protocol_version']).toBe('2025-11-25');
     expect(p['owox_client_user_agent']).toBe('Claude-User');
     expect(p['owox_client_vendor']).toBe('ClaudeAI');
@@ -292,12 +320,12 @@ describe('buildMcpToolCallEvent', () => {
       durationMs: 1,
       context: { ...ctx, traceparent: 'garbage' },
     });
-    const p = ev.payload as Record<string, unknown>;
+    const p = ev.payload;
     expect(p['traceparent']).toBe('garbage');
     expect(p['trace_id']).toBe(deriveTraceId(p['owox_conversation_id'] as string));
   });
 
-  // Dynamic `meta_*` keys aren't declared on McpToolCallEventPayload — read them via a cast.
+  // Dynamic `meta_*` keys are inspected with bracket access.
   it('uses the real conversation id from _meta when present', () => {
     const event = buildMcpToolCallEvent(
       baseParams({
@@ -305,7 +333,7 @@ describe('buildMcpToolCallEvent', () => {
         meta: { 'openai/session': 'sess-9' },
       })
     );
-    const p = event.payload as Record<string, unknown>;
+    const p = event.payload;
     expect(event.payload['owox_conversation_id']).toBe('sess-9');
     expect(event.payload['owox_conversation_id_is_pseudo']).toBe(false);
     expect(p['meta_openai_session']).toBe('sess-9');
@@ -343,7 +371,7 @@ describe('buildMcpToolCallEvent', () => {
         meta: { token: 'abc', 'openai/userLocation': { city: 'Kyiv' } },
       })
     );
-    const p = event.payload as Record<string, unknown>;
+    const p = event.payload;
     expect(p['meta_token']).toBe('[REDACTED]');
     expect(p['meta_openai_userLocation']).toBe('{"city":"Kyiv"}');
   });
@@ -355,7 +383,7 @@ describe('buildMcpToolCallEvent', () => {
         meta: { 'openai/userLocation': { city: 'Kyiv', apiKey: 'SECRET' } },
       })
     );
-    const p = event.payload as Record<string, unknown>;
+    const p = event.payload;
     expect(p['meta_openai_userLocation']).toBe('{"city":"Kyiv","apiKey":"[REDACTED]"}');
   });
 
@@ -377,7 +405,7 @@ describe('buildMcpToolCallEvent', () => {
         meta: { big: 'x'.repeat(5000) },
       })
     );
-    const p = event.payload as Record<string, unknown>;
+    const p = event.payload;
     expect((p['meta_big'] as string).length).toBeLessThan(1100);
     expect(p['meta_big']).toContain('[truncated]');
   });
@@ -433,7 +461,7 @@ describe('buildMcpToolCallEvent', () => {
     const meta: Record<string, unknown> = {};
     for (let i = 0; i < 100; i++) meta[`k${i}`] = i;
     const ev = buildMcpToolCallEvent(baseParams({ context: { userId: 'u1' }, meta }));
-    const p = ev.payload as Record<string, unknown>;
+    const p = ev.payload;
     expect(p['meta_truncated']).toBe(true);
     // Numeric meta is coerced to string (stable fixed-schema sink column); meta_truncated stays boolean.
     expect(p['meta_k0']).toBe('0');
@@ -444,7 +472,7 @@ describe('buildMcpToolCallEvent', () => {
     const ev = buildMcpToolCallEvent(
       baseParams({ context: { userId: 'u1' }, meta: { retries: 5, verbose: true } })
     );
-    const p = ev.payload as Record<string, unknown>;
+    const p = ev.payload;
     expect(p['meta_retries']).toBe('5');
     expect(p['meta_verbose']).toBe('true');
   });
@@ -458,6 +486,6 @@ describe('buildMcpToolCallEvent', () => {
       durationMs: 1,
       context: ctx,
     });
-    expect((ev.payload as Record<string, unknown>)['mcp_tool_status']).toBe('error');
+    expect(ev.payload['mcp_tool_status']).toBe('error');
   });
 });

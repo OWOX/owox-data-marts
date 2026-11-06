@@ -107,6 +107,7 @@ import { ConnectorSourceCredentialsService } from './connector-source-credential
 import { addMessageToArray } from './connector-message.utils';
 import { NON_TERMINAL_DATA_MART_RUN_STATUSES } from '../../utils/data-mart-run-cancellation';
 import { createRunLogSnapshotReader, RunLogFlusher, RunLogSnapshot } from './run-log-flusher';
+import { DATA_MART_RUN_ERROR_MESSAGES } from '../../errors/data-mart-error-messages';
 
 /**
  * `addMessageToArray` with this file's entry bound always applied.
@@ -1176,7 +1177,7 @@ export class ConnectorExecutorService {
       nextFields
     );
     if (!wasSynchronized) {
-      throw new Error('Data Mart definition changed while connector source fields were updating');
+      throw new Error(DATA_MART_RUN_ERROR_MESSAGES.CONNECTOR_DEFINITION_CHANGED);
     }
 
     this.logger.log(`Updated connector source fields after successful connector run`, {

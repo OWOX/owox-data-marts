@@ -28,6 +28,7 @@ import {
   McpScheduledTriggersContext,
   McpScheduledTriggersFacade,
 } from './mcp-scheduled-triggers.facade';
+import { DATA_MART_ERROR_MESSAGES } from '../errors/data-mart-error-messages';
 
 const REPORT_RUN_SCHEDULES_PAGE_SIZE = 500;
 
@@ -172,7 +173,7 @@ export class McpScheduledTriggersFacadeImpl implements McpScheduledTriggersFacad
     try {
       new CronTime(cronExpression, timeZone).getNextDateFrom(new Date(), timeZone);
     } catch {
-      throw new BusinessViolationException('Invalid cron expression or timezone', {
+      throw new BusinessViolationException(DATA_MART_ERROR_MESSAGES.INVALID_SCHEDULE, {
         cronExpression,
         timeZone,
       });

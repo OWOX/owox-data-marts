@@ -1,3 +1,37 @@
+import { GetConnectorFieldsTool } from './connector/get-connector-fields.tool';
+import { GetConnectorSpecificationTool } from './connector/get-connector-specification.tool';
+import { ListConnectorsTool } from './connector/list-connectors.tool';
+import { PreviewConnectorFieldOptionsTool } from './connector/preview-connector-field-options.tool';
+import { PreviewConnectorFieldsTool } from './connector/preview-connector-fields.tool';
+import { ActualizeDataMartSchemaTool } from './data-mart/actualize-data-mart-schema.tool';
+import { CreateDataMartTool } from './data-mart/create-data-mart.tool';
+import { DeleteDataMartTool } from './data-mart/delete-data-mart.tool';
+import { GetDataMartChangeImpactTool } from './data-mart/get-data-mart-change-impact.tool';
+import { GetDataMartSetupTool } from './data-mart/get-data-mart-setup.tool';
+import { ListSetupDataMartsTool } from './data-mart/list-setup-data-marts.tool';
+import { PublishDataMartTool } from './data-mart/publish-data-mart.tool';
+import { SetDataMartContextsTool } from './data-mart/set-data-mart-contexts.tool';
+import { SetDataMartOwnersTool } from './data-mart/set-data-mart-owners.tool';
+import { SetDataMartSharingTool } from './data-mart/set-data-mart-sharing.tool';
+import { UpdateDataMartDefinitionTool } from './data-mart/update-data-mart-definition.tool';
+import { UpdateDataMartDescriptionTool } from './data-mart/update-data-mart-description.tool';
+import { UpdateDataMartIconTool } from './data-mart/update-data-mart-icon.tool';
+import { UpdateDataMartSchemaTool } from './data-mart/update-data-mart-schema.tool';
+import { UpdateDataMartTitleTool } from './data-mart/update-data-mart-title.tool';
+import { ValidateDataMartTool } from './data-mart/validate-data-mart.tool';
+import { CancelDataMartRunTool } from './data-mart-execution/cancel-data-mart-run.tool';
+import { CreateDataMartRunScheduleTool } from './data-mart-execution/create-data-mart-run-schedule.tool';
+import { DeleteDataMartRunScheduleTool } from './data-mart-execution/delete-data-mart-run-schedule.tool';
+import { GetDataMartRunTool } from './data-mart-execution/get-data-mart-run.tool';
+import { ListDataMartRunSchedulesTool } from './data-mart-execution/list-data-mart-run-schedules.tool';
+import { ListDataMartRunsTool } from './data-mart-execution/list-data-mart-runs.tool';
+import { RunDataMartTool } from './data-mart-execution/run-data-mart.tool';
+import { UpdateDataMartRunScheduleTool } from './data-mart-execution/update-data-mart-run-schedule.tool';
+import { CreateDataMartRelationshipTool } from './data-mart-model/create-data-mart-relationship.tool';
+import { DeleteDataMartRelationshipTool } from './data-mart-model/delete-data-mart-relationship.tool';
+import { ListDataMartRelationshipsTool } from './data-mart-model/list-data-mart-relationships.tool';
+import { PreviewDataMartTool } from './data-mart-model/preview-data-mart.tool';
+import { UpdateDataMartRelationshipTool } from './data-mart-model/update-data-mart-relationship.tool';
 import { ListContextsTool } from './list-contexts.tool';
 import type { Provider, Type } from '@nestjs/common';
 import { CreateReportRunScheduleTool } from './create-report-run-schedule.tool';
@@ -67,6 +101,41 @@ import { DeleteDestinationTool } from './destination/delete-destination.tool';
 import { RotateDestinationSecretKeyTool } from './destination/rotate-destination-secret-key.tool';
 
 export const MCP_TOOL_PROVIDER_CLASSES: Array<Type<McpToolDefinition>> = [
+  GetConnectorFieldsTool,
+  GetConnectorSpecificationTool,
+  ListConnectorsTool,
+  PreviewConnectorFieldOptionsTool,
+  PreviewConnectorFieldsTool,
+  ActualizeDataMartSchemaTool,
+  CreateDataMartTool,
+  DeleteDataMartTool,
+  GetDataMartChangeImpactTool,
+  GetDataMartSetupTool,
+  ListSetupDataMartsTool,
+  PublishDataMartTool,
+  SetDataMartContextsTool,
+  SetDataMartOwnersTool,
+  SetDataMartSharingTool,
+  UpdateDataMartDefinitionTool,
+  UpdateDataMartDescriptionTool,
+  UpdateDataMartIconTool,
+  UpdateDataMartSchemaTool,
+  UpdateDataMartTitleTool,
+  ValidateDataMartTool,
+  CancelDataMartRunTool,
+  CreateDataMartRunScheduleTool,
+  DeleteDataMartRunScheduleTool,
+  GetDataMartRunTool,
+  ListDataMartRunSchedulesTool,
+  ListDataMartRunsTool,
+  RunDataMartTool,
+  UpdateDataMartRunScheduleTool,
+  CreateDataMartRelationshipTool,
+  DeleteDataMartRelationshipTool,
+  ListDataMartRelationshipsTool,
+  PreviewDataMartTool,
+  UpdateDataMartRelationshipTool,
+
   ListStoragesTool,
   GetStorageTool,
   CreateStorageTool,

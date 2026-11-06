@@ -127,7 +127,13 @@ export class ScheduledTriggerMapper {
     dataMartId: string,
     context: AuthorizationContext
   ): GetScheduledTriggerCommand {
-    return new GetScheduledTriggerCommand(id, dataMartId, context.projectId);
+    return new GetScheduledTriggerCommand(
+      id,
+      dataMartId,
+      context.projectId,
+      context.userId,
+      context.roles ?? []
+    );
   }
 
   toDeleteCommand(
@@ -145,6 +151,11 @@ export class ScheduledTriggerMapper {
   }
 
   toListCommand(dataMartId: string, context: AuthorizationContext): ListScheduledTriggersCommand {
-    return new ListScheduledTriggersCommand(dataMartId, context.projectId);
+    return new ListScheduledTriggersCommand(
+      dataMartId,
+      context.projectId,
+      context.userId,
+      context.roles ?? []
+    );
   }
 }

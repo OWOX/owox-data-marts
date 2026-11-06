@@ -1,6 +1,12 @@
-import { Injectable, ForbiddenException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  ForbiddenException,
+  BadRequestException,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { CronTime } from 'cron';
 import { DataMartScheduledTrigger } from '../entities/data-mart-scheduled-trigger.entity';
 import { ScheduledTriggerService } from '../services/scheduled-trigger.service';
 import { ScheduledTriggerMapper } from '../mappers/scheduled-trigger.mapper';
@@ -13,7 +19,8 @@ import { ReportAccessService } from '../services/report-access.service';
 import { ReportService } from '../services/report.service';
 import { ScheduledTriggerType } from '../scheduled-trigger-types/enums/scheduled-trigger-type.enum';
 import { isScheduledReportRunConfig } from '../scheduled-trigger-types/scheduled-trigger-config.guards';
-import { AccessDecisionService, Action } from '../services/access-decision';
+import { AccessDecisionService, Action, EntityType } from '../services/access-decision';
+import { DATA_MART_ERROR_MESSAGES } from '../errors/data-mart-error-messages';
 
 @Injectable()
 export class UpdateScheduledTriggerService {
@@ -29,32 +36,50 @@ export class UpdateScheduledTriggerService {
   ) {}
 
   async run(command: UpdateScheduledTriggerCommand): Promise<ScheduledTriggerDto> {
+    if (
+      !command.userId ||
+      !(await this.accessDecisionService.canAccess(
+        command.userId,
+        command.roles,
+        EntityType.DATA_MART,
+        command.dataMartId,
+        Action.SEE,
+        command.projectId
+      ))
+    )
+      throw new ForbiddenException('You do not have access to this DataMart');
+
     const trigger = await this.scheduledTriggerService.getByIdAndDataMartIdAndProjectId(
       command.id,
       command.dataMartId,
       command.projectId
     );
 
+    if (command.expectedType !== undefined && trigger.type !== command.expectedType) {
+      throw new NotFoundException('Scheduled trigger was not found');
+    }
+
     await this.checkAccess(command, trigger);
 
     if (trigger.dataMart.status !== DataMartStatus.PUBLISHED) {
       throw new BusinessViolationException(
-        'Cannot update a trigger for a data mart that is not published'
+        DATA_MART_ERROR_MESSAGES.UPDATE_TRIGGER_REQUIRES_PUBLISHED
       );
     }
 
-    trigger.cronExpression = command.cronExpression;
-    trigger.timeZone = command.timeZone;
-    if (command.isActive) {
-      try {
+    const timeZone = command.timeZone ?? trigger.timeZone;
+    const isActive = command.isActive ?? trigger.isActive;
+    try {
+      new CronTime(command.cronExpression, timeZone).getNextDateFrom(new Date(), timeZone);
+      trigger.cronExpression = command.cronExpression;
+      trigger.timeZone = timeZone;
+      if (isActive) {
         trigger.scheduleNextRun();
-      } catch {
-        throw new BusinessViolationException('Invalid cron expression', {
-          cronExpression: command.cronExpression,
-        });
+      } else {
+        trigger.discardNextRun();
       }
-    } else {
-      trigger.discardNextRun();
+    } catch {
+      throw new BusinessViolationException(DATA_MART_ERROR_MESSAGES.INVALID_SCHEDULE);
     }
 
     const updatedTrigger = await this.triggerRepository.save(trigger);

@@ -21,7 +21,10 @@ export class GetDataMartService {
   ) {}
 
   async run(command: GetDataMartCommand): Promise<DataMartDto> {
-    if (this.legacyDataMartService.isDataMartIdLooksLikeLegacy(command.id)) {
+    if (
+      !command.disableLegacySync &&
+      this.legacyDataMartService.isDataMartIdLooksLikeLegacy(command.id)
+    ) {
       await this.syncLegacyDataMartService.run({ dataMartId: command.id });
     }
 

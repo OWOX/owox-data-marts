@@ -104,8 +104,7 @@ export class ConnectorSourceConfigService {
           }))
         : [];
 
-    this.logger.debug(`Creating run config`, { payload, state });
-    this.logger.debug(`Returning run config`, { type, data, state: state?.state || {} });
+    this.logger.debug('Creating run config', { type, fieldCount: data.length });
 
     return new RunConfigDto({
       type,

@@ -19,6 +19,7 @@ import {
   isViewDefinition,
 } from '../../../dto/schemas/data-mart-table-definitions/data-mart-definition.guards';
 import { isValidAthenaFullyQualifiedName } from '../utils/athena-validation.utils';
+import { DATA_MART_ERROR_MESSAGES } from '../../../errors/data-mart-error-messages';
 
 @Injectable()
 export class AthenaDataMartValidator implements DataMartValidator {
@@ -85,7 +86,7 @@ export class AthenaDataMartValidator implements DataMartValidator {
     if (identifierToValidate && !isValidAthenaFullyQualifiedName(identifierToValidate)) {
       return ValidationResult.authoredFailure(
         DataMartValidationCode.INVALID_IDENTIFIER_FORMAT,
-        'Invalid identifier format. Expected: database.table or catalog.database.table'
+        DATA_MART_ERROR_MESSAGES.ATHENA_IDENTIFIER_INVALID
       );
     }
 

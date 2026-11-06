@@ -18,6 +18,7 @@ import {
   DataMartRelationshipEndpointRow,
   DataMartRelationshipRepository,
 } from '../repositories/data-mart-relationship.repository';
+import { DATA_MART_ERROR_MESSAGES } from '../errors/data-mart-error-messages';
 
 @Injectable()
 export class DataMartRelationshipService {
@@ -194,19 +195,25 @@ export class DataMartRelationshipService {
 
       if (!isPrimitiveFieldType(sourceField.type)) {
         throw new BusinessViolationException(
-          `Field "${condition.sourceFieldName}" has complex type "${sourceField.type}" which cannot be used in join conditions`
+          `Field "${condition.sourceFieldName}" has complex type "${sourceField.type}" which cannot be used in join conditions`,
+          undefined,
+          'DATA_MART_RELATIONSHIP_JOIN_FIELD_TYPE_INVALID'
         );
       }
 
       if (!isPrimitiveFieldType(targetField.type)) {
         throw new BusinessViolationException(
-          `Field "${condition.targetFieldName}" has complex type "${targetField.type}" which cannot be used in join conditions`
+          `Field "${condition.targetFieldName}" has complex type "${targetField.type}" which cannot be used in join conditions`,
+          undefined,
+          'DATA_MART_RELATIONSHIP_JOIN_FIELD_TYPE_INVALID'
         );
       }
 
       if (!areTypesCompatible(sourceField.type, targetField.type)) {
         throw new BusinessViolationException(
-          `Incompatible types: "${condition.sourceFieldName}" (${sourceField.type}) and "${condition.targetFieldName}" (${targetField.type})`
+          `Incompatible types: "${condition.sourceFieldName}" (${sourceField.type}) and "${condition.targetFieldName}" (${targetField.type})`,
+          undefined,
+          'DATA_MART_RELATIONSHIP_JOIN_TYPES_INCOMPATIBLE'
         );
       }
     }
@@ -216,7 +223,7 @@ export class DataMartRelationshipService {
 
   validateNoSelfReference(sourceId: string, targetId: string): void {
     if (sourceId === targetId) {
-      throw new BusinessViolationException('A data mart cannot have a relationship with itself', {
+      throw new BusinessViolationException(DATA_MART_ERROR_MESSAGES.RELATIONSHIP_SELF_REFERENCE, {
         sourceId,
         targetId,
       });
@@ -225,10 +232,10 @@ export class DataMartRelationshipService {
 
   validateSameStorage(sourceStorageId: string, targetStorageId: string): void {
     if (sourceStorageId !== targetStorageId) {
-      throw new BusinessViolationException(
-        'Source and target data marts must belong to the same storage',
-        { sourceStorageId, targetStorageId }
-      );
+      throw new BusinessViolationException(DATA_MART_ERROR_MESSAGES.RELATIONSHIP_STORAGE_MISMATCH, {
+        sourceStorageId,
+        targetStorageId,
+      });
     }
   }
 
@@ -246,7 +253,8 @@ export class DataMartRelationshipService {
     if (conflict && conflict.id !== excludeId) {
       throw new BusinessViolationException(
         `Alias "${alias}" is already used in another relationship for this data mart`,
-        { sourceDataMartId, alias, conflictingRelationshipId: conflict.id }
+        { sourceDataMartId, alias, conflictingRelationshipId: conflict.id },
+        'DATA_MART_RELATIONSHIP_ALIAS_TAKEN'
       );
     }
   }
