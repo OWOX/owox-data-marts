@@ -87,10 +87,30 @@ LinkedIn reports one location level at a time, so country, region, and county ar
 What to expect from these endpoints:
 
 - **More API requests than Ad Analytics.** LinkedIn breaks location down only for one campaign at a time. For every day, the connector first reads which campaigns ran, then asks for each of those campaigns separately. LinkedIn returns up to 18 metrics per request, so every further 18 selected metrics add one more request per campaign.
-- **Totals can be lower than in Ad Analytics.** LinkedIn drops a location with fewer than 3 events, returns at most the top 100 locations for each ad on each day, and returns location data only for ads that reached enough members, to protect member privacy. Rows LinkedIn returns without a location or a date are not imported, and the run says how many.
+- **Clicks and spend by location are incomplete.** Impressions by location usually add up to almost all of the campaign's impressions in **Ad Analytics**, but LinkedIn reports only part of the clicks and spend by location. Spend by location can be well below the campaign's spend, even for a campaign that runs in a single country, and a campaign spread over many locations can show no clicks or spend at all. To protect member privacy, LinkedIn also drops a location with fewer than 3 events, returns at most the top 100 locations for each ad on each day, and returns location data only for ads that reached enough members. Rows LinkedIn returns without a location or a date are not imported, and the run says how many.
 - **Data arrives 12–24 hours late.** The default **Reimport Lookback Window** of 2 days re-imports those days on the next run.
 - **Two years of history.** LinkedIn keeps location breakdowns for two years, so a backfill further back returns no rows.
 - **Some metrics are missing.** LinkedIn does not break down `approximateMemberReach`, `audiencePenetration`, `conversionValueInLocalCurrency`, or the carousel card metrics by location, so these endpoints do not offer them.
+
+To estimate spend by location, split each campaign's daily spend from **Ad Analytics** by each location's share of that campaign's impressions. In **Ad Analytics**, the second value of `pivotValues` is the campaign URN. For example, in BigQuery:
+
+```sql
+WITH by_country AS (
+  SELECT dateRangeStart, campaign, countryName, impressions
+  FROM `your_dataset.linkedin_ads_ad_analytics_by_country`
+),
+campaign_spend AS (
+  SELECT dateRangeStart, JSON_VALUE(pivotValues, '$[1]') AS campaign,
+         SUM(costInUsd) AS costInUsd
+  FROM `your_dataset.linkedin_ads_ad_analytics`
+  GROUP BY dateRangeStart, campaign
+)
+SELECT c.dateRangeStart, c.campaign, c.countryName, c.impressions,
+       s.costInUsd * SAFE_DIVIDE(c.impressions,
+         SUM(c.impressions) OVER (PARTITION BY c.dateRangeStart, c.campaign)) AS estimatedCostInUsd
+FROM by_country AS c
+JOIN campaign_spend AS s USING (dateRangeStart, campaign)
+```
 
 Location names:
 
