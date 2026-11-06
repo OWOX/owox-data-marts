@@ -1182,7 +1182,8 @@ export class DataMartsModule {
       .forRoutes(
         { path: 'data-marts/:id/definition', method: RequestMethod.PUT },
         { path: 'data-marts/:id/publish', method: RequestMethod.PUT },
-        { path: 'data-marts/:id/preview', method: RequestMethod.POST }
+        { path: 'data-marts/:id/preview', method: RequestMethod.POST },
+        { path: 'data-marts/:id/schema', method: RequestMethod.PUT }
       );
     consumer
       .apply(createOperationTimeoutMiddleware(30000))
@@ -1190,6 +1191,7 @@ export class DataMartsModule {
         { path: 'data-marts/:id/definition', method: RequestMethod.PUT },
         { path: 'data-marts/:id/publish', method: RequestMethod.PUT },
         { path: 'data-marts/:id/preview', method: RequestMethod.POST },
+        { path: 'data-marts/:id/schema', method: RequestMethod.PUT },
         { path: 'external/{*path}', method: RequestMethod.ALL },
         ...MCP_OPERATION_TIMEOUT_EXCLUSIONS,
         // The live connector test manages its own run timeout and always resolves
