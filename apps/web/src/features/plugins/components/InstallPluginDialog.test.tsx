@@ -7,6 +7,7 @@ const credentialState = vi.hoisted(() => ({
   credentials: [] as Record<string, unknown>[],
   definitions: [] as Record<string, unknown>[],
   credentialsLoading: false,
+  credentialsFailed: false,
 }));
 
 vi.mock('../../../shared/components/Combobox/combobox', () => ({
@@ -67,6 +68,7 @@ vi.mock('../../credentials', () => ({
   useCredentials: () => ({
     credentials: credentialState.credentials,
     isLoading: credentialState.credentialsLoading,
+    isError: credentialState.credentialsFailed,
   }),
   useCredentialDefinitions: () => ({ definitions: credentialState.definitions }),
   normalizePluginCredentialRequirement: (
@@ -138,6 +140,7 @@ describe('InstallPluginDialog', () => {
     credentialState.credentials = [];
     credentialState.definitions = [];
     credentialState.credentialsLoading = false;
+    credentialState.credentialsFailed = false;
   });
 
   /**
@@ -387,6 +390,42 @@ describe('InstallPluginDialog', () => {
     expect(screen.getByText('Deployment api key')).toBeInTheDocument();
     expect(screen.getByText('Provider: Custom provider')).toBeInTheDocument();
     expect(screen.queryByText('deployment_api_key')).not.toBeInTheDocument();
+  });
+
+  describe('when the Credentials list is loading or failed', () => {
+    const renderDialog = (over: Partial<PluginGalleryEntry> = {}) =>
+      render(
+        <InstallPluginDialog
+          plugin={plugin(over)}
+          open
+          onOpenChange={vi.fn()}
+          onConfirm={vi.fn()}
+          isInstalling={false}
+        />
+      );
+
+    it.each([
+      ['failed', { credentialsFailed: true }],
+      ['loading', { credentialsLoading: true }],
+    ])('installs a plugin that declares no Credentials while the list is %s', (_, state) => {
+      Object.assign(credentialState, state);
+
+      renderDialog();
+
+      expect(screen.getByRole('button', { name: 'Install' })).toBeEnabled();
+    });
+
+    it('does not install a plugin that needs Credentials when the list failed', () => {
+      credentialState.credentialsFailed = true;
+      credentialState.definitions = [definition({ id: 'github', displayName: 'GitHub' })];
+
+      renderDialog({ credentialRequirements: [{ id: 'github', optional: true }] });
+
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        "Could not load the project's Credentials"
+      );
+      expect(screen.getByRole('button', { name: 'Install' })).toBeDisabled();
+    });
   });
 
   it('offers Add Credential inside the selector when no matching Credential exists', () => {

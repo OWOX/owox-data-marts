@@ -77,12 +77,15 @@ export function useCredentialSelectionsForm(
     [select, touch]
   );
 
+  // A plugin that declares no Credentials does not wait for the list or stop when it fails.
+  const needsCredentials = requirements.length > 0;
+
   return {
     requirements,
     selections,
     touched,
-    credentialsLoading,
-    credentialsFailed,
+    credentialsLoading: needsCredentials && credentialsLoading,
+    credentialsFailed: needsCredentials && credentialsFailed,
     availableCredentials,
     eligibleByKey,
     isDecided,
