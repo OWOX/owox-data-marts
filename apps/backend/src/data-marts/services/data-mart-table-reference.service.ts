@@ -18,7 +18,7 @@ import { DataMartSqlReferenceResolver } from './data-mart-sql-reference-resolver
  * that composes several queries over the same Data Marts in one operation.
  *
  * Resolving a SQL-defined Data Mart is not a read: it runs `CREATE OR REPLACE VIEW` against the
- * customer's warehouse. A schema save that dry-runs a joined formula composes once for the whole
+ * customer's warehouse (on BigQuery, only when the view holds other SQL). A schema save that dry-runs a joined formula composes once for the whole
  * metric set and then, if that fails, once more per metric to attribute the failure — so without a
  * memo an N-metric save refreshes every involved Data Mart's view N+1 times.
  *

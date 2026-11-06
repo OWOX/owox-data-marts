@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { Logger } from '@nestjs/common';
 import { BIGQUERY_AUTODETECT_LOCATION, BigQueryConfig } from '../schemas/bigquery-config.schema';
 import { BigQueryApiAdapterFactory } from '../adapters/bigquery-api-adapter.factory';
@@ -16,9 +17,12 @@ describe('BigQueryCreateViewExecutor', () => {
   } as unknown as DataStorageCredentials;
 
   const sql = 'SELECT 1';
+  const sqlHash = createHash('sha256').update(sql).digest('hex').slice(0, 32);
+  const getMetadata = jest.fn();
   const mockAdapter = {
     executeDryRunQuery: jest.fn(),
     executeQuery: jest.fn(),
+    createTableReference: jest.fn(() => ({ getMetadata })),
   };
 
   const mockAdapterFactory = {
@@ -30,6 +34,9 @@ describe('BigQueryCreateViewExecutor', () => {
 
   beforeEach(() => {
     mockAdapter.executeDryRunQuery.mockReset();
+    mockAdapter.createTableReference.mockClear();
+    getMetadata.mockReset();
+    getMetadata.mockRejectedValue(Object.assign(new Error('Not found'), { code: 404 }));
     mockAdapter.executeQuery.mockReset();
     mockAdapter.executeQuery.mockResolvedValue({ jobId: 'job-id' });
     mockAdapter.executeDryRunQuery.mockResolvedValue({
@@ -61,9 +68,125 @@ describe('BigQueryCreateViewExecutor', () => {
     );
     expect(mockAdapter.executeQuery).toHaveBeenNthCalledWith(
       2,
-      'CREATE OR REPLACE VIEW `test-project.owox_internal_eu.my_view` AS SELECT 1'
+      `CREATE OR REPLACE VIEW \`test-project.owox_internal_eu.my_view\` OPTIONS(labels=[('owox_sql_hash', '${sqlHash}')]) AS SELECT 1`
     );
     expect(result).toEqual({ fullyQualifiedName: 'test-project.owox_internal_eu.my_view' });
+  });
+
+  it('should skip the DDL when the view was created from the same SQL', async () => {
+    getMetadata.mockResolvedValue([{ labels: { owox_sql_hash: sqlHash } }]);
+    const config: BigQueryConfig = { projectId: 'test-project', location: 'EU' };
+
+    const result = await service.createView(credentials, config, 'my_view', sql);
+
+    expect(mockAdapter.createTableReference).toHaveBeenCalledWith(
+      'test-project',
+      'owox_internal_eu',
+      'my_view'
+    );
+    expect(mockAdapter.executeQuery).not.toHaveBeenCalled();
+    expect(result).toEqual({ fullyQualifiedName: 'test-project.owox_internal_eu.my_view' });
+  });
+
+  it('should replace the view when it was created from other SQL', async () => {
+    getMetadata.mockResolvedValue([{ labels: { owox_sql_hash: 'other' } }]);
+    const config: BigQueryConfig = { projectId: 'test-project', location: 'EU' };
+
+    await service.createView(credentials, config, 'my_view', sql);
+
+    expect(mockAdapter.executeQuery).toHaveBeenLastCalledWith(
+      expect.stringContaining('CREATE OR REPLACE VIEW')
+    );
+  });
+
+  it('should run one DDL for concurrent calls with the same SQL', async () => {
+    const config: BigQueryConfig = { projectId: 'test-project', location: 'EU' };
+
+    await Promise.all(
+      Array.from({ length: 5 }, () => service.createView(credentials, config, 'my_view', sql))
+    );
+
+    expect(mockAdapter.executeQuery).toHaveBeenCalledTimes(2);
+  });
+
+  describe('when BigQuery rate-limits the view DDL', () => {
+    const config: BigQueryConfig = { projectId: 'test-project', location: 'EU' };
+    const rateLimited = new Error(
+      'Exceeded rate limits: too many table update operations for this table.'
+    );
+
+    beforeEach(() => {
+      jest.useFakeTimers();
+      mockAdapter.executeQuery
+        .mockResolvedValueOnce({ jobId: 'schema-job' })
+        .mockRejectedValueOnce(rateLimited);
+    });
+
+    afterEach(() => {
+      jest.useRealTimers();
+    });
+
+    it('should succeed when another instance has written the same SQL', async () => {
+      getMetadata
+        .mockRejectedValueOnce(Object.assign(new Error('Not found'), { code: 404 }))
+        .mockResolvedValueOnce([{ labels: { owox_sql_hash: sqlHash } }]);
+
+      const result = service.createView(credentials, config, 'my_view', sql);
+      await jest.advanceTimersByTimeAsync(2000);
+
+      await expect(result).resolves.toEqual({
+        fullyQualifiedName: 'test-project.owox_internal_eu.my_view',
+      });
+      expect(getMetadata).toHaveBeenCalledTimes(2);
+    });
+
+    it('should rethrow when the view still holds other SQL', async () => {
+      getMetadata.mockResolvedValue([{ labels: { owox_sql_hash: 'other' } }]);
+
+      const result = service.createView(credentials, config, 'my_view', sql);
+      const assertion = expect(result).rejects.toBe(rateLimited);
+      await jest.advanceTimersByTimeAsync(2000);
+
+      await assertion;
+      expect(getMetadata).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  it('should rethrow other DDL errors without reading the view again', async () => {
+    const syntaxError = new Error('Syntax error: Unexpected keyword');
+    mockAdapter.executeQuery
+      .mockResolvedValueOnce({ jobId: 'schema-job' })
+      .mockRejectedValueOnce(syntaxError);
+    const config: BigQueryConfig = { projectId: 'test-project', location: 'EU' };
+
+    await expect(service.createView(credentials, config, 'my_view', sql)).rejects.toBe(syntaxError);
+    expect(getMetadata).toHaveBeenCalledTimes(1);
+  });
+
+  it('should warn and run the DDL when the view labels cannot be read', async () => {
+    getMetadata.mockRejectedValue(Object.assign(new Error('Access Denied'), { code: 403 }));
+    const config: BigQueryConfig = { projectId: 'test-project', location: 'EU' };
+
+    await service.createView(credentials, config, 'my_view', sql);
+
+    expect(loggerWarnSpy).toHaveBeenCalledWith(
+      expect.stringContaining('Cannot read BigQuery view labels')
+    );
+    expect(mockAdapter.executeQuery).toHaveBeenLastCalledWith(
+      expect.stringContaining('CREATE OR REPLACE VIEW')
+    );
+  });
+
+  it('should not remember a failed refresh', async () => {
+    mockAdapter.executeQuery.mockRejectedValueOnce(new Error('rateLimitExceeded'));
+    const config: BigQueryConfig = { projectId: 'test-project', location: 'EU' };
+
+    await expect(service.createView(credentials, config, 'my_view', sql)).rejects.toThrow(
+      'rateLimitExceeded'
+    );
+    await service.createView(credentials, config, 'my_view', sql);
+
+    expect(mockAdapter.executeQuery).toHaveBeenCalledTimes(3);
   });
 
   it('should execute dry run first when location is AUTODETECT', async () => {
