@@ -52,6 +52,7 @@ jest.mock('@owox/connectors', () => {
 
 import {
   BadGatewayException,
+  Logger,
   BadRequestException,
   ForbiddenException,
   GatewayTimeoutException,
@@ -227,6 +228,7 @@ describe(ConnectorFieldOptionsPreviewService.name, () => {
 
   it('keeps an https link of an option and drops any other link without failing the list', async () => {
     const { service } = createService();
+    const warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
     fetchFieldOptionsMock.mockResolvedValue([
       {
         value: 'Summary',
@@ -248,6 +250,29 @@ describe(ConnectorFieldOptionsPreviewService.name, () => {
       { value: 'Plan', label: 'Plan' },
       { value: 'Notes', label: 'Notes' },
     ]);
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn).toHaveBeenCalledWith(
+      "Connector 'GoogleSheets' returned 3 'SheetName' option link(s) that are not https URLs; they were dropped"
+    );
+    warn.mockRestore();
+  });
+
+  it('logs nothing when every option link is kept or absent', async () => {
+    const { service } = createService();
+    const warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+    fetchFieldOptionsMock.mockResolvedValue([
+      {
+        value: 'Summary',
+        label: 'Summary',
+        url: 'https://docs.google.com/spreadsheets/d/a/edit#gid=0',
+      },
+      { value: 'Data', label: 'Data' },
+    ]);
+
+    await service.run(context, 'GoogleSheets', 'SheetName', {});
+
+    expect(warn).not.toHaveBeenCalled();
+    warn.mockRestore();
   });
 
   it('rejects malformed connector responses', async () => {

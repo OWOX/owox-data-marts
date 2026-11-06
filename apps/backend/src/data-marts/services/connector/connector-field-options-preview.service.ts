@@ -89,9 +89,34 @@ export class ConnectorFieldOptionsPreviewService {
         signal => source.fetchFieldOptions(field, signal),
         PREVIEW_ERROR_MESSAGES.timeout
       );
-      return ConnectorFieldOptions.parse(options);
+      const parsed = ConnectorFieldOptions.parse(options);
+      this.warnAboutDroppedLinks(connectorName, field, options, parsed);
+      return parsed;
     } catch (error) {
       throw mapConnectorPreviewError(error, this.logger, PREVIEW_ERROR_MESSAGES);
+    }
+  }
+
+  /**
+   * The schema drops an option link that is not an https URL, and the web then falls back
+   * silently, so the dropped links are logged to make such a connector bug visible.
+   */
+  private warnAboutDroppedLinks(
+    connectorName: string,
+    field: string,
+    raw: unknown,
+    parsed: ConnectorFieldOptions
+  ): void {
+    if (!Array.isArray(raw)) return;
+    const dropped = parsed.filter(
+      (option, index) =>
+        option.url === undefined &&
+        (raw[index] as { url?: unknown } | null | undefined)?.url !== undefined
+    ).length;
+    if (dropped > 0) {
+      this.logger.warn(
+        `Connector '${connectorName}' returned ${dropped} '${field}' option link(s) that are not https URLs; they were dropped`
+      );
     }
   }
 
