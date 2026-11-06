@@ -17,7 +17,7 @@ type Input = z.input<typeof dataMartIdSchema>;
 export class GetDataMartChangeImpactTool implements McpToolDefinition<Input> {
   readonly name = 'get_data_mart_change_impact';
   readonly description =
-    'Inspect Reports, relationships and SQL Data Marts affected by a change to the input source or by deletion. Hidden referencing Data Marts are counted without names or IDs. Deletion also removes Data Mart schedules. Warehouse tables remain. Review this impact with the user before destructive changes.';
+    'Inspect Reports, relationships and SQL Data Marts affected by a change to the input source or by deletion. The tool requires editor access. Hidden referencing Data Marts are counted without names or IDs. Deletion also removes Data Mart schedules. Warehouse tables remain. Review this impact with the user before destructive changes.';
   readonly zodSchema = dataMartIdSchema;
   readonly outputSchema = {
     outbound_relationships_count: z.number(),

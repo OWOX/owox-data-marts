@@ -21,7 +21,7 @@ export class PreviewConnectorFieldsTool implements McpToolDefinition<Input> {
   readonly outputSchema = fieldsOutputSchema;
   readonly annotations = {
     title: 'Preview connector fields',
-    readOnlyHint: false,
+    readOnlyHint: true,
     destructiveHint: false,
     openWorldHint: true,
   };

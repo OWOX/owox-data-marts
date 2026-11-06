@@ -3,10 +3,10 @@ import { z } from 'zod';
 import { deepEqual } from '../../../common/utils/deep-equal.util';
 import type { ConnectorSpecificationItem } from '../../connector-types/connector-specification';
 import { withoutKeyValues } from '../../connector-types/source-key-fields';
+import { DATA_MART_ERROR_MESSAGES } from '../../errors/data-mart-error-messages';
 import { ConnectorService } from './connector.service';
 
-const INVALID_CONFIGURATION =
-  'Use only declared non-secret connector fields and saved Credential IDs';
+const INVALID_CONFIGURATION = DATA_MART_ERROR_MESSAGES.MCP_CONNECTOR_CONFIGURATION_INVALID;
 const MAX_CONFIGURATION_BYTES = 120 * 1024;
 const INTERNAL_CREDENTIAL_REFERENCES = new Set([
   '_secrets_id',
@@ -14,7 +14,7 @@ const INTERNAL_CREDENTIAL_REFERENCES = new Set([
   '_credential_id',
 ]);
 
-/** Public connector settings for MCP reads and Credential-backed live previews. */
+/** Public connector settings for MCP reads, definition updates and live previews. */
 @Injectable()
 export class McpConnectorConfigurationService {
   constructor(private readonly connectors: ConnectorService) {}
@@ -25,14 +25,42 @@ export class McpConnectorConfigurationService {
     configuration: Record<string, unknown>,
     version?: number
   ): Promise<void> {
+    return this.assertConfigurations(projectId, connectorName, [configuration], version, 'preview');
+  }
+
+  async assertNonSecretConfigurations(
+    projectId: string,
+    connectorName: string,
+    configurations: Record<string, unknown>[],
+    version?: number
+  ): Promise<void> {
+    return this.assertConfigurations(
+      projectId,
+      connectorName,
+      configurations,
+      version,
+      'definition'
+    );
+  }
+
+  private async assertConfigurations(
+    projectId: string,
+    connectorName: string,
+    configurations: Record<string, unknown>[],
+    version: number | undefined,
+    mode: 'preview' | 'definition'
+  ): Promise<void> {
     try {
-      const { schema } = await this.configurationSchema(projectId, connectorName, version);
-      if (
-        Buffer.byteLength(JSON.stringify(configuration), 'utf8') > MAX_CONFIGURATION_BYTES ||
-        this.hasInternalReference(configuration, true) ||
-        !schema.safeParse(configuration).success
-      ) {
-        throw new BadRequestException(INVALID_CONFIGURATION);
+      const { schema } = await this.configurationSchema(projectId, connectorName, version, mode);
+      for (const configuration of configurations) {
+        if (
+          (mode === 'preview' &&
+            Buffer.byteLength(JSON.stringify(configuration), 'utf8') > MAX_CONFIGURATION_BYTES) ||
+          this.hasInternalReference(configuration, true) ||
+          !schema.safeParse(configuration).success
+        ) {
+          throw new BadRequestException(INVALID_CONFIGURATION);
+        }
       }
     } catch {
       // Zod errors may contain user-provided values; keep them inside this boundary.
@@ -52,7 +80,7 @@ export class McpConnectorConfigurationService {
         projectId,
         connectorName,
         version,
-        false
+        'public'
       );
       const result: Record<string, unknown>[] = [];
       for (const configuration of configurations) {
@@ -72,8 +100,9 @@ export class McpConnectorConfigurationService {
     projectId: string,
     connectorName: string,
     version?: number,
-    strict = true
+    mode: 'preview' | 'definition' | 'public' = 'preview'
   ) {
+    const strict = mode !== 'public';
     const specification = await this.connectors.resolveConnectorSpecification(
       projectId,
       connectorName,
@@ -99,24 +128,26 @@ export class McpConnectorConfigurationService {
               !item.attributes?.includes('SECRET') &&
               !isCredentialField([field.name, variant.value], name)
             )
-              items[name] = (strict ? this.valueSchema(item) : z.json()).optional();
+              items[name] = (mode === 'preview' ? this.valueSchema(item) : z.json()).optional();
           }
           variants[variant.value] = (
             strict ? z.object(items).strict() : z.object(items)
           ).optional();
         }
         shape[field.name] = (
-          strict
+          mode === 'preview'
             ? z
                 .object(variants)
                 .strict()
                 .refine(value => Object.keys(value).length <= 1)
-            : z.object(variants)
+            : strict
+              ? z.object(variants).strict()
+              : z.object(variants)
         ).optional();
       } else {
         // Persisted definitions use connector runtime coercion (e.g. number strings).
-        // Public output preserves declared JSON values, including runtime-coercible numbers.
-        shape[field.name] = (strict ? this.valueSchema(field) : z.json()).optional();
+        // Reads and saves preserve declared JSON values; previews validate their input types.
+        shape[field.name] = (mode === 'preview' ? this.valueSchema(field) : z.json()).optional();
       }
     }
     shape._id = z.string().min(1).max(255).optional();

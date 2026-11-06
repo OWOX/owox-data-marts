@@ -12,6 +12,8 @@ import { PublishDataMartTool } from './data-mart/publish-data-mart.tool';
 import { UpdateDataMartDefinitionTool } from './data-mart/update-data-mart-definition.tool';
 import { PreviewDataMartTool } from './data-mart-model/preview-data-mart.tool';
 import { UpdateDataMartRunScheduleTool } from './data-mart-execution/update-data-mart-run-schedule.tool';
+import { PreviewConnectorFieldsTool } from './connector/preview-connector-fields.tool';
+import { PreviewConnectorFieldOptionsTool } from './connector/preview-connector-field-options.tool';
 
 describe('Data Mart side-effect annotations through MCP SDK', () => {
   const factory = new McpSdkServerFactory(
@@ -23,6 +25,8 @@ describe('Data Mart side-effect annotations through MCP SDK', () => {
       new UpdateDataMartDefinitionTool({} as never, {} as never),
       new PreviewDataMartTool({} as never),
       new UpdateDataMartRunScheduleTool({} as never),
+      new PreviewConnectorFieldsTool({} as never),
+      new PreviewConnectorFieldOptionsTool({} as never),
     ]),
     new McpCallInstrumentation(
       { publishExternalSafely: () => {} } as never,
@@ -70,4 +74,16 @@ describe('Data Mart side-effect annotations through MCP SDK', () => {
       openWorldHint: false,
     });
   });
+
+  it.each(['preview_connector_fields', 'preview_connector_field_options'])(
+    'advertises %s as reading the external source without saving configuration',
+    async name => {
+      const listed = (await client.listTools()).tools.find(tool => tool.name === name);
+      expect(listed?.annotations).toMatchObject({
+        readOnlyHint: true,
+        destructiveHint: false,
+        openWorldHint: true,
+      });
+    }
+  );
 });

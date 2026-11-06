@@ -7,6 +7,7 @@ import {
 } from '../data-storage-types/interfaces/data-mart-validator.interface';
 import type { FormulaViolation } from '../calculated-fields/formula-violations';
 import { DATA_MART_ERROR_MESSAGES } from '../errors/data-mart-error-messages';
+import { MIN_MANUAL_BACKFILL_START_DATE } from '../utils/manual-backfill-range';
 
 const SAFE_MESSAGES = new Set<string>([
   DATA_MART_ERROR_MESSAGES.ALREADY_PUBLISHED,
@@ -14,6 +15,8 @@ const SAFE_MESSAGES = new Set<string>([
   DATA_MART_ERROR_MESSAGES.LEGACY_STORAGE_REQUIRES_SQL,
   DATA_MART_ERROR_MESSAGES.CONNECTOR_TYPE_CHANGE_NOT_ALLOWED,
   DATA_MART_ERROR_MESSAGES.CREDENTIAL_REQUIRED,
+  DATA_MART_ERROR_MESSAGES.MCP_CONNECTOR_CONFIGURATION_INVALID,
+  DATA_MART_ERROR_MESSAGES.MCP_CONNECTOR_CREDENTIAL_REFERENCE_INVALID,
   DATA_MART_ERROR_MESSAGES.CREDENTIAL_AUTH_TYPE_CHANGE_NOT_ALLOWED,
   DATA_MART_ERROR_MESSAGES.MANUAL_RUN_REQUIRES_CONNECTOR,
   DATA_MART_ERROR_MESSAGES.MANUAL_RUN_REQUIRES_PUBLISHED,
@@ -31,6 +34,12 @@ const SAFE_MESSAGES = new Set<string>([
   DATA_MART_ERROR_MESSAGES.DATABRICKS_CONNECTOR_IDENTIFIER_INVALID,
   DATA_MART_ERROR_MESSAGES.SNOWFLAKE_IDENTIFIER_INVALID,
   DATA_MART_ERROR_MESSAGES.REDSHIFT_IDENTIFIER_INVALID,
+  // Fixed messages from the existing backfill parser; never include the supplied values.
+  'StartDate is required in YYYY-MM-DD format',
+  'EndDate must be in YYYY-MM-DD format',
+  'StartDate cannot be in the future',
+  `StartDate cannot be earlier than ${MIN_MANUAL_BACKFILL_START_DATE}`,
+  'EndDate cannot be earlier than StartDate',
 ]);
 
 const CODE_MESSAGES: Readonly<Record<string, string>> = {
@@ -54,11 +63,21 @@ const CODE_MESSAGES: Readonly<Record<string, string>> = {
     'The source and target join fields have incompatible types. Select fields with compatible types.',
 };
 const errorCodeSchema = z.object({ code: z.string() });
+const missingFormulaReferencesSchema = z.object({
+  errors: z.array(z.object({ code: z.literal('FORMULA_AGGREGATE_WITHOUT_FIELD') })).min(1),
+});
 
 /** Only fixed application text is returned; exception responses can also contain credentials. */
 export function safeMcpDataMartErrorMessage(error: unknown): string | undefined {
   if (!(error instanceof BadRequestException || error instanceof BusinessViolationException)) {
     return undefined;
+  }
+  if (
+    error instanceof BusinessViolationException &&
+    error.message === 'Calculated field validation failed' &&
+    missingFormulaReferencesSchema.safeParse(error.errorDetails).success
+  ) {
+    return 'An aggregate must reference a Data Mart field with {{ref field="field_name"}}. Example: SUM({{ref field="amount"}}).';
   }
   const response =
     error instanceof BadRequestException

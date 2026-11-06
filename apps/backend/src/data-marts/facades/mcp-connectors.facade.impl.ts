@@ -10,6 +10,7 @@ import { McpConnectorConfigurationService } from '../services/connector/mcp-conn
 import { McpConnectorMapper } from '../mappers/mcp-connector.mapper';
 import type { McpConnectorsFacade, McpConnectorPreviewInput } from './mcp-connectors.facade';
 import { safeMcpDataMartErrorMessage } from './mcp-data-mart-diagnostics';
+import { DATA_MART_ERROR_MESSAGES } from '../errors/data-mart-error-messages';
 
 @Injectable()
 export class McpConnectorsFacadeImpl implements McpConnectorsFacade {
@@ -67,7 +68,9 @@ export class McpConnectorsFacadeImpl implements McpConnectorsFacade {
       Object.hasOwn(input.configuration, '_id') ||
       Object.hasOwn(input.configuration, '_credential_id')
     ) {
-      throw new BadRequestException('Select credentials with credential_id');
+      throw new BadRequestException(
+        DATA_MART_ERROR_MESSAGES.MCP_CONNECTOR_CREDENTIAL_REFERENCE_INVALID
+      );
     }
     await this.configuration.assertNonSecretConfiguration(
       actor.projectId,

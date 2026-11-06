@@ -3,7 +3,7 @@ import type { INestApplication } from '@nestjs/common';
 import { NotFoundException } from '@nestjs/common';
 import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
 import type { IdpProvider, McpScope, Role } from '@owox/idp-protocol';
-import { closeTestApp, createTestApp, StorageBuilder } from '@owox/test-utils';
+import { closeTestApp, createTestApp, setDataMartSchema, StorageBuilder } from '@owox/test-utils';
 import { DataSource } from 'typeorm';
 import { IdpProviderService } from '../src/idp/services/idp-provider.service';
 import { DataMart } from '../src/data-marts/entities/data-mart.entity';
@@ -16,6 +16,7 @@ import { DataMartSchemaProviderFacade } from '../src/data-marts/data-storage-typ
 import { LegacyDataMartsService } from '../src/data-marts/services/legacy-data-marts/legacy-data-marts.service';
 import { serviceAccountKey } from './fixtures/google-service-account-key';
 import { createCredential } from './fixtures/storage-credentials';
+import type { ConnectorDefinition } from '../src/data-marts/dto/schemas/data-mart-table-definitions/connector-definition.schema';
 
 const browser = { 'x-owox-authorization': 'management-test' };
 const secret = 'private-connector-value-7136';
@@ -394,7 +395,151 @@ describe('Data Mart management through MCP', () => {
     expect(await database.getRepository(DataMart).count()).toBe(before);
   });
 
-  it('uses the same secret rejection as HTTP when saving a connector definition', async () => {
+  const formulaSourceFields = [
+    { name: 'status', type: 'STRING', mode: 'NULLABLE', status: 'CONNECTED' },
+    { name: 'gmv', type: 'NUMERIC', mode: 'NULLABLE', status: 'CONNECTED' },
+  ];
+  const formulaSchema = (formula: string) => ({
+    type: 'bigquery-data-mart-schema',
+    fields: [
+      ...formulaSourceFields,
+      {
+        name: 'order_size_band',
+        type: 'STRING',
+        mode: 'NULLABLE',
+        calculated: {
+          formula: `CASE WHEN {{ref field="gmv"}} < 50 THEN 'Small' ELSE 'Large' END`,
+          level: 'column',
+        },
+      },
+      {
+        name: 'cancelled_orders',
+        type: 'INTEGER',
+        mode: 'NULLABLE',
+        calculated: { formula, level: 'metric' },
+      },
+    ],
+  });
+
+  it('explains a missing formula reference while preserving the HTTP validation result', async () => {
+    const client = await connect();
+    const id = await draft(client);
+    await setDataMartSchema(agent, app, id, {
+      type: 'bigquery-data-mart-schema',
+      fields: formulaSourceFields,
+    });
+    const schema = formulaSchema("COUNTIF(status = 'cancelled')");
+    const http = await agent.put(`/api/data-marts/${id}/schema`).set(browser).send({ schema });
+    expect(http.status).toBe(400);
+    expect(http.body.errorDetails.errors).toEqual([
+      expect.objectContaining({
+        code: 'FORMULA_AGGREGATE_WITHOUT_FIELD',
+        field: 'cancelled_orders',
+      }),
+    ]);
+    const result = await client.callTool({
+      name: 'update_data_mart_schema',
+      arguments: { data_mart_id: id, schema },
+    });
+    expect(result.isError).toBe(true);
+    expect(result.content).toEqual([
+      expect.objectContaining({ type: 'text', text: expect.stringContaining('{{ref field=') }),
+    ]);
+    expect(
+      (await database.getRepository(DataMart).findOneByOrFail({ id })).schema?.fields
+    ).toHaveLength(2);
+  });
+
+  it.each(['DRAFT', 'PUBLISHED'])(
+    'saves a COUNTIF metric through MCP and HTTP on a %s Data Mart',
+    async status => {
+      const client = await connect();
+      const id = await draft(client);
+      await call(client, 'update_data_mart_definition', {
+        data_mart_id: id,
+        definition_type: 'SQL',
+        definition: { sqlQuery: "SELECT 'cancelled' AS status, 20 AS gmv" },
+      });
+      if (status === 'PUBLISHED') await call(client, 'publish_data_mart', { data_mart_id: id });
+      await setDataMartSchema(agent, app, id, {
+        type: 'bigquery-data-mart-schema',
+        fields: formulaSourceFields,
+      });
+      const schema = formulaSchema(`COUNTIF({{ref field="status"}} = 'cancelled')`);
+      const saved = await call(client, 'update_data_mart_schema', { data_mart_id: id, schema });
+      expect(saved.schema).toMatchObject({
+        fields: expect.arrayContaining([
+          expect.objectContaining({
+            name: 'order_size_band',
+            calculated: {
+              formula: expect.any(String),
+              level: 'column',
+              warehouseValidation: 'skipped',
+            },
+          }),
+          expect.objectContaining({
+            name: 'cancelled_orders',
+            calculated: {
+              formula: `COUNTIF({{ref field="status"}} = 'cancelled')`,
+              level: 'metric',
+              warehouseValidation: 'skipped',
+            },
+          }),
+        ]),
+      });
+      const http = await agent.put(`/api/data-marts/${id}/schema`).set(browser).send({ schema });
+      expect(http.status).toBe(200);
+      expect(http.body.schema).toEqual(saved.schema);
+    }
+  );
+
+  it('validates description bytes before saving', async () => {
+    const client = await connect();
+    const id = await draft(client);
+    const description = '界'.repeat(21_845);
+    await call(client, 'update_data_mart_description', { data_mart_id: id, description });
+    const before = await database.getRepository(DataMart).findOneByOrFail({ id });
+    expect(before.description).toBe(description);
+
+    const rejected = await client.callTool({
+      name: 'update_data_mart_description',
+      arguments: { data_mart_id: id, description: description + 'a' },
+    });
+    expect(rejected.isError).toBe(true);
+    expect(await database.getRepository(DataMart).findOneByOrFail({ id })).toEqual(before);
+  });
+
+  it('rejects undeclared connector settings without changing a saved definition', async () => {
+    const client = await connect();
+    const { id } = await publicObjectConnector(client);
+    const setup = await call(client, 'get_data_mart_setup', { data_mart_id: id });
+    const definition = setup.definition as ConnectorDefinition;
+    const before = await database.getRepository(DataMart).findOneByOrFail({ id });
+    const configuration = definition.connector.source.configuration[0];
+    const result = await client.callTool({
+      name: 'update_data_mart_definition',
+      arguments: {
+        data_mart_id: id,
+        definition_type: 'CONNECTOR',
+        definition: {
+          ...definition,
+          connector: {
+            ...definition.connector,
+            source: {
+              ...definition.connector.source,
+              configuration: [{ ...configuration, api_token: secret }],
+            },
+          },
+        },
+      },
+    });
+    expect(result.isError).toBe(true);
+    expect(JSON.stringify(result)).toContain('declared non-secret connector fields');
+    expect(JSON.stringify(result)).not.toContain(secret);
+    expect(await database.getRepository(DataMart).findOneByOrFail({ id })).toEqual(before);
+  });
+
+  it('rejects inline connector secrets through both HTTP and MCP', async () => {
     const client = await connect();
     const id = await draft(client);
     const definition = {
@@ -419,7 +564,7 @@ describe('Data Mart management through MCP', () => {
       arguments: { data_mart_id: id, definition_type: 'CONNECTOR', definition },
     });
     expect(result.isError).toBe(true);
-    expect(JSON.stringify(result)).toContain('get_data_mart_setup');
+    expect(JSON.stringify(result)).toContain('declared non-secret connector fields');
     expect(JSON.stringify(result)).not.toContain('Reload it.');
     expect(JSON.stringify(result)).not.toContain(secret);
     expect((await database.getRepository(DataMart).findOneByOrFail({ id })).definition).toBeNull();
@@ -743,6 +888,23 @@ describe('Data Mart management through MCP', () => {
     expect(
       (await clientCall(client, 'create_data_mart', { storage_id: storageId, title: 'Denied' }))
         .isError
+    ).toBe(true);
+    expect(
+      (
+        await clientCall(client, 'preview_connector_fields', {
+          connector_name: 'GoogleSheets',
+          configuration: {},
+        })
+      ).isError
+    ).toBe(true);
+    expect(
+      (
+        await clientCall(client, 'preview_connector_field_options', {
+          connector_name: 'GoogleSheets',
+          configuration: {},
+          field: 'SheetName',
+        })
+      ).isError
     ).toBe(true);
   });
 

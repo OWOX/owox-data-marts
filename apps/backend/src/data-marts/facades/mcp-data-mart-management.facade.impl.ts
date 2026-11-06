@@ -10,6 +10,8 @@ import type {
 } from './mcp-data-mart-management.facade';
 import { McpDataMartManagementMapper } from '../mappers/mcp-data-mart-management.mapper';
 import { ContextAccessService } from '../services/context/context-access.service';
+import { McpConnectorConfigurationService } from '../services/connector/mcp-connector-configuration.service';
+import { isConnectorDefinition } from '../dto/schemas/data-mart-table-definitions/data-mart-definition.guards';
 import { ListDataMartsService } from '../use-cases/list-data-marts.service';
 import { GetDataMartService } from '../use-cases/get-data-mart.service';
 import { CreateDataMartService } from '../use-cases/create-data-mart.service';
@@ -63,7 +65,8 @@ export class McpDataMartManagementFacadeImpl implements McpDataMartManagementFac
     private readonly updateOwners: UpdateDataMartOwnersService,
     private readonly contexts: ContextAccessService,
     private readonly sharing: UpdateAvailabilityService,
-    private readonly mapper: McpDataMartManagementMapper
+    private readonly mapper: McpDataMartManagementMapper,
+    private readonly connectorConfiguration: McpConnectorConfigurationService
   ) {}
 
   async list(actor: AuthorizationContext, input: McpListSetupDataMartsInput) {
@@ -143,6 +146,15 @@ export class McpDataMartManagementFacadeImpl implements McpDataMartManagementFac
     id: string,
     input: McpUpdateDataMartDefinitionInput
   ) {
+    if (isConnectorDefinition(input.definition)) {
+      const { source } = input.definition.connector;
+      await this.connectorConfiguration.assertNonSecretConfigurations(
+        actor.projectId,
+        source.name,
+        source.configuration,
+        source.version
+      );
+    }
     return this.mapper.toSummary(
       await this.updateDefinitionService.run(
         new UpdateDataMartDefinitionCommand(

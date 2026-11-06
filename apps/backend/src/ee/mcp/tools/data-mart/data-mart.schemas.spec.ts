@@ -2,6 +2,7 @@ import {
   createDataMartSchema,
   updateDataMartDefinitionSchema,
   updateDataMartTitleSchema,
+  updateDataMartDescriptionSchema,
   setDataMartOwnersSchema,
 } from './data-mart.schemas';
 
@@ -31,6 +32,24 @@ describe('Data Mart management input', () => {
       }).success
     ).toBe(false);
   });
+
+  it.each(['a'.repeat(65_535), '界'.repeat(21_845), '😀'.repeat(16_383) + 'abc', ''])(
+    'accepts a description within the UTF-8 byte limit',
+    description => {
+      expect(
+        updateDataMartDescriptionSchema.safeParse({ data_mart_id: 'mart', description }).success
+      ).toBe(true);
+    }
+  );
+
+  it.each(['a'.repeat(65_536), '界'.repeat(21_846), '😀'.repeat(16_384)])(
+    'rejects descriptions that exceed the UTF-8 byte limit',
+    description => {
+      expect(
+        updateDataMartDescriptionSchema.safeParse({ data_mart_id: 'mart', description }).success
+      ).toBe(false);
+    }
+  );
 
   it('rejects unknown definition properties instead of stripping them', () => {
     expect(

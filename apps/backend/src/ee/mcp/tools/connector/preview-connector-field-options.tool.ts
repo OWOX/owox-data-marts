@@ -21,7 +21,7 @@ export class PreviewConnectorFieldOptionsTool implements McpToolDefinition<Input
   readonly outputSchema = { options: z.array(z.object({ value: z.string(), label: z.string() })) };
   readonly annotations = {
     title: 'Preview connector field options',
-    readOnlyHint: false,
+    readOnlyHint: true,
     destructiveHint: false,
     openWorldHint: true,
   };

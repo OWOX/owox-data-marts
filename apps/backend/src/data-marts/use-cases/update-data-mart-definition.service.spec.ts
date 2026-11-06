@@ -848,9 +848,13 @@ describe('UpdateDataMartDefinitionService', () => {
     it.each(['', null])(
       'preserves an explicitly cleared legacy key value: %p',
       async AccessToken => {
-        const { save, stored, connectorSecretService } = givenDataMart([
+        const { save, stored, connectorSecretService, connectorService } = givenDataMart([
           { _id: 'c-1', AccessToken: 'existing-token' },
         ]);
+        connectorService.resolveSourceKeys.mockResolvedValue({
+          fields: [{ path: [], parameters: ['AccessToken'] }],
+          model: null,
+        });
         connectorSecretService.getAllSecretFieldNames.mockResolvedValue(new Set(['AccessToken']));
 
         await save([{ _id: 'c-1', AccessToken }]);

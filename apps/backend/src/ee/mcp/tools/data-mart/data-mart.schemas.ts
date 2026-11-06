@@ -33,7 +33,13 @@ export const updateDataMartTitleSchema = dataMartIdSchema.extend({ title });
 export const updateDataMartDescriptionSchema = dataMartIdSchema.extend({
   description: z
     .string()
-    .describe('Use Markdown for the description. Pass an empty string to clear it.'),
+    .refine(
+      value => Buffer.byteLength(value, 'utf8') <= 65_535,
+      'Must not exceed 65535 UTF-8 bytes'
+    )
+    .describe(
+      'Use Markdown, up to 65535 UTF-8 bytes. Pass an empty string to clear the description.'
+    ),
 });
 export const updateDataMartIconSchema = dataMartIdSchema.extend({ icon });
 
@@ -72,7 +78,11 @@ export const updateDataMartDefinitionSchema = dataMartIdSchema
     message: 'The definition must match definition_type.',
     path: ['definition'],
   });
-export const updateDataMartSchemaSchema = dataMartIdSchema.extend({ schema: DataMartSchemaSchema });
+export const updateDataMartSchemaSchema = dataMartIdSchema.extend({
+  schema: DataMartSchemaSchema.describe(
+    'Supply the complete schema. In calculated.formula, reference fields with {{ref field="field_name"}}. Example: SUM({{ref field="amount"}}). Omit calculated.level and calculated.warehouseValidation. OWOX derives them during validation.'
+  ),
+});
 export const setDataMartOwnersSchema = dataMartIdSchema.extend({
   business_owner_ids: z.array(id).max(100),
   technical_owner_ids: z.array(id).max(100),

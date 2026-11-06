@@ -18,7 +18,7 @@ type Input = z.input<typeof dataMartIdSchema>;
 export class ActualizeDataMartSchemaTool implements McpToolDefinition<Input> {
   readonly name = 'actualize_data_mart_schema';
   readonly description =
-    'Refresh and save the Data Mart schema from its configured source. The tool requires permission to edit the Data Mart and may call the warehouse. Existing field metadata follows the same refresh rules as OWOX.';
+    'Refresh and save the Data Mart schema from its configured source. The tool requires permission to edit the Data Mart and may call the warehouse. Existing field metadata follows the same refresh rules as OWOX. The tool waits for the refresh to finish. A slow warehouse can exceed the client timeout. Read get_data_mart_setup before retrying.';
   readonly zodSchema = dataMartIdSchema;
   readonly outputSchema = {
     ...dataMartSummaryOutputSchema.shape,

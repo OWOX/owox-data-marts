@@ -1,5 +1,6 @@
 import type { AuthorizationContext } from '../../idp';
 import { Test } from '@nestjs/testing';
+import { BadRequestException } from '@nestjs/common';
 import { McpDataMartManagementFacadeImpl } from './mcp-data-mart-management.facade.impl';
 import { McpDataMartManagementMapper } from '../mappers/mcp-data-mart-management.mapper';
 import { ListDataMartsService } from '../use-cases/list-data-marts.service';
@@ -20,6 +21,8 @@ import { ContextAccessService } from '../services/context/context-access.service
 import { UpdateAvailabilityService } from '../use-cases/update-availability.service';
 import { DataMartDefinitionType } from '../enums/data-mart-definition-type.enum';
 import { DataMartValidationCode } from '../data-storage-types/interfaces/data-mart-validator.interface';
+import { ConnectorService } from '../services/connector/connector.service';
+import { McpConnectorConfigurationService } from '../services/connector/mcp-connector-configuration.service';
 
 describe('McpDataMartManagementFacadeImpl', () => {
   const actor: AuthorizationContext = { projectId: 'project', userId: 'member', roles: ['editor'] };
@@ -44,11 +47,29 @@ describe('McpDataMartManagementFacadeImpl', () => {
   const sharing = { updateDataMartSharing: jest.fn() };
   const summary = { id: 'mart', title: 'Orders', status: 'DRAFT' };
   const mapper = { toSummary: jest.fn().mockReturnValue(summary), toSetup: jest.fn() };
+  const connectors = {
+    resolveConnectorSpecification: jest.fn(),
+    resolveSourceKeys: jest.fn(),
+  };
   let facade: McpDataMartManagementFacadeImpl;
 
   beforeEach(async () => {
     jest.clearAllMocks();
     for (const mock of mocks.values()) mock.run.mockReset().mockResolvedValue({ id: 'mart' });
+    connectors.resolveConnectorSpecification.mockResolvedValue([
+      { name: 'Limit', requiredType: 'number' },
+      { name: 'Enabled', requiredType: 'boolean' },
+      { name: 'Filter', requiredType: 'object' },
+      { name: 'Password', attributes: ['SECRET'] },
+      {
+        name: 'AuthType',
+        oneOf: [{ value: 'oauth2', items: { ClientId: { name: 'ClientId' } } }],
+      },
+    ]);
+    connectors.resolveSourceKeys.mockResolvedValue({
+      fields: [{ path: ['AuthType', 'oauth2'], parameters: ['ClientId'] }],
+      model: null,
+    });
     const module = await Test.createTestingModule({
       providers: [
         McpDataMartManagementFacadeImpl,
@@ -56,6 +77,8 @@ describe('McpDataMartManagementFacadeImpl', () => {
         { provide: ContextAccessService, useValue: contexts },
         { provide: UpdateAvailabilityService, useValue: sharing },
         { provide: McpDataMartManagementMapper, useValue: mapper },
+        McpConnectorConfigurationService,
+        { provide: ConnectorService, useValue: connectors },
       ],
     }).compile();
     facade = module.get(McpDataMartManagementFacadeImpl);
@@ -125,6 +148,62 @@ describe('McpDataMartManagementFacadeImpl', () => {
         definition: { sqlQuery: 'SELECT 1' },
       })
     );
+  });
+
+  const connectorInput = (configuration: Record<string, unknown>[]) => ({
+    definitionType: DataMartDefinitionType.CONNECTOR,
+    definition: {
+      connector: {
+        source: { name: 'Custom', version: 2, configuration, node: 'rows', fields: ['id'] },
+        storage: { fullyQualifiedName: 'project.dataset.table' },
+      },
+    },
+  });
+
+  it.each([
+    { api_token: 'private-value' },
+    { Password: 'private-value' },
+    { AuthType: { oauth2: { ClientId: 'private-value' } } },
+    { AuthType: { oauth2: { api_token: 'private-value' } } },
+    { Filter: { _credential_id: 'private-value' } },
+  ])('rejects unsafe connector settings before the shared save: %p', async configuration => {
+    await expect(
+      facade.updateDefinition(actor, 'mart', connectorInput([configuration]))
+    ).rejects.toThrow(BadRequestException);
+    expect(mocks.get(UpdateDataMartDefinitionService)!.run).not.toHaveBeenCalled();
+  });
+
+  it('validates the whole replacement once and keeps public JSON values unchanged', async () => {
+    const configurations = Array.from({ length: 100 }, (_, index) => ({
+      _id: `config-${index}`,
+      _credential_id: 'credential',
+      Limit: '2',
+      Enabled: 'true',
+      Filter: { _id: 'public-id', ClientId: 'public-field', _eq: 'value' },
+      AuthType: { oauth2: {} },
+    }));
+    const input = connectorInput(configurations);
+
+    await expect(facade.updateDefinition(actor, 'mart', input)).resolves.toEqual(summary);
+
+    expect(connectors.resolveConnectorSpecification).toHaveBeenCalledTimes(1);
+    expect(connectors.resolveConnectorSpecification).toHaveBeenCalledWith('project', 'Custom', 2);
+    expect(connectors.resolveSourceKeys).toHaveBeenCalledTimes(1);
+    expect(connectors.resolveSourceKeys).toHaveBeenCalledWith('project', 'Custom', 2);
+    expect(mocks.get(UpdateDataMartDefinitionService)!.run).toHaveBeenCalledWith(
+      expect.objectContaining({ definition: input.definition, userId: 'member', roles: ['editor'] })
+    );
+  });
+
+  it('rejects the entire replacement when a later configuration is unsafe', async () => {
+    await expect(
+      facade.updateDefinition(
+        actor,
+        'mart',
+        connectorInput([{ Limit: 2 }, { api_token: 'private-value' }])
+      )
+    ).rejects.toThrow(BadRequestException);
+    expect(mocks.get(UpdateDataMartDefinitionService)!.run).not.toHaveBeenCalled();
   });
 
   it('does not expose provider validation details or failure text', async () => {

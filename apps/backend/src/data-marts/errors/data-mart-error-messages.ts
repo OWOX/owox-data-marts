@@ -7,6 +7,9 @@ export const DATA_MART_ERROR_MESSAGES = {
     'Input source type cannot be changed to or from a connector. Create a separate Data Mart instead.',
   CONFIGURATION_OUT_OF_DATE: 'This page is out of date. Reload it.',
   CREDENTIAL_REQUIRED: 'Select a Credential for each configuration.',
+  MCP_CONNECTOR_CONFIGURATION_INVALID:
+    'Use only declared non-secret connector fields and saved Credential IDs',
+  MCP_CONNECTOR_CREDENTIAL_REFERENCE_INVALID: 'Select credentials with credential_id',
   CREDENTIAL_AUTH_TYPE_CHANGE_NOT_ALLOWED:
     "This configuration uses a Credential, so its authentication type can't be changed.",
   MANUAL_RUN_REQUIRES_CONNECTOR:

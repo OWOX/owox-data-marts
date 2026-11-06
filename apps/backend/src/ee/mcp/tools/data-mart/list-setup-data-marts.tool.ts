@@ -18,7 +18,7 @@ type Input = z.input<typeof listSetupDataMartsSchema>;
 export class ListSetupDataMartsTool implements McpToolDefinition<Input> {
   readonly name = 'list_setup_data_marts';
   readonly description =
-    'List visible draft and published Data Marts for setup. Filter by status, Storage or Contexts. Use get_data_mart_setup for configuration. Existing reporting catalog tools still list reportable Data Marts.';
+    'List visible draft and published Data Marts for setup. Filter by status, Storage or Contexts. Use get_data_mart_setup for configuration. Use list_data_marts or get_relevant_data_marts_by_prompt to find Data Marts available for reporting.';
   readonly zodSchema = listSetupDataMartsSchema;
   readonly outputSchema = {
     items: z.array(dataMartSummaryOutputSchema),

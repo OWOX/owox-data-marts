@@ -19,7 +19,7 @@ type Input = z.infer<typeof createDataMartRunScheduleSchema>;
 export class CreateDataMartRunScheduleTool implements McpToolDefinition<Input> {
   readonly name = 'create_data_mart_run_schedule';
   readonly description =
-    'Create an additional recurring run schedule for a connector Data Mart. The Data Mart must be published. Use a cron expression and an IANA timezone. The timezone defaults to UTC, and is_active defaults to true. This does not replace existing schedules. Scheduled runs can load data and incur usage.';
+    'Create an additional recurring run schedule for a connector Data Mart. The Data Mart must be published. Use a cron expression and an IANA timezone. The timezone defaults to UTC, and is_active defaults to true. This does not replace existing schedules. Scheduled runs can load data and incur usage. Check list_data_mart_run_schedules before retrying to avoid duplicate schedules.';
   readonly zodSchema = createDataMartRunScheduleSchema;
   readonly outputSchema = scheduleOutputSchema;
   readonly requiredScopes: McpScope[] = ['mcp:write'];

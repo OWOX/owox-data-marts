@@ -18,7 +18,7 @@ type Input = z.input<typeof updateDataMartTitleSchema>;
 export class UpdateDataMartTitleTool implements McpToolDefinition<Input> {
   readonly name = 'update_data_mart_title';
   readonly description =
-    'Change the title of a Data Mart using the same permissions and legacy synchronization as OWOX.';
+    'Change the title of a Data Mart. The tool requires permission to edit the Data Mart. For a legacy BigQuery Data Mart, it also updates the title in OWOX BI.';
   readonly zodSchema = updateDataMartTitleSchema;
   readonly outputSchema = dataMartSummaryOutputSchema.shape;
   readonly annotations = {
