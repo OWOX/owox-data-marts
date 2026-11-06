@@ -223,6 +223,60 @@ describe('CredentialConsumerBindingFacadeImpl', () => {
     });
   });
 
+  it('lists the active grants made for the current requirements, not ones a release changed or dropped', async () => {
+    const { facade, bindings } = setup();
+    bindings.find.mockResolvedValue([
+      {
+        requirementKey: 'ai',
+        credentialId: 'credential-1',
+        requirementSnapshot: normalizeCredentialRequirement('ai'),
+      },
+      {
+        requirementKey: 'github',
+        credentialId: 'credential-2',
+        // Granted while the release still let the plugin go without it.
+        requirementSnapshot: { ...normalizeCredentialRequirement('github'), optional: true },
+      },
+      {
+        requirementKey: 'removed',
+        credentialId: 'credential-3',
+        requirementSnapshot: normalizeCredentialRequirement('removed'),
+      },
+    ]);
+
+    const selections = await facade.listSelections({
+      projectId: 'project-1',
+      consumerType: 'plugin-installation',
+      consumerId: 'installation-1',
+      requirements: ['ai', 'github'],
+    });
+
+    expect(bindings.find).toHaveBeenCalledWith({
+      where: {
+        consumerType: 'plugin-installation',
+        consumerId: 'installation-1',
+        projectId: 'project-1',
+        active: true,
+      },
+      select: { requirementKey: true, credentialId: true, requirementSnapshot: true },
+    });
+    expect(selections).toEqual({ ai: 'credential-1' });
+  });
+
+  it('lists no grants without reading when nothing is required', async () => {
+    const { facade, bindings } = setup();
+
+    const selections = await facade.listSelections({
+      projectId: 'project-1',
+      consumerType: 'plugin-installation',
+      consumerId: 'installation-1',
+      requirements: [],
+    });
+
+    expect(selections).toEqual({});
+    expect(bindings.find).not.toHaveBeenCalled();
+  });
+
   it('validates all requirements before saving an active project-owned binding', async () => {
     const state = setup();
 

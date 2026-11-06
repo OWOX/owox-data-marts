@@ -3,24 +3,29 @@ import {
   BadRequestException,
   HttpException,
   Injectable,
+  Logger,
 } from '@nestjs/common';
+import { castError } from '@owox/internal-helpers';
 import { createAnthropic } from '@ai-sdk/anthropic';
 import { createGoogle } from '@ai-sdk/google';
 import { createOpenAI } from '@ai-sdk/openai';
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
-import type {
-  EmbeddingModelV4,
-  EmbeddingModelV4CallOptions,
-  LanguageModelV4,
-  LanguageModelV4CallOptions,
-  LanguageModelV4StreamPart,
+import {
+  APICallError,
+  type EmbeddingModelV4,
+  type EmbeddingModelV4CallOptions,
+  type LanguageModelV4,
+  type LanguageModelV4CallOptions,
+  type LanguageModelV4StreamPart,
 } from '@ai-sdk/provider';
 import type { CredentialFetchRequestApiDto } from '../dto/credential-fetch-api.dto';
 import type {
   CredentialAiEmbeddingModelKey,
   CredentialAiLanguageModelKey,
 } from '../dto/credential-ai-api.dto';
+import type { CredentialSecret } from '../credential.types';
 import type { ResolvedCredentialBinding } from '../facades/credential-consumer-binding.facade';
+import { BUILTIN_CREDENTIAL_DEFINITION_IDS } from './builtin-credential-definitions';
 import {
   decodeCredentialAiOptions,
   sanitizeCredentialAiEmbeddingResult,
@@ -32,9 +37,15 @@ import { CredentialFetchService } from './credential-fetch.service';
 const PROVIDER_KEY_PLACEHOLDER = 'owox-host-injected';
 const AI_TIMEOUT_MS = 120_000;
 const AI_MAX_RESPONSE_BODY_BYTES = 10 * 1024 * 1024;
+/** A provider's error message is third-party text; a log line keeps only its start. */
+const MAX_LOGGED_PROVIDER_MESSAGE = 500;
+/** Shorter secret parts (a provider name, a flag) would redact ordinary words. */
+const MIN_REDACTED_SECRET_LENGTH = 8;
 
 @Injectable()
 export class CredentialAiService {
+  private readonly logger = new Logger(CredentialAiService.name);
+
   constructor(private readonly credentialFetch: CredentialFetchService) {}
 
   async generate(
@@ -52,7 +63,7 @@ export class CredentialAiService {
       const result = await model.doGenerate(options);
       return sanitizeCredentialAiGenerateResult(result);
     } catch (error) {
-      throw normalizeAiError(error);
+      throw this.normalizeError(error, binding, modelKey);
     }
   }
 
@@ -71,7 +82,7 @@ export class CredentialAiService {
       const result = await model.doStream(options);
       return sanitizeAiStream(result.stream);
     } catch (error) {
-      throw normalizeAiError(error);
+      throw this.normalizeError(error, binding, modelKey);
     }
   }
 
@@ -90,8 +101,21 @@ export class CredentialAiService {
       const result = await model.doEmbed(options);
       return sanitizeCredentialAiEmbeddingResult(result);
     } catch (error) {
-      throw normalizeAiError(error);
+      throw this.normalizeError(error, binding, modelKey);
     }
+  }
+
+  private normalizeError(
+    error: unknown,
+    binding: ResolvedCredentialBinding,
+    modelKey: CredentialAiLanguageModelKey | CredentialAiEmbeddingModelKey
+  ): HttpException {
+    // Our own refusals (not an AI Credential, no model mapped) reach the plugin as they are.
+    if (error instanceof HttpException && error.getStatus() < 500) return error;
+    this.logger.warn(
+      `AI provider request failed for Credential ${binding.credentialId}, model ${modelKey}${failureDetail(error, binding)}`
+    );
+    return new BadGatewayException('AI provider request could not be completed');
   }
 
   private createLanguageModel(
@@ -204,6 +228,36 @@ export class CredentialAiService {
   }
 }
 
+/**
+ * What a log line may say about a failed AI call. Never the error object: it carries the
+ * prompt. Only a built-in provider's HTTP answer gives its message, with the secret cut out.
+ * Any other server is third-party code that may echo the request or the key back, and other
+ * AI SDK errors put the model's output in theirs, so those give a name only.
+ */
+function failureDetail(error: unknown, binding: ResolvedCredentialBinding): string {
+  // A timeout or a refused connection, worded by the guarded fetch itself.
+  if (error instanceof HttpException) return `: ${error.message}`;
+  if (!APICallError.isInstance(error)) return `: ${castError(error).name}`;
+  const status = error.statusCode ? ` (HTTP ${error.statusCode})` : '';
+  if (!BUILTIN_CREDENTIAL_DEFINITION_IDS.has(binding.definition.id)) {
+    return `${status}: ${error.name}`;
+  }
+  return `${status}: ${redactSecret(error.message, binding.secret).slice(0, MAX_LOGGED_PROVIDER_MESSAGE)}`;
+}
+
+function redactSecret(text: string, secret: CredentialSecret): string {
+  return secretStrings(secret).reduce(
+    (redacted, part) => redacted.split(part).join('[redacted]'),
+    text
+  );
+}
+
+function secretStrings(value: unknown): string[] {
+  if (typeof value === 'string') return value.length >= MIN_REDACTED_SECRET_LENGTH ? [value] : [];
+  if (value && typeof value === 'object') return Object.values(value).flatMap(secretStrings);
+  return [];
+}
+
 function requiredModelId(
   binding: ResolvedCredentialBinding,
   modelKey: CredentialAiLanguageModelKey | CredentialAiEmbeddingModelKey
@@ -244,9 +298,4 @@ function sanitizeAiStream(
       return reader.cancel(reason);
     },
   });
-}
-
-function normalizeAiError(error: unknown): HttpException {
-  if (error instanceof HttpException) return error;
-  return new BadGatewayException('AI provider request could not be completed');
 }

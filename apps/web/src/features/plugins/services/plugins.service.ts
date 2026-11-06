@@ -2,6 +2,7 @@ import type { AxiosRequestConfig } from '../../../app/api';
 import { ApiService } from '../../../services';
 import type {
   InstalledPlugin,
+  PluginCredentialSelections,
   PluginEntryPoint,
   PluginGalleryEntry,
   PluginHistoryPage,
@@ -53,6 +54,19 @@ class PluginsService extends ApiService {
    */
   async getRuntimeToken(installationId: string): Promise<PluginRuntimeToken> {
     return this.post<PluginRuntimeToken>(`/installations/${installationId}/runtime-token`);
+  }
+
+  /**
+   * Only for the caller's live installation, and never answered to a plugin runtime token.
+   * No toast: the Credentials tab says so itself, and uninstalling from it refetches this
+   * for an installation that now answers 404.
+   */
+  async getCredentialSelections(installationId: string): Promise<PluginCredentialSelections> {
+    return this.get<PluginCredentialSelections>(
+      `/installations/${installationId}/credential-selections`,
+      undefined,
+      { skipErrorToast: true } as AxiosRequestConfig
+    );
   }
 
   /** The only response carrying a delivery URL, and only for the caller's live installation. */

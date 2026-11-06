@@ -28,12 +28,16 @@ describe('PluginInstallationsController plugin runtime authority', () => {
       PluginInstallationsController,
     ]) === true;
 
-  it.each(['install', 'uninstall', 'update', 'updateByRepository', 'runtimeToken'] as const)(
-    'refuses a plugin runtime token on %s',
-    handler => {
-      expect(rejectsPluginAuth(handler)).toBe(true);
-    }
-  );
+  it.each([
+    'install',
+    'uninstall',
+    'update',
+    'updateByRepository',
+    'runtimeToken',
+    'credentialSelections',
+  ] as const)('refuses a plugin runtime token on %s', handler => {
+    expect(rejectsPluginAuth(handler)).toBe(true);
+  });
 
   // Reads stay open: this is the authority ctx.owox exists to carry.
   it.each(['list', 'entry'] as const)('leaves %s open to a plugin runtime token', handler => {

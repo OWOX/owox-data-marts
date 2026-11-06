@@ -14,6 +14,11 @@ export interface InstalledPluginDto extends PluginGalleryEntryDto {
   readonly uninstalledAt: Date | null;
 }
 
+/** The Credential granted to each requirement now; an ungranted requirement is absent. */
+export interface PluginCredentialSelectionsDto {
+  readonly credentialSelections: Readonly<Record<string, string>>;
+}
+
 export interface PluginInstallationEntryDto {
   readonly deliveryUrl: string;
   readonly displayName: string;

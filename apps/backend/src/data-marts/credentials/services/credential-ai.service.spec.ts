@@ -30,11 +30,15 @@ jest.mock('@ai-sdk/openai-compatible', () => ({
   })),
 }));
 
-import { BadRequestException } from '@nestjs/common';
+import { APICallError, JSONParseError } from '@ai-sdk/provider';
+import { BadGatewayException, BadRequestException, Logger } from '@nestjs/common';
 import type { ResolvedCredentialBinding } from '../facades/credential-consumer-binding.facade';
 import { CredentialAiService } from './credential-ai.service';
 
-const binding = (adapter: 'openai' | 'anthropic' = 'openai'): ResolvedCredentialBinding => ({
+const binding = (
+  adapter: 'openai' | 'anthropic' | 'openai-compatible' = 'openai',
+  definitionId: string = adapter
+): ResolvedCredentialBinding => ({
   credentialId: 'credential-1',
   requirement: {
     key: 'ai',
@@ -45,7 +49,7 @@ const binding = (adapter: 'openai' | 'anthropic' = 'openai'): ResolvedCredential
   },
   secret: { value: 'real-secret-that-must-not-leak' },
   definition: {
-    id: adapter,
+    id: definitionId,
     displayName: adapter,
     description: '',
     category: 'ai',
@@ -141,6 +145,144 @@ describe('CredentialAiService', () => {
       }),
       expect.objectContaining({ timeoutMs: 120_000, signal: expect.any(AbortSignal) })
     );
+  });
+
+  describe('a failed provider call', () => {
+    let warn: jest.SpyInstance;
+    const providerError = (message: string, statusCode = 404) =>
+      new APICallError({
+        message,
+        url: 'https://api.openai.example/v1/chat/completions',
+        requestBodyValues: { prompt: 'private data mart rows' },
+        responseBody: 'private response body',
+        statusCode,
+      });
+    const generate = (target = binding()) =>
+      service.generate(target, 'fast', { prompt: [] }, new AbortController().signal);
+    /** Everything the log received, so a second argument (the error object) is caught too. */
+    const loggedText = () => JSON.stringify(warn.mock.calls);
+
+    beforeEach(() => {
+      warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+    });
+    afterEach(() => {
+      warn.mockRestore();
+    });
+
+    it('logs what a built-in provider answered, and gives the plugin a generic 502', async () => {
+      mockDoGenerate.mockRejectedValue(providerError('model: fast-model not found'));
+
+      const failure = await generate().catch((error: unknown) => error);
+
+      expect(failure).toBeInstanceOf(BadGatewayException);
+      expect((failure as Error).message).toBe('AI provider request could not be completed');
+      // A cause would put the request into GlobalExceptionFilter's log of the 502.
+      expect((failure as Error).cause).toBeUndefined();
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(warn).toHaveBeenCalledWith(
+        'AI provider request failed for Credential credential-1, model fast (HTTP 404): model: fast-model not found'
+      );
+      expect(loggedText()).not.toContain('private');
+    });
+
+    it('cuts the secret out of a provider message that echoes it', async () => {
+      mockDoGenerate.mockRejectedValue(
+        providerError('Incorrect API key provided: real-secret-that-must-not-leak', 401)
+      );
+
+      await expect(generate()).rejects.toThrow(BadGatewayException);
+
+      expect(loggedText()).toContain('(HTTP 401): Incorrect API key provided: [redacted]');
+      expect(loggedText()).not.toContain('real-secret-that-must-not-leak');
+    });
+
+    // Any server an external definition names may echo the request or the key back.
+    it("logs only the status of a third-party server's answer", async () => {
+      mockDoGenerate.mockRejectedValue(
+        providerError("1 validation error: input_value='private data mart rows'", 400)
+      );
+
+      await expect(generate(binding('openai-compatible', '@acme/gateway'))).rejects.toThrow(
+        BadGatewayException
+      );
+
+      expect(warn).toHaveBeenCalledWith(
+        'AI provider request failed for Credential credential-1, model fast (HTTP 400): AI_APICallError'
+      );
+      expect(loggedText()).not.toContain('private');
+    });
+
+    it("logs only the name of an SDK error whose message holds the model's output", async () => {
+      mockDoGenerate.mockRejectedValue(
+        new JSONParseError({ text: 'private model output', cause: new Error('bad json') })
+      );
+
+      await expect(generate()).rejects.toThrow(BadGatewayException);
+
+      expect(warn).toHaveBeenCalledWith(
+        'AI provider request failed for Credential credential-1, model fast: AI_JSONParseError'
+      );
+      expect(loggedText()).not.toContain('private');
+    });
+
+    it('keeps the first 500 characters of a long provider message', async () => {
+      mockDoGenerate.mockRejectedValue(providerError('x'.repeat(2000)));
+
+      await expect(generate()).rejects.toThrow(BadGatewayException);
+
+      expect(loggedText()).toContain(`(HTTP 404): ${'x'.repeat(500)}`);
+      expect(loggedText()).not.toContain('x'.repeat(501));
+    });
+
+    // The guarded fetch words a timeout or a refused connection itself, before the SDK sees it.
+    it('logs a timeout or a refused connection, and gives the plugin the same 502', async () => {
+      mockDoGenerate.mockRejectedValue(
+        new BadGatewayException('Credential request could not be completed')
+      );
+
+      await expect(generate()).rejects.toThrow('AI provider request could not be completed');
+
+      expect(warn).toHaveBeenCalledWith(
+        'AI provider request failed for Credential credential-1, model fast: Credential request could not be completed'
+      );
+    });
+
+    it('passes our own refusals through without logging them as provider failures', async () => {
+      const refusal = new BadRequestException('No model is mapped to fast');
+      mockDoGenerate.mockRejectedValue(refusal);
+
+      await expect(generate()).rejects.toBe(refusal);
+
+      expect(warn).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ['generate', () => generate()],
+      [
+        'stream',
+        () => service.stream(binding(), 'fast', { prompt: [] }, new AbortController().signal),
+      ],
+      [
+        'embed',
+        () =>
+          service.embed(
+            binding(),
+            'embedding',
+            { values: ['hello'] },
+            new AbortController().signal
+          ),
+      ],
+    ])('handles a provider failure the same way in %s', async (_method, call) => {
+      const failure = providerError('upstream unavailable', 503);
+      mockDoGenerate.mockRejectedValue(failure);
+      mockDoStream.mockRejectedValue(failure);
+      mockDoEmbed.mockRejectedValue(failure);
+
+      await expect(call()).rejects.toThrow('AI provider request could not be completed');
+
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(loggedText()).toContain('(HTTP 503): upstream unavailable');
+    });
   });
 
   it('passes streaming tool parts and normalizes provider stream errors', async () => {
