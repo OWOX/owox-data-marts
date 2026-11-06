@@ -4,7 +4,7 @@ import { DataMartConnectorView } from '../../DataMartConnectorView';
 import type { ConnectorConfig, ConnectorDefinitionConfig } from '../../../../data-marts/edit/model';
 import { getStorageDisplayName } from './connector-definition.helpers';
 import { getSourceFlowParams, getStorageFlowParams } from './connector-flow.utils';
-import { useSheetTabUrl } from './useSheetTabUrl';
+import { useSheetTabUrl } from '../../../shared/model/hooks/useSheetTabUrl';
 import { DataFlowNode } from './DataFlow/DataFlowNode';
 import { DataFlowConnector } from './DataFlow/DataFlowConnector';
 import { DataFlowParams } from './DataFlow/DataFlowParams';
