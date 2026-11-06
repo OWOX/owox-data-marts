@@ -1,4 +1,5 @@
 import { Button } from '@owox/ui/components/button';
+import { cn } from '@owox/ui/lib/utils';
 import { Pencil, Trash2 } from 'lucide-react';
 import { DataMartConnectorView } from '../../DataMartConnectorView';
 import type { ConnectorConfig, ConnectorDefinitionConfig } from '../../../../data-marts/edit/model';
@@ -29,14 +30,13 @@ interface ConnectorConfigurationItemProps {
   dataStorage: DataStorage;
 }
 
-// Action buttons are labelled on a narrow container and icon-only on a wide one.
-const actionButtonClassName =
-  'text-muted-foreground hover:text-foreground h-10 @2xl:size-8 @2xl:p-0';
+const SOURCE_HINT =
+  'The connector extracts this data from the source on every run. Use Edit configuration to change what is loaded';
 
 /**
- * One connector configuration shown as a data flow: Source → Storage, with
- * Edit and Delete actions for the whole configuration. Lays out by its own
- * width (container queries): side by side when wide, stacked when narrow.
+ * One connector configuration shown as a data flow: Source → Storage. Edit sits under
+ * the Source details; Delete, a rare action, sits apart on the right.
+ * Lays out by its own width (container queries): side by side when wide, stacked when narrow.
  */
 export function ConnectorConfigurationItem({
   configIndex,
@@ -83,28 +83,67 @@ export function ConnectorConfigurationItem({
   );
 
   const configurationNumber = configIndex + 1;
-  // Can't remove the last configuration
+  // A connector needs at least one configuration, so the only one shows no Delete.
   const canRemoveConfiguration = totalConfigurations > 1;
+  const deleteButton = (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          type='button'
+          variant='ghost'
+          size='icon-sm'
+          aria-label={`Delete configuration ${String(configurationNumber)}`}
+          className='text-muted-foreground hover:text-foreground'
+          onClick={() => {
+            onRemoveConfiguration(configIndex);
+          }}
+        >
+          <Trash2 />
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent>Delete configuration</TooltipContent>
+    </Tooltip>
+  );
+  // The Source/Storage headings label the columns once, on the first configuration only.
+  const showRoleHeadings = configIndex === 0;
 
   return (
     <article
       aria-label={`Configuration ${String(configurationNumber)}`}
       className='bg-muted/70 @container rounded-lg dark:bg-white/4'
     >
+      {/* Container queries apply to descendants only, so the row layout lives on this wrapper. */}
       <div className='flex flex-col @2xl:flex-row'>
-        <div className='grid min-w-0 flex-1 grid-cols-1 p-2 @2xl:grid-cols-[minmax(0,1fr)_44px_minmax(0,1.3fr)]'>
+        <div className='grid min-w-0 flex-1 grid-cols-1 p-2 @2xl:grid-cols-[minmax(0,1fr)_44px_minmax(0,1fr)]'>
           <DataFlowNode
             role='Source'
+            showRole={showRoleHeadings}
+            roleAddon={<InfoHint text={SOURCE_HINT} />}
+            narrowHeaderAction={canRemoveConfiguration ? deleteButton : null}
             icon={<RawBase64Icon base64={bundledConnector?.logoBase64} size={28} />}
             title={bundledTitle ?? customTitle ?? (sourceName || 'Connector')}
           >
             <DataFlowParams primary={sourceParams} />
+            <Button
+              type='button'
+              variant='ghost'
+              size='sm'
+              aria-label={`Edit configuration ${String(configurationNumber)}`}
+              className='text-muted-foreground hover:text-foreground -ml-2 h-8 px-2'
+              onClick={() => {
+                setIsEditOpen(true);
+              }}
+            >
+              <Pencil />
+              Edit configuration
+            </Button>
           </DataFlowNode>
 
-          <DataFlowConnector />
+          <DataFlowConnector withHeadings={showRoleHeadings} />
 
           <DataFlowNode
             role='Storage'
+            showRole={showRoleHeadings}
             roleAddon={storageParams.hint ? <InfoHint text={storageParams.hint} /> : null}
             icon={<StorageIcon size={28} />}
             title={getStorageDisplayName(dataStorage.type)}
@@ -113,56 +152,18 @@ export function ConnectorConfigurationItem({
           </DataFlowNode>
         </div>
 
-        {/* Wide: Edit sits level with the node icons (padding + overline + icon centre = 58px). */}
-        <div className='flex justify-end gap-1 pr-2 pb-1 @2xl:flex-col @2xl:justify-start @2xl:pt-[42px] @2xl:pb-3'>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                type='button'
-                variant='ghost'
-                size='sm'
-                aria-label={`Edit configuration ${String(configurationNumber)}`}
-                className={actionButtonClassName}
-                onClick={() => {
-                  setIsEditOpen(true);
-                }}
-              >
-                <Pencil />
-                <span className='@2xl:sr-only'>Edit</span>
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side='left' align='start'>
-              Edit connector configuration
-            </TooltipContent>
-          </Tooltip>
-
-          <Tooltip>
-            <TooltipTrigger asChild>
-              {/* Disabled buttons emit no pointer events, so the span keeps the tooltip working. */}
-              <span>
-                <Button
-                  type='button'
-                  variant='ghost'
-                  size='sm'
-                  aria-label={`Delete configuration ${String(configurationNumber)}`}
-                  className={actionButtonClassName}
-                  disabled={!canRemoveConfiguration}
-                  onClick={() => {
-                    onRemoveConfiguration(configIndex);
-                  }}
-                >
-                  <Trash2 />
-                  <span className='@2xl:sr-only'>Delete</span>
-                </Button>
-              </span>
-            </TooltipTrigger>
-            <TooltipContent side='left' align='start'>
-              {canRemoveConfiguration
-                ? 'Delete configuration'
-                : 'Remove last configuration only after adding a new one.'}
-            </TooltipContent>
-          </Tooltip>
-        </div>
+        {/* Wide only: an icon centred on the cards' height, like the chevron (top padding skips
+          grid padding 8px, plus the 28px heading row if shown). Narrow: it sits on the Source heading row. */}
+        {canRemoveConfiguration && (
+          <div
+            className={cn(
+              'hidden @2xl:flex @2xl:items-center @2xl:pt-2 @2xl:pr-2 @2xl:pb-2',
+              showRoleHeadings && '@2xl:pt-9'
+            )}
+          >
+            {deleteButton}
+          </div>
+        )}
       </div>
 
       <DataMartConnectorView
