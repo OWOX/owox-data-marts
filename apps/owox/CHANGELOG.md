@@ -1,5 +1,54 @@
 # owox
 
+## 0.43.0
+
+### Minor Changes
+
+- 70d2ce1: **Set up and maintain Data Marts from your AI assistant**
+
+  Data Owners preparing data for their team previously had to leave their connected AI assistant to create and configure each Data Mart in OWOX. Now they can manage Data Marts through MCP, from draft setup and connector selection to publication, relationships, and recurring runs.
+
+  The new tools are available through a custom MCP connection and use your existing project and resource permissions. Connectors use saved Credentials. Authorization and secret entry stay in the OWOX browser flow. See [Data Mart setup with MCP](../../docs/getting-started/setup-guide/mcp.md#data-mart-setup-models-and-execution) for the setup workflow and available tools.
+
+  <!-- markdownlint-disable-file MD036 MD041 -->
+
+- 8ffe6e3: **See which Credentials a plugin uses, and change them on the plugin's Credentials tab**
+
+  Members who reopened **Configure Credentials** on an installed plugin always saw an empty choice, so a saved Credential looked unsaved, and they had no way to check which Credential the plugin was using. Now an installed plugin that needs Credentials has a **Credentials** tab next to **Overview**. It shows the Credential granted to each requirement, already selected, and members change it right there and press **Save**, or **Discard** to go back. There is no separate dialog. A Credential that has since been disabled or deleted is marked as no longer usable and has to be chosen again. **Configure Credentials** no longer sits in the page header.
+
+  The video shows the difference: before, the dialog showed nothing selected even after saving; now the tab shows the Credential the plugin uses, keeps a change only on **Save**, and still shows it after a reload.
+
+  <https://customer-4geatlj66rtkaxtz.cloudflarestream.com/2bf72498ced1034767fef2dcaf9cd4ae/iframe>
+
+  When a plugin's AI request fails at the provider, the plugin still gets "AI provider request could not be completed". The server log now also records which Credential and model failed, the provider's HTTP status, and, for the built-in AI providers, what the provider answered, so the cause can be found. Timeouts and refused connections are recorded the same way. The prompt and the Credential's secret are never written to the log.
+
+  <!-- markdownlint-disable-file MD041 MD036 -->
+
+- 9c28241: **The Sheet link of a Google Sheets source opens the imported tab, not the first one**
+
+  The **Sheet** link in a Google Sheets Data Mart's **Input Source** is the way back to the data the Data Mart imports, for example to check a plan or fix a value before the next run. Previously it opened the spreadsheet on its first tab, because the link carried only the spreadsheet, so in a spreadsheet with several tabs you had to find the right tab yourself and could look at the wrong data. Now the link opens the tab the Data Mart imports, in existing Data Marts too.
+
+  For a project Viewer, or when the tab list cannot be loaded (for example, without access to the source's Credential), the link opens the spreadsheet on its first tab as before. See [Google Sheets: Getting Started](../../packages/connectors/src/Sources/GoogleSheets/GETTING_STARTED.md).
+
+  <!-- markdownlint-disable-file MD041 MD036 -->
+
+- a83952a: **Parallel reads of a SQL Data Mart on Google BigQuery no longer fail with a rate limit error**
+
+  A plugin page with many cards, such as Gyroscope, reads one SQL Data Mart many times at once. HTTP Data clients and the MCP `query_data_mart` tool can do the same. Previously some of these reads failed with `Exceeded rate limits: too many table update operations for this table` (HTTP 424), and others came back without totals. The cause: every read rewrote the Data Mart's view in Google BigQuery, and Google BigQuery allows 5 updates of one table in 10 seconds. Now a read rewrites the view only after the Data Mart's SQL changes, so parallel reads return their data and totals.
+
+  Only SQL Data Marts on Google BigQuery and Legacy Google BigQuery change. Snowflake, Databricks, AWS Redshift and AWS Athena are not affected.
+
+  <!-- markdownlint-disable-file MD041 MD036 -->
+
+### Patch Changes
+
+- @owox/internal-helpers@0.43.0
+- @owox/idp-protocol@0.43.0
+- @owox/idp-better-auth@0.43.0
+- @owox/idp-owox-better-auth@0.43.0
+- @owox/backend@0.43.0
+- @owox/web@0.43.0
+
 ## 0.42.0
 
 ### Minor Changes 0.42.0
