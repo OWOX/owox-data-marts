@@ -9,7 +9,7 @@
 7. Choose a storage table.
 8. Run a refresh to materialize the sheet into storage.
 
-On the Data Mart's **Data Setup** tab, the **Sheet** link in **Input Source** opens the spreadsheet on the tab the Data Mart imports. For a member who cannot edit the Data Mart, or when the tab list cannot be loaded, it opens the spreadsheet on its first tab.
+On the Data Mart's **Data Setup** tab, the **Sheet** link in **Input Source** opens the spreadsheet on the tab the Data Mart imports. For a project Viewer, or when the tab list cannot be loaded (for example, without access to the source's Credential), it opens the spreadsheet on its first tab.
 
 The connector treats row 1 as headers by default. `HeaderRow` and `Range` live under Advanced Settings. `HeaderRow` is an absolute, one-based sheet row. If `Range` is `A5:D` and its first row contains headers, set `HeaderRow` to `5`. Blank header cells receive generated names such as `column_2`.
 

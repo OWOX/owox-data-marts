@@ -758,11 +758,12 @@ export class GoogleSheetsSource extends AbstractSource {
 
   /**
    * Lists the values a configuration field can take: `SheetName` returns the selected
-   * spreadsheet's tabs, `SpreadsheetId` the spreadsheets the account can open.
+   * spreadsheet's tabs, each with the `url` that opens it, `SpreadsheetId` the spreadsheets
+   * the account can open.
    *
    * @param {string} fieldName - Configuration field declared with DYNAMIC_OPTIONS
    * @param {AbortSignal} [signal] - Cancels the provider request
-   * @returns {Promise<Array<{value: string, label: string}>>}
+   * @returns {Promise<Array<{value: string, label: string, url?: string}>>}
    */
   async fetchFieldOptions(fieldName, signal) {
     if (fieldName === 'SpreadsheetId') {
