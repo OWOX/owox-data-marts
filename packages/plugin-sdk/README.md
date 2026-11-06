@@ -344,7 +344,7 @@ if (ctx.actions) {
 ## Schedules
 
 `ctx.schedules` creates cron schedules that start one of your backend actions for the member who
-installed the plugin, with no browser open. It is `undefined` on a host without schedules.
+created the schedule, with no browser open. It is `undefined` on a host without schedules.
 
 ```ts
 if (ctx.schedules) {
@@ -379,8 +379,8 @@ if (ctx.schedules) {
   `ACTION_NOT_DECLARED` or `INVALID_PARAMETERS`. `resume` checks it again. A schedule a project
   admin paused in **Plugins → Schedules** has `PAUSED_BY_ADMIN`, and its `resume` is refused with
   `SCHEDULE_PAUSED_BY_ADMIN`.
-- While the installing member is not an active project member, or their account is locked, a
-  schedule stays enabled and skips its runs.
+- While the member who created the schedule is not an active project member, or their account is
+  locked, the schedule stays enabled and skips its runs.
 - `lastRun` is the schedule's latest execution. A run held back by the start limits has the status
   `QUEUED` and starts when a slot frees up; one still queued after 24 hours ends `TIMED_OUT`. An
   update that changes `action` or `parameters` cancels the queued run.
