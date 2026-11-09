@@ -179,6 +179,20 @@ describe('getSourceFlowParams', () => {
     expect(params).toEqual([{ label: 'Sheet', value: 'Leads', href: tabUrl }]);
   });
 
+  it('links a pasted spreadsheet URL without the gid of the tab it was copied from', () => {
+    const params = getSourceFlowParams(
+      definition('GoogleSheets', 'sheet', [
+        {
+          SheetName: 'Leads',
+          SpreadsheetId: 'https://docs.google.com/spreadsheets/d/abc/edit?gid=7#gid=7',
+        },
+      ]),
+      0
+    );
+
+    expect(params[0].href).toBe('https://docs.google.com/spreadsheets/d/abc/edit');
+  });
+
   it('makes a click wait for the tab link while it loads, keeping the spreadsheet href', () => {
     const params = getSourceFlowParams(
       definition('GoogleSheets', 'sheet', [{ SheetName: 'Leads', SpreadsheetId: 'abc' }]),

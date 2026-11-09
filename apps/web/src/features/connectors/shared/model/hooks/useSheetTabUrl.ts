@@ -12,10 +12,28 @@ const SHEET_TABS_QUERY_KEY = 'google-sheets-tabs';
 // A tab keeps its gid for life, so a list loaded once serves the whole visit.
 const SHEET_TABS_STALE_TIME_MS = 5 * 60 * 1000;
 
+// Pause before the one retry of a rate limit or a provider or server failure.
+const TRANSIENT_RETRY_DELAY_MS = 1000;
+
 /** A rate limit or a provider or server failure is retried once; any other error is final. */
 function isTransientFailure(error: unknown): boolean {
   const status = (error as { response?: { status?: number } } | null)?.response?.status;
   return status === 429 || (status !== undefined && status >= 500);
+}
+
+/** Waits before the retry; a cancelled request ends the wait at once, and its retry then fails. */
+function waitBeforeRetry(signal: AbortSignal): Promise<void> {
+  return new Promise(resolve => {
+    const timer = setTimeout(resolve, TRANSIENT_RETRY_DELAY_MS);
+    signal.addEventListener(
+      'abort',
+      () => {
+        clearTimeout(timer);
+        resolve();
+      },
+      { once: true }
+    );
+  });
 }
 
 /**
@@ -38,7 +56,7 @@ export interface SheetTabLink {
   url: string | undefined;
   /**
    * Set only while the tab list is still loading: resolves to the tab's link, or to
-   * undefined when the list has no such tab or cannot be loaded.
+   * undefined when the list has no such tab, and rejects when the list cannot be loaded.
    */
   waitForUrl: (() => Promise<string | undefined>) | undefined;
 }
@@ -74,18 +92,29 @@ export function useSheetTabUrl(
     // The whole configuration is the key: another spreadsheet or Credential loads its own
     // list, and a link is never taken from the list of a configuration it no longer has.
     queryKey: [SHEET_TABS_QUERY_KEY, source.name, dataMartId, configuration],
-    queryFn: ({ signal }) =>
-      new ConnectorApiService().previewConnectorFieldOptions(
-        source.name,
-        'SheetName',
-        configuration,
-        // The card falls back to the spreadsheet link: a failed lookup must not toast or
-        // flash the global loading indicator.
-        { signal, skipErrorToast: true, skipLoadingIndicator: true },
-        dataMartId
-      ),
+    queryFn: async ({ signal }) => {
+      const loadTabs = () =>
+        new ConnectorApiService().previewConnectorFieldOptions(
+          source.name,
+          'SheetName',
+          configuration,
+          // The card falls back to the spreadsheet link: a failed lookup must not toast or
+          // flash the global loading indicator.
+          { signal, skipErrorToast: true, skipLoadingIndicator: true },
+          dataMartId
+        );
+      try {
+        return await loadTabs();
+      } catch (error) {
+        // Retried here, not by React Query: it pauses its retries while the page is hidden,
+        // and a click on the link hides the page by opening the tab that waits for the list.
+        if (!isTransientFailure(error) || signal.aborted) throw error;
+        await waitBeforeRetry(signal);
+        return loadTabs();
+      }
+    },
     staleTime: SHEET_TABS_STALE_TIME_MS,
-    retry: (failureCount, error) => failureCount < 1 && isTransientFailure(error),
+    retry: false,
   });
   const { data: tabs, isPending } = useQuery({
     ...tabsQuery,
@@ -99,11 +128,7 @@ export function useSheetTabUrl(
     url: undefined,
     // The request is already in flight, so this joins it rather than sending another one.
     waitForUrl: isPending
-      ? () =>
-          queryClient
-            .query(tabsQuery)
-            .then(loaded => findSheetTab(loaded, sheetName)?.url)
-            .catch(() => undefined)
+      ? () => queryClient.query(tabsQuery).then(loaded => findSheetTab(loaded, sheetName)?.url)
       : undefined,
   };
 }

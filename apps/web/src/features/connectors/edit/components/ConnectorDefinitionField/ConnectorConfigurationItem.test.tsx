@@ -127,15 +127,30 @@ describe('ConnectorConfigurationItem', () => {
           resolveTabs = resolve;
         })
     );
-    const replace = vi.fn();
-    const opened = { opener: {} as unknown, location: { replace } };
+    const opened = {
+      opener: {} as unknown,
+      document: document.implementation.createHTMLDocument(''),
+      location: { replace: vi.fn() },
+    };
     const open = vi.spyOn(window, 'open').mockReturnValue(opened as unknown as Window);
+    // jsdom does not navigate: record where the opened tab's own link leads.
+    const followed: string[] = [];
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (
+      this: HTMLAnchorElement
+    ) {
+      followed.push(this.href);
+    });
     const sheets: ConnectorDefinitionConfig = {
       connector: {
         source: {
           name: 'GoogleSheets',
           node: 'sheet',
-          configuration: [{ SpreadsheetId: 'abc', SheetName: 'Leads' }],
+          configuration: [
+            {
+              SpreadsheetId: 'https://docs.google.com/spreadsheets/d/abc/edit?gid=7#gid=7',
+              SheetName: 'Leads',
+            },
+          ],
           fields: ['a'],
         },
         storage: { fullyQualifiedName: 'raw.leads' },
@@ -143,13 +158,17 @@ describe('ConnectorConfigurationItem', () => {
     };
 
     renderItem({ definition: sheets, configIndex: 0, totalConfigurations: 1 });
-    fireEvent.click(screen.getByRole('link', { name: 'Leads' }));
+    const link = screen.getByRole('link', { name: 'Leads' });
+    // While the list loads, the plain link is the spreadsheet without the pasted URL's gid.
+    expect(link).toHaveAttribute('href', 'https://docs.google.com/spreadsheets/d/abc/edit');
+    fireEvent.click(link);
 
     expect(open).toHaveBeenCalledWith('', '_blank');
     expect(opened.opener).toBeNull();
+    expect(opened.document.title).toBe('Opening Google Sheets…');
     resolveTabs([{ value: 'Leads', label: 'Leads', url: tabUrl }]);
     await waitFor(() => {
-      expect(replace).toHaveBeenCalledWith(tabUrl);
+      expect(followed).toEqual([tabUrl]);
     });
   });
 

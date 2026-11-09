@@ -1,4 +1,4 @@
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { focusManager, QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { renderHook, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -32,6 +32,10 @@ const tabs = (spreadsheet: string): ConnectorFieldOptionResponseApiDto[] => [
   { value: 'Leads', label: 'Leads', url: tabUrl(spreadsheet, 42) },
 ];
 
+// The whole return value, so a test also catches a `waitForUrl` that leaks where none belongs.
+const NO_LINK = { url: undefined, waitForUrl: undefined };
+const linkTo = (url: string) => ({ url, waitForUrl: undefined });
+
 function renderSheetTabUrl(initial: ConnectorDefinitionConfig) {
   const client = new QueryClient();
   const wrapper = ({ children }: { children: ReactNode }) => (
@@ -39,9 +43,17 @@ function renderSheetTabUrl(initial: ConnectorDefinitionConfig) {
   );
   return renderHook(
     ({ connectorDef }: { connectorDef: ConnectorDefinitionConfig }) =>
-      useSheetTabUrl(connectorDef, 0).url,
+      useSheetTabUrl(connectorDef, 0),
     { wrapper, initialProps: { connectorDef: initial } }
   );
+}
+
+function deferred<T>() {
+  let resolve: (value: T) => void = () => undefined;
+  const promise = new Promise<T>(done => {
+    resolve = done;
+  });
+  return { promise, resolve };
 }
 
 describe('useSheetTabUrl', () => {
@@ -51,6 +63,7 @@ describe('useSheetTabUrl', () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+    focusManager.setFocused(undefined);
   });
 
   it('returns the link of the selected tab from the spreadsheet tab list', async () => {
@@ -62,7 +75,7 @@ describe('useSheetTabUrl', () => {
     const { result } = renderSheetTabUrl(definition('GoogleSheets', configuration));
 
     await waitFor(() => {
-      expect(result.current).toBe(tabUrl('abc', 42));
+      expect(result.current).toEqual(linkTo(tabUrl('abc', 42)));
     });
     expect(previewSpy).toHaveBeenCalledWith(
       'GoogleSheets',
@@ -83,92 +96,74 @@ describe('useSheetTabUrl', () => {
     );
 
     await waitFor(() => {
-      expect(result.current).toBe(tabUrl('abc', 42));
+      expect(result.current).toEqual(linkTo(tabUrl('abc', 42)));
     });
   });
 
   it('never returns a tab of the previous spreadsheet after the spreadsheet changes', async () => {
-    let resolveSecond: (value: ConnectorFieldOptionResponseApiDto[]) => void = () => undefined;
+    const second = deferred<ConnectorFieldOptionResponseApiDto[]>();
     vi.spyOn(ConnectorApiService.prototype, 'previewConnectorFieldOptions')
       .mockResolvedValueOnce(tabs('first'))
-      .mockImplementationOnce(
-        () =>
-          new Promise(resolve => {
-            resolveSecond = resolve;
-          })
-      );
+      .mockReturnValueOnce(second.promise);
 
     const { result, rerender } = renderSheetTabUrl(
       definition('GoogleSheets', { SpreadsheetId: 'first', SheetName: 'Leads' })
     );
     await waitFor(() => {
-      expect(result.current).toBe(tabUrl('first', 42));
+      expect(result.current).toEqual(linkTo(tabUrl('first', 42)));
     });
 
     rerender({
       connectorDef: definition('GoogleSheets', { SpreadsheetId: 'second', SheetName: 'Leads' }),
     });
-    expect(result.current).toBeUndefined();
+    expect(result.current.url).toBeUndefined();
+    expect(result.current.waitForUrl).toEqual(expect.any(Function));
 
-    resolveSecond(tabs('second'));
+    second.resolve(tabs('second'));
     await waitFor(() => {
-      expect(result.current).toBe(tabUrl('second', 42));
+      expect(result.current).toEqual(linkTo(tabUrl('second', 42)));
     });
   });
 
   it('lets a click wait for the tab link while the list loads, joining the request in flight', async () => {
-    let resolveTabs: (value: ConnectorFieldOptionResponseApiDto[]) => void = () => undefined;
+    const list = deferred<ConnectorFieldOptionResponseApiDto[]>();
     const previewSpy = vi
       .spyOn(ConnectorApiService.prototype, 'previewConnectorFieldOptions')
-      .mockImplementation(
-        () =>
-          new Promise(resolve => {
-            resolveTabs = resolve;
-          })
-      );
-    const client = new QueryClient();
-    const wrapper = ({ children }: { children: ReactNode }) => (
-      <QueryClientProvider client={client}>{children}</QueryClientProvider>
-    );
-    const { result } = renderHook(
-      () =>
-        useSheetTabUrl(definition('GoogleSheets', { SpreadsheetId: 'abc', SheetName: 'Leads' }), 0),
-      { wrapper }
+      .mockReturnValue(list.promise);
+
+    const { result } = renderSheetTabUrl(
+      definition('GoogleSheets', { SpreadsheetId: 'abc', SheetName: 'Leads' })
     );
 
     expect(result.current.url).toBeUndefined();
-    const waitForUrl = result.current.waitForUrl;
-    expect(waitForUrl).toBeDefined();
-    const pending = waitForUrl?.();
+    const pending = result.current.waitForUrl?.();
+    expect(pending).toBeDefined();
 
-    resolveTabs(tabs('abc'));
+    list.resolve(tabs('abc'));
     await expect(pending).resolves.toBe(tabUrl('abc', 42));
     expect(previewSpy).toHaveBeenCalledTimes(1);
     await waitFor(() => {
-      expect(result.current).toEqual({ url: tabUrl('abc', 42), waitForUrl: undefined });
+      expect(result.current).toEqual(linkTo(tabUrl('abc', 42)));
     });
   });
 
-  it('stops waiting once the tab list fails, so the click opens the spreadsheet', async () => {
-    vi.spyOn(ConnectorApiService.prototype, 'previewConnectorFieldOptions').mockRejectedValue({
-      response: { status: 403 },
-    });
-    const client = new QueryClient();
-    const wrapper = ({ children }: { children: ReactNode }) => (
-      <QueryClientProvider client={client}>{children}</QueryClientProvider>
-    );
-    const { result } = renderHook(
-      () =>
-        useSheetTabUrl(definition('GoogleSheets', { SpreadsheetId: 'abc', SheetName: 'Leads' }), 0),
-      { wrapper }
+  it('retries a transient failure once even while the page is hidden behind the opened tab', async () => {
+    // React Query pauses its own retries on a hidden page; the click hides it by opening a tab.
+    focusManager.setFocused(false);
+    const previewSpy = vi
+      .spyOn(ConnectorApiService.prototype, 'previewConnectorFieldOptions')
+      .mockRejectedValueOnce({ response: { status: 502 } })
+      .mockResolvedValueOnce(tabs('abc'));
+
+    const { result } = renderSheetTabUrl(
+      definition('GoogleSheets', { SpreadsheetId: 'abc', SheetName: 'Leads' })
     );
 
-    await waitFor(() => {
-      expect(result.current).toEqual({ url: undefined, waitForUrl: undefined });
-    });
+    await expect(result.current.waitForUrl?.()).resolves.toBe(tabUrl('abc', 42));
+    expect(previewSpy).toHaveBeenCalledTimes(2);
   });
 
-  it('stays undefined when the tab list cannot be loaded', async () => {
+  it('gives no link and no wait once the tab list cannot be loaded, without retrying', async () => {
     const previewSpy = vi
       .spyOn(ConnectorApiService.prototype, 'previewConnectorFieldOptions')
       .mockRejectedValue({ response: { status: 403 } });
@@ -178,9 +173,9 @@ describe('useSheetTabUrl', () => {
     );
 
     await waitFor(() => {
-      expect(previewSpy).toHaveBeenCalledTimes(1);
+      expect(result.current).toEqual(NO_LINK);
     });
-    expect(result.current).toBeUndefined();
+    expect(previewSpy).toHaveBeenCalledTimes(1);
   });
 
   it('requests nothing for a Viewer, for other sources or without a sheet name', () => {
@@ -198,8 +193,8 @@ describe('useSheetTabUrl', () => {
     );
 
     expect(previewSpy).not.toHaveBeenCalled();
-    expect(other.current).toBeUndefined();
-    expect(noSheet.current).toBeUndefined();
-    expect(viewer.current).toBeUndefined();
+    expect(other.current).toEqual(NO_LINK);
+    expect(noSheet.current).toEqual(NO_LINK);
+    expect(viewer.current).toEqual(NO_LINK);
   });
 });

@@ -201,7 +201,9 @@ export function getSourceFlowParams(
           href: spreadsheetUrl,
           onClick:
             spreadsheetUrl && sheetTab?.waitForUrl
-              ? openLinkWhenResolved(spreadsheetUrl, sheetTab.waitForUrl)
+              ? openLinkWhenResolved(spreadsheetUrl, sheetTab.waitForUrl, {
+                  waitingText: 'Opening Google Sheets…',
+                })
               : undefined,
         },
       ];
