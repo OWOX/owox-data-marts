@@ -12,7 +12,7 @@ import { McpDataMartManagementMapper } from './mappers/mcp-data-mart-management.
 import { McpDataMartExecutionMapper } from './mappers/mcp-data-mart-execution.mapper';
 import { McpDataMartModelMapper } from './mappers/mcp-data-mart-model.mapper';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { Module, MiddlewareConsumer, RequestMethod } from '@nestjs/common';
+import { Module, MiddlewareConsumer } from '@nestjs/common';
 import { DataMartController } from './controllers/data-mart.controller';
 import { DataStorageController } from './controllers/data-storage.controller';
 import { MCP_STORAGE_MANAGEMENT_FACADE } from './facades/mcp-storage-management.facade';
@@ -231,8 +231,7 @@ import { ConnectorStateService } from './connector-types/connector-message/servi
 import { ConnectorState } from './entities/connector-state.entity';
 import { ReportDataCache } from './entities/report-data-cache.entity';
 import { IdpModule } from '../idp/idp.module';
-import { createOperationTimeoutMiddleware } from '../common/middleware/operation-timeout.middleware';
-import { MCP_OPERATION_TIMEOUT_EXCLUSIONS } from './config/mcp-operation-timeout-exclusions';
+import { configureOperationTimeouts } from './config/operation-timeouts.config';
 import { CommonModule } from '../common/common.module';
 import { ConnectorSecretService } from './services/connector/connector-secret.service';
 import { DataMartRunService } from './services/data-mart-run.service';
@@ -1177,28 +1176,6 @@ import { McpCredentialsFacadeImpl } from './credentials/facades/mcp-credentials.
 })
 export class DataMartsModule {
   configure(consumer: MiddlewareConsumer) {
-    consumer
-      .apply(createOperationTimeoutMiddleware(180000))
-      .forRoutes(
-        { path: 'data-marts/:id/definition', method: RequestMethod.PUT },
-        { path: 'data-marts/:id/publish', method: RequestMethod.PUT },
-        { path: 'data-marts/:id/preview', method: RequestMethod.POST },
-        { path: 'data-marts/:id/schema', method: RequestMethod.PUT }
-      );
-    consumer
-      .apply(createOperationTimeoutMiddleware(30000))
-      .exclude(
-        { path: 'data-marts/:id/definition', method: RequestMethod.PUT },
-        { path: 'data-marts/:id/publish', method: RequestMethod.PUT },
-        { path: 'data-marts/:id/preview', method: RequestMethod.POST },
-        { path: 'data-marts/:id/schema', method: RequestMethod.PUT },
-        { path: 'external/{*path}', method: RequestMethod.ALL },
-        ...MCP_OPERATION_TIMEOUT_EXCLUSIONS,
-        // The live connector test manages its own run timeout and always resolves
-        // with a result; the global 408 timer would race that response and throw
-        // ERR_HTTP_HEADERS_SENT, so it must not apply here.
-        { path: 'connectors/custom/test', method: RequestMethod.POST }
-      )
-      .forRoutes({ path: '{*path}', method: RequestMethod.ALL });
+    configureOperationTimeouts(consumer);
   }
 }
