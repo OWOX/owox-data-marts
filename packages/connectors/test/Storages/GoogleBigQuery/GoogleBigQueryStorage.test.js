@@ -426,6 +426,39 @@ describe('getAListOfExistingColumns', () => {
   });
 });
 
+describe('createDatasetIfItDoesntExist location', () => {
+  const createDataset = async location => {
+    const storage = Object.assign(Object.create(proto), {
+      config: {
+        DestinationProjectID: configValue('project'),
+        DestinationDatasetName: configValue('dataset'),
+        DestinationLocation: configValue(location),
+      },
+    });
+    let query;
+    storage.executeQuery = async sql => {
+      query = sql;
+    };
+    await storage.createDatasetIfItDoesntExist();
+    return query;
+  };
+
+  it('creates the dataset in the Storage location', async () => {
+    expect(await createDataset('EU')).toContain("location = 'EU'");
+  });
+
+  // BigQuery rejects `location = 'AUTODETECT'` with "Invalid location".
+  it.each(['AUTODETECT', '', undefined])(
+    'lets BigQuery choose the location for %j',
+    async value => {
+      const query = await createDataset(value);
+
+      expect(query).toContain('CREATE SCHEMA IF NOT EXISTS `project.dataset`');
+      expect(query).not.toContain('location');
+    }
+  );
+});
+
 describe('createTableIfItDoesntExist partitioning', () => {
   const createStorage = schema =>
     Object.assign(Object.create(proto), {
