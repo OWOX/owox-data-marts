@@ -18,6 +18,7 @@ Before you begin, please ensure that:
 1. Select **Connector** as the input source type.  
 2. Click **Set up connector** and choose **Microsoft Ads**.  
 3. Fill in the required fields with the credentials you obtained in the [CREDENTIALS](CREDENTIALS.md) guide.  
+   - If the form offers **Sign in with Microsoft** and **Sign in with Google**, use the one you sign in to Microsoft Advertising with.  
    - Leave the other fields as default.  
    - Proceed to the next step.
 

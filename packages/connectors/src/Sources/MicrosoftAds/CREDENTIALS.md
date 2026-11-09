@@ -9,6 +9,13 @@ During this process, you will obtain the following credentials required for the 
 - **Client Secret**  
 - **Refresh Token**
 
+## If You Sign In to Microsoft Advertising with Google
+
+Microsoft Advertising accepts API requests only with the sign-in type you use on its website. If you sign in with Google, a Microsoft sign-in with the same email fails with error `126 IdentityTypeMismatch`.
+
+- If the Credential form offers **Sign in with Google**, click it and choose the Google account you use for Microsoft Advertising. Then you need only the **Account ID** and **Customer ID** from Step 6.
+- To enter the values by hand, use a Google OAuth client instead of the Microsoft app in Steps 1–5. Create a client of type **Desktop app** in the [Google Cloud Console](https://console.cloud.google.com/apis/credentials). Get its refresh token at `https://oauth2.googleapis.com/token` with the scopes `openid email profile`, `access_type=offline` and `prompt=consent`. Enter the Google client's **Client ID** and **Client Secret**, its **Refresh Token**, and your **Developer Token** from Step 7. The connector recognizes a Google client by its ID, which ends with `.apps.googleusercontent.com`.
+
 **Before you start:** Sign up for [ReqBin](https://reqbin.com/) or [Postman](https://www.postman.com/) if you don't have an account yet. Both are free tools for sending API requests. You'll use one of them in Steps 3–5 to obtain the Refresh Token.
 
 ## Step 1: Register an App in Microsoft Azure
@@ -176,6 +183,16 @@ Repeat **Step 4** to obtain a new temporary authorization code and retry the req
 
 ✅ **Tip:**  
 Always generate and use the authorization code **immediately** after receiving it to avoid expiration issues.
+
+## Troubleshooting Sign-In Type Errors
+
+### Error: `126 IdentityTypeMismatch` (`You must use a different identity type to sign in to Bing Ads with the same email.`)
+
+**Cause:**  
+The Credential was signed in with a different type than the one you use for Microsoft Advertising: Microsoft instead of Google, or the other way around.
+
+**Solution:**  
+Reconnect the Credential with the other button: **Sign in with Google** if you sign in to Microsoft Advertising with Google, **Sign in with Microsoft** otherwise. For values entered by hand, see [If You Sign In to Microsoft Advertising with Google](#if-you-sign-in-to-microsoft-advertising-with-google).
 
 ## Troubleshooting and Support
 

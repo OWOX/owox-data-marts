@@ -6,6 +6,83 @@
  */
 
 const MicrosoftAdsHelper = {
+  GOOGLE_TOKEN_URL: 'https://oauth2.googleapis.com/token',
+  GET_USER_URL: 'https://clientcenter.api.bingads.microsoft.com/CustomerManagement/v13/User/Query',
+
+  /**
+   * A Credential signed in with Google stores a Google OAuth client ID, which always ends
+   * with `.apps.googleusercontent.com`; a Microsoft (Entra) client ID is a GUID.
+   * @param {string} clientId
+   * @returns {boolean}
+   */
+  isGoogleClientId(clientId) {
+    return typeof clientId === 'string' && clientId.trim().endsWith('.apps.googleusercontent.com');
+  },
+
+  /**
+   * Error 126 IdentityTypeMismatch: the token comes from a different sign-in type (Microsoft
+   * or Google) than the one the Microsoft Advertising user signs in with.
+   * @param {Object} payload - Parsed error body of a Microsoft Advertising API response
+   * @returns {boolean}
+   */
+  isIdentityTypeMismatch(payload) {
+    const errors = payload?.Errors ?? payload?.OperationErrors;
+    return (
+      Array.isArray(errors) &&
+      errors.some(
+        error => Number(error?.Code) === 126 || error?.ErrorCode === 'IdentityTypeMismatch'
+      )
+    );
+  },
+
+  /**
+   * What the user should do when Microsoft Advertising rejects the sign-in type of a Credential.
+   * @param {boolean} signedInWithGoogle - The Credential was signed in with Google
+   * @param {boolean} atRun - The Credential already exists and a run hit the error
+   * @returns {string}
+   */
+  identityTypeMismatchMessage(signedInWithGoogle, atRun) {
+    const reason = signedInWithGoogle
+      ? 'This Microsoft Advertising user signs in with a Microsoft account, not with Google.'
+      : 'This Microsoft Advertising user signs in with Google, not with a Microsoft account.';
+    const button = signedInWithGoogle ? 'Sign in with Microsoft' : 'Sign in with Google';
+    return atRun
+      ? `Microsoft Advertising rejected the Credential (error 126 IdentityTypeMismatch). ${reason} Reconnect the Credential with ${button}.`
+      : `${reason} Use ${button}.`;
+  },
+
+  /**
+   * @param {Object} payload - Parsed error body of a Microsoft Advertising API response
+   * @returns {boolean}
+   */
+  isInvalidCredentials(payload) {
+    const errors = payload?.Errors;
+    return Array.isArray(errors) && errors.some(error => Number(error?.Code) === 105);
+  },
+
+  /**
+   * How the "Connected as" line names the Microsoft Advertising user from GetUser.
+   * @param {Object} user - `User` of a GetUser response
+   * @returns {{id: string, name: string}}
+   */
+  describeUser(user) {
+    const fullName = [user?.Name?.FirstName, user?.Name?.LastName].filter(Boolean).join(' ');
+    return {
+      id: user?.Id != null ? String(user.Id) : 'unknown',
+      name: user?.ContactInfo?.Email || fullName || user?.UserName || 'Microsoft Ads User',
+    };
+  },
+
+  /**
+   * @param {Object} form
+   * @returns {string} application/x-www-form-urlencoded body
+   */
+  formBody(form) {
+    return Object.entries(form)
+      .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
+      .join('&');
+  },
+
   /**
    * Parse fields string into a structured object
    * @param {string} fieldsString - Fields string in format "nodeName fieldName, nodeName fieldName"

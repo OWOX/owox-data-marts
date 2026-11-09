@@ -1,0 +1,321 @@
+// packages/connectors/tests/regression/microsoftads-google-signin.test.js
+//
+// Microsoft Advertising users who sign in with Google need a Google-issued token: a
+// Microsoft-identity token for the same email is rejected with error 126
+// IdentityTypeMismatch on every request. These tests pin the Google path of
+// MicrosoftAdsSource and that the Microsoft path stays as it was:
+// - a Credential whose client ID is a Google OAuth client refreshes at Google, with no
+//   scope and no rotated refresh token reported back;
+// - only such a Credential sends `IdentityProvider: Google`;
+// - error 126 on a run names the button to reconnect with, is a warning, and is not
+//   requested from the API again;
+// - "Sign in with Google" exchanges the code with the Google client and checks the user
+//   with GetUser, and either sign-in of the wrong type fails with a clear message.
+import { test, before, beforeEach, afterEach } from 'node:test';
+import assert from 'node:assert/strict';
+import { createRequire } from 'node:module';
+import { fileURLToPath } from 'node:url';
+import * as path from 'node:path';
+import { withBuildLock, buildBundle } from '../buildBundleOnce.js';
+
+const require = createRequire(import.meta.url);
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const pkgRoot = path.resolve(__dirname, '..', '..');
+
+const GOOGLE_CLIENT_ID = '123456-abcdef.apps.googleusercontent.com';
+const MICROSOFT_CLIENT_ID = 'a90adc33-0000-4000-8000-000000000000';
+const AD_PERFORMANCE_FIELDS = [
+  'AccountId',
+  'CampaignId',
+  'AdGroupId',
+  'AdId',
+  'TimePeriod',
+  'CurrencyCode',
+  'AdDistribution',
+  'DeviceType',
+  'DeviceOS',
+  'Network',
+  'TopVsOther',
+  'BidMatchType',
+  'DeliveredMatchType',
+  'Language',
+  'CampaignType',
+];
+const IDENTITY_TYPE_MISMATCH = {
+  Errors: [
+    {
+      Code: 126,
+      Message: 'You must use a different identity type to sign in to Bing Ads with the same email.',
+      Detail: null,
+      ErrorCode: 'IdentityTypeMismatch',
+    },
+  ],
+  Type: 'AdApiFaultDetail',
+};
+
+let OWOX;
+let originalFetch;
+let requests;
+
+before(() => {
+  withBuildLock(() => {
+    buildBundle(pkgRoot);
+    OWOX = require(path.join(pkgRoot, 'dist', 'index.cjs'));
+  });
+});
+
+beforeEach(() => {
+  originalFetch = global.fetch;
+  requests = [];
+});
+
+afterEach(() => {
+  global.fetch = originalFetch;
+});
+
+function makeSource(clientId) {
+  const { Core, MicrosoftAds } = OWOX;
+  const ctx = new Core.AbstractContext({
+    source: {
+      name: 'MicrosoftAds',
+      config: {
+        AuthType: {
+          value: 'oauth2',
+          items: {
+            ClientId: { value: clientId },
+            ClientSecret: { value: 'client-secret' },
+            RefreshToken: { value: 'refresh-token' },
+            DeveloperToken: { value: 'developer-token' },
+          },
+        },
+        AccountIDs: { value: '123456789' },
+        CustomerID: { value: '987654321' },
+        Fields: { value: AD_PERFORMANCE_FIELDS.map(field => `ad_performance_report ${field}`) },
+      },
+    },
+    storage: { name: 'GoogleBigQueryStorage', config: {} },
+    runConfig: null,
+    env: { datamartId: 'dm', runId: 'run' },
+  });
+  return { ctx, source: new MicrosoftAds.MicrosoftAdsSource(ctx) };
+}
+
+function jsonResponse(body, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { 'Content-Type': 'application/json' },
+  });
+}
+
+/** Routes each request by URL and records it with its headers and parsed body. */
+function stubFetch(route) {
+  global.fetch = async (url, options = {}) => {
+    const href = String(url);
+    const body = typeof options.body === 'string' ? options.body : '';
+    let parsed;
+    try {
+      parsed = body.startsWith('{')
+        ? JSON.parse(body)
+        : Object.fromEntries(new URLSearchParams(body));
+    } catch {
+      parsed = body;
+    }
+    requests.push({ url: href, headers: options.headers ?? {}, body: parsed });
+    return route(href, parsed);
+  };
+}
+
+const fetchAdPerformance = source =>
+  source.fetchData({
+    nodeName: 'ad_performance_report',
+    accountId: '123456789',
+    fields: AD_PERFORMANCE_FIELDS,
+    startDate: '2026-11-01',
+    endDate: '2026-11-01',
+  });
+
+test('a Credential with a Google client refreshes at Google and reports no rotated token', async () => {
+  const { ctx, source } = makeSource(GOOGLE_CLIENT_ID);
+  const reported = [];
+  ctx.updateCredentials = credentials => reported.push(credentials);
+  stubFetch(() => jsonResponse({ access_token: 'google-access-token', expires_in: 3599 }));
+
+  await source.getAccessToken();
+
+  assert.equal(requests.length, 1);
+  assert.equal(requests[0].url, 'https://oauth2.googleapis.com/token');
+  assert.equal(requests[0].body.grant_type, 'refresh_token');
+  assert.equal(requests[0].body.client_id, GOOGLE_CLIENT_ID);
+  assert.equal(requests[0].body.refresh_token, 'refresh-token');
+  assert.equal(requests[0].body.scope, undefined, 'Google takes no scope on a refresh');
+  assert.equal(source._getAccessTokenValue(), 'google-access-token');
+  assert.deepEqual(reported, []);
+});
+
+test('a revoked Google grant is a warning: the user must reconnect', async () => {
+  const { source } = makeSource(GOOGLE_CLIENT_ID);
+  stubFetch(() =>
+    jsonResponse(
+      { error: 'invalid_grant', error_description: 'Token has been expired or revoked.' },
+      400
+    )
+  );
+
+  await assert.rejects(source.getAccessToken(), error => {
+    assert.match(error.message, /invalid_grant/);
+    assert.equal(error.isWarning, true);
+    return true;
+  });
+});
+
+for (const [label, clientId, expected] of [
+  ['Google', GOOGLE_CLIENT_ID, 'Google'],
+  ['Microsoft', MICROSOFT_CLIENT_ID, undefined],
+]) {
+  test(`a ${label} Credential ${expected ? 'sends' : 'does not send'} IdentityProvider on Reporting requests`, async () => {
+    const { source } = makeSource(clientId);
+    stubFetch(url => {
+      if (url.includes('/token')) return jsonResponse({ access_token: 'access-token' });
+      if (url.endsWith('/GenerateReport/Submit')) return jsonResponse({ ReportRequestId: 'r1' });
+      return jsonResponse({ ReportRequestStatus: { Status: 'Success', ReportDownloadUrl: null } });
+    });
+
+    const rows = await fetchAdPerformance(source);
+
+    assert.deepEqual(rows, []);
+    const apiRequests = requests.filter(request => request.url.includes('/Reporting/'));
+    assert.equal(apiRequests.length, 2, 'Submit and Poll');
+    for (const request of apiRequests) {
+      assert.equal(request.headers.IdentityProvider, expected);
+      assert.equal(request.headers.Authorization, 'Bearer access-token');
+      assert.equal(request.headers.DeveloperToken, 'developer-token');
+    }
+  });
+}
+
+test('error 126 on a run names the button to reconnect with and is asked only once', async () => {
+  const { source } = makeSource(MICROSOFT_CLIENT_ID);
+  stubFetch(url =>
+    url.includes('/token')
+      ? jsonResponse({ access_token: 'access-token', refresh_token: 'rotated' })
+      : jsonResponse(IDENTITY_TYPE_MISMATCH, 400)
+  );
+
+  const isMismatch = error => {
+    assert.match(error.message, /error 126 IdentityTypeMismatch/);
+    assert.match(error.message, /Reconnect the Credential with Sign in with Google/);
+    assert.equal(error.isWarning, true);
+    return true;
+  };
+  await assert.rejects(fetchAdPerformance(source), isMismatch);
+  assert.equal(
+    requests.filter(request => request.url.endsWith('/GenerateReport/Submit')).length,
+    1
+  );
+
+  requests = [];
+  await assert.rejects(fetchAdPerformance(source), isMismatch);
+  assert.deepEqual(requests, [], 'the next day must not ask Microsoft Advertising again');
+});
+
+const GOOGLE_VARS = {
+  ClientId: MICROSOFT_CLIENT_ID,
+  ClientSecret: 'microsoft-secret',
+  RedirectUri: 'https://app.example.com/oauth/microsoft-ads/callback',
+  DeveloperToken: 'developer-token',
+  GoogleClientId: GOOGLE_CLIENT_ID,
+  GoogleClientSecret: 'google-secret',
+  GoogleRedirectUri: 'https://app.example.com/oauth/microsoft-ads-google/callback',
+};
+
+test('Sign in with Google exchanges the code with the Google client and names the user', async () => {
+  const { source } = makeSource(MICROSOFT_CLIENT_ID);
+  stubFetch(url =>
+    url === 'https://oauth2.googleapis.com/token'
+      ? jsonResponse({
+          access_token: 'google-access',
+          refresh_token: 'google-refresh',
+          expires_in: 3599,
+        })
+      : jsonResponse({ User: { Id: 42, ContactInfo: { Email: 'advertiser@gmail.com' } } })
+  );
+
+  const result = await source.exchangeOauthCredentials(
+    { code: 'code', identityProvider: 'google' },
+    GOOGLE_VARS
+  );
+
+  const [token, getUser] = requests;
+  assert.equal(token.url, 'https://oauth2.googleapis.com/token');
+  assert.equal(token.body.client_id, GOOGLE_CLIENT_ID);
+  assert.equal(token.body.client_secret, 'google-secret');
+  assert.equal(token.body.redirect_uri, GOOGLE_VARS.GoogleRedirectUri);
+  assert.equal(token.body.scope, undefined);
+  assert.match(getUser.url, /\/CustomerManagement\/v13\/User\/Query$/);
+  assert.equal(getUser.headers.IdentityProvider, 'Google');
+  assert.equal(getUser.headers.Authorization, 'Bearer google-access');
+  assert.equal(result.secret.client_id, GOOGLE_CLIENT_ID);
+  assert.equal(result.secret.client_secret, 'google-secret');
+  assert.equal(result.secret.refresh_token, 'google-refresh');
+  assert.equal(result.secret.developer_token, 'developer-token');
+  assert.deepEqual(result.user, { id: '42', name: 'advertiser@gmail.com' });
+});
+
+test('Sign in with Google for a user who signs in with Microsoft points to Sign in with Microsoft', async () => {
+  const { source } = makeSource(MICROSOFT_CLIENT_ID);
+  stubFetch(url =>
+    url === 'https://oauth2.googleapis.com/token'
+      ? jsonResponse({ access_token: 'google-access', refresh_token: 'google-refresh' })
+      : jsonResponse(IDENTITY_TYPE_MISMATCH, 400)
+  );
+
+  await assert.rejects(
+    source.exchangeOauthCredentials({ code: 'code', identityProvider: 'google' }, GOOGLE_VARS),
+    /signs in with a Microsoft account, not with Google\. Use Sign in with Microsoft\./
+  );
+});
+
+test('Sign in with Microsoft for a user who signs in with Google points to Sign in with Google', async () => {
+  const { source } = makeSource(MICROSOFT_CLIENT_ID);
+  stubFetch(url =>
+    url.includes('login.microsoftonline.com')
+      ? jsonResponse({ access_token: 'microsoft-access', refresh_token: 'microsoft-refresh' })
+      : jsonResponse(IDENTITY_TYPE_MISMATCH, 400)
+  );
+
+  await assert.rejects(
+    source.exchangeOauthCredentials({ code: 'code' }, GOOGLE_VARS),
+    /signs in with Google, not with a Microsoft account\. Use Sign in with Google\./
+  );
+  assert.equal(requests[1].headers.IdentityProvider, undefined);
+});
+
+test('Sign in with Microsoft still saves the Credential when GetUser cannot be reached', async () => {
+  const { source } = makeSource(MICROSOFT_CLIENT_ID);
+  global.fetch = async (url, options) => {
+    requests.push({ url: String(url), headers: options?.headers ?? {} });
+    if (String(url).includes('login.microsoftonline.com')) {
+      return jsonResponse({ access_token: 'microsoft-access', refresh_token: 'microsoft-refresh' });
+    }
+    throw new Error('network down');
+  };
+
+  const result = await source.exchangeOauthCredentials({ code: 'code' }, GOOGLE_VARS);
+
+  assert.equal(result.secret.client_id, MICROSOFT_CLIENT_ID);
+  assert.deepEqual(result.user, { id: 'unknown', name: 'Microsoft Ads User' });
+});
+
+test('Sign in with Google is refused when the server has no Google client', async () => {
+  const { source } = makeSource(MICROSOFT_CLIENT_ID);
+  stubFetch(() => assert.fail('no request expected'));
+
+  await assert.rejects(
+    source.exchangeOauthCredentials(
+      { code: 'code', identityProvider: 'google' },
+      { ...GOOGLE_VARS, GoogleClientId: undefined, GoogleClientSecret: undefined }
+    ),
+    /Sign in with Google is not configured/
+  );
+  assert.deepEqual(requests, []);
+});
