@@ -186,10 +186,10 @@ describe('_downloadEntity streaming', () => {
     const fileUrl = 'https://bulk.test/result.zip';
     const originalFetch = globalThis.fetch;
     const originalUnzip = globalThis.FileUtils.unzip;
-    // The submit call goes through the source's own retrying fetch; the poll and the
-    // result-file download go through the global fetch the helper uses.
+    // The submit call goes through the source's own retrying fetch (`_fetchApi`); the poll
+    // and the result-file download go through the global fetch the helper uses.
     const fakeSource = {
-      urlFetchWithRetry: async () => ({
+      _fetchApi: async () => ({
         text: async () => JSON.stringify({ DownloadRequestId: 'r1' }),
       }),
     };

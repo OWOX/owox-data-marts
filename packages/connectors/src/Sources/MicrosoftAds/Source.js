@@ -567,10 +567,7 @@ export class MicrosoftAdsSource extends AbstractSource {
     const authType = this.context.getParameter('AuthType');
     const isOAuth2 = authType?.value === 'oauth2';
     return {
-      clientId:
-        (isOAuth2 && authType.items?.ClientId?.value) ||
-        this.context.getParameter('ClientID')?.value ||
-        process.env.OAUTH_MICROSOFT_ADS_CLIENT_ID,
+      clientId: this._clientId(),
       clientSecret:
         (isOAuth2 && authType.items?.ClientSecret?.value) ||
         this.context.getParameter('ClientSecret')?.value ||
@@ -584,9 +581,19 @@ export class MicrosoftAdsSource extends AbstractSource {
     };
   }
 
+  /** The run's OAuth client ID: the Credential's, else the deprecated parameter, else the server's. */
+  _clientId() {
+    const authType = this.context.getParameter('AuthType');
+    return (
+      (authType?.value === 'oauth2' && authType.items?.ClientId?.value) ||
+      this.context.getParameter('ClientID')?.value ||
+      process.env.OAUTH_MICROSOFT_ADS_CLIENT_ID
+    );
+  }
+
   /** The Credential was signed in with Google ("Sign in with Google" or a Google client typed by hand). */
   _isGoogleIdentity() {
-    return MicrosoftAdsHelper.isGoogleClientId(this._oauthClient().clientId);
+    return MicrosoftAdsHelper.isGoogleClientId(this._clientId());
   }
 
   /**
