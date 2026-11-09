@@ -120,7 +120,12 @@ function stubFetch(route) {
     } catch {
       parsed = body;
     }
-    requests.push({ url: href, headers: options.headers ?? {}, body: parsed });
+    requests.push({
+      url: href,
+      headers: options.headers ?? {},
+      body: parsed,
+      signal: options.signal,
+    });
     return route(href, parsed);
   };
 }
@@ -203,7 +208,7 @@ test('error 126 on a run names the button to reconnect with and is asked only on
 
   const isMismatch = error => {
     assert.match(error.message, /error 126 IdentityTypeMismatch/);
-    assert.match(error.message, /Reconnect the Credential with Sign in with Google/);
+    assert.match(error.message, /Reconnect the Credential: Sign in with Google/);
     assert.equal(error.isWarning, true);
     return true;
   };
@@ -218,6 +223,124 @@ test('error 126 on a run names the button to reconnect with and is asked only on
   assert.deepEqual(requests, [], 'the next day must not ask Microsoft Advertising again');
 });
 
+test('error 126 in the operation errors of a Submit answer is handled the same way', async () => {
+  const { source } = makeSource(MICROSOFT_CLIENT_ID);
+  stubFetch(url =>
+    url.includes('/token')
+      ? jsonResponse({ access_token: 'access-token' })
+      : jsonResponse({ OperationErrors: IDENTITY_TYPE_MISMATCH.Errors })
+  );
+
+  await assert.rejects(fetchAdPerformance(source), error => {
+    assert.match(error.message, /error 126 IdentityTypeMismatch/);
+    assert.equal(error.isWarning, true);
+    return true;
+  });
+});
+
+test('other Microsoft Advertising errors read as their own message, not raw JSON', async () => {
+  const { source } = makeSource(MICROSOFT_CLIENT_ID);
+  stubFetch(url =>
+    url.includes('/token')
+      ? jsonResponse({ access_token: 'access-token' })
+      : jsonResponse(
+          {
+            Errors: [
+              {
+                Code: 105,
+                ErrorCode: 'InvalidCredentials',
+                Message:
+                  'Authentication failed. Either supplied credentials are invalid or the account is inactive',
+              },
+            ],
+            Type: 'AdApiFaultDetail',
+          },
+          401
+        )
+  );
+
+  await assert.rejects(fetchAdPerformance(source), error => {
+    assert.equal(
+      error.message,
+      'HTTP 401: Authentication failed. Either supplied credentials are invalid or the account is inactive (105 InvalidCredentials)'
+    );
+    assert.equal(error.isWarning, true);
+    return true;
+  });
+});
+
+const fetchCampaigns = source =>
+  source.fetchData({ nodeName: 'campaigns', accountId: '123456789', fields: ['Id'] });
+
+test('a Google Credential sends IdentityProvider on Bulk requests', async () => {
+  const { source } = makeSource(GOOGLE_CLIENT_ID);
+  stubFetch(url => {
+    if (url.includes('/token')) return jsonResponse({ access_token: 'access-token' });
+    if (url.endsWith('/Campaigns/DownloadByAccountIds')) {
+      return jsonResponse({ DownloadRequestId: 'd1' });
+    }
+    return jsonResponse({ RequestStatus: 'Failed' });
+  });
+
+  await assert.rejects(fetchCampaigns(source), /Bulk download failed/);
+
+  const bulkRequests = requests.filter(request => request.url.includes('/Bulk/'));
+  assert.deepEqual(
+    bulkRequests.map(request => request.url.split('/Bulk/v13/')[1]),
+    ['Campaigns/DownloadByAccountIds', 'BulkDownloadStatus/Query']
+  );
+  for (const request of bulkRequests) {
+    assert.equal(request.headers.IdentityProvider, 'Google');
+    assert.equal(request.headers.CustomerAccountId, '123456789');
+  }
+});
+
+test('error 126 on a Bulk request of a Google Credential points to Sign in with Microsoft', async () => {
+  const { source } = makeSource(GOOGLE_CLIENT_ID);
+  stubFetch(url =>
+    url.includes('/token')
+      ? jsonResponse({ access_token: 'access-token' })
+      : jsonResponse(IDENTITY_TYPE_MISMATCH, 400)
+  );
+
+  await assert.rejects(fetchCampaigns(source), error => {
+    assert.match(
+      error.message,
+      /signs in with a Microsoft account, not with Google\. Reconnect the Credential: Sign in with Microsoft\./
+    );
+    assert.equal(error.isWarning, true);
+    return true;
+  });
+});
+
+test('a Keywords batch failure keeps what classifies it', async () => {
+  const { source } = makeSource(MICROSOFT_CLIENT_ID);
+  const payload = { Errors: [{ Code: 105 }] };
+  source._downloadEntityBatch = async () => {
+    throw Object.assign(new Error('HTTP 401: denied'), {
+      statusCode: 401,
+      payload,
+      isWarning: true,
+    });
+  };
+
+  await assert.rejects(
+    source._fetchEntityByCampaigns({
+      accountId: '123456789',
+      entityType: 'Keywords',
+      campaignIds: ['10'],
+      onBatchReady: async () => {},
+    }),
+    error => {
+      assert.equal(error.message, 'Failed to fetch Keywords: HTTP 401: denied');
+      assert.equal(error.isWarning, true);
+      assert.equal(error.statusCode, 401);
+      assert.equal(error.payload, payload);
+      return true;
+    }
+  );
+});
+
 const GOOGLE_VARS = {
   ClientId: MICROSOFT_CLIENT_ID,
   ClientSecret: 'microsoft-secret',
@@ -225,7 +348,7 @@ const GOOGLE_VARS = {
   DeveloperToken: 'developer-token',
   GoogleClientId: GOOGLE_CLIENT_ID,
   GoogleClientSecret: 'google-secret',
-  GoogleRedirectUri: 'https://app.example.com/oauth/microsoft-ads-google/callback',
+  GoogleRedirectUri: 'https://app.example.com/oauth/google/callback',
 };
 
 test('Sign in with Google exchanges the code with the Google client and names the user', async () => {
@@ -259,6 +382,34 @@ test('Sign in with Google exchanges the code with the Google client and names th
   assert.equal(result.secret.refresh_token, 'google-refresh');
   assert.equal(result.secret.developer_token, 'developer-token');
   assert.deepEqual(result.user, { id: '42', name: 'advertiser@gmail.com' });
+  assert.ok(getUser.signal instanceof AbortSignal, 'GetUser must not hold the sign-in up');
+});
+
+test('Sign in with Google refused with error 105 names the account and the server setup', async () => {
+  const { source } = makeSource(MICROSOFT_CLIENT_ID);
+  stubFetch(url =>
+    url === 'https://oauth2.googleapis.com/token'
+      ? jsonResponse({ access_token: 'google-access', refresh_token: 'google-refresh' })
+      : jsonResponse(
+          {
+            Errors: [
+              { Code: 105, ErrorCode: 'InvalidCredentials', Message: 'Authentication failed.' },
+            ],
+            TrackingId: 't-1',
+          },
+          401
+        )
+  );
+
+  await assert.rejects(
+    source.exchangeOauthCredentials({ code: 'code', identityProvider: 'google' }, GOOGLE_VARS),
+    error => {
+      assert.match(error.message, /error 105 InvalidCredentials, tracking ID t-1/);
+      assert.match(error.message, /the Google account you use for Microsoft Advertising/);
+      assert.match(error.message, /Microsoft Ads Google client and developer token/);
+      return true;
+    }
+  );
 });
 
 test('Sign in with Google for a user who signs in with Microsoft points to Sign in with Microsoft', async () => {
@@ -275,7 +426,7 @@ test('Sign in with Google for a user who signs in with Microsoft points to Sign 
   );
 });
 
-test('Sign in with Microsoft for a user who signs in with Google points to Sign in with Google', async () => {
+test('Sign in with Microsoft hit by 126 without a reason names both other sign-ins', async () => {
   const { source } = makeSource(MICROSOFT_CLIENT_ID);
   stubFetch(url =>
     url.includes('login.microsoftonline.com')
@@ -285,10 +436,33 @@ test('Sign in with Microsoft for a user who signs in with Google points to Sign 
 
   await assert.rejects(
     source.exchangeOauthCredentials({ code: 'code' }, GOOGLE_VARS),
-    /signs in with Google, not with a Microsoft account\. Use Sign in with Google\./
+    /signs in with another account type: Google, or the other Microsoft account \(work or personal\) of this email\. Use Sign in with Google, or Sign in with Microsoft with the other account\./
   );
   assert.equal(requests[1].headers.IdentityProvider, undefined);
 });
+
+for (const [reason, expected] of [
+  ['GoogleAccountIsRequired', /signs in with Google\. Use Sign in with Google\./],
+  [
+    'PersonalAccountIsRequired',
+    /signs in with a personal Microsoft account\. Use Sign in with Microsoft and choose the personal account\./,
+  ],
+  [
+    'WorkAccountIsRequired',
+    /signs in with a work or school Microsoft account\. Use Sign in with Microsoft and choose the work or school account\./,
+  ],
+]) {
+  test(`Sign in with Microsoft hit by 126 ${reason} names the sign-in to use`, async () => {
+    const { source } = makeSource(MICROSOFT_CLIENT_ID);
+    stubFetch(url =>
+      url.includes('login.microsoftonline.com')
+        ? jsonResponse({ access_token: 'microsoft-access', refresh_token: 'microsoft-refresh' })
+        : jsonResponse({ Errors: [{ ...IDENTITY_TYPE_MISMATCH.Errors[0], Detail: reason }] }, 400)
+    );
+
+    await assert.rejects(source.exchangeOauthCredentials({ code: 'code' }, GOOGLE_VARS), expected);
+  });
+}
 
 test('Sign in with Microsoft still saves the Credential when GetUser cannot be reached', async () => {
   const { source } = makeSource(MICROSOFT_CLIENT_ID);

@@ -1,7 +1,21 @@
-import { fireEvent, render, screen } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { OauthRenderComponentProps } from '../OauthRenderFactory';
 import { MicrosoftOauthRender } from './MicrosoftOauthRender';
+
+const { openGoogleOAuthPopup } = vi.hoisted(() => ({
+  openGoogleOAuthPopup: vi.fn<(url: string) => Promise<{ code: string; state: string }>>(),
+}));
+
+vi.mock(
+  '../../../../../../../../google-oauth/utils/open-google-oauth-popup',
+  async importOriginal => ({
+    ...(await importOriginal<
+      typeof import('../../../../../../../../google-oauth/utils/open-google-oauth-popup')
+    >()),
+    openGoogleOAuthPopup,
+  })
+);
 
 vi.mock('../../../../../../../shared/components/MicrosoftLoginButton', () => ({
   MicrosoftLoginButton: ({
@@ -23,26 +37,6 @@ vi.mock('../../../../../../../shared/components/MicrosoftLoginButton', () => ({
   ),
 }));
 
-vi.mock('../../../../../../../shared/components/MicrosoftAdsGoogleLoginButton', () => ({
-  MicrosoftAdsGoogleLoginButton: ({
-    children,
-    onSuccess,
-  }: {
-    children?: React.ReactNode;
-    onSuccess: (response: { code: string }) => void;
-  }) => (
-    <button
-      type='button'
-      data-testid='google-login'
-      onClick={() => {
-        onSuccess({ code: 'google-code' });
-      }}
-    >
-      {children}
-    </button>
-  ),
-}));
-
 const MICROSOFT_VARS = {
   ClientId: 'microsoft-client',
   RedirectUri: 'https://app.example.com/oauth/microsoft-ads/callback',
@@ -50,7 +44,7 @@ const MICROSOFT_VARS = {
 const GOOGLE_VARS = {
   ...MICROSOFT_VARS,
   GoogleClientId: 'google-client.apps.googleusercontent.com',
-  GoogleRedirectUri: 'https://app.example.com/oauth/microsoft-ads-google/callback',
+  GoogleRedirectUri: 'https://app.example.com/oauth/google/callback',
 };
 
 function renderMicrosoftOAuth(overrides: Partial<OauthRenderComponentProps> = {}) {
@@ -67,41 +61,81 @@ function renderMicrosoftOAuth(overrides: Partial<OauthRenderComponentProps> = {}
 }
 
 describe('MicrosoftOauthRender', () => {
+  beforeEach(() => {
+    openGoogleOAuthPopup.mockReset();
+  });
+
   it('offers only Microsoft, as before, when the server has no Google client', () => {
     renderMicrosoftOAuth({
       settings: { isEnabled: true, vars: MICROSOFT_VARS },
       status: { valid: true, user: { id: '42', name: 'advertiser@example.com' } },
     });
 
-    expect(screen.queryByTestId('google-login')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Sign in with Google' })).toBeNull();
     expect(screen.getByTestId('microsoft-login').textContent).toBe(
       'Connected as advertiser@example.com'
     );
   });
 
-  it('offers Google next to Microsoft and marks the code as a Google sign-in', () => {
+  it('signs in with Google in the shared popup and marks the code as a Google sign-in', async () => {
+    openGoogleOAuthPopup.mockResolvedValue({ code: 'google-code', state: 'state' });
+    const props = renderMicrosoftOAuth();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in with Google' }));
+
+    await waitFor(() => {
+      expect(props.onOAuthSuccess).toHaveBeenCalledWith({
+        code: 'google-code',
+        identityProvider: 'google',
+      });
+    });
+    const url = new URL(openGoogleOAuthPopup.mock.calls[0][0]);
+    expect(url.origin + url.pathname).toBe('https://accounts.google.com/o/oauth2/v2/auth');
+    expect(url.searchParams.get('client_id')).toBe(GOOGLE_VARS.GoogleClientId);
+    expect(url.searchParams.get('redirect_uri')).toBe(GOOGLE_VARS.GoogleRedirectUri);
+    expect(url.searchParams.get('response_type')).toBe('code');
+    expect(url.searchParams.get('scope')).toBe('openid email profile');
+    expect(url.searchParams.get('access_type')).toBe('offline');
+    expect(url.searchParams.get('prompt')).toBe('consent');
+    expect(url.searchParams.get('state')).toBeTruthy();
+  });
+
+  it('still signs in with Microsoft next to Google', () => {
     const props = renderMicrosoftOAuth();
 
     expect(screen.getByTestId('microsoft-login').textContent).toBe('Sign in with Microsoft');
-    fireEvent.click(screen.getByTestId('google-login'));
     fireEvent.click(screen.getByTestId('microsoft-login'));
 
-    expect(props.onOAuthSuccess).toHaveBeenNthCalledWith(1, {
-      code: 'google-code',
-      identityProvider: 'google',
-    });
-    expect(props.onOAuthSuccess).toHaveBeenNthCalledWith(2, { code: 'microsoft-code' });
+    expect(props.onOAuthSuccess).toHaveBeenCalledWith({ code: 'microsoft-code' });
   });
 
-  it('names the connected user once, above both buttons', () => {
+  it('names the connected user once, above both buttons, with the valid mark', () => {
     renderMicrosoftOAuth({
       status: { valid: true, user: { id: '42', name: 'advertiser@gmail.com' } },
     });
 
-    expect(screen.getByText('advertiser@gmail.com').closest('p')?.textContent).toBe(
-      'Connected as advertiser@gmail.com'
-    );
+    const line = screen.getByText('advertiser@gmail.com').closest('p');
+    expect(line?.textContent).toBe('Connected as advertiser@gmail.com');
+    expect(line?.querySelector('svg')).not.toBeNull();
     expect(screen.getByTestId('microsoft-login').textContent).toBe('Sign in with Microsoft');
-    expect(screen.getByTestId('google-login').textContent).toBe('Sign in with Google');
+  });
+
+  it('says nothing when the Google window is closed and shows other popup errors', async () => {
+    const { GoogleOAuthPopupClosedError } =
+      await import('../../../../../../../../google-oauth/utils/open-google-oauth-popup');
+    openGoogleOAuthPopup.mockRejectedValueOnce(new GoogleOAuthPopupClosedError());
+    openGoogleOAuthPopup.mockRejectedValueOnce(new Error('Popup was blocked.'));
+    const props = renderMicrosoftOAuth();
+    const button = screen.getByRole('button', { name: 'Sign in with Google' });
+
+    fireEvent.click(button);
+    await waitFor(() => {
+      expect(openGoogleOAuthPopup).toHaveBeenCalledTimes(1);
+    });
+    expect(screen.queryByText('The Google sign-in window was closed')).toBeNull();
+
+    fireEvent.click(button);
+    expect(await screen.findByText('Popup was blocked.')).toBeTruthy();
+    expect(props.onOAuthSuccess).not.toHaveBeenCalled();
   });
 });

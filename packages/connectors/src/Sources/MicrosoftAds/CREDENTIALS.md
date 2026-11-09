@@ -14,7 +14,17 @@ During this process, you will obtain the following credentials required for the 
 Microsoft Advertising accepts API requests only with the sign-in type you use on its website. If you sign in with Google, a Microsoft sign-in with the same email fails with error `126 IdentityTypeMismatch`.
 
 - If the Credential form offers **Sign in with Google**, click it and choose the Google account you use for Microsoft Advertising. Then you need only the **Account ID** and **Customer ID** from Step 6.
-- To enter the values by hand, use a Google OAuth client instead of the Microsoft app in Steps 1–5. Create a client of type **Desktop app** in the [Google Cloud Console](https://console.cloud.google.com/apis/credentials). Get its refresh token at `https://oauth2.googleapis.com/token` with the scopes `openid email profile`, `access_type=offline` and `prompt=consent`. Enter the Google client's **Client ID** and **Client Secret**, its **Refresh Token**, and your **Developer Token** from Step 7. The connector recognizes a Google client by its ID, which ends with `.apps.googleusercontent.com`.
+- To enter the values by hand, use a Google OAuth client instead of the Microsoft app in Steps 1–5:
+  1. In the [Google Cloud Console](https://console.cloud.google.com/apis/credentials), create an OAuth client of type **Desktop app**. Copy its **Client ID** and **Client Secret**.
+  2. Open this address in the browser, with your Client ID in place of `YOUR_CLIENT_ID`, and sign in with the Google account you use for Microsoft Advertising:
+
+     ```text
+     https://accounts.google.com/o/oauth2/v2/auth?client_id=YOUR_CLIENT_ID&redirect_uri=http://127.0.0.1:8080&response_type=code&scope=openid%20email%20profile&access_type=offline&prompt=consent
+     ```
+
+  3. Google then opens `http://127.0.0.1:8080/?code=...`. The page does not load, which is expected. Copy the value of `code` from the address bar.
+  4. In ReqBin or Postman, send a `POST` request to `https://oauth2.googleapis.com/token` with the form fields `code`, `client_id`, `client_secret`, `redirect_uri=http://127.0.0.1:8080` and `grant_type=authorization_code`. The response holds the **Refresh Token**.
+  5. Enter the Google client's **Client ID** and **Client Secret**, the **Refresh Token**, and your **Developer Token** from Step 7. The connector recognizes a Google client by its ID, which ends with `.apps.googleusercontent.com`.
 
 **Before you start:** Sign up for [ReqBin](https://reqbin.com/) or [Postman](https://www.postman.com/) if you don't have an account yet. Both are free tools for sending API requests. You'll use one of them in Steps 3–5 to obtain the Refresh Token.
 

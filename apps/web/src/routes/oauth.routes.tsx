@@ -3,7 +3,6 @@ import { GoogleOAuthCallbackPage } from '../features/google-oauth/pages/GoogleOA
 import {
   TikTokCallback,
   MicrosoftCallback,
-  MicrosoftAdsGoogleCallback,
   GoogleAdsCallback,
   GoogleSheetsCallback,
   LinkedInCallback,
@@ -19,10 +18,6 @@ export const oauthRoutes: RouteObject = {
     {
       path: 'microsoft-ads/callback',
       element: <MicrosoftCallback />,
-    },
-    {
-      path: 'microsoft-ads-google/callback',
-      element: <MicrosoftAdsGoogleCallback />,
     },
     {
       path: 'google-ads/callback',

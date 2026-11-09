@@ -340,7 +340,9 @@ export class MicrosoftAdsSource extends AbstractSource {
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
         },
-        body: MicrosoftAdsHelper.formBody(payload),
+        body: Object.entries(payload)
+          .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
+          .join('&'),
       };
 
       const resp = await fetch(client.tokenUrl, options);
@@ -411,9 +413,11 @@ export class MicrosoftAdsSource extends AbstractSource {
           ...(signedInWithGoogle && { IdentityProvider: 'Google' }),
         },
         body: JSON.stringify({ UserId: null }),
+        signal: AbortSignal.timeout(MicrosoftAdsHelper.GET_USER_TIMEOUT_MS),
       });
       data = JSON.parse(await response.text());
     } catch {
+      // Unreachable, slow or unreadable: the token exchange worked, so the Credential is saved
       return fallback;
     }
 
@@ -422,15 +426,16 @@ export class MicrosoftAdsSource extends AbstractSource {
     }
     if (MicrosoftAdsHelper.isIdentityTypeMismatch(data)) {
       throw new OauthFlowException({
-        message: MicrosoftAdsHelper.identityTypeMismatchMessage(signedInWithGoogle, false),
+        message: MicrosoftAdsHelper.identityTypeMismatchMessage(data, signedInWithGoogle, false),
         payload: data,
       });
     }
-    // Error 105 for a Google token: Microsoft Advertising knows no user signed in with it
+    // Error 105 for a Google token: no Microsoft Advertising user for this Google account, or a
+    // server whose Google client or developer token Microsoft Advertising does not accept
     if (signedInWithGoogle && MicrosoftAdsHelper.isInvalidCredentials(data)) {
+      const tracking = data.TrackingId ? `, tracking ID ${data.TrackingId}` : '';
       throw new OauthFlowException({
-        message:
-          'Microsoft Advertising did not accept this Google account. Sign in with the Google account you use for Microsoft Advertising.',
+        message: `Microsoft Advertising did not accept this Google sign-in (error 105 InvalidCredentials${tracking}). Sign in with the Google account you use for Microsoft Advertising. If it is the right account, ask your administrator to check the Microsoft Ads Google client and developer token.`,
         payload: data,
       });
     }
@@ -447,8 +452,8 @@ export class MicrosoftAdsSource extends AbstractSource {
    * for the next run. The originally-configured refresh token is kept as a
    * fallback in case the host-persisted generated one is no longer valid.
    *
-   * A Credential signed in with Google refreshes at Google instead
-   * (see `_getGoogleAccessToken`).
+   * A Credential signed in with Google refreshes at Google instead, through `OAuthUtils`
+   * like the other Google sources.
    */
   async getAccessToken() {
     const tokenUrl = 'https://login.microsoftonline.com/common/oauth2/v2.0/token';
@@ -461,10 +466,16 @@ export class MicrosoftAdsSource extends AbstractSource {
       this._oauthClient();
 
     if (MicrosoftAdsHelper.isGoogleClientId(clientId)) {
-      await this._getGoogleAccessToken({
-        clientId,
-        clientSecret,
-        refreshToken: generatedRefreshToken || originalRefreshToken,
+      // Google keeps the refresh token unchanged, so nothing is reported back to the host.
+      await OAuthUtils.getAccessToken({
+        context: this.context,
+        tokenUrl: MicrosoftAdsHelper.GOOGLE_TOKEN_URL,
+        formData: {
+          grant_type: 'refresh_token',
+          client_id: clientId,
+          client_secret: clientSecret,
+          refresh_token: generatedRefreshToken || originalRefreshToken,
+        },
       });
       return;
     }
@@ -597,37 +608,6 @@ export class MicrosoftAdsSource extends AbstractSource {
   }
 
   /**
-   * Refreshes a Google access token. Google keeps the refresh token unchanged, so nothing is
-   * reported back to the host.
-   */
-  async _getGoogleAccessToken({ clientId, clientSecret, refreshToken }) {
-    const resp = await fetch(MicrosoftAdsHelper.GOOGLE_TOKEN_URL, {
-      method: 'post',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: MicrosoftAdsHelper.formBody({
-        client_id: clientId,
-        client_secret: clientSecret,
-        refresh_token: refreshToken,
-        grant_type: 'refresh_token',
-      }),
-    });
-    const json = JSON.parse(await resp.text());
-
-    if (json.error) {
-      const error = new Error(`Token error: ${json.error} - ${json.error_description}`);
-      // A revoked or expired Google grant means the user must reconnect the Credential
-      error.isWarning = json.error === 'invalid_grant';
-      throw error;
-    }
-
-    const accessTokenParam = this.context.getParameter('AccessToken');
-    if (accessTokenParam) {
-      accessTokenParam.value = json.access_token;
-    }
-    this.context.log(LOG_LEVEL.INFO, 'Successfully obtained access token from Google');
-  }
-
-  /**
    * Headers of every Reporting and Bulk request. A Credential signed in with Google also
    * sends `IdentityProvider: Google`, as Microsoft Advertising documents for Google tokens.
    * @param {Object} scopeHeaders - CustomerId / CustomerAccountId of the request
@@ -643,26 +623,37 @@ export class MicrosoftAdsSource extends AbstractSource {
   }
 
   /**
-   * `urlFetchWithRetry` for the Reporting and Bulk submits. Error 126 means the Credential's
-   * sign-in type is wrong for this user: every later request would fail the same way, so the
-   * first one is kept and thrown again without asking the API.
+   * Error 126 comes back as HTTP 400: the Credential's sign-in type is wrong for this user, so,
+   * like a 401, only reconnecting the Credential helps.
    */
-  async _fetchApi(url, options) {
-    if (this._identityTypeMismatch) throw this._identityTypeMismatch;
-    try {
-      return await this.urlFetchWithRetry(url, options);
-    } catch (error) {
-      if (!MicrosoftAdsHelper.isIdentityTypeMismatch(error.payload)) throw error;
-      const mismatch = new Error(
-        MicrosoftAdsHelper.identityTypeMismatchMessage(this._isGoogleIdentity(), true)
+  _isAuthError(error) {
+    return MicrosoftAdsHelper.isIdentityTypeMismatch(error?.payload) || super._isAuthError(error);
+  }
+
+  /**
+   * Names a Microsoft Advertising API failure by its own message instead of the raw JSON body.
+   * Error 126 also says how to reconnect, and the run stops asking the API: every later
+   * request would fail the same way.
+   * @param {Error} error - A failed request; `payload` holds the parsed API response
+   * @returns {Error} the same error
+   */
+  _describeApiError(error) {
+    const payload = error?.payload;
+    if (MicrosoftAdsHelper.isIdentityTypeMismatch(payload)) {
+      error.message = MicrosoftAdsHelper.identityTypeMismatchMessage(
+        payload,
+        this._isGoogleIdentity(),
+        true
       );
-      mismatch.statusCode = error.statusCode;
-      mismatch.payload = error.payload;
-      // The user must reconnect the Credential: a warning, not an ops-actionable error
-      mismatch.isWarning = true;
-      this._identityTypeMismatch = mismatch;
-      throw mismatch;
+      error.isWarning = true;
+      this._identityTypeMismatch = error;
+      return error;
     }
+    const apiMessage = MicrosoftAdsHelper.apiErrorMessage(payload);
+    if (apiMessage && error.statusCode) {
+      error.message = `HTTP ${error.statusCode}: ${apiMessage}`;
+    }
+    return error;
   }
 
   /**
@@ -726,14 +717,18 @@ export class MicrosoftAdsSource extends AbstractSource {
     const start_time = startDate;
     const end_time = endDate;
 
-    switch (nodeName) {
-      case 'campaigns':
-        return await this._fetchCampaignData({ accountId, fields, onBatch });
-      case 'ad_performance_report':
-      case 'user_location_performance_report':
-        return await this._fetchReportData({ accountId, fields, start_time, end_time, nodeName });
-      default:
-        throw new Error(`Unknown node: ${nodeName}`);
+    try {
+      switch (nodeName) {
+        case 'campaigns':
+          return await this._fetchCampaignData({ accountId, fields, onBatch });
+        case 'ad_performance_report':
+        case 'user_location_performance_report':
+          return await this._fetchReportData({ accountId, fields, start_time, end_time, nodeName });
+        default:
+          throw new Error(`Unknown node: ${nodeName}`);
+      }
+    } catch (error) {
+      throw this._describeApiError(error);
     }
   }
 
@@ -847,7 +842,7 @@ export class MicrosoftAdsSource extends AbstractSource {
    * @private
    */
   async _downloadEntity({ submitUrl, submitOpts, onRecordsChunk }) {
-    const submitResp = await this._fetchApi(submitUrl, submitOpts);
+    const submitResp = await this.urlFetchWithRetry(submitUrl, submitOpts);
     const text = await submitResp.text();
     const responseData = JSON.parse(text);
     const requestId = responseData.DownloadRequestId;
@@ -921,6 +916,15 @@ export class MicrosoftAdsSource extends AbstractSource {
     };
     const isTooLargeError = error =>
       !error.isStorageError && error.message && error.message.includes('100MB');
+    // Names the entity but keeps what classifies the failure: an auth or sign-in error is the
+    // user's to fix (isWarning), and fetchData reads the API response from `payload`.
+    const fetchFailure = error => {
+      const failure = new Error(`Failed to fetch ${entityType}: ${error.message}`);
+      failure.statusCode = error.statusCode;
+      failure.payload = error.payload;
+      failure.isWarning = error.isWarning;
+      return failure;
+    };
 
     let i = 0;
     while (i < campaignIds.length) {
@@ -965,7 +969,7 @@ export class MicrosoftAdsSource extends AbstractSource {
                   `Failed to fetch ${entityType}: batch size of ${smallerBatch.length} campaigns still exceeds 100MB limit`
                 );
               } else {
-                throw new Error(`Failed to fetch ${entityType}: ${smallerError.message}`);
+                throw fetchFailure(smallerError);
               }
             }
           }
@@ -979,7 +983,7 @@ export class MicrosoftAdsSource extends AbstractSource {
             LOG_LEVEL.ERROR,
             `Failed to fetch ${entityType.toLowerCase()} for campaigns ${campaignBatch.join(', ')}: ${error.message}`
           );
-          throw new Error(`Failed to fetch ${entityType}: ${error.message}`);
+          throw fetchFailure(error);
         }
       }
     }
@@ -1105,16 +1109,19 @@ export class MicrosoftAdsSource extends AbstractSource {
       payload: JSON.stringify({ ReportRequest: requestBody }),
       body: JSON.stringify({ ReportRequest: requestBody }),
     };
-    const submitResp = await this._fetchApi(submitUrl, submitOpts);
+    const submitResp = await this.urlFetchWithRetry(submitUrl, submitOpts);
     const submitResponseText = await submitResp.text();
 
     try {
       const submitResponse = JSON.parse(submitResponseText);
       if (submitResponse.OperationErrors && submitResponse.OperationErrors.length > 0) {
         const error = submitResponse.OperationErrors[0];
-        throw new Error(
+        const apiError = new Error(
           `Microsoft Ads API Error ${error.Code}: ${error.ErrorCode} - ${error.Message}`
         );
+        // fetchData classifies it by the response, error 126 included
+        apiError.payload = submitResponse;
+        throw apiError;
       }
       return submitResponse;
     } catch (parseError) {

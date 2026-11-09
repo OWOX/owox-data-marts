@@ -207,7 +207,7 @@ Enable the Google Sheets API, the Google Picker API and the Google Drive API in 
 Some advertisers sign in to Microsoft Advertising with Google. Microsoft Advertising accepts only a Google token for them: a Microsoft sign-in with the same email fails with error `126 IdentityTypeMismatch`. With these variables the Microsoft Ads Credential form offers **Sign in with Google** next to **Sign in with Microsoft**. Without them it offers only **Sign in with Microsoft**.
 
 - **OAUTH_MICROSOFT_ADS_GOOGLE_CLIENT_ID** and **OAUTH_MICROSOFT_ADS_GOOGLE_CLIENT_SECRET**: a Google OAuth client of type Web application. It asks only for `openid email profile`, scopes that need no Google verification.
-- **OAUTH_MICROSOFT_ADS_GOOGLE_REDIRECT_URI**: `https://<your-domain>/oauth/microsoft-ads-google/callback`, registered as an authorized redirect URI of that client.
+- **OAUTH_MICROSOFT_ADS_GOOGLE_REDIRECT_URI**: `https://<your-domain>/oauth/google/callback`, registered as an authorized redirect URI of that client. It is the same callback page that Google sign-in for Storages and Destinations uses.
 
 Requests still use the Microsoft Ads developer token from `OAUTH_MICROSOFT_ADS_DEVELOPER_TOKEN`. Microsoft Advertising may refuse tokens of a Google client that is not your own, so use a client created in your Cloud project. Setup steps: [Microsoft Ads credentials](../../../packages/connectors/src/Sources/MicrosoftAds/CREDENTIALS.md#if-you-sign-in-to-microsoft-advertising-with-google).
 

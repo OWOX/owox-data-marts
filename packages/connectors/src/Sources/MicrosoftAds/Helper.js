@@ -8,6 +8,8 @@
 const MicrosoftAdsHelper = {
   GOOGLE_TOKEN_URL: 'https://oauth2.googleapis.com/token',
   GET_USER_URL: 'https://clientcenter.api.bingads.microsoft.com/CustomerManagement/v13/User/Query',
+  // GetUser only names the user at sign-in; a slow answer must not hold the sign-in up.
+  GET_USER_TIMEOUT_MS: 10000,
 
   /**
    * A Credential signed in with Google stores a Google OAuth client ID, which always ends
@@ -26,29 +28,70 @@ const MicrosoftAdsHelper = {
    * @returns {boolean}
    */
   isIdentityTypeMismatch(payload) {
-    const errors = payload?.Errors ?? payload?.OperationErrors;
-    return (
-      Array.isArray(errors) &&
-      errors.some(
-        error => Number(error?.Code) === 126 || error?.ErrorCode === 'IdentityTypeMismatch'
-      )
+    return MicrosoftAdsHelper.apiErrors(payload).some(
+      error => Number(error?.Code) === 126 || error?.ErrorCode === 'IdentityTypeMismatch'
     );
   },
 
   /**
+   * The errors of a Microsoft Advertising API response: a fault's `Errors` and an operation's
+   * `OperationErrors`.
+   * @param {Object} payload - Parsed body of a Microsoft Advertising API response
+   * @returns {Array<Object>}
+   */
+  apiErrors(payload) {
+    return [payload?.Errors, payload?.OperationErrors].flatMap(errors =>
+      Array.isArray(errors) ? errors : []
+    );
+  },
+
+  /**
+   * The first error of a Microsoft Advertising API response as one readable line, such as
+   * `Authentication failed. (105 InvalidCredentials)`.
+   * @param {Object} payload - Parsed body of a Microsoft Advertising API response
+   * @returns {string|null}
+   */
+  apiErrorMessage(payload) {
+    const [error] = MicrosoftAdsHelper.apiErrors(payload);
+    if (!error?.Message) return null;
+    const code = [error.Code, error.ErrorCode].filter(Boolean).join(' ');
+    return code ? `${error.Message} (${code})` : error.Message;
+  },
+
+  /**
    * What the user should do when Microsoft Advertising rejects the sign-in type of a Credential.
+   * Error 126 names the sign-in type the user needs (GoogleAccountIsRequired,
+   * PersonalAccountIsRequired, WorkAccountIsRequired) when it says it at all.
+   * @param {Object} payload - Parsed error body with error 126
    * @param {boolean} signedInWithGoogle - The Credential was signed in with Google
    * @param {boolean} atRun - The Credential already exists and a run hit the error
    * @returns {string}
    */
-  identityTypeMismatchMessage(signedInWithGoogle, atRun) {
-    const reason = signedInWithGoogle
-      ? 'This Microsoft Advertising user signs in with a Microsoft account, not with Google.'
-      : 'This Microsoft Advertising user signs in with Google, not with a Microsoft account.';
-    const button = signedInWithGoogle ? 'Sign in with Microsoft' : 'Sign in with Google';
+  identityTypeMismatchMessage(payload, signedInWithGoogle, atRun) {
+    const reasons = JSON.stringify(MicrosoftAdsHelper.apiErrors(payload));
+    let signsInWith;
+    let action;
+    if (reasons.includes('GoogleAccountIsRequired')) {
+      signsInWith = 'with Google';
+      action = 'Sign in with Google';
+    } else if (reasons.includes('PersonalAccountIsRequired')) {
+      signsInWith = 'with a personal Microsoft account';
+      action = 'Sign in with Microsoft and choose the personal account';
+    } else if (reasons.includes('WorkAccountIsRequired')) {
+      signsInWith = 'with a work or school Microsoft account';
+      action = 'Sign in with Microsoft and choose the work or school account';
+    } else if (signedInWithGoogle) {
+      signsInWith = 'with a Microsoft account, not with Google';
+      action = 'Sign in with Microsoft';
+    } else {
+      signsInWith =
+        'with another account type: Google, or the other Microsoft account (work or personal) of this email';
+      action = 'Sign in with Google, or Sign in with Microsoft with the other account';
+    }
+    const reason = `This Microsoft Advertising user signs in ${signsInWith}.`;
     return atRun
-      ? `Microsoft Advertising rejected the Credential (error 126 IdentityTypeMismatch). ${reason} Reconnect the Credential with ${button}.`
-      : `${reason} Use ${button}.`;
+      ? `Microsoft Advertising rejected the Credential (error 126 IdentityTypeMismatch). ${reason} Reconnect the Credential: ${action}.`
+      : `${reason} Use ${action}.`;
   },
 
   /**
@@ -56,8 +99,7 @@ const MicrosoftAdsHelper = {
    * @returns {boolean}
    */
   isInvalidCredentials(payload) {
-    const errors = payload?.Errors;
-    return Array.isArray(errors) && errors.some(error => Number(error?.Code) === 105);
+    return MicrosoftAdsHelper.apiErrors(payload).some(error => Number(error?.Code) === 105);
   },
 
   /**
@@ -71,16 +113,6 @@ const MicrosoftAdsHelper = {
       id: user?.Id != null ? String(user.Id) : 'unknown',
       name: user?.ContactInfo?.Email || fullName || user?.UserName || 'Microsoft Ads User',
     };
-  },
-
-  /**
-   * @param {Object} form
-   * @returns {string} application/x-www-form-urlencoded body
-   */
-  formBody(form) {
-    return Object.entries(form)
-      .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
-      .join('&');
   },
 
   /**
