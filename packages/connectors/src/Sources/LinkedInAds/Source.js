@@ -453,6 +453,7 @@ export class LinkedInAdsSource extends AbstractSource {
     const rows = await this.fetchAnalyticsRows({
       urn,
       nodeName: 'adAnalytics',
+      // GETTING_STARTED.md tells users the campaign URN is the second value of pivotValues.
       pivots: ['CREATIVE', 'CAMPAIGN', 'CAMPAIGN_GROUP', 'ACCOUNT'],
       facet: `accounts=List(${encodeURIComponent(accountUrn)})`,
       start: new Date(startDate),

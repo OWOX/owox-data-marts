@@ -87,12 +87,14 @@ LinkedIn reports one location level at a time, so country, region, and county ar
 What to expect from these endpoints:
 
 - **More API requests than Ad Analytics.** LinkedIn breaks location down only for one campaign at a time. For every day, the connector first reads which campaigns ran, then asks for each of those campaigns separately. LinkedIn returns up to 18 metrics per request, so every further 18 selected metrics add one more request per campaign.
-- **Clicks and spend by location are incomplete.** Impressions by location usually add up to almost all of the campaign's impressions in **Ad Analytics**, but LinkedIn reports only part of the clicks and spend by location. Spend by location can be well below the campaign's spend, even for a campaign that runs in a single country, and a campaign spread over many locations can show no clicks or spend at all. To protect member privacy, LinkedIn also drops a location with fewer than 3 events, returns at most the top 100 locations for each ad on each day, and returns location data only for ads that reached enough members. Rows LinkedIn returns without a location or a date are not imported, and the run says how many.
+- **Clicks and spend by location are incomplete.** LinkedIn treats location as a member demographic and describes such metrics as approximate. Impressions by location can add up to nearly all of the campaign's impressions in **Ad Analytics**, while clicks and spend by location add up to only part of the campaign's. Spend by location can be well below the campaign's spend, even for a campaign that runs in a single country, and a campaign spread over many locations can show no clicks or spend at all. To protect member privacy, LinkedIn also drops a location with fewer than 3 events, returns at most the top 100 locations for each ad on each day, and returns location data only for ads that reached enough members. Rows LinkedIn returns without a location or a date are not imported, and the run says how many.
 - **Data arrives 12–24 hours late.** The default **Reimport Lookback Window** of 2 days re-imports those days on the next run.
 - **Two years of history.** LinkedIn keeps location breakdowns for two years, so a backfill further back returns no rows.
 - **Some metrics are missing.** LinkedIn does not break down `approximateMemberReach`, `audiencePenetration`, `conversionValueInLocalCurrency`, or the carousel card metrics by location, so these endpoints do not offer them.
 
-To estimate spend by location, split each campaign's daily spend from **Ad Analytics** by each location's share of that campaign's impressions. In **Ad Analytics**, the second value of `pivotValues` is the campaign URN. For example, in BigQuery:
+To estimate spend by location, split each campaign's daily spend from **Ad Analytics** by each location's share of that campaign's impressions. The estimate is only as good as the impressions by location, so first check that they add up to nearly all of the campaign's impressions in **Ad Analytics**.
+
+In **Ad Analytics**, `pivotValues` holds the creative, campaign, campaign group, and account URNs in that order, so the campaign URN is its second value. It is stored as text: a JSON array, or a comma-separated list in AWS Redshift. For example, in BigQuery:
 
 ```sql
 WITH by_country AS (
@@ -111,6 +113,8 @@ SELECT c.dateRangeStart, c.campaign, c.countryName, c.impressions,
 FROM by_country AS c
 JOIN campaign_spend AS s USING (dateRangeStart, campaign)
 ```
+
+The query leaves out a campaign's day that only one of the two tables has, so import both endpoints for the same days. On a day when the campaign's locations have no impressions, the estimate stays empty, because there is nothing to split the spend by.
 
 Location names:
 
