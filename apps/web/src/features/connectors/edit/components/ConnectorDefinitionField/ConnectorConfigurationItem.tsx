@@ -77,8 +77,8 @@ export function ConnectorConfigurationItem({
   }, [bundledTitle, connectors.length, sourceName]);
 
   const StorageIcon = DataStorageTypeModel.getInfo(dataStorage.type).icon;
-  const sheetTabUrl = useSheetTabUrl(connectorDef, configIndex);
-  const sourceParams = getSourceFlowParams(connectorDef, configIndex, sheetTabUrl);
+  const sheetTab = useSheetTabUrl(connectorDef, configIndex);
+  const sourceParams = getSourceFlowParams(connectorDef, configIndex, sheetTab);
   const storageParams = getStorageFlowParams(
     dataStorage,
     connectorDef.connector.storage.fullyQualifiedName

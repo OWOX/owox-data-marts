@@ -39,7 +39,7 @@ function renderSheetTabUrl(initial: ConnectorDefinitionConfig) {
   );
   return renderHook(
     ({ connectorDef }: { connectorDef: ConnectorDefinitionConfig }) =>
-      useSheetTabUrl(connectorDef, 0),
+      useSheetTabUrl(connectorDef, 0).url,
     { wrapper, initialProps: { connectorDef: initial } }
   );
 }
@@ -113,6 +113,58 @@ describe('useSheetTabUrl', () => {
     resolveSecond(tabs('second'));
     await waitFor(() => {
       expect(result.current).toBe(tabUrl('second', 42));
+    });
+  });
+
+  it('lets a click wait for the tab link while the list loads, joining the request in flight', async () => {
+    let resolveTabs: (value: ConnectorFieldOptionResponseApiDto[]) => void = () => undefined;
+    const previewSpy = vi
+      .spyOn(ConnectorApiService.prototype, 'previewConnectorFieldOptions')
+      .mockImplementation(
+        () =>
+          new Promise(resolve => {
+            resolveTabs = resolve;
+          })
+      );
+    const client = new QueryClient();
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    );
+    const { result } = renderHook(
+      () =>
+        useSheetTabUrl(definition('GoogleSheets', { SpreadsheetId: 'abc', SheetName: 'Leads' }), 0),
+      { wrapper }
+    );
+
+    expect(result.current.url).toBeUndefined();
+    const waitForUrl = result.current.waitForUrl;
+    expect(waitForUrl).toBeDefined();
+    const pending = waitForUrl?.();
+
+    resolveTabs(tabs('abc'));
+    await expect(pending).resolves.toBe(tabUrl('abc', 42));
+    expect(previewSpy).toHaveBeenCalledTimes(1);
+    await waitFor(() => {
+      expect(result.current).toEqual({ url: tabUrl('abc', 42), waitForUrl: undefined });
+    });
+  });
+
+  it('stops waiting once the tab list fails, so the click opens the spreadsheet', async () => {
+    vi.spyOn(ConnectorApiService.prototype, 'previewConnectorFieldOptions').mockRejectedValue({
+      response: { status: 403 },
+    });
+    const client = new QueryClient();
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    );
+    const { result } = renderHook(
+      () =>
+        useSheetTabUrl(definition('GoogleSheets', { SpreadsheetId: 'abc', SheetName: 'Leads' }), 0),
+      { wrapper }
+    );
+
+    await waitFor(() => {
+      expect(result.current).toEqual({ url: undefined, waitForUrl: undefined });
     });
   });
 

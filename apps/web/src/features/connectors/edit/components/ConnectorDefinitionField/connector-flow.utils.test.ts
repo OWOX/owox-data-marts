@@ -173,10 +173,21 @@ describe('getSourceFlowParams', () => {
     const params = getSourceFlowParams(
       definition('GoogleSheets', 'sheet', [{ SheetName: 'Leads', SpreadsheetId: 'abc' }]),
       0,
-      tabUrl
+      { url: tabUrl, waitForUrl: undefined }
     );
 
     expect(params).toEqual([{ label: 'Sheet', value: 'Leads', href: tabUrl }]);
+  });
+
+  it('makes a click wait for the tab link while it loads, keeping the spreadsheet href', () => {
+    const params = getSourceFlowParams(
+      definition('GoogleSheets', 'sheet', [{ SheetName: 'Leads', SpreadsheetId: 'abc' }]),
+      0,
+      { url: undefined, waitForUrl: () => Promise.resolve(undefined) }
+    );
+
+    expect(params[0].href).toBe('https://docs.google.com/spreadsheets/d/abc/edit');
+    expect(params[0].onClick).toEqual(expect.any(Function));
   });
 
   it('falls back to the node for Google Sheets without a sheet name', () => {

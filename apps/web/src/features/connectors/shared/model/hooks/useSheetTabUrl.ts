@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { queryOptions, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useContext } from 'react';
 import type { ConnectorDefinitionConfig } from '../../../../data-marts/edit/model';
 import { DataMartContext } from '../../../../data-marts/edit/model/context/context';
@@ -32,18 +32,31 @@ function findSheetTab(
   return tabs.find(tab => tab.value.trim().toLowerCase() === loose);
 }
 
+/** The link to the tab a configuration imports, as far as it is known yet. */
+export interface SheetTabLink {
+  /** The tab's link, once the tab list has loaded and has the tab. */
+  url: string | undefined;
+  /**
+   * Set only while the tab list is still loading: resolves to the tab's link, or to
+   * undefined when the list has no such tab or cannot be loaded.
+   */
+  waitForUrl: (() => Promise<string | undefined>) | undefined;
+}
+
 /**
  * The link that opens the Google Sheets tab a configuration imports.
  *
  * The configuration stores only the tab name, while a link to a tab needs its `gid`, so the
  * link is taken from the spreadsheet's tab list, the one the setup wizard picks the tab from.
- * Undefined for other sources, for a Viewer (the lookup needs the Editor role), while the
- * list loads, and when it cannot be loaded: the caller then links the spreadsheet.
+ * There is no link for other sources, for a Viewer (the lookup needs the Editor role), or
+ * when the list cannot be loaded: the caller then links the spreadsheet. While the list
+ * loads, `waitForUrl` lets a click wait for the tab's link instead of opening the spreadsheet.
  */
 export function useSheetTabUrl(
   connectorDef: ConnectorDefinitionConfig,
   configIndex: number
-): string | undefined {
+): SheetTabLink {
+  const queryClient = useQueryClient();
   const dataMartId = useContext(DataMartContext)?.dataMart?.id;
   const canEdit = useCanEdit();
   const { source } = connectorDef.connector;
@@ -57,7 +70,7 @@ export function useSheetTabUrl(
     spreadsheet !== '' &&
     sheetName.trim() !== '';
 
-  const { data: tabs } = useQuery({
+  const tabsQuery = queryOptions({
     // The whole configuration is the key: another spreadsheet or Credential loads its own
     // list, and a link is never taken from the list of a configuration it no longer has.
     queryKey: [SHEET_TABS_QUERY_KEY, source.name, dataMartId, configuration],
@@ -71,11 +84,26 @@ export function useSheetTabUrl(
         { signal, skipErrorToast: true, skipLoadingIndicator: true },
         dataMartId
       ),
-    enabled,
     staleTime: SHEET_TABS_STALE_TIME_MS,
     retry: (failureCount, error) => failureCount < 1 && isTransientFailure(error),
+  });
+  const { data: tabs, isPending } = useQuery({
+    ...tabsQuery,
+    enabled,
     refetchOnWindowFocus: false,
   });
 
-  return enabled && tabs ? findSheetTab(tabs, sheetName)?.url : undefined;
+  if (!enabled) return { url: undefined, waitForUrl: undefined };
+  if (tabs) return { url: findSheetTab(tabs, sheetName)?.url, waitForUrl: undefined };
+  return {
+    url: undefined,
+    // The request is already in flight, so this joins it rather than sending another one.
+    waitForUrl: isPending
+      ? () =>
+          queryClient
+            .query(tabsQuery)
+            .then(loaded => findSheetTab(loaded, sheetName)?.url)
+            .catch(() => undefined)
+      : undefined,
+  };
 }

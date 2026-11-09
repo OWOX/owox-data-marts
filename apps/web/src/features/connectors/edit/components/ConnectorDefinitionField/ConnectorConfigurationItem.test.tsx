@@ -117,6 +117,42 @@ describe('ConnectorConfigurationItem', () => {
     });
   });
 
+  it('sends a click made before the tab list loads to the tab, not to the first tab', async () => {
+    const tabUrl = 'https://docs.google.com/spreadsheets/d/abc/edit#gid=42';
+    let resolveTabs: (value: { value: string; label: string; url: string }[]) => void = () =>
+      undefined;
+    vi.spyOn(ConnectorApiService.prototype, 'previewConnectorFieldOptions').mockImplementation(
+      () =>
+        new Promise(resolve => {
+          resolveTabs = resolve;
+        })
+    );
+    const replace = vi.fn();
+    const opened = { opener: {} as unknown, location: { replace } };
+    const open = vi.spyOn(window, 'open').mockReturnValue(opened as unknown as Window);
+    const sheets: ConnectorDefinitionConfig = {
+      connector: {
+        source: {
+          name: 'GoogleSheets',
+          node: 'sheet',
+          configuration: [{ SpreadsheetId: 'abc', SheetName: 'Leads' }],
+          fields: ['a'],
+        },
+        storage: { fullyQualifiedName: 'raw.leads' },
+      },
+    };
+
+    renderItem({ definition: sheets, configIndex: 0, totalConfigurations: 1 });
+    fireEvent.click(screen.getByRole('link', { name: 'Leads' }));
+
+    expect(open).toHaveBeenCalledWith('', '_blank');
+    expect(opened.opener).toBeNull();
+    resolveTabs([{ value: 'Leads', label: 'Leads', url: tabUrl }]);
+    await waitFor(() => {
+      expect(replace).toHaveBeenCalledWith(tabUrl);
+    });
+  });
+
   it('shows the flow from the source to the storage', () => {
     renderItem();
 
