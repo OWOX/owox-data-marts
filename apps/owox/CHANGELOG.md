@@ -14,6 +14,41 @@
 
   <!-- markdownlint-disable-file MD036 MD041 -->
 
+- 47370ba: **Manage integration access with your AI assistant and keep secrets out of chat**
+
+  Data Owners previously had to manage provider access separately when setting up
+  integrations with an AI assistant. The assistant can now find and reuse Credentials,
+  the access details saved in OWOX, and guide you through adding or updating them.
+
+  To save or reconnect provider access, you enter secrets in a dedicated OWOX form.
+  After you finish, the assistant can check the result and continue setup.
+  You can reuse the saved access for
+  Google Sheets, Google Chat webhooks, and custom connector tests without entering
+  secrets again. The form checks your project and account before you make changes.
+  New Credentials start unshared, and existing permissions still apply.
+
+  These tools are currently available through the custom MCP connection flow.
+  They will become available in public agent directories later.
+  See [Credential management](../../docs/getting-started/setup-guide/mcp.md#credential-management)
+  for setup details.
+
+  <!-- markdownlint-disable-file MD036 MD041 -->
+
+- 90d0bb5: **Set up and manage Storages and Destinations with AI agents**
+
+  Data Owners previously had to open the web UI to configure Storages or change
+  Destination settings while working with an AI agent. AI agents can now create,
+  configure, and manage Storages and Destinations in OWOX Data Marts through MCP.
+
+  The new tools are currently available only through a custom MCP connection.
+  They will become available through AI agents' public connector directories later.
+
+  See [Storage management](../../docs/getting-started/setup-guide/mcp.md#storage-management)
+  and [Destination management](../../docs/getting-started/setup-guide/mcp.md#destination-management)
+  for supported operations and setup details.
+
+  <!-- markdownlint-disable-file MD036 MD041 -->
+
 - 8ffe6e3: **See which Credentials a plugin uses, and change them on the plugin's Credentials tab**
 
   Members who reopened **Configure Credentials** on an installed plugin always saw an empty choice, so a saved Credential looked unsaved, and they had no way to check which Credential the plugin was using. Now an installed plugin that needs Credentials has a **Credentials** tab next to **Overview**. It shows the Credential granted to each requirement, already selected, and members change it right there and press **Save**, or **Discard** to go back. There is no separate dialog. A Credential that has since been disabled or deleted is marked as no longer usable and has to be chosen again. **Configure Credentials** no longer sits in the page header.
@@ -49,54 +84,6 @@
   A Credential `fetch` still times out after 30 seconds.
 
   <!-- markdownlint-disable-file MD041 MD036 -->
-
-### Patch Changes 0.43.0
-
-- @owox/internal-helpers@0.43.0
-- @owox/idp-protocol@0.43.0
-- @owox/idp-better-auth@0.43.0
-- @owox/idp-owox-better-auth@0.43.0
-- @owox/backend@0.43.0
-- @owox/web@0.43.0
-
-## 0.42.0
-
-### Minor Changes 0.42.0
-
-- 47370ba: **Manage integration access with your AI assistant and keep secrets out of chat**
-
-  Data Owners previously had to manage provider access separately when setting up
-  integrations with an AI assistant. The assistant can now find and reuse Credentials,
-  the access details saved in OWOX, and guide you through adding or updating them.
-
-  To save or reconnect provider access, you enter secrets in a dedicated OWOX form.
-  After you finish, the assistant can check the result and continue setup.
-  You can reuse the saved access for
-  Google Sheets, Google Chat webhooks, and custom connector tests without entering
-  secrets again. The form checks your project and account before you make changes.
-  New Credentials start unshared, and existing permissions still apply.
-
-  These tools are currently available through the custom MCP connection flow.
-  They will become available in public agent directories later.
-  See [Credential management](../../docs/getting-started/setup-guide/mcp.md#credential-management)
-  for setup details.
-
-  <!-- markdownlint-disable-file MD036 MD041 -->
-
-- 90d0bb5: **Set up and manage Storages and Destinations with AI agents**
-
-  Data Owners previously had to open the web UI to configure Storages or change
-  Destination settings while working with an AI agent. AI agents can now create,
-  configure, and manage Storages and Destinations in OWOX Data Marts through MCP.
-
-  The new tools are currently available only through a custom MCP connection.
-  They will become available through AI agents' public connector directories later.
-
-  See [Storage management](../../docs/getting-started/setup-guide/mcp.md#storage-management)
-  and [Destination management](../../docs/getting-started/setup-guide/mcp.md#destination-management)
-  for supported operations and setup details.
-
-  <!-- markdownlint-disable-file MD036 MD041 -->
 
 - bd757b0: <!-- markdownlint-disable-file MD041 MD036 -->
 
@@ -162,6 +149,19 @@
   See [Add access Credentials](../../docs/getting-started/setup-guide/connector-data-mart.md#step-3-add-access-credentials).
 
   <!-- markdownlint-disable-file MD041 MD036 -->
+
+### Patch Changes 0.43.0
+
+- @owox/internal-helpers@0.43.0
+- @owox/idp-protocol@0.43.0
+- @owox/idp-better-auth@0.43.0
+- @owox/idp-owox-better-auth@0.43.0
+- @owox/backend@0.43.0
+- @owox/web@0.43.0
+
+## 0.42.0
+
+### Minor Changes 0.42.0
 
 - 1371345: **Count unique records when reading a Data Mart over the HTTP Data API**
 
