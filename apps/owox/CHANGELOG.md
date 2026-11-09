@@ -4,6 +4,13 @@
 
 ### Minor Changes 0.43.0
 
+<https://customer-4geatlj66rtkaxtz.cloudflarestream.com/106e0cd55b81cacb95dd0a896cf62d16/iframe>
+
+[0:16](https://customer-4geatlj66rtkaxtz.cloudflarestream.com/106e0cd55b81cacb95dd0a896cf62d16/iframe?startTime=17.1s) - Your AI Assistant Sets Up OWOX\
+[1:13](https://customer-4geatlj66rtkaxtz.cloudflarestream.com/106e0cd55b81cacb95dd0a896cf62d16/iframe?startTime=73.8s) - LinkedIn Ads Spend by Location\
+[1:28](https://customer-4geatlj66rtkaxtz.cloudflarestream.com/106e0cd55b81cacb95dd0a896cf62d16/iframe?startTime=88.4s) - Connector Setup in Fewer Steps\
+[1:43](https://customer-4geatlj66rtkaxtz.cloudflarestream.com/106e0cd55b81cacb95dd0a896cf62d16/iframe?startTime=104.1s) - And a Few More Things
+
 - 70d2ce1: **Set up and maintain Data Marts from your AI assistant**
 
   Data Owners preparing data for their team previously had to leave their connected AI assistant to create and configure each Data Mart in OWOX. Now they can manage Data Marts through MCP, from draft setup and connector selection to publication, relationships, and recurring runs.
