@@ -36,7 +36,7 @@ export function DataFlowParams({ primary, secondary = [] }: DataFlowParamsProps)
             <dd className='flex min-w-0 items-start font-mono text-sm leading-[22px] font-medium'>
               <span className='min-w-0 [overflow-wrap:anywhere]'>
                 {param.href ? (
-                  <ExternalAnchor variant='inline' href={param.href}>
+                  <ExternalAnchor variant='inline' href={param.href} onClick={param.onClick}>
                     {param.value}
                   </ExternalAnchor>
                 ) : (

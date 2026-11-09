@@ -117,6 +117,61 @@ describe('ConnectorConfigurationItem', () => {
     });
   });
 
+  it('sends a click made before the tab list loads to the tab, not to the first tab', async () => {
+    const tabUrl = 'https://docs.google.com/spreadsheets/d/abc/edit#gid=42';
+    let resolveTabs: (value: { value: string; label: string; url: string }[]) => void = () =>
+      undefined;
+    vi.spyOn(ConnectorApiService.prototype, 'previewConnectorFieldOptions').mockImplementation(
+      () =>
+        new Promise(resolve => {
+          resolveTabs = resolve;
+        })
+    );
+    const opened = {
+      opener: {} as unknown,
+      document: document.implementation.createHTMLDocument(''),
+      location: { replace: vi.fn() },
+    };
+    const open = vi.spyOn(window, 'open').mockReturnValue(opened as unknown as Window);
+    // jsdom does not navigate: record where the opened tab's own link leads.
+    const followed: string[] = [];
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (
+      this: HTMLAnchorElement
+    ) {
+      followed.push(this.href);
+    });
+    const sheets: ConnectorDefinitionConfig = {
+      connector: {
+        source: {
+          name: 'GoogleSheets',
+          node: 'sheet',
+          configuration: [
+            {
+              SpreadsheetId: 'https://docs.google.com/spreadsheets/d/abc/edit?gid=7#gid=7',
+              SheetName: 'Leads',
+            },
+          ],
+          fields: ['a'],
+        },
+        storage: { fullyQualifiedName: 'raw.leads' },
+      },
+    };
+
+    renderItem({ definition: sheets, configIndex: 0, totalConfigurations: 1 });
+    const link = screen.getByRole('link', { name: 'Leads' });
+    // While the list loads, the plain link is the spreadsheet without the pasted URL's gid.
+    expect(link).toHaveAttribute('href', 'https://docs.google.com/spreadsheets/d/abc/edit');
+    fireEvent.click(link);
+
+    expect(open).toHaveBeenCalledWith('', '_blank');
+    expect(opened.opener).toBeNull();
+    expect(opened.document.title).toBe('Opening Google Sheets…');
+    resolveTabs([{ value: 'Leads', label: 'Leads', url: tabUrl }]);
+    await waitFor(() => {
+      expect(followed).toEqual([tabUrl]);
+    });
+  });
+
   it('shows the flow from the source to the storage', () => {
     renderItem();
 

@@ -295,12 +295,17 @@ function buildPickerView(picker: GooglePicker) {
     .setMode(picker.DocsViewMode.LIST);
 }
 
-/** The spreadsheet's edit URL from either its ID or an already complete URL. */
+/**
+ * The spreadsheet's edit URL from either its ID or a spreadsheet URL. It is always built from
+ * the ID, so it opens the first tab: a pasted URL keeps the `gid` of whichever tab was open
+ * when it was copied. A URL that names no spreadsheet is returned as is.
+ */
 export function spreadsheetUrlFrom(idOrUrl: string): string {
   const value = idOrUrl.trim();
-  return /^https?:\/\//i.test(value)
-    ? value
-    : `https://docs.google.com/spreadsheets/d/${value}/edit`;
+  const id =
+    /\/spreadsheets\/d\/([A-Za-z0-9_-]+)/.exec(value)?.[1] ??
+    (/^https?:\/\//i.test(value) ? undefined : value);
+  return id ? `https://docs.google.com/spreadsheets/d/${id}/edit` : value;
 }
 
 function buildItemUrl(doc: PickerDoc): string {

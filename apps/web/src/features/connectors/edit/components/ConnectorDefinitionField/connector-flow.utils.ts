@@ -1,3 +1,4 @@
+import type { MouseEvent } from 'react';
 import { DataStorageType } from '../../../../data-storage';
 import type { DataStorage } from '../../../../data-storage/shared/model/types/data-storage';
 import { RedshiftConnectionType } from '../../../../data-storage/shared/model/types/data-storage-config';
@@ -10,6 +11,8 @@ import type { ConnectorDefinitionConfig } from '../../../../data-marts/edit/mode
 import { GOOGLE_SHEETS_CONNECTOR_NAME } from '../../../shared/utils/google-sheets-fields.utils';
 import { spreadsheetUrlFrom } from '../../../../google-oauth';
 import { unquoteIdentifier } from '../../utils/snowflake-identifier.utils';
+import type { SheetTabLink } from '../../../shared/model/hooks/useSheetTabUrl';
+import { openLinkWhenResolved } from './open-link-when-resolved';
 
 /**
  * One labelled value shown on a data flow node, optionally linked to an external console.
@@ -19,6 +22,8 @@ export interface FlowParam {
   label: string;
   value: string;
   href?: string;
+  /** Replaces the plain navigation to `href`, for a link whose final target is still loading. */
+  onClick?: (event: MouseEvent<HTMLAnchorElement>) => void;
   copyValue?: string;
 }
 
@@ -172,12 +177,13 @@ export function getStorageFlowParams(
 /**
  * The params of the Source node: the connector node (data entity) it reads, or, for
  * Google Sheets, the sheet name, since the node is always "sheet". The sheet name links
- * to its tab when `sheetTabUrl` is known, and to the spreadsheet otherwise.
+ * to its tab when the tab's link is known, and to the spreadsheet otherwise; while the
+ * tab's link is still loading, a click waits for it rather than opening the spreadsheet.
  */
 export function getSourceFlowParams(
   connectorDef: ConnectorDefinitionConfig,
   configIndex: number,
-  sheetTabUrl?: string
+  sheetTab?: SheetTabLink
 ): FlowParam[] {
   const { source } = connectorDef.connector;
 
@@ -186,11 +192,19 @@ export function getSourceFlowParams(
     const sheetName = typeof config.SheetName === 'string' ? config.SheetName.trim() : '';
     const spreadsheet = typeof config.SpreadsheetId === 'string' ? config.SpreadsheetId.trim() : '';
     if (sheetName) {
+      const spreadsheetUrl = spreadsheet ? spreadsheetUrlFrom(spreadsheet) : undefined;
+      if (sheetTab?.url) return [{ label: 'Sheet', value: sheetName, href: sheetTab.url }];
       return [
         {
           label: 'Sheet',
           value: sheetName,
-          href: sheetTabUrl ?? (spreadsheet ? spreadsheetUrlFrom(spreadsheet) : undefined),
+          href: spreadsheetUrl,
+          onClick:
+            spreadsheetUrl && sheetTab?.waitForUrl
+              ? openLinkWhenResolved(spreadsheetUrl, sheetTab.waitForUrl, {
+                  waitingText: 'Opening Google Sheets…',
+                })
+              : undefined,
         },
       ];
     }
