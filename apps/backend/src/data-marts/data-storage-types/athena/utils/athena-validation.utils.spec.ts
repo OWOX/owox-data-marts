@@ -1,4 +1,5 @@
 import {
+  isValidAthenaConnectorTableName,
   isValidAthenaFullyQualifiedName,
   isValidAthenaTablePattern,
 } from './athena-validation.utils';
@@ -21,3 +22,19 @@ describeFullyQualifiedNameValidator('Athena', BASE_CONFIG, isValidAthenaFullyQua
 });
 
 describeTablePatternValidator('Athena', BASE_CONFIG, isValidAthenaTablePattern);
+
+describe('isValidAthenaConnectorTableName', () => {
+  it('accepts database.table', () => {
+    expect(isValidAthenaConnectorTableName('database-1.table_1')).toBe(true);
+  });
+
+  it('rejects a catalog part, because the connector reads the first part as the database', () => {
+    expect(isValidAthenaConnectorTableName('AwsDataCatalog.database.table')).toBe(false);
+  });
+
+  it('rejects malformed names', () => {
+    expect(isValidAthenaConnectorTableName('')).toBe(false);
+    expect(isValidAthenaConnectorTableName('table')).toBe(false);
+    expect(isValidAthenaConnectorTableName('database.table$')).toBe(false);
+  });
+});

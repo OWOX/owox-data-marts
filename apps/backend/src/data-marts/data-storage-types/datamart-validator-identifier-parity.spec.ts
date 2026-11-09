@@ -48,4 +48,29 @@ describe('Data Mart validators — identifier failure parity', () => {
     expect(result.errorMessage).toContain('Invalid identifier format');
     expect(result.code).toBe(DataMartValidationCode.INVALID_IDENTIFIER_FORMAT);
   });
+
+  it.each([
+    ['bigquery', validators[1][1], 'Expected: dataset.table, without the project'],
+    ['athena', validators[0][1], 'Expected: database.table, without the catalog'],
+  ])('%s rejects a three-part connector path', async (_name, validator, message) => {
+    const result = await validator.validate(
+      {
+        connector: {
+          source: {
+            name: 'FacebookMarketing',
+            node: 'ad-account/insights',
+            fields: ['id'],
+            configuration: [{}],
+          },
+          storage: { fullyQualifiedName: 'my-project.owox_ads.facebook_ads' },
+        },
+      } as never,
+      {} as never,
+      {} as never
+    );
+
+    expect(result.valid).toBe(false);
+    expect(result.errorMessage).toContain(message);
+    expect(result.code).toBe(DataMartValidationCode.INVALID_IDENTIFIER_FORMAT);
+  });
 });

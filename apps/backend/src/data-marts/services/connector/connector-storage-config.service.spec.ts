@@ -53,6 +53,40 @@ describe('ConnectorStorageConfigService', () => {
     expect(config).toBeDefined();
   });
 
+  it('gives the BigQuery connector the dataset and the table of a dataset.table path', async () => {
+    const { service, storageCredentialsResolver } = createService();
+    (storageCredentialsResolver.resolve as jest.Mock).mockResolvedValue({
+      type: 'service_account',
+    });
+
+    const result = await service.buildStorageConfig(baseDataMart);
+
+    expect(result.config.DestinationDatasetID.value).toBe('gcp-project.dataset');
+    expect(result.config.DestinationDatasetName.value).toBe('dataset');
+    expect(result.config.DestinationTableNameOverride.value).toBe('test_node table');
+  });
+
+  it.each([
+    [DataStorageType.GOOGLE_BIGQUERY, 'Expected: dataset.table, without the project'],
+    [DataStorageType.AWS_ATHENA, 'Expected: database.table, without the catalog'],
+  ])('rejects a three-part %s connector path before the run', async (type, message) => {
+    const { service, storageCredentialsResolver } = createService();
+    (storageCredentialsResolver.resolve as jest.Mock).mockResolvedValue({});
+    const dm = {
+      ...baseDataMart,
+      definition: {
+        connector: {
+          ...(baseDataMart.definition as unknown as { connector: Record<string, unknown> })
+            .connector,
+          storage: { fullyQualifiedName: 'gcp-project.dataset.table' },
+        },
+      },
+      storage: { type, config: { projectId: 'gcp-project', outputBucket: 's3://bucket' } },
+    } as unknown as DataMart;
+
+    await expect(service.buildStorageConfig(dm)).rejects.toThrow(message);
+  });
+
   it('builds BigQuery storage config with OAuth credentials', async () => {
     const { service, storageCredentialsResolver } = createService();
     const credentials = {

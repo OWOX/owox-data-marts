@@ -550,7 +550,7 @@ describe('Data Mart management through MCP', () => {
           node: 'campaigns',
           fields: ['id'],
         },
-        storage: { fullyQualifiedName: 'p.d.t' },
+        storage: { fullyQualifiedName: 'd.t' },
       },
     };
     const http = await agent
@@ -597,7 +597,7 @@ describe('Data Mart management through MCP', () => {
           node: 'rows',
           fields: ['value'],
         },
-        storage: { fullyQualifiedName: 'project.dataset.sheet_7136' },
+        storage: { fullyQualifiedName: 'dataset.sheet_7136' },
       },
     };
     const saved = await agent
@@ -746,7 +746,7 @@ describe('Data Mart management through MCP', () => {
             node: mode === 'oauth' ? 'campaigns' : 'orders',
             fields: ['id'],
           },
-          storage: { fullyQualifiedName: 'project.dataset.legacy_7136' },
+          storage: { fullyQualifiedName: 'dataset.legacy_7136' },
         },
       };
       // Seed the supported pre-migration state: no reusable Credential binding.
@@ -800,7 +800,7 @@ describe('Data Mart management through MCP', () => {
           node: 'orders',
           fields: ['id'],
         },
-        storage: { fullyQualifiedName: 'project.dataset.unavailable_7136' },
+        storage: { fullyQualifiedName: 'dataset.unavailable_7136' },
       },
     };
     const seeded = await database.getRepository(DataMart).findOneByOrFail({ id });
