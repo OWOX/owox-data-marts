@@ -123,9 +123,10 @@ export class ProjectInvitationEmailService {
     const description = `You have been invited${byInviter} to join ${
       projectTitle || 'the OWOX project'
     } as a ${roleName}.`;
-    const descriptionHtml = `You have been invited${escapeHtml(byInviter)} to join ${
-      projectTitle ? `<strong>${escapeHtml(projectTitle)}</strong>` : 'the OWOX project'
-    } as a <strong>${escapeHtml(roleName)}</strong>.`;
+    // Escaped the same way the template escapes `<%= %>` output.
+    const descriptionHtml = `You have been invited${ejs.escapeXML(byInviter)} to join ${
+      projectTitle ? `<strong>${ejs.escapeXML(projectTitle)}</strong>` : 'the OWOX project'
+    } as a <strong>${ejs.escapeXML(roleName)}</strong>.`;
 
     return {
       subject: projectTitle
@@ -148,15 +149,6 @@ export class ProjectInvitationEmailService {
  */
 function formatProjectTitle(title: string): string {
   return title.replace(/\./g, ' ').replace(/\s+/g, ' ').trim();
-}
-
-function escapeHtml(text: string): string {
-  return text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
 }
 
 function sleep(ms: number): Promise<void> {
