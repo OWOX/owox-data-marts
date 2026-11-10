@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { decideAnnouncement, pickReleaseToAnnounce } from './announcement';
+import { pickReleaseToAnnounce, shouldAnnounce } from './announcement';
 import { compareVersions } from './release-version';
 import type { AnnouncedRelease } from './types';
 
@@ -20,6 +20,23 @@ describe('compareVersions', () => {
     ['0.42.0-next-20261105101010', '0.42.0-next-20261104101010', 1],
   ])('compares %s with %s', (a, b, expected) => {
     expect(compareVersions(a, b)).toBe(expected);
+  });
+
+  it('orders prereleases by semver precedence', () => {
+    const ordered = [
+      '1.0.0-alpha',
+      '1.0.0-alpha.1',
+      '1.0.0-alpha.beta',
+      '1.0.0-beta',
+      '1.0.0-beta.2',
+      '1.0.0-beta.11',
+      '1.0.0-rc.1',
+      '1.0.0',
+    ];
+    for (let i = 1; i < ordered.length; i++) {
+      expect(compareVersions(ordered[i - 1], ordered[i])).toBe(-1);
+      expect(compareVersions(ordered[i], ordered[i - 1])).toBe(1);
+    }
   });
 
   it('returns null when a value is not a version', () => {
@@ -56,53 +73,29 @@ describe('pickReleaseToAnnounce', () => {
   });
 });
 
-describe('decideAnnouncement', () => {
-  it('shows a release newer than the last one seen', () => {
-    expect(
-      decideAnnouncement({
-        releaseVersion: '0.41.0',
-        lastSeenVersion: '0.40.0',
-        hasUsedProduct: false,
-      })
-    ).toBe('show');
+describe('shouldAnnounce', () => {
+  const decide = (lastSeenVersion: string | null, hasUsedProduct: boolean) =>
+    shouldAnnounce({ releaseVersion: '0.41.0', lastSeenVersion, hasUsedProduct });
+
+  it('announces a release newer than the last one shown', () => {
+    expect(decide('0.40.0', false)).toBe(true);
   });
 
-  it('does nothing for a release already seen', () => {
-    expect(
-      decideAnnouncement({
-        releaseVersion: '0.41.0',
-        lastSeenVersion: '0.41.0',
-        hasUsedProduct: true,
-      })
-    ).toBe('none');
-    expect(
-      decideAnnouncement({
-        releaseVersion: '0.40.0',
-        lastSeenVersion: '0.41.0',
-        hasUsedProduct: true,
-      })
-    ).toBe('none');
+  it('does not announce a release already shown, or an older one', () => {
+    expect(decide('0.41.0', true)).toBe(false);
+    expect(decide('0.42.0', true)).toBe(false);
   });
 
-  it('shows the release to a returning user seen for the first time in this browser', () => {
-    expect(
-      decideAnnouncement({ releaseVersion: '0.41.0', lastSeenVersion: null, hasUsedProduct: true })
-    ).toBe('show');
+  it('announces to a returning user seen for the first time in this browser', () => {
+    expect(decide(null, true)).toBe(true);
   });
 
-  it('only remembers the release for a new user', () => {
-    expect(
-      decideAnnouncement({ releaseVersion: '0.41.0', lastSeenVersion: null, hasUsedProduct: false })
-    ).toBe('remember');
+  it('waits until a new user has a Data Mart', () => {
+    expect(decide(null, false)).toBe(false);
   });
 
   it('treats an unreadable stored value as no value', () => {
-    expect(
-      decideAnnouncement({
-        releaseVersion: '0.41.0',
-        lastSeenVersion: 'oops',
-        hasUsedProduct: false,
-      })
-    ).toBe('remember');
+    expect(decide('oops', false)).toBe(false);
+    expect(decide('oops', true)).toBe(true);
   });
 });

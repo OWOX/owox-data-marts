@@ -11,8 +11,9 @@ export type WhatsNewEvent = keyof typeof ACTIONS;
 
 /**
  * Never throws: telemetry must not break the popover. The keys other events set are sent as
- * null, as GTM keeps the last value pushed for a key the push leaves out. The PostHog tag in
- * GTM forwards a fixed set of keys, so the properties also travel as JSON in `details`.
+ * null, as GTM keeps the last value pushed for a key the push leaves out. For the same reason
+ * the properties travel only as JSON in `details`, which the PostHog tag in GTM forwards: a
+ * top-level key of its own would stay in GTM for every later event.
  */
 export function trackWhatsNewEvent(
   event: WhatsNewEvent,
@@ -20,7 +21,6 @@ export function trackWhatsNewEvent(
   properties: Record<string, unknown> = {}
 ): void {
   try {
-    const own = { version, ...properties };
     trackEvent({
       event,
       category: 'WhatsNew',
@@ -29,8 +29,7 @@ export function trackWhatsNewEvent(
       context: null,
       value: null,
       error: null,
-      ...own,
-      details: JSON.stringify(own),
+      details: JSON.stringify({ version, ...properties }),
     });
   } catch {
     // ignore

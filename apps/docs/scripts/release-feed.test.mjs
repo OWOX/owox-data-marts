@@ -61,9 +61,9 @@ test('reads the video and the chapters that follow it', () => {
   const [release] = parseReleaseFeed(CHANGELOG).releases;
   assert.equal(release.videoUrl, PLAYER);
   assert.deepEqual(release.chapters, [
-    { title: 'Your AI Assistant Sets Up Contexts', startTime: 11.4 },
-    { title: 'Build a Data Mart on Top of Another', startTime: 40.1 },
-    { title: 'And a Few More Things', startTime: 87.8 },
+    { title: 'Your AI Assistant Sets Up Contexts', startTime: 11.4, label: '0:11' },
+    { title: 'Build a Data Mart on Top of Another', startTime: 40.1, label: '0:39' },
+    { title: 'And a Few More Things', startTime: 87.8, label: '1:27' },
   ]);
 });
 
@@ -83,6 +83,21 @@ test('ignores chapters of another video', () => {
 [0:10](${OLD_PLAYER}?startTime=10s) - Not this video
 `;
   assert.deepEqual(parseReleaseFeed(changelog).releases[0].chapters, []);
+});
+
+test('announces a major release too', () => {
+  const changelog = `## 1.0.0
+
+### Major Changes 1.0.0
+
+<${PLAYER}>
+
+- 4444444: **A breaking change**
+`;
+  assert.deepEqual(
+    parseReleaseFeed(changelog).releases.map(r => r.version),
+    ['1.0.0']
+  );
 });
 
 test('returns no releases for an empty changelog', () => {

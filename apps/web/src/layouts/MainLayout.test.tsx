@@ -25,6 +25,8 @@ vi.mock('../features/idp/hooks', () => ({
   useUser: () => currentUser.value,
 }));
 
+vi.mock('../features/whats-new', () => ({ WhatsNewAnnouncer: () => null }));
+
 vi.mock('../components/AppSidebar', () => ({
   AppSidebar: () => <div data-testid='full-app-sidebar'>Full app sidebar</div>,
 }));

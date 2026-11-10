@@ -27,26 +27,25 @@ export function pickReleaseToAnnounce(
 }
 
 /**
- * `show`: open the popover and remember the release. `remember`: remember the release without
- * showing it, so a new user starts from the onboarding rather than from release news.
- * `none`: the user already saw this release or a newer one.
+ * Whether to open the card for this release. A release newer than the last one shown opens it.
+ * With nothing shown in this browser yet, it opens only once the project has a Data Mart, so a
+ * new user starts with the onboarding; nothing is stored then, so the release still opens
+ * later, here or in another project that has a Data Mart.
  */
-export type AnnouncementDecision = 'show' | 'remember' | 'none';
-
-export function decideAnnouncement({
+export function shouldAnnounce({
   releaseVersion,
   lastSeenVersion,
   hasUsedProduct,
 }: {
   releaseVersion: string;
-  /** The last release this user was shown in this browser, if any. */
+  /** The last release shown to this user in this browser, if any. */
   lastSeenVersion: string | null;
-  /** The project already has a Data Mart, so this is not the user's first visit. */
+  /** The current project already has a Data Mart. */
   hasUsedProduct: boolean;
-}): AnnouncementDecision {
+}): boolean {
   const comparedToLastSeen = lastSeenVersion
     ? compareVersions(releaseVersion, lastSeenVersion)
     : null;
-  if (comparedToLastSeen === null) return hasUsedProduct ? 'show' : 'remember';
-  return comparedToLastSeen > 0 ? 'show' : 'none';
+  if (comparedToLastSeen === null) return hasUsedProduct;
+  return comparedToLastSeen > 0;
 }

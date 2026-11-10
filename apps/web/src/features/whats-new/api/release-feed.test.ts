@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { parseReleaseFeed } from './release-feed';
 import { changelogUrl, formatChapterTime, playerUrl } from '../model/links';
 
-const VIDEO = 'https://customer-x.cloudflarestream.com/abc/iframe';
+const VIDEO = 'https://customer-4geatlj66rtkaxtz.cloudflarestream.com/d7dde8721ec80ac8/iframe';
 
 describe('parseReleaseFeed', () => {
   it('keeps well-formed releases and chapters', () => {
@@ -13,7 +13,13 @@ describe('parseReleaseFeed', () => {
             version: '0.41.0',
             videoUrl: VIDEO,
             chapters: [
-              { title: ' Build a Data Mart on Top of Another ', startTime: 40.1 },
+              {
+                title: ' Build a Data Mart on Top of Another ',
+                startTime: 40.1,
+                label: '0:39',
+              },
+              { title: 'No label', startTime: 87.8 },
+              { title: 'Odd label', startTime: 90, label: 'soon' },
               { title: '', startTime: 3 },
               { title: 'Negative', startTime: -1 },
             ],
@@ -24,21 +30,34 @@ describe('parseReleaseFeed', () => {
       {
         version: '0.41.0',
         videoUrl: VIDEO,
-        chapters: [{ title: 'Build a Data Mart on Top of Another', startTime: 40.1 }],
+        chapters: [
+          { title: 'Build a Data Mart on Top of Another', startTime: 40.1, label: '0:39' },
+          { title: 'No label', startTime: 87.8 },
+          { title: 'Odd label', startTime: 90 },
+        ],
       },
     ]);
   });
 
-  it('drops releases without a version or an https video', () => {
+  it('accepts only a Cloudflare Stream player and a release version', () => {
     expect(
       parseReleaseFeed({
         releases: [
           { videoUrl: VIDEO },
+          { version: 'latest', videoUrl: VIDEO },
           { version: '0.40.0', videoUrl: 'javascript:alert(1)' },
+          { version: '0.40.0', videoUrl: 'https://example.com/d7dde8721ec80ac8/iframe' },
+          { version: '0.40.0', videoUrl: `${VIDEO}?autoplay=true` },
           null,
         ],
       })
     ).toEqual([]);
+  });
+
+  it('keeps a release whose chapters are malformed', () => {
+    expect(
+      parseReleaseFeed({ releases: [{ version: '0.39.0', videoUrl: VIDEO, chapters: 'none' }] })
+    ).toEqual([{ version: '0.39.0', videoUrl: VIDEO, chapters: [] }]);
   });
 
   it('returns no releases for an unexpected payload', () => {

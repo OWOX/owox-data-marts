@@ -8,10 +8,10 @@ import {
 } from './popovers';
 import { createElement } from 'react';
 import {
+  WHATS_NEW_POPOVER_ID,
   WhatsNewPopoverContent,
   WhatsNewPopoverTitle,
-} from '../../features/whats-new/components/WhatsNewPopover';
-import { WHATS_NEW_POPOVER_ID } from '../../features/whats-new/model/constants';
+} from '../../features/whats-new';
 import type { PopoverConfig, PopoverId } from './types';
 
 export const popoverItems: Record<PopoverId, PopoverConfig> = {

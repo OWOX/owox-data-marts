@@ -81,12 +81,12 @@ describe('WhatsNewAnnouncer', () => {
     expect(open).toHaveBeenCalledOnce();
   });
 
-  it('only remembers the release for a new user', () => {
+  it('waits until a new user has a Data Mart, storing nothing meanwhile', () => {
     setup({ hasDataMart: false });
     render(<WhatsNewAnnouncer />);
 
     expect(open).not.toHaveBeenCalled();
-    expect(localStorage.getItem(STORAGE_KEY)).toBe('0.41.0');
+    expect(localStorage.getItem(STORAGE_KEY)).toBeNull();
   });
 
   it('stays closed for a release already seen', () => {

@@ -1,3 +1,4 @@
+import { z } from 'zod';
 import type { AnnouncedRelease, ReleaseChapter } from '../model/types';
 
 /**
@@ -6,38 +7,41 @@ import type { AnnouncedRelease, ReleaseChapter } from '../model/types';
  */
 export const RELEASE_FEED_URL = 'https://docs.owox.com/docs/releases.json';
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
-}
+// The same shapes the documentation build writes (apps/docs/scripts/release-feed.mjs).
+const releaseSchema = z.object({
+  version: z.string().regex(/^\d+\.\d+\.\d+$/),
+  videoUrl: z
+    .string()
+    .regex(/^https:\/\/customer-[a-z0-9]+\.cloudflarestream\.com\/[0-9a-f]+\/iframe$/),
+  chapters: z.array(z.unknown()).catch([]),
+});
 
-function toChapter(value: unknown): ReleaseChapter | null {
-  if (!isRecord(value)) return null;
-  const { title, startTime } = value;
-  if (typeof title !== 'string' || !title.trim()) return null;
-  if (typeof startTime !== 'number' || !Number.isFinite(startTime) || startTime < 0) return null;
-  return { title: title.trim(), startTime };
-}
+const chapterSchema = z.object({
+  title: z.string().trim().min(1),
+  startTime: z.number().nonnegative(),
+  label: z
+    .string()
+    .regex(/^\d+:\d{2}$/)
+    .optional()
+    .catch(undefined),
+});
 
-function toRelease(value: unknown): AnnouncedRelease | null {
-  if (!isRecord(value)) return null;
-  const { version, videoUrl, chapters } = value;
-  if (typeof version !== 'string' || typeof videoUrl !== 'string') return null;
-  if (!videoUrl.startsWith('https://')) return null;
-  return {
-    version,
-    videoUrl,
-    chapters: Array.isArray(chapters)
-      ? chapters.map(toChapter).filter((chapter): chapter is ReleaseChapter => chapter !== null)
-      : [],
-  };
-}
+const feedSchema = z.object({ releases: z.array(z.unknown()) });
 
-/** Keeps the well-formed releases of the feed and drops anything else. */
+/** Keeps the well-formed releases and chapters of the feed and drops anything else. */
 export function parseReleaseFeed(payload: unknown): AnnouncedRelease[] {
-  if (!isRecord(payload) || !Array.isArray(payload.releases)) return [];
-  return payload.releases
-    .map(toRelease)
-    .filter((release): release is AnnouncedRelease => release !== null);
+  const feed = feedSchema.safeParse(payload);
+  if (!feed.success) return [];
+
+  return feed.data.releases.flatMap(item => {
+    const release = releaseSchema.safeParse(item);
+    if (!release.success) return [];
+    const chapters = release.data.chapters.flatMap((chapter): ReleaseChapter[] => {
+      const parsed = chapterSchema.safeParse(chapter);
+      return parsed.success ? [parsed.data] : [];
+    });
+    return [{ version: release.data.version, videoUrl: release.data.videoUrl, chapters }];
+  });
 }
 
 export async function fetchReleaseFeed(): Promise<AnnouncedRelease[]> {

@@ -4,7 +4,7 @@ import { useSetupProgress } from '../../../components/AppSidebar/SetupChecklist/
 import { ProgressKey } from '../../../components/AppSidebar/SetupChecklist/types';
 import { useUser } from '../../idp/hooks/useAuthState';
 import { isViewOnlySession } from '../../idp/services/auth.service';
-import { decideAnnouncement } from '../model/announcement';
+import { shouldAnnounce } from '../model/announcement';
 import { WHATS_NEW_POPOVER_ID } from '../model/constants';
 import { useReleaseToAnnounce } from '../model/hooks/useReleaseToAnnounce';
 import { lastSeenRelease } from '../model/last-seen-release';
@@ -32,18 +32,16 @@ export function WhatsNewAnnouncer() {
     handled.current = true;
     if (!release || isAnotherPopoverOpen) return;
 
-    const decision = decideAnnouncement({
+    const announce = shouldAnnounce({
       releaseVersion: release.version,
       lastSeenVersion: lastSeenRelease.get(user.id),
       hasUsedProduct,
     });
-    if (decision === 'none') return;
+    if (!announce) return;
 
-    lastSeenRelease.set(user.id, release.version);
-    if (decision === 'show') {
-      open(WHATS_NEW_POPOVER_ID);
-      trackWhatsNewEvent('whats_new_shown', release.version);
-    }
+    lastSeenRelease.markShown(user.id, release.version);
+    open(WHATS_NEW_POPOVER_ID);
+    trackWhatsNewEvent('whats_new_shown', release.version);
   }, [user, release, isReady, isSetupProgressLoading, isAnotherPopoverOpen, hasUsedProduct, open]);
 
   return null;

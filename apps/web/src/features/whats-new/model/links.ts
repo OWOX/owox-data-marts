@@ -15,7 +15,7 @@ export function playerUrl(videoUrl: string, startTime: number | null): string {
   return url.toString();
 }
 
-/** `87.8` → `1:27`, as the chapter list under the video shows it. */
+/** `87.8` → `1:27`, for a chapter that comes without the changelog's own label. */
 export function formatChapterTime(startTime: number): string {
   const seconds = Math.floor(startTime);
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
