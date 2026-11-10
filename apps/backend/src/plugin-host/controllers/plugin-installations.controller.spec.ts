@@ -35,6 +35,7 @@ describe('PluginInstallationsController plugin runtime authority', () => {
     'updateByRepository',
     'runtimeToken',
     'credentialSelections',
+    'owoxAiStatus',
   ] as const)('refuses a plugin runtime token on %s', handler => {
     expect(rejectsPluginAuth(handler)).toBe(true);
   });
@@ -42,5 +43,26 @@ describe('PluginInstallationsController plugin runtime authority', () => {
   // Reads stay open: this is the authority ctx.owox exists to carry.
   it.each(['list', 'entry'] as const)('leaves %s open to a plugin runtime token', handler => {
     expect(rejectsPluginAuth(handler)).toBe(false);
+  });
+});
+
+describe('PluginInstallationsController OWOX AI status', () => {
+  it('returns the OWOX AI status', () => {
+    const owoxAi = {
+      status: jest.fn().mockReturnValue({ models: ['fast', 'reasoning'], billed: true }),
+    };
+    const controller = new PluginInstallationsController(
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      owoxAi as never
+    );
+
+    expect(controller.owoxAiStatus()).toEqual({ models: ['fast', 'reasoning'], billed: true });
   });
 });

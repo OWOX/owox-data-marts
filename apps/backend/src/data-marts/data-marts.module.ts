@@ -537,6 +537,9 @@ import { CredentialConsumerBindingFacadeImpl } from './credentials/facades/crede
 import { CredentialFetchService } from './credentials/services/credential-fetch.service';
 import { GoogleServiceAccountTokenService } from './credentials/services/google-service-account-token.service';
 import { CredentialAiService } from './credentials/services/credential-ai.service';
+import { OwoxAiModelService } from './credentials/services/owox-ai-model.service';
+import { OWOX_AI_FACADE } from './credentials/facades/owox-ai.facade';
+import { OwoxAiFacadeImpl } from './credentials/facades/owox-ai.facade.impl';
 import { CredentialValidationProbeService } from './credentials/services/credential-validation-probe.service';
 import { CredentialGoogleOAuthService } from './credentials/services/credential-google-oauth.service';
 import { AuthorizeGoogleOAuthCredentialService } from './credentials/use-cases/authorize-google-oauth-credential.service';
@@ -1137,6 +1140,8 @@ import { McpCredentialsFacadeImpl } from './credentials/facades/mcp-credentials.
     CredentialFetchService,
     GoogleServiceAccountTokenService,
     CredentialAiService,
+    OwoxAiModelService,
+    { provide: OWOX_AI_FACADE, useClass: OwoxAiFacadeImpl },
     CredentialValidationProbeService,
     CredentialGoogleOAuthService,
     AuthorizeGoogleOAuthCredentialService,
@@ -1157,6 +1162,7 @@ import { McpCredentialsFacadeImpl } from './credentials/facades/mcp-credentials.
     MCP_CUSTOM_CONNECTORS_FACADE,
     MCP_PROJECT_MEMBERS_FACADE,
     CREDENTIAL_CONSUMER_BINDING_FACADE,
+    OWOX_AI_FACADE,
     CredentialFetchService,
     CredentialAiService,
     CredentialExternalDefinitionRegistryService,

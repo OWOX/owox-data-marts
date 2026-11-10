@@ -320,6 +320,13 @@ Additional named models are available only when declared. Logical AI never expos
 declare an exact provider if the plugin needs provider-specific APIs. Optional or unusable handles
 are absent from the context, so check a handle before using it.
 
+`ctx.credentials.ai` can also be OWOX AI, which the installing member chooses in the install
+dialog instead of an AI Credential. The plugin code and `plugin.json` do not change. The models
+depend on the deployment: `fast` and `reasoning` are always there, `embedding` only when the
+deployment sets one. The provider can ignore a call option that it does not support, for example
+`temperature`. On OWOX Cloud, each successful call is billed as an AI Process Run. See
+[Environment variables](../getting-started/deployment-guide/environment-variables.md#owox-ai).
+
 #### Call Google APIs with a service account
 
 A `google-service-account` requirement must declare the OAuth scopes the plugin needs:

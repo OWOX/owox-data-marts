@@ -14,7 +14,16 @@ describe('InstallPluginApiDto', () => {
     await expect(validate(dto)).resolves.toEqual([]);
   });
 
-  it.each([[['not', 'a', 'string']], [42], [{ id: 'nested' }]])(
+  it('accepts the OWOX AI selection', async () => {
+    const dto = Object.assign(new InstallPluginApiDto(), {
+      expectedVersionId: null,
+      credentialSelections: { ai: 'owox-ai' },
+    });
+
+    await expect(validate(dto)).resolves.toEqual([]);
+  });
+
+  it.each([[['not', 'a', 'string']], [42], [{ id: 'nested' }], ['not-a-uuid']])(
     'rejects a non-string Credential selection value',
     async invalidValue => {
       const dto = Object.assign(new InstallPluginApiDto(), {

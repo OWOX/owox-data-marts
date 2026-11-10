@@ -99,6 +99,14 @@ export class PluginInstallationService {
     });
   }
 
+  async setOwoxAi(installationId: string, owoxAi: boolean): Promise<void> {
+    await this.repository.update(installationId, { owoxAi });
+  }
+
+  async clearOwoxAiForPlugin(pluginId: string): Promise<void> {
+    await this.repository.update({ pluginId, owoxAi: true }, { owoxAi: false });
+  }
+
   async uninstall(installationId: string): Promise<void> {
     await this.repository.update(installationId, { uninstalledAt: new Date() });
   }

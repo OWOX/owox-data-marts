@@ -1,5 +1,5 @@
 import { Plus } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useId, useMemo, useState } from 'react';
 import {
   CredentialConfigSheet,
   isCredentialEligible,
@@ -7,7 +7,7 @@ import {
 } from '../../credentials';
 import type { NormalizedPluginCredentialRequirement } from '../../credentials/types';
 import { Combobox, type ComboboxOption } from '../../../shared/components/Combobox/combobox';
-import { getRequirementPresentation } from '../credentialRequirements';
+import { OWOX_AI_SELECTION, getRequirementPresentation } from '../credentialRequirements';
 import type { CredentialSelectionsForm } from '../hooks/useCredentialSelectionsForm';
 
 const DO_NOT_GRANT_VALUE = '__none__';
@@ -38,6 +38,7 @@ export function PluginCredentialFields({
     [creatingRequirement, definitions]
   );
   const { credentialsLoading, credentialsFailed } = form;
+  const noteId = useId();
 
   return (
     <>
@@ -55,18 +56,25 @@ export function PluginCredentialFields({
         // A grant kept from before whose Credential is disabled, deleted or no longer fits.
         const grantUnusable =
           typeof selected === 'string' && !hasDecision && !credentialsLoading && !credentialsFailed;
+        const showOwoxAi = form.offersOwoxAi(requirement);
+        const owoxAiUnusable = form.owoxAiChoiceUnusable(requirement);
         const showSelectionError =
-          form.touched.has(requirement.key) && !hasDecision && eligible.length > 0;
+          form.touched.has(requirement.key) && !hasDecision && (eligible.length > 0 || showOwoxAi);
+        const showOwoxAiNote = selected === OWOX_AI_SELECTION;
         const presentation = getRequirementPresentation(
           requirement,
           definitions,
-          form.availableCredentials
+          form.availableCredentials,
+          showOwoxAi
         );
         const canAddCredential =
           Boolean(onAddCredential) ||
           (!definitionsLoading && compatibleDefinitionIds(requirement, definitions).length > 0);
         const credentialOptions: ComboboxOption[] = [
-          ...(requirement.optional ? [{ value: DO_NOT_GRANT_VALUE, label: 'Do not grant' }] : []),
+          ...(showOwoxAi ? [{ value: OWOX_AI_SELECTION, label: 'OWOX AI' }] : []),
+          ...(requirement.optional
+            ? [{ value: DO_NOT_GRANT_VALUE, label: 'Do not grant', separator: showOwoxAi }]
+            : []),
           ...eligible.map(credential => ({
             value: credential.id,
             label: `${credential.title} · ${credential.definition.displayName}`,
@@ -76,7 +84,7 @@ export function PluginCredentialFields({
                 {
                   value: ADD_CREDENTIAL_VALUE,
                   label: 'Add Credential',
-                  separator: requirement.optional || eligible.length > 0,
+                  separator: showOwoxAi || requirement.optional || eligible.length > 0,
                 },
               ]
             : []),
@@ -109,10 +117,14 @@ export function PluginCredentialFields({
                 disabled={
                   disabled ||
                   credentialsLoading ||
-                  (!requirement.optional && eligible.length === 0 && !canAddCredential)
+                  (!showOwoxAi &&
+                    !requirement.optional &&
+                    eligible.length === 0 &&
+                    !canAddCredential)
                 }
                 ariaLabel={`Select ${presentation.label} Credential`}
-                ariaInvalid={showSelectionError || grantUnusable}
+                ariaInvalid={showSelectionError || grantUnusable || owoxAiUnusable}
+                ariaDescribedBy={showOwoxAiNote ? `${noteId}-${requirement.key}` : undefined}
                 placeholder={credentialsLoading ? 'Loading...' : 'Select a Credential'}
                 emptyMessage='No enabled matching Credentials found'
                 className='dm-card-formcontrol w-full'
@@ -143,9 +155,20 @@ export function PluginCredentialFields({
                   )
                 }
               />
+              {showOwoxAiNote && (
+                <span id={`${noteId}-${requirement.key}`} className='text-muted-foreground text-xs'>
+                  OWOX provides the AI models. You do not need a key from an AI provider.
+                  {form.owoxAi?.billed ? " Calls use this project's credits." : ''}
+                </span>
+              )}
               {grantUnusable ? (
                 <span className='text-destructive text-xs' role='alert'>
                   The Credential granted before can no longer be used. Choose another
+                  {requirement.optional ? ' or Do not grant' : ''}.
+                </span>
+              ) : owoxAiUnusable ? (
+                <span className='text-destructive text-xs' role='alert'>
+                  OWOX AI can no longer be used. Choose a Credential
                   {requirement.optional ? ' or Do not grant' : ''}.
                 </span>
               ) : (

@@ -72,3 +72,14 @@ describe('PluginInstallationService.installOrFind', () => {
     expect(s.repository.findOneBy).not.toHaveBeenCalled();
   });
 });
+
+describe('PluginInstallationService.clearOwoxAiForPlugin', () => {
+  it('clears the choice on every installation of the plugin', async () => {
+    const update = jest.fn().mockResolvedValue({ affected: 2 });
+    const service = new PluginInstallationService({ update } as never);
+
+    await service.clearOwoxAiForPlugin('p1');
+
+    expect(update).toHaveBeenCalledWith({ pluginId: 'p1', owoxAi: true }, { owoxAi: false });
+  });
+});

@@ -181,6 +181,20 @@ describe('loadAdvancedSearchConfig', () => {
     expect(config.openRouterZdr).toBe(true);
   });
 
+  it('treats blank OpenRouter privacy settings as unset', () => {
+    const config = loadAdvancedSearchConfig({
+      ADVANCED_SEARCH_EMBEDDING_PROVIDER: 'openrouter',
+      ADVANCED_SEARCH_OPENROUTER_API_KEY: 'advanced-key',
+      ADVANCED_SEARCH_OPENROUTER_DATA_COLLECTION: '',
+      ADVANCED_SEARCH_OPENROUTER_ZDR: ' ',
+      AI_DATA_COLLECTION: 'allow',
+      AI_ZDR: '',
+    });
+
+    expect(config.openRouterDataCollection).toBe('allow');
+    expect(config.openRouterZdr).toBe(true);
+  });
+
   it('rejects openrouter provider without an embedding API key', () => {
     expect(() =>
       loadAdvancedSearchConfig({

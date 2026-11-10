@@ -30,6 +30,9 @@ vi.mock('../../../features/plugins', async () => ({
     >('../../../features/plugins/components/InstallPluginDialog')
   ).InstallPluginDialog,
 }));
+vi.mock('../../../features/plugins/hooks/useOwoxAi', () => ({
+  useOwoxAi: () => ({ owoxAi: undefined, isLoading: false }),
+}));
 vi.mock('../../../features/credentials', () => ({
   CredentialConfigSheet: () => null,
   useCredentials: () => ({ credentials: [], isLoading: false }),

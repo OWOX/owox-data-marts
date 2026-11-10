@@ -1,4 +1,21 @@
 import type { NormalizedPluginCredentialRequirement } from '../credentials/types';
+import type { OwoxAiStatus } from './types';
+
+/** The selection value the backend reads as "use the deployment's AI configuration". */
+export const OWOX_AI_SELECTION = 'owox-ai';
+
+/** OWOX AI serves a logical requirement only when it has every model the plugin declares. */
+export function offersOwoxAi(
+  owoxAi: OwoxAiStatus | undefined,
+  requirement: NormalizedPluginCredentialRequirement
+): boolean {
+  const served: readonly string[] = owoxAi?.models ?? [];
+  return (
+    requirement.definitionId === null &&
+    served.length > 0 &&
+    requirement.models.every(model => served.includes(model))
+  );
+}
 
 /** How the install dialog and the Credentials tab name a requirement and the providers it accepts. */
 export function getRequirementPresentation(
@@ -6,7 +23,8 @@ export function getRequirementPresentation(
   definitions: readonly { id: string; displayName: string; supportsAi: boolean }[],
   credentials: readonly {
     definition: { id: string; displayName: string; supportsAi: boolean };
-  }[]
+  }[],
+  owoxAiOffered = false
 ): { label: string; providers: string } {
   const availableDefinitions = [
     ...definitions,
@@ -30,18 +48,20 @@ export function getRequirementPresentation(
     ),
   ];
 
+  const allowed = [
+    ...(owoxAiOffered ? ['OWOX AI'] : []),
+    ...(providerNames.length > 0 ? providerNames : ['any AI-capable Credential']),
+  ];
+
   return {
     label: requirement.key.toLowerCase() === 'ai' ? 'AI' : humanizeIdentifier(requirement.key),
-    providers:
-      providerNames.length > 0
-        ? `Allowed providers: ${providerNames.join(', ')}`
-        : 'Allowed providers: any AI-capable Credential',
+    providers: `Allowed providers: ${allowed.join(', ')}`,
   };
 }
 
 /**
- * What changing the grants starts from: each granted Credential, and Do not grant for an
- * optional requirement granted nothing. A required one granted nothing stays undecided.
+ * What changing the grants starts from: each granted Credential or OWOX AI, and Do not grant
+ * for an optional requirement granted nothing. A required one granted nothing stays undecided.
  */
 export function grantedCredentialSelections(
   requirements: readonly NormalizedPluginCredentialRequirement[],

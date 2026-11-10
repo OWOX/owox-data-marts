@@ -126,6 +126,7 @@ export function PluginCredentialsCard({
                   disabled ||
                   form.credentialsLoading ||
                   form.credentialsFailed ||
+                  form.owoxAiLoading ||
                   form.missingDecision
                 }
                 onClick={() => void save()}

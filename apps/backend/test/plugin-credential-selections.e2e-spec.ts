@@ -9,6 +9,7 @@ import { PLUGIN_RUNTIME_AUTHORIZER } from '../src/idp/ports/plugin-runtime-autho
 import { IdpProviderService } from '../src/idp/services/idp-provider.service';
 import { InstallPluginCommand } from '../src/plugin-host/dto/domain/install-plugin.command';
 import { UninstallPluginCommand } from '../src/plugin-host/dto/domain/uninstall-plugin.command';
+import { PluginInstallation } from '../src/plugin-host/entities/plugin-installation.entity';
 import { PluginVersion } from '../src/plugin-host/entities/plugin-version.entity';
 import { Plugin } from '../src/plugin-host/entities/plugin.entity';
 import { InstallPluginService } from '../src/plugin-host/use-cases/install-plugin.service';
@@ -149,6 +150,22 @@ describe('Plugin installation Credential selections over HTTP (e2e)', () => {
 
     expect(response.status).toBe(200);
     expect(response.body).toEqual({ credentialSelections: { ai: credentialId } });
+  });
+
+  it('reports OWOX AI for the ai requirement of an installation that uses it', async () => {
+    const installations: Repository<PluginInstallation> = app.get(
+      getRepositoryToken(PluginInstallation)
+    );
+    await installations.update(installationId, { owoxAi: true });
+
+    try {
+      const response = await read(ALICE_TOKEN);
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({ credentialSelections: { ai: 'owox-ai' } });
+    } finally {
+      await installations.update(installationId, { owoxAi: false });
+    }
   });
 
   it("answers 404 for another member's installation", async () => {

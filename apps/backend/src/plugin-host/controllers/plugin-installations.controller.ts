@@ -4,6 +4,7 @@ import {
   Delete,
   Get,
   HttpCode,
+  Inject,
   Param,
   Post,
   Query,
@@ -24,6 +25,11 @@ import {
   type AuthorizationContext,
 } from '../../idp';
 import { Role, Strategy } from '../../idp/types/role-config.types';
+import {
+  OWOX_AI_FACADE,
+  type OwoxAiFacade,
+} from '../../data-marts/credentials/facades/owox-ai.facade';
+import { OwoxAiStatusApiDto } from '../dto/presentation/owox-ai-status-api.dto';
 import {
   InstallPluginApiDto,
   InstalledPluginApiDto,
@@ -71,8 +77,20 @@ export class PluginInstallationsController {
     private readonly getCredentialSelectionsService: GetPluginInstallationCredentialSelectionsService,
     private readonly updatePluginService: UpdatePluginService,
     private readonly issuePluginRuntimeTokenService: IssuePluginRuntimeTokenService,
-    private readonly mapper: PluginPresentationMapper
+    private readonly mapper: PluginPresentationMapper,
+    @Inject(OWOX_AI_FACADE) private readonly owoxAi: OwoxAiFacade
   ) {}
+
+  // A plugin must not learn whether OWOX AI or a Credential answers its AI calls.
+  @Auth(Role.viewer(Strategy.PARSE))
+  @RejectPluginAuth()
+  @Get('owox-ai')
+  @ApiOperation({ summary: 'Whether this deployment offers OWOX AI to plugins' })
+  @ApiOkResponse({ type: OwoxAiStatusApiDto })
+  owoxAiStatus(): OwoxAiStatusApiDto {
+    const { models, billed } = this.owoxAi.status();
+    return { models: [...models], billed };
+  }
 
   @Auth(Role.viewer(Strategy.PARSE))
   @Get('installations')
