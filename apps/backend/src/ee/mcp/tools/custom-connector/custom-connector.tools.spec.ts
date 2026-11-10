@@ -280,6 +280,14 @@ describe('custom connector tools through the MCP SDK', () => {
       name: 'Value',
     },
     {
+      label: 'a parameter in an X-Token header',
+      manifest: {
+        parameters: { Token: { requiredType: 'string' } },
+        nodes: { items: { request: { headers: { 'X-Token': '{{ parameters.Token }}' } } } },
+      },
+      name: 'Token',
+    },
+    {
       label: 'an OAuth client ID',
       manifest: parsedManifest(
         {

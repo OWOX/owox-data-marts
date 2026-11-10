@@ -1,6 +1,7 @@
 import {
   maskMcpManifestKeys,
   mcpManifestKeyPaths,
+  mcpSecretParameterNames,
   redactMcpTelemetry,
 } from './mcp-telemetry-redaction';
 
@@ -1071,6 +1072,21 @@ describe('mcpManifestKeyPaths', () => {
         'authentication.exchange.body.client_secret',
       ],
     ],
+    [
+      'a key with a name outside the short list',
+      {
+        authentication: {
+          type: 'tokenExchange',
+          exchange: {
+            url: 'https://api.example.test/token',
+            body: { grant_type: 'client_credentials', api_secret: 'sk_live_123' },
+            tokenPath: ['token'],
+          },
+        },
+        ...node({ headers: { 'X-Token': 'abc123' } }),
+      },
+      ['authentication.exchange.body.api_secret', 'nodes.items.request.headers.X-Token'],
+    ],
   ])('finds %s', (_label, manifest, paths) => {
     expect(mcpManifestKeyPaths(manifest)).toEqual(paths);
   });
@@ -1091,6 +1107,27 @@ describe('mcpManifestKeyPaths', () => {
           headers: { 'X-API-Key': '{{ parameters.Key }}' },
           queryParameters: { page_token: 'next', total_tokens: '{{ parameters.total_tokens }}' },
         }),
+      })
+    ).toEqual([]);
+  });
+
+  it.each([
+    '{{ parameters.User }}:{{ parameters.Pass }}',
+    'sso-key {{ parameters.Key }}:{{ parameters.Pass }}',
+    'Token token="{{ parameters.Key }}"',
+  ])('accepts the composite template %s in authentication and a node header', format => {
+    expect(
+      mcpManifestKeyPaths({
+        authentication: {
+          type: 'apiKey',
+          inject: { into: 'header', name: 'Authorization', format },
+        },
+        parameters: {
+          User: { requiredType: 'string' },
+          Key: { attributes: ['SECRET'] },
+          Pass: { attributes: ['SECRET'] },
+        },
+        ...node({ headers: { Authorization: format } }),
       })
     ).toEqual([]);
   });
@@ -1124,6 +1161,7 @@ describe('mcpManifestKeyPaths', () => {
           headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
           body: {
             grant_type: 'client_credentials',
+            scope: ['read', 'write'],
             remember: true,
             client_secret: '{{ parameters.Secret }}',
           },
@@ -1145,5 +1183,75 @@ describe('mcpManifestKeyPaths', () => {
 
     expect(mcpManifestKeyPaths(manifest)).toEqual([]);
     expect(maskMcpManifestKeys(manifest)).toEqual(manifest);
+  });
+});
+
+describe('mcpSecretParameterNames', () => {
+  const manifest = (authentication: unknown, parameters: Record<string, unknown>) => ({
+    name: 'CustomApi',
+    title: 'Custom API',
+    version: '1.0',
+    baseUrl: 'https://api.example.test',
+    authentication,
+    parameters,
+    nodes: {
+      items: {
+        request: { path: '/items' },
+        recordSelector: { path: [] },
+        fields: { id: { type: 'string' } },
+      },
+      // A node still being written: the parser refuses the whole manifest.
+      unfinished: { request: { path: '/unfinished' } },
+    },
+  });
+
+  it('reads the key parameters of the tested node when another node is unfinished', () => {
+    const names = mcpSecretParameterNames(
+      {
+        manifest: manifest(
+          {
+            type: 'oauth2',
+            tokenUrl: 'https://api.example.test/token',
+            grantType: 'refresh_token',
+            clientId: '{{ parameters.ClientId }}',
+            clientSecret: '{{ parameters.ClientSecret }}',
+            refreshToken: '{{ parameters.RefreshToken }}',
+          },
+          {
+            ClientId: { requiredType: 'string' },
+            ClientSecret: { requiredType: 'string', attributes: ['SECRET'] },
+            RefreshToken: { requiredType: 'string', attributes: ['SECRET'] },
+          }
+        ),
+      },
+      'items'
+    );
+    expect([...names]).toEqual(expect.arrayContaining(['ClientId', 'GeneratedRefreshToken']));
+  });
+
+  it('keeps the selection parameter of a selective authentication out of the keys', () => {
+    const names = mcpSecretParameterNames(
+      {
+        manifest: manifest(
+          {
+            type: 'selective',
+            selectionParameter: 'AuthMode',
+            authenticators: {
+              apikey: {
+                type: 'apiKey',
+                inject: { into: 'header', name: 'X-API-Key', format: '{{ parameters.Key }}' },
+              },
+            },
+          },
+          {
+            AuthMode: { requiredType: 'string' },
+            Key: { requiredType: 'string', attributes: ['SECRET'] },
+          }
+        ),
+      },
+      'items'
+    );
+    expect(names.has('Key')).toBe(true);
+    expect(names.has('AuthMode')).toBe(false);
   });
 });

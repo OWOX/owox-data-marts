@@ -25,7 +25,8 @@ interface RedactionContext {
 function isCredentialName(name: string): boolean {
   const normalized = name.replace(/[_\-\s]/g, '').toLowerCase();
   if (
-    /(?:count|url|uri|path|type|name|hint|endpoint|ttl)$/.test(normalized) ||
+    // `total_tokens` counts tokens; a key is one token.
+    /(?:count|url|uri|path|type|name|hint|endpoint|ttl|tokens)$/.test(normalized) ||
     /^(?:next|previous)?(?:page|cursor|continuation|pagination)token$/.test(normalized)
   )
     return false;
@@ -46,11 +47,7 @@ function isRequestCredentialName(name: string, inferCredentialNames: boolean): b
   );
 }
 
-// A scheme such as `Klaviyo-API-Key ` or `Token token=` before one reference; a key has digits.
-const AUTH_SCHEME_BEFORE_REFERENCE =
-  /^[A-Za-z][A-Za-z-]{0,31}(?:\s+[A-Za-z][A-Za-z-]{0,31})*(?:\s*=\s*|\s+)\{\{[^{}]*\}\}$/;
-
-function isCredentialReference(value: string): boolean {
+function isCredentialReference(value: string, keyCheck = false): boolean {
   if (!value.includes('{{')) return false;
   try {
     let hasReference = false;
@@ -67,7 +64,8 @@ function isCredentialReference(value: string): boolean {
     return (
       hasReference &&
       (/^(?:Bearer|Basic|ApiKey|Token)?$/i.test(literal.trim()) ||
-        AUTH_SCHEME_BEFORE_REFERENCE.test(value.trim()))
+        // A key check reads a whole template: `sso-key {{ k }}:{{ s }}` holds no key; a key has digits.
+        (keyCheck && /^[A-Za-z\s:="'-]*$/.test(literal)))
     );
   } catch {
     return false;
@@ -76,7 +74,7 @@ function isCredentialReference(value: string): boolean {
 
 function rememberSecret(value: unknown, context: RedactionContext, depth = 0): void {
   if (depth > MAX_DEPTH) return;
-  if (typeof value === 'string' && value && !isCredentialReference(value)) {
+  if (typeof value === 'string' && value && !isCredentialReference(value, context.keyCheck)) {
     context.secretValues.add(value);
     const unprefixed = value.replace(/^(?:Bearer|Basic|ApiKey|Token)\s+/i, '');
     if (unprefixed) context.secretValues.add(unprefixed);
@@ -87,6 +85,9 @@ function rememberSecret(value: unknown, context: RedactionContext, depth = 0): v
   }
 }
 
+const isPrimitive = (value: unknown) =>
+  value === null || ['string', 'number', 'boolean'].includes(typeof value);
+
 function redactCredential(value: unknown, context: RedactionContext, depth = 0): unknown {
   if (depth > MAX_DEPTH) return TRUNCATED;
   if (Array.isArray(value)) return value.map(item => redactCredential(item, context, depth + 1));
@@ -94,10 +95,10 @@ function redactCredential(value: unknown, context: RedactionContext, depth = 0):
     return Object.fromEntries(
       Object.entries(value).map(([key, item]) => [
         key,
-        // In a token exchange body, grant_type is protocol and client_secret is a key.
+        // In a token exchange body, grant_type and scope are protocol and api_secret is a key.
         context.keyCheck &&
-        (item === null || ['string', 'number', 'boolean'].includes(typeof item)) &&
-        !isRequestCredentialName(key, false)
+        (isPrimitive(item) || (Array.isArray(item) && item.every(isPrimitive))) &&
+        !isRequestCredentialName(key, context.inferCredentialNames)
           ? item
           : redactCredential(item, context, depth + 1),
       ])
@@ -120,7 +121,11 @@ function redactCredential(value: unknown, context: RedactionContext, depth = 0):
       // Invalid templates are still masked as credential values.
     }
   }
-  if (value == null || value === '' || (typeof value === 'string' && isCredentialReference(value)))
+  if (
+    value == null ||
+    value === '' ||
+    (typeof value === 'string' && isCredentialReference(value, context.keyCheck))
+  )
     return value;
   rememberSecret(value, context);
   return REDACTED;
@@ -295,23 +300,27 @@ export function createMcpInputSecretRedactor(input: unknown): (value: unknown) =
 function inputContext(): RedactionContext {
   return {
     connector: false,
-    inferCredentialNames: false,
+    // The names that telemetry masks: X-Token and api_secret are keys, page_token is not.
+    inferCredentialNames: true,
     keyCheck: true,
     secretNames: new Set(),
     secretValues: new Set(),
   };
 }
 
-/** Parameters that a connector input uses as keys: by SECRET, authentication or credential header. */
-export function mcpSecretParameterNames(input: {
-  manifest: Record<string, unknown>;
-  configuration?: unknown;
-}): ReadonlySet<string> {
+/** Parameters that a connector input uses as keys: by SECRET, authentication or credential name. */
+export function mcpSecretParameterNames(
+  input: { manifest: Record<string, unknown>; configuration?: unknown },
+  node: string
+): ReadonlySet<string> {
   const context = inputContext();
   maskPayload(input, context);
   try {
-    // The engine also keys clientId and a Basic username, which masking leaves visible.
-    const model = new Core.ManifestParser().parse(JSON.stringify(input.manifest)) as {
+    // The engine also keys clientId and a Basic username, which masking leaves visible. Parse only
+    // the tested node, as the test does: another node of a draft can still be unfinished.
+    const nodes = (input.manifest.nodes ?? {}) as Record<string, unknown>;
+    const pruned = { ...input.manifest, nodes: { [node]: nodes[node] } };
+    const model = new Core.ManifestParser().parse(JSON.stringify(pruned)) as {
       keyParameters?: string[];
     };
     for (const name of model.keyParameters ?? []) context.secretNames.add(name);

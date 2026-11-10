@@ -63,13 +63,13 @@ export class TestCustomConnectorTool implements McpToolDefinition<Input> {
     );
     const tested = { manifest, configuration: parsed.configuration };
     // Keys typed here pass through the AI client to its provider; only a saved Credential carries them.
-    const secretNames = mcpSecretParameterNames(tested);
+    const secretNames = mcpSecretParameterNames(tested, parsed.node);
     const keys = Object.keys(parsed.configuration).filter(name => secretNames.has(name));
     if (keys.length > 0) {
       throw new BadRequestException(
         `Remove ${keys.join(', ')} from configuration. This tool does not accept keys. ` +
           'Select a saved Credential with credential_id. A Credential supplies only the parameters that the draft marks with attributes: ["SECRET"] or uses in authentication, so mark any other key parameter SECRET and save the draft. ' +
-          'To save keys, call start_credential_setup.'
+          'To save keys in a new Credential, call start_credential_setup with connector_id.'
       );
     }
     // A draft saved outside MCP can still hold a literal key; mask it in what the model reads.

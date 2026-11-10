@@ -167,8 +167,7 @@ function CredentialSetupContent({ setupId }: { setupId: string }) {
       )}
       {flow.customConnectorPrefillFailed && (
         <p role='status' className='text-muted-foreground mb-4 text-sm'>
-          Could not read the hosts and key fields of the connector. Enter them below, or reload the
-          page to try again.
+          Could not read the hosts and key fields of the connector. Enter them below.
         </p>
       )}
       {flow.actionError && !replacingSecret && !flow.verificationError && (
