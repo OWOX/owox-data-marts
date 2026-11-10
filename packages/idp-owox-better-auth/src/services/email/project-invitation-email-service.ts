@@ -1,37 +1,17 @@
 import { getRoleDisplayName, type Role } from '@owox/idp-protocol';
 import type { EmailProvider } from '@owox/internal-helpers';
 import ejs from 'ejs';
-import { readFileSync } from 'fs';
-import { createServiceLogger } from '../../core/logger.js';
-import { maskEmail } from '../../utils/email-utils.js';
-import { resolveResourcePath } from '../../utils/template-paths.js';
+import {
+  ActionEmailSender,
+  formatProjectTitle,
+  type ActionEmailContent,
+  type ActionEmailSendOptions,
+} from './action-email-sender.js';
 
 /**
- * The invite request waits for this email, so the whole send stays well under the
- * web client's 30 s timeout: at most 3 attempts of 5 s with 0.5 s and 1.5 s pauses.
+ * The invite request waits for this email; see `ActionEmailSender` for the time limits.
  */
-const DEFAULT_RETRY_DELAYS_MS: readonly number[] = [500, 1500];
-const DEFAULT_ATTEMPT_TIMEOUT_MS = 5000;
-
-export interface ProjectInvitationEmailOptions {
-  /** Pauses between attempts; there is one more attempt than pauses. */
-  retryDelaysMs?: readonly number[];
-  /** How long one attempt may take before it is aborted. */
-  attemptTimeoutMs?: number;
-}
-
-interface InvitationViewModel {
-  subject: string;
-  title: string;
-  preheader: string;
-  /** Plain-text body sentence. */
-  description: string;
-  /** The same sentence as escaped HTML with the project and the role in bold. */
-  descriptionHtml: string;
-  buttonText: string;
-  actionUrl: string;
-  footer: string;
-}
+export type ProjectInvitationEmailOptions = ActionEmailSendOptions;
 
 export interface ProjectInvitationEmailPayload {
   /** Email of the invited person. */
@@ -46,63 +26,31 @@ export interface ProjectInvitationEmailPayload {
  * Renders and sends the email that tells a person they were invited to a project.
  */
 export class ProjectInvitationEmailService {
-  private readonly logger = createServiceLogger(ProjectInvitationEmailService.name);
-  private readonly template: string;
+  private readonly sender: ActionEmailSender;
   private readonly appBaseUrl: string;
-  private readonly retryDelaysMs: readonly number[];
-  private readonly attemptTimeoutMs: number;
 
   /**
    * @param appBaseUrl public origin of the app; the email links to the project there.
    */
   constructor(
-    private readonly emailProvider: EmailProvider,
+    emailProvider: EmailProvider,
     appBaseUrl: string,
     options: ProjectInvitationEmailOptions = {}
   ) {
     this.appBaseUrl = appBaseUrl.replace(/\/+$/, '');
-    this.retryDelaysMs = options.retryDelaysMs ?? DEFAULT_RETRY_DELAYS_MS;
-    this.attemptTimeoutMs = options.attemptTimeoutMs ?? DEFAULT_ATTEMPT_TIMEOUT_MS;
-    this.template = readFileSync(resolveResourcePath('templates/email/action-email.ejs'), 'utf-8');
+    this.sender = new ActionEmailSender(emailProvider, options);
   }
 
   /**
    * Sends the invitation, retrying failed attempts. Throws the last error when all attempts fail.
    */
   async send(payload: ProjectInvitationEmailPayload): Promise<void> {
-    const viewModel = this.buildViewModel(payload);
-    const html = ejs.render(this.template, { ...viewModel });
-    const plainText = [
-      viewModel.title,
-      '',
-      viewModel.description,
-      '',
-      `${viewModel.buttonText}: ${viewModel.actionUrl}`,
-      '',
-      viewModel.footer,
-    ].join('\n');
-
-    for (let attempt = 0; ; attempt++) {
-      try {
-        await this.emailProvider.sendEmail(payload.email, viewModel.subject, html, {
-          bodyText: plainText,
-          categories: ['transactional', 'project-invitation'],
-          isMultiple: false,
-          signal: AbortSignal.timeout(this.attemptTimeoutMs),
-        });
-        return;
-      } catch (error) {
-        if (attempt >= this.retryDelaysMs.length) {
-          throw error;
-        }
-        this.logger.warn(
-          'Project invitation email attempt failed, retrying',
-          { email: maskEmail(payload.email), projectId: payload.projectId, attempt: attempt + 1 },
-          error
-        );
-        await sleep(this.retryDelaysMs[attempt] ?? 0);
-      }
-    }
+    await this.sender.send({
+      to: payload.email,
+      content: this.buildContent(payload),
+      categories: ['transactional', 'project-invitation'],
+      logContext: { projectId: payload.projectId },
+    });
   }
 
   /**
@@ -110,7 +58,7 @@ export class ProjectInvitationEmailService {
    * sent it itself. The invited person's first name is not known reliably, so the
    * greeting uses its fallback.
    */
-  private buildViewModel(payload: ProjectInvitationEmailPayload): InvitationViewModel {
+  private buildContent(payload: ProjectInvitationEmailPayload): ActionEmailContent {
     const projectTitle = payload.projectTitle ? formatProjectTitle(payload.projectTitle) : '';
     const roleName = getRoleDisplayName(payload.role);
     const byInviter = payload.inviterEmail ? ` by user ${payload.inviterEmail}` : '';
@@ -135,16 +83,4 @@ export class ProjectInvitationEmailService {
       footer: "If you weren't expecting this invitation, you can ignore this email.",
     };
   }
-}
-
-/**
- * Mail clients turn domain-like text such as "acme.com" into links,
- * so dots in a project title become spaces.
- */
-function formatProjectTitle(title: string): string {
-  return title.replace(/\./g, ' ').replace(/\s+/g, ' ').trim();
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise(resolve => setTimeout(resolve, ms));
 }

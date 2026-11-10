@@ -40,6 +40,8 @@ export const DEFAULT_PROJECT_MEMBERS_CACHE_TTL_SECONDS = 15 * 60;
 /** Default timeout for OWOX Client requests in milliseconds (10 seconds). */
 export const DEFAULT_OWOX_CLIENT_TIMEOUT_MS = 10000;
 export const DEFAULT_INVITATION_LOOKUP_TIMEOUT_MS = 3000;
+/** How long an access request waits to learn whether the same request was already pending. */
+export const DEFAULT_PENDING_REQUEST_CHECK_TIMEOUT_MS = 3000;
 
 /** Error messages for session and user resolution. */
 export const SESSION_ERROR_MESSAGES = {

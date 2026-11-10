@@ -52,12 +52,14 @@ import { MagicLinkService } from './services/auth/magic-link-service.js';
 import { PkceFlowOrchestrator } from './services/auth/pkce-flow-orchestrator.js';
 import { PlatformAuthFlowClient } from './services/auth/platform-auth-flow-client.js';
 import { MicrosoftEntraAccessTokenVerifier } from './services/auth/microsoft-entra-access-token-verifier.js';
+import { AccessRequestService } from './services/core/access-request-service.js';
 import { MembershipRequestsService } from './services/core/membership-requests-service.js';
 import { ProjectMembersService } from './services/core/project-members-service.js';
 import type { ProjectMembersServiceOptions } from './types/index.js';
 import { UserAccountResolver } from './services/core/user-account-resolver.js';
 import { UserAuthInfoPersistenceService } from './services/core/user-auth-info-persistence-service.js';
 import { UserContextService } from './services/core/user-context-service.js';
+import { AccessRequestEmailService } from './services/email/access-request-email-service.js';
 import { EmailValidationService } from './services/email/email-validation-service.js';
 import { MagicLinkEmailService } from './services/email/magic-link-email-service.js';
 import { ProjectInvitationEmailService } from './services/email/project-invitation-email-service.js';
@@ -115,6 +117,7 @@ export class OwoxBetterAuthIdp implements IdpProvider {
   private readonly pkceFlowOrchestrator: PkceFlowOrchestrator;
   private readonly projectMembersService: ProjectMembersService;
   private readonly membershipRequestsService: MembershipRequestsService;
+  private readonly accessRequestService: AccessRequestService;
   private readonly onboardingService: OnboardingService;
   private readonly onboardingController: OnboardingController;
   private readonly serverEvents: ServerEventsService;
@@ -124,7 +127,8 @@ export class OwoxBetterAuthIdp implements IdpProvider {
     store: DatabaseStore,
     private readonly config: BetterAuthProviderConfig,
     private readonly magicLinkService: MagicLinkService,
-    projectInvitationEmailService: ProjectInvitationEmailService
+    projectInvitationEmailService: ProjectInvitationEmailService,
+    accessRequestEmailService: AccessRequestEmailService
   ) {
     this.auth = auth;
     this.store = store;
@@ -156,6 +160,11 @@ export class OwoxBetterAuthIdp implements IdpProvider {
       serviceOptions
     );
     this.membershipRequestsService = new MembershipRequestsService(this.identityClient);
+    this.accessRequestService = new AccessRequestService(
+      this.store,
+      this.identityClient,
+      accessRequestEmailService
+    );
 
     this.onboardingService = new OnboardingService(this.store, this.projectMembersService);
 
@@ -320,14 +329,7 @@ export class OwoxBetterAuthIdp implements IdpProvider {
     projectId: string,
     role: Role
   ): Promise<RequestProjectAccessResult> {
-    const response = await this.identityClient.requestProjectAccess(userId, projectId, role);
-
-    return {
-      userId: response.user.userUid,
-      projectId: response.project.projectName,
-      projectTitle: response.project.projectTitle,
-      request: response.request,
-    };
+    return this.accessRequestService.requestAccess(userId, projectId, role);
   }
 
   async createNewProject(userId: string, integration: string): Promise<CreateNewProjectResult> {
@@ -344,6 +346,10 @@ export class OwoxBetterAuthIdp implements IdpProvider {
     const mailProvider = createMailingProvider(config.email);
     const magicLinkEmailService = new MagicLinkEmailService(mailProvider);
     const projectInvitationEmailService = new ProjectInvitationEmailService(
+      mailProvider,
+      config.idpOwox.baseUrl
+    );
+    const accessRequestEmailService = new AccessRequestEmailService(
       mailProvider,
       config.idpOwox.baseUrl
     );
@@ -370,7 +376,8 @@ export class OwoxBetterAuthIdp implements IdpProvider {
       store,
       config,
       magicLinkService,
-      projectInvitationEmailService
+      projectInvitationEmailService,
+      accessRequestEmailService
     );
   }
 
