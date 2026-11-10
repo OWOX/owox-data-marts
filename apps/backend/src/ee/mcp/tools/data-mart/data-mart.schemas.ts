@@ -71,7 +71,7 @@ export const updateDataMartDefinitionSchema = dataMartIdSchema
     definition: z
       .union([sql, table, pattern, connector])
       .describe(
-        'Supply the complete replacement definition. Connector configurations accept only non-secret settings and _credential_id. Preserve each existing configuration _id. Use list_credential_definitions and Credential setup for authorization.'
+        'Supply the complete replacement definition. Connector configurations accept only non-secret settings and _credential_id. Preserve each existing configuration _id. Use list_credential_definitions and Credential setup for authorization. For a connector, set connector.storage.fullyQualifiedName to dataset.table on Google BigQuery and to database.table on AWS Athena. Do not include the project or the catalog, even when list_storage_resources returns them.'
       ),
   })
   .refine(input => definitionSchemas[input.definition_type].safeParse(input.definition).success, {

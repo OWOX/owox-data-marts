@@ -380,7 +380,7 @@ still control each action. A role or a visible resource alone does not grant mai
 
 1. Select a Storage that you can use. Configure and validate its saved Credential if needed.
 2. Call `create_data_mart` and retain its returned `data_mart_id`.
-3. Call `update_data_mart_definition` with the complete source definition.
+3. Call `update_data_mart_definition` with the complete source definition. For a connector, the target table path is `dataset.table` on Google BigQuery and `database.table` on AWS Athena. Do not include the project or the catalog. The connector writes to the project of the Storage.
 4. Call `validate_data_mart` and resolve reported errors.
 5. Read `get_data_mart_setup`. Refresh the schema or inspect `preview_data_mart` when the source is available.
 6. Review warnings, intended owners, Contexts, and sharing. Call `publish_data_mart` when setup is ready.

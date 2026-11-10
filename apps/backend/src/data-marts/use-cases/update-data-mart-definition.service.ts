@@ -41,6 +41,10 @@ import {
   type SourceKeys,
 } from '../connector-types/source-key-fields';
 import { DATA_MART_ERROR_MESSAGES } from '../errors/data-mart-error-messages';
+import { DataMart } from '../entities/data-mart.entity';
+import { DataMartValidationCode } from '../data-storage-types/interfaces/data-mart-validator.interface';
+import { isValidBigQueryConnectorTableName } from '../data-storage-types/bigquery/utils/bigquery-validation.utils';
+import { isValidAthenaConnectorTableName } from '../data-storage-types/athena/utils/athena-validation.utils';
 
 @Injectable()
 export class UpdateDataMartDefinitionService {
@@ -100,6 +104,7 @@ export class UpdateDataMartDefinitionService {
 
     const connectorCapabilities = await this.resolveConnectorCapabilities(command);
     this.validateConnectorConfigurationCount(command, connectorCapabilities);
+    this.assertConnectorTableName(command, dataMart);
 
     if (dataMart.storage.type === DataStorageType.LEGACY_GOOGLE_BIGQUERY) {
       if (command.definitionType !== DataMartDefinitionType.SQL) {
@@ -224,6 +229,35 @@ export class UpdateDataMartDefinitionService {
         code: 'DATA_MART_SINGLE_SOURCE_CONFIGURATION_REQUIRED',
       });
     }
+  }
+
+  /** A stored table path stays editable: the web app sends it back unchanged on a fields-only edit. */
+  private assertConnectorTableName(
+    command: UpdateDataMartDefinitionCommand,
+    dataMart: DataMart
+  ): void {
+    if (command.definitionType !== DataMartDefinitionType.CONNECTOR) {
+      return;
+    }
+    const name = (command.definition as ConnectorDefinition | undefined)?.connector?.storage
+      ?.fullyQualifiedName;
+    const storedName = (dataMart.definition as ConnectorDefinition | undefined)?.connector?.storage
+      ?.fullyQualifiedName;
+    const rule = CONNECTOR_TABLE_NAME_RULES[dataMart.storage.type];
+    // The REST body is not schema-checked, so a null or a number can arrive here.
+    if (
+      name === undefined ||
+      name === storedName ||
+      !rule ||
+      (typeof name === 'string' && rule.isValid(name))
+    ) {
+      return;
+    }
+    throw new BusinessViolationException(
+      rule.message,
+      undefined,
+      DataMartValidationCode.INVALID_IDENTIFIER_FORMAT
+    );
   }
 
   /** The definition to store: key values go to old rows or stay with the selected Credentials. */
@@ -421,6 +455,20 @@ export class UpdateDataMartDefinitionService {
     }
   }
 }
+
+// Checked on save without Storage credentials. The Storage validators check the same rules on publish.
+const CONNECTOR_TABLE_NAME_RULES: Partial<
+  Record<DataStorageType, { isValid: (name: string) => boolean; message: string }>
+> = {
+  [DataStorageType.GOOGLE_BIGQUERY]: {
+    isValid: isValidBigQueryConnectorTableName,
+    message: DATA_MART_ERROR_MESSAGES.BIGQUERY_CONNECTOR_IDENTIFIER_INVALID,
+  },
+  [DataStorageType.AWS_ATHENA]: {
+    isValid: isValidAthenaConnectorTableName,
+    message: DATA_MART_ERROR_MESSAGES.ATHENA_CONNECTOR_IDENTIFIER_INVALID,
+  },
+};
 
 const OUT_OF_DATE = DATA_MART_ERROR_MESSAGES.CONFIGURATION_OUT_OF_DATE;
 const SELECT_CREDENTIAL = DATA_MART_ERROR_MESSAGES.CREDENTIAL_REQUIRED;

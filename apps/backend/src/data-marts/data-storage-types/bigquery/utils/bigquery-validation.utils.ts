@@ -7,25 +7,23 @@ import { createIdentifierValidator } from '../../utils/validation.utils';
 
 const ALLOWED_CHARS = 'a-zA-Z0-9_\\-';
 
-const threeLevelValidator = createIdentifierValidator({
+/** Format: project.dataset.table */
+export const isValidBigQueryFullyQualifiedName = createIdentifierValidator({
   allowedChars: ALLOWED_CHARS,
   allowTwoLevel: false,
   allowWildcard: false,
 });
 
-const twoOrThreeLevelValidator = createIdentifierValidator({
+const twoLevelValidator = createIdentifierValidator({
   allowedChars: ALLOWED_CHARS,
   allowTwoLevel: true,
   allowWildcard: false,
 });
 
-/** Format: project.dataset.table or dataset.table (with allowTwoLevel) */
-export function isValidBigQueryFullyQualifiedName(
-  value: string,
-  options?: { allowTwoLevel?: boolean }
-): boolean {
-  const validator = options?.allowTwoLevel ? twoOrThreeLevelValidator : threeLevelValidator;
-  return validator(value);
+/** Format: dataset.table, without the project. The connector writes to the Storage project. */
+export function isValidBigQueryConnectorTableName(value: string): boolean {
+  const parts = value.split('.');
+  return parts.length === 2 && isValidBigQueryDatasetId(parts[0]) && twoLevelValidator(value);
 }
 
 /** Format: project.dataset.table_* (with wildcard) */

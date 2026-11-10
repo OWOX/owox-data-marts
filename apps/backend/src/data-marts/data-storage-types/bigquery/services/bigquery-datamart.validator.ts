@@ -17,7 +17,10 @@ import {
   isTableDefinition,
   isViewDefinition,
 } from '../../../dto/schemas/data-mart-table-definitions/data-mart-definition.guards';
-import { isValidBigQueryFullyQualifiedName } from '../utils/bigquery-validation.utils';
+import {
+  isValidBigQueryConnectorTableName,
+  isValidBigQueryFullyQualifiedName,
+} from '../utils/bigquery-validation.utils';
 import { DATA_MART_ERROR_MESSAGES } from '../../../errors/data-mart-error-messages';
 
 @Injectable()
@@ -71,11 +74,7 @@ export class BigQueryDataMartValidator implements DataMartValidator {
         );
       }
     } else if (isConnectorDefinition(definition)) {
-      if (
-        !isValidBigQueryFullyQualifiedName(definition.connector.storage.fullyQualifiedName, {
-          allowTwoLevel: true,
-        })
-      ) {
+      if (!isValidBigQueryConnectorTableName(definition.connector.storage.fullyQualifiedName)) {
         return ValidationResult.authoredFailure(
           DataMartValidationCode.INVALID_IDENTIFIER_FORMAT,
           DATA_MART_ERROR_MESSAGES.BIGQUERY_CONNECTOR_IDENTIFIER_INVALID

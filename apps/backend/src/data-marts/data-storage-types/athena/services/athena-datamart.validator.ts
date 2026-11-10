@@ -18,7 +18,10 @@ import {
   isTableDefinition,
   isViewDefinition,
 } from '../../../dto/schemas/data-mart-table-definitions/data-mart-definition.guards';
-import { isValidAthenaFullyQualifiedName } from '../utils/athena-validation.utils';
+import {
+  isValidAthenaConnectorTableName,
+  isValidAthenaFullyQualifiedName,
+} from '../utils/athena-validation.utils';
 import { DATA_MART_ERROR_MESSAGES } from '../../../errors/data-mart-error-messages';
 
 @Injectable()
@@ -75,18 +78,22 @@ export class AthenaDataMartValidator implements DataMartValidator {
   }
 
   private validateIdentifiers(definition: DataMartDefinition): ValidationResult {
-    let identifierToValidate: string | undefined;
-
-    if (isTableDefinition(definition) || isViewDefinition(definition)) {
-      identifierToValidate = definition.fullyQualifiedName;
-    } else if (isConnectorDefinition(definition)) {
-      identifierToValidate = definition.connector.storage.fullyQualifiedName;
-    }
-
-    if (identifierToValidate && !isValidAthenaFullyQualifiedName(identifierToValidate)) {
+    if (
+      (isTableDefinition(definition) || isViewDefinition(definition)) &&
+      !isValidAthenaFullyQualifiedName(definition.fullyQualifiedName)
+    ) {
       return ValidationResult.authoredFailure(
         DataMartValidationCode.INVALID_IDENTIFIER_FORMAT,
         DATA_MART_ERROR_MESSAGES.ATHENA_IDENTIFIER_INVALID
+      );
+    }
+    if (
+      isConnectorDefinition(definition) &&
+      !isValidAthenaConnectorTableName(definition.connector.storage.fullyQualifiedName)
+    ) {
+      return ValidationResult.authoredFailure(
+        DataMartValidationCode.INVALID_IDENTIFIER_FORMAT,
+        DATA_MART_ERROR_MESSAGES.ATHENA_CONNECTOR_IDENTIFIER_INVALID
       );
     }
 
