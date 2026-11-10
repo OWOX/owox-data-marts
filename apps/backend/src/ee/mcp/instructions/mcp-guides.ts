@@ -1,7 +1,7 @@
-// Workflow guides that get_guide returns. Tool descriptions point to them with the sentence
-// "call get_guide with topic <topic>", and a spec checks that each pointer names a topic.
+// Workflow guides that get_owox_guide returns. Tool descriptions point to them with the call
+// get_owox_guide({topic: "<topic>"}), and a spec checks that each pointer names a topic.
 // Rules that prevent data loss, leaked secrets or wrong numbers stay in the tool descriptions too,
-// because a model can skip get_guide.
+// because a model can skip get_owox_guide.
 
 export const MCP_GUIDE_TOPICS = [
   'reporting',

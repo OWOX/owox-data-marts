@@ -143,7 +143,9 @@ describe('MCP tool providers', () => {
 
       // A pointer to a guide that does not exist sends the model to a call that fails.
       const pointedTopics = tools.flatMap(tool =>
-        [...tool.description.matchAll(/get_guide with topic (\w+)/g)].map(match => match[1])
+        [...tool.description.matchAll(/get_owox_guide\(\{topic: "(\w+)"\}\)/g)].map(
+          match => match[1]
+        )
       );
       expect([...MCP_GUIDE_TOPICS]).toEqual(expect.arrayContaining(pointedTopics));
       expect(pointedTopics).toEqual(expect.arrayContaining([...MCP_GUIDE_TOPICS]));
@@ -217,7 +219,7 @@ describe('MCP tool providers', () => {
           'delete_context',
           'list_project_members',
           'get_project_settings',
-          'get_guide',
+          'get_owox_guide',
           'update_project_description',
           'list_custom_connectors',
           'get_custom_connector',

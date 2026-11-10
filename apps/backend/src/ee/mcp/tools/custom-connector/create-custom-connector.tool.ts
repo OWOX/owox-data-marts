@@ -20,7 +20,7 @@ type Input = z.infer<typeof inputSchema>;
 export class CreateCustomConnectorTool implements McpToolDefinition<Input> {
   readonly name = 'create_custom_connector';
   readonly description =
-    'Create a custom connector with its first draft in the connected project. You must be an editor. The connector is not runnable until publish_custom_connector publishes a version.\n\nProvide a unique, immutable name, a title and the complete manifest. Follow https://docs.owox.com/docs/connectors/manifest-reference.llms.txt for the manifest format. Use parameter references for credentials instead of literal secret values. Give the user the returned Connector Builder url to open the draft in OWOX. For the complete workflow, call get_guide with topic custom_connectors.';
+    'Create a custom connector with its first draft in the connected project. You must be an editor. The connector is not runnable until publish_custom_connector publishes a version.\n\nProvide a unique, immutable name, a title and the complete manifest. Follow https://docs.owox.com/docs/connectors/manifest-reference.llms.txt for the manifest format. Use parameter references for credentials instead of literal secret values. Give the user the returned Connector Builder url to open the draft in OWOX. Before you create a connector, call get_owox_guide({topic: "custom_connectors"}). It gives the test, publication and version rules.';
   readonly zodSchema = inputSchema;
   readonly outputSchema = { ...connectorCreatedOutputSchema, url: z.string() };
   readonly annotations = {

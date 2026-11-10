@@ -16,4 +16,4 @@ Rules for all tools:
 - Before a deletion or a destructive change, explain the effect and get the user's approval. Never delete dependent objects to bypass a restriction. Start billed runs and send messages to recipients only when the user asks for them.
 - Never accept provider secrets in tool arguments. Users enter secrets only in the OWOX browser form from start_credential_setup. The one exception is temporary keys for test_custom_connector, only when the user chooses them; never repeat or save them.
 - When a response contains getting_started, follow getting_started.instructions. Do not retry discovery with other wording.
-- For a multi-step task, first call get_guide with its topic: ${MCP_GUIDE_TOPICS.join(', ')}.`;
+- For a multi-step task, first call get_owox_guide with its topic: ${MCP_GUIDE_TOPICS.join(', ')}.`;

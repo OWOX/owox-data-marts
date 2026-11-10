@@ -11,15 +11,15 @@ const inputSchema = z
   })
   .strict();
 
-type GetGuideInput = { topic: McpGuideTopic };
+type GetOwoxGuideInput = { topic: McpGuideTopic };
 
 @Injectable()
-export class GetGuideTool implements McpToolDefinition<GetGuideInput> {
-  readonly name = 'get_guide';
-  readonly description = `Return the OWOX workflow guide for one topic: ${MCP_GUIDE_TOPICS.join(', ')}. Call it before a multi-step task, and when a tool description tells you to. The guide is static text: it does not read project data.`;
+export class GetOwoxGuideTool implements McpToolDefinition<GetOwoxGuideInput> {
+  readonly name = 'get_owox_guide';
+  readonly description = `Return the OWOX workflow guide for one topic: ${MCP_GUIDE_TOPICS.join(', ')}. Each guide gives the order of calls, the rules and the error handling for the tools of its task. Call it before a multi-step task, and when a tool description tells you to. The guide is static text: it does not read project data.`;
   readonly zodSchema = inputSchema.shape;
   readonly annotations = {
-    title: 'Get Guide',
+    title: 'Get OWOX Guide',
     readOnlyHint: true,
     destructiveHint: false,
     idempotentHint: true,
@@ -27,11 +27,11 @@ export class GetGuideTool implements McpToolDefinition<GetGuideInput> {
   };
   readonly requiredScopes: McpScope[] = ['mcp:read'];
 
-  parseInput(input: unknown): GetGuideInput {
+  parseInput(input: unknown): GetOwoxGuideInput {
     return inputSchema.parse(input);
   }
 
-  async handler(input: GetGuideInput): Promise<McpToolResult> {
+  async handler(input: GetOwoxGuideInput): Promise<McpToolResult> {
     const { topic } = this.parseInput(input);
     return { content: [{ type: 'text', text: MCP_GUIDES[topic] }] };
   }

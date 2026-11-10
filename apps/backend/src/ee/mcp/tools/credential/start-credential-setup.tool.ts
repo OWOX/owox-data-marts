@@ -26,7 +26,7 @@ export class StartCredentialSetupTool implements McpToolDefinition<Input> {
     'Omit title to use the provider or connected account name. Do not pass title with credential_id. Never supply secrets.\n\n' +
     'The tool returns an expiring setup_id and a url for the current user and project. ' +
     'The user must sign in with the same OWOX account that connected MCP and remain in the connected project. ' +
-    'Use get_credential_setup_status to identify the exact saved Credential. Do not infer completion from the newest list item. For the complete workflow, call get_guide with topic credentials.';
+    'Use get_credential_setup_status to identify the exact saved Credential. Do not infer completion from the newest list item. Before you start a setup, call get_owox_guide({topic: "credentials"}). It gives the setup link rules and how to find and validate the saved Credential.';
   readonly zodSchema = startCredentialSetupSchema;
   readonly outputSchema = {
     ...credentialSetupOutputSchema,

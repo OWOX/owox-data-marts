@@ -118,7 +118,7 @@ export class AddDestinationTool implements McpToolDefinition<AddDestinationInput
     'For google_chat, supply emails for channel-email delivery or credential_id for webhook delivery. ' +
     'Never send Credential values or a secret webhook URL.\n\n' +
     'For looker_studio, omit emails and credential_id. This creates a Destination without browser setup. ' +
-    'The user must copy connector credentials from OWOX. The tool never returns the Destination Secret Key. For the complete workflow, call get_guide with topic storages_destinations.';
+    'The user must copy connector credentials from OWOX. The tool never returns the Destination Secret Key. Before you add a Destination, call get_owox_guide({topic: "storages_destinations"}). It gives the Credential and access setup steps and the Google Sheets steps.';
   readonly zodSchema = inputSchema;
   readonly outputSchema = {
     authorization_url: z.string().optional(),

@@ -12,7 +12,7 @@ describe('MCP instructions', () => {
   });
 
   // ChatGPT gives the model only the start of the instructions, and Claude Code the first 4,096
-  // characters. The long workflow text belongs in the guides that get_guide returns.
+  // characters. The long workflow text belongs in the guides that get_owox_guide returns.
   it('stays short and puts the data question rule in the first 250 characters', () => {
     expect(MCP_SYSTEM_INSTRUCTIONS.length).toBeLessThanOrEqual(3500);
 
