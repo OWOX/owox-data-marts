@@ -1,9 +1,10 @@
 import type { RequestProjectAccessResult, Role } from '@owox/idp-protocol';
+import { withTimeout } from '@owox/internal-helpers';
 import type { IdentityOwoxClient } from '../../client/index.js';
 import { DEFAULT_PENDING_REQUEST_CHECK_TIMEOUT_MS } from '../../core/constants.js';
 import { createServiceLogger } from '../../core/logger.js';
 import type { DatabaseStore } from '../../store/database-store.js';
-import { maskEmail } from '../../utils/email-utils.js';
+import { maskEmail, normalizeEmail } from '../../utils/email-utils.js';
 import type { AccessRequestEmailService } from '../email/access-request-email-service.js';
 import { findLocalUserEmail } from './user-email-lookup.js';
 
@@ -148,7 +149,7 @@ export class AccessRequestService {
     const emails = new Map<string, string>();
     for (const member of response.projectMembers) {
       const email = member.email.trim();
-      const key = email.toLowerCase();
+      const key = normalizeEmail(email);
       if (
         member.projectRole === 'admin' &&
         member.userStatus === 'active' &&
@@ -181,10 +182,6 @@ export class AccessRequestService {
     userId: string,
     projectId: string
   ): Promise<PendingRequestCheck> {
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    const timeout = new Promise<PendingRequestCheck>(resolve => {
-      timer = setTimeout(() => resolve({}), this.pendingRequestCheckTimeoutMs);
-    });
     const check = this.identityClient
       .getUserProvisioningRequestAccessContext(userId, projectId)
       .then(
@@ -197,11 +194,7 @@ export class AccessRequestService {
           return {};
         }
       );
-    try {
-      return await Promise.race([check, timeout]);
-    } finally {
-      clearTimeout(timer);
-    }
+    return withTimeout(check, this.pendingRequestCheckTimeoutMs, {});
   }
 }
 

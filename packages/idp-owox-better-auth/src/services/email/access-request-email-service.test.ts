@@ -118,6 +118,23 @@ describe('AccessRequestEmailService.sendRequestToAdmin', () => {
     expect(html).not.toContain('<i>x</i>');
   });
 
+  it('gives each attempt 15 s, since nothing waits for the email', async () => {
+    const timeout = jest.spyOn(AbortSignal, 'timeout');
+    const { service } = createService();
+
+    try {
+      await service.sendRequestToAdmin({
+        adminEmail: 'admin@example.com',
+        role: 'viewer',
+        projectId: 'p',
+      });
+
+      expect(timeout).toHaveBeenCalledWith(15_000);
+    } finally {
+      timeout.mockRestore();
+    }
+  });
+
   it('retries a failed send and throws the last error when every attempt fails', async () => {
     const { sendEmail, service } = createService([0, 0]);
     sendEmail.mockRejectedValue(new Error('SendGrid responded 500'));

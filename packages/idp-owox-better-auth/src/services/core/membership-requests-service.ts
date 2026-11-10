@@ -11,9 +11,9 @@ import type { AccessRequestEmailService } from '../email/access-request-email-se
 import { findLocalUserEmail } from './user-email-lookup.js';
 
 /**
- * MembershipRequestsService — thin wrapper over `IdentityOwoxClient` that
- * adapts the Java `MembershipRequestDto` / approve / decline endpoints into
- * the shared `IdpProvider` contract. An approval also emails the person who asked.
+ * MembershipRequestsService adapts the Java `MembershipRequestDto` / approve / decline
+ * endpoints of `IdentityOwoxClient` into the shared `IdpProvider` contract,
+ * and emails the person who asked when an admin approves their request.
  */
 export class MembershipRequestsService {
   private readonly logger = createServiceLogger(MembershipRequestsService.name);

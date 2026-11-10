@@ -49,7 +49,7 @@ The setting is configured per BI project in **Project Settings → Members**. It
 - They can open only the **Request access to existing project** page until a Project Admin approves their request.
 - On that page, they can request a role for the main project or create a separate project instead.
 - Creating a separate project lets the user continue working while the access request is pending.
-- When they request a role, every Project Admin of the project gets an email from OWOX Data Marts with who asked and for which role. Its **Check request** button opens **Project Settings → Members**, where the request is listed under **Access requests** to approve or decline. Asking again while the request is pending doesn't send another email.
+- When they request a role, every Project Admin of the project gets an email from OWOX Data Marts with who asked and for which role. Its **Check request** button opens **Project Settings → Members**, where the request is listed under **Access requests** to approve or decline. Asking again for the same role while the request is pending doesn't send another email.
 - When an admin approves the request, the user gets an email with the granted role. Its **Join now** button opens the project.
 - Both emails are sent even if the recipient turned off email notifications.
 

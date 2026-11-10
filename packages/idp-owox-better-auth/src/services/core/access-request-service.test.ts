@@ -105,17 +105,19 @@ describe('AccessRequestService.requestAccess', () => {
     expect(notify).not.toHaveBeenCalled();
   });
 
-  it('emails the admins about a request after a declined one, or for another role', async () => {
+  it('emails the admins when the pending request was for another role', async () => {
     const { identityClient, service } = setup();
     const notify = jest.spyOn(service, 'notifyAdmins').mockResolvedValue(undefined);
 
     identityClient.getUserProvisioningRequestAccessContext.mockResolvedValueOnce(
-      accessContext({ role: 'editor', status: 'declined' })
+      accessContext({ role: 'viewer', status: 'processing' })
     );
     await service.requestAccess('user-1', 'p-1', 'editor');
 
+    // Identity reports only a pending request, so after a decline `existingRequest` is null
+    // (the first test). If it ever reported the declined one, the admins are still emailed.
     identityClient.getUserProvisioningRequestAccessContext.mockResolvedValueOnce(
-      accessContext({ role: 'viewer', status: 'processing' })
+      accessContext({ role: 'editor', status: 'declined' })
     );
     await service.requestAccess('user-1', 'p-1', 'editor');
 

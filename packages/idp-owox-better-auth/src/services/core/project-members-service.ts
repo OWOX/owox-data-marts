@@ -4,6 +4,7 @@ import type {
   ProjectMemberInvitation,
   Role,
 } from '@owox/idp-protocol';
+import { withTimeout } from '@owox/internal-helpers';
 import type { IdentityOwoxClient } from '../../client/index.js';
 import {
   DEFAULT_INVITATION_LOOKUP_TIMEOUT_MS,
@@ -271,8 +272,16 @@ export class ProjectMembersService {
   ): Promise<boolean> {
     // The invite request waits for the email, so slow lookups only drop their detail.
     const [projectTitle, inviterEmail] = await Promise.all([
-      this.withLookupTimeout(this.findProjectTitle(projectId, actorUserId)),
-      this.withLookupTimeout(this.findUserEmail(projectId, actorUserId)),
+      withTimeout(
+        this.findProjectTitle(projectId, actorUserId),
+        this.invitationLookupTimeoutMs,
+        undefined
+      ),
+      withTimeout(
+        this.findUserEmail(projectId, actorUserId),
+        this.invitationLookupTimeoutMs,
+        undefined
+      ),
     ]);
 
     try {
@@ -291,20 +300,6 @@ export class ProjectMembersService {
         error
       );
       return false;
-    }
-  }
-
-  private async withLookupTimeout(
-    lookup: Promise<string | undefined>
-  ): Promise<string | undefined> {
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    const timeout = new Promise<undefined>(resolve => {
-      timer = setTimeout(() => resolve(undefined), this.invitationLookupTimeoutMs);
-    });
-    try {
-      return await Promise.race([lookup, timeout]);
-    } finally {
-      clearTimeout(timer);
     }
   }
 

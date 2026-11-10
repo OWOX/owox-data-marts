@@ -51,13 +51,21 @@ export interface ActionEmailMessage {
 let compiledTemplate: ejs.TemplateFunction | undefined;
 
 /**
- * Renders `action-email.ejs` and its plain-text version. The template is compiled once.
+ * Compiles `action-email.ejs` once. Email services call it in their constructors,
+ * so a build without the template fails at startup, not on the first email.
  */
-export function renderActionEmail(content: ActionEmailContent): { html: string; bodyText: string } {
+export function loadActionEmailTemplate(): ejs.TemplateFunction {
   compiledTemplate ??= ejs.compile(
     readFileSync(resolveResourcePath('templates/email/action-email.ejs'), 'utf-8')
   );
-  const html = compiledTemplate({ ...content });
+  return compiledTemplate;
+}
+
+/**
+ * Renders `action-email.ejs` and its plain-text version.
+ */
+export function renderActionEmail(content: ActionEmailContent): { html: string; bodyText: string } {
+  const html = loadActionEmailTemplate()({ ...content });
   const bodyText = [
     content.title,
     '',
@@ -85,6 +93,7 @@ export class ActionEmailSender {
   ) {
     this.retryDelaysMs = options.retryDelaysMs ?? DEFAULT_RETRY_DELAYS_MS;
     this.attemptTimeoutMs = options.attemptTimeoutMs ?? DEFAULT_ATTEMPT_TIMEOUT_MS;
+    loadActionEmailTemplate();
   }
 
   /**
@@ -115,14 +124,6 @@ export class ActionEmailSender {
       }
     }
   }
-}
-
-/**
- * Mail clients turn domain-like text such as "acme.com" into links,
- * so dots in a project title become spaces.
- */
-export function formatProjectTitle(title: string): string {
-  return title.replace(/\./g, ' ').replace(/\s+/g, ' ').trim();
 }
 
 function sleep(ms: number): Promise<void> {

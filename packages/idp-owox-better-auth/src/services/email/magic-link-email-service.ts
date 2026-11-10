@@ -3,7 +3,11 @@ import { MAGIC_LINK_INTENT } from '../../core/constants.js';
 import { createServiceLogger } from '../../core/logger.js';
 import type { MagicLinkEmailPayload, MagicLinkIntent } from '../../types/index.js';
 import { maskEmail } from '../../utils/email-utils.js';
-import { renderActionEmail, type ActionEmailContent } from './action-email-sender.js';
+import {
+  loadActionEmailTemplate,
+  renderActionEmail,
+  type ActionEmailContent,
+} from './action-email-sender.js';
 
 /**
  * Renders and sends magic-link emails using one shared template.
@@ -11,7 +15,9 @@ import { renderActionEmail, type ActionEmailContent } from './action-email-sende
 export class MagicLinkEmailService {
   private readonly logger = createServiceLogger(MagicLinkEmailService.name);
 
-  constructor(private readonly emailProvider: EmailProvider) {}
+  constructor(private readonly emailProvider: EmailProvider) {
+    loadActionEmailTemplate();
+  }
 
   private buildContent(payload: MagicLinkEmailPayload): ActionEmailContent {
     const intent: MagicLinkIntent =
@@ -31,9 +37,9 @@ export class MagicLinkEmailService {
   }
 
   async send(payload: MagicLinkEmailPayload): Promise<void> {
-    const content = this.buildContent(payload);
-    const { html, bodyText } = renderActionEmail(content);
     try {
+      const content = this.buildContent(payload);
+      const { html, bodyText } = renderActionEmail(content);
       await this.emailProvider.sendEmail(payload.email, content.subject, html, {
         bodyText,
         categories: ['transactional', 'auth'],
