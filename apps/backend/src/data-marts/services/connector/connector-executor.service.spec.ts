@@ -57,6 +57,9 @@ import { Logger } from '@nestjs/common';
 import { CredentialsExpiredException } from '../../exceptions/google-oauth.exceptions';
 import { StorageCredentialUnavailableException } from '../../exceptions/storage-credential-unavailable.exception';
 import { SourceCredentialUnavailableException } from '../../exceptions/source-credential-unavailable.exception';
+import { BusinessViolationException } from '../../../common/exceptions/business-violation.exception';
+import { DataMartValidationCode } from '../../data-storage-types/interfaces/data-mart-validator.interface';
+import { DATA_MART_ERROR_MESSAGES } from '../../errors/data-mart-error-messages';
 import type { CredentialService } from '../../credentials/services/credential.service';
 import {
   ConnectorExecutorService,
@@ -1238,6 +1241,32 @@ describe('ConnectorExecutorService', () => {
     const errors = finalUpdate![1].errors as string[];
     expect(errors[0]).toContain(ConnectorMessageType.WARNING);
     expect(errors.join()).toContain('The Credential is disabled.');
+  });
+
+  it('persists a table path the run cannot use as a warning, not an error', async () => {
+    const { service, dataMartRunRepository, storageConfigService } = createService();
+    (storageConfigService.buildStorageConfig as jest.Mock).mockRejectedValue(
+      new BusinessViolationException(
+        DATA_MART_ERROR_MESSAGES.BIGQUERY_CONNECTOR_IDENTIFIER_INVALID,
+        undefined,
+        DataMartValidationCode.INVALID_IDENTIFIER_FORMAT
+      )
+    );
+    const errorSpy = jest.spyOn(service['logger'], 'error').mockImplementation(() => undefined);
+
+    await service.executeInBackground(createDataMart(), createRun(), null);
+
+    const finalUpdate = (dataMartRunRepository.update as jest.Mock).mock.calls.find(
+      call => call[1]?.status === DataMartRunStatus.FAILED
+    );
+    const errors = finalUpdate![1].errors as string[];
+    expect(errors[0]).toContain(ConnectorMessageType.WARNING);
+    expect(errors.join()).toContain('Expected: dataset.table, without the project');
+    expect(errorSpy).not.toHaveBeenCalledWith(
+      expect.stringContaining('Configuration 1 failed'),
+      expect.anything(),
+      expect.anything()
+    );
   });
 
   it('logs a schema actualization stopped by an unavailable Credential as a warning', async () => {

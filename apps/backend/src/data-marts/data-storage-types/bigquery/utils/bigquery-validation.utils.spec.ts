@@ -1,4 +1,5 @@
 import {
+  isValidBigQueryConnectorTableName,
   isValidBigQueryFullyQualifiedName,
   isValidBigQueryTablePattern,
 } from './bigquery-validation.utils';
@@ -24,23 +25,28 @@ describeFullyQualifiedNameValidator(
   }
 );
 
-const CONNECTOR_CONFIG = { allowedChars: 'a-zA-Z0-9_\\-', allowTwoLevel: true };
+describe('isValidBigQueryConnectorTableName', () => {
+  it('accepts dataset.table', () => {
+    expect(isValidBigQueryConnectorTableName('owox_ads.facebook_ads')).toBe(true);
+    expect(isValidBigQueryConnectorTableName('my_dataset.my-table')).toBe(true);
+  });
 
-describeFullyQualifiedNameValidator(
-  'BigQueryConnector',
-  CONNECTOR_CONFIG,
-  value => isValidBigQueryFullyQualifiedName(value, { allowTwoLevel: true }),
-  () => {
-    it('should return true for names with hyphens', () => {
-      expect(
-        isValidBigQueryFullyQualifiedName('my-dataset.my_table', { allowTwoLevel: true })
-      ).toBe(true);
-      expect(
-        isValidBigQueryFullyQualifiedName('my-project.my-dataset.my_table', { allowTwoLevel: true })
-      ).toBe(true);
-    });
-  }
-);
+  it('rejects a project part, because the connector reads the first part as the dataset', () => {
+    expect(isValidBigQueryConnectorTableName('my-project.owox_ads.facebook_ads')).toBe(false);
+  });
+
+  it('rejects a dataset name that BigQuery does not accept', () => {
+    expect(isValidBigQueryConnectorTableName('my-dataset.my_table')).toBe(false);
+  });
+
+  it('rejects malformed names', () => {
+    expect(isValidBigQueryConnectorTableName('')).toBe(false);
+    expect(isValidBigQueryConnectorTableName('table')).toBe(false);
+    expect(isValidBigQueryConnectorTableName('dataset.')).toBe(false);
+    expect(isValidBigQueryConnectorTableName('dataset.table; DROP')).toBe(false);
+    expect(isValidBigQueryConnectorTableName('`dataset`.`table`')).toBe(false);
+  });
+});
 
 describeTablePatternValidator('BigQuery', BASE_CONFIG, isValidBigQueryTablePattern, () => {
   it('should return true for patterns with hyphens', () => {

@@ -44,7 +44,7 @@ type Input = z.infer<typeof inputSchema>;
 export class SetDestinationAccessTool implements McpToolDefinition<Input> {
   readonly name = 'set_destination_access';
   readonly description =
-    'Change Destination owners, Contexts, or sharing. Each supplied list replaces the current list. Omitted fields stay unchanged. Requires the corresponding management permissions.';
+    'Change Destination owners, Contexts, or sharing. Each supplied list replaces the current list. Omitted fields stay unchanged. Requires the corresponding management permissions. Keep the existing entries that the user still needs.';
   readonly zodSchema = inputSchema;
   readonly outputSchema = destinationMutationOutput;
   readonly annotations = {

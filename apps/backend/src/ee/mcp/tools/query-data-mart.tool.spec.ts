@@ -1,5 +1,6 @@
 import { NotFoundException, BadRequestException } from '@nestjs/common';
 import { QueryDataMartTool } from './query-data-mart.tool';
+import { GetDataMartDetailsTool } from './data-mart-details.tool';
 import { BigQueryApiAdapterFactory } from '../../../data-marts/data-storage-types/bigquery/adapters/bigquery-api-adapter.factory';
 import { DataStorageType } from '../../../data-marts/data-storage-types/enums/data-storage-type.enum';
 import { DataMartStatus } from '../../../data-marts/enums/data-mart-status.enum';
@@ -57,18 +58,44 @@ describe('QueryDataMartTool', () => {
     });
   });
 
-  it('embeds the generated field-type matrix in the description', () => {
-    // One line per category, generated from the validator's own constants.
-    expect(tool.description).toContain('- number (');
-    expect(tool.description).toContain('- string (');
-    expect(tool.description).toContain('- date (');
-    expect(tool.description).toContain('- boolean (');
-    expect(tool.description).toContain('- other (');
-    // The two footguns the matrix exists to prevent.
-    expect(tool.description).toContain('only where enabled on the field');
+  // get_data_mart_details_by_id gives the operators and aggregations for each field. The
+  // description refers to them and keeps only the two rules that models break most frequently.
+  it('refers to the per-field operators and aggregations instead of a per-type table', () => {
+    expect(tool.description).toContain('operators_by_category');
+    expect(tool.description).toContain("the field's allowedAggregations");
+    expect(tool.description).not.toContain('- number (');
+    expect(tool.description).toContain('sliceCategory for slices');
     expect(tool.description).toContain('NOT available on number fields');
+    expect(tool.description).toContain('mode is REPEATED');
     expect(tool.description).toContain('type or sliceType');
     expect(tool.description).toContain('Arrays are column-only');
+  });
+
+  // If the details tool renames one of these keys, the description refers to a key that is gone.
+  it('refers only to keys that get_data_mart_details_by_id returns', () => {
+    const { outputSchema } = new GetDataMartDetailsTool({} as never, {} as never);
+    expect(Object.keys(outputSchema)).toEqual(
+      expect.arrayContaining(['fields', 'joined_fields', 'operators_by_category'])
+    );
+    expect(Object.keys(outputSchema.fields.element.shape)).toEqual(
+      expect.arrayContaining(['category', 'allowedAggregations', 'calculated'])
+    );
+    expect(Object.keys(outputSchema.joined_fields.element.shape)).toEqual(
+      expect.arrayContaining(['category', 'allowedAggregations', 'sliceType', 'sliceCategory'])
+    );
+  });
+
+  // A filter on a joined field sees one value per join key, and a query without aggregation
+  // returns rows that are not grouped.
+  it('describes when rows are grouped and what a filter on a joined field sees', () => {
+    expect(tool.description).toContain('group-by dimensions only when the query aggregates');
+    expect(tool.description).toContain('one value per join key');
+    expect(tool.description).not.toContain('raw rows BEFORE aggregation');
+    // Text is the type that models filter on most, and its default is a joined list of values.
+    expect(tool.description).toContain('all text values joined into one string');
+    // A filter on a metric Calculated Field also makes the query aggregate.
+    expect(tool.description).toContain('"metric" Calculated Field in fields or filters');
+    expect(tool.description).toContain('list it in fields too');
   });
 
   // The gap this closes is in query BUILDING, not in reading the response: the description already
@@ -102,6 +129,12 @@ describe('QueryDataMartTool', () => {
     expect(tool.description).toContain('"orders__unique_count"');
     expect(tool.description).not.toContain('"Orders Unique Count"');
     expect(tool.description).not.toContain('"<Prefix> Unique Count"');
+  });
+
+  // The tool enforces both halves (UniqueCountFieldUnsupportedClauseError): a model that reads only
+  // one half retries a rejected call instead of moving the field back to "fields".
+  it('states where a joined Unique Count field may be used', () => {
+    expect(tool.description).toContain('Use it only in fields and sort.');
   });
 
   it('rejects input missing required fields', () => {

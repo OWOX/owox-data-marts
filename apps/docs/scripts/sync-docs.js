@@ -7,6 +7,7 @@ import yaml from 'js-yaml';
 import Papa from 'papaparse';
 import { getConfig } from './env-config.js';
 import { PUBLIC_REPO_DIR, rewriteHtmlImageLinks } from './html-image-links.mjs';
+import { parseReleaseFeed, readReleaseDates } from './release-feed.mjs';
 import {
   normalizePathSeparators,
   normalizePathToKebabCase,
@@ -70,6 +71,9 @@ async function syncDocs() {
   // 5. Publish the plain-text guides for AI assistants
   await publishLlmsGuides();
 
+  // 6. Publish the release feed the app reads to announce a new release
+  publishReleaseFeed();
+
   console.log(`Documentation sync completed successfully!`);
 }
 
@@ -97,6 +101,21 @@ async function publishLlmsGuides() {
     fs.copyFileSync(path.join(MONOREPO_ROOT, relativePath), destinationPath);
   }
   console.log(`Published ${guides.length} AI assistant guide(s).`);
+}
+
+/**
+ * Writes /docs/releases.json: the recent releases with their dates, changes and what's-new
+ * videos, which the app announces to signed-in users once per release.
+ */
+function publishReleaseFeed() {
+  const feed = fs.existsSync(CHANGELOG_PATH)
+    ? parseReleaseFeed(fs.readFileSync(CHANGELOG_PATH, 'utf8'), {
+        releaseDates: readReleaseDates(MONOREPO_ROOT, CHANGELOG_PATH),
+      })
+    : { releases: [] };
+  fs.mkdirSync(PUBLIC_DOCS_DEST_PATH, { recursive: true });
+  fs.writeFileSync(path.join(PUBLIC_DOCS_DEST_PATH, 'releases.json'), JSON.stringify(feed));
+  console.log(`Published the release feed with ${feed.releases.length} release(s).`);
 }
 
 /**

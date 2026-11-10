@@ -12,6 +12,7 @@ import { DataStorageType } from '../data-storage-types/enums/data-storage-type.e
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
 import { passThroughSqlReferenceValidator } from '../sql-references/__fixtures__/pass-through-sql-reference-resolver';
 import { SECRET_MASK } from '../services/connector/connector-secret.service';
+import { DataMartValidationCode } from '../data-storage-types/interfaces/data-mart-validator.interface';
 
 const OUT_OF_DATE = 'This page is out of date. Reload it.';
 
@@ -1232,6 +1233,83 @@ describe('UpdateDataMartDefinitionService', () => {
 
       const events = eventDispatcher.publishExternal.mock.calls.map(([event]) => event.name);
       expect(events).not.toContain('data-mart.definition-type.changed');
+    });
+  });
+
+  describe('connector table path', () => {
+    const connectorDefinition = (fullyQualifiedName: string) => ({
+      connector: {
+        source: { name: 'src', configuration: [{}], node: 'n', fields: ['f'] },
+        storage: { fullyQualifiedName },
+      },
+    });
+
+    it.each([
+      [
+        DataStorageType.GOOGLE_BIGQUERY,
+        'my-project.owox_ads.facebook_ads',
+        'Expected: dataset.table, without the project',
+      ],
+      [
+        DataStorageType.AWS_ATHENA,
+        'AwsDataCatalog.ads.facebook_ads',
+        'Expected: database.table, without the catalog',
+      ],
+    ])('rejects a new %s path that the run cannot use', async (storageType, path, message) => {
+      const { service, dataMartService } = createService({ storageType });
+
+      const error: unknown = await service
+        .run(commandFor(DataMartDefinitionType.CONNECTOR, connectorDefinition(path)))
+        .catch((e: unknown) => e);
+
+      expect(error).toBeInstanceOf(BusinessViolationException);
+      expect((error as BusinessViolationException).message).toContain(message);
+      expect((error as BusinessViolationException).code).toBe(
+        DataMartValidationCode.INVALID_IDENTIFIER_FORMAT
+      );
+      expect(dataMartService.save).not.toHaveBeenCalled();
+    });
+
+    it.each([null, 42])('rejects a %s path with the format message', async path => {
+      const { service, dataMartService } = createService();
+
+      await expect(
+        service.run(
+          commandFor(DataMartDefinitionType.CONNECTOR, connectorDefinition(path as never))
+        )
+      ).rejects.toThrow('Expected: dataset.table, without the project');
+      expect(dataMartService.save).not.toHaveBeenCalled();
+    });
+
+    it('rejects a changed path on a saved connector Data Mart', async () => {
+      const { service, dataMartService } = createService({
+        definitionType: DataMartDefinitionType.CONNECTOR,
+        definition: connectorDefinition('owox_ads.facebook_ads'),
+      });
+
+      await expect(
+        service.run(
+          commandFor(
+            DataMartDefinitionType.CONNECTOR,
+            connectorDefinition('my-project.owox_ads.facebook_ads')
+          )
+        )
+      ).rejects.toThrow(BusinessViolationException);
+      expect(dataMartService.save).not.toHaveBeenCalled();
+    });
+
+    it('keeps a stored path editable when the edit does not change it', async () => {
+      const stored = connectorDefinition('my-project.owox_ads.facebook_ads');
+      const { service, dataMartService, connectorSecretService } = createService({
+        definitionType: DataMartDefinitionType.CONNECTOR,
+        definition: stored,
+      });
+      connectorSecretService.mergeDefinitionSecrets.mockResolvedValue(stored);
+      connectorSecretService.extractAndSaveSecrets.mockResolvedValue(stored);
+
+      await service.run(commandFor(DataMartDefinitionType.CONNECTOR, stored));
+
+      expect(dataMartService.save).toHaveBeenCalled();
     });
   });
 });

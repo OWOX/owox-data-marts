@@ -50,6 +50,9 @@ import { PROJECT_SETTINGS_FACADE } from '../../../project-settings/facades/proje
 import { EeModule } from '../../ee.module';
 import { MCP_TOOL_DEFINITIONS, type McpToolDefinition } from './mcp-tool.definition';
 import { MCP_TOOL_DEFINITIONS_PROVIDER, MCP_TOOL_PROVIDER_CLASSES } from './mcp-tool.providers';
+import { MCP_GUIDE_TOPICS } from '../instructions/mcp-guides';
+
+const MAX_TOOL_DESCRIPTION_LENGTH = 4000;
 
 describe('MCP tool providers', () => {
   function moduleMetadata<T>(key: string, module: object): T[] {
@@ -86,20 +89,8 @@ describe('MCP tool providers', () => {
     );
   });
 
-  it('resolves tools through Nest and exposes Context/project setup through the MCP SDK', async () => {
-    const membersFacade = {
-      listProjectMembers: jest.fn().mockResolvedValue([
-        {
-          userId: 'member-1',
-          email: 'analyst@example.test',
-          displayName: 'Analyst',
-          role: 'viewer',
-          roleScope: 'selected_contexts',
-          contextIds: ['context-1'],
-        },
-      ]),
-    };
-    const moduleRef = await Test.createTestingModule({
+  function compileToolsModule(membersFacade: object = {}) {
+    return Test.createTestingModule({
       providers: [
         ...MCP_TOOL_PROVIDER_CLASSES,
         MCP_TOOL_DEFINITIONS_PROVIDER,
@@ -133,12 +124,76 @@ describe('MCP tool providers', () => {
         },
       ],
     }).compile();
+  }
+
+  // Claude Code keeps the first 4,096 characters of a tool description; claude.ai cut one
+  // between 4,027 and 4,117, so the limit stays below the longest description it kept.
+  it('keeps every tool description within 4,000 characters', async () => {
+    const moduleRef = await compileToolsModule();
+    try {
+      const tooLong = moduleRef
+        .get<McpToolDefinition[]>(MCP_TOOL_DEFINITIONS)
+        .filter(tool => tool.description.length > MAX_TOOL_DESCRIPTION_LENGTH)
+        .map(tool => `${tool.name}: ${tool.description.length}`);
+
+      expect(tooLong).toEqual([]);
+    } finally {
+      await moduleRef.close();
+    }
+  });
+
+  it('resolves tools through Nest and exposes Context/project setup through the MCP SDK', async () => {
+    const membersFacade = {
+      listProjectMembers: jest.fn().mockResolvedValue([
+        {
+          userId: 'member-1',
+          email: 'analyst@example.test',
+          displayName: 'Analyst',
+          role: 'viewer',
+          roleScope: 'selected_contexts',
+          contextIds: ['context-1'],
+        },
+      ]),
+    };
+    const moduleRef = await compileToolsModule(membersFacade);
 
     try {
       const tools = moduleRef.get<McpToolDefinition[]>(MCP_TOOL_DEFINITIONS);
       const toolNames = tools.map(tool => tool.name);
 
       expect(toolNames).toEqual(expect.arrayContaining(['run_report', 'get_report_run_status']));
+
+      // A pointer to a guide that does not exist sends the model to a call that fails.
+      const pointedTopics = tools.flatMap(tool =>
+        [...tool.description.matchAll(/get_owox_guide\(\{topic: "(\w+)"\}\)/g)].map(
+          match => match[1]
+        )
+      );
+      expect([...MCP_GUIDE_TOPICS]).toEqual(expect.arrayContaining(pointedTopics));
+      expect(pointedTopics).toEqual(expect.arrayContaining([...MCP_GUIDE_TOPICS]));
+      // claude.ai drops the server instructions, so each deletion and destructive change asks
+      // for approval itself. The list fails when a tool is added or renamed without the rule.
+      const approvalTools = tools.filter(
+        tool => tool.name.startsWith('delete_') || tool.name === 'rotate_destination_secret_key'
+      );
+      expect(approvalTools.map(tool => tool.name).sort()).toEqual([
+        'delete_context',
+        'delete_credential',
+        'delete_custom_connector',
+        'delete_data_mart',
+        'delete_data_mart_relationship',
+        'delete_data_mart_run_schedule',
+        'delete_destination',
+        'delete_report',
+        'delete_report_run_schedule',
+        'delete_storage',
+        'rotate_destination_secret_key',
+      ]);
+      for (const tool of approvalTools) {
+        expect(`${tool.name}: ${tool.description}`).toMatch(
+          /Get the user's approval before the call\.|Obtain user authorization before deletion\./
+        );
+      }
       expect(toolNames).toEqual(
         expect.arrayContaining([
           'get_connector_fields',
@@ -205,6 +260,7 @@ describe('MCP tool providers', () => {
           'delete_context',
           'list_project_members',
           'get_project_settings',
+          'get_owox_guide',
           'update_project_description',
           'list_custom_connectors',
           'get_custom_connector',

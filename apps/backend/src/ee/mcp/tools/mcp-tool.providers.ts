@@ -33,6 +33,7 @@ import { ListDataMartRelationshipsTool } from './data-mart-model/list-data-mart-
 import { PreviewDataMartTool } from './data-mart-model/preview-data-mart.tool';
 import { UpdateDataMartRelationshipTool } from './data-mart-model/update-data-mart-relationship.tool';
 import { ListContextsTool } from './list-contexts.tool';
+import { GetOwoxGuideTool } from './get-owox-guide.tool';
 import type { Provider, Type } from '@nestjs/common';
 import { CreateReportRunScheduleTool } from './create-report-run-schedule.tool';
 import { AddReportTool } from './add-report.tool';
@@ -154,6 +155,7 @@ export const MCP_TOOL_PROVIDER_CLASSES: Array<Type<McpToolDefinition>> = [
   StartCredentialSetupTool,
   GetCredentialSetupStatusTool,
   ListContextsTool,
+  GetOwoxGuideTool,
   ListCustomConnectorsTool,
   GetCustomConnectorTool,
   CreateCustomConnectorTool,

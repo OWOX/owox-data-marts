@@ -9,7 +9,10 @@ type StorageConfigDto = InstanceType<typeof Core.StorageConfigDto>;
 import { ConnectorDefinition as DataMartConnectorDefinition } from '../../dto/schemas/data-mart-table-definitions/connector-definition.schema';
 import { DataMart } from '../../entities/data-mart.entity';
 import { DataStorageType } from '../../data-storage-types/enums/data-storage-type.enum';
-import { BigQueryConfig } from '../../data-storage-types/bigquery/schemas/bigquery-config.schema';
+import {
+  BIGQUERY_AUTODETECT_LOCATION,
+  BigQueryConfig,
+} from '../../data-storage-types/bigquery/schemas/bigquery-config.schema';
 import { AthenaConfig } from '../../data-storage-types/athena/schemas/athena-config.schema';
 import { AthenaCredentials } from '../../data-storage-types/athena/schemas/athena-credentials.schema';
 import {
@@ -25,6 +28,11 @@ import { RedshiftConnectionType } from '../../data-storage-types/redshift/enums/
 import { DatabricksConfig } from '../../data-storage-types/databricks/schemas/databricks-config.schema';
 import { DatabricksCredentials } from '../../data-storage-types/databricks/schemas/databricks-credentials.schema';
 import { ConnectorExecutionError } from '../../errors/connector-execution.error';
+import { DATA_MART_ERROR_MESSAGES } from '../../errors/data-mart-error-messages';
+import { BusinessViolationException } from '../../../common/exceptions/business-violation.exception';
+import { DataMartValidationCode } from '../../data-storage-types/interfaces/data-mart-validator.interface';
+import { isValidBigQueryConnectorTableName } from '../../data-storage-types/bigquery/utils/bigquery-validation.utils';
+import { isValidAthenaConnectorTableName } from '../../data-storage-types/athena/utils/athena-validation.utils';
 import { DataStorageCredentialsResolver } from '../../data-storage-types/data-storage-credentials-resolver.service';
 import { DataStorageCredentials } from '../../data-storage-types/data-storage-credentials.type';
 import { GoogleOAuthConfigService } from '../google-oauth/google-oauth-config.service';
@@ -74,14 +82,22 @@ export class ConnectorStorageConfigService {
   ): Promise<StorageConfigDto> {
     const storageConfig = dataMart.storage.config as BigQueryConfig;
     const bqCredentials = credentials as BigQueryCredentials;
-    const datasetId = connector.storage?.fullyQualifiedName.split('.')[0];
+    const fullyQualifiedName = connector.storage?.fullyQualifiedName ?? '';
+    if (!isValidBigQueryConnectorTableName(fullyQualifiedName)) {
+      throw new BusinessViolationException(
+        DATA_MART_ERROR_MESSAGES.BIGQUERY_CONNECTOR_IDENTIFIER_INVALID,
+        undefined,
+        DataMartValidationCode.INVALID_IDENTIFIER_FORMAT
+      );
+    }
+    const [datasetId, tableName] = fullyQualifiedName.split('.');
 
     const baseConfig = {
-      DestinationLocation: storageConfig?.location,
+      DestinationLocation: storageConfig?.location || BIGQUERY_AUTODETECT_LOCATION,
       DestinationDatasetID: `${storageConfig.projectId}.${datasetId}`,
       DestinationProjectID: storageConfig.projectId,
       DestinationDatasetName: datasetId,
-      DestinationTableNameOverride: `${connector.source.node} ${connector.storage?.fullyQualifiedName.split('.')[1]}`,
+      DestinationTableNameOverride: `${connector.source.node} ${tableName}`,
       ProjectID: storageConfig.projectId,
     };
 
@@ -142,6 +158,15 @@ export class ConnectorStorageConfigService {
     const storageConfig = dataMart.storage.config as AthenaConfig;
     const athenaCredentials = credentials as AthenaCredentials;
     const clearBucketName = storageConfig.outputBucket.replace(/^s3:\/\//, '').replace(/\/$/, '');
+    const fullyQualifiedName = connector.storage?.fullyQualifiedName ?? '';
+    if (!isValidAthenaConnectorTableName(fullyQualifiedName)) {
+      throw new BusinessViolationException(
+        DATA_MART_ERROR_MESSAGES.ATHENA_CONNECTOR_IDENTIFIER_INVALID,
+        undefined,
+        DataMartValidationCode.INVALID_IDENTIFIER_FORMAT
+      );
+    }
+    const [databaseName, tableName] = fullyQualifiedName.split('.');
     return new StorageConfigDto({
       name: DataStorageType.AWS_ATHENA,
       config: {
@@ -150,8 +175,8 @@ export class ConnectorStorageConfigService {
         AWSSecretAccessKey: athenaCredentials.secretAccessKey,
         S3BucketName: clearBucketName,
         S3Prefix: dataMart.id,
-        AthenaDatabaseName: connector.storage?.fullyQualifiedName.split('.')[0],
-        DestinationTableNameOverride: `${connector.source.node} ${connector.storage?.fullyQualifiedName.split('.')[1]}`,
+        AthenaDatabaseName: databaseName,
+        DestinationTableNameOverride: `${connector.source.node} ${tableName}`,
         AthenaOutputLocation: `s3://${clearBucketName}/owox-data-marts/${dataMart.id}`,
       },
     });

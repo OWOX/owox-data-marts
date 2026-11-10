@@ -28,7 +28,7 @@ type SetContextMembersInput = z.infer<typeof inputSchema>;
 export class SetContextMembersTool implements McpToolDefinition<SetContextMembersInput> {
   readonly name = 'set_context_members';
   readonly description =
-    'Replace the members assigned to a Context in the connected OWOX project. Requires a project admin. Supply user_id values from list_project_members; an empty list removes all assignments. Admin IDs are ignored because admins have project-wide access and are returned as dropped_admin_ids.';
+    "Replace the members assigned to a Context in the connected OWOX project. Requires a project admin. Supply user_id values from list_project_members; an empty list removes all assignments. Admin IDs are ignored because admins have project-wide access and are returned as dropped_admin_ids. Keep the existing members that the user still needs. Get the user's approval before the call.";
   readonly zodSchema = inputSchema;
   readonly outputSchema = {
     assigned_user_ids: z.array(z.string()).describe('User IDs actually assigned to the Context.'),

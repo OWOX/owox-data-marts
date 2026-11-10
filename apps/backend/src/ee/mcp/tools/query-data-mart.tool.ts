@@ -46,7 +46,6 @@ import { translateOutputControlsError } from './output-controls-error.mapper';
 import { toStructuredToolError } from '../mappers/mcp-error.mapper';
 import { buildDataMartUiPath } from './data-mart-ui-path';
 import { joinPublicOrigin } from './mcp-public-url.util';
-import { buildFieldTypeMatrixSection } from './field-type-matrix';
 import { unavailableSourceDataLastUpdated } from '../../../data-marts/dto/schemas/source-data-last-updated.schema';
 
 // Constant on purpose: a warehouse message quotes SQL, table and column names.
@@ -79,43 +78,29 @@ function formatUtcTimestampForHumans(iso: string): string {
 @Injectable()
 export class QueryDataMartTool implements McpToolDefinition<QueryDataMartInput> {
   readonly name = 'query_data_mart';
-  readonly description = `Query an OWOX data mart and return its data rows in a compact, header-once table, plus server-side totals computed over all matching rows (ignoring the row limit). Each call costs credits, records a run, and may replace an OWOX-managed technical view when the Data Mart has a SQL definition.
+  readonly description = `Query an OWOX data mart. Returns rows in a compact table, plus server-side totals over all matching rows (not only the returned ones). Each call costs credits, records a run, and may replace an OWOX-managed technical view when the Data Mart has a SQL definition.
 
-Call get_data_mart_details_by_id first to get the data mart's exact field names and joinable/blended fields, then copy field names verbatim into fields — unless you already have that schema in context. Field names must be exact; never guess or invent them.
-
-When building the query:
-- Request only the fields relevant to the user's question — never request all fields.
-- Use limit to control how many rows come back (1–1000, default 20). There is no offset/pagination: the tool returns a bounded subset.
-- aggregations: SUM, COUNT, COUNT_DISTINCT, AVG, MIN, MAX, and percentiles P25/P50/P75/P95 — which of them a given field allows depends on the field's type and the data mart's per-field settings (see the matrix below). Group-by is implied by the non-aggregated fields you select.
-- Prefer a metric the data mart already defines: when get_data_mart_details_by_id shows a field whose "calculated" level is "metric", that field IS the quantity, computed at the grain your query asks for — list it in "fields" and read the value. Do not rebuild it by aggregating its inputs and dividing them yourself; on such a field an empty allowedAggregations means "already computed", never "unusable".
-- For “how many” questions, use COUNT or COUNT_DISTINCT (when the business meaning is unique entities) instead of returning raw rows and counting them yourself. Keep only dimensions the user asked to break the count by.
-- date_buckets: bucket a date/timestamp field by DAY/WEEK/MONTH/QUARTER/YEAR (e.g. "revenue by month"). Only date-category fields can be bucketed; time_zone applies only to types with a time-of-day component (TIMESTAMP/DATETIME — not pure DATE), and never to a Calculated Field, whose bucket must be requested without one.
-
-Which operators and aggregations fit which field type (using each field's "type" from get_data_mart_details_by_id):
-${buildFieldTypeMatrixSection()}
-A data mart can narrow a field's aggregations further ("only where enabled on the field") — get_data_mart_details_by_id returns each field's effective allowedAggregations; trust that over this table. Note COUNT/COUNT_DISTINCT are NOT available on number fields — to count rows per group, apply COUNT to a non-number field you already select that is always filled (an id field works well; COUNT skips NULLs, so a nullable field undercounts). To count UNIQUE records of a JOINED data mart (e.g. "how many distinct orders per customer"), do not aggregate its id column — instead select that source's own Unique Count field like any other field; get_data_mart_details_by_id (with_joined_fields) lists it among that source's joined fields whenever one is available. Copy its "name" (e.g. "orders__unique_count"), never its human-readable "displayName". It can be selected in "fields" and ordered by in "sort" (using that same exact name), but it cannot be used in filters, slices, aggregations, or date_buckets.
-- sort: order the result rows by { field, direction } with direction "asc" or "desc"; rules apply in order (the first is the primary key). Each sorted field must also be listed in fields.
-- fields must list every column the query uses, INCLUDING any field named in aggregations, date_buckets, or sort — a field you aggregate, bucket, or sort but omit from fields is rejected. Example — "revenue by month": fields ["ts", "revenue"], aggregations [{field: "revenue", function: "SUM"}], date_buckets [{field: "ts", unit: "MONTH"}]. (Filters are the exception: a filter may reference a field that is not in fields.)
-
-Choosing between slices and filters (both are row-level predicates applied to raw values BEFORE any aggregation, so neither can threshold a total you asked for via "aggregations" — the one exception is a Calculated Field whose level is "metric", whose formula is already aggregated and whose filter therefore compares the aggregated value):
-- slices (pre-join): narrow a JOINED data mart before it is blended in — criteria on a joined data mart's own fields only. Slices do NOT apply to the main data mart. More efficient — they reduce the joined volume before the join. A slice runs on the field's ORIGINAL value, so when get_data_mart_details lists a "sliceType" for the field, use operators valid for that pre-join type (not the field's blended-result "type").
-- filters (post-join): row-level criteria on the blended result — use for anything on the MAIN data mart's fields or on a joined field. A filter on a field you also aggregate restricts which raw rows feed the aggregate (e.g. filter revenue > 0 → SUM over positive rows), NOT the group total.
-- Rule: pre-narrowing a joined data mart's rows → slices; any other raw-row criterion → filters.
-- Filtering by a total you asked for via "aggregations" (e.g. "groups whose SUM(revenue) > 100") is NOT supported — return all groups with their totals and let the caller compare. If the data mart already defines that quantity as a Calculated Field with level "metric", filter on THAT field instead and the threshold is applied to the aggregated value; list it in "fields" when you do.
-- Example — "orders in the last 3 months" where orders is a joined data mart: the date range narrows the joined orders before the join → slices.
+Call get_data_mart_details_by_id first, unless you already have that schema in context. Copy exact field names into fields; never guess them.
 
 Using the results:
-- Use metrics and totals from the response directly — never recompute a value already present (totals are computed server-side over all matching rows, so they stay correct even when rows are truncated).
-- The totals block is separate from the rows.
-- Totals keys are technical output column names. Match a totals key to column_metadata[].name, not to a business-friendly columns label.
-- data_last_updated answers "how current is what I am looking at?". Read it carefully before repeating it:
-  - data_last_updated_at is when the SOURCE TABLES last changed in the data warehouse. It is NOT a statement about which time period the data covers: a table rewritten today may have only backfilled figures for 2021. Say "the source tables were last updated on X", never "the data is fresh as of X".
-  - null means unknown, not old and not fresh. Say the warehouse does not report it, and do not infer staleness from it.
-  - coverage "partial" means some sources could not be read, so the real time can only be MORE recent than the one reported — present it as "at least as recent as X" and mention that the picture is incomplete. "unavailable" means nothing could be determined.
-  - Mention it unprompted when the user's question depends on recency (today's numbers, "latest", trends up to now) or when they are about to act on the result.
-  - Present every timestamp from this block (including per-table sources) in a business-friendly form — e.g. "August 4, 2026 at 09:46 UTC" — converted to the user's time zone when the conversation establishes one, otherwise in UTC with the zone named. Never show a raw ISO-8601 value like 2026-08-04T09:46:33Z.
+- Use metrics and totals from the response directly; never recompute a value already present.
+- If truncated is true, warn the user that the rows are incomplete, then narrow the query or raise limit (up to 1000).
+- Name the Data Mart the answer came from. Say which numbers OWOX calculated and which you calculated yourself.
+- data_last_updated_at is when the source tables last changed, not the period the data covers: say "the source tables were last updated on X". null means unknown, not stale. coverage "partial" means the real time can only be more recent: say "at least as recent as X" and that the picture is incomplete. "unavailable" means nothing could be determined. Mention it when the question depends on recency or before the user acts on the result. Show timestamps in a readable form, in the user's time zone when known; never as raw ISO-8601.
 
-If truncated is true, not all matching rows were returned: narrow the query (fewer fields, tighter slices/filters) or raise limit (up to 1000). Always use the source metadata in the response: name the Data Mart the answer came from, distinguish numbers calculated by OWOX from arithmetic you perform yourself, and clearly warn the user when rows were truncated.`;
+Building the query:
+- Request only the fields the question needs. Non-aggregated fields become group-by dimensions only when the query aggregates (aggregations, date_buckets, a Unique Count field, or a "metric" Calculated Field in fields or filters); otherwise rows can repeat.
+- fields must list every field named in aggregations, date_buckets or sort; filters may reference other fields. Example, "revenue by month": fields ["ts", "revenue"], aggregations [{field: "revenue", function: "SUM"}], date_buckets [{field: "ts", unit: "MONTH"}].
+- Prefer a metric the data mart already defines: when get_data_mart_details_by_id shows a field whose "calculated" level is "metric", that field IS the quantity, computed at the grain your query asks for. Do not rebuild it by aggregating its inputs and dividing them yourself; on such a field an empty allowedAggregations means "already computed", never "unusable".
+- For "how many" questions, use COUNT or COUNT_DISTINCT instead of counting raw rows yourself. Keep only the dimensions the user asked for.
+- Use only the operators that operators_by_category lists for a field's category (sliceCategory for slices), and only the functions in the field's allowedAggregations. COUNT and COUNT_DISTINCT are NOT available on number fields: apply COUNT to an always-filled non-number field, such as a string id (COUNT skips NULLs). Arrays are column-only: a field whose mode is REPEATED or whose type or sliceType is ARRAY may appear only in fields.
+- To count unique records of a JOINED data mart, select that source's Unique Count field (with_joined_fields lists it when one is available). Copy its "name", e.g. "orders__unique_count", not its displayName. Use it only in fields and sort.
+- date_buckets: only on date-category fields. time_zone applies only to types with a time of day (not DATE), and never to a Calculated Field.
+
+Slices or filters (both apply BEFORE the aggregations you request):
+- slices narrow the rows of a JOINED data mart before the join, on its own fields only. Example: "orders in the last 3 months" on a joined orders data mart → slices.
+- filters act on the blended result: any field of the main data mart, or a joined field. A joined field there has one value per join key (by default the SUM of numbers, the latest date, or all text values joined into one string), so a filter on it does not see the joined rows. A filter on an aggregated field limits the rows that feed the aggregate, not the group total.
+- You cannot filter by a total from aggregations (e.g. SUM(revenue) > 100): return all groups and compare them yourself. Exception: a Calculated Field with level "metric" filters on its aggregated value; list it in fields too.`;
   readonly zodSchema = queryDataMartInputSchema.shape;
   readonly outputSchema = {
     columns: z.array(z.string()).describe('Business-friendly result headers, in rows order.'),

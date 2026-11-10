@@ -84,6 +84,8 @@ import { ConnectorExecutionError } from '../../errors/connector-execution.error'
 import { CredentialsExpiredException } from '../../exceptions/google-oauth.exceptions';
 import { StorageCredentialUnavailableException } from '../../exceptions/storage-credential-unavailable.exception';
 import { SourceCredentialUnavailableException } from '../../exceptions/source-credential-unavailable.exception';
+import { BusinessViolationException } from '../../../common/exceptions/business-violation.exception';
+import { DataMartValidationCode } from '../../data-storage-types/interfaces/data-mart-validator.interface';
 import { CredentialService } from '../../credentials/services/credential.service';
 import { OwoxEventDispatcher } from '../../../common/event-dispatcher/owox-event-dispatcher';
 import { ConnectorRunEvent } from '../../events/connector-run.event';
@@ -127,6 +129,14 @@ function isCustomerCredentialError(error: unknown): boolean {
     error instanceof CredentialsExpiredException ||
     error instanceof StorageCredentialUnavailableException ||
     error instanceof SourceCredentialUnavailableException
+  );
+}
+
+/** A connector table path the customer must change; nothing for ops to act on. */
+function isCustomerTablePathError(error: unknown): boolean {
+  return (
+    error instanceof BusinessViolationException &&
+    error.code === DataMartValidationCode.INVALID_IDENTIFIER_FORMAT
   );
 }
 
@@ -1038,11 +1048,14 @@ export class ConnectorExecutorService {
       } catch (error) {
         success = false;
         const errorMessage = error instanceof Error ? error.message : String(error);
-        // The user cancelled the run, or the customer must reconnect their storage.
-        // Neither is ops-actionable, so it is a warning in run history as well as in
-        // monitoring — deciding here keeps the persisted type and the log severity
-        // from drifting apart.
-        const isWarning = signal?.aborted === true || isCustomerCredentialError(error);
+        // The user cancelled the run, or the customer must reconnect their storage or
+        // change the table path. None is ops-actionable, so it is a warning in run history
+        // as well as in monitoring — deciding here keeps the persisted type and the log
+        // severity from drifting apart.
+        const isWarning =
+          signal?.aborted === true ||
+          isCustomerCredentialError(error) ||
+          isCustomerTablePathError(error);
         const summary = `Configuration ${configIndex + 1} failed: ${errorMessage}`;
         const at = this.systemTimeService.now().toISOString();
         const logMeta = {

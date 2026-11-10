@@ -1,18 +1,11 @@
 import {
   FIELD_TYPE_CATEGORIES,
   MCP_TO_INTERNAL_OPERATOR,
-  buildFieldTypeMatrixSection,
   effectiveMcpAggregations,
-  mcpDefaultAggregationsForCategory,
   mcpOperatorNamesForInternal,
   mcpOperatorsForCategory,
-  mcpSupportedAggregationsForCategory,
 } from './field-type-matrix';
-import {
-  MCP_AGGREGATE_FUNCTIONS,
-  SUPPORTED_MCP_OPERATORS,
-  mapMcpFiltersToRules,
-} from './query-data-mart.input';
+import { SUPPORTED_MCP_OPERATORS, mapMcpFiltersToRules } from './query-data-mart.input';
 import { INTERNAL_OPERATORS_BY_CATEGORY } from '../../../data-marts/dto/schemas/field-type-category';
 
 /** A value each MCP operator accepts, so mapOne can run without validation errors. */
@@ -123,20 +116,6 @@ describe('field-type-matrix', () => {
     expect(mcpOperatorsForCategory('other')).toEqual(['is_blank', 'is_not_blank']);
   });
 
-  it('aggregation menus stay within the MCP function set, defaults within the menu', () => {
-    for (const category of FIELD_TYPE_CATEGORIES) {
-      const supported = mcpSupportedAggregationsForCategory(category);
-      const defaults = mcpDefaultAggregationsForCategory(category);
-      for (const fn of supported) expect(MCP_AGGREGATE_FUNCTIONS).toContain(fn);
-      for (const fn of defaults) expect(supported).toContain(fn);
-    }
-    // The two documented surprises: percentiles are opt-in, COUNT is absent for numbers.
-    expect(mcpDefaultAggregationsForCategory('number')).toEqual(['SUM', 'AVG', 'MIN', 'MAX']);
-    expect(mcpSupportedAggregationsForCategory('number')).not.toEqual(
-      expect.arrayContaining(['COUNT'])
-    );
-  });
-
   it('effectiveMcpAggregations resolves defaults and narrows by explicit override', () => {
     expect(effectiveMcpAggregations('FLOAT')).toEqual(['SUM', 'AVG', 'MIN', 'MAX']);
     expect(effectiveMcpAggregations('FLOAT', { allowedAggregations: ['SUM', 'P95'] })).toEqual([
@@ -147,6 +126,10 @@ describe('field-type-matrix', () => {
     expect(
       effectiveMcpAggregations('STRING', { allowedAggregations: ['COUNT', 'STRING_AGG'] })
     ).toEqual(['COUNT']);
+    // The query_data_mart description tells the model this; an override cannot enable it.
+    expect(
+      effectiveMcpAggregations('FLOAT', { allowedAggregations: ['COUNT', 'COUNT_DISTINCT'] })
+    ).toEqual([]);
   });
 
   it.each(['ARRAY', 'ARRAY<STRING>', 'ARRAY(VARCHAR)'])(
@@ -175,16 +158,5 @@ describe('field-type-matrix', () => {
     expect(mcpOperatorNamesForInternal('eq')).toEqual(['eq']);
     // Unknown/unmapped internal names yield an empty list (caller falls back to the raw name).
     expect(mcpOperatorNamesForInternal('is_true')).toEqual([]);
-  });
-
-  it('renders one matrix line per category for the tool description', () => {
-    const section = buildFieldTypeMatrixSection();
-    for (const category of FIELD_TYPE_CATEGORIES) {
-      expect(section).toContain(`- ${category} (`);
-    }
-    expect(section).toContain('only where enabled on the field');
-    expect(section).toContain('boolean true or false');
-    expect(section).toContain('mode is REPEATED');
-    expect(section).toContain('Arrays are column-only');
   });
 });

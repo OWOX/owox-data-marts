@@ -14,6 +14,11 @@ export const isValidAthenaFullyQualifiedName = createIdentifierValidator({
   allowWildcard: false,
 });
 
+/** Format: database.table, without the catalog. The connector writes to the default catalog. */
+export function isValidAthenaConnectorTableName(value: string): boolean {
+  return value.split('.').length === 2 && isValidAthenaFullyQualifiedName(value);
+}
+
 /** Format: database.table_* or catalog.database.table_* (with wildcard) */
 export const isValidAthenaTablePattern = createIdentifierValidator({
   allowedChars: ALLOWED_CHARS,

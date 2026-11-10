@@ -27,9 +27,11 @@ export const DATA_MART_ERROR_MESSAGES = {
   PREVIEW_LIMIT_INVALID: 'Invalid preview limit',
   BIGQUERY_IDENTIFIER_INVALID: 'Invalid identifier format. Expected: project.dataset.table',
   BIGQUERY_CONNECTOR_IDENTIFIER_INVALID:
-    'Invalid identifier format. Expected: dataset.table or project.dataset.table',
+    'Invalid identifier format. Expected: dataset.table, without the project. The connector writes to the Storage project. Use only letters, digits, and underscores in the dataset name.',
   ATHENA_IDENTIFIER_INVALID:
     'Invalid identifier format. Expected: database.table or catalog.database.table',
+  ATHENA_CONNECTOR_IDENTIFIER_INVALID:
+    'Invalid identifier format. Expected: database.table, without the catalog.',
   DATABRICKS_IDENTIFIER_INVALID: 'Invalid identifier format. Expected: catalog.schema.table',
   DATABRICKS_CONNECTOR_IDENTIFIER_INVALID:
     'Invalid identifier format. Expected: schema.table or catalog.schema.table',

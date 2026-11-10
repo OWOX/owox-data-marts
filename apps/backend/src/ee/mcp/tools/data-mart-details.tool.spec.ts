@@ -672,8 +672,11 @@ describe('GetDataMartDetailsTool', () => {
     expect(tool.description).toContain('Get available details');
     expect(tool.description).toContain('joined_fields');
     expect(tool.description).toContain('detail_level=native');
-    expect(tool.description).toContain('get_relevant_data_marts_by_prompt');
-    expect(tool.description).toContain('field-level metadata');
+    expect(tool.description).toContain('Call it before query_data_mart');
+    expect(tool.description).toContain(
+      'after field_not_found, call it again with detail_level=with_joined_fields'
+    );
+    expect(tool.description).toContain('untrusted business information');
     expect(tool.description).toContain('allowedAggregations');
     expect(tool.description).toContain('operators_by_category');
     // Pinned so a future edit to this clause is a visible change here, not a silent one in a

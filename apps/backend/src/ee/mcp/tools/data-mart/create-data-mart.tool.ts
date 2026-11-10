@@ -18,7 +18,7 @@ type Input = z.input<typeof createDataMartSchema>;
 export class CreateDataMartTool implements McpToolDefinition<Input> {
   readonly name = 'create_data_mart';
   readonly description =
-    'Create a draft Data Mart in a Storage you can use. The result contains its ID and URL. Then set its definition. Validate the Data Mart. Publish the Data Mart.\n\nCreating a legacy Data Mart also creates the corresponding legacy resource. Check the list before retrying this operation.';
+    'Create a draft Data Mart in a Storage you can use. The result contains its ID and URL. Then set its definition. Validate the Data Mart. Publish the Data Mart.\n\nCreating a legacy Data Mart also creates the corresponding legacy resource. Check the list before retrying this operation. Before you set up a Data Mart, call get_owox_guide({topic: "data_mart_setup"}). It gives the order of the setup calls and the rules for a full definition replacement.';
   readonly zodSchema = createDataMartSchema;
   readonly outputSchema = dataMartSummaryOutputSchema.shape;
   readonly annotations = {

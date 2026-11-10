@@ -16,7 +16,7 @@ type Input = z.infer<typeof inputSchema>;
 export class DeleteDataMartRelationshipTool implements McpToolDefinition<Input> {
   readonly name = 'delete_data_mart_relationship';
   readonly description =
-    'Delete a relationship from its source Data Mart. The tool requires editor role and EDIT access to the source Data Mart. Existing Reports and formulas that reference its alias may need changes.';
+    "Delete a relationship from its source Data Mart. The tool requires editor role and EDIT access to the source Data Mart. Existing Reports and formulas that reference its alias may need changes. Get the user's approval before the call.";
   readonly zodSchema = inputSchema;
   readonly outputSchema = {
     data_mart_id: z.string(),

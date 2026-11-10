@@ -73,8 +73,8 @@ type McpOperator = (typeof MCP_OPERATORS)[number];
 
 /**
  * The operators the tools ADVERTISE — in the machine-readable JSON Schema, the tool
- * descriptions, and the field-type matrix: everything accepted minus the legacy
- * null/empty cluster, which only stays parseable for pre-merge callers (#6779).
+ * descriptions, and operators_by_category of the details tool: everything accepted minus
+ * the legacy null/empty cluster, which only stays parseable for pre-merge callers (#6779).
  * Error messages list these — steering a failed call to is_blank, never back to a
  * legacy name.
  */
@@ -200,7 +200,7 @@ export const queryDataMartInputSchema = z
       .array(z.string().min(1))
       .min(1)
       .describe(
-        'Exact field names to return, copied verbatim from get_data_mart_details_by_id. MUST include every field named in aggregations, date_buckets, and sort — a field you aggregate, bucket, or sort but omit here is rejected. Fields here that are neither aggregated nor bucketed become group-by dimensions.'
+        'Exact field names to return, copied verbatim from get_data_mart_details_by_id. MUST include every field named in aggregations, date_buckets, and sort — a field you aggregate, bucket, or sort but omit here is rejected. Fields here that are neither aggregated nor bucketed become group-by dimensions only when the query aggregates (aggregations, date_buckets, a Unique Count field, or a metric Calculated Field in fields or filters); otherwise rows are not grouped.'
       ),
     slices: z
       .array(makeMcpFilterSchema())
@@ -250,7 +250,7 @@ export const SUPPORTED_MCP_OPERATORS = McpOperatorEnum.options;
  * The full operator menu for boolean fields. eq/neq appear here because mapOne
  * translates them (with a boolean value) to the internal is_true/is_false — keep
  * this constant next to that translation so the advertised menu and the mapping
- * cannot drift apart. Consumed by the field-type matrix and the details tool.
+ * cannot drift apart. Consumed by mcpOperatorsForCategory, which the details tool uses.
  */
 export const BOOLEAN_MCP_OPERATORS = ['eq', 'neq', 'is_blank', 'is_not_blank'] as const;
 

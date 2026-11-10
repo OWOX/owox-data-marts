@@ -23,7 +23,7 @@ type DeleteReportRunScheduleInput = z.infer<typeof inputSchema>;
 export class DeleteReportRunScheduleTool implements McpToolDefinition<DeleteReportRunScheduleInput> {
   readonly name = 'delete_report_run_schedule';
   readonly description =
-    'Removes the single report run schedule identified by trigger_id (get it from list_report_run_schedules). Only that schedule is removed — the Report and any other schedules it may have are left intact. The response echoes the removed trigger_id and report_id with schedule: null to confirm that specific schedule is gone; check list_report_run_schedules if you need to know whether other schedules remain.';
+    "Removes the single report run schedule identified by trigger_id (get it from list_report_run_schedules). Only that schedule is removed — the Report and any other schedules it may have are left intact. The response echoes the removed trigger_id and report_id with schedule: null to confirm that specific schedule is gone; check list_report_run_schedules if you need to know whether other schedules remain. Get the user's approval before the call.";
   readonly zodSchema = inputSchema.shape;
   readonly outputSchema = {
     trigger_id: z.string(),
