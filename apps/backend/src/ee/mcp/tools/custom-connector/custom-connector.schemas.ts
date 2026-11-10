@@ -76,7 +76,7 @@ export const testConnectorSchema = z
       .min(1)
       .optional()
       .describe(
-        'Optionally select a saved custom connector Credential that you can use. Its hosts and fields must fit the manifest. Omit its fields from configuration. Without this ID, supply temporary keys in configuration if authentication is required.'
+        'Prefer a saved custom connector Credential that you can use. Its hosts and fields must fit the manifest. Omit its fields from configuration. Without this ID, supply temporary keys in configuration only if the user chooses them.'
       ),
     max_rows: z.number().int().min(1).max(1000).optional(),
     max_pages: z.number().int().min(1).max(50).optional(),

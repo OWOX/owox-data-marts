@@ -17,7 +17,7 @@ type Input = z.infer<typeof setStorageAccessSchema>;
 export class SetStorageAccessTool implements McpToolDefinition<Input> {
   readonly name = 'set_storage_access';
   readonly description =
-    'Replace supplied Storage owners or Contexts and update supplied sharing settings. Omitted settings stay unchanged. Owner and sharing changes require their respective permissions.';
+    'Replace supplied Storage owners or Contexts and update supplied sharing settings. Omitted settings stay unchanged. Owner and sharing changes require their respective permissions. Keep the existing entries that the user still needs.';
   readonly zodSchema = setStorageAccessSchema;
   readonly outputSchema = { storage_id: z.string(), updated: z.boolean() };
   readonly annotations = {

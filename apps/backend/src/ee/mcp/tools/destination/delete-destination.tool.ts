@@ -22,7 +22,7 @@ type Input = z.infer<typeof inputSchema>;
 export class DeleteDestinationTool implements McpToolDefinition<Input> {
   readonly name = 'delete_destination';
   readonly description =
-    'Delete a Destination that has no dependent Reports. The saved Credential remains available. Requires permission to delete the Destination.';
+    "Delete a Destination that has no dependent Reports. The saved Credential remains available. Requires permission to delete the Destination. Inspect get_destination_impact first. Never delete dependent Reports to bypass this restriction. Get the user's approval before the call.";
   readonly zodSchema = inputSchema;
   readonly outputSchema = destinationMutationOutput;
   readonly annotations = {

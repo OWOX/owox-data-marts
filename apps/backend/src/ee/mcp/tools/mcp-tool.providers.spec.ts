@@ -50,6 +50,7 @@ import { PROJECT_SETTINGS_FACADE } from '../../../project-settings/facades/proje
 import { EeModule } from '../../ee.module';
 import { MCP_TOOL_DEFINITIONS, type McpToolDefinition } from './mcp-tool.definition';
 import { MCP_TOOL_DEFINITIONS_PROVIDER, MCP_TOOL_PROVIDER_CLASSES } from './mcp-tool.providers';
+import { MCP_GUIDE_TOPICS } from '../instructions/mcp-guides';
 
 const MAX_TOOL_DESCRIPTION_LENGTH = 4000;
 
@@ -161,6 +162,38 @@ describe('MCP tool providers', () => {
       const toolNames = tools.map(tool => tool.name);
 
       expect(toolNames).toEqual(expect.arrayContaining(['run_report', 'get_report_run_status']));
+
+      // A pointer to a guide that does not exist sends the model to a call that fails.
+      const pointedTopics = tools.flatMap(tool =>
+        [...tool.description.matchAll(/get_owox_guide\(\{topic: "(\w+)"\}\)/g)].map(
+          match => match[1]
+        )
+      );
+      expect([...MCP_GUIDE_TOPICS]).toEqual(expect.arrayContaining(pointedTopics));
+      expect(pointedTopics).toEqual(expect.arrayContaining([...MCP_GUIDE_TOPICS]));
+      // claude.ai drops the server instructions, so each deletion and destructive change asks
+      // for approval itself. The list fails when a tool is added or renamed without the rule.
+      const approvalTools = tools.filter(
+        tool => tool.name.startsWith('delete_') || tool.name === 'rotate_destination_secret_key'
+      );
+      expect(approvalTools.map(tool => tool.name).sort()).toEqual([
+        'delete_context',
+        'delete_credential',
+        'delete_custom_connector',
+        'delete_data_mart',
+        'delete_data_mart_relationship',
+        'delete_data_mart_run_schedule',
+        'delete_destination',
+        'delete_report',
+        'delete_report_run_schedule',
+        'delete_storage',
+        'rotate_destination_secret_key',
+      ]);
+      for (const tool of approvalTools) {
+        expect(`${tool.name}: ${tool.description}`).toMatch(
+          /Get the user's approval before the call\.|Obtain user authorization before deletion\./
+        );
+      }
       expect(toolNames).toEqual(
         expect.arrayContaining([
           'get_connector_fields',
@@ -227,6 +260,7 @@ describe('MCP tool providers', () => {
           'delete_context',
           'list_project_members',
           'get_project_settings',
+          'get_owox_guide',
           'update_project_description',
           'list_custom_connectors',
           'get_custom_connector',

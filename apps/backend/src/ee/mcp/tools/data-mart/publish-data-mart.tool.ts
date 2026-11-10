@@ -18,7 +18,7 @@ type Input = z.input<typeof dataMartIdSchema>;
 export class PublishDataMartTool implements McpToolDefinition<Input> {
   readonly name = 'publish_data_mart';
   readonly description =
-    'Publish a draft Data Mart with its existing owners, Contexts and sharing settings. Review setup first. Validate the definition before publication. Connector publication starts an asynchronous initial run that can replace existing warehouse data. Published status does not mean that data is ready. Check list_data_mart_runs for execution progress before reporting success.';
+    'Publish a draft Data Mart with its existing owners, Contexts and sharing settings. Review setup first. Validate the definition before publication. Connector publication starts an asynchronous initial run that can replace existing warehouse data. Published status does not mean that data is ready. Check list_data_mart_runs for execution progress before reporting success. Before you publish, call get_owox_guide({topic: "data_mart_setup"}). It gives the checks before publication. To follow the initial run, call get_owox_guide({topic: "data_mart_runs"}).';
   readonly zodSchema = dataMartIdSchema;
   readonly outputSchema = dataMartSummaryOutputSchema.shape;
   readonly annotations = {

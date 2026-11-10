@@ -78,7 +78,7 @@ Access tokens are short-lived, and the client refreshes them automatically in th
 
 ### Add project context for your assistant
 
-Project admins can provide up to 10,000 characters of business context, terminology, and project-specific conventions for AI assistants in **Project settings → Overview → Description**. OWOX returns the complete description through `get_project_context`; the MCP instructions tell the assistant to call that tool before its first project-specific operation.
+Project admins can provide up to 10,000 characters of business context, terminology, and project-specific conventions for AI assistants in **Project settings → Overview → Description**. OWOX returns the complete description through `get_project_context`; the MCP instructions and the tool description tell the assistant to call that tool before its first project-specific operation.
 
 Do not put passwords, API keys, or other secrets in the description. All project members can see it, and connected MCP clients may send it to their AI provider. After changing the description, the updated value is available on the next `get_project_context` call; reconnecting the MCP client is not required.
 
@@ -103,7 +103,7 @@ To switch projects, disconnect, then reconnect and sign in again. If you use the
 
 Once connected, the MCP server exposes the following tools across two scopes:
 
-- **`mcp:read`**: discovery and status tools — `summarize_data_catalog`, `get_project_context`, `list_contexts`, `get_context_impact`, `list_project_members`, `get_project_settings`, `list_custom_connectors`, `get_custom_connector`, `get_custom_connector_version`, `get_custom_connector_specification`, `get_custom_connector_fields`, `list_data_marts`, `get_relevant_data_marts_by_prompt`, `get_data_mart_details_by_id`, `list_storages`, `get_storage`, `validate_storage_access`, `list_storage_resources`, `list_destinations`, `get_destination`, `get_destination_impact`, `get_data_mart_reports`, `get_relevant_reports_by_prompt`, `get_report_output_schema`, `list_report_run_schedules`, `get_report_run_status`, `list_credential_definitions`, `list_credentials`, `get_credential`, `get_credential_setup_status`, `get_connector_fields`, `get_connector_specification`, `list_connectors`, `get_data_mart_change_impact`, `get_data_mart_setup`, `list_setup_data_marts`, `get_data_mart_run`, `list_data_mart_run_schedules`, `list_data_mart_runs`, `list_data_mart_relationships`.
+- **`mcp:read`**: discovery and status tools — `get_owox_guide`, `summarize_data_catalog`, `get_project_context`, `list_contexts`, `get_context_impact`, `list_project_members`, `get_project_settings`, `list_custom_connectors`, `get_custom_connector`, `get_custom_connector_version`, `get_custom_connector_specification`, `get_custom_connector_fields`, `list_data_marts`, `get_relevant_data_marts_by_prompt`, `get_data_mart_details_by_id`, `list_storages`, `get_storage`, `validate_storage_access`, `list_storage_resources`, `list_destinations`, `get_destination`, `get_destination_impact`, `get_data_mart_reports`, `get_relevant_reports_by_prompt`, `get_report_output_schema`, `list_report_run_schedules`, `get_report_run_status`, `list_credential_definitions`, `list_credentials`, `get_credential`, `get_credential_setup_status`, `get_connector_fields`, `get_connector_specification`, `list_connectors`, `get_data_mart_change_impact`, `get_data_mart_setup`, `list_setup_data_marts`, `get_data_mart_run`, `list_data_mart_run_schedules`, `list_data_mart_runs`, `list_data_mart_relationships`.
 - **`mcp:write`**: tools that create, change, run, or bill something — `create_context`, `update_context_metadata`, `set_context_members`, `delete_context`, `update_project_description`, `create_custom_connector`, `update_custom_connector`, `save_custom_connector_draft`, `test_custom_connector`, `publish_custom_connector`, `activate_custom_connector_version`, `delete_custom_connector`, `query_data_mart`, `create_storage`, `update_storage`, `set_storage_access`, `delete_storage`, `add_destination`, `update_destination`, `set_destination_access`, `delete_destination`, `rotate_destination_secret_key`, `add_report`, `update_report`, `delete_report`, `create_report_run_schedule`, `update_report_run_schedule`, `delete_report_run_schedule`, `run_report`, `update_credential`, `validate_credential`, `consent_credential_definition`, `delete_credential`, `start_credential_setup`, `preview_connector_field_options`, `preview_connector_fields`, `actualize_data_mart_schema`, `create_data_mart`, `delete_data_mart`, `publish_data_mart`, `set_data_mart_contexts`, `set_data_mart_owners`, `set_data_mart_sharing`, `update_data_mart_definition`, `update_data_mart_description`, `update_data_mart_icon`, `update_data_mart_schema`, `update_data_mart_title`, `validate_data_mart`, `cancel_data_mart_run`, `create_data_mart_run_schedule`, `delete_data_mart_run_schedule`, `run_data_mart`, `update_data_mart_run_schedule`, `create_data_mart_relationship`, `delete_data_mart_relationship`, `preview_data_mart`, `update_data_mart_relationship`. `query_data_mart` and the report-run schedule mutation tools also require `mcp:read`. `query_data_mart` reads data rows, records each call in Run History, and costs [credits](../billing/consumption-units.md) per call. Your MCP client may ask you to confirm before it calls one of these.
 
 Custom connector metadata and schema reads require `mcp:read`. Reading a complete
@@ -114,6 +114,12 @@ Data Mart setup, model, connector, and execution tools follow the scope and perm
 
 Storage and Destination operations enforce resource permissions. See [Storage management](#storage-management)
 and [Destination management](#destination-management).
+
+### `get_owox_guide`
+
+Returns the workflow guide for one topic: `reporting`, `data_mart_setup`, `data_mart_runs`, `credentials`, `storages_destinations`, or `custom_connectors`. The guide is static text and does not read project data.
+
+Some AI clients give the model only part of the MCP server instructions, or none of them. So the instructions stay short, and the longer workflow rules are in these guides. The descriptions of tools that start a multi-step task, such as `add_report`, `create_data_mart`, and `start_credential_setup`, tell the assistant which guide to read. Rules that protect your data, secrets, and numbers are also in the tool descriptions, because an assistant can skip a guide.
 
 ### `summarize_data_catalog`
 
@@ -159,7 +165,7 @@ For an overview of business goals, use `get_project_context` → `list_contexts`
 
 Context descriptions can contain links to specific Data Marts. The assistant can identify the Data Mart from its OWOX URL, then verify access and field names with `get_data_mart_details_by_id`. A link does not attach the Data Mart to the context or grant access to it.
 
-MCP instructions tell assistants to follow description links only when needed for the question, ignore self-references and cycles, and reuse details already obtained for the same project, Data Mart, and detail level. They still allow refreshed details or joined-field details when needed. MCP tools return description text without recursively loading linked descriptions; adherence to the instructions depends on the connected AI client.
+The MCP instructions and the descriptions of `list_contexts` and `get_data_mart_details_by_id` tell assistants to follow a description link only when the question needs that Data Mart, and not to follow a cycle. A link's `?field=` parameter is the URL-encoded technical field name, which the assistant verifies before use. MCP tools return description text without recursively loading linked descriptions; adherence to these rules depends on the connected AI client.
 
 ### Context and project configuration
 
@@ -1098,6 +1104,10 @@ Once the OWOX server is connected, just ask your assistant in plain language. Yo
 Your client may be validating a response against a tool schema cached before a server update.
 Refresh the server's tool list or reconnect the MCP server (in Claude Code, use `/mcp`).
 Then retry the tool call.
+
+### The assistant does not see new tools or tool rules
+
+Some clients keep the tool list from the time when you connected OWOX. For example, ChatGPT keeps the tool list and tool descriptions that it received when you added the app. After an OWOX update, disconnect and reconnect the OWOX app or connector (see [Switch projects or disconnect](#switch-projects-or-disconnect)) to load the new tools, such as `get_owox_guide`.
 
 ### Requests return 401 Unauthorized
 
