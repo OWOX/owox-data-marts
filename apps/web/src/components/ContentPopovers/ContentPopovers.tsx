@@ -14,11 +14,22 @@ export function ContentPopovers() {
   if (!isOpen || !activePopoverId) return null;
 
   const config: PopoverConfig = popoverItems[activePopoverId];
-  const { width = 500, height = 400, position = 'center', title, content: Content } = config;
+  const {
+    width = 500,
+    height = 400,
+    position = 'center',
+    title,
+    content: Content,
+    onDismiss,
+  } = config;
+  const dismiss = () => {
+    onDismiss?.();
+    close();
+  };
 
   return (
     <FloatingPopover width={width} height={height} position={position} onClose={close}>
-      <FloatingPopoverHeader onClose={close}>
+      <FloatingPopoverHeader onClose={dismiss}>
         {title && <FloatingPopoverTitle>{title}</FloatingPopoverTitle>}
       </FloatingPopoverHeader>
       <FloatingPopoverContent>

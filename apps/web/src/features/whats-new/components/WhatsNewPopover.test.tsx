@@ -8,11 +8,9 @@ vi.mock('../model/whats-new.analytics', () => ({ trackWhatsNewEvent: vi.fn() }))
 
 const { useReleaseToAnnounce } = await import('../model/hooks/useReleaseToAnnounce');
 const { trackWhatsNewEvent } = await import('../model/whats-new.analytics');
-const { lastSeenRelease } = await import('../model/last-seen-release');
 const { WhatsNewPopoverContent, WhatsNewPopoverTitle } = await import('./WhatsNewPopover');
 
 const VIDEO = 'https://customer-x.cloudflarestream.com/abc/iframe';
-const STORAGE_KEY = 'whats-new-last-seen-release:user-1';
 const RELEASE: AnnouncedRelease = {
   version: '0.41.0',
   releasedAt: '2026-11-02T14:23:04.000Z',
@@ -80,17 +78,9 @@ describe('WhatsNewPopover', () => {
     expect(link.getAttribute('target')).toBe('_blank');
   });
 
-  it('closes on Later and brings the release back on the next load', () => {
-    localStorage.setItem(STORAGE_KEY, '0.40.0');
-    lastSeenRelease.markShown('user-1', '0.41.0');
-    const onClose = vi.fn();
-    render(<WhatsNewPopoverContent onClose={onClose} />);
-
-    fireEvent.click(screen.getByRole('button', { name: 'Later' }));
-
-    expect(onClose).toHaveBeenCalledOnce();
-    expect(localStorage.getItem(STORAGE_KEY)).toBe('0.40.0');
-    expect(trackWhatsNewEvent).toHaveBeenCalledWith('whats_new_postponed', '0.41.0');
+  it('offers no Later: the card closes only with its ×', () => {
+    render(<WhatsNewPopoverContent />);
+    expect(screen.queryByRole('button', { name: 'Later' })).toBeNull();
   });
 
   it('lists chapters, not changes, when the video has them', () => {

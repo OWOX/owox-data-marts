@@ -11,6 +11,7 @@ import {
   WHATS_NEW_POPOVER_ID,
   WhatsNewPopoverContent,
   WhatsNewPopoverTitle,
+  dismissWhatsNew,
 } from '../../features/whats-new';
 import type { PopoverConfig, PopoverId } from './types';
 
@@ -63,5 +64,6 @@ export const popoverItems: Record<PopoverId, PopoverConfig> = {
     position: 'bottom-left',
     title: createElement(WhatsNewPopoverTitle),
     content: WhatsNewPopoverContent,
+    onDismiss: dismissWhatsNew,
   },
 };

@@ -2,29 +2,26 @@ import { storageService } from '../../../services/localstorage.service';
 
 const KEY_PREFIX = 'whats-new-last-seen-release:';
 
-/** What the card replaced when it opened in this app load, so Later can put it back. */
-let shownInThisLoad: { userId: string; previous: string | null } | null = null;
+/** The release the card shows in this app load, recorded only when the user closes the card. */
+let shownInThisLoad: { userId: string; version: string } | null = null;
 
-function get(userId: string): string | null {
-  return storageService.get(KEY_PREFIX + userId);
-}
-
-/** The last release announced to a user in this browser. */
+/** The last release a user closed the card for, in this browser. */
 export const lastSeenRelease = {
-  get,
-
-  /** The card opened for this release: it does not open again unless the user postpones it. */
-  markShown(userId: string, version: string): void {
-    shownInThisLoad = { userId, previous: get(userId) };
-    storageService.set(KEY_PREFIX + userId, version);
+  get(userId: string): string | null {
+    return storageService.get(KEY_PREFIX + userId);
   },
 
-  /** Later: the card opens again on the next app load. */
-  postpone(): void {
-    if (!shownInThisLoad) return;
-    const { userId, previous } = shownInThisLoad;
+  /** The card opened for this release. It keeps opening on every app load until it is closed. */
+  markShown(userId: string, version: string): void {
+    shownInThisLoad = { userId, version };
+  },
+
+  /** The user closed the card: this release does not open it again. Returns its version. */
+  dismissShown(): string | null {
+    if (!shownInThisLoad) return null;
+    const { userId, version } = shownInThisLoad;
     shownInThisLoad = null;
-    if (previous === null) storageService.remove(KEY_PREFIX + userId);
-    else storageService.set(KEY_PREFIX + userId, previous);
+    storageService.set(KEY_PREFIX + userId, version);
+    return version;
   },
 };

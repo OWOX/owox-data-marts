@@ -45,10 +45,10 @@ export function pickReleaseToAnnounce(
 }
 
 /**
- * Whether to open the card for this release. A release newer than the last one shown opens it.
- * With nothing shown in this browser yet, it opens only once the project has a Data Mart, so a
- * new user starts with the onboarding; nothing is stored then, so the release still opens
- * later, here or in another project that has a Data Mart.
+ * Whether to open the card for this release. A release newer than the last one the user closed
+ * the card for opens it. With no card closed in this browser yet, it opens only once the project
+ * has a Data Mart, so a new user starts with the onboarding and sees the release later, here or
+ * in another project that has a Data Mart.
  */
 export function shouldAnnounce({
   releaseVersion,
@@ -56,7 +56,7 @@ export function shouldAnnounce({
   hasUsedProduct,
 }: {
   releaseVersion: string;
-  /** The last release shown to this user in this browser, if any. */
+  /** The last release this user closed the card for in this browser, if any. */
   lastSeenVersion: string | null;
   /** The current project already has a Data Mart. */
   hasUsedProduct: boolean;

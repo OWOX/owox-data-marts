@@ -4,7 +4,7 @@ const ACTIONS = {
   whats_new_shown: 'WhatsNewShown',
   whats_new_chapter_played: 'WhatsNewChapterPlayed',
   whats_new_changelog_opened: 'WhatsNewChangelogOpened',
-  whats_new_postponed: 'WhatsNewPostponed',
+  whats_new_dismissed: 'WhatsNewDismissed',
 } as const;
 
 export type WhatsNewEvent = keyof typeof ACTIONS;

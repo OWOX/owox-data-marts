@@ -3,7 +3,6 @@ import { Check, ExternalLink } from 'lucide-react';
 import { Button } from '@owox/ui/components/button';
 import { cn } from '@owox/ui/lib/utils';
 import { useReleaseToAnnounce } from '../model/hooks/useReleaseToAnnounce';
-import { lastSeenRelease } from '../model/last-seen-release';
 import { changelogUrl, formatChapterTime, playerUrl } from '../model/links';
 import { trackWhatsNewEvent } from '../model/whats-new.analytics';
 
@@ -18,9 +17,10 @@ const LISTED_CHANGES = 5;
 /**
  * The release video with its chapters: picking a chapter plays the video from that scene. A
  * release without a video, or without chapters, lists its changes instead. The changelog link
- * opens the release's full notes. Later closes the card until the next app load.
+ * opens the release's full notes. The card keeps opening on every app load until its × is
+ * clicked.
  */
-export function WhatsNewPopoverContent({ onClose }: { onClose?: () => void }) {
+export function WhatsNewPopoverContent() {
   const { release } = useReleaseToAnnounce();
   // Each pick reloads the player, also when the same chapter is picked again.
   const [playback, setPlayback] = useState<{ startTime: number | null; picks: number }>({
@@ -97,7 +97,7 @@ export function WhatsNewPopoverContent({ onClose }: { onClose?: () => void }) {
         </ul>
       )}
 
-      <div className='flex items-center gap-2'>
+      <div>
         <Button size='sm' asChild>
           <a
             href={changelogUrl(version)}
@@ -110,17 +110,6 @@ export function WhatsNewPopoverContent({ onClose }: { onClose?: () => void }) {
             Read the changelog
             <ExternalLink className='size-4' />
           </a>
-        </Button>
-        <Button
-          size='sm'
-          variant='outline'
-          onClick={() => {
-            lastSeenRelease.postpone();
-            trackWhatsNewEvent('whats_new_postponed', version);
-            onClose?.();
-          }}
-        >
-          Later
         </Button>
       </div>
     </div>

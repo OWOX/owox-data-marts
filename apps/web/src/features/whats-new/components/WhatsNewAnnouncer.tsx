@@ -11,9 +11,10 @@ import { lastSeenRelease } from '../model/last-seen-release';
 import { trackWhatsNewEvent } from '../model/whats-new.analytics';
 
 /**
- * Opens the What's new popover once per release, on the first app load after the release video
- * is published. It stays closed in view-only sessions and never replaces a popover that is
- * already open; that load is skipped and the next one tries again.
+ * Opens the What's new popover on every app load once a release is ready to announce, until the
+ * user closes it with its ×: only then is the release recorded as seen. It stays closed in
+ * view-only sessions and never replaces a popover that is already open; that load is skipped and
+ * the next one tries again.
  */
 export function WhatsNewAnnouncer() {
   const user = useUser();

@@ -22,6 +22,7 @@ const { useContentPopovers } = await import('../../../app/store/hooks/useContent
 const { useUser } = await import('../../idp/hooks/useAuthState');
 const { trackWhatsNewEvent } = await import('../model/whats-new.analytics');
 const { WhatsNewAnnouncer } = await import('./WhatsNewAnnouncer');
+const { dismissWhatsNew } = await import('../model/dismiss');
 
 const STORAGE_KEY = 'whats-new-last-seen-release:user-1';
 const RELEASE: AnnouncedRelease = {
@@ -66,14 +67,32 @@ describe('WhatsNewAnnouncer', () => {
   });
   afterEach(cleanup);
 
-  it('opens the popover for a release newer than the one last seen', () => {
+  it('opens the popover for a release newer than the one last closed', () => {
     localStorage.setItem(STORAGE_KEY, '0.40.0');
     setup();
     render(<WhatsNewAnnouncer />);
 
     expect(open).toHaveBeenCalledWith('whats-new');
-    expect(localStorage.getItem(STORAGE_KEY)).toBe('0.41.0');
     expect(trackWhatsNewEvent).toHaveBeenCalledWith('whats_new_shown', '0.41.0');
+  });
+
+  it('keeps opening on every app load until the user closes it with ×', () => {
+    localStorage.setItem(STORAGE_KEY, '0.40.0');
+    setup();
+
+    render(<WhatsNewAnnouncer />);
+    cleanup();
+    render(<WhatsNewAnnouncer />);
+    expect(open).toHaveBeenCalledTimes(2);
+    expect(localStorage.getItem(STORAGE_KEY)).toBe('0.40.0');
+
+    dismissWhatsNew();
+    expect(localStorage.getItem(STORAGE_KEY)).toBe('0.41.0');
+    expect(trackWhatsNewEvent).toHaveBeenCalledWith('whats_new_dismissed', '0.41.0');
+
+    cleanup();
+    render(<WhatsNewAnnouncer />);
+    expect(open).toHaveBeenCalledTimes(2);
   });
 
   it('opens the popover for a returning user seen for the first time in this browser', () => {
