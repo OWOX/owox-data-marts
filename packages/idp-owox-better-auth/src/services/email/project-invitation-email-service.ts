@@ -12,7 +12,19 @@ const ROLE_DISPLAY_NAMES: Record<Role, string> = {
   viewer: 'Business User',
 };
 
-const DEFAULT_RETRY_DELAYS_MS: readonly number[] = [1000, 3000];
+/**
+ * The invite request waits for this email, so the whole send stays well under the
+ * web client's 30 s timeout: at most 3 attempts of 5 s with 0.5 s and 1.5 s pauses.
+ */
+const DEFAULT_RETRY_DELAYS_MS: readonly number[] = [500, 1500];
+const DEFAULT_ATTEMPT_TIMEOUT_MS = 5000;
+
+export interface ProjectInvitationEmailOptions {
+  /** Pauses between attempts; there is one more attempt than pauses. */
+  retryDelaysMs?: readonly number[];
+  /** How long one attempt may take before it is aborted. */
+  attemptTimeoutMs?: number;
+}
 
 interface InvitationViewModel {
   subject: string;
@@ -43,17 +55,20 @@ export class ProjectInvitationEmailService {
   private readonly logger = createServiceLogger(ProjectInvitationEmailService.name);
   private readonly template: string;
   private readonly appBaseUrl: string;
+  private readonly retryDelaysMs: readonly number[];
+  private readonly attemptTimeoutMs: number;
 
   /**
    * @param appBaseUrl public origin of the app; the email links to the project there.
-   * @param retryDelaysMs pauses between attempts; one more attempt than delays.
    */
   constructor(
     private readonly emailProvider: EmailProvider,
     appBaseUrl: string,
-    private readonly retryDelaysMs: readonly number[] = DEFAULT_RETRY_DELAYS_MS
+    options: ProjectInvitationEmailOptions = {}
   ) {
     this.appBaseUrl = appBaseUrl.replace(/\/+$/, '');
+    this.retryDelaysMs = options.retryDelaysMs ?? DEFAULT_RETRY_DELAYS_MS;
+    this.attemptTimeoutMs = options.attemptTimeoutMs ?? DEFAULT_ATTEMPT_TIMEOUT_MS;
     this.template = readFileSync(resolveResourcePath('templates/email/action-email.ejs'), 'utf-8');
   }
 
@@ -79,6 +94,7 @@ export class ProjectInvitationEmailService {
           bodyText: plainText,
           categories: ['transactional', 'project-invitation'],
           isMultiple: false,
+          signal: AbortSignal.timeout(this.attemptTimeoutMs),
         });
         return;
       } catch (error) {

@@ -26,6 +26,8 @@ export type InviteMemberResponse =
       role: Role;
       kind: 'email-sent';
       userId?: string;
+      /** `false`: the member was invited, but the invitation email could not be sent. */
+      emailDelivered?: boolean;
       message?: string;
     }
   | {

@@ -508,14 +508,19 @@ describe('ProjectMembersService', () => {
   // immediately. These tests pin that mapping down so future refactors can't
   // silently drop the userId.
   describe('inviteMember', () => {
-    function setup() {
+    function setup(options: ProjectMembersServiceOptions = {}) {
       const store = createStoreMock();
       const identityClient = createIdentityClientMock();
       const invitationEmailService = createInvitationEmailServiceMock();
       identityClient.inviteProjectMember.mockResolvedValue({ userUid: 'new-user-uid' });
       identityClient.getProjectForUser.mockResolvedValue({ id: 'project-1', title: 'Acme' });
       store.getUserByBiUserId.mockResolvedValue({ id: 'u-1', email: 'admin@example.com' });
-      const service = new ProjectMembersService(store, identityClient, invitationEmailService);
+      const service = new ProjectMembersService(
+        store,
+        identityClient,
+        invitationEmailService,
+        options
+      );
       return { store, identityClient, invitationEmailService, service };
     }
 
@@ -549,6 +554,7 @@ describe('ProjectMembersService', () => {
         role: 'editor',
         kind: 'email-sent',
         userId: 'new-user-uid',
+        emailDelivered: true,
         message: 'Invitation email sent to new@example.com',
       });
     });
@@ -583,6 +589,19 @@ describe('ProjectMembersService', () => {
       });
     });
 
+    it('does not wait long for a slow project title lookup', async () => {
+      const { identityClient, invitationEmailService, service } = setup({
+        invitationLookupTimeoutMs: 10,
+      });
+      identityClient.getProjectForUser.mockReturnValue(new Promise(() => undefined));
+
+      await service.inviteMember('project-1', 'new@example.com', 'editor', 'admin-1');
+
+      expect(invitationEmailService.send).toHaveBeenCalledWith(
+        expect.objectContaining({ projectTitle: undefined, inviterEmail: 'admin@example.com' })
+      );
+    });
+
     it('keeps the invitation when the email cannot be sent and tells the admin', async () => {
       const { invitationEmailService, service } = setup();
       invitationEmailService.send.mockRejectedValue(new Error('SendGrid responded 500'));
@@ -598,6 +617,7 @@ describe('ProjectMembersService', () => {
         expect.objectContaining({
           kind: 'email-sent',
           userId: 'new-user-uid',
+          emailDelivered: false,
           message:
             'new@example.com was invited, but the invitation email could not be sent. Please let them know yourself.',
         })

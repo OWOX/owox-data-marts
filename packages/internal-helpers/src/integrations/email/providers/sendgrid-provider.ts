@@ -64,6 +64,7 @@ export class SendgridMailingProvider implements EmailProvider {
           content,
           categories: options?.categories,
         }),
+        signal: options?.signal,
       });
     } catch (error) {
       // fetch says only 'fetch failed'; callers retry on 'network' or the errno code.

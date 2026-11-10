@@ -6,6 +6,7 @@ import type {
 } from '@owox/idp-protocol';
 import type { IdentityOwoxClient } from '../../client/index.js';
 import {
+  DEFAULT_INVITATION_LOOKUP_TIMEOUT_MS,
   DEFAULT_OWOX_CLIENT_TIMEOUT_MS,
   DEFAULT_PROJECT_MEMBERS_CACHE_TTL_SECONDS,
 } from '../../core/constants.js';
@@ -24,6 +25,7 @@ export class ProjectMembersService {
 
   private readonly ttlSeconds: number;
   private readonly owoxClientTimeoutMs: number;
+  private readonly invitationLookupTimeoutMs: number;
 
   constructor(
     private readonly store: DatabaseStore,
@@ -33,6 +35,8 @@ export class ProjectMembersService {
   ) {
     this.ttlSeconds = options.ttlSeconds ?? DEFAULT_PROJECT_MEMBERS_CACHE_TTL_SECONDS;
     this.owoxClientTimeoutMs = options.owoxClientTimeoutMs ?? DEFAULT_OWOX_CLIENT_TIMEOUT_MS;
+    this.invitationLookupTimeoutMs =
+      options.invitationLookupTimeoutMs ?? DEFAULT_INVITATION_LOOKUP_TIMEOUT_MS;
   }
 
   /**
@@ -229,8 +233,8 @@ export class ProjectMembersService {
    * lets the caller controller attach scope + contexts immediately.
    *
    * The membership exists once the Identity call succeeds, so a failed email
-   * does not fail the invitation: the admin gets a message to tell the person
-   * themselves.
+   * does not fail the invitation: `emailDelivered: false` and the message tell
+   * the admin to let the person know themselves.
    */
   async inviteMember(
     projectId: string,
@@ -244,14 +248,15 @@ export class ProjectMembersService {
       role,
       actorUserId
     );
-    const emailSent = await this.sendInvitationEmail(projectId, email, role, actorUserId);
+    const emailDelivered = await this.sendInvitationEmail(projectId, email, role, actorUserId);
     return {
       projectId,
       email,
       role,
       kind: 'email-sent',
       userId: response.userUid,
-      message: emailSent
+      emailDelivered,
+      message: emailDelivered
         ? `Invitation email sent to ${email}`
         : `${email} was invited, but the invitation email could not be sent. Please let them know yourself.`,
     };
@@ -263,9 +268,10 @@ export class ProjectMembersService {
     role: Role,
     actorUserId: string
   ): Promise<boolean> {
+    // The invite request waits for the email, so slow lookups only drop their detail.
     const [projectTitle, inviterEmail] = await Promise.all([
-      this.findProjectTitle(projectId, actorUserId),
-      this.findUserEmail(projectId, actorUserId),
+      this.withLookupTimeout(this.findProjectTitle(projectId, actorUserId)),
+      this.withLookupTimeout(this.findUserEmail(projectId, actorUserId)),
     ]);
 
     try {
@@ -284,6 +290,20 @@ export class ProjectMembersService {
         error
       );
       return false;
+    }
+  }
+
+  private async withLookupTimeout(
+    lookup: Promise<string | undefined>
+  ): Promise<string | undefined> {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timeout = new Promise<undefined>(resolve => {
+      timer = setTimeout(() => resolve(undefined), this.invitationLookupTimeoutMs);
+    });
+    try {
+      return await Promise.race([lookup, timeout]);
+    } finally {
+      clearTimeout(timer);
     }
   }
 

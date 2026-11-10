@@ -297,6 +297,12 @@ export class InviteMemberResponseApiDto {
   @ApiPropertyOptional()
   expiresAt?: string;
 
+  @ApiPropertyOptional({
+    description:
+      'Present when `kind` is `email-sent` and the IDP reports delivery. `false`: the member was invited, but the invitation email could not be sent, so the admin should tell them.',
+  })
+  emailDelivered?: boolean;
+
   @ApiPropertyOptional()
   message?: string;
 

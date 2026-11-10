@@ -2,7 +2,14 @@ import { describe, expect, it, jest } from '@jest/globals';
 import type { EmailProvider } from '@owox/internal-helpers';
 import { ProjectInvitationEmailService } from './project-invitation-email-service.js';
 
-type SendArgs = [string, string, string, { bodyText: string; categories: string[] }];
+const NO_RETRIES = { retryDelaysMs: [] };
+
+type SendArgs = [
+  string,
+  string,
+  string,
+  { bodyText: string; categories: string[]; signal?: AbortSignal },
+];
 
 function createProvider() {
   const sendEmail = jest.fn<EmailProvider['sendEmail']>(async () => undefined);
@@ -12,7 +19,9 @@ function createProvider() {
 describe('ProjectInvitationEmailService', () => {
   it('sends the invitation with project, inviter, role name and project link', async () => {
     const { sendEmail, provider } = createProvider();
-    const service = new ProjectInvitationEmailService(provider, 'https://app.example.com/', []);
+    const service = new ProjectInvitationEmailService(provider, 'https://app.example.com/', {
+      retryDelaysMs: [],
+    });
 
     await service.send({
       email: 'new@example.com',
@@ -49,7 +58,11 @@ describe('ProjectInvitationEmailService', () => {
 
   it('uses UI role names', async () => {
     const { sendEmail, provider } = createProvider();
-    const service = new ProjectInvitationEmailService(provider, 'https://app.example.com', []);
+    const service = new ProjectInvitationEmailService(
+      provider,
+      'https://app.example.com',
+      NO_RETRIES
+    );
 
     await service.send({ email: 'a@example.com', role: 'admin', projectId: 'p-1' });
     await service.send({ email: 'b@example.com', role: 'viewer', projectId: 'p-1' });
@@ -60,7 +73,11 @@ describe('ProjectInvitationEmailService', () => {
 
   it('reads without a project title or inviter', async () => {
     const { sendEmail, provider } = createProvider();
-    const service = new ProjectInvitationEmailService(provider, 'https://app.example.com', []);
+    const service = new ProjectInvitationEmailService(
+      provider,
+      'https://app.example.com',
+      NO_RETRIES
+    );
 
     await service.send({ email: 'new@example.com', role: 'viewer', projectId: 'p-1' });
 
@@ -73,7 +90,11 @@ describe('ProjectInvitationEmailService', () => {
 
   it('keeps project titles from turning into links and escapes HTML', async () => {
     const { sendEmail, provider } = createProvider();
-    const service = new ProjectInvitationEmailService(provider, 'https://app.example.com', []);
+    const service = new ProjectInvitationEmailService(
+      provider,
+      'https://app.example.com',
+      NO_RETRIES
+    );
 
     await service.send({
       email: 'new@example.com',
@@ -92,17 +113,37 @@ describe('ProjectInvitationEmailService', () => {
   it('retries a failed send', async () => {
     const { sendEmail, provider } = createProvider();
     sendEmail.mockRejectedValueOnce(new Error('SendGrid network error'));
-    const service = new ProjectInvitationEmailService(provider, 'https://app.example.com', [0]);
+    const service = new ProjectInvitationEmailService(provider, 'https://app.example.com', {
+      retryDelaysMs: [0],
+    });
 
     await service.send({ email: 'new@example.com', role: 'viewer', projectId: 'p-1' });
 
     expect(sendEmail).toHaveBeenCalledTimes(2);
   });
 
+  it('gives every attempt its own time limit', async () => {
+    const { sendEmail, provider } = createProvider();
+    sendEmail.mockRejectedValueOnce(new Error('SendGrid network error: TimeoutError'));
+    const service = new ProjectInvitationEmailService(provider, 'https://app.example.com', {
+      retryDelaysMs: [0],
+      attemptTimeoutMs: 50,
+    });
+
+    await service.send({ email: 'new@example.com', role: 'viewer', projectId: 'p-1' });
+
+    const signals = sendEmail.mock.calls.map(call => (call as SendArgs)[3].signal);
+    expect(signals).toHaveLength(2);
+    expect(signals[0]).toBeInstanceOf(AbortSignal);
+    expect(signals[1]).not.toBe(signals[0]);
+  });
+
   it('throws the last error when every attempt fails', async () => {
     const { sendEmail, provider } = createProvider();
     sendEmail.mockRejectedValue(new Error('SendGrid responded 500'));
-    const service = new ProjectInvitationEmailService(provider, 'https://app.example.com', [0, 0]);
+    const service = new ProjectInvitationEmailService(provider, 'https://app.example.com', {
+      retryDelaysMs: [0, 0],
+    });
 
     await expect(
       service.send({ email: 'new@example.com', role: 'viewer', projectId: 'p-1' })

@@ -16,7 +16,7 @@ In OWOX projects, only **Project Admins** manage the member list (invite, role c
 
 In OWOX-managed projects, the person gets an email from OWOX Data Marts right away. It names the project, who invited them, and their role. The **Accept invitation** button opens the project, where they sign in with the invited email.
 
-If the email can't be sent, the invitation still stands and you see a message about it. Send the person the project link yourself.
+If the email can't be sent, the invitation still stands and a notice names who didn't get it. Send them the project link yourself.
 
 In self-hosted installations, you get a one-time invitation link to copy and share instead.
 

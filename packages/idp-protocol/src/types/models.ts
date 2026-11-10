@@ -100,6 +100,11 @@ export type ProjectMemberInvitation =
       role: Role;
       kind: 'email-sent';
       userId?: string;
+      /**
+       * `false` when the invitation exists but its email could not be sent, so the
+       * admin has to tell the person. Absent when the provider does not report it.
+       */
+      emailDelivered?: boolean;
       message?: string;
     }
   | {

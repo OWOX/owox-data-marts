@@ -25,6 +25,14 @@ describe('SendgridMailingProvider', () => {
     return { url, init: init as RequestInit, body: JSON.parse(String(init?.body)) };
   };
 
+  it('passes the abort signal to fetch', async () => {
+    const controller = new AbortController();
+    await provider.sendEmail('a@owox.test', 'Report', '<p>hi</p>', {
+      signal: controller.signal,
+    });
+    expect(sentRequest().init.signal).toBe(controller.signal);
+  });
+
   it('sends each recipient a separate email by default', async () => {
     await provider.sendEmail(['a@owox.test', 'b@owox.test'], 'Report', '<p>hi</p>');
 
