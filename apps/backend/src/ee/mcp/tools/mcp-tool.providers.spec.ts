@@ -51,6 +51,8 @@ import { EeModule } from '../../ee.module';
 import { MCP_TOOL_DEFINITIONS, type McpToolDefinition } from './mcp-tool.definition';
 import { MCP_TOOL_DEFINITIONS_PROVIDER, MCP_TOOL_PROVIDER_CLASSES } from './mcp-tool.providers';
 
+const MAX_TOOL_DESCRIPTION_LENGTH = 4000;
+
 describe('MCP tool providers', () => {
   function moduleMetadata<T>(key: string, module: object): T[] {
     return (Reflect.getMetadata(key, module) ?? []) as T[];
@@ -86,20 +88,8 @@ describe('MCP tool providers', () => {
     );
   });
 
-  it('resolves tools through Nest and exposes Context/project setup through the MCP SDK', async () => {
-    const membersFacade = {
-      listProjectMembers: jest.fn().mockResolvedValue([
-        {
-          userId: 'member-1',
-          email: 'analyst@example.test',
-          displayName: 'Analyst',
-          role: 'viewer',
-          roleScope: 'selected_contexts',
-          contextIds: ['context-1'],
-        },
-      ]),
-    };
-    const moduleRef = await Test.createTestingModule({
+  function compileToolsModule(membersFacade: object = {}) {
+    return Test.createTestingModule({
       providers: [
         ...MCP_TOOL_PROVIDER_CLASSES,
         MCP_TOOL_DEFINITIONS_PROVIDER,
@@ -133,6 +123,38 @@ describe('MCP tool providers', () => {
         },
       ],
     }).compile();
+  }
+
+  // Claude Code keeps the first 4,096 characters of a tool description; claude.ai cut one
+  // between 4,027 and 4,117, so the limit stays below the longest description it kept.
+  it('keeps every tool description within 4,000 characters', async () => {
+    const moduleRef = await compileToolsModule();
+    try {
+      const tooLong = moduleRef
+        .get<McpToolDefinition[]>(MCP_TOOL_DEFINITIONS)
+        .filter(tool => tool.description.length > MAX_TOOL_DESCRIPTION_LENGTH)
+        .map(tool => `${tool.name}: ${tool.description.length}`);
+
+      expect(tooLong).toEqual([]);
+    } finally {
+      await moduleRef.close();
+    }
+  });
+
+  it('resolves tools through Nest and exposes Context/project setup through the MCP SDK', async () => {
+    const membersFacade = {
+      listProjectMembers: jest.fn().mockResolvedValue([
+        {
+          userId: 'member-1',
+          email: 'analyst@example.test',
+          displayName: 'Analyst',
+          role: 'viewer',
+          roleScope: 'selected_contexts',
+          contextIds: ['context-1'],
+        },
+      ]),
+    };
+    const moduleRef = await compileToolsModule(membersFacade);
 
     try {
       const tools = moduleRef.get<McpToolDefinition[]>(MCP_TOOL_DEFINITIONS);
