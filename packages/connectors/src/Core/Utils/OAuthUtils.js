@@ -29,7 +29,19 @@ var OAuthUtils = {
    * @param {Object} [options.headers] - Additional request headers
    * @returns {Promise<string>} - The access token
    */
-  async getAccessToken({ context, tokenUrl, formData, headers = {} }) {
+  async getAccessToken(options) {
+    const { access_token: accessToken } = await this.getTokenResponse(options);
+    return accessToken;
+  },
+
+  /**
+   * The same request as `getAccessToken`, returning the whole token response, so a caller can
+   * reuse the token for the `expires_in` the provider gives.
+   *
+   * @param {Object} options - As for `getAccessToken`
+   * @returns {Promise<Object>} - The parsed token response, with a non-empty `access_token`
+   */
+  async getTokenResponse({ context, tokenUrl, formData, headers = {} }) {
     const requestHeaders = {
       'Content-Type': 'application/x-www-form-urlencoded',
       ...headers,
@@ -82,7 +94,7 @@ var OAuthUtils = {
         context.log(LOG_LEVEL.INFO, 'Successfully obtained access token');
       }
 
-      return json.access_token;
+      return json;
     } catch (error) {
       const wrapped = new Error(`Failed to get access token: ${error.message}`);
       wrapped.isWarning = error.isWarning;

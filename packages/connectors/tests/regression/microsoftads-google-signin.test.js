@@ -149,6 +149,9 @@ function stubFetch(route) {
   };
 }
 
+const fetchCampaigns = source =>
+  source.fetchData({ nodeName: 'campaigns', accountId: '123456789', fields: ['Id'] });
+
 const fetchAdPerformance = source =>
   source.fetchData({
     nodeName: 'ad_performance_report',
@@ -186,10 +189,12 @@ test('a Google client ID typed with a trailing line break is sent without it', a
   assert.equal(requests[0].body.client_id, GOOGLE_CLIENT_ID);
 });
 
-test('a Google access token serves every day of the run', async () => {
+test('a Google access token serves every day of the run while it is valid', async () => {
   const { source } = makeSource(GOOGLE_CLIENT_ID);
   stubFetch(url => {
-    if (url.includes('/token')) return jsonResponse({ access_token: 'access-token' });
+    if (url.includes('/token')) {
+      return jsonResponse({ access_token: 'access-token', expires_in: 3599 });
+    }
     if (url.endsWith('/GenerateReport/Submit')) return jsonResponse({ ReportRequestId: 'r1' });
     return jsonResponse({ ReportRequestStatus: { Status: 'Success', ReportDownloadUrl: null } });
   });
@@ -198,6 +203,16 @@ test('a Google access token serves every day of the run', async () => {
   await fetchAdPerformance(source);
 
   assert.equal(requests.filter(request => request.url.includes('/token')).length, 1);
+});
+
+test('a Google access token without a lifetime is refreshed for every request', async () => {
+  const { source } = makeSource(GOOGLE_CLIENT_ID);
+  stubFetch(() => jsonResponse({ access_token: 'access-token' }));
+
+  await source.getAccessToken();
+  await source.getAccessToken();
+
+  assert.equal(requests.length, 2);
 });
 
 test('a revoked Google grant is a warning: the user must reconnect', async () => {
@@ -281,6 +296,75 @@ test('error 126 on a run says when the server does not offer Sign in with Google
   );
 });
 
+test('error 126 on a Reporting poll is handled like one on the Submit', async () => {
+  Object.assign(process.env, GOOGLE_SIGN_IN_ENV);
+  const { source } = makeSource(MICROSOFT_CLIENT_ID);
+  stubFetch(url => {
+    if (url.includes('/token')) return jsonResponse({ access_token: 'access-token' });
+    if (url.endsWith('/GenerateReport/Submit')) return jsonResponse({ ReportRequestId: 'r1' });
+    return jsonResponse(IDENTITY_TYPE_MISMATCH, 400);
+  });
+
+  const isMismatch = error => {
+    assert.match(error.message, /Reconnect the Credential: Sign in with Google/);
+    assert.equal(error.isWarning, true);
+    return true;
+  };
+  await assert.rejects(fetchAdPerformance(source), isMismatch);
+  requests = [];
+  await assert.rejects(fetchAdPerformance(source), isMismatch);
+  assert.deepEqual(requests, [], 'the next day must not ask Microsoft Advertising again');
+});
+
+test('a failed Reporting poll reads as the API message and is a warning on 401', async () => {
+  const { source } = makeSource(MICROSOFT_CLIENT_ID);
+  stubFetch(url => {
+    if (url.includes('/token')) return jsonResponse({ access_token: 'access-token' });
+    if (url.endsWith('/GenerateReport/Submit')) return jsonResponse({ ReportRequestId: 'r1' });
+    return jsonResponse(
+      {
+        Errors: [{ Code: 105, ErrorCode: 'InvalidCredentials', Message: 'Authentication failed.' }],
+      },
+      401
+    );
+  });
+
+  await assert.rejects(fetchAdPerformance(source), error => {
+    assert.equal(error.message, 'HTTP 401: Authentication failed. (105 InvalidCredentials)');
+    assert.equal(error.isWarning, true);
+    return true;
+  });
+});
+
+test('error 126 in the errors of a failed Bulk download status is handled the same way', async () => {
+  const { source } = makeSource(GOOGLE_CLIENT_ID);
+  stubFetch(url => {
+    if (url.includes('/token')) return jsonResponse({ access_token: 'access-token' });
+    if (url.endsWith('/Campaigns/DownloadByAccountIds')) {
+      return jsonResponse({ DownloadRequestId: 'd1' });
+    }
+    return jsonResponse({ RequestStatus: 'Failed', Errors: IDENTITY_TYPE_MISMATCH.Errors });
+  });
+
+  await assert.rejects(fetchCampaigns(source), error => {
+    assert.match(error.message, /Reconnect the Credential: Sign in with Microsoft\./);
+    assert.equal(error.isWarning, true);
+    return true;
+  });
+});
+
+test('error 126 advice on a run survives an unexpected parameter schema', async () => {
+  const { source } = makeSource(MICROSOFT_CLIENT_ID);
+  source.parameters = {};
+  stubFetch(url =>
+    url.includes('/token')
+      ? jsonResponse({ access_token: 'access-token' })
+      : jsonResponse(IDENTITY_TYPE_MISMATCH, 400)
+  );
+
+  await assert.rejects(fetchAdPerformance(source), /error 126 IdentityTypeMismatch/);
+});
+
 test('error 126 in the operation errors of a Submit answer is handled the same way', async () => {
   const { source } = makeSource(MICROSOFT_CLIENT_ID);
   stubFetch(url =>
@@ -326,9 +410,6 @@ test('other Microsoft Advertising errors read as their own message, not raw JSON
     return true;
   });
 });
-
-const fetchCampaigns = source =>
-  source.fetchData({ nodeName: 'campaigns', accountId: '123456789', fields: ['Id'] });
 
 test('a Google Credential sends IdentityProvider on Bulk requests', async () => {
   const { source } = makeSource(GOOGLE_CLIENT_ID);
@@ -404,6 +485,46 @@ test('a Keywords batch failure names Keywords and the API message and stays a wa
   );
   const failure = logs.find(log => log.message.startsWith('Failed to fetch keywords'));
   assert.equal(failure.level, 'warn', 'a failure the user must fix is not an ops error');
+});
+
+test('a Keywords batch over the 100MB limit is split even when a later error names the limit', async () => {
+  const { source } = makeSource(MICROSOFT_CLIENT_ID);
+  const campaignIds = Array.from({ length: 20 }, (_, index) => String(index + 1));
+  stubFetch((url, body) =>
+    body.Campaigns?.length > 1
+      ? jsonResponse(
+          {
+            Errors: [
+              { Code: 3200, ErrorCode: 'BulkServiceErrorOccurred', Message: 'Download failed.' },
+              { Code: 3201, Message: 'The file exceeds the 100MB limit.' },
+            ],
+          },
+          400
+        )
+      : jsonResponse(
+          {
+            Errors: [
+              { Code: 105, ErrorCode: 'InvalidCredentials', Message: 'Authentication failed.' },
+            ],
+          },
+          401
+        )
+  );
+
+  await assert.rejects(
+    source._fetchEntityByCampaigns({
+      accountId: '123456789',
+      entityType: 'Keywords',
+      campaignIds,
+      onBatchReady: async () => {},
+    }),
+    /Failed to fetch Keywords: HTTP 401: Authentication failed\./
+  );
+  assert.deepEqual(
+    requests.map(request => request.body.Campaigns.length),
+    [2, 1],
+    'the batch of two is retried one campaign at a time'
+  );
 });
 
 const GOOGLE_VARS = {
@@ -529,6 +650,31 @@ for (const [reason, expected] of [
   });
 }
 
+test('the sign-in type of error 126 comes from its Detail, not from words in its message', async () => {
+  const { source } = makeSource(MICROSOFT_CLIENT_ID);
+  stubFetch(url =>
+    url.includes('login.microsoftonline.com')
+      ? jsonResponse({ access_token: 'microsoft-access', refresh_token: 'microsoft-refresh' })
+      : jsonResponse(
+          {
+            Errors: [
+              {
+                ...IDENTITY_TYPE_MISMATCH.Errors[0],
+                Message: 'Reasons: GoogleAccountIsRequired, PersonalAccountIsRequired.',
+                Detail: 'PersonalAccountIsRequired',
+              },
+            ],
+          },
+          400
+        )
+  );
+
+  await assert.rejects(
+    source.exchangeOauthCredentials({ code: 'code' }, GOOGLE_VARS),
+    /signs in with a personal Microsoft account\./
+  );
+});
+
 test('Sign in with Microsoft hit by 126 GoogleAccountIsRequired on a server without a Google client', async () => {
   const { source } = makeSource(MICROSOFT_CLIENT_ID);
   stubFetch(url =>
@@ -561,10 +707,41 @@ test('Sign in with Microsoft still saves the Credential when GetUser cannot be r
     throw new Error('network down');
   };
 
+  const logs = [];
+  source.context.log = (level, message) => logs.push({ level, message });
+
   const result = await source.exchangeOauthCredentials({ code: 'code' }, GOOGLE_VARS);
 
   assert.equal(result.secret.client_id, MICROSOFT_CLIENT_ID);
   assert.deepEqual(result.user, { id: 'unknown', name: 'Microsoft Ads User' });
+  assert.deepEqual(logs, [
+    {
+      level: 'warn',
+      message:
+        'Microsoft Advertising GetUser failed, the Credential is saved without checking the user: network down',
+    },
+  ]);
+});
+
+test('Sign in with Microsoft logs an unexpected GetUser answer and saves the Credential', async () => {
+  const { source } = makeSource(MICROSOFT_CLIENT_ID);
+  const logs = [];
+  source.context.log = (level, message) => logs.push({ level, message });
+  stubFetch(url =>
+    url.includes('login.microsoftonline.com')
+      ? jsonResponse({ access_token: 'microsoft-access', refresh_token: 'microsoft-refresh' })
+      : jsonResponse(
+          { Errors: [{ Code: 0, ErrorCode: 'InternalError', Message: 'An internal error.' }] },
+          500
+        )
+  );
+
+  const result = await source.exchangeOauthCredentials({ code: 'code' }, GOOGLE_VARS);
+
+  assert.deepEqual(result.user, { id: 'unknown', name: 'Microsoft Ads User' });
+  assert.equal(logs.length, 1);
+  assert.equal(logs[0].level, 'warn');
+  assert.match(logs[0].message, /GetUser answered HTTP 500.*An internal error\. \(InternalError\)/);
 });
 
 test('Sign in with Google is refused when the server has no Google client', async () => {

@@ -186,21 +186,19 @@ describe('_downloadEntity streaming', () => {
     const fileUrl = 'https://bulk.test/result.zip';
     const originalFetch = globalThis.fetch;
     const originalUnzip = globalThis.FileUtils.unzip;
-    // The submit call goes through the source's own retrying fetch; the poll and the
-    // result-file download go through the global fetch the helper uses.
+    // The submit and the poll go through the source's own retrying fetch; the result-file
+    // download goes through the global fetch the helper uses.
     const fakeSource = {
-      urlFetchWithRetry: async () => ({
-        text: async () => JSON.stringify({ DownloadRequestId: 'r1' }),
+      urlFetchWithRetry: async url => ({
+        text: async () =>
+          JSON.stringify(
+            url.includes('BulkDownloadStatus')
+              ? { RequestStatus: 'Completed', ResultFileUrl: fileUrl }
+              : { DownloadRequestId: 'r1' }
+          ),
       }),
     };
-    globalThis.fetch = async url => {
-      if (url.includes('BulkDownloadStatus')) {
-        return {
-          text: async () => JSON.stringify({ RequestStatus: 'Completed', ResultFileUrl: fileUrl }),
-        };
-      }
-      return { arrayBuffer: async () => new ArrayBuffer(0) };
-    };
+    globalThis.fetch = async () => ({ arrayBuffer: async () => new ArrayBuffer(0) });
     globalThis.FileUtils.unzip = () => [
       { getDataAsString: () => 'Id,Name\n1,a\n2,b' },
       { getDataAsString: () => 'Code,Label\n9,x' },

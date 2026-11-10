@@ -425,8 +425,12 @@ export class MicrosoftAdsSource extends AbstractSource {
         signal: AbortSignal.timeout(MicrosoftAdsHelper.GET_USER_TIMEOUT_MS),
       });
       data = JSON.parse(await response.text());
-    } catch {
+    } catch (error) {
       // Unreachable, slow or unreadable: the token exchange worked, so the Credential is saved
+      this.context.log(
+        LOG_LEVEL.WARN,
+        `Microsoft Advertising GetUser failed, the Credential is saved without checking the user: ${error.message}`
+      );
       return fallback;
     }
 
@@ -452,6 +456,10 @@ export class MicrosoftAdsSource extends AbstractSource {
         payload: data,
       });
     }
+    this.context.log(
+      LOG_LEVEL.WARN,
+      `Microsoft Advertising GetUser answered HTTP ${response.status}, the Credential is saved without checking the user: ${MicrosoftAdsHelper.apiErrorMessage(data) ?? 'no user in the response'}`
+    );
     return fallback;
   }
 
@@ -479,10 +487,10 @@ export class MicrosoftAdsSource extends AbstractSource {
       this._oauthClient();
 
     if (MicrosoftAdsHelper.isGoogleClientId(clientId)) {
-      // A Google access token lasts an hour, so every day and node of the run shares it
+      // Every day and node of the run shares the access token while Google says it is valid
       if (this._getAccessTokenValue() && Date.now() < this._googleTokenExpiryTime) return;
       // Google keeps the refresh token unchanged, so nothing is reported back to the host.
-      await OAuthUtils.getAccessToken({
+      const { expires_in: expiresIn } = await OAuthUtils.getTokenResponse({
         context: this.context,
         tokenUrl: MicrosoftAdsHelper.GOOGLE_TOKEN_URL,
         formData: {
@@ -492,7 +500,7 @@ export class MicrosoftAdsSource extends AbstractSource {
           refresh_token: generatedRefreshToken || originalRefreshToken,
         },
       });
-      this._googleTokenExpiryTime = Date.now() + (3600 - 60) * 1000;
+      this._googleTokenExpiryTime = MicrosoftAdsHelper.tokenExpiryTime(expiresIn);
       return;
     }
 
@@ -628,9 +636,10 @@ export class MicrosoftAdsSource extends AbstractSource {
 
   /** The server offers "Sign in with Google": its OAuth variables are set in the environment. */
   _isGoogleSignInConfigured() {
-    const { vars } = this.parameters.AuthType.oneOf.find(
-      option => option.value === 'oauth2'
-    ).oauthParams;
+    const vars = this.parameters?.AuthType?.oneOf?.find(option => option.value === 'oauth2')
+      ?.oauthParams?.vars;
+    // It only shapes the advice of an error message, so an unexpected schema must not throw
+    if (!vars) return false;
     return MicrosoftAdsHelper.isGoogleSignInConfigured(
       Object.fromEntries(Object.entries(vars).map(([name, { key }]) => [name, process.env[key]]))
     );
@@ -891,6 +900,7 @@ export class MicrosoftAdsSource extends AbstractSource {
     const pollResult = await MicrosoftAdsHelper.pollUntilStatus({
       url: pollUrl,
       options: pollOpts,
+      request: (url, options) => this.urlFetchWithRetry(url, options),
       isDone: status => {
         if (!status.RequestStatus || status.RequestStatus === 'Failed') {
           throw new Error('Bulk download failed');
@@ -945,8 +955,11 @@ export class MicrosoftAdsSource extends AbstractSource {
       });
       return recordCount;
     };
+    // The limit can be named in any error of the response, not only the first one the message
+    // shows, so the raw response body is checked too
     const isTooLargeError = error =>
-      !error.isStorageError && error.message && error.message.includes('100MB');
+      !error.isStorageError &&
+      /100\s?MB/i.test(`${error.message ?? ''} ${error.responseBody ?? ''}`);
     // Names the entity but keeps what classifies the failure: an auth or sign-in error is the
     // user's to fix (isWarning), and fetchData reads the API response from `payload`.
     const fetchFailure = error => {
@@ -1187,6 +1200,7 @@ export class MicrosoftAdsSource extends AbstractSource {
     return await MicrosoftAdsHelper.pollUntilStatus({
       url: pollUrl,
       options: pollOpts,
+      request: (url, options) => this.urlFetchWithRetry(url, options),
       isDone: status => {
         if (!status.ReportRequestStatus || status.ReportRequestStatus.Status === 'Error') {
           throw new Error('Report generation failed');

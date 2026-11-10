@@ -22,6 +22,18 @@ const MicrosoftAdsHelper = {
   },
 
   /**
+   * When to refresh an access token that lives `expiresIn` seconds: a minute early, or halfway
+   * through a shorter-lived one. Without a usable `expiresIn` it is refreshed before every use.
+   * @param {number|string} expiresIn - `expires_in` of the token response
+   * @returns {number} Epoch milliseconds
+   */
+  tokenExpiryTime(expiresIn) {
+    const lifetimeMs = Number(expiresIn) * 1000;
+    if (!Number.isFinite(lifetimeMs) || lifetimeMs <= 0) return 0;
+    return Date.now() + lifetimeMs - Math.min(60 * 1000, lifetimeMs / 2);
+  },
+
+  /**
    * The server offers "Sign in with Google" only with its Google client and redirect.
    * @param {Object} vars - The connector's OAuth variables
    * @returns {boolean}
@@ -38,8 +50,39 @@ const MicrosoftAdsHelper = {
    */
   isIdentityTypeMismatch(payload) {
     return MicrosoftAdsHelper.apiErrors(payload).some(
-      error => Number(error?.Code) === 126 || error?.ErrorCode === 'IdentityTypeMismatch'
+      MicrosoftAdsHelper.isIdentityTypeMismatchError
     );
+  },
+
+  /**
+   * @param {Object} error - One error of a Microsoft Advertising API response
+   * @returns {boolean}
+   */
+  isIdentityTypeMismatchError(error) {
+    return Number(error?.Code) === 126 || error?.ErrorCode === 'IdentityTypeMismatch';
+  },
+
+  /**
+   * The sign-in type an error 126 asks for, read from the `Detail` of that error only, so a
+   * message that merely mentions a reason does not decide it.
+   * @param {Object} payload - Parsed error body with error 126
+   * @returns {'GoogleAccountIsRequired'|'PersonalAccountIsRequired'|'WorkAccountIsRequired'|null}
+   */
+  identityTypeMismatchReason(payload) {
+    const reasons = [
+      'GoogleAccountIsRequired',
+      'PersonalAccountIsRequired',
+      'WorkAccountIsRequired',
+    ];
+    for (const error of MicrosoftAdsHelper.apiErrors(payload)) {
+      if (!MicrosoftAdsHelper.isIdentityTypeMismatchError(error)) continue;
+      const details = [error.Detail, error.Details]
+        .filter(detail => typeof detail === 'string')
+        .flatMap(detail => detail.split(/[^A-Za-z]+/));
+      const reason = reasons.find(name => details.includes(name));
+      if (reason) return reason;
+    }
+    return null;
   },
 
   /**
@@ -68,9 +111,8 @@ const MicrosoftAdsHelper = {
   },
 
   /**
-   * What the user should do when Microsoft Advertising rejects the sign-in type of a Credential.
-   * Error 126 names the sign-in type the user needs (GoogleAccountIsRequired,
-   * PersonalAccountIsRequired, WorkAccountIsRequired) when it says it at all.
+   * What the user should do when Microsoft Advertising rejects the sign-in type of a Credential,
+   * following the sign-in type error 126 asks for when it names one.
    * @param {Object} payload - Parsed error body with error 126
    * @param {Object} options
    * @param {boolean} options.signedInWithGoogle - The Credential was signed in with Google
@@ -79,20 +121,20 @@ const MicrosoftAdsHelper = {
    * @returns {string}
    */
   identityTypeMismatchMessage(payload, { signedInWithGoogle, atRun, googleSignInConfigured }) {
-    const reasons = JSON.stringify(MicrosoftAdsHelper.apiErrors(payload));
+    const reason = MicrosoftAdsHelper.identityTypeMismatchReason(payload);
     // Without the server's Google client the form has no such button yet
     const signInWithGoogle = googleSignInConfigured
       ? 'Sign in with Google'
       : 'Sign in with Google once your administrator sets it up for Microsoft Ads on this server';
     let signsInWith;
     let action;
-    if (reasons.includes('GoogleAccountIsRequired')) {
+    if (reason === 'GoogleAccountIsRequired') {
       signsInWith = 'with Google';
       action = signInWithGoogle;
-    } else if (reasons.includes('PersonalAccountIsRequired')) {
+    } else if (reason === 'PersonalAccountIsRequired') {
       signsInWith = 'with a personal Microsoft account';
       action = 'Sign in with Microsoft and choose the personal account';
-    } else if (reasons.includes('WorkAccountIsRequired')) {
+    } else if (reason === 'WorkAccountIsRequired') {
       signsInWith = 'with a work or school Microsoft account';
       action = 'Sign in with Microsoft and choose the work or school account';
     } else if (signedInWithGoogle) {
@@ -105,10 +147,10 @@ const MicrosoftAdsHelper = {
         ? 'Sign in with Google, or Sign in with Microsoft with the other account'
         : `Sign in with Microsoft with the other account, or ${signInWithGoogle}`;
     }
-    const reason = `This Microsoft Advertising user signs in ${signsInWith}.`;
+    const signsIn = `This Microsoft Advertising user signs in ${signsInWith}.`;
     return atRun
-      ? `Microsoft Advertising rejected the Credential (error 126 IdentityTypeMismatch). ${reason} Reconnect the Credential: ${action}.`
-      : `${reason} Use ${action}.`;
+      ? `Microsoft Advertising rejected the Credential (error 126 IdentityTypeMismatch). ${signsIn} Reconnect the Credential: ${action}.`
+      : `${signsIn} Use ${action}.`;
   },
 
   /**
@@ -151,10 +193,12 @@ const MicrosoftAdsHelper = {
    * @param {string} opts.url
    * @param {Object} opts.options
    * @param {function(Object): boolean} opts.isDone
+   * @param {function(string, Object): Promise<Response>} opts.request - The source's
+   *   `urlFetchWithRetry`, so a failed poll names and classifies the API error like any request
    * @param {number} [opts.interval=5000]
    * @returns {Object}
    */
-  async pollUntilStatus({ url, options, isDone, interval = 5000 }) {
+  async pollUntilStatus({ url, options, isDone, request, interval = 5000 }) {
     const startTime = Date.now();
     const timeout = 30 * 60 * 1000; // 30 minutes in ms
     let statusResult;
@@ -164,7 +208,7 @@ const MicrosoftAdsHelper = {
         if (Date.now() - startTime > timeout) {
           throw new Error('Polling timed out after 30 minutes');
         }
-        const response = await fetch(url, options);
+        const response = await request(url, options);
         const text = await response.text();
         statusResult = JSON.parse(text);
 
@@ -176,8 +220,15 @@ const MicrosoftAdsHelper = {
 
       return statusResult;
     } catch (error) {
+      // A failed request already names the API error and keeps its status and payload
+      if (error.statusCode) throw error;
       if (statusResult) {
-        throw new Error(`${error.message}\nAPI Response: ${JSON.stringify(statusResult, null, 2)}`);
+        const failure = new Error(
+          `${error.message}\nAPI Response: ${JSON.stringify(statusResult, null, 2)}`
+        );
+        // The errors of a failed status, error 126 included, are read from `payload`
+        failure.payload = statusResult;
+        throw failure;
       }
       throw error;
     }
