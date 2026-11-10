@@ -329,8 +329,9 @@ send connector-specific backfill fields in `data`, set `runType` to `MANUAL_BACK
 without backfill fields can omit `data`. A connector that reads `StartDate` and `EndDate` accepts
 `YYYY-MM-DD`, or the date part of an ISO-8601 timestamp. A missing or future `EndDate` counts as
 today. The backend rejects a `StartDate` earlier than 2000-01-01. The period has no other length
-limit. The backend runs a period longer than 31 days as a chain of runs. Each run covers one
-part of up to 31 days. A part counts as one connector run once any of its accounts loads
+limit. The backend runs a period that spans several calendar months as a chain of runs. Each
+run covers one calendar month, clipped to the period at both ends (1 January – 15 April runs
+as January, February, March and 1–15 April). A part counts as one connector run once any of its accounts loads
 data. The returned run ID identifies the first part; later parts appear as separate
 runs. A node that is not fetched by date (`isTimeSeries` is absent or `false` in the connector
 fields response) ignores the period and runs once, whatever its length. The API client rejects `data` on implicit or explicit incremental runs before

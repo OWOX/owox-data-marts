@@ -1,9 +1,8 @@
 import {
   BackfillChainMeta,
   backfillSegmentWindow,
-  clampBackfillWindow,
+  calendarMonthWindows,
   countBackfillDays,
-  countBackfillSegments,
   getMaxManualBackfillDays,
   isManualBackfillPayload,
   nextBackfillChainStep,
@@ -122,39 +121,66 @@ describe('manual-backfill-range', () => {
     });
   });
 
-  describe('segments', () => {
+  describe('calendar month windows', () => {
     const range = (startDate: string, endDate: string) => ({ startDate, endDate });
 
-    it.each([
-      [1, 1],
-      [31, 1],
-      [32, 2],
-      [62, 2],
-      [63, 3],
-      [547, 18],
-    ])('covers %i days with %i segments', (days, segments) => {
-      const start = Date.parse('2024-01-01T00:00:00.000Z');
-      const end = new Date(start + (days - 1) * 86_400_000).toISOString().slice(0, 10);
-
-      expect(countBackfillSegments(range('2024-01-01', end), 31)).toBe(segments);
+    it('cuts 1 January – 15 April into January, February, March and 1–15 April', () => {
+      expect(calendarMonthWindows(range('2026-01-01', '2026-04-15'))).toEqual([
+        range('2026-01-01', '2026-01-31'),
+        range('2026-02-01', '2026-02-28'),
+        range('2026-03-01', '2026-03-31'),
+        range('2026-04-01', '2026-04-15'),
+      ]);
     });
 
     it.each([
-      ['one day', range('2026-09-01', '2026-09-01'), '2026-09-01'],
-      ['exactly the limit', range('2026-08-01', '2026-08-31'), '2026-08-31'],
-      ['one day over', range('2026-08-01', '2026-09-01'), '2026-08-31'],
-      ['a leap day inside', range('2024-02-15', '2024-04-30'), '2024-03-16'],
-      ['a year boundary', range('2024-12-15', '2025-01-20'), '2025-01-14'],
-    ])('clamps %s to a window of at most 31 days', (_name, requested, windowEnd) => {
-      expect(clampBackfillWindow(requested, 31)).toEqual({
-        startDate: requested.startDate,
-        endDate: windowEnd,
+      ['one day', range('2026-09-01', '2026-09-01'), [range('2026-09-01', '2026-09-01')]],
+      ['a full month', range('2026-08-01', '2026-08-31'), [range('2026-08-01', '2026-08-31')]],
+      [
+        'a short period crossing a month boundary',
+        range('2026-08-15', '2026-09-10'),
+        [range('2026-08-15', '2026-08-31'), range('2026-09-01', '2026-09-10')],
+      ],
+      [
+        'a leap-year February',
+        range('2024-02-15', '2024-03-05'),
+        [range('2024-02-15', '2024-02-29'), range('2024-03-01', '2024-03-05')],
+      ],
+      [
+        'a year boundary',
+        range('2024-12-15', '2025-01-20'),
+        [range('2024-12-15', '2024-12-31'), range('2025-01-01', '2025-01-20')],
+      ],
+    ])('covers %s', (_name, requested, windows) => {
+      expect(calendarMonthWindows(requested)).toEqual(windows);
+    });
+
+    it('is empty for a reversed or unreadable range', () => {
+      expect(calendarMonthWindows(range('2026-09-10', '2026-09-01'))).toEqual([]);
+      expect(calendarMonthWindows(range('not-a-day', '2026-09-01'))).toEqual([]);
+    });
+
+    it('tiles a long range with whole months, no gap and no overlap, each within 31 days', () => {
+      const requested = range('2024-01-15', '2025-06-30');
+      const windows = calendarMonthWindows(requested);
+
+      expect(windows).toHaveLength(18);
+      expect(windows[0].startDate).toBe(requested.startDate);
+      expect(windows.at(-1)?.endDate).toBe(requested.endDate);
+      expect(windows.reduce((days, w) => days + countBackfillDays(w), 0)).toBe(
+        countBackfillDays(requested)
+      );
+      windows.slice(1).forEach((window, index) => {
+        const previous = windows[index];
+        expect(countBackfillDays(range(previous.endDate, window.startDate))).toBe(2);
+        expect(window.startDate.endsWith('-01')).toBe(true);
       });
+      expect(windows.every(w => countBackfillDays(w) <= 31)).toBe(true);
     });
 
-    it('tiles the requested range with consecutive windows, no gap and no overlap', () => {
+    it('still tiles a fixed-size chain planned before calendar months, no gap and no overlap', () => {
       const requested = range('2024-01-01', '2025-06-30');
-      const total = countBackfillSegments(requested, 31);
+      const total = Math.ceil(countBackfillDays(requested) / 31);
       const windows = Array.from({ length: total }, (_, i) =>
         backfillSegmentWindow(requested, i + 1, 31)
       );
@@ -178,7 +204,7 @@ describe('manual-backfill-range', () => {
       data: { StartDate: '2024-01-01', EndDate: '2025-06-30', AccountId: '42' },
     };
 
-    it('plans a long backfill as segment 1 of a chain, keeping other fields', () => {
+    it('plans a long backfill as part 1 of a calendar-month chain, keeping other fields', () => {
       const plan = planBackfillChain(payload, 'chain-1')!;
 
       expect(plan.payload).toEqual({
@@ -191,16 +217,29 @@ describe('manual-backfill-range', () => {
         requestedEnd: '2025-06-30',
         segmentIndex: 1,
         segmentsTotal: 18,
-        segmentDays: 31,
+        windowing: 'calendar-month',
       });
     });
 
-    it('keeps the segment size the chain was planned with when the default changes', () => {
-      const plannedMeta: BackfillChainMeta = { ...planBackfillChain(payload, 'chain-1')!.meta };
+    it('starts a chain mid-month with a first part that ends at the month end', () => {
+      const plan = planBackfillChain(
+        { runType: 'MANUAL_BACKFILL', data: { StartDate: '2026-01-15', EndDate: '2026-04-15' } },
+        'chain-1'
+      )!;
 
-      // A later release lowering the segment size must not re-tile a chain already running.
+      expect(plan.payload).toMatchObject({
+        data: { StartDate: '2026-01-15', EndDate: '2026-01-31' },
+      });
+      expect(plan.meta.segmentsTotal).toBe(4);
+    });
+
+    it('keeps a chain planned in fixed-size segments on those segments', () => {
+      const { windowing: _windowing, ...planned } = planBackfillChain(payload, 'chain-1')!.meta;
+      const legacyMeta: BackfillChainMeta = { ...planned, segmentDays: 31 };
+
+      // A chain running when calendar-month parts shipped must not be re-tiled underneath.
       const step = nextBackfillChainStep(
-        { ...plannedMeta, segmentIndex: 2 },
+        { ...legacyMeta, segmentIndex: 2 },
         { segmentSucceeded: true, anyProgressAdvanced: true },
         10
       );
@@ -212,10 +251,7 @@ describe('manual-backfill-range', () => {
     });
 
     it('falls back to the default segment size for a chain stored without one', () => {
-      const { segmentDays: _segmentDays, ...legacyMeta } = planBackfillChain(
-        payload,
-        'chain-1'
-      )!.meta;
+      const { windowing: _windowing, ...legacyMeta } = planBackfillChain(payload, 'chain-1')!.meta;
 
       expect(readBackfillChainMeta({ backfill: legacyMeta })).toEqual(legacyMeta);
       expect(
@@ -225,6 +261,18 @@ describe('manual-backfill-range', () => {
           31
         )
       ).toMatchObject({ window: { startDate: '2024-03-03', endDate: '2024-04-02' } });
+    });
+
+    it('plans a chain for a short period that crosses a month boundary', () => {
+      const plan = planBackfillChain(
+        { runType: 'MANUAL_BACKFILL', data: { StartDate: '2026-08-15', EndDate: '2026-09-10' } },
+        'chain-1'
+      )!;
+
+      expect(plan.payload).toMatchObject({
+        data: { StartDate: '2026-08-15', EndDate: '2026-08-31' },
+      });
+      expect(plan.meta.segmentsTotal).toBe(2);
     });
 
     it.each([
@@ -261,8 +309,28 @@ describe('manual-backfill-range', () => {
         expect(step).toEqual({
           action: 'continue',
           meta: { ...meta, segmentIndex: 3 },
-          window: { startDate: '2024-03-03', endDate: '2024-04-02' },
+          window: { startDate: '2024-03-01', endDate: '2024-03-31' },
         });
+      });
+
+      it('clips the last part to the requested end date', () => {
+        const step = nextBackfillChainStep(
+          { ...meta, segmentIndex: 17 },
+          { segmentSucceeded: true, anyProgressAdvanced: true },
+          31
+        );
+
+        expect(step).toMatchObject({ window: { startDate: '2025-06-01', endDate: '2025-06-30' } });
+      });
+
+      it('ends a chain whose metadata names more parts than the period has months', () => {
+        expect(
+          nextBackfillChainStep(
+            { ...meta, segmentIndex: 18, segmentsTotal: 20 },
+            { segmentSucceeded: true, anyProgressAdvanced: true },
+            31
+          )
+        ).toEqual({ action: 'end', chainEnd: 'finished' });
       });
 
       it('continues past a failed segment (failure isolation)', () => {
@@ -306,7 +374,7 @@ describe('manual-backfill-range', () => {
           'chain-year'
         )!;
         const requested = { startDate: '2026-01-01', endDate: '2026-12-31' };
-        const windows = [backfillSegmentWindow(requested, 1, 31)];
+        const windows = [calendarMonthWindows(requested)[0]];
         let meta = year.meta;
 
         // Alternate failed/completed: the walk must not depend on how a segment ended.

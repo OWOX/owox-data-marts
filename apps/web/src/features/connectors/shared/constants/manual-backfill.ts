@@ -1,12 +1,4 @@
 /**
- * Inclusive number of days in one segment of a manual backfill. A longer period runs as
- * consecutive segments of at most this many days.
- * Mirrors MAX_MANUAL_BACKFILL_DAYS in packages/connectors/src/Constants/CommonConstants.js,
- * which the backend segments by; keep the two in sync.
- */
-export const MAX_MANUAL_BACKFILL_DAYS = 31;
-
-/**
  * Earliest StartDate a manual backfill accepts. A typo guard, not a business cap: a year such as
  * `0202` would plan tens of thousands of segments.
  * Mirrors MIN_MANUAL_BACKFILL_START_DATE in apps/backend/src/data-marts/utils/manual-backfill-range.ts;
@@ -26,9 +18,23 @@ export function toUtcDayMs(value: unknown): number | undefined {
   return Number.isNaN(ms) ? undefined : ms;
 }
 
-/** How many segments of at most MAX_MANUAL_BACKFILL_DAYS cover `days` days. */
-export function countBackfillSegments(days: number): number {
-  return Math.ceil(days / MAX_MANUAL_BACKFILL_DAYS);
+/**
+ * How many calendar months a StartDate/EndDate pair touches — the backend loads a backfill in
+ * one part per month (mirrors `calendarMonthWindows` in
+ * apps/backend/src/data-marts/utils/manual-backfill-range.ts). 0 when either date is invalid
+ * or the range is reversed.
+ */
+export function countBackfillSegments(startDate: unknown, endDate: unknown): number {
+  const start = toUtcDayMs(startDate);
+  const end = toUtcDayMs(endDate);
+  if (start === undefined || end === undefined || end < start) return 0;
+  const first = new Date(start);
+  const last = new Date(end);
+  return (
+    (last.getUTCFullYear() - first.getUTCFullYear()) * 12 +
+    (last.getUTCMonth() - first.getUTCMonth()) +
+    1
+  );
 }
 
 /** Inclusive day count for a StartDate/EndDate pair, or 0 when either is invalid or reversed. */

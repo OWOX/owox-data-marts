@@ -32,7 +32,6 @@ import { ConnectorStateSection } from './ConnectorStateSection';
 import { ConfirmationDialog } from '../../../../../shared/components/ConfirmationDialog';
 import {
   LARGE_BACKFILL_DAYS,
-  MAX_MANUAL_BACKFILL_DAYS,
   MIN_MANUAL_BACKFILL_START_DATE,
   countBackfillDays,
   countBackfillSegments,
@@ -58,7 +57,7 @@ type BackfillPeriod =
   | { status: 'startInFuture' }
   | { status: 'startTooEarly' }
   | { status: 'endInFuture' }
-  | { status: 'ok'; days: number };
+  | { status: 'ok'; days: number; parts: number };
 
 /** Single source of truth for the period: the notice and the field validators both read it. */
 function readBackfillPeriod(startDate: unknown, endDate: unknown, today: string): BackfillPeriod {
@@ -70,7 +69,7 @@ function readBackfillPeriod(startDate: unknown, endDate: unknown, today: string)
   if ((endDate as string) > today) return { status: 'endInFuture' };
   const days = countBackfillDays(startDate, endDate);
   if (days === 0) return { status: 'reversed' };
-  return { status: 'ok', days };
+  return { status: 'ok', days, parts: countBackfillSegments(startDate, endDate) };
 }
 
 function getBackfillSummary(period: BackfillPeriod, isDatelessNode: boolean): string {
@@ -79,7 +78,7 @@ function getBackfillSummary(period: BackfillPeriod, isDatelessNode: boolean): st
   }
   switch (period.status) {
     case 'incomplete':
-      return `A period over ${MAX_MANUAL_BACKFILL_DAYS} days loads in parts of up to ${MAX_MANUAL_BACKFILL_DAYS} days, one run each. Pick a start and end date to see how many.`;
+      return 'A period that spans several calendar months loads in parts, one month per run. Pick a start and end date to see how many.';
     case 'startInFuture':
       return 'The start date cannot be in the future. Pick a date up to today.';
     case 'startTooEarly':
@@ -90,9 +89,8 @@ function getBackfillSummary(period: BackfillPeriod, isDatelessNode: boolean): st
       return 'The end date must be on or after the start date.';
     case 'ok': {
       const covers = `This backfill covers ${period.days} ${period.days === 1 ? 'day' : 'days'}`;
-      if (period.days <= MAX_MANUAL_BACKFILL_DAYS) return `${covers}.`;
-      const parts = countBackfillSegments(period.days);
-      const summary = `${covers}, loaded in ${parts} parts of up to ${MAX_MANUAL_BACKFILL_DAYS} days. It counts as ${parts} runs.`;
+      if (period.parts <= 1) return `${covers}.`;
+      const summary = `${covers}, loaded in ${period.parts} parts, one per calendar month. It counts as ${period.parts} runs.`;
       return period.days > LARGE_BACKFILL_DAYS
         ? `${summary} This can take hours, holds one of the project's concurrent run slots and uses source API quota.`
         : summary;
@@ -250,7 +248,7 @@ export function ConnectorRunForm({ configuration, onClose, onSubmit }: Connector
     connectorFields?.find(field => field.name === configuration?.connector.source.node)
       ?.isTimeSeries === false;
   const backfillDays = backfillPeriod.status === 'ok' ? backfillPeriod.days : 0;
-  const backfillSegments = countBackfillSegments(backfillDays);
+  const backfillSegments = backfillPeriod.status === 'ok' ? backfillPeriod.parts : 0;
 
   const handleSubmit = (data: ConnectorRunFormData) => {
     // Every part of a long backfill is its own billed run, so ask before starting several.
@@ -390,7 +388,7 @@ export function ConnectorRunForm({ configuration, onClose, onSubmit }: Connector
           if (!open) setPendingRun(null);
         }}
         title='Start backfill?'
-        description={`${String(backfillDays)} days, loaded in ${String(backfillSegments)} parts of up to ${String(MAX_MANUAL_BACKFILL_DAYS)} days. It counts as ${String(backfillSegments)} runs: a part counts once any of its accounts loads data.`}
+        description={`${String(backfillDays)} days, loaded in ${String(backfillSegments)} parts, one per calendar month. It counts as ${String(backfillSegments)} runs: a part counts once any of its accounts loads data.`}
         confirmLabel='Start backfill'
         cancelLabel='Keep editing'
         variant='brand'

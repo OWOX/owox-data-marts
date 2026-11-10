@@ -127,10 +127,10 @@ describe('ConnectorRunService', () => {
       );
     });
 
-    it('plans a backfill longer than one segment as segment 1 of a chain', async () => {
+    it('plans a backfill spanning several months as part 1 of a chain', async () => {
       const { service, dataMartRunRepository, connectorRunTriggerService } = createService();
       (dataMartRunRepository.findOne as jest.Mock).mockResolvedValue(null);
-      // 411 days: 14 segments of at most 31 days.
+      // August 2025 through September 2026: 14 calendar months, one part each.
       const payload = {
         runType: 'MANUAL_BACKFILL',
         data: { StartDate: '2025-08-01', EndDate: '2026-09-15' },
@@ -149,7 +149,7 @@ describe('ConnectorRunService', () => {
           requestedEnd: '2026-09-15',
           segmentIndex: 1,
           segmentsTotal: 14,
-          segmentDays: 31,
+          windowing: 'calendar-month',
         },
       };
       expect(dataMartRunRepository.save).toHaveBeenCalledTimes(1);

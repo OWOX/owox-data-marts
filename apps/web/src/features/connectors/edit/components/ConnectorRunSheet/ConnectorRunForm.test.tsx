@@ -72,7 +72,7 @@ describe('ConnectorRunForm backfill period', () => {
   it('explains the parts before any dates are chosen, without flagging an error', async () => {
     const onSubmit = await openBackfill();
 
-    expect(notice()).toHaveTextContent('loads in parts of up to 31 days, one run each');
+    expect(notice()).toHaveTextContent('loads in parts, one month per run');
     // The untouched state is a hint, not a validation failure.
     expect(notice().className).not.toContain('destructive');
     // Validation runs on submit, so the empty required dates block the run there.
@@ -109,12 +109,24 @@ describe('ConnectorRunForm backfill period', () => {
 
     await waitFor(() => {
       expect(notice()).toHaveTextContent(
-        'This backfill covers 90 days, loaded in 3 parts of up to 31 days. It counts as 3 runs.'
+        'This backfill covers 90 days, loaded in 3 parts, one per calendar month. It counts as 3 runs.'
       );
       expect(runButton()).toBeEnabled();
     });
     expect(notice().className).not.toContain('destructive');
     expect(notice()).not.toHaveTextContent('This can take hours');
+  });
+
+  it('counts a short period that crosses a month boundary as two parts', async () => {
+    await openBackfill();
+
+    setPeriod('2026-07-15', '2026-08-10');
+
+    await waitFor(() => {
+      expect(notice()).toHaveTextContent(
+        'This backfill covers 27 days, loaded in 2 parts, one per calendar month. It counts as 2 runs.'
+      );
+    });
   });
 
   it('says a dateless node loads once, whatever the period, and never mentions parts', async () => {
@@ -303,7 +315,7 @@ describe('ConnectorRunForm backfill confirmation', () => {
     expect(onSubmit).not.toHaveBeenCalled();
     expect(await screen.findByText('Start backfill?')).toBeInTheDocument();
     expect(dialog()).toHaveTextContent(
-      '90 days, loaded in 3 parts of up to 31 days. It counts as 3 runs'
+      '90 days, loaded in 3 parts, one per calendar month. It counts as 3 runs'
     );
     expect(screen.getByRole('button', { name: 'Start backfill' })).toBeInTheDocument();
   });
