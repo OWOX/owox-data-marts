@@ -35,17 +35,16 @@ describe('useOnboardingVideo', () => {
     expect(localStorage.getItem('onboarding-video-shown')).toBe('true');
   });
 
-  it('waits until another popover closes', () => {
+  it("opens over another popover, which a What's new card survives", () => {
+    // The card records its release only when its × is clicked, so a video that takes its
+    // place loses nothing: the card comes back on the next app load.
     popovers(true);
-    const { rerender } = renderHook(() => {
+    renderHook(() => {
       useOnboardingVideo(params);
     });
-    expect(open).not.toHaveBeenCalled();
-    expect(localStorage.getItem('onboarding-video-shown')).toBeNull();
 
-    popovers(false);
-    rerender();
     expect(open).toHaveBeenCalledOnce();
+    expect(localStorage.getItem('onboarding-video-shown')).toBe('true');
   });
 
   it('does not open a video already shown in this browser', () => {

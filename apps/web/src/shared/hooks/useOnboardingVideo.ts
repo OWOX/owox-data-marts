@@ -13,13 +13,11 @@ export function useOnboardingVideo({
   popoverId,
   shouldShow,
 }: UseOnboardingVideoParams) {
-  const { open, isOpen } = useContentPopovers();
+  const { open } = useContentPopovers();
   const hasTriggeredRef = useRef(false);
 
   useEffect(() => {
     if (!shouldShow || hasTriggeredRef.current) return;
-    // Another popover, such as What's new, stays until it is closed; the video opens after it.
-    if (isOpen) return;
 
     const wasShown = storageService.get(storageKey, 'boolean');
 
@@ -28,5 +26,5 @@ export function useOnboardingVideo({
       open(popoverId);
       storageService.set(storageKey, true);
     }
-  }, [shouldShow, storageKey, popoverId, open, isOpen]);
+  }, [shouldShow, storageKey, popoverId, open]);
 }

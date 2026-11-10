@@ -11,6 +11,9 @@ import path from 'node:path';
  * e.g. `[0:41](<player>?startTime=41s) - <scene title>`. The app announces a release as soon as
  * its video is out, and a release without one only some days after its date, so features that
  * reached production during the week are announced together with their release video.
+ *
+ * The web app parses this file in apps/web/src/features/whats-new/api/release-feed.ts and drops
+ * any release that does not match its schema, so change both together.
  */
 
 /**
@@ -32,7 +35,8 @@ const VERSION_HEADING = /^## (\d+\.\d+\.\d+)$/;
 const RELEASE_NOTES_HEADING = /^### (?:Major|Minor) Changes\b/;
 const VIDEO_LINE = /^<?(https:\/\/customer-[a-z0-9]+\.cloudflarestream\.com\/[0-9a-f]+\/iframe)>?$/;
 const CHAPTER_LINE = /^\[(\d+:\d{2})\]\(([^)?\s]+)\?startTime=(\d+(?:\.\d+)?)s\)\s+-\s+(.+?)\\?$/;
-const ENTRY_LINE = /^- [0-9a-f]{7,}: (.*)$/;
+// One entry may list several changeset hashes: `- dc3b2ad, 4bfd303: **Title**`.
+const ENTRY_LINE = /^- [0-9a-f]{7,}(?:, [0-9a-f]{7,})*: (.*)$/;
 const BOLD_TITLE = /^\*\*(.+)\*\*$/;
 
 /** A changelog title as plain text: no code spans, links reduced to their text. */
@@ -91,8 +95,9 @@ export function parseReleaseFeed(changelog, { releaseDates = {} } = {}) {
       beforeFirstEntry = false;
       const sameLineTitle = BOLD_TITLE.exec(entry[1].trim());
       if (sameLineTitle) release.changes.push(plainTitle(sameLineTitle[1]));
-      // An entry may open with a markdownlint comment and put its bold title on a later line.
-      awaitingTitle = !sameLineTitle;
+      // An entry may open with a markdownlint comment and put its bold title on a later line;
+      // an entry without a bold title has none, and a bold line in its body is not one.
+      awaitingTitle = !sameLineTitle && entry[1].trim().startsWith('<!--');
       continue;
     }
     if (awaitingTitle) {

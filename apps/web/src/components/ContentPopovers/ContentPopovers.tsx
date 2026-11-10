@@ -22,18 +22,19 @@ export function ContentPopovers() {
     content: Content,
     onDismiss,
   } = config;
+  // Every close the user makes goes through here, so a popover that records its dismissal sees it.
   const dismiss = () => {
     onDismiss?.();
     close();
   };
 
   return (
-    <FloatingPopover width={width} height={height} position={position} onClose={close}>
+    <FloatingPopover width={width} height={height} position={position} onClose={dismiss}>
       <FloatingPopoverHeader onClose={dismiss}>
         {title && <FloatingPopoverTitle>{title}</FloatingPopoverTitle>}
       </FloatingPopoverHeader>
       <FloatingPopoverContent>
-        <Content onClose={close} />
+        <Content onClose={dismiss} />
       </FloatingPopoverContent>
     </FloatingPopover>
   );

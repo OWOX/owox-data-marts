@@ -139,6 +139,38 @@ test(`keeps the newest ${MAX_FEED_RELEASES} releases`, () => {
   assert.equal(releases[0].version, '0.100.0');
 });
 
+test('reads an entry that lists several changeset hashes', () => {
+  const changelog = `## 0.33.0
+
+### Minor Changes 0.33.0
+
+- dc3b2ad, 4bfd303: **One title for two changesets**
+
+  <${OLD_PLAYER}>
+`;
+  const [release] = parseReleaseFeed(changelog).releases;
+  assert.deepEqual(release.changes, ['One title for two changesets']);
+  assert.equal(release.videoUrl, null);
+});
+
+test('takes no title from the body of an entry that has none', () => {
+  const changelog = `## 0.20.0
+
+### Minor Changes 0.20.0
+
+- abcdef1: A title without bold
+
+  **Note** a bold line in the body.
+
+- abcdef2: <!-- markdownlint-disable-file MD041 -->
+
+  **A title after a lint comment**
+`;
+  assert.deepEqual(parseReleaseFeed(changelog).releases[0].changes, [
+    'A title after a lint comment',
+  ]);
+});
+
 test('returns no releases for an empty changelog', () => {
   assert.deepEqual(parseReleaseFeed(''), { releases: [] });
 });

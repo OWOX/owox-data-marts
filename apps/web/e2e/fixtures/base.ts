@@ -3,8 +3,10 @@ import { ApiHelpers, resetDatabase } from './api-helpers';
 import { RadixHelpers } from '../helpers/radix';
 
 // The What's new card loads this feed from the live docs site and opens over the page. Every
-// test gets an empty feed instead; a spec about the card routes its own.
-const RELEASE_FEED_URL = 'https://docs.owox.com/docs/releases.json';
+// test gets an empty feed instead; a spec about the card routes its own. Same URL as
+// RELEASE_FEED_URL in src/features/whats-new/api/release-feed.ts; the trailing * also covers a
+// query string.
+const RELEASE_FEED_URL = 'https://docs.owox.com/docs/releases.json*';
 
 export const test = base.extend<{
   apiHelpers: ApiHelpers;

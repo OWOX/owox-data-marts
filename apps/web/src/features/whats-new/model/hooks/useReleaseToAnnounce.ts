@@ -12,13 +12,15 @@ const RUNNING_VERSION_FLAG = 'APP_OWOX_VERSION';
 
 /**
  * The newest announced release that this app already runs, once both the release feed and the
- * app flags have loaded. `isReady` stays false while either is loading or when the feed is
- * unreachable, for example on a self-hosted install without internet access. A feed that loaded
- * once stays in use if a later refetch fails, so an open card keeps its content.
+ * app flags have loaded. `isReady` stays false while either is loading, when the feed is
+ * unreachable (for example on a self-hosted install without internet access) and when the flags
+ * failed, as without the running version a self-hosted install could announce a release it does
+ * not have. A feed that loaded once stays in use if a later refetch fails, so an open card keeps
+ * its content.
  */
 export function useReleaseToAnnounce(): { release: AnnouncedRelease | null; isReady: boolean } {
   const { flags, callState } = useFlags();
-  const flagsSettled = callState === RequestStatus.LOADED || callState === RequestStatus.ERROR;
+  const flagsSettled = callState === RequestStatus.LOADED;
 
   const { data: releases } = useQuery({
     queryKey: releaseFeedQueryKey,

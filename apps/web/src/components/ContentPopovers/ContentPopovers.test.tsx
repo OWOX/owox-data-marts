@@ -6,7 +6,15 @@ const onDismiss = vi.fn();
 
 vi.mock('./items', () => ({
   popoverItems: {
-    'with-dismiss': { title: 'With dismiss', content: () => <p>Body</p>, onDismiss },
+    'with-dismiss': {
+      title: 'With dismiss',
+      content: ({ onClose }: { onClose?: () => void }) => (
+        <button type='button' onClick={onClose}>
+          Done
+        </button>
+      ),
+      onDismiss,
+    },
     plain: { title: 'Plain', content: () => <p>Body</p> },
   },
 }));
@@ -36,6 +44,16 @@ describe('ContentPopovers', () => {
     render(<ContentPopovers />);
 
     fireEvent.click(screen.getByTestId('floatingPopoverClose'));
+
+    expect(onDismiss).toHaveBeenCalledOnce();
+    expect(close).toHaveBeenCalledOnce();
+  });
+
+  it('treats a close from the popover content as a dismissal too', () => {
+    openPopover('with-dismiss');
+    render(<ContentPopovers />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Done' }));
 
     expect(onDismiss).toHaveBeenCalledOnce();
     expect(close).toHaveBeenCalledOnce();
