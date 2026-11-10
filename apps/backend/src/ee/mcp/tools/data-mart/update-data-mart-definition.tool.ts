@@ -18,7 +18,7 @@ type Input = z.input<typeof updateDataMartDefinitionSchema>;
 export class UpdateDataMartDefinitionTool implements McpToolDefinition<Input> {
   readonly name = 'update_data_mart_definition';
   readonly description =
-    'Replace the Data Mart definition. Read get_data_mart_setup first. Review get_data_mart_change_impact before changing an existing source. SQL, Table, View and Table Pattern can switch between supported types. Switching to or from Connector requires a separate Data Mart.\n\nUse saved Credential IDs in connector configurations. Never use secret values. Preserve existing configuration _id and _credential_id. Read get_data_mart_setup before retrying. New connector configurations receive generated IDs.';
+    "Replace the Data Mart definition. Read get_data_mart_setup first. Review get_data_mart_change_impact before changing an existing source, explain the effect, and get the user's approval. SQL, Table, View and Table Pattern can switch between supported types. Switching to or from Connector requires a separate Data Mart.\n\nUse saved Credential IDs in connector configurations. Never use secret values. Preserve existing configuration _id and _credential_id. Read get_data_mart_setup before retrying. New connector configurations receive generated IDs.";
   readonly zodSchema = updateDataMartDefinitionSchema;
   readonly outputSchema = dataMartSummaryOutputSchema.shape;
   readonly annotations = {

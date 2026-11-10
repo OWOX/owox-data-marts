@@ -149,9 +149,28 @@ describe('MCP tool providers', () => {
       );
       expect([...MCP_GUIDE_TOPICS]).toEqual(expect.arrayContaining(pointedTopics));
       expect(pointedTopics).toEqual(expect.arrayContaining([...MCP_GUIDE_TOPICS]));
-      // claude.ai drops the server instructions, so each deletion asks for approval itself.
-      for (const tool of tools.filter(tool => tool.name.startsWith('delete_'))) {
-        expect(`${tool.name}: ${tool.description}`).toMatch(/approval|authorization/);
+      // claude.ai drops the server instructions, so each deletion and destructive change asks
+      // for approval itself. The list fails when a tool is added or renamed without the rule.
+      const approvalTools = tools.filter(
+        tool => tool.name.startsWith('delete_') || tool.name === 'rotate_destination_secret_key'
+      );
+      expect(approvalTools.map(tool => tool.name).sort()).toEqual([
+        'delete_context',
+        'delete_credential',
+        'delete_custom_connector',
+        'delete_data_mart',
+        'delete_data_mart_relationship',
+        'delete_data_mart_run_schedule',
+        'delete_destination',
+        'delete_report',
+        'delete_report_run_schedule',
+        'delete_storage',
+        'rotate_destination_secret_key',
+      ]);
+      for (const tool of approvalTools) {
+        expect(`${tool.name}: ${tool.description}`).toMatch(
+          /Get the user's approval before the call\.|Obtain user authorization before deletion\./
+        );
       }
       expect(toolNames).toEqual(
         expect.arrayContaining([

@@ -16,7 +16,7 @@ type Input = z.infer<typeof inputSchema>;
 export class UpdateDataMartRelationshipTool implements McpToolDefinition<Input> {
   readonly name = 'update_data_mart_relationship';
   readonly description =
-    'Change the alias, join conditions, or business description of an existing relationship. The tool requires editor role and EDIT access to its source Data Mart. The target Data Mart cannot change. Renaming an alias updates the existing field paths and formulas in the source Data Mart. Empty join_conditions returns the relationship to an incomplete state. A null or blank description clears the saved description.';
+    'Change the alias, join conditions, or business description of an existing relationship. The tool requires editor role and EDIT access to its source Data Mart. The target Data Mart cannot change. Renaming an alias updates the existing field paths and formulas in the source Data Mart. join_conditions replaces all conditions: keep the existing conditions that the user still needs. Empty join_conditions returns the relationship to an incomplete state. A null or blank description clears the saved description.';
   readonly zodSchema = inputSchema;
   readonly outputSchema = { relationship: relationshipOutputSchema };
   readonly annotations = {
