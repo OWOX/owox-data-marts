@@ -54,6 +54,11 @@ export const startCredentialSetupSchema = z
       .optional()
       .describe('Existing Credential to update or reconnect. Do not combine with definition_id.'),
     title: titleSchema.optional(),
+    connector_id: idSchema
+      .optional()
+      .describe(
+        'For a new custom connector Credential: the custom connector it is for. The form opens with the hosts and key fields of its draft, else of its active version. Implies definition_id custom-connector.'
+      ),
   })
   .strict()
   .refine(
@@ -63,6 +68,12 @@ export const startCredentialSetupSchema = z
   .refine(
     input => !(input.credential_id && input.title !== undefined),
     'Use title only when creating a Credential'
+  )
+  .refine(
+    input =>
+      !input.connector_id ||
+      (!input.credential_id && (input.definition_id ?? 'custom-connector') === 'custom-connector'),
+    'Use connector_id only to create a custom-connector Credential'
   );
 
 export const credentialSetupStatusSchema = z

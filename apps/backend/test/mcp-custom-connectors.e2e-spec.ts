@@ -10,7 +10,6 @@ import {
 } from '@owox/test-utils';
 import type { AddressInfo } from 'node:net';
 import { join } from 'node:path';
-import { DataSource } from 'typeorm';
 import { z } from 'zod';
 import { IdpProviderService } from '../src/idp/services/idp-provider.service';
 import {
@@ -19,8 +18,6 @@ import {
 } from '../src/data-marts/services/connector/connector-test.service';
 import { DataMartDefinitionValidatorFacade } from '../src/data-marts/data-storage-types/facades/data-mart-definition-validator-facade.service';
 import { createCredential } from './fixtures/storage-credentials';
-import { Credential } from '../src/data-marts/credentials/entities/credential.entity';
-import { ConnectorDefinition } from '../src/data-marts/entities/connector-definition.entity';
 import {
   boundDestinationCredentialId,
   CHAT_WEBHOOK_URL,
@@ -35,7 +32,7 @@ const manifestFor = (name: string) => ({
     type: 'bearer',
     inject: { into: 'header', name: 'Authorization', format: 'Bearer {{ parameters.Token }}' },
   },
-  parameters: { Token: { requiredType: 'string', isRequired: true, default: 'private-default' } },
+  parameters: { Token: { requiredType: 'string', isRequired: true } },
   nodes: {
     items: {
       fields: { id: { type: 'string' }, name: { type: 'string' } },
@@ -91,9 +88,12 @@ describe('Custom connector MCP with real persistence and transport', () => {
     return result.structuredContent as Record<string, unknown>;
   }
 
-  async function create(client: Client) {
+  async function create(
+    client: Client,
+    build: (name: string) => Record<string, unknown> = manifestFor
+  ) {
     const name = `McpCustomApi${++sequence}`;
-    const manifest = manifestFor(name);
+    const manifest = build(name);
     const result = await call(client, 'create_custom_connector', {
       name,
       title: 'Custom API',
@@ -103,6 +103,11 @@ describe('Custom connector MCP with real persistence and transport', () => {
       manifest,
     });
     return { connector_id: z.string().parse(result.connector_id), name, manifest };
+  }
+
+  /** The ID of a connector whose current draft is this manifest; the test tool reads only drafts. */
+  async function draftOf(client: Client, manifest: Record<string, unknown>) {
+    return (await create(client, name => ({ ...manifest, name }))).connector_id;
   }
 
   const referenceManifest = () => ({
@@ -280,9 +285,13 @@ describe('Custom connector MCP with real persistence and transport', () => {
 
   it('returns bounded rows and raw samples through the child-process runner', async () => {
     const client = await connect();
-    const manifest = { ...manifestFor('McpLiveTest'), authentication: undefined, parameters: {} };
+    const connector_id = await draftOf(client, {
+      ...manifestFor('McpLiveTest'),
+      authentication: undefined,
+      parameters: {},
+    });
     const result = await call(client, 'test_custom_connector', {
-      manifest,
+      connector_id,
       node: 'items',
       configuration: {},
       max_rows: 2,
@@ -301,7 +310,7 @@ describe('Custom connector MCP with real persistence and transport', () => {
       const credentialId = await testCredential();
       const client = await connect(era);
       const result = await call(client, 'test_custom_connector', {
-        manifest: referenceManifest(),
+        connector_id: await draftOf(client, referenceManifest()),
         node: 'items',
         configuration: {},
         credential_id: credentialId,
@@ -329,30 +338,24 @@ describe('Custom connector MCP with real persistence and transport', () => {
   );
 
   it.each(['legacy', 'modern'] as const)(
-    'tests temporary credentials over %s MCP without saving them or exposing their values',
+    'rejects keys in configuration over %s MCP before starting a test',
     async era => {
       const client = await connect(era);
-      const dataSource = app.get(DataSource);
-      const counts = () =>
-        Promise.all([
-          dataSource.getRepository(Credential).count(),
-          dataSource.getRepository(ConnectorDefinition).count(),
-        ]);
-      const before = await counts();
+      const runner = jest.spyOn(testService, 'runTest');
       const base = referenceManifest();
       const secret = 'temporary/"mcp-secret"';
       const cases = [
-        { manifest: base, configuration: { Token: secret } },
-        { manifest: base, configuration: { Token: '123456' } },
+        { key: 'Token', manifest: base, configuration: { Token: secret } },
         {
+          key: 'Token',
           manifest: {
             ...base,
             parameters: { Token: { requiredType: 'number', attributes: ['SECRET'] } },
           },
           configuration: { Token: 123456 },
         },
-        { manifest: manifestFor('McpDefaultKeyTest'), configuration: { Region: 'eu' } },
         {
+          key: 'Value',
           manifest: {
             ...base,
             authentication: undefined,
@@ -374,51 +377,85 @@ describe('Custom connector MCP with real persistence and transport', () => {
           configuration: { Value: secret, PageToken: 'next-page' },
         },
       ];
-
-      for (const args of cases) {
-        const result = await client.callTool({
-          name: 'test_custom_connector',
-          arguments: { ...args, node: 'items' },
-        });
-        expect(result.isError).not.toBe(true);
-        expect(result.structuredContent).toMatchObject({
-          rows: [expect.objectContaining({ rotated: '***' })],
-          logs: expect.arrayContaining([
-            'The provider issued new credentials during this test; they were not stored.',
-          ]),
-          error: null,
-        });
-        for (const value of [
-          secret,
-          encodeURIComponent(secret),
-          'private-default',
-          '123456',
-          'rotated-token-from-provider',
-        ]) {
-          expect(JSON.stringify(result)).not.toContain(value);
-        }
-        if ('Value' in args.configuration) {
-          expect(result.structuredContent).toMatchObject({
-            rows: [expect.objectContaining({ Value: '[REDACTED]', PageToken: 'next-page' })],
-            sample: [expect.objectContaining({ Value: '[REDACTED]', PageToken: 'next-page' })],
+      try {
+        for (const { key, manifest, configuration } of cases) {
+          const result = await client.callTool({
+            name: 'test_custom_connector',
+            arguments: {
+              connector_id: await draftOf(client, manifest),
+              node: 'items',
+              configuration,
+            },
           });
+          expect(result.isError).toBe(true);
+          expect(JSON.stringify(result.content)).toContain(`Remove ${key} from configuration`);
+          for (const value of [secret, encodeURIComponent(secret), '123456']) {
+            expect(JSON.stringify(result)).not.toContain(value);
+          }
         }
-        if ('Token' in args.configuration) {
-          expect(result.structuredContent).toMatchObject({
-            rows: [
-              expect.objectContaining({
-                echoed: expect.objectContaining({ '[REDACTED]': '[REDACTED]' }),
-              }),
-            ],
-            sample: [
-              expect.objectContaining({
-                echoed: expect.objectContaining({ '[REDACTED]': '[REDACTED]' }),
-              }),
-            ],
-          });
-        }
+        expect(runner).not.toHaveBeenCalled();
+      } finally {
+        runner.mockRestore();
       }
-      expect(await counts()).toEqual(before);
+    }
+  );
+
+  it.each(['legacy', 'modern'] as const)(
+    'masks a key that a draft saved outside MCP holds over %s MCP, and refuses to save it back',
+    async era => {
+      const client = await connect(era);
+      const { connector_id, manifest } = await create(client);
+      const keyed = {
+        ...manifest,
+        parameters: {
+          Token: { requiredType: 'string', isRequired: true, default: 'private-default' },
+        },
+      };
+      await agent
+        .put(`/api/connectors/custom/${connector_id}/draft`)
+        .set(AUTH_HEADER)
+        .send({ manifest: keyed })
+        .expect(200);
+
+      const read = await call(client, 'get_custom_connector_version', { connector_id, version: 1 });
+      expect(read.manifest).toMatchObject({ parameters: { Token: { default: '[REDACTED]' } } });
+      const tested = await client.callTool({
+        name: 'test_custom_connector',
+        arguments: { connector_id, node: 'items', configuration: { Region: 'eu' } },
+      });
+      expect(tested.isError).not.toBe(true);
+      expect(tested.structuredContent).toMatchObject({
+        rows: [expect.objectContaining({ rotated: '***' })],
+        logs: expect.arrayContaining([
+          'The provider issued new credentials during this test; they were not stored.',
+        ]),
+        error: null,
+      });
+      const refused = [
+        await client.callTool({
+          name: 'save_custom_connector_draft',
+          arguments: { connector_id, manifest: read.manifest },
+        }),
+        await client.callTool({
+          name: 'create_custom_connector',
+          arguments: { name: `McpKeyed${++sequence}`, title: 'Keyed', manifest: keyed },
+        }),
+      ];
+      for (const result of refused) {
+        expect(result.isError).toBe(true);
+        expect(JSON.stringify(result.content)).toContain(
+          'Remove the keys at parameters.Token.default'
+        );
+      }
+      for (const result of [read, tested, ...refused]) {
+        expect(JSON.stringify(result)).not.toContain('private-default');
+        expect(JSON.stringify(result)).not.toContain('rotated-token-from-provider');
+      }
+      const stored = await agent
+        .get(`/api/connectors/custom/${connector_id}/versions/1`)
+        .set(AUTH_HEADER)
+        .expect(200);
+      expect(stored.body.manifest).toEqual(keyed);
     }
   );
 
@@ -431,7 +468,7 @@ describe('Custom connector MCP with real persistence and transport', () => {
         const result = await client.callTool({
           name: 'test_custom_connector',
           arguments: {
-            manifest: referenceManifest(),
+            connector_id: 'any',
             node: 'items',
             configuration: {},
             credential: { secret: 'do-not-run' },
@@ -470,12 +507,13 @@ describe('Custom connector MCP with real persistence and transport', () => {
       );
       if (restriction === 'use') roles = ['editor'];
       const client = await connect();
+      const connector_id = await draftOf(client, referenceManifest());
       const runner = jest.spyOn(testService, 'runTest');
       try {
         const result = await client.callTool({
           name: 'test_custom_connector',
           arguments: {
-            manifest: referenceManifest(),
+            connector_id,
             node: 'items',
             configuration: {},
             credential_id: credentialId,
@@ -570,10 +608,7 @@ describe('Custom connector MCP with real persistence and transport', () => {
           'save_custom_connector_draft',
           { connector_id, manifest: { ...manifest, baseUrl: 'https://denied.example.test' } },
         ],
-        [
-          'test_custom_connector',
-          { manifest, node: 'items', configuration: { Token: 'test-only' } },
-        ],
+        ['test_custom_connector', { connector_id, node: 'items', configuration: {} }],
         ['publish_custom_connector', { connector_id }],
         ['activate_custom_connector_version', { connector_id, version: 1 }],
         ['delete_custom_connector', { connector_id }],
@@ -635,7 +670,10 @@ describe('Custom connector MCP with real persistence and transport', () => {
       ['delete_custom_connector', {}],
       ['get_custom_connector_specification', {}],
       ['get_custom_connector_fields', {}],
+      // The owner's draft exists, so a missing project check would run it.
+      ['test_custom_connector', { node: 'items', configuration: {} }],
     ] as Array<[string, Record<string, unknown>]>;
+    const runner = jest.spyOn(testService, 'runTest');
     for (const [name, args] of operations) {
       const result = await stranger.callTool({ name, arguments: { connector_id, ...args } });
       expect(result).toMatchObject({
@@ -643,6 +681,8 @@ describe('Custom connector MCP with real persistence and transport', () => {
         content: [{ type: 'text', text: `Custom connector '${connector_id}' not found` }],
       });
     }
+    expect(runner).not.toHaveBeenCalled();
+    runner.mockRestore();
     projectId = '0';
     expect(await call(owner, 'get_custom_connector', { connector_id })).toEqual(before);
     expect(

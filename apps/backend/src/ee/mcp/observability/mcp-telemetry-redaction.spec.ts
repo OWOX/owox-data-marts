@@ -1,4 +1,8 @@
-import { redactMcpTelemetry } from './mcp-telemetry-redaction';
+import {
+  maskMcpManifestKeys,
+  mcpManifestKeyPaths,
+  redactMcpTelemetry,
+} from './mcp-telemetry-redaction';
 
 describe('redactMcpTelemetry for custom connectors', () => {
   it('preserves Credential IDs without masking their copies as secret values', () => {
@@ -996,5 +1000,150 @@ describe('redactMcpTelemetry for custom connectors', () => {
       },
       configuration: { Value: '[REDACTED]', Region: 'eu' },
     });
+  });
+});
+
+describe('mcpManifestKeyPaths', () => {
+  const node = (request: Record<string, unknown>) => ({ nodes: { items: { request } } });
+
+  it.each([
+    [
+      'a literal bearer token',
+      {
+        authentication: {
+          type: 'bearer',
+          inject: { into: 'header', name: 'Authorization', format: 'Bearer abc123' },
+        },
+      },
+      ['authentication.inject.format'],
+    ],
+    [
+      'a literal API key header',
+      node({ headers: { 'X-API-Key': 'abc123' } }),
+      ['nodes.items.request.headers.X-API-Key'],
+    ],
+    ['a key in the base URL', { baseUrl: 'https://api.example.test?api_key=abc123' }, ['baseUrl']],
+    [
+      'a SECRET default',
+      { parameters: { Token: { attributes: ['SECRET'], default: 'abc123' } } },
+      ['parameters.Token.default'],
+    ],
+    [
+      'a value masked by an earlier read',
+      node({ headers: { Authorization: 'Bearer [REDACTED]' } }),
+      ['nodes.items.request.headers.Authorization'],
+    ],
+    [
+      'a value cut by an earlier read',
+      node({ body: { filter: '[TRUNCATED]' } }),
+      ['nodes.items.request.body.filter'],
+    ],
+    [
+      'a key with digits next to a reference',
+      {
+        authentication: {
+          type: 'bearer',
+          inject: { into: 'header', name: 'Authorization', format: 'sk1234 {{ parameters.Key }}' },
+        },
+      },
+      ['authentication.inject.format'],
+    ],
+    [
+      'a GitLab private token header',
+      node({ headers: { 'PRIVATE-TOKEN': 'glpat-abc123' } }),
+      ['nodes.items.request.headers.PRIVATE-TOKEN'],
+    ],
+    [
+      'keys in a token exchange',
+      {
+        authentication: {
+          type: 'tokenExchange',
+          exchange: {
+            url: 'https://api.example.test/token',
+            headers: { Authorization: 'Basic abc123' },
+            body: { client_secret: 'abc123' },
+            tokenPath: ['token'],
+          },
+        },
+      },
+      [
+        'authentication.exchange.headers.Authorization',
+        'authentication.exchange.body.client_secret',
+      ],
+    ],
+  ])('finds %s', (_label, manifest, paths) => {
+    expect(mcpManifestKeyPaths(manifest)).toEqual(paths);
+  });
+
+  it('accepts parameter references and public settings', () => {
+    expect(
+      mcpManifestKeyPaths({
+        baseUrl: 'https://api.example.test?api_key={{ parameters.Key }}',
+        parameters: {
+          Key: { attributes: ['SECRET'] },
+          total_tokens: { default: 1500 },
+        },
+        authentication: {
+          type: 'bearer',
+          inject: { into: 'header', name: 'Authorization', format: 'Bearer {{ parameters.Key }}' },
+        },
+        ...node({
+          headers: { 'X-API-Key': '{{ parameters.Key }}' },
+          queryParameters: { page_token: 'next', total_tokens: '{{ parameters.total_tokens }}' },
+        }),
+      })
+    ).toEqual([]);
+  });
+
+  it.each(['Klaviyo-API-Key', 'SSWS', 'Token token=', 'Zoho-oauthtoken'])(
+    'accepts the auth scheme %s around a reference',
+    scheme => {
+      expect(
+        mcpManifestKeyPaths({
+          authentication: {
+            type: 'apiKey',
+            inject: {
+              into: 'header',
+              name: 'Authorization',
+              format: `${scheme} {{ parameters.Key }}`,
+            },
+          },
+          parameters: { Key: { attributes: ['SECRET'] } },
+        })
+      ).toEqual([]);
+    }
+  );
+
+  it('accepts protocol values in a token exchange and an empty SECRET default', () => {
+    const manifest = {
+      authentication: {
+        type: 'tokenExchange',
+        exchange: {
+          url: 'https://api.example.test/token',
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: {
+            grant_type: 'client_credentials',
+            remember: true,
+            client_secret: '{{ parameters.Secret }}',
+          },
+          tokenPath: ['token'],
+        },
+        inject: { into: 'header', name: 'Authorization', format: 'Bearer {{ auth.token }}' },
+      },
+      parameters: { Secret: { attributes: ['SECRET'], default: '' } },
+    };
+
+    expect(mcpManifestKeyPaths(manifest)).toEqual([]);
+    expect(maskMcpManifestKeys(manifest)).toEqual(manifest);
+  });
+
+  it('keeps a deep request body whole', () => {
+    let body: Record<string, unknown> = { leaf: 'value' };
+    for (let level = 0; level < 20; level++) body = { level: body };
+    const manifest = node({ body });
+
+    expect(mcpManifestKeyPaths(manifest)).toEqual([]);
+    expect(maskMcpManifestKeys(manifest)).toEqual(manifest);
   });
 });

@@ -26,15 +26,31 @@ import { UpdateCustomConnectorTool } from './update-custom-connector.tool';
 
 const manifest = {
   version: '1.0',
-  parameters: {
-    Value: { attributes: ['SECRET'], default: 'sensitive-content', label: 'Credential' },
-  },
+  parameters: { Value: { attributes: ['SECRET'], label: 'Credential' } },
   nodes: { items: { request: { path: '/items' } } },
 };
-const loggedManifest = {
+const manifestWithKey = (key: unknown) => ({
   ...manifest,
-  parameters: { Value: { ...manifest.parameters.Value, default: '[REDACTED]' } },
-};
+  parameters: { Value: { ...manifest.parameters.Value, default: key } },
+});
+/** A manifest the connector parser accepts, so the tool reads the keys the engine uses. */
+const parsedManifest = (authentication: unknown, parameters: Record<string, unknown>) => ({
+  name: 'CustomApi',
+  title: 'Custom API',
+  version: '1.0',
+  baseUrl: 'https://api.example.test',
+  authentication,
+  parameters,
+  nodes: {
+    items: {
+      request: { path: '/items' },
+      recordSelector: { path: [] },
+      fields: { id: { type: 'string' } },
+    },
+  },
+});
+const keyedManifest = manifestWithKey('sensitive-content');
+const maskedManifest = manifestWithKey('[REDACTED]');
 const metadata = {
   id: 'connector',
   name: 'CustomApi',
@@ -134,6 +150,15 @@ describe('custom connector tools through the MCP SDK', () => {
     for (const close of closers.splice(0)) await close();
   });
 
+  // The test tool reads the stored draft. A draft saved outside MCP can still hold a literal key.
+  function storeDraft(stored: Record<string, unknown>) {
+    facade.get.mockResolvedValue({
+      ...detail,
+      versions: [...detail.versions, { version: 2, status: 'draft', publishedAt: null }],
+    });
+    facade.getVersion.mockResolvedValue({ version: 2, status: 'draft', manifest: stored });
+  }
+
   it('advertises strict inputs and marks live tests as external writes', async () => {
     const client = await open();
     const catalog = await client.listTools();
@@ -180,55 +205,224 @@ describe('custom connector tools through the MCP SDK', () => {
 
   it('maps the Credential reference, actor, configuration and MCP limits to the domain request', async () => {
     const client = await open();
+    storeDraft(manifest);
     await client.callTool({
       name: 'test_custom_connector',
       arguments: {
-        manifest,
+        connector_id: 'connector',
         node: 'items',
-        configuration: { Value: 'sensitive-content' },
+        configuration: { Region: 'eu' },
         credential_id: 'credential-1',
         max_rows: 2,
         max_pages: 3,
       },
     });
+    expect(facade.getVersion).toHaveBeenCalledWith('project-1', 'connector', 2);
     expect(facade.test).toHaveBeenCalledWith(
       { projectId: 'project-1', userId: 'user-1', roles: ['admin'] },
       {
         manifest,
         node: 'items',
-        configuration: { Value: 'sensitive-content' },
+        configuration: { Region: 'eu' },
         credentialId: 'credential-1',
         maxRows: 2,
         maxPages: 3,
       }
     );
-    expect(events[0].payload[OFFLOAD_KEY]?.arguments).toMatchObject({
-      manifest: loggedManifest,
-      configuration: { Value: '[REDACTED]' },
+    expect(events[0].payload[OFFLOAD_KEY]?.arguments).toEqual({
+      connector_id: 'connector',
+      node: 'items',
+      configuration: '[REDACTED]',
+      credential_id: 'credential-1',
       max_rows: 2,
       max_pages: 3,
     });
   });
 
+  it('tests only a saved draft', async () => {
+    const client = await open();
+    const result = await client.callTool({
+      name: 'test_custom_connector',
+      arguments: { connector_id: 'connector', node: 'items', configuration: {} },
+    });
+    expect(result.isError).toBe(true);
+    expect(JSON.stringify(result.content)).toContain('This connector has no draft');
+    expect(facade.getVersion).not.toHaveBeenCalled();
+    expect(facade.test).not.toHaveBeenCalled();
+  });
+
   it.each([
-    ['save_custom_connector_draft', { connector_id: 'connector', manifest }, 'arguments'],
-    ['get_custom_connector_version', { connector_id: 'connector', version: 1 }, 'result'],
-  ] as const)(
-    '%s masks telemetry without changing the authoring payload',
-    async (name, args, surface) => {
-      const client = await open();
-      const result = await client.callTool({ name, arguments: args });
-      expect(result.isError).not.toBe(true);
-      expect(events[0].payload[OFFLOAD_KEY]?.[surface]).toMatchObject({ manifest: loggedManifest });
-      expect(JSON.stringify(events[0])).not.toContain('sensitive-content');
-      expect(manifest.parameters.Value.default).toBe('sensitive-content');
-      if (name === 'get_custom_connector_version') {
-        expect(result.structuredContent).toMatchObject({ manifest });
-      } else {
-        expect(facade.saveDraft).toHaveBeenCalledWith('project-1', 'connector', manifest);
-      }
+    { label: 'a SECRET parameter', manifest, name: 'Value' },
+    {
+      label: 'an authentication parameter',
+      manifest: {
+        ...manifest,
+        authentication: {
+          type: 'bearer',
+          inject: {
+            into: 'header',
+            name: 'Authorization',
+            format: 'Bearer {{ parameters.Token }}',
+          },
+        },
+        parameters: { Token: { requiredType: 'string' } },
+      },
+      name: 'Token',
+    },
+    {
+      label: 'an unmarked Authorization parameter',
+      manifest: {
+        parameters: { Value: { requiredType: 'string' } },
+        nodes: {
+          items: { request: { headers: { Authorization: 'Bearer {{ parameters.Value }}' } } },
+        },
+      },
+      name: 'Value',
+    },
+    {
+      label: 'an OAuth client ID',
+      manifest: parsedManifest(
+        {
+          type: 'oauth2',
+          tokenUrl: 'https://api.example.test/token',
+          grantType: 'refresh_token',
+          clientId: '{{ parameters.ClientId }}',
+          clientSecret: '{{ parameters.ClientSecret }}',
+          refreshToken: '{{ parameters.RefreshToken }}',
+        },
+        {
+          ClientId: { requiredType: 'string' },
+          ClientSecret: { requiredType: 'string', attributes: ['SECRET'] },
+          RefreshToken: { requiredType: 'string', attributes: ['SECRET'] },
+        }
+      ),
+      name: 'ClientId',
+    },
+    {
+      label: 'a Basic username',
+      manifest: parsedManifest(
+        { type: 'basic', username: '{{ parameters.User }}', password: '{{ parameters.Pass }}' },
+        {
+          User: { requiredType: 'string' },
+          Pass: { requiredType: 'string', attributes: ['SECRET'] },
+        }
+      ),
+      name: 'User',
+    },
+  ])('rejects a key for $label in configuration before the test runs', async args => {
+    const client = await open();
+    storeDraft(args.manifest);
+    for (const credential of [{}, { credential_id: 'credential-1' }]) {
+      const result = await client.callTool({
+        name: 'test_custom_connector',
+        arguments: {
+          connector_id: 'connector',
+          node: 'items',
+          configuration: { [args.name]: 'typed-key', Region: 'eu' },
+          ...credential,
+        },
+      });
+      expect(result.isError).toBe(true);
+      expect(JSON.stringify(result.content)).toContain(`Remove ${args.name} from configuration`);
+      expect(JSON.stringify(result.content)).toContain('mark any other key parameter SECRET');
+      expect(JSON.stringify({ result, events })).not.toContain('typed-key');
     }
-  );
+    expect(facade.test).not.toHaveBeenCalled();
+  });
+
+  it('accepts the selection parameter of a selective authentication in configuration', async () => {
+    const client = await open();
+    storeDraft(
+      parsedManifest(
+        {
+          type: 'selective',
+          selectionParameter: 'AuthMode',
+          authenticators: {
+            apikey: {
+              type: 'apiKey',
+              inject: { into: 'header', name: 'X-API-Key', format: '{{ parameters.Key }}' },
+            },
+          },
+        },
+        {
+          AuthMode: { requiredType: 'string' },
+          Key: { requiredType: 'string', attributes: ['SECRET'] },
+        }
+      )
+    );
+    const result = await client.callTool({
+      name: 'test_custom_connector',
+      arguments: {
+        connector_id: 'connector',
+        node: 'items',
+        configuration: { AuthMode: 'apikey' },
+        credential_id: 'credential-1',
+      },
+    });
+    expect(result.isError).not.toBe(true);
+    expect(facade.test).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ configuration: { AuthMode: 'apikey' } })
+    );
+  });
+
+  it('tests the newest draft', async () => {
+    const client = await open();
+    storeDraft(manifest);
+    facade.get.mockResolvedValue({
+      ...detail,
+      versions: [
+        ...detail.versions,
+        { version: 2, status: 'draft', publishedAt: null },
+        { version: 3, status: 'draft', publishedAt: null },
+      ],
+    });
+    await client.callTool({
+      name: 'test_custom_connector',
+      arguments: { connector_id: 'connector', node: 'items', configuration: {} },
+    });
+    expect(facade.getVersion).toHaveBeenCalledWith(expect.anything(), 'connector', 3);
+  });
+
+  it('get_custom_connector_version shows a stored literal key as [REDACTED]', async () => {
+    const client = await open();
+    facade.getVersion.mockResolvedValue({ ...state, manifest: keyedManifest });
+    const result = await client.callTool({
+      name: 'get_custom_connector_version',
+      arguments: { connector_id: 'connector', version: 1 },
+    });
+    expect(result.isError).not.toBe(true);
+    expect(result.structuredContent).toEqual({ ...state, manifest: maskedManifest });
+    expect(JSON.stringify({ result, events })).not.toContain('sensitive-content');
+    expect(keyedManifest.parameters.Value.default).toBe('sensitive-content');
+  });
+
+  it.each([
+    ['create_custom_connector', { name: 'CustomApi', title: 'Custom API' }],
+    ['save_custom_connector_draft', { connector_id: 'connector' }],
+  ] as const)('%s rejects a literal key or a [REDACTED] value', async (name, args) => {
+    const client = await open();
+    for (const stored of [keyedManifest, maskedManifest]) {
+      const result = await client.callTool({ name, arguments: { ...args, manifest: stored } });
+      expect(result.isError).toBe(true);
+      expect(JSON.stringify(result.content)).toContain(
+        'Remove the keys at parameters.Value.default'
+      );
+      expect(JSON.stringify(result)).not.toContain('sensitive-content');
+    }
+    expect(facade.create).not.toHaveBeenCalled();
+    expect(facade.saveDraft).not.toHaveBeenCalled();
+  });
+
+  it('save_custom_connector_draft saves a manifest that references its keys', async () => {
+    const client = await open();
+    const result = await client.callTool({
+      name: 'save_custom_connector_draft',
+      arguments: { connector_id: 'connector', manifest },
+    });
+    expect(result.isError).not.toBe(true);
+    expect(facade.saveDraft).toHaveBeenCalledWith('project-1', 'connector', manifest);
+  });
 
   it.each(['create_custom_connector', 'get_custom_connector', 'publish_custom_connector'])(
     'returns an encoded Builder link from %s using the configured public origin',
@@ -293,9 +487,10 @@ describe('custom connector tools through the MCP SDK', () => {
     ];
     const raw = { rows: [{ id: 1 }], sample: [{ id: 1, extra: 'raw value' }], logs, error: null };
     facade.test.mockResolvedValue(raw);
+    storeDraft(manifest);
     const result = await client.callTool({
       name: 'test_custom_connector',
-      arguments: { manifest, node: 'items', configuration: {} },
+      arguments: { connector_id: 'connector', node: 'items', configuration: {} },
     });
     expect(result.isError).not.toBe(true);
     const content = result.structuredContent as { logs: string[] };
@@ -308,6 +503,7 @@ describe('custom connector tools through the MCP SDK', () => {
     expect(events[0].payload[OFFLOAD_KEY]?.result).toEqual(content);
   });
 
+  const draft = { connector_id: 'connector' };
   it.each([
     ['list_custom_connectors', { project_id: 'other' }],
     ['create_custom_connector', { name: 'N', title: 'T', manifest, user_id: 'other' }],
@@ -331,16 +527,18 @@ describe('custom connector tools through the MCP SDK', () => {
     ['get_custom_connector_fields', { connector_id: 'connector', version: 0 }],
     [
       'test_custom_connector',
-      { manifest, node: 'items', configuration: { pad: 'x'.repeat(120 * 1024) } },
+      { ...draft, node: 'items', configuration: { pad: 'x'.repeat(120 * 1024) } },
     ],
-    ['test_custom_connector', { manifest, node: 'items', configuration: {}, max_rows: 1001 }],
-    ['test_custom_connector', { manifest, node: 'items', configuration: {}, max_pages: 51 }],
-    ['test_custom_connector', { manifest, node: 'items', configuration: {}, max_pages: 1.5 }],
-    ['test_custom_connector', { manifest, node: 'items', configuration: {}, credential_id: '' }],
+    ['test_custom_connector', { ...draft, node: 'items', configuration: {}, max_rows: 1001 }],
+    ['test_custom_connector', { ...draft, node: 'items', configuration: {}, max_pages: 51 }],
+    ['test_custom_connector', { ...draft, node: 'items', configuration: {}, max_pages: 1.5 }],
+    ['test_custom_connector', { ...draft, node: 'items', configuration: {}, credential_id: '' }],
     [
       'test_custom_connector',
-      { manifest, node: 'items', configuration: {}, credential: { secret: 'private-token' } },
+      { ...draft, node: 'items', configuration: {}, credential: { secret: 'private-token' } },
     ],
+    ['test_custom_connector', { ...draft, manifest, node: 'items', configuration: {} }],
+    ['test_custom_connector', { node: 'items', configuration: {} }],
   ])('rejects invalid %s input before reaching the domain', async (name, args) => {
     const client = await open();
     const result = await client.callTool({
@@ -366,16 +564,6 @@ describe('custom connector tools through the MCP SDK', () => {
   });
 
   it.each([
-    {
-      label: 'an unmarked Authorization parameter',
-      manifest: {
-        parameters: { Value: { requiredType: 'string' } },
-        nodes: {
-          items: { request: { headers: { Authorization: 'Bearer {{ parameters.Value }}' } } },
-        },
-      },
-      configuration: { Value: 'temporary/"secret-value"' },
-    },
     {
       label: 'a literal api-key in a token exchange body',
       manifest: {
@@ -422,10 +610,11 @@ describe('custom connector tools through the MCP SDK', () => {
       error: `Request rejected ${JSON.stringify(secret)}`,
     };
     facade.test.mockResolvedValue(raw);
+    storeDraft(args.manifest);
 
     const result = await client.callTool({
       name: 'test_custom_connector',
-      arguments: { manifest: args.manifest, node: 'items', configuration: args.configuration },
+      arguments: { connector_id: 'connector', node: 'items', configuration: args.configuration },
     });
 
     expect(result.isError).toBe(true);
@@ -440,7 +629,7 @@ describe('custom connector tools through the MCP SDK', () => {
   });
 
   it.each(['sk_live_A1B2C3D4', 123456, '123456', 'sample'])(
-    'masks the temporary key %j in every result position and telemetry',
+    'masks the manifest key %j in every result position and telemetry',
     async secret => {
       const client = await open();
       const text = String(secret);
@@ -453,10 +642,11 @@ describe('custom connector tools through the MCP SDK', () => {
       };
       const before = structuredClone(raw);
       facade.test.mockResolvedValue(raw);
+      storeDraft(manifestWithKey(secret));
 
       const result = await client.callTool({
         name: 'test_custom_connector',
-        arguments: { manifest, node: 'items', configuration: { Value: secret } },
+        arguments: { connector_id: 'connector', node: 'items', configuration: {} },
       });
 
       expect(result.isError).toBe(true);
@@ -471,9 +661,6 @@ describe('custom connector tools through the MCP SDK', () => {
         result.structuredContent
       );
       expect(events[0].payload.error_message).toBe('Rejected [REDACTED]');
-      expect(events[0].payload[OFFLOAD_KEY]?.arguments).toMatchObject({
-        configuration: { Value: '[REDACTED]' },
-      });
       const logged = events[0].payload[OFFLOAD_KEY]?.result as Record<string, unknown>;
       expect(logged.rows).toEqual((result.structuredContent as Record<string, unknown>).rows);
       expect(raw).toEqual(before);
@@ -505,23 +692,24 @@ describe('custom connector tools through the MCP SDK', () => {
       };
       const before = structuredClone(raw);
       facade.test.mockResolvedValue(raw);
+      storeDraft({
+        nodes: {
+          items: {
+            request: {
+              path: '/items?cached_tokens=0',
+              queryParameters: { total_tokens: '{{ parameters.total_tokens }}' },
+            },
+          },
+        },
+        ...(withCounters
+          ? { parameters: { total_tokens: { default: 1500 }, cached_tokens: { default: 0 } } }
+          : {}),
+      });
 
       const result = await client.callTool({
         name: 'test_custom_connector',
         arguments: {
-          manifest: {
-            nodes: {
-              items: {
-                request: {
-                  path: '/items?cached_tokens=0',
-                  queryParameters: { total_tokens: '{{ parameters.total_tokens }}' },
-                },
-              },
-            },
-            ...(withCounters
-              ? { parameters: { total_tokens: { default: 1500 }, cached_tokens: { default: 0 } } }
-              : {}),
-          },
+          connector_id: 'connector',
           node: 'items',
           configuration: withCounters ? { total_tokens: 1500, cached_tokens: 0 } : {},
         },
@@ -535,7 +723,7 @@ describe('custom connector tools through the MCP SDK', () => {
     }
   );
 
-  it('masks a zero-valued temporary key as complete values and keys', async () => {
+  it('masks a zero-valued manifest key as complete values and keys', async () => {
     const client = await open();
     facade.test.mockResolvedValue({
       rows: [{ value: 0, id: 'inv_1500', amount: 1500 }],
@@ -544,9 +732,10 @@ describe('custom connector tools through the MCP SDK', () => {
       error: '0',
     });
 
+    storeDraft(manifestWithKey(0));
     const result = await client.callTool({
       name: 'test_custom_connector',
-      arguments: { manifest, node: 'items', configuration: { Value: 0 } },
+      arguments: { connector_id: 'connector', node: 'items', configuration: {} },
     });
 
     expect(result.isError).toBe(true);
@@ -561,14 +750,15 @@ describe('custom connector tools through the MCP SDK', () => {
   });
 
   it.each(['runtime-secret', 123456, '123456'])(
-    'masks the temporary key %j in a thrown error and its telemetry',
+    'masks the manifest key %j in a thrown error and its telemetry',
     async secret => {
       const client = await open();
       facade.test.mockRejectedValue(new Error(`Rejected ${secret}`));
+      storeDraft(manifestWithKey(secret));
 
       const result = await client.callTool({
         name: 'test_custom_connector',
-        arguments: { manifest, node: 'items', configuration: { Value: secret } },
+        arguments: { connector_id: 'connector', node: 'items', configuration: {} },
       });
 
       expect(result.isError).toBe(true);
@@ -585,9 +775,10 @@ describe('custom connector tools through the MCP SDK', () => {
       error: 'Request failed using ***',
       sample: [{ access_token: 'private-sample-token' }],
     });
+    storeDraft(manifestWithKey('runtime-secret'));
     const result = await client.callTool({
       name: 'test_custom_connector',
-      arguments: { manifest, node: 'items', configuration: { Value: 'runtime-secret' } },
+      arguments: { connector_id: 'connector', node: 'items', configuration: {} },
     });
     expect(result.isError).toBe(true);
     expect(result.content).toHaveLength(2);
@@ -612,7 +803,7 @@ describe('custom connector tools through the MCP SDK', () => {
     expect(JSON.stringify(inline)).not.toContain('private');
     expect(JSON.stringify(events[0])).not.toContain('runtime-secret');
     expect(offload).toMatchObject({
-      arguments: { configuration: { Value: '[REDACTED]' }, manifest: loggedManifest },
+      arguments: { connector_id: 'connector', node: 'items', configuration: '[REDACTED]' },
       result: {
         rows: [{ email: 'private@example.test', password: 'private-password' }],
         sample: [{ access_token: 'private-sample-token' }],

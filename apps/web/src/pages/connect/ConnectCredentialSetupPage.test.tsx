@@ -165,6 +165,21 @@ beforeEach(() => {
       return { data: savedCredential };
     }
     if (url === '/contexts') return { data: [] };
+    if (url === '/connectors/custom/connector-1') {
+      return {
+        data: {
+          id: 'connector-1',
+          versions: [
+            { version: 1, status: 'published' },
+            { version: 2, status: 'draft' },
+          ],
+          activeVersion: 1,
+        },
+      };
+    }
+    if (url === '/connectors/custom/connector-1/versions/2') {
+      return { data: { version: 2, status: 'draft', manifest: { name: 'draft-manifest' } } };
+    }
     throw new Error(`Unexpected GET ${url}`);
   });
 
@@ -172,6 +187,18 @@ beforeEach(() => {
     if (url === '/credentials') {
       if (saveError) throw saveError;
       return { data: savedCredential };
+    }
+    if (url === '/connectors/custom/credential-requirement') {
+      return {
+        data: {
+          hosts: ['api.example.test', 'oauth.example.test'],
+          fieldList: [
+            { key: 'ClientId', label: 'Client ID', secret: true, required: true },
+            { key: 'RefreshToken', label: 'Refresh Token', secret: true, required: true },
+          ],
+          keyParameters: ['ClientId', 'RefreshToken'],
+        },
+      };
     }
     if (url === '/credentials/oauth/google/authorize') {
       return { data: { authorizationUrl: 'https://accounts.google.com/oauth' } };
@@ -250,6 +277,90 @@ describe('ConnectCredentialSetupPage', () => {
       else expect(exchange![1]).not.toHaveProperty('title');
     }
   );
+
+  function openCustomConnectorSetup() {
+    definitions = [
+      {
+        ...definition,
+        id: 'custom-connector',
+        displayName: 'Custom connector',
+        auth: { type: 'custom-connector' },
+      },
+    ];
+    setups.set('setup-1', pendingSetup({ definitionId: 'custom-connector' }));
+    renderPage('/ui/project-1/connect/credentials/setup-1?connector=connector-1');
+  }
+
+  it("opens a custom connector Credential with the hosts and key fields of the connector's draft", async () => {
+    openCustomConnectorSetup();
+
+    fireEvent.change(await screen.findByLabelText('Client ID'), {
+      target: { value: 'client-value' },
+    });
+    fireEvent.change(screen.getByLabelText('Refresh Token'), {
+      target: { value: 'token-value' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    await screen.findByRole('heading', { name: 'Credential saved' });
+    expect(mocks.post).toHaveBeenCalledWith(
+      '/connectors/custom/credential-requirement',
+      { manifest: { name: 'draft-manifest' } },
+      expect.anything()
+    );
+    expect(mocks.post).toHaveBeenCalledWith(
+      '/credentials',
+      expect.objectContaining({
+        definitionId: 'custom-connector',
+        customConnector: {
+          hosts: ['api.example.test', 'oauth.example.test'],
+          fieldList: [
+            { key: 'ClientId', label: 'Client ID', secret: true },
+            { key: 'RefreshToken', label: 'Refresh Token', secret: true },
+          ],
+          fields: { ClientId: 'client-value', RefreshToken: 'token-value' },
+        },
+      }),
+      expect.anything()
+    );
+  });
+
+  it('says so and opens an empty form when it cannot read the connector', async () => {
+    const answer = mocks.get.getMockImplementation()!;
+    mocks.get.mockImplementation(async (url: string, config?: unknown) => {
+      if (url === '/connectors/custom/connector-1') throw new Error('Forbidden');
+      return answer(url, config);
+    });
+    openCustomConnectorSetup();
+
+    expect(
+      await screen.findByText(/Could not read the hosts and key fields of the connector/)
+    ).toBeInTheDocument();
+    expect(screen.queryByLabelText('Client ID')).not.toBeInTheDocument();
+    expect(mocks.get).toHaveBeenCalledWith(
+      '/connectors/custom/connector-1',
+      expect.objectContaining({ skipErrorToast: true })
+    );
+  });
+
+  it('leaves the key fields of a selective authentication to the user', async () => {
+    const answer = mocks.post.getMockImplementation()!;
+    mocks.post.mockImplementation(async (url: string, body?: { credentialId?: string }) => {
+      if (url !== '/connectors/custom/credential-requirement') return answer(url, body);
+      const { data } = (await answer(url, body)) as { data: Record<string, unknown> };
+      return { data: { ...data, selectionParameter: 'AuthMode' } };
+    });
+    openCustomConnectorSetup();
+
+    expect(await screen.findByRole('button', { name: 'Save' })).toBeInTheDocument();
+    expect(mocks.post).toHaveBeenCalledWith(
+      '/connectors/custom/credential-requirement',
+      expect.anything(),
+      expect.anything()
+    );
+    expect(screen.queryByLabelText('Client ID')).not.toBeInTheDocument();
+    expect(screen.queryByText(/Could not read the hosts/)).not.toBeInTheDocument();
+  });
 
   it('creates a private Credential with the server provider and completes the exact request', async () => {
     definitions = [

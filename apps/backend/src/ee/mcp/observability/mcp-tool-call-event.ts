@@ -2,12 +2,7 @@ import { BaseEvent, deriveTraceId, OFFLOAD_KEY } from '@owox/internal-helpers';
 import { createHash } from 'node:crypto';
 import type { McpToolResult } from '../tools/mcp-tool.definition';
 import type { McpLogContext } from './mcp-log-context';
-import {
-  REDACTED,
-  REDACT_KEYS,
-  createMcpInputSecretRedactor,
-  redactMcpTelemetry as redact,
-} from './mcp-telemetry-redaction';
+import { REDACTED, REDACT_KEYS, redactMcpTelemetry as redact } from './mcp-telemetry-redaction';
 
 export interface McpToolCallEventPayload {
   mcp_method_name: string;
@@ -200,11 +195,17 @@ export function buildMcpToolCallEvent(p: BuildMcpToolCallEventParams): McpToolCa
     mcp_tool_status: status,
     occurred_at: occurredAt.toISOString(),
     // Bulky (heterogeneous per tool → load into BQ JSON-typed columns).
-    arguments: privateConfiguration ? REDACTED : redact(p.input),
+    // A connector test reads its manifest from the draft. Telemetry cannot see that manifest, so it
+    // cannot tell a key in configuration from a setting. The tool already masked its result with it.
+    arguments: privateConfiguration
+      ? REDACTED
+      : p.toolName === 'test_custom_connector'
+        ? { ...(redact(p.input) as Record<string, unknown>), configuration: REDACTED }
+        : redact(p.input),
     result: privateConfiguration
       ? REDACTED
       : p.toolName === 'test_custom_connector'
-        ? createMcpInputSecretRedactor(p.input)(p.result?.structuredContent ?? p.result?.content)
+        ? (p.result?.structuredContent ?? p.result?.content)
         : redact(p.result?.structuredContent ?? p.result?.content, p.input),
   };
   if (p.executedSql) offload.sql = privateConfiguration ? REDACTED : p.executedSql;

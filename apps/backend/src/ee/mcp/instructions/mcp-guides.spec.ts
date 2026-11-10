@@ -11,19 +11,18 @@ describe('MCP guides', () => {
     }
   });
 
-  it('keeps saved Credential secrets in browser setup and permits temporary connector tests', () => {
+  it('keeps every secret in browser setup, connector tests included', () => {
     const credentials = MCP_GUIDES.credentials;
     expect(credentials).toContain('start_credential_setup');
     expect(credentials).toContain('get_credential_setup_status');
     expect(credentials).toContain('wait_seconds');
-    expect(credentials).toContain(
-      'Never accept provider secrets in Credential management tool arguments'
-    );
+    expect(credentials).toContain('Never accept provider secrets in tool arguments');
     expect(credentials).toContain('Completion does not prove provider validation');
     expect(credentials).toContain('Do not promise a background completion notification');
     expect(MCP_GUIDES.custom_connectors).toContain(
-      'If the user chooses a test with temporary keys, omit credential_id'
+      'test_custom_connector rejects keys in configuration'
     );
+    expect(Object.values(MCP_GUIDES).join('\n')).not.toMatch(/temporary key/i);
   });
 
   it('uses the exact saved Credential when creating a Google Sheets destination', () => {

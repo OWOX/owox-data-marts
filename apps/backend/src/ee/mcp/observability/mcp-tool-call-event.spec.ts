@@ -146,7 +146,7 @@ describe('buildMcpToolCallEvent', () => {
       };
       const event = buildMcpToolCallEvent(
         baseParams({
-          toolName: 'test_custom_connector',
+          toolName: 'save_custom_connector_draft',
           input,
           ...(mode === 'thrown'
             ? { error: new Error(error) }
@@ -178,6 +178,25 @@ describe('buildMcpToolCallEvent', () => {
       }
     }
   );
+
+  it('hides a connector test configuration and keeps the result that the tool masked', () => {
+    const result = {
+      content: [{ type: 'text' as const, text: '{}' }],
+      structuredContent: { rows: [{ total_tokens: 1500 }], logs: [], error: null, sample: [] },
+    };
+    const event = buildMcpToolCallEvent(
+      baseParams({
+        toolName: 'test_custom_connector',
+        input: { connector_id: 'c1', node: 'items', configuration: { Value: 'private-key' } },
+        result,
+      })
+    );
+    expect(event.payload[OFFLOAD_KEY]).toMatchObject({
+      arguments: { connector_id: 'c1', node: 'items', configuration: '[REDACTED]' },
+      result: result.structuredContent,
+    });
+    expect(JSON.stringify(event)).not.toContain('private-');
+  });
 
   it('offload blob is self-describing: identity fields match the top-level payload, plus occurred_at == event.occurredAt', () => {
     const ev = buildMcpToolCallEvent({
@@ -439,7 +458,7 @@ describe('buildMcpToolCallEvent', () => {
 
   it('redact tolerates deep nesting without throwing and preserves a literal __proto__ key', () => {
     let deep: Record<string, unknown> = { leaf: true };
-    for (let i = 0; i < 50; i++) deep = { nested: deep };
+    for (let i = 0; i < 80; i++) deep = { nested: deep };
     const ev = buildMcpToolCallEvent({
       methodName: 'tools/call',
       toolName: 'x',
