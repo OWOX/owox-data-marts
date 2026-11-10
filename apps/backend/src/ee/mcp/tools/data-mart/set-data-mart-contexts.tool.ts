@@ -17,7 +17,7 @@ type Input = z.input<typeof setDataMartContextsSchema>;
 export class SetDataMartContextsTool implements McpToolDefinition<Input> {
   readonly name = 'set_data_mart_contexts';
   readonly description =
-    'Replace the Context assignments of a Data Mart. An empty list removes all assignments. The tool requires the same sharing permission as OWOX. This can change who can access the Data Mart.';
+    'Replace the Context assignments of a Data Mart. An empty list removes all assignments. The tool requires the same sharing permission as OWOX. This can change who can access the Data Mart. Keep the existing entries that the user still needs.';
   readonly zodSchema = setDataMartContextsSchema;
   readonly outputSchema = { data_mart_id: z.string(), updated: z.literal(true) };
   readonly annotations = {

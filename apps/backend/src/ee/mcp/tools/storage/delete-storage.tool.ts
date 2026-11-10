@@ -17,7 +17,7 @@ type Input = z.infer<typeof storageTargetSchema>;
 export class DeleteStorageTool implements McpToolDefinition<Input> {
   readonly name = 'delete_storage';
   readonly description =
-    'Delete a Storage that no Data Mart references. The saved Credential remains available. Legacy Google BigQuery Storages cannot be deleted. Never delete dependent Data Marts to bypass this restriction.';
+    "Delete a Storage that no Data Mart references. The saved Credential remains available. Legacy Google BigQuery Storages cannot be deleted. Never delete dependent Data Marts to bypass this restriction. Get the user's approval before the call.";
   readonly zodSchema = storageTargetSchema;
   readonly outputSchema = { storage_id: z.string(), deleted: z.boolean() };
   readonly annotations = {

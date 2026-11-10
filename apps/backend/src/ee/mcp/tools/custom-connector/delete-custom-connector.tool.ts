@@ -16,7 +16,7 @@ type Input = z.infer<typeof inputSchema>;
 export class DeleteCustomConnectorTool implements McpToolDefinition<Input> {
   readonly name = 'delete_custom_connector';
   readonly description =
-    'Soft-delete a custom connector and make its name available for reuse. You must be an editor. Deletion fails if any Data Mart references the connector, including a pinned version. Before retrying, reconfigure or remove those references in the OWOX web app. Do not delete Data Marts to bypass this restriction.';
+    "Soft-delete a custom connector and make its name available for reuse. You must be an editor. Deletion fails if any Data Mart references the connector, including a pinned version. Before retrying, reconfigure or remove those references in the OWOX web app. Do not delete Data Marts to bypass this restriction. Get the user's approval before the call.";
   readonly zodSchema = inputSchema;
   readonly outputSchema = { success: z.boolean() };
   readonly annotations = {

@@ -15,7 +15,7 @@ type DeleteContextInput = z.infer<typeof inputSchema>;
 export class DeleteContextTool implements McpToolDefinition<DeleteContextInput> {
   readonly name = 'delete_context';
   readonly description =
-    'Delete a Context in the connected OWOX project. Requires a project admin. Use get_context_impact first; deletion fails while any attachment it counts remains. Assignments of members with project-wide access are not counted and are removed with the Context. With user approval, remove the counted member assignments using set_context_members with assigned_user_ids: []. With user approval, detach Data Marts with set_data_mart_contexts, and Storages or Destinations with set_storage_access or set_destination_access. Ask the user to detach user provisioning defaults in the OWOX web app.';
+    "Delete a Context in the connected OWOX project. Requires a project admin. Use get_context_impact first; deletion fails while any attachment it counts remains. Assignments of members with project-wide access are not counted and are removed with the Context. With user approval, remove the counted member assignments using set_context_members with assigned_user_ids: []. With user approval, detach Data Marts with set_data_mart_contexts, and Storages or Destinations with set_storage_access or set_destination_access. Pass the remaining Context IDs; send an empty list only when this Context is the only one. Ask the user to detach user provisioning defaults in the OWOX web app. Get the user's approval before the call.";
   readonly zodSchema = inputSchema;
   readonly outputSchema = { context_id: z.string(), status: z.literal('deleted') };
   readonly annotations = {

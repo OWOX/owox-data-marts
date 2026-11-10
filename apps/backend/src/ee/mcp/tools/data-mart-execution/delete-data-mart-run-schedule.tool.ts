@@ -16,7 +16,7 @@ type Input = z.infer<typeof deleteDataMartRunScheduleSchema>;
 export class DeleteDataMartRunScheduleTool implements McpToolDefinition<Input> {
   readonly name = 'delete_data_mart_run_schedule';
   readonly description =
-    'Delete a specific run schedule for a connector Data Mart by data_mart_id and trigger_id. This stops future runs for that schedule. Existing runs and other schedules remain. The tool does not modify Report or Data Quality schedules.';
+    "Delete a specific run schedule for a connector Data Mart by data_mart_id and trigger_id. This stops future runs for that schedule. Existing runs and other schedules remain. The tool does not modify Report or Data Quality schedules. Get the user's approval before the call.";
   readonly zodSchema = deleteDataMartRunScheduleSchema;
   readonly outputSchema = { data_mart_id: z.string(), trigger_id: z.string() };
   readonly requiredScopes: McpScope[] = ['mcp:write'];

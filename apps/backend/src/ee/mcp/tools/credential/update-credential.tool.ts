@@ -16,7 +16,7 @@ type Input = z.infer<typeof updateCredentialSchema>;
 export class UpdateCredentialTool implements McpToolDefinition<Input> {
   readonly name = 'update_credential';
   readonly description =
-    'Update the Credential title, enabled state, owners, Contexts, sharing or AI model mappings. Omitted fields stay unchanged. owner_ids and context_ids replace their complete lists. Disabling the Credential can stop dependent runs. Changing owners, Contexts or sharing can revoke existing access. Existing permissions to edit, manage owners and configure sharing apply to the supplied fields.\n\nNever send provider secrets, field values or OAuth tokens. Use start_credential_setup to replace secrets or reconnect an account.';
+    'Update the Credential title, enabled state, owners, Contexts, sharing or AI model mappings. Omitted fields stay unchanged. owner_ids and context_ids replace their complete lists. Disabling the Credential can stop dependent runs. Changing owners, Contexts or sharing can revoke existing access. Existing permissions to edit, manage owners and configure sharing apply to the supplied fields.\n\nNever send provider secrets, field values or OAuth tokens. Use start_credential_setup to replace secrets or reconnect an account. Keep the existing entries that the user still needs.';
   readonly zodSchema = updateCredentialSchema;
   readonly outputSchema = credentialOutputSchema;
   readonly annotations = {

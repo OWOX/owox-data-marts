@@ -147,6 +147,10 @@ describe('MCP tool providers', () => {
       );
       expect([...MCP_GUIDE_TOPICS]).toEqual(expect.arrayContaining(pointedTopics));
       expect(pointedTopics).toEqual(expect.arrayContaining([...MCP_GUIDE_TOPICS]));
+      // claude.ai drops the server instructions, so each deletion asks for approval itself.
+      for (const tool of tools.filter(tool => tool.name.startsWith('delete_'))) {
+        expect(`${tool.name}: ${tool.description}`).toMatch(/approval|authorization/);
+      }
       expect(toolNames).toEqual(
         expect.arrayContaining([
           'get_connector_fields',

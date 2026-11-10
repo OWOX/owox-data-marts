@@ -16,7 +16,7 @@ type Input = z.infer<typeof credentialTargetSchema>;
 export class DeleteCredentialTool implements McpToolDefinition<Input> {
   readonly name = 'delete_credential';
   readonly description =
-    'Delete an unused Credential. You must have delete access. The tool refuses to delete a Credential with active consumers, including hidden consumers. First, inspect the Credential with get_credential. Ask the user to remove bindings in OWOX before you retry deletion. Never delete consumers to bypass this restriction.';
+    "Delete an unused Credential. You must have delete access. The tool refuses to delete a Credential with active consumers, including hidden consumers. First, inspect the Credential with get_credential. Ask the user to remove bindings in OWOX before you retry deletion. Never delete consumers to bypass this restriction. Get the user's approval before the call.";
   readonly zodSchema = credentialTargetSchema;
   readonly outputSchema = { credential_id: z.string(), status: z.literal('deleted') };
   readonly annotations = {

@@ -17,7 +17,7 @@ type Input = z.input<typeof setDataMartOwnersSchema>;
 export class SetDataMartOwnersTool implements McpToolDefinition<Input> {
   readonly name = 'set_data_mart_owners';
   readonly description =
-    'Replace both business and technical owner lists. Read the current setup first. Use list_project_members to select project members. The tool requires the same permission to manage owners as OWOX. This may remove your own access.';
+    'Replace both business and technical owner lists. Read the current setup first. Use list_project_members to select project members. The tool requires the same permission to manage owners as OWOX. This may remove your own access. Keep the existing entries that the user still needs.';
   readonly zodSchema = setDataMartOwnersSchema;
   readonly outputSchema = { data_mart_id: z.string(), updated: z.literal(true) };
   readonly annotations = {
