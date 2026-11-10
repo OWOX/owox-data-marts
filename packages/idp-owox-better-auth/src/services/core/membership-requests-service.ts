@@ -5,16 +5,23 @@ import type {
 } from '@owox/idp-protocol';
 import type { IdentityOwoxClient } from '../../client/IdentityOwoxClient.js';
 import { createServiceLogger } from '../../core/logger.js';
+import type { DatabaseStore } from '../../store/database-store.js';
+import { maskEmail } from '../../utils/email-utils.js';
+import type { AccessRequestEmailService } from '../email/access-request-email-service.js';
 
 /**
  * MembershipRequestsService — thin wrapper over `IdentityOwoxClient` that
  * adapts the Java `MembershipRequestDto` / approve / decline endpoints into
- * the shared `IdpProvider` contract.
+ * the shared `IdpProvider` contract. An approval also emails the person who asked.
  */
 export class MembershipRequestsService {
   private readonly logger = createServiceLogger(MembershipRequestsService.name);
 
-  constructor(private readonly identityClient: IdentityOwoxClient) {}
+  constructor(
+    private readonly identityClient: IdentityOwoxClient,
+    private readonly store: DatabaseStore,
+    private readonly emailService: AccessRequestEmailService
+  ) {}
 
   async listMembershipRequests(
     projectId: string,
@@ -33,6 +40,10 @@ export class MembershipRequestsService {
     }));
   }
 
+  /**
+   * The response does not wait for the approval email, and a failed email does not fail
+   * the approval.
+   */
   async approveMembershipRequest(
     projectId: string,
     requestId: string,
@@ -51,7 +62,54 @@ export class MembershipRequestsService {
       role,
       actorUserId
     );
+    void this.notifyRequester(projectId, userUid, role);
     return { userId: userUid };
+  }
+
+  /**
+   * Emails the approved person. Never throws. The email is mandatory, so it ignores
+   * notification settings.
+   */
+  async notifyRequester(projectId: string, userId: string, role: Role): Promise<void> {
+    try {
+      const requesterEmail = await this.findUserEmail(projectId, userId);
+      if (!requesterEmail) {
+        this.logger.warn('No email for the approved access request', { projectId, userId });
+        return;
+      }
+      try {
+        await this.emailService.sendApprovalToRequester({ requesterEmail, role, projectId });
+      } catch (error) {
+        this.logger.error(
+          'Failed to send access approval email',
+          { projectId, email: maskEmail(requesterEmail) },
+          error
+        );
+      }
+    } catch (error) {
+      this.logger.error('Could not email the approved access request', { projectId }, error);
+    }
+  }
+
+  /**
+   * The local user record first; the project members from Identity, where the
+   * approved person now is, when there is no local record.
+   */
+  private async findUserEmail(projectId: string, userId: string): Promise<string | undefined> {
+    try {
+      const user = await this.store.getUserByBiUserId(userId);
+      if (user?.email) {
+        return user.email;
+      }
+    } catch (error) {
+      this.logger.warn(
+        'Could not load the approved user from the local store',
+        { projectId },
+        error
+      );
+    }
+    const { projectMembers } = await this.identityClient.getProjectMembers(projectId);
+    return projectMembers.find(member => String(member.userId) === userId)?.email || undefined;
   }
 
   async declineMembershipRequest(

@@ -13,7 +13,6 @@ export interface AccessRequestServiceOptions {
 
 export interface AccessRequestNotification {
   projectId: string;
-  projectTitle?: string;
   requesterUserId: string;
   /** Requester email known from Identity; used when the local user record has none. */
   requesterEmail?: string;
@@ -70,7 +69,6 @@ export class AccessRequestService {
     } else {
       void this.notifyAdmins({
         projectId: result.projectId,
-        projectTitle: result.projectTitle,
         requesterUserId: userId,
         requesterEmail: check.requesterEmail,
         role: result.request.role,
@@ -99,12 +97,11 @@ export class AccessRequestService {
 
       const results = await Promise.allSettled(
         adminEmails.map(adminEmail =>
-          this.emailService.send({
+          this.emailService.sendRequestToAdmin({
             adminEmail,
             requesterEmail,
             role: notification.role,
             projectId,
-            projectTitle: notification.projectTitle,
           })
         )
       );

@@ -9,6 +9,8 @@ type SendArgs = [
   { bodyText: string; categories: string[]; isMultiple?: boolean; signal?: AbortSignal },
 ];
 
+const MEMBERS_URL = 'https://app.example.com/ui/p-1/project-settings/members';
+
 function createService(retryDelaysMs: number[] = []) {
   const sendEmail = jest.fn<EmailProvider['sendEmail']>(async () => undefined);
   const provider = { sendEmail } as jest.Mocked<EmailProvider>;
@@ -18,75 +20,101 @@ function createService(retryDelaysMs: number[] = []) {
   return { sendEmail, service };
 }
 
-describe('AccessRequestEmailService', () => {
-  it('tells the admin who asked for which role in which project and links to the members page', async () => {
+describe('AccessRequestEmailService.sendRequestToAdmin', () => {
+  it('keeps the wording admins received before and links to the members page', async () => {
     const { sendEmail, service } = createService();
 
-    await service.send({
+    await service.sendRequestToAdmin({
       adminEmail: 'admin@example.com',
       requesterEmail: 'new@example.com',
       role: 'editor',
       projectId: 'p-1',
-      projectTitle: 'Acme',
     });
 
     expect(sendEmail).toHaveBeenCalledTimes(1);
     const [to, subject, html, options] = sendEmail.mock.calls[0] as SendArgs;
     expect(to).toBe('admin@example.com');
-    expect(subject).toBe('Access request to Acme in OWOX Data Marts');
-    expect(html).toContain('>Project Acme</div>');
+    expect(subject).toBe('You have a new access request');
+    expect(html).toContain('Hey friend');
+    expect(html).toContain('>from new@example.com</div>');
     expect(html).toContain(
-      'User new@example.com requested access to <strong>Acme</strong> as a <strong>Data Owner</strong>.'
+      'The user with the email new@example.com has requested a change in permissions for your project to the role of <strong>Data Owner</strong>.'
     );
-    expect(html).toContain('https://app.example.com/ui/p-1/project-settings/members');
+    expect(html).toContain(
+      `Kindly navigate to the <a href="${MEMBERS_URL}" target="_blank" rel="noopener noreferrer" style="color:#1E88E5;text-decoration:none;">Members</a> page in your project to review and approve this request.`
+    );
+    expect(html).toContain('Check request');
+    expect(html).toContain(`href="${MEMBERS_URL}"`);
     expect(options.isMultiple).toBe(false);
     expect(options.categories).toEqual(['transactional', 'project-access-request']);
-    expect(options.bodyText).toContain(
-      'User new@example.com requested access to Acme as a Data Owner.'
-    );
-    expect(options.bodyText).toContain(
-      'Review request: https://app.example.com/ui/p-1/project-settings/members'
+    expect(options.bodyText).toBe(
+      [
+        'Hey friend',
+        '',
+        'The user with the email new@example.com has requested a change in permissions for your project to the role of Data Owner.',
+        '',
+        'Kindly navigate to the Members page in your project to review and approve this request.',
+        '',
+        `Check request: ${MEMBERS_URL}`,
+        '',
+        'You received this email because you are an admin of this project.',
+      ].join('\n')
     );
   });
 
   it('uses UI role names', async () => {
     const { sendEmail, service } = createService();
 
-    await service.send({ adminEmail: 'a@example.com', role: 'admin', projectId: 'p-1' });
-    await service.send({ adminEmail: 'a@example.com', role: 'viewer', projectId: 'p-1' });
+    await service.sendRequestToAdmin({
+      adminEmail: 'a@example.com',
+      role: 'admin',
+      projectId: 'p',
+    });
+    await service.sendRequestToAdmin({
+      adminEmail: 'a@example.com',
+      role: 'viewer',
+      projectId: 'p',
+    });
 
-    expect((sendEmail.mock.calls[0] as SendArgs)[3].bodyText).toContain('as a Project Admin.');
-    expect((sendEmail.mock.calls[1] as SendArgs)[3].bodyText).toContain('as a Business User.');
-  });
-
-  it('reads without a requester email or project title', async () => {
-    const { sendEmail, service } = createService();
-
-    await service.send({ adminEmail: 'admin@example.com', role: 'viewer', projectId: 'p-1' });
-
-    const [, subject, , options] = sendEmail.mock.calls[0] as SendArgs;
-    expect(subject).toBe('Access request to your project in OWOX Data Marts');
-    expect(options.bodyText).toContain(
-      'Someone requested access to your OWOX project as a Business User.'
+    expect((sendEmail.mock.calls[0] as SendArgs)[3].bodyText).toContain(
+      'to the role of Project Admin.'
+    );
+    expect((sendEmail.mock.calls[1] as SendArgs)[3].bodyText).toContain(
+      'to the role of Business User.'
     );
   });
 
-  it('keeps project titles from turning into links and escapes HTML', async () => {
+  it('reads without the requester email', async () => {
     const { sendEmail, service } = createService();
 
-    await service.send({
+    await service.sendRequestToAdmin({
+      adminEmail: 'admin@example.com',
+      role: 'viewer',
+      projectId: 'p-1',
+    });
+
+    const [, , html, options] = sendEmail.mock.calls[0] as SendArgs;
+    expect(options.bodyText).toContain(
+      'A user has requested a change in permissions for your project to the role of Business User.'
+    );
+    expect(html).not.toContain('>from ');
+  });
+
+  it('escapes HTML in the requester email', async () => {
+    const { sendEmail, service } = createService();
+
+    await service.sendRequestToAdmin({
       adminEmail: 'admin@example.com',
       requesterEmail: '<i>x</i>@example.com',
       role: 'viewer',
       projectId: 'p-1',
-      projectTitle: 'shop.example.com <b>x</b>',
     });
 
-    const [, subject, html] = sendEmail.mock.calls[0] as SendArgs;
-    expect(subject).toBe('Access request to shop example com <b>x</b> in OWOX Data Marts');
-    expect(html).toContain('<strong>shop example com &lt;b&gt;x&lt;/b&gt;</strong>');
-    expect(html).toContain('User &lt;i&gt;x&lt;/i&gt;@example.com requested access');
-    expect(html).not.toContain('<b>x</b>');
+    const [, , html] = sendEmail.mock.calls[0] as SendArgs;
+    expect(html).toContain(
+      'The user with the email &lt;i&gt;x&lt;/i&gt;@example.com has requested'
+    );
+    expect(html).toContain('>from &lt;i&gt;x&lt;/i&gt;@example.com</div>');
     expect(html).not.toContain('<i>x</i>');
   });
 
@@ -95,8 +123,50 @@ describe('AccessRequestEmailService', () => {
     sendEmail.mockRejectedValue(new Error('SendGrid responded 500'));
 
     await expect(
-      service.send({ adminEmail: 'admin@example.com', role: 'viewer', projectId: 'p-1' })
+      service.sendRequestToAdmin({
+        adminEmail: 'admin@example.com',
+        role: 'viewer',
+        projectId: 'p',
+      })
     ).rejects.toThrow('SendGrid responded 500');
     expect(sendEmail).toHaveBeenCalledTimes(3);
+  });
+});
+
+describe('AccessRequestEmailService.sendApprovalToRequester', () => {
+  it('keeps the wording people received before and opens the project', async () => {
+    const { sendEmail, service } = createService();
+
+    await service.sendApprovalToRequester({
+      requesterEmail: 'new@example.com',
+      role: 'viewer',
+      projectId: 'p-1',
+    });
+
+    expect(sendEmail).toHaveBeenCalledTimes(1);
+    const [to, subject, html, options] = sendEmail.mock.calls[0] as SendArgs;
+    expect(to).toBe('new@example.com');
+    expect(subject).toBe('OWOX Project access is confirmed');
+    expect(html).toContain('Hey friend');
+    expect(html).toContain(
+      'You have been granted <strong>Business User</strong> access to the OWOX project.'
+    );
+    expect(html).toContain('To access the project page, please click the link below.');
+    expect(html).toContain('Join now');
+    expect(html).toContain('href="https://app.example.com/ui/p-1/data-marts"');
+    expect(options.categories).toEqual(['transactional', 'project-access-approved']);
+    expect(options.bodyText).toBe(
+      [
+        'Hey friend',
+        '',
+        'You have been granted Business User access to the OWOX project.',
+        '',
+        'To access the project page, please click the link below.',
+        '',
+        'Join now: https://app.example.com/ui/p-1/data-marts',
+        '',
+        'You received this email because you asked for access to this project.',
+      ].join('\n')
+    );
   });
 });

@@ -54,7 +54,7 @@ function setup(members: Member[] = [member({})], options = { pendingRequestCheck
   const store = {
     getUserByBiUserId: jest.fn(async () => ({ id: 'u', email: 'new@example.com' })),
   };
-  const emailService = { send: jest.fn(async () => undefined) };
+  const emailService = { sendRequestToAdmin: jest.fn(async () => undefined) };
   const service = new AccessRequestService(
     store as unknown as DatabaseStore,
     identityClient as unknown as IdentityOwoxClient,
@@ -66,7 +66,6 @@ function setup(members: Member[] = [member({})], options = { pendingRequestCheck
 
 const NOTIFICATION: AccessRequestNotification = {
   projectId: 'p-1',
-  projectTitle: 'Acme',
   requesterUserId: 'user-1',
   role: 'editor',
 };
@@ -87,7 +86,6 @@ describe('AccessRequestService.requestAccess', () => {
     });
     expect(notify).toHaveBeenCalledWith({
       projectId: 'p-1',
-      projectTitle: 'Acme',
       requesterUserId: 'user-1',
       requesterEmail: 'identity@example.com',
       role: 'editor',
@@ -165,20 +163,18 @@ describe('AccessRequestService.notifyAdmins', () => {
 
     await service.notifyAdmins(NOTIFICATION);
 
-    expect(emailService.send.mock.calls.map(([payload]) => payload)).toEqual([
+    expect(emailService.sendRequestToAdmin.mock.calls.map(([payload]) => payload)).toEqual([
       {
         adminEmail: 'first@example.com',
         requesterEmail: 'new@example.com',
         role: 'editor',
         projectId: 'p-1',
-        projectTitle: 'Acme',
       },
       {
         adminEmail: 'muted@example.com',
         requesterEmail: 'new@example.com',
         role: 'editor',
         projectId: 'p-1',
-        projectTitle: 'Acme',
       },
     ]);
   });
@@ -197,7 +193,7 @@ describe('AccessRequestService.notifyAdmins', () => {
 
     await service.notifyAdmins({ ...NOTIFICATION, requesterEmail: 'identity@example.com' });
 
-    expect(emailService.send).toHaveBeenCalledWith(
+    expect(emailService.sendRequestToAdmin).toHaveBeenCalledWith(
       expect.objectContaining({ requesterEmail: 'identity@example.com' })
     );
   });
@@ -207,10 +203,10 @@ describe('AccessRequestService.notifyAdmins', () => {
       member({ userId: 1, email: 'first@example.com' }),
       member({ userId: 2, email: 'second@example.com' }),
     ]);
-    emailService.send.mockRejectedValueOnce(new Error('SendGrid responded 500'));
+    emailService.sendRequestToAdmin.mockRejectedValueOnce(new Error('SendGrid responded 500'));
 
     await expect(service.notifyAdmins(NOTIFICATION)).resolves.toBeUndefined();
-    expect(emailService.send).toHaveBeenCalledTimes(2);
+    expect(emailService.sendRequestToAdmin).toHaveBeenCalledTimes(2);
   });
 
   it('does not throw when the admins cannot be loaded', async () => {
@@ -218,6 +214,6 @@ describe('AccessRequestService.notifyAdmins', () => {
     identityClient.getProjectMembers.mockRejectedValue(new Error('Identity unavailable'));
 
     await expect(service.notifyAdmins(NOTIFICATION)).resolves.toBeUndefined();
-    expect(emailService.send).not.toHaveBeenCalled();
+    expect(emailService.sendRequestToAdmin).not.toHaveBeenCalled();
   });
 });

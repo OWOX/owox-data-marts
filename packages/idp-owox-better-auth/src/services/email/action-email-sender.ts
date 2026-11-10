@@ -6,8 +6,8 @@ import { maskEmail } from '../../utils/email-utils.js';
 import { resolveResourcePath } from '../../utils/template-paths.js';
 
 /**
- * At most 3 attempts of 5 s with 0.5 s and 1.5 s pauses, so a send that someone
- * waits for stays well under the web client's 30 s timeout.
+ * At most 3 attempts of 5 s with 0.5 s and 1.5 s pauses: one send ends within about 17 s,
+ * well under the web client's 30 s timeout when a request waits for it.
  */
 const DEFAULT_RETRY_DELAYS_MS: readonly number[] = [500, 1500];
 const DEFAULT_ATTEMPT_TIMEOUT_MS = 5000;
@@ -31,6 +31,10 @@ export interface ActionEmailContent {
   description: string;
   /** The same sentence as HTML. The caller escapes everything except the tags it adds. */
   descriptionHtml?: string;
+  /** Optional second paragraph, plain text. */
+  details?: string;
+  /** The second paragraph as HTML, escaped by the caller like `descriptionHtml`. */
+  detailsHtml?: string;
   buttonText: string;
   actionUrl: string;
   footer: string;
@@ -71,6 +75,7 @@ export class ActionEmailSender {
       content.title,
       '',
       content.description,
+      ...(content.details ? ['', content.details] : []),
       '',
       `${content.buttonText}: ${content.actionUrl}`,
       '',

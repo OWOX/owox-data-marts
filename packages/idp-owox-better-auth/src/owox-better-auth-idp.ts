@@ -159,7 +159,11 @@ export class OwoxBetterAuthIdp implements IdpProvider {
       projectInvitationEmailService,
       serviceOptions
     );
-    this.membershipRequestsService = new MembershipRequestsService(this.identityClient);
+    this.membershipRequestsService = new MembershipRequestsService(
+      this.identityClient,
+      this.store,
+      accessRequestEmailService
+    );
     this.accessRequestService = new AccessRequestService(
       this.store,
       this.identityClient,

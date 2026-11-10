@@ -66,6 +66,12 @@
                   <%# descriptionHtml must be escaped by the caller; it allows <strong> in the text. %>
                   <% if (locals.descriptionHtml) { %><%- descriptionHtml %><% } else { %><%= description %><% } %>
                 </p>
+                <% if (locals.details) { %>
+                <p style="margin:12px 0 0 0;color:#374151;font-size:14px;">
+                  <%# detailsHtml must be escaped by the caller; it allows tags such as <a> in the text. %>
+                  <% if (locals.detailsHtml) { %><%- detailsHtml %><% } else { %><%= details %><% } %>
+                </p>
+                <% } %>
                 
                 <div style="font-size:1px;line-height:1px;height:16px;">&nbsp;</div>
                 

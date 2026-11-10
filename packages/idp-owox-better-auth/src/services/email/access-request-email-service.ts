@@ -3,7 +3,6 @@ import type { EmailProvider } from '@owox/internal-helpers';
 import ejs from 'ejs';
 import {
   ActionEmailSender,
-  formatProjectTitle,
   type ActionEmailContent,
   type ActionEmailSendOptions,
 } from './action-email-sender.js';
@@ -16,18 +15,29 @@ export interface AccessRequestEmailPayload {
   /** Role the person asked for. */
   role: Role;
   projectId: string;
-  projectTitle?: string;
+}
+
+export interface AccessApprovalEmailPayload {
+  /** Email of the person whose request was approved. */
+  requesterEmail: string;
+  /** Role the admin granted. */
+  role: Role;
+  projectId: string;
 }
 
 /**
- * Renders and sends the email that tells a project admin someone asked to join the project.
+ * Renders and sends the two access request emails: the request to each project admin,
+ * and the approval to the person who asked.
+ *
+ * The wording follows the emails users received before OWOX Data Marts sent them itself.
+ * The recipient's first name is not known reliably, so the greeting uses its fallback.
  */
 export class AccessRequestEmailService {
   private readonly sender: ActionEmailSender;
   private readonly appBaseUrl: string;
 
   /**
-   * @param appBaseUrl public origin of the app; the email links to the project members there.
+   * @param appBaseUrl public origin of the app; the emails link to the project there.
    */
   constructor(
     emailProvider: EmailProvider,
@@ -39,41 +49,72 @@ export class AccessRequestEmailService {
   }
 
   /**
-   * Sends the email to one admin, retrying failed attempts. Throws the last error when all attempts fail.
+   * Tells one admin that someone asked to join the project.
+   * Throws the last error when all attempts fail.
    */
-  async send(payload: AccessRequestEmailPayload): Promise<void> {
+  async sendRequestToAdmin(payload: AccessRequestEmailPayload): Promise<void> {
     await this.sender.send({
       to: payload.adminEmail,
-      content: this.buildContent(payload),
+      content: this.buildRequestContent(payload),
       categories: ['transactional', 'project-access-request'],
       logContext: { projectId: payload.projectId },
     });
   }
 
-  // TODO: replace the wording with the approved copy of the access request email.
-  private buildContent(payload: AccessRequestEmailPayload): ActionEmailContent {
-    const projectTitle = payload.projectTitle ? formatProjectTitle(payload.projectTitle) : '';
+  /**
+   * Tells the person who asked that their request was approved.
+   * Throws the last error when all attempts fail.
+   */
+  async sendApprovalToRequester(payload: AccessApprovalEmailPayload): Promise<void> {
+    await this.sender.send({
+      to: payload.requesterEmail,
+      content: this.buildApprovalContent(payload),
+      categories: ['transactional', 'project-access-approved'],
+      logContext: { projectId: payload.projectId },
+    });
+  }
+
+  private buildRequestContent(payload: AccessRequestEmailPayload): ActionEmailContent {
     const roleName = getRoleDisplayName(payload.role);
-    const requester = payload.requesterEmail ? `User ${payload.requesterEmail}` : 'Someone';
-    const description = `${requester} requested access to ${
-      projectTitle || 'your OWOX project'
-    } as a ${roleName}.`;
+    const membersUrl = this.projectUrl(payload.projectId, 'project-settings/members');
+    const requester = payload.requesterEmail
+      ? `The user with the email ${payload.requesterEmail}`
+      : 'A user';
+    const description = `${requester} has requested a change in permissions for your project to the role of ${roleName}.`;
     // Escaped the same way the template escapes `<%= %>` output.
-    const descriptionHtml = `${ejs.escapeXML(requester)} requested access to ${
-      projectTitle ? `<strong>${ejs.escapeXML(projectTitle)}</strong>` : 'your OWOX project'
-    } as a <strong>${ejs.escapeXML(roleName)}</strong>.`;
+    const descriptionHtml = `${ejs.escapeXML(requester)} has requested a change in permissions for your project to the role of <strong>${ejs.escapeXML(roleName)}</strong>.`;
 
     return {
-      subject: projectTitle
-        ? `Access request to ${projectTitle} in OWOX Data Marts`
-        : 'Access request to your project in OWOX Data Marts',
-      title: 'New access request',
-      preheader: projectTitle ? `Project ${projectTitle}` : description,
+      subject: 'You have a new access request',
+      title: 'Hey friend',
+      preheader: payload.requesterEmail ? `from ${payload.requesterEmail}` : description,
       description,
       descriptionHtml,
-      buttonText: 'Review request',
-      actionUrl: `${this.appBaseUrl}/ui/${encodeURIComponent(payload.projectId)}/project-settings/members`,
+      details:
+        'Kindly navigate to the Members page in your project to review and approve this request.',
+      detailsHtml: `Kindly navigate to the <a href="${ejs.escapeXML(membersUrl)}" target="_blank" rel="noopener noreferrer" style="color:#1E88E5;text-decoration:none;">Members</a> page in your project to review and approve this request.`,
+      buttonText: 'Check request',
+      actionUrl: membersUrl,
       footer: 'You received this email because you are an admin of this project.',
     };
+  }
+
+  private buildApprovalContent(payload: AccessApprovalEmailPayload): ActionEmailContent {
+    const roleName = getRoleDisplayName(payload.role);
+
+    return {
+      subject: 'OWOX Project access is confirmed',
+      title: 'Hey friend',
+      description: `You have been granted ${roleName} access to the OWOX project.`,
+      descriptionHtml: `You have been granted <strong>${ejs.escapeXML(roleName)}</strong> access to the OWOX project.`,
+      details: 'To access the project page, please click the link below.',
+      buttonText: 'Join now',
+      actionUrl: this.projectUrl(payload.projectId, 'data-marts'),
+      footer: 'You received this email because you asked for access to this project.',
+    };
+  }
+
+  private projectUrl(projectId: string, page: string): string {
+    return `${this.appBaseUrl}/ui/${encodeURIComponent(projectId)}/${page}`;
   }
 }
