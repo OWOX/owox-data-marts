@@ -19,7 +19,7 @@ describe('ProjectMembersController', () => {
         role: 'editor',
         kind: 'email-sent',
         userId: 'user-2',
-        emailDelivered: false,
+        emailSent: false,
         message: 'new@example.com was invited, but the invitation email could not be sent.',
       }),
     };
@@ -47,7 +47,7 @@ describe('ProjectMembersController', () => {
       role: 'editor',
       kind: 'email-sent',
       userId: 'user-2',
-      emailDelivered: false,
+      emailSent: false,
       message: 'new@example.com was invited, but the invitation email could not be sent.',
     });
   });

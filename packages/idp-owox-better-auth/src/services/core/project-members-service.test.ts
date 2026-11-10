@@ -554,7 +554,7 @@ describe('ProjectMembersService', () => {
         role: 'editor',
         kind: 'email-sent',
         userId: 'new-user-uid',
-        emailDelivered: true,
+        emailSent: true,
         message: 'Invitation email sent to new@example.com',
       });
     });
@@ -602,6 +602,63 @@ describe('ProjectMembersService', () => {
       );
     });
 
+    it('leaves the email to the legacy mailer while project emails are switched off', async () => {
+      const store = createStoreMock();
+      const identityClient = createIdentityClientMock();
+      identityClient.inviteProjectMember.mockResolvedValue({ userUid: 'new-user-uid' });
+      const service = new ProjectMembersService(store, identityClient, undefined);
+
+      const result = await service.inviteMember(
+        'project-1',
+        'new@example.com',
+        'editor',
+        'admin-1'
+      );
+
+      expect(result).toEqual({
+        projectId: 'project-1',
+        email: 'new@example.com',
+        role: 'editor',
+        kind: 'email-sent',
+        userId: 'new-user-uid',
+        message: 'Invitation email sent to new@example.com',
+      });
+      expect(identityClient.getProjectForUser).not.toHaveBeenCalled();
+      expect(store.getUserByBiUserId).not.toHaveBeenCalled();
+    });
+
+    it('looks up the email details while the invite is still running', async () => {
+      const { identityClient, store, service } = setup();
+      let finishInvite: (value: { userUid: string }) => void = () => undefined;
+      identityClient.inviteProjectMember.mockReturnValue(
+        new Promise(resolve => {
+          finishInvite = resolve;
+        })
+      );
+
+      const invite = service.inviteMember('project-1', 'new@example.com', 'editor', 'admin-1');
+      await Promise.resolve();
+
+      expect(identityClient.getProjectForUser).toHaveBeenCalledWith('admin-1', 'project-1');
+      expect(store.getUserByBiUserId).toHaveBeenCalledWith('admin-1');
+      finishInvite({ userUid: 'new-user-uid' });
+      await expect(invite).resolves.toEqual(expect.objectContaining({ emailSent: true }));
+    });
+
+    it('falls back to the stored project members when the local user lookup fails', async () => {
+      const { store, invitationEmailService, service } = setup();
+      store.getUserByBiUserId.mockRejectedValue(new Error('db down'));
+      store.getProjectMembers.mockResolvedValue([
+        createMockMember({ userId: 'admin-1', email: 'member-admin@example.com' }),
+      ]);
+
+      await service.inviteMember('project-1', 'new@example.com', 'viewer', 'admin-1');
+
+      expect(invitationEmailService.send).toHaveBeenCalledWith(
+        expect.objectContaining({ inviterEmail: 'member-admin@example.com' })
+      );
+    });
+
     it('keeps the invitation when the email cannot be sent and tells the admin', async () => {
       const { invitationEmailService, service } = setup();
       invitationEmailService.send.mockRejectedValue(new Error('SendGrid responded 500'));
@@ -617,7 +674,7 @@ describe('ProjectMembersService', () => {
         expect.objectContaining({
           kind: 'email-sent',
           userId: 'new-user-uid',
-          emailDelivered: false,
+          emailSent: false,
           message:
             'new@example.com was invited, but the invitation email could not be sent. Please let them know yourself.',
         })

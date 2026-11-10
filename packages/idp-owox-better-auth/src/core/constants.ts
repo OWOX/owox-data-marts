@@ -43,6 +43,13 @@ export const DEFAULT_INVITATION_LOOKUP_TIMEOUT_MS = 3000;
 /** How long an access request waits to learn whether the same request was already pending. */
 export const DEFAULT_PENDING_REQUEST_CHECK_TIMEOUT_MS = 3000;
 
+/**
+ * Timeout for inviting a project member, in milliseconds. Longer than the Identity API's
+ * own wait for the legacy invite (3 s), so an invite that completes upstream is not reported
+ * as failed here.
+ */
+export const INVITE_PROJECT_MEMBER_TIMEOUT_MS = 10000;
+
 /** Error messages for session and user resolution. */
 export const SESSION_ERROR_MESSAGES = {
   NOT_FOUND: 'No session found for user info',

@@ -11,6 +11,19 @@ type SendArgs = [
   { bodyText: string; categories: string[]; signal?: AbortSignal },
 ];
 
+/** A send that never answers; it fails like the SendGrid provider once its signal aborts. */
+function hangUntilAborted(
+  ...[, , , options]: Parameters<EmailProvider['sendEmail']>
+): Promise<void> {
+  return new Promise((_, reject) => {
+    options?.signal?.addEventListener('abort', () => {
+      reject(
+        new Error(`SendGrid network error: ${String((options.signal?.reason as Error).message)}`)
+      );
+    });
+  });
+}
+
 function createProvider() {
   const sendEmail = jest.fn<EmailProvider['sendEmail']>(async () => undefined);
   return { sendEmail, provider: { sendEmail } as jest.Mocked<EmailProvider> };
@@ -122,32 +135,70 @@ describe('ProjectInvitationEmailService', () => {
     expect(sendEmail).toHaveBeenCalledTimes(2);
   });
 
-  it('gives every attempt its own time limit', async () => {
+  it('aborts an attempt that runs out of time and tries again', async () => {
     const { sendEmail, provider } = createProvider();
-    sendEmail.mockRejectedValueOnce(new Error('SendGrid network error: TimeoutError'));
+    sendEmail.mockImplementationOnce(hangUntilAborted);
     const service = new ProjectInvitationEmailService(provider, 'https://app.example.com', {
       retryDelaysMs: [0],
-      attemptTimeoutMs: 50,
+      attemptTimeoutMs: 20,
     });
 
     await service.send({ email: 'new@example.com', role: 'viewer', projectId: 'p-1' });
 
-    const signals = sendEmail.mock.calls.map(call => (call as SendArgs)[3].signal);
-    expect(signals).toHaveLength(2);
-    expect(signals[0]).toBeInstanceOf(AbortSignal);
-    expect(signals[1]).not.toBe(signals[0]);
+    const [first, second] = sendEmail.mock.calls.map(call => (call as SendArgs)[3].signal);
+    expect(first?.aborted).toBe(true);
+    expect(second?.aborted).toBe(false);
   });
 
-  it('throws the last error when every attempt fails', async () => {
+  it('by default allows 5 s per attempt and stops retrying after 12 s in total', async () => {
+    jest.useFakeTimers();
+    try {
+      const { sendEmail, provider } = createProvider();
+      sendEmail.mockImplementation(hangUntilAborted);
+      const service = new ProjectInvitationEmailService(provider, 'https://app.example.com');
+      const outcome = service
+        .send({ email: 'new@example.com', role: 'viewer', projectId: 'p-1' })
+        .then(
+          () => 'sent',
+          (error: unknown) => (error as Error).message
+        );
+
+      await jest.advanceTimersByTimeAsync(4999);
+      expect(sendEmail).toHaveBeenCalledTimes(1);
+      await jest.advanceTimersByTimeAsync(1 + 500);
+      expect(sendEmail).toHaveBeenCalledTimes(2);
+      // The second attempt ends at 10.5 s; a 1.5 s pause would reach the 12 s limit.
+      await jest.advanceTimersByTimeAsync(5000);
+      expect(await outcome).toContain('timeout');
+      expect(sendEmail).toHaveBeenCalledTimes(2);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('does not retry an error that a retry cannot fix', async () => {
     const { sendEmail, provider } = createProvider();
-    sendEmail.mockRejectedValue(new Error('SendGrid responded 500'));
+    sendEmail.mockRejectedValue(new Error('SendGrid responded 401 Unauthorized: invalid key'));
     const service = new ProjectInvitationEmailService(provider, 'https://app.example.com', {
       retryDelaysMs: [0, 0],
     });
 
     await expect(
       service.send({ email: 'new@example.com', role: 'viewer', projectId: 'p-1' })
-    ).rejects.toThrow('SendGrid responded 500');
+    ).rejects.toThrow('401');
+    expect(sendEmail).toHaveBeenCalledTimes(1);
+  });
+
+  it('throws the last error when every attempt fails', async () => {
+    const { sendEmail, provider } = createProvider();
+    sendEmail.mockRejectedValue(new Error('SendGrid responded 503 Service Unavailable'));
+    const service = new ProjectInvitationEmailService(provider, 'https://app.example.com', {
+      retryDelaysMs: [0, 0],
+    });
+
+    await expect(
+      service.send({ email: 'new@example.com', role: 'viewer', projectId: 'p-1' })
+    ).rejects.toThrow('SendGrid responded 503');
     expect(sendEmail).toHaveBeenCalledTimes(3);
   });
 });

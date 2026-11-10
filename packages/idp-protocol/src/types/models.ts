@@ -87,8 +87,8 @@ export type ProjectMember = {
 /**
  * Result of a member invitation. Discriminated by `kind` because different IDP
  * providers have different semantics:
- *   - `email-sent` — the provider itself delivered the invitation email
- *     (e.g. `idp-owox-better-auth` through its email provider).
+ *   - `email-sent` — the provider emails the invitation itself (e.g.
+ *     `idp-owox-better-auth`); `emailSent: false` when it could not.
  *   - `magic-link` — the provider produced a link that the admin must copy
  *     and deliver manually (e.g. `idp-better-auth` for self-hosted setups
  *     without an SMTP path).
@@ -101,10 +101,11 @@ export type ProjectMemberInvitation =
       kind: 'email-sent';
       userId?: string;
       /**
-       * `false` when the invitation exists but its email could not be sent, so the
-       * admin has to tell the person. Absent when the provider does not report it.
+       * Whether the email provider accepted the invitation email; it does not mean the
+       * email arrived. `false`: the invitation exists, but the admin has to tell the
+       * person. Absent when the provider does not report it.
        */
-      emailDelivered?: boolean;
+      emailSent?: boolean;
       message?: string;
     }
   | {

@@ -206,7 +206,7 @@ export function InviteTeammatesPage() {
           { silent: true }
         );
         invited.push(email);
-        if (result.kind === 'email-sent' && result.emailDelivered === false) {
+        if (result.kind === 'email-sent' && result.emailSent === false) {
           unsentEmails.push(email);
         }
       } catch (caught) {
@@ -231,8 +231,8 @@ export function InviteTeammatesPage() {
       toast(describeUnsentInvitationEmails(unsentEmails), { duration: 10000 });
     }
 
+    const emailed = invited.filter(email => !unsentEmails.includes(email));
     if (failed.length === 0) {
-      const emailed = invited.filter(email => !unsentEmails.includes(email));
       if (emailed.length > 0) {
         toast.success(
           emailed.length === 1
@@ -246,7 +246,8 @@ export function InviteTeammatesPage() {
     // Keep only the addresses that failed, so a retry doesn't re-invite the others.
     setEmails(failed.map(item => item.email));
     setFailures(failed);
-    setInvitedCount(invited.length);
+    // The toast above names the invited people whose email was not sent.
+    setInvitedCount(emailed.length);
   };
 
   // The label counts only addresses that will be sent; a typo in the input doesn't add one.

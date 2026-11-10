@@ -15,7 +15,10 @@ import { createServiceLogger } from '../../core/logger.js';
 import type { DatabaseStore } from '../../store/database-store.js';
 import type { ProjectMembersServiceOptions } from '../../types/project-members.js';
 import { maskEmail } from '../../utils/email-utils.js';
-import type { ProjectInvitationEmailService } from '../email/project-invitation-email-service.js';
+import type {
+  ProjectInvitationEmailPayload,
+  ProjectInvitationEmailService,
+} from '../email/project-invitation-email-service.js';
 import { findLocalUserEmail } from './user-email-lookup.js';
 
 /**
@@ -32,7 +35,8 @@ export class ProjectMembersService {
   constructor(
     private readonly store: DatabaseStore,
     private readonly identityClient: IdentityOwoxClient,
-    private readonly invitationEmailService: ProjectInvitationEmailService,
+    /** Absent while project emails are switched off; the legacy mailer sends them then. */
+    private readonly invitationEmailService: ProjectInvitationEmailService | undefined,
     options: ProjectMembersServiceOptions = {}
   ) {
     this.ttlSeconds = options.ttlSeconds ?? DEFAULT_PROJECT_MEMBERS_CACHE_TTL_SECONDS;
@@ -234,9 +238,12 @@ export class ProjectMembersService {
    * rest of the response is already known from the request. Returning `userId`
    * lets the caller controller attach scope + contexts immediately.
    *
+   * Without an invitation email service (project emails switched off), the
+   * legacy mailer sends the email, so the response is the same as before.
+   *
    * The membership exists once the Identity call succeeds, so a failed email
-   * does not fail the invitation: `emailDelivered: false` and the message tell
-   * the admin to let the person know themselves.
+   * does not fail the invitation: `emailSent: false` and the message tell the
+   * admin to let the person know themselves.
    */
   async inviteMember(
     projectId: string,
@@ -244,33 +251,47 @@ export class ProjectMembersService {
     role: Role,
     actorUserId: string
   ): Promise<ProjectMemberInvitation> {
+    const emailService = this.invitationEmailService;
+    // The lookups do not depend on the invite, so they run while it is in flight.
+    const details = emailService ? this.loadInvitationDetails(projectId, actorUserId) : undefined;
+
     const response = await this.identityClient.inviteProjectMember(
       projectId,
       email,
       role,
       actorUserId
     );
-    const emailDelivered = await this.sendInvitationEmail(projectId, email, role, actorUserId);
-    return {
+    const invitation = {
       projectId,
       email,
       role,
-      kind: 'email-sent',
+      kind: 'email-sent' as const,
       userId: response.userUid,
-      emailDelivered,
-      message: emailDelivered
+    };
+    if (!emailService || !details) {
+      return { ...invitation, message: `Invitation email sent to ${email}` };
+    }
+
+    const emailSent = await this.sendInvitationEmail(emailService, {
+      email,
+      role,
+      projectId,
+      ...(await details),
+    });
+    return {
+      ...invitation,
+      emailSent,
+      message: emailSent
         ? `Invitation email sent to ${email}`
         : `${email} was invited, but the invitation email could not be sent. Please let them know yourself.`,
     };
   }
 
-  private async sendInvitationEmail(
+  /** Each lookup that is slow or fails only drops its detail from the email. */
+  private async loadInvitationDetails(
     projectId: string,
-    email: string,
-    role: Role,
     actorUserId: string
-  ): Promise<boolean> {
-    // The invite request waits for the email, so slow lookups only drop their detail.
+  ): Promise<{ projectTitle?: string; inviterEmail?: string }> {
     const [projectTitle, inviterEmail] = await Promise.all([
       withTimeout(
         this.findProjectTitle(projectId, actorUserId),
@@ -283,20 +304,20 @@ export class ProjectMembersService {
         undefined
       ),
     ]);
+    return { projectTitle, inviterEmail };
+  }
 
+  private async sendInvitationEmail(
+    emailService: ProjectInvitationEmailService,
+    payload: ProjectInvitationEmailPayload
+  ): Promise<boolean> {
     try {
-      await this.invitationEmailService.send({
-        email,
-        role,
-        projectId,
-        projectTitle,
-        inviterEmail,
-      });
+      await emailService.send(payload);
       return true;
     } catch (error) {
       this.logger.error(
         'Failed to send project invitation email',
-        { projectId, email: maskEmail(email) },
+        { projectId: payload.projectId, email: maskEmail(payload.email) },
         error
       );
       return false;
@@ -325,7 +346,11 @@ export class ProjectMembersService {
       const members = await this.store.getProjectMembers(projectId);
       return members?.find(member => member.userId === userId)?.email || undefined;
     } catch (error) {
-      this.logger.warn('Could not load inviter email for invitation email', { projectId }, error);
+      this.logger.warn(
+        'Could not load the inviter from stored project members',
+        { projectId },
+        error
+      );
       return undefined;
     }
   }

@@ -1,5 +1,6 @@
 import { Injectable, Inject, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { isTransientEmailError } from '@owox/internal-helpers';
 import { NotificationPendingQueue } from '../entities/notification-pending-queue.entity';
 import { ProjectNotificationSettings } from '../entities/project-notification-settings.entity';
 import { NOTIFICATION_DEFINITIONS } from '../definitions';
@@ -65,7 +66,7 @@ export class NotificationEmailService {
         const isLastAttempt = attempt === NotificationEmailService.MAX_ATTEMPTS;
         const errorMessage = error instanceof Error ? error.message : String(error);
 
-        if (isLastAttempt || !this.isTransientError(error)) {
+        if (isLastAttempt || !isTransientEmailError(error)) {
           this.logger.error(
             `Failed to send ${label} after ${attempt} attempt(s): ${errorMessage}`,
             error instanceof Error ? error.stack : undefined
@@ -80,23 +81,6 @@ export class NotificationEmailService {
         await this.sleep(delay);
       }
     }
-  }
-
-  private isTransientError(error: unknown): boolean {
-    if (!(error instanceof Error)) return false;
-    const msg = error.message.toLowerCase();
-    return (
-      msg.includes('timeout') ||
-      msg.includes('econnreset') ||
-      msg.includes('econnrefused') ||
-      msg.includes('enotfound') ||
-      msg.includes('socket hang up') ||
-      msg.includes('network') ||
-      msg.includes('502') ||
-      msg.includes('503') ||
-      msg.includes('504') ||
-      msg.includes('429')
-    );
   }
 
   private sleep(ms: number): Promise<void> {

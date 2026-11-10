@@ -137,7 +137,7 @@ export function InviteMemberSheet({
         if (result.kind === 'magic-link') {
           setMagicLinkResult(result);
         } else {
-          if (result.emailDelivered === false) {
+          if (result.emailSent === false) {
             // Invited, but nobody told the person: keep the notice up long enough to act on.
             toast(result.message ?? describeUnsentInvitationEmails([result.email]), {
               duration: 10000,
