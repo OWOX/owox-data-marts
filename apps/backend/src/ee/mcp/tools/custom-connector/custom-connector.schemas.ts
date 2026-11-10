@@ -172,6 +172,7 @@ export const fieldsOutputSchema = {
       uniqueKeysByDataLevel: z.record(z.string(), z.array(z.string())).optional(),
       defaultFields: z.array(z.string()).optional(),
       destinationName: z.string().optional(),
+      isTimeSeries: z.boolean().optional(),
       fields: z
         .array(
           z.object({

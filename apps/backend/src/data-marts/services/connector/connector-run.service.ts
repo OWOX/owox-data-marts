@@ -81,9 +81,11 @@ export class ConnectorRunService {
     // Only a node fetched by date window is worth segmenting. A catalog node (Reddit `ads`,
     // for example) ignores the dates and loads the whole source in one run, so a chain for it
     // would promise N runs and deliver one; it runs as a single run with the full period.
-    const chainPlan = (await this.isTimeSeriesNode(dataMart))
-      ? planBackfillChain(preparedPayload, randomUUID())
-      : undefined;
+    // The schema is consulted only once a chain is actually planned, so an incremental run or
+    // a one-month backfill never pays for the lookup.
+    const plannedChain = planBackfillChain(preparedPayload, randomUUID());
+    const chainPlan =
+      plannedChain && (await this.isTimeSeriesNode(dataMart)) ? plannedChain : undefined;
     const runPayload = chainPlan?.payload ?? preparedPayload;
 
     const dataMartRun = await this.createDataMartRun(

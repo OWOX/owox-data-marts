@@ -83,6 +83,7 @@ import { DataMart } from '../../entities/data-mart.entity';
 import { DataMartRun } from '../../entities/data-mart-run.entity';
 import { ProjectBlockedReason } from '../../enums/project-blocked-reason.enum';
 import { ConnectorRunService } from './connector-run.service';
+import { ConnectorService } from './connector.service';
 import { ConnectorRunTriggerService } from './connector-run-trigger.service';
 import { Repository } from 'typeorm';
 
@@ -979,7 +980,8 @@ describe('ConnectorExecutorService', () => {
       sweepRepository,
       connectorRunTriggerService,
       service,
-      {} as SystemTimeService
+      {} as SystemTimeService,
+      { isTimeSeriesNode: jest.fn().mockResolvedValue(true) } as unknown as ConnectorService
     ).executeInterruptedRuns();
 
     expect(row.status).toBe(DataMartRunStatus.PENDING);
@@ -1506,7 +1508,8 @@ describe('ConnectorExecutorService', () => {
         sweepRepository,
         connectorRunTriggerService,
         service,
-        {} as SystemTimeService
+        {} as SystemTimeService,
+        { isTimeSeriesNode: jest.fn().mockResolvedValue(true) } as unknown as ConnectorService
       );
 
       await runService.executeInterruptedRuns();

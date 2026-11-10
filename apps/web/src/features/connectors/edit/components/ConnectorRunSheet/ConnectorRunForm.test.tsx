@@ -18,12 +18,16 @@ const specification = {
 };
 
 /** The connector's node list; `null` until the form's fetch would have answered. */
-const fields = { current: null as { name: string; isTimeSeries?: boolean }[] | null };
+const fields = {
+  current: null as { name: string; isTimeSeries?: boolean }[] | null,
+  loading: false,
+};
 
 vi.mock('../../../shared/model/hooks/useConnector', () => ({
   useConnector: () => ({
     loading: false,
     loadingSpecification: false,
+    loadingFields: fields.loading,
     connectorSpecification: specification.current,
     connectorFields: fields.current,
     fetchConnectorSpecification: vi.fn(),
@@ -34,6 +38,7 @@ vi.mock('../../../shared/model/hooks/useConnector', () => ({
 beforeEach(() => {
   specification.current = [dateField('StartDate', 'Start Date'), dateField('EndDate', 'End Date')];
   fields.current = [{ name: 'ad_insights', isTimeSeries: true }];
+  fields.loading = false;
 });
 
 vi.mock('../../../../data-marts/edit/model', () => ({
@@ -144,7 +149,17 @@ describe('ConnectorRunForm backfill period', () => {
     expect(notice()).not.toHaveTextContent('parts');
   });
 
-  it('describes the period as dated until the node list has loaded', async () => {
+  it('shows nothing but a loading state while the node list is still being fetched', () => {
+    fields.current = null;
+    fields.loading = true;
+
+    render(<ConnectorRunForm configuration={configuration} onSubmit={vi.fn()} />);
+
+    expect(screen.getByText('Loading...')).toBeInTheDocument();
+    expect(screen.queryByTestId('backfill-limit-notice')).not.toBeInTheDocument();
+  });
+
+  it('describes the period as dated when the node list could not be loaded', async () => {
     fields.current = null;
     await openBackfill();
 

@@ -70,7 +70,8 @@ describe('ConnectorRunService', () => {
 
   describe('run', () => {
     it('creates run and trigger successfully', async () => {
-      const { service, dataMartRunRepository, connectorRunTriggerService } = createService();
+      const { service, dataMartRunRepository, connectorRunTriggerService, connectorService } =
+        createService();
       (dataMartRunRepository.findOne as jest.Mock).mockResolvedValue(null); // not running
 
       const result = await service.run(publishedConnectorDataMart, 'user-1', RunType.manual);
@@ -78,6 +79,8 @@ describe('ConnectorRunService', () => {
       expect(result).toBe('run-1');
       expect(dataMartRunRepository.save).toHaveBeenCalled();
       expect(connectorRunTriggerService.createTrigger).toHaveBeenCalled();
+      // No chain to plan, so the node schema is never consulted.
+      expect(connectorService.isTimeSeriesNode).not.toHaveBeenCalled();
     });
 
     it('throws when dataMart is not CONNECTOR type', async () => {

@@ -154,6 +154,7 @@ export function ConnectorRunForm({ configuration, onClose, onSubmit }: Connector
   const {
     loading,
     loadingSpecification,
+    loadingFields,
     connectorSpecification,
     connectorFields,
     fetchConnectorSpecification,
@@ -228,7 +229,9 @@ export function ConnectorRunForm({ configuration, onClose, onSubmit }: Connector
     }
   };
 
-  if (loadingSpecification) {
+  // The node list decides whether a long period is quoted in parts, so the form waits for it
+  // too; otherwise a catalog node would briefly promise runs the backend never makes.
+  if (loadingSpecification || loadingFields) {
     return <div>Loading...</div>;
   }
 
