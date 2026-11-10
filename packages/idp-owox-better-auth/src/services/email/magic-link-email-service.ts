@@ -1,34 +1,25 @@
 import type { EmailProvider } from '@owox/internal-helpers';
-import ejs from 'ejs';
-import { readFileSync } from 'fs';
 import { MAGIC_LINK_INTENT } from '../../core/constants.js';
 import { createServiceLogger } from '../../core/logger.js';
 import type { MagicLinkEmailPayload, MagicLinkIntent } from '../../types/index.js';
 import { maskEmail } from '../../utils/email-utils.js';
-import { resolveResourcePath } from '../../utils/template-paths.js';
+import { renderActionEmail, type ActionEmailContent } from './action-email-sender.js';
 
 /**
  * Renders and sends magic-link emails using one shared template.
  */
 export class MagicLinkEmailService {
   private readonly logger = createServiceLogger(MagicLinkEmailService.name);
-  private readonly template: string;
 
-  constructor(private readonly emailProvider: EmailProvider) {
-    this.template = this.loadTemplate();
-  }
+  constructor(private readonly emailProvider: EmailProvider) {}
 
-  private loadTemplate(): string {
-    const templatePath = resolveResourcePath('templates/email/action-email.ejs');
-    return readFileSync(templatePath, 'utf-8');
-  }
-
-  private buildViewModel(payload: MagicLinkEmailPayload): Record<string, string> {
+  private buildContent(payload: MagicLinkEmailPayload): ActionEmailContent {
     const intent: MagicLinkIntent =
       payload.intent === MAGIC_LINK_INTENT.RESET ? MAGIC_LINK_INTENT.RESET : payload.intent;
     const isReset = intent === MAGIC_LINK_INTENT.RESET;
 
     return {
+      subject: isReset ? 'Reset your password' : 'Confirm your email',
       title: isReset ? 'Reset your password' : 'Confirm your email',
       description: isReset
         ? 'Click the button below to reset your password. This link is valid for 1 hour.'
@@ -39,30 +30,12 @@ export class MagicLinkEmailService {
     };
   }
 
-  private buildSubject(intent: MagicLinkIntent): string {
-    return intent === MAGIC_LINK_INTENT.RESET ? 'Reset your password' : 'Confirm your email';
-  }
-
-  private renderPlainText(viewModel: Record<string, string>): string {
-    return [
-      viewModel.title,
-      '',
-      viewModel.description,
-      '',
-      `${viewModel.buttonText}: ${viewModel.actionUrl}`,
-      '',
-      viewModel.footer,
-    ].join('\n');
-  }
-
   async send(payload: MagicLinkEmailPayload): Promise<void> {
-    const viewModel = this.buildViewModel(payload);
-    const html = ejs.render(this.template, viewModel);
-    const plainText = this.renderPlainText(viewModel);
-    const subject = this.buildSubject(payload.intent);
+    const content = this.buildContent(payload);
+    const { html, bodyText } = renderActionEmail(content);
     try {
-      await this.emailProvider.sendEmail(payload.email, subject, html, {
-        bodyText: plainText,
+      await this.emailProvider.sendEmail(payload.email, content.subject, html, {
+        bodyText,
         categories: ['transactional', 'auth'],
         isMultiple: false,
       });

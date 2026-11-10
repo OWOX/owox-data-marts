@@ -124,6 +124,11 @@ describe('MembershipRequestsService', () => {
   });
 
   describe('approveMembershipRequest', () => {
+    beforeEach(() => {
+      // Keeps the background approval email out of tests that do not check it.
+      jest.spyOn(service, 'notifyRequester').mockResolvedValue(undefined);
+    });
+
     it('calls client with correct args and returns { userId: userUid }', async () => {
       identityClient.approveProjectMembershipRequest.mockResolvedValue({ userUid: 'resolved-uid' });
 

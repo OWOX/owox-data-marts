@@ -48,12 +48,34 @@ export interface ActionEmailMessage {
   logContext?: Record<string, unknown>;
 }
 
+let compiledTemplate: ejs.TemplateFunction | undefined;
+
+/**
+ * Renders `action-email.ejs` and its plain-text version. The template is compiled once.
+ */
+export function renderActionEmail(content: ActionEmailContent): { html: string; bodyText: string } {
+  compiledTemplate ??= ejs.compile(
+    readFileSync(resolveResourcePath('templates/email/action-email.ejs'), 'utf-8')
+  );
+  const html = compiledTemplate({ ...content });
+  const bodyText = [
+    content.title,
+    '',
+    content.description,
+    ...(content.details ? ['', content.details] : []),
+    '',
+    `${content.buttonText}: ${content.actionUrl}`,
+    '',
+    content.footer,
+  ].join('\n');
+  return { html, bodyText };
+}
+
 /**
  * Renders `action-email.ejs` and sends it, retrying failed attempts.
  */
 export class ActionEmailSender {
   private readonly logger = createServiceLogger(ActionEmailSender.name);
-  private readonly template: string;
   private readonly retryDelaysMs: readonly number[];
   private readonly attemptTimeoutMs: number;
 
@@ -63,24 +85,13 @@ export class ActionEmailSender {
   ) {
     this.retryDelaysMs = options.retryDelaysMs ?? DEFAULT_RETRY_DELAYS_MS;
     this.attemptTimeoutMs = options.attemptTimeoutMs ?? DEFAULT_ATTEMPT_TIMEOUT_MS;
-    this.template = readFileSync(resolveResourcePath('templates/email/action-email.ejs'), 'utf-8');
   }
 
   /**
    * Sends the email. Throws the last error when all attempts fail.
    */
   async send({ to, content, categories, logContext }: ActionEmailMessage): Promise<void> {
-    const html = ejs.render(this.template, { ...content });
-    const bodyText = [
-      content.title,
-      '',
-      content.description,
-      ...(content.details ? ['', content.details] : []),
-      '',
-      `${content.buttonText}: ${content.actionUrl}`,
-      '',
-      content.footer,
-    ].join('\n');
+    const { html, bodyText } = renderActionEmail(content);
 
     for (let attempt = 0; ; attempt++) {
       try {

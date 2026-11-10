@@ -5,6 +5,7 @@ import { createServiceLogger } from '../../core/logger.js';
 import type { DatabaseStore } from '../../store/database-store.js';
 import { maskEmail } from '../../utils/email-utils.js';
 import type { AccessRequestEmailService } from '../email/access-request-email-service.js';
+import { findLocalUserEmail } from './user-email-lookup.js';
 
 export interface AccessRequestServiceOptions {
   /** How long to wait for the pending-request check before treating the request as new. */
@@ -19,8 +20,14 @@ export interface AccessRequestNotification {
   role: Role;
 }
 
+interface AccessRequestState {
+  role: Role;
+  status: string;
+}
+
 interface PendingRequestCheck {
-  pending: boolean;
+  /** The user's request Identity reported before this call, if any. */
+  existingRequest?: AccessRequestState | null;
   requesterEmail?: string;
 }
 
@@ -43,8 +50,9 @@ export class AccessRequestService {
 
   /**
    * Identity answers a repeated request with the request that is already pending,
-   * the same way it answers a new one. The admins are emailed only when no request
-   * was pending before, so repeating the request does not email them again.
+   * the same way it answers a new one. The admins are not emailed again when the
+   * request Identity reported before this call has the same status and role as the
+   * one it returns now. A request after a declined one, or for another role, is news.
    *
    * The response does not wait for the emails, and a failed email does not fail the request.
    */
@@ -62,7 +70,7 @@ export class AccessRequestService {
       request: response.request,
     };
 
-    if (check.pending) {
+    if (isSameRequest(check.existingRequest, response.request)) {
       this.logger.info('Access request was already pending, admins are not emailed again', {
         projectId,
       });
@@ -156,19 +164,13 @@ export class AccessRequestService {
   private async findRequesterEmail(
     notification: AccessRequestNotification
   ): Promise<string | undefined> {
-    try {
-      const user = await this.store.getUserByBiUserId(notification.requesterUserId);
-      if (user?.email) {
-        return user.email;
-      }
-    } catch (error) {
-      this.logger.warn(
-        'Could not load requester email for access request email',
-        { projectId: notification.projectId },
-        error
-      );
-    }
-    return notification.requesterEmail || undefined;
+    const localEmail = await findLocalUserEmail(
+      this.store,
+      notification.requesterUserId,
+      this.logger,
+      { projectId: notification.projectId }
+    );
+    return localEmail ?? (notification.requesterEmail || undefined);
   }
 
   /**
@@ -181,18 +183,18 @@ export class AccessRequestService {
   ): Promise<PendingRequestCheck> {
     let timer: ReturnType<typeof setTimeout> | undefined;
     const timeout = new Promise<PendingRequestCheck>(resolve => {
-      timer = setTimeout(() => resolve({ pending: false }), this.pendingRequestCheckTimeoutMs);
+      timer = setTimeout(() => resolve({}), this.pendingRequestCheckTimeoutMs);
     });
     const check = this.identityClient
       .getUserProvisioningRequestAccessContext(userId, projectId)
       .then(
         (context): PendingRequestCheck => ({
-          pending: Boolean(context.existingRequest),
+          existingRequest: context.existingRequest,
           requesterEmail: context.user.email,
         }),
         (error: unknown): PendingRequestCheck => {
           this.logger.warn('Could not check for a pending access request', { projectId }, error);
-          return { pending: false };
+          return {};
         }
       );
     try {
@@ -201,4 +203,11 @@ export class AccessRequestService {
       clearTimeout(timer);
     }
   }
+}
+
+function isSameRequest(
+  before: AccessRequestState | null | undefined,
+  now: AccessRequestState
+): boolean {
+  return Boolean(before && before.status === now.status && before.role === now.role);
 }

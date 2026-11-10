@@ -8,6 +8,7 @@ import { createServiceLogger } from '../../core/logger.js';
 import type { DatabaseStore } from '../../store/database-store.js';
 import { maskEmail } from '../../utils/email-utils.js';
 import type { AccessRequestEmailService } from '../email/access-request-email-service.js';
+import { findLocalUserEmail } from './user-email-lookup.js';
 
 /**
  * MembershipRequestsService — thin wrapper over `IdentityOwoxClient` that
@@ -71,23 +72,20 @@ export class MembershipRequestsService {
    * notification settings.
    */
   async notifyRequester(projectId: string, userId: string, role: Role): Promise<void> {
+    let requesterEmail: string | undefined;
     try {
-      const requesterEmail = await this.findUserEmail(projectId, userId);
+      requesterEmail = await this.findUserEmail(projectId, userId);
       if (!requesterEmail) {
         this.logger.warn('No email for the approved access request', { projectId, userId });
         return;
       }
-      try {
-        await this.emailService.sendApprovalToRequester({ requesterEmail, role, projectId });
-      } catch (error) {
-        this.logger.error(
-          'Failed to send access approval email',
-          { projectId, email: maskEmail(requesterEmail) },
-          error
-        );
-      }
+      await this.emailService.sendApprovalToRequester({ requesterEmail, role, projectId });
     } catch (error) {
-      this.logger.error('Could not email the approved access request', { projectId }, error);
+      this.logger.error(
+        'Failed to send access approval email',
+        { projectId, ...(requesterEmail ? { email: maskEmail(requesterEmail) } : {}) },
+        error
+      );
     }
   }
 
@@ -96,17 +94,9 @@ export class MembershipRequestsService {
    * approved person now is, when there is no local record.
    */
   private async findUserEmail(projectId: string, userId: string): Promise<string | undefined> {
-    try {
-      const user = await this.store.getUserByBiUserId(userId);
-      if (user?.email) {
-        return user.email;
-      }
-    } catch (error) {
-      this.logger.warn(
-        'Could not load the approved user from the local store',
-        { projectId },
-        error
-      );
+    const localEmail = await findLocalUserEmail(this.store, userId, this.logger, { projectId });
+    if (localEmail) {
+      return localEmail;
     }
     const { projectMembers } = await this.identityClient.getProjectMembers(projectId);
     return projectMembers.find(member => String(member.userId) === userId)?.email || undefined;

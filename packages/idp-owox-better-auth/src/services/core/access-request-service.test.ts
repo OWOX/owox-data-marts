@@ -105,6 +105,27 @@ describe('AccessRequestService.requestAccess', () => {
     expect(notify).not.toHaveBeenCalled();
   });
 
+  it('emails the admins about a request after a declined one, or for another role', async () => {
+    const { identityClient, service } = setup();
+    const notify = jest.spyOn(service, 'notifyAdmins').mockResolvedValue(undefined);
+
+    identityClient.getUserProvisioningRequestAccessContext.mockResolvedValueOnce(
+      accessContext({ role: 'editor', status: 'declined' })
+    );
+    await service.requestAccess('user-1', 'p-1', 'editor');
+
+    identityClient.getUserProvisioningRequestAccessContext.mockResolvedValueOnce(
+      accessContext({ role: 'viewer', status: 'processing' })
+    );
+    await service.requestAccess('user-1', 'p-1', 'editor');
+
+    expect(notify).toHaveBeenCalledTimes(2);
+    expect(notify.mock.calls.map(([notification]) => notification.role)).toEqual([
+      'editor',
+      'editor',
+    ]);
+  });
+
   it('treats the request as new when the pending-request check fails or is slow', async () => {
     const { identityClient, service } = setup();
     const notify = jest.spyOn(service, 'notifyAdmins').mockResolvedValue(undefined);

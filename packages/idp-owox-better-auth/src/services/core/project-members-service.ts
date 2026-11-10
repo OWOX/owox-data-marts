@@ -15,6 +15,7 @@ import type { DatabaseStore } from '../../store/database-store.js';
 import type { ProjectMembersServiceOptions } from '../../types/project-members.js';
 import { maskEmail } from '../../utils/email-utils.js';
 import type { ProjectInvitationEmailService } from '../email/project-invitation-email-service.js';
+import { findLocalUserEmail } from './user-email-lookup.js';
 
 /**
  * Service for managing project members with persistent storage.
@@ -321,11 +322,11 @@ export class ProjectMembersService {
   }
 
   private async findUserEmail(projectId: string, userId: string): Promise<string | undefined> {
+    const localEmail = await findLocalUserEmail(this.store, userId, this.logger, { projectId });
+    if (localEmail) {
+      return localEmail;
+    }
     try {
-      const user = await this.store.getUserByBiUserId(userId);
-      if (user?.email) {
-        return user.email;
-      }
       const members = await this.store.getProjectMembers(projectId);
       return members?.find(member => member.userId === userId)?.email || undefined;
     } catch (error) {
