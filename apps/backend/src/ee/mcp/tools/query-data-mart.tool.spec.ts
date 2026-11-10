@@ -91,6 +91,11 @@ describe('QueryDataMartTool', () => {
     expect(tool.description).toContain('group-by dimensions only when the query aggregates');
     expect(tool.description).toContain('one value per join key');
     expect(tool.description).not.toContain('raw rows BEFORE aggregation');
+    // Text is the type that models filter on most, and its default is a joined list of values.
+    expect(tool.description).toContain('all text values joined into one string');
+    // A filter on a metric Calculated Field also makes the query aggregate.
+    expect(tool.description).toContain('"metric" Calculated Field in fields or filters');
+    expect(tool.description).toContain('list it in fields too');
   });
 
   // The gap this closes is in query BUILDING, not in reading the response: the description already
@@ -124,6 +129,12 @@ describe('QueryDataMartTool', () => {
     expect(tool.description).toContain('"orders__unique_count"');
     expect(tool.description).not.toContain('"Orders Unique Count"');
     expect(tool.description).not.toContain('"<Prefix> Unique Count"');
+  });
+
+  // The tool enforces both halves (UniqueCountFieldUnsupportedClauseError): a model that reads only
+  // one half retries a rejected call instead of moving the field back to "fields".
+  it('states where a joined Unique Count field may be used', () => {
+    expect(tool.description).toContain('Use it only in fields and sort.');
   });
 
   it('rejects input missing required fields', () => {

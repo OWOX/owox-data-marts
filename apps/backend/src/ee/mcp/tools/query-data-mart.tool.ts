@@ -80,16 +80,16 @@ export class QueryDataMartTool implements McpToolDefinition<QueryDataMartInput> 
   readonly name = 'query_data_mart';
   readonly description = `Query an OWOX data mart. Returns rows in a compact table, plus server-side totals over all matching rows (not only the returned ones). Each call costs credits, records a run, and may replace an OWOX-managed technical view when the Data Mart has a SQL definition.
 
-Call get_data_mart_details_by_id first, unless you already have that schema in context. Copy field names verbatim into fields; never guess or invent them.
+Call get_data_mart_details_by_id first, unless you already have that schema in context. Copy exact field names into fields; never guess them.
 
 Using the results:
 - Use metrics and totals from the response directly; never recompute a value already present.
-- If truncated is true, not all matching rows were returned. Warn the user, then narrow the query (fewer fields, tighter slices or filters) or raise limit (up to 1000).
+- If truncated is true, warn the user that the rows are incomplete, then narrow the query or raise limit (up to 1000).
 - Name the Data Mart the answer came from. Say which numbers OWOX calculated and which you calculated yourself.
 - data_last_updated_at is when the source tables last changed, not the period the data covers: say "the source tables were last updated on X". null means unknown, not stale. coverage "partial" means the real time can only be more recent: say "at least as recent as X" and that the picture is incomplete. "unavailable" means nothing could be determined. Mention it when the question depends on recency or before the user acts on the result. Show timestamps in a readable form, in the user's time zone when known; never as raw ISO-8601.
 
 Building the query:
-- Request only the fields the question needs; never all fields. Non-aggregated fields become group-by dimensions only when the query aggregates (aggregations, date_buckets, a Unique Count field or a "metric" Calculated Field); otherwise rows can repeat.
+- Request only the fields the question needs; never all fields. Non-aggregated fields become group-by dimensions only when the query aggregates (aggregations, date_buckets, a Unique Count field, or a "metric" Calculated Field in fields or filters); otherwise rows can repeat.
 - fields must list every field named in aggregations, date_buckets or sort; filters may reference other fields. Example, "revenue by month": fields ["ts", "revenue"], aggregations [{field: "revenue", function: "SUM"}], date_buckets [{field: "ts", unit: "MONTH"}].
 - Prefer a metric the data mart already defines: when get_data_mart_details_by_id shows a field whose "calculated" level is "metric", that field IS the quantity, computed at the grain your query asks for. Do not rebuild it by aggregating its inputs and dividing them yourself; on such a field an empty allowedAggregations means "already computed", never "unusable".
 - For "how many" questions, use COUNT or COUNT_DISTINCT instead of counting raw rows yourself. Keep only the dimensions the user asked for.
@@ -99,8 +99,8 @@ Building the query:
 
 Slices or filters (both apply BEFORE the aggregations you request):
 - slices narrow the rows of a JOINED data mart before the join, on its own fields only. Example: "orders in the last 3 months" on a joined orders data mart → slices.
-- filters act on the blended result: any field of the main data mart, or a joined field. A joined field there has one value per join key (by default the SUM of numbers, the latest date), so a filter on it does not see the joined rows. A filter on an aggregated field limits the rows that feed the aggregate, not the group total.
-- You cannot filter by a total from aggregations (e.g. SUM(revenue) > 100): return all groups and compare them yourself. Exception: a Calculated Field with level "metric" filters on its aggregated value.`;
+- filters act on the blended result: any field of the main data mart, or a joined field. A joined field there has one value per join key (by default the SUM of numbers, the latest date, or all text values joined into one string), so a filter on it does not see the joined rows. A filter on an aggregated field limits the rows that feed the aggregate, not the group total.
+- You cannot filter by a total from aggregations (e.g. SUM(revenue) > 100): return all groups and compare them yourself. Exception: a Calculated Field with level "metric" filters on its aggregated value; list it in fields too.`;
   readonly zodSchema = queryDataMartInputSchema.shape;
   readonly outputSchema = {
     columns: z.array(z.string()).describe('Business-friendly result headers, in rows order.'),

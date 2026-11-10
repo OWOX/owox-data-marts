@@ -200,7 +200,7 @@ export const queryDataMartInputSchema = z
       .array(z.string().min(1))
       .min(1)
       .describe(
-        'Exact field names to return, copied verbatim from get_data_mart_details_by_id. MUST include every field named in aggregations, date_buckets, and sort — a field you aggregate, bucket, or sort but omit here is rejected. Fields here that are neither aggregated nor bucketed become group-by dimensions only when the query aggregates (aggregations, date_buckets, a Unique Count field or a metric Calculated Field); otherwise rows are not grouped.'
+        'Exact field names to return, copied verbatim from get_data_mart_details_by_id. MUST include every field named in aggregations, date_buckets, and sort — a field you aggregate, bucket, or sort but omit here is rejected. Fields here that are neither aggregated nor bucketed become group-by dimensions only when the query aggregates (aggregations, date_buckets, a Unique Count field, or a metric Calculated Field in fields or filters); otherwise rows are not grouped.'
       ),
     slices: z
       .array(makeMcpFilterSchema())
