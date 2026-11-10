@@ -7,7 +7,7 @@ import yaml from 'js-yaml';
 import Papa from 'papaparse';
 import { getConfig } from './env-config.js';
 import { PUBLIC_REPO_DIR, rewriteHtmlImageLinks } from './html-image-links.mjs';
-import { parseReleaseFeed } from './release-feed.mjs';
+import { parseReleaseFeed, readReleaseDates } from './release-feed.mjs';
 import {
   normalizePathSeparators,
   normalizePathToKebabCase,
@@ -104,12 +104,14 @@ async function publishLlmsGuides() {
 }
 
 /**
- * Writes /docs/releases.json: the releases whose what's-new video is in the changelog, which
- * the app shows to signed-in users once per release.
+ * Writes /docs/releases.json: the recent releases with their dates, changes and what's-new
+ * videos, which the app announces to signed-in users once per release.
  */
 function publishReleaseFeed() {
   const feed = fs.existsSync(CHANGELOG_PATH)
-    ? parseReleaseFeed(fs.readFileSync(CHANGELOG_PATH, 'utf8'))
+    ? parseReleaseFeed(fs.readFileSync(CHANGELOG_PATH, 'utf8'), {
+        releaseDates: readReleaseDates(MONOREPO_ROOT, CHANGELOG_PATH),
+      })
     : { releases: [] };
   fs.mkdirSync(PUBLIC_DOCS_DEST_PATH, { recursive: true });
   fs.writeFileSync(path.join(PUBLIC_DOCS_DEST_PATH, 'releases.json'), JSON.stringify(feed));

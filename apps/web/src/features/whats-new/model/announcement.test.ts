@@ -3,11 +3,17 @@ import { pickReleaseToAnnounce, shouldAnnounce } from './announcement';
 import { compareVersions } from './release-version';
 import type { AnnouncedRelease } from './types';
 
-const release = (version: string): AnnouncedRelease => ({
+const release = (version: string, overrides: Partial<AnnouncedRelease> = {}): AnnouncedRelease => ({
   version,
+  releasedAt: '2026-11-02T14:23:04.000Z',
   videoUrl: `https://customer-x.cloudflarestream.com/${version}/iframe`,
   chapters: [],
+  changes: ['A change'],
+  ...overrides,
 });
+
+const DAY = 24 * 60 * 60 * 1000;
+const RELEASED = Date.parse('2026-11-09T14:43:46.000Z');
 
 describe('compareVersions', () => {
   it.each([
@@ -65,6 +71,28 @@ describe('pickReleaseToAnnounce', () => {
     expect(pickReleaseToAnnounce([release('0.40.0'), release('0.41.0')], null)?.version).toBe(
       '0.41.0'
     );
+  });
+
+  it('waits for the video during the first days after a release', () => {
+    const withoutVideo = release('0.42.0', {
+      videoUrl: null,
+      releasedAt: new Date(RELEASED).toISOString(),
+    });
+    const picked = (now: number) =>
+      pickReleaseToAnnounce([withoutVideo, ...releases], '0.43.0-next-1', now)?.version;
+
+    expect(picked(RELEASED + 2 * DAY)).toBe('0.41.0');
+    expect(picked(RELEASED + 3 * DAY)).toBe('0.42.0');
+  });
+
+  it('never announces a release without a video that has no date or no changes', () => {
+    const late = RELEASED + 30 * DAY;
+    expect(
+      pickReleaseToAnnounce([release('0.42.0', { videoUrl: null, releasedAt: null })], null, late)
+    ).toBeNull();
+    expect(
+      pickReleaseToAnnounce([release('0.42.0', { videoUrl: null, changes: [] })], null, late)
+    ).toBeNull();
   });
 
   it('returns null when no release qualifies', () => {

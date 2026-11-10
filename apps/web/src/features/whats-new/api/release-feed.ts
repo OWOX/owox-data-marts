@@ -2,18 +2,22 @@ import { z } from 'zod';
 import type { AnnouncedRelease, ReleaseChapter } from '../model/types';
 
 /**
- * Published by the documentation build from the changelog: the releases whose what's-new
- * video is out, newest first.
+ * Published by the documentation build from the changelog: the recent releases, newest first,
+ * with their dates, changes and what's-new videos.
  */
 export const RELEASE_FEED_URL = 'https://docs.owox.com/docs/releases.json';
 
 // The same shapes the documentation build writes (apps/docs/scripts/release-feed.mjs).
 const releaseSchema = z.object({
   version: z.string().regex(/^\d+\.\d+\.\d+$/),
+  releasedAt: z.iso.datetime().nullable().catch(null),
   videoUrl: z
     .string()
-    .regex(/^https:\/\/customer-[a-z0-9]+\.cloudflarestream\.com\/[0-9a-f]+\/iframe$/),
+    .regex(/^https:\/\/customer-[a-z0-9]+\.cloudflarestream\.com\/[0-9a-f]+\/iframe$/)
+    .nullable()
+    .catch(null),
   chapters: z.array(z.unknown()).catch([]),
+  changes: z.array(z.unknown()).catch([]),
 });
 
 const chapterSchema = z.object({
@@ -26,21 +30,31 @@ const chapterSchema = z.object({
     .catch(undefined),
 });
 
+const changeSchema = z.string().trim().min(1);
+
 const feedSchema = z.object({ releases: z.array(z.unknown()) });
 
-/** Keeps the well-formed releases and chapters of the feed and drops anything else. */
+/** Keeps the well-formed releases, chapters and changes of the feed and drops anything else. */
 export function parseReleaseFeed(payload: unknown): AnnouncedRelease[] {
   const feed = feedSchema.safeParse(payload);
   if (!feed.success) return [];
 
-  return feed.data.releases.flatMap(item => {
+  return feed.data.releases.flatMap((item): AnnouncedRelease[] => {
     const release = releaseSchema.safeParse(item);
     if (!release.success) return [];
-    const chapters = release.data.chapters.flatMap((chapter): ReleaseChapter[] => {
-      const parsed = chapterSchema.safeParse(chapter);
+    const { version, releasedAt, videoUrl } = release.data;
+    // Chapters belong to the video, so without one they have nothing to play.
+    const chapters = videoUrl
+      ? release.data.chapters.flatMap((chapter): ReleaseChapter[] => {
+          const parsed = chapterSchema.safeParse(chapter);
+          return parsed.success ? [parsed.data] : [];
+        })
+      : [];
+    const changes = release.data.changes.flatMap(change => {
+      const parsed = changeSchema.safeParse(change);
       return parsed.success ? [parsed.data] : [];
     });
-    return [{ version: release.data.version, videoUrl: release.data.videoUrl, chapters }];
+    return [{ version, releasedAt, videoUrl, chapters, changes }];
   });
 }
 

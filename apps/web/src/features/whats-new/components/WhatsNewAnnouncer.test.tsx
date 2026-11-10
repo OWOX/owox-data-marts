@@ -26,8 +26,10 @@ const { WhatsNewAnnouncer } = await import('./WhatsNewAnnouncer');
 const STORAGE_KEY = 'whats-new-last-seen-release:user-1';
 const RELEASE: AnnouncedRelease = {
   version: '0.41.0',
+  releasedAt: '2026-11-02T14:23:04.000Z',
   videoUrl: 'https://customer-x.cloudflarestream.com/abc/iframe',
   chapters: [],
+  changes: [],
 };
 
 const open = vi.fn();

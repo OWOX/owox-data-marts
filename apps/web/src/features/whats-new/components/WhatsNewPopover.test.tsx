@@ -15,12 +15,15 @@ const VIDEO = 'https://customer-x.cloudflarestream.com/abc/iframe';
 const STORAGE_KEY = 'whats-new-last-seen-release:user-1';
 const RELEASE: AnnouncedRelease = {
   version: '0.41.0',
+  releasedAt: '2026-11-02T14:23:04.000Z',
   videoUrl: VIDEO,
   chapters: [
     { title: 'Build a Data Mart on Top of Another', startTime: 40.1, label: '0:39' },
     { title: 'And a Few More Things', startTime: 87.8 },
   ],
+  changes: ['Safer sign-in', 'Dates from Google Sheets arrive as dates'],
 };
+const CHANGES = ['One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven'];
 
 const chapter = (name: RegExp) => screen.getByRole('button', { name });
 
@@ -88,6 +91,35 @@ describe('WhatsNewPopover', () => {
     expect(onClose).toHaveBeenCalledOnce();
     expect(localStorage.getItem(STORAGE_KEY)).toBe('0.40.0');
     expect(trackWhatsNewEvent).toHaveBeenCalledWith('whats_new_postponed', '0.41.0');
+  });
+
+  it('lists chapters, not changes, when the video has them', () => {
+    render(<WhatsNewPopoverContent />);
+    expect(screen.queryByRole('list', { name: 'Changes' })).toBeNull();
+  });
+
+  it('lists the changes of a release without a video', () => {
+    vi.mocked(useReleaseToAnnounce).mockReturnValue({
+      release: { ...RELEASE, videoUrl: null, chapters: [], changes: CHANGES },
+      isReady: true,
+    });
+    const { container } = render(<WhatsNewPopoverContent />);
+
+    expect(container.querySelector('iframe')).toBeNull();
+    const items = screen.getAllByRole('listitem').map(item => item.textContent);
+    expect(items).toEqual(['One', 'Two', 'Three', 'Four', 'Five', 'and 2 more changes']);
+    expect(screen.getByRole('link', { name: /Read the changelog/ })).toBeTruthy();
+  });
+
+  it('lists the changes under a video without chapters', () => {
+    vi.mocked(useReleaseToAnnounce).mockReturnValue({
+      release: { ...RELEASE, chapters: [], changes: ['Only one'] },
+      isReady: true,
+    });
+    const { container } = render(<WhatsNewPopoverContent />);
+
+    expect(container.querySelector('iframe')).not.toBeNull();
+    expect(screen.getAllByRole('listitem').map(item => item.textContent)).toEqual(['Only one']);
   });
 
   it('renders nothing without a release', () => {

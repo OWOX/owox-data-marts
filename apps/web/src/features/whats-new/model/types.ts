@@ -7,10 +7,14 @@ export interface ReleaseChapter {
   label?: string;
 }
 
-/** A release whose what's-new video is published in the changelog. */
+/** A recent release, as the documentation build publishes it from the changelog. */
 export interface AnnouncedRelease {
   version: string;
-  /** Cloudflare Stream player URL of the release video. */
-  videoUrl: string;
+  /** When the release shipped, if the documentation build knew it. */
+  releasedAt: string | null;
+  /** Cloudflare Stream player URL of the release video, once it is published. */
+  videoUrl: string | null;
   chapters: ReleaseChapter[];
+  /** Titles of the release's changes, as in the changelog. */
+  changes: string[];
 }
