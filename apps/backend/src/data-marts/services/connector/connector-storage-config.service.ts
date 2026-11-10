@@ -9,7 +9,10 @@ type StorageConfigDto = InstanceType<typeof Core.StorageConfigDto>;
 import { ConnectorDefinition as DataMartConnectorDefinition } from '../../dto/schemas/data-mart-table-definitions/connector-definition.schema';
 import { DataMart } from '../../entities/data-mart.entity';
 import { DataStorageType } from '../../data-storage-types/enums/data-storage-type.enum';
-import { BigQueryConfig } from '../../data-storage-types/bigquery/schemas/bigquery-config.schema';
+import {
+  BIGQUERY_AUTODETECT_LOCATION,
+  BigQueryConfig,
+} from '../../data-storage-types/bigquery/schemas/bigquery-config.schema';
 import { AthenaConfig } from '../../data-storage-types/athena/schemas/athena-config.schema';
 import { AthenaCredentials } from '../../data-storage-types/athena/schemas/athena-credentials.schema';
 import {
@@ -90,7 +93,7 @@ export class ConnectorStorageConfigService {
     const [datasetId, tableName] = fullyQualifiedName.split('.');
 
     const baseConfig = {
-      DestinationLocation: storageConfig?.location,
+      DestinationLocation: storageConfig?.location || BIGQUERY_AUTODETECT_LOCATION,
       DestinationDatasetID: `${storageConfig.projectId}.${datasetId}`,
       DestinationProjectID: storageConfig.projectId,
       DestinationDatasetName: datasetId,

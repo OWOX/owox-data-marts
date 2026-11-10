@@ -145,6 +145,34 @@ describe('ConnectorStorageConfigService', () => {
     expect(result.config.OAuthAccessTokenExpiry).toBeNull();
   });
 
+  it.each([undefined, null, ''])(
+    'sends AUTODETECT when the BigQuery Storage location is %j',
+    async location => {
+      const { service, storageCredentialsResolver } = createService();
+      (storageCredentialsResolver.resolve as jest.Mock).mockResolvedValue({
+        type: 'service_account',
+      });
+
+      const result = await service.buildStorageConfig({
+        ...baseDataMart,
+        storage: { ...baseDataMart.storage, config: { projectId: 'gcp-project', location } },
+      } as unknown as DataMart);
+
+      expect(result.config.DestinationLocation).toEqual({ value: 'AUTODETECT' });
+    }
+  );
+
+  it('keeps an explicit BigQuery Storage location', async () => {
+    const { service, storageCredentialsResolver } = createService();
+    (storageCredentialsResolver.resolve as jest.Mock).mockResolvedValue({
+      type: 'service_account',
+    });
+
+    const result = await service.buildStorageConfig(baseDataMart);
+
+    expect(result.config.DestinationLocation).toEqual({ value: 'US' });
+  });
+
   it('builds Athena storage config', async () => {
     const { service, storageCredentialsResolver } = createService();
     const dm = {

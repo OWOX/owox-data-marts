@@ -426,6 +426,45 @@ describe('getAListOfExistingColumns', () => {
   });
 });
 
+describe('createDatasetIfItDoesntExist location', () => {
+  const createDataset = async location => {
+    const messages = [];
+    const storage = Object.assign(Object.create(proto), {
+      config: {
+        DestinationProjectID: configValue('project'),
+        DestinationDatasetName: configValue('dataset'),
+        DestinationLocation: configValue(location),
+        logMessage: message => messages.push(message),
+      },
+    });
+    let query;
+    storage.executeQuery = async sql => {
+      query = sql;
+    };
+    await storage.createDatasetIfItDoesntExist();
+    return { query, messages };
+  };
+
+  it('creates the dataset in the Storage location', async () => {
+    const { query, messages } = await createDataset('EU');
+
+    expect(query).toContain("location = 'EU'");
+    expect(messages).toEqual([]);
+  });
+
+  // BigQuery rejects `location = 'AUTODETECT'` with "Invalid location".
+  it.each(['AUTODETECT', '', undefined])(
+    'lets BigQuery choose the location for %j and says so in the log',
+    async value => {
+      const { query, messages } = await createDataset(value);
+
+      expect(query).toContain('CREATE SCHEMA IF NOT EXISTS `project.dataset`');
+      expect(query).not.toContain('location');
+      expect(messages).toEqual([expect.stringContaining('The Storage has no location')]);
+    }
+  );
+});
+
 describe('createTableIfItDoesntExist partitioning', () => {
   const createStorage = schema =>
     Object.assign(Object.create(proto), {

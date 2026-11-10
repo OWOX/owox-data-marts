@@ -258,11 +258,21 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
   //---- createDatasetIfItDoesntExist --------------------------------
     async createDatasetIfItDoesntExist() {
 
+      const location = this.context.getParameter('DestinationLocation')?.value;
+
       let query = `---- Create Dataset if it not exists -----\n`;
-      query += `CREATE SCHEMA IF NOT EXISTS \`${this.context.getParameter('DestinationProjectID')?.value}.${this.context.getParameter('DestinationDatasetName')?.value}\`
+      query += `CREATE SCHEMA IF NOT EXISTS \`${this.context.getParameter('DestinationProjectID')?.value}.${this.context.getParameter('DestinationDatasetName')?.value}\``;
+      // The backend sends AUTODETECT for a Storage without a location. BigQuery rejects
+      // AUTODETECT as a location. Without this option, BigQuery uses its default location.
+      if (location && location !== 'AUTODETECT') {
+        query += `
       OPTIONS (
-        location = '${this.context.getParameter('DestinationLocation')?.value}'
+        location = '${location}'
       )`;
+      } else {
+        // A dataset location cannot change later, so tell the user where a new dataset goes.
+        this.context.log(LOG_LEVEL.WARN, 'The Storage has no location. BigQuery creates a missing dataset in its default location. Set a location on the Storage to choose it.');
+      }
 
       await this.executeQuery(query);
 
