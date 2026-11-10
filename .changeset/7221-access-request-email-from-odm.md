@@ -10,5 +10,6 @@ When a teammate asks to join a project, every Project Admin gets an email about 
 - Both emails are sent even if the recipient turned off email notifications. Asking again for the same role while the request is still pending does not email the admins again.
 - If an email cannot be sent, the access request or the approval still goes through.
 - Only OWOX-managed projects have access requests, so self-hosted installations are not affected.
+- Operators of OWOX Cloud turn these emails on with `IDP_OWOX_PROJECT_EMAILS_ENABLED=true`, together with the invitation email. It is off by default, and the previous mailing service keeps sending them until then.
 
 See [Manual provisioning](../../docs/project/members.md#manual-provisioning).

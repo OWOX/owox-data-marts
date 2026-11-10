@@ -8,10 +8,12 @@ import {
 } from './action-email-sender.js';
 
 /**
- * Nothing waits for these emails, so an attempt gets more time than the default.
- * An attempt aborted on time can still be delivered, and its retry would send a second email.
+ * Nothing waits for these emails, so an attempt gets 15 s instead of 5 s, and the budget fits
+ * all three attempts with their pauses. An attempt aborted on time can still be delivered,
+ * and its retry would send a second email.
  */
 const ATTEMPT_TIMEOUT_MS = 15_000;
+const TOTAL_TIMEOUT_MS = 50_000;
 
 export interface AccessRequestEmailPayload {
   /** Email of the project admin who receives the request. */
@@ -54,6 +56,7 @@ export class AccessRequestEmailService {
     this.sender = new ActionEmailSender(emailProvider, {
       ...options,
       attemptTimeoutMs: options.attemptTimeoutMs ?? ATTEMPT_TIMEOUT_MS,
+      totalTimeoutMs: options.totalTimeoutMs ?? TOTAL_TIMEOUT_MS,
     });
   }
 

@@ -218,6 +218,19 @@ describe('MembershipRequestsService', () => {
       emailService.sendApprovalToRequester.mockRejectedValue(new Error('SendGrid responded 500'));
       await expect(service.notifyRequester('proj-1', '42', 'viewer')).resolves.toBeUndefined();
     });
+
+    it('does nothing while project emails are switched off', async () => {
+      const switchedOff = new MembershipRequestsService(
+        identityClient,
+        store as unknown as DatabaseStore,
+        undefined
+      );
+
+      await switchedOff.notifyRequester('proj-1', '42', 'viewer');
+
+      expect(store.getUserByBiUserId).not.toHaveBeenCalled();
+      expect(identityClient.getProjectMembers).not.toHaveBeenCalled();
+    });
   });
 
   describe('declineMembershipRequest', () => {

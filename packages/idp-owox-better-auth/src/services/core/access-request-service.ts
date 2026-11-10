@@ -1,6 +1,7 @@
 import type { RequestProjectAccessResult, Role } from '@owox/idp-protocol';
 import { withTimeout } from '@owox/internal-helpers';
 import type { IdentityOwoxClient } from '../../client/index.js';
+import type { OwoxRequestProjectAccessResponse } from '../../client/dto/index.js';
 import { DEFAULT_PENDING_REQUEST_CHECK_TIMEOUT_MS } from '../../core/constants.js';
 import { createServiceLogger } from '../../core/logger.js';
 import type { DatabaseStore } from '../../store/database-store.js';
@@ -42,7 +43,8 @@ export class AccessRequestService {
   constructor(
     private readonly store: DatabaseStore,
     private readonly identityClient: IdentityOwoxClient,
-    private readonly emailService: AccessRequestEmailService,
+    /** Absent while project emails are switched off; the legacy mailer sends them then. */
+    private readonly emailService: AccessRequestEmailService | undefined,
     options: AccessRequestServiceOptions = {}
   ) {
     this.pendingRequestCheckTimeoutMs =
@@ -56,22 +58,23 @@ export class AccessRequestService {
    * one it returns now. A request after a declined one, or for another role, is news.
    *
    * The response does not wait for the emails, and a failed email does not fail the request.
+   * While project emails are switched off, this is only the Identity call.
    */
   async requestAccess(
     userId: string,
     projectId: string,
     role: Role
   ): Promise<RequestProjectAccessResult> {
-    const check = await this.checkPendingRequest(userId, projectId);
-    const response = await this.identityClient.requestProjectAccess(userId, projectId, role);
-    const result: RequestProjectAccessResult = {
-      userId: response.user.userUid,
-      projectId: response.project.projectName,
-      projectTitle: response.project.projectTitle,
-      request: response.request,
-    };
+    if (!this.emailService) {
+      return toResult(await this.identityClient.requestProjectAccess(userId, projectId, role));
+    }
 
-    if (isSameRequest(check.existingRequest, response.request)) {
+    const check = await this.checkPendingRequest(userId, projectId);
+    const result = toResult(
+      await this.identityClient.requestProjectAccess(userId, projectId, role)
+    );
+
+    if (isSameRequest(check.existingRequest, result.request)) {
       this.logger.info('Access request was already pending, admins are not emailed again', {
         projectId,
       });
@@ -90,8 +93,13 @@ export class AccessRequestService {
   /**
    * Emails every active admin of the project. Never throws.
    * The email is mandatory, so admins who turned off notifications get it too.
+   * Does nothing while project emails are switched off.
    */
   async notifyAdmins(notification: AccessRequestNotification): Promise<void> {
+    const emailService = this.emailService;
+    if (!emailService) {
+      return;
+    }
     const { projectId } = notification;
     try {
       const [adminEmails, requesterEmail] = await Promise.all([
@@ -106,7 +114,7 @@ export class AccessRequestService {
 
       const results = await Promise.allSettled(
         adminEmails.map(adminEmail =>
-          this.emailService.sendRequestToAdmin({
+          emailService.sendRequestToAdmin({
             adminEmail,
             requesterEmail,
             role: notification.role,
@@ -196,6 +204,15 @@ export class AccessRequestService {
       );
     return withTimeout(check, this.pendingRequestCheckTimeoutMs, {});
   }
+}
+
+function toResult(response: OwoxRequestProjectAccessResponse): RequestProjectAccessResult {
+  return {
+    userId: response.user.userUid,
+    projectId: response.project.projectName,
+    projectTitle: response.project.projectTitle,
+    request: response.request,
+  };
 }
 
 function isSameRequest(

@@ -11,6 +11,19 @@ type SendArgs = [
 
 const MEMBERS_URL = 'https://app.example.com/ui/p-1/project-settings/members';
 
+/** A send that never answers; it fails like the SendGrid provider once its signal aborts. */
+function hangUntilAborted(
+  ...[, , , options]: Parameters<EmailProvider['sendEmail']>
+): Promise<void> {
+  return new Promise((_, reject) => {
+    options?.signal?.addEventListener('abort', () => {
+      reject(
+        new Error(`SendGrid network error: ${String((options.signal?.reason as Error).message)}`)
+      );
+    });
+  });
+}
+
 function createService(retryDelaysMs: number[] = []) {
   const sendEmail = jest.fn<EmailProvider['sendEmail']>(async () => undefined);
   const provider = { sendEmail } as jest.Mocked<EmailProvider>;
@@ -118,26 +131,37 @@ describe('AccessRequestEmailService.sendRequestToAdmin', () => {
     expect(html).not.toContain('<i>x</i>');
   });
 
-  it('gives each attempt 15 s, since nothing waits for the email', async () => {
-    const timeout = jest.spyOn(AbortSignal, 'timeout');
-    const { service } = createService();
-
+  it('gives each attempt 15 s and all three attempts fit, since nothing waits', async () => {
+    jest.useFakeTimers();
     try {
-      await service.sendRequestToAdmin({
-        adminEmail: 'admin@example.com',
-        role: 'viewer',
-        projectId: 'p',
-      });
+      const sendEmail = jest.fn<EmailProvider['sendEmail']>(hangUntilAborted);
+      const service = new AccessRequestEmailService(
+        { sendEmail } as jest.Mocked<EmailProvider>,
+        'https://app.example.com'
+      );
+      const outcome = service
+        .sendRequestToAdmin({ adminEmail: 'admin@example.com', role: 'viewer', projectId: 'p' })
+        .then(
+          () => 'sent',
+          (error: unknown) => (error as Error).message
+        );
 
-      expect(timeout).toHaveBeenCalledWith(15_000);
+      await jest.advanceTimersByTimeAsync(14_999);
+      expect(sendEmail).toHaveBeenCalledTimes(1);
+      await jest.advanceTimersByTimeAsync(1 + 500);
+      expect(sendEmail).toHaveBeenCalledTimes(2);
+      await jest.advanceTimersByTimeAsync(15_000 + 1500);
+      expect(sendEmail).toHaveBeenCalledTimes(3);
+      await jest.advanceTimersByTimeAsync(15_000);
+      expect(await outcome).toContain('timeout');
     } finally {
-      timeout.mockRestore();
+      jest.useRealTimers();
     }
   });
 
-  it('retries a failed send and throws the last error when every attempt fails', async () => {
+  it('retries a transient failure and throws the last error when every attempt fails', async () => {
     const { sendEmail, service } = createService([0, 0]);
-    sendEmail.mockRejectedValue(new Error('SendGrid responded 500'));
+    sendEmail.mockRejectedValue(new Error('SendGrid responded 503 Service Unavailable'));
 
     await expect(
       service.sendRequestToAdmin({
@@ -145,7 +169,7 @@ describe('AccessRequestEmailService.sendRequestToAdmin', () => {
         role: 'viewer',
         projectId: 'p',
       })
-    ).rejects.toThrow('SendGrid responded 500');
+    ).rejects.toThrow('SendGrid responded 503');
     expect(sendEmail).toHaveBeenCalledTimes(3);
   });
 });

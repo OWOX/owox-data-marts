@@ -8,7 +8,9 @@ import {
 } from './action-email-sender.js';
 
 /**
- * The invite request waits for this email; see `ActionEmailSender` for the time limits.
+ * The invite request waits for this email after the access check (up to 3 s) and the invite
+ * itself (up to 10 s), and the backend answers 408 after 30 s. So one send keeps the
+ * `ActionEmailSender` defaults: 12 s in total, attempts of up to 5 s.
  */
 export type ProjectInvitationEmailOptions = ActionEmailSendOptions;
 

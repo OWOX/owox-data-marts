@@ -1,4 +1,4 @@
-import type { EmailProvider } from '@owox/internal-helpers';
+import { isTransientEmailError, type EmailProvider } from '@owox/internal-helpers';
 import ejs from 'ejs';
 import { readFileSync } from 'fs';
 import { createServiceLogger } from '../../core/logger.js';
@@ -6,17 +6,20 @@ import { maskEmail } from '../../utils/email-utils.js';
 import { resolveResourcePath } from '../../utils/template-paths.js';
 
 /**
- * At most 3 attempts of 5 s with 0.5 s and 1.5 s pauses: one send ends within about 17 s,
- * well under the web client's 30 s timeout when a request waits for it.
+ * The defaults fit an email that a request waits for, such as the invitation:
+ * attempts of up to 5 s, with 0.5 s and 1.5 s pauses, while the 12 s budget lasts.
  */
 const DEFAULT_RETRY_DELAYS_MS: readonly number[] = [500, 1500];
 const DEFAULT_ATTEMPT_TIMEOUT_MS = 5000;
+const DEFAULT_TOTAL_TIMEOUT_MS = 12000;
 
 export interface ActionEmailSendOptions {
   /** Pauses between attempts; there is one more attempt than pauses. */
   retryDelaysMs?: readonly number[];
   /** How long one attempt may take before it is aborted. */
   attemptTimeoutMs?: number;
+  /** How long the whole send, retries included, may take. */
+  totalTimeoutMs?: number;
 }
 
 /**
@@ -80,12 +83,13 @@ export function renderActionEmail(content: ActionEmailContent): { html: string; 
 }
 
 /**
- * Renders `action-email.ejs` and sends it, retrying failed attempts.
+ * Renders `action-email.ejs` and sends it, retrying attempts that fail for a transient reason.
  */
 export class ActionEmailSender {
   private readonly logger = createServiceLogger(ActionEmailSender.name);
   private readonly retryDelaysMs: readonly number[];
   private readonly attemptTimeoutMs: number;
+  private readonly totalTimeoutMs: number;
 
   constructor(
     private readonly emailProvider: EmailProvider,
@@ -93,26 +97,34 @@ export class ActionEmailSender {
   ) {
     this.retryDelaysMs = options.retryDelaysMs ?? DEFAULT_RETRY_DELAYS_MS;
     this.attemptTimeoutMs = options.attemptTimeoutMs ?? DEFAULT_ATTEMPT_TIMEOUT_MS;
+    this.totalTimeoutMs = options.totalTimeoutMs ?? DEFAULT_TOTAL_TIMEOUT_MS;
     loadActionEmailTemplate();
   }
 
   /**
-   * Sends the email. Throws the last error when all attempts fail.
+   * Sends the email, retrying attempts that fail for a transient reason while the time
+   * budget lasts. Throws the last error otherwise.
    */
-  async send({ to, content, categories, logContext }: ActionEmailMessage): Promise<void> {
-    const { html, bodyText } = renderActionEmail(content);
+  async send(message: ActionEmailMessage): Promise<void> {
+    const { to, categories, logContext } = message;
+    const rendered = renderActionEmail(message.content);
+    const deadline = Date.now() + this.totalTimeoutMs;
 
     for (let attempt = 0; ; attempt++) {
       try {
-        await this.emailProvider.sendEmail(to, content.subject, html, {
-          bodyText,
-          categories,
-          isMultiple: false,
-          signal: AbortSignal.timeout(this.attemptTimeoutMs),
-        });
+        await this.sendAttempt(
+          message,
+          rendered,
+          Math.min(this.attemptTimeoutMs, deadline - Date.now())
+        );
         return;
       } catch (error) {
-        if (attempt >= this.retryDelaysMs.length) {
+        const delay = this.retryDelaysMs[attempt];
+        if (
+          delay === undefined ||
+          !isTransientEmailError(error) ||
+          Date.now() + delay >= deadline
+        ) {
           throw error;
         }
         this.logger.warn(
@@ -120,8 +132,31 @@ export class ActionEmailSender {
           { ...logContext, email: maskEmail(to), categories, attempt: attempt + 1 },
           error
         );
-        await sleep(this.retryDelaysMs[attempt] ?? 0);
+        await sleep(delay);
       }
+    }
+  }
+
+  /** Its own timer rather than `AbortSignal.timeout`, so tests can use fake timers. */
+  private async sendAttempt(
+    { to, content, categories }: ActionEmailMessage,
+    { html, bodyText }: { html: string; bodyText: string },
+    timeoutMs: number
+  ): Promise<void> {
+    const controller = new AbortController();
+    const timer = setTimeout(
+      () => controller.abort(new Error(`Email attempt timeout after ${String(timeoutMs)} ms`)),
+      timeoutMs
+    );
+    try {
+      await this.emailProvider.sendEmail(to, content.subject, html, {
+        bodyText,
+        categories,
+        isMultiple: false,
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timer);
     }
   }
 }
