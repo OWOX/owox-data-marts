@@ -235,7 +235,8 @@ export interface IdpProvider {
    * (better-auth / none) may ignore it.
    *
    * The returned shape depends on provider semantics:
-   *  - `kind: 'email-sent'` — the provider has delivered the invitation email itself.
+   *  - `kind: 'email-sent'` — the provider emails the invitation itself and reports
+   *    `emailSent: false` when the email could not be sent.
    *  - `kind: 'magic-link'` — the provider produced a link that the caller must deliver.
    *
    * Implementations that do not support invitations should throw

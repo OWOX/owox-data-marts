@@ -6,12 +6,18 @@ import type {
 } from '@owox/idp-protocol';
 import type { IdentityOwoxClient } from '../../client/index.js';
 import {
+  DEFAULT_INVITATION_LOOKUP_TIMEOUT_MS,
   DEFAULT_OWOX_CLIENT_TIMEOUT_MS,
   DEFAULT_PROJECT_MEMBERS_CACHE_TTL_SECONDS,
 } from '../../core/constants.js';
 import { createServiceLogger } from '../../core/logger.js';
 import type { DatabaseStore } from '../../store/database-store.js';
 import type { ProjectMembersServiceOptions } from '../../types/project-members.js';
+import { maskEmail } from '../../utils/email-utils.js';
+import type {
+  ProjectInvitationEmailPayload,
+  ProjectInvitationEmailService,
+} from '../email/project-invitation-email-service.js';
 
 /**
  * Service for managing project members with persistent storage.
@@ -22,14 +28,19 @@ export class ProjectMembersService {
 
   private readonly ttlSeconds: number;
   private readonly owoxClientTimeoutMs: number;
+  private readonly invitationLookupTimeoutMs: number;
 
   constructor(
     private readonly store: DatabaseStore,
     private readonly identityClient: IdentityOwoxClient,
+    /** Absent while project emails are switched off; the legacy mailer sends them then. */
+    private readonly invitationEmailService: ProjectInvitationEmailService | undefined,
     options: ProjectMembersServiceOptions = {}
   ) {
     this.ttlSeconds = options.ttlSeconds ?? DEFAULT_PROJECT_MEMBERS_CACHE_TTL_SECONDS;
     this.owoxClientTimeoutMs = options.owoxClientTimeoutMs ?? DEFAULT_OWOX_CLIENT_TIMEOUT_MS;
+    this.invitationLookupTimeoutMs =
+      options.invitationLookupTimeoutMs ?? DEFAULT_INVITATION_LOOKUP_TIMEOUT_MS;
   }
 
   /**
@@ -220,12 +231,17 @@ export class ProjectMembersService {
   }
 
   /**
-   * Invite a new member to the project by delegating to the Identity OWOX API.
-   * The Java upstream owns email delivery, so the response surfaces
-   * `kind: 'email-sent'` unconditionally. We compose `email` / `message` on
-   * this side because the Java contract only returns `userUid` — everything
-   * else is already known from the request. Returning `userId` lets the
-   * caller controller attach scope + contexts immediately.
+   * Invite a new member to the project through the Identity OWOX API, then
+   * email the invited person. The Java contract only returns `userUid`; the
+   * rest of the response is already known from the request. Returning `userId`
+   * lets the caller controller attach scope + contexts immediately.
+   *
+   * Without an invitation email service (project emails switched off), the
+   * legacy mailer sends the email, so the response is the same as before.
+   *
+   * The membership exists once the Identity call succeeds, so a failed email
+   * does not fail the invitation: `emailSent: false` and the message tell the
+   * admin to let the person know themselves.
    */
   async inviteMember(
     projectId: string,
@@ -233,20 +249,118 @@ export class ProjectMembersService {
     role: Role,
     actorUserId: string
   ): Promise<ProjectMemberInvitation> {
+    const emailService = this.invitationEmailService;
+    // The lookups do not depend on the invite, so they run while it is in flight.
+    const details = emailService ? this.loadInvitationDetails(projectId, actorUserId) : undefined;
+
     const response = await this.identityClient.inviteProjectMember(
       projectId,
       email,
       role,
       actorUserId
     );
-    return {
+    const invitation = {
       projectId,
       email,
       role,
-      kind: 'email-sent',
+      kind: 'email-sent' as const,
       userId: response.userUid,
-      message: `Invitation email sent to ${email}`,
     };
+    if (!emailService || !details) {
+      return { ...invitation, message: `Invitation email sent to ${email}` };
+    }
+
+    const emailSent = await this.sendInvitationEmail(emailService, {
+      email,
+      role,
+      projectId,
+      ...(await details),
+    });
+    return {
+      ...invitation,
+      emailSent,
+      message: emailSent
+        ? `Invitation email sent to ${email}`
+        : `${email} was invited, but the invitation email could not be sent. Please let them know yourself.`,
+    };
+  }
+
+  /** Each lookup that is slow or fails only drops its detail from the email. */
+  private async loadInvitationDetails(
+    projectId: string,
+    actorUserId: string
+  ): Promise<{ projectTitle?: string; inviterEmail?: string }> {
+    const [projectTitle, inviterEmail] = await Promise.all([
+      this.withLookupTimeout(this.findProjectTitle(projectId, actorUserId)),
+      this.withLookupTimeout(this.findUserEmail(projectId, actorUserId)),
+    ]);
+    return { projectTitle, inviterEmail };
+  }
+
+  private async sendInvitationEmail(
+    emailService: ProjectInvitationEmailService,
+    payload: ProjectInvitationEmailPayload
+  ): Promise<boolean> {
+    try {
+      await emailService.send(payload);
+      return true;
+    } catch (error) {
+      this.logger.error(
+        'Failed to send project invitation email',
+        { projectId: payload.projectId, email: maskEmail(payload.email) },
+        error
+      );
+      return false;
+    }
+  }
+
+  private async withLookupTimeout(
+    lookup: Promise<string | undefined>
+  ): Promise<string | undefined> {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timeout = new Promise<undefined>(resolve => {
+      timer = setTimeout(() => resolve(undefined), this.invitationLookupTimeoutMs);
+    });
+    try {
+      return await Promise.race([lookup, timeout]);
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  private async findProjectTitle(
+    projectId: string,
+    actorUserId: string
+  ): Promise<string | undefined> {
+    try {
+      const project = await this.identityClient.getProjectForUser(actorUserId, projectId);
+      return project.title || undefined;
+    } catch (error) {
+      this.logger.warn('Could not load project title for invitation email', { projectId }, error);
+      return undefined;
+    }
+  }
+
+  private async findUserEmail(projectId: string, userId: string): Promise<string | undefined> {
+    try {
+      const user = await this.store.getUserByBiUserId(userId);
+      if (user?.email) {
+        return user.email;
+      }
+    } catch (error) {
+      this.logger.warn('Could not load the inviter from local users', { projectId }, error);
+    }
+    try {
+      const members = await this.store.getProjectMembers(projectId);
+      return members?.find(member => member.userId === userId)?.email || undefined;
+    } catch (error) {
+      this.logger.warn(
+        'Could not load the inviter from stored project members',
+        { projectId },
+        error
+      );
+      return undefined;
+    }
   }
 
   /**

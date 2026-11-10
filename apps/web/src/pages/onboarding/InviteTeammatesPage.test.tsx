@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { toast } from 'react-hot-toast';
 import { InviteTeammatesPage } from './InviteTeammatesPage';
 import { useFlags } from '../../app/store/hooks';
 import { useIsAdmin } from '../../features/idp';
@@ -14,7 +15,9 @@ vi.mock('../../features/project-members/services/project-members.service', () =>
   projectMembersService: { inviteMember: vi.fn() },
 }));
 vi.mock('../../utils/data-layer', () => ({ trackEvent: vi.fn() }));
-vi.mock('react-hot-toast', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+vi.mock('react-hot-toast', () => ({
+  toast: Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn() }),
+}));
 
 const inviteMember = vi.mocked(projectMembersService.inviteMember);
 
@@ -136,6 +139,60 @@ describe('InviteTeammatesPage', () => {
     expect((emailInput() as HTMLInputElement).value).toBe('not-an-email');
     expect(emailInput().getAttribute('aria-describedby')).toBe(
       screen.getByRole('alert').getAttribute('id')
+    );
+  });
+
+  it('tells the admin whose invitation email could not be sent', async () => {
+    inviteMember
+      .mockResolvedValueOnce({
+        kind: 'email-sent',
+        email: 'ann@company.com',
+        role: 'editor',
+        emailSent: false,
+      })
+      .mockResolvedValueOnce({
+        kind: 'email-sent',
+        email: 'bob@company.com',
+        role: 'editor',
+        emailSent: true,
+      });
+    renderPage();
+    addEmail('ann@company.com');
+    addEmail('bob@company.com');
+    fireEvent.click(screen.getByRole('button', { name: 'Send 2 invites' }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('location').textContent).toBe('/ui/project-1/data-marts');
+    });
+    expect(toast).toHaveBeenCalledWith(
+      'ann@company.com was invited, but the invitation email could not be sent. Please let them know yourself.',
+      { duration: 10000 }
+    );
+    expect(toast.success).toHaveBeenCalledWith('Invitation sent to bob@company.com');
+  });
+
+  it('counts only the sent emails when some invites fail', async () => {
+    inviteMember
+      .mockResolvedValueOnce({
+        kind: 'email-sent',
+        email: 'ann@company.com',
+        role: 'editor',
+        emailSent: false,
+      })
+      .mockRejectedValueOnce({ response: { status: 400, data: { message: 'Already a member' } } });
+    renderPage();
+    addEmail('ann@company.com');
+    addEmail('bob@company.com');
+    fireEvent.click(screen.getByRole('button', { name: 'Send 2 invites' }));
+
+    const alert = await screen.findByRole('alert');
+    await waitFor(() => {
+      expect(alert.textContent).toContain('bob@company.com: Already a member');
+    });
+    expect(alert.textContent).not.toContain('Sent 1 invitation.');
+    expect(toast).toHaveBeenCalledWith(
+      'ann@company.com was invited, but the invitation email could not be sent. Please let them know yourself.',
+      { duration: 10000 }
     );
   });
 

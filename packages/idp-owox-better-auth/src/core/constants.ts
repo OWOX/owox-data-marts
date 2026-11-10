@@ -39,6 +39,14 @@ export const DEFAULT_PROJECT_MEMBERS_CACHE_TTL_SECONDS = 15 * 60;
 
 /** Default timeout for OWOX Client requests in milliseconds (10 seconds). */
 export const DEFAULT_OWOX_CLIENT_TIMEOUT_MS = 10000;
+export const DEFAULT_INVITATION_LOOKUP_TIMEOUT_MS = 3000;
+
+/**
+ * Timeout for inviting a project member, in milliseconds. Longer than the Identity API's
+ * own wait for the legacy invite (3 s), so an invite that completes upstream is not reported
+ * as failed here.
+ */
+export const INVITE_PROJECT_MEMBER_TIMEOUT_MS = 10000;
 
 /** Error messages for session and user resolution. */
 export const SESSION_ERROR_MESSAGES = {

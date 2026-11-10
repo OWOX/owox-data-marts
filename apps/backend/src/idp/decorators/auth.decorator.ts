@@ -1,14 +1,9 @@
 import { SetMetadata, applyDecorators, UseGuards } from '@nestjs/common';
 import { ApiForbiddenResponse, ApiSecurity, ApiUnauthorizedResponse } from '@nestjs/swagger';
+import { getRoleDisplayName } from '@owox/idp-protocol';
 import type { RoleConfig } from '../types/role-config.types';
 import { IdpGuard } from '../guards/idp.guard';
 import { OWOX_AUTHORIZATION_SECURITY_SCHEME } from '../openapi/authentication.openapi';
-
-const ROLE_DISPLAY_NAMES: Record<string, string> = {
-  admin: 'Project Admin',
-  editor: 'Data Owner',
-  viewer: 'Business User',
-};
 
 /**
  * Decorator to require authentication and/or authorization for a route
@@ -50,7 +45,7 @@ export const Auth = (roleConfig: RoleConfig) => {
   if (roleConfig.role) {
     decorators.push(
       ApiForbiddenResponse({
-        description: `Forbidden. Required role: ${ROLE_DISPLAY_NAMES[roleConfig.role] ?? roleConfig.role}`,
+        description: `Forbidden. Required role: ${getRoleDisplayName(roleConfig.role)}`,
       })
     );
   }

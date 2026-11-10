@@ -9,6 +9,7 @@ import { useIsAdmin } from '../../features/idp';
 import { RedirectStorageService } from '../../features/idp/services/redirect-storage.service';
 import { storedRedirectTarget } from '../../features/idp/utils/post-auth-redirect';
 import { projectMembersService } from '../../features/project-members/services/project-members.service';
+import { describeUnsentInvitationEmails } from '../../features/project-members/utils/describe-unsent-invitation-emails';
 import type { Role } from '../../features/project-members/types';
 import { checkVisible } from '../../utils/check-visible';
 import { trackEvent } from '../../utils/data-layer';
@@ -192,17 +193,22 @@ export function InviteTeammatesPage() {
     setSending(true);
     clearMessages();
     const invited: string[] = [];
+    // Invited, but the invitation email could not be sent: the admin has to tell them.
+    const unsentEmails: string[] = [];
     const failed: InviteFailure[] = [];
     // One at a time: each invite is a call to the identity provider, and a batch of
     // parallel calls for a fresh project gains nothing but upstream rate-limit risk.
     for (const email of recipients) {
       try {
         // Silent: every failure is listed below the input, so no toast per address.
-        await projectMembersService.inviteMember(
+        const result = await projectMembersService.inviteMember(
           { email, role, roleScope: role === 'admin' ? undefined : 'entire_project' },
           { silent: true }
         );
         invited.push(email);
+        if (result.kind === 'email-sent' && result.emailSent === false) {
+          unsentEmails.push(email);
+        }
       } catch (caught) {
         failed.push({ email, message: describeInviteFailure(caught) });
       }
@@ -220,20 +226,28 @@ export function InviteTeammatesPage() {
       });
     }
 
+    // Toasts stay visible on the page this step continues to.
+    if (unsentEmails.length > 0) {
+      toast(describeUnsentInvitationEmails(unsentEmails), { duration: 10000 });
+    }
+
+    const emailed = invited.filter(email => !unsentEmails.includes(email));
     if (failed.length === 0) {
-      // Shown by the app's toaster on the page this step continues to.
-      toast.success(
-        invited.length === 1
-          ? `Invitation sent to ${invited[0]}`
-          : `Invitations sent to ${String(invited.length)} teammates`
-      );
+      if (emailed.length > 0) {
+        toast.success(
+          emailed.length === 1
+            ? `Invitation sent to ${emailed[0] ?? ''}`
+            : `Invitations sent to ${String(emailed.length)} teammates`
+        );
+      }
       continueToApp();
       return;
     }
     // Keep only the addresses that failed, so a retry doesn't re-invite the others.
     setEmails(failed.map(item => item.email));
     setFailures(failed);
-    setInvitedCount(invited.length);
+    // The toast above names the invited people whose email was not sent.
+    setInvitedCount(emailed.length);
   };
 
   // The label counts only addresses that will be sent; a typo in the input doesn't add one.

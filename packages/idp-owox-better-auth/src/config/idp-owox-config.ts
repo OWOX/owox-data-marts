@@ -303,6 +303,11 @@ export type IdpOwoxConfig = {
   dbConfig: DbConfig;
   projectMembersCacheTtlSeconds: number;
   extensionAuth?: ExtensionAuthConfig;
+  /**
+   * Whether OWOX Data Marts sends the project membership emails itself (project invitations,
+   * access requests). Off by default: the legacy mailer sends them until the cut-over.
+   */
+  projectEmailsEnabled: boolean;
 };
 
 /** ---------- Better Auth (UI/auth) config ---------- */
@@ -374,6 +379,10 @@ export function loadServerEventsConfigFromEnv(
     visitorCookieName: parsed.IDP_OWOX_SERVER_EVENTS_VISITOR_COOKIE as string,
   };
 }
+
+const ProjectEmailsEnvSchema = z.object({
+  IDP_OWOX_PROJECT_EMAILS_ENABLED: z.enum(['true', 'false']).default('false'),
+});
 
 const SendgridEnvSchema = z.object({
   SENDGRID_API_KEY: z.string().min(1, 'SENDGRID_API_KEY is required'),
@@ -499,6 +508,7 @@ export function loadIdpOwoxConfigFromEnv(env: NodeJS.ProcessEnv = process.env): 
   const jwtConfig = JwtEnvSchema.parse(env);
   const projectMembersCacheConfig = ProjectMembersCacheEnvSchema.parse(env);
   const extensionAuth = MicrosoftExtensionAuthEnvSchema.parse(env);
+  const projectEmails = ProjectEmailsEnvSchema.parse(env);
   const baseUrl = resolveBaseUrl(env);
 
   if (jwtConfig.algorithm !== 'RS256') {
@@ -513,6 +523,7 @@ export function loadIdpOwoxConfigFromEnv(env: NodeJS.ProcessEnv = process.env): 
     dbConfig,
     projectMembersCacheTtlSeconds: projectMembersCacheConfig.projectMembersCacheTtlSeconds,
     ...(extensionAuth ? { extensionAuth } : {}),
+    projectEmailsEnabled: projectEmails.IDP_OWOX_PROJECT_EMAILS_ENABLED === 'true',
   };
 }
 

@@ -33,6 +33,7 @@ import {
   ROLE_SCOPE_VALUES,
 } from '../../../../../features/project-members/types';
 import { getRoleDisplayName } from '../../../../../features/idp/utils/role-display-name';
+import { describeUnsentInvitationEmails } from '../../../../../features/project-members/utils/describe-unsent-invitation-emails';
 import { AddContextSheet } from '../../../../../features/contexts/components/AddContextSheet/AddContextSheet';
 import { useMembersSettings } from '../../model/members-settings.context';
 import { MemberFormFields } from '../MemberFormFields/MemberFormFields';
@@ -136,9 +137,16 @@ export function InviteMemberSheet({
         if (result.kind === 'magic-link') {
           setMagicLinkResult(result);
         } else {
-          toast.success(result.message ?? `Invitation email sent to ${result.email}`, {
-            duration: 6000,
-          });
+          if (result.emailSent === false) {
+            // Invited, but nobody told the person: keep the notice up long enough to act on.
+            toast(result.message ?? describeUnsentInvitationEmails([result.email]), {
+              duration: 10000,
+            });
+          } else {
+            toast.success(result.message ?? `Invitation email sent to ${result.email}`, {
+              duration: 6000,
+            });
+          }
           reset();
           onInvited();
           onClose();

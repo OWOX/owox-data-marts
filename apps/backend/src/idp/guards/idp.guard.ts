@@ -3,6 +3,7 @@ import { Request } from 'express';
 import {
   AuthenticationError,
   AuthorizationError,
+  getRoleDisplayName,
   isViewOnlyPayload,
   Payload,
   Role as RoleType,
@@ -332,20 +333,15 @@ export class IdpGuard implements CanActivate {
     return typeof value === 'string' && value.trim().length > 0;
   }
 
-  private static readonly ROLE_DISPLAY_NAMES: Record<string, string> = {
-    admin: 'Project Admin',
-    editor: 'Data Owner',
-    viewer: 'Business User',
-  };
-
   private checkRoleAuthorization(request: AuthenticatedRequest, requiredRole: RoleType): void {
     if (!request.idpContext?.roles) {
       throw new AuthorizationError('Access denied: No roles information available');
     }
 
     if (!satisfiesRole(request.idpContext.roles, requiredRole)) {
-      const displayName = IdpGuard.ROLE_DISPLAY_NAMES[requiredRole] ?? requiredRole;
-      throw new AuthorizationError(`Access denied. Required role: ${displayName}`);
+      throw new AuthorizationError(
+        `Access denied. Required role: ${getRoleDisplayName(requiredRole)}`
+      );
     }
   }
 }

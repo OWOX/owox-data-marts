@@ -1,5 +1,6 @@
 export { createMailingProvider, type MailingFactoryConfig } from './factory.js';
 export { NoopMailingProvider } from './providers/noop-provider.js';
+export { isTransientEmailError } from './transient-error.js';
 export {
   SendgridMailingProvider,
   type SendgridMailingConfig,

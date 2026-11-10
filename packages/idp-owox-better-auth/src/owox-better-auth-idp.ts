@@ -60,6 +60,7 @@ import { UserAuthInfoPersistenceService } from './services/core/user-auth-info-p
 import { UserContextService } from './services/core/user-context-service.js';
 import { EmailValidationService } from './services/email/email-validation-service.js';
 import { MagicLinkEmailService } from './services/email/magic-link-email-service.js';
+import { ProjectInvitationEmailService } from './services/email/project-invitation-email-service.js';
 import { AuthFlowMiddleware } from './services/middleware/auth-flow-middleware.js';
 import { BetterAuthProxyHandler } from './services/middleware/better-auth-proxy-handler.js';
 import { OnboardingService } from './services/onboarding/onboarding-service.js';
@@ -122,7 +123,8 @@ export class OwoxBetterAuthIdp implements IdpProvider {
     auth: Awaited<ReturnType<typeof createBetterAuthConfig>>,
     store: DatabaseStore,
     private readonly config: BetterAuthProviderConfig,
-    private readonly magicLinkService: MagicLinkService
+    private readonly magicLinkService: MagicLinkService,
+    projectInvitationEmailService: ProjectInvitationEmailService | undefined
   ) {
     this.auth = auth;
     this.store = store;
@@ -150,6 +152,7 @@ export class OwoxBetterAuthIdp implements IdpProvider {
     this.projectMembersService = new ProjectMembersService(
       this.store,
       this.identityClient,
+      projectInvitationEmailService,
       serviceOptions
     );
     this.membershipRequestsService = new MembershipRequestsService(this.identityClient);
@@ -340,6 +343,10 @@ export class OwoxBetterAuthIdp implements IdpProvider {
     const adapter = await store.getAdapter();
     const mailProvider = createMailingProvider(config.email);
     const magicLinkEmailService = new MagicLinkEmailService(mailProvider);
+    // Off until the cut-over: the legacy mailer sends the invitation email meanwhile.
+    const projectInvitationEmailService = config.idpOwox.projectEmailsEnabled
+      ? new ProjectInvitationEmailService(mailProvider, config.idpOwox.baseUrl)
+      : undefined;
     const emailValidationService = new EmailValidationService({
       forbiddenDomains: config.betterAuth.forbiddenEmailDomains,
     });
@@ -358,7 +365,13 @@ export class OwoxBetterAuthIdp implements IdpProvider {
 
     magicLinkService.setAuth(auth);
 
-    return new OwoxBetterAuthIdp(auth, store, config, magicLinkService);
+    return new OwoxBetterAuthIdp(
+      auth,
+      store,
+      config,
+      magicLinkService,
+      projectInvitationEmailService
+    );
   }
 
   async initialize(): Promise<void> {

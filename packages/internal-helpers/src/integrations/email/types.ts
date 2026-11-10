@@ -4,6 +4,8 @@ export interface EmailSendOptions {
   bodyText?: string;
   categories?: string[];
   isMultiple?: boolean;
+  /** Aborts the send, e.g. when the caller's time budget runs out. */
+  signal?: AbortSignal;
 }
 
 /**

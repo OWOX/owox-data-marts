@@ -14,8 +14,8 @@ import type {
 /**
  * Discriminated union mirroring `InviteMemberResponseApiDto` from backend.
  *
- * `email-sent` — backend IDP (e.g. owox-better-auth) delivered the invitation
- * email itself; UI confirms with a toast.
+ * `email-sent` — backend IDP (e.g. owox-better-auth) emails the invitation
+ * itself; UI confirms with a toast, or shows a notice when `emailSent` is `false`.
  *
  * `magic-link` — backend IDP (e.g. better-auth) returned a link that the admin
  * must copy and share out-of-band; UI shows the link with a copy button.
@@ -26,6 +26,8 @@ export type InviteMemberResponse =
       role: Role;
       kind: 'email-sent';
       userId?: string;
+      /** `false`: the member was invited, but the invitation email could not be sent. */
+      emailSent?: boolean;
       message?: string;
     }
   | {
