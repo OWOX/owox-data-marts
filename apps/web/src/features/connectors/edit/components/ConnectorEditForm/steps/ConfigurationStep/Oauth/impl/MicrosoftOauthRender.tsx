@@ -25,6 +25,14 @@ function googleAuthorizationUrl(clientId: string, redirectUri: string): string {
   return url.toString();
 }
 
+function originOf(url: string): string | null {
+  try {
+    return new URL(url).origin;
+  } catch {
+    return null;
+  }
+}
+
 export function MicrosoftOauthRender({
   isLoading,
   status,
@@ -73,6 +81,15 @@ export function MicrosoftOauthRender({
   }
 
   const signInWithGoogle = async () => {
+    // The callback page reports only to its own origin: from another address the popup
+    // would close without a word
+    const redirectOrigin = originOf(googleClient.redirectUri);
+    if (redirectOrigin !== window.location.origin) {
+      setGoogleError(
+        `Sign in with Google is set up for ${redirectOrigin ?? 'another address'}. Open this page there to sign in with Google.`
+      );
+      return;
+    }
     setGoogleBusy(true);
     setGoogleError(null);
     try {
@@ -100,7 +117,7 @@ export function MicrosoftOauthRender({
         clientId={settings?.vars.ClientId as string}
         redirectUri={settings?.vars.RedirectUri as string}
         onSuccess={handleMicrosoftLogin}
-        disabled={isLoading}
+        disabled={isLoading || googleBusy}
       >
         Sign in with Microsoft
       </MicrosoftLoginButton>

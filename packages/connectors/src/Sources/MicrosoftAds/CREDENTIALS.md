@@ -202,7 +202,7 @@ Always generate and use the authorization code **immediately** after receiving i
 The Credential was signed in with a different type than the one you use for Microsoft Advertising: Microsoft instead of Google, or the other way around.
 
 **Solution:**  
-Reconnect the Credential with the other button: **Sign in with Google** if you sign in to Microsoft Advertising with Google, **Sign in with Microsoft** otherwise. For values entered by hand, see [If You Sign In to Microsoft Advertising with Google](#if-you-sign-in-to-microsoft-advertising-with-google).
+Reconnect the Credential with the other button: **Sign in with Google** if you sign in to Microsoft Advertising with Google, **Sign in with Microsoft** otherwise. If the form has no **Sign in with Google**, your server does not offer it yet: ask your administrator to set it up, or enter the values by hand as described in [If You Sign In to Microsoft Advertising with Google](#if-you-sign-in-to-microsoft-advertising-with-google).
 
 ## Troubleshooting and Support
 

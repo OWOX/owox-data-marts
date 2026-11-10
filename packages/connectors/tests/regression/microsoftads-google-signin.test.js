@@ -5,10 +5,12 @@
 // IdentityTypeMismatch on every request. These tests pin the Google path of
 // MicrosoftAdsSource and that the Microsoft path stays as it was:
 // - a Credential whose client ID is a Google OAuth client refreshes at Google, with no
-//   scope and no rotated refresh token reported back;
+//   scope and no rotated refresh token reported back, once for the whole run;
 // - only such a Credential sends `IdentityProvider: Google`;
-// - error 126 on a run names the button to reconnect with, is a warning, and is not
-//   requested from the API again;
+// - error 126 on a run names the button to reconnect with, says when the server does not
+//   offer Sign in with Google yet, is a warning, and is not requested from the API again;
+// - other API errors read as Microsoft Advertising's own message, under the context
+//   the failing request adds;
 // - "Sign in with Google" exchanges the code with the Google client and checks the user
 //   with GetUser, and either sign-in of the wrong type fails with a clear message.
 import { test, before, beforeEach, afterEach } from 'node:test';
@@ -53,8 +55,16 @@ const IDENTITY_TYPE_MISMATCH = {
   Type: 'AdApiFaultDetail',
 };
 
+// The server's "Sign in with Google" variables, read from the environment at run time
+const GOOGLE_SIGN_IN_ENV = {
+  OAUTH_MICROSOFT_ADS_GOOGLE_CLIENT_ID: GOOGLE_CLIENT_ID,
+  OAUTH_MICROSOFT_ADS_GOOGLE_CLIENT_SECRET: 'google-secret',
+  OAUTH_GOOGLE_REDIRECT_URI: 'https://app.example.com/oauth/google/callback',
+};
+
 let OWOX;
 let originalFetch;
+let originalEnv;
 let requests;
 
 before(() => {
@@ -67,10 +77,19 @@ before(() => {
 beforeEach(() => {
   originalFetch = global.fetch;
   requests = [];
+  originalEnv = {};
+  for (const key of Object.keys(GOOGLE_SIGN_IN_ENV)) {
+    originalEnv[key] = process.env[key];
+    delete process.env[key];
+  }
 });
 
 afterEach(() => {
   global.fetch = originalFetch;
+  for (const [key, value] of Object.entries(originalEnv)) {
+    if (value === undefined) delete process.env[key];
+    else process.env[key] = value;
+  }
 });
 
 function makeSource(clientId) {
@@ -157,6 +176,30 @@ test('a Credential with a Google client refreshes at Google and reports no rotat
   assert.deepEqual(reported, []);
 });
 
+test('a Google client ID typed with a trailing line break is sent without it', async () => {
+  const { source } = makeSource(`${GOOGLE_CLIENT_ID}\n `);
+  stubFetch(() => jsonResponse({ access_token: 'google-access-token' }));
+
+  await source.getAccessToken();
+
+  assert.equal(requests[0].url, 'https://oauth2.googleapis.com/token');
+  assert.equal(requests[0].body.client_id, GOOGLE_CLIENT_ID);
+});
+
+test('a Google access token serves every day of the run', async () => {
+  const { source } = makeSource(GOOGLE_CLIENT_ID);
+  stubFetch(url => {
+    if (url.includes('/token')) return jsonResponse({ access_token: 'access-token' });
+    if (url.endsWith('/GenerateReport/Submit')) return jsonResponse({ ReportRequestId: 'r1' });
+    return jsonResponse({ ReportRequestStatus: { Status: 'Success', ReportDownloadUrl: null } });
+  });
+
+  await fetchAdPerformance(source);
+  await fetchAdPerformance(source);
+
+  assert.equal(requests.filter(request => request.url.includes('/token')).length, 1);
+});
+
 test('a revoked Google grant is a warning: the user must reconnect', async () => {
   const { source } = makeSource(GOOGLE_CLIENT_ID);
   stubFetch(() =>
@@ -199,6 +242,7 @@ for (const [label, clientId, expected] of [
 }
 
 test('error 126 on a run names the button to reconnect with and is asked only once', async () => {
+  Object.assign(process.env, GOOGLE_SIGN_IN_ENV);
   const { source } = makeSource(MICROSOFT_CLIENT_ID);
   stubFetch(url =>
     url.includes('/token')
@@ -221,6 +265,20 @@ test('error 126 on a run names the button to reconnect with and is asked only on
   requests = [];
   await assert.rejects(fetchAdPerformance(source), isMismatch);
   assert.deepEqual(requests, [], 'the next day must not ask Microsoft Advertising again');
+});
+
+test('error 126 on a run says when the server does not offer Sign in with Google yet', async () => {
+  const { source } = makeSource(MICROSOFT_CLIENT_ID);
+  stubFetch(url =>
+    url.includes('/token')
+      ? jsonResponse({ access_token: 'access-token' })
+      : jsonResponse(IDENTITY_TYPE_MISMATCH, 400)
+  );
+
+  await assert.rejects(
+    fetchAdPerformance(source),
+    /Reconnect the Credential: Sign in with Microsoft with the other account, or Sign in with Google once your administrator sets it up for Microsoft Ads on this server\./
+  );
 });
 
 test('error 126 in the operation errors of a Submit answer is handled the same way', async () => {
@@ -313,16 +371,18 @@ test('error 126 on a Bulk request of a Google Credential points to Sign in with 
   });
 });
 
-test('a Keywords batch failure keeps what classifies it', async () => {
+test('a Keywords batch failure names Keywords and the API message and stays a warning', async () => {
   const { source } = makeSource(MICROSOFT_CLIENT_ID);
-  const payload = { Errors: [{ Code: 105 }] };
-  source._downloadEntityBatch = async () => {
-    throw Object.assign(new Error('HTTP 401: denied'), {
-      statusCode: 401,
-      payload,
-      isWarning: true,
-    });
-  };
+  const logs = [];
+  source.context.log = (level, message) => logs.push({ level, message });
+  stubFetch(() =>
+    jsonResponse(
+      {
+        Errors: [{ Code: 105, ErrorCode: 'InvalidCredentials', Message: 'Authentication failed.' }],
+      },
+      401
+    )
+  );
 
   await assert.rejects(
     source._fetchEntityByCampaigns({
@@ -332,13 +392,18 @@ test('a Keywords batch failure keeps what classifies it', async () => {
       onBatchReady: async () => {},
     }),
     error => {
-      assert.equal(error.message, 'Failed to fetch Keywords: HTTP 401: denied');
+      assert.equal(
+        error.message,
+        'Failed to fetch Keywords: HTTP 401: Authentication failed. (105 InvalidCredentials)'
+      );
       assert.equal(error.isWarning, true);
       assert.equal(error.statusCode, 401);
-      assert.equal(error.payload, payload);
+      assert.equal(error.payload.Errors[0].Code, 105);
       return true;
     }
   );
+  const failure = logs.find(log => log.message.startsWith('Failed to fetch keywords'));
+  assert.equal(failure.level, 'warn', 'a failure the user must fix is not an ops error');
 });
 
 const GOOGLE_VARS = {
@@ -463,6 +528,28 @@ for (const [reason, expected] of [
     await assert.rejects(source.exchangeOauthCredentials({ code: 'code' }, GOOGLE_VARS), expected);
   });
 }
+
+test('Sign in with Microsoft hit by 126 GoogleAccountIsRequired on a server without a Google client', async () => {
+  const { source } = makeSource(MICROSOFT_CLIENT_ID);
+  stubFetch(url =>
+    url.includes('login.microsoftonline.com')
+      ? jsonResponse({ access_token: 'microsoft-access', refresh_token: 'microsoft-refresh' })
+      : jsonResponse(
+          {
+            Errors: [{ ...IDENTITY_TYPE_MISMATCH.Errors[0], Detail: 'GoogleAccountIsRequired' }],
+          },
+          400
+        )
+  );
+
+  await assert.rejects(
+    source.exchangeOauthCredentials(
+      { code: 'code' },
+      { ...GOOGLE_VARS, GoogleClientId: undefined, GoogleClientSecret: undefined }
+    ),
+    /signs in with Google\. Use Sign in with Google once your administrator sets it up for Microsoft Ads on this server\./
+  );
+});
 
 test('Sign in with Microsoft still saves the Credential when GetUser cannot be reached', async () => {
   const { source } = makeSource(MICROSOFT_CLIENT_ID);

@@ -18,7 +18,16 @@ const MicrosoftAdsHelper = {
    * @returns {boolean}
    */
   isGoogleClientId(clientId) {
-    return typeof clientId === 'string' && clientId.trim().endsWith('.apps.googleusercontent.com');
+    return typeof clientId === 'string' && clientId.endsWith('.apps.googleusercontent.com');
+  },
+
+  /**
+   * The server offers "Sign in with Google" only with its Google client and redirect.
+   * @param {Object} vars - The connector's OAuth variables
+   * @returns {boolean}
+   */
+  isGoogleSignInConfigured(vars) {
+    return Boolean(vars?.GoogleClientId && vars?.GoogleClientSecret && vars?.GoogleRedirectUri);
   },
 
   /**
@@ -63,17 +72,23 @@ const MicrosoftAdsHelper = {
    * Error 126 names the sign-in type the user needs (GoogleAccountIsRequired,
    * PersonalAccountIsRequired, WorkAccountIsRequired) when it says it at all.
    * @param {Object} payload - Parsed error body with error 126
-   * @param {boolean} signedInWithGoogle - The Credential was signed in with Google
-   * @param {boolean} atRun - The Credential already exists and a run hit the error
+   * @param {Object} options
+   * @param {boolean} options.signedInWithGoogle - The Credential was signed in with Google
+   * @param {boolean} options.atRun - The Credential already exists and a run hit the error
+   * @param {boolean} options.googleSignInConfigured - The server offers "Sign in with Google"
    * @returns {string}
    */
-  identityTypeMismatchMessage(payload, signedInWithGoogle, atRun) {
+  identityTypeMismatchMessage(payload, { signedInWithGoogle, atRun, googleSignInConfigured }) {
     const reasons = JSON.stringify(MicrosoftAdsHelper.apiErrors(payload));
+    // Without the server's Google client the form has no such button yet
+    const signInWithGoogle = googleSignInConfigured
+      ? 'Sign in with Google'
+      : 'Sign in with Google once your administrator sets it up for Microsoft Ads on this server';
     let signsInWith;
     let action;
     if (reasons.includes('GoogleAccountIsRequired')) {
       signsInWith = 'with Google';
-      action = 'Sign in with Google';
+      action = signInWithGoogle;
     } else if (reasons.includes('PersonalAccountIsRequired')) {
       signsInWith = 'with a personal Microsoft account';
       action = 'Sign in with Microsoft and choose the personal account';
@@ -86,7 +101,9 @@ const MicrosoftAdsHelper = {
     } else {
       signsInWith =
         'with another account type: Google, or the other Microsoft account (work or personal) of this email';
-      action = 'Sign in with Google, or Sign in with Microsoft with the other account';
+      action = googleSignInConfigured
+        ? 'Sign in with Google, or Sign in with Microsoft with the other account'
+        : `Sign in with Microsoft with the other account, or ${signInWithGoogle}`;
     }
     const reason = `This Microsoft Advertising user signs in ${signsInWith}.`;
     return atRun

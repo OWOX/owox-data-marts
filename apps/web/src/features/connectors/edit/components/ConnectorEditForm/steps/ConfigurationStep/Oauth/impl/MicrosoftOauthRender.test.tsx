@@ -20,14 +20,17 @@ vi.mock(
 vi.mock('../../../../../../../shared/components/MicrosoftLoginButton', () => ({
   MicrosoftLoginButton: ({
     children,
+    disabled,
     onSuccess,
   }: {
     children?: React.ReactNode;
+    disabled?: boolean;
     onSuccess: (response: { code: string }) => void;
   }) => (
     <button
       type='button'
       data-testid='microsoft-login'
+      disabled={disabled}
       onClick={() => {
         onSuccess({ code: 'microsoft-code' });
       }}
@@ -44,7 +47,8 @@ const MICROSOFT_VARS = {
 const GOOGLE_VARS = {
   ...MICROSOFT_VARS,
   GoogleClientId: 'google-client.apps.googleusercontent.com',
-  GoogleRedirectUri: 'https://app.example.com/oauth/google/callback',
+  // The shared callback page on the app's own origin
+  GoogleRedirectUri: `${window.location.origin}/oauth/google/callback`,
 };
 
 function renderMicrosoftOAuth(overrides: Partial<OauthRenderComponentProps> = {}) {
@@ -107,6 +111,48 @@ describe('MicrosoftOauthRender', () => {
     fireEvent.click(screen.getByTestId('microsoft-login'));
 
     expect(props.onOAuthSuccess).toHaveBeenCalledWith({ code: 'microsoft-code' });
+  });
+
+  it('keeps Sign in with Microsoft disabled while the Google window is open', async () => {
+    let finishGoogle: (value: { code: string; state: string }) => void = () => undefined;
+    openGoogleOAuthPopup.mockReturnValue(
+      new Promise(resolve => {
+        finishGoogle = resolve;
+      })
+    );
+    renderMicrosoftOAuth();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in with Google' }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('microsoft-login')).toHaveProperty('disabled', true);
+    });
+    finishGoogle({ code: 'google-code', state: 'state' });
+    await waitFor(() => {
+      expect(screen.getByTestId('microsoft-login')).toHaveProperty('disabled', false);
+    });
+  });
+
+  it('names the address Sign in with Google is set up for when the page is opened elsewhere', async () => {
+    const props = renderMicrosoftOAuth({
+      settings: {
+        isEnabled: true,
+        vars: {
+          ...GOOGLE_VARS,
+          GoogleRedirectUri: 'https://app.example.com/oauth/google/callback',
+        },
+      },
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in with Google' }));
+
+    expect(
+      await screen.findByText(
+        'Sign in with Google is set up for https://app.example.com. Open this page there to sign in with Google.'
+      )
+    ).toBeTruthy();
+    expect(openGoogleOAuthPopup).not.toHaveBeenCalled();
+    expect(props.onOAuthSuccess).not.toHaveBeenCalled();
   });
 
   it('names the connected user once, above both buttons, with the valid mark', () => {
