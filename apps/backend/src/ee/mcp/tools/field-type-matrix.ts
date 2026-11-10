@@ -2,9 +2,7 @@ import type { FieldTypeCategory } from '../../../data-marts/dto/schemas/field-ty
 import { INTERNAL_OPERATORS_BY_CATEGORY } from '../../../data-marts/dto/schemas/field-type-category';
 import {
   type AggregationRole,
-  defaultAggregationsForCategory,
   resolveFieldGovernance,
-  supportedAggregationsForCategory,
 } from '../../../data-marts/dto/schemas/field-aggregation-governance';
 import type { ReportAggregateFunction } from '../../../data-marts/dto/schemas/aggregate-function.schema';
 import { isArrayFieldType } from '../../../data-marts/data-storage-types/field-type-compatibility';
@@ -16,7 +14,7 @@ import {
 
 /**
  * MCP operator → the internal FilterRule operator `mapOne` produces for it.
- * The matrix below is derived by looking these up in the validator's per-category
+ * The operator lists below are derived by looking these up in the validator's per-category
  * operator sets, so what we advertise can only drift from what runs if this map
  * drifts from `mapOne` — and a spec locks the two together.
  */
@@ -92,20 +90,6 @@ export function mcpOperatorsForCategory(category: FieldTypeCategory): string[] {
   });
 }
 
-/** Full aggregation menu for a category, restricted to functions the MCP input schema accepts. */
-export function mcpSupportedAggregationsForCategory(
-  category: FieldTypeCategory
-): ReportAggregateFunction[] {
-  return supportedAggregationsForCategory(category).filter(fn => MCP_AGG_SET.has(fn));
-}
-
-/** Default-enabled aggregations for a category, restricted to the MCP function set. */
-export function mcpDefaultAggregationsForCategory(
-  category: FieldTypeCategory
-): ReportAggregateFunction[] {
-  return defaultAggregationsForCategory(category).filter(fn => MCP_AGG_SET.has(fn));
-}
-
 /**
  * The aggregations a query may actually apply to this field — governance-resolved
  * (type defaults, narrowed by any per-field override) and restricted to the MCP
@@ -122,34 +106,4 @@ export function effectiveMcpAggregations(
   return resolveFieldGovernance(fieldType, explicit).allowedAggregations.filter(fn =>
     MCP_AGG_SET.has(fn)
   );
-}
-
-const CATEGORY_TYPE_EXAMPLES: Record<FieldTypeCategory, string> = {
-  number: 'INTEGER, FLOAT, NUMERIC, …',
-  string: 'STRING, VARCHAR, TEXT, …',
-  date: 'DATE, DATETIME, TIMESTAMP, …',
-  time: 'TIME',
-  boolean: 'BOOLEAN',
-  other: 'JSON, STRUCT, GEOGRAPHY, …',
-};
-
-/**
- * Human/AI-readable field-type matrix for the query_data_mart tool description.
- * Generated from the same constants the validator enforces — never hand-edit a copy.
- */
-export function buildFieldTypeMatrixSection(): string {
-  const lines = FIELD_TYPE_CATEGORIES.map(category => {
-    let ops = mcpOperatorsForCategory(category).join(', ');
-    if (category === 'boolean') ops += ' (eq/neq take a boolean true or false, not a string)';
-    const defaults = mcpDefaultAggregationsForCategory(category);
-    const optIn = mcpSupportedAggregationsForCategory(category).filter(
-      fn => !defaults.includes(fn)
-    );
-    const aggs =
-      optIn.length > 0
-        ? `${defaults.join(', ')} by default; ${optIn.join(', ')} only where enabled on the field`
-        : defaults.join(', ');
-    return `- ${category} (${CATEGORY_TYPE_EXAMPLES[category]}): operators ${ops}; aggregations ${aggs}`;
-  });
-  return `${lines.join('\n')}\n- Arrays are column-only: when a field's mode is REPEATED or its type or sliceType is ARRAY (including parameterized ARRAY types), it may appear in fields, but never in filters, slices, sort, aggregations, or date_buckets. This overrides all category rules above, including COUNT, ANY_VALUE and blank checks.`;
 }
