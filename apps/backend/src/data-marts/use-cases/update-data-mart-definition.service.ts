@@ -244,7 +244,13 @@ export class UpdateDataMartDefinitionService {
     const storedName = (dataMart.definition as ConnectorDefinition | undefined)?.connector?.storage
       ?.fullyQualifiedName;
     const rule = CONNECTOR_TABLE_NAME_RULES[dataMart.storage.type];
-    if (name === undefined || name === storedName || !rule || rule.isValid(name)) {
+    // The REST body is not schema-checked, so a null or a number can arrive here.
+    if (
+      name === undefined ||
+      name === storedName ||
+      !rule ||
+      (typeof name === 'string' && rule.isValid(name))
+    ) {
       return;
     }
     throw new BusinessViolationException(

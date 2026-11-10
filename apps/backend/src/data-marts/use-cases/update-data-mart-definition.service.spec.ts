@@ -1270,6 +1270,17 @@ describe('UpdateDataMartDefinitionService', () => {
       expect(dataMartService.save).not.toHaveBeenCalled();
     });
 
+    it.each([null, 42])('rejects a %s path with the format message', async path => {
+      const { service, dataMartService } = createService();
+
+      await expect(
+        service.run(
+          commandFor(DataMartDefinitionType.CONNECTOR, connectorDefinition(path as never))
+        )
+      ).rejects.toThrow('Expected: dataset.table, without the project');
+      expect(dataMartService.save).not.toHaveBeenCalled();
+    });
+
     it('rejects a changed path on a saved connector Data Mart', async () => {
       const { service, dataMartService } = createService({
         definitionType: DataMartDefinitionType.CONNECTOR,

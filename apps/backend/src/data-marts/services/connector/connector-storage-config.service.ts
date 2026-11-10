@@ -26,6 +26,8 @@ import { DatabricksConfig } from '../../data-storage-types/databricks/schemas/da
 import { DatabricksCredentials } from '../../data-storage-types/databricks/schemas/databricks-credentials.schema';
 import { ConnectorExecutionError } from '../../errors/connector-execution.error';
 import { DATA_MART_ERROR_MESSAGES } from '../../errors/data-mart-error-messages';
+import { BusinessViolationException } from '../../../common/exceptions/business-violation.exception';
+import { DataMartValidationCode } from '../../data-storage-types/interfaces/data-mart-validator.interface';
 import { isValidBigQueryConnectorTableName } from '../../data-storage-types/bigquery/utils/bigquery-validation.utils';
 import { isValidAthenaConnectorTableName } from '../../data-storage-types/athena/utils/athena-validation.utils';
 import { DataStorageCredentialsResolver } from '../../data-storage-types/data-storage-credentials-resolver.service';
@@ -79,14 +81,10 @@ export class ConnectorStorageConfigService {
     const bqCredentials = credentials as BigQueryCredentials;
     const fullyQualifiedName = connector.storage?.fullyQualifiedName ?? '';
     if (!isValidBigQueryConnectorTableName(fullyQualifiedName)) {
-      throw new ConnectorExecutionError(
+      throw new BusinessViolationException(
         DATA_MART_ERROR_MESSAGES.BIGQUERY_CONNECTOR_IDENTIFIER_INVALID,
         undefined,
-        {
-          dataMartId: dataMart.id,
-          projectId: dataMart.projectId,
-          storageType: dataMart.storage.type,
-        }
+        DataMartValidationCode.INVALID_IDENTIFIER_FORMAT
       );
     }
     const [datasetId, tableName] = fullyQualifiedName.split('.');
@@ -159,14 +157,10 @@ export class ConnectorStorageConfigService {
     const clearBucketName = storageConfig.outputBucket.replace(/^s3:\/\//, '').replace(/\/$/, '');
     const fullyQualifiedName = connector.storage?.fullyQualifiedName ?? '';
     if (!isValidAthenaConnectorTableName(fullyQualifiedName)) {
-      throw new ConnectorExecutionError(
+      throw new BusinessViolationException(
         DATA_MART_ERROR_MESSAGES.ATHENA_CONNECTOR_IDENTIFIER_INVALID,
         undefined,
-        {
-          dataMartId: dataMart.id,
-          projectId: dataMart.projectId,
-          storageType: dataMart.storage.type,
-        }
+        DataMartValidationCode.INVALID_IDENTIFIER_FORMAT
       );
     }
     const [databaseName, tableName] = fullyQualifiedName.split('.');
