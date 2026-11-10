@@ -426,7 +426,7 @@ export class AbstractSource {
           }
           // The run history shows this message, so it names the provider's own reason as
           // main did, not the JSON around it.
-          const providerMessage = AbstractSource._providerErrorMessage(payload);
+          const providerMessage = this.constructor._providerErrorMessage(payload);
           const error = new Error(
             providerMessage
               ? `HTTP ${response.status}: ${providerMessage}`
@@ -543,7 +543,7 @@ export class AbstractSource {
    * The reason a provider gave in its JSON error body, looked up where main's
    * _extractErrorInfo looked for it, and in a JSON:API error's `detail`. Not its `title`: that
    * is the same summary for every occurrence, and the body snippet it would replace names the
-   * field in `source.pointer`.
+   * field in `source.pointer`. A source whose error bodies have another shape overrides it.
    *
    * @param {*} payload - the parsed error body
    * @returns {string|null} null when the body names no message

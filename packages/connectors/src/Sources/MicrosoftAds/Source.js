@@ -60,6 +60,31 @@ export class MicrosoftAdsSource extends AbstractSource {
                   key: 'OAUTH_MICROSOFT_ADS_DEVELOPER_TOKEN',
                   attributes: [OAUTH_CONSTANTS.SECRET, OAUTH_CONSTANTS.REQUIRED],
                 },
+                // For users who sign in to Microsoft Advertising with Google. Optional:
+                // without them only "Sign in with Microsoft" is offered.
+                GoogleClientId: {
+                  type: 'string',
+                  required: false,
+                  store: 'env',
+                  key: 'OAUTH_MICROSOFT_ADS_GOOGLE_CLIENT_ID',
+                  attributes: [OAUTH_CONSTANTS.UI, OAUTH_CONSTANTS.SECRET],
+                },
+                GoogleClientSecret: {
+                  type: 'string',
+                  required: false,
+                  store: 'env',
+                  key: 'OAUTH_MICROSOFT_ADS_GOOGLE_CLIENT_SECRET',
+                  attributes: [OAUTH_CONSTANTS.SECRET],
+                },
+                // The shared Google callback page, the same one Google sign-in for Storages
+                // and Destinations uses
+                GoogleRedirectUri: {
+                  type: 'string',
+                  required: false,
+                  store: 'env',
+                  key: 'OAUTH_GOOGLE_REDIRECT_URI',
+                  attributes: [OAUTH_CONSTANTS.UI],
+                },
               },
               mapping: {
                 RefreshToken: {
@@ -93,20 +118,21 @@ export class MicrosoftAdsSource extends AbstractSource {
                 isRequired: true,
                 requiredType: 'string',
                 label: 'Refresh Token',
-                description: 'Microsoft Ads Refresh Token',
+                description: 'Refresh token issued to the Client ID below',
                 attributes: [CONFIG_ATTRIBUTES.SECRET],
               },
               ClientId: {
                 isRequired: true,
                 requiredType: 'string',
                 label: 'Client ID',
-                description: 'Microsoft Ads Client ID',
+                description:
+                  'Client ID of your Microsoft Entra app, or of your Google OAuth client if you sign in to Microsoft Advertising with Google',
               },
               ClientSecret: {
                 isRequired: true,
                 requiredType: 'string',
                 label: 'Client Secret',
-                description: 'Microsoft Ads Client Secret',
+                description: 'Client secret of the same app or OAuth client',
                 attributes: [CONFIG_ATTRIBUTES.SECRET],
               },
               DeveloperToken: {
@@ -274,17 +300,42 @@ export class MicrosoftAdsSource extends AbstractSource {
     return MicrosoftAdsHelper.parseFields(fieldsValue);
   }
 
+  /**
+   * Exchanges the sign-in code for tokens. `credentials.identityProvider === 'google'` marks
+   * "Sign in with Google": the code comes from Google's consent screen and is exchanged with
+   * the Google OAuth client, for users who sign in to Microsoft Advertising with Google.
+   */
   async exchangeOauthCredentials(credentials, variables) {
+    const signedInWithGoogle = credentials?.identityProvider === 'google';
+    const googleSignInConfigured = MicrosoftAdsHelper.isGoogleSignInConfigured(variables);
     try {
-      const tokenUrl = 'https://login.microsoftonline.com/common/oauth2/v2.0/token';
+      const client = signedInWithGoogle
+        ? {
+            tokenUrl: MicrosoftAdsHelper.GOOGLE_TOKEN_URL,
+            clientId: variables.GoogleClientId,
+            clientSecret: variables.GoogleClientSecret,
+            redirectUri: variables.GoogleRedirectUri,
+          }
+        : {
+            tokenUrl: 'https://login.microsoftonline.com/common/oauth2/v2.0/token',
+            clientId: variables.ClientId,
+            clientSecret: variables.ClientSecret,
+            redirectUri: variables.RedirectUri,
+            scope: 'https://ads.microsoft.com/msads.manage offline_access',
+          };
+      if (signedInWithGoogle && !googleSignInConfigured) {
+        throw new OauthFlowException({
+          message: 'Sign in with Google is not configured for Microsoft Ads on this server.',
+        });
+      }
 
       const payload = {
-        client_id: variables.ClientId,
-        client_secret: variables.ClientSecret,
+        client_id: client.clientId,
+        client_secret: client.clientSecret,
         grant_type: 'authorization_code',
         code: credentials.code,
-        redirect_uri: variables.RedirectUri,
-        scope: 'https://ads.microsoft.com/msads.manage offline_access',
+        redirect_uri: client.redirectUri,
+        ...(client.scope && { scope: client.scope }),
       };
 
       const options = {
@@ -297,7 +348,7 @@ export class MicrosoftAdsSource extends AbstractSource {
           .join('&'),
       };
 
-      const resp = await fetch(tokenUrl, options);
+      const resp = await fetch(client.tokenUrl, options);
       const data = await resp.json();
 
       if (data.error) {
@@ -306,18 +357,30 @@ export class MicrosoftAdsSource extends AbstractSource {
           payload: data,
         });
       }
+      if (signedInWithGoogle && !data.refresh_token) {
+        throw new OauthFlowException({
+          message:
+            'Google returned no refresh token. Remove the app at https://myaccount.google.com/permissions and sign in again.',
+          payload: { error: 'missing_refresh_token' },
+        });
+      }
 
       const expiresIn = data.expires_in ?? 3600;
 
-      const userData = { id: 'unknown', name: 'Microsoft Ads User' };
+      const userData = await this._fetchSignedInUser({
+        accessToken: data.access_token,
+        developerToken: variables.DeveloperToken,
+        signedInWithGoogle,
+        googleSignInConfigured,
+      });
 
       return OauthCredentialsDto.builder()
         .withUser(userData)
         .withSecret({
           refresh_token: data.refresh_token,
           access_token: data.access_token,
-          client_id: variables.ClientId,
-          client_secret: variables.ClientSecret,
+          client_id: client.clientId,
+          client_secret: client.clientSecret,
           developer_token: variables.DeveloperToken,
         })
         .withExpiresIn(expiresIn)
@@ -335,6 +398,72 @@ export class MicrosoftAdsSource extends AbstractSource {
   }
 
   /**
+   * Asks Microsoft Advertising who signed in (Customer Management GetUser), so a sign-in of the
+   * wrong type fails here with a clear message instead of on every run. Only a definite answer
+   * blocks the sign-in; if Microsoft Advertising cannot be asked, the Credential is still saved.
+   * @returns {Promise<{id: string, name: string}>}
+   */
+  async _fetchSignedInUser({
+    accessToken,
+    developerToken,
+    signedInWithGoogle,
+    googleSignInConfigured,
+  }) {
+    const fallback = { id: 'unknown', name: 'Microsoft Ads User' };
+    let response;
+    let data;
+    try {
+      response = await fetch(MicrosoftAdsHelper.GET_USER_URL, {
+        method: 'post',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          DeveloperToken: developerToken,
+          'Content-Type': 'application/json',
+          ...(signedInWithGoogle && { IdentityProvider: 'Google' }),
+        },
+        body: JSON.stringify({ UserId: null }),
+        signal: AbortSignal.timeout(MicrosoftAdsHelper.GET_USER_TIMEOUT_MS),
+      });
+      data = JSON.parse(await response.text());
+    } catch (error) {
+      // Unreachable, slow or unreadable: the token exchange worked, so the Credential is saved
+      this.context.log(
+        LOG_LEVEL.WARN,
+        `Microsoft Advertising GetUser failed, the Credential is saved without checking the user: ${error.message}`
+      );
+      return fallback;
+    }
+
+    if (response.ok && data?.User) {
+      return MicrosoftAdsHelper.describeUser(data.User);
+    }
+    if (MicrosoftAdsHelper.isIdentityTypeMismatch(data)) {
+      throw new OauthFlowException({
+        message: MicrosoftAdsHelper.identityTypeMismatchMessage(data, {
+          signedInWithGoogle,
+          atRun: false,
+          googleSignInConfigured,
+        }),
+        payload: data,
+      });
+    }
+    // Error 105 for a Google token: no Microsoft Advertising user for this Google account, or a
+    // server whose Google client or developer token Microsoft Advertising does not accept
+    if (signedInWithGoogle && MicrosoftAdsHelper.isInvalidCredentials(data)) {
+      const tracking = data.TrackingId ? `, tracking ID ${data.TrackingId}` : '';
+      throw new OauthFlowException({
+        message: `Microsoft Advertising did not accept this Google sign-in (error 105 InvalidCredentials${tracking}). Sign in with the Google account you use for Microsoft Advertising. If it is the right account, ask your administrator to check the Microsoft Ads Google client and developer token.`,
+        payload: data,
+      });
+    }
+    this.context.log(
+      LOG_LEVEL.WARN,
+      `Microsoft Advertising GetUser answered HTTP ${response.status}, the Credential is saved without checking the user: ${MicrosoftAdsHelper.apiErrorMessage(data) ?? 'no user in the response'}`
+    );
+    return fallback;
+  }
+
+  /**
    * Retrieve and store an OAuth access token using the refresh token.
    * Stores the token on the AccessToken context parameter for reuse during the run.
    *
@@ -343,6 +472,9 @@ export class MicrosoftAdsSource extends AbstractSource {
    * emitted via `this.context.updateCredentials(...)` so the host persists it
    * for the next run. The originally-configured refresh token is kept as a
    * fallback in case the host-persisted generated one is no longer valid.
+   *
+   * A Credential signed in with Google refreshes at Google instead, through `OAuthUtils`
+   * like the other Google sources, and reuses the access token while it is valid.
    */
   async getAccessToken() {
     const tokenUrl = 'https://login.microsoftonline.com/common/oauth2/v2.0/token';
@@ -351,23 +483,26 @@ export class MicrosoftAdsSource extends AbstractSource {
       'https://ads.microsoft.com/ads.manage offline_access', // Old scope
     ];
 
-    const authType = this.context.getParameter('AuthType');
-    const isOAuth2 = authType?.value === 'oauth2';
+    const { clientId, clientSecret, originalRefreshToken, generatedRefreshToken } =
+      this._oauthClient();
 
-    const clientId =
-      (isOAuth2 && authType.items?.ClientId?.value) ||
-      this.context.getParameter('ClientID')?.value ||
-      process.env.OAUTH_MICROSOFT_ADS_CLIENT_ID;
-    const clientSecret =
-      (isOAuth2 && authType.items?.ClientSecret?.value) ||
-      this.context.getParameter('ClientSecret')?.value ||
-      process.env.OAUTH_MICROSOFT_ADS_CLIENT_SECRET;
-    const originalRefreshToken =
-      (isOAuth2 && authType.items?.RefreshToken?.value) ||
-      this.context.getParameter('RefreshToken')?.value;
-    const generatedRefreshToken =
-      this.context.getParameter(GENERATED_REFRESH_TOKEN_CONFIG_FIELD)?.value ||
-      (isOAuth2 && authType.items?.[GENERATED_REFRESH_TOKEN_CONFIG_FIELD]?.value);
+    if (MicrosoftAdsHelper.isGoogleClientId(clientId)) {
+      // Every day and node of the run shares the access token while Google says it is valid
+      if (this._getAccessTokenValue() && Date.now() < this._googleTokenExpiryTime) return;
+      // Google keeps the refresh token unchanged, so nothing is reported back to the host.
+      const { expires_in: expiresIn } = await OAuthUtils.getTokenResponse({
+        context: this.context,
+        tokenUrl: MicrosoftAdsHelper.GOOGLE_TOKEN_URL,
+        formData: {
+          grant_type: 'refresh_token',
+          client_id: clientId,
+          client_secret: clientSecret,
+          refresh_token: generatedRefreshToken || originalRefreshToken,
+        },
+      });
+      this._googleTokenExpiryTime = MicrosoftAdsHelper.tokenExpiryTime(expiresIn);
+      return;
+    }
 
     // Prefer the host-persisted generated (rotated) token, falling back to the
     // originally-configured one if the generated token is rejected.
@@ -460,6 +595,108 @@ export class MicrosoftAdsSource extends AbstractSource {
   }
 
   /**
+   * The OAuth client and refresh tokens of the run: the Credential's, else the deprecated
+   * top-level parameters, else the server's Microsoft client.
+   */
+  _oauthClient() {
+    const authType = this.context.getParameter('AuthType');
+    const isOAuth2 = authType?.value === 'oauth2';
+    return {
+      clientId: this._clientId(),
+      clientSecret:
+        (isOAuth2 && authType.items?.ClientSecret?.value) ||
+        this.context.getParameter('ClientSecret')?.value ||
+        process.env.OAUTH_MICROSOFT_ADS_CLIENT_SECRET,
+      originalRefreshToken:
+        (isOAuth2 && authType.items?.RefreshToken?.value) ||
+        this.context.getParameter('RefreshToken')?.value,
+      generatedRefreshToken:
+        this.context.getParameter(GENERATED_REFRESH_TOKEN_CONFIG_FIELD)?.value ||
+        (isOAuth2 && authType.items?.[GENERATED_REFRESH_TOKEN_CONFIG_FIELD]?.value),
+    };
+  }
+
+  /**
+   * The run's OAuth client ID: the Credential's, else the deprecated parameter, else the server's.
+   * Trimmed, as a client ID typed by hand may end with a space or a line break.
+   */
+  _clientId() {
+    const authType = this.context.getParameter('AuthType');
+    const clientId =
+      (authType?.value === 'oauth2' && authType.items?.ClientId?.value) ||
+      this.context.getParameter('ClientID')?.value ||
+      process.env.OAUTH_MICROSOFT_ADS_CLIENT_ID;
+    return typeof clientId === 'string' ? clientId.trim() : clientId;
+  }
+
+  /** The Credential was signed in with Google ("Sign in with Google" or a Google client typed by hand). */
+  _isGoogleIdentity() {
+    return MicrosoftAdsHelper.isGoogleClientId(this._clientId());
+  }
+
+  /** The server offers "Sign in with Google": its OAuth variables are set in the environment. */
+  _isGoogleSignInConfigured() {
+    const vars = this.parameters?.AuthType?.oneOf?.find(option => option.value === 'oauth2')
+      ?.oauthParams?.vars;
+    // It only shapes the advice of an error message, so an unexpected schema must not throw
+    if (!vars) return false;
+    return MicrosoftAdsHelper.isGoogleSignInConfigured(
+      Object.fromEntries(Object.entries(vars).map(([name, { key }]) => [name, process.env[key]]))
+    );
+  }
+
+  /**
+   * Headers of every Reporting and Bulk request. A Credential signed in with Google also
+   * sends `IdentityProvider: Google`, as Microsoft Advertising documents for Google tokens.
+   * @param {Object} scopeHeaders - CustomerId / CustomerAccountId of the request
+   */
+  _apiHeaders(scopeHeaders) {
+    return {
+      Authorization: `Bearer ${this._getAccessTokenValue()}`,
+      DeveloperToken: this._getDeveloperToken(),
+      ...scopeHeaders,
+      'Content-Type': 'application/json',
+      ...(this._isGoogleIdentity() && { IdentityProvider: 'Google' }),
+    };
+  }
+
+  /**
+   * Error 126 comes back as HTTP 400: the Credential's sign-in type is wrong for this user, so,
+   * like a 401, only reconnecting the Credential helps.
+   */
+  _isAuthError(error) {
+    return MicrosoftAdsHelper.isIdentityTypeMismatch(error?.payload) || super._isAuthError(error);
+  }
+
+  /**
+   * A failed request names the Microsoft Advertising error, such as
+   * `Authentication failed. (105 InvalidCredentials)`, instead of the raw JSON body.
+   */
+  static _providerErrorMessage(payload) {
+    return MicrosoftAdsHelper.apiErrorMessage(payload) ?? super._providerErrorMessage(payload);
+  }
+
+  /**
+   * Error 126 says how to reconnect the Credential, and the run stops asking the API: every
+   * later request would fail the same way.
+   * @param {Error} error - A failed request; `payload` holds the parsed API response
+   * @returns {Error} the same error
+   */
+  _describeIdentityTypeMismatch(error) {
+    const payload = error?.payload;
+    if (MicrosoftAdsHelper.isIdentityTypeMismatch(payload)) {
+      error.message = MicrosoftAdsHelper.identityTypeMismatchMessage(payload, {
+        signedInWithGoogle: this._isGoogleIdentity(),
+        atRun: true,
+        googleSignInConfigured: this._isGoogleSignInConfigured(),
+      });
+      error.isWarning = true;
+      this._identityTypeMismatch = error;
+    }
+    return error;
+  }
+
+  /**
    * Stash a freshly rotated refresh token on the run's GeneratedRefreshToken
    * parameter so later token refreshes within the same run reuse it.
    */
@@ -501,6 +738,8 @@ export class MicrosoftAdsSource extends AbstractSource {
    * and returns nothing: a large account's Keywords do not fit in memory (#1545).
    */
   async fetchData({ nodeName, accountId, fields = [], startDate, endDate, onBatch }) {
+    // The Credential's sign-in type was already rejected: do not ask the API again
+    if (this._identityTypeMismatch) throw this._identityTypeMismatch;
     const schema = this.fieldsSchema[nodeName];
     if (!schema) {
       throw new Error(`Unknown node: ${nodeName}`);
@@ -518,14 +757,18 @@ export class MicrosoftAdsSource extends AbstractSource {
     const start_time = startDate;
     const end_time = endDate;
 
-    switch (nodeName) {
-      case 'campaigns':
-        return await this._fetchCampaignData({ accountId, fields, onBatch });
-      case 'ad_performance_report':
-      case 'user_location_performance_report':
-        return await this._fetchReportData({ accountId, fields, start_time, end_time, nodeName });
-      default:
-        throw new Error(`Unknown node: ${nodeName}`);
+    try {
+      switch (nodeName) {
+        case 'campaigns':
+          return await this._fetchCampaignData({ accountId, fields, onBatch });
+        case 'ad_performance_report':
+        case 'user_location_performance_report':
+          return await this._fetchReportData({ accountId, fields, start_time, end_time, nodeName });
+        default:
+          throw new Error(`Unknown node: ${nodeName}`);
+      }
+    } catch (error) {
+      throw this._describeIdentityTypeMismatch(error);
     }
   }
 
@@ -538,7 +781,6 @@ export class MicrosoftAdsSource extends AbstractSource {
   async _fetchCampaignData({ accountId, fields, onBatch }) {
     await this.getAccessToken();
 
-    const developerToken = this._getDeveloperToken();
     const accumulated = [];
     const emit =
       onBatch ??
@@ -561,13 +803,10 @@ export class MicrosoftAdsSource extends AbstractSource {
         submitOpts: {
           method: 'post',
           contentType: 'application/json',
-          headers: {
-            Authorization: `Bearer ${this._getAccessTokenValue()}`,
-            DeveloperToken: developerToken,
+          headers: this._apiHeaders({
             CustomerId: this._getCustomerId(),
             CustomerAccountId: accountId,
-            'Content-Type': 'application/json',
-          },
+          }),
           payload: JSON.stringify({
             AccountIds: [Number(accountId)],
             CompressionType: 'Zip',
@@ -661,6 +900,7 @@ export class MicrosoftAdsSource extends AbstractSource {
     const pollResult = await MicrosoftAdsHelper.pollUntilStatus({
       url: pollUrl,
       options: pollOpts,
+      request: (url, options) => this.urlFetchWithRetry(url, options),
       isDone: status => {
         if (!status.RequestStatus || status.RequestStatus === 'Failed') {
           throw new Error('Bulk download failed');
@@ -715,8 +955,20 @@ export class MicrosoftAdsSource extends AbstractSource {
       });
       return recordCount;
     };
+    // The limit can be named in any error of the response, not only the first one the message
+    // shows, so the raw response body is checked too
     const isTooLargeError = error =>
-      !error.isStorageError && error.message && error.message.includes('100MB');
+      !error.isStorageError &&
+      /100\s?MB/i.test(`${error.message ?? ''} ${error.responseBody ?? ''}`);
+    // Names the entity but keeps what classifies the failure: an auth or sign-in error is the
+    // user's to fix (isWarning), and fetchData reads the API response from `payload`.
+    const fetchFailure = error => {
+      const failure = new Error(`Failed to fetch ${entityType}: ${error.message}`);
+      failure.statusCode = error.statusCode;
+      failure.payload = error.payload;
+      failure.isWarning = error.isWarning;
+      return failure;
+    };
 
     let i = 0;
     while (i < campaignIds.length) {
@@ -761,7 +1013,7 @@ export class MicrosoftAdsSource extends AbstractSource {
                   `Failed to fetch ${entityType}: batch size of ${smallerBatch.length} campaigns still exceeds 100MB limit`
                 );
               } else {
-                throw new Error(`Failed to fetch ${entityType}: ${smallerError.message}`);
+                throw fetchFailure(smallerError);
               }
             }
           }
@@ -771,11 +1023,12 @@ export class MicrosoftAdsSource extends AbstractSource {
           i = retryRangeEnd;
           batchSize = newBatchSize;
         } else {
+          // A failure the user must fix (isWarning) is not an ops error
           this.context.log(
-            LOG_LEVEL.ERROR,
+            error.isWarning ? LOG_LEVEL.WARN : LOG_LEVEL.ERROR,
             `Failed to fetch ${entityType.toLowerCase()} for campaigns ${campaignBatch.join(', ')}: ${error.message}`
           );
-          throw new Error(`Failed to fetch ${entityType}: ${error.message}`);
+          throw fetchFailure(error);
         }
       }
     }
@@ -794,8 +1047,6 @@ export class MicrosoftAdsSource extends AbstractSource {
    * @private
    */
   async _downloadEntityBatch({ accountId, entityType, campaignBatch, onRecordsChunk }) {
-    const developerToken = this._getDeveloperToken();
-
     const downloadBody = {
       Campaigns: campaignBatch.map(id => ({
         CampaignId: Number(id),
@@ -811,13 +1062,10 @@ export class MicrosoftAdsSource extends AbstractSource {
     const submitOpts = {
       method: 'post',
       contentType: 'application/json',
-      headers: {
-        Authorization: `Bearer ${this._getAccessTokenValue()}`,
-        DeveloperToken: developerToken,
+      headers: this._apiHeaders({
         CustomerId: this._getCustomerId(),
         CustomerAccountId: accountId,
-        'Content-Type': 'application/json',
-      },
+      }),
       payload: JSON.stringify(downloadBody),
       body: JSON.stringify(downloadBody),
     };
@@ -894,19 +1142,15 @@ export class MicrosoftAdsSource extends AbstractSource {
       Scope: { AccountIds: [Number(accountId)] },
       Time: dateRange,
     };
-    const developerToken = this._getDeveloperToken();
     const customerId = this._getCustomerId();
 
     const submitOpts = {
       method: 'post',
       contentType: 'application/json',
-      headers: {
-        Authorization: `Bearer ${this._getAccessTokenValue()}`,
+      headers: this._apiHeaders({
         CustomerAccountId: `${customerId}|${accountId}`,
         CustomerId: customerId,
-        DeveloperToken: developerToken,
-        'Content-Type': 'application/json',
-      },
+      }),
       payload: JSON.stringify({ ReportRequest: requestBody }),
       body: JSON.stringify({ ReportRequest: requestBody }),
     };
@@ -917,9 +1161,12 @@ export class MicrosoftAdsSource extends AbstractSource {
       const submitResponse = JSON.parse(submitResponseText);
       if (submitResponse.OperationErrors && submitResponse.OperationErrors.length > 0) {
         const error = submitResponse.OperationErrors[0];
-        throw new Error(
+        const apiError = new Error(
           `Microsoft Ads API Error ${error.Code}: ${error.ErrorCode} - ${error.Message}`
         );
+        // fetchData classifies it by the response, error 126 included
+        apiError.payload = submitResponse;
+        throw apiError;
       }
       return submitResponse;
     } catch (parseError) {
@@ -937,19 +1184,15 @@ export class MicrosoftAdsSource extends AbstractSource {
   async _pollReportStatus({ submitResponse, accountId }) {
     const pollUrl = 'https://reporting.api.bingads.microsoft.com/Reporting/v13/GenerateReport/Poll';
     const submitResponseText = JSON.stringify(submitResponse);
-    const developerToken = this._getDeveloperToken();
     const customerId = this._getCustomerId();
 
     const pollOpts = {
       method: 'post',
       contentType: 'application/json',
-      headers: {
-        Authorization: `Bearer ${this._getAccessTokenValue()}`,
+      headers: this._apiHeaders({
         CustomerAccountId: submitResponse.CustomerAccountId || `${customerId}|${accountId}`,
         CustomerId: customerId,
-        DeveloperToken: developerToken,
-        'Content-Type': 'application/json',
-      },
+      }),
       payload: submitResponseText,
       body: submitResponseText,
     };
@@ -957,6 +1200,7 @@ export class MicrosoftAdsSource extends AbstractSource {
     return await MicrosoftAdsHelper.pollUntilStatus({
       url: pollUrl,
       options: pollOpts,
+      request: (url, options) => this.urlFetchWithRetry(url, options),
       isDone: status => {
         if (!status.ReportRequestStatus || status.ReportRequestStatus.Status === 'Error') {
           throw new Error('Report generation failed');

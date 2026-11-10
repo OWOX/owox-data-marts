@@ -202,6 +202,15 @@ owox serve --env-file custom.env --port 3030
 
 Enable the Google Sheets API, the Google Picker API and the Google Drive API in that Cloud project. The Data Mart form needs the Drive API to list the spreadsheets a Credential can open; without it the form shows a spreadsheet ID or URL input. This project setting is separate from the `drive.file` access each user grants when they sign in. Setup steps: [Google Sheets credentials](../../../packages/connectors/src/Sources/GoogleSheets/CREDENTIALS.md#oauth2).
 
+## Microsoft Ads Source sign-in with Google
+
+Some advertisers sign in to Microsoft Advertising with Google. Microsoft Advertising accepts only a Google token for them: a Microsoft sign-in with the same email fails with error `126 IdentityTypeMismatch`. With these variables the Microsoft Ads Credential form offers **Sign in with Google** next to **Sign in with Microsoft**. Without them it offers only **Sign in with Microsoft**.
+
+- **OAUTH_MICROSOFT_ADS_GOOGLE_CLIENT_ID** and **OAUTH_MICROSOFT_ADS_GOOGLE_CLIENT_SECRET**: a Google OAuth client of type Web application. It asks only for `openid email profile`, scopes that need no Google verification.
+- **OAUTH_GOOGLE_REDIRECT_URI**: `https://<your-domain>/oauth/google/callback`, registered as an authorized redirect URI of that client. Google sign-in for Storages and Destinations uses the same callback page and variable, so a deployment that offers it already has the value. Users sign in with Google on the domain this URL names.
+
+Requests still use the Microsoft Ads developer token from `OAUTH_MICROSOFT_ADS_DEVELOPER_TOKEN`. Microsoft Advertising may refuse tokens of a Google client that is not your own, so use a client created in your Cloud project. Setup steps: [Microsoft Ads credentials](../../../packages/connectors/src/Sources/MicrosoftAds/CREDENTIALS.md#if-you-sign-in-to-microsoft-advertising-with-google).
+
 ## Reverse proxy
 
 - **TRUST_PROXY_HOPS**: Number of reverse proxies in front of the application that append to `X-Forwarded-For`.
