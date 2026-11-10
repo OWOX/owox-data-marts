@@ -6,6 +6,8 @@
 
 Teams that sign in to Microsoft Advertising with Google could set up the Microsoft Ads source, but every run failed with error `126 IdentityTypeMismatch` and imported nothing. Microsoft Advertising accepts only a Google sign-in for these users, and the source offered only a Microsoft one. Now the Microsoft Ads Credential offers **Sign in with Google** next to **Sign in with Microsoft**, and runs import data with the Google sign-in.
 
+![The Add Credential form with Microsoft Ads selected as the provider: under Connect with Microsoft Ads, a Sign in with Microsoft button, a Sign in with Google button below it, and a Manually link](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/67407e63-c4a5-4022-e32b-ebf05cba5300/w=800)
+
 - Signing in now checks the user with Microsoft Advertising. A sign-in of the wrong type fails right away and says which button to use. The Credential shows the email of the connected user instead of "Microsoft Ads User", and a new Credential is named after that email instead of "Microsoft Ads".
 - A run whose Credential has the wrong sign-in type stops after the first request with the same advice, instead of repeating error 126 for every day of the import.
 - Other Microsoft Ads errors in Run History read as Microsoft Advertising's own message, such as `HTTP 401: Authentication failed. (105 InvalidCredentials)`, instead of the raw JSON response.
