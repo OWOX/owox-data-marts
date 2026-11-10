@@ -397,9 +397,10 @@ export class IdentityOwoxClient {
   /**
    * POST /idp/bi-project/:projectId/members — invite a new member by email.
    *
-   * The Java endpoint owns validation, duplicate detection, email delivery and
-   * pending-user provisioning. It returns the resolved userUid (new or
-   * pre-existing) so callers can attach authorization scope immediately.
+   * The Java endpoint owns validation, duplicate detection and pending-user
+   * provisioning. It returns the resolved userUid (new or pre-existing) so
+   * callers can attach authorization scope immediately. The invitation email
+   * is sent by `ProjectMembersService`.
    *
    * Path mirrors the existing `getProjectMembers` (GET on the same collection)
    * on the C2C backchannel — the public `/api/idp/projects/...` variant is

@@ -88,7 +88,7 @@ export type ProjectMember = {
  * Result of a member invitation. Discriminated by `kind` because different IDP
  * providers have different semantics:
  *   - `email-sent` — the provider itself delivered the invitation email
- *     (e.g. `idp-owox-better-auth` via the remote OWOX Identity API).
+ *     (e.g. `idp-owox-better-auth` through its email provider).
  *   - `magic-link` — the provider produced a link that the admin must copy
  *     and deliver manually (e.g. `idp-better-auth` for self-hosted setups
  *     without an SMTP path).

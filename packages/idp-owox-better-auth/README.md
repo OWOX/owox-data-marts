@@ -146,7 +146,7 @@ Ensure the user has permission for the action they're trying to perform.
 - Forgot password lives at `/auth/forgot-password` and reuses the same magic-link + password setup flow.
 - Magic-link confirm page: `/auth/magic-link?token=...&callbackURL=...` renders a confirm button before calling Better Auth verify.
 - Password setup and success pages: `/auth/password/setup` (POST to save) and `/auth/password/success`.
-- Email delivery uses `@owox/internal-helpers` SendGrid integration and one shared EJS template (`resources/templates/email/magic-link-email.ejs`) with intent-specific wording.
+- Email delivery uses `@owox/internal-helpers` SendGrid integration and one shared EJS template (`resources/templates/email/action-email.ejs`) with intent-specific wording. The same template carries the project invitation email sent after a member is invited.
 
 ### Component interaction
 
@@ -187,7 +187,7 @@ Entry point (OwoxBetterAuthIdp)
   - `head.ejs` — `<head>`, Tailwind include, color palette.
   - `brand-panel.ejs` — left panel with background and logo.
   - `footer.ejs` — terms and privacy links.
-- Email template: `resources/templates/email/magic-link-email.ejs`.
+- Email template: `resources/templates/email/action-email.ejs` (magic link, password reset and project invitation).
 
 ### What and how to change
 

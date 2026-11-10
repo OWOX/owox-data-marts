@@ -8,6 +8,18 @@ In OWOX projects, only **Project Admins** manage the member list (invite, role c
 
 ![Project Settings Members page showing the list of project members with their names and roles](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/9449c7c1-6010-4211-e4da-f88f0b413900/public)
 
+## Invite a Member
+
+1. In **Project Settings → Members**, click **Invite member**.
+2. Enter the email, pick a role and, for a **Data Owner** or **Business User**, the access scope.
+3. Click **Send invitation**.
+
+In OWOX-managed projects, the person gets an email from OWOX Data Marts right away. It names the project, who invited them, and their role. The **Accept invitation** button opens the project, where they sign in with the invited email.
+
+If the email can't be sent, the invitation still stands and you see a message about it. Send the person the project link yourself.
+
+In self-hosted installations, you get a one-time invitation link to copy and share instead.
+
 ## Invite Teammates After Sign-Up
 
 When you sign up for OWOX and become the only admin of your new project, the sign-up questionnaire is followed by an invite step, so the teammate who will set the project up can join right away:

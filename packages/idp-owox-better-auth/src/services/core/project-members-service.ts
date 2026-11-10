@@ -12,6 +12,8 @@ import {
 import { createServiceLogger } from '../../core/logger.js';
 import type { DatabaseStore } from '../../store/database-store.js';
 import type { ProjectMembersServiceOptions } from '../../types/project-members.js';
+import { maskEmail } from '../../utils/email-utils.js';
+import type { ProjectInvitationEmailService } from '../email/project-invitation-email-service.js';
 
 /**
  * Service for managing project members with persistent storage.
@@ -26,6 +28,7 @@ export class ProjectMembersService {
   constructor(
     private readonly store: DatabaseStore,
     private readonly identityClient: IdentityOwoxClient,
+    private readonly invitationEmailService: ProjectInvitationEmailService,
     options: ProjectMembersServiceOptions = {}
   ) {
     this.ttlSeconds = options.ttlSeconds ?? DEFAULT_PROJECT_MEMBERS_CACHE_TTL_SECONDS;
@@ -220,12 +223,14 @@ export class ProjectMembersService {
   }
 
   /**
-   * Invite a new member to the project by delegating to the Identity OWOX API.
-   * The Java upstream owns email delivery, so the response surfaces
-   * `kind: 'email-sent'` unconditionally. We compose `email` / `message` on
-   * this side because the Java contract only returns `userUid` — everything
-   * else is already known from the request. Returning `userId` lets the
-   * caller controller attach scope + contexts immediately.
+   * Invite a new member to the project through the Identity OWOX API, then
+   * email the invited person. The Java contract only returns `userUid`; the
+   * rest of the response is already known from the request. Returning `userId`
+   * lets the caller controller attach scope + contexts immediately.
+   *
+   * The membership exists once the Identity call succeeds, so a failed email
+   * does not fail the invitation: the admin gets a message to tell the person
+   * themselves.
    */
   async inviteMember(
     projectId: string,
@@ -239,14 +244,74 @@ export class ProjectMembersService {
       role,
       actorUserId
     );
+    const emailSent = await this.sendInvitationEmail(projectId, email, role, actorUserId);
     return {
       projectId,
       email,
       role,
       kind: 'email-sent',
       userId: response.userUid,
-      message: `Invitation email sent to ${email}`,
+      message: emailSent
+        ? `Invitation email sent to ${email}`
+        : `${email} was invited, but the invitation email could not be sent. Please let them know yourself.`,
     };
+  }
+
+  private async sendInvitationEmail(
+    projectId: string,
+    email: string,
+    role: Role,
+    actorUserId: string
+  ): Promise<boolean> {
+    const [projectTitle, inviterEmail] = await Promise.all([
+      this.findProjectTitle(projectId, actorUserId),
+      this.findUserEmail(projectId, actorUserId),
+    ]);
+
+    try {
+      await this.invitationEmailService.send({
+        email,
+        role,
+        projectId,
+        projectTitle,
+        inviterEmail,
+      });
+      return true;
+    } catch (error) {
+      this.logger.error(
+        'Failed to send project invitation email',
+        { projectId, email: maskEmail(email) },
+        error
+      );
+      return false;
+    }
+  }
+
+  private async findProjectTitle(
+    projectId: string,
+    actorUserId: string
+  ): Promise<string | undefined> {
+    try {
+      const project = await this.identityClient.getProjectForUser(actorUserId, projectId);
+      return project.title || undefined;
+    } catch (error) {
+      this.logger.warn('Could not load project title for invitation email', { projectId }, error);
+      return undefined;
+    }
+  }
+
+  private async findUserEmail(projectId: string, userId: string): Promise<string | undefined> {
+    try {
+      const user = await this.store.getUserByBiUserId(userId);
+      if (user?.email) {
+        return user.email;
+      }
+      const members = await this.store.getProjectMembers(projectId);
+      return members?.find(member => member.userId === userId)?.email || undefined;
+    } catch (error) {
+      this.logger.warn('Could not load inviter email for invitation email', { projectId }, error);
+      return undefined;
+    }
   }
 
   /**
