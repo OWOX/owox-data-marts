@@ -6,6 +6,13 @@ import {
   Video5TryInsights,
   Video6EmailReports,
 } from './popovers';
+import { createElement } from 'react';
+import {
+  WHATS_NEW_POPOVER_ID,
+  WhatsNewPopoverContent,
+  WhatsNewPopoverTitle,
+  dismissWhatsNew,
+} from '../../features/whats-new';
 import type { PopoverConfig, PopoverId } from './types';
 
 export const popoverItems: Record<PopoverId, PopoverConfig> = {
@@ -50,5 +57,13 @@ export const popoverItems: Record<PopoverId, PopoverConfig> = {
     position: 'bottom-left',
     title: 'Email reports: how to send reports by email',
     content: Video6EmailReports,
+  },
+  [WHATS_NEW_POPOVER_ID]: {
+    width: 460,
+    height: 'auto',
+    position: 'bottom-left',
+    title: createElement(WhatsNewPopoverTitle),
+    content: WhatsNewPopoverContent,
+    onDismiss: dismissWhatsNew,
   },
 };
