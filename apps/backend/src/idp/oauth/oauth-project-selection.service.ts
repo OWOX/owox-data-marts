@@ -1,21 +1,17 @@
 import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/common';
-import type {
-  IdpProvider,
-  McpOAuthProjectMemberContext,
-  OAuthAuthorizationRequest,
-  ProjectMember,
-  Projects,
-  Role,
+import {
+  getRoleDisplayName,
+  type IdpProvider,
+  type McpOAuthProjectMemberContext,
+  type OAuthAuthorizationRequest,
+  type ProjectMember,
+  type Projects,
+  type Role,
 } from '@owox/idp-protocol';
 import type { AuthorizationContext } from '../types';
 import { OAuthProjectAccessRequiredError } from './oauth-project-access-required.error';
 
 const PROJECT_ROLES: readonly Role[] = ['admin', 'editor', 'viewer'];
-const PROJECT_ROLE_LABELS: Record<Role, string> = {
-  admin: 'Project Admin',
-  editor: 'Data Owner',
-  viewer: 'Business User',
-};
 
 interface RenderSelectionPageInput {
   authorizationRequest: OAuthAuthorizationRequest;
@@ -467,7 +463,7 @@ export class OAuthProjectSelectionService {
     if (!roles || roles.length === 0) {
       return '-';
     }
-    return roles.map(role => PROJECT_ROLE_LABELS[role]).join(', ');
+    return roles.map(role => getRoleDisplayName(role)).join(', ');
   }
 
   private formatStatus(status: string): string {

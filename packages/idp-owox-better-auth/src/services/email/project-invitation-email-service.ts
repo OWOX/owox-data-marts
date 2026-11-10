@@ -1,16 +1,10 @@
-import type { Role } from '@owox/idp-protocol';
+import { getRoleDisplayName, type Role } from '@owox/idp-protocol';
 import type { EmailProvider } from '@owox/internal-helpers';
 import ejs from 'ejs';
 import { readFileSync } from 'fs';
 import { createServiceLogger } from '../../core/logger.js';
 import { maskEmail } from '../../utils/email-utils.js';
 import { resolveResourcePath } from '../../utils/template-paths.js';
-
-const ROLE_DISPLAY_NAMES: Record<Role, string> = {
-  admin: 'Project Admin',
-  editor: 'Data Owner',
-  viewer: 'Business User',
-};
 
 /**
  * The invite request waits for this email, so the whole send stays well under the
@@ -118,7 +112,7 @@ export class ProjectInvitationEmailService {
    */
   private buildViewModel(payload: ProjectInvitationEmailPayload): InvitationViewModel {
     const projectTitle = payload.projectTitle ? formatProjectTitle(payload.projectTitle) : '';
-    const roleName = ROLE_DISPLAY_NAMES[payload.role] ?? payload.role;
+    const roleName = getRoleDisplayName(payload.role);
     const byInviter = payload.inviterEmail ? ` by user ${payload.inviterEmail}` : '';
     const description = `You have been invited${byInviter} to join ${
       projectTitle || 'the OWOX project'

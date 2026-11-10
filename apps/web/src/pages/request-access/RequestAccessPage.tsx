@@ -15,6 +15,7 @@ import { FullScreenLoader } from '@owox/ui/components/common/loading-spinner';
 import { useAuth } from '../../features/idp';
 import { AuthStatus, type Role } from '../../features/idp/types';
 import { signIn } from '../../features/idp/services';
+import { getRoleDisplayName } from '../../features/idp/utils/role-display-name';
 import { useRequestAccessContext } from '../../features/user-provisioning/hooks/useRequestAccessContext';
 import {
   type RequestAccessResult,
@@ -26,12 +27,6 @@ import {
   getMcpIntegration,
 } from '../../features/user-provisioning/utils/mcp-request-access';
 import { buildProjectPath } from '../../utils/path';
-
-const ROLE_LABELS: Record<Role, string> = {
-  viewer: 'Business User',
-  editor: 'Data Owner',
-  admin: 'Project Admin',
-};
 
 function SummaryItem({ label, value }: { label: string; value: string }) {
   return (
@@ -194,7 +189,7 @@ export function RequestAccessPage() {
                         </Badge>
                       </div>
                       <p className='text-muted-foreground text-sm'>
-                        Requested role: {ROLE_LABELS[submitted.request.role]}
+                        Requested role: {getRoleDisplayName(submitted.request.role)}
                       </p>
                     </div>
                   </div>
@@ -218,7 +213,7 @@ export function RequestAccessPage() {
                       <SelectContent>
                         {roleOptions.map(role => (
                           <SelectItem key={role} value={role}>
-                            {ROLE_LABELS[role]}
+                            {getRoleDisplayName(role)}
                           </SelectItem>
                         ))}
                       </SelectContent>
