@@ -269,6 +269,9 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
       OPTIONS (
         location = '${location}'
       )`;
+      } else {
+        // A dataset location cannot change later, so tell the user where a new dataset goes.
+        this.context.log(LOG_LEVEL.WARN, 'The Storage has no location. BigQuery creates a missing dataset in its default location. Set a location on the Storage to choose it.');
       }
 
       await this.executeQuery(query);
