@@ -22,7 +22,7 @@ type Input = z.infer<typeof inputSchema>;
 export class RotateDestinationSecretKeyTool implements McpToolDefinition<Input> {
   readonly name = 'rotate_destination_secret_key';
   readonly description =
-    'Rotate the Looker Studio Destination key. Each call invalidates the current key. Ask the user to copy the replacement key from the returned Destination URL.';
+    'Rotate the Looker Studio Destination key. Each call invalidates the current key. Ask the user to copy the replacement key from the returned Destination URL. Before the call, explain that the old key stops working immediately.';
   readonly zodSchema = inputSchema;
   readonly outputSchema = destinationMutationOutput;
   readonly annotations = {

@@ -50,6 +50,7 @@ import { PROJECT_SETTINGS_FACADE } from '../../../project-settings/facades/proje
 import { EeModule } from '../../ee.module';
 import { MCP_TOOL_DEFINITIONS, type McpToolDefinition } from './mcp-tool.definition';
 import { MCP_TOOL_DEFINITIONS_PROVIDER, MCP_TOOL_PROVIDER_CLASSES } from './mcp-tool.providers';
+import { MCP_GUIDE_TOPICS } from '../instructions/mcp-guides';
 
 describe('MCP tool providers', () => {
   function moduleMetadata<T>(key: string, module: object): T[] {
@@ -139,6 +140,13 @@ describe('MCP tool providers', () => {
       const toolNames = tools.map(tool => tool.name);
 
       expect(toolNames).toEqual(expect.arrayContaining(['run_report', 'get_report_run_status']));
+
+      // A pointer to a guide that does not exist sends the model to a call that fails.
+      const pointedTopics = tools.flatMap(tool =>
+        [...tool.description.matchAll(/get_guide with topic (\w+)/g)].map(match => match[1])
+      );
+      expect([...MCP_GUIDE_TOPICS]).toEqual(expect.arrayContaining(pointedTopics));
+      expect(pointedTopics).toEqual(expect.arrayContaining([...MCP_GUIDE_TOPICS]));
       expect(toolNames).toEqual(
         expect.arrayContaining([
           'get_connector_fields',
@@ -205,6 +213,7 @@ describe('MCP tool providers', () => {
           'delete_context',
           'list_project_members',
           'get_project_settings',
+          'get_guide',
           'update_project_description',
           'list_custom_connectors',
           'get_custom_connector',

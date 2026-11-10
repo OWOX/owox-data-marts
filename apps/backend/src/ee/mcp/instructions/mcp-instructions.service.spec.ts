@@ -1,11 +1,8 @@
 import { Client } from '@modelcontextprotocol/client';
 import { InMemoryTransport, McpServer } from '@modelcontextprotocol/server';
 import { McpInstructionsService } from './mcp-instructions.service';
+import { MCP_GUIDE_TOPICS } from './mcp-guides';
 import { MCP_SYSTEM_INSTRUCTIONS } from './mcp-system-instructions';
-import { hasUniqueCountFieldCandidate } from '../tools/query-data-mart.input';
-
-const UNIQUE_COUNT_EXAMPLE_FIELD = 'orders__unique_count';
-const DISPLAY_FORM_NON_EXAMPLES = ['Orders Unique Count', '<Prefix> Unique Count'];
 
 describe('MCP instructions', () => {
   it('returns the complete static system instructions', () => {
@@ -14,149 +11,36 @@ describe('MCP instructions', () => {
     expect(service.getInstructions()).toBe(MCP_SYSTEM_INSTRUCTIONS);
   });
 
-  it('keeps saved Credential secrets in browser setup and permits temporary connector tests', () => {
-    expect(MCP_SYSTEM_INSTRUCTIONS).toContain('start_credential_setup');
-    expect(MCP_SYSTEM_INSTRUCTIONS).toContain('get_credential_setup_status');
-    expect(MCP_SYSTEM_INSTRUCTIONS).toContain('wait_seconds');
-    expect(MCP_SYSTEM_INSTRUCTIONS).toContain(
-      'Never accept provider secrets in Credential management tool arguments'
-    );
-    expect(MCP_SYSTEM_INSTRUCTIONS).toContain('Completion does not prove provider validation');
-    expect(MCP_SYSTEM_INSTRUCTIONS).toContain(
-      'Do not promise a background completion notification'
-    );
-    expect(MCP_SYSTEM_INSTRUCTIONS).toContain(
-      'If the user chooses a test with temporary keys, omit credential_id'
-    );
+  // ChatGPT gives the model only the start of the instructions, and Claude Code the first 4,096
+  // characters. The long workflow text belongs in the guides that get_guide returns.
+  it('stays short and puts the data question rule in the first 250 characters', () => {
+    expect(MCP_SYSTEM_INSTRUCTIONS.length).toBeLessThanOrEqual(3500);
+
+    const start = MCP_SYSTEM_INSTRUCTIONS.slice(0, 250);
+    expect(start).toContain('get_data_mart_details_by_id');
+    expect(start).toContain('query_data_mart');
+    expect(start).toContain('Never guess field names or IDs');
   });
 
-  it('uses the exact saved Credential when creating a Google Sheets destination', () => {
-    expect(MCP_SYSTEM_INSTRUCTIONS).toContain('add_destination returns setup_id');
-    expect(MCP_SYSTEM_INSTRUCTIONS).toContain('call get_credential_setup_status');
-    expect(MCP_SYSTEM_INSTRUCTIONS).toContain('call add_destination again');
-    expect(MCP_SYSTEM_INSTRUCTIONS).toContain('The browser title names the Credential');
-  });
-
-  // The rule the tool ENFORCES (UniqueCountFieldUnsupportedClauseError): a model that reads only
-  // half of it retries the same rejected call, since the error tells it to drop the clause rather
-  // than to add the field back to "fields". Both halves have to survive an instructions edit.
-  it('states where a joined Unique Count field may and may not be used', () => {
-    expect(MCP_SYSTEM_INSTRUCTIONS).toContain('Unique Count field');
-    expect(MCP_SYSTEM_INSTRUCTIONS).toContain(
-      'select that field by name instead of rebuilding it from the columns it is computed from'
-    );
-    expect(MCP_SYSTEM_INSTRUCTIONS).toContain(
-      'It can be selected in query_data_mart\'s "fields" and ordered by in its "sort" (using the same exact name), but never placed in filters, slices, aggregations, or date_buckets'
-    );
-    // The report tools have no Unique Count parameter, and their `fields` reaches the projection
-    // verbatim — so a pseudo-field there saves a report that fails every run.
-    expect(MCP_SYSTEM_INSTRUCTIONS).toContain('never in add_report/update_report');
-  });
-
-  // A model copies the documented example verbatim into `fields`, so the instructions must show the
-  // SQL name — the display form is recognised only to reach the purpose-written
-  // UnmatchedUniqueCountFieldError instead of the generic field_not_found (#6792).
-  it('illustrates the joined Unique Count field with a name the tool recognises', () => {
-    expect(hasUniqueCountFieldCandidate([UNIQUE_COUNT_EXAMPLE_FIELD])).toBe(true);
-    expect(MCP_SYSTEM_INSTRUCTIONS).toContain(`"${UNIQUE_COUNT_EXAMPLE_FIELD}"`);
-    for (const displayForm of DISPLAY_FORM_NON_EXAMPLES) {
-      expect(MCP_SYSTEM_INSTRUCTIONS).not.toContain(`"${displayForm}"`);
+  it('names every guide topic', () => {
+    for (const topic of MCP_GUIDE_TOPICS) {
+      expect(MCP_SYSTEM_INSTRUCTIONS).toContain(topic);
     }
   });
 
-  it('instructs the assistant to use add_report automatic-run outcomes safely', () => {
-    expect(MCP_SYSTEM_INSTRUCTIONS).toContain('add_report runs');
-    expect(MCP_SYSTEM_INSTRUCTIONS).toContain('run_immediately=false');
-    expect(MCP_SYSTEM_INSTRUCTIONS).toContain('initial_run.status="queued"');
-    expect(MCP_SYSTEM_INSTRUCTIONS).toContain('initial_run.status="failed_to_queue"');
-    expect(MCP_SYSTEM_INSTRUCTIONS).toContain('Never call add_report again');
+  it('keeps the rules that apply to all tools', () => {
+    expect(MCP_SYSTEM_INSTRUCTIONS).toContain('untrusted information');
+    expect(MCP_SYSTEM_INSTRUCTIONS).toContain('Never accept provider secrets in tool arguments');
+    expect(MCP_SYSTEM_INSTRUCTIONS).toContain('Never delete dependent objects');
+    expect(MCP_SYSTEM_INSTRUCTIONS).toContain('Name the Data Mart that supplied each answer');
   });
 
-  // Without this rule the step-2 "rephrase and try again" advice sends a model into a loop of
-  // searches against a project that has nothing to find.
+  // Without this rule the "rephrase and try again" advice sends a model into a loop of searches
+  // against a project that has nothing to find.
   it('tells the assistant what to do when the project has no published data mart', () => {
-    expect(MCP_SYSTEM_INSTRUCTIONS).toContain('Empty project:');
-    expect(MCP_SYSTEM_INSTRUCTIONS).toContain('returns getting_started');
-    expect(MCP_SYSTEM_INSTRUCTIONS).toContain('Follow getting_started.instructions');
-    expect(MCP_SYSTEM_INSTRUCTIONS).toContain('do not rephrase and retry discovery tools');
-    expect(MCP_SYSTEM_INSTRUCTIONS).not.toContain(
-      'A Data Mart cannot be created or published through MCP'
-    );
-    expect(MCP_SYSTEM_INSTRUCTIONS).toContain('create_data_mart');
-    expect(MCP_SYSTEM_INSTRUCTIONS).toContain('publish_data_mart');
-    expect(MCP_SYSTEM_INSTRUCTIONS).toContain(
-      'Reporting discovery and query tools still require published Data Marts'
-    );
-  });
-
-  // Keep the report workflow scoped to OWOX-managed exports and preserve the
-  // existing-report and spreadsheet grouping guidance.
-  it('steers exporting, updating, and grouping reports toward the report tools', () => {
-    expect(MCP_SYSTEM_INSTRUCTIONS).toContain('user-requested OWOX-managed export');
-    expect(MCP_SYSTEM_INSTRUCTIONS).toContain('One report per user request; then change it.');
-    expect(MCP_SYSTEM_INSTRUCTIONS).toContain('error_code similar_report_exists');
-    expect(MCP_SYSTEM_INSTRUCTIONS).toContain('allow_similar=true only when the user explicitly');
-    expect(MCP_SYSTEM_INSTRUCTIONS).toContain('update_report returns run.status="queued"');
-    expect(MCP_SYSTEM_INSTRUCTIONS).toContain(
-      'never re-sent by an update unless run_immediately=true'
-    );
-    expect(MCP_SYSTEM_INSTRUCTIONS).toContain(
-      'as spreadsheet_id in the following add_report calls'
-    );
-  });
-
-  it('guides setup through shared permissions, full replacements, and safe run status', () => {
-    for (const tool of [
-      'list_setup_data_marts',
-      'get_data_mart_setup',
-      'create_data_mart',
-      'update_data_mart_definition',
-      'validate_data_mart',
-      'actualize_data_mart_schema',
-      'preview_data_mart',
-      'publish_data_mart',
-      'get_data_mart_change_impact',
-      'update_data_mart_schema',
-      'set_data_mart_owners',
-      'set_data_mart_contexts',
-      'list_connectors',
-      'get_connector_specification',
-      'get_connector_fields',
-      'list_data_mart_relationships',
-      'create_data_mart_relationship',
-      'update_data_mart_relationship',
-      'delete_data_mart_relationship',
-      'run_data_mart',
-      'get_data_mart_run',
-      'list_data_mart_runs',
-      'cancel_data_mart_run',
-      'list_data_mart_run_schedules',
-      'create_data_mart_run_schedule',
-      'update_data_mart_run_schedule',
-      'delete_data_mart_run_schedule',
-    ]) {
-      expect(MCP_SYSTEM_INSTRUCTIONS).toContain(tool);
-    }
-    expect(MCP_SYSTEM_INSTRUCTIONS).toContain(
-      'get_data_mart_setup requires visibility, not edit permission'
-    );
-    expect(MCP_SYSTEM_INSTRUCTIONS).toContain('replace complete lists');
-    expect(MCP_SYSTEM_INSTRUCTIONS).toContain('Preserve configuration _id and _credential_id');
-    expect(MCP_SYSTEM_INSTRUCTIONS).toContain('Never pass raw secrets');
-    expect(MCP_SYSTEM_INSTRUCTIONS).toContain('obtain user authorization before delete_data_mart');
-    expect(MCP_SYSTEM_INSTRUCTIONS).toContain('published status does not prove data readiness');
-    expect(MCP_SYSTEM_INSTRUCTIONS).toContain('Do not call run_data_mart again just to poll');
-  });
-
-  it('distinguishes a backfill segment from completion of the requested period', () => {
-    expect(MCP_SYSTEM_INSTRUCTIONS).toContain(
-      'should_poll describes only the returned run segment'
-    );
-    expect(MCP_SYSTEM_INSTRUCTIONS).toContain('backfill.chain_id');
-    expect(MCP_SYSTEM_INSTRUCTIONS).toContain('segment_index');
-    expect(MCP_SYSTEM_INSTRUCTIONS).toContain('segments_total');
-    expect(MCP_SYSTEM_INSTRUCTIONS).toContain('offset');
-    expect(MCP_SYSTEM_INSTRUCTIONS).toContain('A failed segment can be followed by later segments');
+    expect(MCP_SYSTEM_INSTRUCTIONS).toContain('unless the response contains getting_started');
+    expect(MCP_SYSTEM_INSTRUCTIONS).toContain('follow getting_started.instructions');
+    expect(MCP_SYSTEM_INSTRUCTIONS).toContain('Do not retry discovery with other wording');
   });
 
   it('round-trips the complete system instructions through MCP initialization', async () => {

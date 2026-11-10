@@ -18,7 +18,7 @@ type Input = z.input<typeof dataMartIdSchema>;
 export class PublishDataMartTool implements McpToolDefinition<Input> {
   readonly name = 'publish_data_mart';
   readonly description =
-    'Publish a draft Data Mart with its existing owners, Contexts and sharing settings. Review setup first. Validate the definition before publication. Connector publication starts an asynchronous initial run that can replace existing warehouse data. Published status does not mean that data is ready. Check list_data_mart_runs for execution progress before reporting success.';
+    'Publish a draft Data Mart with its existing owners, Contexts and sharing settings. Review setup first. Validate the definition before publication. Connector publication starts an asynchronous initial run that can replace existing warehouse data. Published status does not mean that data is ready. Check list_data_mart_runs for execution progress before reporting success. For the complete workflow, call get_guide with topic data_mart_setup.';
   readonly zodSchema = dataMartIdSchema;
   readonly outputSchema = dataMartSummaryOutputSchema.shape;
   readonly annotations = {

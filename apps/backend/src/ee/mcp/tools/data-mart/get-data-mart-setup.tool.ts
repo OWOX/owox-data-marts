@@ -18,7 +18,7 @@ type Input = z.input<typeof dataMartIdSchema>;
 export class GetDataMartSetupTool implements McpToolDefinition<Input> {
   readonly name = 'get_data_mart_setup';
   readonly description =
-    'Read the stored setup of a visible Data Mart, including draft configuration, SQL, complete schema and access settings. This tool does not synchronize legacy Data Marts. Connector settings omit secrets and internal references. Preserve configuration _id and _credential_id when replacing a connector definition.';
+    'Read the stored setup of a visible Data Mart, including draft configuration, SQL, complete schema and access settings. This tool does not synchronize legacy Data Marts. Connector settings omit secrets and internal references. Preserve configuration _id and _credential_id when replacing a connector definition. A non-null definition_read_error means that the saved connector definition could not be read safely: do not treat the null definition as an empty draft, and repair the connector in OWOX before you replace the definition.';
   readonly zodSchema = dataMartIdSchema;
   readonly outputSchema = dataMartSetupOutputSchema.shape;
   readonly annotations = {

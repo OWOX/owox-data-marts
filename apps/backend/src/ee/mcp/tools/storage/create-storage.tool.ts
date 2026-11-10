@@ -18,7 +18,7 @@ type Input = z.infer<typeof createStorageSchema>;
 export class CreateStorageTool implements McpToolDefinition<Input> {
   readonly name = 'create_storage';
   readonly description =
-    'Create an unconfigured Storage and return its ID and UI URL. Sharing allows use but not maintenance.';
+    'Create an unconfigured Storage and return its ID and UI URL. Sharing allows use but not maintenance. For the complete workflow, call get_guide with topic storages_destinations.';
   readonly zodSchema = createStorageSchema;
   readonly outputSchema = storageOutputSchema;
   readonly annotations = {
