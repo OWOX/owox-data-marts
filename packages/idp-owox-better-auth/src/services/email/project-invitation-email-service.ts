@@ -15,8 +15,13 @@ const ROLE_DISPLAY_NAMES: Record<Role, string> = {
 const DEFAULT_RETRY_DELAYS_MS: readonly number[] = [1000, 3000];
 
 interface InvitationViewModel {
+  subject: string;
   title: string;
+  preheader: string;
+  /** Plain-text body sentence. */
   description: string;
+  /** The same sentence as escaped HTML with the project and the role in bold. */
+  descriptionHtml: string;
   buttonText: string;
   actionUrl: string;
   footer: string;
@@ -70,7 +75,7 @@ export class ProjectInvitationEmailService {
 
     for (let attempt = 0; ; attempt++) {
       try {
-        await this.emailProvider.sendEmail(payload.email, viewModel.title, html, {
+        await this.emailProvider.sendEmail(payload.email, viewModel.subject, html, {
           bodyText: plainText,
           categories: ['transactional', 'project-invitation'],
           isMultiple: false,
@@ -90,17 +95,30 @@ export class ProjectInvitationEmailService {
     }
   }
 
+  /**
+   * The wording follows the invitation email users received before OWOX Data Marts
+   * sent it itself. The invited person's first name is not known reliably, so the
+   * greeting uses its fallback.
+   */
   private buildViewModel(payload: ProjectInvitationEmailPayload): InvitationViewModel {
     const projectTitle = payload.projectTitle ? formatProjectTitle(payload.projectTitle) : '';
-    const projectName = projectTitle ? `the ${projectTitle} project` : 'a project';
-    const inviter = payload.inviterEmail || 'A teammate';
     const roleName = ROLE_DISPLAY_NAMES[payload.role] ?? payload.role;
+    const byInviter = payload.inviterEmail ? ` by user ${payload.inviterEmail}` : '';
+    const description = `You have been invited${byInviter} to join ${
+      projectTitle || 'the OWOX project'
+    } as a ${roleName}.`;
+    const descriptionHtml = `You have been invited${escapeHtml(byInviter)} to join ${
+      projectTitle ? `<strong>${escapeHtml(projectTitle)}</strong>` : 'the OWOX project'
+    } as a <strong>${escapeHtml(roleName)}</strong>.`;
 
     return {
-      title: projectTitle
+      subject: projectTitle
         ? `You're invited to ${projectTitle} in OWOX Data Marts`
         : "You're invited to a project in OWOX Data Marts",
-      description: `${inviter} invited you to join ${projectName} in OWOX Data Marts as a ${roleName}.`,
+      title: 'Hey friend',
+      preheader: projectTitle ? `Project ${projectTitle}` : description,
+      description,
+      descriptionHtml,
       buttonText: 'Accept invitation',
       actionUrl: `${this.appBaseUrl}/ui/${encodeURIComponent(payload.projectId)}/data-marts`,
       footer: "If you weren't expecting this invitation, you can ignore this email.",
@@ -114,6 +132,15 @@ export class ProjectInvitationEmailService {
  */
 function formatProjectTitle(title: string): string {
   return title.replace(/\./g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
 
 function sleep(ms: number): Promise<void> {

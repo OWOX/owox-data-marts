@@ -26,6 +26,7 @@ describe('MagicLinkEmailService', () => {
     expect(subject).toBe('Confirm your email');
     expect(html).toContain('Confirm your email');
     expect(html).toContain('Confirm email');
+    expect(html).toMatch(/class="preheader"[^>]*>Click the button below to confirm your email/);
     expect(html).toContain('https://auth.example.com/auth/magic-link?token=t1');
     expect(options.categories).toEqual(['transactional', 'auth']);
     expect(options.bodyText).toContain('Confirm your email');

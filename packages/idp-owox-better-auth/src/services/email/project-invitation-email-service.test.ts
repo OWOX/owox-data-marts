@@ -26,14 +26,24 @@ describe('ProjectInvitationEmailService', () => {
     const [to, subject, html, options] = sendEmail.mock.calls[0] as SendArgs;
     expect(to).toBe('new@example.com');
     expect(subject).toBe("You're invited to Acme in OWOX Data Marts");
+    expect(html).toContain('Hey friend');
+    expect(html).toContain('>Project Acme</div>');
     expect(html).toContain(
-      'admin@example.com invited you to join the Acme project in OWOX Data Marts as a Data Owner.'
+      'You have been invited by user admin@example.com to join <strong>Acme</strong> as a <strong>Data Owner</strong>.'
     );
     expect(html).toContain('Accept invitation');
     expect(html).toContain('https://app.example.com/ui/p-1/data-marts');
     expect(options.categories).toEqual(['transactional', 'project-invitation']);
-    expect(options.bodyText).toContain(
-      'Accept invitation: https://app.example.com/ui/p-1/data-marts'
+    expect(options.bodyText).toBe(
+      [
+        'Hey friend',
+        '',
+        'You have been invited by user admin@example.com to join Acme as a Data Owner.',
+        '',
+        'Accept invitation: https://app.example.com/ui/p-1/data-marts',
+        '',
+        "If you weren't expecting this invitation, you can ignore this email.",
+      ].join('\n')
     );
   });
 
@@ -57,7 +67,7 @@ describe('ProjectInvitationEmailService', () => {
     const [, subject, , options] = sendEmail.mock.calls[0] as SendArgs;
     expect(subject).toBe("You're invited to a project in OWOX Data Marts");
     expect(options.bodyText).toContain(
-      'A teammate invited you to join a project in OWOX Data Marts as a Business User.'
+      'You have been invited to join the OWOX project as a Business User.'
     );
   });
 
@@ -74,7 +84,8 @@ describe('ProjectInvitationEmailService', () => {
 
     const [, subject, html] = sendEmail.mock.calls[0] as SendArgs;
     expect(subject).toBe("You're invited to shop example com <b>x</b> in OWOX Data Marts");
-    expect(html).toContain('shop example com &lt;b&gt;x&lt;/b&gt;');
+    expect(html).toContain('<strong>shop example com &lt;b&gt;x&lt;/b&gt;</strong>');
+    expect(html).toContain('>Project shop example com &lt;b&gt;x&lt;/b&gt;</div>');
     expect(html).not.toContain('<b>x</b>');
   });
 
