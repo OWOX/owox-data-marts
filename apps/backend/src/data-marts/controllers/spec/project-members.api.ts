@@ -36,7 +36,7 @@ export function InviteProjectMemberSpec() {
     ApiOperation({
       summary: 'Invite a new project member by email',
       description:
-        'Returns a discriminated union by `kind`: `email-sent` when the IDP server delivers the invitation email itself, or `magic-link` when the IDP returns a one-time link the admin must share manually.',
+        'Returns a discriminated union by `kind`: `email-sent` when the IDP server emails the invitation itself (`emailSent: false` when it could not, so the admin should tell the person), or `magic-link` when the IDP returns a one-time link the admin must share manually.',
     }),
     ApiBody({ type: InviteMemberRequestApiDto }),
     ApiResponse({ status: 202, type: InviteMemberResponseApiDto }),

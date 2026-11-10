@@ -148,13 +148,13 @@ describe('InviteTeammatesPage', () => {
         kind: 'email-sent',
         email: 'ann@company.com',
         role: 'editor',
-        emailDelivered: false,
+        emailSent: false,
       })
       .mockResolvedValueOnce({
         kind: 'email-sent',
         email: 'bob@company.com',
         role: 'editor',
-        emailDelivered: true,
+        emailSent: true,
       });
     renderPage();
     addEmail('ann@company.com');
@@ -169,6 +169,31 @@ describe('InviteTeammatesPage', () => {
       { duration: 10000 }
     );
     expect(toast.success).toHaveBeenCalledWith('Invitation sent to bob@company.com');
+  });
+
+  it('counts only the sent emails when some invites fail', async () => {
+    inviteMember
+      .mockResolvedValueOnce({
+        kind: 'email-sent',
+        email: 'ann@company.com',
+        role: 'editor',
+        emailSent: false,
+      })
+      .mockRejectedValueOnce({ response: { status: 400, data: { message: 'Already a member' } } });
+    renderPage();
+    addEmail('ann@company.com');
+    addEmail('bob@company.com');
+    fireEvent.click(screen.getByRole('button', { name: 'Send 2 invites' }));
+
+    const alert = await screen.findByRole('alert');
+    await waitFor(() => {
+      expect(alert.textContent).toContain('bob@company.com: Already a member');
+    });
+    expect(alert.textContent).not.toContain('Sent 1 invitation.');
+    expect(toast).toHaveBeenCalledWith(
+      'ann@company.com was invited, but the invitation email could not be sent. Please let them know yourself.',
+      { duration: 10000 }
+    );
   });
 
   it('keeps only the failed addresses, each with its reason, for a retry', async () => {

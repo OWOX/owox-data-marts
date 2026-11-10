@@ -274,8 +274,9 @@ export class InviteMemberRequestApiDto {
 
 /**
  * Discriminated union response for invite. `kind` distinguishes between:
- *  - `email-sent` — the IDP server delivered the invitation email itself
- *    (e.g. idp-owox-better-auth); UI shows a confirmation toast.
+ *  - `email-sent` — the IDP server emails the invitation itself
+ *    (e.g. idp-owox-better-auth); UI shows a confirmation toast, or a notice
+ *    when `emailSent` is `false`.
  *  - `magic-link` — the IDP returned a link the admin must copy and deliver
  *    manually (e.g. idp-better-auth); UI renders the link with a copy button.
  */
@@ -299,9 +300,9 @@ export class InviteMemberResponseApiDto {
 
   @ApiPropertyOptional({
     description:
-      'Present when `kind` is `email-sent` and the IDP reports delivery. `false`: the member was invited, but the invitation email could not be sent, so the admin should tell them.',
+      'Present when `kind` is `email-sent` and the IDP reports it: whether the email provider accepted the invitation email. `false`: the member was invited, but the email could not be sent, so the admin should tell them.',
   })
-  emailDelivered?: boolean;
+  emailSent?: boolean;
 
   @ApiPropertyOptional()
   message?: string;

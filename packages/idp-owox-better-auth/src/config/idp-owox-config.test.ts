@@ -30,6 +30,22 @@ describe('loadBetterAuthProviderConfigFromEnv', () => {
     expect(config.mcp).toEqual({ publicBaseUrl: 'https://mcp.owox.com' });
   });
 
+  it('leaves project emails to the legacy mailer unless explicitly enabled', () => {
+    expect(loadBetterAuthProviderConfigFromEnv(baseEnv()).idpOwox.projectEmailsEnabled).toBe(false);
+    expect(
+      loadBetterAuthProviderConfigFromEnv({
+        ...baseEnv(),
+        IDP_OWOX_PROJECT_EMAILS_ENABLED: 'true',
+      }).idpOwox.projectEmailsEnabled
+    ).toBe(true);
+  });
+
+  it('refuses a project emails setting other than true or false', () => {
+    expect(() =>
+      loadBetterAuthProviderConfigFromEnv({ ...baseEnv(), IDP_OWOX_PROJECT_EMAILS_ENABLED: 'yes' })
+    ).toThrow();
+  });
+
   it('keeps extension routes disabled unless explicitly enabled', () => {
     const config = loadBetterAuthProviderConfigFromEnv(baseEnv());
 

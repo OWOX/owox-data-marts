@@ -3,6 +3,7 @@ import { ImpersonatedIdTokenFetcher } from '@owox/internal-helpers';
 import axios, { AxiosInstance } from 'axios';
 import ms from 'ms';
 import { IdentityOwoxClientConfig } from '../config/idp-owox-config.js';
+import { INVITE_PROJECT_MEMBER_TIMEOUT_MS } from '../core/constants.js';
 import {
   AuthenticationException,
   ForbiddenException,
@@ -75,10 +76,12 @@ export class IdentityOwoxClient {
   private readonly c2cServiceAccountEmail?: string;
   private readonly c2cTargetAudience?: string;
   private readonly clientBackchannelPrefix: string;
+  private readonly timeoutMs: number;
 
   constructor(config: IdentityOwoxClientConfig) {
     const timeout =
       typeof config.clientTimeout === 'number' ? config.clientTimeout : ms(config.clientTimeout);
+    this.timeoutMs = timeout;
     this.http = axios.create({
       baseURL: config.clientBaseUrl,
       timeout,
@@ -421,9 +424,12 @@ export class IdentityOwoxClient {
 
     const url = `${this.clientBackchannelPrefix}/idp/bi-project/${projectId}/members`;
     const body = { biUserId: actorUserId, inviteeEmail: email, role };
+    // The Identity API waits for the legacy invite itself; giving up first would report
+    // an invite that still completes upstream as failed, and no invitation email would follow.
+    const timeout = Math.max(this.timeoutMs, INVITE_PROJECT_MEMBER_TIMEOUT_MS);
 
     try {
-      const { data } = await this.http.post<unknown>(url, body, { headers: authHeader });
+      const { data } = await this.http.post<unknown>(url, body, { headers: authHeader, timeout });
       return OwoxInviteProjectMemberResponseSchema.parse(data);
     } catch (err) {
       this.handleAxiosError(err, { projectId, email, role }, 'Failed to invite project member');

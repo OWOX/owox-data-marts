@@ -120,7 +120,7 @@ export class ProjectMembersController {
       };
     }
 
-    return { ...base, kind: 'email-sent', emailDelivered: invitation.emailDelivered };
+    return { ...base, kind: 'email-sent', emailSent: invitation.emailSent };
   }
 
   @Auth(Role.viewer(Strategy.PARSE))

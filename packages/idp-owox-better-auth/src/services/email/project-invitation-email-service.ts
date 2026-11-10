@@ -1,5 +1,5 @@
 import { getRoleDisplayName, type Role } from '@owox/idp-protocol';
-import type { EmailProvider } from '@owox/internal-helpers';
+import { isTransientEmailError, type EmailProvider } from '@owox/internal-helpers';
 import ejs from 'ejs';
 import { readFileSync } from 'fs';
 import { createServiceLogger } from '../../core/logger.js';
@@ -7,17 +7,21 @@ import { maskEmail } from '../../utils/email-utils.js';
 import { resolveResourcePath } from '../../utils/template-paths.js';
 
 /**
- * The invite request waits for this email, so the whole send stays well under the
- * web client's 30 s timeout: at most 3 attempts of 5 s with 0.5 s and 1.5 s pauses.
+ * The invite request waits for this email after the access check (up to 3 s) and the invite
+ * itself (up to 10 s), and the backend answers 408 after 30 s. So one send gets 12 s in total:
+ * attempts of up to 5 s, with 0.5 s and 1.5 s pauses, while time is left.
  */
 const DEFAULT_RETRY_DELAYS_MS: readonly number[] = [500, 1500];
 const DEFAULT_ATTEMPT_TIMEOUT_MS = 5000;
+const DEFAULT_TOTAL_TIMEOUT_MS = 12000;
 
 export interface ProjectInvitationEmailOptions {
   /** Pauses between attempts; there is one more attempt than pauses. */
   retryDelaysMs?: readonly number[];
   /** How long one attempt may take before it is aborted. */
   attemptTimeoutMs?: number;
+  /** How long the whole send, retries included, may take. */
+  totalTimeoutMs?: number;
 }
 
 interface InvitationViewModel {
@@ -51,6 +55,7 @@ export class ProjectInvitationEmailService {
   private readonly appBaseUrl: string;
   private readonly retryDelaysMs: readonly number[];
   private readonly attemptTimeoutMs: number;
+  private readonly totalTimeoutMs: number;
 
   /**
    * @param appBaseUrl public origin of the app; the email links to the project there.
@@ -63,11 +68,13 @@ export class ProjectInvitationEmailService {
     this.appBaseUrl = appBaseUrl.replace(/\/+$/, '');
     this.retryDelaysMs = options.retryDelaysMs ?? DEFAULT_RETRY_DELAYS_MS;
     this.attemptTimeoutMs = options.attemptTimeoutMs ?? DEFAULT_ATTEMPT_TIMEOUT_MS;
+    this.totalTimeoutMs = options.totalTimeoutMs ?? DEFAULT_TOTAL_TIMEOUT_MS;
     this.template = readFileSync(resolveResourcePath('templates/email/action-email.ejs'), 'utf-8');
   }
 
   /**
-   * Sends the invitation, retrying failed attempts. Throws the last error when all attempts fail.
+   * Sends the invitation, retrying attempts that fail for a transient reason while the
+   * time budget lasts. Throws the last error otherwise.
    */
   async send(payload: ProjectInvitationEmailPayload): Promise<void> {
     const viewModel = this.buildViewModel(payload);
@@ -81,18 +88,25 @@ export class ProjectInvitationEmailService {
       '',
       viewModel.footer,
     ].join('\n');
+    const deadline = Date.now() + this.totalTimeoutMs;
 
     for (let attempt = 0; ; attempt++) {
       try {
-        await this.emailProvider.sendEmail(payload.email, viewModel.subject, html, {
-          bodyText: plainText,
-          categories: ['transactional', 'project-invitation'],
-          isMultiple: false,
-          signal: AbortSignal.timeout(this.attemptTimeoutMs),
-        });
+        await this.sendAttempt(
+          payload.email,
+          viewModel.subject,
+          html,
+          plainText,
+          Math.min(this.attemptTimeoutMs, deadline - Date.now())
+        );
         return;
       } catch (error) {
-        if (attempt >= this.retryDelaysMs.length) {
+        const delay = this.retryDelaysMs[attempt];
+        if (
+          delay === undefined ||
+          !isTransientEmailError(error) ||
+          Date.now() + delay >= deadline
+        ) {
           throw error;
         }
         this.logger.warn(
@@ -100,8 +114,32 @@ export class ProjectInvitationEmailService {
           { email: maskEmail(payload.email), projectId: payload.projectId, attempt: attempt + 1 },
           error
         );
-        await sleep(this.retryDelaysMs[attempt] ?? 0);
+        await sleep(delay);
       }
+    }
+  }
+
+  private async sendAttempt(
+    to: string,
+    subject: string,
+    html: string,
+    bodyText: string,
+    timeoutMs: number
+  ): Promise<void> {
+    const controller = new AbortController();
+    const timer = setTimeout(
+      () => controller.abort(new Error(`Email attempt timeout after ${String(timeoutMs)} ms`)),
+      timeoutMs
+    );
+    try {
+      await this.emailProvider.sendEmail(to, subject, html, {
+        bodyText,
+        categories: ['transactional', 'project-invitation'],
+        isMultiple: false,
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timer);
     }
   }
 

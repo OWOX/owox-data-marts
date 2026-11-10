@@ -124,7 +124,7 @@ export class OwoxBetterAuthIdp implements IdpProvider {
     store: DatabaseStore,
     private readonly config: BetterAuthProviderConfig,
     private readonly magicLinkService: MagicLinkService,
-    projectInvitationEmailService: ProjectInvitationEmailService
+    projectInvitationEmailService: ProjectInvitationEmailService | undefined
   ) {
     this.auth = auth;
     this.store = store;
@@ -343,10 +343,10 @@ export class OwoxBetterAuthIdp implements IdpProvider {
     const adapter = await store.getAdapter();
     const mailProvider = createMailingProvider(config.email);
     const magicLinkEmailService = new MagicLinkEmailService(mailProvider);
-    const projectInvitationEmailService = new ProjectInvitationEmailService(
-      mailProvider,
-      config.idpOwox.baseUrl
-    );
+    // Off until the cut-over: the legacy mailer sends the invitation email meanwhile.
+    const projectInvitationEmailService = config.idpOwox.projectEmailsEnabled
+      ? new ProjectInvitationEmailService(mailProvider, config.idpOwox.baseUrl)
+      : undefined;
     const emailValidationService = new EmailValidationService({
       forbiddenDomains: config.betterAuth.forbiddenEmailDomains,
     });
