@@ -4,6 +4,7 @@ import type {
   ProjectMemberInvitation,
   Role,
 } from '@owox/idp-protocol';
+import { withTimeout } from '@owox/internal-helpers';
 import type { IdentityOwoxClient } from '../../client/index.js';
 import {
   DEFAULT_INVITATION_LOOKUP_TIMEOUT_MS,
@@ -18,6 +19,7 @@ import type {
   ProjectInvitationEmailPayload,
   ProjectInvitationEmailService,
 } from '../email/project-invitation-email-service.js';
+import { findLocalUserEmail } from './user-email-lookup.js';
 
 /**
  * Service for managing project members with persistent storage.
@@ -291,8 +293,16 @@ export class ProjectMembersService {
     actorUserId: string
   ): Promise<{ projectTitle?: string; inviterEmail?: string }> {
     const [projectTitle, inviterEmail] = await Promise.all([
-      this.withLookupTimeout(this.findProjectTitle(projectId, actorUserId)),
-      this.withLookupTimeout(this.findUserEmail(projectId, actorUserId)),
+      withTimeout(
+        this.findProjectTitle(projectId, actorUserId),
+        this.invitationLookupTimeoutMs,
+        undefined
+      ),
+      withTimeout(
+        this.findUserEmail(projectId, actorUserId),
+        this.invitationLookupTimeoutMs,
+        undefined
+      ),
     ]);
     return { projectTitle, inviterEmail };
   }
@@ -314,20 +324,6 @@ export class ProjectMembersService {
     }
   }
 
-  private async withLookupTimeout(
-    lookup: Promise<string | undefined>
-  ): Promise<string | undefined> {
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    const timeout = new Promise<undefined>(resolve => {
-      timer = setTimeout(() => resolve(undefined), this.invitationLookupTimeoutMs);
-    });
-    try {
-      return await Promise.race([lookup, timeout]);
-    } finally {
-      clearTimeout(timer);
-    }
-  }
-
   private async findProjectTitle(
     projectId: string,
     actorUserId: string
@@ -342,13 +338,9 @@ export class ProjectMembersService {
   }
 
   private async findUserEmail(projectId: string, userId: string): Promise<string | undefined> {
-    try {
-      const user = await this.store.getUserByBiUserId(userId);
-      if (user?.email) {
-        return user.email;
-      }
-    } catch (error) {
-      this.logger.warn('Could not load the inviter from local users', { projectId }, error);
+    const localEmail = await findLocalUserEmail(this.store, userId, this.logger, { projectId });
+    if (localEmail) {
+      return localEmail;
     }
     try {
       const members = await this.store.getProjectMembers(projectId);

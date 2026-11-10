@@ -1,0 +1,166 @@
+import { isTransientEmailError, type EmailProvider } from '@owox/internal-helpers';
+import ejs from 'ejs';
+import { readFileSync } from 'fs';
+import { createServiceLogger } from '../../core/logger.js';
+import { maskEmail } from '../../utils/email-utils.js';
+import { resolveResourcePath } from '../../utils/template-paths.js';
+
+/**
+ * The defaults fit an email that a request waits for, such as the invitation:
+ * attempts of up to 5 s, with 0.5 s and 1.5 s pauses, while the 12 s budget lasts.
+ */
+const DEFAULT_RETRY_DELAYS_MS: readonly number[] = [500, 1500];
+const DEFAULT_ATTEMPT_TIMEOUT_MS = 5000;
+const DEFAULT_TOTAL_TIMEOUT_MS = 12000;
+
+export interface ActionEmailSendOptions {
+  /** Pauses between attempts; there is one more attempt than pauses. */
+  retryDelaysMs?: readonly number[];
+  /** How long one attempt may take before it is aborted. */
+  attemptTimeoutMs?: number;
+  /** How long the whole send, retries included, may take. */
+  totalTimeoutMs?: number;
+}
+
+/**
+ * Content of an email rendered with `action-email.ejs`: a heading, one sentence and a button.
+ */
+export interface ActionEmailContent {
+  subject: string;
+  title: string;
+  /** Inbox preview text; the description when empty. */
+  preheader?: string;
+  /** Plain-text body sentence. */
+  description: string;
+  /** The same sentence as HTML. The caller escapes everything except the tags it adds. */
+  descriptionHtml?: string;
+  /** Optional second paragraph, plain text. */
+  details?: string;
+  /** The second paragraph as HTML, escaped by the caller like `descriptionHtml`. */
+  detailsHtml?: string;
+  buttonText: string;
+  actionUrl: string;
+  footer: string;
+}
+
+export interface ActionEmailMessage {
+  to: string;
+  content: ActionEmailContent;
+  categories: string[];
+  /** Extra fields for the retry log, such as the project ID. */
+  logContext?: Record<string, unknown>;
+}
+
+let compiledTemplate: ejs.TemplateFunction | undefined;
+
+/**
+ * Compiles `action-email.ejs` once. Email services call it in their constructors,
+ * so a build without the template fails at startup, not on the first email.
+ */
+export function loadActionEmailTemplate(): ejs.TemplateFunction {
+  compiledTemplate ??= ejs.compile(
+    readFileSync(resolveResourcePath('templates/email/action-email.ejs'), 'utf-8')
+  );
+  return compiledTemplate;
+}
+
+/**
+ * Renders `action-email.ejs` and its plain-text version.
+ */
+export function renderActionEmail(content: ActionEmailContent): { html: string; bodyText: string } {
+  const html = loadActionEmailTemplate()({ ...content });
+  const bodyText = [
+    content.title,
+    '',
+    content.description,
+    ...(content.details ? ['', content.details] : []),
+    '',
+    `${content.buttonText}: ${content.actionUrl}`,
+    '',
+    content.footer,
+  ].join('\n');
+  return { html, bodyText };
+}
+
+/**
+ * Renders `action-email.ejs` and sends it, retrying attempts that fail for a transient reason.
+ */
+export class ActionEmailSender {
+  private readonly logger = createServiceLogger(ActionEmailSender.name);
+  private readonly retryDelaysMs: readonly number[];
+  private readonly attemptTimeoutMs: number;
+  private readonly totalTimeoutMs: number;
+
+  constructor(
+    private readonly emailProvider: EmailProvider,
+    options: ActionEmailSendOptions = {}
+  ) {
+    this.retryDelaysMs = options.retryDelaysMs ?? DEFAULT_RETRY_DELAYS_MS;
+    this.attemptTimeoutMs = options.attemptTimeoutMs ?? DEFAULT_ATTEMPT_TIMEOUT_MS;
+    this.totalTimeoutMs = options.totalTimeoutMs ?? DEFAULT_TOTAL_TIMEOUT_MS;
+    loadActionEmailTemplate();
+  }
+
+  /**
+   * Sends the email, retrying attempts that fail for a transient reason while the time
+   * budget lasts. Throws the last error otherwise.
+   */
+  async send(message: ActionEmailMessage): Promise<void> {
+    const { to, categories, logContext } = message;
+    const rendered = renderActionEmail(message.content);
+    const deadline = Date.now() + this.totalTimeoutMs;
+
+    for (let attempt = 0; ; attempt++) {
+      try {
+        await this.sendAttempt(
+          message,
+          rendered,
+          Math.min(this.attemptTimeoutMs, deadline - Date.now())
+        );
+        return;
+      } catch (error) {
+        const delay = this.retryDelaysMs[attempt];
+        if (
+          delay === undefined ||
+          !isTransientEmailError(error) ||
+          Date.now() + delay >= deadline
+        ) {
+          throw error;
+        }
+        this.logger.warn(
+          'Email attempt failed, retrying',
+          { ...logContext, email: maskEmail(to), categories, attempt: attempt + 1 },
+          error
+        );
+        await sleep(delay);
+      }
+    }
+  }
+
+  /** Its own timer rather than `AbortSignal.timeout`, so tests can use fake timers. */
+  private async sendAttempt(
+    { to, content, categories }: ActionEmailMessage,
+    { html, bodyText }: { html: string; bodyText: string },
+    timeoutMs: number
+  ): Promise<void> {
+    const controller = new AbortController();
+    const timer = setTimeout(
+      () => controller.abort(new Error(`Email attempt timeout after ${String(timeoutMs)} ms`)),
+      timeoutMs
+    );
+    try {
+      await this.emailProvider.sendEmail(to, content.subject, html, {
+        bodyText,
+        categories,
+        isMultiple: false,
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
