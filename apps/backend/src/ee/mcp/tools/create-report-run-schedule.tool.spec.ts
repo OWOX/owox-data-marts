@@ -96,7 +96,9 @@ describe('CreateReportRunScheduleTool', () => {
       requiredScopes: ['mcp:read', 'mcp:write'],
       annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: true },
     });
-    expect(tool.description).toContain('Creates a new');
+    expect(tool.description).toContain('Creates an OWOX schedule that runs a report regularly');
+    // ChatGPT offered its own scheduled task for "refresh every Monday", which runs nothing in OWOX.
+    expect(tool.description).toContain('A reminder or scheduled task in your own app does not');
     expect(tool.description).toContain('does not replace');
     expect(tool.description).not.toContain('upsert');
   });
