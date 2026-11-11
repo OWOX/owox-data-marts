@@ -3,6 +3,7 @@ import { trackEvent } from '../../../utils/data-layer';
 const ACTIONS = {
   whats_new_shown: 'WhatsNewShown',
   whats_new_chapter_played: 'WhatsNewChapterPlayed',
+  whats_new_video_played: 'WhatsNewVideoPlayed',
   whats_new_changelog_opened: 'WhatsNewChangelogOpened',
   whats_new_dismissed: 'WhatsNewDismissed',
 } as const;
