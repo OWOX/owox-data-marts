@@ -33,7 +33,7 @@ not to grant an optional one. The plugin receives a handle that can make approve
 raw secret never enters its frame.
 
 A plugin that needs AI can use OWOX AI instead of a Credential. OWOX AI gives the plugin AI models
-that OWOX provides, so the member does not need a key from an AI provider. The install dialog
+that the deployment provides, so the member does not need a key from an AI provider. The install dialog
 selects OWOX AI when the deployment provides every model that the plugin needs. The member can
 change this choice later on the plugin's **Credentials** tab. On OWOX Data Marts Cloud, each
 successful OWOX AI call is an AI Process Run and uses the project's credits; see

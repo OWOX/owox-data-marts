@@ -340,7 +340,7 @@ describe('PluginCredentialsCard', () => {
       expect(within(aiSelect()).getAllByRole('option')[1]).toHaveTextContent('OWOX AI');
       expect(aiSelect()).toHaveValue('owox-ai');
       const note = screen.getByText(
-        "OWOX provides the AI models. You do not need a key from an AI provider. Calls use this project's credits."
+        "This deployment provides the AI models. You do not need your own key from an AI provider. Calls use this project's credits."
       );
       expect(aiSelect()).toHaveAttribute('aria-describedby', note.id);
       expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();

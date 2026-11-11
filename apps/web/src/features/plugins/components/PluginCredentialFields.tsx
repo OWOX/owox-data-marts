@@ -157,7 +157,8 @@ export function PluginCredentialFields({
               />
               {showOwoxAiNote && (
                 <span id={`${noteId}-${requirement.key}`} className='text-muted-foreground text-xs'>
-                  OWOX provides the AI models. You do not need a key from an AI provider.
+                  This deployment provides the AI models. You do not need your own key from an AI
+                  provider.
                   {form.owoxAi?.billed ? " Calls use this project's credits." : ''}
                 </span>
               )}

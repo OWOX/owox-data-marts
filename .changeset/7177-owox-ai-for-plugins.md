@@ -4,7 +4,7 @@
 
 **Plugins that use AI work at once: choose OWOX AI instead of your own AI key**
 
-A project member who installed a plugin that uses AI had to get an API key from an AI provider, add it to the project as an AI Credential and select it before the plugin worked. That was extra work, and a key to look after. Now the install dialog offers OWOX AI, the AI models that OWOX provides, as the first option and selects it, so the plugin works at once in its pages, backend actions and scheduled executions. Members can still choose their own AI Credential, and can switch between it and OWOX AI later on the plugin's Credentials tab. Plugin code and `plugin.json` do not change.
+A project member who installed a plugin that uses AI had to get an API key from an AI provider, add it to the project as an AI Credential and select it before the plugin worked. That was extra work, and a key to look after. Now the install dialog offers OWOX AI, the AI models that the deployment provides, as the first option and selects it, so the plugin works at once in its pages, backend actions and scheduled executions. Members can still choose their own AI Credential, and can switch between it and OWOX AI later on the plugin's Credentials tab. Plugin code and `plugin.json` do not change.
 
 - On OWOX Data Marts Cloud, each successful OWOX AI call is billed as an AI Process Run under the existing rules and uses the project's credits. A project that cannot run AI Process Runs gets `403` with the code `PROJECT_OPERATION_BLOCKED`. On a self-managed deployment, OWOX AI calls are not billed.
 - OWOX AI always provides the `fast` and `reasoning` models. It provides `embedding` only when `AI_PLUGIN_EMBEDDING_MODEL` is set. The model IDs depend on the deployment.

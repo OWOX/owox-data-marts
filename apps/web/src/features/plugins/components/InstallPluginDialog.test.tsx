@@ -570,7 +570,8 @@ describe('InstallPluginDialog', () => {
   });
 
   describe('OWOX AI', () => {
-    const OWOX_AI_NOTE = 'OWOX provides the AI models. You do not need a key from an AI provider.';
+    const OWOX_AI_NOTE =
+      'This deployment provides the AI models. You do not need your own key from an AI provider.';
     const OWOX_AI_BILLED_NOTE = `${OWOX_AI_NOTE} Calls use this project's credits.`;
     const aiPlugin = (over: Partial<PluginGalleryEntry> = {}) =>
       plugin({ credentialRequirements: [{ id: 'ai', optional: false }], ...over });
