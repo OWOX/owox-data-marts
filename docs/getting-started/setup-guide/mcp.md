@@ -908,6 +908,8 @@ Use this tool to find a schedule's `trigger_id` before updating or deleting it. 
 
 Adds a new recurring run schedule to an existing report. The assistant translates natural language (for example "every Monday at 9am") into a standard 5-field cron expression before calling this tool.
 
+Only an OWOX schedule refreshes a report. Some AI apps, such as ChatGPT, can also create their own scheduled tasks or reminders. Such a task does not run the report, and OWOX does not show it. If the assistant says that it scheduled a report, check that the schedule is in [Report Triggers](./report-triggers.md) or ask it to call `list_report_run_schedules`.
+
 **Input:**
 
 | Field             | Description                                                                          |

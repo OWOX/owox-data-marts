@@ -147,7 +147,7 @@ describe('AddReportTool', () => {
         run_id: 'run-1',
         should_poll: true,
         message:
-          'The report was created and its initial run was queued. Poll get_report_run_status with this report_id and run_id until should_poll is false. Do not call run_report again for this initial run.',
+          'The report was created and its initial run was queued. Poll get_report_run_status with this report_id and run_id until should_poll is false. Do not call run_report again for this initial run. To refresh the report regularly, create an OWOX schedule with create_report_run_schedule, not a task in your own app.',
       },
     };
 

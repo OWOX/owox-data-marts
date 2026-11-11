@@ -72,6 +72,12 @@ describe('MCP guides', () => {
     expect(reporting).toContain('as spreadsheet_id in the following add_report calls');
   });
 
+  it('sends a regular report refresh to an OWOX schedule, not an assistant task', () => {
+    expect(MCP_GUIDES.reporting).toContain('call create_report_run_schedule');
+    expect(MCP_GUIDES.reporting).toContain('Never create a reminder or a scheduled task');
+    expect(MCP_GUIDES.reporting).toContain('After add_report');
+  });
+
   it('guides setup through shared permissions, full replacements, and safe deletion', () => {
     const setup = MCP_GUIDES.data_mart_setup;
     for (const tool of [

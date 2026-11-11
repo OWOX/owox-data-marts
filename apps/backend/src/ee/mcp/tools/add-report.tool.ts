@@ -50,9 +50,9 @@ const LOOKER_STUDIO_REPORT_INSTRUCTIONS =
 
 const INITIAL_RUN_MESSAGES = {
   queued:
-    'The report was created and its initial run was queued. Poll get_report_run_status with this report_id and run_id until should_poll is false. Do not call run_report again for this initial run.',
+    'The report was created and its initial run was queued. Poll get_report_run_status with this report_id and run_id until should_poll is false. Do not call run_report again for this initial run. To refresh the report regularly, create an OWOX schedule with create_report_run_schedule, not a task in your own app.',
   not_requested:
-    'The report was created without an initial run because run_immediately was false. No data was delivered; call run_report later or create a schedule.',
+    'The report was created without an initial run because run_immediately was false. No data was delivered; call run_report later or create an OWOX schedule with create_report_run_schedule.',
   not_applicable: 'This report uses a pull-based destination, so an initial run is not applicable.',
   failed_to_queue:
     'The report was created, but its initial run could not be queued. Do not call add_report again. Retry delivery with run_report using this report_id.',
