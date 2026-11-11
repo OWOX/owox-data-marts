@@ -7,12 +7,14 @@ import {
   ConnectorBuilderPage,
   type BuilderEntryPoint,
 } from '../../../features/connector-builder/create/ConnectorBuilderPage';
+import type { BuilderTestPrefill } from '../../../features/connector-builder/shared/model/testLink';
 import { useUnsavedChangesGuard } from '../../../features/connector-builder/shared/model/hooks/useUnsavedChangesGuard';
 import { UnsavedChangesConfirmationDialog } from '../../../shared/components/UnsavedChangesConfirmationDialog';
 
 interface ConnectorBuilderRouteProps {
   id?: string;
   entryPoint?: BuilderEntryPoint;
+  testPrefill?: BuilderTestPrefill;
   onBack?: () => void;
   onDeleted?: () => void;
   onCreated?: (id: string) => void;
@@ -57,6 +59,7 @@ function BuilderNotAuthorised({ onBack }: { onBack: () => void }) {
 function GuardedBuilder({
   id,
   entryPoint,
+  testPrefill,
   onBack,
   onDeleted,
   onCreated,
@@ -81,6 +84,7 @@ function GuardedBuilder({
       <ConnectorBuilderPage
         id={id}
         entryPoint={entryPoint}
+        testPrefill={testPrefill}
         onBack={onBack}
         onDeleted={handleDeleted}
         onCreated={onCreated}

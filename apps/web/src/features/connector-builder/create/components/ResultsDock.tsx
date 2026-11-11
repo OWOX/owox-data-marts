@@ -1,5 +1,7 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
-import { CirclePlay, Play, Settings, ChevronDown } from 'lucide-react';
+import { Bot, Check, CirclePlay, Copy, Play, Settings, ChevronDown } from 'lucide-react';
+import { Alert, AlertDescription, AlertTitle } from '@owox/ui/components/alert';
+import { toast } from 'react-hot-toast';
 import { Button } from '@owox/ui/components/button';
 import {
   Select,
@@ -24,6 +26,9 @@ import {
 } from '../../shared/model/analytics';
 import type { ConnectorTestResultDto } from '../../shared/api/types';
 import { trackEvent } from '../../../../utils/data-layer';
+import { testResultForChat, type BuilderTestPrefill } from '../../shared/model/testLink';
+
+const DEFAULT_MAX_ROWS = 25;
 
 /** Which representation of the test run the dock body shows. */
 type ResultView = 'table' | 'json' | 'logs';
@@ -85,11 +90,14 @@ export function followNode(previous: string[], current: string, next: string[]):
  */
 export function ResultsDock({
   selectedNode,
+  prefill,
   open,
   onToggleOpen,
   onFixWithAi,
 }: {
   selectedNode?: string;
+  /** A test that an AI assistant prepared; applied once the connector has loaded. */
+  prefill?: BuilderTestPrefill;
   open: boolean;
   onToggleOpen: () => void;
   onFixWithAi?: (ctx: { logs: string[]; error: string }) => void;
@@ -100,7 +108,7 @@ export function ResultsDock({
 
   const [node, setNode] = useState('');
   const [values, setValues] = useState<Record<string, string>>({});
-  const [maxRows, setMaxRows] = useState(25);
+  const [maxRows, setMaxRows] = useState(DEFAULT_MAX_ROWS);
   const [running, setRunning] = useState(false);
   const [result, setResult] = useState<ConnectorTestResultDto | null>(null);
   const [settings, setSettings] = useState(false);
@@ -108,7 +116,17 @@ export function ResultsDock({
   const [chosenCredential, setChosenCredential] = useState<string | null>(null);
   const [view, setView] = useState<ResultView>('table');
   const [dockHeight, setDockHeight] = useState(300);
+  // The result last copied: it marks the copy step done and keeps the button saying so.
+  const [copiedResult, setCopiedResult] = useState<ConnectorTestResultDto | null>(null);
+  // What the result belongs to, fixed when the test starts: the copy describes that run.
+  const [ranWith, setRanWith] = useState<{
+    node: string;
+    version: number | null;
+    unsavedEdits: boolean;
+    secrets: string[];
+  } | null>(null);
   const testsRun = useRef(0);
+  const appliedPrefill = useRef(false);
 
   // Which parameters hold a credential: those marked SECRET and those the authentication
   // uses. Their test values are what the author typed to reach a live API, so they are kept
@@ -275,6 +293,37 @@ export function ResultsDock({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [storageKey]);
 
+  // After the restore above: the link replaces the values saved on this device, so the test
+  // runs only what the assistant prepared. A node the draft lost is reported, not swapped.
+  useEffect(() => {
+    if (!storageKey || !prefill || appliedPrefill.current) return;
+    appliedPrefill.current = true;
+    if (prefill.node in manifest.nodes) setNode(prefill.node);
+    setValues(prefill.values);
+    setMaxRows(prefill.maxRows ?? DEFAULT_MAX_ROWS);
+    if (prefill.credentialId) {
+      setKeysFrom('credential');
+      setChosenCredential(prefill.credentialId);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- applied once, when the connector loads
+  }, [storageKey, prefill]);
+
+  const copyForChat = async (copying: ConnectorTestResultDto) => {
+    if (!ranWith) return;
+    const text = testResultForChat({
+      connectorId: state.id,
+      connectorName: manifest.name,
+      ...ranWith,
+      result: copying,
+    });
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedResult(copying);
+    } catch {
+      toast.error('Could not copy. Open the JSON view and copy the result from there.');
+    }
+  };
+
   const run = async () => {
     // Running a test should reveal its output: expand the (collapsed-by-default) dock.
     if (!open) onToggleOpen();
@@ -294,6 +343,19 @@ export function ResultsDock({
       ? Object.fromEntries(Object.entries(values).filter(([name]) => !keyNames.has(name)))
       : values;
     const connector = { id: state.id, manifest: tested, version: state.loadedVersion };
+    // Every value that can hold a key, including key parameters only the Credential check names.
+    const maskedNames = new Set([
+      ...secretNames,
+      ...(credentialState.status === 'ready' ? credentialState.requirement.keyParameters : []),
+    ]);
+    setRanWith({
+      node: target,
+      version: state.loadedVersion,
+      unsavedEdits: state.dirty,
+      secrets: Object.entries(values)
+        .filter(([name]) => maskedNames.has(name))
+        .map(([, value]) => value),
+    });
     let outcome: ConnectorTestResultDto;
     trackEvent({
       event: 'connector_builder_test',
@@ -360,9 +422,12 @@ export function ResultsDock({
         <div className='bg-border group-hover/resize:bg-muted-foreground/60 h-1 w-10 rounded-full transition-colors' />
       </div>
       {/* Dock header */}
-      <div className='flex items-center gap-3 px-6 py-[11px]'>
+      {/* Wraps to a second row when narrow, rather than breaking words inside a control. */}
+      <div className='flex flex-wrap items-center gap-x-3 gap-y-2 px-6 py-[11px]'>
         <CirclePlay className='text-primary h-4 w-4 shrink-0' />
-        <span className='text-foreground text-[13.5px] font-medium'>Test fetch</span>
+        <span className='text-foreground text-[13.5px] font-medium whitespace-nowrap'>
+          Test fetch
+        </span>
 
         {result &&
           (ok ? (
@@ -371,7 +436,7 @@ export function ResultsDock({
                 <span className='h-1.5 w-1.5 rounded-full bg-[#22c55e]' />
                 OK
               </span>
-              <span className='text-muted-foreground text-xs'>
+              <span className='text-muted-foreground text-xs whitespace-nowrap'>
                 {headerRecords.length} {headerRecords.length === 1 ? 'record' : 'records'}
                 {showingSample ? ' · raw sample' : ''}
               </span>
@@ -416,6 +481,24 @@ export function ResultsDock({
               </button>
             ))}
           </div>
+        )}
+
+        {result && (
+          <Button
+            variant='outline'
+            size='sm'
+            className='h-8 gap-1.5'
+            data-testid='copy-for-ai-chat'
+            title='Copy the test result to paste into an AI chat'
+            onClick={() => void copyForChat(result)}
+          >
+            {copiedResult === result ? (
+              <Check className='h-3.5 w-3.5' />
+            ) : (
+              <Copy className='h-3.5 w-3.5' />
+            )}
+            {copiedResult === result ? 'Copied' : 'Copy for AI'}
+          </Button>
         )}
 
         {resultError && onFixWithAi && (
@@ -493,7 +576,18 @@ export function ResultsDock({
           style={{ height: dockHeight }}
           data-testid='test-panel'
         >
-          <DockBody result={result} hasNodes={hasNodes} view={view} />
+          {prefill && (
+            <AiTestSteps
+              node={prefill.node}
+              missing={Boolean(storageKey) && !(prefill.node in manifest.nodes)}
+              ran={result !== null}
+              copied={result !== null && copiedResult === result}
+            />
+          )}
+          {/* The steps above replace the "pick a node" hint of an empty dock. */}
+          {(result !== null || !prefill) && (
+            <DockBody result={result} hasNodes={hasNodes} view={view} />
+          )}
         </div>
       )}
 
@@ -527,6 +621,54 @@ export function ResultsDock({
         }}
       />
     </div>
+  );
+}
+
+/** What to do with a test that an AI assistant prepared, with the steps already done checked. */
+function AiTestSteps({
+  node,
+  missing,
+  ran,
+  copied,
+}: {
+  node: string;
+  missing: boolean;
+  ran: boolean;
+  copied: boolean;
+}) {
+  if (missing) {
+    return (
+      <Alert role='status' className='mx-6 mt-4 w-auto' data-testid='ai-test-steps'>
+        <Bot />
+        <AlertTitle>The draft has no {node} node</AlertTitle>
+        <AlertDescription>Ask your AI assistant for a new test link.</AlertDescription>
+      </Alert>
+    );
+  }
+  const steps = [
+    { text: 'Click Run test.', done: ran },
+    { text: 'Click Copy for AI.', done: copied },
+    { text: 'Paste the copied result into your AI chat.', done: false },
+  ];
+  return (
+    <Alert role='status' className='mx-6 mt-4 w-auto' data-testid='ai-test-steps'>
+      <Bot />
+      <AlertTitle>Your AI assistant prepared a test of the {node} node</AlertTitle>
+      <AlertDescription>
+        <ol className='grid gap-1'>
+          {steps.map(({ text, done }, index) => (
+            <li key={text} className='flex items-center gap-2'>
+              {done ? (
+                <Check className='h-3.5 w-3.5 text-emerald-600' aria-label='Done' />
+              ) : (
+                <span className='w-3.5 text-center text-xs'>{index + 1}</span>
+              )}
+              <span className={cn(done && 'line-through')}>{text}</span>
+            </li>
+          ))}
+        </ol>
+      </AlertDescription>
+    </Alert>
   );
 }
 

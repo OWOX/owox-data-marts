@@ -321,7 +321,10 @@ describe('MCP tool providers', () => {
         await server.connect(serverTransport);
         await client.connect(clientTransport);
         const catalog = await client.listTools();
-        expect(new Set(catalog.tools.map(tool => tool.name))).toEqual(new Set(toolNames));
+        // A ChatGPT-only tool is the one this client does not list.
+        expect(new Set(catalog.tools.map(tool => tool.name))).toEqual(
+          new Set(tools.filter(tool => tool.chatgpt !== 'only').map(tool => tool.name))
+        );
         for (const name of ['update_storage', 'update_credential']) {
           expect(catalog.tools.find(tool => tool.name === name)).toMatchObject({
             annotations: { readOnlyHint: false, destructiveHint: true },

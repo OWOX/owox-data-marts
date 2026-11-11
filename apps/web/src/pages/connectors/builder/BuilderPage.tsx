@@ -1,5 +1,7 @@
-import { useLocation, useNavigate, useParams } from 'react-router';
+import { useMemo } from 'react';
+import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router';
 import type { BuilderEntryPoint } from '../../../features/connector-builder/create/ConnectorBuilderPage';
+import { testPrefillFrom } from '../../../features/connector-builder/shared/model/testLink';
 import { ConnectorBuilderRoute } from './ConnectorBuilderRoute';
 
 /** The last path segment that opens the builder on a connector that does not exist yet. */
@@ -24,10 +26,13 @@ export default function ConnectorBuilderRoutePage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const location = useLocation();
+  const [searchParams] = useSearchParams();
+  const testPrefill = useMemo(() => testPrefillFrom(searchParams), [searchParams]);
   return (
     <ConnectorBuilderRoute
       id={id === NEW_CONNECTOR_SEGMENT ? undefined : id}
       entryPoint={entryPointOf(location.state)}
+      testPrefill={testPrefill}
       onBack={() => void navigate(-1)}
       // Path-relative so the project scope prefix is preserved; replace keeps Back working.
       onCreated={created => void navigate(`../${created}`, { replace: true, relative: 'path' })}

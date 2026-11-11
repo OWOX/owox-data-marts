@@ -7,6 +7,7 @@ import { McpResourceResolverService } from '../../../mcp-resource/mcp-resource-r
 import type { McpResourceContext } from '../../../mcp-resource/mcp-resource-context';
 import { McpConfigService } from '../config/mcp.config';
 import { firstHeaderValue } from '../http-headers.util';
+import type { McpAuthContext } from './mcp-auth-context';
 import { MCP_AUTH_PORT, type McpAuthPort } from './mcp-auth.port';
 
 const REQUIRED_SCOPES: McpScope[] = ['mcp:read'];
@@ -231,11 +232,11 @@ export class McpAuthMiddleware {
 }
 
 /** Recovers the verified McpTokenPayload stashed in `AuthInfo.extra` by {@link McpAuthMiddleware}. */
-export function toMcpAuthContext(authInfo: AuthInfo | undefined): McpTokenPayload {
+export function toMcpAuthContext(authInfo: AuthInfo | undefined): McpAuthContext {
   const mcpContext = authInfo?.extra?.mcpContext;
   if (!mcpContext) {
     throw new Error('MCP request reached the server factory without a verified auth context');
   }
 
-  return mcpContext as McpTokenPayload;
+  return mcpContext as McpAuthContext;
 }

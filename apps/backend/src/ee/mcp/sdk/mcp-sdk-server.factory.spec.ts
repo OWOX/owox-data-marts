@@ -178,6 +178,36 @@ describe('McpSdkServerFactory', () => {
     expect(handler).toHaveBeenCalledWith({ query: 'orders' }, context, undefined);
   });
 
+  it.each([
+    ['chatgpt', ['everywhere', 'chatgpt_only']],
+    ['claude', ['everywhere', 'not_chatgpt']],
+    [undefined, ['everywhere', 'not_chatgpt']],
+  ] as const)('lists the tools for the %s client', async (integration, names) => {
+    const tool = (name: string, chatgpt?: 'only' | 'hidden') =>
+      ({
+        name,
+        description: name,
+        zodSchema: {},
+        requiredScopes: ['mcp:read'],
+        chatgpt,
+        handler: jest.fn(),
+      }) as McpToolDefinition;
+    const McpSdkServerFactory = await loadFactory();
+    const factory = new McpSdkServerFactory(
+      new McpConfigService({ get: jest.fn() } as never),
+      new McpToolRegistry([
+        tool('everywhere'),
+        tool('chatgpt_only', 'only'),
+        tool('not_chatgpt', 'hidden'),
+      ]),
+      passthroughInstrumentation
+    );
+
+    factory.create({ ...context, integration });
+
+    expect(mockRegisterTool.mock.calls.map(([name]) => name)).toEqual(names);
+  });
+
   it('routes every tool callback through instrumentation.wrap (choke point)', async () => {
     const wrapped = jest.fn();
     const wrap = jest.fn((_name: string, _cb: unknown) => wrapped);

@@ -72,6 +72,7 @@ import { UpdateCustomConnectorTool } from './custom-connector/update-custom-conn
 import { GetCustomConnectorVersionTool } from './custom-connector/get-custom-connector-version.tool';
 import { SaveCustomConnectorDraftTool } from './custom-connector/save-custom-connector-draft.tool';
 import { TestCustomConnectorTool } from './custom-connector/test-custom-connector.tool';
+import { GetCustomConnectorTestLinkTool } from './custom-connector/get-custom-connector-test-link.tool';
 import { PublishCustomConnectorTool } from './custom-connector/publish-custom-connector.tool';
 import { ActivateCustomConnectorVersionTool } from './custom-connector/activate-custom-connector-version.tool';
 import { DeleteCustomConnectorTool } from './custom-connector/delete-custom-connector.tool';
@@ -163,6 +164,7 @@ export const MCP_TOOL_PROVIDER_CLASSES: Array<Type<McpToolDefinition>> = [
   GetCustomConnectorVersionTool,
   SaveCustomConnectorDraftTool,
   TestCustomConnectorTool,
+  GetCustomConnectorTestLinkTool,
   PublishCustomConnectorTool,
   ActivateCustomConnectorVersionTool,
   DeleteCustomConnectorTool,

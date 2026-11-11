@@ -81,7 +81,7 @@ Click **Test** in the top bar, then the gear icon to open **Test settings**. Cho
 
 The parameters that do not hold keys, such as the package `owox`, you still enter in both cases. Keys from a Credential can be used only where the connector builds a request; see [Key parameters](manifest-reference.md#key-parameters). The test uses the connector as it is in the editor, unsaved changes included.
 
-The result opens as a **Table**, as raw **JSON**, or as the run's **Logs**. If the test fails, the error and the **Logs** show what went wrong.
+The result opens as a **Table**, as raw **JSON**, or as the run's **Logs**. If the test fails, the error and the **Logs** show what went wrong. **Copy for AI** copies the result, with the rows, logs and error, as text for an AI assistant that builds the connector through [MCP](../getting-started/setup-guide/mcp.md#custom-connector-authoring). A link from the assistant opens this test with the node and its inputs filled in, and lists the steps: **Run test**, **Copy for AI**, then paste into the chat.
 
 ![A passed test of the daily node: 25 records of day and downloads in the results table](../res/screens/Connector-Builder-Test.png)
 
