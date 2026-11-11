@@ -226,7 +226,8 @@ export class PluginCredentialRuntimeController {
   ): Promise<CredentialRoute | OwoxAiRoute> {
     const { requirement, version } = await this.findRequirement(handle, context, model);
     const installation = await this.installations.findById(context.installationId!);
-    if (installation?.owoxAi) {
+    // An uninstalled plugin keeps owoxAi, but a backend action can still run until its deadline.
+    if (installation?.owoxAi && !installation.uninstalledAt) {
       // As on the Credential path, every declared model must be available, not only this one.
       const { key, models } = normalizeCredentialRequirement(requirement);
       if (!this.owoxAi.provides(models)) {

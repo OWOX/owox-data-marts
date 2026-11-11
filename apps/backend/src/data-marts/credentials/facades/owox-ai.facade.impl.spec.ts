@@ -49,8 +49,11 @@ describe('OwoxAiFacadeImpl', () => {
   };
   const facade = new OwoxAiFacadeImpl(models as never, ai as never, billing as never);
 
+  let logWarn: jest.SpyInstance;
+
   beforeEach(() => {
     jest.clearAllMocks();
+    logWarn = jest.spyOn(Logger.prototype, 'warn').mockImplementation();
     models.models.mockReturnValue(['fast', 'reasoning', 'embedding']);
     billing.verifyCanPerformOperations.mockResolvedValue(undefined);
     billing.registerPluginAiProcessRunConsumption.mockResolvedValue(undefined);
@@ -214,15 +217,6 @@ describe('OwoxAiFacadeImpl', () => {
     expect(billing.registerPluginAiProcessRunConsumption).toHaveBeenCalledWith(11, context);
   });
 
-  it('hides the model ID and the provider response ID from stream parts', async () => {
-    const metadata = { type: 'response-metadata', id: 'gen-1', modelId: 'vendor/model' };
-    ai.streamWith.mockResolvedValue(streamOf([metadata, textDelta, finish('stop')]));
-
-    const parts = await drain(await facade.stream(context, 'fast', { prompt: [] }, signal));
-
-    expect(parts[0]).toEqual({ type: 'response-metadata' });
-  });
-
   it('does not record a stream that ends with an error finish reason', async () => {
     ai.streamWith.mockResolvedValue(streamOf([textDelta, finish('error')]));
 
@@ -250,6 +244,47 @@ describe('OwoxAiFacadeImpl', () => {
 
     expect(cancel).toHaveBeenCalledWith('stop');
     expect(billing.registerPluginAiProcessRunConsumption).not.toHaveBeenCalled();
+    expect(logWarn).toHaveBeenCalledTimes(1);
+    expect(logWarn).toHaveBeenCalledWith(
+      'OWOX AI stream stopped before its finish part and is not billed: plugin plugin-1, project project-1, model fast, parts sent 1'
+    );
+  });
+
+  it('warns about a stream that stops on abort before the finish part', async () => {
+    const aborted = new AbortController();
+    let fail: (error: unknown) => void = () => undefined;
+    ai.streamWith.mockResolvedValue(
+      new ReadableStream({
+        start(controller) {
+          controller.enqueue(textDelta);
+          fail = error => controller.error(error);
+        },
+      })
+    );
+    const reader = (
+      await facade.stream(context, 'fast', { prompt: [] }, aborted.signal)
+    ).getReader();
+    await reader.read();
+
+    const pending = reader.read();
+    aborted.abort();
+    fail(new Error('aborted'));
+
+    await expect(pending).rejects.toThrow('aborted');
+    await reader.cancel().catch(() => undefined);
+    expect(billing.registerPluginAiProcessRunConsumption).not.toHaveBeenCalled();
+    expect(logWarn).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not warn about a stream that reaches its finish part', async () => {
+    ai.streamWith.mockResolvedValue(streamOf([textDelta, finish('error')]));
+    const reader = (await facade.stream(context, 'fast', { prompt: [] }, signal)).getReader();
+
+    await reader.read();
+    await reader.read();
+    await reader.cancel();
+
+    expect(logWarn).not.toHaveBeenCalled();
   });
 
   it('returns the result when recording fails', async () => {

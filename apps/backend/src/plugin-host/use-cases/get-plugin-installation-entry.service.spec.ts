@@ -156,8 +156,12 @@ describe('GetPluginInstallationEntryService', () => {
     });
 
     it('leaves out an optional ai requirement when OWOX AI is off', async () => {
-      const state = setup(owoxAiRow, {}, [{ key: 'ai', optional: true } as never], false);
+      const state = setup(owoxAiRow, {}, [{ id: 'ai', optional: true } as never], false);
       await expect(entry(state.service)).resolves.toMatchObject({ credentialHandles: [] });
+      expect(state.owoxAi.provides).toHaveBeenCalled();
+      expect(state.credentialBindings.assertConsumerReady).toHaveBeenCalledWith(
+        expect.objectContaining({ requirements: [] })
+      );
     });
 
     it('uses the Credential binding when owoxAi is false', async () => {

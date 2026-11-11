@@ -25,7 +25,7 @@ export function useCredentialSelectionsForm(
     isLoading: credentialsLoading,
     isError: credentialsFailed,
   } = useCredentials();
-  const { owoxAi, isLoading: owoxAiStatusLoading } = useOwoxAi();
+  const { owoxAi, isLoading: owoxAiStatusLoading, isError: owoxAiStatusFailed } = useOwoxAi();
   const [chosen, setSelections] =
     useState<Partial<Record<string, string | null>>>(initialSelections);
   const [touched, setTouched] = useState<ReadonlySet<string>>(new Set());
@@ -61,8 +61,13 @@ export function useCredentialSelectionsForm(
   );
 
   const offers = useCallback(
-    (requirement: NormalizedPluginCredentialRequirement) => offersOwoxAi(owoxAi, requirement),
-    [owoxAi]
+    (requirement: NormalizedPluginCredentialRequirement) =>
+      offersOwoxAi(owoxAi, requirement) ||
+      // A status that cannot be read keeps a saved OWOX AI choice; the server checks it on save.
+      (owoxAiStatusFailed &&
+        requirement.definitionId === null &&
+        own(chosen, requirement.key) === OWOX_AI_SELECTION),
+    [owoxAi, owoxAiStatusFailed, chosen]
   );
   // An OWOX AI choice the status no longer offers (it was refetched) is no choice. Derived,
   // not stored: a status that arrives late must not replace a choice the member made.

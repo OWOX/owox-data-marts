@@ -274,7 +274,8 @@ describe('PluginCredentialRuntimeController with OWOX AI', () => {
   function owoxRuntime(
     owoxAi = true,
     requirements: unknown[] = AI,
-    provided: string[] = ['fast', 'reasoning', 'embedding']
+    provided: string[] = ['fast', 'reasoning', 'embedding'],
+    uninstalledAt: Date | null = null
   ) {
     const bindings = { resolveBinding: jest.fn(), markUsed: jest.fn() };
     const aiService = { generate: jest.fn(), stream: jest.fn(), embed: jest.fn() };
@@ -294,7 +295,7 @@ describe('PluginCredentialRuntimeController with OWOX AI', () => {
       { run: jest.fn() } as never,
       aiService as never,
       bindings as never,
-      { findById: jest.fn().mockResolvedValue({ owoxAi }) } as never,
+      { findById: jest.fn().mockResolvedValue({ owoxAi, uninstalledAt }) } as never,
       facade as never
     );
     return { controller, bindings, aiService, facade };
@@ -399,6 +400,24 @@ describe('PluginCredentialRuntimeController with OWOX AI', () => {
     ).resolves.toEqual({ ok: 'credential' });
     expect(facade.generate).not.toHaveBeenCalled();
     expect(bindings.markUsed).toHaveBeenCalled();
+  });
+
+  it('does not use OWOX AI for an uninstalled installation', async () => {
+    const { controller, bindings, facade } = owoxRuntime(true, AI, undefined, new Date());
+    bindings.resolveBinding.mockRejectedValue(
+      new NotFoundException('Credential ai is not configured')
+    );
+
+    await expect(
+      controller.generate(
+        'ai',
+        { version: 1, model: 'fast', options: {} },
+        context,
+        request() as never
+      )
+    ).rejects.toBeInstanceOf(NotFoundException);
+    expect(facade.generate).not.toHaveBeenCalled();
+    expect(bindings.resolveBinding).toHaveBeenCalled();
   });
 
   it('answers 404 for an undeclared model even with OWOX AI', async () => {

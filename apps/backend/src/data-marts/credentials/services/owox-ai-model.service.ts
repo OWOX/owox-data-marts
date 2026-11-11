@@ -7,7 +7,12 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { createOpenAI } from '@ai-sdk/openai';
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
-import type { EmbeddingModelV4, EmbeddingModelV4Result, LanguageModelV4 } from '@ai-sdk/provider';
+import {
+  TooManyEmbeddingValuesForCallError,
+  type EmbeddingModelV4,
+  type EmbeddingModelV4Result,
+  type LanguageModelV4,
+} from '@ai-sdk/provider';
 import {
   AI_PROVIDER_ENV,
   AiProviderName,
@@ -175,15 +180,43 @@ function oneValuePerRequest(model: EmbeddingModelV4): EmbeddingModelV4 {
     maxEmbeddingsPerCall: model.maxEmbeddingsPerCall,
     supportsParallelCalls: model.supportsParallelCalls,
     async doEmbed(options) {
-      const results: EmbeddingModelV4Result[] = new Array(options.values.length);
+      const { values } = options;
+      if (values.length === 0) {
+        throw new BadRequestException('An embedding call needs at least one value');
+      }
+      // The provider checks this limit for a batch, but each request here has one value.
+      const maxEmbeddingsPerCall = await model.maxEmbeddingsPerCall;
+      if (maxEmbeddingsPerCall !== undefined && values.length > maxEmbeddingsPerCall) {
+        throw new TooManyEmbeddingValuesForCallError({
+          provider: model.provider,
+          modelId: model.modelId,
+          maxEmbeddingsPerCall,
+          values,
+        });
+      }
+      // The first failure stops the other workers and cancels their requests.
+      const stop = new AbortController();
+      const abortSignal = options.abortSignal
+        ? AbortSignal.any([options.abortSignal, stop.signal])
+        : stop.signal;
+      const results: EmbeddingModelV4Result[] = new Array(values.length);
       let next = 0;
       const worker = async () => {
-        while (next < options.values.length) {
+        while (next < values.length && !stop.signal.aborted) {
           const index = next++;
-          results[index] = await model.doEmbed({ ...options, values: [options.values[index]] });
+          try {
+            results[index] = await model.doEmbed({
+              ...options,
+              values: [values[index]],
+              abortSignal,
+            });
+          } catch (error) {
+            stop.abort();
+            throw error;
+          }
         }
       };
-      const workers = Math.min(OPENROUTER_EMBEDDING_CONCURRENCY, options.values.length);
+      const workers = Math.min(OPENROUTER_EMBEDDING_CONCURRENCY, values.length);
       await Promise.all(Array.from({ length: workers }, worker));
       return {
         embeddings: results.map(result => result.embeddings[0]),

@@ -1,3 +1,4 @@
+import { TooManyEmbeddingValuesForCallError } from '@ai-sdk/provider';
 import { NotFoundException } from '@nestjs/common';
 import type { ConfigService } from '@nestjs/config';
 import { createOwoxAiFetch, OwoxAiModelService } from './owox-ai-model.service';
@@ -286,6 +287,52 @@ describe('OwoxAiModelService', () => {
     }
     expect(result.embeddings).toEqual([[1], [2], [3]]);
     expect(result.usage).toEqual({ tokens: 6 });
+  });
+
+  it('stops the other OpenRouter embedding requests after the first failure', async () => {
+    fetchMock.mockImplementation(
+      async () =>
+        new Response(
+          JSON.stringify({
+            data: [{ index: 0, embedding: [1] }],
+            usage: { prompt_tokens: 1, total_tokens: 1 },
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } }
+        )
+    );
+    const model = createService({ ...BASE_ENV, AI_PLUGIN_EMBEDDING_MODEL: 'embed' }).embeddingModel(
+      new AbortController().signal
+    );
+    // The first value is over the request size cap, so its request fails before it goes out.
+    const values = ['x'.repeat(1024 * 1024), ...Array.from({ length: 40 }, () => 'a')];
+
+    await expect(model.doEmbed({ values })).rejects.toMatchObject({ status: 400 });
+    await new Promise(resolve => setTimeout(resolve, 20));
+
+    expect(fetchMock.mock.calls.length).toBeLessThan(8);
+    for (const [, init] of fetchMock.mock.calls) {
+      expect((init as RequestInit).signal?.aborted).toBe(true);
+    }
+  });
+
+  it('rejects more OpenRouter embedding values than one call accepts', async () => {
+    const model = createService({ ...BASE_ENV, AI_PLUGIN_EMBEDDING_MODEL: 'embed' }).embeddingModel(
+      new AbortController().signal
+    );
+
+    await expect(
+      model.doEmbed({ values: Array.from({ length: 2049 }, () => 'a') })
+    ).rejects.toBeInstanceOf(TooManyEmbeddingValuesForCallError);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('rejects an OpenRouter embedding call with no values', async () => {
+    const model = createService({ ...BASE_ENV, AI_PLUGIN_EMBEDDING_MODEL: 'embed' }).embeddingModel(
+      new AbortController().signal
+    );
+
+    await expect(model.doEmbed({ values: [] })).rejects.toMatchObject({ status: 400 });
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it('aborts the provider call when the caller signal aborts', async () => {

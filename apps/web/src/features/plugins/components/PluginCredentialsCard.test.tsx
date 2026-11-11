@@ -10,10 +10,15 @@ const credentialState = vi.hoisted(() => ({
   credentialsFailed: false,
   owoxAi: undefined as { models: string[]; billed: boolean } | undefined,
   owoxAiLoading: false,
+  owoxAiFailed: false,
 }));
 
 vi.mock('../hooks/useOwoxAi', () => ({
-  useOwoxAi: () => ({ owoxAi: credentialState.owoxAi, isLoading: credentialState.owoxAiLoading }),
+  useOwoxAi: () => ({
+    owoxAi: credentialState.owoxAi,
+    isLoading: credentialState.owoxAiLoading,
+    isError: credentialState.owoxAiFailed,
+  }),
 }));
 
 vi.mock('../../../shared/components/Combobox/combobox', () => ({
@@ -132,6 +137,7 @@ describe('PluginCredentialsCard', () => {
     credentialState.credentialsFailed = false;
     credentialState.owoxAi = undefined;
     credentialState.owoxAiLoading = false;
+    credentialState.owoxAiFailed = false;
   });
 
   it('starts from the current grants, with nothing to save or discard yet', () => {
@@ -409,6 +415,15 @@ describe('PluginCredentialsCard', () => {
       fireEvent.change(aiSelect(), { target: { value: 'credential-ai' } });
       await save();
       expect(props.onSave).toHaveBeenCalledWith({ ai: 'credential-ai' });
+    });
+
+    it('keeps an OWOX AI grant when the OWOX AI status cannot be read', () => {
+      credentialState.owoxAi = undefined;
+      credentialState.owoxAiFailed = true;
+      renderCard({ plugin: aiPlugin(), granted: { ai: 'owox-ai' } });
+
+      expect(aiSelect()).toHaveValue('owox-ai');
+      expect(screen.queryByRole('alert')).toBeNull();
     });
 
     it('says nothing about an OWOX AI grant while the OWOX AI status loads', () => {

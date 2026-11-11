@@ -63,6 +63,11 @@ export function sanitizeCredentialAiStreamPart(value: unknown): unknown | null {
   if (value.type === 'error') {
     return { type: 'error', error: { name: 'Error', message: 'AI provider request failed' } };
   }
+  if (value.type === 'response-metadata') {
+    // Plugin code must not learn which model answered, on any AI route.
+    const { id: _id, modelId: _modelId, ...metadata } = value;
+    return encodeCredentialAiValue(stripProviderOutput(metadata, 0));
+  }
   return encodeCredentialAiValue(stripProviderOutput(value, 0));
 }
 

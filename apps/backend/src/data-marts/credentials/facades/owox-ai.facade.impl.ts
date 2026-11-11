@@ -74,21 +74,44 @@ export class OwoxAiFacadeImpl implements OwoxAiFacade {
       this.owoxAiModels.failureLog(model)
     );
     const reader = source.getReader();
+    let parts = 0;
+    let finished = false;
+    // A stream stopped before its finish part is not billed, so the log shows how often that happens.
+    const warnUnbilled = () => {
+      if (finished) return;
+      finished = true;
+      this.logger.warn(
+        `OWOX AI stream stopped before its finish part and is not billed: plugin ${context.pluginId}, project ${context.projectId}, model ${model}, parts sent ${parts}`
+      );
+    };
     return new ReadableStream<unknown>(
       {
         pull: async controller => {
-          const { done, value } = await reader.read();
-          if (done) {
+          let read: ReadableStreamReadResult<unknown>;
+          try {
+            read = await reader.read();
+          } catch (error) {
+            if (signal.aborted) warnUnbilled();
+            throw error;
+          }
+          if (read.done) {
             controller.close();
             return;
           }
-          const part = value as StreamPart;
-          if (part.type === 'finish' && part.finishReason?.unified !== 'error') {
-            this.record(context, languageTokens(part.usage));
+          const part = read.value as StreamPart;
+          parts++;
+          if (part.type === 'finish') {
+            finished = true;
+            if (part.finishReason?.unified !== 'error') {
+              this.record(context, languageTokens(part.usage));
+            }
           }
-          controller.enqueue(part.type === 'response-metadata' ? withoutModelNames(part) : value);
+          controller.enqueue(read.value);
         },
-        cancel: reason => reader.cancel(reason),
+        cancel: reason => {
+          warnUnbilled();
+          return reader.cancel(reason);
+        },
       },
       // Read the source only when the caller reads, so a cancel before the finish part records nothing.
       { highWaterMark: 0 }
@@ -137,19 +160,6 @@ export class OwoxAiFacadeImpl implements OwoxAiFacade {
       .registerPluginAiProcessRunConsumption(tokensProcessed, context)
       .catch(error => this.logger.error('Failed to register consumption:', error));
   }
-}
-
-/** Plugin code must not learn which model or provider generation answered. */
-function withoutModelNames(part: StreamPart): StreamPart {
-  const {
-    id: _id,
-    modelId: _modelId,
-    ...rest
-  } = part as StreamPart & {
-    id?: unknown;
-    modelId?: unknown;
-  };
-  return rest;
 }
 
 function languageTokens(usage: LanguageUsage | undefined): number {
