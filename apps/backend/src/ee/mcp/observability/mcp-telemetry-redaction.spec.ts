@@ -1040,11 +1040,15 @@ describe('mcpManifestKeyPaths', () => {
       ['nodes.items.request.body.filter'],
     ],
     [
-      'a key with digits next to a reference',
+      'a long key next to a reference',
       {
         authentication: {
           type: 'bearer',
-          inject: { into: 'header', name: 'Authorization', format: 'sk1234 {{ parameters.Key }}' },
+          inject: {
+            into: 'header',
+            name: 'Authorization',
+            format: 'sk_live_51HxQwErTyUiOpAs {{ parameters.Key }}',
+          },
         },
       },
       ['authentication.inject.format'],
@@ -1087,6 +1091,11 @@ describe('mcpManifestKeyPaths', () => {
       },
       ['authentication.exchange.body.api_secret', 'nodes.items.request.headers.X-Token'],
     ],
+    [
+      'keys under a plural name',
+      node({ body: { api_tokens: ['sk_live_123456'], tokens: 'sk_live_999' } }),
+      ['nodes.items.request.body.api_tokens.0', 'nodes.items.request.body.tokens'],
+    ],
   ])('finds %s', (_label, manifest, paths) => {
     expect(mcpManifestKeyPaths(manifest)).toEqual(paths);
   });
@@ -1115,6 +1124,11 @@ describe('mcpManifestKeyPaths', () => {
     '{{ parameters.User }}:{{ parameters.Pass }}',
     'sso-key {{ parameters.Key }}:{{ parameters.Pass }}',
     'Token token="{{ parameters.Key }}"',
+    'sid={{ parameters.Key }}; lang=en',
+    'session_id={{ parameters.Key }}',
+    'OAuth oauth_token={{ parameters.Key }}',
+    'Token token={{ parameters.Key }}, email={{ parameters.User }}',
+    '{{ parameters.Key }}.v2',
   ])('accepts the composite template %s in authentication and a node header', format => {
     expect(
       mcpManifestKeyPaths({
@@ -1170,6 +1184,26 @@ describe('mcpManifestKeyPaths', () => {
         inject: { into: 'header', name: 'Authorization', format: 'Bearer {{ auth.token }}' },
       },
       parameters: { Secret: { attributes: ['SECRET'], default: '' } },
+    };
+
+    expect(mcpManifestKeyPaths(manifest)).toEqual([]);
+    expect(maskMcpManifestKeys(manifest)).toEqual(manifest);
+  });
+
+  it('accepts settings whose names hold a key word', () => {
+    const manifest = {
+      parameters: {
+        TokenKind: { default: 'short' },
+        PasswordPolicy: { default: 'strict', options: ['strict', 'lax'] },
+      },
+      ...node({
+        body: {
+          token_format: 'jwt',
+          include_secret: false,
+          max_tokens: 1000,
+          filter: { password_changed: true },
+        },
+      }),
     };
 
     expect(mcpManifestKeyPaths(manifest)).toEqual([]);

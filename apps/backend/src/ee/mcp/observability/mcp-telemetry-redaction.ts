@@ -25,8 +25,8 @@ interface RedactionContext {
 function isCredentialName(name: string): boolean {
   const normalized = name.replace(/[_\-\s]/g, '').toLowerCase();
   if (
-    // `total_tokens` counts tokens; a key is one token.
-    /(?:count|url|uri|path|type|name|hint|endpoint|ttl|tokens)$/.test(normalized) ||
+    /(?:count|url|uri|path|type|name|hint|endpoint|ttl)$/.test(normalized) ||
+    /^(?:total|prompt|completion|input|output|max|cached|reasoning)tokens$/.test(normalized) ||
     /^(?:next|previous)?(?:page|cursor|continuation|pagination)token$/.test(normalized)
   )
     return false;
@@ -43,6 +43,16 @@ function isRequestCredentialName(name: string, inferCredentialNames: boolean): b
     /(?:api|access|subscription|app|auth|secret|private)key$/.test(normalized) ||
     /(?:api|access|refresh|developer|personalaccess|auth|session|bearer|private)token$/.test(
       normalized
+    )
+  );
+}
+
+/** A key check flags a name that ends in a key word: `api_secret`, not `token_format`. */
+function isKeyName(name: string): boolean {
+  return (
+    isRequestCredentialName(name, true) &&
+    /(?:authorization|bearer|cookie|token|secret|password|passwd|key|credential|auth|appid)s?$/.test(
+      name.replace(/[_\-\s]/g, '').toLowerCase()
     )
   );
 }
@@ -64,8 +74,8 @@ function isCredentialReference(value: string, keyCheck = false): boolean {
     return (
       hasReference &&
       (/^(?:Bearer|Basic|ApiKey|Token)?$/i.test(literal.trim()) ||
-        // A key check reads a whole template: `sso-key {{ k }}:{{ s }}` holds no key; a key has digits.
-        (keyCheck && /^[A-Za-z\s:="'-]*$/.test(literal)))
+        // A key check reads a whole template: `sid={{ s }}; lang=en` holds no key, a long run does.
+        (keyCheck && !/[A-Za-z0-9]{16,}/.test(literal)))
     );
   } catch {
     return false;
@@ -98,7 +108,7 @@ function redactCredential(value: unknown, context: RedactionContext, depth = 0):
         // In a token exchange body, grant_type and scope are protocol and api_secret is a key.
         context.keyCheck &&
         (isPrimitive(item) || (Array.isArray(item) && item.every(isPrimitive))) &&
-        !isRequestCredentialName(key, context.inferCredentialNames)
+        !isKeyName(key)
           ? item
           : redactCredential(item, context, depth + 1),
       ])
@@ -124,6 +134,8 @@ function redactCredential(value: unknown, context: RedactionContext, depth = 0):
   if (
     value == null ||
     value === '' ||
+    // A key check: a flag or a count is not a key.
+    (context.keyCheck && typeof value !== 'string') ||
     (typeof value === 'string' && isCredentialReference(value, context.keyCheck))
   )
     return value;
@@ -155,7 +167,12 @@ function redactUrlCredentials(text: string, context: RedactionContext): string {
         } catch {
           /* unfinished URL */
         }
-        if (!isRequestCredentialName(decodedName, context.inferCredentialNames)) return match;
+        if (
+          !(context.keyCheck
+            ? isKeyName(decodedName)
+            : isRequestCredentialName(decodedName, context.inferCredentialNames))
+        )
+          return match;
         return `${separator}${name}=${redactCredential(decodedValue, context) === decodedValue ? value : REDACTED}`;
       }
     );
@@ -185,10 +202,12 @@ function redact(value: unknown, context: RedactionContext, depth = 0, container 
       !schemaName &&
       (namedSecret ||
         (context.connector
-          ? ((context.inferCredentialNames || container === 'oauthParams') &&
-              isCredentialName(key)) ||
-            ((container === 'headers' || container === 'queryParameters') &&
-              isRequestCredentialName(key, context.inferCredentialNames))
+          ? context.keyCheck
+            ? isKeyName(key)
+            : ((context.inferCredentialNames || container === 'oauthParams') &&
+                isCredentialName(key)) ||
+              ((container === 'headers' || container === 'queryParameters') &&
+                isRequestCredentialName(key, context.inferCredentialNames))
           : REDACT_KEYS.test(key)));
     if (credential) {
       rememberSecret(item, context);
@@ -206,7 +225,10 @@ function maskParameters(value: unknown, context: RedactionContext, depth = 0): u
   if (!parsed.success) return redactCredential(value, context, depth);
   return Object.fromEntries(
     Object.entries(parsed.data).map(([name, raw]) => {
-      if (context.inferCredentialNames && isCredentialName(name)) context.secretNames.add(name);
+      if (
+        context.keyCheck ? isKeyName(name) : context.inferCredentialNames && isCredentialName(name)
+      )
+        context.secretNames.add(name);
       const definition = objectSchema.safeParse(raw);
       if (!definition.success) {
         if (context.secretNames.has(name)) {

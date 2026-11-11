@@ -335,8 +335,10 @@ Keys go only through Credentials. Declare each key as a parameter with
 a literal key or a `[REDACTED]` value. They look for keys in `authentication`, in
 `SECRET` parameters, and in credential headers and query parameters such as
 `Authorization` and `api_key`. `get_custom_connector_version` shows a literal key
-in these places as `[REDACTED]`. Text around a parameter reference that names an
-auth scheme, such as `Klaviyo-API-Key {{ parameters.ApiKey }}`, is not a key.
+in these places as `[REDACTED]`. Text around a parameter reference, such as
+`Klaviyo-API-Key {{ parameters.ApiKey }}` or `sid={{ parameters.Sid }}; lang=en`,
+is not a key unless it holds a run of 16 or more letters and digits. A number or a
+boolean is not a key.
 For tests that need keys, select a compatible saved Credential with `credential_id`.
 Omit fields supplied by that Credential from `configuration`.
 Use `start_credential_setup` to create or update a Credential in the browser.
