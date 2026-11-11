@@ -199,14 +199,16 @@ export function buildMcpToolCallEvent(p: BuildMcpToolCallEventParams): McpToolCa
     // cannot tell a key in configuration from a setting. The tool already masked its result with it.
     arguments: privateConfiguration
       ? REDACTED
-      : p.toolName === 'test_custom_connector'
+      : p.toolName === 'test_custom_connector' || p.toolName === 'get_custom_connector_test_link'
         ? { ...(redact(p.input) as Record<string, unknown>), configuration: REDACTED }
         : redact(p.input),
-    result: privateConfiguration
-      ? REDACTED
-      : p.toolName === 'test_custom_connector'
-        ? (p.result?.structuredContent ?? p.result?.content)
-        : redact(p.result?.structuredContent ?? p.result?.content, p.input),
+    // The test link's url carries the same configuration in its query.
+    result:
+      privateConfiguration || p.toolName === 'get_custom_connector_test_link'
+        ? REDACTED
+        : p.toolName === 'test_custom_connector'
+          ? (p.result?.structuredContent ?? p.result?.content)
+          : redact(p.result?.structuredContent ?? p.result?.content, p.input),
   };
   if (p.executedSql) offload.sql = privateConfiguration ? REDACTED : p.executedSql;
   payload[OFFLOAD_KEY] = offload;

@@ -7,6 +7,8 @@ import { OAuthMetadataController } from './controllers/oauth-metadata.controller
 import { OAuthRegistrationController } from './controllers/oauth-registration.controller';
 import { OAuthTokenController } from './controllers/oauth-token.controller';
 import { IdpProviderOAuthAdapter } from './idp-provider-oauth.adapter';
+import { MCP_CLIENT_FACADE } from '../facades/mcp-client.facade';
+import { McpClientFacadeImpl } from '../facades/mcp-client.facade.impl';
 import { OAuthClientRegistry } from './oauth-client.registry';
 import { OAuthConfigService } from './oauth-config.service';
 import { OAuthDynamicClientService } from './oauth-dynamic-client.service';
@@ -48,7 +50,9 @@ import { IdpProviderService } from '../services/idp-provider.service';
       provide: OAUTH_IDP_PORT,
       useExisting: IdpProviderOAuthAdapter,
     },
+    // The registry stays inside this module; others read a client only through the facade.
+    { provide: MCP_CLIENT_FACADE, useClass: McpClientFacadeImpl },
   ],
-  exports: [OAUTH_IDP_PORT, OAuthConfigService],
+  exports: [OAUTH_IDP_PORT, OAuthConfigService, MCP_CLIENT_FACADE],
 })
 export class OAuthModule {}

@@ -1,4 +1,4 @@
-import { BadRequestException, Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import type { McpScope, Role } from '@owox/idp-protocol';
 import { castError } from '@owox/internal-helpers';
 import { z } from 'zod';
@@ -7,14 +7,12 @@ import {
   type McpCustomConnectorsFacade,
 } from '../../../../data-marts/facades/mcp-custom-connectors.facade';
 import type { McpAuthContext } from '../../auth/mcp-auth-context';
-import {
-  createMcpInputSecretRedactor,
-  mcpSecretParameterNames,
-} from '../../observability/mcp-telemetry-redaction';
+import { createMcpInputSecretRedactor } from '../../observability/mcp-telemetry-redaction';
 import { jsonToolResult, type McpToolDefinition, type McpToolResult } from '../mcp-tool.definition';
 import { testConnectorSchema, connectorTestOutputSchema } from './custom-connector.schemas';
 
 import { boundTestLogsForMcp } from './custom-connector-test-logs';
+import { loadDraftForTest } from './custom-connector-test-draft';
 
 const inputSchema = testConnectorSchema;
 const resultValuesSchema = z.tuple([
@@ -40,6 +38,8 @@ export class TestCustomConnectorTool implements McpToolDefinition<Input> {
   };
   readonly requiredScopes: McpScope[] = ['mcp:write'];
   readonly requiredRole: Role = 'editor';
+  // ChatGPT reviews each call it lists, and a test runs requests that the draft defines.
+  readonly chatgpt = 'hidden';
 
   constructor(
     @Inject(MCP_CUSTOM_CONNECTORS_FACADE) private readonly connectors: McpCustomConnectorsFacade
@@ -47,31 +47,8 @@ export class TestCustomConnectorTool implements McpToolDefinition<Input> {
 
   async handler(input: Input, context: McpAuthContext): Promise<McpToolResult> {
     const parsed = inputSchema.parse(input);
-    // The draft is saved data, so the request definition is never a tool argument.
-    const { versions } = await this.connectors.get(context.projectId, parsed.connector_id);
-    // Publish takes the newest draft, so the test does too.
-    const draft = versions.findLast(version => version.status === 'draft');
-    if (!draft) {
-      throw new BadRequestException(
-        'This connector has no draft. Save one with save_custom_connector_draft, then test it.'
-      );
-    }
-    const { manifest } = await this.connectors.getVersion(
-      context.projectId,
-      parsed.connector_id,
-      draft.version
-    );
+    const { manifest } = await loadDraftForTest(this.connectors, context.projectId, parsed);
     const tested = { manifest, configuration: parsed.configuration };
-    // Keys typed here pass through the AI client to its provider; only a saved Credential carries them.
-    const secretNames = mcpSecretParameterNames(tested, parsed.node);
-    const keys = Object.keys(parsed.configuration).filter(name => secretNames.has(name));
-    if (keys.length > 0) {
-      throw new BadRequestException(
-        `Remove ${keys.join(', ')} from configuration. This tool does not accept keys. ` +
-          'Select a saved Credential with credential_id. A Credential supplies only the parameters that the draft marks with attributes: ["SECRET"] or uses in authentication, so mark any other key parameter SECRET and save the draft. ' +
-          'To save keys in a new Credential, call start_credential_setup with connector_id.'
-      );
-    }
     // A draft saved outside MCP can still hold a literal key; mask it in what the model reads.
     const redactResult = createMcpInputSecretRedactor(tested);
     const result = await this.connectors

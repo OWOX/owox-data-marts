@@ -20,7 +20,7 @@ describe('MCP guides', () => {
     expect(credentials).toContain('Completion does not prove provider validation');
     expect(credentials).toContain('Do not promise a background completion notification');
     expect(MCP_GUIDES.custom_connectors).toContain(
-      'test_custom_connector rejects keys in configuration'
+      'test_custom_connector and get_custom_connector_test_link reject keys in configuration'
     );
     expect(Object.values(MCP_GUIDES).join('\n')).not.toMatch(/temporary key/i);
   });

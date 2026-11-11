@@ -16,6 +16,7 @@ import { CreateCustomConnectorTool } from './create-custom-connector.tool';
 import { DeleteCustomConnectorTool } from './delete-custom-connector.tool';
 import { GetCustomConnectorFieldsTool } from './get-custom-connector-fields.tool';
 import { GetCustomConnectorSpecificationTool } from './get-custom-connector-specification.tool';
+import { GetCustomConnectorTestLinkTool } from './get-custom-connector-test-link.tool';
 import { GetCustomConnectorVersionTool } from './get-custom-connector-version.tool';
 import { GetCustomConnectorTool } from './get-custom-connector.tool';
 import { ListCustomConnectorsTool } from './list-custom-connectors.tool';
@@ -81,6 +82,7 @@ describe('custom connector tools through the MCP SDK', () => {
       new DeleteCustomConnectorTool(facade),
       new GetCustomConnectorFieldsTool(facade),
       new GetCustomConnectorSpecificationTool(facade),
+      new GetCustomConnectorTestLinkTool(facade, publicOrigin),
       new GetCustomConnectorVersionTool(facade),
       new GetCustomConnectorTool(facade, publicOrigin),
       new ListCustomConnectorsTool(facade),
@@ -372,6 +374,81 @@ describe('custom connector tools through the MCP SDK', () => {
       expect.anything(),
       expect.objectContaining({ configuration: { AuthMode: 'apikey' } })
     );
+  });
+
+  describe('in ChatGPT', () => {
+    const openChatGpt = () => open({ ...adminMcpContext, integration: 'chatgpt' });
+
+    it('lists the test link instead of the live test', async () => {
+      const names = (await (await openChatGpt()).listTools()).tools.map(tool => tool.name);
+      expect(names).toContain('get_custom_connector_test_link');
+      expect(names).not.toContain('test_custom_connector');
+      const other = (await (await open()).listTools()).tools.map(tool => tool.name);
+      expect(other).toContain('test_custom_connector');
+      expect(other).not.toContain('get_custom_connector_test_link');
+    });
+
+    it('returns a Builder link that fills in the test and runs nothing', async () => {
+      const client = await openChatGpt();
+      storeDraft(manifest);
+      const result = await client.callTool({
+        name: 'get_custom_connector_test_link',
+        arguments: {
+          connector_id: 'connector',
+          node: 'items',
+          configuration: { Region: 'private-region' },
+          credential_id: 'credential-1',
+          max_rows: 10,
+        },
+      });
+      expect(result.isError).not.toBe(true);
+      const url = new URL((result.structuredContent as { url: string }).url);
+      expect(url.origin + url.pathname).toBe(
+        `https://app.example.test/ui/${adminMcpContext.projectId}/connectors/builder/connector`
+      );
+      expect(Object.fromEntries(url.searchParams)).toEqual({
+        test: 'items',
+        credential: 'credential-1',
+        rows: '10',
+        config: '{"Region":"private-region"}',
+        keys: 'Value',
+      });
+      expect(facade.getVersion).toHaveBeenCalledWith(expect.anything(), 'connector', 2);
+      expect(facade.test).not.toHaveBeenCalled();
+      // The url carries the configuration, which telemetry cannot tell from a key.
+      expect(events).toHaveLength(1);
+      expect(JSON.stringify(events)).not.toContain('private-region');
+    });
+
+    it('refuses a configuration too long for a link', async () => {
+      const client = await openChatGpt();
+      storeDraft(manifest);
+      const result = await client.callTool({
+        name: 'get_custom_connector_test_link',
+        arguments: {
+          connector_id: 'connector',
+          node: 'items',
+          configuration: { Region: 'x'.repeat(4000) },
+        },
+      });
+      expect(result.isError).toBe(true);
+      expect(JSON.stringify(result.content)).toContain('configuration is too long for a link');
+    });
+
+    it.each([
+      [{ node: 'items', configuration: { Value: 'typed-key' } }, 'Remove Value from configuration'],
+      [{ node: 'missing', configuration: {} }, 'The draft has no node \\"missing\\"'],
+    ])('rejects %j', async (args, message) => {
+      const client = await openChatGpt();
+      storeDraft(manifest);
+      const result = await client.callTool({
+        name: 'get_custom_connector_test_link',
+        arguments: { connector_id: 'connector', ...args },
+      });
+      expect(result.isError).toBe(true);
+      expect(JSON.stringify(result.content)).toContain(message);
+      expect(JSON.stringify({ result, events })).not.toContain('typed-key');
+    });
   });
 
   it('tests the newest draft', async () => {

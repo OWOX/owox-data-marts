@@ -26,5 +26,10 @@ export interface McpToolDefinition<TInput = unknown> {
   readonly annotations?: ToolAnnotations;
   readonly requiredScopes: McpScope[];
   readonly requiredRole?: Role;
+  /**
+   * ChatGPT lists only the tools whose every call it can review: `hidden` keeps a tool out of
+   * its list, `only` lists a tool there alone. Other clients list every tool except `only`.
+   */
+  readonly chatgpt?: 'only' | 'hidden';
   handler(input: TInput, context: McpAuthContext, signal?: AbortSignal): Promise<McpToolResult>;
 }

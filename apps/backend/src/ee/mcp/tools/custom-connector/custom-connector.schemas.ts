@@ -56,7 +56,7 @@ export const manifestSchema = boundedJsonObjectSchema
     if (paths.length > 0) {
       ctx.addIssue({
         code: 'custom',
-        message: `Remove the keys at ${paths.join(', ')}. Keys go only through Credentials: reference a parameter with attributes: ["SECRET"] and select a saved Credential in test_custom_connector.`,
+        message: `Remove the keys at ${paths.join(', ')}. Keys go only through Credentials: reference a parameter with attributes: ["SECRET"] and select a saved Credential when you test the draft.`,
       });
     }
   })

@@ -9,7 +9,8 @@ A Data Owner who builds a custom connector through MCP tests each node before pu
 - `create_custom_connector` and `save_custom_connector_draft` reject a manifest that holds a literal key in `authentication`, in a parameter with `attributes: ["SECRET"]`, or in a credential header or query parameter, or a `[REDACTED]` value. Declare each key as a parameter with `attributes: ["SECRET"]` and select a Credential that holds its value.
 - `get_custom_connector_version` shows such a literal key in any version as `[REDACTED]`.
 - `start_credential_setup` takes an optional `connector_id`. The Credential form then opens with the hosts and key fields of that connector, and the user enters only the key values.
-- The Connector Builder in OWOX, published connectors and Data Mart runs work as before.
+- In ChatGPT, the assistant does not run the test itself. `get_custom_connector_test_link` gives you a link that opens the test in the Connector Builder with the node, parameter values and Credential filled in. Click **Run test**, then **Copy for AI**, and paste the result into the chat. Other AI clients use `test_custom_connector`.
+- Published connectors and Data Mart runs work as before.
 
 See [Custom connector authoring](../../docs/getting-started/setup-guide/mcp.md#custom-connector-authoring) and [how to load new tools](../../docs/getting-started/setup-guide/mcp.md#the-assistant-does-not-see-new-tools-or-tool-rules).
 

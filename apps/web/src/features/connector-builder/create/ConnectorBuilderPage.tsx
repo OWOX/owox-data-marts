@@ -16,6 +16,7 @@ import { CodeModeEditor } from './components/CodeModeEditor';
 import { useManifestImport } from './components/useManifestImport';
 import { ConfirmationDialog } from '../../../shared/components/ConfirmationDialog';
 import { trackCustomConnectorEvent } from '../shared/model/analytics';
+import type { BuilderTestPrefill } from '../shared/model/testLink';
 
 /** Where the author came to the builder from, for analytics. */
 export type BuilderEntryPoint = 'connectors_list' | 'data_mart_wizard';
@@ -83,6 +84,7 @@ function BuilderCenter({
 function BuilderShell({
   id,
   entryPoint,
+  testPrefill,
   onBack,
   onDeleted,
   onCreated,
@@ -90,6 +92,7 @@ function BuilderShell({
 }: {
   id?: string;
   entryPoint?: BuilderEntryPoint;
+  testPrefill?: BuilderTestPrefill;
   onBack?: () => void;
   onDeleted?: () => void;
   onCreated?: (id: string) => void;
@@ -101,13 +104,14 @@ function BuilderShell({
     kind: 'global',
     section: 'general',
   });
-  const [dockOpen, setDockOpen] = useState(false);
+  const [dockOpen, setDockOpen] = useState(Boolean(testPrefill));
   const [mode, setMode] = useState<'builder' | 'code'>('builder');
   const [confirmDropCode, setConfirmDropCode] = useState(false);
   const announcedCreate = useRef(false);
   const trackedOpen = useRef(false);
   const trackedCreate = useRef(false);
   const manifestImport = useManifestImport();
+  const showedPrefilledNode = useRef(false);
 
   const switchMode = (next: 'builder' | 'code') => {
     if (next === mode) return;
@@ -131,6 +135,18 @@ function BuilderShell({
     if (id) void loadConnector(id);
     else initNew();
   }, [id, initNew, loadConnector]);
+
+  // A test link from an AI assistant opens on its node once the connector has loaded.
+  useEffect(() => {
+    if (
+      showedPrefilledNode.current ||
+      !testPrefill ||
+      !Object.keys(manifest.nodes).includes(testPrefill.node)
+    )
+      return;
+    showedPrefilledNode.current = true;
+    setSelection({ kind: 'node', name: testPrefill.node });
+  }, [testPrefill, manifest.nodes]);
 
   // Once per visit, and for an existing connector only after it has loaded, so the event names it.
   useEffect(() => {
@@ -297,6 +313,7 @@ function BuilderShell({
 
           <ResultsDock
             selectedNode={selectedNode}
+            prefill={testPrefill}
             open={dockOpen}
             onToggleOpen={() => {
               setDockOpen(v => !v);
@@ -335,6 +352,7 @@ function BuilderShell({
 export function ConnectorBuilderPage({
   id,
   entryPoint,
+  testPrefill,
   onBack,
   onDeleted,
   onCreated,
@@ -342,6 +360,7 @@ export function ConnectorBuilderPage({
 }: {
   id?: string;
   entryPoint?: BuilderEntryPoint;
+  testPrefill?: BuilderTestPrefill;
   onBack?: () => void;
   onDeleted?: () => void;
   onCreated?: (id: string) => void;
@@ -352,6 +371,7 @@ export function ConnectorBuilderPage({
       <BuilderShell
         id={id}
         entryPoint={entryPoint}
+        testPrefill={testPrefill}
         onBack={onBack}
         onDeleted={onDeleted}
         onCreated={onCreated}
