@@ -411,10 +411,12 @@ describe('custom connector tools through the MCP SDK', () => {
         credential: 'credential-1',
         rows: '10',
         config: '{"Region":"private-region"}',
+        keys: 'Value',
       });
       expect(facade.getVersion).toHaveBeenCalledWith(expect.anything(), 'connector', 2);
       expect(facade.test).not.toHaveBeenCalled();
       // The url carries the configuration, which telemetry cannot tell from a key.
+      expect(events).toHaveLength(1);
       expect(JSON.stringify(events)).not.toContain('private-region');
     });
 

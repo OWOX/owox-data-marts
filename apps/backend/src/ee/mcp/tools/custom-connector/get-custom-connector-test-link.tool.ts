@@ -46,7 +46,11 @@ export class GetCustomConnectorTestLinkTool implements McpToolDefinition<Input> 
 
   async handler(input: Input, context: McpAuthContext): Promise<McpToolResult> {
     const parsed = inputSchema.parse(input);
-    const manifest = await loadDraftForTest(this.connectors, context.projectId, parsed);
+    const { manifest, secretNames } = await loadDraftForTest(
+      this.connectors,
+      context.projectId,
+      parsed
+    );
     const nodes = Object.keys((manifest.nodes ?? {}) as Record<string, unknown>);
     if (!nodes.includes(parsed.node)) {
       throw new BadRequestException(
@@ -57,6 +61,11 @@ export class GetCustomConnectorTestLinkTool implements McpToolDefinition<Input> 
     const query = new URLSearchParams({ test: parsed.node });
     if (parsed.credential_id) query.set('credential', parsed.credential_id);
     if (parsed.max_rows) query.set('rows', String(parsed.max_rows));
+    // Copy for AI in the Builder masks the typed values of the parameters that this check names as keys.
+    const keys = Object.keys((manifest.parameters ?? {}) as Record<string, unknown>).filter(name =>
+      secretNames.has(name)
+    );
+    if (keys.length > 0) query.set('keys', keys.join(','));
     if (Object.keys(parsed.configuration).length > 0) {
       query.set('config', JSON.stringify(parsed.configuration));
     }
@@ -69,7 +78,7 @@ export class GetCustomConnectorTestLinkTool implements McpToolDefinition<Input> 
     return jsonToolResult({
       url: `${joinPublicOrigin(this.publicOrigin.getPublicOrigin(), path)}?${query.toString()}`,
       instructions:
-        'Send the user this URL with these steps: 1. Open the link and sign in to OWOX with the same account. 2. Click Run test. 3. Click Copy for AI, then paste the copied text into this chat. The page shows the same steps. The test uses the saved draft, so save every change before you send a new link.',
+        'Send the user this URL with these steps: 1. Open the link and sign in to OWOX with the same account. 2. Click Run test. 3. Click Copy for AI, then paste the copied text into this chat. The page shows the same steps. The page tests the draft that it loaded, so save every change and send a new link, and ask the user to open the new link, not to run the test again on a page that is already open.',
     });
   }
 }

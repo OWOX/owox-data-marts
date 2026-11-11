@@ -138,7 +138,11 @@ function BuilderShell({
 
   // A test link from an AI assistant opens on its node once the connector has loaded.
   useEffect(() => {
-    if (showedPrefilledNode.current || !testPrefill || !(testPrefill.node in manifest.nodes))
+    if (
+      showedPrefilledNode.current ||
+      !testPrefill ||
+      !Object.keys(manifest.nodes).includes(testPrefill.node)
+    )
       return;
     showedPrefilledNode.current = true;
     setSelection({ kind: 'node', name: testPrefill.node });

@@ -31,6 +31,7 @@ const manifest = {
   parameters: {
     Token: { requiredType: 'string', attributes: ['SECRET'] },
     Region: { requiredType: 'string' },
+    ApiKey: { requiredType: 'string' },
   },
   nodes: {
     orders: { request: { path: '/orders' }, recordSelector: { path: [] } },
@@ -115,20 +116,45 @@ describe('a test link from an AI assistant', () => {
     });
   });
 
-  it('says so when the draft no longer has the node of the link', async () => {
-    render(<ConnectorBuilderPage id='def-1' testPrefill={{ node: 'gone', values: {} }} />);
+  it('says so when the Credential of the link does not fit, and does not run', async () => {
+    fittingCredentials.mockResolvedValue([{ id: 'cred-2' }]);
+    render(
+      <ConnectorBuilderPage
+        id='def-1'
+        testPrefill={{ node: 'items', values: {}, credentialId: 'cred-1' }}
+      />
+    );
+
+    expect(
+      await screen.findByText(/The Credential in the link does not fit this draft/)
+    ).toBeInTheDocument();
+    expect(screen.getByTestId('run-test')).toBeDisabled();
+  });
+
+  it('says so when the draft no longer has the node of the link, and does not run', async () => {
+    render(
+      <ConnectorBuilderPage id='def-1' testPrefill={{ node: 'gone', values: { Region: 'eu' } }} />
+    );
 
     expect(await screen.findByText('The draft has no gone node')).toBeInTheDocument();
-    expect(screen.getByLabelText('Node to test')).not.toHaveTextContent('gone');
+    // No other node takes the link values.
+    expect(screen.getByLabelText('Node to test')).not.toHaveTextContent(/gone|orders|items/);
+    expect(screen.getByTestId('run-test')).toBeDisabled();
   });
 
   it('opens the test filled in, runs it with one click, and copies the result for the chat', async () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
     Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+    test.mockResolvedValue({
+      rows: [{ id: 1 }],
+      logs: ['GET /items 200', 'token typed-secret-value echoed', 'key typed-api-key echoed'],
+      error: null,
+      sample: [],
+    });
     render(
       <ConnectorBuilderPage
         id='def-1'
-        testPrefill={{ node: 'items', values: { Region: 'eu' }, maxRows: 10 }}
+        testPrefill={{ node: 'items', values: { Region: 'eu' }, maxRows: 10, keyNames: ['ApiKey'] }}
       />
     );
 
@@ -139,6 +165,10 @@ describe('a test link from an AI assistant', () => {
     fireEvent.change(await screen.findByTestId('test-param-Token'), {
       target: { value: 'typed-secret-value' },
     });
+    // Not SECRET in the draft, but the link names it as a key.
+    fireEvent.change(screen.getByTestId('test-param-ApiKey'), {
+      target: { value: 'typed-api-key' },
+    });
     const steps = screen.getByTestId('ai-test-steps');
     expect(steps).toHaveTextContent('Your AI assistant prepared a test of the items node');
     expect(within(steps).queryAllByLabelText('Done')).toHaveLength(0);
@@ -148,7 +178,7 @@ describe('a test link from an AI assistant', () => {
       expect(test).toHaveBeenCalledWith(
         expect.objectContaining({
           node: 'items',
-          configuration: { Region: 'eu', Token: 'typed-secret-value' },
+          configuration: { Region: 'eu', Token: 'typed-secret-value', ApiKey: 'typed-api-key' },
           maxRows: 10,
         })
       );
@@ -166,6 +196,7 @@ describe('a test link from an AI assistant', () => {
     expect(copied).toContain('Node: items');
     expect(copied).toContain('"GET /items 200"');
     expect(copied).not.toContain('typed-secret-value');
+    expect(copied).not.toContain('typed-api-key');
     expect(copied).toContain('[REDACTED]');
     expect(await screen.findByText('Copied')).toBeInTheDocument();
     expect(within(steps).getAllByLabelText('Done')).toHaveLength(2);
@@ -173,7 +204,7 @@ describe('a test link from an AI assistant', () => {
 });
 
 describe('testPrefillFrom', () => {
-  it('reads the node, values, Credential and row limit', () => {
+  it('reads the node, values, Credential, row limit and key names', () => {
     expect(
       testPrefillFrom(
         new URLSearchParams({
@@ -181,6 +212,7 @@ describe('testPrefillFrom', () => {
           credential: 'cred-1',
           rows: '10',
           config: JSON.stringify({ Region: 'eu', Limit: 5, Tags: ['a'] }),
+          keys: 'Token,ApiKey',
         })
       )
     ).toEqual({
@@ -188,6 +220,7 @@ describe('testPrefillFrom', () => {
       values: { Region: 'eu', Limit: '5', Tags: '["a"]' },
       credentialId: 'cred-1',
       maxRows: 10,
+      keyNames: ['Token', 'ApiKey'],
     });
   });
 
@@ -233,6 +266,15 @@ describe('testResultForChat', () => {
       result: { rows: [], logs: ['sent abcdef and abcd'], error: null, sample: [] },
     });
     expect(text).toContain('sent [REDACTED] and [REDACTED]');
+  });
+
+  it('masks a key before it cuts a long log line', () => {
+    const text = testResultForChat({
+      ...base,
+      secrets: ['abcdefghij'],
+      result: { rows: [], logs: [`${'x'.repeat(495)}abcdefghij`], error: null, sample: [] },
+    });
+    expect(text).not.toContain('abcde');
   });
 
   it('bounds rows and logs and names an error', () => {

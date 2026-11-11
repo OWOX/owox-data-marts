@@ -120,6 +120,8 @@ export function ResultsDock({
   const [copiedResult, setCopiedResult] = useState<ConnectorTestResultDto | null>(null);
   // What the result belongs to, fixed when the test starts: the copy describes that run.
   const [ranWith, setRanWith] = useState<{
+    connectorId: string | null;
+    connectorName: string;
     node: string;
     version: number | null;
     unsavedEdits: boolean;
@@ -294,11 +296,12 @@ export function ResultsDock({
   }, [storageKey]);
 
   // After the restore above: the link replaces the values saved on this device, so the test
-  // runs only what the assistant prepared. A node the draft lost is reported, not swapped.
+  // runs only what the assistant prepared. A node the draft lost is reported, and no other node
+  // is selected: the link values are for that node.
   useEffect(() => {
     if (!storageKey || !prefill || appliedPrefill.current) return;
     appliedPrefill.current = true;
-    if (prefill.node in manifest.nodes) setNode(prefill.node);
+    setNode(nodeNames.includes(prefill.node) ? prefill.node : '');
     setValues(prefill.values);
     setMaxRows(prefill.maxRows ?? DEFAULT_MAX_ROWS);
     if (prefill.credentialId) {
@@ -310,12 +313,7 @@ export function ResultsDock({
 
   const copyForChat = async (copying: ConnectorTestResultDto) => {
     if (!ranWith) return;
-    const text = testResultForChat({
-      connectorId: state.id,
-      connectorName: manifest.name,
-      ...ranWith,
-      result: copying,
-    });
+    const text = testResultForChat({ ...ranWith, result: copying });
     try {
       await navigator.clipboard.writeText(text);
       setCopiedResult(copying);
@@ -330,7 +328,8 @@ export function ResultsDock({
     setRunning(true);
     setResult(null);
     // Code mode may still hold a rename the effect above has not seen.
-    const tested = flushCodeEdits() ?? manifest;
+    const flushed = flushCodeEdits();
+    const tested = flushed ?? manifest;
     const target = followNode(nodeNames, node, Object.keys(tested.nodes));
     if (target !== node) setNode(target);
     const startedAt = Date.now();
@@ -347,11 +346,14 @@ export function ResultsDock({
     const maskedNames = new Set([
       ...secretNames,
       ...(credentialState.status === 'ready' ? credentialState.requirement.keyParameters : []),
+      ...(prefill?.keyNames ?? []),
     ]);
     setRanWith({
+      connectorId: state.id,
+      connectorName: tested.name,
       node: target,
       version: state.loadedVersion,
-      unsavedEdits: state.dirty,
+      unsavedEdits: state.dirty || flushed !== null,
       secrets: Object.entries(values)
         .filter(([name]) => maskedNames.has(name))
         .map(([, value]) => value),
@@ -579,7 +581,10 @@ export function ResultsDock({
           {prefill && (
             <AiTestSteps
               node={prefill.node}
-              missing={Boolean(storageKey) && !(prefill.node in manifest.nodes)}
+              missing={Boolean(storageKey) && !nodeNames.includes(prefill.node)}
+              credentialDropped={
+                Boolean(prefill.credentialId) && usingCredential && !chosenCredential
+              }
               ran={result !== null}
               copied={result !== null && copiedResult === result}
             />
@@ -628,11 +633,13 @@ export function ResultsDock({
 function AiTestSteps({
   node,
   missing,
+  credentialDropped,
   ran,
   copied,
 }: {
   node: string;
   missing: boolean;
+  credentialDropped: boolean;
   ran: boolean;
   copied: boolean;
 }) {
@@ -646,7 +653,12 @@ function AiTestSteps({
     );
   }
   const steps = [
-    { text: 'Click Run test.', done: ran },
+    {
+      text: credentialDropped
+        ? 'The Credential in the link does not fit this draft, or you cannot use it. Open Test settings, select another Credential, then click Run test.'
+        : 'Click Run test.',
+      done: ran,
+    },
     { text: 'Click Copy for AI.', done: copied },
     { text: 'Paste the copied result into your AI chat.', done: false },
   ];

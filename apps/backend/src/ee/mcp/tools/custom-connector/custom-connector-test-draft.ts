@@ -2,12 +2,15 @@ import { BadRequestException } from '@nestjs/common';
 import type { McpCustomConnectorsFacade } from '../../../../data-marts/facades/mcp-custom-connectors.facade';
 import { mcpSecretParameterNames } from '../../observability/mcp-telemetry-redaction';
 
-/** The newest draft of a connector, for a test whose configuration holds no keys. */
+/**
+ * The newest draft of a connector, for a test whose configuration holds no keys, and the names
+ * that the key check treats as keys.
+ */
 export async function loadDraftForTest(
   connectors: McpCustomConnectorsFacade,
   projectId: string,
   input: { connector_id: string; node: string; configuration: Record<string, unknown> }
-): Promise<Record<string, unknown>> {
+): Promise<{ manifest: Record<string, unknown>; secretNames: ReadonlySet<string> }> {
   // The draft is saved data, so the request definition is never a tool argument.
   const { versions } = await connectors.get(projectId, input.connector_id);
   // Publish takes the newest draft, so the test does too.
@@ -31,5 +34,5 @@ export async function loadDraftForTest(
         'To save keys in a new Credential, call start_credential_setup with connector_id.'
     );
   }
-  return manifest;
+  return { manifest, secretNames };
 }

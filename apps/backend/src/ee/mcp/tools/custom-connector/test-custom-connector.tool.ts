@@ -47,7 +47,7 @@ export class TestCustomConnectorTool implements McpToolDefinition<Input> {
 
   async handler(input: Input, context: McpAuthContext): Promise<McpToolResult> {
     const parsed = inputSchema.parse(input);
-    const manifest = await loadDraftForTest(this.connectors, context.projectId, parsed);
+    const { manifest } = await loadDraftForTest(this.connectors, context.projectId, parsed);
     const tested = { manifest, configuration: parsed.configuration };
     // A draft saved outside MCP can still hold a literal key; mask it in what the model reads.
     const redactResult = createMcpInputSecretRedactor(tested);
