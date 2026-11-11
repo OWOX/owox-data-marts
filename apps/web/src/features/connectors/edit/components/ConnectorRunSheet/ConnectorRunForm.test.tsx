@@ -19,7 +19,7 @@ const specification = {
 
 /** The connector's node list; `null` until the form's fetch would have answered. */
 const fields = {
-  current: null as { name: string; isTimeSeries?: boolean }[] | null,
+  current: null as { name: string; isFetchedByDate?: boolean }[] | null,
   loading: false,
 };
 
@@ -37,7 +37,7 @@ vi.mock('../../../shared/model/hooks/useConnector', () => ({
 
 beforeEach(() => {
   specification.current = [dateField('StartDate', 'Start Date'), dateField('EndDate', 'End Date')];
-  fields.current = [{ name: 'ad_insights', isTimeSeries: true }];
+  fields.current = [{ name: 'ad_insights', isFetchedByDate: true }];
   fields.loading = false;
 });
 
@@ -122,20 +122,19 @@ describe('ConnectorRunForm backfill period', () => {
     expect(notice()).not.toHaveTextContent('This can take hours');
   });
 
-  it('counts a short period that crosses a month boundary as two parts', async () => {
+  it('keeps a period of up to 31 days as one run, even across a month boundary', async () => {
     await openBackfill();
 
     setPeriod('2026-07-15', '2026-08-10');
 
     await waitFor(() => {
-      expect(notice()).toHaveTextContent(
-        'This backfill covers 27 days, loaded in 2 parts, one per calendar month. It counts as 2 runs.'
-      );
+      expect(notice()).toHaveTextContent('This backfill covers 27 days.');
     });
+    expect(notice()).not.toHaveTextContent('parts');
   });
 
   it('says a dateless node loads once, whatever the period, and never mentions parts', async () => {
-    fields.current = [{ name: 'ad_insights', isTimeSeries: false }];
+    fields.current = [{ name: 'ad_insights', isFetchedByDate: false }];
     await openBackfill();
 
     expect(notice()).toHaveTextContent('loads the whole catalog in one run');
@@ -287,7 +286,7 @@ describe('ConnectorRunForm backfill confirmation', () => {
   const dialog = () => screen.queryByRole('dialog');
 
   it('submits a dateless node straight through, however long the period', async () => {
-    fields.current = [{ name: 'ad_insights', isTimeSeries: false }];
+    fields.current = [{ name: 'ad_insights', isFetchedByDate: false }];
     const onSubmit = await openBackfill();
     setPeriod('2026-01-01', '2026-03-31');
     await waitFor(() => {

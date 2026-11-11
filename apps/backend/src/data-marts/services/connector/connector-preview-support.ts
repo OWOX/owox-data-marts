@@ -37,7 +37,7 @@ export interface ConnectorPreviewSource {
   context: { validate(): void };
   fetchFieldsSchema(signal: AbortSignal): Promise<unknown>;
   fetchFieldOptions(fieldName: string, signal: AbortSignal): Promise<unknown>;
-  /** How a node is fetched by date, so the preview reports `isTimeSeries` like the fields API. */
+  /** How a node is fetched by date, so the preview reports `isFetchedByDate` like the fields API. */
   getDateStrategy(nodeName: string): string;
 }
 

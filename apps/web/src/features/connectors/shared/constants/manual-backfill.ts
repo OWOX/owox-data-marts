@@ -19,8 +19,15 @@ export function toUtcDayMs(value: unknown): number | undefined {
 }
 
 /**
- * How many calendar months a StartDate/EndDate pair touches — the backend loads a backfill in
- * one part per month (mirrors `calendarMonthWindows` in
+ * Inclusive days one run may cover. A period up to this long is one run; a longer one loads in
+ * calendar-month parts. Mirrors MAX_MANUAL_BACKFILL_DAYS in
+ * packages/connectors/src/Constants/CommonConstants.js; keep the two in sync.
+ */
+export const MAX_MANUAL_BACKFILL_DAYS = 31;
+
+/**
+ * How many runs a StartDate/EndDate pair loads in: one when it fits a single run, else one
+ * part per calendar month it touches (mirrors `planBackfillChain` in
  * apps/backend/src/data-marts/utils/manual-backfill-range.ts). 0 when either date is invalid
  * or the range is reversed.
  */
@@ -28,6 +35,7 @@ export function countBackfillSegments(startDate: unknown, endDate: unknown): num
   const start = toUtcDayMs(startDate);
   const end = toUtcDayMs(endDate);
   if (start === undefined || end === undefined || end < start) return 0;
+  if (countBackfillDays(startDate, endDate) <= MAX_MANUAL_BACKFILL_DAYS) return 1;
   const first = new Date(start);
   const last = new Date(end);
   return (

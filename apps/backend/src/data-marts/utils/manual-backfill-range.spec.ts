@@ -263,14 +263,14 @@ describe('manual-backfill-range', () => {
       ).toMatchObject({ window: { startDate: '2024-03-03', endDate: '2024-04-02' } });
     });
 
-    it('plans a chain for a short period that crosses a month boundary', () => {
+    it('cuts a period one day over the cap at the month boundary', () => {
       const plan = planBackfillChain(
-        { runType: 'MANUAL_BACKFILL', data: { StartDate: '2026-08-15', EndDate: '2026-09-10' } },
+        { runType: 'MANUAL_BACKFILL', data: { StartDate: '2026-01-01', EndDate: '2026-02-01' } },
         'chain-1'
       )!;
 
       expect(plan.payload).toMatchObject({
-        data: { StartDate: '2026-08-15', EndDate: '2026-08-31' },
+        data: { StartDate: '2026-01-01', EndDate: '2026-01-31' },
       });
       expect(plan.meta.segmentsTotal).toBe(2);
     });
@@ -282,6 +282,14 @@ describe('manual-backfill-range', () => {
       [
         'a period that fits one segment',
         { runType: 'MANUAL_BACKFILL', data: { StartDate: '2026-08-01', EndDate: '2026-08-31' } },
+      ],
+      [
+        'a period within the 31-day cap that crosses a month boundary',
+        { runType: 'MANUAL_BACKFILL', data: { StartDate: '2026-08-15', EndDate: '2026-09-10' } },
+      ],
+      [
+        'two days either side of a month boundary',
+        { runType: 'MANUAL_BACKFILL', data: { StartDate: '2026-10-31', EndDate: '2026-11-01' } },
       ],
     ])('does not plan a chain for %s', (_label, body) => {
       expect(planBackfillChain(body, 'chain-1')).toBeUndefined();

@@ -114,7 +114,7 @@ Choose **Backfill (custom period)** to import a specific date range.
 2. Select **End Date**.
 3. Click **Run**.
 
-The import includes both the start date and the end date. The form shows how many days your period covers. A period that spans several calendar months loads automatically in consecutive parts, one month per run. A part counts as one run once any of its accounts loads data.
+The import includes both the start date and the end date. The form shows how many days your period covers. A period longer than 31 days loads automatically in consecutive parts, one calendar month per run. A part counts as one run once any of its accounts loads data.
 
 Both dates are required. The date picker does not offer future dates. The **End Date** must be on or after the **Start Date**.
 

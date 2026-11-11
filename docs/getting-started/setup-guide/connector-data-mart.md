@@ -117,7 +117,7 @@ Also you can check the **Run History** tab for logs and results
 Choose **Backfill (custom period)** in the **Manual Run** sheet to reload a date range from the source.
 
 Pick any past period that starts on or after 2000-01-01. The form shows how many days it covers.
-OWOX loads a period that spans several calendar months in consecutive parts, one month per run.
+A period of up to 31 days is one run. OWOX loads a longer period in consecutive parts, one calendar month per run.
 The first and last parts cover only the days you picked: 1 January – 15 April loads as
 1–31 January, 1–28 February, 1–31 March and 1–15 April.
 Each part is its own entry in **Run History**, one after another.
@@ -126,7 +126,7 @@ Every entry names its backfill period and part, for example "part 3 of 18".
 A part counts as one run for your consumption once any of its accounts loads data.
 A part that loads nothing, or is cancelled or interrupted, does not count.
 The form states the number of parts and runs before you start.
-A period that spans more than one month asks you to confirm how many runs it costs before it starts.
+A period over 31 days asks you to confirm how many runs it costs before it starts.
 
 A failed part never stops the rest of the backfill, so OWOX attempts the whole period.
 The failed entry shows the last day it loaded, so you can backfill the gap later.

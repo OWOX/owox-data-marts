@@ -253,7 +253,7 @@ export class ConnectorService {
    * A node the schema does not list answers true: the run then fails on the connector's own
    * "unknown node" error, as before, instead of being planned differently here.
    */
-  async isTimeSeriesNode(
+  async isNodeFetchedByDate(
     projectId: string,
     connectorName: string,
     version: number | undefined,
@@ -267,7 +267,7 @@ export class ConnectorService {
       manifest => fieldsSchemaFromManifest(manifest)
     );
     const node = fieldsSchema.find(entry => entry.name === nodeName);
-    return node?.isTimeSeries ?? true;
+    return node?.isFetchedByDate ?? true;
   }
 
   async getOAuthUiVariables(

@@ -258,9 +258,10 @@ export interface BackfillChainPlan {
 }
 
 /**
- * Plans a backfill that spans more than one calendar month as a chain with one part per month,
- * or returns undefined for anything else: a non-backfill run, a connector without date fields,
- * or a period inside one month — those execute in a single run exactly as before.
+ * Plans a backfill longer than one run may cover (`getMaxManualBackfillDays()`) as a chain with
+ * one part per calendar month, or returns undefined for anything else: a non-backfill run, a
+ * connector without date fields, or a period that fits one run — those execute in a single run
+ * exactly as before.
  */
 export function planBackfillChain(
   payload: Record<string, unknown> | undefined,
@@ -270,6 +271,9 @@ export function planBackfillChain(
   const requested = readBackfillRange(payload);
   if (!requested) return undefined;
 
+  // A period the connector accepts in one run stays one run, even across a month boundary:
+  // "the last 30 days" must not cost two runs. Only a longer one is cut at calendar months.
+  if (countBackfillDays(requested) <= getMaxManualBackfillDays()) return undefined;
   const windows = calendarMonthWindows(requested);
   if (windows.length <= 1) return undefined;
 

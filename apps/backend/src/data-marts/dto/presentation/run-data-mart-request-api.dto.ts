@@ -209,9 +209,12 @@ export class RunDataMartRequestApiDto {
     MANUAL_BACKFILL can include connector-specific fields in data; connectors without backfill
     fields can omit data. StartDate and EndDate accept YYYY-MM-DD (or the date part of an
     ISO-8601 timestamp). A missing or future EndDate counts as today. A StartDate earlier than
-    2000-01-01 is rejected. The range has no other length limit: a range longer than 31 days runs
-    as a chain of runs, one segment of up to 31 days each. A segment counts as one connector run
-    once any of its accounts loads data.`,
+    2000-01-01 is rejected. The range has no other length limit: a range of up to 31 days is one
+    run, and a longer one runs as a chain of runs, one part per calendar month, clipped to the
+    range at both ends (1 January – 15 April runs as January, February, March and 1–15 April).
+    A part counts as one connector run once any of its accounts loads data. The returned run ID
+    identifies the first part. A node that is not fetched by date (isFetchedByDate is false in
+    the connector fields response) ignores the range and runs once, whatever its length.`,
   })
   payload?: Record<string, unknown> | undefined;
 }

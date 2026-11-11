@@ -134,6 +134,16 @@ describe('ConnectorService', () => {
     return { service, connectorSourceCredentialsService };
   };
 
+  describe('isNodeFetchedByDate', () => {
+    it('answers true for a node the schema does not list, so the run is planned as before', async () => {
+      const { service } = createService();
+
+      await expect(
+        service.isNodeFetchedByDate('proj-1', 'TestConnector', undefined, 'no-such-node')
+      ).resolves.toBe(true);
+    });
+  });
+
   describe('getAvailableConnectors', () => {
     it('returns list of available connectors', async () => {
       const { service } = createService();

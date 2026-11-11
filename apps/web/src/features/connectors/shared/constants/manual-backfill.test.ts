@@ -6,13 +6,16 @@ import {
 } from './manual-backfill';
 
 describe('manual-backfill', () => {
-  it('counts one part per calendar month the period touches', () => {
+  it('counts one run for up to 31 days, else one part per calendar month', () => {
     expect(countBackfillSegments('2026-07-01', '2026-07-01')).toBe(1);
     expect(countBackfillSegments('2026-07-01', '2026-07-31')).toBe(1);
     // 1 January – 15 April: January, February, March, 1–15 April.
     expect(countBackfillSegments('2026-01-01', '2026-04-15')).toBe(4);
-    // A short period crossing a month boundary is still two parts.
-    expect(countBackfillSegments('2026-07-15', '2026-08-10')).toBe(2);
+    // A period that fits one run stays one run, even across a month boundary.
+    expect(countBackfillSegments('2026-07-15', '2026-08-10')).toBe(1);
+    expect(countBackfillSegments('2026-10-31', '2026-11-01')).toBe(1);
+    // 32 days: one day over, so January and 1 February.
+    expect(countBackfillSegments('2026-01-01', '2026-02-01')).toBe(2);
     expect(countBackfillSegments('2024-01-01', '2025-06-30')).toBe(18);
     expect(countBackfillSegments('2024-12-15', '2025-01-20')).toBe(2);
   });

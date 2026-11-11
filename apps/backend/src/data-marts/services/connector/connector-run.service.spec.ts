@@ -40,7 +40,7 @@ describe('ConnectorRunService', () => {
     } as unknown as SystemTimeService;
 
     const connectorService = {
-      isTimeSeriesNode: jest.fn().mockResolvedValue(true),
+      isNodeFetchedByDate: jest.fn().mockResolvedValue(true),
     } as unknown as ConnectorService;
 
     const service = new ConnectorRunService(
@@ -80,7 +80,7 @@ describe('ConnectorRunService', () => {
       expect(dataMartRunRepository.save).toHaveBeenCalled();
       expect(connectorRunTriggerService.createTrigger).toHaveBeenCalled();
       // No chain to plan, so the node schema is never consulted.
-      expect(connectorService.isTimeSeriesNode).not.toHaveBeenCalled();
+      expect(connectorService.isNodeFetchedByDate).not.toHaveBeenCalled();
     });
 
     it('throws when dataMart is not CONNECTOR type', async () => {
@@ -168,7 +168,7 @@ describe('ConnectorRunService', () => {
     it('runs a long backfill of a dateless node as one run, not a chain', async () => {
       const { service, dataMartRunRepository, connectorService } = createService();
       (dataMartRunRepository.findOne as jest.Mock).mockResolvedValue(null);
-      (connectorService.isTimeSeriesNode as jest.Mock).mockResolvedValue(false);
+      (connectorService.isNodeFetchedByDate as jest.Mock).mockResolvedValue(false);
       const dataMart = {
         ...publishedConnectorDataMart,
         definition: {
@@ -181,7 +181,7 @@ describe('ConnectorRunService', () => {
         data: { StartDate: '2025-08-01', EndDate: '2026-09-15' },
       });
 
-      expect(connectorService.isTimeSeriesNode).toHaveBeenCalledWith(
+      expect(connectorService.isNodeFetchedByDate).toHaveBeenCalledWith(
         'proj-1',
         'RedditAds',
         2,
@@ -203,7 +203,7 @@ describe('ConnectorRunService', () => {
     it('keeps the chain when the node schema cannot be resolved', async () => {
       const { service, dataMartRunRepository, connectorService } = createService();
       (dataMartRunRepository.findOne as jest.Mock).mockResolvedValue(null);
-      (connectorService.isTimeSeriesNode as jest.Mock).mockRejectedValue(new Error('offline'));
+      (connectorService.isNodeFetchedByDate as jest.Mock).mockRejectedValue(new Error('offline'));
       const dataMart = {
         ...publishedConnectorDataMart,
         definition: { connector: { source: { name: 'RedditAds', node: 'report' } } },

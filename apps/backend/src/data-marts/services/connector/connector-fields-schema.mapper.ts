@@ -32,7 +32,7 @@ const NO_DATE_STRATEGY = 'none';
  * a time-series node that is not a full-refresh snapshot and whose source gives it a date
  * strategy. Anything else is a catalog loaded whole, regardless of the requested dates.
  */
-function isTimeSeriesNode(
+function isNodeFetchedByDate(
   nodeName: string,
   node: SourceFieldsGroup,
   source: SourceDateStrategies | undefined
@@ -54,7 +54,7 @@ export function mapConnectorFieldsSchema(
     uniqueKeysByDataLevel: sourceFieldsSchema[key].uniqueKeysByDataLevel,
     defaultFields: sourceFieldsSchema[key].defaultFields,
     destinationName: sourceFieldsSchema[key].destinationName,
-    isTimeSeries: isTimeSeriesNode(key, sourceFieldsSchema[key], source),
+    isFetchedByDate: isNodeFetchedByDate(key, sourceFieldsSchema[key], source),
     fields: Object.keys(sourceFieldsSchema[key].fields ?? {}).map(fieldKey => ({
       name: fieldKey,
       type: sourceFieldsSchema[key].fields?.[fieldKey].type,

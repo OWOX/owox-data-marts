@@ -85,7 +85,7 @@ export class ConnectorRunService {
     // a one-month backfill never pays for the lookup.
     const plannedChain = planBackfillChain(preparedPayload, randomUUID());
     const chainPlan =
-      plannedChain && (await this.isTimeSeriesNode(dataMart)) ? plannedChain : undefined;
+      plannedChain && (await this.isNodeFetchedByDate(dataMart)) ? plannedChain : undefined;
     const runPayload = chainPlan?.payload ?? preparedPayload;
 
     const dataMartRun = await this.createDataMartRun(
@@ -316,11 +316,11 @@ export class ConnectorRunService {
    * Whether the Data Mart's node is fetched by date window. A schema lookup that fails keeps
    * the chain (the behaviour before the lookup existed) rather than failing the run start.
    */
-  private async isTimeSeriesNode(dataMart: DataMart): Promise<boolean> {
+  private async isNodeFetchedByDate(dataMart: DataMart): Promise<boolean> {
     const source = (dataMart.definition as ConnectorDefinition | undefined)?.connector?.source;
     if (!source?.name || !source.node) return true;
     try {
-      return await this.connectorService.isTimeSeriesNode(
+      return await this.connectorService.isNodeFetchedByDate(
         dataMart.projectId,
         source.name,
         source.version,

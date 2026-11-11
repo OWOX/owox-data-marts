@@ -32,6 +32,7 @@ import { ConnectorStateSection } from './ConnectorStateSection';
 import { ConfirmationDialog } from '../../../../../shared/components/ConfirmationDialog';
 import {
   LARGE_BACKFILL_DAYS,
+  MAX_MANUAL_BACKFILL_DAYS,
   MIN_MANUAL_BACKFILL_START_DATE,
   countBackfillDays,
   countBackfillSegments,
@@ -78,7 +79,7 @@ function getBackfillSummary(period: BackfillPeriod, isDatelessNode: boolean): st
   }
   switch (period.status) {
     case 'incomplete':
-      return 'A period that spans several calendar months loads in parts, one month per run. Pick a start and end date to see how many.';
+      return `A period over ${MAX_MANUAL_BACKFILL_DAYS} days loads in parts, one month per run. Pick a start and end date to see how many.`;
     case 'startInFuture':
       return 'The start date cannot be in the future. Pick a date up to today.';
     case 'startTooEarly':
@@ -249,7 +250,7 @@ export function ConnectorRunForm({ configuration, onClose, onSubmit }: Connector
   // which is what the backend assumes for a node it cannot classify.
   const isDatelessNode =
     connectorFields?.find(field => field.name === configuration?.connector.source.node)
-      ?.isTimeSeries === false;
+      ?.isFetchedByDate === false;
   const backfillDays = backfillPeriod.status === 'ok' ? backfillPeriod.days : 0;
   const backfillSegments = backfillPeriod.status === 'ok' ? backfillPeriod.parts : 0;
 

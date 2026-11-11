@@ -981,7 +981,7 @@ describe('ConnectorExecutorService', () => {
       connectorRunTriggerService,
       service,
       {} as SystemTimeService,
-      { isTimeSeriesNode: jest.fn().mockResolvedValue(true) } as unknown as ConnectorService
+      { isNodeFetchedByDate: jest.fn().mockResolvedValue(true) } as unknown as ConnectorService
     ).executeInterruptedRuns();
 
     expect(row.status).toBe(DataMartRunStatus.PENDING);
@@ -1509,7 +1509,7 @@ describe('ConnectorExecutorService', () => {
         connectorRunTriggerService,
         service,
         {} as SystemTimeService,
-        { isTimeSeriesNode: jest.fn().mockResolvedValue(true) } as unknown as ConnectorService
+        { isNodeFetchedByDate: jest.fn().mockResolvedValue(true) } as unknown as ConnectorService
       );
 
       await runService.executeInterruptedRuns();

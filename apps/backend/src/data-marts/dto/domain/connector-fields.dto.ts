@@ -7,8 +7,8 @@ export interface ConnectorFieldsDto {
   uniqueKeysByDataLevel?: Record<string, string[]>;
   defaultFields?: string[];
   destinationName?: string;
-  /** Fetched by date window; absent or false for a catalog that a backfill loads once. */
-  isTimeSeries?: boolean;
+  /** False for a catalog that a backfill loads once. Absent means unknown: treat it as fetched by date. */
+  isFetchedByDate?: boolean;
   fields?: Array<{
     name: string;
     type?: string;
