@@ -75,7 +75,12 @@ describe('MCP guides', () => {
   it('sends a regular report refresh to an OWOX schedule, not an assistant task', () => {
     expect(MCP_GUIDES.reporting).toContain('call create_report_run_schedule');
     expect(MCP_GUIDES.reporting).toContain('Never create a reminder or a scheduled task');
-    expect(MCP_GUIDES.reporting).toContain('After add_report');
+    expect(MCP_GUIDES.reporting).toContain('change it with update_report_run_schedule');
+    expect(MCP_GUIDES.reporting).toContain('create it only when the user agrees');
+    expect(MCP_GUIDES.reporting).toContain('Looker Studio report reads fresh data');
+    expect(MCP_GUIDES.data_mart_runs).toContain(
+      'A reminder or a scheduled task in your own app does not run the Data Mart'
+    );
   });
 
   it('guides setup through shared permissions, full replacements, and safe deletion', () => {
