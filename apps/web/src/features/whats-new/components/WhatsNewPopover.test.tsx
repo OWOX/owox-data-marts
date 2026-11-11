@@ -25,6 +25,31 @@ const CHANGES = ['One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven'];
 
 const chapter = (name: RegExp) => screen.getByRole('button', { name });
 
+const PLAY = { __privateUnstableMessageType: 'event', eventName: 'play' };
+/** happy-dom loads no iframe page, so each player gets a window of its own to post from. */
+function playerWindow(container: HTMLElement): Window {
+  const player = container.querySelector('iframe');
+  if (!player) throw new Error('No player');
+  if (player.contentWindow) return player.contentWindow;
+  const ownWindow = {} as Window;
+  Object.defineProperty(player, 'contentWindow', { value: ownWindow });
+  return ownWindow;
+}
+
+function postFromPlayer(container: HTMLElement, init: MessageEventInit = {}) {
+  const player = playerWindow(container);
+  window.dispatchEvent(
+    new MessageEvent('message', {
+      data: PLAY,
+      origin: 'https://customer-x.cloudflarestream.com',
+      source: player,
+      ...init,
+    })
+  );
+}
+const videoPlays = () =>
+  vi.mocked(trackWhatsNewEvent).mock.calls.filter(([event]) => event === 'whats_new_video_played');
+
 describe('WhatsNewPopover', () => {
   beforeEach(() => {
     localStorage.clear();
@@ -68,6 +93,39 @@ describe('WhatsNewPopover', () => {
     fireEvent.click(chapter(/And a Few More Things/));
 
     expect(container.querySelector('iframe')).not.toBe(firstPlayer);
+  });
+
+  it('reports the first start of the video, not every resume', () => {
+    const { container } = render(<WhatsNewPopoverContent />);
+
+    postFromPlayer(container);
+    postFromPlayer(container);
+
+    expect(videoPlays()).toEqual([['whats_new_video_played', '0.41.0', { chapter: null }]]);
+  });
+
+  it('reports a start from the picked chapter', () => {
+    const { container } = render(<WhatsNewPopoverContent />);
+    postFromPlayer(container);
+    fireEvent.click(chapter(/And a Few More Things/));
+
+    postFromPlayer(container);
+
+    expect(videoPlays()).toEqual([
+      ['whats_new_video_played', '0.41.0', { chapter: null }],
+      ['whats_new_video_played', '0.41.0', { chapter: 'And a Few More Things' }],
+    ]);
+  });
+
+  it('ignores messages that are not this player starting', () => {
+    const { container } = render(<WhatsNewPopoverContent />);
+
+    postFromPlayer(container, { source: window });
+    postFromPlayer(container, { origin: 'https://example.com' });
+    postFromPlayer(container, { data: { ...PLAY, eventName: 'pause' } });
+    postFromPlayer(container, { data: 'play' });
+
+    expect(videoPlays()).toEqual([]);
   });
 
   it('links to the release in the changelog', () => {

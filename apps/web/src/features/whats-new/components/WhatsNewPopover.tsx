@@ -5,6 +5,7 @@ import { cn } from '@owox/ui/lib/utils';
 import { useReleaseToAnnounce } from '../model/hooks/useReleaseToAnnounce';
 import { changelogUrl, formatChapterTime, playerUrl } from '../model/links';
 import { trackWhatsNewEvent } from '../model/whats-new.analytics';
+import { ReleaseVideo } from './ReleaseVideo';
 
 export function WhatsNewPopoverTitle() {
   const { release } = useReleaseToAnnounce();
@@ -36,13 +37,13 @@ export function WhatsNewPopoverContent() {
   return (
     <div className='flex flex-col gap-3' data-testid='whatsNewPopover'>
       {videoUrl && (
-        <iframe
+        <ReleaseVideo
           key={playback.picks}
           src={playerUrl(videoUrl, playback.startTime)}
-          title={`What's new in OWOX Data Marts ${version}`}
-          className='aspect-video w-full rounded-md border-none'
-          allow='accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;'
-          allowFullScreen
+          version={version}
+          chapter={
+            chapters.find(chapter => chapter.startTime === playback.startTime)?.title ?? null
+          }
         />
       )}
 
