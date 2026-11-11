@@ -30,7 +30,7 @@ export function fieldsSchemaFromManifest(manifest: Record<string, unknown>): Con
   const source = declarativeSourceFromManifest(manifest);
   return parseOrExplain(
     ConnectorFieldsSchema,
-    mapConnectorFieldsSchema(source.getFieldsSchema() as SourceFieldsSchema),
+    mapConnectorFieldsSchema(source.getFieldsSchema() as SourceFieldsSchema, source),
     'node'
   );
 }

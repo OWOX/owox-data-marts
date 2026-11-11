@@ -86,6 +86,7 @@ import { DataMart } from '../../entities/data-mart.entity';
 import { DataMartRun } from '../../entities/data-mart-run.entity';
 import { ProjectBlockedReason } from '../../enums/project-blocked-reason.enum';
 import { ConnectorRunService } from './connector-run.service';
+import { ConnectorService } from './connector.service';
 import { ConnectorRunTriggerService } from './connector-run-trigger.service';
 import { Repository } from 'typeorm';
 
@@ -982,7 +983,8 @@ describe('ConnectorExecutorService', () => {
       sweepRepository,
       connectorRunTriggerService,
       service,
-      {} as SystemTimeService
+      {} as SystemTimeService,
+      { isNodeFetchedByDate: jest.fn().mockResolvedValue(true) } as unknown as ConnectorService
     ).executeInterruptedRuns();
 
     expect(row.status).toBe(DataMartRunStatus.PENDING);
@@ -1535,7 +1537,8 @@ describe('ConnectorExecutorService', () => {
         sweepRepository,
         connectorRunTriggerService,
         service,
-        {} as SystemTimeService
+        {} as SystemTimeService,
+        { isNodeFetchedByDate: jest.fn().mockResolvedValue(true) } as unknown as ConnectorService
       );
 
       await runService.executeInterruptedRuns();
@@ -2515,7 +2518,7 @@ describe('ConnectorExecutorService', () => {
           metric: 'backfill_segment',
           tags: expect.objectContaining({ phase: 'started' }),
           message:
-            'Backfill 2026-01-01 – 2026-03-03: loading segment 1 of 2 (2026-01-01 – 2026-01-31)',
+            'Backfill 2026-01-01 – 2026-03-03: loading part 1 of 2 (2026-01-01 – 2026-01-31)',
         })
       );
       expect(logs).toContainEqual(
@@ -2533,7 +2536,7 @@ describe('ConnectorExecutorService', () => {
             chainContinues: true,
           },
           message:
-            'Backfill 2026-01-01 – 2026-03-03: segment 1 of 2 (2026-01-01 – 2026-01-31) completed — counted as 1 run',
+            'Backfill 2026-01-01 – 2026-03-03: part 1 of 2 (2026-01-01 – 2026-01-31) loaded — counted as 1 run',
         })
       );
     });
@@ -2579,7 +2582,7 @@ describe('ConnectorExecutorService', () => {
             chainContinues: true,
           }),
           message:
-            'Backfill 2026-01-01 – 2026-03-03: segment 1 of 2 (2026-01-01 – 2026-01-31) failed; days through 2026-01-10 were loaded',
+            'Backfill 2026-01-01 – 2026-03-03: part 1 of 2 (2026-01-01 – 2026-01-31) failed; days through 2026-01-10 were loaded',
         })
       );
     });
@@ -2854,7 +2857,7 @@ describe('ConnectorExecutorService', () => {
         expect(persistedLogs(ctx)).toContainEqual(
           expect.objectContaining({
             message:
-              'Backfill 2026-01-01 – 2026-03-03: segment 1 of 2 (2026-01-01 – 2026-01-31) failed; days through 2026-01-20 were loaded — counted as 1 run',
+              'Backfill 2026-01-01 – 2026-03-03: part 1 of 2 (2026-01-01 – 2026-01-31) failed; days through 2026-01-20 were loaded — counted as 1 run',
           })
         );
         // The chain goes on regardless: failure isolation.
@@ -2870,7 +2873,7 @@ describe('ConnectorExecutorService', () => {
           expect.objectContaining({
             tags: expect.objectContaining({ phase: 'failed', loadedThrough: '2026-01-31' }),
             message:
-              'Backfill 2026-01-01 – 2026-03-03: segment 1 of 2 (2026-01-01 – 2026-01-31) failed; days through 2026-01-31 were loaded (1 of 2 configurations) — counted as 1 run',
+              'Backfill 2026-01-01 – 2026-03-03: part 1 of 2 (2026-01-01 – 2026-01-31) failed; days through 2026-01-31 were loaded (1 of 2 configurations) — counted as 1 run',
           })
         );
       });
@@ -2903,7 +2906,7 @@ describe('ConnectorExecutorService', () => {
             chainEnd: 'stopped',
           }),
           message:
-            'Backfill stopped: the project is restricted; segments 1–2 (2026-01-01 – 2026-03-03) were not loaded.',
+            'Backfill stopped: the project is restricted; parts 1–2 (2026-01-01 – 2026-03-03) were not loaded.',
         })
       );
     });

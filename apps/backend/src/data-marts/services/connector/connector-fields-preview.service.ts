@@ -81,7 +81,7 @@ export class ConnectorFieldsPreviewService {
         signal => source.fetchFieldsSchema(signal),
         PREVIEW_ERROR_MESSAGES.timeout
       )) as SourceFieldsSchema;
-      return ConnectorFieldsSchema.parse(mapConnectorFieldsSchema(sourceFieldsSchema));
+      return ConnectorFieldsSchema.parse(mapConnectorFieldsSchema(sourceFieldsSchema, source));
     } catch (error) {
       throw mapConnectorPreviewError(error, this.logger, PREVIEW_ERROR_MESSAGES);
     }

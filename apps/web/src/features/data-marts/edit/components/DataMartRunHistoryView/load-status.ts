@@ -1,8 +1,8 @@
 import type { LogEntry } from './types';
 
 /**
- * Which segment of a multi-run backfill this run is, read from its run-log markers. Each
- * segment is its own run: a `started` marker names it, and a terminal marker says how it
+ * Which part of a multi-run backfill this run is, read from its run-log markers. Each
+ * part is its own run: a `started` marker names it, and a terminal marker says how it
  * ended and whether the backfill goes on.
  */
 export interface BackfillStatus {
@@ -26,17 +26,17 @@ export interface LoadStatus {
   backfill?: BackfillStatus;
 }
 
-/** One line for the strip: the period, which segment this run is, and how it went. */
+/** One line for the strip: the period, which part of it this run is, and how it went. */
 export function describeBackfillStatus(backfill: BackfillStatus, isRunning: boolean): string {
-  const segment = `segment ${String(backfill.segmentIndex)} of ${String(backfill.segmentsTotal)}`;
+  const part = `part ${String(backfill.segmentIndex)} of ${String(backfill.segmentsTotal)}`;
   const progress =
     backfill.phase === 'completed'
-      ? `${segment} completed`
+      ? `${part} loaded`
       : backfill.phase === 'failed'
-        ? `${segment} failed`
+        ? `${part} failed`
         : isRunning
-          ? `loading ${segment}`
-          : segment;
+          ? `loading ${part}`
+          : part;
 
   return [
     `Backfill ${backfill.backfillStart} – ${backfill.backfillEnd}`,
@@ -48,7 +48,7 @@ export function describeBackfillStatus(backfill: BackfillStatus, isRunning: bool
   ].join(' · ');
 }
 
-/** "Complete" claims every segment loaded, so a last segment that failed says "ended" instead. */
+/** "Complete" claims every part loaded, so a last part that failed says "ended" instead. */
 function describeChainEnd(backfill: BackfillStatus): string[] {
   if (backfill.chainEnd === 'stopped') return ['backfill stopped'];
   if (backfill.chainEnd === 'finished') {

@@ -15,7 +15,9 @@ import { ConnectorExecutionError } from '../../errors/connector-execution.error'
 import { RunType } from '../../../common/scheduler/shared/types';
 import { ConnectorRunTriggerService } from './connector-run-trigger.service';
 import { ConnectorExecutorService } from './connector-executor.service';
+import { ConnectorService } from './connector.service';
 import { createNextSegmentRun } from './backfill-segment';
+import { ConnectorDefinition } from '../../dto/schemas/data-mart-table-definitions/connector-definition.schema';
 import { SystemTimeService } from '../../../common/scheduler/services/system-time.service';
 import {
   BACKFILL_CHAIN_KEY,
@@ -49,7 +51,8 @@ export class ConnectorRunService {
     private readonly dataMartRunRepository: Repository<DataMartRun>,
     private readonly connectorRunTriggerService: ConnectorRunTriggerService,
     private readonly connectorExecutorService: ConnectorExecutorService,
-    private readonly systemTimeService: SystemTimeService
+    private readonly systemTimeService: SystemTimeService,
+    private readonly connectorService: ConnectorService
   ) {}
 
   @Transactional()
@@ -74,7 +77,15 @@ export class ConnectorRunService {
     // A backfill longer than one segment runs as a chain of independent runs, one per segment.
     // This run is segment 1: its payload covers only the first window, and the chain metadata
     // carries the requested period so each finished segment can queue the next one.
-    const chainPlan = planBackfillChain(preparedPayload, randomUUID());
+    //
+    // Only a node fetched by date window is worth segmenting. A catalog node (Reddit `ads`,
+    // for example) ignores the dates and loads the whole source in one run, so a chain for it
+    // would promise N runs and deliver one; it runs as a single run with the full period.
+    // The schema is consulted only once a chain is actually planned, so an incremental run or
+    // a one-month backfill never pays for the lookup.
+    const plannedChain = planBackfillChain(preparedPayload, randomUUID());
+    const chainPlan =
+      plannedChain && (await this.isNodeFetchedByDate(dataMart)) ? plannedChain : undefined;
     const runPayload = chainPlan?.payload ?? preparedPayload;
 
     const dataMartRun = await this.createDataMartRun(
@@ -299,6 +310,29 @@ export class ConnectorRunService {
       window
     );
     return nextRun.id;
+  }
+
+  /**
+   * Whether the Data Mart's node is fetched by date window. A schema lookup that fails keeps
+   * the chain (the behaviour before the lookup existed) rather than failing the run start.
+   */
+  private async isNodeFetchedByDate(dataMart: DataMart): Promise<boolean> {
+    const source = (dataMart.definition as ConnectorDefinition | undefined)?.connector?.source;
+    if (!source?.name || !source.node) return true;
+    try {
+      return await this.connectorService.isNodeFetchedByDate(
+        dataMart.projectId,
+        source.name,
+        source.version,
+        source.node
+      );
+    } catch (error) {
+      this.logger.warn(
+        `Could not resolve node "${source.node}" of connector "${source.name}"; planning the backfill as a chain: ${castError(error).message}`,
+        { dataMartId: dataMart.id, projectId: dataMart.projectId }
+      );
+      return true;
+    }
   }
 
   private validateDataMartForConnector(dataMart: DataMart): void {

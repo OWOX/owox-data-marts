@@ -61,5 +61,7 @@ export interface ConnectorFieldsResponseApiDto {
   uniqueKeysByDataLevel?: Record<string, string[]>;
   defaultFields?: string[];
   destinationName?: string;
+  /** False for a catalog that a backfill loads once. Absent means unknown: treat it as fetched by date. */
+  isFetchedByDate?: boolean;
   fields?: ConnectorFieldResponseApiDto[];
 }

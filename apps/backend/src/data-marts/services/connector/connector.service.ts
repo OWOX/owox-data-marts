@@ -203,7 +203,7 @@ export class ConnectorService {
       );
       sourceFieldsSchema = {};
     }
-    const fieldsSchema = mapConnectorFieldsSchema(sourceFieldsSchema);
+    const fieldsSchema = mapConnectorFieldsSchema(sourceFieldsSchema, sourceInstance);
 
     return ConnectorFieldsSchema.parse(fieldsSchema);
   }
@@ -246,6 +246,28 @@ export class ConnectorService {
 
   getFieldsSchemaFromManifest(manifest: Record<string, unknown>): ConnectorFieldsSchema {
     return fieldsSchemaFromManifest(manifest);
+  }
+
+  /**
+   * Whether a Data Mart's node is fetched by date window, for the connector version it runs.
+   * A node the schema does not list answers true: the run then fails on the connector's own
+   * "unknown node" error, as before, instead of being planned differently here.
+   */
+  async isNodeFetchedByDate(
+    projectId: string,
+    connectorName: string,
+    version: number | undefined,
+    nodeName: string
+  ): Promise<boolean> {
+    const fieldsSchema = await this.resolveBundledOrCustom<ConnectorFieldsSchema>(
+      projectId,
+      connectorName,
+      version,
+      name => this.getConnectorFieldsSchema(name),
+      manifest => fieldsSchemaFromManifest(manifest)
+    );
+    const node = fieldsSchema.find(entry => entry.name === nodeName);
+    return node?.isFetchedByDate ?? true;
   }
 
   async getOAuthUiVariables(

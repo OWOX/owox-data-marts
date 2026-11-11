@@ -7,6 +7,7 @@ import { In, MoreThanOrEqual, Not, Repository } from 'typeorm';
 import { ConnectorRunService } from './connector-run.service';
 import { ConnectorRunTriggerService } from './connector-run-trigger.service';
 import { ConnectorExecutorService } from './connector-executor.service';
+import { ConnectorService } from './connector.service';
 import { DataMartRun } from '../../entities/data-mart-run.entity';
 import { DataMart } from '../../entities/data-mart.entity';
 import { DataMartRunStatus } from '../../enums/data-mart-run-status.enum';
@@ -38,11 +39,16 @@ describe('ConnectorRunService', () => {
       now: jest.fn().mockReturnValue(new Date('2026-09-17T12:00:00.000Z')),
     } as unknown as SystemTimeService;
 
+    const connectorService = {
+      isNodeFetchedByDate: jest.fn().mockResolvedValue(true),
+    } as unknown as ConnectorService;
+
     const service = new ConnectorRunService(
       dataMartRunRepository,
       connectorRunTriggerService,
       connectorExecutorService,
-      systemTimeService
+      systemTimeService,
+      connectorService
     );
 
     return {
@@ -50,6 +56,7 @@ describe('ConnectorRunService', () => {
       dataMartRunRepository,
       connectorRunTriggerService,
       connectorExecutorService,
+      connectorService,
     };
   };
 
@@ -63,7 +70,8 @@ describe('ConnectorRunService', () => {
 
   describe('run', () => {
     it('creates run and trigger successfully', async () => {
-      const { service, dataMartRunRepository, connectorRunTriggerService } = createService();
+      const { service, dataMartRunRepository, connectorRunTriggerService, connectorService } =
+        createService();
       (dataMartRunRepository.findOne as jest.Mock).mockResolvedValue(null); // not running
 
       const result = await service.run(publishedConnectorDataMart, 'user-1', RunType.manual);
@@ -71,6 +79,8 @@ describe('ConnectorRunService', () => {
       expect(result).toBe('run-1');
       expect(dataMartRunRepository.save).toHaveBeenCalled();
       expect(connectorRunTriggerService.createTrigger).toHaveBeenCalled();
+      // No chain to plan, so the node schema is never consulted.
+      expect(connectorService.isNodeFetchedByDate).not.toHaveBeenCalled();
     });
 
     it('throws when dataMart is not CONNECTOR type', async () => {
@@ -120,10 +130,10 @@ describe('ConnectorRunService', () => {
       );
     });
 
-    it('plans a backfill longer than one segment as segment 1 of a chain', async () => {
+    it('plans a backfill spanning several months as part 1 of a chain', async () => {
       const { service, dataMartRunRepository, connectorRunTriggerService } = createService();
       (dataMartRunRepository.findOne as jest.Mock).mockResolvedValue(null);
-      // 411 days: 14 segments of at most 31 days.
+      // August 2025 through September 2026: 14 calendar months, one part each.
       const payload = {
         runType: 'MANUAL_BACKFILL',
         data: { StartDate: '2025-08-01', EndDate: '2026-09-15' },
@@ -142,7 +152,7 @@ describe('ConnectorRunService', () => {
           requestedEnd: '2026-09-15',
           segmentIndex: 1,
           segmentsTotal: 14,
-          segmentDays: 31,
+          windowing: 'calendar-month',
         },
       };
       expect(dataMartRunRepository.save).toHaveBeenCalledTimes(1);
@@ -152,6 +162,64 @@ describe('ConnectorRunService', () => {
       expect(connectorRunTriggerService.createTrigger).toHaveBeenCalledTimes(1);
       expect(connectorRunTriggerService.createTrigger).toHaveBeenCalledWith(
         expect.objectContaining({ payload: expectedAdditionalParams })
+      );
+    });
+
+    it('runs a long backfill of a dateless node as one run, not a chain', async () => {
+      const { service, dataMartRunRepository, connectorService } = createService();
+      (dataMartRunRepository.findOne as jest.Mock).mockResolvedValue(null);
+      (connectorService.isNodeFetchedByDate as jest.Mock).mockResolvedValue(false);
+      const dataMart = {
+        ...publishedConnectorDataMart,
+        definition: {
+          connector: { source: { name: 'RedditAds', node: 'ads', version: 2, configuration: [] } },
+        },
+      } as unknown as DataMart;
+
+      await service.run(dataMart, 'user-1', RunType.manual, {
+        runType: 'MANUAL_BACKFILL',
+        data: { StartDate: '2025-08-01', EndDate: '2026-09-15' },
+      });
+
+      expect(connectorService.isNodeFetchedByDate).toHaveBeenCalledWith(
+        'proj-1',
+        'RedditAds',
+        2,
+        'ads'
+      );
+      // The full period in one run, and no chain metadata that would label it "part 1 of 14".
+      expect(dataMartRunRepository.save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          additionalParams: {
+            payload: {
+              runType: 'MANUAL_BACKFILL',
+              data: { StartDate: '2025-08-01', EndDate: '2026-09-15' },
+            },
+          },
+        })
+      );
+    });
+
+    it('keeps the chain when the node schema cannot be resolved', async () => {
+      const { service, dataMartRunRepository, connectorService } = createService();
+      (dataMartRunRepository.findOne as jest.Mock).mockResolvedValue(null);
+      (connectorService.isNodeFetchedByDate as jest.Mock).mockRejectedValue(new Error('offline'));
+      const dataMart = {
+        ...publishedConnectorDataMart,
+        definition: { connector: { source: { name: 'RedditAds', node: 'report' } } },
+      } as unknown as DataMart;
+
+      await service.run(dataMart, 'user-1', RunType.manual, {
+        runType: 'MANUAL_BACKFILL',
+        data: { StartDate: '2025-08-01', EndDate: '2026-09-15' },
+      });
+
+      expect(dataMartRunRepository.save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          additionalParams: expect.objectContaining({
+            backfill: expect.objectContaining({ segmentIndex: 1, segmentsTotal: 14 }),
+          }),
+        })
       );
     });
 

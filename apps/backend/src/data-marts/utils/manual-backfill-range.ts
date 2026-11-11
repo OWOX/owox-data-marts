@@ -68,8 +68,8 @@ export function countBackfillDays(range: BackfillDateRange): number {
  * Validates the user-supplied StartDate/EndDate the same way AbstractConnector does
  * (EndDate defaults to today and is clamped to today), before a run is created so the caller
  * gets a 4xx instead of a failed run. The period has no length limit, only a start-date floor
- * (`MIN_MANUAL_BACKFILL_START_DATE`): the executor runs a long one as consecutive segments of
- * at most `getMaxManualBackfillDays()` days.
+ * (`MIN_MANUAL_BACKFILL_START_DATE`): a period spanning several calendar months runs as one
+ * part per month, each within the `getMaxManualBackfillDays()` cap a single run accepts.
  */
 export function parseManualBackfillRange(data: unknown, today: Date): BackfillDateRange {
   const parsed = manualBackfillDatesSchema.safeParse(data);
@@ -101,21 +101,35 @@ export function parseManualBackfillRange(data: unknown, today: Date): BackfillDa
   return { startDate: formatUtcDay(start), endDate: formatUtcDay(end) };
 }
 
-/** The first `maxDays` inclusive days of `range`; the range itself when it is not longer. */
-export function clampBackfillWindow(range: BackfillDateRange, maxDays: number): BackfillDateRange {
-  const lastDay = toUtcDay(range.startDate) + (maxDays - 1) * DAY_MS;
-  return {
-    startDate: range.startDate,
-    endDate: formatUtcDay(Math.min(toUtcDay(range.endDate), lastDay)),
-  };
+/**
+ * The calendar-month parts of `range`, in order: one window per month the period touches, the
+ * first and last clipped to the period. 1 Jan – 15 Apr gives 1–31 Jan, 1–28/29 Feb, 1–31 Mar,
+ * 1–15 Apr. Every window is at most 31 days, which is the per-run invariant the connector
+ * relies on. Empty for an invalid or reversed range.
+ */
+export function calendarMonthWindows(range: BackfillDateRange): BackfillDateRange[] {
+  const end = toUtcDay(range.endDate);
+  let start = toUtcDay(range.startDate);
+  if (Number.isNaN(start) || Number.isNaN(end) || end < start) return [];
+
+  const windows: BackfillDateRange[] = [];
+  while (start <= end) {
+    const day = new Date(start);
+    const monthEnd = Date.UTC(day.getUTCFullYear(), day.getUTCMonth() + 1, 0);
+    windows.push({
+      startDate: formatUtcDay(start),
+      endDate: formatUtcDay(Math.min(monthEnd, end)),
+    });
+    start = monthEnd + DAY_MS;
+  }
+  return windows;
 }
 
-/** How many segments of at most `maxDays` days cover `range`. */
-export function countBackfillSegments(range: BackfillDateRange, maxDays: number): number {
-  return Math.ceil(countBackfillDays(range) / maxDays);
-}
-
-/** The window of the 1-based `segmentIndex`-th segment of `requested`. */
+/**
+ * The window of the 1-based `segmentIndex`-th segment of `requested`, for a chain planned in
+ * fixed-size segments before calendar-month parts existed. Kept so such a chain finishes with
+ * the windows it was planned with.
+ */
 export function backfillSegmentWindow(
   requested: BackfillDateRange,
   segmentIndex: number,
@@ -207,6 +221,9 @@ export function withBackfillWindow(
 /** Key under `DataMartRun.additionalParams` identifying one segment run of a backfill chain. */
 export const BACKFILL_CHAIN_KEY = 'backfill';
 
+/** `BackfillChainMeta.windowing` of a chain whose parts are calendar months. */
+export const CALENDAR_MONTH_WINDOWING = 'calendar-month';
+
 const backfillChainMetaSchema = z.object({
   /** Groups every segment run of one user-requested backfill. */
   id: z.string().min(1),
@@ -216,10 +233,13 @@ const backfillChainMetaSchema = z.object({
   segmentIndex: z.number().int().min(1),
   segmentsTotal: z.number().int().min(1),
   /**
-   * Days per segment the chain was planned with, so a later change of the segment size cannot
-   * misalign the windows of a chain already running. Absent on rows created before it existed.
+   * Days per segment of a chain planned in fixed-size segments, before calendar-month parts
+   * existed, so such a chain keeps its windows. Absent on rows created before it existed and on
+   * calendar-month chains.
    */
   segmentDays: z.number().int().min(1).optional(),
+  /** Set on a chain whose parts are calendar months; a chain without it steps by `segmentDays`. */
+  windowing: z.literal(CALENDAR_MONTH_WINDOWING).optional(),
 });
 
 export type BackfillChainMeta = z.infer<typeof backfillChainMetaSchema>;
@@ -238,9 +258,10 @@ export interface BackfillChainPlan {
 }
 
 /**
- * Plans a backfill that needs more than one segment, or returns undefined for anything else:
- * a non-backfill run, a connector without date fields, or a period that fits one segment —
- * those execute in a single run exactly as before.
+ * Plans a backfill longer than one run may cover (`getMaxManualBackfillDays()`) as a chain with
+ * one part per calendar month, or returns undefined for anything else: a non-backfill run, a
+ * connector without date fields, or a period that fits one run — those execute in a single run
+ * exactly as before.
  */
 export function planBackfillChain(
   payload: Record<string, unknown> | undefined,
@@ -250,19 +271,21 @@ export function planBackfillChain(
   const requested = readBackfillRange(payload);
   if (!requested) return undefined;
 
-  const maxDays = getMaxManualBackfillDays();
-  const segmentsTotal = countBackfillSegments(requested, maxDays);
-  if (segmentsTotal <= 1) return undefined;
+  // A period the connector accepts in one run stays one run, even across a month boundary:
+  // "the last 30 days" must not cost two runs. Only a longer one is cut at calendar months.
+  if (countBackfillDays(requested) <= getMaxManualBackfillDays()) return undefined;
+  const windows = calendarMonthWindows(requested);
+  if (windows.length <= 1) return undefined;
 
   return {
-    payload: withBackfillEndDate(payload, clampBackfillWindow(requested, maxDays).endDate),
+    payload: withBackfillEndDate(payload, windows[0].endDate),
     meta: {
       id: chainId,
       requestedStart: requested.startDate,
       requestedEnd: requested.endDate,
       segmentIndex: 1,
-      segmentsTotal,
-      segmentDays: maxDays,
+      segmentsTotal: windows.length,
+      windowing: CALENDAR_MONTH_WINDOWING,
     },
   };
 }
@@ -301,15 +324,15 @@ export type BackfillChainStep =
  * would load nothing more. A failed segment never ends the chain (failure isolation): every
  * segment of the requested period runs, however many fail.
  *
- * The windows use the segment size the chain was planned with; `defaultMaxDays` applies only
- * to a chain created before that size was stored.
+ * The windows follow how the chain was planned: calendar months for a chain marked so, else
+ * the fixed segment size stored with it; `defaultMaxDays` applies only to a chain created
+ * before that size was stored.
  */
 export function nextBackfillChainStep(
   meta: BackfillChainMeta,
   outcome: { segmentSucceeded: boolean; anyProgressAdvanced: boolean },
   defaultMaxDays: number
 ): BackfillChainStep {
-  const maxDays = meta.segmentDays ?? defaultMaxDays;
   if (meta.segmentIndex >= meta.segmentsTotal) return { action: 'end', chainEnd: 'finished' };
   if (outcome.segmentSucceeded && !outcome.anyProgressAdvanced) {
     return { action: 'end', chainEnd: 'finished' };
@@ -317,11 +340,14 @@ export function nextBackfillChainStep(
 
   const nextIndex = meta.segmentIndex + 1;
   const requested = { startDate: meta.requestedStart, endDate: meta.requestedEnd };
-  return {
-    action: 'continue',
-    meta: { ...meta, segmentIndex: nextIndex },
-    window: backfillSegmentWindow(requested, nextIndex, maxDays),
-  };
+  const window =
+    meta.windowing === CALENDAR_MONTH_WINDOWING
+      ? calendarMonthWindows(requested)[nextIndex - 1]
+      : backfillSegmentWindow(requested, nextIndex, meta.segmentDays ?? defaultMaxDays);
+  // Metadata that names more parts than the period has months cannot be stepped any further.
+  if (!window) return { action: 'end', chainEnd: 'finished' };
+
+  return { action: 'continue', meta: { ...meta, segmentIndex: nextIndex }, window };
 }
 
 /**

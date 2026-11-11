@@ -58,8 +58,8 @@ function describeLoadedDays(outcome: SegmentMarkerOutcome): string {
 function describeUnloadedPeriod(meta: BackfillChainMeta, window: BackfillDateRange): string {
   const isLastSegment = meta.segmentIndex >= meta.segmentsTotal;
   const segments = isLastSegment
-    ? `segment ${meta.segmentIndex}`
-    : `segments ${meta.segmentIndex}–${meta.segmentsTotal}`;
+    ? `part ${meta.segmentIndex}`
+    : `parts ${meta.segmentIndex}–${meta.segmentsTotal}`;
   return `${segments} (${window.startDate} – ${meta.requestedEnd}) ${isLastSegment ? 'was' : 'were'} not loaded`;
 }
 
@@ -78,7 +78,7 @@ export function buildSegmentMarker(
   outcome: SegmentMarkerOutcome = {}
 ): Extract<ConnectorMessage, { type: ConnectorMessageType.LOG }> {
   const period = `${meta.requestedStart} – ${meta.requestedEnd}`;
-  const position = `segment ${meta.segmentIndex} of ${meta.segmentsTotal} (${window.startDate} – ${window.endDate})`;
+  const position = `part ${meta.segmentIndex} of ${meta.segmentsTotal} (${window.startDate} – ${window.endDate})`;
 
   let message: string;
   switch (phase) {
@@ -86,7 +86,7 @@ export function buildSegmentMarker(
       message = `Backfill ${period}: loading ${position}`;
       break;
     case 'completed':
-      message = `Backfill ${period}: ${position} completed — counted as 1 run`;
+      message = `Backfill ${period}: ${position} loaded — counted as 1 run`;
       break;
     case 'failed':
       message =
