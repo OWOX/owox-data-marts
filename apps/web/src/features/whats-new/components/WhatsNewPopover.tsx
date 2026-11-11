@@ -72,7 +72,7 @@ export function WhatsNewPopoverContent() {
                   type='button'
                   aria-current={isPlaying ? 'true' : undefined}
                   className={cn(
-                    'flex w-full items-baseline gap-3 rounded-md px-2 py-1 text-left text-sm',
+                    'flex w-full cursor-pointer items-baseline gap-3 rounded-md px-2 py-1 text-left text-sm',
                     'hover:bg-accent focus-visible:ring-ring focus-visible:ring-2 focus-visible:outline-none',
                     isPlaying && 'bg-accent'
                   )}
