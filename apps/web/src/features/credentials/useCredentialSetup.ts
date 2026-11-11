@@ -2,6 +2,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { AxiosError } from 'axios';
 import { useEffect, useRef, useState } from 'react';
 import { apiErrorMessage } from '../../app/api/extract-api-error.util';
+import { ConnectorBuilderApiService } from '../connector-builder/shared/api/connector-builder-api.service';
 import { useProjectId } from '../../shared/hooks';
 import { useAuth } from '../idp';
 import { credentialSetupService } from './credential-setup.service';
@@ -18,7 +19,8 @@ import {
   useGoogleOAuthSettings,
 } from './useCredentials';
 
-export function useCredentialSetup(setupId: string) {
+/** `connectorId` names the custom connector whose hosts and key fields a new Credential takes. */
+export function useCredentialSetup(setupId: string, connectorId: string | null = null) {
   const projectId = useProjectId();
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -53,6 +55,18 @@ export function useCredentialSetup(setupId: string) {
     setup?.mode === 'update'
       ? credentialQuery.credential?.definition
       : definitionsQuery.definitions.find(item => item.id === setup?.definitionId);
+  const prefillQuery = useQuery({
+    queryKey: ['credential-setup-prefill', projectId, setupId, connectorId],
+    queryFn: () => customConnectorPrefill(connectorId ?? ''),
+    enabled: Boolean(
+      connectorId &&
+      needsForm &&
+      setup.mode === 'create' &&
+      definition?.auth?.type === 'custom-connector'
+    ),
+    retry: false,
+    staleTime: Infinity,
+  });
   const oauthSettingsQuery = useGoogleOAuthSettings(
     definition?.auth?.type === 'oauth' ? definition.auth.client : undefined
   );
@@ -207,7 +221,11 @@ export function useCredentialSetup(setupId: string) {
       (needsForm &&
         (definitionsQuery.isLoading ||
           (setup.mode === 'update' && Boolean(setup.credentialId) && credentialQuery.isLoading))) ||
-      (needsOAuthSettings && oauthSettingsQuery.isPending),
+      (needsOAuthSettings && oauthSettingsQuery.isPending) ||
+      // Without the prefill, the form opens empty.
+      prefillQuery.isLoading,
+    customConnectorPrefill: prefillQuery.data ?? undefined,
+    customConnectorPrefillFailed: prefillQuery.isError,
     // A temporary background error must not remove the form and its unsaved secrets.
     loadError:
       (query.isLoadingError ? query.error : null) ??
@@ -226,6 +244,22 @@ export function useCredentialSetup(setupId: string) {
     cancel,
     retryLoad,
   };
+}
+
+/** The hosts and key fields of the connector's newest draft, else of its active version. */
+async function customConnectorPrefill(connectorId: string) {
+  const api = new ConnectorBuilderApiService();
+  // The page says when the prefill fails; a toast would repeat it.
+  const quiet = { skipErrorToast: true };
+  const connector = await api.getById(connectorId, quiet);
+  const version =
+    [...connector.versions].reverse().find(item => item.status === 'draft')?.version ??
+    connector.activeVersion;
+  if (!version) return null;
+  const { manifest } = await api.getVersion(connector.id, version, quiet);
+  const { hosts, fieldList, selectionParameter } = await api.credentialRequirement({ manifest });
+  // A selective authentication keys the branch a configuration picks, so the user lists its fields.
+  return fieldList.length > 0 && selectionParameter === undefined ? { hosts, fieldList } : null;
 }
 
 function readSavedId(key: string): string | null {

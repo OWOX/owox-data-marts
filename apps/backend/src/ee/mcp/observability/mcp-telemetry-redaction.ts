@@ -6,7 +6,9 @@ import { credentialListItemSchema } from '../tools/credential/credential.schemas
 export const REDACT_KEYS =
   /(authorization|bearer|cookie|token|secret|password|passwd|api[_-]?key|private[_-]?key|credential(?![_-]?id$))/i;
 export const REDACTED = '[REDACTED]';
-const MAX_DEPTH = 16;
+const TRUNCATED = '[TRUNCATED]';
+// Deep enough for any real manifest: a cut subtree reads back as a value that save would store.
+const MAX_DEPTH = 64;
 const objectSchema = z.record(z.string(), z.unknown());
 const connectorPayloadSchema = z.object({ manifest: objectSchema }).loose();
 const credentialListSchema = z.array(credentialListItemSchema);
@@ -14,6 +16,8 @@ const credentialListSchema = z.array(credentialListItemSchema);
 interface RedactionContext {
   connector: boolean;
   inferCredentialNames: boolean;
+  /** Reads a manifest for its keys, not for logs: a named protocol value is not one. */
+  keyCheck: boolean;
   secretNames: Set<string>;
   secretValues: Set<string>;
 }
@@ -22,6 +26,7 @@ function isCredentialName(name: string): boolean {
   const normalized = name.replace(/[_\-\s]/g, '').toLowerCase();
   if (
     /(?:count|url|uri|path|type|name|hint|endpoint|ttl)$/.test(normalized) ||
+    /^(?:total|prompt|completion|input|output|max|cached|reasoning)tokens$/.test(normalized) ||
     /^(?:next|previous)?(?:page|cursor|continuation|pagination)token$/.test(normalized)
   )
     return false;
@@ -36,11 +41,23 @@ function isRequestCredentialName(name: string, inferCredentialNames: boolean): b
       normalized
     ) ||
     /(?:api|access|subscription|app|auth|secret|private)key$/.test(normalized) ||
-    /(?:api|access|refresh|developer|personalaccess|auth|session|bearer)token$/.test(normalized)
+    /(?:api|access|refresh|developer|personalaccess|auth|session|bearer|private)token$/.test(
+      normalized
+    )
   );
 }
 
-function isCredentialReference(value: string): boolean {
+/** A key check flags a name that ends in a key word: `api_secret`, not `token_format`. */
+function isKeyName(name: string): boolean {
+  return (
+    isRequestCredentialName(name, true) &&
+    /(?:authorization|bearer|cookie|token|secret|password|passwd|key|credential|auth|appid)s?$/.test(
+      name.replace(/[_\-\s]/g, '').toLowerCase()
+    )
+  );
+}
+
+function isCredentialReference(value: string, keyCheck = false): boolean {
   if (!value.includes('{{')) return false;
   try {
     let hasReference = false;
@@ -54,7 +71,12 @@ function isCredentialReference(value: string): boolean {
         },
       }
     );
-    return hasReference && /^(?:Bearer|Basic|ApiKey|Token)?$/i.test(literal.trim());
+    return (
+      hasReference &&
+      (/^(?:Bearer|Basic|ApiKey|Token)?$/i.test(literal.trim()) ||
+        // A key check reads a whole template: `sid={{ s }}; lang=en` holds no key, a long run does.
+        (keyCheck && !/[A-Za-z0-9]{16,}/.test(literal)))
+    );
   } catch {
     return false;
   }
@@ -62,7 +84,7 @@ function isCredentialReference(value: string): boolean {
 
 function rememberSecret(value: unknown, context: RedactionContext, depth = 0): void {
   if (depth > MAX_DEPTH) return;
-  if (typeof value === 'string' && value && !isCredentialReference(value)) {
+  if (typeof value === 'string' && value && !isCredentialReference(value, context.keyCheck)) {
     context.secretValues.add(value);
     const unprefixed = value.replace(/^(?:Bearer|Basic|ApiKey|Token)\s+/i, '');
     if (unprefixed) context.secretValues.add(unprefixed);
@@ -73,12 +95,23 @@ function rememberSecret(value: unknown, context: RedactionContext, depth = 0): v
   }
 }
 
+const isPrimitive = (value: unknown) =>
+  value === null || ['string', 'number', 'boolean'].includes(typeof value);
+
 function redactCredential(value: unknown, context: RedactionContext, depth = 0): unknown {
-  if (depth > MAX_DEPTH) return '[TRUNCATED]';
+  if (depth > MAX_DEPTH) return TRUNCATED;
   if (Array.isArray(value)) return value.map(item => redactCredential(item, context, depth + 1));
   if (value && typeof value === 'object') {
     return Object.fromEntries(
-      Object.entries(value).map(([key, item]) => [key, redactCredential(item, context, depth + 1)])
+      Object.entries(value).map(([key, item]) => [
+        key,
+        // In a token exchange body, grant_type and scope are protocol and api_secret is a key.
+        context.keyCheck &&
+        (isPrimitive(item) || (Array.isArray(item) && item.every(isPrimitive))) &&
+        !isKeyName(key)
+          ? item
+          : redactCredential(item, context, depth + 1),
+      ])
     );
   }
   if (typeof value === 'string' && value.includes('{{')) {
@@ -98,7 +131,13 @@ function redactCredential(value: unknown, context: RedactionContext, depth = 0):
       // Invalid templates are still masked as credential values.
     }
   }
-  if (value == null || value === '' || (typeof value === 'string' && isCredentialReference(value)))
+  if (
+    value == null ||
+    value === '' ||
+    // A key check: a flag or a count is not a key.
+    (context.keyCheck && typeof value !== 'string') ||
+    (typeof value === 'string' && isCredentialReference(value, context.keyCheck))
+  )
     return value;
   rememberSecret(value, context);
   return REDACTED;
@@ -128,14 +167,19 @@ function redactUrlCredentials(text: string, context: RedactionContext): string {
         } catch {
           /* unfinished URL */
         }
-        if (!isRequestCredentialName(decodedName, context.inferCredentialNames)) return match;
+        if (
+          !(context.keyCheck
+            ? isKeyName(decodedName)
+            : isRequestCredentialName(decodedName, context.inferCredentialNames))
+        )
+          return match;
         return `${separator}${name}=${redactCredential(decodedValue, context) === decodedValue ? value : REDACTED}`;
       }
     );
 }
 
 function redact(value: unknown, context: RedactionContext, depth = 0, container = ''): unknown {
-  if (depth > MAX_DEPTH) return '[TRUNCATED]';
+  if (depth > MAX_DEPTH) return TRUNCATED;
   if (Array.isArray(value)) return value.map(item => redact(item, context, depth + 1, container));
   if (typeof value === 'string') return redactUrlCredentials(value, context);
   if (!value || typeof value !== 'object') return value;
@@ -158,10 +202,12 @@ function redact(value: unknown, context: RedactionContext, depth = 0, container 
       !schemaName &&
       (namedSecret ||
         (context.connector
-          ? ((context.inferCredentialNames || container === 'oauthParams') &&
-              isCredentialName(key)) ||
-            ((container === 'headers' || container === 'queryParameters') &&
-              isRequestCredentialName(key, context.inferCredentialNames))
+          ? context.keyCheck
+            ? isKeyName(key)
+            : ((context.inferCredentialNames || container === 'oauthParams') &&
+                isCredentialName(key)) ||
+              ((container === 'headers' || container === 'queryParameters') &&
+                isRequestCredentialName(key, context.inferCredentialNames))
           : REDACT_KEYS.test(key)));
     if (credential) {
       rememberSecret(item, context);
@@ -174,12 +220,15 @@ function redact(value: unknown, context: RedactionContext, depth = 0, container 
 }
 
 function maskParameters(value: unknown, context: RedactionContext, depth = 0): unknown {
-  if (depth > MAX_DEPTH) return '[TRUNCATED]';
+  if (depth > MAX_DEPTH) return TRUNCATED;
   const parsed = objectSchema.safeParse(value);
   if (!parsed.success) return redactCredential(value, context, depth);
   return Object.fromEntries(
     Object.entries(parsed.data).map(([name, raw]) => {
-      if (context.inferCredentialNames && isCredentialName(name)) context.secretNames.add(name);
+      if (
+        context.keyCheck ? isKeyName(name) : context.inferCredentialNames && isCredentialName(name)
+      )
+        context.secretNames.add(name);
       const definition = objectSchema.safeParse(raw);
       if (!definition.success) {
         if (context.secretNames.has(name)) {
@@ -199,7 +248,7 @@ function maskParameters(value: unknown, context: RedactionContext, depth = 0): u
       ) {
         context.secretNames.add(name);
         for (const key of ['default', 'placeholder', 'options', 'value']) {
-          if (key in fields) {
+          if (fields[key] != null && fields[key] !== '') {
             rememberSecret(fields[key], context);
             parameter[key] = REDACTED;
           }
@@ -259,6 +308,7 @@ export function createMcpInputSecretRedactor(input: unknown): (value: unknown) =
   const context: RedactionContext = {
     connector: false,
     inferCredentialNames: false,
+    keyCheck: false,
     secretNames: new Set(),
     secretValues: new Set(),
   };
@@ -269,10 +319,69 @@ export function createMcpInputSecretRedactor(input: unknown): (value: unknown) =
   });
 }
 
+function inputContext(): RedactionContext {
+  return {
+    connector: false,
+    // The names that telemetry masks: X-Token and api_secret are keys, page_token is not.
+    inferCredentialNames: true,
+    keyCheck: true,
+    secretNames: new Set(),
+    secretValues: new Set(),
+  };
+}
+
+/** Parameters that a connector input uses as keys: by SECRET, authentication or credential name. */
+export function mcpSecretParameterNames(
+  input: { manifest: Record<string, unknown>; configuration?: unknown },
+  node: string
+): ReadonlySet<string> {
+  const context = inputContext();
+  maskPayload(input, context);
+  try {
+    // The engine also keys clientId and a Basic username, which masking leaves visible. Parse only
+    // the tested node, as the test does: another node of a draft can still be unfinished.
+    const nodes = (input.manifest.nodes ?? {}) as Record<string, unknown>;
+    const pruned = { ...input.manifest, nodes: { [node]: nodes[node] } };
+    const model = new Core.ManifestParser().parse(JSON.stringify(pruned)) as {
+      keyParameters?: string[];
+    };
+    for (const name of model.keyParameters ?? []) context.secretNames.add(name);
+  } catch {
+    // The test reports a manifest that the parser refuses.
+  }
+  return context.secretNames;
+}
+
+/** The manifest with each literal key replaced by [REDACTED]; parameter references stay. */
+export function maskMcpManifestKeys(manifest: Record<string, unknown>): Record<string, unknown> {
+  return (maskPayload({ manifest }, inputContext()) as { manifest: Record<string, unknown> })
+    .manifest;
+}
+
+/** Paths of literal keys in a manifest, and of [REDACTED] values copied back from a read. */
+export function mcpManifestKeyPaths(manifest: Record<string, unknown>): string[] {
+  const paths: string[] = [];
+  const walk = (raw: unknown, masked: unknown, path: string): void => {
+    if (raw && typeof raw === 'object' && masked && typeof masked === 'object') {
+      for (const [key, item] of Object.entries(raw)) {
+        walk(item, (masked as Record<string, unknown>)[key], path ? `${path}.${key}` : key);
+      }
+    } else if (
+      raw !== masked ||
+      (typeof raw === 'string' && (raw.includes(REDACTED) || raw.includes(TRUNCATED)))
+    ) {
+      paths.push(path);
+    }
+  };
+  walk(manifest, maskMcpManifestKeys(manifest), '');
+  return paths;
+}
+
 export function redactMcpTelemetry(value: unknown, input?: unknown): unknown {
   const context: RedactionContext = {
     connector: false,
     inferCredentialNames: true,
+    keyCheck: false,
     secretNames: new Set(),
     secretValues: new Set(),
   };

@@ -1,5 +1,6 @@
 import { maxCodePointLength } from '../../../../common/validators/max-code-point-length.validator';
 import { z } from 'zod';
+import { mcpManifestKeyPaths } from '../../observability/mcp-telemetry-redaction';
 import {
   MAX_MANIFEST_SIZE_BYTES,
   MAX_TEXT_COLUMN_BYTES,
@@ -49,9 +50,19 @@ export const boundedJsonObjectSchema = jsonObjectSchema.refine(
   value => Buffer.byteLength(JSON.stringify(value), 'utf8') <= MAX_MANIFEST_SIZE_BYTES,
   'Must not exceed 120 KiB of JSON'
 );
-export const manifestSchema = boundedJsonObjectSchema.describe(
-  'Supply the complete declarative connector manifest. Follow https://docs.owox.com/docs/connectors/manifest-reference.llms.txt. Use parameter references for credentials instead of literal secrets. Drafts may be incomplete. Publishing validates the full manifest.'
-);
+export const manifestSchema = boundedJsonObjectSchema
+  .superRefine((manifest, ctx) => {
+    const paths = mcpManifestKeyPaths(manifest);
+    if (paths.length > 0) {
+      ctx.addIssue({
+        code: 'custom',
+        message: `Remove the keys at ${paths.join(', ')}. Keys go only through Credentials: reference a parameter with attributes: ["SECRET"] and select a saved Credential in test_custom_connector.`,
+      });
+    }
+  })
+  .describe(
+    'Supply the complete declarative connector manifest. Follow https://docs.owox.com/docs/connectors/manifest-reference.llms.txt. Keys go only through Credentials: the tool rejects a literal key or a [REDACTED] value. Declare each key as a parameter with attributes: ["SECRET"] and use parameter references. Drafts may be incomplete. Publishing validates the full manifest.'
+  );
 export const createConnectorSchema = z
   .object({
     ...connectorMetadataShape,
@@ -64,19 +75,18 @@ export const createConnectorSchema = z
   .strict();
 export const updateConnectorSchema = connectorTargetSchema.extend(connectorMetadataShape);
 export const saveDraftSchema = connectorTargetSchema.extend({ manifest: manifestSchema });
-export const testConnectorSchema = z
-  .object({
-    manifest: manifestSchema,
-    node: z.string().min(1).describe('Specify the node key from manifest.nodes to test.'),
+export const testConnectorSchema = connectorTargetSchema
+  .extend({
+    node: z.string().min(1).describe('Specify the node key from the draft manifest.nodes to test.'),
     configuration: boundedJsonObjectSchema.describe(
-      'Supply a flat map of parameter names to values. Without credential_id, this can include temporary keys. Mark secret parameters with attributes: ["SECRET"]. With credential_id, omit fields supplied by that Credential. The test does not save this configuration.'
+      'Supply a flat map of non-secret parameter names to values. Do not supply keys. The tool rejects a parameter that the manifest marks with attributes: ["SECRET"], uses in authentication, or sends in a credential header or query parameter. With credential_id, omit fields supplied by that Credential. The test does not save this configuration.'
     ),
     credential_id: z
       .string()
       .min(1)
       .optional()
       .describe(
-        'Prefer a saved custom connector Credential that you can use. Its hosts and fields must fit the manifest. Omit its fields from configuration. Without this ID, supply temporary keys in configuration only if the user chooses them.'
+        'Select a saved custom connector Credential that you can use. It supplies the keys. Its hosts and fields must fit the manifest. Omit its fields from configuration. Omit this ID only if the API needs no keys. To save keys, call start_credential_setup.'
       ),
     max_rows: z.number().int().min(1).max(1000).optional(),
     max_pages: z.number().int().min(1).max(50).optional(),

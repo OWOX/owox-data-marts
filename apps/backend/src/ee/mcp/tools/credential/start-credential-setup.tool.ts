@@ -23,7 +23,8 @@ export class StartCredentialSetupTool implements McpToolDefinition<Input> {
     'For BigQuery, use google-oauth for Google sign-in or google-service-account for a service-account key. ' +
     'Use credential_id to update an existing Credential. Omit both IDs only if the user explicitly requests a provider picker without a known target. ' +
     'For a new Credential, optionally pass title to prefill its name. The user can change this name. ' +
-    'Omit title to use the provider or connected account name. Do not pass title with credential_id. Never supply secrets.\n\n' +
+    'Omit title to use the provider or connected account name. Do not pass title with credential_id. ' +
+    'For a custom connector, pass its connector_id so the form opens with its hosts and key fields. Never supply secrets.\n\n' +
     'The tool returns an expiring setup_id and a url for the current user and project. ' +
     'The user must sign in with the same OWOX account that connected MCP and remain in the connected project. ' +
     'Use get_credential_setup_status to identify the exact saved Credential. Do not infer completion from the newest list item. Before you start a setup, call get_owox_guide({topic: "credentials"}). It gives the setup link rules and how to find and validate the saved Credential.';
@@ -51,7 +52,7 @@ export class StartCredentialSetupTool implements McpToolDefinition<Input> {
   async handler(input: Input, context: McpAuthContext): Promise<McpToolResult> {
     const parsed = startCredentialSetupSchema.parse(input);
     const result = await this.credentials.startSetup(this.mapper.toActor(context), {
-      definitionId: parsed.definition_id,
+      definitionId: parsed.definition_id ?? (parsed.connector_id ? 'custom-connector' : undefined),
       credentialId: parsed.credential_id,
       title: parsed.title,
     });
@@ -60,7 +61,8 @@ export class StartCredentialSetupTool implements McpToolDefinition<Input> {
       url: this.mapper.toSetupUrl(
         context.projectId,
         result.id,
-        this.publicOrigin.getPublicOrigin()
+        this.publicOrigin.getPublicOrigin(),
+        parsed.connector_id
       ),
       instructions:
         'Open this URL. Sign in with the same OWOX account that connected MCP. Complete the Credential form in the connected project. Enter secrets only in that form. Then call get_credential_setup_status with this setup_id. Use wait_seconds to wait up to 25 seconds.\n\nA completed status identifies the saved Credential. This status does not mean that the provider verified it. The tool does not promise a background notification when setup completes.',

@@ -10,8 +10,15 @@ import { buildCredentialSetupUiPath } from '../data-mart-ui-path';
 import { joinPublicOrigin } from '../mcp-public-url.util';
 
 export class CredentialToolMapper {
-  toSetupUrl(projectId: string, setupId: string, publicOrigin: string): string {
-    return joinPublicOrigin(publicOrigin, buildCredentialSetupUiPath(projectId, setupId));
+  toSetupUrl(
+    projectId: string,
+    setupId: string,
+    publicOrigin: string,
+    connectorId?: string
+  ): string {
+    const url = joinPublicOrigin(publicOrigin, buildCredentialSetupUiPath(projectId, setupId));
+    // The form reads the connector's hosts and key fields itself.
+    return connectorId ? `${url}?connector=${encodeURIComponent(connectorId)}` : url;
   }
 
   toActor(context: McpAuthContext): AuthorizationContext {

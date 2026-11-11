@@ -14,6 +14,6 @@ Rules for all tools:
 - A Data Mart link in a description gives its ID. Its ?field= parameter is the URL-encoded technical field name (+ is a space). Verify both with get_data_mart_details_by_id. Follow a link only when the question needs that Data Mart, and do not follow a cycle. If the field is missing or renamed, do not substitute another field; choose one with the user.
 - Read an entity with its read tool before you change it.
 - Before a deletion or a destructive change, explain the effect and get the user's approval. Never delete dependent objects to bypass a restriction. Start billed runs and send messages to recipients only when the user asks for them.
-- Never accept provider secrets in tool arguments. Users enter secrets only in the OWOX browser form from start_credential_setup. The one exception is temporary keys for test_custom_connector, only when the user chooses them; never repeat or save them.
+- Never accept provider secrets in tool arguments. Users enter secrets only in the OWOX browser form from start_credential_setup.
 - When a response contains getting_started, follow getting_started.instructions. Do not retry discovery with other wording.
 - For a multi-step task, first call get_owox_guide with its topic: ${MCP_GUIDE_TOPICS.join(', ')}.`;

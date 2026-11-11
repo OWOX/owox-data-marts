@@ -31,12 +31,20 @@ export class ConnectorBuilderApiService extends ApiService {
     return this.get<CustomConnectorListItemDto[]>('/');
   }
 
-  async getById(id: string): Promise<CustomConnectorDetailDto> {
-    return this.get<CustomConnectorDetailDto>(`/${id}`);
+  async getById(id: string, config?: AxiosRequestConfig): Promise<CustomConnectorDetailDto> {
+    return this.get<CustomConnectorDetailDto>(`/${encodeURIComponent(id)}`, undefined, config);
   }
 
-  async getVersion(id: string, version: number): Promise<CustomConnectorVersionDto> {
-    return this.get<CustomConnectorVersionDto>(`/${id}/versions/${version}`);
+  async getVersion(
+    id: string,
+    version: number,
+    config?: AxiosRequestConfig
+  ): Promise<CustomConnectorVersionDto> {
+    return this.get<CustomConnectorVersionDto>(
+      `/${encodeURIComponent(id)}/versions/${version}`,
+      undefined,
+      config
+    );
   }
 
   async create(

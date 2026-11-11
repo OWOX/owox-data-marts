@@ -268,6 +268,19 @@ describe('Credential tools through the MCP SDK', () => {
     );
   });
 
+  it('opens a custom connector setup with the connector in its URL', async () => {
+    const client = await open();
+    const result = await client.callTool({
+      name: 'start_credential_setup',
+      arguments: { connector_id: 'connector/#é' },
+    });
+    expect(result.isError).not.toBe(true);
+    expect(result.structuredContent).toMatchObject({
+      url: 'https://app.example.test/ui/project-1/connect/credentials/setup?connector=connector%2F%23%C3%A9',
+    });
+    expect(facade.startSetup).toHaveBeenCalledWith(actor, { definitionId: 'custom-connector' });
+  });
+
   it('waits on the same request and reports completion without claiming validation', async () => {
     const client = await open();
     facade.getSetupStatus.mockResolvedValueOnce({
@@ -332,6 +345,8 @@ describe('Credential tools through the MCP SDK', () => {
     ['start_credential_setup', { title: 'x'.repeat(256) }],
     ['start_credential_setup', { title: 42 }],
     ['start_credential_setup', { credential_id: 'credential', title: 'Replacement name' }],
+    ['start_credential_setup', { definition_id: 'provider', connector_id: 'connector' }],
+    ['start_credential_setup', { credential_id: 'credential', connector_id: 'connector' }],
     ['get_credential_setup_status', { setup_id: 'setup', wait_seconds: 26 }],
     ['get_credential_setup_status', { setup_id: 'setup', wait_seconds: -1 }],
   ])('rejects invalid %s input through the SDK before side effects', async (name, args) => {

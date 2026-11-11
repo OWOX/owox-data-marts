@@ -2,7 +2,7 @@ import { Button } from '@owox/ui/components/button';
 import { CopyableField } from '@owox/ui/components/common/copyable-field';
 import type { AxiosError } from 'axios';
 import { useState, type ReactNode } from 'react';
-import { Link, useLocation, useParams } from 'react-router';
+import { Link, useLocation, useParams, useSearchParams } from 'react-router';
 import { CredentialForm } from '../../features/credentials/components/CredentialConfigSheet/CredentialForm';
 import { ReplaceSecretDialog } from '../../features/credentials/components/ReplaceSecretDialog';
 import { useCredentialPermissions } from '../../features/credentials/useCredentialPermissions';
@@ -23,7 +23,8 @@ export function ConnectCredentialSetupPage() {
 }
 
 function CredentialSetupContent({ setupId }: { setupId: string }) {
-  const flow = useCredentialSetup(setupId);
+  const [searchParams] = useSearchParams();
+  const flow = useCredentialSetup(setupId, searchParams.get('connector'));
   const permissions = useCredentialPermissions();
   const [replacingSecret, setReplacingSecret] = useState(false);
   const { setup, credential } = flow;
@@ -164,6 +165,11 @@ function CredentialSetupContent({ setupId }: { setupId: string }) {
           <CancelSetup flow={flow} />
         </div>
       )}
+      {flow.customConnectorPrefillFailed && (
+        <p role='status' className='text-muted-foreground mb-4 text-sm'>
+          Could not read the hosts and key fields of the connector. Enter them below.
+        </p>
+      )}
       {flow.actionError && !replacingSecret && !flow.verificationError && (
         <p role='alert' className='text-destructive mb-4 text-sm'>
           {flow.actionError}
@@ -177,6 +183,7 @@ function CredentialSetupContent({ setupId }: { setupId: string }) {
             definitions={flow.definitions}
             initialDefinitionId={setup.definitionId ?? undefined}
             initialTitle={setup.title ?? undefined}
+            customConnectorPrefill={flow.customConnectorPrefill}
             allowedDefinitionIds={setup.definitionId ? [setup.definitionId] : undefined}
             isSaving={flow.operation !== null}
             onSubmit={flow.save}
