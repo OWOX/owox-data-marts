@@ -13,6 +13,7 @@ function createIdentityClientMock(): jest.Mocked<IdentityOwoxClient> {
     getJwks: jest.fn(),
     completeAuthFlow: jest.fn(),
     getProjectMembers: jest.fn(),
+    getProjectForUser: jest.fn(),
     inviteProjectMember: jest.fn(),
     removeProjectMember: jest.fn(),
     changeProjectMemberRole: jest.fn(),
@@ -32,10 +33,7 @@ describe('MembershipRequestsService', () => {
 
   beforeEach(() => {
     identityClient = createIdentityClientMock();
-    identityClient.getProjectMembers.mockResolvedValue({
-      project: { projectId: 'proj-1', projectTitle: 'Acme' },
-      projectMembers: [],
-    });
+    identityClient.getProjectForUser.mockResolvedValue({ id: 'proj-1', title: 'Acme' });
     store = {
       getUserByBiUserId: jest.fn<DatabaseStore['getUserByBiUserId']>(async () => ({
         id: 'local-1',
@@ -163,7 +161,7 @@ describe('MembershipRequestsService', () => {
       await expect(
         service.approveMembershipRequest('proj-1', 'req-1', 'editor', 'admin-1')
       ).resolves.toEqual({ userId: 'resolved-uid' });
-      expect(notify).toHaveBeenCalledWith('proj-1', 'resolved-uid', 'editor');
+      expect(notify).toHaveBeenCalledWith('proj-1', 'resolved-uid', 'editor', 'admin-1');
     });
 
     it('emails nobody when Identity refuses the approval', async () => {
@@ -179,7 +177,7 @@ describe('MembershipRequestsService', () => {
 
   describe('notifyRequester', () => {
     it('sends the approval email to the local user email, naming the project', async () => {
-      await service.notifyRequester('proj-1', 'resolved-uid', 'editor');
+      await service.notifyRequester('proj-1', 'resolved-uid', 'editor', 'admin-1');
 
       expect(store.getUserByBiUserId).toHaveBeenCalledWith('resolved-uid');
       expect(emailService.sendApprovalToRequester).toHaveBeenCalledWith({
@@ -188,13 +186,14 @@ describe('MembershipRequestsService', () => {
         projectId: 'proj-1',
         projectTitle: 'Acme',
       });
-      expect(identityClient.getProjectMembers).toHaveBeenCalledTimes(1);
+      expect(identityClient.getProjectForUser).toHaveBeenCalledWith('admin-1', 'proj-1');
+      expect(identityClient.getProjectMembers).not.toHaveBeenCalled();
     });
 
     it('sends the email without the title when the title cannot be loaded', async () => {
-      identityClient.getProjectMembers.mockRejectedValue(new Error('Identity unavailable'));
+      identityClient.getProjectForUser.mockRejectedValue(new Error('Identity unavailable'));
 
-      await service.notifyRequester('proj-1', 'resolved-uid', 'editor');
+      await service.notifyRequester('proj-1', 'resolved-uid', 'editor', 'admin-1');
 
       expect(emailService.sendApprovalToRequester).toHaveBeenCalledWith(
         expect.objectContaining({ requesterEmail: 'alice@example.com', projectTitle: undefined })
@@ -202,7 +201,7 @@ describe('MembershipRequestsService', () => {
     });
 
     it('does not wait long for the title', async () => {
-      identityClient.getProjectMembers.mockReturnValue(new Promise(() => undefined));
+      identityClient.getProjectForUser.mockReturnValue(new Promise(() => undefined));
       const quick = new MembershipRequestsService(
         identityClient,
         store as unknown as DatabaseStore,
@@ -210,7 +209,7 @@ describe('MembershipRequestsService', () => {
         { titleLookupTimeoutMs: 10 }
       );
 
-      await quick.notifyRequester('proj-1', 'resolved-uid', 'editor');
+      await quick.notifyRequester('proj-1', 'resolved-uid', 'editor', 'admin-1');
 
       expect(emailService.sendApprovalToRequester).toHaveBeenCalledWith(
         expect.objectContaining({ requesterEmail: 'alice@example.com', projectTitle: undefined })
@@ -232,7 +231,7 @@ describe('MembershipRequestsService', () => {
         ],
       });
 
-      await service.notifyRequester('proj-1', '42', 'editor');
+      await service.notifyRequester('proj-1', '42', 'editor', 'admin-1');
 
       expect(emailService.sendApprovalToRequester).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -240,19 +239,21 @@ describe('MembershipRequestsService', () => {
           projectTitle: 'Acme',
         })
       );
-      // The title and the email fallback share one members request.
-      expect(identityClient.getProjectMembers).toHaveBeenCalledTimes(1);
     });
 
     it('never throws when the email cannot be found or sent', async () => {
       store.getUserByBiUserId.mockResolvedValue(null);
       identityClient.getProjectMembers.mockRejectedValue(new Error('Identity unavailable'));
-      await expect(service.notifyRequester('proj-1', '42', 'viewer')).resolves.toBeUndefined();
+      await expect(
+        service.notifyRequester('proj-1', '42', 'viewer', 'admin-1')
+      ).resolves.toBeUndefined();
       expect(emailService.sendApprovalToRequester).not.toHaveBeenCalled();
 
       store.getUserByBiUserId.mockResolvedValue({ id: 'local-1', email: 'alice@example.com' });
       emailService.sendApprovalToRequester.mockRejectedValue(new Error('SendGrid responded 500'));
-      await expect(service.notifyRequester('proj-1', '42', 'viewer')).resolves.toBeUndefined();
+      await expect(
+        service.notifyRequester('proj-1', '42', 'viewer', 'admin-1')
+      ).resolves.toBeUndefined();
     });
 
     it('does nothing while project emails are switched off', async () => {
@@ -262,10 +263,11 @@ describe('MembershipRequestsService', () => {
         undefined
       );
 
-      await switchedOff.notifyRequester('proj-1', '42', 'viewer');
+      await switchedOff.notifyRequester('proj-1', '42', 'viewer', 'admin-1');
 
       expect(store.getUserByBiUserId).not.toHaveBeenCalled();
       expect(identityClient.getProjectMembers).not.toHaveBeenCalled();
+      expect(identityClient.getProjectForUser).not.toHaveBeenCalled();
     });
   });
 

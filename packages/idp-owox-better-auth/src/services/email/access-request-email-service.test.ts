@@ -95,6 +95,22 @@ describe('AccessRequestEmailService.sendRequestToAdmin', () => {
     );
   });
 
+  it('keeps the project title out of the inbox preview', async () => {
+    const { sendEmail, service } = createService();
+
+    await service.sendRequestToAdmin({
+      adminEmail: 'admin@example.com',
+      role: 'viewer',
+      projectId: 'p-1',
+      projectTitle: 'Verify your account',
+    });
+
+    const [, , html] = sendEmail.mock.calls[0] as SendArgs;
+    expect(html).toContain('>A user has requested the role of Business User.</div>');
+    expect(html).toContain('<strong>Verify your account</strong>');
+    expect(html.match(/Verify your account/g)).toHaveLength(1);
+  });
+
   it('uses UI role names', async () => {
     const { sendEmail, service } = createService();
 
@@ -248,5 +264,8 @@ describe('AccessRequestEmailService.sendApprovalToRequester', () => {
     expect(options.bodyText).toContain(
       'You have been granted Business User access to Shop com <EU>.'
     );
+    // The inbox preview names the role only.
+    expect(html).toContain('>You have been granted Business User access.</div>');
+    expect(html.match(/Shop com/g)).toHaveLength(1);
   });
 });

@@ -110,7 +110,10 @@ export class AccessRequestEmailService {
     return {
       subject: 'You have a new access request',
       title: 'Hey friend',
-      preheader: payload.requesterEmail ? `from ${payload.requesterEmail}` : description,
+      // The inbox preview never shows the project title; only the opened email does.
+      preheader: payload.requesterEmail
+        ? `from ${payload.requesterEmail}`
+        : `A user has requested the role of ${roleName}.`,
       description,
       descriptionHtml,
       details:
@@ -129,6 +132,8 @@ export class AccessRequestEmailService {
     return {
       subject: 'OWOX Project access is confirmed',
       title: 'Hey friend',
+      // Set, so the template does not fall back to the description, which names the project.
+      preheader: `You have been granted ${roleName} access.`,
       description: `You have been granted ${roleName} access to ${
         projectTitle || 'the OWOX project'
       }.`,

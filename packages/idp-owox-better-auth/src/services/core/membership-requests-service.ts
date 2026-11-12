@@ -5,7 +5,6 @@ import type {
 } from '@owox/idp-protocol';
 import { withTimeout } from '@owox/internal-helpers';
 import type { IdentityOwoxClient } from '../../client/IdentityOwoxClient.js';
-import type { OwoxProjectMembersResponse } from '../../client/dto/index.js';
 import { DEFAULT_APPROVAL_TITLE_LOOKUP_TIMEOUT_MS } from '../../core/constants.js';
 import { createServiceLogger } from '../../core/logger.js';
 import type { DatabaseStore } from '../../store/database-store.js';
@@ -77,27 +76,31 @@ export class MembershipRequestsService {
       role,
       actorUserId
     );
-    void this.notifyRequester(projectId, userUid, role);
+    void this.notifyRequester(projectId, userUid, role, actorUserId);
     return { userId: userUid };
   }
 
   /**
    * Emails the approved person. Never throws. The email is mandatory, so it ignores
    * notification settings. Does nothing while project emails are switched off.
+   *
+   * @param actorUserId the admin who approved; the project title is read on their behalf.
    */
-  async notifyRequester(projectId: string, userId: string, role: Role): Promise<void> {
+  async notifyRequester(
+    projectId: string,
+    userId: string,
+    role: Role,
+    actorUserId: string
+  ): Promise<void> {
     const emailService = this.emailService;
     if (!emailService) {
       return;
     }
-    // One members request serves both the title and, when needed, the email fallback.
-    let membersRequest: Promise<OwoxProjectMembersResponse> | undefined;
-    const loadMembers = () => (membersRequest ??= this.identityClient.getProjectMembers(projectId));
     let requesterEmail: string | undefined;
     try {
       const [email, projectTitle] = await Promise.all([
-        this.findUserEmail(projectId, userId, loadMembers),
-        this.findProjectTitle(projectId, loadMembers),
+        this.findUserEmail(projectId, userId),
+        this.findProjectTitle(projectId, actorUserId),
       ]);
       requesterEmail = email;
       if (!requesterEmail) {
@@ -118,27 +121,23 @@ export class MembershipRequestsService {
    * The local user record first; the project members from Identity, where the
    * approved person now is, when there is no local record.
    */
-  private async findUserEmail(
-    projectId: string,
-    userId: string,
-    loadMembers: () => Promise<OwoxProjectMembersResponse>
-  ): Promise<string | undefined> {
+  private async findUserEmail(projectId: string, userId: string): Promise<string | undefined> {
     const localEmail = await findLocalUserEmail(this.store, userId, this.logger, { projectId });
     if (localEmail) {
       return localEmail;
     }
-    const { projectMembers } = await loadMembers();
+    const { projectMembers } = await this.identityClient.getProjectMembers(projectId);
     return projectMembers.find(member => String(member.userId) === userId)?.email || undefined;
   }
 
   /** The title only names the project in the email, so a slow or failed lookup leaves it out. */
   private async findProjectTitle(
     projectId: string,
-    loadMembers: () => Promise<OwoxProjectMembersResponse>
+    actorUserId: string
   ): Promise<string | undefined> {
     const title = Promise.resolve()
-      .then(loadMembers)
-      .then(({ project }) => project.projectTitle || undefined)
+      .then(() => this.identityClient.getProjectForUser(actorUserId, projectId))
+      .then(project => project.title || undefined)
       .catch((error: unknown) => {
         this.logger.warn(
           'Could not load project title for access approval email',
