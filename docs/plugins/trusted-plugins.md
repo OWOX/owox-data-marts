@@ -117,3 +117,41 @@ To review what is currently published at deployment level:
 ```bash
 owox-ctl plugins publications list --scope deployment
 ```
+
+## OWOX BI plugins
+
+Some plugins need more than the default sandbox allows: to open popups, use the clipboard, or call
+OWOX with the signed-in member's own rights. A deployment operator can mark such plugins as OWOX BI
+plugins. The mark is independent of publication: publication decides who sees a plugin, this mark
+decides what it may technically do. A plugin does not need to be published at deployment scope to
+carry it, and a Verified plugin does not get it automatically.
+
+A plugin is an OWOX BI plugin only when both of these match:
+
+- its GitHub repository id is in `OWOX_BI_PLUGIN_REPOSITORY_IDS`;
+- the origin of its delivery URL is in `OWOX_BI_PLUGIN_ORIGINS`.
+
+An unset or blank variable means no plugin is an OWOX BI plugin; it never means "any". The
+deployment's own public origin is never accepted.
+
+1. Find the numeric repository id:
+
+   ```bash
+   gh api repos/OWNER/NAME --jq .id
+   ```
+
+2. Put both variables into the deployment environment, comma-separated when there are several:
+
+   ```bash
+   OWOX_BI_PLUGIN_REPOSITORY_IDS=123456789
+   OWOX_BI_PLUGIN_ORIGINS=https://plugins.example.com
+   ```
+
+3. Restart the deployment so the new values are read.
+
+For such a plugin the host page opens the iframe with `allow-same-origin` and `allow-popups` in its
+sandbox, grants the clipboard, and lets the plugin ask for the member's access token with
+`ctx.userToken()`. Every other plugin keeps the default sandbox and never receives a token.
+
+The code of an OWOX BI plugin acts with the member's rights. List only plugins you own, served from
+hosting you control.
