@@ -16,6 +16,11 @@ Instrumentation code itself (`mcp-call-instrumentation.ts`) still knows nothing 
 it only produces one MCP-domain event per call and puts bulky fields (SQL, results) under the offloader's
 `OFFLOAD_KEY` so the offloader can send them to GCS instead of inlining them.
 
+Prompt and resource reads (`recordRead()`) emit the same `mcp.tool_call` event. Its `mcp_method_name` is
+`prompts/get` or `resources/read`, and `mcp_tool_name` is the prompt name or the resource URI. These events carry
+no arguments or result, because the prompts and resources are static text. Filter on `mcp_method_name = 'tools/call'`
+to count tool calls only.
+
 **Reliability invariant:** instrumentation is best-effort and out of the tool's response path — `wrap()` never
 changes the wrapped callback's result or error, and `emit()` swallows its own exceptions, so a logging failure
 can never surface as a tool-call failure.

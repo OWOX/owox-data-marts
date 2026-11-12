@@ -211,7 +211,8 @@ export function buildMcpToolCallEvent(p: BuildMcpToolCallEventParams): McpToolCa
           : redact(p.result?.structuredContent ?? p.result?.content, p.input),
   };
   if (p.executedSql) offload.sql = privateConfiguration ? REDACTED : p.executedSql;
-  payload[OFFLOAD_KEY] = offload;
+  // A prompt or resource read has no arguments or result, and the SQL in diagnostics belongs to a tool call.
+  if (p.methodName === 'tools/call') payload[OFFLOAD_KEY] = offload;
 
   return new McpToolCallEvent(payload, occurredAt);
 }

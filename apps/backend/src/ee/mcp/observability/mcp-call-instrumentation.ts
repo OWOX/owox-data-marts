@@ -40,12 +40,22 @@ export class McpCallInstrumentation {
     };
   }
 
+  /** Emits one event for a prompt or resource read. Best-effort, like wrap(). */
+  recordRead(
+    methodName: 'prompts/get' | 'resources/read',
+    name: string,
+    ctx?: ServerContext
+  ): void {
+    this.emit(name, undefined, 0, {}, ctx, methodName);
+  }
+
   private emit(
     toolName: string,
     input: unknown,
     durationMs: number,
     outcome: { result?: McpToolResult; error?: unknown },
-    ctx?: ServerContext
+    ctx?: ServerContext,
+    methodName = 'tools/call'
   ): void {
     try {
       const context: McpLogContext = this.cls.get(MCP_LOG_CONTEXT_KEY) ?? {};
@@ -54,7 +64,7 @@ export class McpCallInstrumentation {
       // their own conversations (a request-wide slot would tag them all with the first message's).
       const meta = ctx?.mcpReq?._meta;
       const event = buildMcpToolCallEvent({
-        methodName: 'tools/call',
+        methodName,
         toolName,
         input,
         result: outcome.result,

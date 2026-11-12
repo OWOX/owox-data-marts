@@ -11,6 +11,7 @@ import { satisfiesRole } from '../../../idp/utils/role-hierarchy';
 import type { ZodRawShape } from 'zod';
 import type { McpAuthContext } from '../auth/mcp-auth-context';
 import { McpConfigService } from '../config/mcp.config';
+import { MCP_PROMPTS, MCP_RESOURCES } from '../instructions/mcp-prompts-and-resources';
 import { McpCallInstrumentation } from '../observability/mcp-call-instrumentation';
 import type { McpToolResult } from '../tools/mcp-tool.definition';
 import { McpToolRegistry } from '../tools/mcp-tool.registry';
@@ -101,7 +102,29 @@ export class McpSdkServerFactory {
       );
     }
 
+    // ChatGPT has no menu for prompts or resources, and it uses resources only for UI templates.
+    if (!chatgpt) this.registerPromptsAndResources(server);
+
     return server;
+  }
+
+  private registerPromptsAndResources(server: McpServer): void {
+    for (const prompt of MCP_PROMPTS) {
+      server.registerPrompt(
+        prompt.name,
+        { title: prompt.title, description: prompt.description },
+        ctx => {
+          this.instrumentation.recordRead('prompts/get', prompt.name, ctx);
+          return { messages: [{ role: 'user', content: { type: 'text', text: prompt.text } }] };
+        }
+      );
+    }
+    for (const { name, uri, title, mimeType, text } of MCP_RESOURCES) {
+      server.registerResource(name, uri, { title, mimeType }, (_uri, ctx) => {
+        this.instrumentation.recordRead('resources/read', uri, ctx);
+        return { contents: [{ uri, mimeType, text }] };
+      });
+    }
   }
 
   private outputSchema(shape: ZodRawShape): StandardSchemaWithJSON {
