@@ -39,8 +39,13 @@ describe('MCP instructions', () => {
   // against a project that has nothing to find.
   it('tells the assistant what to do when the project has no published data mart', () => {
     expect(MCP_SYSTEM_INSTRUCTIONS).toContain('unless the response contains getting_started');
-    expect(MCP_SYSTEM_INSTRUCTIONS).toContain('follow getting_started.instructions');
+    expect(MCP_SYSTEM_INSTRUCTIONS).toContain('show the next steps and links from getting_started');
     expect(MCP_SYSTEM_INSTRUCTIONS).toContain('Do not retry discovery with other wording');
+  });
+
+  // The OpenAI plugin review holds server instructions that do this, and a held text cannot be appealed.
+  it('does not tell the model to obey response instructions or to override rules', () => {
+    expect(MCP_SYSTEM_INSTRUCTIONS).not.toMatch(/follow [\w.]*instructions|override/i);
   });
 
   it('round-trips the complete system instructions through MCP initialization', async () => {
