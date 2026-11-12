@@ -6,6 +6,7 @@ import {
   canonicalPluginRoute,
   createPluginHostBridge,
   fetchRuntimeToken,
+  fetchUserToken,
   PluginPageMessage,
   pluginsService,
   routeFromLocation,
@@ -16,7 +17,7 @@ import { useAuth } from '../../../features/idp';
 import { useProjectId, useProjectRoute } from '../../../shared/hooks';
 
 /**
- * Exactly two sandbox tokens, and never a third.
+ * Exactly two sandbox tokens for a plugin without the biPlugin mark, and never a third.
  *
  * Omitting allow-same-origin forces an opaque origin, which is what keeps the plugin
  * away from cookies, storage and this document. Adding it back while allow-scripts is
@@ -24,6 +25,13 @@ import { useProjectId, useProjectRoute } from '../../../shared/hooks';
  * left to review.
  */
 const SANDBOX = 'allow-scripts allow-downloads';
+/**
+ * allow-same-origin is acceptable here only because a marked plugin runs on another
+ * origin than this app, and the backend never marks a plugin served from the ODM origin.
+ */
+const BI_SANDBOX =
+  'allow-scripts allow-downloads allow-same-origin allow-popups allow-popups-to-escape-sandbox';
+const BI_ALLOW = 'clipboard-read; clipboard-write';
 /** Address updates trail a burst of route reports; WebKit allows only ~100 replaceState calls per 30 s. */
 const ADDRESS_SYNC_DELAY_MS = 350;
 
@@ -148,6 +156,7 @@ export function PluginRuntime({
       return;
     }
 
+    const isBiPlugin = data.biPlugin === true;
     const bridge = createPluginHostBridge({
       iframe,
       // Assigned by the bridge once it is listening, never by the markup: React commits
@@ -165,7 +174,10 @@ export function PluginRuntime({
         schedules: true,
         // A rebuilt bridge resumes where the address bar already points.
         route: lastRouteRef.current,
+        ...(isBiPlugin && { userToken: true as const }),
       },
+      pluginOrigin: isBiPlugin ? new URL(data.deliveryUrl).origin : undefined,
+      fetchUserToken: isBiPlugin ? fetchUserToken : undefined,
       fetchRuntimeToken: fetchRuntimeToken(installationId),
       onOpenExternal: openExternal,
       onNavigate: navigateInApp,
@@ -230,8 +242,8 @@ export function PluginRuntime({
     <>
       <iframe
         ref={frameRef}
-        sandbox={SANDBOX}
-        allow=''
+        sandbox={data.biPlugin === true ? BI_SANDBOX : SANDBOX}
+        allow={data.biPlugin === true ? BI_ALLOW : ''}
         referrerPolicy='no-referrer'
         title={data.displayName}
         className='h-full w-full border-0'

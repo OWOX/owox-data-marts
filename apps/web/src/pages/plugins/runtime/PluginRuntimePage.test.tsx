@@ -23,7 +23,9 @@ vi.mock('../../../features/idp', () => ({
   useAuth: () => ({ user: authUser }),
 }));
 interface CapturedBridgeOptions {
-  context?: { route?: string; actions?: true; schedules?: true };
+  context?: { route?: string; actions?: true; schedules?: true; userToken?: true };
+  pluginOrigin?: string;
+  fetchUserToken?: (fresh: boolean) => Promise<string>;
   onBroken?: () => void;
   onOpenExternal?: (url: string) => void;
   onNavigate?: (path: string) => void;
@@ -45,6 +47,8 @@ vi.mock('../../../features/plugins', async () => ({
   createPluginHostBridge: (options: CapturedBridgeOptions) => {
     bridgeCreations += 1;
     bridgeOptions.context = options.context;
+    bridgeOptions.pluginOrigin = options.pluginOrigin;
+    bridgeOptions.fetchUserToken = options.fetchUserToken;
     bridgeOptions.onBroken = options.onBroken;
     bridgeOptions.onOpenExternal = options.onOpenExternal;
     bridgeOptions.onNavigate = options.onNavigate;
@@ -53,6 +57,7 @@ vi.mock('../../../features/plugins', async () => ({
     bridgeOptions.onLoadingChange = options.onLoadingChange;
     return { dispose: () => undefined };
   },
+  fetchUserToken: () => Promise.resolve('user-token'),
   fetchRuntimeToken: () => () => Promise.resolve({ runtimeToken: 't', expiresIn: 900 }),
   useCopyLink: () => ({ copyLink, fallbackDialog: null }),
   PluginPageMessage: ActualPluginPageMessage,
@@ -127,6 +132,51 @@ describe('PluginRuntimePage', () => {
     expect(frame).toHaveAttribute('sandbox', 'allow-scripts allow-downloads');
     expect(frame.getAttribute('sandbox')).not.toContain('allow-same-origin');
   });
+
+  it('relaxes the sandbox for a BI plugin and delegates the clipboard', async () => {
+    getEntryPoint.mockResolvedValue({ ...ENTRY, biPlugin: true });
+    renderPage();
+
+    const frame = await screen.findByTitle('Example Plugin');
+
+    expect(frame).toHaveAttribute(
+      'sandbox',
+      'allow-scripts allow-downloads allow-same-origin allow-popups allow-popups-to-escape-sandbox'
+    );
+    expect(frame).toHaveAttribute('allow', 'clipboard-read; clipboard-write');
+    expect(frame).toHaveAttribute('referrerpolicy', 'no-referrer');
+  });
+
+  it('gives a BI plugin its origin and the user token source', async () => {
+    getEntryPoint.mockResolvedValue({ ...ENTRY, biPlugin: true });
+    renderPage();
+    await waitFor(() => {
+      expect(bridgeCreations).toBe(1);
+    });
+
+    expect(bridgeOptions.pluginOrigin).toBe('https://plugin.example.com');
+    expect(bridgeOptions.fetchUserToken).toBeTypeOf('function');
+    expect(bridgeOptions.context?.userToken).toBe(true);
+  });
+
+  it.each([{}, { biPlugin: false }])(
+    'grants nothing when the entry carries no mark %j',
+    async mark => {
+      getEntryPoint.mockResolvedValue({ ...ENTRY, ...mark });
+      renderPage();
+
+      const frame = await screen.findByTitle('Example Plugin');
+      await waitFor(() => {
+        expect(bridgeCreations).toBe(1);
+      });
+
+      expect(frame).toHaveAttribute('sandbox', 'allow-scripts allow-downloads');
+      expect(frame).toHaveAttribute('allow', '');
+      expect(bridgeOptions.pluginOrigin).toBeUndefined();
+      expect(bridgeOptions.fetchUserToken).toBeUndefined();
+      expect(bridgeOptions.context).not.toHaveProperty('userToken');
+    }
+  );
 
   it('shows the plugin loading in the app loading bar until the plugin closes', async () => {
     const view = await mountWithBridge();
