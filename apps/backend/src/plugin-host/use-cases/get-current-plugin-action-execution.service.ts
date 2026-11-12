@@ -5,17 +5,26 @@ import {
   isExpectedUnusableCredentialError,
   type CredentialConsumerBindingFacade,
 } from '../../data-marts/credentials/facades/credential-consumer-binding.facade';
-import { normalizeCredentialRequirement } from '../../data-marts/credentials/credential.types';
+import {
+  normalizeCredentialRequirement,
+  type NormalizedCredentialRequirement,
+} from '../../data-marts/credentials/credential.types';
 import { GetCurrentPluginActionExecutionCommand } from '../dto/domain/plugin-action-execution.command';
 import type { PluginActionWorkerContext } from '../dto/domain/plugin-action-execution.dto';
 import {
   ExecutionNotFoundError,
   ExecutionTokenRequiredError,
 } from '../errors/plugin-action.errors';
+import {
+  OWOX_AI_FACADE,
+  type OwoxAiFacade,
+} from '../../data-marts/credentials/facades/owox-ai.facade';
 import { PluginActionExecutionService } from '../services/plugin-action-execution.service';
+import { PluginInstallationService } from '../services/plugin-installation.service';
 import { PluginVersionService } from '../services/plugin-version.service';
 import { PluginService } from '../services/plugin.service';
 import { toCredentialHandles } from '../utils/credential-handles.util';
+import { logicalAiRequirement } from '../utils/owox-ai-requirement.util';
 
 /** Credentials come from the plugin's current release, as frontend calls get them. */
 @Injectable()
@@ -27,7 +36,9 @@ export class GetCurrentPluginActionExecutionService {
     private readonly plugins: PluginService,
     private readonly versions: PluginVersionService,
     @Inject(CREDENTIAL_CONSUMER_BINDING_FACADE)
-    private readonly credentialBindings: CredentialConsumerBindingFacade
+    private readonly credentialBindings: CredentialConsumerBindingFacade,
+    private readonly installations: PluginInstallationService,
+    @Inject(OWOX_AI_FACADE) private readonly owoxAi: OwoxAiFacade
   ) {}
 
   async run(command: GetCurrentPluginActionExecutionCommand): Promise<PluginActionWorkerContext> {
@@ -69,10 +80,26 @@ export class GetCurrentPluginActionExecutionService {
     });
     // AI Credentials never deny a backend its context: an unusable one is only left out. An SDK
     // without AI support would get handles that only fail, so it gets none.
+    const owoxAiRequirement =
+      command.aiCredentials && (await this.installations.findById(execution.installationId))?.owoxAi
+        ? logicalAiRequirement(requirements)
+        : null;
+    const owoxAiHandle: NormalizedCredentialRequirement[] = [];
+    if (owoxAiRequirement) {
+      if (this.owoxAi.provides(owoxAiRequirement.normalized.models)) {
+        owoxAiHandle.push(owoxAiRequirement.normalized);
+      } else {
+        this.logger.warn(
+          `OWOX AI ${owoxAiRequirement.normalized.key} left out of execution ${execution.id}: OWOX AI is not available for this plugin`
+        );
+      }
+    }
     const readyAi = command.aiCredentials
       ? await Promise.all(
           requirements
-            .filter(requirement => !isExact(requirement))
+            .filter(
+              requirement => !isExact(requirement) && requirement !== owoxAiRequirement?.stored
+            )
             .map(requirement =>
               this.credentialBindings
                 .assertConsumerReady({ ...consumer, requirements: [requirement] })
@@ -100,7 +127,7 @@ export class GetCurrentPluginActionExecutionService {
       installationId: execution.installationId,
       projectId: execution.projectId,
       userId: execution.userId,
-      credentialHandles: toCredentialHandles([...ready, ...readyAi.flat()]),
+      credentialHandles: toCredentialHandles([...ready, ...readyAi.flat(), ...owoxAiHandle]),
     };
   }
 }

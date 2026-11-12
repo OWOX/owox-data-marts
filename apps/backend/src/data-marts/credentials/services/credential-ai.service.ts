@@ -23,7 +23,6 @@ import type {
   CredentialAiEmbeddingModelKey,
   CredentialAiLanguageModelKey,
 } from '../dto/credential-ai-api.dto';
-import type { CredentialSecret } from '../credential.types';
 import type { ResolvedCredentialBinding } from '../facades/credential-consumer-binding.facade';
 import { BUILTIN_CREDENTIAL_DEFINITION_IDS } from './builtin-credential-definitions';
 import {
@@ -35,12 +34,22 @@ import {
 import { CredentialFetchService } from './credential-fetch.service';
 
 const PROVIDER_KEY_PLACEHOLDER = 'owox-host-injected';
-const AI_TIMEOUT_MS = 120_000;
-const AI_MAX_RESPONSE_BODY_BYTES = 10 * 1024 * 1024;
+export const AI_TIMEOUT_MS = 120_000;
+export const AI_MAX_RESPONSE_BODY_BYTES = 10 * 1024 * 1024;
 /** A provider's error message is third-party text; a log line keeps only its start. */
 const MAX_LOGGED_PROVIDER_MESSAGE = 500;
 /** Shorter secret parts (a provider name, a flag) would redact ordinary words. */
 const MIN_REDACTED_SECRET_LENGTH = 8;
+
+/**
+ * What the log line of a failed AI call names, and what it must not show. A trusted provider is
+ * built in: its error message may be logged, with the secret cut out.
+ */
+export interface AiFailureLog {
+  subject: string;
+  secret: unknown;
+  trustedProvider: boolean;
+}
 
 @Injectable()
 export class CredentialAiService {
@@ -54,17 +63,12 @@ export class CredentialAiService {
     portableOptions: unknown,
     signal: AbortSignal
   ): Promise<unknown> {
-    try {
-      const model = this.createLanguageModel(binding, modelKey, signal);
-      const options = decodeCredentialAiOptions(
-        portableOptions,
-        signal
-      ) as LanguageModelV4CallOptions;
-      const result = await model.doGenerate(options);
-      return sanitizeCredentialAiGenerateResult(result);
-    } catch (error) {
-      throw this.normalizeError(error, binding, modelKey);
-    }
+    return this.generateWith(
+      this.createLanguageModel(binding, modelKey, signal),
+      portableOptions,
+      signal,
+      credentialFailureLog(binding, modelKey)
+    );
   }
 
   async stream(
@@ -73,17 +77,12 @@ export class CredentialAiService {
     portableOptions: unknown,
     signal: AbortSignal
   ): Promise<ReadableStream<unknown>> {
-    try {
-      const model = this.createLanguageModel(binding, modelKey, signal);
-      const options = decodeCredentialAiOptions(
-        portableOptions,
-        signal
-      ) as LanguageModelV4CallOptions;
-      const result = await model.doStream(options);
-      return sanitizeAiStream(result.stream);
-    } catch (error) {
-      throw this.normalizeError(error, binding, modelKey);
-    }
+    return this.streamWith(
+      this.createLanguageModel(binding, modelKey, signal),
+      portableOptions,
+      signal,
+      credentialFailureLog(binding, modelKey)
+    );
   }
 
   async embed(
@@ -92,8 +91,57 @@ export class CredentialAiService {
     portableOptions: unknown,
     signal: AbortSignal
   ): Promise<unknown> {
+    return this.embedWith(
+      this.createEmbeddingModel(binding, modelKey, signal),
+      portableOptions,
+      signal,
+      credentialFailureLog(binding, modelKey)
+    );
+  }
+
+  async generateWith(
+    model: LanguageModelV4,
+    portableOptions: unknown,
+    signal: AbortSignal,
+    failureLog: AiFailureLog
+  ): Promise<unknown> {
     try {
-      const model = this.createEmbeddingModel(binding, modelKey, signal);
+      const options = decodeCredentialAiOptions(
+        portableOptions,
+        signal
+      ) as LanguageModelV4CallOptions;
+      const result = await model.doGenerate(options);
+      return sanitizeCredentialAiGenerateResult(result);
+    } catch (error) {
+      throw this.normalizeError(error, failureLog);
+    }
+  }
+
+  async streamWith(
+    model: LanguageModelV4,
+    portableOptions: unknown,
+    signal: AbortSignal,
+    failureLog: AiFailureLog
+  ): Promise<ReadableStream<unknown>> {
+    try {
+      const options = decodeCredentialAiOptions(
+        portableOptions,
+        signal
+      ) as LanguageModelV4CallOptions;
+      const result = await model.doStream(options);
+      return sanitizeAiStream(result.stream);
+    } catch (error) {
+      throw this.normalizeError(error, failureLog);
+    }
+  }
+
+  async embedWith(
+    model: EmbeddingModelV4,
+    portableOptions: unknown,
+    signal: AbortSignal,
+    failureLog: AiFailureLog
+  ): Promise<unknown> {
+    try {
       const options = decodeCredentialAiOptions(
         portableOptions,
         signal
@@ -101,19 +149,15 @@ export class CredentialAiService {
       const result = await model.doEmbed(options);
       return sanitizeCredentialAiEmbeddingResult(result);
     } catch (error) {
-      throw this.normalizeError(error, binding, modelKey);
+      throw this.normalizeError(error, failureLog);
     }
   }
 
-  private normalizeError(
-    error: unknown,
-    binding: ResolvedCredentialBinding,
-    modelKey: CredentialAiLanguageModelKey | CredentialAiEmbeddingModelKey
-  ): HttpException {
+  private normalizeError(error: unknown, failureLog: AiFailureLog): HttpException {
     // Our own refusals (not an AI Credential, no model mapped) reach the plugin as they are.
     if (error instanceof HttpException && error.getStatus() < 500) return error;
     this.logger.warn(
-      `AI provider request failed for Credential ${binding.credentialId}, model ${modelKey}${failureDetail(error, binding)}`
+      `AI provider request failed for ${failureLog.subject}${failureDetail(error, failureLog)}`
     );
     return new BadGatewayException('AI provider request could not be completed');
   }
@@ -234,18 +278,27 @@ export class CredentialAiService {
  * Any other server is third-party code that may echo the request or the key back, and other
  * AI SDK errors put the model's output in theirs, so those give a name only.
  */
-function failureDetail(error: unknown, binding: ResolvedCredentialBinding): string {
+function failureDetail(error: unknown, failureLog: AiFailureLog): string {
   // A timeout or a refused connection, worded by the guarded fetch itself.
   if (error instanceof HttpException) return `: ${error.message}`;
   if (!APICallError.isInstance(error)) return `: ${castError(error).name}`;
   const status = error.statusCode ? ` (HTTP ${error.statusCode})` : '';
-  if (!BUILTIN_CREDENTIAL_DEFINITION_IDS.has(binding.definition.id)) {
-    return `${status}: ${error.name}`;
-  }
-  return `${status}: ${redactSecret(error.message, binding.secret).slice(0, MAX_LOGGED_PROVIDER_MESSAGE)}`;
+  if (!failureLog.trustedProvider) return `${status}: ${error.name}`;
+  return `${status}: ${redactSecret(error.message, failureLog.secret).slice(0, MAX_LOGGED_PROVIDER_MESSAGE)}`;
 }
 
-function redactSecret(text: string, secret: CredentialSecret): string {
+function credentialFailureLog(
+  binding: ResolvedCredentialBinding,
+  modelKey: CredentialAiLanguageModelKey | CredentialAiEmbeddingModelKey
+): AiFailureLog {
+  return {
+    subject: `Credential ${binding.credentialId}, model ${modelKey}`,
+    secret: binding.secret,
+    trustedProvider: BUILTIN_CREDENTIAL_DEFINITION_IDS.has(binding.definition.id),
+  };
+}
+
+function redactSecret(text: string, secret: unknown): string {
   return secretStrings(secret).reduce(
     (redacted, part) => redacted.split(part).join('[redacted]'),
     text

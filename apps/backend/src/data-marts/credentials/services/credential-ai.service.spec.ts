@@ -30,7 +30,7 @@ jest.mock('@ai-sdk/openai-compatible', () => ({
   })),
 }));
 
-import { APICallError, JSONParseError } from '@ai-sdk/provider';
+import { APICallError, JSONParseError, type LanguageModelV4 } from '@ai-sdk/provider';
 import { BadGatewayException, BadRequestException, Logger } from '@nestjs/common';
 import type { ResolvedCredentialBinding } from '../facades/credential-consumer-binding.facade';
 import { CredentialAiService } from './credential-ai.service';
@@ -119,6 +119,23 @@ describe('CredentialAiService', () => {
     );
   });
 
+  it('generate delegates to generateWith with the Credential model', async () => {
+    const generateWith = jest.spyOn(service, 'generateWith').mockResolvedValue({ ok: true });
+    const signal = new AbortController().signal;
+
+    await expect(service.generate(binding(), 'fast', { prompt: [] }, signal)).resolves.toEqual({
+      ok: true,
+    });
+
+    expect(generateWith).toHaveBeenCalledWith(
+      expect.objectContaining({ doGenerate: mockDoGenerate }),
+      { prompt: [] },
+      signal,
+      expect.objectContaining({ subject: expect.stringMatching(/^Credential .+, model fast$/) })
+    );
+    generateWith.mockRestore();
+  });
+
   it('uses the guarded Credential fetch as the provider package transport', async () => {
     mockDoGenerate.mockResolvedValue({
       content: [],
@@ -194,6 +211,26 @@ describe('CredentialAiService', () => {
 
       expect(loggedText()).toContain('(HTTP 401): Incorrect API key provided: [redacted]');
       expect(loggedText()).not.toContain('real-secret-that-must-not-leak');
+    });
+
+    it('logs a call without a Credential under the subject and secret its caller gives', async () => {
+      const model = {
+        doGenerate: jest
+          .fn()
+          .mockRejectedValue(providerError('No endpoints for key deployment-key-1234', 404)),
+      } as unknown as LanguageModelV4;
+
+      await expect(
+        service.generateWith(model, { prompt: [] }, new AbortController().signal, {
+          subject: 'OWOX AI, model fast',
+          secret: 'deployment-key-1234',
+          trustedProvider: true,
+        })
+      ).rejects.toThrow(BadGatewayException);
+
+      expect(warn).toHaveBeenCalledWith(
+        'AI provider request failed for OWOX AI, model fast (HTTP 404): No endpoints for key [redacted]'
+      );
     });
 
     // Any server an external definition names may echo the request or the key back.

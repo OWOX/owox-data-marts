@@ -48,6 +48,10 @@ function jsonResponse(body: unknown) {
 describe('LicenseProjectBillingService', () => {
   beforeEach(() => jest.clearAllMocks());
 
+  it('does not consume the project balance', () => {
+    expect(buildService().consumesBalance()).toBe(false);
+  });
+
   describe('verifyCanPerformOperations', () => {
     it('allows a process run without contacting Cloud', async () => {
       const service = buildService();
@@ -145,6 +149,14 @@ describe('LicenseProjectBillingService', () => {
       const service = buildService();
 
       await service.registerConnectorRunConsumption();
+
+      expect(fetchWithBackoffMock).not.toHaveBeenCalled();
+    });
+
+    it('skips plugin AI Process Runs', async () => {
+      const service = buildService();
+
+      await service.registerPluginAiProcessRunConsumption();
 
       expect(fetchWithBackoffMock).not.toHaveBeenCalled();
     });

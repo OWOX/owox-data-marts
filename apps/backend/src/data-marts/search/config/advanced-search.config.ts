@@ -60,6 +60,11 @@ const commaSeparatedList = z
     return parsed ? Array.from(parsed) : null;
   });
 
+// A blank value means the default; it must not override the shared AI variable.
+function nonBlankOrUndefined(value: string | undefined): string | undefined {
+  return value?.trim() ? value : undefined;
+}
+
 function nonBlankOrNull(value: string | undefined): string | null {
   return value && value.trim() ? value.trim() : null;
 }
@@ -132,8 +137,11 @@ export function loadAdvancedSearchConfig(
     openRouterAllowedProviders:
       env['ADVANCED_SEARCH_OPENROUTER_ALLOWED_PROVIDERS'] ?? env['AI_ALLOWED_PROVIDERS'],
     openRouterDataCollection:
-      env['ADVANCED_SEARCH_OPENROUTER_DATA_COLLECTION'] ?? env['AI_DATA_COLLECTION'],
-    openRouterZdr: env['ADVANCED_SEARCH_OPENROUTER_ZDR'] ?? env['AI_ZDR'],
+      nonBlankOrUndefined(env['ADVANCED_SEARCH_OPENROUTER_DATA_COLLECTION']) ??
+      nonBlankOrUndefined(env['AI_DATA_COLLECTION']),
+    openRouterZdr:
+      nonBlankOrUndefined(env['ADVANCED_SEARCH_OPENROUTER_ZDR']) ??
+      nonBlankOrUndefined(env['AI_ZDR']),
     openRouterBatchingEnabled: env['ADVANCED_SEARCH_OPENROUTER_BATCHING_ENABLED'],
     openRouterBatchSize: env['ADVANCED_SEARCH_OPENROUTER_BATCH_SIZE'],
     openRouterRequestTimeoutMs: env['ADVANCED_SEARCH_OPENROUTER_REQUEST_TIMEOUT_MS'],

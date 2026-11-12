@@ -256,3 +256,12 @@ describe('PluginsService runs', () => {
     });
   });
 });
+
+describe('PluginsService.getOwoxAi', () => {
+  it('reads the OWOX AI status', async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ data: { models: ['fast'], billed: true } });
+
+    await expect(pluginsService.getOwoxAi()).resolves.toEqual({ models: ['fast'], billed: true });
+    expect(apiClient.get).toHaveBeenCalledWith('/plugins/owox-ai', expect.anything());
+  });
+});

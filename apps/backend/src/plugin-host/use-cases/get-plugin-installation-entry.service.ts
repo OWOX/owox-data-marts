@@ -1,4 +1,4 @@
-import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { GetPluginInstallationEntryCommand } from '../dto/domain/get-plugin-installation-entry.command';
 import { PluginInstallationEntryDto } from '../dto/domain/plugin-installation.dto';
 import { PluginSuspendedError } from '../errors/plugin-host.errors';
@@ -6,10 +6,15 @@ import { PluginInstallationService } from '../services/plugin-installation.servi
 import { PluginVersionService } from '../services/plugin-version.service';
 import { PluginService } from '../services/plugin.service';
 import { toCredentialHandles } from '../utils/credential-handles.util';
+import { logicalAiRequirement, withoutRequirement } from '../utils/owox-ai-requirement.util';
 import {
   CREDENTIAL_CONSUMER_BINDING_FACADE,
   type CredentialConsumerBindingFacade,
 } from '../../data-marts/credentials/facades/credential-consumer-binding.facade';
+import {
+  OWOX_AI_FACADE,
+  type OwoxAiFacade,
+} from '../../data-marts/credentials/facades/owox-ai.facade';
 
 /**
  * The delivery URL for one active installation.
@@ -26,7 +31,8 @@ export class GetPluginInstallationEntryService {
     private readonly pluginService: PluginService,
     private readonly versionService: PluginVersionService,
     @Inject(CREDENTIAL_CONSUMER_BINDING_FACADE)
-    private readonly credentialBindings: CredentialConsumerBindingFacade
+    private readonly credentialBindings: CredentialConsumerBindingFacade,
+    @Inject(OWOX_AI_FACADE) private readonly owoxAi: OwoxAiFacade
   ) {}
 
   async run(command: GetPluginInstallationEntryCommand): Promise<PluginInstallationEntryDto> {
@@ -57,13 +63,21 @@ export class GetPluginInstallationEntryService {
       throw new NotFoundException('No active installation was found');
     }
 
+    // OWOX AI is the source of the ai handle, so the ai requirement has no Credential binding.
+    const requirements = version.credentialRequirements ?? [];
+    const ai = installation.owoxAi ? logicalAiRequirement(requirements) : null;
+    const owoxAiReady = ai && this.owoxAi.provides(ai.normalized.models);
+    if (ai && !owoxAiReady && !ai.normalized.optional) {
+      throw new BadRequestException(`Credential ${ai.normalized.key} is not configured`);
+    }
+
     const readyRequirements = await this.credentialBindings.assertConsumerReady({
       projectId: command.context.projectId,
       userId: command.context.userId,
       roles: command.context.roles ?? [],
       consumerType: 'plugin-installation',
       consumerId: installation.id,
-      requirements: version.credentialRequirements ?? [],
+      requirements: ai ? withoutRequirement(requirements, ai.normalized.key) : requirements,
     });
 
     return {
@@ -71,7 +85,9 @@ export class GetPluginInstallationEntryService {
       displayName: version.displayName,
       pluginId: plugin.id,
       versionId: version.id,
-      credentialHandles: toCredentialHandles(readyRequirements),
+      credentialHandles: toCredentialHandles(
+        owoxAiReady ? [...readyRequirements, ai.normalized] : readyRequirements
+      ),
     };
   }
 }

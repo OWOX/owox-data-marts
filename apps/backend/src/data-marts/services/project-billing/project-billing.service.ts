@@ -30,6 +30,12 @@ export function isReportRun(kind: RunKind): boolean {
   return REPORT_RUN_KINDS.includes(kind);
 }
 
+export interface PluginAiConsumptionContext {
+  readonly projectId: string;
+  readonly pluginId: string;
+  readonly pluginTitle: string;
+}
+
 export interface SheetsReportDetails {
   googleSheetsDocumentTitle: string;
   googleSheetsListTitle: string;
@@ -40,6 +46,9 @@ export interface SheetsReportDetails {
  * the binding-specific implementation is chosen by projectBillingProvider.
  */
 export abstract class ProjectBillingService {
+  /** True when a consumption record of this service takes credits from the project balance. */
+  abstract consumesBalance(): boolean;
+
   abstract verifyCanPerformOperations(projectId: string, runKind: RunKind): Promise<void>;
 
   abstract registerConnectorRunConsumption(
@@ -55,6 +64,12 @@ export abstract class ProjectBillingService {
   abstract registerAiProcessRunConsumption(
     tokensProcessed: number,
     context: ConsumptionContext
+  ): Promise<void>;
+
+  /** A plugin has no Data Mart, so its AI Process Run carries no Data Mart or Storage fields. */
+  abstract registerPluginAiProcessRunConsumption(
+    tokensProcessed: number,
+    context: PluginAiConsumptionContext
   ): Promise<void>;
 
   abstract registerSheetsReportRunConsumption(

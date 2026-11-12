@@ -68,6 +68,7 @@ function setup(externalCredentialDefinitions?: { resolveRequirements: jest.Mock 
     tryClaimSyncSlot: jest.fn().mockResolvedValue({ status: 'claimed', leaseId: 'lease-1' }),
     releaseSyncSlot: jest.fn().mockResolvedValue(undefined),
     saveSyncOutcome: jest.fn().mockResolvedValue(true),
+    findById: jest.fn().mockResolvedValue(null),
   } as unknown as jest.Mocked<PluginService>;
 
   const versionService = {
@@ -80,6 +81,9 @@ function setup(externalCredentialDefinitions?: { resolveRequirements: jest.Mock 
   const config = new PluginHostConfigService(configService, new PublicOriginService(configService));
   const credentialBindingReconciliation = {
     reconcile: jest.fn().mockResolvedValue(undefined),
+  };
+  const installations = {
+    clearOwoxAiForPlugin: jest.fn().mockResolvedValue(undefined),
   };
 
   const service = new SyncPluginReleasesService(
@@ -94,7 +98,8 @@ function setup(externalCredentialDefinitions?: { resolveRequirements: jest.Mock 
     pluginService,
     versionService,
     config,
-    credentialBindingReconciliation as never
+    credentialBindingReconciliation as never,
+    installations as never
   );
 
   return {
@@ -104,6 +109,7 @@ function setup(externalCredentialDefinitions?: { resolveRequirements: jest.Mock 
     pluginService,
     versionService,
     credentialBindingReconciliation,
+    installations,
     externalCredentialDefinitions,
   };
 }
@@ -619,6 +625,65 @@ describe('SyncPluginReleasesService', () => {
       expect(result.report.acceptedSemvers).toEqual(['1.0.0']);
       expect(result.report.rejections).toHaveLength(1);
       expect(result.currentSemver).toBe('1.0.0');
+    });
+  });
+
+  // A member chose OWOX AI for one form of the `ai` requirement; another form needs a new decision.
+  describe('OWOX AI choice on a version change', () => {
+    const AI = { id: 'ai', optional: true, models: ['fast'] };
+
+    const moveTo = (previous: unknown[] | null, next: unknown[]) => {
+      const s = setup();
+      const stored = {
+        id: 'p1',
+        repoOwner: 'OWOX',
+        repoName: 'example-plugin',
+        currentVersionId: previous ? 'v1' : null,
+      };
+      s.pluginService.findByGithubRepoId.mockResolvedValue(stored as never);
+      s.pluginService.findById.mockResolvedValue(stored as never);
+      s.versionService.findAllByPluginId.mockResolvedValue([
+        ...(previous ? [{ id: 'v1', semver: '1.0.0', credentialRequirements: previous }] : []),
+        { id: 'v2', semver: '2.0.0', credentialRequirements: next },
+      ] as never);
+      return s;
+    };
+
+    it.each([
+      ['the new version removes ai', ['github']],
+      ['ai becomes required', [{ ...AI, optional: false }]],
+      ['the ai models change', [{ ...AI, models: ['fast', 'reasoning'] }]],
+    ])('clears the choice when %s', async (_case, next) => {
+      const s = moveTo([AI, 'github'], next);
+
+      await run(s);
+
+      expect(s.installations.clearOwoxAiForPlugin).toHaveBeenCalledWith('p1');
+    });
+
+    it('keeps the choice when ai is unchanged', async () => {
+      const s = moveTo([AI], [{ ...AI }, 'github']);
+
+      await run(s);
+
+      expect(s.installations.clearOwoxAiForPlugin).not.toHaveBeenCalled();
+    });
+
+    it('keeps a choice made after another run already promoted the version', async () => {
+      const s = moveTo([AI], [{ ...AI, optional: false }]);
+      s.pluginService.findById.mockResolvedValue({ id: 'p1', currentVersionId: 'v2' } as never);
+
+      await run(s);
+
+      expect(s.installations.clearOwoxAiForPlugin).not.toHaveBeenCalled();
+    });
+
+    it('does nothing for the first version', async () => {
+      const s = moveTo(null, [AI]);
+
+      await run(s);
+
+      expect(s.installations.clearOwoxAiForPlugin).not.toHaveBeenCalled();
     });
   });
 

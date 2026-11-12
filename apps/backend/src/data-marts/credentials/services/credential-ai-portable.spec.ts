@@ -59,6 +59,21 @@ describe('Credential AI portable contract', () => {
     });
   });
 
+  it('drops the response and model ids from stream metadata', () => {
+    // Plugin code must not learn which model answered, on any AI route.
+    expect(
+      sanitizeCredentialAiStreamPart({
+        type: 'response-metadata',
+        id: 'gen-1',
+        modelId: 'vendor/model',
+        timestamp: new Date(0),
+      })
+    ).toEqual({
+      type: 'response-metadata',
+      timestamp: encodeCredentialAiValue(new Date(0)),
+    });
+  });
+
   it('rejects malformed portable binary input', () => {
     expect(() =>
       decodeCredentialAiOptions(

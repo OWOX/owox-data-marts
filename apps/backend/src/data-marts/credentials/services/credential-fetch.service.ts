@@ -21,7 +21,7 @@ import {
   GoogleTokenError,
 } from './google-service-account-token.service';
 
-const MAX_REQUEST_BODY_BYTES = 1024 * 1024;
+export const MAX_REQUEST_BODY_BYTES = 1024 * 1024;
 const MAX_RESPONSE_BODY_BYTES = 5 * 1024 * 1024;
 const MAX_REDIRECTS = 5;
 const TIMEOUT_MS = 30_000;
@@ -318,11 +318,15 @@ function originAllows(
   return declared.origin === url.origin;
 }
 
-function boundResponseBody(response: Response, maxBytes: number): Response {
+export function boundResponseBody(
+  response: Response,
+  maxBytes: number,
+  tooLarge: () => Error = () => new BadRequestException('Credential response body is too large')
+): Response {
   const declaredLength = Number(response.headers.get('content-length'));
   if (Number.isFinite(declaredLength) && declaredLength > maxBytes) {
     void response.body?.cancel().catch(() => undefined);
-    throw new BadRequestException('Credential response body is too large');
+    throw tooLarge();
   }
   if (!response.body) return response;
 
@@ -339,7 +343,7 @@ function boundResponseBody(response: Response, maxBytes: number): Response {
         total += value.byteLength;
         if (total > maxBytes) {
           await reader.cancel();
-          controller.error(new BadRequestException('Credential response body is too large'));
+          controller.error(tooLarge());
           return;
         }
         controller.enqueue(value);

@@ -51,11 +51,13 @@ export function InstallPluginDialog({
     () => (plugin.credentialRequirements ?? []).map(normalizePluginCredentialRequirement),
     [plugin.credentialRequirements]
   );
-  // Every opening, and a stale-version retry, starts the choices over.
+  // Every opening, and a stale-version retry, starts the choices over. Only installing
+  // preselects OWOX AI: the Credentials tab starts from the grants the member made.
   const form = useCredentialSelectionsForm(
     requirements,
     NO_SELECTIONS,
-    `${String(open)}:${plugin.currentVersionId ?? ''}`
+    `${String(open)}:${plugin.currentVersionId ?? ''}`,
+    { preselectOwoxAi: true }
   );
   // Source URLs are untrusted strings on the wire. Only absolute https becomes an href.
   const ownerHref = safeHttpsUrl(plugin.source.ownerUrl);
@@ -71,7 +73,11 @@ export function InstallPluginDialog({
       description='Installing is personal. It does not change who else can find this plugin.'
       confirmLabel={isInstalling ? 'Installing…' : 'Install'}
       confirmDisabled={
-        isInstalling || form.credentialsLoading || form.credentialsFailed || form.missingDecision
+        isInstalling ||
+        form.credentialsLoading ||
+        form.credentialsFailed ||
+        form.owoxAiLoading ||
+        form.missingDecision
       }
       variant='outline'
       onConfirm={() => {

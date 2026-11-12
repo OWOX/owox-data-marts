@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PluginGalleryEntry } from '../types';
 import { InstallPluginDialog } from './InstallPluginDialog';
@@ -8,6 +8,12 @@ const credentialState = vi.hoisted(() => ({
   definitions: [] as Record<string, unknown>[],
   credentialsLoading: false,
   credentialsFailed: false,
+  owoxAi: undefined as { models: string[]; billed: boolean } | undefined,
+  owoxAiLoading: false,
+}));
+
+vi.mock('../hooks/useOwoxAi', () => ({
+  useOwoxAi: () => ({ owoxAi: credentialState.owoxAi, isLoading: credentialState.owoxAiLoading }),
 }));
 
 vi.mock('../../../shared/components/Combobox/combobox', () => ({
@@ -18,6 +24,7 @@ vi.mock('../../../shared/components/Combobox/combobox', () => ({
     onValueChange,
     onOpenChange,
     ariaLabel,
+    ariaDescribedBy,
     placeholder,
   }: {
     options: { value: string; label: string }[];
@@ -26,10 +33,12 @@ vi.mock('../../../shared/components/Combobox/combobox', () => ({
     onValueChange: (value: string) => void;
     onOpenChange?: (open: boolean) => void;
     ariaLabel?: string;
+    ariaDescribedBy?: string;
     placeholder?: string;
   }) => (
     <select
       aria-label={ariaLabel}
+      aria-describedby={ariaDescribedBy}
       value={value}
       disabled={disabled}
       onFocus={() => onOpenChange?.(true)}
@@ -141,6 +150,8 @@ describe('InstallPluginDialog', () => {
     credentialState.definitions = [];
     credentialState.credentialsLoading = false;
     credentialState.credentialsFailed = false;
+    credentialState.owoxAi = undefined;
+    credentialState.owoxAiLoading = false;
   });
 
   /**
@@ -556,6 +567,203 @@ describe('InstallPluginDialog', () => {
     expect(install).toBeEnabled();
     fireEvent.click(install);
     expect(onConfirm).toHaveBeenCalledWith({ github: 'credential-1' });
+  });
+
+  describe('OWOX AI', () => {
+    const OWOX_AI_NOTE =
+      'This deployment provides the AI models. You do not need your own key from an AI provider.';
+    const OWOX_AI_BILLED_NOTE = `${OWOX_AI_NOTE} Calls use this project's credits.`;
+    const aiPlugin = (over: Partial<PluginGalleryEntry> = {}) =>
+      plugin({ credentialRequirements: [{ id: 'ai', optional: false }], ...over });
+    const optionalAiPlugin = () =>
+      plugin({ credentialRequirements: [{ id: 'ai', optional: true }] });
+    const dialog = (p: PluginGalleryEntry, onConfirm = vi.fn()) => (
+      <InstallPluginDialog
+        plugin={p}
+        open
+        onOpenChange={vi.fn()}
+        onConfirm={onConfirm}
+        isInstalling={false}
+      />
+    );
+    const renderDialog = (p: PluginGalleryEntry, onConfirm = vi.fn()) =>
+      render(dialog(p, onConfirm));
+    const aiSelect = () => screen.getByRole('combobox', { name: 'Select AI Credential' });
+    const aiCredential = () => ({
+      ...credential(),
+      definition: definition({ supportsAi: true }),
+      aiModelMappings: { fast: 'm' },
+    });
+
+    it('lists OWOX AI first for an ai requirement and preselects it on install', () => {
+      const onConfirm = vi.fn();
+      credentialState.owoxAi = { models: ['fast', 'reasoning'], billed: false };
+      renderDialog(aiPlugin(), onConfirm);
+
+      const options = within(aiSelect()).getAllByRole('option');
+      expect(options[1]).toHaveTextContent('OWOX AI');
+      expect(aiSelect()).toHaveValue('owox-ai');
+      const install = screen.getByRole('button', { name: 'Install' });
+      expect(install).toBeEnabled();
+      fireEvent.click(install);
+      expect(onConfirm).toHaveBeenCalledWith({ ai: 'owox-ai' });
+    });
+
+    it('names OWOX AI first among the allowed providers when it is offered', () => {
+      credentialState.owoxAi = { models: ['fast'], billed: false };
+      credentialState.definitions = [
+        definition({ id: 'openai', displayName: 'OpenAI', supportsAi: true }),
+      ];
+      renderDialog(aiPlugin());
+
+      expect(screen.getByText('Allowed providers: OWOX AI, OpenAI')).toBeInTheDocument();
+    });
+
+    it('does not offer OWOX AI when it lacks a declared model', () => {
+      credentialState.owoxAi = { models: ['fast', 'reasoning'], billed: false };
+      credentialState.definitions = [
+        definition({ id: 'openai', displayName: 'OpenAI', supportsAi: true }),
+      ];
+      renderDialog(
+        aiPlugin({ credentialRequirements: [{ id: 'ai', optional: false, models: ['embedding'] }] })
+      );
+
+      expect(screen.queryByRole('option', { name: 'OWOX AI' })).not.toBeInTheDocument();
+      expect(screen.getByText('Allowed providers: OpenAI')).toBeInTheDocument();
+    });
+
+    it('does not offer OWOX AI for an exact requirement', () => {
+      credentialState.owoxAi = { models: ['fast', 'reasoning'], billed: false };
+      credentialState.definitions = [definition({ id: 'github', displayName: 'GitHub' })];
+      renderDialog(plugin({ credentialRequirements: ['github'] }));
+
+      expect(screen.queryByRole('option', { name: 'OWOX AI' })).not.toBeInTheDocument();
+    });
+
+    it('explains OWOX AI, with the credits, only when OWOX AI is selected and billed', () => {
+      credentialState.owoxAi = { models: ['fast'], billed: true };
+      credentialState.credentials = [aiCredential()];
+      renderDialog(aiPlugin());
+
+      expect(screen.getByText(OWOX_AI_BILLED_NOTE)).toBeInTheDocument();
+      fireEvent.change(aiSelect(), { target: { value: 'credential-1' } });
+      expect(screen.queryByText(OWOX_AI_BILLED_NOTE)).not.toBeInTheDocument();
+    });
+
+    it('links the OWOX AI note to its selector', () => {
+      credentialState.owoxAi = { models: ['fast'], billed: true };
+      renderDialog(aiPlugin());
+
+      const note = screen.getByText(OWOX_AI_BILLED_NOTE);
+      expect(note.id).not.toBe('');
+      expect(aiSelect()).toHaveAttribute('aria-describedby', note.id);
+    });
+
+    it('explains OWOX AI without the credits when OWOX AI is not billed', () => {
+      credentialState.owoxAi = { models: ['fast'], billed: false };
+      renderDialog(aiPlugin());
+
+      const note = screen.getByText(OWOX_AI_NOTE);
+      expect(aiSelect()).toHaveAttribute('aria-describedby', note.id);
+    });
+
+    it('keeps a Credential the member picked before the OWOX AI status arrived', () => {
+      credentialState.credentials = [aiCredential()];
+      credentialState.owoxAiLoading = true;
+      const view = renderDialog(aiPlugin());
+      fireEvent.change(aiSelect(), { target: { value: 'credential-1' } });
+
+      credentialState.owoxAi = { models: ['fast'], billed: false };
+      credentialState.owoxAiLoading = false;
+      view.rerender(dialog(aiPlugin()));
+
+      expect(screen.getByRole('option', { name: 'OWOX AI' })).toBeInTheDocument();
+      expect(aiSelect()).toHaveValue('credential-1');
+    });
+
+    it('drops a stale OWOX AI choice for a required requirement when the status loses its models', () => {
+      credentialState.owoxAi = { models: ['fast'], billed: false };
+      const view = renderDialog(aiPlugin());
+      expect(aiSelect()).toHaveValue('owox-ai');
+
+      credentialState.owoxAi = { models: [], billed: false };
+      view.rerender(dialog(aiPlugin()));
+
+      expect(aiSelect()).toHaveValue('');
+      expect(screen.getByRole('button', { name: 'Install' })).toBeDisabled();
+    });
+
+    it('drops a stale OWOX AI choice the member made', () => {
+      credentialState.owoxAi = { models: ['fast'], billed: false };
+      credentialState.credentials = [aiCredential()];
+      const view = renderDialog(aiPlugin());
+      fireEvent.change(aiSelect(), { target: { value: 'credential-1' } });
+      fireEvent.change(aiSelect(), { target: { value: 'owox-ai' } });
+
+      credentialState.owoxAi = { models: [], billed: false };
+      view.rerender(dialog(aiPlugin()));
+
+      expect(aiSelect()).toHaveValue('');
+      expect(screen.getByRole('button', { name: 'Install' })).toBeDisabled();
+    });
+
+    it('lets a member choose Do not grant after OWOX AI is gone for an optional requirement', () => {
+      credentialState.owoxAi = { models: ['fast'], billed: false };
+      const onConfirm = vi.fn();
+      const view = renderDialog(optionalAiPlugin(), onConfirm);
+
+      credentialState.owoxAi = { models: [], billed: false };
+      view.rerender(dialog(optionalAiPlugin(), onConfirm));
+
+      expect(aiSelect()).toHaveValue('');
+      expect(screen.getByRole('button', { name: 'Install' })).toBeDisabled();
+      fireEvent.change(aiSelect(), { target: { value: '__none__' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Install' }));
+      expect(onConfirm).toHaveBeenCalledWith({ ai: null });
+    });
+
+    it('disables confirm while the OWOX AI status loads', () => {
+      const view = renderDialog(optionalAiPlugin());
+      fireEvent.change(aiSelect(), { target: { value: '__none__' } });
+      expect(screen.getByRole('button', { name: 'Install' })).toBeEnabled();
+
+      credentialState.owoxAiLoading = true;
+      view.rerender(dialog(optionalAiPlugin()));
+
+      expect(screen.getByRole('button', { name: 'Install' })).toBeDisabled();
+    });
+
+    it('does not wait for the OWOX AI status for a plugin with no ai requirement', () => {
+      credentialState.owoxAiLoading = true;
+      credentialState.definitions = [definition({ id: 'github', displayName: 'GitHub' })];
+      credentialState.credentials = [credential()];
+      renderDialog(plugin({ credentialRequirements: ['github'] }));
+
+      fireEvent.change(screen.getByRole('combobox', { name: 'Select GitHub Credential' }), {
+        target: { value: 'credential-1' },
+      });
+      expect(screen.getByRole('button', { name: 'Install' })).toBeEnabled();
+    });
+
+    it('keeps Do not grant and Add Credential for an optional ai requirement', () => {
+      credentialState.owoxAi = { models: ['fast'], billed: false };
+      credentialState.definitions = [
+        { ...definition({ id: 'openai', supportsAi: true }), ai: { recommended: { fast: 'm' } } },
+      ];
+      renderDialog(optionalAiPlugin());
+
+      expect(screen.getByRole('option', { name: 'OWOX AI' })).toBeInTheDocument();
+      expect(screen.getByRole('option', { name: 'Do not grant' })).toBeInTheDocument();
+      expect(screen.getByRole('option', { name: 'Add Credential' })).toBeInTheDocument();
+    });
+
+    it('offers nothing new when OWOX AI is off', () => {
+      credentialState.owoxAi = { models: [], billed: false };
+      renderDialog(aiPlugin());
+
+      expect(screen.queryByRole('option', { name: 'OWOX AI' })).not.toBeInTheDocument();
+      expect(aiSelect()).toHaveValue('');
+    });
   });
 });
 

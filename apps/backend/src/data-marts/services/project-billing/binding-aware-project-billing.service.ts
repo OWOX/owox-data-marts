@@ -7,7 +7,12 @@ import { DataMart } from '../../entities/data-mart.entity';
 import { Report } from '../../entities/report.entity';
 import { InternalProjectBillingService } from './internal-project-billing.service';
 import { LicenseProjectBillingService } from './license-project-billing.service';
-import { ProjectBillingService, RunKind, SheetsReportDetails } from './project-billing.service';
+import {
+  PluginAiConsumptionContext,
+  ProjectBillingService,
+  RunKind,
+  SheetsReportDetails,
+} from './project-billing.service';
 import { RestrictedProjectBillingService } from './restricted-project-billing.service';
 
 /** The hourly license refresh can change the binding, so the target is re-read on every call. */
@@ -29,6 +34,10 @@ export class BindingAwareProjectBillingService extends ProjectBillingService {
     return binding === ProjectBinding.LICENSE ? this.license : this.restricted;
   }
 
+  consumesBalance(): boolean {
+    return this.delegate().consumesBalance();
+  }
+
   verifyCanPerformOperations(projectId: string, runKind: RunKind): Promise<void> {
     return this.delegate().verifyCanPerformOperations(projectId, runKind);
   }
@@ -46,6 +55,13 @@ export class BindingAwareProjectBillingService extends ProjectBillingService {
     context: ConsumptionContext
   ): Promise<void> {
     return this.delegate().registerAiProcessRunConsumption(tokensProcessed, context);
+  }
+
+  registerPluginAiProcessRunConsumption(
+    tokensProcessed: number,
+    context: PluginAiConsumptionContext
+  ): Promise<void> {
+    return this.delegate().registerPluginAiProcessRunConsumption(tokensProcessed, context);
   }
 
   registerSheetsReportRunConsumption(

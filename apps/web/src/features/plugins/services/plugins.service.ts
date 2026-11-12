@@ -2,6 +2,7 @@ import type { AxiosRequestConfig } from '../../../app/api';
 import { ApiService } from '../../../services';
 import type {
   InstalledPlugin,
+  OwoxAiStatus,
   PluginCredentialSelections,
   PluginEntryPoint,
   PluginGalleryEntry,
@@ -32,6 +33,11 @@ class PluginsService extends ApiService {
   /** Works for a plugin no publication makes visible -- a direct link is its own path. */
   async getPlugin(pluginId: string): Promise<PluginGalleryEntry> {
     return this.get<PluginGalleryEntry>(`/${pluginId}`);
+  }
+
+  /** Which models the deployment's OWOX AI serves to plugins; none when it is off. */
+  async getOwoxAi(): Promise<OwoxAiStatus> {
+    return this.get<OwoxAiStatus>('/owox-ai');
   }
 
   async getInstallations(includeUninstalled = false): Promise<InstalledPlugin[]> {

@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { fetchWithBackoff } from '@owox/internal-helpers';
 import { ProjectOperationBlockedException } from '../../../common/exceptions/project-operation-blocked.exception';
@@ -84,6 +85,10 @@ function balanceResponse(body: unknown) {
 }
 
 describe('InternalProjectBillingService', () => {
+  it('consumes the project balance', () => {
+    expect(buildService({}).consumesBalance()).toBe(true);
+  });
+
   beforeEach(() => {
     jest.clearAllMocks();
     mockPublish.mockReset();
@@ -250,6 +255,49 @@ describe('InternalProjectBillingService', () => {
       );
     });
 
+    describe('plugin AI Process Run', () => {
+      const pluginContext = { projectId: 'proj-1', pluginId: 'plugin-1', pluginTitle: 'My Plugin' };
+      const aiEnv = { ...PUBSUB_ENV, CONSUMPTION_AI_PROCESS_RUN_TOPIC: 'ai-topic' };
+
+      it('publishes a plugin AI Process Run without data mart or storage fields', async () => {
+        await buildService(aiEnv).registerPluginAiProcessRunConsumption(1234, pluginContext);
+
+        expect(mockPublish).toHaveBeenCalledTimes(1);
+        const [topic, command] = mockPublish.mock.calls[0];
+        expect(topic).toBe('ai-topic');
+        expect(Object.keys(command).sort()).toEqual([
+          'contextId',
+          'contextTitle',
+          'contextType',
+          'processRunId',
+          'projectId',
+          'runTime',
+          'tokensProcessed',
+        ]);
+        expect(command).toMatchObject({
+          projectId: 'proj-1',
+          contextType: 'PLUGIN',
+          contextId: 'plugin-1',
+          contextTitle: 'My Plugin',
+          tokensProcessed: 1234,
+        });
+        expect(command.processRunId).toMatch(
+          /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
+        );
+      });
+
+      it('uses a new processRunId for each call', async () => {
+        const service = buildService(aiEnv);
+
+        await service.registerPluginAiProcessRunConsumption(1, pluginContext);
+        await service.registerPluginAiProcessRunConsumption(1, pluginContext);
+
+        expect(mockPublish.mock.calls[0][1].processRunId).not.toBe(
+          mockPublish.mock.calls[1][1].processRunId
+        );
+      });
+    });
+
     it('enriches a connector run with the human-readable connector title', async () => {
       const service = buildService(PUBSUB_ENV, [{ name: 'facebook-ads', title: 'Facebook Ads' }]);
 
@@ -366,12 +414,15 @@ describe('InternalProjectBillingService', () => {
       expect(mockPublish).not.toHaveBeenCalled();
     });
 
-    it('skips silently when the topic for that run kind is not configured', async () => {
+    it('skips with a warning when the topic for that run kind is not configured', async () => {
+      const warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation();
       const service = buildService({ CONSUMPTION_PUBSUB_PROJECT_ID: 'consumption-project' });
 
       await service.registerHttpDataRunConsumption(fakeDataMart(), 'run-1');
 
       expect(mockPublish).not.toHaveBeenCalled();
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('HTTP_DATA_RUN'));
+      warn.mockRestore();
     });
 
     it('skips silently when PubSub is not configured at all', async () => {

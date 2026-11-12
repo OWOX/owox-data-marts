@@ -4,6 +4,7 @@ import {
   ProjectBinding,
 } from '../../../common/config/app-edition-config.service';
 import { ProjectOperationBlockedException } from '../../../common/exceptions/project-operation-blocked.exception';
+import { BindingAwareProjectBillingService } from './binding-aware-project-billing.service';
 import { InternalProjectBillingService } from './internal-project-billing.service';
 import { LicenseProjectBillingService } from './license-project-billing.service';
 import { ProjectBillingService, RunKind } from './project-billing.service';
@@ -11,13 +12,19 @@ import { projectBillingProvider } from './project-billing.providers';
 import { RestrictedProjectBillingService } from './restricted-project-billing.service';
 
 const internal = {
+  consumesBalance: jest.fn().mockReturnValue(true),
+  registerPluginAiProcessRunConsumption: jest.fn().mockResolvedValue(undefined),
   isBalanceConfigured: jest.fn(),
   verifyCanPerformOperations: jest.fn().mockResolvedValue(undefined),
 } as unknown as InternalProjectBillingService;
 const license = {
+  consumesBalance: jest.fn().mockReturnValue(false),
+  registerPluginAiProcessRunConsumption: jest.fn().mockResolvedValue(undefined),
   verifyCanPerformOperations: jest.fn().mockResolvedValue(undefined),
 } as unknown as LicenseProjectBillingService;
 const restricted = {
+  consumesBalance: jest.fn().mockReturnValue(false),
+  registerPluginAiProcessRunConsumption: jest.fn().mockResolvedValue(undefined),
   verifyCanPerformOperations: jest.fn().mockResolvedValue(undefined),
 } as unknown as RestrictedProjectBillingService;
 
@@ -91,8 +98,60 @@ describe('projectBillingProvider', () => {
   });
 });
 
+describe('BindingAwareProjectBillingService', () => {
+  const pluginContext = { projectId: 'proj-1', pluginId: 'plugin-1', pluginTitle: 'My Plugin' };
+
+  it.each([
+    ['INTERNAL', { binding: ProjectBinding.INTERNAL, licenseKeyId: 'key-1' }, 'internal'],
+    ['LICENSE', { binding: ProjectBinding.LICENSE, licenseKeyId: 'key-1' }, 'license'],
+    ['none', null, 'restricted'],
+  ] as const)(
+    'delegates plugin AI Process Runs to the bound service for %s',
+    async (_, context, target) => {
+      Object.values(impls).forEach(impl =>
+        (impl.registerPluginAiProcessRunConsumption as jest.Mock).mockClear()
+      );
+      const service = resolve(context);
+
+      await service.registerPluginAiProcessRunConsumption(1234, pluginContext);
+
+      for (const [name, impl] of Object.entries(impls)) {
+        const calls = (impl.registerPluginAiProcessRunConsumption as jest.Mock).mock.calls;
+        expect(calls).toEqual(name === target ? [[1234, pluginContext]] : []);
+      }
+    }
+  );
+});
+
+describe('BindingAwareProjectBillingService.consumesBalance', () => {
+  it.each([
+    ['INTERNAL with a configured balance', ProjectBinding.INTERNAL, true, true],
+    ['INTERNAL without a configured balance', ProjectBinding.INTERNAL, false, false],
+    ['LICENSE', ProjectBinding.LICENSE, true, false],
+    ['no license', undefined, true, false],
+  ])('follows the routed service for %s', (_name, binding, balanceConfigured, expected) => {
+    (internal.isBalanceConfigured as jest.Mock).mockReturnValue(balanceConfigured);
+    const service = new BindingAwareProjectBillingService(
+      { getLicenseContext: () => (binding ? { binding } : null) } as unknown as AppEditionConfig,
+      internal,
+      license,
+      restricted
+    );
+
+    expect(service.consumesBalance()).toBe(expected);
+  });
+});
+
 describe('RestrictedProjectBillingService', () => {
   const service = new RestrictedProjectBillingService();
+
+  it('does not consume the project balance', () => {
+    expect(service.consumesBalance()).toBe(false);
+  });
+
+  it('skips plugin AI Process Runs', async () => {
+    await expect(service.registerPluginAiProcessRunConsumption()).resolves.toBeUndefined();
+  });
 
   it.each([
     RunKind.SHEETS_REPORT_RUN,

@@ -57,7 +57,9 @@ function setup() {
     executions as never,
     plugins as never,
     versions as never,
-    credentialBindings as never
+    credentialBindings as never,
+    { findById: jest.fn().mockResolvedValue({ owoxAi: false }) } as never,
+    { provides: jest.fn().mockReturnValue(true) } as never
   );
   return { service, executions, credentialBindings };
 }
@@ -138,6 +140,56 @@ describe('GetCurrentPluginActionExecutionService', () => {
       expect(credentialBindings.assertConsumerReady).toHaveBeenCalledWith(
         expect.objectContaining({ requirements: ['ai'] })
       );
+    });
+
+    describe('with OWOX AI chosen', () => {
+      const withOwoxAi = (provides: boolean) => {
+        const state = setup();
+        (
+          state.service as never as { installations: { findById: jest.Mock } }
+        ).installations.findById.mockResolvedValue({ owoxAi: true });
+        (
+          state.service as never as { owoxAi: { provides: jest.Mock } }
+        ).owoxAi.provides.mockReturnValue(provides);
+        return state;
+      };
+
+      it('includes the OWOX AI handle when the SDK asks for AI capabilities', async () => {
+        const { service, credentialBindings } = withOwoxAi(true);
+
+        await expect(service.run({ context: CONTEXT, aiCredentials: true })).resolves.toMatchObject(
+          {
+            credentialHandles: [
+              { name: 'github', kind: 'exact' },
+              { name: 'ai', kind: 'ai', models: ['fast'] },
+            ],
+          }
+        );
+        expect(credentialBindings.assertConsumerReady).not.toHaveBeenCalledWith(
+          expect.objectContaining({ requirements: ['ai'] })
+        );
+      });
+
+      it('leaves out the OWOX AI handle when OWOX AI is off and logs a warning', async () => {
+        const { service } = withOwoxAi(false);
+        const warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+
+        await expect(service.run({ context: CONTEXT, aiCredentials: true })).resolves.toMatchObject(
+          {
+            credentialHandles: [{ name: 'github', kind: 'exact' }],
+          }
+        );
+        expect(warn).toHaveBeenCalledWith(expect.stringMatching(/OWOX AI ai left out/));
+        warn.mockRestore();
+      });
+
+      it('gives no AI handle to an SDK without AI capabilities', async () => {
+        const { service } = withOwoxAi(true);
+
+        await expect(service.run({ context: CONTEXT })).resolves.toMatchObject({
+          credentialHandles: [{ name: 'github', kind: 'exact' }],
+        });
+      });
     });
 
     it('keeps an SDK without AI support to exact Credentials, as before', async () => {

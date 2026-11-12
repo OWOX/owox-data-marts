@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { castError } from '@owox/internal-helpers';
+import { isDeepStrictEqual } from 'node:util';
 import { PluginHostConfigService } from '../config/plugin-host.config';
 import { GithubReleaseDto } from '../dto/domain/github-release.dto';
 import { GithubRepoDto } from '../dto/domain/github-repo.dto';
@@ -10,6 +11,7 @@ import {
   SyncReport,
 } from '../dto/domain/plugin-sync.dto';
 import { Plugin } from '../entities/plugin.entity';
+import { PluginVersion } from '../entities/plugin-version.entity';
 import { ReleaseRejectionCode } from '../enums/release-rejection-code.enum';
 import {
   PluginSyncInProgressError,
@@ -21,8 +23,10 @@ import { GithubApiService } from '../services/github-api.service';
 import { PluginService, PluginSyncSlotClaim } from '../services/plugin.service';
 import { PluginVersionService } from '../services/plugin-version.service';
 import { PluginCredentialBindingReconciliationService } from '../services/plugin-credential-binding-reconciliation.service';
+import { PluginInstallationService } from '../services/plugin-installation.service';
 import { ReleaseCandidateRulesService } from '../services/release-candidate-rules.service';
 import { GithubRepoRef, parseGithubRepoLocator } from '../utils/github-repo-locator.util';
+import { logicalAiRequirement } from '../utils/owox-ai-requirement.util';
 import { compareSemver, formatSemver, parseReleaseTag } from '../utils/semver.util';
 
 /** A release that survived the free checks and is worth spending network calls on. */
@@ -48,7 +52,8 @@ export class SyncPluginReleasesService {
     private readonly pluginService: PluginService,
     private readonly versionService: PluginVersionService,
     private readonly config: PluginHostConfigService,
-    private readonly credentialBindingReconciliation: PluginCredentialBindingReconciliationService
+    private readonly credentialBindingReconciliation: PluginCredentialBindingReconciliationService,
+    private readonly installations: PluginInstallationService
   ) {}
 
   async run(command: SyncPluginReleasesCommand): Promise<PluginSyncResultDto> {
@@ -274,6 +279,16 @@ export class SyncPluginReleasesService {
       rejections: outcome.rejections,
     };
 
+    // Like a grant, the OWOX AI choice applies to one form of the `ai` requirement only.
+    // Cleared before the save, so a failure between the two steps cannot keep a stale choice.
+    // The stored current version is read again: a run that outlived its lease must not clear a
+    // choice made after another run already promoted this version.
+    const stored = await this.pluginService.findById(plugin.id);
+    const previous = versions.find(version => version.id === stored?.currentVersionId);
+    if (previous && aiRequirementChanged(previous, current)) {
+      await this.installations.clearOwoxAiForPlugin(plugin.id);
+    }
+
     const saved = await this.pluginService.saveSyncOutcome(
       plugin.id,
       current?.id ?? null,
@@ -374,4 +389,12 @@ export class SyncPluginReleasesService {
   ): ReleaseRejectionDto {
     return { tagName: release.tagName, githubReleaseId: release.githubReleaseId, code, detail };
   }
+}
+
+/** True when the previous version declares `ai` and the next one drops it or declares another form. */
+function aiRequirementChanged(previous: PluginVersion, next: PluginVersion | null): boolean {
+  const before = logicalAiRequirement(previous.credentialRequirements ?? []);
+  if (!before) return false;
+  const after = logicalAiRequirement(next?.credentialRequirements ?? []);
+  return !after || !isDeepStrictEqual(before.normalized, after.normalized);
 }

@@ -38,6 +38,10 @@ export class LicenseProjectBillingService extends ProjectBillingService {
     super();
   }
 
+  public consumesBalance(): boolean {
+    return false;
+  }
+
   public async verifyCanPerformOperations(projectId: string, runKind: RunKind): Promise<void> {
     if (!isReportRun(runKind)) {
       return;
@@ -62,6 +66,10 @@ export class LicenseProjectBillingService extends ProjectBillingService {
     _tokensProcessed: number,
     _context: ConsumptionContext
   ): Promise<void> {
+    this.skipProcessRun(RunKind.AI_PROCESS_RUN);
+  }
+
+  public async registerPluginAiProcessRunConsumption(): Promise<void> {
     this.skipProcessRun(RunKind.AI_PROCESS_RUN);
   }
 

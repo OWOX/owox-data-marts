@@ -3,7 +3,7 @@ jest.mock('typeorm-transactional', () => ({
     descriptor,
 }));
 
-import { NotFoundException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { AuthorizationContext } from '../../idp/types/auth.types';
 import { InstallPluginCommand } from '../dto/domain/install-plugin.command';
 import { PluginAuditAction } from '../enums/plugin-audit-action.enum';
@@ -18,7 +18,15 @@ import { RunPluginUpdateCheckService } from './run-plugin-update-check.service';
 
 const MEMBER = { projectId: 'j1', userId: 'u1' } as AuthorizationContext;
 
-function setup(overrides: { plugin?: unknown; installation?: unknown; wasDormant?: boolean } = {}) {
+function setup(
+  overrides: {
+    plugin?: unknown;
+    installation?: unknown;
+    wasDormant?: boolean;
+    requirements?: unknown[];
+    provides?: boolean;
+  } = {}
+) {
   const pluginService = {
     // `in` rather than ??, so a test can override with an explicit null.
     findById: jest
@@ -31,9 +39,11 @@ function setup(overrides: { plugin?: unknown; installation?: unknown; wasDormant
   } as unknown as jest.Mocked<PluginService>;
 
   const versionService = {
-    findById: jest
-      .fn()
-      .mockResolvedValue({ id: 'v1', semver: '1.0.0', credentialRequirements: [] }),
+    findById: jest.fn().mockResolvedValue({
+      id: 'v1',
+      semver: '1.0.0',
+      credentialRequirements: overrides.requirements ?? [],
+    }),
   } as unknown as jest.Mocked<PluginVersionService>;
 
   const installations = {
@@ -56,6 +66,7 @@ function setup(overrides: { plugin?: unknown; installation?: unknown; wasDormant
       wonRace: true,
     }),
     restore: jest.fn().mockResolvedValue(undefined),
+    setOwoxAi: jest.fn().mockResolvedValue(undefined),
     findById: jest.fn().mockResolvedValue({
       id: 'i1',
       pluginId: 'p1',
@@ -89,6 +100,8 @@ function setup(overrides: { plugin?: unknown; installation?: unknown; wasDormant
     replaceBindings: jest.fn().mockResolvedValue(undefined),
   };
 
+  const owoxAi = { provides: jest.fn().mockReturnValue(overrides.provides ?? true) };
+
   return {
     service: new InstallPluginService(
       pluginService,
@@ -97,7 +110,8 @@ function setup(overrides: { plugin?: unknown; installation?: unknown; wasDormant
       audit,
       schedule,
       check,
-      credentialBindings as never
+      credentialBindings as never,
+      owoxAi as never
     ),
     pluginService,
     installations,
@@ -105,6 +119,7 @@ function setup(overrides: { plugin?: unknown; installation?: unknown; wasDormant
     schedule,
     check,
     credentialBindings,
+    owoxAi,
   };
 }
 
@@ -123,6 +138,67 @@ describe('InstallPluginService', () => {
     expect(s.credentialBindings.replaceBindings).toHaveBeenCalledWith(
       expect.objectContaining({ consumerId: 'i1', requirements: [], selections: {} })
     );
+  });
+
+  describe('OWOX AI selection', () => {
+    const withSelections = (s: ReturnType<typeof setup>, selections: Record<string, string>) =>
+      s.service.run(new InstallPluginCommand('p1', 'v1', MEMBER, selections));
+    const requirements = ['github', { id: 'ai', models: ['fast'] }];
+
+    it('stores OWOX AI and binds the other requirements without ai', async () => {
+      const s = setup({ requirements });
+
+      await withSelections(s, { github: 'cred-1', ai: 'owox-ai' });
+
+      expect(s.owoxAi.provides).toHaveBeenCalledWith(['fast']);
+      expect(s.credentialBindings.replaceBindings).toHaveBeenCalledWith(
+        expect.objectContaining({ requirements: ['github'], selections: { github: 'cred-1' } })
+      );
+      expect(s.installations.setOwoxAi).toHaveBeenCalledWith('i1', true);
+    });
+
+    it('clears OWOX AI when a Credential is selected for ai', async () => {
+      const s = setup({ requirements });
+
+      await withSelections(s, { github: 'cred-1', ai: 'cred-2' });
+
+      expect(s.installations.setOwoxAi).toHaveBeenCalledWith('i1', false);
+      expect(s.credentialBindings.replaceBindings).toHaveBeenCalledWith(
+        expect.objectContaining({ requirements, selections: { github: 'cred-1', ai: 'cred-2' } })
+      );
+    });
+
+    it('rejects OWOX AI when it does not provide every declared model', async () => {
+      const s = setup({
+        requirements: [{ id: 'ai', models: ['fast', 'embedding'] }],
+        provides: false,
+      });
+
+      await expect(withSelections(s, { ai: 'owox-ai' })).rejects.toBeInstanceOf(
+        BadRequestException
+      );
+      expect(s.owoxAi.provides).toHaveBeenCalledWith(['embedding', 'fast']);
+      expect(s.credentialBindings.replaceBindings).not.toHaveBeenCalled();
+      expect(s.installations.setOwoxAi).not.toHaveBeenCalled();
+    });
+
+    it('rejects OWOX AI for an exact requirement key', async () => {
+      const s = setup({ requirements });
+
+      await expect(withSelections(s, { github: 'owox-ai' })).rejects.toBeInstanceOf(
+        BadRequestException
+      );
+      expect(s.credentialBindings.replaceBindings).not.toHaveBeenCalled();
+    });
+
+    it('rejects OWOX AI when the plugin declares no ai requirement', async () => {
+      const s = setup({ requirements: ['github'] });
+
+      await expect(withSelections(s, { ai: 'owox-ai' })).rejects.toBeInstanceOf(
+        BadRequestException
+      );
+      expect(s.credentialBindings.replaceBindings).not.toHaveBeenCalled();
+    });
   });
 
   /**

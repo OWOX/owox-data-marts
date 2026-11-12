@@ -4,6 +4,7 @@ import { OpenAiChatProvider } from '../openai/openai-chat-provider';
 import {
   buildOpenRouterProviderSpecificFields,
   parseOpenRouterCommaSeparatedConfig,
+  readOpenRouterRoutingOptions,
 } from './openrouter-routing';
 
 /**
@@ -35,22 +36,16 @@ export class OpenRouterChatProvider extends OpenAiChatProvider {
   constructor(config: ConfigService) {
     super(config);
 
-    // Parse allowed infrastructure providers from environment variable
-    this.allowedProviders = parseOpenRouterCommaSeparatedConfig(
-      config.get<string>('AI_ALLOWED_PROVIDERS', ''),
-      { toLowerCase: true }
-    );
+    const routing = readOpenRouterRoutingOptions(config);
+    this.allowedProviders = routing.allowedProviders;
 
     // Parse fallback models from environment variable
     this.fallbackModels = parseOpenRouterCommaSeparatedConfig(
       config.get<string>('AI_FALLBACK_MODELS', '')
     );
 
-    // Parse data collection policy (default: "deny")
-    this.dataCollection = config.get<string>('AI_DATA_COLLECTION', 'deny');
-
-    // Parse zero data retention flag (default: true)
-    this.zdr = config.get<string>('AI_ZDR', 'true').toLowerCase() === 'true';
+    this.dataCollection = routing.dataCollection;
+    this.zdr = routing.zdr;
   }
 
   /**

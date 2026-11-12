@@ -27,6 +27,12 @@ describe('grantedCredentialSelections', () => {
     ).toEqual({ github: 'c1', backup: 'c3' });
   });
 
+  it('keeps an OWOX AI grant', () => {
+    const ai = { ...requirement('ai', true), definitionId: null, models: ['fast'] };
+
+    expect(grantedCredentialSelections([ai], { ai: 'owox-ai' })).toEqual({ ai: 'owox-ai' });
+  });
+
   it('reads a requirement named like an Object member as ungranted', () => {
     expect(grantedCredentialSelections([requirement('constructor', true)], {})).toEqual({
       constructor: null,

@@ -14,6 +14,8 @@ export const AiProviderNameSchema = z.nativeEnum(AiProviderName);
 export const DEFAULT_AI_PROVIDER = AiProviderName.OPENAI;
 
 export function normalizeAiProviderName(raw: unknown): AiProviderName {
-  const parsed = AiProviderNameSchema.safeParse(raw);
+  const parsed = AiProviderNameSchema.safeParse(
+    typeof raw === 'string' ? raw.trim().toLowerCase() : raw
+  );
   return parsed.success ? parsed.data : DEFAULT_AI_PROVIDER;
 }

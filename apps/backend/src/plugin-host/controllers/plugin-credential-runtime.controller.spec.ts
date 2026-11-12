@@ -1,4 +1,4 @@
-import { NotFoundException } from '@nestjs/common';
+import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { EventEmitter } from 'node:events';
 
 jest.mock('../../idp', () => ({
@@ -25,7 +25,9 @@ function setup(requirements: unknown[]) {
     { findById: jest.fn().mockResolvedValue({ credentialRequirements: requirements }) } as never,
     {} as never,
     {} as never,
-    { resolveBinding: jest.fn() } as never
+    { resolveBinding: jest.fn() } as never,
+    { findById: jest.fn().mockResolvedValue({ owoxAi: false }) } as never,
+    {} as never
   );
 }
 
@@ -73,7 +75,9 @@ describe('PluginCredentialRuntimeController in a backend action', () => {
         { findById: jest.fn().mockResolvedValue({ credentialRequirements: AI }) } as never,
         {} as never,
         aiService as never,
-        bindings as never
+        bindings as never,
+        { findById: jest.fn().mockResolvedValue({ owoxAi: false }) } as never,
+        {} as never
       );
       const request = Object.assign(new EventEmitter(), { res: new EventEmitter() });
 
@@ -106,7 +110,9 @@ describe('PluginCredentialRuntimeController in a backend action', () => {
       { findById: jest.fn().mockResolvedValue({ credentialRequirements: AI }) } as never,
       {} as never,
       aiService as never,
-      bindings as never
+      bindings as never,
+      { findById: jest.fn().mockResolvedValue({ owoxAi: false }) } as never,
+      {} as never
     );
     const response = Object.assign(new EventEmitter(), {
       status: jest.fn(),
@@ -146,7 +152,9 @@ describe('PluginCredentialRuntimeController in a backend action', () => {
       { findById: jest.fn().mockResolvedValue({ credentialRequirements: ['github'] }) } as never,
       fetchService as never,
       {} as never,
-      bindings as never
+      bindings as never,
+      { findById: jest.fn().mockResolvedValue({ owoxAi: false }) } as never,
+      {} as never
     );
     const request = Object.assign(new EventEmitter(), { res: new EventEmitter() });
 
@@ -179,7 +187,9 @@ describe('PluginCredentialRuntimeController disconnect handling', () => {
       } as never,
       {} as never,
       aiService as never,
-      bindings as never
+      bindings as never,
+      { findById: jest.fn().mockResolvedValue({ owoxAi: false }) } as never,
+      {} as never
     );
     return { controller, aiService };
   }
@@ -254,5 +264,237 @@ describe('PluginCredentialRuntimeController disconnect handling', () => {
     response.emit('close');
 
     await expect(pending).resolves.toBeUndefined();
+  });
+});
+
+describe('PluginCredentialRuntimeController with OWOX AI', () => {
+  const AI = [{ id: 'ai', optional: false, models: ['fast', 'embedding'] }];
+  const pluginTitle = 'Plugin title';
+
+  function owoxRuntime(
+    owoxAi = true,
+    requirements: unknown[] = AI,
+    provided: string[] = ['fast', 'reasoning', 'embedding'],
+    uninstalledAt: Date | null = null
+  ) {
+    const bindings = { resolveBinding: jest.fn(), markUsed: jest.fn() };
+    const aiService = { generate: jest.fn(), stream: jest.fn(), embed: jest.fn() };
+    const facade = {
+      provides: jest.fn((models: string[]) => models.every(model => provided.includes(model))),
+      generate: jest.fn(),
+      stream: jest.fn(),
+      embed: jest.fn(),
+    };
+    const controller = new PluginCredentialRuntimeController(
+      { findById: jest.fn().mockResolvedValue({ currentVersionId: 'version-1' }) } as never,
+      {
+        findById: jest
+          .fn()
+          .mockResolvedValue({ credentialRequirements: requirements, displayName: pluginTitle }),
+      } as never,
+      { run: jest.fn() } as never,
+      aiService as never,
+      bindings as never,
+      { findById: jest.fn().mockResolvedValue({ owoxAi, uninstalledAt }) } as never,
+      facade as never
+    );
+    return { controller, bindings, aiService, facade };
+  }
+  const request = () => Object.assign(new EventEmitter(), { res: new EventEmitter() });
+  const consumption = { projectId: 'project-1', pluginId: 'plugin-1', pluginTitle };
+
+  function streamResponse() {
+    return Object.assign(new EventEmitter(), {
+      status: jest.fn(),
+      setHeader: jest.fn(),
+      flushHeaders: jest.fn(),
+      write: jest.fn().mockReturnValue(true),
+      end: jest.fn(),
+      writableEnded: false,
+      destroyed: false,
+    });
+  }
+
+  it('routes generate to OWOX AI when the installation uses it', async () => {
+    const { controller, bindings, aiService, facade } = owoxRuntime();
+    facade.generate.mockResolvedValue({ ok: true });
+
+    await expect(
+      controller.generate(
+        'ai',
+        { version: 1, model: 'fast', options: { a: 1 } as never },
+        context,
+        request() as never
+      )
+    ).resolves.toEqual({ ok: true });
+    expect(facade.generate).toHaveBeenCalledWith(
+      consumption,
+      'fast',
+      { a: 1 },
+      expect.any(AbortSignal)
+    );
+    expect(aiService.generate).not.toHaveBeenCalled();
+    expect(bindings.resolveBinding).not.toHaveBeenCalled();
+    expect(bindings.markUsed).not.toHaveBeenCalled();
+  });
+
+  it('routes embed to OWOX AI when the installation uses it', async () => {
+    const { controller, bindings, aiService, facade } = owoxRuntime();
+    facade.embed.mockResolvedValue({ ok: true });
+
+    await expect(
+      controller.embed(
+        'ai',
+        { version: 1, model: 'embedding', options: {} },
+        context,
+        request() as never
+      )
+    ).resolves.toEqual({ ok: true });
+    expect(facade.embed).toHaveBeenCalledWith(consumption, {}, expect.any(AbortSignal));
+    expect(aiService.embed).not.toHaveBeenCalled();
+    expect(bindings.resolveBinding).not.toHaveBeenCalled();
+    expect(bindings.markUsed).not.toHaveBeenCalled();
+  });
+
+  it('routes stream to OWOX AI as NDJSON when the installation uses it', async () => {
+    const { controller, bindings, aiService, facade } = owoxRuntime();
+    facade.stream.mockResolvedValue(
+      new ReadableStream({
+        start(c) {
+          c.enqueue({ type: 'text-delta', textDelta: 'hi' });
+          c.close();
+        },
+      })
+    );
+    const response = streamResponse();
+
+    await controller.stream(
+      'ai',
+      { version: 1, model: 'fast', options: {} },
+      context,
+      request() as never,
+      response as never
+    );
+    expect(facade.stream).toHaveBeenCalledWith(consumption, 'fast', {}, expect.any(AbortSignal));
+    expect(response.write).toHaveBeenCalledWith('{"type":"text-delta","textDelta":"hi"}\n');
+    expect(aiService.stream).not.toHaveBeenCalled();
+    expect(bindings.resolveBinding).not.toHaveBeenCalled();
+    expect(bindings.markUsed).not.toHaveBeenCalled();
+  });
+
+  it('keeps the Credential path when owoxAi is false', async () => {
+    const { controller, bindings, aiService, facade } = owoxRuntime(false);
+    bindings.resolveBinding.mockResolvedValue({
+      credentialId: 'credential-1',
+      requirement: { key: 'ai' },
+    });
+    aiService.generate.mockResolvedValue({ ok: 'credential' });
+
+    await expect(
+      controller.generate(
+        'ai',
+        { version: 1, model: 'fast', options: {} },
+        context,
+        request() as never
+      )
+    ).resolves.toEqual({ ok: 'credential' });
+    expect(facade.generate).not.toHaveBeenCalled();
+    expect(bindings.markUsed).toHaveBeenCalled();
+  });
+
+  it('does not use OWOX AI for an uninstalled installation', async () => {
+    const { controller, bindings, facade } = owoxRuntime(true, AI, undefined, new Date());
+    bindings.resolveBinding.mockRejectedValue(
+      new NotFoundException('Credential ai is not configured')
+    );
+
+    await expect(
+      controller.generate(
+        'ai',
+        { version: 1, model: 'fast', options: {} },
+        context,
+        request() as never
+      )
+    ).rejects.toBeInstanceOf(NotFoundException);
+    expect(facade.generate).not.toHaveBeenCalled();
+    expect(bindings.resolveBinding).toHaveBeenCalled();
+  });
+
+  it('answers 404 for an undeclared model even with OWOX AI', async () => {
+    const { controller, facade } = owoxRuntime(true, [
+      { id: 'ai', optional: false, models: ['fast'] },
+    ]);
+
+    await expect(
+      controller.embed(
+        'ai',
+        { version: 1, model: 'embedding', options: {} },
+        context,
+        request() as never
+      )
+    ).rejects.toBeInstanceOf(NotFoundException);
+    expect(facade.embed).not.toHaveBeenCalled();
+  });
+
+  // The Credential path also requires every declared model, not only the requested one.
+  it('answers the missing-grant 404 when OWOX AI lacks a declared model', async () => {
+    const { controller, bindings, facade } = owoxRuntime(true, AI, ['fast', 'reasoning']);
+
+    await expect(
+      controller.generate(
+        'ai',
+        { version: 1, model: 'fast', options: {} },
+        context,
+        request() as never
+      )
+    ).rejects.toThrow(new NotFoundException('Credential ai is not configured'));
+    expect(facade.provides).toHaveBeenCalledWith(['embedding', 'fast']);
+    expect(facade.generate).not.toHaveBeenCalled();
+    expect(bindings.resolveBinding).not.toHaveBeenCalled();
+  });
+
+  it('lets a facade HttpException reach the client unchanged', async () => {
+    const { controller, facade } = owoxRuntime();
+    const error = new NotFoundException('OWOX AI is off');
+    facade.generate.mockRejectedValue(error);
+
+    await expect(
+      controller.generate(
+        'ai',
+        { version: 1, model: 'fast', options: {} },
+        context,
+        request() as never
+      )
+    ).rejects.toBe(error);
+  });
+
+  it('answers a facade refusal on stream before it sends headers', async () => {
+    const { controller, facade } = owoxRuntime();
+    const error = new ForbiddenException('blocked');
+    facade.stream.mockRejectedValue(error);
+    const response = streamResponse();
+
+    await expect(
+      controller.stream(
+        'ai',
+        { version: 1, model: 'fast', options: {} },
+        context,
+        request() as never,
+        response as never
+      )
+    ).rejects.toBe(error);
+    expect(response.flushHeaders).not.toHaveBeenCalled();
+  });
+
+  it('keeps fetch on the Credential path for an owoxAi installation', async () => {
+    const { controller, bindings, facade } = owoxRuntime(true, ['github']);
+    bindings.resolveBinding.mockResolvedValue({
+      credentialId: 'credential-1',
+      requirement: { key: 'github' },
+    });
+
+    await controller.fetch('github', {} as never, context, request() as never);
+    expect(bindings.resolveBinding).toHaveBeenCalled();
+    expect(facade.generate).not.toHaveBeenCalled();
   });
 });

@@ -48,6 +48,10 @@ export class PluginInstallation {
   @Column({ type: 'datetime', nullable: true })
   uninstalledAt: Date | null;
 
+  /** The logical `ai` requirement uses OWOX AI instead of a bound Credential. */
+  @Column({ type: 'boolean', default: false })
+  owoxAi: boolean;
+
   @UpdateDateColumn()
   modifiedAt: Date;
 }
