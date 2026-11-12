@@ -5,6 +5,7 @@ import { PluginSuspendedError } from '../errors/plugin-host.errors';
 import { PluginInstallationService } from '../services/plugin-installation.service';
 import { PluginVersionService } from '../services/plugin-version.service';
 import { PluginService } from '../services/plugin.service';
+import { PluginHostConfigService } from '../config/plugin-host.config';
 import { GetPluginInstallationEntryService } from './get-plugin-installation-entry.service';
 
 const MEMBER = { projectId: 'j1', userId: 'u1' } as AuthorizationContext;
@@ -27,6 +28,7 @@ function setup(row: unknown = installation(), pluginOverrides = {}) {
   const pluginService = {
     findById: jest.fn().mockResolvedValue({
       id: 'p1',
+      githubRepoId: '42',
       repoOwner: 'OWOX',
       repoName: 'example',
       repoHtmlUrl: 'https://github.com/OWOX/example',
@@ -53,13 +55,19 @@ function setup(row: unknown = installation(), pluginOverrides = {}) {
     assertConsumerReady: jest.fn().mockResolvedValue([]),
   };
 
+  const hostConfig = {
+    isBiPlugin: jest.fn().mockReturnValue(false),
+  };
+
   return {
     service: new GetPluginInstallationEntryService(
       installations,
       pluginService,
       versionService,
-      credentialBindings as never
+      credentialBindings as never,
+      hostConfig as unknown as PluginHostConfigService
     ),
+    hostConfig,
     installations,
     credentialBindings,
   };
@@ -77,6 +85,7 @@ describe('GetPluginInstallationEntryService', () => {
       pluginId: 'p1',
       versionId: 'v1',
       credentialHandles: [],
+      biPlugin: false,
     });
     expect(state.credentialBindings.assertConsumerReady).toHaveBeenCalledWith(
       expect.objectContaining({ consumerId: 'i1', requirements: [] })
@@ -101,6 +110,21 @@ describe('GetPluginInstallationEntryService', () => {
         { name: 'ai', kind: 'ai', models: ['fast', 'embedding'] },
       ],
     });
+  });
+
+  it('marks the entry of a recognised BI plugin', async () => {
+    const state = setup();
+    state.hostConfig.isBiPlugin.mockReturnValue(true);
+
+    await expect(entry(state.service)).resolves.toMatchObject({ biPlugin: true });
+    expect(state.hostConfig.isBiPlugin).toHaveBeenCalledWith('42', 'https://plugin.example.com');
+  });
+
+  it('leaves every other plugin unmarked', async () => {
+    const state = setup();
+    state.hostConfig.isBiPlugin.mockReturnValue(false);
+
+    await expect(entry(state.service)).resolves.toMatchObject({ biPlugin: false });
   });
 
   // One 404 for every way of not being entitled: confirming that an installation

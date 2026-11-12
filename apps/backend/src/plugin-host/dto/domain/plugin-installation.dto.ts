@@ -26,6 +26,7 @@ export interface PluginInstallationEntryDto {
   readonly pluginId: string;
   readonly versionId: string;
   readonly credentialHandles: readonly PluginCredentialHandleDto[];
+  readonly biPlugin: boolean;
 }
 
 export type PluginCredentialHandleDto =

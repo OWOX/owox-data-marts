@@ -1,6 +1,7 @@
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { GetPluginInstallationEntryCommand } from '../dto/domain/get-plugin-installation-entry.command';
 import { PluginInstallationEntryDto } from '../dto/domain/plugin-installation.dto';
+import { PluginHostConfigService } from '../config/plugin-host.config';
 import { PluginSuspendedError } from '../errors/plugin-host.errors';
 import { PluginInstallationService } from '../services/plugin-installation.service';
 import { PluginVersionService } from '../services/plugin-version.service';
@@ -26,7 +27,8 @@ export class GetPluginInstallationEntryService {
     private readonly pluginService: PluginService,
     private readonly versionService: PluginVersionService,
     @Inject(CREDENTIAL_CONSUMER_BINDING_FACADE)
-    private readonly credentialBindings: CredentialConsumerBindingFacade
+    private readonly credentialBindings: CredentialConsumerBindingFacade,
+    private readonly hostConfig: PluginHostConfigService
   ) {}
 
   async run(command: GetPluginInstallationEntryCommand): Promise<PluginInstallationEntryDto> {
@@ -72,6 +74,7 @@ export class GetPluginInstallationEntryService {
       pluginId: plugin.id,
       versionId: version.id,
       credentialHandles: toCredentialHandles(readyRequirements),
+      biPlugin: this.hostConfig.isBiPlugin(plugin.githubRepoId, version.deliveryUrl),
     };
   }
 }
