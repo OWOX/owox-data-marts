@@ -32,18 +32,48 @@ explicitly selects a compatible project Credential for every required capability
 not to grant an optional one. The plugin receives a handle that can make approved requests; the
 raw secret never enters its frame.
 
-A plugin that needs AI can use OWOX AI instead of a Credential. OWOX AI gives the plugin AI models
-that the deployment provides, so the member does not need a key from an AI provider. The install dialog
-selects OWOX AI when the deployment provides every model that the plugin needs. The member can
-change this choice later on the plugin's **Credentials** tab. On OWOX Data Marts Cloud, each
-successful OWOX AI call is an AI Process Run and uses the project's credits; see
-[Consumption units](../getting-started/billing/consumption-units.md).
+A plugin that needs AI can use [OWOX AI](#owox-ai) instead of a Credential.
 
 The **Used by** section shows active consumer bindings and when each binding last succeeded. The
 Credential list also shows aggregate last use. A Credential with active bindings cannot be deleted;
 disable it to stop use immediately, or first switch its Storages and Destinations to another
 Credential and uninstall the plugins that use it. Replacing a secret keeps the bindings and
 consumers use the new value on their next request.
+
+### OWOX AI
+
+OWOX AI is an AI provider that comes with OWOX Data Marts. A plugin that needs AI can use it
+instead of an AI Credential. You do not need an account or an API key from an AI provider, and
+you do not get a separate bill from one.
+
+- **Where you choose it.** For a plugin that needs AI, the install dialog shows OWOX AI first in
+  the **AI** field. It selects OWOX AI when OWOX AI provides every model that the plugin needs.
+  You can change the choice at any time on the plugin's **Credentials** tab, to OWOX AI or to an
+  AI Credential of the project.
+- **Who provides the AI models.** On OWOX Data Marts Cloud, OWOX provides them. On a self-managed
+  deployment, the operator connects an AI provider.
+- **What the plugin gets.** The plugin sends its AI requests through OWOX Data Marts. It never
+  gets an API key, and it cannot see which AI provider or model answers.
+
+#### Credits
+
+On OWOX Data Marts Cloud, OWOX AI uses the credits of the project:
+
+- Each successful OWOX AI call counts as one
+  [AI Process Run](../getting-started/billing/consumption-units.md#process-run). One AI Process
+  Run includes up to 50,000 tokens (input and output). Each next 50,000 tokens of the same call
+  counts as one more AI Process Run.
+- A call that fails does not count.
+- Before each call, OWOX Data Marts checks that the project can run AI Process Runs. If the project
+  is blocked, for example because it went over its overdraft limit, OWOX AI calls fail until the
+  block is removed.
+- The **Credits consumption** page shows OWOX AI usage in a row with the context type **Plugin**
+  and the name of the plugin.
+- For the price of credits, see the [Pricing page](https://www.owox.com/pricing#credits).
+
+Calls through an AI Credential of the project do not use credits; your AI provider bills you
+directly. On a self-managed deployment, OWOX AI calls do not use credits; the operator pays the AI
+provider.
 
 ## Storage and Destination providers
 

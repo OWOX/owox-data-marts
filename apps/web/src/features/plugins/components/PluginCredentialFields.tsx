@@ -1,3 +1,4 @@
+import { ExternalAnchor } from '@owox/ui/components/common/external-anchor';
 import { Plus } from 'lucide-react';
 import { useId, useMemo, useState } from 'react';
 import {
@@ -12,6 +13,8 @@ import { Combobox, type ComboboxOption } from '../../../shared/components/Combob
 import { OWOX_AI_SELECTION, getRequirementPresentation } from '../credentialRequirements';
 import type { CredentialSelectionsForm } from '../hooks/useCredentialSelectionsForm';
 
+const OWOX_AI_DOCS_URL =
+  'https://docs.owox.com/docs/project/credentials/?utm_source=owox_data_marts&utm_medium=plugin_credentials&utm_campaign=owox_ai_note#owox-ai';
 const DO_NOT_GRANT_VALUE = '__none__';
 const ADD_CREDENTIAL_VALUE = '__add_credential__';
 
@@ -166,7 +169,13 @@ export function PluginCredentialFields({
                 <span id={`${noteId}-${requirement.key}`} className='text-muted-foreground text-xs'>
                   This deployment provides the AI models. You do not need your own key from an AI
                   provider.
-                  {form.owoxAi?.billed ? " Calls use this project's credits." : ''}
+                  {form.owoxAi?.billed ? " Calls use this project's credits." : ''}{' '}
+                  <ExternalAnchor
+                    href={OWOX_AI_DOCS_URL}
+                    className='hover:text-foreground underline'
+                  >
+                    Learn more
+                  </ExternalAnchor>
                 </span>
               )}
               {grantUnusable ? (
