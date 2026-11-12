@@ -43,7 +43,9 @@ export const fetchUserToken = async (fresh: boolean): Promise<string> => {
   // handed out as is; the plugin asks for a fresh one when its API rejects it.
   const usable = current && (exp === null || exp - Date.now() > REFRESH_MARGIN_MS);
   const justRefreshed = Date.now() - lastRefreshAt < FORCED_REFRESH_INTERVAL_MS;
-  if (usable && (!fresh || justRefreshed)) return current;
+  // A just-refreshed token is served even when it reads as expiring: that is a browser
+  // clock running ahead, and refreshing again would only repeat on every request.
+  if (current && (justRefreshed || (usable && !fresh))) return current;
 
   // Stamped only once the refresh succeeds: requests arriving while it is in flight join
   // it through the shared refresh instead of getting the token being replaced.

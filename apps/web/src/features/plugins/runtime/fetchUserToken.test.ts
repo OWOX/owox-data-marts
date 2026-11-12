@@ -77,6 +77,19 @@ describe('fetchUserToken', () => {
     expect(refreshToken).toHaveBeenCalledTimes(1);
   });
 
+  it('does not refresh again when the refreshed token already reads as expired', async () => {
+    // A browser clock running ahead of the server by more than the token lifetime.
+    const token = jwt(inSeconds(-10));
+    useToken(token);
+    await fetchUserToken(false);
+    await expect(fetchUserToken(false)).resolves.toBe(token);
+    expect(refreshToken).toHaveBeenCalledTimes(1);
+
+    vi.advanceTimersByTime(10_000);
+    await expect(fetchUserToken(false)).resolves.toBe('refreshed');
+    expect(refreshToken).toHaveBeenCalledTimes(2);
+  });
+
   it('refreshes when asked for a fresh token', async () => {
     useToken(jwt(inSeconds(300)));
     await expect(fetchUserToken(true)).resolves.toBe('refreshed');
