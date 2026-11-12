@@ -214,22 +214,39 @@ describe('AccessRequestService.notifyAdmins', () => {
         requesterEmail: 'new@example.com',
         role: 'editor',
         projectId: 'p-1',
+        projectTitle: 'Acme',
       },
       {
         adminEmail: 'muted@example.com',
         requesterEmail: 'new@example.com',
         role: 'editor',
         projectId: 'p-1',
+        projectTitle: 'Acme',
       },
     ]);
   });
 
-  it('reads the admins from Identity, not from the members cache', async () => {
+  it('reads the admins and the project title from Identity, not from the members cache', async () => {
     const { identityClient, service } = setup();
 
     await service.notifyAdmins(NOTIFICATION);
 
+    expect(identityClient.getProjectMembers).toHaveBeenCalledTimes(1);
     expect(identityClient.getProjectMembers).toHaveBeenCalledWith('p-1');
+  });
+
+  it('leaves the title out when Identity has none', async () => {
+    const { identityClient, emailService, service } = setup();
+    identityClient.getProjectMembers.mockResolvedValue({
+      project: { projectId: 'p-1', projectTitle: '' },
+      projectMembers: [member({})],
+    });
+
+    await service.notifyAdmins(NOTIFICATION);
+
+    expect(emailService.sendRequestToAdmin).toHaveBeenCalledWith(
+      expect.objectContaining({ projectTitle: undefined })
+    );
   });
 
   it('falls back to the requester email from Identity', async () => {

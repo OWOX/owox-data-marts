@@ -32,6 +32,10 @@ describe('MembershipRequestsService', () => {
 
   beforeEach(() => {
     identityClient = createIdentityClientMock();
+    identityClient.getProjectMembers.mockResolvedValue({
+      project: { projectId: 'proj-1', projectTitle: 'Acme' },
+      projectMembers: [],
+    });
     store = {
       getUserByBiUserId: jest.fn<DatabaseStore['getUserByBiUserId']>(async () => ({
         id: 'local-1',
@@ -174,7 +178,7 @@ describe('MembershipRequestsService', () => {
   });
 
   describe('notifyRequester', () => {
-    it('sends the approval email to the local user email', async () => {
+    it('sends the approval email to the local user email, naming the project', async () => {
       await service.notifyRequester('proj-1', 'resolved-uid', 'editor');
 
       expect(store.getUserByBiUserId).toHaveBeenCalledWith('resolved-uid');
@@ -182,8 +186,35 @@ describe('MembershipRequestsService', () => {
         requesterEmail: 'alice@example.com',
         role: 'editor',
         projectId: 'proj-1',
+        projectTitle: 'Acme',
       });
-      expect(identityClient.getProjectMembers).not.toHaveBeenCalled();
+      expect(identityClient.getProjectMembers).toHaveBeenCalledTimes(1);
+    });
+
+    it('sends the email without the title when the title cannot be loaded', async () => {
+      identityClient.getProjectMembers.mockRejectedValue(new Error('Identity unavailable'));
+
+      await service.notifyRequester('proj-1', 'resolved-uid', 'editor');
+
+      expect(emailService.sendApprovalToRequester).toHaveBeenCalledWith(
+        expect.objectContaining({ requesterEmail: 'alice@example.com', projectTitle: undefined })
+      );
+    });
+
+    it('does not wait long for the title', async () => {
+      identityClient.getProjectMembers.mockReturnValue(new Promise(() => undefined));
+      const quick = new MembershipRequestsService(
+        identityClient,
+        store as unknown as DatabaseStore,
+        emailService as unknown as AccessRequestEmailService,
+        { titleLookupTimeoutMs: 10 }
+      );
+
+      await quick.notifyRequester('proj-1', 'resolved-uid', 'editor');
+
+      expect(emailService.sendApprovalToRequester).toHaveBeenCalledWith(
+        expect.objectContaining({ requesterEmail: 'alice@example.com', projectTitle: undefined })
+      );
     });
 
     it('falls back to the project members from Identity', async () => {
@@ -204,8 +235,13 @@ describe('MembershipRequestsService', () => {
       await service.notifyRequester('proj-1', '42', 'editor');
 
       expect(emailService.sendApprovalToRequester).toHaveBeenCalledWith(
-        expect.objectContaining({ requesterEmail: 'alice@identity.example.com' })
+        expect.objectContaining({
+          requesterEmail: 'alice@identity.example.com',
+          projectTitle: 'Acme',
+        })
       );
+      // The title and the email fallback share one members request.
+      expect(identityClient.getProjectMembers).toHaveBeenCalledTimes(1);
     });
 
     it('never throws when the email cannot be found or sent', async () => {

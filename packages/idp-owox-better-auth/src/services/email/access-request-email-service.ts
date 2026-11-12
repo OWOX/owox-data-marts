@@ -6,6 +6,7 @@ import {
   type ActionEmailContent,
   type ActionEmailSendOptions,
 } from './action-email-sender.js';
+import { formatProjectTitle } from './format-project-title.js';
 
 /**
  * Nothing waits for these emails, so an attempt gets 15 s instead of 5 s, and the budget fits
@@ -23,6 +24,8 @@ export interface AccessRequestEmailPayload {
   /** Role the person asked for. */
   role: Role;
   projectId: string;
+  /** Project title, when known. Without it the email says "your project". */
+  projectTitle?: string;
 }
 
 export interface AccessApprovalEmailPayload {
@@ -31,13 +34,16 @@ export interface AccessApprovalEmailPayload {
   /** Role the admin granted. */
   role: Role;
   projectId: string;
+  /** Project title, when known. Without it the email says "the OWOX project". */
+  projectTitle?: string;
 }
 
 /**
  * Renders and sends the two access request emails: the request to each project admin,
  * and the approval to the person who asked.
  *
- * The wording follows the emails users received before OWOX Data Marts sent them itself.
+ * The wording follows the emails users received before OWOX Data Marts sent them itself,
+ * and names the project the way the invitation email does.
  * The recipient's first name is not known reliably, so the greeting uses its fallback.
  */
 export class AccessRequestEmailService {
@@ -92,9 +98,14 @@ export class AccessRequestEmailService {
     const requester = payload.requesterEmail
       ? `The user with the email ${payload.requesterEmail}`
       : 'A user';
-    const description = `${requester} has requested a change in permissions for your project to the role of ${roleName}.`;
+    const projectTitle = payload.projectTitle ? formatProjectTitle(payload.projectTitle) : '';
+    const description = `${requester} has requested a change in permissions for ${
+      projectTitle || 'your project'
+    } to the role of ${roleName}.`;
     // Escaped the same way the template escapes `<%= %>` output.
-    const descriptionHtml = `${ejs.escapeXML(requester)} has requested a change in permissions for your project to the role of <strong>${ejs.escapeXML(roleName)}</strong>.`;
+    const descriptionHtml = `${ejs.escapeXML(requester)} has requested a change in permissions for ${
+      projectTitle ? `<strong>${ejs.escapeXML(projectTitle)}</strong>` : 'your project'
+    } to the role of <strong>${ejs.escapeXML(roleName)}</strong>.`;
 
     return {
       subject: 'You have a new access request',
@@ -113,12 +124,17 @@ export class AccessRequestEmailService {
 
   private buildApprovalContent(payload: AccessApprovalEmailPayload): ActionEmailContent {
     const roleName = getRoleDisplayName(payload.role);
+    const projectTitle = payload.projectTitle ? formatProjectTitle(payload.projectTitle) : '';
 
     return {
       subject: 'OWOX Project access is confirmed',
       title: 'Hey friend',
-      description: `You have been granted ${roleName} access to the OWOX project.`,
-      descriptionHtml: `You have been granted <strong>${ejs.escapeXML(roleName)}</strong> access to the OWOX project.`,
+      description: `You have been granted ${roleName} access to ${
+        projectTitle || 'the OWOX project'
+      }.`,
+      descriptionHtml: `You have been granted <strong>${ejs.escapeXML(roleName)}</strong> access to ${
+        projectTitle ? `<strong>${ejs.escapeXML(projectTitle)}</strong>` : 'the OWOX project'
+      }.`,
       details: 'To access the project page, please click the link below.',
       buttonText: 'Join now',
       actionUrl: this.projectUrl(payload.projectId, 'data-marts'),

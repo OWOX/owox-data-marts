@@ -6,6 +6,7 @@ import {
   type ActionEmailContent,
   type ActionEmailSendOptions,
 } from './action-email-sender.js';
+import { formatProjectTitle } from './format-project-title.js';
 
 /**
  * The invite request waits for this email after the access check (up to 3 s) and the invite
@@ -84,12 +85,4 @@ export class ProjectInvitationEmailService {
       footer: "If you weren't expecting this invitation, you can ignore this email.",
     };
   }
-}
-
-/**
- * Mail clients turn domain-like text such as "acme.com" into links,
- * so dots in a project title become spaces.
- */
-function formatProjectTitle(title: string): string {
-  return title.replace(/\./g, ' ').replace(/\s+/g, ' ').trim();
 }

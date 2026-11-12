@@ -102,8 +102,8 @@ export class AccessRequestService {
     }
     const { projectId } = notification;
     try {
-      const [adminEmails, requesterEmail] = await Promise.all([
-        this.findAdminEmails(projectId),
+      const [{ adminEmails, projectTitle }, requesterEmail] = await Promise.all([
+        this.findAdmins(projectId),
         this.findRequesterEmail(notification),
       ]);
 
@@ -119,6 +119,7 @@ export class AccessRequestService {
             requesterEmail,
             role: notification.role,
             projectId,
+            projectTitle,
           })
         )
       );
@@ -150,9 +151,11 @@ export class AccessRequestService {
 
   /**
    * The current admins from Identity, not the local members cache,
-   * so people who left the project are not emailed.
+   * so people who left the project are not emailed. The same response names the project.
    */
-  private async findAdminEmails(projectId: string): Promise<string[]> {
+  private async findAdmins(
+    projectId: string
+  ): Promise<{ adminEmails: string[]; projectTitle?: string }> {
     const response = await this.identityClient.getProjectMembers(projectId);
     const emails = new Map<string, string>();
     for (const member of response.projectMembers) {
@@ -167,7 +170,10 @@ export class AccessRequestService {
         emails.set(key, email);
       }
     }
-    return [...emails.values()];
+    return {
+      adminEmails: [...emails.values()],
+      projectTitle: response.project.projectTitle || undefined,
+    };
   }
 
   private async findRequesterEmail(
