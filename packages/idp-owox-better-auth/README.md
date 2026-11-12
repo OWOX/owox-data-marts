@@ -95,13 +95,23 @@ IDP_OWOX_SENDGRID_VERIFIED_SENDER_NAME=OWOX Data Marts
 | `IDP_BETTER_AUTH_MICROSOFT_CLIENT_SECRET` |    No    |                      –                      | Microsoft OAuth client secret                                                                                 |
 | `IDP_BETTER_AUTH_MICROSOFT_TENANT_ID`     |    No    |                  `common`                   | Microsoft tenant id (e.g. common, consumers, or GUID)                                                         |
 | `IDP_BETTER_AUTH_MICROSOFT_AUTHORITY`     |    No    |     `https://login.microsoftonline.com`     | Microsoft authority URL                                                                                       |
-| `SENDGRID_API_KEY`                        | **Yes**  |                      –                      | SendGrid API key for magic-link emails                                                                        |
+| `SENDGRID_API_KEY`                        | **Yes**  |                      –                      | SendGrid API key for sign-in emails and project membership emails (see below)                                 |
 | `IDP_OWOX_SENDGRID_VERIFIED_SENDER_EMAIL` | **Yes**  |                      –                      | Verified sender email in SendGrid                                                                             |
-| `IDP_OWOX_SENDGRID_VERIFIED_SENDER_NAME`  |    No    |                      –                      | Sender display name for auth emails                                                                           |
+| `IDP_OWOX_SENDGRID_VERIFIED_SENDER_NAME`  |    No    |                      –                      | Sender display name for sign-in and project membership emails                                                 |
 | `GOOGLE_TAG_MANAGER_CONTAINER_ID`         |    No    |                      –                      | Google Tag Manager container ID (e.g., `GTM-XXXXXXX`). When set, GTM scripts are injected on all auth pages.  |
 | `IDP_OWOX_SERVER_EVENTS_COLLECT_URL`      |    No    |                      –                      | GA4-compatible `g/collect` URL for server-side auth page events. Unset disables them.                         |
 | `IDP_OWOX_SERVER_EVENTS_MEASUREMENT_ID`   | With URL |                      –                      | Measurement id sent as `tid`                                                                                  |
 | `IDP_OWOX_SERVER_EVENTS_VISITOR_COOKIE`   | With URL |                      –                      | Name of the first-party cookie that identifies the visitor; events are sent only with it                      |
+
+## Project membership emails
+
+The provider always sends three emails through SendGrid, with the sender above:
+
+- **invitation** to a person invited to a project;
+- **access request** to every active Project Admin when someone asks for a role;
+- **access approval** to the person whose request an admin approved.
+
+There is no setting to turn them off. With a real `SENDGRID_API_KEY`, inviting an address in a local or test project emails that address. The project title in these emails is reduced to plain text, so it cannot become a link (`formatProjectTitle`).
 
 ## Server-side auth page events
 

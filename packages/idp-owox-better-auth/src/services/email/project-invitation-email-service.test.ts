@@ -123,6 +123,29 @@ describe('ProjectInvitationEmailService', () => {
     expect(html).not.toContain('<b>x</b>');
   });
 
+  it('keeps links and hidden text out of the subject and the preheader', async () => {
+    const { sendEmail, provider } = createProvider();
+    const service = new ProjectInvitationEmailService(
+      provider,
+      'https://app.example.com',
+      NO_RETRIES
+    );
+
+    await service.send({
+      email: 'new@example.com',
+      role: 'viewer',
+      projectId: 'p-1',
+      projectTitle: 'Reset at http://3232235777 \u202Emoc \uFF0E live\u202C',
+    });
+
+    const [, subject, html] = sendEmail.mock.calls[0] as SendArgs;
+    expect(subject).toBe(
+      "You're invited to Reset at http: //3232235777 moc live in OWOX Data Marts"
+    );
+    expect(html).toContain('>Project Reset at http: //3232235777 moc live</div>');
+    expect(html).not.toContain('http://3232235777');
+  });
+
   it('retries a failed send', async () => {
     const { sendEmail, provider } = createProvider();
     sendEmail.mockRejectedValueOnce(new Error('SendGrid network error'));

@@ -60,6 +60,25 @@ describe('formatProjectTitle', () => {
     ]);
   });
 
+  it('removes tag characters, Hangul fillers and other blanks that hide text', () => {
+    expect(formatProjectTitle('x\u{E0041}\u{E0042}y')).toBe('xy');
+    expect(formatProjectTitle('a\u3164b\uFFA0c\u115F\u1160d')).toBe('abcd');
+    expect(formatProjectTitle('a\u180Eb\u2800c\u034Fd')).toBe('abcd');
+    expect(formatProjectTitle('\u3164\u3164\u2800')).toBe('');
+  });
+
+  it('cuts at visible characters, so an emoji made of several code points stays whole', () => {
+    const family = '\u{1F468}\u200D\u{1F469}\u200D\u{1F467}';
+    const formatted = formatProjectTitle(`${'a'.repeat(97)}${family.repeat(5)}`);
+    const visible = Array.from(
+      new Intl.Segmenter('en', { granularity: 'grapheme' }).segment(formatted),
+      ({ segment }) => segment
+    );
+
+    expect(visible).toHaveLength(MAX_EMAIL_PROJECT_TITLE_LENGTH);
+    expect(visible.slice(-3)).toEqual([family, family, '\u2026']);
+  });
+
   it('returns an empty string when nothing readable is left', () => {
     expect(formatProjectTitle('...')).toBe('');
     expect(formatProjectTitle('\u200B\u202E')).toBe('');

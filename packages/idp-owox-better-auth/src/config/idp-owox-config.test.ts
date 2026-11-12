@@ -30,6 +30,12 @@ describe('loadBetterAuthProviderConfigFromEnv', () => {
     expect(config.mcp).toEqual({ publicBaseUrl: 'https://mcp.owox.com' });
   });
 
+  it('ignores the removed project emails switch that a deployment may still set', () => {
+    expect(() =>
+      loadBetterAuthProviderConfigFromEnv({ ...baseEnv(), IDP_OWOX_PROJECT_EMAILS_ENABLED: 'true' })
+    ).not.toThrow();
+  });
+
   it('keeps extension routes disabled unless explicitly enabled', () => {
     const config = loadBetterAuthProviderConfigFromEnv(baseEnv());
 

@@ -13,11 +13,18 @@ export const MAX_EMAIL_PROJECT_TITLE_LENGTH = 100;
  */
 const FULL_STOPS = /[.\u3002]/g;
 
-/** Invisible characters that can hide text or reverse it on screen. */
+/**
+ * Invisible characters that can hide text, reverse it on screen or make a title look empty:
+ * soft hyphen, combining grapheme joiner, Arabic letter mark, Hangul fillers, Mongolian vowel
+ * separator, zero-width and bidi controls, word joiners, Braille blank, BOM and tag characters.
+ * The combining grapheme joiner stays outside the class: it attaches to the character before it.
+ */
 const INVISIBLE_CHARACTERS =
-  /[\u00AD\u061C\u200B\u200E\u200F\u202A-\u202E\u2060-\u2064\u2066-\u2069\uFEFF]/g;
+  /\u034F|[\u00AD\u061C\u115F\u1160\u180E\u200B\u200E\u200F\u202A-\u202E\u2060-\u2064\u2066-\u2069\u2800\u3164\uFEFF\uFFA0\u{E0000}-\u{E007F}]/gu;
 
 const CONTROL_CHARACTERS = /\p{Cc}/gu;
+
+const GRAPHEMES = new Intl.Segmenter('en', { granularity: 'grapheme' });
 
 /**
  * Makes a project title safe to show in an email:
@@ -25,7 +32,7 @@ const CONTROL_CHARACTERS = /\p{Cc}/gu;
  * - invisible and control characters go, so the text reads as it is stored;
  * - full stops become spaces, so mail clients do not turn "acme.com" into a link;
  * - "://" gets a space, so a URL without dots ("http://3232235777") is not a link either;
- * - titles longer than {@link MAX_EMAIL_PROJECT_TITLE_LENGTH} characters are cut.
+ * - titles longer than {@link MAX_EMAIL_PROJECT_TITLE_LENGTH} visible characters are cut.
  *
  * May return an empty string; callers then leave the title out.
  */
@@ -39,7 +46,8 @@ export function formatProjectTitle(title: string): string {
     .replace(/\s+/g, ' ')
     .trim();
 
-  const characters = Array.from(text);
+  // Count what the reader sees, so a cut never splits an emoji or a letter from its accent.
+  const characters = Array.from(GRAPHEMES.segment(text), ({ segment }) => segment);
   if (characters.length <= MAX_EMAIL_PROJECT_TITLE_LENGTH) {
     return text;
   }
