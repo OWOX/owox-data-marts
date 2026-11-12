@@ -142,6 +142,22 @@ describe('MCP tool providers', () => {
     }
   });
 
+  // The ChatGPT directory flags a description that compares the plugin with other apps or tells the
+  // model to prefer it. Rules about the AI app's own features belong in get_owox_guide, not here.
+  it('keeps every tool description free of comparisons with other apps', async () => {
+    const moduleRef = await compileToolsModule();
+    try {
+      const comparing = moduleRef
+        .get<McpToolDefinition[]>(MCP_TOOL_DEFINITIONS)
+        .filter(tool => /\b(own|other|another) apps?\b/i.test(tool.description))
+        .map(tool => tool.name);
+
+      expect(comparing).toEqual([]);
+    } finally {
+      await moduleRef.close();
+    }
+  });
+
   it('resolves tools through Nest and exposes Context/project setup through the MCP SDK', async () => {
     const membersFacade = {
       listProjectMembers: jest.fn().mockResolvedValue([
