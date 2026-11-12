@@ -63,7 +63,7 @@ describe('formatProjectTitle', () => {
   it('removes tag characters, Hangul fillers and other blanks that hide text', () => {
     expect(formatProjectTitle('x\u{E0041}\u{E0042}y')).toBe('xy');
     expect(formatProjectTitle('a\u3164b\uFFA0c\u115F\u1160d')).toBe('abcd');
-    expect(formatProjectTitle('a\u180Eb\u2800c\u034Fd')).toBe('abcd');
+    expect(formatProjectTitle('a\u180Eb\u2800c\u034Fd')).toBe('ab cd');
     expect(formatProjectTitle('\u3164\u3164\u2800')).toBe('');
   });
 
@@ -82,5 +82,23 @@ describe('formatProjectTitle', () => {
   it('returns an empty string when nothing readable is left', () => {
     expect(formatProjectTitle('...')).toBe('');
     expect(formatProjectTitle('\u200B\u202E')).toBe('');
+    expect(formatProjectTitle('\u206A')).toBe('');
+    expect(formatProjectTitle('\u200D\u200C\u200D')).toBe('');
+    expect(formatProjectTitle('\u{E0100}\uFE0F')).toBe('');
+  });
+
+  it('keeps the joiners and variation selectors that emoji need', () => {
+    expect(formatProjectTitle('\u2764\uFE0F Sales')).toBe('\u2764\uFE0F Sales');
+  });
+
+  it('keeps at most four combining marks on one character', () => {
+    // U+0336 does not compose with "q" under NFKC, so all eight marks reach the cap.
+    const formatted = formatProjectTitle('q\u0336\u0336\u0336\u0336\u0336\u0336\u0336\u0336b');
+
+    expect(formatted).toBe('q\u0336\u0336\u0336\u0336b');
+  });
+
+  it('cuts to a shorter length when asked', () => {
+    expect(Array.from(formatProjectTitle('x'.repeat(80), 60))).toHaveLength(60);
   });
 });

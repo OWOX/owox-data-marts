@@ -163,7 +163,6 @@ describe('AccessRequestService.requestAccess', () => {
     await expect(service.requestAccess('user-1', 'p-1', 'editor')).rejects.toThrow('Forbidden');
     expect(notify).not.toHaveBeenCalled();
   });
-
 });
 
 describe('AccessRequestService.notifyAdmins', () => {
@@ -206,12 +205,15 @@ describe('AccessRequestService.notifyAdmins', () => {
   });
 
   it('reads the admins and the project title from Identity, not from the members cache', async () => {
-    const { identityClient, service } = setup();
+    const { identityClient, emailService, service } = setup();
 
     await service.notifyAdmins(NOTIFICATION);
 
     expect(identityClient.getProjectMembers).toHaveBeenCalledTimes(1);
     expect(identityClient.getProjectMembers).toHaveBeenCalledWith('p-1');
+    expect(emailService.sendRequestToAdmin).toHaveBeenCalledWith(
+      expect.objectContaining({ projectTitle: 'Acme' })
+    );
   });
 
   it('leaves the title out when Identity has none', async () => {

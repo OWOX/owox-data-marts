@@ -3,8 +3,11 @@
  * that must not become a link or a message in an email.
  */
 
-/** Longer titles are cut, so a title cannot carry a whole message into a subject line. */
+/** Longer titles are cut, so a title cannot carry a whole message into an email. */
 export const MAX_EMAIL_PROJECT_TITLE_LENGTH = 100;
+
+/** A shorter cut for the subject line and the inbox preview, which a reader sees first. */
+export const MAX_EMAIL_SUBJECT_PROJECT_TITLE_LENGTH = 60;
 
 /**
  * Full stops left after NFKC normalization. NFKC already turns the fullwidth (U+FF0E),
@@ -14,45 +17,63 @@ export const MAX_EMAIL_PROJECT_TITLE_LENGTH = 100;
 const FULL_STOPS = /[.\u3002]/g;
 
 /**
- * Invisible characters that can hide text, reverse it on screen or make a title look empty:
- * soft hyphen, combining grapheme joiner, Arabic letter mark, Hangul fillers, Mongolian vowel
- * separator, zero-width and bidi controls, word joiners, Braille blank, BOM and tag characters.
- * The combining grapheme joiner stays outside the class: it attaches to the character before it.
+ * Characters that render as nothing (Unicode Default_Ignorable_Code_Point): zero-width and bidi
+ * controls, Hangul fillers, tag characters, variation selectors and the like. ZWNJ, ZWJ and the
+ * text and emoji variation selectors stay, because emoji and some scripts need them; a title
+ * made only of them has nothing visible and is dropped. An alternation, not a character class,
+ * so ZWJ never sits inside a class.
  */
-const INVISIBLE_CHARACTERS =
-  /\u034F|[\u00AD\u061C\u115F\u1160\u180E\u200B\u200E\u200F\u202A-\u202E\u2060-\u2064\u2066-\u2069\u2800\u3164\uFEFF\uFFA0\u{E0000}-\u{E007F}]/gu;
+const INVISIBLE_CHARACTERS = /(?!\u200C|\u200D|\uFE0E|\uFE0F)\p{Default_Ignorable_Code_Point}/gu;
+
+/** The Braille blank is not default-ignorable but shows nothing, like a space. */
+const BLANK_CHARACTERS = /\u2800/g;
 
 const CONTROL_CHARACTERS = /\p{Cc}/gu;
+
+/** More than four combining marks on one character go, so a title cannot paint over nearby lines. */
+const EXCESS_COMBINING_MARKS = /(\p{M}{4})\p{M}+/gu;
+
+/** Something a reader can see: a letter, a digit, punctuation or a symbol (emoji included). */
+const VISIBLE_CHARACTER = /[\p{L}\p{N}\p{P}\p{S}]/u;
 
 const GRAPHEMES = new Intl.Segmenter('en', { granularity: 'grapheme' });
 
 /**
  * Makes a project title safe to show in an email:
  * - fullwidth and other lookalike characters become plain ones (NFKC);
- * - invisible and control characters go, so the text reads as it is stored;
+ * - invisible, blank and control characters go, so the text reads as it is stored;
+ * - more than four combining marks on one character are dropped;
  * - full stops become spaces, so mail clients do not turn "acme.com" into a link;
  * - "://" gets a space, so a URL without dots ("http://3232235777") is not a link either;
- * - titles longer than {@link MAX_EMAIL_PROJECT_TITLE_LENGTH} visible characters are cut.
+ * - titles longer than `maxLength` visible characters are cut.
  *
- * May return an empty string; callers then leave the title out.
+ * Returns an empty string when nothing visible is left; callers then leave the title out.
  */
-export function formatProjectTitle(title: string): string {
+export function formatProjectTitle(
+  title: string,
+  maxLength: number = MAX_EMAIL_PROJECT_TITLE_LENGTH
+): string {
   const text = title
     .normalize('NFKC')
     .replace(INVISIBLE_CHARACTERS, '')
+    .replace(BLANK_CHARACTERS, ' ')
     .replace(CONTROL_CHARACTERS, ' ')
+    .replace(EXCESS_COMBINING_MARKS, '$1')
     .replace(FULL_STOPS, ' ')
     .replace(/:\/\//g, ': //')
     .replace(/\s+/g, ' ')
     .trim();
+  if (!VISIBLE_CHARACTER.test(text)) {
+    return '';
+  }
 
   // Count what the reader sees, so a cut never splits an emoji or a letter from its accent.
   const characters = Array.from(GRAPHEMES.segment(text), ({ segment }) => segment);
-  if (characters.length <= MAX_EMAIL_PROJECT_TITLE_LENGTH) {
+  if (characters.length <= maxLength) {
     return text;
   }
   return `${characters
-    .slice(0, MAX_EMAIL_PROJECT_TITLE_LENGTH - 1)
+    .slice(0, maxLength - 1)
     .join('')
     .trimEnd()}…`;
 }

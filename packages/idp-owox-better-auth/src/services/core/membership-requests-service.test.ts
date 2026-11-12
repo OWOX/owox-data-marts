@@ -231,12 +231,18 @@ describe('MembershipRequestsService', () => {
         ],
       });
 
+      identityClient.getProjectForUser.mockResolvedValue({
+        id: 'proj-1',
+        title: 'Approved project',
+      });
+
       await service.notifyRequester('proj-1', '42', 'editor', 'admin-1');
 
+      // The title comes from the project lookup, not from the members list.
       expect(emailService.sendApprovalToRequester).toHaveBeenCalledWith(
         expect.objectContaining({
           requesterEmail: 'alice@identity.example.com',
-          projectTitle: 'Acme',
+          projectTitle: 'Approved project',
         })
       );
     });

@@ -32,7 +32,8 @@ describe('loadBetterAuthProviderConfigFromEnv', () => {
 
   it('ignores the removed project emails switch that a deployment may still set', () => {
     expect(() =>
-      loadBetterAuthProviderConfigFromEnv({ ...baseEnv(), IDP_OWOX_PROJECT_EMAILS_ENABLED: 'true' })
+      // 'yes' was rejected while the switch existed, so this proves the value is no longer read.
+      loadBetterAuthProviderConfigFromEnv({ ...baseEnv(), IDP_OWOX_PROJECT_EMAILS_ENABLED: 'yes' })
     ).not.toThrow();
   });
 
