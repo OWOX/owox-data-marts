@@ -343,6 +343,12 @@ describe('PluginCredentialsCard', () => {
         "This deployment provides the AI models. You do not need your own key from an AI provider. Calls use this project's credits."
       );
       expect(aiSelect()).toHaveAttribute('aria-describedby', note.id);
+      expect(within(note).getByRole('link', { name: /Learn more/ })).toHaveAttribute(
+        'href',
+        expect.stringMatching(
+          /^https:\/\/docs\.owox\.com\/docs\/project\/credentials\/\?.*#owox-ai$/
+        )
+      );
       expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
     });
 
