@@ -6,6 +6,7 @@ import {
   RuntimeTokenRefused,
   createPluginHostBridge,
   type PluginHostBridge,
+  type PluginHostBridgeOptions,
 } from './pluginHostBridge';
 import {
   acceptedAuthenticatedApiPaths,
@@ -31,11 +32,11 @@ const flush = () => new Promise(resolve => setTimeout(resolve, 0));
  * contentWindow, plus a record of everything the host posts to it.
  */
 function pluginFrame() {
-  const posted: { data: unknown; transfer?: Transferable[] }[] = [];
+  const posted: { data: unknown; transfer?: Transferable[]; targetOrigin?: string }[] = [];
 
   const contentWindow = {
-    postMessage: (data: unknown, _origin: string, transfer?: Transferable[]) => {
-      posted.push({ data, transfer });
+    postMessage: (data: unknown, targetOrigin: string, transfer?: Transferable[]) => {
+      posted.push({ data, transfer, targetOrigin });
     },
   };
 
@@ -44,10 +45,14 @@ function pluginFrame() {
   return { iframe, contentWindow, posted };
 }
 
-function announceReady(contentWindow: object, protocolVersion: number = PLUGIN_PROTOCOL_VERSION) {
+function announceReady(
+  contentWindow: object,
+  protocolVersion: number = PLUGIN_PROTOCOL_VERSION,
+  origin = 'null'
+) {
   const event = new MessageEvent('message', {
     data: { owox: 'plugin-ready', v: protocolVersion },
-    origin: 'null',
+    origin,
   });
   Object.defineProperty(event, 'source', { value: contentWindow });
   window.dispatchEvent(event);
@@ -66,7 +71,7 @@ interface Harness {
   raw: (data: unknown) => void;
   /** The nonce the host sent with host-init, as the SDK would read it. */
   nonce: string;
-  posted: { data: unknown; transfer?: Transferable[] }[];
+  posted: { data: unknown; transfer?: Transferable[]; targetOrigin?: string }[];
   fetchMock: ReturnType<typeof vi.fn>;
   fetchRuntimeToken: ReturnType<typeof vi.fn>;
   onOpenExternal: ReturnType<typeof vi.fn>;
@@ -82,7 +87,8 @@ async function harness(
     new Response('{}', { status: 200, headers: { 'content-type': 'application/json' } }),
   /** Off for the tests that are about the handshake itself rather than what follows it. */
   greet = true,
-  protocolVersion: number = PLUGIN_PROTOCOL_VERSION
+  protocolVersion: number = PLUGIN_PROTOCOL_VERSION,
+  extra: Partial<PluginHostBridgeOptions> = {}
 ): Promise<Harness> {
   const frame = pluginFrame();
   const fetchMock = vi.fn(fetchImpl);
@@ -110,9 +116,10 @@ async function harness(
     onCopyLink,
     onLoadingChange,
     onBroken,
+    ...extra,
   });
 
-  announceReady(frame.contentWindow, protocolVersion);
+  announceReady(frame.contentWindow, protocolVersion, extra.pluginOrigin);
   await flush();
 
   const init = frame.posted[0].data as { owox: string; v: number; nonce: string };
@@ -1365,6 +1372,128 @@ describe('plugin host bridge', () => {
 
       expect(h.onRouteChange).toHaveBeenCalledWith('/d/1');
       expect(h.fetchMock).toHaveBeenCalledTimes(32);
+      h.bridge.dispose();
+    });
+  });
+
+  describe('real-origin plugin and user token', () => {
+    const BI_ORIGIN = 'https://bi-plugins.example.com';
+    const grant = (fetchUserToken: PluginHostBridgeOptions['fetchUserToken']) =>
+      ({ pluginOrigin: BI_ORIGIN, fetchUserToken }) satisfies Partial<PluginHostBridgeOptions>;
+
+    it('accepts the announcement of a plugin with a real origin only from that origin', async () => {
+      const frame = pluginFrame();
+      const bridge = createPluginHostBridge({
+        iframe: frame.iframe,
+        src: 'https://plugin.example.test/',
+        apiOrigin: API_ORIGIN,
+        context: CONTEXT,
+        fetchRuntimeToken: vi.fn(),
+        onOpenExternal: vi.fn(),
+        onNavigate: vi.fn(),
+        onRouteChange: vi.fn(),
+        onCopyLink: vi.fn(),
+        pluginOrigin: BI_ORIGIN,
+      });
+
+      announceReady(frame.contentWindow, PLUGIN_PROTOCOL_VERSION, 'null');
+      announceReady(frame.contentWindow, PLUGIN_PROTOCOL_VERSION, 'https://evil.example.com');
+      await flush();
+      expect(frame.posted).toHaveLength(0);
+
+      announceReady(frame.contentWindow, PLUGIN_PROTOCOL_VERSION, BI_ORIGIN);
+      await flush();
+      expect(frame.posted).toHaveLength(1);
+      bridge.dispose();
+    });
+
+    it('addresses host-init to the plugin origin instead of any origin', async () => {
+      const real = await harness(undefined, true, PLUGIN_PROTOCOL_VERSION, {
+        pluginOrigin: BI_ORIGIN,
+      });
+      expect(real.posted[0].targetOrigin).toBe(BI_ORIGIN);
+      real.bridge.dispose();
+
+      const opaque = await harness();
+      expect(opaque.posted[0].targetOrigin).toBe('*');
+      opaque.bridge.dispose();
+    });
+
+    it('hands the user token over the port only', async () => {
+      const fetchUserToken = vi.fn(() => Promise.resolve('tok'));
+      const h = await harness(undefined, true, PLUGIN_PROTOCOL_VERSION, grant(fetchUserToken));
+
+      const response = await h.send({ kind: 'userToken' });
+      expect(response).toMatchObject({
+        ok: true,
+        status: 200,
+        headers: {},
+        body: { token: 'tok' },
+      });
+      expect(fetchUserToken).toHaveBeenLastCalledWith(false);
+
+      await h.send({ kind: 'userToken', fresh: true });
+      expect(fetchUserToken).toHaveBeenLastCalledWith(true);
+
+      expect(JSON.stringify(h.posted.map(entry => entry.data))).not.toContain('tok');
+      h.bridge.dispose();
+    });
+
+    it('refuses the user token to a plugin without the grant', async () => {
+      const h = await harness();
+
+      const response = await h.send({ kind: 'userToken' });
+
+      expect(response).toMatchObject({ ok: false, error: { code: 'FORBIDDEN' } });
+      expect(response).not.toHaveProperty('body');
+      h.bridge.dispose();
+    });
+
+    it('refuses a malformed fresh flag without calling the source', async () => {
+      const fetchUserToken = vi.fn(() => Promise.resolve('tok'));
+      const h = await harness(undefined, true, PLUGIN_PROTOCOL_VERSION, grant(fetchUserToken));
+
+      for (const fresh of [false, 'true', 1, null]) {
+        const response = await h.send({
+          kind: 'userToken',
+          fresh,
+        } as unknown as PluginRequestInput);
+        expect(response).toMatchObject({ ok: false, error: { code: 'PROTOCOL_ERROR' } });
+      }
+      expect(fetchUserToken).not.toHaveBeenCalled();
+      h.bridge.dispose();
+    });
+
+    it('reports a failed user token fetch without the reason', async () => {
+      const fetchUserToken = vi.fn(() => Promise.reject(new Error('secret detail')));
+      const h = await harness(undefined, true, PLUGIN_PROTOCOL_VERSION, grant(fetchUserToken));
+
+      const response = await h.send({ kind: 'userToken' });
+
+      expect(response).toMatchObject({ ok: false, error: { code: 'FORBIDDEN' } });
+      expect(JSON.stringify(response)).not.toContain('secret detail');
+      h.bridge.dispose();
+    });
+
+    it('answers the user token while API requests hold every slot', async () => {
+      const h = await harness(
+        () => new Promise<Response>(() => undefined),
+        true,
+        PLUGIN_PROTOCOL_VERSION,
+        grant(() => Promise.resolve('tok'))
+      );
+
+      for (let index = 0; index < 32; index += 1) {
+        h.tell({ kind: 'api', method: 'GET', path: `/api/data-marts/${String(index)}` });
+      }
+      await vi.waitFor(() => {
+        expect(h.fetchMock).toHaveBeenCalledTimes(32);
+      });
+
+      await expect(h.send({ kind: 'userToken' })).resolves.toMatchObject({
+        ok: true,
+        body: { token: 'tok' },
+      });
       h.bridge.dispose();
     });
   });

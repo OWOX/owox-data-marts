@@ -35,6 +35,16 @@ export interface PluginHostBridgeOptions {
   /** A rejection declines the copy; the plugin gets a refusal without the reason. */
   onCopyLink: (route: string | undefined) => Promise<void> | void;
   /** The plugin's loading bar state; `progress` is a fraction from 0 to 1, or undefined for no amount. */
+  /**
+   * The real origin a plugin is served from, when it is not sandboxed to the opaque one.
+   * The announcement must come from it and host-init is addressed to it.
+   */
+  pluginOrigin?: string;
+  /**
+   * Supplies the member's access token; set only for a plugin the host grants it to.
+   * A rejection is answered without its reason.
+   */
+  fetchUserToken?: (fresh: boolean) => Promise<string>;
   onLoadingChange?: (state: { active: boolean; progress?: number }) => void;
   /**
    * The bridge closed the channel on its own, and the frame is now inert.
@@ -69,7 +79,14 @@ const REFRESH_MARGIN_MS = 60_000;
 /** Everything else the backend returns is host detail the plugin has no use for. */
 const FORWARDED_RESPONSE_HEADERS = ['content-type', 'x-owox-run-id'];
 
-const HOST_ONLY_KINDS = new Set(['openExternal', 'navigate', 'route', 'copyLink', 'loading']);
+const HOST_ONLY_KINDS = new Set([
+  'openExternal',
+  'navigate',
+  'route',
+  'copyLink',
+  'loading',
+  'userToken',
+]);
 const EXECUTION_START_PATH = /^\/api\/plugins\/runtime\/actions\/[^/?#]+\/executions$/;
 const EXECUTION_PATH = /^\/api\/plugins\/runtime\/executions\/([^/?#]+)$/;
 /** Locked to OWOX and the SDK by `test/contracts/plugin-action-contract.mjs`. */
@@ -89,7 +106,9 @@ export interface PluginHostBridge {
  *
  * The runtime token lives in this closure. It is not React state, not context, not
  * storage, and never travels in a postMessage payload or a URL -- the plugin cannot
- * read it because it is never anywhere the plugin can look.
+ * read it because it is never anywhere the plugin can look. The member's access token is
+ * different: it leaves only over the port, only to a plugin given `fetchUserToken`, and
+ * is not kept here after the reply.
  */
 export function createPluginHostBridge(options: PluginHostBridgeOptions): PluginHostBridge {
   const apiOrigin = new URL(options.apiOrigin, window.location.origin).origin;
@@ -452,6 +471,17 @@ export function createPluginHostBridge(options: PluginHostBridgeOptions): Plugin
             throw forbidden('The link could not be copied');
           }
           reply({ id, ok: true, status: 200, headers: {}, body: null });
+        } else if (request.kind === 'userToken') {
+          if (!options.fetchUserToken) {
+            throw forbidden('This plugin may not request the user token');
+          }
+          let token: string;
+          try {
+            token = await options.fetchUserToken(request.fresh === true);
+          } catch {
+            throw forbidden('The user token is unavailable');
+          }
+          reply({ id, ok: true, status: 200, headers: {}, body: { token } });
         }
       } catch (caught) {
         reply({ id, ok: false, error: asErrorPayload(caught) });
@@ -556,7 +586,11 @@ export function createPluginHostBridge(options: PluginHostBridgeOptions): Plugin
       return;
     }
 
-    if (event.origin !== OPAQUE_ORIGIN || !isPluginReady(event.data) || port) {
+    if (
+      event.origin !== (options.pluginOrigin ?? OPAQUE_ORIGIN) ||
+      !isPluginReady(event.data) ||
+      port
+    ) {
       return;
     }
 
@@ -577,7 +611,7 @@ export function createPluginHostBridge(options: PluginHostBridgeOptions): Plugin
         nonce,
         context: options.context,
       },
-      '*',
+      options.pluginOrigin ?? '*',
       [channel.port2]
     );
   }
@@ -697,6 +731,13 @@ function validateRequest(candidate: unknown): ValidatedPluginRequest {
   if (candidate.kind === 'copyLink') {
     if (candidate.path !== undefined && !isValidPluginRoute(candidate.path)) {
       throw protocolError('The plugin route is invalid');
+    }
+    return candidate as unknown as ValidatedPluginRequest;
+  }
+
+  if (candidate.kind === 'userToken') {
+    if (candidate.fresh !== undefined && candidate.fresh !== true) {
+      throw protocolError('The user token request is malformed');
     }
     return candidate as unknown as ValidatedPluginRequest;
   }
