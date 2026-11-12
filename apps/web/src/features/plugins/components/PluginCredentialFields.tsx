@@ -2,10 +2,12 @@ import { Plus } from 'lucide-react';
 import { useId, useMemo, useState } from 'react';
 import {
   CredentialConfigSheet,
+  ProviderIcon,
   isCredentialEligible,
   useCredentialDefinitions,
 } from '../../credentials';
 import type { NormalizedPluginCredentialRequirement } from '../../credentials/types';
+import { Logo } from '../../../components/Logo';
 import { Combobox, type ComboboxOption } from '../../../shared/components/Combobox/combobox';
 import { OWOX_AI_SELECTION, getRequirementPresentation } from '../credentialRequirements';
 import type { CredentialSelectionsForm } from '../hooks/useCredentialSelectionsForm';
@@ -142,18 +144,23 @@ export function PluginCredentialFields({
                   }
                   form.select(requirement.key, value === DO_NOT_GRANT_VALUE ? null : value);
                 }}
-                renderLabel={option =>
-                  option.value === ADD_CREDENTIAL_VALUE ? (
+                renderLabel={option => {
+                  const credential = eligible.find(item => item.id === option.value);
+                  return (
                     <div className='flex min-w-0 flex-1 items-center gap-2'>
-                      <div className='flex h-6 w-6 items-center justify-center'>
-                        <Plus size={16} />
+                      {/* "Do not grant" keeps an empty box, so all labels start in one column. */}
+                      <div
+                        aria-hidden='true'
+                        className='flex h-6 w-6 shrink-0 items-center justify-center'
+                      >
+                        {option.value === ADD_CREDENTIAL_VALUE && <Plus size={16} />}
+                        {option.value === OWOX_AI_SELECTION && <Logo width={16} height={16} />}
+                        {credential && <ProviderIcon icon={credential.definition.icon} />}
                       </div>
                       <span className='min-w-0 truncate'>{option.label}</span>
                     </div>
-                  ) : (
-                    <span className='min-w-0 flex-1 truncate'>{option.label}</span>
-                  )
-                }
+                  );
+                }}
               />
               {showOwoxAiNote && (
                 <span id={`${noteId}-${requirement.key}`} className='text-muted-foreground text-xs'>
