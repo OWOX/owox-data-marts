@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { McpScope } from '@owox/idp-protocol';
+import { MCP_SERVER_GUIDE_URL } from '../tools/mcp-docs-urls';
 
 @Injectable()
 export class McpConfigService {
@@ -27,9 +28,7 @@ export class McpConfigService {
   }
 
   get resourceDocumentationUrl(): string {
-    return (
-      this.config.get<string>('MCP_RESOURCE_DOCUMENTATION_URL') ?? 'https://docs.owox.com/docs/mcp'
-    );
+    return this.config.get<string>('MCP_RESOURCE_DOCUMENTATION_URL') ?? MCP_SERVER_GUIDE_URL;
   }
 
   /**

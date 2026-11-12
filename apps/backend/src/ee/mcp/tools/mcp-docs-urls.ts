@@ -32,3 +32,9 @@ export const CONNECTOR_DATA_MART_GUIDE_URL =
  */
 export const SQL_DATA_MART_GUIDE_URL =
   'https://docs.owox.com/docs/getting-started/setup-guide/sql-data-mart/';
+
+/**
+ * The MCP server reference: connection, tools and scopes, example requests and troubleshooting.
+ * Source: docs/getting-started/setup-guide/mcp.md.
+ */
+export const MCP_SERVER_GUIDE_URL = 'https://docs.owox.com/docs/getting-started/setup-guide/mcp/';

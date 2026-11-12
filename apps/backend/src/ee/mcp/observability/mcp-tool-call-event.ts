@@ -35,8 +35,20 @@ export class McpToolCallEvent extends BaseEvent<McpToolCallEventPayload> {
   }
 }
 
+/** A prompt or resource read. Its own name keeps the counts and latency of mcp.tool_call unchanged. */
+export class McpReadEvent extends BaseEvent<McpToolCallEventPayload> {
+  get name() {
+    return 'mcp.read' as const;
+  }
+  constructor(payload: McpToolCallEventPayload, occurredAt: Date = new Date()) {
+    super(payload, occurredAt);
+  }
+}
+
+export type McpMethodName = 'tools/call' | 'prompts/get' | 'resources/read';
+
 export interface BuildMcpToolCallEventParams {
-  methodName: string;
+  methodName: McpMethodName;
   toolName: string;
   input: unknown;
   result?: McpToolResult;
@@ -126,7 +138,9 @@ function extractResultErrorMessage(result?: McpToolResult): string {
   return text || 'tool returned isError';
 }
 
-export function buildMcpToolCallEvent(p: BuildMcpToolCallEventParams): McpToolCallEvent {
+export function buildMcpToolCallEvent(
+  p: BuildMcpToolCallEventParams
+): McpToolCallEvent | McpReadEvent {
   const occurredAt = new Date();
   const privateConfiguration = PRIVATE_CONFIGURATION_TOOLS.has(p.toolName);
   const status: 'ok' | 'error' = p.error != null || p.result?.isError ? 'error' : 'ok';
@@ -183,6 +197,8 @@ export function buildMcpToolCallEvent(p: BuildMcpToolCallEventParams): McpToolCa
   }
 
   Object.assign(payload as unknown as Record<string, unknown>, flattenMeta(p.meta));
+  // A prompt or resource read has no arguments or result, and the SQL in diagnostics belongs to a tool call.
+  if (p.methodName !== 'tools/call') return new McpReadEvent(payload, occurredAt);
 
   const offload: Record<string, unknown> = {
     // Identity — makes each GCS file self-describing and joinable with the event log on owox_request_id.

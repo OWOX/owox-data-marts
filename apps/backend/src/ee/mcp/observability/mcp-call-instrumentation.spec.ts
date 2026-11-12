@@ -38,6 +38,7 @@ describe('McpCallInstrumentation', () => {
     expect(dispatcher.publishExternalSafely).toHaveBeenCalledTimes(1);
     const ev = dispatcher.publishExternalSafely.mock.calls[0][0];
     expect(ev.name).toBe('mcp.tool_call');
+    expect(ev.payload['mcp_method_name']).toBe('tools/call');
     expect(ev.payload['mcp_tool_status']).toBe('ok');
     expect(ev.payload['owox_project_id']).toBe('p1');
   });
@@ -140,5 +141,44 @@ describe('McpCallInstrumentation', () => {
     expect(evA.payload['owox_conversation_id']).toBe('conv-A');
     expect(evB.payload['owox_conversation_id']).toBe('conv-B');
     expect(evA.payload['owox_conversation_id']).not.toBe(evB.payload['owox_conversation_id']);
+  });
+
+  it('records a prompt or resource read as an mcp.read event with its method', () => {
+    const dispatcher = makeDispatcher();
+    // Diagnostics left by a query_data_mart call earlier in the same JSON-RPC batch.
+    const cls = makeCls({ projectId: 'p1' }, { executedSql: 'SELECT 1' });
+    const instr = new McpCallInstrumentation(dispatcher as never, cls as never);
+
+    instr.recordRead('prompts/get', 'create_report', {
+      mcpReq: { _meta: { 'openai/session': 'conv-1' } },
+    } as never);
+    instr.recordRead('resources/read', 'owox://guides/reporting');
+
+    const [prompt, resource] = dispatcher.publishExternalSafely.mock.calls.map(c => c[0]);
+    expect(prompt.name).toBe('mcp.read');
+    expect(resource.name).toBe('mcp.read');
+    expect(prompt.payload).toMatchObject({
+      mcp_method_name: 'prompts/get',
+      mcp_tool_name: 'create_report',
+      mcp_tool_status: 'ok',
+      owox_project_id: 'p1',
+      owox_conversation_id: 'conv-1',
+    });
+    expect(prompt.payload['__offload__']).toBeUndefined();
+    expect(resource.payload['__offload__']).toBeUndefined();
+    expect(resource.payload).toMatchObject({
+      mcp_method_name: 'resources/read',
+      mcp_tool_name: 'owox://guides/reporting',
+    });
+  });
+
+  it('a failed read event does not break the read', () => {
+    const dispatcher = {
+      publishExternalSafely: jest.fn(() => {
+        throw new Error('emit fail');
+      }),
+    };
+    const instr = new McpCallInstrumentation(dispatcher as never, makeCls() as never);
+    expect(() => instr.recordRead('prompts/get', 'explore_data')).not.toThrow();
   });
 });

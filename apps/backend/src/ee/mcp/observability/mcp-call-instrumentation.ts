@@ -4,7 +4,7 @@ import { OwoxEventDispatcher } from '../../../common/event-dispatcher/owox-event
 import { ClsContextService } from '../../../common/logger/cls-context.service';
 import type { McpToolResult } from '../tools/mcp-tool.definition';
 import { MCP_LOG_CONTEXT_KEY, type McpLogContext } from './mcp-log-context';
-import { buildMcpToolCallEvent } from './mcp-tool-call-event';
+import { buildMcpToolCallEvent, type McpMethodName } from './mcp-tool-call-event';
 import { MCP_TOOL_DIAGNOSTICS_KEY, type McpToolDiagnostics } from './mcp-tool-diagnostics';
 
 /** The SDK passes each JSON-RPC message's own `_meta` in `ctx.mcpReq` (per message, not request-wide). */
@@ -40,12 +40,22 @@ export class McpCallInstrumentation {
     };
   }
 
+  /** Emits one mcp.read event for a prompt or resource read. Best-effort, like wrap(). */
+  recordRead(
+    methodName: Exclude<McpMethodName, 'tools/call'>,
+    name: string,
+    ctx?: ServerContext
+  ): void {
+    this.emit(name, undefined, 0, {}, ctx, methodName);
+  }
+
   private emit(
     toolName: string,
     input: unknown,
     durationMs: number,
     outcome: { result?: McpToolResult; error?: unknown },
-    ctx?: ServerContext
+    ctx?: ServerContext,
+    methodName: McpMethodName = 'tools/call'
   ): void {
     try {
       const context: McpLogContext = this.cls.get(MCP_LOG_CONTEXT_KEY) ?? {};
@@ -54,7 +64,7 @@ export class McpCallInstrumentation {
       // their own conversations (a request-wide slot would tag them all with the first message's).
       const meta = ctx?.mcpReq?._meta;
       const event = buildMcpToolCallEvent({
-        methodName: 'tools/call',
+        methodName,
         toolName,
         input,
         result: outcome.result,

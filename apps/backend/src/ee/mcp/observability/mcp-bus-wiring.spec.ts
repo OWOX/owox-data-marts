@@ -14,6 +14,19 @@ describe('mcp-bus-wiring', () => {
     expect(info).toEqual({ name: 'list_data_marts', groupId: 'c1', durationMs: 9, isError: true });
   });
 
+  it('mcpSpanMapper names a read span with its method', () => {
+    const info = mcpSpanMapper({
+      name: 'mcp.read',
+      payload: { mcp_method_name: 'prompts/get', mcp_tool_name: 'create_report' },
+    } as never);
+    expect(info.name).toBe('prompts/get create_report');
+    const noMethod = mcpSpanMapper({
+      name: 'mcp.read',
+      payload: { mcp_tool_name: 'create_report' },
+    } as never);
+    expect(noMethod.name).toBe('create_report');
+  });
+
   it('mcpSpanMapper falls back to event.name and non-error', () => {
     const info = mcpSpanMapper({ name: 'mcp.tool_call', payload: {} } as never);
     expect(info.name).toBe('mcp.tool_call');
