@@ -163,28 +163,6 @@ describe('AccessRequestService.requestAccess', () => {
     await expect(service.requestAccess('user-1', 'p-1', 'editor')).rejects.toThrow('Forbidden');
     expect(notify).not.toHaveBeenCalled();
   });
-
-  it('leaves the emails to the legacy mailer while project emails are switched off', async () => {
-    const { identityClient, store } = setup();
-    const service = new AccessRequestService(
-      store as unknown as DatabaseStore,
-      identityClient as unknown as IdentityOwoxClient,
-      undefined
-    );
-
-    const result = await service.requestAccess('user-1', 'p-1', 'editor');
-    await service.notifyAdmins(NOTIFICATION);
-
-    expect(result).toEqual({
-      userId: 'user-1',
-      projectId: 'p-1',
-      projectTitle: 'Acme',
-      request: { role: 'editor', status: 'processing' },
-    });
-    expect(identityClient.getUserProvisioningRequestAccessContext).not.toHaveBeenCalled();
-    expect(identityClient.getProjectMembers).not.toHaveBeenCalled();
-    expect(store.getUserByBiUserId).not.toHaveBeenCalled();
-  });
 });
 
 describe('AccessRequestService.notifyAdmins', () => {
@@ -214,22 +192,42 @@ describe('AccessRequestService.notifyAdmins', () => {
         requesterEmail: 'new@example.com',
         role: 'editor',
         projectId: 'p-1',
+        projectTitle: 'Acme',
       },
       {
         adminEmail: 'muted@example.com',
         requesterEmail: 'new@example.com',
         role: 'editor',
         projectId: 'p-1',
+        projectTitle: 'Acme',
       },
     ]);
   });
 
-  it('reads the admins from Identity, not from the members cache', async () => {
-    const { identityClient, service } = setup();
+  it('reads the admins and the project title from Identity, not from the members cache', async () => {
+    const { identityClient, emailService, service } = setup();
 
     await service.notifyAdmins(NOTIFICATION);
 
+    expect(identityClient.getProjectMembers).toHaveBeenCalledTimes(1);
     expect(identityClient.getProjectMembers).toHaveBeenCalledWith('p-1');
+    expect(emailService.sendRequestToAdmin).toHaveBeenCalledWith(
+      expect.objectContaining({ projectTitle: 'Acme' })
+    );
+  });
+
+  it('leaves the title out when Identity has none', async () => {
+    const { identityClient, emailService, service } = setup();
+    identityClient.getProjectMembers.mockResolvedValue({
+      project: { projectId: 'p-1', projectTitle: '' },
+      projectMembers: [member({})],
+    });
+
+    await service.notifyAdmins(NOTIFICATION);
+
+    expect(emailService.sendRequestToAdmin).toHaveBeenCalledWith(
+      expect.objectContaining({ projectTitle: undefined })
+    );
   });
 
   it('falls back to the requester email from Identity', async () => {

@@ -42,6 +42,8 @@ export const DEFAULT_OWOX_CLIENT_TIMEOUT_MS = 10000;
 export const DEFAULT_INVITATION_LOOKUP_TIMEOUT_MS = 3000;
 /** How long an access request waits to learn whether the same request was already pending. */
 export const DEFAULT_PENDING_REQUEST_CHECK_TIMEOUT_MS = 3000;
+/** How long the access approval email waits for the project title before it goes without it. */
+export const DEFAULT_APPROVAL_TITLE_LOOKUP_TIMEOUT_MS = 3000;
 
 /**
  * Timeout for inviting a project member, in milliseconds. Longer than the Identity API's

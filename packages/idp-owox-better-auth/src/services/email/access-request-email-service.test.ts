@@ -75,6 +75,42 @@ describe('AccessRequestEmailService.sendRequestToAdmin', () => {
     );
   });
 
+  it('names the project when its title is known', async () => {
+    const { sendEmail, service } = createService();
+
+    await service.sendRequestToAdmin({
+      adminEmail: 'admin@example.com',
+      requesterEmail: 'new@example.com',
+      role: 'viewer',
+      projectId: 'p-1',
+      projectTitle: 'Shop.com <EU>',
+    });
+
+    const [, , html, options] = sendEmail.mock.calls[0] as SendArgs;
+    expect(html).toContain(
+      'The user with the email new@example.com has requested a change in permissions for <strong>Shop com &lt;EU&gt;</strong> to the role of <strong>Business User</strong>.'
+    );
+    expect(options.bodyText).toContain(
+      'The user with the email new@example.com has requested a change in permissions for Shop com <EU> to the role of Business User.'
+    );
+  });
+
+  it('keeps the project title out of the inbox preview', async () => {
+    const { sendEmail, service } = createService();
+
+    await service.sendRequestToAdmin({
+      adminEmail: 'admin@example.com',
+      role: 'viewer',
+      projectId: 'p-1',
+      projectTitle: 'Verify your account',
+    });
+
+    const [, , html] = sendEmail.mock.calls[0] as SendArgs;
+    expect(html).toContain('>A user has requested the role of Business User.</div>');
+    expect(html).toContain('<strong>Verify your account</strong>');
+    expect(html.match(/Verify your account/g)).toHaveLength(1);
+  });
+
   it('uses UI role names', async () => {
     const { sendEmail, service } = createService();
 
@@ -209,5 +245,27 @@ describe('AccessRequestEmailService.sendApprovalToRequester', () => {
         'You received this email because you asked for access to this project.',
       ].join('\n')
     );
+  });
+
+  it('names the project when its title is known', async () => {
+    const { sendEmail, service } = createService();
+
+    await service.sendApprovalToRequester({
+      requesterEmail: 'new@example.com',
+      role: 'viewer',
+      projectId: 'p-1',
+      projectTitle: 'Shop.com <EU>',
+    });
+
+    const [, , html, options] = sendEmail.mock.calls[0] as SendArgs;
+    expect(html).toContain(
+      'You have been granted <strong>Business User</strong> access to <strong>Shop com &lt;EU&gt;</strong>.'
+    );
+    expect(options.bodyText).toContain(
+      'You have been granted Business User access to Shop com <EU>.'
+    );
+    // The inbox preview names the role only.
+    expect(html).toContain('>You have been granted Business User access.</div>');
+    expect(html.match(/Shop com/g)).toHaveLength(1);
   });
 });

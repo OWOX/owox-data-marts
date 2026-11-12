@@ -6,6 +6,10 @@ import {
   type ActionEmailContent,
   type ActionEmailSendOptions,
 } from './action-email-sender.js';
+import {
+  formatProjectTitle,
+  MAX_EMAIL_SUBJECT_PROJECT_TITLE_LENGTH,
+} from './format-project-title.js';
 
 /**
  * The invite request waits for this email after the access check (up to 3 s) and the invite
@@ -61,6 +65,11 @@ export class ProjectInvitationEmailService {
    */
   private buildContent(payload: ProjectInvitationEmailPayload): ActionEmailContent {
     const projectTitle = payload.projectTitle ? formatProjectTitle(payload.projectTitle) : '';
+    // Anyone can name a project and invite any address, so the subject and the inbox preview,
+    // which a reader sees before opening the email, get a shorter title.
+    const shortTitle = payload.projectTitle
+      ? formatProjectTitle(payload.projectTitle, MAX_EMAIL_SUBJECT_PROJECT_TITLE_LENGTH)
+      : '';
     const roleName = getRoleDisplayName(payload.role);
     const byInviter = payload.inviterEmail ? ` by user ${payload.inviterEmail}` : '';
     const description = `You have been invited${byInviter} to join ${
@@ -72,11 +81,11 @@ export class ProjectInvitationEmailService {
     } as a <strong>${ejs.escapeXML(roleName)}</strong>.`;
 
     return {
-      subject: projectTitle
-        ? `You're invited to ${projectTitle} in OWOX Data Marts`
+      subject: shortTitle
+        ? `You're invited to ${shortTitle} in OWOX Data Marts`
         : "You're invited to a project in OWOX Data Marts",
       title: 'Hey friend',
-      preheader: projectTitle ? `Project ${projectTitle}` : description,
+      preheader: shortTitle ? `Project ${shortTitle}` : description,
       description,
       descriptionHtml,
       buttonText: 'Accept invitation',
@@ -84,12 +93,4 @@ export class ProjectInvitationEmailService {
       footer: "If you weren't expecting this invitation, you can ignore this email.",
     };
   }
-}
-
-/**
- * Mail clients turn domain-like text such as "acme.com" into links,
- * so dots in a project title become spaces.
- */
-function formatProjectTitle(title: string): string {
-  return title.replace(/\./g, ' ').replace(/\s+/g, ' ').trim();
 }

@@ -3,12 +3,19 @@ import type {
   ProjectMembershipRequest,
   Role,
 } from '@owox/idp-protocol';
+import { withTimeout } from '@owox/internal-helpers';
 import type { IdentityOwoxClient } from '../../client/IdentityOwoxClient.js';
+import { DEFAULT_APPROVAL_TITLE_LOOKUP_TIMEOUT_MS } from '../../core/constants.js';
 import { createServiceLogger } from '../../core/logger.js';
 import type { DatabaseStore } from '../../store/database-store.js';
 import { maskEmail } from '../../utils/email-utils.js';
 import type { AccessRequestEmailService } from '../email/access-request-email-service.js';
 import { findLocalUserEmail } from './user-email-lookup.js';
+
+export interface MembershipRequestsServiceOptions {
+  /** How long the approval email waits for the project title before it goes without it. */
+  titleLookupTimeoutMs?: number;
+}
 
 /**
  * MembershipRequestsService adapts the Java `MembershipRequestDto` / approve / decline
@@ -17,13 +24,17 @@ import { findLocalUserEmail } from './user-email-lookup.js';
  */
 export class MembershipRequestsService {
   private readonly logger = createServiceLogger(MembershipRequestsService.name);
+  private readonly titleLookupTimeoutMs: number;
 
   constructor(
     private readonly identityClient: IdentityOwoxClient,
     private readonly store: DatabaseStore,
-    /** Absent while project emails are switched off; the legacy mailer sends them then. */
-    private readonly emailService: AccessRequestEmailService | undefined
-  ) {}
+    private readonly emailService: AccessRequestEmailService,
+    options: MembershipRequestsServiceOptions = {}
+  ) {
+    this.titleLookupTimeoutMs =
+      options.titleLookupTimeoutMs ?? DEFAULT_APPROVAL_TITLE_LOOKUP_TIMEOUT_MS;
+  }
 
   async listMembershipRequests(
     projectId: string,
@@ -64,27 +75,39 @@ export class MembershipRequestsService {
       role,
       actorUserId
     );
-    void this.notifyRequester(projectId, userUid, role);
+    void this.notifyRequester(projectId, userUid, role, actorUserId);
     return { userId: userUid };
   }
 
   /**
    * Emails the approved person. Never throws. The email is mandatory, so it ignores
-   * notification settings. Does nothing while project emails are switched off.
+   * notification settings.
+   *
+   * @param actorUserId the admin who approved; the project title is read on their behalf.
    */
-  async notifyRequester(projectId: string, userId: string, role: Role): Promise<void> {
-    const emailService = this.emailService;
-    if (!emailService) {
-      return;
-    }
+  async notifyRequester(
+    projectId: string,
+    userId: string,
+    role: Role,
+    actorUserId: string
+  ): Promise<void> {
     let requesterEmail: string | undefined;
     try {
-      requesterEmail = await this.findUserEmail(projectId, userId);
+      const [email, projectTitle] = await Promise.all([
+        this.findUserEmail(projectId, userId),
+        this.findProjectTitle(projectId, actorUserId),
+      ]);
+      requesterEmail = email;
       if (!requesterEmail) {
         this.logger.warn('No email for the approved access request', { projectId, userId });
         return;
       }
-      await emailService.sendApprovalToRequester({ requesterEmail, role, projectId });
+      await this.emailService.sendApprovalToRequester({
+        requesterEmail,
+        role,
+        projectId,
+        projectTitle,
+      });
     } catch (error) {
       this.logger.error(
         'Failed to send access approval email',
@@ -105,6 +128,25 @@ export class MembershipRequestsService {
     }
     const { projectMembers } = await this.identityClient.getProjectMembers(projectId);
     return projectMembers.find(member => String(member.userId) === userId)?.email || undefined;
+  }
+
+  /** The title only names the project in the email, so a slow or failed lookup leaves it out. */
+  private async findProjectTitle(
+    projectId: string,
+    actorUserId: string
+  ): Promise<string | undefined> {
+    const title = Promise.resolve()
+      .then(() => this.identityClient.getProjectForUser(actorUserId, projectId))
+      .then(project => project.title || undefined)
+      .catch((error: unknown) => {
+        this.logger.warn(
+          'Could not load project title for access approval email',
+          { projectId },
+          error
+        );
+        return undefined;
+      });
+    return withTimeout(title, this.titleLookupTimeoutMs, undefined);
   }
 
   async declineMembershipRequest(

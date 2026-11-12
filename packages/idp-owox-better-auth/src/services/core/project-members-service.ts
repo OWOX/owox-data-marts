@@ -35,8 +35,7 @@ export class ProjectMembersService {
   constructor(
     private readonly store: DatabaseStore,
     private readonly identityClient: IdentityOwoxClient,
-    /** Absent while project emails are switched off; the legacy mailer sends them then. */
-    private readonly invitationEmailService: ProjectInvitationEmailService | undefined,
+    private readonly invitationEmailService: ProjectInvitationEmailService,
     options: ProjectMembersServiceOptions = {}
   ) {
     this.ttlSeconds = options.ttlSeconds ?? DEFAULT_PROJECT_MEMBERS_CACHE_TTL_SECONDS;
@@ -238,9 +237,6 @@ export class ProjectMembersService {
    * rest of the response is already known from the request. Returning `userId`
    * lets the caller controller attach scope + contexts immediately.
    *
-   * Without an invitation email service (project emails switched off), the
-   * legacy mailer sends the email, so the response is the same as before.
-   *
    * The membership exists once the Identity call succeeds, so a failed email
    * does not fail the invitation: `emailSent: false` and the message tell the
    * admin to let the person know themselves.
@@ -251,9 +247,8 @@ export class ProjectMembersService {
     role: Role,
     actorUserId: string
   ): Promise<ProjectMemberInvitation> {
-    const emailService = this.invitationEmailService;
     // The lookups do not depend on the invite, so they run while it is in flight.
-    const details = emailService ? this.loadInvitationDetails(projectId, actorUserId) : undefined;
+    const details = this.loadInvitationDetails(projectId, actorUserId);
 
     const response = await this.identityClient.inviteProjectMember(
       projectId,
@@ -268,11 +263,7 @@ export class ProjectMembersService {
       kind: 'email-sent' as const,
       userId: response.userUid,
     };
-    if (!emailService || !details) {
-      return { ...invitation, message: `Invitation email sent to ${email}` };
-    }
-
-    const emailSent = await this.sendInvitationEmail(emailService, {
+    const emailSent = await this.sendInvitationEmail(this.invitationEmailService, {
       email,
       role,
       projectId,

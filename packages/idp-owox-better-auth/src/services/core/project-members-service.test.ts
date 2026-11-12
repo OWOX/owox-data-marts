@@ -602,31 +602,6 @@ describe('ProjectMembersService', () => {
       );
     });
 
-    it('leaves the email to the legacy mailer while project emails are switched off', async () => {
-      const store = createStoreMock();
-      const identityClient = createIdentityClientMock();
-      identityClient.inviteProjectMember.mockResolvedValue({ userUid: 'new-user-uid' });
-      const service = new ProjectMembersService(store, identityClient, undefined);
-
-      const result = await service.inviteMember(
-        'project-1',
-        'new@example.com',
-        'editor',
-        'admin-1'
-      );
-
-      expect(result).toEqual({
-        projectId: 'project-1',
-        email: 'new@example.com',
-        role: 'editor',
-        kind: 'email-sent',
-        userId: 'new-user-uid',
-        message: 'Invitation email sent to new@example.com',
-      });
-      expect(identityClient.getProjectForUser).not.toHaveBeenCalled();
-      expect(store.getUserByBiUserId).not.toHaveBeenCalled();
-    });
-
     it('looks up the email details while the invite is still running', async () => {
       const { identityClient, store, service } = setup();
       let finishInvite: (value: { userUid: string }) => void = () => undefined;

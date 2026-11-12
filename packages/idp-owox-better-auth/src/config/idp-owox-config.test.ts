@@ -30,20 +30,11 @@ describe('loadBetterAuthProviderConfigFromEnv', () => {
     expect(config.mcp).toEqual({ publicBaseUrl: 'https://mcp.owox.com' });
   });
 
-  it('leaves project emails to the legacy mailer unless explicitly enabled', () => {
-    expect(loadBetterAuthProviderConfigFromEnv(baseEnv()).idpOwox.projectEmailsEnabled).toBe(false);
-    expect(
-      loadBetterAuthProviderConfigFromEnv({
-        ...baseEnv(),
-        IDP_OWOX_PROJECT_EMAILS_ENABLED: 'true',
-      }).idpOwox.projectEmailsEnabled
-    ).toBe(true);
-  });
-
-  it('refuses a project emails setting other than true or false', () => {
+  it('ignores the removed project emails switch that a deployment may still set', () => {
     expect(() =>
+      // 'yes' was rejected while the switch existed, so this proves the value is no longer read.
       loadBetterAuthProviderConfigFromEnv({ ...baseEnv(), IDP_OWOX_PROJECT_EMAILS_ENABLED: 'yes' })
-    ).toThrow();
+    ).not.toThrow();
   });
 
   it('keeps extension routes disabled unless explicitly enabled', () => {

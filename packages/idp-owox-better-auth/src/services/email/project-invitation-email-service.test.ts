@@ -123,6 +123,55 @@ describe('ProjectInvitationEmailService', () => {
     expect(html).not.toContain('<b>x</b>');
   });
 
+  it('keeps links and hidden text out of the subject and the preheader', async () => {
+    const { sendEmail, provider } = createProvider();
+    const service = new ProjectInvitationEmailService(
+      provider,
+      'https://app.example.com',
+      NO_RETRIES
+    );
+
+    await service.send({
+      email: 'new@example.com',
+      role: 'viewer',
+      projectId: 'p-1',
+      projectTitle: 'Reset at http://3232235777 \u202Emoc \uFF0E live\u202C',
+    });
+
+    const [, subject, html] = sendEmail.mock.calls[0] as SendArgs;
+    expect(subject).toBe(
+      "You're invited to Reset at http: //3232235777 moc live in OWOX Data Marts"
+    );
+    expect(html).toContain('>Project Reset at http: //3232235777 moc live</div>');
+    expect(html).not.toContain('http://3232235777');
+  });
+
+  it('puts a shorter title in the subject and the preheader than in the body', async () => {
+    const { sendEmail, provider } = createProvider();
+    const service = new ProjectInvitationEmailService(
+      provider,
+      'https://app.example.com',
+      NO_RETRIES
+    );
+    const title = `Marketing ${'x'.repeat(90)}`;
+
+    await service.send({
+      email: 'new@example.com',
+      role: 'viewer',
+      projectId: 'p-1',
+      projectTitle: title,
+    });
+
+    const [, subject, html] = sendEmail.mock.calls[0] as SendArgs;
+    const subjectTitle = subject
+      .replace("You're invited to ", '')
+      .replace(' in OWOX Data Marts', '');
+    expect(Array.from(subjectTitle)).toHaveLength(60);
+    expect(subjectTitle.endsWith('\u2026')).toBe(true);
+    expect(html).toContain(`>Project ${subjectTitle}</div>`);
+    expect(html).toContain(`<strong>${title}</strong>`);
+  });
+
   it('retries a failed send', async () => {
     const { sendEmail, provider } = createProvider();
     sendEmail.mockRejectedValueOnce(new Error('SendGrid network error'));
