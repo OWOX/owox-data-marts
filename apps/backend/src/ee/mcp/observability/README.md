@@ -1,6 +1,7 @@
 # MCP Observability (ee/mcp/observability, Layer A)
 
-Instruments every MCP tool call at the SDK `registerTool` callback (the choke point): `McpCallInstrumentation.wrap()`
+Instruments every MCP tool call at the SDK `registerTool` callback (the choke point), and every prompt and resource
+read (see below): `McpCallInstrumentation.wrap()`
 times the call, reads CLS-scoped `McpLogContext` (project/user/client/session/request) and per-call
 `McpToolDiagnostics` (e.g. `executedSql`), builds one structured `mcp.tool_call` event via `buildMcpToolCallEvent`
 (OTel-shaped attributes, input/output redacted), and hands it to `OwoxEventDispatcher.publishExternalSafely`.
@@ -16,10 +17,10 @@ Instrumentation code itself (`mcp-call-instrumentation.ts`) still knows nothing 
 it only produces one MCP-domain event per call and puts bulky fields (SQL, results) under the offloader's
 `OFFLOAD_KEY` so the offloader can send them to GCS instead of inlining them.
 
-Prompt and resource reads (`recordRead()`) emit the same `mcp.tool_call` event. Its `mcp_method_name` is
-`prompts/get` or `resources/read`, and `mcp_tool_name` is the prompt name or the resource URI. These events carry
-no arguments or result, because the prompts and resources are static text. Filter on `mcp_method_name = 'tools/call'`
-to count tool calls only.
+Prompt and resource reads (`recordRead()`) emit an `mcp.read` event, so the counts, error rate and latency of
+`mcp.tool_call` stay the same. It has the fields of `mcp.tool_call`: `mcp_method_name` is `prompts/get` or
+`resources/read`, and `mcp_tool_name` is the prompt name or the resource URI. It has no offloaded payload, because a
+read has no arguments or result. Its OTLP span name starts with the method, for example `prompts/get create_report`.
 
 **Reliability invariant:** instrumentation is best-effort and out of the tool's response path — `wrap()` never
 changes the wrapped callback's result or error, and `emit()` swallows its own exceptions, so a logging failure

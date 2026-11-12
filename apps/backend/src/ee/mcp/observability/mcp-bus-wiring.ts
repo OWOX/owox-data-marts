@@ -39,11 +39,11 @@ export function mcpOffloadPathBuilder(payload: Record<string, unknown>): string 
 /** Event → OTLP span semantics for MCP tool-call events. */
 export function mcpSpanMapper(event: BaseEvent<Record<string, unknown>>): OtlpSpanInfo {
   const p = event.payload;
+  const target = typeof p['mcp_tool_name'] === 'string' ? p['mcp_tool_name'] : '';
+  // A read span names its method too, so the prompt create_report is not taken for a tool.
+  const readPrefix = event.name === 'mcp.read' ? `${String(p['mcp_method_name'])} ` : '';
   return {
-    name:
-      typeof p['mcp_tool_name'] === 'string' && p['mcp_tool_name']
-        ? String(p['mcp_tool_name'])
-        : event.name,
+    name: target ? `${readPrefix}${target}` : event.name,
     groupId:
       typeof p['owox_conversation_id'] === 'string'
         ? (p['owox_conversation_id'] as string)

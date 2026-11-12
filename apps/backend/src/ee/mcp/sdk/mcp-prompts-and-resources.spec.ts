@@ -50,6 +50,10 @@ describe('MCP prompts and resources through the SDK', () => {
           type: 'text',
           text: expect.stringContaining(MCP_GUIDES[topic]),
         });
+        // The tool descriptions ask for the guide, so the prompt must say that it is already here.
+        expect(prompt.messages[0].content).toMatchObject({
+          text: expect.stringContaining(`do not call get_owox_guide({topic: "${topic}"})`),
+        });
       }
 
       const { resources } = await client.listResources();
