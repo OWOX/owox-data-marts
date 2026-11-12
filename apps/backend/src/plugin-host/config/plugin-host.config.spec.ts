@@ -229,4 +229,49 @@ describe('PluginHostConfigService', () => {
       expect(config({ PORT: 3000 }).publicOrigin).toBe('http://localhost:3000');
     });
   });
+
+  describe('BI plugins', () => {
+    const env = {
+      OWOX_BI_PLUGIN_REPOSITORY_IDS: ' 111 , ,222, ',
+      OWOX_BI_PLUGIN_ORIGINS:
+        ' https://BI-Plugins.example.com/ , https://b.example.com/path, nonsense, ',
+      PUBLIC_ORIGIN: 'https://app.example.com',
+    };
+
+    it('parses both lists, normalizing origins and dropping junk', () => {
+      expect(config(env).biPluginRepositoryIds).toEqual(['111', '222']);
+      expect(config(env).biPluginOrigins).toEqual([
+        'https://bi-plugins.example.com',
+        'https://b.example.com',
+      ]);
+    });
+
+    it.each([
+      {},
+      { ...env, OWOX_BI_PLUGIN_REPOSITORY_IDS: '  ' },
+      { ...env, OWOX_BI_PLUGIN_ORIGINS: '' },
+    ])('recognises nothing when either variable is unset or blank', partial => {
+      expect(
+        config(partial).isBiPlugin('111', 'https://bi-plugins.example.com/transformation/')
+      ).toBe(false);
+    });
+
+    it('requires both the repository and the delivery origin to match', () => {
+      const service = config(env);
+      expect(service.isBiPlugin('111', 'https://bi-plugins.example.com/transformation/')).toBe(
+        true
+      );
+      expect(service.isBiPlugin('999', 'https://bi-plugins.example.com/transformation/')).toBe(
+        false
+      );
+      expect(service.isBiPlugin('111', 'https://evil.example.com/')).toBe(false);
+      expect(service.isBiPlugin('111', 'https://bi-plugins.example.com.evil.example/')).toBe(false);
+      expect(service.isBiPlugin('111', 'not a url')).toBe(false);
+    });
+
+    it('never recognises a plugin served from the deployment own origin', () => {
+      const service = config({ ...env, OWOX_BI_PLUGIN_ORIGINS: 'https://app.example.com' });
+      expect(service.isBiPlugin('111', 'https://app.example.com/plugin/')).toBe(false);
+    });
+  });
 });

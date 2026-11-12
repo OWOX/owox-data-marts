@@ -45,6 +45,51 @@ export class PluginHostConfigService {
       .filter(Boolean);
   }
 
+  /**
+   * Numeric GitHub repository ids of OWOX BI plugins. An unset or blank value yields an
+   * empty list, which means "no plugin is a BI plugin" -- never "any".
+   */
+  get biPluginRepositoryIds(): readonly string[] {
+    return (this.config.get<string>('OWOX_BI_PLUGIN_REPOSITORY_IDS') ?? '')
+      .split(',')
+      .map(id => id.trim())
+      .filter(Boolean);
+  }
+
+  /**
+   * Origins OWOX BI plugins are delivered from, normalized with `new URL(value).origin`;
+   * unparseable entries are dropped. An unset or blank value yields an empty list, which
+   * means "no plugin is a BI plugin" -- never "any".
+   */
+  get biPluginOrigins(): readonly string[] {
+    const origins: string[] = [];
+    for (const value of (this.config.get<string>('OWOX_BI_PLUGIN_ORIGINS') ?? '').split(',')) {
+      try {
+        origins.push(new URL(value.trim()).origin);
+      } catch {
+        // Not a URL: dropped rather than guessed at.
+      }
+    }
+    return origins;
+  }
+
+  /**
+   * A plugin is a BI plugin only when its repository and the origin of its delivery URL
+   * are both listed. The deployment's own origin never qualifies.
+   */
+  isBiPlugin(githubRepoId: string, deliveryUrl: string): boolean {
+    if (!this.biPluginRepositoryIds.includes(githubRepoId)) {
+      return false;
+    }
+    let origin: string;
+    try {
+      origin = new URL(deliveryUrl).origin;
+    } catch {
+      return false;
+    }
+    return origin !== this.publicOrigin && this.biPluginOrigins.includes(origin);
+  }
+
   get githubApiBaseUrl(): string {
     return this.trimmed('GITHUB_API_BASE_URL') ?? DEFAULT_GITHUB_API_BASE_URL;
   }
