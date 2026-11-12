@@ -17,10 +17,14 @@ Instrumentation code itself (`mcp-call-instrumentation.ts`) still knows nothing 
 it only produces one MCP-domain event per call and puts bulky fields (SQL, results) under the offloader's
 `OFFLOAD_KEY` so the offloader can send them to GCS instead of inlining them.
 
-Prompt and resource reads (`recordRead()`) emit an `mcp.read` event, so the counts, error rate and latency of
-`mcp.tool_call` stay the same. It has the fields of `mcp.tool_call`: `mcp_method_name` is `prompts/get` or
-`resources/read`, and `mcp_tool_name` is the prompt name or the resource URI. It has no offloaded payload, because a
-read has no arguments or result. Its OTLP span name starts with the method, for example `prompts/get create_report`.
+Prompt and resource reads (`recordRead()`) emit an `mcp.read` event. It has the fields of `mcp.tool_call`:
+`mcp_method_name` is `prompts/get` or `resources/read`, and `mcp_tool_name` is the prompt name or the resource URI.
+It has no offloaded payload, because a read has no arguments or result. Its OTLP span name starts with the method,
+for example `prompts/get create_report`. A read event is always `ok` with `duration_ms: 0`: it marks a read and does
+not measure it.
+
+Both events go to the `McpEventBus` logger. A consumer that counts tool calls, or reads their latency or error rate,
+must select by the event name `mcp.tool_call`; a selection by logger name gets the reads too.
 
 **Reliability invariant:** instrumentation is best-effort and out of the tool's response path — `wrap()` never
 changes the wrapped callback's result or error, and `emit()` swallows its own exceptions, so a logging failure
@@ -54,7 +58,8 @@ Supply credentials through secret parameters instead of literal values in a mani
 
 **Known gap:** the SDK validates a tool call's arguments against its input schema _before_ the wrapped callback
 runs, so calls rejected by schema validation emit no `mcp.tool_call` event (no t1/t2 trace). Only calls that
-reach the handler are instrumented.
+reach the handler are instrumented. In the same way, the SDK rejects a `prompts/get` with an unknown name or a
+`resources/read` with an unknown URI before the callback, so these emit no `mcp.read` event.
 
 **PII default:** tool `arguments`/`result`/`sql` can carry client data, so they are kept out of the general
 logs by default — dropped when no bucket is set, or offloaded to GCS (`MCP_LOG_GCS_BUCKET`, ADC-gated) when it

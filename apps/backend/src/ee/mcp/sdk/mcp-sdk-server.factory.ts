@@ -103,13 +103,16 @@ export class McpSdkServerFactory {
     }
 
     // ChatGPT has no menu for prompts or resources, and it uses resources only for UI templates.
-    if (!chatgpt) this.registerPromptsAndResources(server);
+    if (!chatgpt) this.registerPromptsAndResources(server, mcpContext);
 
     return server;
   }
 
-  private registerPromptsAndResources(server: McpServer): void {
+  private registerPromptsAndResources(server: McpServer, mcpContext: McpAuthContext): void {
     for (const prompt of MCP_PROMPTS) {
+      const scopes = prompt.requiredScopes ?? [];
+      if (!scopes.every(scope => mcpContext.scopes.includes(scope))) continue;
+      if (prompt.requiredRole && !satisfiesRole(mcpContext.roles, prompt.requiredRole)) continue;
       server.registerPrompt(
         prompt.name,
         { title: prompt.title, description: prompt.description },

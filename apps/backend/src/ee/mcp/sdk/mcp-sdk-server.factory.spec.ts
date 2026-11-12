@@ -362,7 +362,7 @@ describe('McpSdkServerFactory', () => {
       { wrap: jest.fn(), recordRead } as never
     );
 
-    factory.create({ ...context, integration: 'claude' });
+    factory.create({ ...context, integration: 'claude', scopes: ['mcp:read', 'mcp:write'] });
 
     expect(mockRegisterPrompt.mock.calls.map(([name]) => name)).toEqual([
       'explore_data',
@@ -399,6 +399,27 @@ describe('McpSdkServerFactory', () => {
     expect(docs.contents[0].text).toContain(
       'https://docs.owox.com/docs/getting-started/setup-guide/mcp/'
     );
+  });
+
+  it.each([
+    ['a read-only token', ['admin'], ['mcp:read'], ['explore_data', 'check_data_mart_runs']],
+    [
+      'a viewer',
+      ['viewer'],
+      ['mcp:read', 'mcp:write'],
+      ['explore_data', 'create_report', 'check_data_mart_runs'],
+    ],
+  ] as const)('lists only the prompts that %s can do', async (_who, roles, scopes, names) => {
+    const McpSdkServerFactory = await loadFactory();
+    const factory = new McpSdkServerFactory(
+      new McpConfigService({ get: jest.fn() } as never),
+      new McpToolRegistry([]),
+      passthroughInstrumentation
+    );
+
+    factory.create({ ...context, roles: [...roles], scopes: [...scopes] });
+
+    expect(mockRegisterPrompt.mock.calls.map(([name]) => name)).toEqual(names);
   });
 
   it('gives ChatGPT no prompts or resources, because it has no menu for them', async () => {

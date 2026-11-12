@@ -20,6 +20,11 @@ describe('mcp-bus-wiring', () => {
       payload: { mcp_method_name: 'prompts/get', mcp_tool_name: 'create_report' },
     } as never);
     expect(info.name).toBe('prompts/get create_report');
+    const noMethod = mcpSpanMapper({
+      name: 'mcp.read',
+      payload: { mcp_tool_name: 'create_report' },
+    } as never);
+    expect(noMethod.name).toBe('create_report');
   });
 
   it('mcpSpanMapper falls back to event.name and non-error', () => {

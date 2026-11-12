@@ -1,3 +1,4 @@
+import type { McpScope, Role } from '@owox/idp-protocol';
 import { MCP_SERVER_GUIDE_URL } from '../tools/mcp-docs-urls';
 import { MCP_GUIDES, MCP_GUIDE_TOPICS, type McpGuideTopic } from './mcp-guides';
 
@@ -10,6 +11,10 @@ export interface McpPrompt {
   title: string;
   description: string;
   text: string;
+  // The scope and role of the first write tool of the task. A connection without them does not get
+  // the prompt, so the user does not answer the model's questions before an authorization error.
+  requiredScopes?: McpScope[];
+  requiredRole?: Role;
 }
 
 export interface McpTextResource {
@@ -40,6 +45,7 @@ export const MCP_PROMPTS: McpPrompt[] = [
       'Help me create an OWOX report from a Data Mart. If I did not name the Data Mart, the fields or the Destination, ask me.',
       'reporting'
     ),
+    requiredScopes: ['mcp:write'],
   },
   {
     name: 'set_up_data_mart',
@@ -49,6 +55,8 @@ export const MCP_PROMPTS: McpPrompt[] = [
       'Help me set up an OWOX Data Mart. If I did not name the source and the Storage, ask me.',
       'data_mart_setup'
     ),
+    requiredScopes: ['mcp:write'],
+    requiredRole: 'editor',
   },
   {
     name: 'check_data_mart_runs',

@@ -12,9 +12,9 @@ describe('MCP prompts and resources through the SDK', () => {
     clientId: 'mcp-client-1',
     userId: 'user-1',
     projectId: 'project-1',
-    roles: ['viewer'],
+    roles: ['editor'],
     resource: 'https://mcp.owox.com/mcp',
-    scopes: ['mcp:read'],
+    scopes: ['mcp:read', 'mcp:write'],
     authFlow: 'mcp',
     integration: 'claude',
   };

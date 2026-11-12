@@ -197,6 +197,8 @@ export function buildMcpToolCallEvent(
   }
 
   Object.assign(payload as unknown as Record<string, unknown>, flattenMeta(p.meta));
+  // A prompt or resource read has no arguments or result, and the SQL in diagnostics belongs to a tool call.
+  if (p.methodName !== 'tools/call') return new McpReadEvent(payload, occurredAt);
 
   const offload: Record<string, unknown> = {
     // Identity — makes each GCS file self-describing and joinable with the event log on owox_request_id.
@@ -225,8 +227,6 @@ export function buildMcpToolCallEvent(
           : redact(p.result?.structuredContent ?? p.result?.content, p.input),
   };
   if (p.executedSql) offload.sql = privateConfiguration ? REDACTED : p.executedSql;
-  // A prompt or resource read has no arguments or result, and the SQL in diagnostics belongs to a tool call.
-  if (p.methodName !== 'tools/call') return new McpReadEvent(payload, occurredAt);
   payload[OFFLOAD_KEY] = offload;
 
   return new McpToolCallEvent(payload, occurredAt);

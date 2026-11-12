@@ -41,7 +41,8 @@ export function mcpSpanMapper(event: BaseEvent<Record<string, unknown>>): OtlpSp
   const p = event.payload;
   const target = typeof p['mcp_tool_name'] === 'string' ? p['mcp_tool_name'] : '';
   // A read span names its method too, so the prompt create_report is not taken for a tool.
-  const readPrefix = event.name === 'mcp.read' ? `${String(p['mcp_method_name'])} ` : '';
+  const method = typeof p['mcp_method_name'] === 'string' ? p['mcp_method_name'] : '';
+  const readPrefix = event.name === 'mcp.read' && method ? `${method} ` : '';
   return {
     name: target ? `${readPrefix}${target}` : event.name,
     groupId:

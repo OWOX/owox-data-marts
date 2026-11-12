@@ -114,7 +114,7 @@ The OWOX MCP server publishes task prompts and workflow guides. A prompt starts 
 | **Set up a Data Mart**   | Starts a Data Mart setup and attaches the `data_mart_setup` guide.                 |
 | **Check Data Mart runs** | Finds failed or stuck runs of a Data Mart and attaches the `data_mart_runs` guide. |
 
-The resources are the six guides that [`get_owox_guide`](#get_owox_guide) returns, at `owox://guides/<topic>`, and a link to this page at `owox://docs/mcp`. Prompts and resources are static text and do not read project data. They need only the `mcp:read` scope, which every connection has.
+The resources are the six guides that [`get_owox_guide`](#get_owox_guide) returns, at `owox://guides/<topic>`, and a link to this page at `owox://docs/mcp`. Prompts and resources are static text and do not read project data. They need only the `mcp:read` scope, which every connection has. The connector menu does not show a prompt for a task that your connection cannot do: **Create a report** needs `mcp:write`, and **Set up a Data Mart** needs `mcp:write` and the editor or admin role.
 
 ## Available tools
 
