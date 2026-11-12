@@ -12,7 +12,9 @@ export const PLUGIN_PROTOCOL_VERSION = 1 as const;
 /**
  * The plugin's own origin, as the host sees it: a sandboxed frame is opaque, so
  * `event.origin` on a message from the plugin is the literal string "null", and the
- * plugin's outbound postMessage must target '*'.
+ * plugin's outbound postMessage must target '*'. The one exception is a plugin the host
+ * runs with a real origin; the host then requires that origin of the announcement instead
+ * and addresses its handshake to it.
  *
  * It is a real check in the one direction it applies -- the host requires it of the
  * plugin's announcement. It says nothing in the other direction: the host is served on
@@ -41,7 +43,10 @@ export interface PluginHelloMessage {
   nonce: string;
 }
 
-/** Ambient information the host chooses to reveal. Display only: no tokens, ever. */
+/**
+ * Ambient information the host chooses to reveal. Display only: no tokens, ever. A token
+ * a plugin is granted is requested over the port, never carried here.
+ */
 export interface PluginHostContext {
   readonly pluginId: string;
   readonly installationId: string;

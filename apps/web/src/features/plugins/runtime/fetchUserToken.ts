@@ -1,18 +1,8 @@
+import { refreshAccessToken } from '../../../app/api/apiClient';
 import { getTokenProvider } from '../../../app/api/token-provider';
 
-/**
- * Serves the signed-in member's own access token, valid for at least another minute.
- *
- * Handing the member token to a plugin is a deliberate exception, allowed only for BI
- * plugins; the caller must gate it. For every other plugin the warning in
- * `fetchRuntimeToken.ts` still applies.
- *
- * The token is never cached or logged here; the only state is the in-flight refresh,
- * shared by concurrent callers and cleared when it settles.
- */
+/** A token closer than this to expiry is refreshed before it is handed out. */
 const REFRESH_MARGIN_MS = 60_000;
-
-let inFlight: Promise<string> | null = null;
 
 const expiresAtMs = (token: string | null): number | null => {
   try {
@@ -27,6 +17,16 @@ const expiresAtMs = (token: string | null): number | null => {
   }
 };
 
+/**
+ * Serves the signed-in member's own access token, valid for at least another minute.
+ *
+ * Handing the member token to a plugin is a deliberate exception, allowed only for BI
+ * plugins; the caller must gate it. For every other plugin the warning in
+ * `fetchRuntimeToken.ts` still applies.
+ *
+ * The token is never cached or logged here. A refresh goes through the app's shared
+ * refresh, so concurrent plugin requests and the app's own 401 handling run only one.
+ */
 export const fetchUserToken = async (fresh: boolean): Promise<string> => {
   const provider = getTokenProvider();
   if (!provider) throw new Error('No active session');
@@ -35,8 +35,5 @@ export const fetchUserToken = async (fresh: boolean): Promise<string> => {
   const exp = expiresAtMs(current);
   if (!fresh && current && exp !== null && exp - Date.now() > REFRESH_MARGIN_MS) return current;
 
-  inFlight ??= provider.refreshToken().finally(() => {
-    inFlight = null;
-  });
-  return inFlight;
+  return refreshAccessToken();
 };

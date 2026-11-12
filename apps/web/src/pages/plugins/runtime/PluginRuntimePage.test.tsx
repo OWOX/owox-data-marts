@@ -64,7 +64,7 @@ vi.mock('../../../features/plugins', async () => ({
 }));
 
 import { getLoadingProgress, isApiLoading } from '../../../app/api/api-loading';
-import { pluginsService } from '../../../features/plugins';
+import { fetchUserToken, pluginsService } from '../../../features/plugins';
 import { PluginRuntime } from './PluginRuntimePage';
 
 const getEntryPoint = vi.mocked(pluginsService.getEntryPoint);
@@ -148,15 +148,40 @@ describe('PluginRuntimePage', () => {
   });
 
   it('gives a BI plugin its origin and the user token source', async () => {
-    getEntryPoint.mockResolvedValue({ ...ENTRY, biPlugin: true });
+    getEntryPoint.mockResolvedValue({
+      ...ENTRY,
+      deliveryUrl: 'https://plugin.example.com/app/index.html',
+      biPlugin: true,
+    });
     renderPage();
     await waitFor(() => {
       expect(bridgeCreations).toBe(1);
     });
 
     expect(bridgeOptions.pluginOrigin).toBe('https://plugin.example.com');
-    expect(bridgeOptions.fetchUserToken).toBeTypeOf('function');
+    expect(bridgeOptions.fetchUserToken).toBe(fetchUserToken);
     expect(bridgeOptions.context?.userToken).toBe(true);
+  });
+
+  // The backend already refuses the mark for its own origin; the page does not rely on it.
+  it('grants nothing to a marked plugin served from this app origin', async () => {
+    getEntryPoint.mockResolvedValue({
+      ...ENTRY,
+      deliveryUrl: `${window.location.origin}/plugin/`,
+      biPlugin: true,
+    });
+    renderPage();
+
+    const frame = await screen.findByTitle('Example Plugin');
+    await waitFor(() => {
+      expect(bridgeCreations).toBe(1);
+    });
+
+    expect(frame).toHaveAttribute('sandbox', 'allow-scripts allow-downloads');
+    expect(frame).toHaveAttribute('allow', '');
+    expect(bridgeOptions.pluginOrigin).toBeUndefined();
+    expect(bridgeOptions.fetchUserToken).toBeUndefined();
+    expect(bridgeOptions.context).not.toHaveProperty('userToken');
   });
 
   it.each([{}, { biPlugin: false }])(

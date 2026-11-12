@@ -27,11 +27,14 @@ import { useProjectId, useProjectRoute } from '../../../shared/hooks';
 const SANDBOX = 'allow-scripts allow-downloads';
 /**
  * allow-same-origin is acceptable here only because a marked plugin runs on another
- * origin than this app, and the backend never marks a plugin served from the ODM origin.
+ * origin than this app: the backend never marks a plugin served from the ODM origin, and
+ * the page refuses the mark for one again before applying it.
  */
 const BI_SANDBOX =
   'allow-scripts allow-downloads allow-same-origin allow-popups allow-popups-to-escape-sandbox';
 const BI_ALLOW = 'clipboard-read; clipboard-write';
+/** What `new URL(...).origin` yields for a file: or data: URL; never a plugin's real origin. */
+const OPAQUE_ORIGIN = 'null';
 /** Address updates trail a burst of route reports; WebKit allows only ~100 replaceState calls per 30 s. */
 const ADDRESS_SYNC_DELAY_MS = 350;
 
@@ -144,6 +147,15 @@ export function PluginRuntime({
     void navigateRef.current(`${target.pathname}${target.search}${target.hash}`);
   }, []);
 
+  // One decision for the frame attributes and the bridge grants alike. The backend never
+  // marks a plugin served from this app's origin; the comparison repeats that guard here so
+  // allow-same-origin can never reach a frame that would share this document's origin.
+  const biPluginOrigin = data?.biPlugin === true ? deliveryOrigin(data.deliveryUrl) : undefined;
+  const isBiPlugin =
+    biPluginOrigin !== undefined &&
+    biPluginOrigin !== OPAQUE_ORIGIN &&
+    biPluginOrigin !== window.location.origin;
+
   // One plugin's failed handshake says nothing about the next one, and this component
   // survives the switch between two installations.
   useEffect(() => {
@@ -156,7 +168,6 @@ export function PluginRuntime({
       return;
     }
 
-    const isBiPlugin = data.biPlugin === true;
     const bridge = createPluginHostBridge({
       iframe,
       // Assigned by the bridge once it is listening, never by the markup: React commits
@@ -176,7 +187,7 @@ export function PluginRuntime({
         route: lastRouteRef.current,
         ...(isBiPlugin && { userToken: true as const }),
       },
-      pluginOrigin: isBiPlugin ? new URL(data.deliveryUrl).origin : undefined,
+      pluginOrigin: isBiPlugin ? biPluginOrigin : undefined,
       fetchUserToken: isBiPlugin ? fetchUserToken : undefined,
       fetchRuntimeToken: fetchRuntimeToken(installationId),
       onOpenExternal: openExternal,
@@ -206,6 +217,8 @@ export function PluginRuntime({
     onRouteChange,
     onCopyLink,
     broken,
+    isBiPlugin,
+    biPluginOrigin,
   ]);
 
   if (isLoading) {
@@ -242,8 +255,8 @@ export function PluginRuntime({
     <>
       <iframe
         ref={frameRef}
-        sandbox={data.biPlugin === true ? BI_SANDBOX : SANDBOX}
-        allow={data.biPlugin === true ? BI_ALLOW : ''}
+        sandbox={isBiPlugin ? BI_SANDBOX : SANDBOX}
+        allow={isBiPlugin ? BI_ALLOW : ''}
         referrerPolicy='no-referrer'
         title={data.displayName}
         className='h-full w-full border-0'
@@ -251,6 +264,14 @@ export function PluginRuntime({
       {fallbackDialog}
     </>
   );
+}
+
+function deliveryOrigin(deliveryUrl: string): string | undefined {
+  try {
+    return new URL(deliveryUrl).origin;
+  } catch {
+    return undefined;
+  }
 }
 
 async function syncAddress(navigate: NavigateFunction, openBase: string, route: string) {

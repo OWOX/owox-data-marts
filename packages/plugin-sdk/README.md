@@ -17,7 +17,8 @@ carrying `ctx.owox` — a real OWOX API client.
 Your plugin runs in a cross-origin iframe with an **opaque origin**. That means no
 cookies, no `localStorage`, no `IndexedDB`, no service workers, and requests to your own
 backend arrive with `Origin: null`, so it must send `Access-Control-Allow-Origin: *` and
-cannot use cookie sessions.
+cannot use cookie sessions. The exception is a plugin the deployment operator marks as an
+OWOX BI plugin: it keeps its real origin and may use the [user token](#user-token).
 
 The same applies to **your own assets**: an opaque origin matches nothing, not even the
 server that delivered the page, so a bundled `<script type="module">` is fetched in CORS
@@ -31,7 +32,8 @@ Your entry page must **not** send `X-Frame-Options` or a restrictive
 `connect()` and the host agree on a protocol version during the handshake, so a page built
 against an SDK the deployment cannot speak fails to start rather than misbehaving.
 
-Your plugin never holds a credential. `ctx.owox` calls are brokered by the host page,
+Your plugin never holds a credential, unless the host grants it the member's access token
+(see [User token](#user-token)). `ctx.owox` calls are brokered by the host page,
 which attaches the token — so requests act with **the authority of the member who
 installed your plugin**, and never more. Do not assume you are trusted beyond that.
 Protected routes still apply their server-side authorization and reject calls the member

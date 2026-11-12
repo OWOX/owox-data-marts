@@ -55,7 +55,9 @@ the application inside a protected frame and connects it to the installing membe
 
 ### Security and trust model
 
-These constraints follow from the plugin sandbox. No OWOX Data Marts setting relaxes them.
+These constraints follow from the plugin sandbox. No OWOX Data Marts setting relaxes them, except
+for plugins a deployment operator marks as
+[OWOX BI plugins](trusted-plugins.md#owox-bi-plugins).
 
 **The page runs in an opaque origin.** It has no cookies, `localStorage`, `sessionStorage`,
 `IndexedDB`, or service workers. Keep short-lived state in memory. For state that must persist, use
@@ -86,7 +88,9 @@ page that could not be displayed.
 **The plugin never holds an OWOX credential.** Calls through `ctx.owox` are brokered by the host,
 which attaches the member's token. Requests have the authority of the member who installed the
 plugin—never more, and never on behalf of another member. Protected routes still apply their
-server-side authorization and reject calls that member may not make.
+server-side authorization and reject calls that member may not make. The only exception is an
+[OWOX BI plugin](trusted-plugins.md#owox-bi-plugins), which may ask for the member's access token
+with `ctx.userToken()`.
 
 Never place GitHub tokens, OWOX API keys, or other credentials in plugin source files,
 `AGENTS.md`, coding-agent prompts, commits, or release notes. Plugin code must not read or store an

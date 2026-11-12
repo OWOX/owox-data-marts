@@ -26,13 +26,13 @@ type Retry = ReturnType<typeof vi.fn> & {
 
 async function load() {
   const axios = await import('axios');
-  await import('./apiClient');
+  const { refreshAccessToken } = await import('./apiClient');
   const instance = (axios.default.create as unknown as ReturnType<typeof vi.fn>).mock.results[0]
     .value as Retry;
   const onRejected = instance.interceptors.response.use.mock.calls[0][1] as (
     e: unknown
   ) => Promise<unknown>;
-  return { retry: instance, onRejected };
+  return { retry: instance, onRejected, refreshAccessToken };
 }
 
 const expired = () => ({ response: { status: 401 }, config: { headers: {} } });
@@ -91,5 +91,22 @@ describe('apiClient — token refresh', () => {
     await expect(onRejected(expired())).rejects.toThrow('Token refresh failed');
 
     expect(onLogout).toHaveBeenCalledTimes(1);
+  });
+
+  // A plugin asking for the member token after an idle period must not start a second
+  // refreshSession() beside the one a 401 already started.
+  it('shares one refresh between the interceptor and refreshAccessToken', async () => {
+    let resolve!: (token: string) => void;
+    refreshToken.mockReturnValue(new Promise<string>(r => (resolve = r)));
+    const { retry, onRejected, refreshAccessToken } = await load();
+    retry.mockResolvedValue({ status: 200, data: 'ok' });
+
+    const intercepted = onRejected(expired());
+    const shared = refreshAccessToken();
+    resolve('fresh-token');
+
+    await expect(shared).resolves.toBe('fresh-token');
+    await expect(intercepted).resolves.toEqual({ status: 200, data: 'ok' });
+    expect(refreshToken).toHaveBeenCalledTimes(1);
   });
 });

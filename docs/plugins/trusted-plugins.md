@@ -129,7 +129,7 @@ carry it, and a Verified plugin does not get it automatically.
 A plugin is an OWOX BI plugin only when both of these match:
 
 - its GitHub repository id is in `OWOX_BI_PLUGIN_REPOSITORY_IDS`;
-- the origin of its delivery URL is in `OWOX_BI_PLUGIN_ORIGINS`.
+- the origin of its delivery URL is in `OWOX_BI_PLUGIN_ORIGINS`, which accepts only https origins.
 
 An unset or blank variable means no plugin is an OWOX BI plugin; it never means "any". The
 deployment's own public origin is never accepted.
@@ -149,8 +149,8 @@ deployment's own public origin is never accepted.
 
 3. Restart the deployment so the new values are read.
 
-For such a plugin the host page opens the iframe with `allow-same-origin` and `allow-popups` in its
-sandbox, grants the clipboard, and lets the plugin ask for the member's access token with
+For such a plugin the host page opens the iframe with `allow-same-origin`, `allow-popups`, and
+`allow-popups-to-escape-sandbox` added to its sandbox, grants clipboard read and write, and lets the plugin ask for the member's access token with
 `ctx.userToken()`. Every other plugin keeps the default sandbox and never receives a token.
 
 The code of an OWOX BI plugin acts with the member's rights. List only plugins you own, served from

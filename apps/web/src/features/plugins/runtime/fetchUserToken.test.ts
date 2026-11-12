@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { refreshAccessToken } from '../../../app/api/apiClient';
 import { clearTokenProvider, setTokenProvider } from '../../../app/api/token-provider';
 import { fetchUserToken } from './fetchUserToken';
 
@@ -35,13 +36,14 @@ describe('fetchUserToken', () => {
     await expect(fetchUserToken(false)).resolves.toBe('refreshed');
   });
 
-  it.each([jwt(inSeconds(-10)), 'garbage', null])(
-    'refreshes an expired or unreadable token',
-    async token => {
-      useToken(token);
-      await expect(fetchUserToken(false)).resolves.toBe('refreshed');
-    }
-  );
+  it.each([
+    ['an expired token', jwt(inSeconds(-10))],
+    ['an unreadable token', 'garbage'],
+    ['no token', null],
+  ])('refreshes when there is %s', async (_label, token) => {
+    useToken(token);
+    await expect(fetchUserToken(false)).resolves.toBe('refreshed');
+  });
 
   it('refreshes when asked for a fresh token', async () => {
     useToken(jwt(inSeconds(300)));
@@ -56,6 +58,14 @@ describe('fetchUserToken', () => {
       fetchUserToken(false),
     ]);
     expect(results).toEqual(['refreshed', 'refreshed', 'refreshed']);
+    expect(refreshToken).toHaveBeenCalledTimes(1);
+  });
+
+  it('joins a refresh the host already started instead of starting another', async () => {
+    useToken(null);
+    const hostRefresh = refreshAccessToken();
+    await expect(fetchUserToken(true)).resolves.toBe('refreshed');
+    await expect(hostRefresh).resolves.toBe('refreshed');
     expect(refreshToken).toHaveBeenCalledTimes(1);
   });
 

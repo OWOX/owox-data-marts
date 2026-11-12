@@ -1424,7 +1424,8 @@ describe('plugin host bridge', () => {
       const h = await harness(undefined, true, PLUGIN_PROTOCOL_VERSION, grant(fetchUserToken));
 
       const response = await h.send({ kind: 'userToken' });
-      expect(response).toMatchObject({
+      expect(response).toEqual({
+        id: expect.any(String),
         ok: true,
         status: 200,
         headers: {},
@@ -1446,6 +1447,20 @@ describe('plugin host bridge', () => {
 
       expect(response).toMatchObject({ ok: false, error: { code: 'FORBIDDEN' } });
       expect(response).not.toHaveProperty('body');
+      h.bridge.dispose();
+    });
+
+    it('refuses the user token to a plugin without its own origin, even with a source', async () => {
+      const fetchUserToken = vi.fn(() => Promise.resolve('tok'));
+      const h = await harness(undefined, true, PLUGIN_PROTOCOL_VERSION, { fetchUserToken });
+
+      const response = await h.send({ kind: 'userToken' });
+
+      expect(response).toMatchObject({
+        ok: false,
+        error: { code: 'FORBIDDEN', message: 'This plugin may not request the user token' },
+      });
+      expect(fetchUserToken).not.toHaveBeenCalled();
       h.bridge.dispose();
     });
 

@@ -234,7 +234,7 @@ describe('PluginHostConfigService', () => {
     const env = {
       OWOX_BI_PLUGIN_REPOSITORY_IDS: ' 111 , ,222, ',
       OWOX_BI_PLUGIN_ORIGINS:
-        ' https://BI-Plugins.example.com/ , https://b.example.com/path, nonsense, ',
+        ' https://BI-Plugins.example.com/ , https://b.example.com/path, nonsense, http://x.example.com, file:///x, ',
       PUBLIC_ORIGIN: 'https://app.example.com',
     };
 
@@ -267,6 +267,14 @@ describe('PluginHostConfigService', () => {
       expect(service.isBiPlugin('111', 'https://evil.example.com/')).toBe(false);
       expect(service.isBiPlugin('111', 'https://bi-plugins.example.com.evil.example/')).toBe(false);
       expect(service.isBiPlugin('111', 'not a url')).toBe(false);
+    });
+
+    it('recognises nothing when the deployment origin is unknown', () => {
+      const service = config(env);
+      jest.spyOn(service, 'publicOrigin', 'get').mockReturnValue(undefined);
+      expect(service.isBiPlugin('111', 'https://bi-plugins.example.com/transformation/')).toBe(
+        false
+      );
     });
 
     it('never recognises a plugin served from the deployment own origin', () => {

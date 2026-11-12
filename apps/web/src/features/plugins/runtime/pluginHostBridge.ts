@@ -35,6 +35,7 @@ export interface PluginHostBridgeOptions {
   /** A rejection declines the copy; the plugin gets a refusal without the reason. */
   onCopyLink: (route: string | undefined) => Promise<void> | void;
   /** The plugin's loading bar state; `progress` is a fraction from 0 to 1, or undefined for no amount. */
+  onLoadingChange?: (state: { active: boolean; progress?: number }) => void;
   /**
    * The real origin a plugin is served from, when it is not sandboxed to the opaque one.
    * The announcement must come from it and host-init is addressed to it.
@@ -42,10 +43,9 @@ export interface PluginHostBridgeOptions {
   pluginOrigin?: string;
   /**
    * Supplies the member's access token; set only for a plugin the host grants it to.
-   * A rejection is answered without its reason.
+   * Served only together with `pluginOrigin`. A rejection is answered without its reason.
    */
   fetchUserToken?: (fresh: boolean) => Promise<string>;
-  onLoadingChange?: (state: { active: boolean; progress?: number }) => void;
   /**
    * The bridge closed the channel on its own, and the frame is now inert.
    *
@@ -102,13 +102,13 @@ export interface PluginHostBridge {
 }
 
 /**
- * Brokers a plugin's API calls without ever handing it a credential.
+ * Brokers a plugin's API calls without handing it the runtime token.
  *
  * The runtime token lives in this closure. It is not React state, not context, not
  * storage, and never travels in a postMessage payload or a URL -- the plugin cannot
  * read it because it is never anywhere the plugin can look. The member's access token is
- * different: it leaves only over the port, only to a plugin given `fetchUserToken`, and
- * is not kept here after the reply.
+ * the one exception: it leaves only over the port, only to a plugin given both
+ * `pluginOrigin` and `fetchUserToken`, and is not kept here after the reply.
  */
 export function createPluginHostBridge(options: PluginHostBridgeOptions): PluginHostBridge {
   const apiOrigin = new URL(options.apiOrigin, window.location.origin).origin;
@@ -472,7 +472,8 @@ export function createPluginHostBridge(options: PluginHostBridgeOptions): Plugin
           }
           reply({ id, ok: true, status: 200, headers: {}, body: null });
         } else if (request.kind === 'userToken') {
-          if (!options.fetchUserToken) {
+          // Both, so the token can only reach a frame whose real origin was checked.
+          if (!options.fetchUserToken || !options.pluginOrigin) {
             throw forbidden('This plugin may not request the user token');
           }
           let token: string;
@@ -579,9 +580,10 @@ export function createPluginHostBridge(options: PluginHostBridgeOptions): Plugin
   }
 
   function onWindowMessage(event: MessageEvent<unknown>): void {
-    // Identity, not origin: a sandboxed frame has an opaque origin, so there is nothing
-    // meaningful to compare. The origin check below is a tripwire for allow-same-origin
-    // creeping into the sandbox.
+    // Identity first. A frame sandboxed to an opaque origin has nothing meaningful to
+    // compare, so for it the origin check below is a tripwire for allow-same-origin creeping
+    // into the sandbox. For a plugin with a real origin (`pluginOrigin`) that check is the
+    // primary control: the announcement must come from exactly that origin.
     if (event.source !== options.iframe.contentWindow) {
       return;
     }

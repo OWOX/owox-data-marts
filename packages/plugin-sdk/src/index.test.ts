@@ -491,15 +491,20 @@ describe('connect', () => {
     await check;
   });
 
-  it('rejects an answer without a token', async () => {
+  it.each([
+    ['no token', {}],
+    ['an empty token', { token: '' }],
+  ])('rejects an answer with %s', async (_label, body) => {
     const { context } = await connectWithUserToken(() => ({
       ok: true,
       status: 200,
       headers: {},
-      body: {},
+      body,
     }));
 
-    const check = expect(context.userToken?.()).rejects.toThrow();
+    const check = expect(context.userToken?.()).rejects.toThrow(
+      'The host answered the user token request without a token'
+    );
     await vi.advanceTimersByTimeAsync(0);
     await check;
   });
