@@ -51,6 +51,7 @@ import { EeModule } from '../../ee.module';
 import { MCP_TOOL_DEFINITIONS, type McpToolDefinition } from './mcp-tool.definition';
 import { MCP_TOOL_DEFINITIONS_PROVIDER, MCP_TOOL_PROVIDER_CLASSES } from './mcp-tool.providers';
 import { MCP_GUIDE_TOPICS } from '../instructions/mcp-guides';
+import { MCP_PROMPTS } from '../instructions/mcp-prompts-and-resources';
 
 const MAX_TOOL_DESCRIPTION_LENGTH = 4000;
 
@@ -142,6 +143,22 @@ describe('MCP tool providers', () => {
     }
   });
 
+  // The ChatGPT directory flags a description that compares the plugin with other apps or tells the
+  // model to prefer it. Rules about the AI app's own features belong in get_owox_guide, not here.
+  it('keeps every tool description free of comparisons with other apps', async () => {
+    const moduleRef = await compileToolsModule();
+    try {
+      const comparing = moduleRef
+        .get<McpToolDefinition[]>(MCP_TOOL_DEFINITIONS)
+        .filter(tool => /\b(own|other|another) apps?\b/i.test(tool.description))
+        .map(tool => tool.name);
+
+      expect(comparing).toEqual([]);
+    } finally {
+      await moduleRef.close();
+    }
+  });
+
   it('resolves tools through Nest and exposes Context/project setup through the MCP SDK', async () => {
     const membersFacade = {
       listProjectMembers: jest.fn().mockResolvedValue([
@@ -171,6 +188,12 @@ describe('MCP tool providers', () => {
       );
       expect([...MCP_GUIDE_TOPICS]).toEqual(expect.arrayContaining(pointedTopics));
       expect(pointedTopics).toEqual(expect.arrayContaining([...MCP_GUIDE_TOPICS]));
+      // A prompt that names a missing tool sends the model to a call that fails.
+      const promptTools = MCP_PROMPTS.flatMap(prompt =>
+        [...prompt.text.matchAll(/\b[Cc]all ([a-z]+(?:_[a-z]+)+)/g)].map(match => match[1])
+      );
+      expect(promptTools).toContain('summarize_data_catalog');
+      expect(toolNames).toEqual(expect.arrayContaining(promptTools));
       // claude.ai drops the server instructions, so each deletion and destructive change asks
       // for approval itself. The list fails when a tool is added or renamed without the rule.
       const approvalTools = tools.filter(

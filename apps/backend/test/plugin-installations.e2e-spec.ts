@@ -1,9 +1,11 @@
 import { INestApplication } from '@nestjs/common';
 import { getRepositoryToken } from '@nestjs/typeorm';
+import type { IdpProvider, Payload } from '@owox/idp-protocol';
 import { createTestApp } from '@owox/test-utils';
 import { normalizeCredentialRequirement } from 'src/data-marts/credentials/credential.types';
 import { CredentialConsumerBinding } from 'src/data-marts/credentials/entities/credential-consumer-binding.entity';
 import { requirementRevision } from 'src/data-marts/credentials/services/credential-requirement-revision';
+import * as supertest from 'supertest';
 import { AuthorizationContext } from 'src/idp/types/auth.types';
 import { PluginInstallation } from 'src/plugin-host/entities/plugin-installation.entity';
 import { PluginVersion } from 'src/plugin-host/entities/plugin-version.entity';
@@ -29,9 +31,24 @@ import { createCredential } from './fixtures/storage-credentials';
 
 const ALICE: AuthorizationContext = { projectId: 'project-1', userId: 'alice' };
 const BOB: AuthorizationContext = { projectId: 'project-1', userId: 'bob' };
+const VIEWER: Payload = {
+  userId: 'viewer-1',
+  email: 'viewer@localhost',
+  roles: ['viewer'],
+  fullName: 'Business User',
+  projectId: 'project-1',
+};
+const VIEWER_HEADER = { 'x-owox-authorization': 'viewer-token' };
+const OWOX_AI_ENV = {
+  AI_BASE_URL: 'https://ai.example.com/v1',
+  AI_API_KEY: 'test-key',
+  AI_PLUGIN_FAST_MODEL: 'fast-model',
+  AI_PLUGIN_REASONING_MODEL: 'reasoning-model',
+};
 
 describe('Plugin installations (e2e)', () => {
   let app: INestApplication;
+  let agent: supertest.Agent;
   let installService: InstallPluginService;
   let uninstallService: UninstallPluginService;
   let listService: ListInstallationsService;
@@ -47,7 +64,7 @@ describe('Plugin installations (e2e)', () => {
   let versionId: string;
 
   beforeAll(async () => {
-    app = (await createTestApp()).app;
+    ({ app, agent } = await createTestApp());
     installService = app.get(InstallPluginService);
     uninstallService = app.get(UninstallPluginService);
     listService = app.get(ListInstallationsService);
@@ -331,6 +348,96 @@ describe('Plugin installations (e2e)', () => {
       await expect(details(ALICE)).resolves.toMatchObject({
         installationState: 'not_installed',
       });
+    });
+  });
+
+  /** The rest of this suite drives services directly; only the wired app shows pipes and route order. */
+  describe('OWOX AI over HTTP', () => {
+    beforeAll(() => {
+      const idp = (app.getHttpAdapter().getInstance() as { get(name: 'idp'): IdpProvider }).get(
+        'idp'
+      );
+      jest.spyOn(idp, 'parseToken').mockResolvedValue(VIEWER);
+      jest.spyOn(idp, 'introspectToken').mockResolvedValue(VIEWER);
+    });
+
+    afterAll(() => {
+      jest.restoreAllMocks();
+    });
+
+    beforeEach(async () => {
+      await versions.update(versionId, { credentialRequirements: ['ai'] });
+      // A scheduled plugin skips the GitHub check that a first install runs.
+      await plugins.update(pluginId, { nextUpdateCheckAt: new Date(Date.now() + 86_400_000) });
+    });
+
+    afterEach(() => {
+      for (const name of Object.keys(OWOX_AI_ENV)) delete process.env[name];
+    });
+
+    const installWithOwoxAi = () =>
+      agent
+        .post(`/api/plugins/${pluginId}/installation`)
+        .set(VIEWER_HEADER)
+        .send({ expectedVersionId: versionId, credentialSelections: { ai: 'owox-ai' } });
+
+    it('answers the OWOX AI status to a viewer, not the plugin lookup', async () => {
+      Object.assign(process.env, OWOX_AI_ENV);
+
+      const res = await agent.get('/api/plugins/owox-ai').set(VIEWER_HEADER);
+
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({ models: ['fast', 'reasoning'], billed: expect.any(Boolean) });
+    });
+
+    it('lets the OWOX AI selection through request validation', async () => {
+      const res = await installWithOwoxAi();
+
+      // The use case refuses it because OWOX AI is off; the request shape was valid.
+      expect(res.status).toBe(400);
+      expect(JSON.stringify(res.body)).toContain('OWOX AI does not provide every model');
+    });
+
+    it('installs with OWOX AI when the deployment provides it', async () => {
+      Object.assign(process.env, OWOX_AI_ENV);
+
+      const res = await installWithOwoxAi();
+
+      expect(res.status).toBe(200);
+      await expect(
+        installations.findOneByOrFail({ id: res.body.installationId })
+      ).resolves.toMatchObject({ owoxAi: true, userId: VIEWER.userId });
+    });
+
+    // The Credentials tab saves through the install request and starts from the selections read.
+    it('moves an installed plugin to OWOX AI and away from it again', async () => {
+      Object.assign(process.env, OWOX_AI_ENV);
+      await versions.update(versionId, { credentialRequirements: [{ id: 'ai', optional: true }] });
+      const save = (ai: string | null) =>
+        agent
+          .post(`/api/plugins/${pluginId}/installation`)
+          .set(VIEWER_HEADER)
+          .send({ expectedVersionId: versionId, credentialSelections: { ai } });
+      const first = await save(null);
+      expect(first.status).toBe(200);
+      const { installationId } = first.body as { installationId: string };
+      const state = async () => ({
+        owoxAi: (await installations.findOneByOrFail({ id: installationId })).owoxAi,
+        read: (
+          await agent
+            .get(`/api/plugins/installations/${installationId}/credential-selections`)
+            .set(VIEWER_HEADER)
+        ).body as unknown,
+      });
+
+      expect((await save('owox-ai')).status).toBe(200);
+      await expect(state()).resolves.toEqual({
+        owoxAi: true,
+        read: { credentialSelections: { ai: 'owox-ai' } },
+      });
+
+      expect((await save(null)).status).toBe(200);
+      await expect(state()).resolves.toEqual({ owoxAi: false, read: { credentialSelections: {} } });
     });
   });
 

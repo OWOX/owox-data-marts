@@ -1,4 +1,4 @@
-import { NotFoundException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { AuthorizationContext } from '../../idp/types/auth.types';
 import { GetPluginInstallationEntryCommand } from '../dto/domain/get-plugin-installation-entry.command';
 import { PluginSuspendedError } from '../errors/plugin-host.errors';
@@ -20,7 +20,12 @@ const installation = (overrides = {}) => ({
   ...overrides,
 });
 
-function setup(row: unknown = installation(), pluginOverrides = {}) {
+function setup(
+  row: unknown = installation(),
+  pluginOverrides = {},
+  requirements: string[] = [],
+  provides = true
+) {
   const installations = {
     findById: jest.fn().mockResolvedValue(row),
   } as unknown as jest.Mocked<PluginInstallationService>;
@@ -47,7 +52,7 @@ function setup(row: unknown = installation(), pluginOverrides = {}) {
       displayName: 'Example',
       description: 'x',
       deliveryUrl: 'https://plugin.example.com',
-      credentialRequirements: [],
+      credentialRequirements: requirements,
     }),
   } as unknown as jest.Mocked<PluginVersionService>;
 
@@ -58,6 +63,7 @@ function setup(row: unknown = installation(), pluginOverrides = {}) {
   const hostConfig = {
     isBiPlugin: jest.fn().mockReturnValue(false),
   };
+  const owoxAi = { provides: jest.fn().mockReturnValue(provides) };
 
   return {
     service: new GetPluginInstallationEntryService(
@@ -65,11 +71,13 @@ function setup(row: unknown = installation(), pluginOverrides = {}) {
       pluginService,
       versionService,
       credentialBindings as never,
+      owoxAi as never,
       hostConfig as unknown as PluginHostConfigService
     ),
     hostConfig,
     installations,
     credentialBindings,
+    owoxAi,
   };
 }
 
@@ -141,5 +149,58 @@ describe('GetPluginInstallationEntryService', () => {
     await expect(
       entry(setup(installation(), { suspendedAt: new Date() }).service)
     ).rejects.toBeInstanceOf(PluginSuspendedError);
+  });
+
+  describe('with OWOX AI chosen', () => {
+    const owoxAiRow = installation({ owoxAi: true });
+
+    it('exposes the ai handle from OWOX AI without a Credential binding', async () => {
+      const state = setup(owoxAiRow, {}, ['github', 'ai']);
+      state.credentialBindings.assertConsumerReady.mockResolvedValue([
+        { key: 'github', definitionId: 'github', optional: false, models: [] },
+      ]);
+
+      await expect(entry(state.service)).resolves.toMatchObject({
+        credentialHandles: [
+          { name: 'github', kind: 'exact' },
+          { name: 'ai', kind: 'ai', models: ['fast'] },
+        ],
+      });
+      expect(state.credentialBindings.assertConsumerReady).toHaveBeenCalledWith(
+        expect.objectContaining({ requirements: ['github'] })
+      );
+    });
+
+    it('refuses a required ai requirement when OWOX AI is off', async () => {
+      const state = setup(owoxAiRow, {}, ['ai'], false);
+      await expect(entry(state.service)).rejects.toThrow(
+        new BadRequestException('Credential ai is not configured')
+      );
+    });
+
+    it('leaves out an optional ai requirement when OWOX AI is off', async () => {
+      const state = setup(owoxAiRow, {}, [{ id: 'ai', optional: true } as never], false);
+      await expect(entry(state.service)).resolves.toMatchObject({ credentialHandles: [] });
+      expect(state.owoxAi.provides).toHaveBeenCalled();
+      expect(state.credentialBindings.assertConsumerReady).toHaveBeenCalledWith(
+        expect.objectContaining({ requirements: [] })
+      );
+    });
+
+    it('uses the Credential binding when owoxAi is false', async () => {
+      const state = setup(installation({ owoxAi: false }), {}, ['ai']);
+      // Models that OWOX AI would not give ('fast'), so the handle must come from the binding.
+      state.credentialBindings.assertConsumerReady.mockResolvedValue([
+        { key: 'ai', definitionId: null, optional: false, models: ['reasoning'] },
+      ]);
+
+      await expect(entry(state.service)).resolves.toMatchObject({
+        credentialHandles: [{ name: 'ai', kind: 'ai', models: ['reasoning'] }],
+      });
+      expect(state.owoxAi.provides).not.toHaveBeenCalled();
+      expect(state.credentialBindings.assertConsumerReady).toHaveBeenCalledWith(
+        expect.objectContaining({ requirements: ['ai'] })
+      );
+    });
   });
 });

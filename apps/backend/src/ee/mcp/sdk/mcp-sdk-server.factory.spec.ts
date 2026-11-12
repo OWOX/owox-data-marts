@@ -2,17 +2,23 @@ import { z } from 'zod';
 import type { Role } from '@owox/idp-protocol';
 import type { McpAuthContext } from '../auth/mcp-auth-context';
 import { McpConfigService } from '../config/mcp.config';
+import { MCP_GUIDES, MCP_GUIDE_TOPICS } from '../instructions/mcp-guides';
 import type { McpToolDefinition } from '../tools/mcp-tool.definition';
 import { McpToolRegistry } from '../tools/mcp-tool.registry';
 
 const mockRegisterTool = jest.fn();
+const mockRegisterPrompt = jest.fn();
+const mockRegisterResource = jest.fn();
 const mockServer = {
   registerTool: mockRegisterTool,
+  registerPrompt: mockRegisterPrompt,
+  registerResource: mockRegisterResource,
 };
 const mockMcpServer = jest.fn(() => mockServer);
 
 const passthroughInstrumentation = {
   wrap: (_name: string, cb: unknown) => cb,
+  recordRead: jest.fn(),
 } as never;
 
 describe('McpSdkServerFactory', () => {
@@ -29,6 +35,8 @@ describe('McpSdkServerFactory', () => {
   beforeEach(() => {
     jest.resetModules();
     mockRegisterTool.mockClear();
+    mockRegisterPrompt.mockClear();
+    mockRegisterResource.mockClear();
     mockMcpServer.mockClear();
     jest.doMock('@modelcontextprotocol/server', () => ({
       McpServer: mockMcpServer,
@@ -343,5 +351,88 @@ describe('McpSdkServerFactory', () => {
       'Missing MCP scope: mcp:write'
     );
     expect(tool.handler).not.toHaveBeenCalled();
+  });
+
+  it('lists the prompts and resources for the claude.ai connector menu, and records each read', async () => {
+    const recordRead = jest.fn();
+    const McpSdkServerFactory = await loadFactory();
+    const factory = new McpSdkServerFactory(
+      new McpConfigService({ get: jest.fn() } as never),
+      new McpToolRegistry([]),
+      { wrap: jest.fn(), recordRead } as never
+    );
+
+    factory.create({ ...context, integration: 'claude', scopes: ['mcp:read', 'mcp:write'] });
+
+    expect(mockRegisterPrompt.mock.calls.map(([name]) => name)).toEqual([
+      'explore_data',
+      'create_report',
+      'set_up_data_mart',
+      'check_data_mart_runs',
+    ]);
+    expect(mockRegisterResource.mock.calls.map(([, uri]) => uri)).toEqual([
+      ...MCP_GUIDE_TOPICS.map(topic => `owox://guides/${topic}`),
+      'owox://docs/mcp',
+    ]);
+
+    const [, config, getPrompt] = mockRegisterPrompt.mock.calls[1];
+    expect(config.title).toBe('Create a report');
+    const ctx = { mcpReq: { _meta: { 'openai/session': 'conv-1' } } };
+    const prompt = getPrompt(ctx);
+    expect(prompt.messages).toHaveLength(1);
+    expect(prompt.messages[0].role).toBe('user');
+    expect(prompt.messages[0].content.text).toContain(MCP_GUIDES.reporting);
+    expect(recordRead).toHaveBeenCalledWith('prompts/get', 'create_report', ctx);
+
+    const [, uri, metadata, readResource] = mockRegisterResource.mock.calls[0];
+    expect(metadata).toEqual({
+      title: 'Reporting guide',
+      mimeType: 'text/markdown',
+    });
+    expect(readResource(new URL(uri), ctx)).toEqual({
+      contents: [{ uri, mimeType: 'text/markdown', text: MCP_GUIDES.reporting }],
+    });
+    expect(recordRead).toHaveBeenCalledWith('resources/read', uri, ctx);
+
+    const [, , , readDocs] = mockRegisterResource.mock.calls[MCP_GUIDE_TOPICS.length];
+    const docs = readDocs(new URL('owox://docs/mcp'), ctx);
+    expect(docs.contents[0].text).toContain(
+      'https://docs.owox.com/docs/getting-started/setup-guide/mcp/'
+    );
+  });
+
+  it.each([
+    ['a read-only token', ['admin'], ['mcp:read'], ['explore_data', 'check_data_mart_runs']],
+    [
+      'a viewer',
+      ['viewer'],
+      ['mcp:read', 'mcp:write'],
+      ['explore_data', 'create_report', 'check_data_mart_runs'],
+    ],
+  ] as const)('lists only the prompts that %s can do', async (_who, roles, scopes, names) => {
+    const McpSdkServerFactory = await loadFactory();
+    const factory = new McpSdkServerFactory(
+      new McpConfigService({ get: jest.fn() } as never),
+      new McpToolRegistry([]),
+      passthroughInstrumentation
+    );
+
+    factory.create({ ...context, roles: [...roles], scopes: [...scopes] });
+
+    expect(mockRegisterPrompt.mock.calls.map(([name]) => name)).toEqual(names);
+  });
+
+  it('gives ChatGPT no prompts or resources, because it has no menu for them', async () => {
+    const McpSdkServerFactory = await loadFactory();
+    const factory = new McpSdkServerFactory(
+      new McpConfigService({ get: jest.fn() } as never),
+      new McpToolRegistry([]),
+      passthroughInstrumentation
+    );
+
+    factory.create({ ...context, integration: 'chatgpt' });
+
+    expect(mockRegisterPrompt).not.toHaveBeenCalled();
+    expect(mockRegisterResource).not.toHaveBeenCalled();
   });
 });

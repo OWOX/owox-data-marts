@@ -22,6 +22,7 @@ import {
 import {
   CREDENTIAL_CONSUMER_BINDING_FACADE,
   type CredentialConsumerBindingFacade,
+  type ResolvedCredentialBinding,
 } from '../../data-marts/credentials/facades/credential-consumer-binding.facade';
 import { normalizeCredentialRequirement } from '../../data-marts/credentials/credential.types';
 import { CredentialFetchService } from '../../data-marts/credentials/services/credential-fetch.service';
@@ -31,7 +32,12 @@ import {
   type CredentialAiModelKey,
 } from '../../data-marts/credentials/dto/credential-ai-api.dto';
 import type { StoredCredentialRequirement } from '../../data-marts/credentials/credential.types';
+import {
+  OWOX_AI_FACADE,
+  type OwoxAiFacade,
+} from '../../data-marts/credentials/facades/owox-ai.facade';
 import { PluginHostExceptionFilter } from '../filters/plugin-host-exception.filter';
+import { PluginInstallationService } from '../services/plugin-installation.service';
 import { PluginService } from '../services/plugin.service';
 import { PluginVersionService } from '../services/plugin-version.service';
 import { requestAbortSignal } from '../utils/request-abort-signal.util';
@@ -48,7 +54,9 @@ export class PluginCredentialRuntimeController {
     private readonly fetchService: CredentialFetchService,
     private readonly aiService: CredentialAiService,
     @Inject(CREDENTIAL_CONSUMER_BINDING_FACADE)
-    private readonly bindings: CredentialConsumerBindingFacade
+    private readonly bindings: CredentialConsumerBindingFacade,
+    private readonly installations: PluginInstallationService,
+    @Inject(OWOX_AI_FACADE) private readonly owoxAi: OwoxAiFacade
   ) {}
 
   @Post(':handle/fetch')
@@ -59,7 +67,7 @@ export class PluginCredentialRuntimeController {
     @AuthContext() context: AuthorizationContext,
     @Req() request: Request
   ): Promise<CredentialFetchResponseApiDto> {
-    const binding = await this.resolveBinding(handle, context, 'fetch');
+    const binding = await this.resolveCredential(handle, context);
     const disconnected = requestAbortSignal(request);
     try {
       const response = await this.fetchService.run(binding, input, {
@@ -83,16 +91,24 @@ export class PluginCredentialRuntimeController {
     if (input.model === 'embedding') {
       throw new BadRequestException('A language model mapping is required');
     }
-    const binding = await this.resolveBinding(handle, context, input.model);
+    const binding = await this.resolveAiRoute(handle, context, input.model);
     const disconnected = requestAbortSignal(request);
     try {
+      if (binding.kind === 'owox-ai') {
+        return await this.owoxAi.generate(
+          this.consumption(context, binding),
+          input.model,
+          input.options,
+          disconnected.signal
+        );
+      }
       const result = await this.aiService.generate(
-        binding,
+        binding.binding,
         input.model,
         input.options,
         disconnected.signal
       );
-      await this.markUsed(binding, context);
+      await this.markUsed(binding.binding, context);
       return result;
     } finally {
       disconnected.dispose();
@@ -110,16 +126,23 @@ export class PluginCredentialRuntimeController {
     if (input.model !== 'embedding') {
       throw new BadRequestException('The embedding model mapping is required');
     }
-    const binding = await this.resolveBinding(handle, context, input.model);
+    const binding = await this.resolveAiRoute(handle, context, input.model);
     const disconnected = requestAbortSignal(request);
     try {
+      if (binding.kind === 'owox-ai') {
+        return await this.owoxAi.embed(
+          this.consumption(context, binding),
+          input.options,
+          disconnected.signal
+        );
+      }
       const result = await this.aiService.embed(
-        binding,
+        binding.binding,
         input.model,
         input.options,
         disconnected.signal
       );
-      await this.markUsed(binding, context);
+      await this.markUsed(binding.binding, context);
       return result;
     } finally {
       disconnected.dispose();
@@ -138,17 +161,26 @@ export class PluginCredentialRuntimeController {
     if (input.model === 'embedding') {
       throw new BadRequestException('A language model mapping is required');
     }
-    const binding = await this.resolveBinding(handle, context, input.model);
+    const binding = await this.resolveAiRoute(handle, context, input.model);
     const disconnected = requestAbortSignal(request);
     let stream: ReadableStream<unknown>;
     try {
-      stream = await this.aiService.stream(
-        binding,
-        input.model,
-        input.options,
-        disconnected.signal
-      );
-      await this.markUsed(binding, context);
+      if (binding.kind === 'owox-ai') {
+        stream = await this.owoxAi.stream(
+          this.consumption(context, binding),
+          input.model,
+          input.options,
+          disconnected.signal
+        );
+      } else {
+        stream = await this.aiService.stream(
+          binding.binding,
+          input.model,
+          input.options,
+          disconnected.signal
+        );
+        await this.markUsed(binding.binding, context);
+      }
     } catch (error) {
       disconnected.dispose();
       throw error;
@@ -178,10 +210,38 @@ export class PluginCredentialRuntimeController {
     }
   }
 
-  private async resolveBinding(
+  /** Fetch is exact-Credential access, so OWOX AI never applies to it. */
+  private async resolveCredential(
+    handle: string,
+    context: AuthorizationContext
+  ): Promise<ResolvedCredentialBinding> {
+    const { requirement } = await this.findRequirement(handle, context, 'fetch');
+    return this.bindCredential(requirement, context);
+  }
+
+  private async resolveAiRoute(
     handle: string,
     context: AuthorizationContext,
-    capability?: 'fetch' | CredentialAiModelKey
+    model: CredentialAiModelKey
+  ): Promise<CredentialRoute | OwoxAiRoute> {
+    const { requirement, version } = await this.findRequirement(handle, context, model);
+    const installation = await this.installations.findById(context.installationId!);
+    // An uninstalled plugin keeps owoxAi, but a backend action can still run until its deadline.
+    if (installation?.owoxAi && !installation.uninstalledAt) {
+      // As on the Credential path, every declared model must be available, not only this one.
+      const { key, models } = normalizeCredentialRequirement(requirement);
+      if (!this.owoxAi.provides(models)) {
+        throw new NotFoundException(`Credential ${key} is not configured`);
+      }
+      return { kind: 'owox-ai', pluginTitle: version.displayName };
+    }
+    return { kind: 'credential', binding: await this.bindCredential(requirement, context) };
+  }
+
+  private async findRequirement(
+    handle: string,
+    context: AuthorizationContext,
+    capability: 'fetch' | CredentialAiModelKey
   ) {
     if (!context.installationId || !context.pluginId) {
       throw new ForbiddenException('A plugin installation is required');
@@ -203,16 +263,30 @@ export class PluginCredentialRuntimeController {
       throw new NotFoundException(`Credential ${handle} is not declared by this plugin`);
     }
     if (capability === 'fetch') assertExactRequirement(requirement);
-    else if (capability) assertDeclaredAiModel(requirement, capability);
+    else assertDeclaredAiModel(requirement, capability);
+    return { requirement, version };
+  }
 
+  private bindCredential(
+    requirement: StoredCredentialRequirement,
+    context: AuthorizationContext
+  ): Promise<ResolvedCredentialBinding> {
     return this.bindings.resolveBinding({
       projectId: context.projectId,
       userId: context.userId,
       roles: context.roles ?? [],
       consumerType: 'plugin-installation',
-      consumerId: context.installationId,
+      consumerId: context.installationId!,
       requirement,
     });
+  }
+
+  private consumption(context: AuthorizationContext, route: OwoxAiRoute) {
+    return {
+      projectId: context.projectId,
+      pluginId: context.pluginId!,
+      pluginTitle: route.pluginTitle,
+    };
   }
 
   private markUsed(
@@ -227,6 +301,9 @@ export class PluginCredentialRuntimeController {
     });
   }
 }
+
+type OwoxAiRoute = { kind: 'owox-ai'; pluginTitle: string };
+type CredentialRoute = { kind: 'credential'; binding: ResolvedCredentialBinding };
 
 function assertExactRequirement(requirement: StoredCredentialRequirement): void {
   if (normalizeCredentialRequirement(requirement).definitionId === null) {

@@ -17,7 +17,11 @@ const installation = (overrides = {}) => ({
   ...overrides,
 });
 
-function setup(row: unknown = installation(), currentVersionId: string | null = 'v1') {
+function setup(
+  row: unknown = installation(),
+  currentVersionId: string | null = 'v1',
+  credentialRequirements: unknown[] = ['ai']
+) {
   const installations = {
     findById: jest.fn().mockResolvedValue(row),
   } as unknown as jest.Mocked<PluginInstallationService>;
@@ -25,7 +29,7 @@ function setup(row: unknown = installation(), currentVersionId: string | null = 
     findById: jest.fn().mockResolvedValue({ id: 'p1', currentVersionId }),
   } as unknown as jest.Mocked<PluginService>;
   const versionService = {
-    findById: jest.fn().mockResolvedValue({ id: 'v1', credentialRequirements: ['ai'] }),
+    findById: jest.fn().mockResolvedValue({ id: 'v1', credentialRequirements }),
   } as unknown as jest.Mocked<PluginVersionService>;
   const credentialBindings = {
     listSelections: jest.fn().mockResolvedValue({ ai: 'credential-1' }),
@@ -68,6 +72,27 @@ describe('GetPluginInstallationCredentialSelectionsService', () => {
     expect(state.credentialBindings.listSelections).toHaveBeenCalledWith(
       expect.objectContaining({ requirements: [] })
     );
+  });
+
+  it('reports OWOX AI for the logical ai requirement of an installation that uses it', async () => {
+    const state = setup(installation({ owoxAi: true }), 'v1', [
+      'github',
+      { id: 'ai', optional: true, models: ['fast'] },
+    ]);
+    state.credentialBindings.listSelections.mockResolvedValue({ github: 'credential-2' });
+
+    await expect(read(state.service)).resolves.toEqual({
+      credentialSelections: { github: 'credential-2', ai: 'owox-ai' },
+    });
+  });
+
+  it('reports no OWOX AI when the current version declares no logical ai requirement', async () => {
+    const state = setup(installation({ owoxAi: true }), 'v1', ['github']);
+    state.credentialBindings.listSelections.mockResolvedValue({ github: 'credential-2' });
+
+    await expect(read(state.service)).resolves.toEqual({
+      credentialSelections: { github: 'credential-2' },
+    });
   });
 
   it.each([

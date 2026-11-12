@@ -8,6 +8,17 @@ const credentialState = vi.hoisted(() => ({
   definitions: [] as Record<string, unknown>[],
   credentialsLoading: false,
   credentialsFailed: false,
+  owoxAi: undefined as { models: string[]; billed: boolean } | undefined,
+  owoxAiLoading: false,
+  owoxAiFailed: false,
+}));
+
+vi.mock('../hooks/useOwoxAi', () => ({
+  useOwoxAi: () => ({
+    owoxAi: credentialState.owoxAi,
+    isLoading: credentialState.owoxAiLoading,
+    isError: credentialState.owoxAiFailed,
+  }),
 }));
 
 vi.mock('../../../shared/components/Combobox/combobox', () => ({
@@ -18,6 +29,7 @@ vi.mock('../../../shared/components/Combobox/combobox', () => ({
     onValueChange,
     onOpenChange,
     ariaLabel,
+    ariaDescribedBy,
     placeholder,
   }: {
     options: { value: string; label: string }[];
@@ -26,10 +38,12 @@ vi.mock('../../../shared/components/Combobox/combobox', () => ({
     onValueChange: (value: string) => void;
     onOpenChange?: (open: boolean) => void;
     ariaLabel?: string;
+    ariaDescribedBy?: string;
     placeholder?: string;
   }) => (
     <select
       aria-label={ariaLabel}
+      aria-describedby={ariaDescribedBy}
       value={value}
       disabled={disabled}
       onFocus={() => onOpenChange?.(true)}
@@ -121,6 +135,9 @@ describe('PluginCredentialsCard', () => {
     ];
     credentialState.credentialsLoading = false;
     credentialState.credentialsFailed = false;
+    credentialState.owoxAi = undefined;
+    credentialState.owoxAiLoading = false;
+    credentialState.owoxAiFailed = false;
   });
 
   it('starts from the current grants, with nothing to save or discard yet', () => {
@@ -299,6 +316,155 @@ describe('PluginCredentialsCard', () => {
     // The member's choices survive for the second save.
     expect(selects()[0]).toHaveValue('credential-2');
   });
+
+  describe('OWOX AI', () => {
+    const aiPlugin = (optional = false) =>
+      installedPlugin({ credentialRequirements: [{ id: 'ai', optional }] });
+    const aiSelect = () => screen.getByRole('combobox', { name: 'Select AI Credential' });
+    const save = async () => {
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+      });
+    };
+
+    beforeEach(() => {
+      credentialState.credentials = [
+        credential({ id: 'credential-ai', title: 'Team OpenAI', ai: true }),
+      ];
+    });
+
+    it('starts from an OWOX AI grant, with its explanation and credits when billed', () => {
+      credentialState.owoxAi = { models: ['fast'], billed: true };
+      renderCard({ plugin: aiPlugin(), granted: { ai: 'owox-ai' } });
+
+      expect(within(aiSelect()).getAllByRole('option')[1]).toHaveTextContent('OWOX AI');
+      expect(aiSelect()).toHaveValue('owox-ai');
+      const note = screen.getByText(
+        "This deployment provides the AI models. You do not need your own key from an AI provider. Calls use this project's credits."
+      );
+      expect(aiSelect()).toHaveAttribute('aria-describedby', note.id);
+      expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
+    });
+
+    it('does not preselect OWOX AI for a requirement granted nothing', () => {
+      credentialState.owoxAi = { models: ['fast', 'reasoning'], billed: false };
+      renderCard({ plugin: aiPlugin(), granted: {} });
+
+      expect(screen.getByRole('option', { name: 'OWOX AI' })).toBeInTheDocument();
+      expect(aiSelect()).toHaveValue('');
+      expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
+    });
+
+    it('saves OWOX AI once the member picks it', async () => {
+      credentialState.owoxAi = { models: ['fast'], billed: false };
+      const { props } = renderCard({ plugin: aiPlugin(), granted: { ai: 'credential-ai' } });
+
+      fireEvent.change(aiSelect(), { target: { value: 'owox-ai' } });
+      await save();
+
+      expect(props.onSave).toHaveBeenCalledWith({ ai: 'owox-ai' });
+    });
+
+    it.each([
+      ['a Credential', 'credential-ai', 'credential-ai'],
+      ['Do not grant', '__none__', null],
+    ])('moves an OWOX AI grant to %s', async (_case, value, saved) => {
+      credentialState.owoxAi = { models: ['fast'], billed: false };
+      const { props } = renderCard({ plugin: aiPlugin(true), granted: { ai: 'owox-ai' } });
+
+      fireEvent.change(aiSelect(), { target: { value } });
+      await save();
+
+      expect(props.onSave).toHaveBeenCalledWith({ ai: saved });
+    });
+
+    it('lets a member pick OWOX AI when no Credential is eligible and none can be added', () => {
+      credentialState.owoxAi = { models: ['fast'], billed: false };
+      credentialState.credentials = [];
+      credentialState.definitions = [];
+      renderCard({ plugin: aiPlugin(), granted: {} });
+
+      expect(aiSelect()).toBeEnabled();
+      fireEvent.change(aiSelect(), { target: { value: 'owox-ai' } });
+      expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled();
+    });
+
+    it('explains the disabled Save when OWOX AI is the only option and nothing is chosen', () => {
+      credentialState.owoxAi = { models: ['fast'], billed: false };
+      credentialState.credentials = [];
+      credentialState.definitions = [];
+      renderCard({ plugin: aiPlugin(), granted: {} });
+
+      fireEvent.focus(aiSelect());
+      fireEvent.blur(aiSelect());
+      expect(screen.getByRole('alert')).toHaveTextContent('Select a Credential to continue.');
+      expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
+    });
+
+    it('counts an OWOX AI grant the status no longer offers as no decision', async () => {
+      credentialState.owoxAi = { models: [], billed: false };
+      const { props } = renderCard({ plugin: aiPlugin(), granted: { ai: 'owox-ai' } });
+
+      expect(screen.queryByRole('option', { name: 'OWOX AI' })).not.toBeInTheDocument();
+      expect(aiSelect()).toHaveValue('');
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        'OWOX AI can no longer be used. Choose a Credential.'
+      );
+      expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
+
+      fireEvent.change(aiSelect(), { target: { value: 'credential-ai' } });
+      await save();
+      expect(props.onSave).toHaveBeenCalledWith({ ai: 'credential-ai' });
+    });
+
+    it('keeps an OWOX AI grant when the OWOX AI status cannot be read', () => {
+      credentialState.owoxAi = undefined;
+      credentialState.owoxAiFailed = true;
+      renderCard({ plugin: aiPlugin(), granted: { ai: 'owox-ai' } });
+
+      expect(aiSelect()).toHaveValue('owox-ai');
+      expect(screen.queryByRole('alert')).toBeNull();
+    });
+
+    it('says nothing about an OWOX AI grant while the OWOX AI status loads', () => {
+      credentialState.owoxAi = undefined;
+      credentialState.owoxAiLoading = true;
+      renderCard({ plugin: aiPlugin(true), granted: { ai: 'owox-ai' } });
+
+      expect(screen.queryByRole('alert')).toBeNull();
+    });
+
+    it('disables Save while the OWOX AI status loads', () => {
+      credentialState.owoxAi = { models: ['fast'], billed: false };
+      credentialState.credentials = [
+        credential(),
+        credential({ id: 'credential-2', title: 'Backup GitHub' }),
+      ];
+      const plugin = installedPlugin({
+        credentialRequirements: ['github', { id: 'ai', optional: true }],
+      });
+      const { rerender, props } = renderCard({ plugin, granted: { github: 'credential-1' } });
+      fireEvent.change(selects()[0], { target: { value: 'credential-2' } });
+      expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled();
+
+      credentialState.owoxAiLoading = true;
+      rerender(<PluginCredentialsCard {...props} />);
+
+      expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
+    });
+
+    it('does not wait for the OWOX AI status for a plugin with no ai requirement', () => {
+      credentialState.owoxAiLoading = true;
+      credentialState.credentials = [
+        credential(),
+        credential({ id: 'credential-2', title: 'Backup GitHub' }),
+      ];
+      renderCard();
+
+      fireEvent.change(selects()[0], { target: { value: 'credential-2' } });
+      expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled();
+    });
+  });
 });
 
 function definition(
@@ -312,16 +478,19 @@ function definition(
   };
 }
 
-function credential(
-  overrides: Partial<{ id: string; title: string; enabled: boolean; canUse: boolean }> = {}
-) {
+function credential({
+  ai = false,
+  ...overrides
+}: Partial<{ id: string; title: string; enabled: boolean; canUse: boolean; ai: boolean }> = {}) {
   return {
     id: 'credential-1',
     title: 'Deployment GitHub',
     enabled: true,
     definitionConsentRequired: false,
-    definition: definition(),
-    aiModelMappings: null,
+    definition: ai
+      ? definition({ id: 'openai', displayName: 'OpenAI', supportsAi: true })
+      : definition(),
+    aiModelMappings: ai ? { fast: 'gpt-fast' } : null,
     ...overrides,
   };
 }

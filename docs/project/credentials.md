@@ -32,6 +32,13 @@ explicitly selects a compatible project Credential for every required capability
 not to grant an optional one. The plugin receives a handle that can make approved requests; the
 raw secret never enters its frame.
 
+A plugin that needs AI can use OWOX AI instead of a Credential. OWOX AI gives the plugin AI models
+that the deployment provides, so the member does not need a key from an AI provider. The install dialog
+selects OWOX AI when the deployment provides every model that the plugin needs. The member can
+change this choice later on the plugin's **Credentials** tab. On OWOX Data Marts Cloud, each
+successful OWOX AI call is an AI Process Run and uses the project's credits; see
+[Consumption units](../getting-started/billing/consumption-units.md).
+
 The **Used by** section shows active consumer bindings and when each binding last succeeded. The
 Credential list also shows aggregate last use. A Credential with active bindings cannot be deleted;
 disable it to stop use immediately, or first switch its Storages and Destinations to another

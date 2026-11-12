@@ -11,6 +11,10 @@ import { isReportRun, ProjectBillingService, RunKind } from './project-billing.s
 export class RestrictedProjectBillingService extends ProjectBillingService {
   private readonly logger = new Logger(RestrictedProjectBillingService.name);
 
+  public consumesBalance(): boolean {
+    return false;
+  }
+
   public async verifyCanPerformOperations(projectId: string, runKind: RunKind): Promise<void> {
     if (isReportRun(runKind)) {
       throw new ProjectOperationBlockedException([ProjectBlockedReason.LICENSE_REQUIRED]);
@@ -26,6 +30,10 @@ export class RestrictedProjectBillingService extends ProjectBillingService {
   }
 
   public async registerAiProcessRunConsumption(): Promise<void> {
+    this.skip(RunKind.AI_PROCESS_RUN);
+  }
+
+  public async registerPluginAiProcessRunConsumption(): Promise<void> {
     this.skip(RunKind.AI_PROCESS_RUN);
   }
 

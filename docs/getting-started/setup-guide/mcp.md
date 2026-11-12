@@ -99,6 +99,23 @@ Project selection is fixed when you authorize. Switching projects means reconnec
 
 To switch projects, disconnect, then reconnect and sign in again. If you use the shared server, choose the project during authorization. If you use a project-specific server, use the URL for the target project.
 
+## Prompts and guides in the connector menu
+
+The OWOX MCP server publishes task prompts and workflow guides. A prompt starts a common task and gives the assistant the guide for it. So the assistant follows the OWOX rules without a separate `get_owox_guide` call.
+
+- **Claude Desktop and Claude web (claude.ai):** in the message box, open the connector menu and select **Add from** and the name of your OWOX connector, such as **Add from OWOX Data Marts**. Then select a prompt or a guide, and type your request.
+- **Claude Code:** a prompt is a slash command, such as `/mcp__<server name>__create_report`. Attach a guide with `@`.
+- **ChatGPT:** ChatGPT has no menu for prompts or resources, so OWOX does not publish them to ChatGPT.
+
+| Prompt                   | What it does                                                                       |
+| ------------------------ | ---------------------------------------------------------------------------------- |
+| **Explore my data**      | Summarizes the Data Marts in the project and suggests questions about them.        |
+| **Create a report**      | Starts a report and attaches the `reporting` guide.                                |
+| **Set up a Data Mart**   | Starts a Data Mart setup and attaches the `data_mart_setup` guide.                 |
+| **Check Data Mart runs** | Finds failed or stuck runs of a Data Mart and attaches the `data_mart_runs` guide. |
+
+The resources are the six guides that [`get_owox_guide`](#get_owox_guide) returns, at `owox://guides/<topic>`, and a link to this page at `owox://docs/mcp`. Prompts and resources are static text and do not read project data. They need only the `mcp:read` scope, which every connection has. The connector menu does not show a prompt for a task that your connection cannot do: **Create a report** needs `mcp:write`, and **Set up a Data Mart** needs `mcp:write` and the editor or admin role.
+
 ## Available tools
 
 Once connected, the MCP server exposes the following tools across two scopes:

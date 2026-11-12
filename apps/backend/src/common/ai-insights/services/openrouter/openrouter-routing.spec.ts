@@ -1,7 +1,9 @@
+import type { ConfigService } from '@nestjs/config';
 import {
   buildOpenRouterProviderConfig,
   buildOpenRouterProviderSpecificFields,
   parseOpenRouterCommaSeparatedConfig,
+  readOpenRouterRoutingOptions,
 } from './openrouter-routing';
 
 describe('openrouter routing helpers', () => {
@@ -61,5 +63,26 @@ describe('openrouter routing helpers', () => {
     });
 
     expect(parsed ? Array.from(parsed) : null).toEqual(['google-vertex', 'azure']);
+  });
+});
+
+describe('readOpenRouterRoutingOptions', () => {
+  const read = (env: Record<string, string>) =>
+    readOpenRouterRoutingOptions({
+      get: (key: string) => env[key],
+    } as unknown as ConfigService);
+
+  it.each([
+    [{}],
+    [{ AI_ZDR: '', AI_DATA_COLLECTION: '' }],
+    [{ AI_ZDR: '  ', AI_DATA_COLLECTION: '  ' }],
+  ])('uses the defaults for %p', env => {
+    expect(read(env)).toEqual({ allowedProviders: null, dataCollection: 'deny', zdr: true });
+  });
+
+  it('reads set values', () => {
+    expect(
+      read({ AI_ZDR: ' False ', AI_DATA_COLLECTION: 'allow', AI_ALLOWED_PROVIDERS: 'A, b' })
+    ).toEqual({ allowedProviders: new Set(['a', 'b']), dataCollection: 'allow', zdr: false });
   });
 });

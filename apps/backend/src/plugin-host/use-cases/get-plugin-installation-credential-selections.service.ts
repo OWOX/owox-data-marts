@@ -3,15 +3,18 @@ import {
   CREDENTIAL_CONSUMER_BINDING_FACADE,
   type CredentialConsumerBindingFacade,
 } from '../../data-marts/credentials/facades/credential-consumer-binding.facade';
+import { OWOX_AI_SELECTION } from '../../data-marts/credentials/facades/owox-ai.facade';
 import { GetPluginInstallationCredentialSelectionsCommand } from '../dto/domain/get-plugin-installation-credential-selections.command';
 import { PluginCredentialSelectionsDto } from '../dto/domain/plugin-installation.dto';
 import { PluginInstallationService } from '../services/plugin-installation.service';
 import { PluginVersionService } from '../services/plugin-version.service';
 import { PluginService } from '../services/plugin.service';
+import { logicalAiRequirement } from '../utils/owox-ai-requirement.util';
 
 /**
  * Which Credential the caller's live installation is granted for each requirement of the
- * current version, so changing the grants starts from them.
+ * current version, so changing the grants starts from them. The logical ai requirement of an
+ * installation that uses OWOX AI reports `owox-ai` instead.
  *
  * Only the member's own installation, and never for a plugin runtime token (the
  * controller rejects those): a plugin has no business learning which Credentials the
@@ -47,13 +50,20 @@ export class GetPluginInstallationCredentialSelectionsService {
       ? await this.versionService.findById(plugin.currentVersionId)
       : null;
 
+    const requirements = version?.credentialRequirements ?? [];
+    const credentialSelections = await this.credentialBindings.listSelections({
+      projectId: command.context.projectId,
+      consumerType: 'plugin-installation',
+      consumerId: installation.id,
+      requirements,
+    });
+    // OWOX AI replaces the binding of the ai requirement, as at runtime.
+    const ai = installation.owoxAi ? logicalAiRequirement(requirements) : null;
+
     return {
-      credentialSelections: await this.credentialBindings.listSelections({
-        projectId: command.context.projectId,
-        consumerType: 'plugin-installation',
-        consumerId: installation.id,
-        requirements: version?.credentialRequirements ?? [],
-      }),
+      credentialSelections: ai
+        ? { ...credentialSelections, [ai.normalized.key]: OWOX_AI_SELECTION }
+        : credentialSelections,
     };
   }
 }

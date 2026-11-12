@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { fetchWithBackoff, ImpersonatedIdTokenFetcher } from '@owox/internal-helpers';
-import { randomBytes } from 'crypto';
+import { randomBytes, randomUUID } from 'crypto';
 import { ProjectOperationBlockedException } from '../../../common/exceptions/project-operation-blocked.exception';
 import { PubSubService } from '../../../common/pubsub/pubsub.service';
 import { ConsumptionContext } from '../../ai-insights/data-mart-insights.types';
@@ -16,6 +16,7 @@ import { DataMart } from '../../entities/data-mart.entity';
 import { Report } from '../../entities/report.entity';
 import { ConnectorService } from '../connector/connector.service';
 import {
+  PluginAiConsumptionContext,
   ProjectBillingService,
   REPORT_RUN_KINDS,
   RunKind,
@@ -92,6 +93,10 @@ export class InternalProjectBillingService extends ProjectBillingService {
       this.pubSubService = new PubSubService({ gcpProjectId: consumptionPubSubProject });
       this.logger.log(`Consumption PubSub project ID: ${consumptionPubSubProject}`);
     }
+  }
+
+  public consumesBalance(): boolean {
+    return true;
   }
 
   public isBalanceConfigured(): boolean {
@@ -201,6 +206,21 @@ export class InternalProjectBillingService extends ProjectBillingService {
     });
   }
 
+  public async registerPluginAiProcessRunConsumption(
+    tokensProcessed: number,
+    context: PluginAiConsumptionContext
+  ): Promise<void> {
+    await this.publish(RunKind.AI_PROCESS_RUN, {
+      projectId: context.projectId,
+      contextType: 'PLUGIN',
+      contextId: context.pluginId,
+      contextTitle: context.pluginTitle,
+      processRunId: randomUUID(),
+      runTime: new Date().toISOString(),
+      tokensProcessed,
+    });
+  }
+
   public async registerSheetsReportRunConsumption(
     report: Report,
     sheetsDetails: SheetsReportDetails
@@ -273,7 +293,8 @@ export class InternalProjectBillingService extends ProjectBillingService {
         if (throwOnFailure) {
           throw new Error(message);
         }
-        this.logger.debug(`${message}, skipping...`);
+        // This service is active only for a project with a real balance, so a skip loses a charge.
+        this.logger.warn(`${message}, skipping...`);
         return;
       }
 

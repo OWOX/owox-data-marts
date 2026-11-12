@@ -16,6 +16,12 @@ import {
   CREDENTIAL_CONSUMER_BINDING_FACADE,
   type CredentialConsumerBindingFacade,
 } from '../../data-marts/credentials/facades/credential-consumer-binding.facade';
+import {
+  OWOX_AI_FACADE,
+  OWOX_AI_SELECTION,
+  type OwoxAiFacade,
+} from '../../data-marts/credentials/facades/owox-ai.facade';
+import { logicalAiRequirement, withoutRequirement } from '../utils/owox-ai-requirement.util';
 
 /**
  * Installs a plugin for one member in one project.
@@ -34,7 +40,8 @@ export class InstallPluginService {
     private readonly schedule: PluginUpdateScheduleService,
     private readonly check: RunPluginUpdateCheckService,
     @Inject(CREDENTIAL_CONSUMER_BINDING_FACADE)
-    private readonly credentialBindings: CredentialConsumerBindingFacade
+    private readonly credentialBindings: CredentialConsumerBindingFacade,
+    @Inject(OWOX_AI_FACADE) private readonly owoxAi: OwoxAiFacade
   ) {}
 
   /**
@@ -110,15 +117,36 @@ export class InstallPluginService {
     if (!version) {
       throw new BadRequestException('This plugin has no version available to install yet');
     }
+
+    const requirements = version.credentialRequirements ?? [];
+    const selections = command.credentialSelections;
+    const ai = logicalAiRequirement(requirements);
+    // OWOX AI can only stand in for the logical requirement, never for an exact one.
+    const wrongKey = Object.keys(selections).find(
+      key => selections[key] === OWOX_AI_SELECTION && key !== ai?.normalized.key
+    );
+    if (wrongKey) {
+      throw new BadRequestException(`OWOX AI cannot be selected for "${wrongKey}"`);
+    }
+    const useOwoxAi = ai !== null && selections[ai.normalized.key] === OWOX_AI_SELECTION;
+    if (useOwoxAi && !this.owoxAi.provides(ai.normalized.models)) {
+      throw new BadRequestException('OWOX AI does not provide every model this plugin needs');
+    }
+
     await this.credentialBindings.replaceBindings({
       projectId: command.context.projectId,
       userId: command.context.userId,
       roles: command.context.roles ?? [],
       consumerType: 'plugin-installation',
       consumerId: installation.id,
-      requirements: version.credentialRequirements ?? [],
-      selections: command.credentialSelections,
+      requirements: useOwoxAi ? withoutRequirement(requirements, ai.normalized.key) : requirements,
+      selections: useOwoxAi
+        ? Object.fromEntries(
+            Object.entries(selections).filter(([key]) => key !== ai.normalized.key)
+          )
+        : selections,
     });
+    await this.installations.setOwoxAi(installation.id, useOwoxAi);
 
     await this.audit.record({
       pluginId: plugin.id,

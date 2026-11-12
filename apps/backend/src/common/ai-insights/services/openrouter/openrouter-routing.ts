@@ -1,3 +1,5 @@
+import type { ConfigService } from '@nestjs/config';
+
 export interface OpenRouterRoutingOptions {
   allowedProviders?: Iterable<string> | null;
   dataCollection: string;
@@ -61,4 +63,21 @@ export function buildOpenRouterProviderSpecificFields(
   }
 
   return fields;
+}
+
+/**
+ * Reads the routing options from the AI environment.
+ * A blank value means the default, so a typo cannot turn the privacy options off.
+ */
+export function readOpenRouterRoutingOptions(
+  config: ConfigService
+): OpenRouterRoutingOptions & { allowedProviders: Set<string> | null } {
+  const read = (name: string, fallback: string) => config.get<string>(name)?.trim() || fallback;
+  return {
+    allowedProviders: parseOpenRouterCommaSeparatedConfig(read('AI_ALLOWED_PROVIDERS', ''), {
+      toLowerCase: true,
+    }),
+    dataCollection: read('AI_DATA_COLLECTION', 'deny'),
+    zdr: read('AI_ZDR', 'true').toLowerCase() === 'true',
+  };
 }

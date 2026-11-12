@@ -95,6 +95,12 @@ export interface PluginRuntimeToken {
   expiresIn: number;
 }
 
+export interface OwoxAiStatus {
+  models: ('fast' | 'reasoning' | 'embedding')[];
+  /** True when calls use the project's credits. */
+  billed: boolean;
+}
+
 export interface PluginInstallation {
   installationId: string;
   pluginId: string;

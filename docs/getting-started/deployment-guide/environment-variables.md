@@ -327,6 +327,32 @@ installed on a given public repository does not block it.
 See the [plugin authoring guide](../../plugins/authoring-guide.md#deploy-with-github-pages) for
 what this means on the plugin side.
 
+## OWOX AI
+
+OWOX AI lets a member choose the AI of your deployment for a plugin that needs the logical `ai`
+Credential, instead of an own AI Credential. OWOX AI is on only when `AI_BASE_URL`, `AI_API_KEY`,
+`AI_PLUGIN_FAST_MODEL` and `AI_PLUGIN_REASONING_MODEL` are all set. `AI_MODEL` is never a
+fallback for plugins. The `embedding` model is available only when `AI_PLUGIN_EMBEDDING_MODEL` is
+set.
+
+| Variable                    | Purpose                                                                                                                                                       |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `AI_PROVIDER`               | `openai` or `openrouter`. Any other value means `openai`. Default `openai`.                                                                                   |
+| `AI_BASE_URL`               | Base URL of the AI provider API.                                                                                                                              |
+| `AI_API_KEY`                | API key of the AI provider.                                                                                                                                   |
+| `AI_MODEL`                  | Model of AI Insights. Plugins do not use it.                                                                                                                  |
+| `AI_PLUGIN_FAST_MODEL`      | Model ID that serves the `fast` model of plugins.                                                                                                             |
+| `AI_PLUGIN_REASONING_MODEL` | Model ID that serves the `reasoning` model of plugins.                                                                                                        |
+| `AI_PLUGIN_EMBEDDING_MODEL` | Model ID that serves the `embedding` model of plugins. Optional.                                                                                              |
+| `AI_ALLOWED_PROVIDERS`      | OpenRouter only. Comma-separated providers that may serve a request of AI Insights or OWOX AI. Empty by default, which sets no restriction.                   |
+| `AI_DATA_COLLECTION`        | OpenRouter only. Data collection policy sent with each request of AI Insights or OWOX AI. Default `deny`. An empty value means the default.                   |
+| `AI_ZDR`                    | OpenRouter only. When `true`, only zero data retention providers serve a request of AI Insights or OWOX AI. Default `true`. An empty value means the default. |
+
+Plugin code cannot change the routing of a request. For a plugin request, a provider can ignore a
+call option that it does not support, for example `temperature`. In OWOX Cloud, each successful
+OWOX AI call is an AI Process Run; see [Consumption units](../billing/consumption-units.md). A
+self-managed deployment does not bill OWOX AI calls.
+
 ## Connector execution limits
 
 These variables bound the cost of running and testing custom (no-code) connectors. All three

@@ -84,7 +84,9 @@ function setup(credentialRequirements: string[], disabled: string[] = []) {
         credentialRequirements,
       }),
     } as never,
-    facade
+    facade,
+    { findById: jest.fn().mockResolvedValue({ owoxAi: false }) } as never,
+    { provides: jest.fn().mockReturnValue(false) } as never
   );
   return { service, bindings };
 }

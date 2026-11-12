@@ -2,12 +2,16 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsOptional, IsString } from 'class-validator';
 import { z } from 'zod';
 import { IsZodValid } from '../../../common/validators/is-zod-valid.validator';
+import { OWOX_AI_SELECTION } from '../../../data-marts/credentials/facades/owox-ai.facade';
 import { PluginUpdateCheckOutcome } from '../../use-cases/run-plugin-update-check.service';
 import { PluginGalleryEntryApiDto } from './plugin-gallery-api.dto';
 import { PluginPublisherDiagnosticsApiDto } from './publication-api.dto';
 
 const CredentialSelectionsSchema = z
-  .record(z.string().trim().min(1).max(255), z.string().uuid().nullable())
+  .record(
+    z.string().trim().min(1).max(255),
+    z.union([z.string().uuid(), z.literal(OWOX_AI_SELECTION)]).nullable()
+  )
   .refine(value => Object.keys(value).length <= 50, 'too many Credential selections');
 
 export class InstallPluginApiDto {
@@ -24,7 +28,7 @@ export class InstallPluginApiDto {
   @ApiPropertyOptional({
     type: 'object',
     additionalProperties: { type: 'string', nullable: true },
-    description: 'Credential requirement handle to selected project Credential id.',
+    description: `Credential requirement handle to selected project Credential id. The logical \`ai\` requirement also accepts \`${OWOX_AI_SELECTION}\`, which selects OWOX AI in place of a Credential.`,
   })
   @IsOptional()
   @IsZodValid(CredentialSelectionsSchema)
@@ -56,7 +60,7 @@ export class PluginCredentialSelectionsApiDto {
     type: 'object',
     additionalProperties: { type: 'string' },
     description:
-      'Credential requirement handle to the project Credential id granted now. An ungranted requirement is absent.',
+      'Credential requirement handle to the project Credential id granted now, or `owox-ai` for the logical ai requirement when it uses OWOX AI. An ungranted requirement is absent.',
   })
   credentialSelections: Record<string, string>;
 }
