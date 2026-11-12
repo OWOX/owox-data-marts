@@ -1,5 +1,5 @@
 import { MCP_SERVER_GUIDE_URL } from '../tools/mcp-docs-urls';
-import { MCP_GUIDES, MCP_GUIDE_TOPICS } from './mcp-guides';
+import { MCP_GUIDES, MCP_GUIDE_TOPICS, type McpGuideTopic } from './mcp-guides';
 
 // claude.ai lists these under "Add from OWOX Data Marts". Claude Code shows prompts as slash
 // commands and resources as @ mentions. A prompt carries its guide, so the model gets the rules
@@ -48,18 +48,28 @@ export const MCP_PROMPTS: McpPrompt[] = [
   },
 ];
 
+// The claude.ai menu cuts a title after about 34 characters.
+const GUIDE_TITLES: Record<McpGuideTopic, string> = {
+  reporting: 'Reporting guide',
+  data_mart_setup: 'Data Mart setup guide',
+  data_mart_runs: 'Data Mart runs guide',
+  credentials: 'Credentials guide',
+  storages_destinations: 'Storages and Destinations guide',
+  custom_connectors: 'Custom connectors guide',
+};
+
 export const MCP_RESOURCES: McpTextResource[] = [
   ...MCP_GUIDE_TOPICS.map(topic => ({
     name: `guide_${topic}`,
     uri: `owox://guides/${topic}`,
-    title: MCP_GUIDES[topic].split('\n', 1)[0],
+    title: GUIDE_TITLES[topic],
     mimeType: 'text/markdown',
     text: MCP_GUIDES[topic],
   })),
   {
     name: 'mcp_documentation',
     uri: 'owox://docs/mcp',
-    title: 'OWOX Data Marts MCP documentation',
+    title: 'MCP documentation',
     mimeType: 'text/plain',
     text: `The OWOX Data Marts MCP documentation is at ${MCP_SERVER_GUIDE_URL}. It tells how to connect a client, which tools need which scope, what costs credits, and how to fix common errors.`,
   },

@@ -386,7 +386,7 @@ describe('McpSdkServerFactory', () => {
 
     const [, uri, metadata, readResource] = mockRegisterResource.mock.calls[0];
     expect(metadata).toEqual({
-      title: 'OWOX guide: Reporting: exports and delivery',
+      title: 'Reporting guide',
       mimeType: 'text/markdown',
     });
     expect(readResource(new URL(uri), ctx)).toEqual({
