@@ -1,14 +1,14 @@
-import { refreshAccessToken } from '../../../app/api/apiClient';
+import { refreshMemberAccessToken } from '../../../app/api/apiClient';
 import { getTokenProvider } from '../../../app/api/token-provider';
 
 /** A token closer than this to expiry is refreshed before it is handed out. */
 const REFRESH_MARGIN_MS = 60_000;
 /**
  * A plugin whose API keeps answering 401 would otherwise turn every retry into a session
- * refresh. A second forced refresh this soon cannot yield a different token anyway.
+ * refresh. Right after a refresh, another one cannot yield a different token anyway.
  */
 const FORCED_REFRESH_INTERVAL_MS = 10_000;
-let lastForcedRefreshAt = -Infinity;
+let lastRefreshAt = -Infinity;
 
 const expiresAtMs = (token: string | null): number | null => {
   try {
@@ -39,10 +39,15 @@ export const fetchUserToken = async (fresh: boolean): Promise<string> => {
 
   const current = provider.getAccessToken();
   const exp = expiresAtMs(current);
-  const usable = current && exp !== null && exp - Date.now() > REFRESH_MARGIN_MS;
-  const forced = fresh && Date.now() - lastForcedRefreshAt >= FORCED_REFRESH_INTERVAL_MS;
-  if (usable && !forced) return current;
+  // A token whose expiry cannot be read (not every identity provider issues a JWT) is
+  // handed out as is; the plugin asks for a fresh one when its API rejects it.
+  const usable = current && (exp === null || exp - Date.now() > REFRESH_MARGIN_MS);
+  const justRefreshed = Date.now() - lastRefreshAt < FORCED_REFRESH_INTERVAL_MS;
+  if (usable && (!fresh || justRefreshed)) return current;
 
-  if (forced) lastForcedRefreshAt = Date.now();
-  return refreshAccessToken();
+  // Stamped only once the refresh succeeds: requests arriving while it is in flight join
+  // it through the shared refresh instead of getting the token being replaced.
+  const token = await refreshMemberAccessToken();
+  lastRefreshAt = Date.now();
+  return token;
 };

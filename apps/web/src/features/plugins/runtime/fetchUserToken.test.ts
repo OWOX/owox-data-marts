@@ -1,12 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { refreshAccessToken } from '../../../app/api/apiClient';
+import { refreshMemberAccessToken } from '../../../app/api/apiClient';
 import { clearTokenProvider, setTokenProvider } from '../../../app/api/token-provider';
 import { fetchUserToken } from './fetchUserToken';
 
 const jwt = (exp: number) =>
   `${btoa('{"alg":"none"}')}.${btoa(JSON.stringify({ exp })).replace(/=+$/, '')}.`;
-const NOW = Date.UTC(2026, 0, 1);
-const inSeconds = (s: number) => Math.floor(NOW / 1000) + s;
+// Each test starts an hour after the previous one: the module remembers when it last
+// refreshed, and a test must not inherit that from its neighbour.
+let now = Date.UTC(2026, 0, 1);
+const inSeconds = (s: number) => Math.floor(now / 1000) + s;
 
 describe('fetchUserToken', () => {
   const refreshToken = vi.fn<() => Promise<string>>();
@@ -16,7 +18,8 @@ describe('fetchUserToken', () => {
 
   beforeEach(() => {
     vi.useFakeTimers();
-    vi.setSystemTime(NOW);
+    now += 3_600_000;
+    vi.setSystemTime(now);
     refreshToken.mockReset().mockResolvedValue('refreshed');
   });
   afterEach(() => {
@@ -37,12 +40,41 @@ describe('fetchUserToken', () => {
   });
 
   it.each([
-    ['an expired token', jwt(inSeconds(-10))],
-    ['an unreadable token', 'garbage'],
-    ['no token', null],
+    ['an expired token', () => jwt(inSeconds(-10))],
+    ['no token', () => null],
   ])('refreshes when there is %s', async (_label, token) => {
-    useToken(token);
+    useToken(token());
     await expect(fetchUserToken(false)).resolves.toBe('refreshed');
+  });
+
+  it('hands out a token with no readable expiry and refreshes it only on request', async () => {
+    useToken('opaque-token');
+    await expect(fetchUserToken(false)).resolves.toBe('opaque-token');
+    expect(refreshToken).not.toHaveBeenCalled();
+    await expect(fetchUserToken(true)).resolves.toBe('refreshed');
+  });
+
+  it('gives every concurrent fresh request the refreshed token, not the one being replaced', async () => {
+    useToken(jwt(inSeconds(300)));
+    const results = await Promise.all([fetchUserToken(true), fetchUserToken(true)]);
+    expect(results).toEqual(['refreshed', 'refreshed']);
+    expect(refreshToken).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not hold back a fresh request after a failed refresh', async () => {
+    useToken(jwt(inSeconds(300)));
+    refreshToken.mockRejectedValueOnce(new Error('offline'));
+    await expect(fetchUserToken(true)).rejects.toThrow('offline');
+    await expect(fetchUserToken(true)).resolves.toBe('refreshed');
+  });
+
+  it('does not refresh on request right after an expiry-driven refresh', async () => {
+    const token = jwt(inSeconds(300));
+    useToken(null);
+    await fetchUserToken(false);
+    useToken(token);
+    await expect(fetchUserToken(true)).resolves.toBe(token);
+    expect(refreshToken).toHaveBeenCalledTimes(1);
   });
 
   it('refreshes when asked for a fresh token', async () => {
@@ -53,7 +85,6 @@ describe('fetchUserToken', () => {
   it('does not refresh again when a fresh token is asked for right after a forced refresh', async () => {
     const token = jwt(inSeconds(300));
     useToken(token);
-    vi.advanceTimersByTime(60_000);
     await fetchUserToken(true);
     await expect(fetchUserToken(true)).resolves.toBe(token);
     expect(refreshToken).toHaveBeenCalledTimes(1);
@@ -76,7 +107,7 @@ describe('fetchUserToken', () => {
 
   it('joins a refresh the host already started instead of starting another', async () => {
     useToken(null);
-    const hostRefresh = refreshAccessToken();
+    const hostRefresh = refreshMemberAccessToken();
     await expect(fetchUserToken(true)).resolves.toBe('refreshed');
     await expect(hostRefresh).resolves.toBe('refreshed');
     expect(refreshToken).toHaveBeenCalledTimes(1);

@@ -1396,16 +1396,39 @@ describe('plugin host bridge', () => {
         pluginOrigin: BI_ORIGIN,
       });
 
-      announceReady(frame.contentWindow, PLUGIN_PROTOCOL_VERSION, 'null');
-      announceReady(frame.contentWindow, PLUGIN_PROTOCOL_VERSION, 'https://evil.example.com');
-      await flush();
-      expect(frame.posted).toHaveLength(0);
-
       announceReady(frame.contentWindow, PLUGIN_PROTOCOL_VERSION, BI_ORIGIN);
       await flush();
       expect(frame.posted).toHaveLength(1);
       bridge.dispose();
     });
+
+    it.each(['null', 'https://evil.example.com'])(
+      'reports the frame as broken when it announces itself from %s',
+      async origin => {
+        const frame = pluginFrame();
+        const onBroken = vi.fn();
+        const bridge = createPluginHostBridge({
+          iframe: frame.iframe,
+          src: 'https://plugin.example.test/',
+          apiOrigin: API_ORIGIN,
+          context: CONTEXT,
+          fetchRuntimeToken: vi.fn(),
+          onOpenExternal: vi.fn(),
+          onNavigate: vi.fn(),
+          onRouteChange: vi.fn(),
+          onCopyLink: vi.fn(),
+          pluginOrigin: BI_ORIGIN,
+          onBroken,
+        });
+
+        announceReady(frame.contentWindow, PLUGIN_PROTOCOL_VERSION, origin);
+        announceReady(frame.contentWindow, PLUGIN_PROTOCOL_VERSION, BI_ORIGIN);
+        await flush();
+        expect(onBroken).toHaveBeenCalledTimes(1);
+        expect(frame.posted).toHaveLength(0);
+        bridge.dispose();
+      }
+    );
 
     it('addresses host-init to the plugin origin instead of any origin', async () => {
       const real = await harness(undefined, true, PLUGIN_PROTOCOL_VERSION, {

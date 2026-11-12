@@ -588,11 +588,16 @@ export function createPluginHostBridge(options: PluginHostBridgeOptions): Plugin
       return;
     }
 
-    if (
-      event.origin !== (options.pluginOrigin ?? OPAQUE_ORIGIN) ||
-      !isPluginReady(event.data) ||
-      port
-    ) {
+    if (!isPluginReady(event.data) || port) {
+      return;
+    }
+
+    // The frame announced itself from somewhere else, for example after a cross-origin
+    // redirect. That document would keep whatever the sandbox grants without ever being
+    // the plugin this frame was opened for, so the frame is not worth keeping.
+    if (event.origin !== (options.pluginOrigin ?? OPAQUE_ORIGIN)) {
+      shutdown();
+      options.onBroken?.();
       return;
     }
 
