@@ -155,3 +155,8 @@ For such a plugin the host page opens the iframe with `allow-same-origin`, `allo
 
 The code of an OWOX BI plugin acts with the member's rights. List only plugins you own, served from
 hosting you control.
+
+Prefer hosting on a different registrable domain than the deployment. A plugin on a sibling
+subdomain (`plugins.example.com` next to `app.example.com`) is same-site with the app: the browser
+attaches the app's `SameSite=Lax` session cookies to requests the plugin sends to the app, and the
+plugin can set cookies for the shared parent domain.

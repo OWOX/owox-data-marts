@@ -3,6 +3,12 @@ import { getTokenProvider } from '../../../app/api/token-provider';
 
 /** A token closer than this to expiry is refreshed before it is handed out. */
 const REFRESH_MARGIN_MS = 60_000;
+/**
+ * A plugin whose API keeps answering 401 would otherwise turn every retry into a session
+ * refresh. A second forced refresh this soon cannot yield a different token anyway.
+ */
+const FORCED_REFRESH_INTERVAL_MS = 10_000;
+let lastForcedRefreshAt = -Infinity;
 
 const expiresAtMs = (token: string | null): number | null => {
   try {
@@ -33,7 +39,10 @@ export const fetchUserToken = async (fresh: boolean): Promise<string> => {
 
   const current = provider.getAccessToken();
   const exp = expiresAtMs(current);
-  if (!fresh && current && exp !== null && exp - Date.now() > REFRESH_MARGIN_MS) return current;
+  const usable = current && exp !== null && exp - Date.now() > REFRESH_MARGIN_MS;
+  const forced = fresh && Date.now() - lastForcedRefreshAt >= FORCED_REFRESH_INTERVAL_MS;
+  if (usable && !forced) return current;
 
+  if (forced) lastForcedRefreshAt = Date.now();
   return refreshAccessToken();
 };

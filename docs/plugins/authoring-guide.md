@@ -57,7 +57,10 @@ the application inside a protected frame and connects it to the installing membe
 
 These constraints follow from the plugin sandbox. No OWOX Data Marts setting relaxes them, except
 for plugins a deployment operator marks as
-[OWOX BI plugins](trusted-plugins.md#owox-bi-plugins).
+[OWOX BI plugins](trusted-plugins.md#owox-bi-plugins). Such a plugin keeps the origin it is served
+from, so the opaque-origin rules below do not apply to it: it has browser storage, and its requests
+carry its real `Origin`. Forms still do not submit. Even with storage available, it must keep the
+member's access token in memory only.
 
 **The page runs in an opaque origin.** It has no cookies, `localStorage`, `sessionStorage`,
 `IndexedDB`, or service workers. Keep short-lived state in memory. For state that must persist, use

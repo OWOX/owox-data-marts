@@ -50,6 +50,19 @@ describe('fetchUserToken', () => {
     await expect(fetchUserToken(true)).resolves.toBe('refreshed');
   });
 
+  it('does not refresh again when a fresh token is asked for right after a forced refresh', async () => {
+    const token = jwt(inSeconds(300));
+    useToken(token);
+    vi.advanceTimersByTime(60_000);
+    await fetchUserToken(true);
+    await expect(fetchUserToken(true)).resolves.toBe(token);
+    expect(refreshToken).toHaveBeenCalledTimes(1);
+
+    vi.advanceTimersByTime(10_000);
+    await expect(fetchUserToken(true)).resolves.toBe('refreshed');
+    expect(refreshToken).toHaveBeenCalledTimes(2);
+  });
+
   it('shares one refresh between concurrent requests', async () => {
     useToken(null);
     const results = await Promise.all([
