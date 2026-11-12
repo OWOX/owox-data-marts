@@ -29,8 +29,7 @@ export class MembershipRequestsService {
   constructor(
     private readonly identityClient: IdentityOwoxClient,
     private readonly store: DatabaseStore,
-    /** Absent while project emails are switched off; the legacy mailer sends them then. */
-    private readonly emailService: AccessRequestEmailService | undefined,
+    private readonly emailService: AccessRequestEmailService,
     options: MembershipRequestsServiceOptions = {}
   ) {
     this.titleLookupTimeoutMs =
@@ -82,7 +81,7 @@ export class MembershipRequestsService {
 
   /**
    * Emails the approved person. Never throws. The email is mandatory, so it ignores
-   * notification settings. Does nothing while project emails are switched off.
+   * notification settings.
    *
    * @param actorUserId the admin who approved; the project title is read on their behalf.
    */
@@ -92,10 +91,6 @@ export class MembershipRequestsService {
     role: Role,
     actorUserId: string
   ): Promise<void> {
-    const emailService = this.emailService;
-    if (!emailService) {
-      return;
-    }
     let requesterEmail: string | undefined;
     try {
       const [email, projectTitle] = await Promise.all([
@@ -107,7 +102,12 @@ export class MembershipRequestsService {
         this.logger.warn('No email for the approved access request', { projectId, userId });
         return;
       }
-      await emailService.sendApprovalToRequester({ requesterEmail, role, projectId, projectTitle });
+      await this.emailService.sendApprovalToRequester({
+        requesterEmail,
+        role,
+        projectId,
+        projectTitle,
+      });
     } catch (error) {
       this.logger.error(
         'Failed to send access approval email',

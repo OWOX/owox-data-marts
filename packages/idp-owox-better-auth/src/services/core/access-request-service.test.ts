@@ -164,27 +164,6 @@ describe('AccessRequestService.requestAccess', () => {
     expect(notify).not.toHaveBeenCalled();
   });
 
-  it('leaves the emails to the legacy mailer while project emails are switched off', async () => {
-    const { identityClient, store } = setup();
-    const service = new AccessRequestService(
-      store as unknown as DatabaseStore,
-      identityClient as unknown as IdentityOwoxClient,
-      undefined
-    );
-
-    const result = await service.requestAccess('user-1', 'p-1', 'editor');
-    await service.notifyAdmins(NOTIFICATION);
-
-    expect(result).toEqual({
-      userId: 'user-1',
-      projectId: 'p-1',
-      projectTitle: 'Acme',
-      request: { role: 'editor', status: 'processing' },
-    });
-    expect(identityClient.getUserProvisioningRequestAccessContext).not.toHaveBeenCalled();
-    expect(identityClient.getProjectMembers).not.toHaveBeenCalled();
-    expect(store.getUserByBiUserId).not.toHaveBeenCalled();
-  });
 });
 
 describe('AccessRequestService.notifyAdmins', () => {

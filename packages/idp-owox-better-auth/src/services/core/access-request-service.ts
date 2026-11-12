@@ -43,8 +43,7 @@ export class AccessRequestService {
   constructor(
     private readonly store: DatabaseStore,
     private readonly identityClient: IdentityOwoxClient,
-    /** Absent while project emails are switched off; the legacy mailer sends them then. */
-    private readonly emailService: AccessRequestEmailService | undefined,
+    private readonly emailService: AccessRequestEmailService,
     options: AccessRequestServiceOptions = {}
   ) {
     this.pendingRequestCheckTimeoutMs =
@@ -58,17 +57,12 @@ export class AccessRequestService {
    * one it returns now. A request after a declined one, or for another role, is news.
    *
    * The response does not wait for the emails, and a failed email does not fail the request.
-   * While project emails are switched off, this is only the Identity call.
    */
   async requestAccess(
     userId: string,
     projectId: string,
     role: Role
   ): Promise<RequestProjectAccessResult> {
-    if (!this.emailService) {
-      return toResult(await this.identityClient.requestProjectAccess(userId, projectId, role));
-    }
-
     const check = await this.checkPendingRequest(userId, projectId);
     const result = toResult(
       await this.identityClient.requestProjectAccess(userId, projectId, role)
@@ -93,13 +87,8 @@ export class AccessRequestService {
   /**
    * Emails every active admin of the project. Never throws.
    * The email is mandatory, so admins who turned off notifications get it too.
-   * Does nothing while project emails are switched off.
    */
   async notifyAdmins(notification: AccessRequestNotification): Promise<void> {
-    const emailService = this.emailService;
-    if (!emailService) {
-      return;
-    }
     const { projectId } = notification;
     try {
       const [{ adminEmails, projectTitle }, requesterEmail] = await Promise.all([
@@ -114,7 +103,7 @@ export class AccessRequestService {
 
       const results = await Promise.allSettled(
         adminEmails.map(adminEmail =>
-          emailService.sendRequestToAdmin({
+          this.emailService.sendRequestToAdmin({
             adminEmail,
             requesterEmail,
             role: notification.role,

@@ -255,20 +255,6 @@ describe('MembershipRequestsService', () => {
         service.notifyRequester('proj-1', '42', 'viewer', 'admin-1')
       ).resolves.toBeUndefined();
     });
-
-    it('does nothing while project emails are switched off', async () => {
-      const switchedOff = new MembershipRequestsService(
-        identityClient,
-        store as unknown as DatabaseStore,
-        undefined
-      );
-
-      await switchedOff.notifyRequester('proj-1', '42', 'viewer', 'admin-1');
-
-      expect(store.getUserByBiUserId).not.toHaveBeenCalled();
-      expect(identityClient.getProjectMembers).not.toHaveBeenCalled();
-      expect(identityClient.getProjectForUser).not.toHaveBeenCalled();
-    });
   });
 
   describe('declineMembershipRequest', () => {
