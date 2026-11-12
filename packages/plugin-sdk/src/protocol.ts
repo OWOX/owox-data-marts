@@ -63,6 +63,8 @@ export interface PluginHostContext {
   readonly actions?: true;
   /** Set by a host that brokers installation schedules; an older host omits it. */
   readonly schedules?: true;
+  /** Set when the host will hand this plugin the member's access token on request. */
+  readonly userToken?: true;
 }
 
 export type PluginCredentialHandleDescriptor =
@@ -173,6 +175,8 @@ export type PluginRequest =
   | { id: string; kind: 'navigate'; path: string }
   | { id: string; kind: 'route'; path: string }
   | { id: string; kind: 'copyLink'; path?: string }
+  /** The member's access token; answered only to a plugin the host granted it to. */
+  | { id: string; kind: 'userToken'; fresh?: true }
   /** The merged state of the plugin's loading work; `progress` is a fraction from 0 to 1. */
   | { id: string; kind: 'loading'; active: boolean; progress?: number };
 

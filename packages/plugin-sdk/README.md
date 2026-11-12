@@ -393,6 +393,20 @@ if (ctx.schedules) {
 - In a scheduled run, `ctx.execution.trigger` is `'schedule'` and `ctx.execution.scheduleId` names
   the schedule.
 
+## User token
+
+`ctx.userToken()` resolves to the signed-in member's OWOX access token, for calling your own API as
+them. It is `undefined` for ordinary plugins and on a host that does not grant it.
+
+```ts
+const token = await ctx.userToken?.();
+// Your API answered 401: ask for a fresh one.
+const fresh = await ctx.userToken?.({ fresh: true });
+```
+
+- The token is valid for about 15 minutes. Keep it in memory only; never store or log it.
+- A refusal rejects with a `PluginTransportError` (`FORBIDDEN`).
+
 ## `@owox/plugin-sdk/server`
 
 A plugin's backend is built with `createBackend`. It uses only the Fetch API. On Node, import it

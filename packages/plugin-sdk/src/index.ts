@@ -76,7 +76,10 @@ export interface PluginUi {
   startLoading(): PluginLoading;
 }
 
-export interface PluginContext extends Omit<PluginHostContext, 'actions' | 'schedules'> {
+export interface PluginContext extends Omit<
+  PluginHostContext,
+  'actions' | 'schedules' | 'userToken'
+> {
   /** The route the host opened this plugin at; undefined on a host without page links. */
   readonly route: string | undefined;
 
@@ -84,7 +87,8 @@ export interface PluginContext extends Omit<PluginHostContext, 'actions' | 'sche
    * A real OWOX API client whose transport is owned by this SDK.
    *
    * Plugin code cannot construct, replace or inspect that transport, and no token ever
-   * enters this document -- every call is brokered by the trusted host page.
+   * enters this document, except through `userToken` on a plugin the host granted it to --
+   * every call is brokered by the trusted host page.
    */
   readonly owox: OWOXApiClient;
 
@@ -102,6 +106,14 @@ export interface PluginContext extends Omit<PluginHostContext, 'actions' | 'sche
   readonly actions: PluginActions | undefined;
   /** Cron schedules that start your backend's actions; undefined on a host without schedules. */
   readonly schedules: PluginSchedules | undefined;
+  /**
+   * The signed-in member's OWOX access token, for calling your own API as them.
+   *
+   * The token lives about 15 minutes: keep it in memory only, never store or log it. When
+   * your API answers 401, call again with `{ fresh: true }`. Undefined for ordinary plugins
+   * and on a host that does not grant it.
+   */
+  readonly userToken: ((options?: { fresh?: boolean }) => Promise<string>) | undefined;
 
   /**
    * Things the sandbox forbids you, which the host will do on your behalf if it agrees.
@@ -233,6 +245,19 @@ function bind(
     collections: <T>(name: string) => createPluginCollection<T>(owox, name),
     actions: init.context.actions ? createPluginActions(requester) : undefined,
     schedules: init.context.schedules ? createPluginSchedules(requester) : undefined,
+    userToken: init.context.userToken
+      ? async (options?: { fresh?: boolean }) => {
+          const response = await requester.send(
+            options?.fresh ? { kind: 'userToken', fresh: true } : { kind: 'userToken' }
+          );
+          if (!response.ok) throw new PluginTransportError(response.error);
+          const body = 'body' in response ? (response.body as { token?: unknown } | null) : null;
+          if (typeof body?.token !== 'string' || body.token === '') {
+            throw new Error('The host answered the user token request without a token');
+          }
+          return body.token;
+        }
+      : undefined,
     ui: {
       openExternal: (url: string) => {
         port.postMessage({ id: crypto.randomUUID(), kind: 'openExternal', url });
