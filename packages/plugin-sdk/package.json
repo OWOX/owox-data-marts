@@ -39,7 +39,7 @@
     "sdk"
   ],
   "dependencies": {
-    "@ai-sdk/provider": "4.0.8",
+    "@ai-sdk/provider": "4.0.38",
     "@owox/api-client": "*",
     "undici": "^6.27.0"
   },
