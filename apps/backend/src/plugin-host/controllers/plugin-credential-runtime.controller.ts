@@ -149,6 +149,40 @@ export class PluginCredentialRuntimeController {
     }
   }
 
+  @Post(':handle/ai/decide')
+  @ApiOkResponse({ description: 'Portable Vercel AI SDK DecisionModelV4 result.' })
+  async decide(
+    @Param('handle') handle: string,
+    @Body() input: CredentialAiRequestApiDto,
+    @AuthContext() context: AuthorizationContext,
+    @Req() request: Request
+  ): Promise<unknown> {
+    if (input.model !== 'decision') {
+      throw new BadRequestException('The decision model mapping is required');
+    }
+    const binding = await this.resolveAiRoute(handle, context, input.model);
+    const disconnected = requestAbortSignal(request);
+    try {
+      if (binding.kind === 'owox-ai') {
+        return await this.owoxAi.decide(
+          this.consumption(context, binding),
+          input.options,
+          disconnected.signal
+        );
+      }
+      const result = await this.aiService.decide(
+        binding.binding,
+        input.model,
+        input.options,
+        disconnected.signal
+      );
+      await this.markUsed(binding.binding, context);
+      return result;
+    } finally {
+      disconnected.dispose();
+    }
+  }
+
   @Post(':handle/ai/stream')
   @ApiProduces('application/x-ndjson')
   async stream(
