@@ -520,16 +520,18 @@ describe('CredentialAiService', () => {
     });
 
     it.each(['openrouter', 'openai-compatible'] as const)(
-      'rejects decision for %s Credentials with 400',
+      'rejects decision for %s Credentials with a neutral 400',
       async adapter => {
-        const target = binding();
-        target.definition = {
-          ...target.definition,
-          ai: { adapter, baseUrl: 'https://x.example/v1' },
-        };
-        await expect(
-          service.decide(target, 'decision', { state: [], questions: {} }, signal())
-        ).rejects.toThrow(`${adapter} Credentials do not support decision models`);
+        const base = binding();
+        const target = {
+          ...base,
+          definition: { ...base.definition, ai: { adapter, baseUrl: 'https://x.example/v1' } },
+        } as ResolvedCredentialBinding;
+        const call = service.decide(target, 'decision', { state: [], questions: {} }, signal());
+        await expect(call).rejects.toThrow(
+          'The selected Credential does not support decision models'
+        );
+        await expect(call).rejects.not.toThrow(/openrouter|openai-compatible/);
       }
     );
 

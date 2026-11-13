@@ -198,7 +198,7 @@ const CredentialDefinitionContractObjectSchema = z.object({
     .optional(),
 });
 
-const DECISION_ADAPTERS = new Set(['openai', 'google', 'anthropic']);
+export const DECISION_ADAPTERS = new Set(['openai', 'google', 'anthropic']);
 
 /** False when a definition declares a decision model for an adapter that cannot run one. */
 export function isDecisionAdapterAllowed(ai: {

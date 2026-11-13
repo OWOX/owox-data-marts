@@ -13,6 +13,7 @@ import { CredentialViewService } from '../services/credential-view.service';
 import { CredentialValidationProbeService } from '../services/credential-validation-probe.service';
 import { parseCustomConnectorForCreate, parseFieldsForCreate } from '../services/credential-fields';
 import {
+  DECISION_ADAPTERS,
   isCredentialAiModelInCatalog,
   type CredentialAiModelMappingSources,
   type CredentialAiModelMappingModes,
@@ -253,6 +254,12 @@ export function normalizeAiConfiguration(
   }
   for (const key of Object.keys(resolvedMappings)) {
     resolvedModes[key] ??= 'override';
+  }
+  if (
+    (Object.hasOwn(resolvedMappings, 'decision') || Object.hasOwn(resolvedModes, 'decision')) &&
+    !DECISION_ADAPTERS.has(ai.adapter)
+  ) {
+    throw new BadRequestException(`${ai.adapter} AI definitions do not support decision models`);
   }
   validateAiMappings(resolvedMappings, ai);
 

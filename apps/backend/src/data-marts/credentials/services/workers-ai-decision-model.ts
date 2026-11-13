@@ -77,11 +77,12 @@ export class WorkersAiDecisionModel implements Experimental_DecisionModelV4 {
     if (question.type === 'box') {
       throw new BadRequestException('OWOX AI decision does not support box questions');
     }
-    const { instructions } = question;
+    const instructions = toText(question.instructions);
     if (
-      instructions === undefined ||
       instructions === null ||
-      (typeof instructions === 'string' && instructions.trim() === '')
+      instructions.trim() === '' ||
+      instructions === '{}' ||
+      instructions === '[]'
     ) {
       throw new BadRequestException('OWOX AI decision questions need instructions');
     }
@@ -90,7 +91,7 @@ export class WorkersAiDecisionModel implements Experimental_DecisionModelV4 {
     return {
       type: question.type === 'boolean' ? 'noul' : question.type,
       instructions,
-      ...(criteria === null || criteria === undefined ? {} : { criteria }),
+      ...(criteria === null || criteria === undefined ? {} : { criteria: mapCriteria(criteria) }),
     };
   }
 
@@ -182,4 +183,16 @@ function probabilitiesOf(answer: WorkersAiAnswer): Record<string, number> | unde
 
 function numberOrUndefined(value: unknown): number | undefined {
   return typeof value === 'number' ? value : undefined;
+}
+
+/** Clef reads text only. A string stays as is; any other value goes as JSON text. */
+function toText(value: unknown): string | null {
+  if (value === undefined || value === null) return null;
+  return typeof value === 'string' ? value : JSON.stringify(value);
+}
+
+function mapCriteria(criteria: object): unknown {
+  return Array.isArray(criteria)
+    ? criteria.map(toText)
+    : Object.fromEntries(Object.entries(criteria).map(([key, value]) => [key, toText(value)]));
 }

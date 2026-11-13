@@ -323,7 +323,7 @@ export class CredentialAiService {
         }).decisionModel(modelId);
       case 'openrouter':
       case 'openai-compatible':
-        throw new BadRequestException(`${ai.adapter} Credentials do not support decision models`);
+        throw new BadRequestException('The selected Credential does not support decision models');
     }
   }
 

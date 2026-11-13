@@ -222,6 +222,46 @@ describe('WorkersAiDecisionModel', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it('sends object instructions and criteria as JSON text', async () => {
+    const { model, fetchMock } = setup(reply(unifiedResponse));
+    await model.doDecide({
+      state: [{ type: 'text', text: 'x' }],
+      questions: {
+        component: {
+          type: 'choice',
+          instructions: { goal: 'pick' },
+          criteria: { line_chart: { use: 'trend' }, table: null, kpi_card: 'Single number' },
+        },
+        complexity: {
+          type: 'score',
+          instructions: ['rate', 'it'],
+          criteria: [{ level: 1 }, 'Complex', null],
+        },
+      },
+    });
+    const sent = sentBody(fetchMock).input.questions;
+    expect(sent.component).toEqual({
+      type: 'choice',
+      instructions: '{"goal":"pick"}',
+      criteria: { line_chart: '{"use":"trend"}', table: null, kpi_card: 'Single number' },
+    });
+    expect(sent.complexity).toEqual({
+      type: 'score',
+      instructions: '["rate","it"]',
+      criteria: ['{"level":1}', 'Complex', null],
+    });
+  });
+
+  it.each([[{}], [[]]])('rejects empty object or array instructions %j with 400', async value => {
+    const { model, fetchMock } = setup(reply(noulResponse));
+    const call = model.doDecide({
+      state: [{ type: 'text', text: 'x' }],
+      questions: { urgent: { type: 'boolean', instructions: value } },
+    });
+    await expect(call).rejects.toThrow('OWOX AI decision questions need instructions');
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it('sends text parts, and JSON parts as serialized text parts', async () => {
     const { model, fetchMock } = setup(reply(noulResponse));
     await model.doDecide({

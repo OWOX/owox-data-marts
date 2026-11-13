@@ -363,6 +363,27 @@ describe('CredentialForm', () => {
       expect(input.aiModelMappings.fast).toBe('gpt-fast');
     });
 
+    it('sends null for embedding when the maintainer sets a stored embedding to Not configured', async () => {
+      const onSubmit = vi.fn().mockResolvedValue(undefined);
+      renderForm({
+        credential: decisionCredential,
+        definitions: [decisionDefinition],
+        onSubmit,
+      });
+
+      await openMode('embedding');
+      fireEvent.click(within(document.body).getByRole('option', { name: 'Not configured' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+      await waitFor(() => {
+        expect(onSubmit).toHaveBeenCalled();
+      });
+      const input = onSubmit.mock.calls[0][0];
+      expect(input.aiModelMappingModes.embedding).toBeNull();
+      expect(input.aiModelMappings).not.toHaveProperty('embedding');
+      expect(input.aiModelMappings.decision).toBe('gpt-decision');
+    });
+
     it('keeps decision when the maintainer edits only the title', async () => {
       const onSubmit = vi.fn().mockResolvedValue(undefined);
       renderForm({

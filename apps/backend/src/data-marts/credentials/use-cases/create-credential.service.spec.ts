@@ -122,6 +122,22 @@ describe('normalizeAiConfiguration', () => {
     ).toThrow('is not compatible with the decision mapping');
   });
 
+  it('rejects a decision mapping for an openrouter definition', () => {
+    const openrouter = {
+      adapter: 'openrouter' as const,
+      baseUrl: 'https://openrouter.ai/api/v1',
+      models: { language: ai.models.language },
+      recommended: { fast: 'recommended-fast', reasoning: 'recommended-reasoning' },
+    };
+    expect(() =>
+      normalizeAiConfiguration(
+        { fast: 'recommended-fast', reasoning: 'recommended-reasoning', decision: 'any-model' },
+        { decision: 'override' },
+        openrouter as never
+      )
+    ).toThrow('openrouter AI definitions do not support decision models');
+  });
+
   it('recommends the decision models of the built-in definitions', () => {
     const expected = {
       openai: 'gpt-6-luna',
