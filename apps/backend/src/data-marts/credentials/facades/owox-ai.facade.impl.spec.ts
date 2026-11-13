@@ -35,13 +35,20 @@ async function drain(stream: ReadableStream<unknown>): Promise<unknown[]> {
 describe('OwoxAiFacadeImpl', () => {
   const languageModel = { modelId: 'language-model' };
   const embeddingModel = { modelId: 'embedding-model' };
+  const decisionModel = { modelId: 'decision-model' };
   const models = {
     models: jest.fn(),
     languageModel: jest.fn(() => languageModel),
     embeddingModel: jest.fn(() => embeddingModel),
+    decisionModel: jest.fn(() => decisionModel),
     failureLog: jest.fn((key: string) => ({ subject: `OWOX AI, model ${key}` })),
   };
-  const ai = { generateWith: jest.fn(), streamWith: jest.fn(), embedWith: jest.fn() };
+  const ai = {
+    generateWith: jest.fn(),
+    streamWith: jest.fn(),
+    embedWith: jest.fn(),
+    decideWith: jest.fn(),
+  };
   const billing = {
     consumesBalance: jest.fn(),
     verifyCanPerformOperations: jest.fn(),
@@ -302,5 +309,69 @@ describe('OwoxAiFacadeImpl', () => {
 
     expect(logError).toHaveBeenCalledWith(expect.any(String), failure);
     logError.mockRestore();
+  });
+
+  describe('decide', () => {
+    const options = { state: [], questions: {} };
+
+    beforeEach(() => {
+      models.models.mockReturnValue(['decision']);
+    });
+
+    it('decides through OWOX AI and records input plus output tokens', async () => {
+      const result = { answers: {}, usage: { inputTokens: 410, outputTokens: 0 }, warnings: [] };
+      ai.decideWith.mockResolvedValue(result);
+
+      await expect(facade.decide(context, options, signal)).resolves.toBe(result);
+
+      expect(ai.decideWith).toHaveBeenCalledWith(decisionModel, options, signal, {
+        subject: 'OWOX AI, model decision',
+      });
+      expect(billing.registerPluginAiProcessRunConsumption).toHaveBeenCalledTimes(1);
+      expect(billing.registerPluginAiProcessRunConsumption).toHaveBeenCalledWith(410, context);
+    });
+
+    it('records 0 tokens when the result has no usage', async () => {
+      ai.decideWith.mockResolvedValue({ answers: {}, warnings: [] });
+
+      await facade.decide(context, options, signal);
+
+      expect(billing.registerPluginAiProcessRunConsumption).toHaveBeenCalledWith(0, context);
+    });
+
+    it('records nothing when decide fails', async () => {
+      ai.decideWith.mockRejectedValue(new Error('provider failed'));
+
+      await expect(facade.decide(context, options, signal)).rejects.toThrow('provider failed');
+
+      expect(billing.registerPluginAiProcessRunConsumption).not.toHaveBeenCalled();
+    });
+
+    it('answers 404 when OWOX AI has no decision model', async () => {
+      models.models.mockReturnValue(['fast', 'reasoning']);
+
+      await expect(facade.decide(context, options, signal)).rejects.toThrow(
+        new NotFoundException('AI model decision is not available')
+      );
+      expect(ai.decideWith).not.toHaveBeenCalled();
+    });
+
+    it('answers 403 PROJECT_OPERATION_BLOCKED for a blocked project', async () => {
+      billing.verifyCanPerformOperations.mockRejectedValue(
+        new ProjectOperationBlockedException([ProjectBlockedReason.OVERDRAFT_LIMIT_EXCEEDED])
+      );
+
+      await expect(facade.decide(context, options, signal)).rejects.toMatchObject({
+        status: 403,
+        response: { code: 'PROJECT_OPERATION_BLOCKED' },
+      });
+      expect(ai.decideWith).not.toHaveBeenCalled();
+    });
+
+    it('does not provide fast and decision when only chat is configured', () => {
+      models.models.mockReturnValue(['fast', 'reasoning']);
+
+      expect(facade.provides(['fast', 'decision'])).toBe(false);
+    });
   });
 });

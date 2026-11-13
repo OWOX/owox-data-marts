@@ -11,6 +11,7 @@ import {
   TooManyEmbeddingValuesForCallError,
   type EmbeddingModelV4,
   type EmbeddingModelV4Result,
+  type Experimental_DecisionModelV4,
   type LanguageModelV4,
 } from '@ai-sdk/provider';
 import {
@@ -29,8 +30,11 @@ import {
   type AiFailureLog,
 } from './credential-ai.service';
 import { boundResponseBody, MAX_REQUEST_BODY_BYTES } from './credential-fetch.service';
+import { WorkersAiDecisionModel } from './workers-ai-decision-model';
 
 export type OwoxAiModelKey = 'fast' | 'reasoning' | 'embedding' | 'decision';
+
+const DECISION_PROVIDER = 'cloudflare-workers-ai';
 
 /** Requests in flight for one embedding call that OpenRouter must split. */
 const OPENROUTER_EMBEDDING_CONCURRENCY = 8;
@@ -41,13 +45,34 @@ const OPENROUTER_EMBEDDING_CONCURRENCY = 8;
  */
 @Injectable()
 export class OwoxAiModelService {
-  constructor(private readonly config: ConfigService) {}
+  constructor(private readonly config: ConfigService) {
+    const provider = this.value('AI_PLUGIN_DECISION_PROVIDER');
+    if (provider && provider !== DECISION_PROVIDER) {
+      throw new Error(`AI_PLUGIN_DECISION_PROVIDER must be ${DECISION_PROVIDER}`);
+    }
+    const baseUrl = this.value('AI_PLUGIN_DECISION_BASE_URL');
+    if (baseUrl && !baseUrl.startsWith('https://')) {
+      throw new Error('AI_PLUGIN_DECISION_BASE_URL must start with https://');
+    }
+  }
 
   models(): readonly OwoxAiModelKey[] {
-    if (!this.isEnabled()) return [];
-    return this.value('AI_PLUGIN_EMBEDDING_MODEL')
-      ? ['fast', 'reasoning', 'embedding']
-      : ['fast', 'reasoning'];
+    const chat: OwoxAiModelKey[] = !this.isEnabled()
+      ? []
+      : this.value('AI_PLUGIN_EMBEDDING_MODEL')
+        ? ['fast', 'reasoning', 'embedding']
+        : ['fast', 'reasoning'];
+    return this.isDecisionEnabled() ? [...chat, 'decision'] : chat;
+  }
+
+  decisionModel(signal: AbortSignal): Experimental_DecisionModelV4 {
+    const modelId = this.requireModel('decision');
+    return new WorkersAiDecisionModel({
+      baseUrl: this.value('AI_PLUGIN_DECISION_BASE_URL'),
+      apiKey: this.value('AI_PLUGIN_DECISION_API_KEY'),
+      modelId,
+      fetch: createOwoxAiFetch(null, signal),
+    });
   }
 
   languageModel(key: 'fast' | 'reasoning', signal: AbortSignal): LanguageModelV4 {
@@ -72,7 +97,7 @@ export class OwoxAiModelService {
   failureLog(key: OwoxAiModelKey): AiFailureLog {
     return {
       subject: `OWOX AI, model ${key}`,
-      secret: this.value('AI_API_KEY'),
+      secret: this.value(key === 'decision' ? 'AI_PLUGIN_DECISION_API_KEY' : 'AI_API_KEY'),
       trustedProvider: true,
     };
   }
@@ -108,6 +133,15 @@ export class OwoxAiModelService {
     return ['AI_BASE_URL', 'AI_API_KEY', 'AI_PLUGIN_FAST_MODEL', 'AI_PLUGIN_REASONING_MODEL'].every(
       name => this.value(name)
     );
+  }
+
+  private isDecisionEnabled(): boolean {
+    return [
+      'AI_PLUGIN_DECISION_PROVIDER',
+      'AI_PLUGIN_DECISION_BASE_URL',
+      'AI_PLUGIN_DECISION_API_KEY',
+      'AI_PLUGIN_DECISION_MODEL',
+    ].every(name => this.value(name));
   }
 
   private isOpenRouter(): boolean {

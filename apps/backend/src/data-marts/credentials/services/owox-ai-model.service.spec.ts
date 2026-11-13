@@ -361,4 +361,81 @@ describe('OwoxAiModelService', () => {
 
     expect(sentBody().model).toBe('reasoning-model');
   });
+
+  describe('decision', () => {
+    const DECISION_ENV: Record<string, string> = {
+      AI_PLUGIN_DECISION_PROVIDER: 'cloudflare-workers-ai',
+      AI_PLUGIN_DECISION_BASE_URL: 'https://api.cloudflare.com/client/v4/accounts/acc/ai',
+      AI_PLUGIN_DECISION_API_KEY: 'decision-key',
+      AI_PLUGIN_DECISION_MODEL: '@cf/cloudflare/clef-flash',
+    };
+
+    it('lists decision only when all four decision variables are set', () => {
+      expect(createService({ ...BASE_ENV, ...DECISION_ENV }).models()).toEqual([
+        'fast',
+        'reasoning',
+        'decision',
+      ]);
+      for (const key of Object.keys(DECISION_ENV)) {
+        expect(createService({ ...BASE_ENV, ...DECISION_ENV, [key]: '  ' }).models()).toEqual([
+          'fast',
+          'reasoning',
+        ]);
+        const { [key]: _dropped, ...rest } = DECISION_ENV;
+        expect(createService({ ...BASE_ENV, ...rest }).models()).toEqual(['fast', 'reasoning']);
+      }
+    });
+
+    it('lists decision without the chat configuration', () => {
+      expect(createService(DECISION_ENV).models()).toEqual(['decision']);
+    });
+
+    it('keeps the chat models when decision is not configured', () => {
+      expect(createService(BASE_ENV).models()).toEqual(['fast', 'reasoning']);
+    });
+
+    it('fails at startup for an unknown decision provider', () => {
+      expect(() =>
+        createService({ ...DECISION_ENV, AI_PLUGIN_DECISION_PROVIDER: 'openai' })
+      ).toThrow('AI_PLUGIN_DECISION_PROVIDER must be cloudflare-workers-ai');
+    });
+
+    it('fails at startup for a decision base URL that is not https', () => {
+      expect(() =>
+        createService({ ...DECISION_ENV, AI_PLUGIN_DECISION_BASE_URL: 'http://example.com/ai' })
+      ).toThrow('AI_PLUGIN_DECISION_BASE_URL must start with https://');
+    });
+
+    it('builds a Workers AI model from the decision variables', async () => {
+      fetchMock.mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            success: true,
+            result: { answers: { q: { type: 'noul', noul: 0.5 } } },
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } }
+        )
+      );
+      const model = createService({ ...BASE_ENV, ...DECISION_ENV }).decisionModel(
+        new AbortController().signal
+      );
+      await model.doDecide({
+        state: [{ type: 'text', text: 'x' }],
+        questions: { q: { type: 'boolean', instructions: 'Is it urgent?' } },
+      });
+
+      const [url, init] = fetchMock.mock.calls[0];
+      expect(url).toBe(`${DECISION_ENV.AI_PLUGIN_DECISION_BASE_URL}/run`);
+      expect(new Headers(init.headers).get('authorization')).toBe('Bearer decision-key');
+      const body = sentBody();
+      expect(body.model).toBe('@cf/cloudflare/clef-flash');
+      expect(body).not.toHaveProperty('provider');
+    });
+
+    it('cuts the decision key out of the decision failure log', () => {
+      expect(createService({ ...BASE_ENV, ...DECISION_ENV }).failureLog('decision').secret).toBe(
+        'decision-key'
+      );
+    });
+  });
 });

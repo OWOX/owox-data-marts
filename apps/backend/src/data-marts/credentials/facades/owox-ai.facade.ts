@@ -35,4 +35,9 @@ export interface OwoxAiFacade {
     portableOptions: unknown,
     signal: AbortSignal
   ): Promise<unknown>;
+  decide(
+    context: PluginAiConsumptionContext,
+    portableOptions: unknown,
+    signal: AbortSignal
+  ): Promise<unknown>;
 }
