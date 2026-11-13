@@ -141,6 +141,18 @@ const openAiDefinition: CredentialDefinition = {
   connectors: [],
 };
 
+const decisionDefinition: CredentialDefinition = {
+  ...openAiDefinition,
+  ai: {
+    ...openAiDefinition.ai!,
+    models: {
+      ...openAiDefinition.ai!.models!,
+      decision: [{ id: 'gpt-decision', name: 'GPT Decision' }],
+    },
+    recommended: { ...openAiDefinition.ai!.recommended, decision: 'gpt-decision' },
+  },
+};
+
 const githubDefinition: CredentialDefinition = {
   id: 'github',
   source: 'builtin',
@@ -192,6 +204,24 @@ const githubCredential: Credential = {
   usedBy: [],
   createdAt: '2026-08-31T10:00:00.000Z',
   modifiedAt: '2026-08-31T10:00:00.000Z',
+};
+
+const decisionCredential: Credential = {
+  ...githubCredential,
+  title: 'OpenAI production',
+  definition: decisionDefinition,
+  aiModelMappings: {
+    fast: 'gpt-fast',
+    reasoning: 'gpt-reasoning',
+    embedding: 'embedding-small',
+    decision: 'gpt-decision',
+  },
+  aiModelMappingModes: {
+    fast: 'recommended',
+    reasoning: 'recommended',
+    embedding: 'recommended',
+    decision: 'recommended',
+  },
 };
 
 function renderForm(overrides: Partial<React.ComponentProps<typeof CredentialForm>> = {}) {
@@ -270,6 +300,99 @@ describe('CredentialForm', () => {
     );
 
     expect(await screen.findByLabelText('Model ID')).toBeInTheDocument();
+  });
+
+  describe('decision model', () => {
+    async function openMode(key: string) {
+      fireEvent.pointerDown(screen.getByTestId(`credentialAiMode-${key}`), {
+        button: 0,
+        ctrlKey: false,
+        pointerType: 'mouse',
+      });
+      await within(document.body).findAllByRole('option');
+    }
+
+    it('shows a Decision model row with the recommended model for a definition with a decision catalog', () => {
+      renderForm({ definitions: [decisionDefinition] });
+
+      expect(screen.getByText('Decision model')).toBeInTheDocument();
+      expect(screen.getByTestId('credentialAiMode-decision')).toHaveTextContent(
+        'Use recommended model'
+      );
+    });
+
+    it('has no Decision row for a definition without a decision catalog', () => {
+      renderForm();
+
+      expect(screen.queryByText('Decision model')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('credentialAiMode-decision')).not.toBeInTheDocument();
+    });
+
+    it('offers Not configured for the decision and embedding rows only', async () => {
+      renderForm({ definitions: [decisionDefinition] });
+
+      for (const key of ['decision', 'embedding']) {
+        await openMode(key);
+        expect(within(document.body).getByRole('option', { name: 'Not configured' })).toBeVisible();
+        fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' });
+      }
+      await openMode('fast');
+      expect(
+        within(document.body).queryByRole('option', { name: 'Not configured' })
+      ).not.toBeInTheDocument();
+    });
+
+    it('sends null for decision when the maintainer sets it to Not configured', async () => {
+      const onSubmit = vi.fn().mockResolvedValue(undefined);
+      renderForm({
+        credential: decisionCredential,
+        definitions: [decisionDefinition],
+        onSubmit,
+      });
+
+      await openMode('decision');
+      fireEvent.click(within(document.body).getByRole('option', { name: 'Not configured' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+      await waitFor(() => {
+        expect(onSubmit).toHaveBeenCalled();
+      });
+      const input = onSubmit.mock.calls[0][0];
+      expect(input.aiModelMappingModes.decision).toBeNull();
+      expect(input.aiModelMappings).not.toHaveProperty('decision');
+      expect(input.aiModelMappings.fast).toBe('gpt-fast');
+    });
+
+    it('keeps decision when the maintainer edits only the title', async () => {
+      const onSubmit = vi.fn().mockResolvedValue(undefined);
+      renderForm({
+        credential: decisionCredential,
+        definitions: [decisionDefinition],
+        onSubmit,
+      });
+
+      fireEvent.change(screen.getByRole('textbox', { name: 'Name' }), {
+        target: { value: 'Renamed' },
+      });
+      fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+      await waitFor(() => {
+        expect(onSubmit).toHaveBeenCalledWith({ title: 'Renamed' });
+      });
+    });
+
+    it('shows Not configured for a Credential without a stored decision', () => {
+      renderForm({
+        credential: {
+          ...decisionCredential,
+          aiModelMappings: { fast: 'gpt-fast' },
+          aiModelMappingModes: { fast: 'recommended' },
+        },
+        definitions: [decisionDefinition],
+      });
+
+      expect(screen.getByTestId('credentialAiMode-decision')).toHaveTextContent('Not configured');
+    });
   });
 
   it('loads a GitHub definition inline and selects it', async () => {
