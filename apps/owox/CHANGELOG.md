@@ -1,5 +1,173 @@
 # owox
 
+## 0.44.0
+
+### Minor Changes
+
+- 7eb4159: **New features are easier to discover: each release shows what's new right in the app**
+
+  OWOX Data Marts ships a release every week, but the app itself never said so: to learn what changed, you had to open **Help → What's new** and read the changelog. A feature that removes a manual step could go unnoticed for weeks while people kept doing that step by hand. Now the app shows each new release in a card in the bottom-left corner: its what's-new video, the video's chapters, each of which plays the video from that scene, and a link to the release in the changelog.
+  - The card opens every time you open the app until you close it with ×. After that, the release does not come back in that browser; the next release opens its own card.
+  - The card waits for the release's video. If there is still no video three days after the release ships, the card lists the release's changes instead; once that card is closed, a video added later does not bring it back.
+  - In a browser where the card has never been closed, it opens only in a project that already has a Data Mart, so a new user starts with the onboarding.
+  - The card does not open over another video. A video can take its place, and the card then comes back on the next visit. The card never opens in view-only sessions.
+  - A self-hosted instance announces only releases up to its own version, which `/api/flags` now returns as `APP_OWOX_VERSION`. The app reads the list of releases from `https://docs.owox.com/docs/releases.json`, so a browser that cannot reach docs.owox.com shows no card.
+
+- 81bd5fc: **Backfill a catalog for any period in one run, and follow a long backfill as parts of one operation**
+
+  An analyst who reloads a list of ads, campaigns or accounts for the past year used to confirm "Start 12 runs", then find one entry in **Run History** labelled "segment 1 of 12" and nothing after it — such a catalog has no date filter, so a single run loads all of it, and the promised runs never happened. Now the **Manual Run** form says the node loads the whole catalog in one run, whatever period you pick, asks for no confirmation, and **Run History** shows one plain run.
+
+  ![Manual Run sheet for a Reddit Ads catalog node with 1 January – 15 April selected: the notice says the backfill loads the whole catalog in one run, whatever period is picked](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/552bbbf7-375d-4424-e9a9-518081ab9e00/w=800)
+
+  For a node fetched by date, a period longer than 31 days loads in consecutive runs, now called **parts** and cut at calendar months rather than every 31 days: 1 January – 15 April loads as 1–31 January, 1–28 February, 1–31 March and 1–15 April, so each part lines up with the month you will check it against. The form reads "105 days, loaded in 4 parts, one per calendar month. It counts as 4 runs", the confirmation asks "Start backfill?", and each entry in **Run History** reads "part 3 of 4 loaded". **A backfill already running when this version is deployed finishes with the 31-day parts it was planned with. Operators of a self-hosted deployment with several replicas: finish the rollout before anyone starts a backfill longer than a month, because a replica still on the previous version continues a calendar-month backfill with 31-day parts and leaves days unloaded.** The connector fields API gains an `isFetchedByDate` flag per node, so an API client can tell a catalog node from a dated one before it starts a backfill.
+
+  ![Manual Run sheet for a dated node with 1 January – 15 April selected: 105 days, loaded in 4 parts, one per calendar month, counting as 4 runs](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/0540e4b4-79b1-4dbc-20d8-598b8afb5700/w=800)
+
+  ![Start backfill? confirmation naming 4 parts and 4 runs, with Keep editing and Start backfill buttons](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/bef2cc39-7a9d-4ba7-ae14-2221f800a500/w=800)
+
+  See [Backfill a custom period](../../docs/getting-started/setup-guide/connector-data-mart.md#backfill-a-custom-period).
+
+  <!-- markdownlint-disable-file MD041 MD036 -->
+
+- 8ac4b37: **Microsoft Ads imports work for advertisers who sign in with Google**
+
+  Teams that sign in to Microsoft Advertising with Google could set up the Microsoft Ads source, but every run failed with error `126 IdentityTypeMismatch` and imported nothing. Microsoft Advertising accepts only a Google sign-in for these users, and the source offered only a Microsoft one. Now the Microsoft Ads Credential offers **Sign in with Google** next to **Sign in with Microsoft**, and runs import data with the Google sign-in.
+
+  ![The Add Credential form with Microsoft Ads selected as the provider: under Connect with Microsoft Ads, a Sign in with Microsoft button, a Sign in with Google button below it, and a Manually link](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/67407e63-c4a5-4022-e32b-ebf05cba5300/w=800)
+  - Signing in now checks the user with Microsoft Advertising. A sign-in of the wrong type fails right away and says which button to use. The Credential shows the email of the connected user instead of "Microsoft Ads User", and a new Credential is named after that email instead of "Microsoft Ads".
+  - A run whose Credential has the wrong sign-in type stops after the first request with the same advice, instead of repeating error 126 for every day of the import.
+  - Other Microsoft Ads errors in Run History read as Microsoft Advertising's own message, such as `HTTP 401: Authentication failed. (105 InvalidCredentials)`, instead of the raw JSON response.
+  - Credentials signed in with Microsoft keep working as before.
+  - Self-hosted: **Sign in with Google** appears once you set `OAUTH_MICROSOFT_ADS_GOOGLE_CLIENT_ID` and `OAUTH_MICROSOFT_ADS_GOOGLE_CLIENT_SECRET`, with `OAUTH_GOOGLE_REDIRECT_URI` pointing to the Google callback page, see [Environment Variables](../../docs/getting-started/deployment-guide/environment-variables.md#microsoft-ads-source-sign-in-with-google). A Credential entered by hand can use a Google OAuth client too, see [Microsoft Ads credentials](../../packages/connectors/src/Sources/MicrosoftAds/CREDENTIALS.md#if-you-sign-in-to-microsoft-advertising-with-google).
+
+  <!-- markdownlint-disable-file MD041 MD036 -->
+
+- ceb2db1: **Plugins that use AI work at once: choose OWOX AI instead of your own AI key**
+
+  A project member who installed a plugin that uses AI had to get an API key from an AI provider, add it to the project as an AI Credential and select it before the plugin worked. That was extra work, and a key to look after. Now the install dialog offers OWOX AI, the AI models that the deployment provides, as the first option and selects it, so the plugin works at once in its pages, backend actions and scheduled executions. Members can still choose their own AI Credential, and can switch between it and OWOX AI later on the plugin's Credentials tab. Plugin code and `plugin.json` do not change.
+
+  <https://customer-4geatlj66rtkaxtz.cloudflarestream.com/444daf7318304fb60cfd119159d8baaa/iframe>
+  - On OWOX Data Marts Cloud, each successful OWOX AI call is billed as an AI Process Run under the existing rules and uses the project's credits. A project that cannot run AI Process Runs gets `403` with the code `PROJECT_OPERATION_BLOCKED`. On a self-managed deployment, OWOX AI calls are not billed.
+  - OWOX AI always provides the `fast` and `reasoning` models. It provides `embedding` only when `AI_PLUGIN_EMBEDDING_MODEL` is set. The model IDs depend on the deployment.
+  - A streamed AI response no longer includes the provider's response ID or the model ID, for OWOX AI and for an AI Credential. Plugin code cannot tell which one answered.
+  - Self-managed operators turn OWOX AI on by setting `AI_BASE_URL`, `AI_API_KEY`, `AI_PLUGIN_FAST_MODEL` and `AI_PLUGIN_REASONING_MODEL`. `AI_MODEL` is not a fallback for plugins.
+
+  See [OWOX AI](../../docs/project/credentials.md#owox-ai), [Environment variables](../../docs/getting-started/deployment-guide/environment-variables.md#owox-ai), [Consumption units](../../docs/getting-started/billing/consumption-units.md) and the [plugin authoring guide](../../docs/plugins/authoring-guide.md#use-project-credentials).
+
+  <!-- markdownlint-disable-file MD041 MD036 -->
+
+- 0b81b46: **claude.ai now gets every rule for querying a Data Mart**
+
+  When an analyst asks about their data in claude.ai, the AI assistant builds the query with the `query_data_mart` MCP tool and follows the rules in the tool description. claude.ai keeps only about the first 4,096 characters of a tool description, and this description had about 9,000. So the assistant did not get the rules for choosing between slices and filters or for reading the results, and it could filter a joined Data Mart after the join and report wrong totals without an error. Now the description is shorter than 4,096 characters, and the rules for reading the results come first. Claude Code has the same limit when it loads tools without tool search.
+  - The table of operators and aggregations for each field type is no longer in the description. `get_data_mart_details_by_id` already returns the operators and aggregation functions that each field accepts, in `operators_by_category` and `allowedAggregations`.
+  - The description and the [`query_data_mart` reference](../../docs/getting-started/setup-guide/mcp.md#query_data_mart-requires-mcpread-and-mcpwrite) now say when rows are grouped, and that a filter on a joined field sees one value per join key, not the joined rows.
+
+  <!-- markdownlint-disable-file MD036 MD041 -->
+
+- bf173a4: **Safer custom connector tests in your AI assistant: API keys stay out of the chat**
+
+  A Data Owner who builds a custom connector through MCP tests each node before publishing it. Previously `test_custom_connector` also took the manifest and temporary API keys in its arguments, so a key that the user gave the assistant went through the chat, and the test could run a manifest that differed from the saved draft. Now keys go only through saved Credentials, and the test runs the saved draft, so it checks the connector that you publish. **`test_custom_connector` no longer accepts `manifest` or keys in `configuration`: the assistant saves the draft with `save_custom_connector_draft`, then tests it with `connector_id` and, when the API needs keys, a `credential_id`. ChatGPT keeps the tool list from the time when you added the OWOX app: disconnect and reconnect the app to get these changes.**
+  - `create_custom_connector` and `save_custom_connector_draft` reject a manifest that holds a literal key in `authentication`, in a parameter with `attributes: ["SECRET"]`, or in a credential header or query parameter, or a `[REDACTED]` value. Declare each key as a parameter with `attributes: ["SECRET"]` and select a Credential that holds its value.
+  - `get_custom_connector_version` shows such a literal key in any version as `[REDACTED]`.
+  - `start_credential_setup` takes an optional `connector_id`. The Credential form then opens with the hosts and key fields of that connector, and the user enters only the key values.
+  - In ChatGPT, the assistant does not run the test itself. `get_custom_connector_test_link` gives you a link that opens the test in the Connector Builder with the node, parameter values and Credential filled in. Click **Run test**, then **Copy for AI**, and paste the result into the chat. Other AI clients use `test_custom_connector`.
+  - Published connectors and Data Mart runs work as before.
+
+  See [Custom connector authoring](../../docs/getting-started/setup-guide/mcp.md#custom-connector-authoring) and [how to load new tools](../../docs/getting-started/setup-guide/mcp.md#the-assistant-does-not-see-new-tools-or-tool-rules).
+
+  <!-- markdownlint-disable-file MD036 MD041 -->
+
+- 44b3e5e: **Connector Data Marts set up through MCP no longer fail their first run because of the table path**
+
+  **A saved connector Data Mart with a three-part table path now stops its run with a format error. Change the table path to two parts through MCP or the API to run the Data Mart again. The web app cannot change the table path of a saved connector.**
+
+  An AI assistant that sets up a connector Data Mart through MCP often gives the table path as `project.dataset.table`. Previously OWOX saved and published this table path. The first run then failed with `Invalid dataset ID`. Now OWOX rejects such a table path when you save it or publish the Data Mart. The error message gives the expected format. The MCP tool description gives the format too, so the assistant can use the correct table path from the start.
+  - Google BigQuery expects `dataset.table`. The connector always writes to the project of the Storage. The dataset name can contain only letters, digits, and underscores.
+  - AWS Athena expects `database.table`, without the catalog.
+
+  The web app already writes table paths with two parts. Connector Data Marts that you set up in the web app do not change. See [MCP Server](../../docs/getting-started/setup-guide/mcp.md#create-and-publish-a-data-mart).
+
+  <!-- markdownlint-disable-file MD041 MD036 -->
+
+- b0b37b8: **Connector runs on a Google BigQuery Storage without a location no longer fail**
+
+  The web form requires a location for a Google BigQuery Storage. MCP and the API can save a Storage without a location. Previously, a connector run on such a Storage failed with `Invalid location 'AUTODETECT'` or `Invalid location 'undefined'`. This happened when the run created the target table or replaced all its data. These runs loaded no data until you set a location on the Storage. Now the run loads data.
+
+  The run writes to the target dataset when this dataset exists. Otherwise, Google BigQuery creates the dataset in its default location. Set a location on the Storage before the first run to create the dataset in another location. A later change of the Storage location does not move the dataset. For the steps, see [Google BigQuery](../../docs/storages/supported-storages/google-bigquery.md#select-location). Only connector Data Marts on Google BigQuery change.
+
+  <!-- markdownlint-disable-file MD041 MD036 -->
+
+- 11b79d6: **claude.ai and ChatGPT now get the OWOX rules for safe setup and delivery**
+
+  When a Data Owner or analyst sets up Data Marts, Credentials or reports through an AI assistant, OWOX gives the assistant rules: ask before a deletion, never take provider secrets in chat, and do not send a report message twice. These rules were in one MCP instructions text of about 27,500 characters. claude.ai did not give that text to the model, ChatGPT gave only its start, and Claude Code its first 4,096 characters, so in these clients the assistant often worked without the rules. Now the shared instructions are short and start with the most important rule, each safety rule is also in the description of the tool that it applies to, and the new `get_owox_guide` tool returns the full workflow for one task. **ChatGPT keeps the tool list from the time when you added the OWOX app: disconnect and reconnect the app to get these changes.**
+  - `get_owox_guide` topics are `reporting`, `data_mart_setup`, `data_mart_runs`, `credentials`, `storages_destinations` and `custom_connectors`. The tool needs only the `mcp:read` scope and does not read project data.
+  - `delete_context` now tells the assistant that it can detach Data Marts, Storages and Destinations through MCP before it deletes a Context.
+
+  See [`get_owox_guide`](../../docs/getting-started/setup-guide/mcp.md#get_owox_guide) and [how to load new tools](../../docs/getting-started/setup-guide/mcp.md#the-assistant-does-not-see-new-tools-or-tool-rules).
+
+  <!-- markdownlint-disable-file MD036 MD041 -->
+
+- 0be60b9: **Invited teammates get their email right away, and you know if it was not sent**
+
+  When a Project Admin invites a teammate, the teammate learns about it from the invitation email. If that email did not reach them, the admin had no way to know and kept waiting for someone who never got the invitation. Now OWOX Data Marts sends the invitation as soon as you click **Send invitation**, and tells you when it could not be sent.
+
+  ![The invitation email from OWOX Data Marts: Hey friend, you have been invited by user maria@example.com to join Marketing Analytics as a Data Owner, with an Accept invitation button and the project link below it](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/8d5ac10e-1fb0-4578-9357-6560cf853700/w=800)
+  - The email names who invited the person, the project and the role (Project Admin, Data Owner or Business User). Its **Accept invitation** button opens the project.
+  - If who invited the person or the project name cannot be loaded, the email leaves that detail out. Without the project name, it says "the OWOX project".
+  - If the email cannot be sent, the invitation still stands. **Invite member** and the invite step after sign-up name who did not get it, so you can let them know yourself. The `POST /api/members/invite` response then has `emailSent: false`.
+  - Only OWOX-managed projects send this email. Self-hosted installations keep the one-time invitation link.
+
+  See [Invite a Member](../../docs/project/members.md#invite-a-member).
+
+- 51d1018: **Access request emails name the project and take Project Admins straight to the request**
+
+  When a teammate asks to join a project, every Project Admin gets an email about it, and the teammate gets one once an admin approves. An admin of several projects could not tell from the email which project the request was for, and roles were shown as `ADMIN`, `EDITOR` or `VIEWER`. Now both emails name the project and use the role names you see in the app (Project Admin, Data Owner, Business User). The admin's **Check request** button now opens **Project Settings → Members** of that project, where you approve or decline the request.
+
+  ![The access request email to a Project Admin: the user with the email alex@example.com has requested a change in permissions for Marketing Analytics to the role of Data Owner, with a link to the Members page and a Check request button](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/bc6d2dd6-285c-44c2-4f51-d1d46a474000/w=800)
+  - If the project name cannot be loaded, the emails say "your project" or "the OWOX project" instead.
+  - After approval, the teammate's **Join now** button opens the project.
+
+    ![The approval email to the teammate: you have been granted Data Owner access to Marketing Analytics, with a Join now button that opens the project](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/3e8fcb42-8f62-477e-7df0-714cf2d8f400/w=800)
+
+  - Both emails are sent even if the recipient turned off email notifications. Asking again for the same role while the request is still pending does not email the admins again.
+  - If an email cannot be sent, the access request or the approval still goes through.
+  - Only OWOX-managed projects have access requests, so self-hosted installations are not affected.
+
+  See [Manual provisioning](../../docs/project/members.md#manual-provisioning).
+
+- dd208f6: **Start an OWOX task from the claude.ai connector menu with its rules attached**
+
+  claude.ai does not give the AI model the instructions of an MCP server. So when an analyst or a Data Owner starts a report or a Data Mart setup in claude.ai, the model gets the OWOX workflow rules only if it calls `get_owox_guide` itself. Now the connector menu of claude.ai and Claude Desktop has an **Add from** item for the OWOX connector. Select a task there. For a report, a Data Mart setup or a check of runs, the matching guide goes into the conversation with your request.
+  - Prompts: **Explore my data**, **Create a report**, **Set up a Data Mart** and **Check Data Mart runs**. In Claude Code, they are slash commands.
+  - Resources: the six OWOX workflow guides at `owox://guides/<topic>` and a link to the MCP documentation. In Claude Code, you attach them with `@`.
+  - ChatGPT has no menu for prompts or resources, so nothing changes in ChatGPT.
+
+  See [Prompts and guides in the connector menu](../../docs/getting-started/setup-guide/mcp.md#prompts-and-guides-in-the-connector-menu).
+
+  <!-- markdownlint-disable-file MD036 MD041 -->
+
+- edf320f: **Deployment operators can mark plugins as privileged: a relaxed sandbox and the member's access token**
+
+  By default every plugin page runs in a sandbox that blocks popups and the clipboard, hides the page's origin, and gives the page no credential. A deployment operator can now mark specific plugins as privileged with two environment variables. Only those plugins get a relaxed sandbox and may ask for the signed-in member's access token. A deployment that does not set the variables is unaffected.
+  - A plugin is privileged only when its GitHub repository id is in `OWOX_PRIVILEGED_PLUGIN_REPOSITORY_IDS` and the origin of its delivery URL is in `OWOX_PRIVILEGED_PLUGIN_ORIGINS`. Only https origins count. When either variable is unset or blank, no plugin is privileged. A plugin served from the deployment's own host is never accepted.
+  - For a privileged plugin the host adds `allow-same-origin`, `allow-popups` and `allow-popups-to-escape-sandbox` to the iframe sandbox and grants clipboard read and write.
+  - A privileged plugin gets the member's access token with `ctx.userToken()`, a new method in `@owox/plugin-sdk`. When your API answers `401`, call `ctx.userToken({ fresh: true })`.
+  - Every other plugin keeps the default sandbox and receives no token; for it `ctx.userToken` is `undefined`. The mark does not depend on publication: a Verified plugin does not get it automatically.
+  - The code of a privileged plugin acts with the member's rights. List only plugins you own, on hosting you control, and serve them with `Content-Security-Policy: frame-ancestors` limited to your deployment.
+
+  See [Privileged plugins](../../docs/plugins/trusted-plugins.md#privileged-plugins), [Environment variables](../../docs/getting-started/deployment-guide/environment-variables.md#plugins) and the [plugin authoring guide](../../docs/plugins/authoring-guide.md#use-the-plugin-sdk).
+
+  <!-- markdownlint-disable-file MD041 MD036 -->
+
+### Patch Changes
+
+- @owox/internal-helpers@0.44.0
+- @owox/idp-protocol@0.44.0
+- @owox/idp-better-auth@0.44.0
+- @owox/idp-owox-better-auth@0.44.0
+- @owox/backend@0.44.0
+- @owox/web@0.44.0
+
 ## 0.43.0
 
 ### Minor Changes 0.43.0
