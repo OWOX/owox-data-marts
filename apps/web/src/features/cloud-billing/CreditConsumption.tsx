@@ -25,6 +25,13 @@ import {
 import { BaseTable } from '../../shared/components/Table/BaseTable';
 import { BillingLoadState } from './BillingLoadState';
 import {
+  consumptionEntityUrl,
+  groupConsumption,
+  licenseKeyLabel,
+  originatingProjectLabel,
+  parseDeploymentUrl,
+} from './consumption-groups';
+import {
   useCloudBillingQuery,
   type ConsumptionBranch,
   type ConsumptionProduct,
@@ -108,14 +115,11 @@ function resolveLabel(
   labels: Record<string, string>,
   projections: ConsumptionProduct['entityProjections']
 ) {
-  const type = name.replace(/ ID$/, '').replace(/ /g, '_');
+  const type = name.replace(/_ID$/, '');
   const candidates =
-    type === 'LICENSE'
-      ? projections?.SELF_MANAGED_LICENSE
-      : type === 'CONTEXT'
-        ? projections?.[labels['CONTEXT TYPE']]
-        : (projections?.[type] ??
-          (type === 'DATA_MART' ? projections?.SMART_DATA_DATA_MART : null));
+    type === 'CONTEXT'
+      ? projections?.[labels.CONTEXT_TYPE]
+      : (projections?.[type] ?? (type === 'DATA_MART' ? projections?.SMART_DATA_DATA_MART : null));
   const find = (
     items: ConsumptionProjection[] | null | undefined
   ): ConsumptionProjection | undefined => {
@@ -127,13 +131,13 @@ function resolveLabel(
   };
   if (type === 'GOOGLE_SHEETS_DOCUMENT_LIST') {
     const doc = projections?.GOOGLE_SHEETS_DOCUMENT?.find(
-      item => item.id === labels['GOOGLE SHEETS DOCUMENT']
+      item => item.id === labels.GOOGLE_SHEETS_DOCUMENT
     );
     return find(doc?.childEntities);
   }
   if (type === 'TRANSFORMATION_OPERATION') {
     const transformation = projections?.TRANSFORMATION?.find(
-      item => item.id === labels['TRANSFORMATION ID']
+      item => item.id === labels.TRANSFORMATION_ID
     );
     return find(transformation?.childEntities);
   }
@@ -143,9 +147,11 @@ function resolveLabel(
 function Breakdown({
   branches,
   projections,
+  deployment,
 }: {
   branches: ConsumptionBranch[];
   projections: ConsumptionProduct['entityProjections'];
+  deployment?: URL | null;
 }) {
   return (
     <ul className='border-border space-y-2 border-l pl-3 text-sm'>
@@ -153,27 +159,112 @@ function Breakdown({
         <li key={JSON.stringify(branch.labels)} className='space-y-2'>
           <div className='flex justify-between gap-4'>
             <dl className='min-w-0 space-y-1'>
-              {Object.entries(branch.labels).map(([label, id]) => {
-                const entity = resolveLabel(label, id, branch.labels, projections);
-                return (
-                  <div key={label} className='flex flex-wrap gap-x-2 break-all'>
-                    <dt className='text-muted-foreground'>{readableName(label)}</dt>
-                    <dd>
-                      {entity?.title ?? id}
-                      {entity?.origin ? ` (${entity.origin})` : ''}
-                    </dd>
-                  </div>
-                );
-              })}
+              {Object.entries(branch.labels)
+                .filter(([label]) => label !== licenseKeyLabel && label !== originatingProjectLabel)
+                .map(([label, id]) => {
+                  const entity = resolveLabel(label, id, branch.labels, projections);
+                  const href =
+                    deployment && consumptionEntityUrl(deployment, branch.labels, label, id);
+                  const title = entity?.title ?? id;
+                  return (
+                    <div key={label} className='flex flex-wrap gap-x-2 break-words'>
+                      <dt className='text-muted-foreground'>{readableName(label)}</dt>
+                      <dd>
+                        {href ? (
+                          <a
+                            href={href}
+                            target='_blank'
+                            rel='noopener noreferrer'
+                            className='text-primary underline underline-offset-4'
+                          >
+                            {title}
+                          </a>
+                        ) : (
+                          title
+                        )}
+                      </dd>
+                    </div>
+                  );
+                })}
             </dl>
             <span className='tabular-nums'>{number.format(branch.consumption)}</span>
           </div>
           {!!branch.childBranches?.length && (
-            <Breakdown branches={branch.childBranches} projections={projections} />
+            <Breakdown
+              branches={branch.childBranches}
+              projections={projections}
+              deployment={deployment}
+            />
           )}
         </li>
       ))}
     </ul>
+  );
+}
+
+function ProductBreakdown({ product }: { product: ConsumptionProduct }) {
+  const groups = groupConsumption(product);
+  if (!groups.length) {
+    return (
+      <Accordion type='multiple'>
+        {product.units.map(unit =>
+          unit.decomposition?.length ? (
+            <AccordionItem key={unit.unit} value={unit.unit}>
+              <AccordionTrigger>{readableName(unit.unit)} details</AccordionTrigger>
+              <AccordionContent>
+                <Breakdown branches={unit.decomposition} projections={product.entityProjections} />
+              </AccordionContent>
+            </AccordionItem>
+          ) : null
+        )}
+      </Accordion>
+    );
+  }
+
+  return (
+    <div className='space-y-3'>
+      {groups.map(group => {
+        const deployment = parseDeploymentUrl(group.origin);
+        return (
+          <section key={group.key} aria-label={group.title} className='dm-card'>
+            <div className='flex flex-wrap items-baseline gap-x-3 gap-y-1'>
+              <h4 className='font-medium'>{group.title}</h4>
+              {deployment && (
+                <a
+                  href={deployment.href}
+                  target='_blank'
+                  rel='noopener noreferrer'
+                  className='text-primary break-all underline underline-offset-4'
+                >
+                  {deployment.host}
+                </a>
+              )}
+            </div>
+            <Accordion type='multiple'>
+              {group.operations.map(({ unit, branches, units, credits }) => {
+                const label = `${readableName(unit)} · ${number.format(units)} units · ${number.format(credits)} credits`;
+                return branches.length ? (
+                  <AccordionItem key={unit} value={unit}>
+                    <AccordionTrigger>{label}</AccordionTrigger>
+                    <AccordionContent>
+                      <Breakdown
+                        branches={branches}
+                        projections={product.entityProjections}
+                        deployment={deployment}
+                      />
+                    </AccordionContent>
+                  </AccordionItem>
+                ) : (
+                  <p key={unit} className='py-4'>
+                    {label}
+                  </p>
+                );
+              })}
+            </Accordion>
+          </section>
+        );
+      })}
+    </div>
   );
 }
 
@@ -304,21 +395,7 @@ export function CreditConsumption({ origin }: { origin: string }) {
                     </AccordionTrigger>
                     <AccordionContent className='space-y-3'>
                       <ConsumptionTable product={product} />
-                      <Accordion type='multiple'>
-                        {product.units.map(unit =>
-                          unit.decomposition?.length ? (
-                            <AccordionItem key={unit.unit} value={unit.unit}>
-                              <AccordionTrigger>{readableName(unit.unit)} details</AccordionTrigger>
-                              <AccordionContent>
-                                <Breakdown
-                                  branches={unit.decomposition}
-                                  projections={product.entityProjections}
-                                />
-                              </AccordionContent>
-                            </AccordionItem>
-                          ) : null
-                        )}
-                      </Accordion>
+                      <ProductBreakdown product={product} />
                     </AccordionContent>
                   </AccordionItem>
                 ))}
