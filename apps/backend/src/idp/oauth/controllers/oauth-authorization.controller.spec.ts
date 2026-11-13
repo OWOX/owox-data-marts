@@ -145,6 +145,7 @@ describe('OAuthAuthorizationController', () => {
   it.each([
     ['https://claude.ai/api/mcp/auth_callback', 'claude'],
     ['https://chatgpt.com/connector/oauth/callback', 'chatgpt'],
+    ['https://grok.com/callback', 'grok'],
     ['http://127.0.0.1:63888/callback', 'owox-data-marts'],
   ])(
     'sends a restricted session to Request Access without OAuth continuation: %s',
@@ -337,6 +338,7 @@ describe('OAuthAuthorizationController', () => {
   it.each([
     ['https://claude.ai/api/mcp/auth_callback', 'claude'],
     ['https://chatgpt.com/connector/oauth/callback', 'chatgpt'],
+    ['https://grok.com/callback', 'grok'],
     ['http://127.0.0.1:63888/callback', 'owox-data-marts'],
   ])(
     'carries validated client attribution through sign-in: %s',

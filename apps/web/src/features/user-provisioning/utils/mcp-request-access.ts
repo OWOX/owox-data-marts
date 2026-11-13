@@ -1,4 +1,4 @@
-export type McpIntegration = 'claude' | 'chatgpt' | 'owox-data-marts';
+export type McpIntegration = 'claude' | 'chatgpt' | 'grok' | 'owox-data-marts';
 
 /** This is display/creation attribution, not a resumable OAuth authorization. */
 export function getMcpIntegration(search: string): McpIntegration | null {
@@ -6,6 +6,7 @@ export function getMcpIntegration(search: string): McpIntegration | null {
   switch (integration) {
     case 'claude':
     case 'chatgpt':
+    case 'grok':
     case 'owox-data-marts':
       return integration;
     default:
@@ -19,6 +20,8 @@ export function getMcpClientName(integration: McpIntegration): string {
       return 'Claude';
     case 'chatgpt':
       return 'ChatGPT';
+    case 'grok':
+      return 'Grok';
     default:
       return 'your MCP client';
   }

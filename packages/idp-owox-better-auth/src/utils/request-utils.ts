@@ -75,8 +75,10 @@ export const AuthFlowParamsSchema = z.object({
   source: optionalStringParam,
   integration: z.preprocess(
     value =>
-      ['claude', 'chatgpt', 'owox-data-marts'].includes(value as string) ? value : undefined,
-    z.enum(['claude', 'chatgpt', 'owox-data-marts']).optional()
+      ['claude', 'chatgpt', 'grok', 'owox-data-marts'].includes(value as string)
+        ? value
+        : undefined,
+    z.enum(['claude', 'chatgpt', 'grok', 'owox-data-marts']).optional()
   ),
   clientId: optionalStringParam,
   codeChallenge: optionalStringParam,
