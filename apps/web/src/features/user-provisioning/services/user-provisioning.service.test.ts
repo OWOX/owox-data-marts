@@ -4,7 +4,7 @@ import { userProvisioningService } from './user-provisioning.service';
 describe('user provisioning project creation', () => {
   afterEach(() => vi.restoreAllMocks());
 
-  it.each(['claude', 'chatgpt'] as const)(
+  it.each(['claude', 'chatgpt', 'grok'] as const)(
     'sends %s attribution to the existing project creation API',
     async integration => {
       const result = { projectId: 'new-project', projectTitle: 'New project' };

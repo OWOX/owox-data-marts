@@ -78,16 +78,17 @@ describe('User provisioning request access use cases', () => {
     expect(idpProjectionsFacade.createNewProject).toHaveBeenCalledWith('user-1', 'owox-data-marts');
   });
 
-  it.each([ProjectCreationIntegration.CLAUDE, ProjectCreationIntegration.CHATGPT])(
-    'preserves %s attribution when creating a project',
-    async integration => {
-      const result = { projectId: 'new-project', projectTitle: 'New project' };
-      idpProjectionsFacade.createNewProject.mockResolvedValueOnce(result);
-      const service = new CreateNewProjectService(
-        idpProjectionsFacade as unknown as IdpProjectionsFacade
-      );
-      await expect(service.run('user-1', integration)).resolves.toBe(result);
-      expect(idpProjectionsFacade.createNewProject).toHaveBeenCalledWith('user-1', integration);
-    }
-  );
+  it.each([
+    ProjectCreationIntegration.CLAUDE,
+    ProjectCreationIntegration.CHATGPT,
+    ProjectCreationIntegration.GROK,
+  ])('preserves %s attribution when creating a project', async integration => {
+    const result = { projectId: 'new-project', projectTitle: 'New project' };
+    idpProjectionsFacade.createNewProject.mockResolvedValueOnce(result);
+    const service = new CreateNewProjectService(
+      idpProjectionsFacade as unknown as IdpProjectionsFacade
+    );
+    await expect(service.run('user-1', integration)).resolves.toBe(result);
+    expect(idpProjectionsFacade.createNewProject).toHaveBeenCalledWith('user-1', integration);
+  });
 });

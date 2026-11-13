@@ -4,6 +4,10 @@ describe('MCP client acquisition source', () => {
   it.each([
     ['https://claude.ai/api/mcp/auth_callback', 'claude'],
     ['https://chatgpt.com/connector/oauth/callback', 'chatgpt'],
+    ['https://grok.com/callback', 'grok'],
+    ['https://x.ai/callback', 'grok'],
+    ['https://grok.com.attacker.test/callback', 'owox-data-marts'],
+    ['http://grok.com/callback', 'owox-data-marts'],
     ['http://127.0.0.1:63782/callback', 'owox-data-marts'],
     ['https://claude.ai.attacker.test/callback', 'owox-data-marts'],
     ['https://claude.ai@attacker.test/callback', 'owox-data-marts'],
