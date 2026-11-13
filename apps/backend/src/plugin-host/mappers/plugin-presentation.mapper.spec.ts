@@ -145,6 +145,23 @@ describe('PluginPresentationMapper', () => {
     });
   });
 
+  describe('installation entry response', () => {
+    it('carries the privileged mark', () => {
+      const entry = {
+        deliveryUrl: 'https://plugin.example.com',
+        displayName: 'Example Plugin',
+        pluginId: 'p1',
+        versionId: 'v1',
+        credentialHandles: [],
+        privileged: true,
+      };
+      expect(mapper.toInstallationEntryResponse(entry).privileged).toBe(true);
+      expect(mapper.toInstallationEntryResponse({ ...entry, privileged: false }).privileged).toBe(
+        false
+      );
+    });
+  });
+
   // Publisher diagnostics reach a publisher through the diagnostics block on a
   // publication response, never through a second flavour of the plugin view -- so there
   // is no view-building entry point that could be told which audience to serve.

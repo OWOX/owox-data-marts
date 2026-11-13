@@ -69,7 +69,7 @@ describe('AuthProvider request-access entry', () => {
     });
   }
 
-  it.each(['claude', 'chatgpt'])(
+  it.each(['claude', 'chatgpt', 'grok'])(
     'keeps a %s MCP target project so ProjectIdGuard can switch from a restricted session',
     async integration => {
       const path = `/ui/resource-project/request-access?mcp-integration=${integration}`;
@@ -105,7 +105,7 @@ describe('AuthProvider request-access entry', () => {
     });
   });
 
-  it.each(['claude', 'chatgpt'])(
+  it.each(['claude', 'chatgpt', 'grok'])(
     'restores the complete %s Request Access URL after switching to its project',
     async integration => {
       const target = `/ui/resource-project/request-access?mcp-integration=${integration}#access`;

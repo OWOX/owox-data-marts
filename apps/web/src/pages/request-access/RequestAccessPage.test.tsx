@@ -148,6 +148,7 @@ describe('RequestAccessPage', () => {
   it.each([
     ['claude', 'Claude'],
     ['chatgpt', 'ChatGPT'],
+    ['grok', 'Grok'],
     ['owox-data-marts', 'your MCP client'],
   ])(
     'explains how to connect %s and does not resume OAuth after requesting access',
@@ -177,6 +178,7 @@ describe('RequestAccessPage', () => {
   it.each([
     ['claude', 'Claude'],
     ['chatgpt', 'ChatGPT'],
+    ['grok', 'Grok'],
   ])(
     'preserves %s when creating a project and requires an explicit action to leave the page',
     async (integration, clientName) => {

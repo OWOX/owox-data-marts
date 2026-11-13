@@ -65,6 +65,18 @@ export function wasErrorToastShown(error: unknown): boolean {
 
 const authStateManager = new AuthStateManager();
 
+/**
+ * Refreshes the member's access token through the same shared refresh the 401 handling
+ * below joins, so a caller outside axios never runs a second refresh beside it.
+ */
+export function refreshMemberAccessToken(): Promise<string> {
+  const tokenProvider = getTokenProvider();
+  if (!tokenProvider) {
+    return Promise.reject(new Error('No token provider available'));
+  }
+  return authStateManager.refreshToken(() => tokenProvider.refreshToken());
+}
+
 function assertExpectedSession(request: ExtendedInternalAxiosRequestConfig, token?: string | null) {
   if (!request.expectedSession) return;
   const provider = getTokenProvider();

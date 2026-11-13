@@ -101,27 +101,30 @@ describe('request-utils', () => {
     expect(extractAuthFlowParams(req).integration).toBe('chatgpt');
   });
 
-  it.each(['claude', 'chatgpt'])('takes current MCP source %s over a stale cookie', integration => {
-    const req = {
-      path: '/auth/sign-up',
-      query: {
-        state: 'new-platform-state',
-        integration,
-        'app-redirect-to': '/oauth/authorize?client_id=current',
-      },
-      headers: {
-        cookie: `idp-owox-state=old-platform-state; idp-owox-params=${encodeURIComponent(
-          JSON.stringify({
-            appRedirectTo: '/oauth/authorize?client_id=old',
-            integration: 'owox-data-marts',
-          })
-        )}`,
-      },
-    } as unknown as Request;
-    expect(extractAuthFlowParams(req).integration).toBe(integration);
-  });
+  it.each(['claude', 'chatgpt', 'grok'])(
+    'takes current MCP source %s over a stale cookie',
+    integration => {
+      const req = {
+        path: '/auth/sign-up',
+        query: {
+          state: 'new-platform-state',
+          integration,
+          'app-redirect-to': '/oauth/authorize?client_id=current',
+        },
+        headers: {
+          cookie: `idp-owox-state=old-platform-state; idp-owox-params=${encodeURIComponent(
+            JSON.stringify({
+              appRedirectTo: '/oauth/authorize?client_id=old',
+              integration: 'owox-data-marts',
+            })
+          )}`,
+        },
+      } as unknown as Request;
+      expect(extractAuthFlowParams(req).integration).toBe(integration);
+    }
+  );
 
-  it.each(['claude', 'chatgpt'])(
+  it.each(['claude', 'chatgpt', 'grok'])(
     'keeps %s echoed by Platform with a new state and no state cookie',
     integration => {
       const req = {
@@ -151,7 +154,7 @@ describe('request-utils', () => {
     }
   );
 
-  it.each(['semrush', 'codex', 'claude'])(
+  it.each(['semrush', 'codex', 'claude', 'grok'])(
     'drops integration outside an MCP continuation: %s',
     integration => {
       const req = { query: { integration }, headers: {} } as unknown as Request;

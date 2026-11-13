@@ -45,6 +45,64 @@ export class PluginHostConfigService {
       .filter(Boolean);
   }
 
+  /**
+   * Numeric GitHub repository ids of privileged plugins. An unset or blank value yields an
+   * empty list, which means "no plugin is privileged" -- never "any".
+   */
+  get privilegedPluginRepositoryIds(): readonly string[] {
+    return (this.config.get<string>('OWOX_PRIVILEGED_PLUGIN_REPOSITORY_IDS') ?? '')
+      .split(',')
+      .map(id => id.trim())
+      .filter(Boolean);
+  }
+
+  /**
+   * Https origins privileged plugins are delivered from, normalized with `new URL(value).origin`;
+   * unparseable and non-https entries are dropped (which also keeps out the "null" origin of
+   * a file: or data: URL). An unset or blank value yields an empty list, which means "no
+   * plugin is privileged" -- never "any".
+   */
+  get privilegedPluginOrigins(): readonly string[] {
+    const origins: string[] = [];
+    for (const value of (this.config.get<string>('OWOX_PRIVILEGED_PLUGIN_ORIGINS') ?? '').split(
+      ','
+    )) {
+      try {
+        const url = new URL(value.trim());
+        if (url.protocol === 'https:') {
+          origins.push(url.origin);
+        }
+      } catch {
+        // Not a URL: dropped rather than guessed at.
+      }
+    }
+    return origins;
+  }
+
+  /**
+   * A plugin is privileged only when its repository and the origin of its
+   * delivery URL are both listed. A plugin served from the deployment's own host never
+   * qualifies. Host names are compared, not origins: PUBLIC_ORIGIN without a scheme, or
+   * one behind TLS termination, reads as http here and would never equal a listed https
+   * origin. The port is left out because cookies are shared across ports of one host.
+   */
+  isPrivilegedPlugin(githubRepoId: string, deliveryUrl: string): boolean {
+    const publicOrigin = this.publicOrigin;
+    if (!publicOrigin || !this.privilegedPluginRepositoryIds.includes(githubRepoId)) {
+      return false;
+    }
+    let delivery: URL;
+    try {
+      delivery = new URL(deliveryUrl);
+    } catch {
+      return false;
+    }
+    return (
+      delivery.hostname !== new URL(publicOrigin).hostname &&
+      this.privilegedPluginOrigins.includes(delivery.origin)
+    );
+  }
+
   get githubApiBaseUrl(): string {
     return this.trimmed('GITHUB_API_BASE_URL') ?? DEFAULT_GITHUB_API_BASE_URL;
   }

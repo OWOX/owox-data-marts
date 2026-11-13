@@ -418,6 +418,96 @@ describe('connect', () => {
     await vi.advanceTimersByTimeAsync(0);
     await refused;
   });
+
+  async function connectWithUserToken(
+    answer: (request: Record<string, unknown>) => object,
+    granted = true
+  ) {
+    const parent = pretendToBeFramed();
+    const channel = new MessageChannel();
+    const seen: Record<string, unknown>[] = [];
+    channel.port1.onmessage = event => {
+      const request = event.data as { id: string; kind: string };
+      if (request.kind === 'userToken') {
+        seen.push(request);
+        channel.port1.postMessage({ id: request.id, ...answer(request) });
+      }
+    };
+    channel.port1.start();
+    const pending = connect();
+    await vi.advanceTimersByTimeAsync(0);
+    const init = hostInit();
+    deliverFromParent(
+      parent,
+      granted ? { ...init, context: { ...init.context, userToken: true } } : init,
+      [channel.port2]
+    );
+    return { context: await pending, seen };
+  }
+
+  it('offers the user token only on a host that grants it', async () => {
+    const without = await connectWithUserToken(() => ({}), false);
+    expect(without.context.userToken).toBeUndefined();
+    __resetForTests();
+    const granted = await connectWithUserToken(() => ({}));
+    expect(typeof granted.context.userToken).toBe('function');
+  });
+
+  it('asks the host for the user token over the port', async () => {
+    const { context, seen } = await connectWithUserToken(() => ({
+      ok: true,
+      status: 200,
+      headers: {},
+      body: { token: 'tok' },
+    }));
+
+    const first = context.userToken?.();
+    await vi.advanceTimersByTimeAsync(0);
+    await expect(first).resolves.toBe('tok');
+    const fresh = context.userToken?.({ fresh: true });
+    await vi.advanceTimersByTimeAsync(0);
+    await fresh;
+    const notFresh = context.userToken?.({ fresh: false });
+    await vi.advanceTimersByTimeAsync(0);
+    await notFresh;
+
+    expect(seen[0]).toEqual({ id: expect.any(String), kind: 'userToken' });
+    expect(seen[1]).toEqual({ id: expect.any(String), kind: 'userToken', fresh: true });
+    expect(seen[2]).not.toHaveProperty('fresh');
+  });
+
+  it('rejects with the host refusal', async () => {
+    const { context } = await connectWithUserToken(() => ({
+      ok: false,
+      error: { code: 'FORBIDDEN', message: 'No token for this plugin' },
+    }));
+
+    const refused = context.userToken?.();
+    const check = expect(refused).rejects.toMatchObject({
+      name: 'PluginTransportError',
+      payload: { code: 'FORBIDDEN' },
+    });
+    await vi.advanceTimersByTimeAsync(0);
+    await check;
+  });
+
+  it.each([
+    ['no token', {}],
+    ['an empty token', { token: '' }],
+  ])('rejects an answer with %s', async (_label, body) => {
+    const { context } = await connectWithUserToken(() => ({
+      ok: true,
+      status: 200,
+      headers: {},
+      body,
+    }));
+
+    const check = expect(context.userToken?.()).rejects.toThrow(
+      'The host answered the user token request without a token'
+    );
+    await vi.advanceTimersByTimeAsync(0);
+    await check;
+  });
 });
 
 describe('ctx.ui.startLoading', () => {

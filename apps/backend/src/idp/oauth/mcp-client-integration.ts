@@ -8,6 +8,9 @@ export function getMcpClientIntegration(redirectUri: string): McpClientIntegrati
       return 'claude';
     case 'https://chatgpt.com':
       return 'chatgpt';
+    case 'https://grok.com':
+    case 'https://x.ai':
+      return 'grok';
     default:
       return 'owox-data-marts';
   }

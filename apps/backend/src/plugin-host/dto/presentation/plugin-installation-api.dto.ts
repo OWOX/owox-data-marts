@@ -84,6 +84,12 @@ export class PluginEntryApiDto {
     | { name: string; kind: 'exact' }
     | { name: string; kind: 'ai'; models: Array<'fast' | 'reasoning' | 'embedding'> }
   >;
+
+  @ApiProperty({
+    description:
+      "Whether the host relaxes the sandbox and may hand this plugin the member's access token",
+  })
+  privileged: boolean;
 }
 
 export class PluginRuntimeTokenApiDto {

@@ -37,6 +37,20 @@ export interface PluginHostBridgeOptions {
   /** The plugin's loading bar state; `progress` is a fraction from 0 to 1, or undefined for no amount. */
   onLoadingChange?: (state: { active: boolean; progress?: number }) => void;
   /**
+   * The real origin a plugin is served from, when it is not sandboxed to the opaque one.
+   * The announcement must come from it and host-init is addressed to it.
+   */
+  pluginOrigin?: string;
+  /**
+   * Supplies the member's access token; set only for a plugin the host grants it to.
+   * Served only together with `pluginOrigin`, and called with the project and member of
+   * this bridge's context. A rejection is answered without its reason.
+   */
+  fetchUserToken?: (
+    fresh: boolean,
+    session: { projectId: string; userId: string }
+  ) => Promise<string>;
+  /**
    * The bridge closed the channel on its own, and the frame is now inert.
    *
    * Not called for `dispose()`: an unmount already knows. This exists because a silently
@@ -69,7 +83,14 @@ const REFRESH_MARGIN_MS = 60_000;
 /** Everything else the backend returns is host detail the plugin has no use for. */
 const FORWARDED_RESPONSE_HEADERS = ['content-type', 'x-owox-run-id'];
 
-const HOST_ONLY_KINDS = new Set(['openExternal', 'navigate', 'route', 'copyLink', 'loading']);
+const HOST_ONLY_KINDS = new Set([
+  'openExternal',
+  'navigate',
+  'route',
+  'copyLink',
+  'loading',
+  'userToken',
+]);
 const EXECUTION_START_PATH = /^\/api\/plugins\/runtime\/actions\/[^/?#]+\/executions$/;
 const EXECUTION_PATH = /^\/api\/plugins\/runtime\/executions\/([^/?#]+)$/;
 /** Locked to OWOX and the SDK by `test/contracts/plugin-action-contract.mjs`. */
@@ -85,11 +106,13 @@ export interface PluginHostBridge {
 }
 
 /**
- * Brokers a plugin's API calls without ever handing it a credential.
+ * Brokers a plugin's API calls without handing it the runtime token.
  *
  * The runtime token lives in this closure. It is not React state, not context, not
  * storage, and never travels in a postMessage payload or a URL -- the plugin cannot
- * read it because it is never anywhere the plugin can look.
+ * read it because it is never anywhere the plugin can look. The member's access token is
+ * the one exception: it leaves only over the port, only to a plugin given both
+ * `pluginOrigin` and `fetchUserToken`, and is not kept here after the reply.
  */
 export function createPluginHostBridge(options: PluginHostBridgeOptions): PluginHostBridge {
   const apiOrigin = new URL(options.apiOrigin, window.location.origin).origin;
@@ -452,6 +475,21 @@ export function createPluginHostBridge(options: PluginHostBridgeOptions): Plugin
             throw forbidden('The link could not be copied');
           }
           reply({ id, ok: true, status: 200, headers: {}, body: null });
+        } else if (request.kind === 'userToken') {
+          // Both, so the token can only reach a frame whose real origin was checked.
+          if (!options.fetchUserToken || !options.pluginOrigin) {
+            throw forbidden('This plugin may not request the user token');
+          }
+          let token: string;
+          try {
+            token = await options.fetchUserToken(request.fresh === true, {
+              projectId: options.context.projectId,
+              userId: options.context.userId,
+            });
+          } catch {
+            throw forbidden('The user token is unavailable');
+          }
+          reply({ id, ok: true, status: 200, headers: {}, body: { token } });
         }
       } catch (caught) {
         reply({ id, ok: false, error: asErrorPayload(caught) });
@@ -549,14 +587,24 @@ export function createPluginHostBridge(options: PluginHostBridgeOptions): Plugin
   }
 
   function onWindowMessage(event: MessageEvent<unknown>): void {
-    // Identity, not origin: a sandboxed frame has an opaque origin, so there is nothing
-    // meaningful to compare. The origin check below is a tripwire for allow-same-origin
-    // creeping into the sandbox.
+    // Identity first. A frame sandboxed to an opaque origin has nothing meaningful to
+    // compare, so for it the origin check below is a tripwire for allow-same-origin creeping
+    // into the sandbox. For a plugin with a real origin (`pluginOrigin`) that check is the
+    // primary control: the announcement must come from exactly that origin.
     if (event.source !== options.iframe.contentWindow) {
       return;
     }
 
-    if (event.origin !== OPAQUE_ORIGIN || !isPluginReady(event.data) || port) {
+    if (!isPluginReady(event.data) || port) {
+      return;
+    }
+
+    // The frame announced itself from somewhere else, for example after a cross-origin
+    // redirect. That document would keep whatever the sandbox grants without ever being
+    // the plugin this frame was opened for, so the frame is not worth keeping.
+    if (event.origin !== (options.pluginOrigin ?? OPAQUE_ORIGIN)) {
+      shutdown();
+      options.onBroken?.();
       return;
     }
 
@@ -577,7 +625,7 @@ export function createPluginHostBridge(options: PluginHostBridgeOptions): Plugin
         nonce,
         context: options.context,
       },
-      '*',
+      options.pluginOrigin ?? '*',
       [channel.port2]
     );
   }
@@ -697,6 +745,13 @@ function validateRequest(candidate: unknown): ValidatedPluginRequest {
   if (candidate.kind === 'copyLink') {
     if (candidate.path !== undefined && !isValidPluginRoute(candidate.path)) {
       throw protocolError('The plugin route is invalid');
+    }
+    return candidate as unknown as ValidatedPluginRequest;
+  }
+
+  if (candidate.kind === 'userToken') {
+    if (candidate.fresh !== undefined && candidate.fresh !== true) {
+      throw protocolError('The user token request is malformed');
     }
     return candidate as unknown as ValidatedPluginRequest;
   }
