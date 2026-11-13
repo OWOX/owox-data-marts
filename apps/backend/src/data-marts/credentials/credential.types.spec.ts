@@ -3,6 +3,7 @@ import {
   CredentialDefinitionContractSchema,
   CredentialDocumentationUrlSchema,
   credentialIdentity,
+  isCredentialAiModelInCatalog,
   resolveCredentialAiModelMappings,
 } from './credential.types';
 
@@ -200,5 +201,41 @@ describe('custom-connector credentials', () => {
     expect(isCustomConnectorMetadata({ fields: { a: 'b' } })).toBe(false);
     expect(isCustomConnectorMetadata(null)).toBe(false);
     expect(isCustomConnectorMetadata(metadata)).toBe(true);
+  });
+});
+
+describe('Credential definition decision models', () => {
+  const ai = (adapter: string, extra: Record<string, unknown> = {}) => ({
+    ...definition,
+    ai: {
+      adapter,
+      baseUrl: 'https://api.acme.example/v1',
+      models: { language: [], embedding: [], decision: [{ id: 'decide-1', name: 'Decide 1' }] },
+      recommended: { decision: 'decide-1' },
+      ...extra,
+    },
+  });
+
+  it.each(['openai', 'google', 'anthropic'])('accepts a decision catalog for %s', adapter => {
+    expect(CredentialDefinitionContractSchema.safeParse(ai(adapter)).success).toBe(true);
+  });
+
+  it.each(['openrouter', 'openai-compatible'])(
+    'rejects a decision catalog or recommendation for %s',
+    adapter => {
+      const result = CredentialDefinitionContractSchema.safeParse(ai(adapter));
+      expect(result.success).toBe(false);
+      expect(JSON.stringify(result.error?.issues)).toContain('do not support decision models');
+      const recommendationOnly = CredentialDefinitionContractSchema.safeParse(
+        ai(adapter, { models: undefined })
+      );
+      expect(recommendationOnly.success).toBe(false);
+    }
+  );
+
+  it('finds decision models in the decision catalog', () => {
+    const parsed = CredentialDefinitionContractSchema.parse(ai('openai'));
+    expect(isCredentialAiModelInCatalog(parsed.ai!, 'decision', 'decide-1')).toBe(true);
+    expect(isCredentialAiModelInCatalog(parsed.ai!, 'decision', 'other')).toBe(false);
   });
 });

@@ -180,6 +180,10 @@ const CredentialDefinitionContractObjectSchema = z.object({
             .array(z.object({ id: z.string().min(1), name: z.string().min(1) }))
             .max(100)
             .default([]),
+          decision: z
+            .array(z.object({ id: z.string().min(1), name: z.string().min(1) }))
+            .max(100)
+            .default([]),
         })
         .optional(),
       recommended: z
@@ -187,11 +191,24 @@ const CredentialDefinitionContractObjectSchema = z.object({
           fast: z.string().min(1).optional(),
           reasoning: z.string().min(1).optional(),
           embedding: z.string().min(1).optional(),
+          decision: z.string().min(1).optional(),
         })
         .optional(),
     })
     .optional(),
 });
+
+const DECISION_ADAPTERS = new Set(['openai', 'google', 'anthropic']);
+
+/** False when a definition declares a decision model for an adapter that cannot run one. */
+export function isDecisionAdapterAllowed(ai: {
+  adapter: string;
+  models?: { decision?: unknown[] };
+  recommended?: { decision?: string };
+}): boolean {
+  const usesDecision = Boolean(ai.models?.decision?.length) || Boolean(ai.recommended?.decision);
+  return !usesDecision || DECISION_ADAPTERS.has(ai.adapter);
+}
 
 export const CredentialDefinitionContractSchema =
   CredentialDefinitionContractObjectSchema.superRefine((contract, context) => {
@@ -210,6 +227,13 @@ export const CredentialDefinitionContractSchema =
           message: 'origins are required for a validation probe',
         });
       }
+    }
+    if (contract.ai && !isDecisionAdapterAllowed(contract.ai)) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['ai', 'adapter'],
+        message: `${contract.ai.adapter} AI definitions do not support decision models`,
+      });
     }
     if (contract.auth.type !== 'fields') return;
     const { fields } = contract.auth;
@@ -424,6 +448,8 @@ export function credentialIdentity(
 
 export type CredentialAiModelMappings = Record<string, string>;
 export type CredentialAiModelMappingModes = Record<string, 'recommended' | 'override'>;
+/** An update can send `null` for a key to remove it from the mappings, modes and sources. */
+export type CredentialAiModelMappingModesInput = Record<string, 'recommended' | 'override' | null>;
 export type CredentialAiModelMappingSources = Record<string, 'catalog' | 'manual'>;
 
 export function isCredentialAiModelInCatalog(
@@ -431,7 +457,12 @@ export function isCredentialAiModelInCatalog(
   capability: string,
   modelId: string
 ): boolean {
-  const catalog = capability === 'embedding' ? ai.models?.embedding : ai.models?.language;
+  const catalog =
+    capability === 'embedding'
+      ? ai.models?.embedding
+      : capability === 'decision'
+        ? ai.models?.decision
+        : ai.models?.language;
   return Boolean(catalog?.some(model => model.id === modelId));
 }
 

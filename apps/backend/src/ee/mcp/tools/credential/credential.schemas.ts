@@ -13,6 +13,7 @@ const modelMappingsSchema = z
     fast: modelIdSchema.optional(),
     reasoning: modelIdSchema.optional(),
     embedding: modelIdSchema.optional(),
+    decision: modelIdSchema.optional(),
   })
   .strict();
 const modelModeSchema = z.enum(['recommended', 'override']);
@@ -21,6 +22,7 @@ const modelMappingModesSchema = z
     fast: modelModeSchema.optional(),
     reasoning: modelModeSchema.optional(),
     embedding: modelModeSchema.optional(),
+    decision: modelModeSchema.optional(),
   })
   .strict();
 
@@ -114,6 +116,7 @@ export const credentialOutputSchema = {
       fast: z.string().optional(),
       reasoning: z.string().optional(),
       embedding: z.string().optional(),
+      decision: z.string().optional(),
     })
     .nullable(),
   ai_model_mapping_modes: modelMappingModesSchema.nullable(),

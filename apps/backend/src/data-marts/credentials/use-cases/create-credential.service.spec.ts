@@ -6,6 +6,7 @@ jest.mock('typeorm-transactional', () => ({
 import { BadRequestException } from '@nestjs/common';
 import type { AuthorizationContext } from '../../../idp';
 import { serviceAccountKey } from '../../../../test/fixtures/google-service-account-key';
+import { CredentialDefinitionContractSchema } from '../credential.types';
 import { BUILTIN_CREDENTIAL_DEFINITIONS } from '../services/builtin-credential-definitions';
 import { CreateCredentialService, normalizeAiConfiguration } from './create-credential.service';
 
@@ -19,13 +20,121 @@ describe('normalizeAiConfiguration', () => {
         { id: 'recommended-reasoning', name: 'Recommended Reasoning' },
         { id: 'custom-fast', name: 'Custom Fast' },
       ],
-      embedding: [],
+      embedding: [{ id: 'embed-1', name: 'Embed 1' }],
+      decision: [{ id: 'decide-1', name: 'Decide 1' }],
     },
     recommended: {
       fast: 'recommended-fast',
       reasoning: 'recommended-reasoning',
+      decision: 'decide-1',
     },
   };
+  const full = {
+    mappings: {
+      fast: 'recommended-fast',
+      reasoning: 'recommended-reasoning',
+      embedding: 'embed-1',
+      decision: 'decide-1',
+    },
+    modes: {
+      fast: 'recommended',
+      reasoning: 'recommended',
+      embedding: 'override',
+      decision: 'recommended',
+    } as const,
+    sources: {
+      fast: 'catalog',
+      reasoning: 'catalog',
+      embedding: 'catalog',
+      decision: 'catalog',
+    } as const,
+  };
+
+  it('accepts a recommended decision mapping', () => {
+    const result = normalizeAiConfiguration(
+      { fast: 'recommended-fast', reasoning: 'recommended-reasoning', decision: 'decide-1' },
+      { fast: 'recommended', reasoning: 'recommended', decision: 'recommended' },
+      ai
+    );
+    expect(result.mappings?.decision).toBe('decide-1');
+    expect(result.modes?.decision).toBe('recommended');
+    expect(result.sources?.decision).toBe('catalog');
+  });
+
+  it('removes embedding and decision when their mode is null', () => {
+    const result = normalizeAiConfiguration(
+      undefined,
+      { embedding: null, decision: null },
+      ai,
+      full
+    );
+    for (const part of [result.mappings, result.modes, result.sources]) {
+      expect(part).not.toHaveProperty('embedding');
+      expect(part).not.toHaveProperty('decision');
+      expect(part).toHaveProperty('fast');
+    }
+  });
+
+  it('lets removal win over a mapping sent for the same key', () => {
+    const result = normalizeAiConfiguration({ decision: 'decide-1' }, { decision: null }, ai, full);
+    expect(result.mappings).not.toHaveProperty('decision');
+    expect(result.modes).not.toHaveProperty('decision');
+  });
+
+  it.each(['fast', 'reasoning'])('rejects null for %s', key => {
+    expect(() => normalizeAiConfiguration(undefined, { [key]: null }, ai, full)).toThrow(
+      'AI Credentials require fast and reasoning model mappings'
+    );
+  });
+
+  it('keeps decision when an update leaves it out', () => {
+    const result = normalizeAiConfiguration({ fast: 'custom-fast' }, undefined, ai, full);
+    expect(result.mappings?.decision).toBe('decide-1');
+    expect(result.modes?.decision).toBe('recommended');
+    expect(result.sources?.decision).toBe('catalog');
+  });
+
+  it('allows a language-catalog model as the decision model', () => {
+    const shared = {
+      ...ai,
+      models: { ...ai.models, decision: [{ id: 'recommended-fast', name: 'Fast' }] },
+    };
+    expect(
+      normalizeAiConfiguration(
+        {
+          fast: 'recommended-fast',
+          reasoning: 'recommended-reasoning',
+          decision: 'recommended-fast',
+        },
+        undefined,
+        shared
+      ).mappings?.decision
+    ).toBe('recommended-fast');
+  });
+
+  it('rejects an embedding-catalog model as the decision model', () => {
+    expect(() =>
+      normalizeAiConfiguration(
+        { fast: 'recommended-fast', reasoning: 'recommended-reasoning', decision: 'embed-1' },
+        undefined,
+        ai
+      )
+    ).toThrow('is not compatible with the decision mapping');
+  });
+
+  it('recommends the decision models of the built-in definitions', () => {
+    const expected = {
+      openai: 'gpt-6-luna',
+      gemini: 'gemini-decision-1',
+      anthropic: 'claude-haiku-4-5-20251001',
+    };
+    for (const [id, model] of Object.entries(expected)) {
+      const contract = BUILTIN_CREDENTIAL_DEFINITIONS.find(definition => definition.id === id);
+      expect(contract?.ai?.recommended?.decision).toBe(model);
+      expect(contract?.ai?.models?.decision?.some(entry => entry.id === model)).toBe(true);
+      expect(CredentialDefinitionContractSchema.safeParse(contract).success).toBe(true);
+    }
+  });
 
   it('keeps an omitted AI configuration empty for a non-AI Credential definition', () => {
     expect(normalizeAiConfiguration(undefined, undefined, undefined)).toEqual({

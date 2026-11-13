@@ -33,7 +33,7 @@ export class McpCredentialMapper {
       input.aiModelMappings == null ? input.aiModelMappings : {};
     const modes: CredentialAiModelMappingModes | null | undefined =
       input.aiModelMappingModes == null ? input.aiModelMappingModes : {};
-    for (const capability of ['fast', 'reasoning', 'embedding'] as const) {
+    for (const capability of ['fast', 'reasoning', 'embedding', 'decision'] as const) {
       if (mappings && input.aiModelMappings?.[capability] !== undefined) {
         mappings[capability] = input.aiModelMappings[capability];
       }
@@ -107,6 +107,7 @@ export class McpCredentialMapper {
               fast: dto.aiModelMappings.fast,
               reasoning: dto.aiModelMappings.reasoning,
               embedding: dto.aiModelMappings.embedding,
+              decision: dto.aiModelMappings.decision,
             },
       aiModelMappingModes:
         dto.aiModelMappingModes === null
@@ -115,6 +116,7 @@ export class McpCredentialMapper {
               fast: dto.aiModelMappingModes.fast,
               reasoning: dto.aiModelMappingModes.reasoning,
               embedding: dto.aiModelMappingModes.embedding,
+              decision: dto.aiModelMappingModes.decision,
             },
       canUse: dto.canUse,
       ownerIds: dto.ownerUsers.map(user => user.userId),

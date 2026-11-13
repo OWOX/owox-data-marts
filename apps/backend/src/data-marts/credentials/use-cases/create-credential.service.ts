@@ -16,6 +16,7 @@ import {
   isCredentialAiModelInCatalog,
   type CredentialAiModelMappingSources,
   type CredentialAiModelMappingModes,
+  type CredentialAiModelMappingModesInput,
   type CredentialAiModelMappings,
   type CredentialDefinitionContract,
   type CredentialPublicMetadata,
@@ -182,7 +183,7 @@ export function validateAiMappings(
 
 export function normalizeAiConfiguration(
   mappings: CredentialAiModelMappings | null | undefined,
-  modes: CredentialAiModelMappingModes | null | undefined,
+  modes: CredentialAiModelMappingModesInput | null | undefined,
   ai: CredentialDefinitionContract['ai'] | undefined,
   current?: {
     readonly mappings: CredentialAiModelMappings | null;
@@ -206,15 +207,31 @@ export function normalizeAiConfiguration(
     throw new BadRequestException('AI Credentials require fast and reasoning model mappings');
   }
 
+  // A null mode removes its key. The removal wins over a mapping sent for the same key.
+  const removedKeys = Object.entries(modes ?? {})
+    .filter(([, mode]) => mode === null)
+    .map(([key]) => key);
+  if (removedKeys.some(key => key === 'fast' || key === 'reasoning')) {
+    throw new BadRequestException('AI Credentials require fast and reasoning model mappings');
+  }
+  const setModes = Object.fromEntries(
+    Object.entries(modes ?? {}).filter(([, mode]) => mode !== null)
+  ) as CredentialAiModelMappingModes;
+
   const resolvedMappings: CredentialAiModelMappings = current
     ? { ...(current.mappings ?? {}), ...(mappings ?? {}) }
     : { ...(mappings ?? ai?.recommended ?? {}) };
   const resolvedModes: CredentialAiModelMappingModes = current
-    ? { ...(current.modes ?? {}), ...(modes ?? {}) }
-    : { ...(modes ?? inferAiMappingModes(resolvedMappings, ai?.recommended)) };
+    ? { ...(current.modes ?? {}), ...setModes }
+    : { ...(modes ? setModes : inferAiMappingModes(resolvedMappings, ai?.recommended)) };
+  for (const key of removedKeys) {
+    delete resolvedMappings[key];
+    delete resolvedModes[key];
+  }
 
   if (current && mappings) {
     for (const key of Object.keys(mappings)) {
+      if (removedKeys.includes(key)) continue;
       if (!modes || !Object.hasOwn(modes, key)) resolvedModes[key] = 'override';
     }
   }
@@ -240,6 +257,7 @@ export function normalizeAiConfiguration(
   validateAiMappings(resolvedMappings, ai);
 
   const resolvedSources: CredentialAiModelMappingSources = { ...(current?.sources ?? {}) };
+  for (const key of removedKeys) delete resolvedSources[key];
   for (const [key, modelId] of Object.entries(resolvedMappings)) {
     const mappingChanged = mappings !== undefined && Object.hasOwn(mappings ?? {}, key);
     const modeChanged = modes !== undefined && Object.hasOwn(modes ?? {}, key);
@@ -260,7 +278,7 @@ export function normalizeAiConfiguration(
     : { mappings: resolvedMappings, modes: resolvedModes, sources: resolvedSources };
 }
 
-const AI_CAPABILITIES = new Set(['fast', 'reasoning', 'embedding']);
+const AI_CAPABILITIES = new Set(['fast', 'reasoning', 'embedding', 'decision']);
 
 function assertAiCapability(key: string): void {
   if (!AI_CAPABILITIES.has(key)) {
@@ -273,6 +291,7 @@ function assertAiModelKind(
   capability: string,
   modelId: string
 ): void {
+  // A decision model can also be a language model, so it is refused only in the embedding catalog.
   const oppositeCatalog = capability === 'embedding' ? ai.models?.language : ai.models?.embedding;
   if (oppositeCatalog?.some(model => model.id === modelId)) {
     throw new BadRequestException(

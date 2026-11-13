@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import {
   CredentialDocumentationUrlSchema,
+  isDecisionAdapterAllowed,
   type CredentialDefinitionContract,
 } from '../credential.types';
 
@@ -44,6 +45,7 @@ const ExternalAiSchema = z
       .object({
         language: z.array(ModelSchema).min(1).max(100),
         embedding: z.array(ModelSchema).max(100).default([]),
+        decision: z.array(ModelSchema).max(100).default([]),
       })
       .strict(),
     recommended: z
@@ -51,6 +53,7 @@ const ExternalAiSchema = z
         fast: z.string().trim().min(1),
         reasoning: z.string().trim().min(1),
         embedding: z.string().trim().min(1).optional(),
+        decision: z.string().trim().min(1).optional(),
       })
       .strict(),
   })
@@ -66,6 +69,21 @@ const ExternalAiSchema = z
           message: `${capability} must reference a declared language model`,
         });
       }
+    }
+    const decisionIds = new Set(ai.models.decision.map(model => model.id));
+    if (ai.recommended.decision && !decisionIds.has(ai.recommended.decision)) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['recommended', 'decision'],
+        message: 'decision must reference a declared decision model',
+      });
+    }
+    if (!isDecisionAdapterAllowed({ ...ai, adapter: ai.adapter.type })) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['adapter', 'type'],
+        message: `${ai.adapter.type} AI definitions do not support decision models`,
+      });
     }
     if (ai.recommended.embedding && !embeddingIds.has(ai.recommended.embedding)) {
       context.addIssue({
