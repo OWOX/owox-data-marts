@@ -85,7 +85,7 @@ export type PluginCredentialHandleDescriptor =
   | {
       readonly name: string;
       readonly kind: 'ai';
-      readonly models: readonly ('fast' | 'reasoning' | 'embedding')[];
+      readonly models: readonly ('fast' | 'reasoning' | 'embedding' | 'decision')[];
     };
 
 /**
@@ -163,8 +163,8 @@ export type PluginRequest =
       /** Vercel AI SDK provider contract v4, versioned independently of the host protocol. */
       version: 1;
       handle: string;
-      operation: 'generate' | 'embed';
-      model: 'fast' | 'reasoning' | 'embedding';
+      operation: 'generate' | 'embed' | 'decide';
+      model: 'fast' | 'reasoning' | 'embedding' | 'decision';
       options: Record<string, unknown>;
       stream?: false;
     }

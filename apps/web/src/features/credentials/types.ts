@@ -80,8 +80,10 @@ export interface CredentialDefinition {
     models?: {
       language: { id: string; name: string }[];
       embedding: { id: string; name: string }[];
+      /** Optional because an older backend does not send it. */
+      decision?: { id: string; name: string }[];
     };
-    recommended?: Partial<Record<'fast' | 'reasoning' | 'embedding', string>>;
+    recommended?: Partial<Record<'fast' | 'reasoning' | 'embedding' | 'decision', string>>;
   } | null;
   compatibilityLine: string | null;
   /** Optional while a newer web build can still talk to an older backend during rollout. */
@@ -267,7 +269,7 @@ export interface UpdateCredentialRequest {
   availableForUse?: boolean;
   availableForMaintenance?: boolean;
   aiModelMappings?: Record<string, string> | null;
-  aiModelMappingModes?: Record<string, 'recommended' | 'override'> | null;
+  aiModelMappingModes?: Record<string, 'recommended' | 'override' | null> | null;
 }
 
 export type PluginCredentialRequirement =

@@ -826,19 +826,22 @@ function validateRequest(candidate: unknown): ValidatedPluginRequest {
     if (
       candidate.operation !== 'generate' &&
       candidate.operation !== 'stream' &&
-      candidate.operation !== 'embed'
+      candidate.operation !== 'embed' &&
+      candidate.operation !== 'decide'
     ) {
       throw protocolError('The Credential AI operation is invalid');
     }
     if (
       candidate.model !== 'fast' &&
       candidate.model !== 'reasoning' &&
-      candidate.model !== 'embedding'
+      candidate.model !== 'embedding' &&
+      candidate.model !== 'decision'
     ) {
       throw protocolError('The Credential AI model mapping is invalid');
     }
     if (
       (candidate.operation === 'embed') !== (candidate.model === 'embedding') ||
+      (candidate.operation === 'decide') !== (candidate.model === 'decision') ||
       (candidate.operation === 'stream') !== (candidate.stream === true)
     ) {
       throw protocolError('The Credential AI operation and model do not match');

@@ -489,6 +489,49 @@ describe('plugin host bridge', () => {
       });
     });
 
+    it('forwards a decide request to the decide route', async () => {
+      const h = await harness(async () => Response.json({ answers: [] }));
+
+      const response = await h.send({
+        kind: 'credentialAi',
+        version: 1,
+        handle: 'ai',
+        operation: 'decide',
+        model: 'decision',
+        options: { questions: [] },
+      });
+
+      expect(response).toMatchObject({ ok: true });
+      expect(h.fetchMock.mock.calls[0][0]).toBe(
+        `${API_ORIGIN}/api/plugins/runtime/credentials/ai/ai/decide`
+      );
+    });
+
+    it.each([
+      ['decide', 'fast'],
+      ['generate', 'decision'],
+    ])('rejects %s with the %s model', async (operation, model) => {
+      const h = await harness();
+
+      const response = await h.send({
+        kind: 'credentialAi',
+        version: 1,
+        handle: 'ai',
+        operation,
+        model,
+        options: {},
+      } as unknown as PluginRequestInput);
+
+      expect(response).toMatchObject({
+        ok: false,
+        error: {
+          code: 'PROTOCOL_ERROR',
+          message: 'The Credential AI operation and model do not match',
+        },
+      });
+      expect(h.fetchMock).not.toHaveBeenCalled();
+    });
+
     it('keeps logical AI stream chunks transferable', async () => {
       const h = await harness(
         async () =>
