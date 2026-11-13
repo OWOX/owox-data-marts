@@ -57,6 +57,20 @@ export function sanitizeCredentialAiEmbeddingResult(value: {
   });
 }
 
+export function sanitizeCredentialAiDecisionResult(value: {
+  answers: unknown;
+  rounding?: unknown;
+  usage?: unknown;
+  warnings: unknown;
+}): unknown {
+  return encodeCredentialAiValue({
+    answers: value.answers,
+    ...(value.rounding === undefined ? {} : { rounding: value.rounding }),
+    ...(value.usage === undefined ? {} : { usage: value.usage }),
+    warnings: value.warnings,
+  });
+}
+
 export function sanitizeCredentialAiStreamPart(value: unknown): unknown | null {
   if (!isPlainRecord(value)) return null;
   if (value.type === 'raw') return null;

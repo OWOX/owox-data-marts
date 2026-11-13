@@ -2,6 +2,7 @@ import { BadRequestException } from '@nestjs/common';
 import {
   decodeCredentialAiOptions,
   encodeCredentialAiValue,
+  sanitizeCredentialAiDecisionResult,
   sanitizeCredentialAiGenerateResult,
   sanitizeCredentialAiStreamPart,
 } from './credential-ai-portable';
@@ -86,5 +87,23 @@ describe('Credential AI portable contract', () => {
         new AbortController().signal
       )
     ).toThrow(BadRequestException);
+  });
+
+  it('keeps answers, rounding, usage and warnings only', () => {
+    const result = sanitizeCredentialAiDecisionResult({
+      answers: { q: { type: 'choice', choice: 'a' } },
+      rounding: { scoreDecimals: 2 },
+      usage: { inputTokens: 1, outputTokens: 2 },
+      warnings: [],
+      response: { id: 'resp-1', modelId: 'model' },
+      providerMetadata: { openai: {} },
+    } as never);
+
+    expect(result).toEqual({
+      answers: { q: { type: 'choice', choice: 'a' } },
+      rounding: { scoreDecimals: 2 },
+      usage: { inputTokens: 1, outputTokens: 2 },
+      warnings: [],
+    });
   });
 });
