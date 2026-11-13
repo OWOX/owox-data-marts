@@ -98,6 +98,20 @@ export function registerPublicFlagsRoute(app: Express, rawOptions: FlagsRouteOpt
       resultEntries as Array<readonly [string, unknown]>
     );
     payload.PUBLIC_ORIGIN = resolvePublicOrigin();
+    if (
+      payload.IDP_PROVIDER === 'owox-better-auth' &&
+      process.env.CLOUD_BILLING_ENABLED === 'true' &&
+      process.env.IDP_OWOX_BASE_URL
+    ) {
+      try {
+        const billingUrl = new URL(process.env.IDP_OWOX_BASE_URL);
+        if (billingUrl.protocol === 'https:' && !billingUrl.username && !billingUrl.password) {
+          payload.CLOUD_BILLING_API_ORIGIN = billingUrl.origin;
+        }
+      } catch {
+        // An invalid billing URL leaves the Cloud billing pages disabled.
+      }
+    }
 
     // Do not cache this response; values may change across deploys
     res.setHeader('Cache-Control', 'no-store');

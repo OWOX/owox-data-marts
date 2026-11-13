@@ -20,6 +20,7 @@ import {
 import type { MouseEvent } from 'react';
 import { NavLink, useNavigate } from 'react-router';
 import { useFlags } from '../../../app/store/hooks';
+import { getCloudBillingOrigin } from '../../../features/cloud-billing/cloud-billing';
 import { useProjectId } from '../../../shared/hooks';
 import { checkVisible } from '../../../utils';
 import { useProjectRoute } from '../../../shared/hooks';
@@ -36,6 +37,7 @@ type SettingsSubItem =
   | {
       kind: 'external';
       title: string;
+      nativePath: string;
       /** Builds full external URL given the current projectId. */
       buildHref: (projectId: string) => string;
       icon: LucideIcon;
@@ -55,6 +57,7 @@ const settingsItems: SettingsSubItem[] = [
   {
     kind: 'external',
     title: 'Credit consumption',
+    nativePath: 'credit',
     buildHref: id => `${PLATFORM_BASE_URL}/ui/p/${id}/settings/consumption`,
     icon: Gem,
     isVisible: isOwoxIdpProvider => isOwoxIdpProvider,
@@ -62,6 +65,7 @@ const settingsItems: SettingsSubItem[] = [
   {
     kind: 'external',
     title: 'Subscription',
+    nativePath: 'subscription',
     buildHref: id => `${PLATFORM_BASE_URL}/ui/p/${id}/settings/subscription`,
     icon: BriefcaseBusiness,
     isVisible: isOwoxIdpProvider => isOwoxIdpProvider,
@@ -100,6 +104,7 @@ export function ProjectSettingsSubmenu({ onClose }: ProjectSettingsSubmenuProps)
   const projectId = useProjectId();
   const navigate = useNavigate();
   const isOwoxIdpProvider = checkVisible('IDP_PROVIDER', ['owox-better-auth'], flags);
+  const cloudBillingOrigin = getCloudBillingOrigin(flags);
 
   const visible = settingsItems.filter(item => {
     if (item.kind === 'separator') return true;
@@ -128,7 +133,7 @@ export function ProjectSettingsSubmenu({ onClose }: ProjectSettingsSubmenuProps)
               return <DropdownMenuSeparator key={`sep-${String(index)}`} />;
             }
             const Icon = item.icon;
-            if (item.kind === 'external') {
+            if (item.kind === 'external' && !cloudBillingOrigin) {
               if (!projectId) return null;
               return (
                 <DropdownMenuItem asChild key={item.title}>
@@ -144,11 +149,12 @@ export function ProjectSettingsSubmenu({ onClose }: ProjectSettingsSubmenuProps)
                 </DropdownMenuItem>
               );
             }
-            const to = item.path.startsWith('/')
-              ? scope(item.path)
-              : scope(`/project-settings${item.path ? `/${item.path}` : ''}`);
+            const path = item.kind === 'external' ? item.nativePath : item.path;
+            const to = path.startsWith('/')
+              ? scope(path)
+              : scope(`/project-settings${path ? `/${path}` : ''}`);
             return (
-              <DropdownMenuItem asChild key={item.path || 'overview'}>
+              <DropdownMenuItem asChild key={path || 'overview'}>
                 <NavLink to={to} className='flex items-center gap-2'>
                   <Icon className='h-4 w-4' />
                   {item.title}

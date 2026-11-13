@@ -23,6 +23,7 @@ export interface AxiosRequestConfig extends OriginalAxiosRequestConfig {
   skipLoadingIndicator?: boolean;
   skipAuthHeader?: boolean;
   skipErrorToast?: boolean;
+  expectedSession?: { projectId: string; userId: string };
 }
 
 // Extend InternalAxiosRequestConfig to include our custom properties
@@ -31,6 +32,7 @@ interface ExtendedInternalAxiosRequestConfig extends InternalAxiosRequestConfig 
   _retry?: boolean;
   connectProjectTarget?: ConnectProjectTarget | null;
   connectUserId?: string | null;
+  expectedSession?: AxiosRequestConfig['expectedSession'];
 }
 
 // Default config for the axios instance
@@ -62,6 +64,19 @@ export function wasErrorToastShown(error: unknown): boolean {
 }
 
 const authStateManager = new AuthStateManager();
+
+function assertExpectedSession(request: ExtendedInternalAxiosRequestConfig, token?: string | null) {
+  if (!request.expectedSession) return;
+  const provider = getTokenProvider();
+  if (
+    provider?.getProjectId?.() !== request.expectedSession.projectId ||
+    provider.getUserId?.() !== request.expectedSession.userId ||
+    !provider.getAccessToken() ||
+    (token !== undefined && token !== provider.getAccessToken())
+  ) {
+    throw new Error('The active project or account changed');
+  }
+}
 
 function assertConnectSession(request: ExtendedInternalAxiosRequestConfig, token: string | null) {
   const target = request.connectProjectTarget;
@@ -95,6 +110,7 @@ apiClient.interceptors.request.use(
     if (config.skipAuthHeader) {
       return config;
     }
+    assertExpectedSession(config);
 
     // Keep the original target when a request is retried after navigation or token refresh.
     if (config.connectProjectTarget === undefined) {
@@ -109,10 +125,10 @@ apiClient.interceptors.request.use(
     const headers = new AxiosHeaders(config.headers);
     if (headers.has('X-OWOX-Authorization')) {
       const authorization = headers.get('X-OWOX-Authorization');
-      assertConnectSession(
-        config,
-        typeof authorization === 'string' ? authorization.replace(/^Bearer /, '') : null
-      );
+      const token =
+        typeof authorization === 'string' ? authorization.replace(/^Bearer /, '') : null;
+      assertExpectedSession(config, token);
+      assertConnectSession(config, token);
       return config;
     }
 
@@ -138,6 +154,7 @@ apiClient.interceptors.response.use(
     const originalRequest = error.config as ExtendedInternalAxiosRequestConfig;
 
     if (error.response?.status === 401 && !originalRequest._retry) {
+      assertExpectedSession(originalRequest);
       originalRequest._retry = true;
 
       const signOut = (cause: unknown) => {

@@ -104,4 +104,45 @@ describe('registerPublicFlagsRoute', () => {
 
     expect(body?.PUBLIC_ORIGIN).to.equal('https://public.example.test');
   });
+
+  it('exposes the public billing origin only when explicitly enabled in Cloud', () => {
+    const keys = ['IDP_PROVIDER', 'CLOUD_BILLING_ENABLED', 'IDP_OWOX_BASE_URL'] as const;
+    const previous = keys.map(key => process.env[key]);
+    let body: Record<string, unknown> | undefined;
+    const app = {
+      get(_path: string, handler: (req: Request, res: Response) => void) {
+        routes.push({ handler, path: _path });
+      },
+    } as unknown as Express;
+    const res = {
+      json(payload: Record<string, unknown>) {
+        body = payload;
+      },
+      setHeader() {},
+    } as unknown as Response;
+
+    try {
+      process.env.IDP_OWOX_BASE_URL = 'https://billing.example.test/some-path';
+      process.env.IDP_PROVIDER = 'owox-better-auth';
+      delete process.env.CLOUD_BILLING_ENABLED;
+      registerPublicFlagsRoute(app);
+      routes[0].handler({} as Request, res);
+      expect(body?.CLOUD_BILLING_API_ORIGIN).to.equal(undefined);
+
+      process.env.CLOUD_BILLING_ENABLED = 'true';
+      routes[0].handler({} as Request, res);
+      expect(body?.CLOUD_BILLING_API_ORIGIN).to.equal('https://billing.example.test');
+      expect(body?.IDP_OWOX_BASE_URL).to.equal(undefined);
+
+      process.env.IDP_PROVIDER = 'better-auth';
+      routes[0].handler({} as Request, res);
+      expect(body?.CLOUD_BILLING_API_ORIGIN).to.equal(undefined);
+    } finally {
+      for (const [index, key] of keys.entries()) {
+        const value = previous[index];
+        if (value === undefined) delete process.env[key];
+        else process.env[key] = value;
+      }
+    }
+  });
 });
