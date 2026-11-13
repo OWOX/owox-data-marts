@@ -28,6 +28,7 @@ const INCLUDED_SECTIONS = [
 const EXCLUDED_SECTIONS = [
   'docs/getting-started/setup-guide/members-management/',
   'docs/storages/supported-storages/google-bigquery-used-in-owox-extension',
+  'docs/storages/supported-storages/duckdb',
 ];
 
 // Readers of a connector's troubleshooting page are already running it.

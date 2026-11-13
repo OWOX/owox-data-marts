@@ -21,6 +21,7 @@ Each project needs at least one Storage. You can add several Storages to isolate
 | AWS Redshift | [Setup guide](./supported-storages/aws-redshift.md) |
 | Snowflake | [Setup guide](./supported-storages/snowflake.md) |
 | Databricks | [Setup guide](./supported-storages/databricks.md) |
+| DuckDB (self-managed only) | [Setup guide](./supported-storages/duckdb.md) |
 
 ## Get started
 

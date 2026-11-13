@@ -20,6 +20,7 @@ import { DataMartStatus } from '../enums/data-mart-status.enum';
 import { ReportSqlComposerService } from '../services/report-sql-composer.service';
 import { BlendableSchemaAccessor } from '../services/blendable-schema.service';
 import { ReportTotalsService } from '../services/report-totals.service';
+import type { TableReferenceMemo } from '../services/data-mart-table-reference.service';
 import { SourceDataLastUpdatedService } from '../services/source-data-last-updated.service';
 import { unavailableSourceDataLastUpdated } from '../dto/schemas/source-data-last-updated.schema';
 import { DataMartRunService } from '../services/data-mart-run.service';
@@ -235,8 +236,27 @@ export class QueryDataMartService {
         // produce owns its reader and finalizes it here — the outer finally fires when the race
         // settles and would skip a reader assigned after a lost race (leak) or destroy one mid-read.
         let reader: DataStorageReportReader | undefined;
+        const finalizeReader = async () => {
+          const finished = reader;
+          reader = undefined;
+          try {
+            await finished?.finalize();
+          } catch (finalizeErr) {
+            this.logger.warn(
+              `reader.finalize() failed; ignoring: ${finalizeErr instanceof Error ? finalizeErr.message : String(finalizeErr)}`
+            );
+          }
+        };
         try {
-          const composed = await this.composer.compose(readPlan, accessor);
+          // Rows and totals compose over the same Data Mart: its SQL view is created once.
+          const tableReferences: TableReferenceMemo = new Map();
+          const composed = await this.composer.compose(
+            readPlan,
+            accessor,
+            undefined,
+            undefined,
+            tableReferences
+          );
           const needsBlending = composed.needsBlending;
           // Inline params so Run History's "Executed SQL" is runnable; fall back if unsupported.
           try {
@@ -264,7 +284,8 @@ export class QueryDataMartService {
               accessor,
               dataMart.storage.type,
               queryTimeoutMs,
-              workController.signal
+              workController.signal,
+              tableReferences
             )
             .then(totals => ({ totals }))
             .catch(totalsErr => {
@@ -334,6 +355,8 @@ export class QueryDataMartService {
             // Empty page + non-null token (Redshift/Athena) would spin forever — stop.
             if (batch.dataRows.length === 0) break;
           } while (batchId && rows.length < overReadLimit);
+          // Totals may open their own reader; holding this one could stall a waiting writer.
+          await finalizeReader();
 
           const truncated = rows.length > r.limit;
           const trimmed = truncated ? rows.slice(0, r.limit) : rows;
@@ -355,13 +378,7 @@ export class QueryDataMartService {
           };
         } finally {
           workController.abort();
-          try {
-            await reader?.finalize();
-          } catch (finalizeErr) {
-            this.logger.warn(
-              `reader.finalize() failed; ignoring: ${finalizeErr instanceof Error ? finalizeErr.message : String(finalizeErr)}`
-            );
-          }
+          await finalizeReader();
         }
       })();
 

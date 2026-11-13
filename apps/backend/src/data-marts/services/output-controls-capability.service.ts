@@ -11,6 +11,9 @@ export class OutputControlsCapabilityService {
     DataStorageType.AWS_REDSHIFT,
     DataStorageType.DATABRICKS,
     DataStorageType.SNOWFLAKE,
+    // DUCKDB is mirrored on the web (see output-controls-capability.contract.spec.ts);
+    // the Google Sheets extension mirror lives in a separate repo and isn't covered here.
+    DataStorageType.DUCKDB,
   ]);
 
   isSupported(type: DataStorageType): boolean {

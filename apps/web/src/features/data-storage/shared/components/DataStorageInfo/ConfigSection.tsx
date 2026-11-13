@@ -31,6 +31,7 @@ export const ConfigSection = ({ type, config }: ConfigSectionProps) => {
     [DataStorageType.DATABRICKS]: [],
     [DataStorageType.AWS_REDSHIFT]: [],
     [DataStorageType.AZURE_SYNAPSE]: [],
+    [DataStorageType.DUCKDB]: [],
   };
 
   const isValidConfig =

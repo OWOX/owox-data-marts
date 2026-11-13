@@ -12,11 +12,21 @@ const SAVED = 'aaaaaaaa-0000-4000-8000-000000000001';
 const HIDDEN = 'bbbbbbbb-0000-4000-8000-000000000002';
 const ref = (title: string, id: string) => `[${title}](dm:${id})`;
 
-function createService(savedSql = `SELECT * FROM ${ref('Orders', SAVED)} o`) {
+const BIGQUERY = {
+  id: 'storage-1',
+  type: DataStorageType.GOOGLE_BIGQUERY,
+  config: {},
+  credentialId: 'cred-1',
+};
+
+function createService(
+  savedSql = `SELECT * FROM ${ref('Orders', SAVED)} o`,
+  storage: Record<string, unknown> = BIGQUERY
+) {
   const dataMart = Object.assign(new DataMart(), {
     id: 'dm-1',
     projectId: 'project-1',
-    storage: { id: 'storage-1', type: DataStorageType.GOOGLE_BIGQUERY, config: {} },
+    storage,
     definition: { sqlQuery: savedSql },
   });
   const executor = { execute: jest.fn().mockResolvedValue(SqlDryRunResult.success(42)) };
@@ -27,7 +37,7 @@ function createService(savedSql = `SELECT * FROM ${ref('Orders', SAVED)} o`) {
     executor as never,
     { resolveDataMartTableMacro: jest.fn(async (_dm, sql: string) => sql) } as never,
     {
-      hasCredentials: jest.fn().mockResolvedValue(true),
+      hasCredentials: jest.fn(async (s: { credentialId?: string | null }) => !!s.credentialId),
       resolve: jest.fn().mockResolvedValue({}),
     } as never,
     { canAccess: jest.fn().mockResolvedValue(true) } as never,
@@ -116,6 +126,37 @@ describe('SqlDryRunService', () => {
           new SqlDryRunCommand('dm-1', 'project-1', `FROM ${ref('Hidden', HIDDEN)}`, 'user-1')
         )
       ).rejects.toBe(denied);
+    });
+  });
+  describe('storage setup', () => {
+    const command = () => new SqlDryRunCommand('dm-1', 'project-1', 'SELECT 1');
+
+    it('fails for a credential-less storage that needs a credential', async () => {
+      const { service, executor } = createService(undefined, { ...BIGQUERY, credentialId: null });
+
+      const result = await service.run(command());
+
+      expect(result.isValid).toBe(false);
+      expect(executor.execute).not.toHaveBeenCalled();
+    });
+
+    it('runs for a credential-less DuckDB storage (no "setup not finished")', async () => {
+      const { service, executor } = createService(undefined, {
+        id: 'storage-3',
+        type: DataStorageType.DUCKDB,
+        config: {},
+        credentialId: null,
+      });
+
+      const result = await service.run(command());
+
+      expect(result.isValid).toBe(true);
+      expect(executor.execute).toHaveBeenCalledWith(
+        DataStorageType.DUCKDB,
+        {},
+        {},
+        'SELECT 1 /* resolved */'
+      );
     });
   });
 });

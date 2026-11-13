@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { AthenaFieldType } from '../../../data-storage-types/athena/enums/athena-field-type.enum';
 import { BigQueryFieldType } from '../../../data-storage-types/bigquery/enums/bigquery-field-type.enum';
 import { DatabricksFieldType } from '../../../data-storage-types/databricks/enums/databricks-field-type.enum';
+import { DuckdbFieldType } from '../../../data-storage-types/duckdb/enums/duckdb-field-type.enum';
 import { DataStorageType } from '../../../data-storage-types/enums/data-storage-type.enum';
 import { RedshiftFieldType } from '../../../data-storage-types/redshift/enums/redshift-field-type.enum';
 import { SnowflakeFieldType } from '../../../data-storage-types/snowflake/enums/snowflake-field-type.enum';
@@ -35,6 +36,8 @@ export class LookerStudioTypeMapperService {
       return this.mapRedshiftTypeToLookerStudio(fieldType as RedshiftFieldType);
     } else if (storageType === DataStorageType.DATABRICKS) {
       return this.mapDatabricksTypeToLookerStudio(fieldType as DatabricksFieldType);
+    } else if (storageType === DataStorageType.DUCKDB) {
+      return this.mapDuckDbTypeToLookerStudio(fieldType as DuckdbFieldType);
     }
     // Fallback for unknown storage types
     return FieldDataType.STRING;
@@ -225,6 +228,26 @@ export class LookerStudioTypeMapperService {
       case DatabricksFieldType.ARRAY:
       case DatabricksFieldType.MAP:
       case DatabricksFieldType.STRUCT:
+      default:
+        return FieldDataType.STRING;
+    }
+  }
+
+  /**
+   * Maps DuckDB types to Looker Studio types
+   */
+  private mapDuckDbTypeToLookerStudio(type: DuckdbFieldType): FieldDataType {
+    switch (type) {
+      case DuckdbFieldType.BIGINT:
+      case DuckdbFieldType.DOUBLE:
+        return FieldDataType.NUMBER;
+      case DuckdbFieldType.BOOLEAN:
+        return FieldDataType.BOOLEAN;
+      case DuckdbFieldType.DATE:
+      case DuckdbFieldType.TIMESTAMP:
+      case DuckdbFieldType.TIMESTAMPTZ:
+      case DuckdbFieldType.TIME:
+      case DuckdbFieldType.VARCHAR:
       default:
         return FieldDataType.STRING;
     }

@@ -239,6 +239,7 @@ describe('DataMartController list OpenAPI', () => {
             'AWS_REDSHIFT',
             'DATABRICKS',
             'LEGACY_GOOGLE_BIGQUERY',
+            'DUCKDB',
           ],
         },
         title: { type: 'string' },

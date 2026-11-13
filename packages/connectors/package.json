@@ -28,7 +28,7 @@
     "lint:md:fix": "markdownlint-cli2 --config ../../.markdownlint-cli2.mjs --fix",
     "format": "prettier --write \"**/*.{js,mjs,json}\"",
     "format:check": "prettier --check \"**/*.{js,mjs,json}\"",
-    "test": "vitest run && node --test tests/AbstractConnector.test.js tests/AbstractContext.test.js tests/AbstractSource.test.js tests/AbstractStorage.test.js tests/Events.test.js tests/RunFailureReport.test.js tests/RunnerTestMode.test.js tests/buildBundleOnce.test.js \"tests/declarative/*.test.js\" \"tests/regression/*.test.js\"",
+    "test": "vitest run && node --test tests/AbstractConnector.test.js tests/AbstractContext.test.js tests/AbstractSource.test.js tests/AbstractStorage.test.js tests/DuckDBStorage.engine.test.js tests/DuckDBStorage.test.js tests/Events.test.js tests/RunFailureReport.test.js tests/RunnerTestMode.test.js tests/buildBundleOnce.test.js tests/duckdbSql.test.js \"tests/declarative/*.test.js\" \"tests/regression/*.test.js\"",
     "test:fixtures": "node --test tests/Fixture.test.js",
     "test:types": "tsc -p tests/types/tsconfig.unit.json && tsc -p tests/types/tsconfig.node10.json && tsc -p tests/types/tsconfig.nodenext.json",
     "fixture": "node scripts/run-fixture.js"
@@ -58,6 +58,7 @@
     "@aws-sdk/client-s3": "^3.983.0",
     "@aws-sdk/lib-storage": "^3.983.0",
     "@databricks/sql": "^1.12.0",
+    "@duckdb/node-api": "2.0.0-r.1",
     "@google-cloud/bigquery": "^8.0.0",
     "adm-zip": "^0.6.1",
     "snowflake-sdk": "^3.4.0"
