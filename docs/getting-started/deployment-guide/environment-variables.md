@@ -335,18 +335,28 @@ Credential, instead of an own AI Credential. OWOX AI is on only when `AI_BASE_UR
 fallback for plugins. The `embedding` model is available only when `AI_PLUGIN_EMBEDDING_MODEL` is
 set.
 
-| Variable                    | Purpose                                                                                                                                                       |
-| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `AI_PROVIDER`               | `openai` or `openrouter`. Any other value means `openai`. Default `openai`.                                                                                   |
-| `AI_BASE_URL`               | Base URL of the AI provider API.                                                                                                                              |
-| `AI_API_KEY`                | API key of the AI provider.                                                                                                                                   |
-| `AI_MODEL`                  | Model of AI Insights. Plugins do not use it.                                                                                                                  |
-| `AI_PLUGIN_FAST_MODEL`      | Model ID that serves the `fast` model of plugins.                                                                                                             |
-| `AI_PLUGIN_REASONING_MODEL` | Model ID that serves the `reasoning` model of plugins.                                                                                                        |
-| `AI_PLUGIN_EMBEDDING_MODEL` | Model ID that serves the `embedding` model of plugins. Optional.                                                                                              |
-| `AI_ALLOWED_PROVIDERS`      | OpenRouter only. Comma-separated providers that may serve a request of AI Insights or OWOX AI. Empty by default, which sets no restriction.                   |
-| `AI_DATA_COLLECTION`        | OpenRouter only. Data collection policy sent with each request of AI Insights or OWOX AI. Default `deny`. An empty value means the default.                   |
-| `AI_ZDR`                    | OpenRouter only. When `true`, only zero data retention providers serve a request of AI Insights or OWOX AI. Default `true`. An empty value means the default. |
+The `decision` model is on only when `AI_PLUGIN_DECISION_PROVIDER`, `AI_PLUGIN_DECISION_BASE_URL`,
+`AI_PLUGIN_DECISION_API_KEY` and `AI_PLUGIN_DECISION_MODEL` are all set. It does not depend on the
+variables of the chat models: a deployment can provide `decision` without `fast` and `reasoning`,
+and the other way round. A call to `decision` never falls back to a chat model. Choose a model
+with zero data retention where that matters; OWOX Data Marts does not check it.
+
+| Variable                      | Purpose                                                                                                                                                       |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `AI_PROVIDER`                 | `openai` or `openrouter`. Any other value means `openai`. Default `openai`.                                                                                   |
+| `AI_BASE_URL`                 | Base URL of the AI provider API.                                                                                                                              |
+| `AI_API_KEY`                  | API key of the AI provider.                                                                                                                                   |
+| `AI_MODEL`                    | Model of AI Insights. Plugins do not use it.                                                                                                                  |
+| `AI_PLUGIN_FAST_MODEL`        | Model ID that serves the `fast` model of plugins.                                                                                                             |
+| `AI_PLUGIN_REASONING_MODEL`   | Model ID that serves the `reasoning` model of plugins.                                                                                                        |
+| `AI_PLUGIN_EMBEDDING_MODEL`   | Model ID that serves the `embedding` model of plugins. Optional.                                                                                              |
+| `AI_PLUGIN_DECISION_PROVIDER` | Provider of the `decision` model of plugins. Only `cloudflare-workers-ai`. Another value stops startup.                                                       |
+| `AI_PLUGIN_DECISION_BASE_URL` | Base URL of the decision API. `https://` only, for example `https://api.cloudflare.com/client/v4/accounts/<account_id>/ai`.                                   |
+| `AI_PLUGIN_DECISION_API_KEY`  | Secret. A Workers AI token with `Workers AI - Read` and `Workers AI - Edit`.                                                                                  |
+| `AI_PLUGIN_DECISION_MODEL`    | Model ID that serves the `decision` model of plugins, for example `@cf/cloudflare/clef-flash`.                                                                |
+| `AI_ALLOWED_PROVIDERS`        | OpenRouter only. Comma-separated providers that may serve a request of AI Insights or OWOX AI. Empty by default, which sets no restriction.                   |
+| `AI_DATA_COLLECTION`          | OpenRouter only. Data collection policy sent with each request of AI Insights or OWOX AI. Default `deny`. An empty value means the default.                   |
+| `AI_ZDR`                      | OpenRouter only. When `true`, only zero data retention providers serve a request of AI Insights or OWOX AI. Default `true`. An empty value means the default. |
 
 Plugin code cannot change the routing of a request. For a plugin request, a provider can ignore a
 call option that it does not support, for example `temperature`. In OWOX Cloud, each successful

@@ -286,7 +286,7 @@ plugin itself:
 exact definitions. An object may set `optional: true`; otherwise installation requires an explicit
 Credential selection.
 The logical `ai` requirement may declare one or more unique capabilities from `fast`, `reasoning`,
-and `embedding`. It can be satisfied by any selected Credential whose definition implements the AI
+`embedding`, and `decision`. It can be satisfied by any selected Credential whose definition implements the AI
 contract and provides the requested mappings; the logical requirement does not select a provider.
 The shorthand string `"ai"` means required `fast` AI.
 
@@ -321,7 +321,7 @@ if (!model) throw new Error('Fast AI is not configured');
 const result = await generateText({ model, prompt: 'Summarize this report' });
 ```
 
-The project maintainer maps `fast`, `reasoning`, and `embedding` to provider models. A plugin sees
+The project maintainer maps `fast`, `reasoning`, `embedding`, and `decision` to provider models. A plugin sees
 the logical capability, not the provider secret. The common `"ai"` requirement declares `fast`, so
 `ctx.credentials.ai` is itself the fast model and `ctx.credentials.ai.fast` is an alias for it.
 Additional named models are available only when declared. Logical AI never exposes `asFetch()`;
@@ -330,10 +330,67 @@ are absent from the context, so check a handle before using it.
 
 `ctx.credentials.ai` can also be OWOX AI, which the installing member chooses in the install
 dialog instead of an AI Credential. The plugin code and `plugin.json` do not change. The models
-depend on the deployment: `fast` and `reasoning` are always there, `embedding` only when the
-deployment sets one. The provider can ignore a call option that it does not support, for example
+depend on the deployment: `fast` and `reasoning` are always there, `embedding` and `decision` only
+when the deployment sets them. The provider can ignore a call option that it does not support, for example
 `temperature`. On OWOX Cloud, each successful call is billed as an AI Process Run. See
 [Environment variables](../getting-started/deployment-guide/environment-variables.md#owox-ai).
+
+#### Choose from a fixed list
+
+A chat model is slow and costly for a job such as "pick the best component for this data". For
+that job, declare the `decision` model. It answers typed questions about one state and returns
+the probability of each option:
+
+```json
+{ "credentials": [{ "id": "ai", "models": ["decision"] }] }
+```
+
+`ctx.credentials.ai.decision` works with `experimental_decide` from `ai` 7.x. A plugin that
+declares only `decision` has no `fast` model. Give each question `instructions`:
+
+```ts
+import { experimental_decide as decide } from 'ai';
+
+const decision = ctx.credentials.ai?.decision;
+if (!decision) throw new Error('Decision AI is not configured');
+
+const { answers } = await decide({
+  model: decision,
+  state: [{ type: 'text', text: 'Revenue by week for the last 12 weeks' }],
+  questions: {
+    component: {
+      type: 'choice',
+      instructions: 'Select the best component to show this data.',
+      criteria: { line_chart: null, bar_chart: null, table: null },
+    },
+  },
+});
+```
+
+A question has one of these types: `choice`, `score`, or `boolean`. The `box` type is not
+supported. What a call returns depends on the Credential that the member selected:
+
+| Route                | `choice` and `score` | `boolean`                                    |
+| -------------------- | -------------------- | -------------------------------------------- |
+| OpenAI Credential    | Probabilities        | Probability                                  |
+| Gemini Credential    | Probabilities        | Probability                                  |
+| Anthropic Credential | No probabilities     | Probability, as the provider adapter returns |
+| OWOX AI              | Probabilities        | Probability                                  |
+
+OpenRouter and openai-compatible Credentials do not provide `decision`. A question type that the
+route does not support gets `400`, and the message names the question. A call fails when the
+project has no decision model; OWOX never answers it with a chat model.
+
+OWOX AI has more rules:
+
+- Each question needs non-empty `instructions`. Without them, the call gets `400`.
+- The state is text or JSON only. A file or image part gets `400`.
+- A state larger than the context of the model gets `413`.
+
+OWOX AI provides `decision` only when the deployment sets it. On OWOX Cloud, each successful OWOX
+AI decision call is billed as an AI Process Run under the same rules as other OWOX AI calls. A
+self-managed deployment does not bill it. See
+[OWOX AI](../project/credentials.md#owox-ai).
 
 #### Call Google APIs with a service account
 
