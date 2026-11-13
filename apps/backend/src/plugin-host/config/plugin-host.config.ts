@@ -46,25 +46,27 @@ export class PluginHostConfigService {
   }
 
   /**
-   * Numeric GitHub repository ids of OWOX BI plugins. An unset or blank value yields an
-   * empty list, which means "no plugin is a BI plugin" -- never "any".
+   * Numeric GitHub repository ids of privileged plugins. An unset or blank value yields an
+   * empty list, which means "no plugin is privileged" -- never "any".
    */
-  get biPluginRepositoryIds(): readonly string[] {
-    return (this.config.get<string>('OWOX_BI_PLUGIN_REPOSITORY_IDS') ?? '')
+  get privilegedPluginRepositoryIds(): readonly string[] {
+    return (this.config.get<string>('OWOX_PRIVILEGED_PLUGIN_REPOSITORY_IDS') ?? '')
       .split(',')
       .map(id => id.trim())
       .filter(Boolean);
   }
 
   /**
-   * Https origins OWOX BI plugins are delivered from, normalized with `new URL(value).origin`;
+   * Https origins privileged plugins are delivered from, normalized with `new URL(value).origin`;
    * unparseable and non-https entries are dropped (which also keeps out the "null" origin of
    * a file: or data: URL). An unset or blank value yields an empty list, which means "no
-   * plugin is a BI plugin" -- never "any".
+   * plugin is privileged" -- never "any".
    */
-  get biPluginOrigins(): readonly string[] {
+  get privilegedPluginOrigins(): readonly string[] {
     const origins: string[] = [];
-    for (const value of (this.config.get<string>('OWOX_BI_PLUGIN_ORIGINS') ?? '').split(',')) {
+    for (const value of (this.config.get<string>('OWOX_PRIVILEGED_PLUGIN_ORIGINS') ?? '').split(
+      ','
+    )) {
       try {
         const url = new URL(value.trim());
         if (url.protocol === 'https:') {
@@ -78,22 +80,27 @@ export class PluginHostConfigService {
   }
 
   /**
-   * A plugin is a BI plugin only when its repository and the origin of its delivery URL
-   * are both listed. The deployment's own origin never qualifies, and when that origin
-   * cannot be determined nothing qualifies.
+   * A plugin is privileged only when its repository and the origin of its
+   * delivery URL are both listed. A plugin served from the deployment's own host never
+   * qualifies. Host names are compared, not origins: PUBLIC_ORIGIN without a scheme, or
+   * one behind TLS termination, reads as http here and would never equal a listed https
+   * origin. The port is left out because cookies are shared across ports of one host.
    */
-  isBiPlugin(githubRepoId: string, deliveryUrl: string): boolean {
+  isPrivilegedPlugin(githubRepoId: string, deliveryUrl: string): boolean {
     const publicOrigin = this.publicOrigin;
-    if (!publicOrigin || !this.biPluginRepositoryIds.includes(githubRepoId)) {
+    if (!publicOrigin || !this.privilegedPluginRepositoryIds.includes(githubRepoId)) {
       return false;
     }
-    let origin: string;
+    let delivery: URL;
     try {
-      origin = new URL(deliveryUrl).origin;
+      delivery = new URL(deliveryUrl);
     } catch {
       return false;
     }
-    return origin !== publicOrigin && this.biPluginOrigins.includes(origin);
+    return (
+      delivery.hostname !== new URL(publicOrigin).hostname &&
+      this.privilegedPluginOrigins.includes(delivery.origin)
+    );
   }
 
   get githubApiBaseUrl(): string {

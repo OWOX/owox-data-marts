@@ -61,7 +61,7 @@ function setup(
   };
 
   const hostConfig = {
-    isBiPlugin: jest.fn().mockReturnValue(false),
+    isPrivilegedPlugin: jest.fn().mockReturnValue(false),
   };
   const owoxAi = { provides: jest.fn().mockReturnValue(provides) };
 
@@ -93,7 +93,7 @@ describe('GetPluginInstallationEntryService', () => {
       pluginId: 'p1',
       versionId: 'v1',
       credentialHandles: [],
-      biPlugin: false,
+      privileged: false,
     });
     expect(state.credentialBindings.assertConsumerReady).toHaveBeenCalledWith(
       expect.objectContaining({ consumerId: 'i1', requirements: [] })
@@ -120,19 +120,22 @@ describe('GetPluginInstallationEntryService', () => {
     });
   });
 
-  it('marks the entry of a recognised BI plugin', async () => {
+  it('marks the entry of a privileged plugin', async () => {
     const state = setup();
-    state.hostConfig.isBiPlugin.mockReturnValue(true);
+    state.hostConfig.isPrivilegedPlugin.mockReturnValue(true);
 
-    await expect(entry(state.service)).resolves.toMatchObject({ biPlugin: true });
-    expect(state.hostConfig.isBiPlugin).toHaveBeenCalledWith('42', 'https://plugin.example.com');
+    await expect(entry(state.service)).resolves.toMatchObject({ privileged: true });
+    expect(state.hostConfig.isPrivilegedPlugin).toHaveBeenCalledWith(
+      '42',
+      'https://plugin.example.com'
+    );
   });
 
   it('leaves every other plugin unmarked', async () => {
     const state = setup();
-    state.hostConfig.isBiPlugin.mockReturnValue(false);
+    state.hostConfig.isPrivilegedPlugin.mockReturnValue(false);
 
-    await expect(entry(state.service)).resolves.toMatchObject({ biPlugin: false });
+    await expect(entry(state.service)).resolves.toMatchObject({ privileged: false });
   });
 
   // One 404 for every way of not being entitled: confirming that an installation

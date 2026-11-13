@@ -1377,9 +1377,9 @@ describe('plugin host bridge', () => {
   });
 
   describe('real-origin plugin and user token', () => {
-    const BI_ORIGIN = 'https://bi-plugins.example.com';
+    const REAL_ORIGIN = 'https://plugins.example.com';
     const grant = (fetchUserToken: PluginHostBridgeOptions['fetchUserToken']) =>
-      ({ pluginOrigin: BI_ORIGIN, fetchUserToken }) satisfies Partial<PluginHostBridgeOptions>;
+      ({ pluginOrigin: REAL_ORIGIN, fetchUserToken }) satisfies Partial<PluginHostBridgeOptions>;
 
     it('accepts the announcement of a plugin with a real origin only from that origin', async () => {
       const frame = pluginFrame();
@@ -1393,10 +1393,10 @@ describe('plugin host bridge', () => {
         onNavigate: vi.fn(),
         onRouteChange: vi.fn(),
         onCopyLink: vi.fn(),
-        pluginOrigin: BI_ORIGIN,
+        pluginOrigin: REAL_ORIGIN,
       });
 
-      announceReady(frame.contentWindow, PLUGIN_PROTOCOL_VERSION, BI_ORIGIN);
+      announceReady(frame.contentWindow, PLUGIN_PROTOCOL_VERSION, REAL_ORIGIN);
       await flush();
       expect(frame.posted).toHaveLength(1);
       bridge.dispose();
@@ -1417,12 +1417,12 @@ describe('plugin host bridge', () => {
           onNavigate: vi.fn(),
           onRouteChange: vi.fn(),
           onCopyLink: vi.fn(),
-          pluginOrigin: BI_ORIGIN,
+          pluginOrigin: REAL_ORIGIN,
           onBroken,
         });
 
         announceReady(frame.contentWindow, PLUGIN_PROTOCOL_VERSION, origin);
-        announceReady(frame.contentWindow, PLUGIN_PROTOCOL_VERSION, BI_ORIGIN);
+        announceReady(frame.contentWindow, PLUGIN_PROTOCOL_VERSION, REAL_ORIGIN);
         await flush();
         expect(onBroken).toHaveBeenCalledTimes(1);
         expect(frame.posted).toHaveLength(0);
@@ -1432,9 +1432,9 @@ describe('plugin host bridge', () => {
 
     it('addresses host-init to the plugin origin instead of any origin', async () => {
       const real = await harness(undefined, true, PLUGIN_PROTOCOL_VERSION, {
-        pluginOrigin: BI_ORIGIN,
+        pluginOrigin: REAL_ORIGIN,
       });
-      expect(real.posted[0].targetOrigin).toBe(BI_ORIGIN);
+      expect(real.posted[0].targetOrigin).toBe(REAL_ORIGIN);
       real.bridge.dispose();
 
       const opaque = await harness();
@@ -1443,7 +1443,7 @@ describe('plugin host bridge', () => {
     });
 
     it('hands the user token over the port only', async () => {
-      const fetchUserToken = vi.fn(() => Promise.resolve('tok'));
+      const fetchUserToken = vi.fn(() => Promise.resolve('member-access-token'));
       const h = await harness(undefined, true, PLUGIN_PROTOCOL_VERSION, grant(fetchUserToken));
 
       const response = await h.send({ kind: 'userToken' });
@@ -1452,19 +1452,24 @@ describe('plugin host bridge', () => {
         ok: true,
         status: 200,
         headers: {},
-        body: { token: 'tok' },
+        body: { token: 'member-access-token' },
       });
-      expect(fetchUserToken).toHaveBeenLastCalledWith(false);
+      expect(fetchUserToken).toHaveBeenLastCalledWith(false, { projectId: 'j1', userId: 'u1' });
 
       await h.send({ kind: 'userToken', fresh: true });
-      expect(fetchUserToken).toHaveBeenLastCalledWith(true);
+      expect(fetchUserToken).toHaveBeenLastCalledWith(true, { projectId: 'j1', userId: 'u1' });
 
-      expect(JSON.stringify(h.posted.map(entry => entry.data))).not.toContain('tok');
+      expect(JSON.stringify(h.posted.map(entry => entry.data))).not.toContain(
+        'member-access-token'
+      );
       h.bridge.dispose();
     });
 
-    it('refuses the user token to a plugin without the grant', async () => {
-      const h = await harness();
+    it.each([
+      ['neither an origin nor a source', undefined],
+      ['an origin but no source', { pluginOrigin: REAL_ORIGIN }],
+    ])('refuses the user token to a plugin with %s', async (_label, options) => {
+      const h = await harness(undefined, true, PLUGIN_PROTOCOL_VERSION, options);
 
       const response = await h.send({ kind: 'userToken' });
 
@@ -1474,7 +1479,7 @@ describe('plugin host bridge', () => {
     });
 
     it('refuses the user token to a plugin without its own origin, even with a source', async () => {
-      const fetchUserToken = vi.fn(() => Promise.resolve('tok'));
+      const fetchUserToken = vi.fn(() => Promise.resolve('member-access-token'));
       const h = await harness(undefined, true, PLUGIN_PROTOCOL_VERSION, { fetchUserToken });
 
       const response = await h.send({ kind: 'userToken' });
@@ -1488,7 +1493,7 @@ describe('plugin host bridge', () => {
     });
 
     it('refuses a malformed fresh flag without calling the source', async () => {
-      const fetchUserToken = vi.fn(() => Promise.resolve('tok'));
+      const fetchUserToken = vi.fn(() => Promise.resolve('member-access-token'));
       const h = await harness(undefined, true, PLUGIN_PROTOCOL_VERSION, grant(fetchUserToken));
 
       for (const fresh of [false, 'true', 1, null]) {
@@ -1518,7 +1523,7 @@ describe('plugin host bridge', () => {
         () => new Promise<Response>(() => undefined),
         true,
         PLUGIN_PROTOCOL_VERSION,
-        grant(() => Promise.resolve('tok'))
+        grant(() => Promise.resolve('member-access-token'))
       );
 
       for (let index = 0; index < 32; index += 1) {
@@ -1530,7 +1535,7 @@ describe('plugin host bridge', () => {
 
       await expect(h.send({ kind: 'userToken' })).resolves.toMatchObject({
         ok: true,
-        body: { token: 'tok' },
+        body: { token: 'member-access-token' },
       });
       h.bridge.dispose();
     });

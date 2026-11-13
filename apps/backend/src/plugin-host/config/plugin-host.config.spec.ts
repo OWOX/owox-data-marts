@@ -230,56 +230,72 @@ describe('PluginHostConfigService', () => {
     });
   });
 
-  describe('BI plugins', () => {
+  describe('privileged plugins', () => {
     const env = {
-      OWOX_BI_PLUGIN_REPOSITORY_IDS: ' 111 , ,222, ',
-      OWOX_BI_PLUGIN_ORIGINS:
-        ' https://BI-Plugins.example.com/ , https://b.example.com/path, nonsense, http://x.example.com, file:///x, ',
+      OWOX_PRIVILEGED_PLUGIN_REPOSITORY_IDS: ' 111 , ,222, ',
+      OWOX_PRIVILEGED_PLUGIN_ORIGINS:
+        ' https://Plugins.example.com/ , https://b.example.com/path, nonsense, http://x.example.com, file:///x, ',
       PUBLIC_ORIGIN: 'https://app.example.com',
     };
 
     it('parses both lists, normalizing origins and dropping junk', () => {
-      expect(config(env).biPluginRepositoryIds).toEqual(['111', '222']);
-      expect(config(env).biPluginOrigins).toEqual([
-        'https://bi-plugins.example.com',
+      expect(config(env).privilegedPluginRepositoryIds).toEqual(['111', '222']);
+      expect(config(env).privilegedPluginOrigins).toEqual([
+        'https://plugins.example.com',
         'https://b.example.com',
       ]);
     });
 
     it.each([
       {},
-      { ...env, OWOX_BI_PLUGIN_REPOSITORY_IDS: '  ' },
-      { ...env, OWOX_BI_PLUGIN_ORIGINS: '' },
+      { ...env, OWOX_PRIVILEGED_PLUGIN_REPOSITORY_IDS: '  ' },
+      { ...env, OWOX_PRIVILEGED_PLUGIN_ORIGINS: '' },
     ])('recognises nothing when either variable is unset or blank', partial => {
-      expect(
-        config(partial).isBiPlugin('111', 'https://bi-plugins.example.com/transformation/')
-      ).toBe(false);
+      expect(config(partial).isPrivilegedPlugin('111', 'https://plugins.example.com/app/')).toBe(
+        false
+      );
     });
 
     it('requires both the repository and the delivery origin to match', () => {
       const service = config(env);
-      expect(service.isBiPlugin('111', 'https://bi-plugins.example.com/transformation/')).toBe(
-        true
-      );
-      expect(service.isBiPlugin('999', 'https://bi-plugins.example.com/transformation/')).toBe(
+      expect(service.isPrivilegedPlugin('111', 'https://plugins.example.com/app/')).toBe(true);
+      expect(service.isPrivilegedPlugin('999', 'https://plugins.example.com/app/')).toBe(false);
+      expect(service.isPrivilegedPlugin('111', 'https://evil.example.com/')).toBe(false);
+      expect(service.isPrivilegedPlugin('111', 'https://plugins.example.com.evil.example/')).toBe(
         false
       );
-      expect(service.isBiPlugin('111', 'https://evil.example.com/')).toBe(false);
-      expect(service.isBiPlugin('111', 'https://bi-plugins.example.com.evil.example/')).toBe(false);
-      expect(service.isBiPlugin('111', 'not a url')).toBe(false);
+      expect(service.isPrivilegedPlugin('111', 'not a url')).toBe(false);
     });
 
-    it('recognises nothing when the deployment origin is unknown', () => {
-      const service = config(env);
-      jest.spyOn(service, 'publicOrigin', 'get').mockReturnValue(undefined);
-      expect(service.isBiPlugin('111', 'https://bi-plugins.example.com/transformation/')).toBe(
-        false
-      );
+    it('never recognises a plugin served from the deployment own host', () => {
+      const service = config({
+        ...env,
+        OWOX_PRIVILEGED_PLUGIN_ORIGINS: 'https://app.example.com',
+      });
+      expect(service.isPrivilegedPlugin('111', 'https://app.example.com/plugin/')).toBe(false);
     });
 
-    it('never recognises a plugin served from the deployment own origin', () => {
-      const service = config({ ...env, OWOX_BI_PLUGIN_ORIGINS: 'https://app.example.com' });
-      expect(service.isBiPlugin('111', 'https://app.example.com/plugin/')).toBe(false);
+    // PUBLIC_ORIGIN is read as http whenever it carries no https scheme of its own, so an
+    // origin comparison would let the deployment's own https origin through.
+    it.each(['app.example.com', 'http://app.example.com', 'https://app.example.com:8443'])(
+      'refuses the deployment own host when PUBLIC_ORIGIN is %s',
+      publicOrigin => {
+        const service = config({
+          ...env,
+          PUBLIC_ORIGIN: publicOrigin,
+          OWOX_PRIVILEGED_PLUGIN_ORIGINS: 'https://app.example.com',
+        });
+        expect(service.isPrivilegedPlugin('111', 'https://app.example.com/plugin/')).toBe(false);
+      }
+    );
+
+    it('refuses a plugin on localhost when PUBLIC_ORIGIN is unset', () => {
+      const service = config({
+        ...env,
+        PUBLIC_ORIGIN: undefined,
+        OWOX_PRIVILEGED_PLUGIN_ORIGINS: 'https://localhost:8443',
+      });
+      expect(service.isPrivilegedPlugin('111', 'https://localhost:8443/')).toBe(false);
     });
   });
 });

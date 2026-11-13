@@ -23,17 +23,41 @@ const expiresAtMs = (token: string | null): number | null => {
   }
 };
 
+/** The project and member a plugin frame was opened for. */
+export interface UserTokenSession {
+  projectId: string;
+  userId: string;
+}
+
+/**
+ * A refresh takes whatever session the shared cookie holds now. If the member switched
+ * project or account in another tab, that is no longer the session this plugin was opened
+ * in, and the page has not yet torn the frame down. Refused unless both still match.
+ */
+const assertSameSession = (session: UserTokenSession): void => {
+  const provider = getTokenProvider();
+  if (
+    provider?.getProjectId?.() !== session.projectId ||
+    provider.getUserId?.() !== session.userId
+  ) {
+    throw new Error('The session no longer belongs to this plugin');
+  }
+};
+
 /**
  * Serves the signed-in member's own access token, valid for at least another minute.
  *
- * Handing the member token to a plugin is a deliberate exception, allowed only for BI
- * plugins; the caller must gate it. For every other plugin the warning in
+ * Handing the member token to a plugin is a deliberate exception, allowed only for
+ * privileged plugins; the caller must gate it. For every other plugin the warning in
  * `fetchRuntimeToken.ts` still applies.
  *
  * The token is never cached or logged here. A refresh goes through the app's shared
  * refresh, so concurrent plugin requests and the app's own 401 handling run only one.
  */
-export const fetchUserToken = async (fresh: boolean): Promise<string> => {
+export const fetchUserToken = async (
+  fresh: boolean,
+  session: UserTokenSession
+): Promise<string> => {
   const provider = getTokenProvider();
   if (!provider) throw new Error('No active session');
 
@@ -45,11 +69,15 @@ export const fetchUserToken = async (fresh: boolean): Promise<string> => {
   const justRefreshed = Date.now() - lastRefreshAt < FORCED_REFRESH_INTERVAL_MS;
   // A just-refreshed token is served even when it reads as expiring: that is a browser
   // clock running ahead, and refreshing again would only repeat on every request.
-  if (current && (justRefreshed || (usable && !fresh))) return current;
+  if (current && (justRefreshed || (usable && !fresh))) {
+    assertSameSession(session);
+    return current;
+  }
 
   // Stamped only once the refresh succeeds: requests arriving while it is in flight join
   // it through the shared refresh instead of getting the token being replaced.
   const token = await refreshMemberAccessToken();
   lastRefreshAt = Date.now();
+  assertSameSession(session);
   return token;
 };

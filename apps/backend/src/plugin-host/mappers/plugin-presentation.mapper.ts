@@ -368,7 +368,7 @@ export class PluginPresentationMapper {
       credentialHandles: dto.credentialHandles.map(handle =>
         handle.kind === 'exact' ? { ...handle } : { ...handle, models: [...handle.models] }
       ),
-      biPlugin: dto.biPlugin,
+      privileged: dto.privileged,
     };
   }
 

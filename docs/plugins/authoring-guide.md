@@ -57,7 +57,7 @@ the application inside a protected frame and connects it to the installing membe
 
 These constraints follow from the plugin sandbox. No OWOX Data Marts setting relaxes them, except
 for plugins a deployment operator marks as
-[OWOX BI plugins](trusted-plugins.md#owox-bi-plugins). Such a plugin keeps the origin it is served
+[privileged](trusted-plugins.md#privileged-plugins). Such a plugin keeps the origin it is served
 from, so the opaque-origin rules below do not apply to it: it has browser storage, and its requests
 carry its real `Origin`. Forms still do not submit. Even with storage available, it must keep the
 member's access token in memory only.
@@ -91,9 +91,9 @@ page that could not be displayed.
 **The plugin never holds an OWOX credential.** Calls through `ctx.owox` are brokered by the host,
 which attaches the member's token. Requests have the authority of the member who installed the
 plugin—never more, and never on behalf of another member. Protected routes still apply their
-server-side authorization and reject calls that member may not make. The only exception is an
-[OWOX BI plugin](trusted-plugins.md#owox-bi-plugins), which may ask for the member's access token
-with `ctx.userToken()`.
+server-side authorization and reject calls that member may not make. The only exception is a
+[privileged plugin](trusted-plugins.md#privileged-plugins), which may ask for the member's access
+token with `ctx.userToken()`.
 
 Never place GitHub tokens, OWOX API keys, or other credentials in plugin source files,
 `AGENTS.md`, coding-agent prompts, commits, or release notes. Plugin code must not read or store an
@@ -126,6 +126,7 @@ Marts frame or if no host answers within 10 seconds.
 | `ctx.credentials`                          | Project-owned Credential handles declared by the current plugin version and selected for this installation. Raw secrets never enter the plugin frame.                                                                                                                                                                                                           |
 | `ctx.collections(name)`                    | Provides a host-managed JSON collection declared by the current plugin version.                                                                                                                                                                                                                                                                                 |
 | `ctx.actions`                              | Runs the actions your backend declares in `plugin.json`; see [backend actions](#run-code-on-your-backend-with-actions). `undefined` on a host without them.                                                                                                                                                                                                     |
+| `ctx.userToken()`                          | Resolves to the signed-in member's access token, for calling your own API as them. `undefined` unless the deployment operator marks the plugin as [privileged](trusted-plugins.md#privileged-plugins).                                                                                                                                                          |
 | `ctx.ui.openExternal(url)`                 | Asks the host to open an external HTTPS address in a new tab.                                                                                                                                                                                                                                                                                                   |
 | `ctx.ui.navigate(path)`                    | Asks the host to navigate to a page inside OWOX Data Marts—for example, `/ui/${ctx.projectId}/data-marts/${id}`—in place of the plugin frame. Resolutions off the app's origin are refused.                                                                                                                                                                     |
 | `ctx.route`                                | The plugin's own route the member opened, e.g. `/dashboards/42`; `undefined` on a host without page links.                                                                                                                                                                                                                                                      |

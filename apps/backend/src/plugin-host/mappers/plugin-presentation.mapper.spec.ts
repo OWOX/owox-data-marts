@@ -146,17 +146,17 @@ describe('PluginPresentationMapper', () => {
   });
 
   describe('installation entry response', () => {
-    it('carries the BI plugin mark', () => {
+    it('carries the privileged mark', () => {
       const entry = {
         deliveryUrl: 'https://plugin.example.com',
         displayName: 'Example Plugin',
         pluginId: 'p1',
         versionId: 'v1',
         credentialHandles: [],
-        biPlugin: true,
+        privileged: true,
       };
-      expect(mapper.toInstallationEntryResponse(entry).biPlugin).toBe(true);
-      expect(mapper.toInstallationEntryResponse({ ...entry, biPlugin: false }).biPlugin).toBe(
+      expect(mapper.toInstallationEntryResponse(entry).privileged).toBe(true);
+      expect(mapper.toInstallationEntryResponse({ ...entry, privileged: false }).privileged).toBe(
         false
       );
     });

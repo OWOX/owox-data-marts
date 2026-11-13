@@ -109,8 +109,8 @@ export interface PluginContext extends Omit<
   /**
    * The signed-in member's OWOX access token, for calling your own API as them.
    *
-   * The token lives about 15 minutes: keep it in memory only, never store or log it. When
-   * your API answers 401, call again with `{ fresh: true }`. Undefined for ordinary plugins
+   * Its lifetime depends on the deployment's identity provider: keep it in memory only,
+   * never store or log it. When your API answers 401, call again with `{ fresh: true }`. Undefined for ordinary plugins
    * and on a host that does not grant it.
    */
   readonly userToken: ((options?: { fresh?: boolean }) => Promise<string>) | undefined;

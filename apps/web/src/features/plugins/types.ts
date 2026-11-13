@@ -81,8 +81,8 @@ export interface PluginEntryPoint {
   /** Stable across releases, renames and transfers -- unlike versionId. */
   pluginId: string;
   versionId: string;
-  /** Set by the backend only for an OWOX BI plugin; absent or false for every other plugin. */
-  biPlugin?: boolean;
+  /** Set by the backend only for a privileged plugin; absent or false for every other plugin. */
+  privileged?: boolean;
   credentialHandles: (
     | { name: string; kind: 'exact' }
     | { name: string; kind: 'ai'; models: ('fast' | 'reasoning' | 'embedding')[] }

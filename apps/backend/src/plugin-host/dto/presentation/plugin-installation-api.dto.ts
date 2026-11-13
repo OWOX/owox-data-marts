@@ -89,7 +89,7 @@ export class PluginEntryApiDto {
     description:
       "Whether the host relaxes the sandbox and may hand this plugin the member's access token",
   })
-  biPlugin: boolean;
+  privileged: boolean;
 }
 
 export class PluginRuntimeTokenApiDto {

@@ -17,8 +17,8 @@ carrying `ctx.owox` — a real OWOX API client.
 Your plugin runs in a cross-origin iframe with an **opaque origin**. That means no
 cookies, no `localStorage`, no `IndexedDB`, no service workers, and requests to your own
 backend arrive with `Origin: null`, so it must send `Access-Control-Allow-Origin: *` and
-cannot use cookie sessions. The exception is a plugin the deployment operator marks as an
-OWOX BI plugin: it keeps its real origin and may use the [user token](#user-token).
+cannot use cookie sessions. The exception is a plugin the deployment operator marks as
+privileged: it keeps its real origin and may use the [user token](#user-token).
 
 The same applies to **your own assets**: an opaque origin matches nothing, not even the
 server that delivered the page, so a bundled `<script type="module">` is fetched in CORS
@@ -406,7 +406,8 @@ const token = await ctx.userToken?.();
 const fresh = await ctx.userToken?.({ fresh: true });
 ```
 
-- The token is valid for about 15 minutes. Keep it in memory only; never store or log it.
+- How long the token lives depends on the deployment's identity provider. Keep it in memory only;
+  never store or log it, and ask for a fresh one when your API answers 401.
 - A refusal rejects with a `PluginTransportError` (`FORBIDDEN`).
 
 ## `@owox/plugin-sdk/server`

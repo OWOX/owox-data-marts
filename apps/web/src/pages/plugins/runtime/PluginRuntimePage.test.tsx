@@ -133,8 +133,8 @@ describe('PluginRuntimePage', () => {
     expect(frame.getAttribute('sandbox')).not.toContain('allow-same-origin');
   });
 
-  it('relaxes the sandbox for a BI plugin and delegates the clipboard', async () => {
-    getEntryPoint.mockResolvedValue({ ...ENTRY, biPlugin: true });
+  it('relaxes the sandbox for a privileged plugin and delegates the clipboard', async () => {
+    getEntryPoint.mockResolvedValue({ ...ENTRY, privileged: true });
     renderPage();
 
     const frame = await screen.findByTitle('Example Plugin');
@@ -147,11 +147,11 @@ describe('PluginRuntimePage', () => {
     expect(frame).toHaveAttribute('referrerpolicy', 'no-referrer');
   });
 
-  it('gives a BI plugin its origin and the user token source', async () => {
+  it('gives a privileged plugin its origin and the user token source', async () => {
     getEntryPoint.mockResolvedValue({
       ...ENTRY,
       deliveryUrl: 'https://plugin.example.com/app/index.html',
-      biPlugin: true,
+      privileged: true,
     });
     renderPage();
     await waitFor(() => {
@@ -168,7 +168,7 @@ describe('PluginRuntimePage', () => {
     getEntryPoint.mockResolvedValue({
       ...ENTRY,
       deliveryUrl: `${window.location.origin}/plugin/`,
-      biPlugin: true,
+      privileged: true,
     });
     renderPage();
 
@@ -184,7 +184,7 @@ describe('PluginRuntimePage', () => {
     expect(bridgeOptions.context).not.toHaveProperty('userToken');
   });
 
-  it.each([{}, { biPlugin: false }])(
+  it.each([{}, { privileged: false }])(
     'grants nothing when the entry carries no mark %j',
     async mark => {
       getEntryPoint.mockResolvedValue({ ...ENTRY, ...mark });

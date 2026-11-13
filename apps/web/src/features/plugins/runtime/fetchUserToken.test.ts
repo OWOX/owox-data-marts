@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { refreshMemberAccessToken } from '../../../app/api/apiClient';
 import { clearTokenProvider, setTokenProvider } from '../../../app/api/token-provider';
-import { fetchUserToken } from './fetchUserToken';
+import { fetchUserToken as fetchUserTokenFor } from './fetchUserToken';
 
 const jwt = (exp: number) =>
   `${btoa('{"alg":"none"}')}.${btoa(JSON.stringify({ exp })).replace(/=+$/, '')}.`;
@@ -12,8 +12,17 @@ const inSeconds = (s: number) => Math.floor(now / 1000) + s;
 
 describe('fetchUserToken', () => {
   const refreshToken = vi.fn<() => Promise<string>>();
+  const SESSION = { projectId: 'project-a', userId: 'user-1' };
+  // What the token provider reports; a test changes it to model another tab's switch.
+  let provided = SESSION;
+  const fetchUserToken = (fresh: boolean) => fetchUserTokenFor(fresh, SESSION);
   const useToken = (token: string | null) => {
-    setTokenProvider({ getAccessToken: () => token, refreshToken });
+    setTokenProvider({
+      getAccessToken: () => token,
+      refreshToken,
+      getProjectId: () => provided.projectId,
+      getUserId: () => provided.userId,
+    });
   };
 
   beforeEach(() => {
@@ -21,6 +30,7 @@ describe('fetchUserToken', () => {
     now += 3_600_000;
     vi.setSystemTime(now);
     refreshToken.mockReset().mockResolvedValue('refreshed');
+    provided = SESSION;
   });
   afterEach(() => {
     vi.useRealTimers();
@@ -128,7 +138,31 @@ describe('fetchUserToken', () => {
 
   it('fails when no session is available', async () => {
     clearTokenProvider();
-    await expect(fetchUserToken(false)).rejects.toThrow();
+    await expect(fetchUserToken(false)).rejects.toThrow('No active session');
+  });
+
+  it.each([
+    ['project', { projectId: 'project-b', userId: 'user-1' }],
+    ['member', { projectId: 'project-a', userId: 'user-2' }],
+  ])('refuses the current token when the session is for another %s', async (_label, other) => {
+    useToken(jwt(inSeconds(300)));
+    provided = other;
+    await expect(fetchUserToken(false)).rejects.toThrow('no longer belongs');
+    expect(refreshToken).not.toHaveBeenCalled();
+  });
+
+  it('refuses a refreshed token when the refresh landed in another project', async () => {
+    useToken(jwt(inSeconds(300)));
+    refreshToken.mockImplementationOnce(() => {
+      provided = { projectId: 'project-b', userId: 'user-1' };
+      return Promise.resolve('refreshed');
+    });
+    await expect(fetchUserToken(true)).rejects.toThrow('no longer belongs');
+  });
+
+  it('refuses when the token provider does not say whose session it is', async () => {
+    setTokenProvider({ getAccessToken: () => jwt(inSeconds(300)), refreshToken });
+    await expect(fetchUserToken(false)).rejects.toThrow('no longer belongs');
   });
 
   it('clears the shared refresh after a failure', async () => {

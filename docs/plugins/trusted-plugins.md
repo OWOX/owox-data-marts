@@ -118,21 +118,22 @@ To review what is currently published at deployment level:
 owox-ctl plugins publications list --scope deployment
 ```
 
-## OWOX BI plugins
+## Privileged plugins
 
 Some plugins need more than the default sandbox allows: to open popups, use the clipboard, or call
-OWOX with the signed-in member's own rights. A deployment operator can mark such plugins as OWOX BI
-plugins. The mark is independent of publication: publication decides who sees a plugin, this mark
-decides what it may technically do. A plugin does not need to be published at deployment scope to
-carry it, and a Verified plugin does not get it automatically.
+OWOX with the signed-in member's own rights. A deployment operator can mark such plugins as
+privileged. The mark is independent of publication: publication decides who sees a plugin, this
+mark decides what it may technically do. A plugin does not need to be published at deployment scope
+to carry it, and a Verified plugin does not get it automatically.
 
-A plugin is an OWOX BI plugin only when both of these match:
+A plugin is privileged only when both of these match:
 
-- its GitHub repository id is in `OWOX_BI_PLUGIN_REPOSITORY_IDS`;
-- the origin of its delivery URL is in `OWOX_BI_PLUGIN_ORIGINS`, which accepts only https origins.
+- its GitHub repository id is in `OWOX_PRIVILEGED_PLUGIN_REPOSITORY_IDS`;
+- the origin of its delivery URL is in `OWOX_PRIVILEGED_PLUGIN_ORIGINS`, which accepts only https
+  origins.
 
-An unset or blank variable means no plugin is an OWOX BI plugin; it never means "any". The
-deployment's own public origin is never accepted.
+An unset or blank variable means no plugin is privileged; it never means "any". A plugin served
+from the deployment's own host is never accepted.
 
 1. Find the numeric repository id:
 
@@ -143,20 +144,27 @@ deployment's own public origin is never accepted.
 2. Put both variables into the deployment environment, comma-separated when there are several:
 
    ```bash
-   OWOX_BI_PLUGIN_REPOSITORY_IDS=123456789
-   OWOX_BI_PLUGIN_ORIGINS=https://plugins.example.com
+   OWOX_PRIVILEGED_PLUGIN_REPOSITORY_IDS=123456789
+   OWOX_PRIVILEGED_PLUGIN_ORIGINS=https://plugins.example.com
    ```
 
 3. Restart the deployment so the new values are read.
 
-For such a plugin the host page opens the iframe with `allow-same-origin`, `allow-popups`, and
+For a privileged plugin the host page opens the iframe with `allow-same-origin`, `allow-popups`, and
 `allow-popups-to-escape-sandbox` added to its sandbox, grants clipboard read and write, and lets the plugin ask for the member's access token with
 `ctx.userToken()`. Every other plugin keeps the default sandbox and never receives a token.
 
-The code of an OWOX BI plugin acts with the member's rights. List only plugins you own, served from
+The code of a privileged plugin acts with the member's rights. List only plugins you own, served from
 hosting you control.
 
 Prefer hosting on a different registrable domain than the deployment. A plugin on a sibling
 subdomain (`plugins.example.com` next to `app.example.com`) is same-site with the app: the browser
 attaches the app's `SameSite=Lax` session cookies to requests the plugin sends to the app, and the
 plugin can set cookies for the shared parent domain.
+
+A privileged plugin keeps its real origin, so any page can put it in a frame and answer it as if it were
+the host. Serve it with `Content-Security-Policy: frame-ancestors https://<your deployment origin>`
+so that only the deployment can embed it.
+
+The token is issued for the project and member the plugin was opened in. If the member switches
+project or account in another tab, the host refuses the token until the plugin is reopened.

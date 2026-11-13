@@ -43,9 +43,13 @@ export interface PluginHostBridgeOptions {
   pluginOrigin?: string;
   /**
    * Supplies the member's access token; set only for a plugin the host grants it to.
-   * Served only together with `pluginOrigin`. A rejection is answered without its reason.
+   * Served only together with `pluginOrigin`, and called with the project and member of
+   * this bridge's context. A rejection is answered without its reason.
    */
-  fetchUserToken?: (fresh: boolean) => Promise<string>;
+  fetchUserToken?: (
+    fresh: boolean,
+    session: { projectId: string; userId: string }
+  ) => Promise<string>;
   /**
    * The bridge closed the channel on its own, and the frame is now inert.
    *
@@ -478,7 +482,10 @@ export function createPluginHostBridge(options: PluginHostBridgeOptions): Plugin
           }
           let token: string;
           try {
-            token = await options.fetchUserToken(request.fresh === true);
+            token = await options.fetchUserToken(request.fresh === true, {
+              projectId: options.context.projectId,
+              userId: options.context.userId,
+            });
           } catch {
             throw forbidden('The user token is unavailable');
           }

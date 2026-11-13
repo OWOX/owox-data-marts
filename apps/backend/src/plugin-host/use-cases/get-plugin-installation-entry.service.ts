@@ -90,7 +90,7 @@ export class GetPluginInstallationEntryService {
       credentialHandles: toCredentialHandles(
         owoxAiReady ? [...readyRequirements, ai.normalized] : readyRequirements
       ),
-      biPlugin: this.hostConfig.isBiPlugin(plugin.githubRepoId, version.deliveryUrl),
+      privileged: this.hostConfig.isPrivilegedPlugin(plugin.githubRepoId, version.deliveryUrl),
     };
   }
 }
