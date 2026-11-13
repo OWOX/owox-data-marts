@@ -6,6 +6,8 @@ import type {
   DataStorageListResponseDto,
   DataStorageResponseDto,
   ListStorageResourcesResponseDto,
+  OwoxStorageLocation,
+  OwoxStorageUsageResponseDto,
   PublishDataStorageDraftsResponseDto,
   StorageNamespaceNodeDto,
   StorageResourceFilter,
@@ -64,6 +66,36 @@ export class DataStorageApiService extends ApiService {
    */
   async createDataStorage(data: CreateDataStorageRequestDto): Promise<DataStorageResponseDto> {
     return this.post<DataStorageResponseDto>('', data);
+  }
+
+  async createOwoxStorage(data: {
+    title: string;
+    location: OwoxStorageLocation;
+    ownerIds?: string[];
+  }): Promise<DataStorageResponseDto> {
+    // Provisioning can take about 90 s; the dialog shows the error inline, so no toast.
+    return this.post<DataStorageResponseDto>('/owox-storage', data, {
+      timeout: 180000,
+      skipErrorToast: true,
+    } as AxiosRequestConfig);
+  }
+
+  async getOwoxStorageUsage(storageId: string): Promise<OwoxStorageUsageResponseDto> {
+    // The usage panel shows its own error with a retry.
+    return this.get<OwoxStorageUsageResponseDto>(`/${storageId}/owox-storage`, undefined, {
+      skipErrorToast: true,
+    } as AxiosRequestConfig);
+  }
+
+  async deleteOwoxStorageTable(storageId: string, tableName: string): Promise<void> {
+    await this.delete(`/${storageId}/owox-storage/tables/${encodeURIComponent(tableName)}`);
+  }
+
+  async restoreOwoxStorage(storageId: string): Promise<void> {
+    // Recreating the datasets and the account takes as long as creating them.
+    await this.post(`/${storageId}/owox-storage/restore`, undefined, {
+      timeout: 180000,
+    } as AxiosRequestConfig);
   }
 
   /**

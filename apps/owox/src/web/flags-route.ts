@@ -27,6 +27,7 @@ const DEFAULT_PUBLIC_ENV_WHITELIST = [
   'MENU_DOCUMENTATION_COMMUNITY_EDITION_VISIBLE',
   'GOOGLE_TAG_MANAGER_CONTAINER_ID',
   'INTERCOM_APP_ID',
+  'OWOX_STORAGE_ENABLED',
   'INSIGHTS_ENABLED',
   'INSIGHT_ASSISTANT_ENABLED_PROJECT_IDS',
   // The running version, so the app announces only releases it already contains.
@@ -37,6 +38,8 @@ const DEFAULT_PUBLIC_ENV_WHITELIST = [
  * Options for registering the public environment route
  */
 export interface FlagsRouteOptions {
+  /** Whitelisted flags computed at request time instead of read from process.env */
+  computed?: Record<string, () => string>;
   /** Custom route path (must start with '/'), default: '/flags' */
   path?: string;
   /** Explicit whitelist of environment variable names to expose */
@@ -88,10 +91,11 @@ type ResolvedOptions = z.infer<typeof ResolvedOptionsSchema>;
  */
 export function registerPublicFlagsRoute(app: Express, rawOptions: FlagsRouteOptions = {}): void {
   const options: ResolvedOptions = ResolvedOptionsSchema.parse(rawOptions);
+  const computed = rawOptions.computed ?? {};
 
   app.get(options.path, (_req: Request, res: Response) => {
     const resultEntries = [...options.whiteSet]
-      .map(key => [key, process.env[key]] as const)
+      .map(key => [key, computed[key]?.() ?? process.env[key]] as const)
       .filter(([, value]) => value !== undefined);
 
     const payload: Record<string, unknown> = Object.fromEntries(

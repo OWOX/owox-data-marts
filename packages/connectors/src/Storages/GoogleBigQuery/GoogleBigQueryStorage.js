@@ -133,6 +133,16 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
       requiredType: 'string',
       default: null,
     },
+    ImpersonateServiceAccount: {
+      isRequired: false,
+      requiredType: 'string',
+      default: null,
+    },
+    DestinationDatasetExists: {
+      isRequired: false,
+      requiredType: 'boolean',
+      default: false,
+    },
   };
 
   //---- constructor -------------------------------------------------
@@ -149,6 +159,7 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
 
     // Built lazily by getBigQueryClient() and reused for the whole run.
     this._bigqueryClient = null;
+    this._impersonatedAuthClient = null;
 
     // Derive defaults from DestinationDatasetID when project/dataset names are not
     // explicitly provided. The legacy implementation computed these in
@@ -182,6 +193,8 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
     async init() {
 
       this.checkIfGoogleBigQueryIsConnected();
+
+      await this.prepareImpersonatedAuthClient();
 
       await this.loadTableSchema();
 
@@ -219,7 +232,14 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
 
         let query = "----- Getting a list of existing columns ------\n";
         
-        query += `DECLARE dataset_exists BOOL;
+        // The dataset is known to exist, and its account may not read INFORMATION_SCHEMA.SCHEMATA
+        if (this.context.getParameter('DestinationDatasetExists')?.value) {
+          query += `SELECT column_name, data_type, is_partitioning_column
+          FROM \`${this.context.getParameter('DestinationDatasetID')?.value}.INFORMATION_SCHEMA.COLUMNS\`
+          WHERE table_name = '${this.context.getParameter('DestinationTableName')?.value}'
+          ORDER BY ordinal_position`;
+        } else {
+          query += `DECLARE dataset_exists BOOL;
         SET dataset_exists = EXISTS (
           SELECT 1
           FROM \`${this.context.getParameter('DestinationProjectID')?.value}.INFORMATION_SCHEMA.SCHEMATA\`
@@ -231,6 +251,7 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
           WHERE table_name = '${this.context.getParameter('DestinationTableName')?.value}'
           ORDER BY ordinal_position;
         END IF`;
+        }
 
         /*let query = `SELECT column_name, data_type
         FROM \`${this.context.getParameter('DestinationDatasetID')?.value}.INFORMATION_SCHEMA.COLUMNS\`
@@ -257,6 +278,11 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
 
   //---- createDatasetIfItDoesntExist --------------------------------
     async createDatasetIfItDoesntExist() {
+
+      // The dataset is known to exist, and its account may not run CREATE SCHEMA
+      if (this.context.getParameter('DestinationDatasetExists')?.value) {
+        return;
+      }
 
       const location = this.context.getParameter('DestinationLocation')?.value;
 
@@ -355,6 +381,8 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
     async replaceData(data) {
 
       this.checkIfGoogleBigQueryIsConnected();
+      // The snapshot import is not preceded by init()
+      await this.prepareImpersonatedAuthClient();
       await this.createDatasetIfItDoesntExist();
       // Hoisted because the staging swap below WRITES it back: the snapshot import
       // retargets the destination at the staging table and restores it afterwards.
@@ -937,6 +965,26 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
     }
  
 
+  //---- prepareImpersonatedAuthClient ---------------------------------
+    // Built ahead of the first query: getBigQueryClient() is synchronous, reading ADC is not
+    async prepareImpersonatedAuthClient() {
+      const targetPrincipal = this.context.getParameter('ImpersonateServiceAccount')?.value;
+      if (!targetPrincipal || this._impersonatedAuthClient) {
+        return;
+      }
+
+      const { GoogleAuth, Impersonated } = require('google-auth-library');
+      const sourceClient = await new GoogleAuth({
+        scopes: ['https://www.googleapis.com/auth/cloud-platform'],
+      }).getClient();
+      this._impersonatedAuthClient = new Impersonated({
+        sourceClient,
+        targetPrincipal,
+        targetScopes: ['https://www.googleapis.com/auth/bigquery'],
+        lifetime: 3600,
+      });
+    }
+
   //---- getBigQueryClient ---------------------------------------------
     /**
      * Builds (once) and caches the BigQuery client for this run.
@@ -960,7 +1008,15 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
         return this._bigqueryClient;
       }
 
-      if (this.context.getParameter('OAuthAccessToken')?.value) {
+      if (this.context.getParameter('ImpersonateServiceAccount')?.value) {
+        if (!this._impersonatedAuthClient) {
+          throw new Error("The impersonated BigQuery client was not prepared before the first query");
+        }
+        this._bigqueryClient = new BigQuery({
+          projectId: this.context.getParameter('ProjectID')?.value,
+          authClient: this._impersonatedAuthClient,
+        });
+      } else if (this.context.getParameter('OAuthAccessToken')?.value) {
         const { OAuth2Client } = require('google-auth-library');
         const oauth2Client = new OAuth2Client(
           this.context.getParameter('OAuthClientId')?.value,

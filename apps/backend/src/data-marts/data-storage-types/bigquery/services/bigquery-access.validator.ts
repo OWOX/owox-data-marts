@@ -13,6 +13,7 @@ import {
 } from '../../interfaces/data-storage-access-validator.interface';
 import { DataStorageConfig } from '../../data-storage-config.type';
 import { DataStorageCredentials } from '../../data-storage-credentials.type';
+import { isBigQueryManagedCredentials } from '../../data-storage-credentials.guards';
 import { BigQueryApiAdapter } from '../adapters/bigquery-api.adapter';
 
 const GOOGLE_OAUTH_REAUTH_MESSAGE =
@@ -67,6 +68,18 @@ export class BigQueryAccessValidator implements DataStorageAccessValidator {
     }
 
     const bigQueryConfig = configOpt.data;
+
+    if (isBigQueryManagedCredentials(credentials)) {
+      try {
+        await new BigQueryApiAdapter(credentials, bigQueryConfig).checkAccess();
+        return new ValidationResult(true);
+      } catch (error) {
+        this.logger.warn(`Access validation failed: ${castError(error).message}`);
+        return new ValidationResult(false, 'Access validation failed', {
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
 
     if ((credentials as BigQueryOAuthCredentials).type === BIGQUERY_OAUTH_TYPE) {
       const apiAdapter = new BigQueryApiAdapter(

@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 import { castError } from '@owox/internal-helpers';
 import { OwoxEventDispatcher } from '../../common/event-dispatcher/owox-event-dispatcher';
+import { ManagedStorageService } from '../owox-storage/managed-storage.service';
 import { SystemTimeService } from '../../common/scheduler/services/system-time.service';
 
 import { RunType } from '../../common/scheduler/shared/types';
@@ -164,7 +165,8 @@ export class DataMartRunService {
     @InjectRepository(DataMartRun)
     private readonly dataMartRunRepository: Repository<DataMartRun>,
     private readonly systemClock: SystemTimeService,
-    private readonly eventDispatcher: OwoxEventDispatcher
+    private readonly eventDispatcher: OwoxEventDispatcher,
+    private readonly managedStorageService: ManagedStorageService
   ) {}
 
   /**
@@ -421,6 +423,20 @@ export class DataMartRunService {
           dataMartRun.type
         )
       );
+    }
+  }
+
+  /**
+   * Counts a finished report run as use of its OWOX Storage. Never fails the run.
+   */
+  public async recordStorageUse(storageId: string, runId: string): Promise<void> {
+    try {
+      await this.managedStorageService.recordUse(storageId, this.systemClock.now());
+    } catch (error) {
+      this.logger.warn(`Could not record use of the storage for run ${runId}`, {
+        runId,
+        error: castError(error).message,
+      });
     }
   }
 

@@ -104,6 +104,11 @@ export function getSnowflakeConsoleUrl(account: string): string {
  * @returns The storage console URL, or null if not supported
  */
 export function getStorageUrl(storage: DataStorage, fullyQualifiedName: string): string | null {
+  // Customers have no access to the Google Cloud project behind an OWOX Storage.
+  if (storage.owoxStorage) {
+    return null;
+  }
+
   const parsedName = parseFullyQualifiedName(fullyQualifiedName);
   if (!parsedName) {
     return null;

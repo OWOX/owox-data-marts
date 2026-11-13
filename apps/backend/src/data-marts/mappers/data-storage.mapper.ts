@@ -8,8 +8,13 @@ import {
 } from '../data-storage-types/enums/data-storage-type.enum';
 import { ValidationResult } from '../data-storage-types/interfaces/data-storage-access-validator.interface';
 import { CreateDataStorageCommand } from '../dto/domain/create-data-storage.command';
+import { CreateOwoxStorageCommand } from '../dto/domain/create-owox-storage.command';
+import { CreateOwoxStorageApiDto } from '../dto/presentation/create-owox-storage-api.dto';
 import { DataStorageDto } from '../dto/domain/data-storage.dto';
 import { DeleteDataStorageCommand } from '../dto/domain/delete-data-storage.command';
+import { GetOwoxStorageUsageCommand } from '../dto/domain/get-owox-storage-usage.command';
+import { DeleteOwoxStorageTableCommand } from '../dto/domain/delete-owox-storage-table.command';
+import { RestoreOwoxStorageCommand } from '../dto/domain/restore-owox-storage.command';
 import { GetDataStorageCommand } from '../dto/domain/get-data-storage.command';
 import { ListDataStoragesCommand } from '../dto/domain/list-data-storages.command';
 import { ListStorageResourcesCommand } from '../dto/domain/list-storage-resources.command';
@@ -30,19 +35,38 @@ import type { StorageCredentialSummary } from '../data-storage-types/storage-cre
 import { ListDataStoragesByTypeItemDto } from '../dto/domain/list-data-storages-by-type-item.dto';
 import { ListDataStoragesByTypeCommand } from '../dto/domain/list-data-storages-by-type.command';
 import { DataStorage } from '../entities/data-storage.entity';
+import type { ManagedStorage } from '../entities/managed-storage.entity';
 import { UserProjectionDto } from '../../idp/dto/domain/user-projection.dto';
 import { OwnerFilter } from '../enums/owner-filter.enum';
+import { ManagedStorageService } from '../owox-storage/managed-storage.service';
 import { extractContextSummaries, ContextSummary } from '../utils/extract-context-summaries';
 
 @Injectable()
 export class DataStorageMapper {
-  constructor(private readonly cls: ClsService) {}
+  constructor(
+    private readonly cls: ClsService,
+    private readonly managedStorageService: ManagedStorageService
+  ) {}
 
   toCreateCommand(
     context: AuthorizationContext,
     dto: CreateDataStorageApiDto
   ): CreateDataStorageCommand {
     return new CreateDataStorageCommand(context.projectId, dto.type, context.userId, dto.ownerIds);
+  }
+
+  toCreateOwoxStorageCommand(
+    context: AuthorizationContext,
+    dto: CreateOwoxStorageApiDto
+  ): CreateOwoxStorageCommand {
+    return new CreateOwoxStorageCommand(
+      context.projectId,
+      dto.title,
+      dto.location,
+      context.userId,
+      context.authFlow === 'plugin',
+      dto.ownerIds
+    );
   }
 
   toUpdateCommand(
@@ -99,7 +123,14 @@ export class DataStorageMapper {
     );
   }
 
-  async toApiResponse(dataStorageDto: DataStorageDto): Promise<DataStorageResponseApiDto> {
+  /** `managed` is the caller's batched lookup; `null` means the storage has no record. */
+  async toApiResponse(
+    dataStorageDto: DataStorageDto,
+    managed?: ManagedStorage | null
+  ): Promise<DataStorageResponseApiDto> {
+    if (managed === undefined) {
+      managed = await this.managedStorageService.findByStorageId(dataStorageDto.id);
+    }
     return {
       id: dataStorageDto.id,
       title: dataStorageDto.title,
@@ -116,7 +147,12 @@ export class DataStorageMapper {
       ...(dataStorageDto.reusableCredential !== undefined && {
         reusableCredential: this.toCredentialSummaryResponse(dataStorageDto.reusableCredential),
       }),
+      ...(managed && { owoxStorage: { location: managed.location, datasetId: managed.datasetId } }),
     };
+  }
+
+  findManagedByStorageIds(ids: readonly string[]): Promise<Map<string, ManagedStorage>> {
+    return this.managedStorageService.findByStorageIds(ids);
   }
 
   toGetCommand(id: string, context: AuthorizationContext) {
@@ -148,24 +184,33 @@ export class DataStorageMapper {
     );
   }
 
-  toResponseList(dataStorages: DataStorageDto[]): DataStorageListResponseApiDto[] {
-    return dataStorages.map(dataStorageDto => ({
-      id: dataStorageDto.id,
-      title: dataStorageDto.title,
-      type: dataStorageDto.type,
-      createdAt: dataStorageDto.createdAt,
-      modifiedAt: dataStorageDto.modifiedAt,
-      publishedDataMartsCount: dataStorageDto.dataMartsCount,
-      draftDataMartsCount: dataStorageDto.draftsCount,
-      createdByUser: dataStorageDto.createdByUser,
-      ownerUsers: dataStorageDto.ownerUsers,
-      contexts: dataStorageDto.contexts,
-      availableForUse: dataStorageDto.availableForUse,
-      availableForMaintenance: dataStorageDto.availableForMaintenance,
-      reusableCredential: this.toCredentialSummaryResponse(
-        dataStorageDto.reusableCredential ?? null
-      ),
-    }));
+  async toResponseList(dataStorages: DataStorageDto[]): Promise<DataStorageListResponseApiDto[]> {
+    const managedById = await this.managedStorageService.findByStorageIds(
+      dataStorages.map(dto => dto.id)
+    );
+    return dataStorages.map(dataStorageDto => {
+      const managed = managedById.get(dataStorageDto.id);
+      return {
+        id: dataStorageDto.id,
+        title: dataStorageDto.title,
+        type: dataStorageDto.type,
+        createdAt: dataStorageDto.createdAt,
+        modifiedAt: dataStorageDto.modifiedAt,
+        publishedDataMartsCount: dataStorageDto.dataMartsCount,
+        draftDataMartsCount: dataStorageDto.draftsCount,
+        createdByUser: dataStorageDto.createdByUser,
+        ownerUsers: dataStorageDto.ownerUsers,
+        contexts: dataStorageDto.contexts,
+        availableForUse: dataStorageDto.availableForUse,
+        availableForMaintenance: dataStorageDto.availableForMaintenance,
+        reusableCredential: this.toCredentialSummaryResponse(
+          dataStorageDto.reusableCredential ?? null
+        ),
+        ...(managed && {
+          owoxStorage: { location: managed.location, datasetId: managed.datasetId },
+        }),
+      };
+    });
   }
 
   /** Built field by field so a restricted summary never carries the Credential's details. */
@@ -191,7 +236,53 @@ export class DataStorageMapper {
   }
 
   toDeleteCommand(id: string, context: AuthorizationContext): DeleteDataStorageCommand {
-    return new DeleteDataStorageCommand(id, context.projectId, context.userId, context.roles ?? []);
+    return new DeleteDataStorageCommand(
+      id,
+      context.projectId,
+      context.userId,
+      context.roles ?? [],
+      context.authFlow === 'plugin'
+    );
+  }
+
+  toGetOwoxStorageUsageCommand(
+    id: string,
+    context: AuthorizationContext
+  ): GetOwoxStorageUsageCommand {
+    return new GetOwoxStorageUsageCommand(
+      id,
+      context.projectId,
+      context.userId,
+      context.roles ?? []
+    );
+  }
+
+  toDeleteOwoxStorageTableCommand(
+    id: string,
+    tableName: string,
+    context: AuthorizationContext
+  ): DeleteOwoxStorageTableCommand {
+    return new DeleteOwoxStorageTableCommand(
+      id,
+      context.projectId,
+      tableName,
+      context.userId,
+      context.roles ?? [],
+      context.authFlow === 'plugin'
+    );
+  }
+
+  toRestoreOwoxStorageCommand(
+    id: string,
+    context: AuthorizationContext
+  ): RestoreOwoxStorageCommand {
+    return new RestoreOwoxStorageCommand(
+      id,
+      context.projectId,
+      context.userId,
+      context.roles ?? [],
+      context.authFlow === 'plugin'
+    );
   }
 
   toPublishDraftsCommand(

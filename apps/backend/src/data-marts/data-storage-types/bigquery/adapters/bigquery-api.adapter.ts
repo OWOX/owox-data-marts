@@ -2,7 +2,13 @@ import { BigQuery, Job, Query, Table, TableSchema } from '@google-cloud/bigquery
 import { Logger } from '@nestjs/common';
 import { JWT, OAuth2Client } from 'google-auth-library';
 import { BIGQUERY_AUTODETECT_LOCATION, BigQueryConfig } from '../schemas/bigquery-config.schema';
-import { BIGQUERY_OAUTH_TYPE, BigQueryCredentials } from '../schemas/bigquery-credentials.schema';
+import {
+  BIGQUERY_MANAGED_TYPE,
+  BIGQUERY_OAUTH_TYPE,
+  BigQueryCredentials,
+  ScanBudget,
+  ScanReservation,
+} from '../schemas/bigquery-credentials.schema';
 import type { SqlParameter } from '../../utils/sql-clause-renderer';
 import {
   isValidBigQueryDatasetId,
@@ -12,6 +18,10 @@ import {
   GBQ_SHARD_SUFFIX_MAX_DIGITS,
   GBQ_SHARD_SUFFIX_MIN_DIGITS,
 } from '../services/bigquery-sharded-tables.util';
+import { OwoxStorageStatementException } from '../../../owox-storage/owox-storage.exceptions';
+
+// BigQuery bills at least 10 MB per query and per referenced table.
+const MIN_BILLED_BYTES = 10 * 2 ** 20;
 
 /** Fully-qualified BigQuery table coordinates, as returned by a dry run's `referencedTables`. */
 export interface BigQueryTableReference {
@@ -29,9 +39,12 @@ function toDateOrNull(value: unknown): Date | null {
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
+/** The access check's query; the OWOX Storage activity read ignores it. */
+export const ACCESS_CHECK_QUERY = 'SELECT 1';
+
 /**
  * Adapter for BigQuery API operations.
- * Accepts either Service Account credentials or pre-resolved OAuth credentials.
+ * Accepts Service Account credentials, pre-resolved OAuth credentials or OWOX Storage credentials.
  *
  * Resource-listing (namespaces / tables) is handled by the dedicated
  * {@link BigQueryStorageResourceBrowser} service; this adapter focuses on
@@ -48,22 +61,29 @@ export class BigQueryApiAdapter {
   private readonly logger = new Logger(BigQueryApiAdapter.name);
   private readonly bigQuery: BigQuery;
   private readonly authClient: JWT | OAuth2Client;
+  /** Set only for an OWOX Storage: its jobs run SELECT only, capped by today's scan budget. */
+  private readonly scanBudget?: ScanBudget;
   private location?: string;
 
   constructor(credentials: BigQueryCredentials, config: BigQueryConfig) {
     const auth =
-      credentials.type === BIGQUERY_OAUTH_TYPE
-        ? credentials.oauth2Client
-        : new JWT({
-            email: credentials.client_email,
-            key: credentials.private_key,
-            scopes: [
-              'https://www.googleapis.com/auth/bigquery',
-              'https://www.googleapis.com/auth/drive.readonly',
-            ],
-          });
+      credentials.type === BIGQUERY_MANAGED_TYPE
+        ? credentials.authClient
+        : credentials.type === BIGQUERY_OAUTH_TYPE
+          ? credentials.oauth2Client
+          : new JWT({
+              email: credentials.client_email,
+              key: credentials.private_key,
+              scopes: [
+                'https://www.googleapis.com/auth/bigquery',
+                'https://www.googleapis.com/auth/drive.readonly',
+              ],
+            });
 
     this.authClient = auth;
+    if (credentials.type === BIGQUERY_MANAGED_TYPE) {
+      this.scanBudget = credentials.scanBudget;
+    }
     const shouldAutodetectLocation = config.location === BIGQUERY_AUTODETECT_LOCATION;
     this.bigQuery = new BigQuery({
       projectId: config.projectId,
@@ -104,6 +124,9 @@ export class BigQueryApiAdapter {
    * `jobTimeoutMs` (already in ms) caps warehouse cost by aborting the job server-side; unset = no change.
    * `signal` (client disconnect/cancel) cancels the running job immediately — the poll loop then
    * surfaces the cancellation as a thrown error. Unset = no cancellation hook.
+   *
+   * On an OWOX Storage the query is dry-run first and refused unless it is a single SELECT, and its
+   * estimate is reserved from today's scan budget until the job ends.
    */
   public async executeQuery(
     query: string,
@@ -111,16 +134,43 @@ export class BigQueryApiAdapter {
     jobTimeoutMs?: number,
     signal?: AbortSignal
   ): Promise<{ jobId: string }> {
-    const queryConfig: Query = {
-      query,
-      ...this.getLocationOption(),
-      ...(jobTimeoutMs !== undefined ? { jobTimeoutMs } : {}),
-    };
-    if (params && params.length > 0) {
-      queryConfig.params = Object.fromEntries(params.map(p => [p.name, p.value]));
-      queryConfig.parameterMode = 'NAMED';
+    let reservation: ScanReservation | undefined;
+    if (this.scanBudget) {
+      const { statementType, totalBytesProcessed, referencedTables } =
+        await this.executeDryRunQuery(query, params);
+      if (statementType !== 'SELECT') throw new OwoxStorageStatementException(statementType);
+      reservation = await this.scanBudget.reserve(
+        totalBytesProcessed + MIN_BILLED_BYTES * Math.max(1, referencedTables.length)
+      );
     }
 
+    try {
+      const queryConfig: Query = {
+        query,
+        ...this.getLocationOption(),
+        ...(jobTimeoutMs !== undefined ? { jobTimeoutMs } : {}),
+        ...(reservation ? { maximumBytesBilled: String(reservation.maximumBytesBilled) } : {}),
+      };
+      if (params && params.length > 0) {
+        queryConfig.params = Object.fromEntries(params.map(p => [p.name, p.value]));
+        queryConfig.parameterMode = 'NAMED';
+      }
+      return await this.runJob(queryConfig, signal);
+    } finally {
+      reservation?.release();
+    }
+  }
+
+  /** Runs ODM's own view DDL: an OWOX Storage keeps the scan budget but skips the SELECT check. */
+  public async executeViewDdl(ddl: string): Promise<void> {
+    await this.runJob({
+      query: ddl,
+      ...this.getLocationOption(),
+      ...(await this.getScanBudgetOption()),
+    });
+  }
+
+  private async runJob(queryConfig: Query, signal?: AbortSignal): Promise<{ jobId: string }> {
     const [job] = await this.bigQuery.createQueryJob(queryConfig);
 
     // Best-effort warehouse cancel: on abort, ask BigQuery to cancel the job. The poll loop below
@@ -211,6 +261,7 @@ export class BigQueryApiAdapter {
     schema?: TableSchema;
     location?: string;
     referencedTables: BigQueryTableReference[];
+    statementType: string;
   }> {
     const queryConfig: Query = {
       query,
@@ -229,6 +280,7 @@ export class BigQueryApiAdapter {
       schema: job.metadata.statistics.query.schema ?? undefined,
       location: this.location,
       referencedTables: this.parseReferencedTables(job.metadata.statistics.query.referencedTables),
+      statementType: job.metadata.statistics.query.statementType,
     };
   }
 
@@ -311,6 +363,7 @@ export class BigQueryApiAdapter {
       },
       parameterMode: 'NAMED',
       ...this.getLocationOption(),
+      ...(await this.getScanBudgetOption()),
     });
 
     return toDateOrNull(rows?.[0]?.last_modified_time);
@@ -347,11 +400,17 @@ export class BigQueryApiAdapter {
    */
   public async checkAccess(): Promise<void> {
     try {
-      const [, , res] = await this.bigQuery.query('SELECT 1', this.getLocationOption());
+      const [, , res] = await this.bigQuery.query(ACCESS_CHECK_QUERY, this.getLocationOption());
       this.setLocationFromJobReference(res?.jobReference?.location);
     } catch (e) {
       throw new Error(`BigQuery access error: ${e instanceof Error ? e.message : String(e)}`);
     }
+  }
+
+  private async getScanBudgetOption(): Promise<{ maximumBytesBilled?: string }> {
+    return this.scanBudget
+      ? { maximumBytesBilled: String(await this.scanBudget.remainingBytes()) }
+      : {};
   }
 
   private getLocationOption(): { location?: string } {

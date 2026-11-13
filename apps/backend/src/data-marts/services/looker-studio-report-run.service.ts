@@ -63,8 +63,24 @@ export class LookerStudioReportRunService {
    * @param reportRun - Completed Looker Studio report run
    * @param context - Optional finish context with logs/errors to append to DataMartRun
    */
-  @Transactional()
   async finish(
+    reportRun: LookerStudioReportRun,
+    context?: { logs?: string[]; errors?: string[] }
+  ): Promise<void> {
+    await this.persistFinish(reportRun, context);
+    // After the commit, so a failed use write cannot roll back the run's final state.
+    try {
+      await this.dataMartRunService.recordStorageUse(
+        reportRun.getReport().dataMart.storage.id,
+        reportRun.getDataMartRun().id
+      );
+    } catch {
+      // The run is already final; recordStorageUse logs its own failures.
+    }
+  }
+
+  @Transactional()
+  private async persistFinish(
     reportRun: LookerStudioReportRun,
     context?: { logs?: string[]; errors?: string[] }
   ): Promise<void> {

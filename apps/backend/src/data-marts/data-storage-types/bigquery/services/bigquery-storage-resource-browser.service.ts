@@ -4,6 +4,7 @@ import { JWT, OAuth2Client } from 'google-auth-library';
 import { google } from 'googleapis';
 import { raceWithTimeout } from '../../../../common/utils/promise.util';
 import { DataStorage } from '../../../entities/data-storage.entity';
+import { isBigQueryManagedCredentials } from '../../data-storage-credentials.guards';
 import { DataStorageCredentialsResolver } from '../../data-storage-credentials-resolver.service';
 import { DataStorageType } from '../../enums/data-storage-type.enum';
 import type {
@@ -69,6 +70,8 @@ interface BigQueryClients {
   bigQuery: BigQuery;
   authClient: JWT | OAuth2Client;
   location?: string;
+  /** Set for an OWOX Storage: browsing never leaves this project and dataset. */
+  managed?: { projectId: string; datasetId: string };
 }
 
 /**
@@ -91,6 +94,7 @@ export class BigQueryStorageResourceBrowser implements IStorageResourceBrowserPr
 
   async listNamespaces(storage: DataStorage): Promise<StorageResourceNode[]> {
     const clients = await this.createClients(storage);
+    if (clients.managed) return [{ id: clients.managed.projectId }];
     const projects = await this.listProjects(clients);
     return projects.map(p => ({ id: p.id, label: p.friendlyName }));
   }
@@ -103,7 +107,10 @@ export class BigQueryStorageResourceBrowser implements IStorageResourceBrowserPr
     const clients = await this.createClients(storage);
     // Always pull both tables and views so the wildcard rollup can group by dataset
     // regardless of the caller filter. The filter is applied as a post-step.
-    const rawTables = await this.listTablesInProject(clients, namespaceId);
+    // A managed storage lists only its own dataset, whatever namespace is asked for.
+    const rawTables = clients.managed
+      ? await this.listManagedTables(clients, clients.managed)
+      : await this.listTablesInProject(clients, namespaceId);
     this.logger.debug?.(
       `listLeafResources(${namespaceId}, ${filter ?? 'unfiltered'}): ` +
         `${rawTables.length} raw rows from BQ`
@@ -124,6 +131,20 @@ export class BigQueryStorageResourceBrowser implements IStorageResourceBrowserPr
   protected async createClients(storage: DataStorage): Promise<BigQueryClients> {
     const config = BigQueryConfigSchema.parse(storage.config ?? {});
     const resolved = await this.credentialsResolver.resolve(storage);
+    if (isBigQueryManagedCredentials(resolved)) {
+      const authClient = resolved.authClient;
+      const bigQuery = new BigQuery({
+        projectId: config.projectId,
+        authClient,
+        ...(config.location === BIGQUERY_AUTODETECT_LOCATION ? {} : { location: config.location }),
+      });
+      return {
+        bigQuery,
+        authClient,
+        location: config.location === BIGQUERY_AUTODETECT_LOCATION ? undefined : config.location,
+        managed: { projectId: config.projectId, datasetId: resolved.datasetId },
+      };
+    }
     const saParsed = BigQueryServiceAccountCredentialsSchema.safeParse(resolved);
     const oauthParsed = BigQueryOAuthCredentialsSchema.safeParse(resolved);
     if (!saParsed.success && !oauthParsed.success) {
@@ -293,6 +314,14 @@ export class BigQueryStorageResourceBrowser implements IStorageResourceBrowserPr
         };
       })
       .filter(table => table.id);
+  }
+
+  private async listManagedTables(
+    clients: BigQueryClients,
+    { projectId, datasetId }: { projectId: string; datasetId: string }
+  ): Promise<GbqTableListing[]> {
+    const dataset = (await this.listDatasets(clients, projectId)).find(d => d.id === datasetId);
+    return this.listTables(clients, projectId, dataset ?? { id: datasetId });
   }
 
   private async listTablesInProject(

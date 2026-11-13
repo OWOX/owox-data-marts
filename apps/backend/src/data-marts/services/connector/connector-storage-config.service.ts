@@ -35,6 +35,7 @@ import { isValidBigQueryConnectorTableName } from '../../data-storage-types/bigq
 import { isValidAthenaConnectorTableName } from '../../data-storage-types/athena/utils/athena-validation.utils';
 import { DataStorageCredentialsResolver } from '../../data-storage-types/data-storage-credentials-resolver.service';
 import { DataStorageCredentials } from '../../data-storage-types/data-storage-credentials.type';
+import { isBigQueryManagedCredentials } from '../../data-storage-types/data-storage-credentials.guards';
 import { GoogleOAuthConfigService } from '../google-oauth/google-oauth-config.service';
 
 @Injectable()
@@ -90,7 +91,10 @@ export class ConnectorStorageConfigService {
         DataMartValidationCode.INVALID_IDENTIFIER_FORMAT
       );
     }
-    const [datasetId, tableName] = fullyQualifiedName.split('.');
+    const managed = isBigQueryManagedCredentials(credentials) ? credentials : null;
+    const [definedDatasetId, tableName] = fullyQualifiedName.split('.');
+    // An OWOX Storage writes only into its own dataset, whatever the definition names.
+    const datasetId = managed?.datasetId ?? definedDatasetId;
 
     const baseConfig = {
       DestinationLocation: storageConfig?.location || BIGQUERY_AUTODETECT_LOCATION,
@@ -100,6 +104,18 @@ export class ConnectorStorageConfigService {
       DestinationTableNameOverride: `${connector.source.node} ${tableName}`,
       ProjectID: storageConfig.projectId,
     };
+
+    // Ahead of the key branch: the credentials hold a live client and must never be serialised.
+    if (managed) {
+      return new StorageConfigDto({
+        name: DataStorageType.GOOGLE_BIGQUERY,
+        config: {
+          ...baseConfig,
+          ImpersonateServiceAccount: managed.serviceAccountEmail,
+          DestinationDatasetExists: true,
+        },
+      });
+    }
 
     if (bqCredentials.type === BIGQUERY_OAUTH_TYPE) {
       const oauthCredentials = bqCredentials as BigQueryOAuthCredentials;
