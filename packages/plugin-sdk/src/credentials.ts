@@ -1,6 +1,9 @@
 import type { IframeRequester } from './iframe-transport.js';
 import { PluginTransportError } from './iframe-transport.js';
 import type {
+  Experimental_DecisionModelV4,
+  Experimental_DecisionModelV4CallOptions,
+  Experimental_DecisionModelV4Result,
   EmbeddingModelV4,
   EmbeddingModelV4CallOptions,
   EmbeddingModelV4Result,
@@ -25,6 +28,8 @@ export interface AiCredentialHandle extends LanguageModelV4 {
   readonly fast?: LanguageModelV4;
   readonly reasoning?: LanguageModelV4;
   readonly embedding?: EmbeddingModelV4;
+  /** Decides typed questions about a state. Pass it to `experimental_decide` from `ai`. */
+  readonly decision?: Experimental_DecisionModelV4;
 }
 
 export type PluginCredentialHandleDescriptor =
@@ -32,7 +37,7 @@ export type PluginCredentialHandleDescriptor =
   | {
       readonly name: string;
       readonly kind: 'ai';
-      readonly models: readonly ('fast' | 'reasoning' | 'embedding')[];
+      readonly models: readonly ('fast' | 'reasoning' | 'embedding' | 'decision')[];
     };
 
 export type PluginCredentials = Readonly<
@@ -167,7 +172,7 @@ function createExactHandle(requester: IframeRequester, handle: string): Credenti
 function createAiHandle(
   requester: IframeRequester,
   handle: string,
-  declaredModels: readonly ('fast' | 'reasoning' | 'embedding')[]
+  declaredModels: readonly ('fast' | 'reasoning' | 'embedding' | 'decision')[]
 ): AiCredentialHandle {
   const models = new Set(declaredModels);
   const directModel = models.has('fast')
@@ -182,6 +187,9 @@ function createAiHandle(
   }
   if (models.has('embedding')) {
     result.embedding = createEmbeddingModel(requester, handle, 'embedding');
+  }
+  if (models.has('decision')) {
+    result.decision = createDecisionModel(requester, handle);
   }
   return Object.freeze(result) as AiCredentialHandle;
 }
@@ -279,8 +287,39 @@ function createEmbeddingModel(
   };
 }
 
+function createDecisionModel(
+  requester: IframeRequester,
+  handle: string
+): Experimental_DecisionModelV4 {
+  return {
+    specificationVersion: 'v4',
+    provider: 'owox.credentials',
+    modelId: `${handle}:decision`,
+    supportedQuestionTypes: ['choice', 'score', 'boolean'],
+    async doDecide(options: Experimental_DecisionModelV4CallOptions) {
+      const response = await requester.send(
+        {
+          kind: 'credentialAi',
+          version: 1,
+          handle,
+          operation: 'decide',
+          model: 'decision',
+          options: encodeAiOptions(options),
+        },
+        options.abortSignal
+      );
+      if (!response.ok) throw new PluginTransportError(response.error);
+      if (!('body' in response)) throw invalidAiResponse();
+      return decodePortable(response.body) as Experimental_DecisionModelV4Result;
+    },
+  };
+}
+
 function encodeAiOptions(
-  options: LanguageModelV4CallOptions | EmbeddingModelV4CallOptions
+  options:
+    | LanguageModelV4CallOptions
+    | EmbeddingModelV4CallOptions
+    | Experimental_DecisionModelV4CallOptions
 ): Record<string, unknown> {
   const {
     abortSignal: _signal,

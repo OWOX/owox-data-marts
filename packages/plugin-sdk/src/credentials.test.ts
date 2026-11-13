@@ -258,6 +258,65 @@ describe('Plugin Credentials', () => {
     });
   });
 
+  it('exposes decision only when the plugin declares it', () => {
+    const declared = createPluginCredentials({ send: vi.fn() }, [
+      { name: 'ai', kind: 'ai', models: ['decision'] },
+    ]).ai!;
+    expect(declared.decision).toMatchObject({
+      specificationVersion: 'v4',
+      provider: 'owox.credentials',
+      modelId: 'ai:decision',
+      supportedQuestionTypes: ['choice', 'score', 'boolean'],
+    });
+
+    const other = createPluginCredentials({ send: vi.fn() }, [
+      { name: 'ai', kind: 'ai', models: ['fast'] },
+    ]).ai!;
+    expect(other.decision).toBeUndefined();
+  });
+
+  it('sends a decide request without headers or provider options', async () => {
+    const body = { answers: { component: { type: 'choice', choice: 'table' } }, warnings: [] };
+    const send = vi.fn().mockResolvedValue({ id: 'r1', ok: true, status: 200, headers: {}, body });
+    const ai = createPluginCredentials({ send }, [
+      { name: 'ai', kind: 'ai', models: ['decision'] },
+    ]).ai!;
+    const state = [{ type: 'text' as const, text: 'Revenue by week' }];
+    const questions = {
+      component: {
+        type: 'choice' as const,
+        instructions: 'Pick one',
+        criteria: { line_chart: null, table: null },
+      },
+    };
+
+    const result = await ai.decision!.doDecide({
+      state,
+      questions,
+      headers: { x: '1' },
+      providerOptions: { p: {} },
+    });
+
+    expect(result).toEqual(body);
+    expect(send.mock.calls[0]![0]).toEqual({
+      kind: 'credentialAi',
+      version: 1,
+      handle: 'ai',
+      operation: 'decide',
+      model: 'decision',
+      options: { state, questions },
+    });
+  });
+
+  it('rejects direct language calls on a decision-only handle', async () => {
+    const ai = createPluginCredentials({ send: vi.fn() }, [
+      { name: 'ai', kind: 'ai', models: ['decision'] },
+    ]).ai!;
+    await expect(ai.doGenerate({ prompt: [] })).rejects.toMatchObject({
+      payload: { code: 'FORBIDDEN' },
+    });
+  });
+
   it('exposes only declared logical AI models and never exposes asFetch on a logical handle', () => {
     const ai = createPluginCredentials({ send: vi.fn() }, [
       { name: 'ai', kind: 'ai', models: ['fast', 'embedding'] },
