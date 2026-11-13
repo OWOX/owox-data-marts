@@ -6,6 +6,7 @@ import {
   canonicalPluginRoute,
   createPluginHostBridge,
   fetchRuntimeToken,
+  fetchUserToken,
   PluginPageMessage,
   pluginsService,
   routeFromLocation,
@@ -16,7 +17,7 @@ import { useAuth } from '../../../features/idp';
 import { useProjectId, useProjectRoute } from '../../../shared/hooks';
 
 /**
- * Exactly two sandbox tokens, and never a third.
+ * Exactly two sandbox tokens for a plugin without the privileged mark, and never a third.
  *
  * Omitting allow-same-origin forces an opaque origin, which is what keeps the plugin
  * away from cookies, storage and this document. Adding it back while allow-scripts is
@@ -24,6 +25,16 @@ import { useProjectId, useProjectRoute } from '../../../shared/hooks';
  * left to review.
  */
 const SANDBOX = 'allow-scripts allow-downloads';
+/**
+ * allow-same-origin is acceptable here only because a privileged plugin runs on another
+ * origin than this app: the backend never marks a plugin served from the deployment's own
+ * host, and the page refuses the mark for one again before applying it.
+ */
+const PRIVILEGED_SANDBOX =
+  'allow-scripts allow-downloads allow-same-origin allow-popups allow-popups-to-escape-sandbox';
+const PRIVILEGED_ALLOW = 'clipboard-read; clipboard-write';
+/** What `new URL(...).origin` yields for a file: or data: URL; never a plugin's real origin. */
+const OPAQUE_ORIGIN = 'null';
 /** Address updates trail a burst of route reports; WebKit allows only ~100 replaceState calls per 30 s. */
 const ADDRESS_SYNC_DELAY_MS = 350;
 
@@ -106,7 +117,7 @@ export function PluginRuntime({
   });
 
   const openExternal = useCallback((url: string) => {
-    // The sandbox denies the plugin both navigation and popups, so it asks and the host
+    // The default sandbox denies the plugin both navigation and popups, so it asks and the host
     // decides. Anything but https is not a link worth opening on its behalf.
     if (url.startsWith('https://')) {
       window.open(url, '_blank', 'noopener,noreferrer');
@@ -135,6 +146,15 @@ export function PluginRuntime({
 
     void navigateRef.current(`${target.pathname}${target.search}${target.hash}`);
   }, []);
+
+  // One decision for the frame attributes and the bridge grants alike. The backend never
+  // marks a plugin served from this app's host; the comparison repeats that guard here so
+  // allow-same-origin can never reach a frame that would share this document's origin.
+  const privilegedOrigin = data?.privileged === true ? deliveryOrigin(data.deliveryUrl) : undefined;
+  const isPrivileged =
+    privilegedOrigin !== undefined &&
+    privilegedOrigin !== OPAQUE_ORIGIN &&
+    privilegedOrigin !== window.location.origin;
 
   // One plugin's failed handshake says nothing about the next one, and this component
   // survives the switch between two installations.
@@ -165,7 +185,10 @@ export function PluginRuntime({
         schedules: true,
         // A rebuilt bridge resumes where the address bar already points.
         route: lastRouteRef.current,
+        ...(isPrivileged && { userToken: true as const }),
       },
+      pluginOrigin: isPrivileged ? privilegedOrigin : undefined,
+      fetchUserToken: isPrivileged ? fetchUserToken : undefined,
       fetchRuntimeToken: fetchRuntimeToken(installationId),
       onOpenExternal: openExternal,
       onNavigate: navigateInApp,
@@ -194,6 +217,8 @@ export function PluginRuntime({
     onRouteChange,
     onCopyLink,
     broken,
+    isPrivileged,
+    privilegedOrigin,
   ]);
 
   if (isLoading) {
@@ -230,8 +255,8 @@ export function PluginRuntime({
     <>
       <iframe
         ref={frameRef}
-        sandbox={SANDBOX}
-        allow=''
+        sandbox={isPrivileged ? PRIVILEGED_SANDBOX : SANDBOX}
+        allow={isPrivileged ? PRIVILEGED_ALLOW : ''}
         referrerPolicy='no-referrer'
         title={data.displayName}
         className='h-full w-full border-0'
@@ -239,6 +264,14 @@ export function PluginRuntime({
       {fallbackDialog}
     </>
   );
+}
+
+function deliveryOrigin(deliveryUrl: string): string | undefined {
+  try {
+    return new URL(deliveryUrl).origin;
+  } catch {
+    return undefined;
+  }
 }
 
 async function syncAddress(navigate: NavigateFunction, openBase: string, route: string) {

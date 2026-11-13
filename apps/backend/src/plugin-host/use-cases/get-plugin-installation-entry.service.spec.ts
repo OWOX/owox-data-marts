@@ -5,6 +5,7 @@ import { PluginSuspendedError } from '../errors/plugin-host.errors';
 import { PluginInstallationService } from '../services/plugin-installation.service';
 import { PluginVersionService } from '../services/plugin-version.service';
 import { PluginService } from '../services/plugin.service';
+import { PluginHostConfigService } from '../config/plugin-host.config';
 import { GetPluginInstallationEntryService } from './get-plugin-installation-entry.service';
 
 const MEMBER = { projectId: 'j1', userId: 'u1' } as AuthorizationContext;
@@ -32,6 +33,7 @@ function setup(
   const pluginService = {
     findById: jest.fn().mockResolvedValue({
       id: 'p1',
+      githubRepoId: '42',
       repoOwner: 'OWOX',
       repoName: 'example',
       repoHtmlUrl: 'https://github.com/OWOX/example',
@@ -58,6 +60,9 @@ function setup(
     assertConsumerReady: jest.fn().mockResolvedValue([]),
   };
 
+  const hostConfig = {
+    isPrivilegedPlugin: jest.fn().mockReturnValue(false),
+  };
   const owoxAi = { provides: jest.fn().mockReturnValue(provides) };
 
   return {
@@ -66,8 +71,10 @@ function setup(
       pluginService,
       versionService,
       credentialBindings as never,
-      owoxAi as never
+      owoxAi as never,
+      hostConfig as unknown as PluginHostConfigService
     ),
+    hostConfig,
     installations,
     credentialBindings,
     owoxAi,
@@ -86,6 +93,7 @@ describe('GetPluginInstallationEntryService', () => {
       pluginId: 'p1',
       versionId: 'v1',
       credentialHandles: [],
+      privileged: false,
     });
     expect(state.credentialBindings.assertConsumerReady).toHaveBeenCalledWith(
       expect.objectContaining({ consumerId: 'i1', requirements: [] })
@@ -110,6 +118,24 @@ describe('GetPluginInstallationEntryService', () => {
         { name: 'ai', kind: 'ai', models: ['fast', 'embedding'] },
       ],
     });
+  });
+
+  it('marks the entry of a privileged plugin', async () => {
+    const state = setup();
+    state.hostConfig.isPrivilegedPlugin.mockReturnValue(true);
+
+    await expect(entry(state.service)).resolves.toMatchObject({ privileged: true });
+    expect(state.hostConfig.isPrivilegedPlugin).toHaveBeenCalledWith(
+      '42',
+      'https://plugin.example.com'
+    );
+  });
+
+  it('leaves every other plugin unmarked', async () => {
+    const state = setup();
+    state.hostConfig.isPrivilegedPlugin.mockReturnValue(false);
+
+    await expect(entry(state.service)).resolves.toMatchObject({ privileged: false });
   });
 
   // One 404 for every way of not being entitled: confirming that an installation

@@ -13,7 +13,8 @@ import { extractApiError } from '../../../app/api/extract-api-error.util';
  * `authFlow: 'plugin'`, so the backend guard cannot recognise plugin traffic, the
  * deny-list never fires, and a plugin could ask the host to mint itself a permanent API
  * key. A plugin that cannot open is a far better failure than one running with
- * unrecognised authority.
+ * unrecognised authority. The one exception, for privileged plugins only, is
+ * `fetchUserToken.ts`.
  */
 export const fetchRuntimeToken =
   (installationId: string): FetchRuntimeToken =>
