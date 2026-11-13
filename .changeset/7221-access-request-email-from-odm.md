@@ -4,7 +4,7 @@
 
 **Access request emails name the project and take Project Admins straight to the request**
 
-When a teammate asks to join a project, every Project Admin gets an email about it, and the teammate gets one once an admin approves. An admin of several projects could not tell from the email which project the request was for, and roles were shown as `ADMIN`, `EDITOR` or `VIEWER`. Now both emails name the project and use the role names you see in the app (Project Admin, Data Owner, Business User). The admin's **Check request** button opens **Project Settings → Members**, where you approve or decline the request.
+When a teammate asks to join a project, every Project Admin gets an email about it, and the teammate gets one once an admin approves. An admin of several projects could not tell from the email which project the request was for, and roles were shown as `ADMIN`, `EDITOR` or `VIEWER`. Now both emails name the project and use the role names you see in the app (Project Admin, Data Owner, Business User). The admin's **Check request** button now opens **Project Settings → Members** of that project, where you approve or decline the request.
 
 ![The access request email to a Project Admin: the user with the email alex@example.com has requested a change in permissions for Marketing Analytics to the role of Data Owner, with a link to the Members page and a Check request button](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/bc6d2dd6-285c-44c2-4f51-d1d46a474000/w=800)
 
