@@ -207,14 +207,14 @@ provider model ID. Recommended mappings follow compatible definition updates aut
 overrides stay unchanged. If an override selected from the definition catalog later disappears,
 consumers that require it need setup again.
 
+An advanced manual model ID remains a deliberate manual
+override and does not depend on catalog membership.
+
 Only OpenAI, Gemini, and Anthropic Credentials can map `decision`, the model that a plugin uses
 to [choose from a fixed list](../plugins/authoring-guide.md#choose-from-a-fixed-list). Existing
 Credentials of these three providers have `decision` with the recommended model. A plugin that
 declares `decision` then sends its data to the provider with the key of the Credential. To turn
-it off, set **Decision** to **Not configured** in the Credential form.
-
-An advanced manual model ID remains a deliberate manual
-override and does not depend on catalog membership.
+it off, set **Decision model** to **Not configured** in the Credential form.
 
 ## External definitions
 

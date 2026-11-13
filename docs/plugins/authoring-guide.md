@@ -330,8 +330,8 @@ are absent from the context, so check a handle before using it.
 
 `ctx.credentials.ai` can also be OWOX AI, which the installing member chooses in the install
 dialog instead of an AI Credential. The plugin code and `plugin.json` do not change. The models
-depend on the deployment: `fast` and `reasoning` are always there, `embedding` and `decision` only
-when the deployment sets them. The provider can ignore a call option that it does not support, for example
+depend on the deployment. `fast` and `reasoning` need the chat configuration, `embedding` needs the
+chat configuration and its own model, and `decision` needs the decision configuration only. The provider can ignore a call option that it does not support, for example
 `temperature`. On OWOX Cloud, each successful call is billed as an AI Process Run. See
 [Environment variables](../getting-started/deployment-guide/environment-variables.md#owox-ai).
 
@@ -370,15 +370,14 @@ const { answers } = await decide({
 A question has one of these types: `choice`, `score`, or `boolean`. The `box` type is not
 supported. What a call returns depends on the Credential that the member selected:
 
-| Route                | `choice` and `score` | `boolean`                                    |
-| -------------------- | -------------------- | -------------------------------------------- |
-| OpenAI Credential    | Probabilities        | Probability                                  |
-| Gemini Credential    | Probabilities        | Probability                                  |
-| Anthropic Credential | No probabilities     | Probability, as the provider adapter returns |
-| OWOX AI              | Probabilities        | Probability                                  |
+| Route                | `choice` and `score` | `boolean`                          |
+| -------------------- | -------------------- | ---------------------------------- |
+| OpenAI Credential    | Probabilities        | Probability                        |
+| Gemini Credential    | Probabilities        | Probability                        |
+| Anthropic Credential | No probabilities     | Probability estimated by the model |
+| OWOX AI              | Probabilities        | Probability                        |
 
-OpenRouter and openai-compatible Credentials do not provide `decision`. A question type that the
-route does not support gets `400`, and the message names the question. A call fails when the
+OpenRouter and openai-compatible Credentials do not provide `decision`. A call fails when the
 project has no decision model; OWOX never answers it with a chat model.
 
 OWOX AI has more rules:

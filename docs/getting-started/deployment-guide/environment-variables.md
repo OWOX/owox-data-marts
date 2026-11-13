@@ -330,10 +330,10 @@ what this means on the plugin side.
 ## OWOX AI
 
 OWOX AI lets a member choose the AI of your deployment for a plugin that needs the logical `ai`
-Credential, instead of an own AI Credential. OWOX AI is on only when `AI_BASE_URL`, `AI_API_KEY`,
-`AI_PLUGIN_FAST_MODEL` and `AI_PLUGIN_REASONING_MODEL` are all set. `AI_MODEL` is never a
-fallback for plugins. The `embedding` model is available only when `AI_PLUGIN_EMBEDDING_MODEL` is
-set.
+Credential, instead of an own AI Credential. The `fast` and `reasoning` models need `AI_BASE_URL`,
+`AI_API_KEY`, `AI_PLUGIN_FAST_MODEL` and `AI_PLUGIN_REASONING_MODEL`, all set. `AI_MODEL` is never
+a fallback for plugins. The `embedding` model is available only when the chat variables and
+`AI_PLUGIN_EMBEDDING_MODEL` are set.
 
 The `decision` model is on only when `AI_PLUGIN_DECISION_PROVIDER`, `AI_PLUGIN_DECISION_BASE_URL`,
 `AI_PLUGIN_DECISION_API_KEY` and `AI_PLUGIN_DECISION_MODEL` are all set. It does not depend on the
