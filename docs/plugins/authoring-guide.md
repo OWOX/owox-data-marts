@@ -337,9 +337,9 @@ chat configuration and its own model, and `decision` needs the decision configur
 
 #### Choose from a fixed list
 
-A chat model is slow and costly for a job such as "pick the best component for this data". For
-that job, declare the `decision` model. It answers typed questions about one state and returns
-the probability of each option:
+For a job such as "pick the best component for this data", declare the `decision` model. It
+answers typed questions about one state. The table below shows which routes also return
+probabilities:
 
 ```json
 { "credentials": [{ "id": "ai", "models": ["decision"] }] }
