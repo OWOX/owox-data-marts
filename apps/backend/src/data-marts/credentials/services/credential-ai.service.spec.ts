@@ -393,6 +393,7 @@ describe('CredentialAiService', () => {
       )
     ).rejects.toBeInstanceOf(BadRequestException);
   });
+
   describe('decisions', () => {
     const signal = () => new AbortController().signal;
     const question = { type: 'choice', criteria: { a: null, b: null }, instructions: 'pick' };
@@ -448,6 +449,18 @@ describe('CredentialAiService', () => {
       );
       await expect(call).rejects.toBeInstanceOf(BadRequestException);
       await expect(call).rejects.toThrow(/urgent.*boolean/);
+      expect(doDecide).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ['a missing questions map', { state: [] }],
+      ['a null question entry', { state: [], questions: { q: null } }],
+      ['a state that is not a list', { state: 'text', questions: { q: question } }],
+    ])('rejects %s with 400 before the call', async (_name, options) => {
+      const { model, doDecide } = decisionModel();
+      await expect(service.decideWith(model, options, signal(), failureLog)).rejects.toBeInstanceOf(
+        BadRequestException
+      );
       expect(doDecide).not.toHaveBeenCalled();
     });
 

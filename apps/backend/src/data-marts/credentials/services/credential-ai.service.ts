@@ -183,7 +183,16 @@ export class CredentialAiService {
         portableOptions,
         signal
       ) as Experimental_DecisionModelV4CallOptions;
-      for (const [id, question] of Object.entries(options.questions ?? {})) {
+      if (!Array.isArray(options.state)) {
+        throw new BadRequestException('Decision state must be a list of parts');
+      }
+      if (!isPlainObject(options.questions)) {
+        throw new BadRequestException('Decision questions must be an object');
+      }
+      for (const [id, question] of Object.entries(options.questions)) {
+        if (!isPlainObject(question) || typeof question.type !== 'string') {
+          throw new BadRequestException(`Decision question ${id} is invalid`);
+        }
         if (!model.supportedQuestionTypes.includes(question.type)) {
           throw unsupportedQuestionType(id, question.type);
         }
@@ -379,6 +388,10 @@ function credentialFailureLog(
     secret: binding.secret,
     trustedProvider: BUILTIN_CREDENTIAL_DEFINITION_IDS.has(binding.definition.id),
   };
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 function unsupportedQuestionType(id: string, type: string): BadRequestException {
