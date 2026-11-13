@@ -168,10 +168,58 @@ describe('WorkersAiDecisionModel', () => {
     });
   });
 
-  it('passes one JSON part as the JSON state', async () => {
+  it('passes one JSON object part as the JSON state', async () => {
     const { model, fetchMock } = setup(reply(noulResponse));
-    await model.doDecide({ state: [{ type: 'json', value: [1, 2] }], questions: urgent });
-    expect(sentBody(fetchMock).input.state).toEqual([1, 2]);
+    await model.doDecide({ state: [{ type: 'json', value: { a: 1 } }], questions: urgent });
+    expect(sentBody(fetchMock).input.state).toEqual({ a: 1 });
+  });
+
+  it('sends an array or scalar JSON part as a text part', async () => {
+    for (const [value, text] of [
+      [[1, 2], '[1,2]'],
+      [5, '5'],
+      [null, 'null'],
+    ] as const) {
+      const { model, fetchMock } = setup(reply(noulResponse));
+      await model.doDecide({ state: [{ type: 'json', value }], questions: urgent });
+      expect(sentBody(fetchMock).input.state).toEqual([{ type: 'text', text }]);
+    }
+  });
+
+  it('drops null criteria for a boolean question', async () => {
+    const { model, fetchMock } = setup(reply(noulResponse));
+    await model.doDecide({
+      state: [{ type: 'text', text: 'x' }],
+      questions: { urgent: { type: 'boolean', instructions: 'Urgent?', criteria: null } },
+    });
+    expect(sentBody(fetchMock).input.questions.urgent).toEqual({
+      type: 'noul',
+      instructions: 'Urgent?',
+    });
+  });
+
+  it('sends only type, instructions and criteria', async () => {
+    const { model, fetchMock } = setup(reply(noulResponse));
+    await model.doDecide({
+      state: [{ type: 'text', text: 'x' }],
+      questions: {
+        urgent: { type: 'boolean', instructions: 'Urgent?', foo: 1 } as never,
+      },
+    });
+    expect(Object.keys(sentBody(fetchMock).input.questions.urgent).sort()).toEqual([
+      'instructions',
+      'type',
+    ]);
+  });
+
+  it.each(['', '   '])('rejects empty instructions %j with 400 before the request', async text => {
+    const { model, fetchMock } = setup(reply(noulResponse));
+    const call = model.doDecide({
+      state: [{ type: 'text', text: 'x' }],
+      questions: { urgent: { type: 'boolean', instructions: text } },
+    });
+    await expect(call).rejects.toThrow('OWOX AI decision questions need instructions');
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it('sends text parts, and JSON parts as serialized text parts', async () => {

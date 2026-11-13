@@ -77,18 +77,37 @@ export class WorkersAiDecisionModel implements Experimental_DecisionModelV4 {
     if (question.type === 'box') {
       throw new BadRequestException('OWOX AI decision does not support box questions');
     }
-    if (question.instructions === undefined || question.instructions === null) {
+    const { instructions } = question;
+    if (
+      instructions === undefined ||
+      instructions === null ||
+      (typeof instructions === 'string' && instructions.trim() === '')
+    ) {
       throw new BadRequestException('OWOX AI decision questions need instructions');
     }
-    return { ...question, type: question.type === 'boolean' ? 'noul' : question.type };
+    // Send only the fields that Workers AI accepts; it rejects null criteria.
+    const criteria = 'criteria' in question ? question.criteria : undefined;
+    return {
+      type: question.type === 'boolean' ? 'noul' : question.type,
+      instructions,
+      ...(criteria === null || criteria === undefined ? {} : { criteria }),
+    };
   }
 
   private mapState(state: Experimental_DecisionModelV4CallOptions['state']): unknown {
     if (state.some(part => part.type === 'file')) {
       throw new BadRequestException('OWOX AI decision state accepts text and JSON only');
     }
-    if (state.length === 1 && state[0].type === 'json') {
-      return state[0].value;
+    const [only] = state;
+    // Workers AI reads a top-level array as text parts, so only a plain object goes through raw.
+    if (
+      state.length === 1 &&
+      only.type === 'json' &&
+      typeof only.value === 'object' &&
+      only.value !== null &&
+      !Array.isArray(only.value)
+    ) {
+      return only.value;
     }
     return state.map(part =>
       part.type === 'json'
