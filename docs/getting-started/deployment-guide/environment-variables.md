@@ -211,6 +211,20 @@ Some advertisers sign in to Microsoft Advertising with Google. Microsoft Adverti
 
 Requests still use the Microsoft Ads developer token from `OAUTH_MICROSOFT_ADS_DEVELOPER_TOKEN`. Microsoft Advertising may refuse tokens of a Google client that is not your own, so use a client created in your Cloud project. Setup steps: [Microsoft Ads credentials](../../../packages/connectors/src/Sources/MicrosoftAds/CREDENTIALS.md#if-you-sign-in-to-microsoft-advertising-with-google).
 
+## Cloud billing pages
+
+- **CLOUD_BILLING_ENABLED**: Enables the native Credit consumption and Subscription pages
+  for the managed Cloud runtime with `IDP_PROVIDER=owox-better-auth`. Defaults to `false`.
+- **CLOUD_BILLING_API_ORIGIN**: Public HTTPS origin of the Integrated Backend, for example
+  `https://integrated-backend.bi.owox.com`. Use an origin without credentials, a path, a
+  query, or a fragment. The Cloud server requires a valid origin at startup when the flag is
+  enabled and publishes it through `/api/flags`.
+
+The browser sends billing reads to this origin with the current user's App access token.
+Before enabling the flag, verify that the Integrated Backend accepts the token and allows
+the App origin for the billing read endpoints. Self-hosted identity providers do not expose
+these pages.
+
 ## Reverse proxy
 
 - **TRUST_PROXY_HOPS**: Number of reverse proxies in front of the application that append to `X-Forwarded-For`.

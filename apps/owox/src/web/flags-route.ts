@@ -74,6 +74,25 @@ const ResolvedOptionsSchema = OptionsBaseSchema.transform(data => {
 
 type ResolvedOptions = z.infer<typeof ResolvedOptionsSchema>;
 
+function resolveCloudBillingOrigin(): string | undefined {
+  if (
+    process.env.IDP_PROVIDER !== 'owox-better-auth' ||
+    process.env.CLOUD_BILLING_ENABLED !== 'true'
+  ) {
+    return undefined;
+  }
+
+  const value = process.env.CLOUD_BILLING_API_ORIGIN ?? '';
+  const url = URL.parse(value);
+  if (url?.protocol !== 'https:' || (value !== url.origin && value !== `${url.origin}/`)) {
+    throw new Error(
+      'CLOUD_BILLING_API_ORIGIN must be an HTTPS origin when Cloud billing is enabled'
+    );
+  }
+
+  return url.origin;
+}
+
 /**
  * Register an Express route that exposes selected environment variables as JSON.
  *
@@ -88,6 +107,7 @@ type ResolvedOptions = z.infer<typeof ResolvedOptionsSchema>;
  */
 export function registerPublicFlagsRoute(app: Express, rawOptions: FlagsRouteOptions = {}): void {
   const options: ResolvedOptions = ResolvedOptionsSchema.parse(rawOptions);
+  const cloudBillingOrigin = resolveCloudBillingOrigin();
 
   app.get(options.path, (_req: Request, res: Response) => {
     const resultEntries = [...options.whiteSet]
@@ -98,6 +118,7 @@ export function registerPublicFlagsRoute(app: Express, rawOptions: FlagsRouteOpt
       resultEntries as Array<readonly [string, unknown]>
     );
     payload.PUBLIC_ORIGIN = resolvePublicOrigin();
+    payload.CLOUD_BILLING_API_ORIGIN = cloudBillingOrigin;
 
     // Do not cache this response; values may change across deploys
     res.setHeader('Cache-Control', 'no-store');
