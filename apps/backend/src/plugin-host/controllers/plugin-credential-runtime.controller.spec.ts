@@ -1,4 +1,4 @@
-import { ForbiddenException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { EventEmitter } from 'node:events';
 
 jest.mock('../../idp', () => ({
@@ -451,6 +451,23 @@ describe('PluginCredentialRuntimeController with OWOX AI', () => {
     expect(facade.provides).toHaveBeenCalledWith(['embedding', 'fast']);
     expect(facade.generate).not.toHaveBeenCalled();
     expect(bindings.resolveBinding).not.toHaveBeenCalled();
+  });
+
+  it('rejects generate and stream with the decision model', async () => {
+    const { controller, bindings, aiService, facade } = owoxRuntime();
+    const body = { version: 1, model: 'decision', options: {} } as never;
+    const error = new BadRequestException('A language model mapping is required');
+
+    await expect(controller.generate('ai', body, context, request() as never)).rejects.toThrow(
+      error
+    );
+    await expect(
+      controller.stream('ai', body, context, request() as never, streamResponse() as never)
+    ).rejects.toThrow(error);
+    expect(bindings.resolveBinding).not.toHaveBeenCalled();
+    expect(aiService.generate).not.toHaveBeenCalled();
+    expect(facade.generate).not.toHaveBeenCalled();
+    expect(facade.stream).not.toHaveBeenCalled();
   });
 
   it('lets a facade HttpException reach the client unchanged', async () => {

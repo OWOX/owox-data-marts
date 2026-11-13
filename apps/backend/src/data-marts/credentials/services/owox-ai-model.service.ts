@@ -30,7 +30,7 @@ import {
 } from './credential-ai.service';
 import { boundResponseBody, MAX_REQUEST_BODY_BYTES } from './credential-fetch.service';
 
-export type OwoxAiModelKey = 'fast' | 'reasoning' | 'embedding';
+export type OwoxAiModelKey = 'fast' | 'reasoning' | 'embedding' | 'decision';
 
 /** Requests in flight for one embedding call that OpenRouter must split. */
 const OPENROUTER_EMBEDDING_CONCURRENCY = 8;

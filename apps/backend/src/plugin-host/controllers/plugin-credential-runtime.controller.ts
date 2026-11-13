@@ -88,7 +88,7 @@ export class PluginCredentialRuntimeController {
     @AuthContext() context: AuthorizationContext,
     @Req() request: Request
   ): Promise<unknown> {
-    if (input.model === 'embedding') {
+    if (input.model !== 'fast' && input.model !== 'reasoning') {
       throw new BadRequestException('A language model mapping is required');
     }
     const binding = await this.resolveAiRoute(handle, context, input.model);
@@ -158,7 +158,7 @@ export class PluginCredentialRuntimeController {
     @Req() request: Request,
     @Res() response: Response
   ): Promise<void> {
-    if (input.model === 'embedding') {
+    if (input.model !== 'fast' && input.model !== 'reasoning') {
       throw new BadRequestException('A language model mapping is required');
     }
     const binding = await this.resolveAiRoute(handle, context, input.model);
