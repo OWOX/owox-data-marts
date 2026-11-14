@@ -432,6 +432,34 @@ describe('OwoxAiModelService', () => {
       expect(body).not.toHaveProperty('provider');
     });
 
+    it('sends the decision call through the OWOX AI fetch, with the caller signal', async () => {
+      fetchMock.mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            success: true,
+            result: { answers: { q: { type: 'noul', noul: 0.5 } } },
+          }),
+          {
+            status: 200,
+          }
+        )
+      );
+      const controller = new AbortController();
+      const model = createService({ ...BASE_ENV, ...DECISION_ENV }).decisionModel(
+        controller.signal
+      );
+      await model.doDecide({
+        state: [{ type: 'text', text: 'x' }],
+        questions: { q: { type: 'boolean', instructions: 'Is it urgent?' } },
+      });
+      const passed = fetchMock.mock.calls[0][1].signal as AbortSignal;
+      expect(passed.aborted).toBe(false);
+
+      controller.abort();
+
+      expect(passed.aborted).toBe(true);
+    });
+
     it('cuts the decision key out of the decision failure log', () => {
       expect(createService({ ...BASE_ENV, ...DECISION_ENV }).failureLog('decision').secret).toBe(
         'decision-key'

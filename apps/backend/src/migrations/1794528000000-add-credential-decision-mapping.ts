@@ -2,6 +2,8 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
 
 // Existing AI Credentials get the recommended decision model.
 // A maintainer can remove it in the Credential form.
+// Rollback: an older image refuses an AI mapping edit for a Credential that has a decision entry.
+// Run `migrations:down` with this image first, then deploy the older image.
 const DECISION_MODELS: Record<string, string> = {
   openai: 'gpt-6-luna',
   gemini: 'gemini-decision-1',
@@ -40,13 +42,25 @@ export class AddCredentialDecisionMapping1794528000000 implements MigrationInter
     }
   }
 
+  // Removes every decision entry, also one that a maintainer set, because older code refuses all.
   public async down(queryRunner: QueryRunner): Promise<void> {
-    for (const row of await this.selectRows(queryRunner)) {
+    const rows: Row[] = await queryRunner.query(
+      `SELECT id, aiModelMappings, aiModelMappingModes, aiModelMappingSources
+       FROM credential
+       WHERE aiModelMappings IS NOT NULL OR aiModelMappingModes IS NOT NULL`
+    );
+    for (const row of rows) {
       const mappings = parse(row.aiModelMappings);
       const modes = parse(row.aiModelMappingModes);
-      if (modes?.decision !== 'recommended') continue;
-
       const sources = parse(row.aiModelMappingSources);
+      if (
+        mappings?.decision === undefined &&
+        modes?.decision === undefined &&
+        sources?.decision === undefined
+      ) {
+        continue;
+      }
+
       const without = (value: Json | null): Json => {
         const { decision: _decision, ...rest } = value ?? {};
         return rest;

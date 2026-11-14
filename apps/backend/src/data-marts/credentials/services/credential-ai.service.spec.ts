@@ -39,7 +39,9 @@ jest.mock('@ai-sdk/openai-compatible', () => ({
 import {
   APICallError,
   Experimental_DecisionUnsupportedQuestionTypeError,
+  InvalidArgumentError,
   JSONParseError,
+  UnsupportedFunctionalityError,
   type Experimental_DecisionModelV4,
   type LanguageModelV4,
 } from '@ai-sdk/provider';
@@ -462,6 +464,97 @@ describe('CredentialAiService', () => {
         BadRequestException
       );
       expect(doDecide).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ['empty questions', { state: [], questions: {} }],
+      ['a null state part', { state: [null], questions: { q: question } }],
+      ['a text part without text', { state: [{ type: 'text' }], questions: { q: question } }],
+      ['an unknown state part', { state: [{ type: 'image' }], questions: { q: question } }],
+      [
+        'missing instructions',
+        { state: [], questions: { q: { ...question, instructions: undefined } } },
+      ],
+      ['blank instructions', { state: [], questions: { q: { ...question, instructions: '  ' } } }],
+      [
+        'empty object instructions',
+        { state: [], questions: { q: { ...question, instructions: {} } } },
+      ],
+      [
+        'empty list instructions',
+        { state: [], questions: { q: { ...question, instructions: [] } } },
+      ],
+      [
+        'a choice with one option',
+        { state: [], questions: { q: { ...question, criteria: { a: null } } } },
+      ],
+      [
+        'a choice with list criteria',
+        { state: [], questions: { q: { ...question, criteria: ['a', 'b'] } } },
+      ],
+      [
+        'a score with one level',
+        { state: [], questions: { q: { type: 'score', instructions: 'rate', criteria: ['low'] } } },
+      ],
+      [
+        'a score with an empty level',
+        {
+          state: [],
+          questions: { q: { type: 'score', instructions: 'rate', criteria: ['low', ''] } },
+        },
+      ],
+      [
+        'boolean criteria that are not an object',
+        { state: [], questions: { q: { type: 'boolean', instructions: 'x', criteria: 'yes' } } },
+      ],
+    ])('rejects %s with 400 for every route, before the call', async (_name, options) => {
+      const { model, doDecide } = decisionModel();
+      const error = await service
+        .decideWith(model, options, signal(), failureLog)
+        .catch((e: unknown) => e);
+      expect(error).toBeInstanceOf(BadRequestException);
+      expect((error as Error).message).not.toMatch(/OWOX|openai|gemini|anthropic/i);
+      expect(doDecide).not.toHaveBeenCalled();
+    });
+
+    it('accepts object instructions, and a string that only looks like JSON', async () => {
+      const { model, doDecide } = decisionModel();
+      doDecide.mockResolvedValue({ answers: {}, usage: {}, warnings: [] });
+      await service.decideWith(
+        model,
+        {
+          state: [{ type: 'json', value: null }],
+          questions: {
+            a: { ...question, instructions: { goal: 'pick' } },
+            b: { ...question, instructions: '{}' },
+            c: { type: 'boolean', instructions: 'x', criteria: null },
+          },
+        },
+        signal(),
+        failureLog
+      );
+      expect(doDecide).toHaveBeenCalledTimes(1);
+    });
+
+    it.each([
+      [
+        'InvalidArgumentError',
+        new InvalidArgumentError({ argument: 'questions', message: 'Google Decisions requires x' }),
+      ],
+      [
+        'UnsupportedFunctionalityError',
+        new UnsupportedFunctionalityError({ functionality: 'OpenAI decision image media type' }),
+      ],
+    ])('maps %s from the provider SDK to a neutral 400', async (_name, sdkError) => {
+      const { model, doDecide } = decisionModel();
+      doDecide.mockRejectedValue(sdkError);
+      const error = await service
+        .decideWith(model, { state: [], questions: { q: question } }, signal(), failureLog)
+        .catch((e: unknown) => e);
+      expect(error).toBeInstanceOf(BadRequestException);
+      expect((error as Error).message).toBe(
+        'The selected AI model cannot run this decision request'
+      );
     });
 
     it('maps DecisionUnsupportedQuestionTypeError to 400', async () => {

@@ -380,9 +380,15 @@ supported. What a call returns depends on the Credential that the member selecte
 OpenRouter and openai-compatible Credentials do not provide `decision`. A call fails when the
 project has no decision model; OWOX never answers it with a chat model.
 
+OWOX checks each call before the provider gets it. These rules apply to every route, and a call
+that breaks one gets `400`:
+
+- Each question needs non-empty `instructions`.
+- A `choice` question needs 2 to 255 options.
+- A `score` question needs 2 to 255 levels, and each level needs a description.
+
 OWOX AI has more rules:
 
-- Each question needs non-empty `instructions`. Without them, the call gets `400`.
 - The state is text or JSON only. A file or image part gets `400`.
 - A state larger than the context of the model gets `413`.
 

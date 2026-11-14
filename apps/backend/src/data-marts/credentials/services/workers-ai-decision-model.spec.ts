@@ -212,16 +212,6 @@ describe('WorkersAiDecisionModel', () => {
     ]);
   });
 
-  it.each(['', '   '])('rejects empty instructions %j with 400 before the request', async text => {
-    const { model, fetchMock } = setup(reply(noulResponse));
-    const call = model.doDecide({
-      state: [{ type: 'text', text: 'x' }],
-      questions: { urgent: { type: 'boolean', instructions: text } },
-    });
-    await expect(call).rejects.toThrow('OWOX AI decision questions need instructions');
-    expect(fetchMock).not.toHaveBeenCalled();
-  });
-
   it('sends object instructions and criteria as JSON text', async () => {
     const { model, fetchMock } = setup(reply(unifiedResponse));
     await model.doDecide({
@@ -252,16 +242,6 @@ describe('WorkersAiDecisionModel', () => {
     });
   });
 
-  it.each([[{}], [[]]])('rejects empty object or array instructions %j with 400', async value => {
-    const { model, fetchMock } = setup(reply(noulResponse));
-    const call = model.doDecide({
-      state: [{ type: 'text', text: 'x' }],
-      questions: { urgent: { type: 'boolean', instructions: value } },
-    });
-    await expect(call).rejects.toThrow('OWOX AI decision questions need instructions');
-    expect(fetchMock).not.toHaveBeenCalled();
-  });
-
   it('sends text parts, and JSON parts as serialized text parts', async () => {
     const { model, fetchMock } = setup(reply(noulResponse));
     await model.doDecide({
@@ -277,17 +257,6 @@ describe('WorkersAiDecisionModel', () => {
     ]);
   });
 
-  it('rejects a question without instructions with 400 before the request', async () => {
-    const { model, fetchMock } = setup(reply(noulResponse));
-    const call = model.doDecide({
-      state: [{ type: 'text', text: 'x' }],
-      questions: { urgent: { type: 'boolean', criteria: { true: 'Yes' } } },
-    });
-    await expect(call).rejects.toThrow(BadRequestException);
-    await expect(call).rejects.toThrow('OWOX AI decision questions need instructions');
-    expect(fetchMock).not.toHaveBeenCalled();
-  });
-
   it('rejects a file part with 400 before the request', async () => {
     const { model, fetchMock } = setup(reply(noulResponse));
     const call = model.doDecide({
@@ -295,8 +264,26 @@ describe('WorkersAiDecisionModel', () => {
       questions: urgent,
     });
     await expect(call).rejects.toThrow(BadRequestException);
-    await expect(call).rejects.toThrow('OWOX AI decision state accepts text and JSON only');
+    await expect(call).rejects.toThrow(
+      'The selected AI model accepts only text and JSON state parts'
+    );
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('keeps a body read error that is not a JSON syntax error', async () => {
+    const tooLarge = new BadGatewayException('AI provider response is too large');
+    const response = { ok: true, status: 200, json: () => Promise.reject(tooLarge) };
+    const { model } = setup(response as unknown as Response);
+    await expect(
+      model.doDecide({ state: [{ type: 'text', text: 'x' }], questions: urgent })
+    ).rejects.toBe(tooLarge);
+  });
+
+  it('fails on a successful body that is not JSON', async () => {
+    const { model } = setup(new Response('not json', { status: 200 }));
+    await expect(
+      model.doDecide({ state: [{ type: 'text', text: 'x' }], questions: urgent })
+    ).rejects.toThrow('Workers AI returned a body that is not JSON');
   });
 
   it('answers 413 when the state is larger than the model context', async () => {

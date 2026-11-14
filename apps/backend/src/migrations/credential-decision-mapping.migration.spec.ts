@@ -76,7 +76,7 @@ describe('AddCredentialDecisionMapping migration', () => {
         'builtin',
         definitionId,
         { fast: 'f', reasoning: 'r' },
-        { fast: 'recommended', reasoning: 'custom' },
+        { fast: 'recommended', reasoning: 'override' },
         { fast: 'catalog', reasoning: 'manual' }
       );
     }
@@ -87,7 +87,7 @@ describe('AddCredentialDecisionMapping migration', () => {
     for (const [definitionId, model] of cases) {
       expect(await load(definitionId)).toEqual({
         mappings: { fast: 'f', reasoning: 'r', decision: model },
-        modes: { fast: 'recommended', reasoning: 'custom', decision: 'recommended' },
+        modes: { fast: 'recommended', reasoning: 'override', decision: 'recommended' },
         sources: { fast: 'catalog', reasoning: 'manual', decision: 'catalog' },
       });
     }
@@ -95,17 +95,24 @@ describe('AddCredentialDecisionMapping migration', () => {
   });
 
   it('leaves other rows unchanged', async () => {
-    await insert('override', 'builtin', 'openai', { decision: 'x' }, { decision: 'custom' }, null);
+    await insert(
+      'override',
+      'builtin',
+      'openai',
+      { decision: 'x' },
+      { decision: 'override' },
+      null
+    );
     await insert('empty', 'builtin', 'openai', null, null, null);
     await insert('empty-objects', 'builtin', 'gemini', {}, {}, null);
-    await insert('openrouter', 'builtin', 'openrouter', { fast: 'f' }, { fast: 'custom' }, null);
-    await insert('external', 'external', 'openai', { fast: 'f' }, { fast: 'custom' }, null);
+    await insert('openrouter', 'builtin', 'openrouter', { fast: 'f' }, { fast: 'override' }, null);
+    await insert('external', 'external', 'openai', { fast: 'f' }, { fast: 'override' }, null);
 
     await migration.up(runner);
 
     expect(await load('override')).toEqual({
       mappings: { decision: 'x' },
-      modes: { decision: 'custom' },
+      modes: { decision: 'override' },
       sources: null,
     });
     expect(await load('empty')).toEqual({ mappings: null, modes: null, sources: null });
@@ -114,13 +121,13 @@ describe('AddCredentialDecisionMapping migration', () => {
     expect((await load('external')).mappings).toEqual({ fast: 'f' });
   });
 
-  it('down removes only recommended decision entries', async () => {
+  it('down removes every decision entry, recommended or set by a maintainer', async () => {
     await insert(
       'recommended',
       'builtin',
       'openai',
       { fast: 'f', decision: 'gpt-6-luna' },
-      { fast: 'custom', decision: 'recommended' },
+      { fast: 'override', decision: 'recommended' },
       { fast: 'manual', decision: 'catalog' }
     );
     await insert(
@@ -128,21 +135,33 @@ describe('AddCredentialDecisionMapping migration', () => {
       'builtin',
       'anthropic',
       { decision: 'x' },
-      { decision: 'custom' },
+      { decision: 'override' },
       { decision: 'manual' }
     );
+
+    await insert(
+      'external',
+      'external',
+      'openai',
+      { decision: 'd' },
+      { decision: 'override' },
+      null
+    );
+    await insert('chat', 'builtin', 'openrouter', { fast: 'f' }, { fast: 'override' }, null);
 
     await migration.down(runner);
 
     expect(await load('recommended')).toEqual({
       mappings: { fast: 'f' },
-      modes: { fast: 'custom' },
+      modes: { fast: 'override' },
       sources: { fast: 'manual' },
     });
-    expect(await load('override')).toEqual({
-      mappings: { decision: 'x' },
-      modes: { decision: 'custom' },
-      sources: { decision: 'manual' },
+    expect(await load('override')).toEqual({ mappings: {}, modes: {}, sources: {} });
+    expect(await load('external')).toEqual({ mappings: {}, modes: {}, sources: null });
+    expect(await load('chat')).toEqual({
+      mappings: { fast: 'f' },
+      modes: { fast: 'override' },
+      sources: null,
     });
   });
 });

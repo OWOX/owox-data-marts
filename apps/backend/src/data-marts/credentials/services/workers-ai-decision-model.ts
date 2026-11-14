@@ -73,31 +73,20 @@ export class WorkersAiDecisionModel implements Experimental_DecisionModelV4 {
     };
   }
 
+  // CredentialAiService.decideWith has checked the question type and the instructions.
   private mapQuestion(question: Experimental_DecisionModelV4Question): unknown {
-    if (question.type === 'box') {
-      throw new BadRequestException('OWOX AI decision does not support box questions');
-    }
-    const instructions = toText(question.instructions);
-    if (
-      instructions === null ||
-      instructions.trim() === '' ||
-      instructions === '{}' ||
-      instructions === '[]'
-    ) {
-      throw new BadRequestException('OWOX AI decision questions need instructions');
-    }
     // Send only the fields that Workers AI accepts; it rejects null criteria.
     const criteria = 'criteria' in question ? question.criteria : undefined;
     return {
       type: question.type === 'boolean' ? 'noul' : question.type,
-      instructions,
+      instructions: toText(question.instructions),
       ...(criteria === null || criteria === undefined ? {} : { criteria: mapCriteria(criteria) }),
     };
   }
 
   private mapState(state: Experimental_DecisionModelV4CallOptions['state']): unknown {
     if (state.some(part => part.type === 'file')) {
-      throw new BadRequestException('OWOX AI decision state accepts text and JSON only');
+      throw new BadRequestException('The selected AI model accepts only text and JSON state parts');
     }
     const [only] = state;
     // Workers AI reads a top-level array as text parts, so only a plain object goes through raw.
@@ -152,7 +141,10 @@ export class WorkersAiDecisionModel implements Experimental_DecisionModelV4 {
   private async readBody(response: Response): Promise<Record<string, unknown> | undefined> {
     try {
       return (await response.json()) as Record<string, unknown>;
-    } catch {
+    } catch (error) {
+      // A size cap, a timeout, or an abort from the fetch wrapper keeps its own error.
+      // By name: the fetch implementation can throw a SyntaxError from another realm.
+      if ((error as { name?: unknown } | null)?.name !== 'SyntaxError') throw error;
       if (response.ok) {
         throw new InvalidResponseDataError({
           data: undefined,

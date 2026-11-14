@@ -13,6 +13,8 @@ import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
 import {
   APICallError,
   Experimental_DecisionUnsupportedQuestionTypeError,
+  InvalidArgumentError,
+  UnsupportedFunctionalityError,
   type Experimental_DecisionModelV4,
   type Experimental_DecisionModelV4CallOptions,
   type EmbeddingModelV4,
@@ -183,25 +185,19 @@ export class CredentialAiService {
         portableOptions,
         signal
       ) as Experimental_DecisionModelV4CallOptions;
-      if (!Array.isArray(options.state)) {
-        throw new BadRequestException('Decision state must be a list of parts');
-      }
-      if (!isPlainObject(options.questions)) {
-        throw new BadRequestException('Decision questions must be an object');
-      }
-      for (const [id, question] of Object.entries(options.questions)) {
-        if (!isPlainObject(question) || typeof question.type !== 'string') {
-          throw new BadRequestException(`Decision question ${id} is invalid`);
-        }
-        if (!model.supportedQuestionTypes.includes(question.type)) {
-          throw unsupportedQuestionType(id, question.type);
-        }
-      }
+      assertDecisionRequest(options, model.supportedQuestionTypes);
       const result = await model.doDecide(options);
       return sanitizeCredentialAiDecisionResult(result);
     } catch (error) {
       if (Experimental_DecisionUnsupportedQuestionTypeError.isInstance(error)) {
         throw unsupportedQuestionType(error.questionId, error.questionType);
+      }
+      // The SDK checks the request before any network call; its text names the provider.
+      if (
+        InvalidArgumentError.isInstance(error) ||
+        UnsupportedFunctionalityError.isInstance(error)
+      ) {
+        throw new BadRequestException('The selected AI model cannot run this decision request');
       }
       throw this.normalizeError(error, failureLog);
     }
@@ -392,6 +388,71 @@ function credentialFailureLog(
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/**
+ * The same rules for every decision route, so a plugin that works with one AI Credential works
+ * with all of them. They are the strictest rules of the supported providers.
+ */
+function assertDecisionRequest(
+  options: Experimental_DecisionModelV4CallOptions,
+  supportedQuestionTypes: readonly string[]
+): void {
+  const state: unknown = options.state;
+  if (!Array.isArray(state) || !state.every(isDecisionStatePart)) {
+    throw new BadRequestException('Decision state must be a list of text, json, or file parts');
+  }
+  const questions: unknown = options.questions;
+  if (!isPlainObject(questions) || Object.keys(questions).length === 0) {
+    throw new BadRequestException(
+      'Decision questions must be an object with one or more questions'
+    );
+  }
+  for (const [id, question] of Object.entries(questions)) {
+    if (!isPlainObject(question) || typeof question.type !== 'string') {
+      throw new BadRequestException(`Decision question ${id} is invalid`);
+    }
+    if (!supportedQuestionTypes.includes(question.type)) {
+      throw unsupportedQuestionType(id, question.type);
+    }
+    if (!hasContent(question.instructions)) {
+      throw new BadRequestException(`Decision question ${id} needs instructions`);
+    }
+    const criteria = question.criteria;
+    const count = Array.isArray(criteria)
+      ? criteria.length
+      : isPlainObject(criteria)
+        ? Object.keys(criteria).length
+        : 0;
+    if (question.type === 'choice' && (Array.isArray(criteria) || count < 2 || count > 255)) {
+      throw new BadRequestException(`Decision question ${id} needs 2 to 255 options`);
+    }
+    if (
+      question.type === 'score' &&
+      (!Array.isArray(criteria) || count < 2 || count > 255 || !criteria.every(hasContent))
+    ) {
+      throw new BadRequestException(
+        `Decision question ${id} needs 2 to 255 non-empty score levels`
+      );
+    }
+    if (question.type === 'boolean' && criteria != null && !isPlainObject(criteria)) {
+      throw new BadRequestException(`Decision question ${id} has invalid criteria`);
+    }
+  }
+}
+
+function isDecisionStatePart(part: unknown): boolean {
+  if (!isPlainObject(part)) return false;
+  if (part.type === 'text') return typeof part.text === 'string';
+  if (part.type === 'json') return 'value' in part;
+  return part.type === 'file' && typeof part.mediaType === 'string';
+}
+
+/** A non-blank string, or a non-empty object or list. */
+function hasContent(value: unknown): boolean {
+  if (typeof value === 'string') return value.trim() !== '';
+  if (Array.isArray(value)) return value.length > 0;
+  return isPlainObject(value) && Object.keys(value).length > 0;
 }
 
 function unsupportedQuestionType(id: string, type: string): BadRequestException {
