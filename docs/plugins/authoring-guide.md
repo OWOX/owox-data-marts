@@ -380,6 +380,11 @@ supported. What a call returns depends on the Credential that the member selecte
 OpenRouter and openai-compatible Credentials do not provide `decision`. A call fails when the
 project has no decision model; OWOX never answers it with a chat model.
 
+A release that changes the `ai` requirement, for example to add `decision` to an installed plugin,
+removes the OWOX AI choice and the AI Credential access of every installation. Each member chooses
+OWOX AI or an AI Credential again on the plugin's **Credentials** tab. Until then,
+`ctx.credentials.ai` is absent for that member.
+
 OWOX checks each call before the provider gets it. These rules apply to every route, and a call
 that breaks one gets `400`:
 
