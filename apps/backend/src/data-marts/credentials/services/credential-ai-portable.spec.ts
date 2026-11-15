@@ -36,6 +36,67 @@ describe('Credential AI portable contract', () => {
     expect(JSON.stringify(decoded)).not.toContain('providerOptions');
   });
 
+  it('keeps plugin data keys named providerOptions and removes only the defined switches', () => {
+    const switches = { openai: { store: true } };
+    const encoded = encodeCredentialAiValue({
+      state: [
+        { type: 'text', text: 'x', providerOptions: switches },
+        { type: 'json', value: { providerOptions: 'a column name' } },
+        { type: 'file', mediaType: 'image/png', data: { type: 'data', data: new Uint8Array([7]) } },
+      ],
+      questions: {
+        providerOptions: {
+          type: 'choice',
+          instructions: 'Pick',
+          criteria: { providerOptions: null },
+        },
+      },
+      prompt: [
+        {
+          role: 'tool',
+          content: [
+            {
+              type: 'tool-result',
+              toolCallId: 'c1',
+              toolName: 'lookup',
+              output: { type: 'json', value: { providerOptions: 1 }, providerOptions: switches },
+            },
+          ],
+        },
+      ],
+      tools: [{ type: 'function', name: 'lookup', inputSchema: {}, providerOptions: switches }],
+    });
+
+    const decoded = decodeCredentialAiOptions(encoded, new AbortController().signal);
+
+    expect(JSON.stringify(decoded)).not.toContain('"store"');
+    expect(decoded.state).toEqual([
+      { type: 'text', text: 'x' },
+      { type: 'json', value: { providerOptions: 'a column name' } },
+      { type: 'file', mediaType: 'image/png', data: { type: 'data', data: new Uint8Array([7]) } },
+    ]);
+    expect(decoded.questions).toEqual({
+      providerOptions: {
+        type: 'choice',
+        instructions: 'Pick',
+        criteria: { providerOptions: null },
+      },
+    });
+    expect(decoded.prompt).toEqual([
+      {
+        role: 'tool',
+        content: [
+          {
+            type: 'tool-result',
+            toolCallId: 'c1',
+            toolName: 'lookup',
+            output: { type: 'json', value: { providerOptions: 1 } },
+          },
+        ],
+      },
+    ]);
+  });
+
   it('strips provider metadata, raw usage and response/request echoes from generate results', () => {
     const result = sanitizeCredentialAiGenerateResult({
       content: [{ type: 'text', text: 'ok', providerMetadata: { provider: { secret: 'x' } } }],

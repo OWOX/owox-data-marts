@@ -59,7 +59,7 @@ export class WorkersAiDecisionModel implements Experimental_DecisionModelV4 {
       | undefined;
     const answers: Experimental_DecisionModelV4Result['answers'] = {};
     for (const [id, question] of Object.entries(options.questions)) {
-      answers[id] = this.mapAnswer(id, question.type, result?.answers?.[id], body);
+      answers[id] = this.mapAnswer(id, question, result?.answers?.[id], body);
     }
 
     return {
@@ -106,9 +106,10 @@ export class WorkersAiDecisionModel implements Experimental_DecisionModelV4 {
     );
   }
 
+  // A wrong answer fails here, before OWOX AI records the call as an AI Process Run.
   private mapAnswer(
     id: string,
-    type: Experimental_DecisionModelV4Question['type'],
+    question: Experimental_DecisionModelV4Question,
     answer: WorkersAiAnswer | undefined,
     data: unknown
   ): Experimental_DecisionModelV4Result['answers'][string] {
@@ -120,19 +121,30 @@ export class WorkersAiDecisionModel implements Experimental_DecisionModelV4 {
     };
     if (!answer || typeof answer !== 'object') return fail();
 
-    if (type === 'boolean') {
-      return answer.type === 'noul' && typeof answer.noul === 'number'
+    if (question.type === 'boolean') {
+      return answer.type === 'noul' && isProbability(answer.noul)
         ? { type: 'boolean', probability: answer.noul }
         : fail();
     }
-    if (type === 'choice') {
-      return answer.type === 'choice' && typeof answer.choice === 'string'
-        ? { type: 'choice', choice: answer.choice, probabilities: probabilitiesOf(answer) }
+    if (question.type === 'choice') {
+      const options = Object.keys(question.criteria);
+      const probabilities = probabilitiesOf(answer, options);
+      return answer.type === 'choice' &&
+        typeof answer.choice === 'string' &&
+        options.includes(answer.choice) &&
+        probabilities !== null
+        ? { type: 'choice', choice: answer.choice, probabilities }
         : fail();
     }
-    if (type === 'score') {
-      return answer.type === 'score' && typeof answer.score === 'number'
-        ? { type: 'score', score: answer.score, probabilities: probabilitiesOf(answer) }
+    if (question.type === 'score') {
+      const levels = question.criteria.map((_level, index) => String(index));
+      const probabilities = probabilitiesOf(answer, levels);
+      return answer.type === 'score' &&
+        typeof answer.score === 'number' &&
+        answer.score >= 0 &&
+        answer.score <= levels.length - 1 &&
+        probabilities !== null
+        ? { type: 'score', score: answer.score, probabilities }
         : fail();
     }
     return fail();
@@ -168,9 +180,22 @@ export class WorkersAiDecisionModel implements Experimental_DecisionModelV4 {
   }
 }
 
-function probabilitiesOf(answer: WorkersAiAnswer): Record<string, number> | undefined {
+/** Undefined when absent; null when it names an unknown key or holds a value outside [0, 1]. */
+function probabilitiesOf(
+  answer: WorkersAiAnswer,
+  keys: readonly string[]
+): Record<string, number> | undefined | null {
   const value = answer.probabilities;
-  return value && typeof value === 'object' ? (value as Record<string, number>) : undefined;
+  if (value === undefined) return undefined;
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const entries = Object.entries(value);
+  return entries.every(([key, probability]) => keys.includes(key) && isProbability(probability))
+    ? (value as Record<string, number>)
+    : null;
+}
+
+function isProbability(value: unknown): value is number {
+  return typeof value === 'number' && value >= 0 && value <= 1;
 }
 
 function numberOrUndefined(value: unknown): number | undefined {

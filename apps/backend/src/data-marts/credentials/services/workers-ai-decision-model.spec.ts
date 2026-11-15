@@ -37,6 +37,15 @@ const unifiedResponse = {
   messages: [],
 };
 
+/** The options and levels that unifiedResponse answers. */
+const CHART_OPTIONS = {
+  line_chart: null,
+  bar_chart: null,
+  table: null,
+  kpi_card: null,
+  pie_chart: null,
+};
+
 const noulResponse = {
   result: {
     model: 'clef-flash',
@@ -129,13 +138,13 @@ describe('WorkersAiDecisionModel', () => {
         component: {
           type: 'choice',
           instructions: 'Which one?',
-          criteria: { line_chart: 'Trend', table: null },
+          criteria: { ...CHART_OPTIONS, line_chart: 'Trend' },
         },
         time_axis: { type: 'boolean', instructions: 'Time axis?' },
         complexity: {
           type: 'score',
           instructions: 'How complex?',
-          criteria: ['Simple', 'Complex'],
+          criteria: ['Simple', 'Moderate', 'Complex'],
         },
       },
     });
@@ -145,7 +154,7 @@ describe('WorkersAiDecisionModel', () => {
     expect(sent.complexity).toEqual({
       type: 'score',
       instructions: 'How complex?',
-      criteria: ['Simple', 'Complex'],
+      criteria: ['Simple', 'Moderate', 'Complex'],
     });
     expect(result.answers).toEqual({
       component: {
@@ -220,7 +229,11 @@ describe('WorkersAiDecisionModel', () => {
         component: {
           type: 'choice',
           instructions: { goal: 'pick' },
-          criteria: { line_chart: { use: 'trend' }, table: null, kpi_card: 'Single number' },
+          criteria: {
+            ...CHART_OPTIONS,
+            line_chart: { use: 'trend' },
+            kpi_card: 'Single number',
+          },
         },
         complexity: {
           type: 'score',
@@ -233,7 +246,11 @@ describe('WorkersAiDecisionModel', () => {
     expect(sent.component).toEqual({
       type: 'choice',
       instructions: '{"goal":"pick"}',
-      criteria: { line_chart: '{"use":"trend"}', table: null, kpi_card: 'Single number' },
+      criteria: {
+        ...CHART_OPTIONS,
+        line_chart: '{"use":"trend"}',
+        kpi_card: 'Single number',
+      },
     });
     expect(sent.complexity).toEqual({
       type: 'score',
@@ -327,14 +344,64 @@ describe('WorkersAiDecisionModel', () => {
     ).rejects.toThrow(InvalidResponseDataError);
   });
 
+  const choiceQuestion = {
+    component: {
+      type: 'choice' as const,
+      instructions: 'Pick',
+      criteria: { line_chart: null, table: null },
+    },
+  };
+  const scoreQuestion = {
+    complexity: { type: 'score' as const, instructions: 'Rate', criteria: ['Simple', 'Complex'] },
+  };
+  it.each([
+    [
+      'a choice that is not an option',
+      choiceQuestion,
+      { component: { type: 'choice', choice: 'pie_chart', probabilities: { line_chart: 1 } } },
+    ],
+    [
+      'a probability for an option that was not asked',
+      choiceQuestion,
+      {
+        component: {
+          type: 'choice',
+          choice: 'line_chart',
+          probabilities: { line_chart: 0.9, table: 0.05, kpi_card: 0.05 },
+        },
+      },
+    ],
+    [
+      'a probability above 1',
+      choiceQuestion,
+      { component: { type: 'choice', choice: 'table', probabilities: { table: 1.5 } } },
+    ],
+    [
+      'a score above the last level',
+      scoreQuestion,
+      { complexity: { type: 'score', score: 2, probabilities: { '0': 0.5, '1': 0.5 } } },
+    ],
+    [
+      'a probability for a level that was not asked',
+      scoreQuestion,
+      { complexity: { type: 'score', score: 0.4, probabilities: { '0': 0.5, '2': 0.5 } } },
+    ],
+    ['a boolean probability below 0', urgent, { urgent: { type: 'noul', noul: -0.1 } }],
+  ])('fails on %s', async (_name, questions, answers) => {
+    const { model } = setup(reply({ result: { answers }, success: true }));
+    await expect(
+      model.doDecide({ state: [{ type: 'text', text: 'x' }], questions } as never)
+    ).rejects.toThrow(InvalidResponseDataError);
+  });
+
   it('declares 4-decimal rounding and maps usage', async () => {
     const { model } = setup(reply(unifiedResponse));
     const result = await model.doDecide({
       state: [{ type: 'text', text: 'x' }],
       questions: {
-        component: { type: 'choice', instructions: 'i', criteria: { line_chart: null } },
+        component: { type: 'choice', instructions: 'i', criteria: CHART_OPTIONS },
         time_axis: { type: 'boolean', instructions: 'i' },
-        complexity: { type: 'score', instructions: 'i', criteria: ['a', 'b'] },
+        complexity: { type: 'score', instructions: 'i', criteria: ['a', 'b', 'c'] },
       },
     });
     expect(result.rounding).toEqual({ probabilityDecimals: 4, scoreDecimals: 4 });

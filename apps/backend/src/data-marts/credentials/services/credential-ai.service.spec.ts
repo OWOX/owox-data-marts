@@ -504,6 +504,44 @@ describe('CredentialAiService', () => {
         },
       ],
       [
+        '65 questions',
+        {
+          state: [],
+          questions: Object.fromEntries(
+            Array.from({ length: 65 }, (_, index) => [`q${index}`, question])
+          ),
+        },
+      ],
+      ['a question ID with a space', { state: [], questions: { 'my question': question } }],
+      [
+        'an empty option ID',
+        { state: [], questions: { q: { ...question, criteria: { '': null, b: null } } } },
+      ],
+      [
+        'a score with 11 levels',
+        {
+          state: [],
+          questions: {
+            q: {
+              type: 'score',
+              instructions: 'rate',
+              criteria: Array.from({ length: 11 }, (_, index) => `level ${index}`),
+            },
+          },
+        },
+      ],
+      [
+        'a file part without data',
+        { state: [{ type: 'file', mediaType: 'image/png' }], questions: { q: question } },
+      ],
+      [
+        'a file part with untyped data',
+        {
+          state: [{ type: 'file', mediaType: 'image/png', data: { data: 'abc' } }],
+          questions: { q: question },
+        },
+      ],
+      [
         'boolean criteria that are not an object',
         { state: [], questions: { q: { type: 'boolean', instructions: 'x', criteria: 'yes' } } },
       ],
@@ -515,6 +553,39 @@ describe('CredentialAiService', () => {
       expect(error).toBeInstanceOf(BadRequestException);
       expect((error as Error).message).not.toMatch(/OWOX|openai|gemini|anthropic/i);
       expect(doDecide).not.toHaveBeenCalled();
+    });
+
+    it('accepts the limits: 64 questions, 10 score levels, and typed file data', async () => {
+      const { model, doDecide } = decisionModel();
+      doDecide.mockResolvedValue({ answers: {}, usage: {}, warnings: [] });
+      const questions: Record<string, unknown> = Object.fromEntries(
+        Array.from({ length: 63 }, (_, index) => [`q.${index}-a_b`, question])
+      );
+      questions.score = {
+        type: 'score',
+        instructions: 'rate',
+        criteria: Array.from({ length: 10 }, (_, index) => `level ${index}`),
+      };
+      await service.decideWith(
+        model,
+        {
+          state: [
+            { type: 'file', mediaType: 'image/png', data: { type: 'data', data: 'iVBORw0K' } },
+            {
+              type: 'file',
+              mediaType: 'image/png',
+              data: {
+                type: 'url',
+                url: { $owoxCredentialPortableType: 'url', value: 'https://a.test/x.png' },
+              },
+            },
+          ],
+          questions,
+        },
+        signal(),
+        failureLog
+      );
+      expect(doDecide).toHaveBeenCalledTimes(1);
     });
 
     it('accepts object instructions, and a string that only looks like JSON', async () => {

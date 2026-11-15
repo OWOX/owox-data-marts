@@ -390,6 +390,11 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+/** The limits of Workers AI Clef, the strictest decision provider. */
+const MAX_DECISION_QUESTIONS = 64;
+const MAX_DECISION_SCORE_LEVELS = 10;
+const DECISION_ID = /^[A-Za-z0-9_.-]{1,100}$/;
+
 /**
  * The same rules for every decision route, so a plugin that works with one AI Credential works
  * with all of them. They are the strictest rules of the supported providers.
@@ -403,12 +408,18 @@ function assertDecisionRequest(
     throw new BadRequestException('Decision state must be a list of text, json, or file parts');
   }
   const questions: unknown = options.questions;
-  if (!isPlainObject(questions) || Object.keys(questions).length === 0) {
+  const questionCount = isPlainObject(questions) ? Object.keys(questions).length : 0;
+  if (!isPlainObject(questions) || questionCount < 1 || questionCount > MAX_DECISION_QUESTIONS) {
     throw new BadRequestException(
-      'Decision questions must be an object with one or more questions'
+      `Decision questions must be an object with 1 to ${MAX_DECISION_QUESTIONS} questions`
     );
   }
   for (const [id, question] of Object.entries(questions)) {
+    if (!DECISION_ID.test(id)) {
+      throw new BadRequestException(
+        'A decision question ID must have 1 to 100 letters, digits, "_", "." or "-"'
+      );
+    }
     if (!isPlainObject(question) || typeof question.type !== 'string') {
       throw new BadRequestException(`Decision question ${id} is invalid`);
     }
@@ -424,15 +435,21 @@ function assertDecisionRequest(
       : isPlainObject(criteria)
         ? Object.keys(criteria).length
         : 0;
-    if (question.type === 'choice' && (Array.isArray(criteria) || count < 2 || count > 255)) {
-      throw new BadRequestException(`Decision question ${id} needs 2 to 255 options`);
+    if (
+      question.type === 'choice' &&
+      (!isPlainObject(criteria) || count < 2 || count > 255 || Object.keys(criteria).includes(''))
+    ) {
+      throw new BadRequestException(`Decision question ${id} needs 2 to 255 named options`);
     }
     if (
       question.type === 'score' &&
-      (!Array.isArray(criteria) || count < 2 || count > 255 || !criteria.every(hasContent))
+      (!Array.isArray(criteria) ||
+        count < 2 ||
+        count > MAX_DECISION_SCORE_LEVELS ||
+        !criteria.every(hasContent))
     ) {
       throw new BadRequestException(
-        `Decision question ${id} needs 2 to 255 non-empty score levels`
+        `Decision question ${id} needs 2 to ${MAX_DECISION_SCORE_LEVELS} non-empty score levels`
       );
     }
     if (question.type === 'boolean' && criteria != null && !isPlainObject(criteria)) {
@@ -445,7 +462,24 @@ function isDecisionStatePart(part: unknown): boolean {
   if (!isPlainObject(part)) return false;
   if (part.type === 'text') return typeof part.text === 'string';
   if (part.type === 'json') return 'value' in part;
-  return part.type === 'file' && typeof part.mediaType === 'string';
+  return part.type === 'file' && typeof part.mediaType === 'string' && isFileData(part.data);
+}
+
+// The provider adapters read these fields without a check.
+function isFileData(data: unknown): boolean {
+  if (!isPlainObject(data)) return false;
+  switch (data.type) {
+    case 'data':
+      return typeof data.data === 'string' || data.data instanceof Uint8Array;
+    case 'url':
+      return data.url instanceof URL;
+    case 'text':
+      return typeof data.text === 'string';
+    case 'reference':
+      return isPlainObject(data.reference);
+    default:
+      return false;
+  }
 }
 
 /** A non-blank string, or a non-empty object or list. */

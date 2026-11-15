@@ -330,7 +330,7 @@ function encodeAiOptions(
   void _signal;
   void _headers;
   void _providerOptions;
-  const encoded = encodePortable(stripProviderOptions(rest, 0), 0, new WeakSet<object>());
+  const encoded = encodePortable(stripProviderOptions(rest), 0, new WeakSet<object>());
   if (!isRecord(encoded)) throw new TypeError('AI options must be portable');
   return encoded;
 }
@@ -429,15 +429,42 @@ function decodePortable(value: unknown, depth = 0): unknown {
   );
 }
 
-function stripProviderOptions(value: unknown, depth: number): unknown {
-  assertPortableDepth(depth);
-  if (Array.isArray(value)) return value.map(item => stripProviderOptions(item, depth + 1));
-  if (!isRecord(value)) return value;
-  return Object.fromEntries(
-    Object.entries(value)
-      .filter(([key]) => key !== 'providerOptions')
-      .map(([key, item]) => [key, stripProviderOptions(item, depth + 1)])
-  );
+/**
+ * Removes provider switches only where the AI SDK defines them: the options, each prompt message,
+ * content part, tool-result output and its content items, each tool, and each decision state part.
+ * Plugin data (JSON values, tool input, schemas, question and option IDs) keeps every key.
+ */
+function stripProviderOptions(options: Record<string, unknown>): Record<string, unknown> {
+  const rest = withoutProviderOptions(options);
+  if (Array.isArray(rest.prompt)) rest.prompt = rest.prompt.map(stripMessage);
+  if (Array.isArray(rest.tools)) rest.tools = rest.tools.map(withoutProviderOptions);
+  if (Array.isArray(rest.state)) rest.state = rest.state.map(withoutProviderOptions);
+  return rest;
+}
+
+function stripMessage(message: unknown): unknown {
+  const result = withoutProviderOptions(message);
+  if (Array.isArray(result.content)) result.content = result.content.map(stripPart);
+  return result;
+}
+
+function stripPart(part: unknown): unknown {
+  const result = withoutProviderOptions(part);
+  if (isRecord(result.output)) {
+    const output = withoutProviderOptions(result.output);
+    if (output.type === 'content' && Array.isArray(output.value)) {
+      output.value = output.value.map(withoutProviderOptions);
+    }
+    result.output = output;
+  }
+  return result;
+}
+
+function withoutProviderOptions<T>(value: T): T & Record<string, unknown> {
+  if (!isRecord(value)) return value as T & Record<string, unknown>;
+  const { providerOptions: _providerOptions, ...rest } = value;
+  void _providerOptions;
+  return rest as T & Record<string, unknown>;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

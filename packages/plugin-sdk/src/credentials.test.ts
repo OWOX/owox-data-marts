@@ -275,6 +275,108 @@ describe('Plugin Credentials', () => {
     expect(other.decision).toBeUndefined();
   });
 
+  it('keeps binary data and plugin keys named providerOptions in a decide request', async () => {
+    const body = { answers: {}, warnings: [] };
+    const send = vi.fn().mockResolvedValue({ id: 'r1', ok: true, status: 200, headers: {}, body });
+    const ai = createPluginCredentials({ send }, [
+      { name: 'ai', kind: 'ai', models: ['decision'] },
+    ]).ai!;
+
+    await ai.decision!.doDecide({
+      state: [
+        {
+          type: 'file',
+          mediaType: 'image/png',
+          data: { type: 'data', data: new Uint8Array([1, 2, 3]) },
+          providerOptions: { openai: { imageDetail: 'high' } },
+        },
+        { type: 'json', value: { providerOptions: 'a column name' } },
+      ],
+      questions: {
+        providerOptions: {
+          type: 'choice',
+          instructions: { providerOptions: 'kept' },
+          criteria: { providerOptions: null, other: null },
+        },
+      },
+    } as never);
+
+    const options = send.mock.calls[0]![0].options as {
+      state: Array<Record<string, unknown>>;
+      questions: Record<string, unknown>;
+    };
+    expect(options.state[0]).not.toHaveProperty('providerOptions');
+    expect(options.state[0].data).toEqual({
+      type: 'data',
+      data: { $owoxCredentialPortableType: 'bytes', value: 'AQID' },
+    });
+    expect(options.state[1]).toEqual({ type: 'json', value: { providerOptions: 'a column name' } });
+    expect(options.questions).toEqual({
+      providerOptions: {
+        type: 'choice',
+        instructions: { providerOptions: 'kept' },
+        criteria: { providerOptions: null, other: null },
+      },
+    });
+  });
+
+  it('removes provider options only where the AI SDK defines them in a prompt', async () => {
+    const body = { content: [], finishReason: { unified: 'stop' }, usage: {}, warnings: [] };
+    const send = vi.fn().mockResolvedValue({ id: 'r1', ok: true, status: 200, headers: {}, body });
+    const model = createPluginCredentials({ send }, [
+      { name: 'ai', kind: 'ai', models: ['fast'] },
+    ]).ai!;
+    const switches = { openai: { store: true } };
+
+    await model.doGenerate({
+      prompt: [
+        {
+          role: 'tool',
+          providerOptions: switches,
+          content: [
+            {
+              type: 'tool-result',
+              toolCallId: 'c1',
+              toolName: 'lookup',
+              providerOptions: switches,
+              output: {
+                type: 'content',
+                providerOptions: switches,
+                value: [{ type: 'text', text: 'ok', providerOptions: switches }],
+              },
+            },
+          ],
+        },
+        {
+          role: 'assistant',
+          content: [
+            {
+              type: 'tool-call',
+              toolCallId: 'c2',
+              toolName: 'lookup',
+              input: { providerOptions: 'plugin input' },
+            },
+          ],
+        },
+      ],
+      tools: [
+        {
+          type: 'function',
+          name: 'lookup',
+          inputSchema: { type: 'object', properties: { providerOptions: { type: 'string' } } },
+          providerOptions: switches,
+        },
+      ],
+    } as never);
+
+    const options = send.mock.calls[0]![0].options as Record<string, unknown>;
+    expect(JSON.stringify(options)).not.toContain('"store"');
+    expect(options).toMatchObject({
+      prompt: [{}, { content: [{ input: { providerOptions: 'plugin input' } }] }],
+      tools: [{ inputSchema: { properties: { providerOptions: { type: 'string' } } } }],
+    });
+  });
+
   it('sends a decide request without headers or provider options', async () => {
     const body = { answers: { component: { type: 'choice', choice: 'table' } }, warnings: [] };
     const send = vi.fn().mockResolvedValue({ id: 'r1', ok: true, status: 200, headers: {}, body });

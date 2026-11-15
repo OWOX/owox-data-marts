@@ -388,14 +388,20 @@ OWOX AI or an AI Credential again on the plugin's **Credentials** tab. Until the
 OWOX checks each call before the provider gets it. These rules apply to every route, and a call
 that breaks one gets `400`:
 
+- A call has 1 to 64 questions.
+- A question ID has 1 to 100 letters, digits, `_`, `.` or `-`.
 - Each question needs non-empty `instructions`.
-- A `choice` question needs 2 to 255 options.
-- A `score` question needs 2 to 255 levels, and each level needs a description.
+- A `choice` question needs 2 to 255 options, and an option ID cannot be empty.
+- A `score` question needs 2 to 10 levels, and each level needs a description.
+- A file part needs `data` of the type `data`, `url`, `text` or `reference`.
 
 OWOX AI has more rules:
 
 - The state is text or JSON only. A file or image part gets `400`.
-- A state larger than the context of the model gets `413`.
+- Workers AI refuses a state that it estimates as larger than the context of the model, and the
+  call gets `413`. Cloudflare documents that Workers AI can shorten a long text state to fit the
+  model, so a state below that estimate can lose part of its text. Keep the state within the
+  context of the model that the deployment uses.
 
 OWOX AI provides `decision` only when the deployment sets it. On OWOX Cloud, each successful OWOX
 AI decision call is billed as an AI Process Run under the same rules as other OWOX AI calls. A
