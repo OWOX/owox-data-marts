@@ -4,6 +4,14 @@
 
 ### Minor Changes 0.44.0
 
+<https://customer-4geatlj66rtkaxtz.cloudflarestream.com/5aebce96a08029909bd998c5c5682b2b/iframe>
+
+[0:10](https://customer-4geatlj66rtkaxtz.cloudflarestream.com/5aebce96a08029909bd998c5c5682b2b/iframe?startTime=10.6s) - Plugins Run on OWOX AI\
+[0:28](https://customer-4geatlj66rtkaxtz.cloudflarestream.com/5aebce96a08029909bd998c5c5682b2b/iframe?startTime=29.2s) - AI Assistants Get OWOX Rules\
+[0:57](https://customer-4geatlj66rtkaxtz.cloudflarestream.com/5aebce96a08029909bd998c5c5682b2b/iframe?startTime=57.7s) - What’s New, Right in the App\
+[1:16](https://customer-4geatlj66rtkaxtz.cloudflarestream.com/5aebce96a08029909bd998c5c5682b2b/iframe?startTime=77.1s) - Plugins Get Typed Answers from AI\
+[1:39](https://customer-4geatlj66rtkaxtz.cloudflarestream.com/5aebce96a08029909bd998c5c5682b2b/iframe?startTime=100.1s) - And a Few More Things
+
 - 7eb4159: **New features are easier to discover: each release shows what's new right in the app**
 
   OWOX Data Marts ships a release every week, but the app itself never said so: to learn what changed, you had to open **Help → What's new** and read the changelog. A feature that removes a manual step could go unnoticed for weeks while people kept doing that step by hand. Now the app shows each new release in a card in the bottom-left corner: its what's-new video, the video's chapters, each of which plays the video from that scene, and a link to the release in the changelog.
