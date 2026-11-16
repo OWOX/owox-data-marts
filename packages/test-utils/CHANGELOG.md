@@ -1,5 +1,11 @@
 # @owox/test-utils
 
+## 23.0.0
+
+### Patch Changes
+
+- @owox/idp-protocol@0.44.0
+
 ## 22.0.0
 
 ### Patch Changes 22.0.0
