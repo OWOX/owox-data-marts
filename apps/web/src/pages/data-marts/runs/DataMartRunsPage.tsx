@@ -5,7 +5,10 @@ import { SkeletonList } from '@owox/ui/components/common/skeleton-list';
 import { extractApiError } from '../../../app/api';
 import { DataMartRunType, dataMartService } from '../../../features/data-marts/shared';
 import { isDataMartRunFinalStatus } from '../../../features/data-marts/shared/utils/status.utils';
-import { RunItem } from '../../../features/data-marts/edit/components/DataMartRunHistoryView';
+import {
+  RefreshRunsButton,
+  RunItem,
+} from '../../../features/data-marts/edit/components/DataMartRunHistoryView';
 import { LogViewType } from '../../../features/data-marts/edit/components/DataMartRunHistoryView/types';
 import { mapProjectDataMartRunListResponseDtoToEntity } from '../../../features/data-marts/edit/model/mappers';
 import type { ProjectDataMartRunItem } from '../../../features/data-marts/edit/model/types';
@@ -158,7 +161,13 @@ export default function DataMartRunsPage() {
 
   return (
     <div className='dm-page' data-testid='dataMartRunsPage'>
-      <ProjectDataMartSectionHeader title='Run History' />
+      <ProjectDataMartSectionHeader
+        title='Run History'
+        actions={
+          // A silent load keeps the loaded pages but never clears a load error, so retry loudly then.
+          <RefreshRunsButton onRefresh={() => loadRuns(0, { silent: error === null })} />
+        }
+      />
 
       <div className='dm-page-content'>
         {isLoading ? (

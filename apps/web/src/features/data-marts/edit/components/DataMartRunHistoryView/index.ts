@@ -10,4 +10,5 @@ export { RawLogsView } from './RawLogsView';
 export { ConfigurationView } from './ConfigurationView';
 export { LoadStatusStrip } from './LoadStatusStrip';
 export { RunItem } from './RunItem';
+export { RefreshRunsButton } from './RefreshRunsButton';
 export { DataQualityRunHistoryDetails } from './DataQualityRunHistoryDetails';
