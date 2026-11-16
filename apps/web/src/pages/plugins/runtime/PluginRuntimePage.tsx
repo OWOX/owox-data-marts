@@ -5,6 +5,7 @@ import {
   appendRoute,
   canonicalPluginRoute,
   createPluginHostBridge,
+  createUserTokenChannel,
   fetchRuntimeToken,
   fetchUserToken,
   PluginPageMessage,
@@ -185,10 +186,8 @@ export function PluginRuntime({
         schedules: true,
         // A rebuilt bridge resumes where the address bar already points.
         route: lastRouteRef.current,
-        ...(isPrivileged && { userToken: true as const }),
       },
       pluginOrigin: isPrivileged ? privilegedOrigin : undefined,
-      fetchUserToken: isPrivileged ? fetchUserToken : undefined,
       fetchRuntimeToken: fetchRuntimeToken(installationId),
       onOpenExternal: openExternal,
       onNavigate: navigateInApp,
@@ -200,7 +199,18 @@ export function PluginRuntime({
       },
     });
 
+    const userTokenChannel =
+      isPrivileged && privilegedOrigin
+        ? createUserTokenChannel({
+            iframe,
+            pluginOrigin: privilegedOrigin,
+            session: { projectId, userId },
+            fetchUserToken,
+          })
+        : undefined;
+
     return () => {
+      userTokenChannel?.dispose();
       bridge.dispose();
       // A closed plugin cannot stop its own loading, so the bar must not wait for it.
       setPluginLoading({ active: false });
