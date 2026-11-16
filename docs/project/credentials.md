@@ -216,6 +216,12 @@ Credentials of these three providers have `decision` with the recommended model.
 declares `decision` then sends its data to the provider with the key of the Credential. To turn
 it off, set **Decision model** to **Not configured** in the Credential form.
 
+**Not configured** removes the mapping. A plugin installation can use an AI Credential only when
+the Credential maps every model that the plugin declares. If an installed plugin declares a model
+that you set to **Not configured**, the plugin cannot use this Credential for any model, also for
+`fast`. Each call fails with `400` until you map the model again or the member selects another
+Credential on the plugin's **Credentials** tab.
+
 ## External definitions
 
 Built-in definitions cover common providers. A maintainer may also add a declarative Credential

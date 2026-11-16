@@ -555,6 +555,26 @@ describe('CredentialAiService', () => {
       expect(doDecide).not.toHaveBeenCalled();
     });
 
+    it.each(['__proto__', 'constructor', 'toString'])(
+      'rejects the question ID %s with 400 before the call',
+      async id => {
+        const { model, doDecide } = decisionModel();
+        // Parsed JSON keeps `__proto__` as an own key, as a request body does.
+        const options: unknown = JSON.parse(
+          JSON.stringify({ state: [], questions: { q1: question } }).replace(
+            '"q1":',
+            `"${id}":${JSON.stringify(question)},"q1":`
+          )
+        );
+        expect(Object.keys((options as { questions: object }).questions)).toEqual([id, 'q1']);
+
+        await expect(
+          service.decideWith(model, options, signal(), failureLog)
+        ).rejects.toBeInstanceOf(BadRequestException);
+        expect(doDecide).not.toHaveBeenCalled();
+      }
+    );
+
     it('accepts the limits: 64 questions, 10 score levels, and typed file data', async () => {
       const { model, doDecide } = decisionModel();
       doDecide.mockResolvedValue({ answers: {}, usage: {}, warnings: [] });

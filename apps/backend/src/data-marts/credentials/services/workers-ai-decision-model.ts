@@ -6,6 +6,7 @@ import {
   type Experimental_DecisionModelV4Question,
   type Experimental_DecisionModelV4Result,
 } from '@ai-sdk/provider';
+import { z } from 'zod';
 
 /** Workers AI error code for a state larger than the model context. */
 const CONTEXT_TOO_LARGE_CODE = 5021;
@@ -113,41 +114,14 @@ export class WorkersAiDecisionModel implements Experimental_DecisionModelV4 {
     answer: WorkersAiAnswer | undefined,
     data: unknown
   ): Experimental_DecisionModelV4Result['answers'][string] {
-    const fail = (): never => {
+    const parsed = answerSchema(question).safeParse(answer);
+    if (!parsed.success) {
       throw new InvalidResponseDataError({
         data,
         message: `Workers AI returned no valid answer for question "${id}"`,
       });
-    };
-    if (!answer || typeof answer !== 'object') return fail();
-
-    if (question.type === 'boolean') {
-      return answer.type === 'noul' && isProbability(answer.noul)
-        ? { type: 'boolean', probability: answer.noul }
-        : fail();
     }
-    if (question.type === 'choice') {
-      const options = Object.keys(question.criteria);
-      const probabilities = probabilitiesOf(answer, options);
-      return answer.type === 'choice' &&
-        typeof answer.choice === 'string' &&
-        options.includes(answer.choice) &&
-        probabilities !== null
-        ? { type: 'choice', choice: answer.choice, probabilities }
-        : fail();
-    }
-    if (question.type === 'score') {
-      const levels = question.criteria.map((_level, index) => String(index));
-      const probabilities = probabilitiesOf(answer, levels);
-      return answer.type === 'score' &&
-        typeof answer.score === 'number' &&
-        answer.score >= 0 &&
-        answer.score <= levels.length - 1 &&
-        probabilities !== null
-        ? { type: 'score', score: answer.score, probabilities }
-        : fail();
-    }
-    return fail();
+    return parsed.data;
   }
 
   private async readBody(response: Response): Promise<Record<string, unknown> | undefined> {
@@ -180,22 +154,51 @@ export class WorkersAiDecisionModel implements Experimental_DecisionModelV4 {
   }
 }
 
-/** Undefined when absent; null when it names an unknown key or holds a value outside [0, 1]. */
-function probabilitiesOf(
-  answer: WorkersAiAnswer,
-  keys: readonly string[]
-): Record<string, number> | undefined | null {
-  const value = answer.probabilities;
-  if (value === undefined) return undefined;
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
-  const entries = Object.entries(value);
-  return entries.every(([key, probability]) => keys.includes(key) && isProbability(probability))
-    ? (value as Record<string, number>)
-    : null;
-}
+const Probability = z.number().min(0).max(1);
 
-function isProbability(value: unknown): value is number {
-  return typeof value === 'number' && value >= 0 && value <= 1;
+/** The Workers AI answer that is valid for this question, mapped to the AI SDK answer. */
+function answerSchema(
+  question: Experimental_DecisionModelV4Question
+): z.ZodType<Experimental_DecisionModelV4Result['answers'][string]> {
+  switch (question.type) {
+    case 'boolean':
+      return z
+        .looseObject({ type: z.literal('noul'), noul: Probability })
+        .transform(answer => ({ type: 'boolean' as const, probability: answer.noul }));
+    case 'choice': {
+      const Option = z.enum(Object.keys(question.criteria));
+      return z
+        .looseObject({
+          type: z.literal('choice'),
+          choice: Option,
+          probabilities: z.partialRecord(Option, Probability).optional(),
+        })
+        .transform(({ choice, probabilities }) => ({
+          type: 'choice' as const,
+          choice,
+          probabilities: probabilities as Record<string, number> | undefined,
+        }));
+    }
+    case 'score': {
+      const Level = z.enum(question.criteria.map((_level, index) => String(index)));
+      return z
+        .looseObject({
+          type: z.literal('score'),
+          score: z
+            .number()
+            .min(0)
+            .max(question.criteria.length - 1),
+          probabilities: z.partialRecord(Level, Probability).optional(),
+        })
+        .transform(({ score, probabilities }) => ({
+          type: 'score' as const,
+          score,
+          probabilities: probabilities as Record<string, number> | undefined,
+        }));
+    }
+    default:
+      return z.never();
+  }
 }
 
 function numberOrUndefined(value: unknown): number | undefined {
