@@ -8,4 +8,6 @@ Run History, the log of every run, showed a run that started outside the page la
 
 Now the Run History of a Data Mart and of the project has a **Refresh** button. It loads the newest runs and keeps the runs that are already loaded. The Run History of a Data Mart also updates as soon as you come back to its browser tab. See [Create your first Data Mart](../../docs/getting-started/first-data-mart.md).
 
+![The Run History tab of a Data Mart with the Refresh button in the card header, above a list of successful report runs](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/1dbd9b1a-4dd5-44eb-b5c2-ee090274ed00/public)
+
 <!-- markdownlint-disable-file MD041 MD036 -->
