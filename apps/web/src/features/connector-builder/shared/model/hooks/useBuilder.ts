@@ -155,8 +155,16 @@ export function useBuilder() {
     [dispatch]
   );
 
+  const setLogo = useCallback(
+    (logo: string | null) => {
+      dispatch({ type: BuilderActionType.SET_LOGO, payload: logo });
+    },
+    [dispatch]
+  );
+
   const initNew = useCallback(() => {
     dispatch({ type: BuilderActionType.SET_MANIFEST, payload: createEmptyManifest() });
+    dispatch({ type: BuilderActionType.LOAD_LOGO, payload: null });
     dispatch({ type: BuilderActionType.SET_MANIFEST_ORIGIN, payload: 'form' });
     dispatch({
       type: BuilderActionType.SET_META,
@@ -182,6 +190,7 @@ export function useBuilder() {
         const targetVersion = version ?? latest?.version ?? 1;
         const v = await api.getVersion(id, targetVersion);
         dispatch({ type: BuilderActionType.SET_MANIFEST, payload: v.manifest });
+        dispatch({ type: BuilderActionType.LOAD_LOGO, payload: detail.logo });
         dispatch({ type: BuilderActionType.SET_MANIFEST_ORIGIN, payload: 'form' });
         dispatch({
           type: BuilderActionType.SET_META,
@@ -219,10 +228,12 @@ export function useBuilder() {
             title: firstNonEmpty(manifest.title, manifest.name),
             description: manifest.description,
             docUrl: manifest.docUrl,
+            logo: state.logo ?? undefined,
             manifest,
           });
           id = created.id;
           written = true;
+          dispatch({ type: BuilderActionType.MARK_LOGO_SAVED, payload: state.logo });
           // Commit the id before the read below, which only enriches it with version
           // metadata. create() has already taken the name, so a retry that re-POSTs it
           // 400s on the name check — dropping the id with a transient read failure leaves
@@ -258,6 +269,10 @@ export function useBuilder() {
         }
         await api.saveDraft(state.id, manifest);
         written = true;
+        if (state.logo !== state.savedLogo) {
+          await api.updateLogo(state.id, state.logo);
+          dispatch({ type: BuilderActionType.MARK_LOGO_SAVED, payload: state.logo });
+        }
         // The title, description and docs link reach the connector row, which every list and
         // picker reads, when a version is published: a draft is not theirs to show yet.
         const detail = await api.getById(state.id);
@@ -290,7 +305,7 @@ export function useBuilder() {
         dispatch({ type: BuilderActionType.SET_SAVING, payload: false });
       }
     },
-    [dispatch, state.id, state.loadedVersion]
+    [dispatch, state.id, state.loadedVersion, state.logo, state.savedLogo]
   );
 
   const saveDraft = useCallback(
@@ -456,6 +471,7 @@ export function useBuilder() {
     manifest: state.manifest,
     setPath,
     setManifest,
+    setLogo,
     setCodeInvalid,
     setSample,
     removeParameter,

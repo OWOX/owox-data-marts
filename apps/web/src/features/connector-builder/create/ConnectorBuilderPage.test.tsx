@@ -11,12 +11,14 @@ const saveDraft = vi.fn();
 const publish = vi.fn();
 const softDelete = vi.fn();
 const runTest = vi.fn();
+const updateLogo = vi.fn();
 
 vi.mock('../shared/api/connector-builder-api.service', () => ({
   ConnectorBuilderApiService: class {
     create = create;
     getById = getById;
     saveDraft = saveDraft;
+    updateLogo = updateLogo;
     publish = publish;
     getVersion = getVersion;
     softDelete = softDelete;
@@ -201,6 +203,7 @@ describe('ConnectorBuilderPage (new)', () => {
       'def-1',
       expect.objectContaining({ title: 'Renamed API' })
     );
+    expect(updateLogo).not.toHaveBeenCalled();
   });
 
   it('keeps the created id when the read that follows create fails', async () => {
@@ -679,5 +682,109 @@ describe('ConnectorBuilderPage — a connector that could not be opened', () => 
       );
     });
     expect(create).not.toHaveBeenCalled();
+  });
+});
+
+describe('ConnectorBuilderPage — connector icon', () => {
+  const SVG = '<svg xmlns="http://www.w3.org/2000/svg"/>';
+  const SVG_URI = `data:image/svg+xml;base64,${btoa(SVG)}`;
+  const SAVED_URI = 'data:image/png;base64,c2F2ZWQ=';
+
+  const uploadIcon = () => {
+    fireEvent.change(screen.getByTestId('connectorLogoInput'), {
+      target: { files: [new File([SVG], 'logo.svg', { type: 'image/svg+xml' })] },
+    });
+  };
+  const preview = () => screen.queryByRole('img', { name: 'icon' });
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    create.mockResolvedValue({ id: 'def-1', name: 'MyApi', title: 'My API' });
+    getById.mockResolvedValue({
+      id: 'def-1',
+      name: 'MyApi',
+      title: 'My API',
+      description: null,
+      logo: SAVED_URI,
+      docUrl: null,
+      activeVersionId: null,
+      versions: [{ version: 1, status: 'draft', publishedAt: null }],
+    });
+    getVersion.mockResolvedValue({ version: 1, status: 'draft', manifest: EXISTING_MANIFEST });
+    saveDraft.mockResolvedValue({ version: 1, status: 'draft', publishedAt: null });
+    updateLogo.mockResolvedValue(undefined);
+  });
+
+  it('creates a new connector with the uploaded icon', async () => {
+    render(<ConnectorBuilderPage />);
+    fireEvent.change(screen.getByPlaceholderText('MyCustomApi'), { target: { value: 'MyApi' } });
+    uploadIcon();
+    await waitFor(() => {
+      expect(preview()).toHaveAttribute('src', SVG_URI);
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /save draft/i }));
+
+    await waitFor(() => {
+      expect(create).toHaveBeenCalledWith(expect.objectContaining({ logo: SVG_URI }));
+    });
+    expect(updateLogo).not.toHaveBeenCalled();
+  });
+
+  it('saves a removed icon of an existing connector', async () => {
+    render(<ConnectorBuilderPage id='def-1' />);
+    await waitFor(() => {
+      expect(preview()).toHaveAttribute('src', SAVED_URI);
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Remove' }));
+    expect(preview()).not.toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'Custom connector' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /save draft/i }));
+
+    await waitFor(() => {
+      expect(updateLogo).toHaveBeenCalledWith('def-1', null);
+    });
+    expect(saveDraft).toHaveBeenCalledTimes(1);
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /save draft/i })).toBeDisabled();
+    });
+  });
+
+  it('discards an uploaded icon back to the saved one', async () => {
+    render(<ConnectorBuilderPage id='def-1' />);
+    await waitFor(() => {
+      expect(preview()).toHaveAttribute('src', SAVED_URI);
+    });
+    uploadIcon();
+    await waitFor(() => {
+      expect(preview()).toHaveAttribute('src', SVG_URI);
+    });
+
+    fireEvent.pointerDown(screen.getByTestId('builder-more'), { button: 0, ctrlKey: false });
+    fireEvent.click(await screen.findByTestId('builder-reset'));
+    fireEvent.click(await screen.findByRole('button', { name: /^discard$/i }));
+
+    await waitFor(() => {
+      expect(preview()).toHaveAttribute('src', SAVED_URI);
+    });
+    expect(updateLogo).not.toHaveBeenCalled();
+  });
+
+  it('shows why a file cannot be an icon and keeps the saved one', async () => {
+    render(<ConnectorBuilderPage id='def-1' />);
+    await waitFor(() => {
+      expect(preview()).toHaveAttribute('src', SAVED_URI);
+    });
+
+    fireEvent.change(screen.getByTestId('connectorLogoInput'), {
+      target: { files: [new File(['GIF89a'], 'logo.gif', { type: 'image/gif' })] },
+    });
+
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith('logo.gif is not an SVG, PNG, JPEG or WebP image.');
+    });
+    expect(preview()).toHaveAttribute('src', SAVED_URI);
+    expect(screen.getByRole('button', { name: /save draft/i })).toBeDisabled();
   });
 });

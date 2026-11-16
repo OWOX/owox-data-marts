@@ -68,6 +68,10 @@ export class ConnectorBuilderApiService extends ApiService {
     );
   }
 
+  async updateLogo(id: string, logo: string | null): Promise<void> {
+    await this.patch(`/${id}`, { logo }, REPORTED_BY_BUILDER);
+  }
+
   async publish(id: string): Promise<PublishCustomConnectorResultDto> {
     return this.post<PublishCustomConnectorResultDto>(
       `/${id}/publish`,

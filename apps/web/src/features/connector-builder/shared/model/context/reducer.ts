@@ -9,6 +9,8 @@ export const initialBuilderState: BuilderState = {
   activeVersionId: null,
   activeVersion: null,
   loadedVersion: null,
+  logo: null,
+  savedLogo: null,
   dirty: false,
   saving: false,
   publishing: false,
@@ -64,7 +66,15 @@ export function builderReducer(state: BuilderState, action: BuilderAction): Buil
     // Clean only while the builder still holds what was saved: an edit made while the save
     // was in flight is in the state but not on the server.
     case BuilderActionType.MARK_SAVED:
-      return state.dirty && state.manifest === action.payload ? { ...state, dirty: false } : state;
+      return state.dirty && state.manifest === action.payload && state.logo === state.savedLogo
+        ? { ...state, dirty: false }
+        : state;
+    case BuilderActionType.SET_LOGO:
+      return { ...state, logo: action.payload, dirty: true };
+    case BuilderActionType.LOAD_LOGO:
+      return { ...state, logo: action.payload, savedLogo: action.payload };
+    case BuilderActionType.MARK_LOGO_SAVED:
+      return { ...state, savedLogo: action.payload };
     case BuilderActionType.SET_SAVING:
       return { ...state, saving: action.payload };
     case BuilderActionType.SET_PUBLISHING:

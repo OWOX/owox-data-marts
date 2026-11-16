@@ -18,6 +18,8 @@ import { useConnector } from '../../../shared/model/hooks/useConnector';
 import { getConnectorInfoByName } from '../../../shared/utils';
 import { useEffect, useState } from 'react';
 import { RawBase64Icon } from '../../../../../shared/icons';
+import { CustomConnectorIcon } from '../../../shared/components/CustomConnectorIcon';
+import type { ConnectorListItem } from '../../../shared/model/types/connector';
 
 interface ConnectorConfigurationItemProps {
   configIndex: number;
@@ -61,20 +63,21 @@ export function ConnectorConfigurationItem({
   const sourceName = connectorDef.connector.source.name;
   const bundledConnector = connectors.find(c => c.name === sourceName);
   const bundledTitle = bundledConnector?.displayName;
-  const [customTitle, setCustomTitle] = useState<string | null>(null);
+  const [customConnector, setCustomConnector] = useState<ConnectorListItem | null>(null);
   useEffect(() => {
     if (bundledTitle || connectors.length === 0) return;
     let cancelled = false;
-    setCustomTitle(null);
+    setCustomConnector(null);
     getConnectorInfoByName(sourceName)
       .then(info => {
-        if (!cancelled && info) setCustomTitle(info.displayName);
+        if (!cancelled && info) setCustomConnector(info);
       })
       .catch(() => undefined);
     return () => {
       cancelled = true;
     };
   }, [bundledTitle, connectors.length, sourceName]);
+  const sourceConnector = bundledConnector ?? customConnector;
 
   const StorageIcon = DataStorageTypeModel.getInfo(dataStorage.type).icon;
   const sheetTab = useSheetTabUrl(connectorDef, configIndex);
@@ -122,8 +125,14 @@ export function ConnectorConfigurationItem({
             showRole={showRoleHeadings}
             roleAddon={<InfoHint text={SOURCE_HINT} />}
             narrowHeaderAction={canRemoveConfiguration ? deleteButton : null}
-            icon={<RawBase64Icon base64={bundledConnector?.logoBase64} size={28} />}
-            title={bundledTitle ?? customTitle ?? (sourceName || 'Connector')}
+            icon={
+              sourceConnector?.isCustom && !sourceConnector.logoBase64 ? (
+                <CustomConnectorIcon size={28} />
+              ) : (
+                <RawBase64Icon base64={sourceConnector?.logoBase64} size={28} />
+              )
+            }
+            title={sourceConnector?.displayName ?? (sourceName || 'Connector')}
           >
             <DataFlowParams primary={sourceParams} />
             <Button

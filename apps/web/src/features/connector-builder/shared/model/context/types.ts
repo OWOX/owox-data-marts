@@ -15,6 +15,9 @@ export enum BuilderActionType {
   SET_SAMPLE = 'SET_SAMPLE',
   SET_CODE_INVALID = 'SET_CODE_INVALID',
   SET_MANIFEST_ORIGIN = 'SET_MANIFEST_ORIGIN',
+  SET_LOGO = 'SET_LOGO',
+  LOAD_LOGO = 'LOAD_LOGO',
+  MARK_LOGO_SAVED = 'MARK_LOGO_SAVED',
 }
 
 /** Where the manifest of a new connector came from, for analytics. */
@@ -45,7 +48,10 @@ export type BuilderAction =
       payload: { node: string; records: Record<string, unknown>[] };
     }
   | { type: BuilderActionType.SET_CODE_INVALID; payload: boolean }
-  | { type: BuilderActionType.SET_MANIFEST_ORIGIN; payload: ManifestOrigin };
+  | { type: BuilderActionType.SET_MANIFEST_ORIGIN; payload: ManifestOrigin }
+  | { type: BuilderActionType.SET_LOGO; payload: string | null }
+  | { type: BuilderActionType.LOAD_LOGO; payload: string | null }
+  | { type: BuilderActionType.MARK_LOGO_SAVED; payload: string | null };
 
 export interface BuilderState {
   id: string | null;
@@ -54,6 +60,12 @@ export interface BuilderState {
   activeVersionId: string | null;
   activeVersion: number | null;
   loadedVersion: number | null;
+  /**
+   * The connector's icon as a `data:image/...;base64,` URI. It is on the connector, not in a
+   * version's manifest, so Save sends it on its own and it does not wait for Publish.
+   */
+  logo: string | null;
+  savedLogo: string | null;
   dirty: boolean;
   saving: boolean;
   publishing: boolean;
