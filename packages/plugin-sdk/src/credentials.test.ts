@@ -306,7 +306,7 @@ describe('Plugin Credentials', () => {
       questions: Record<string, unknown>;
     };
     expect(options.state[0]).not.toHaveProperty('providerOptions');
-    expect(options.state[0].data).toEqual({
+    expect(options.state[0]!.data).toEqual({
       type: 'data',
       data: { $owoxCredentialPortableType: 'bytes', value: 'AQID' },
     });
