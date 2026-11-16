@@ -581,7 +581,8 @@ export function createPluginHostBridge(options: PluginHostBridgeOptions): Plugin
     port.start();
 
     // Stop listening the moment the channel exists: after this, a window.postMessage
-    // from the frame reaches nothing, so requests can only arrive on the port.
+    // from the frame reaches nothing in this bridge, so its requests can only arrive on
+    // the port.
     window.removeEventListener('message', onWindowMessage);
 
     nonce = crypto.randomUUID();

@@ -5,11 +5,13 @@ const PLUGIN_ORIGIN = 'https://plugins.example.com';
 const SESSION = { projectId: 'j1', userId: 'u1' };
 const flush = () => new Promise(resolve => setTimeout(resolve, 0));
 
+function fakePort() {
+  return { postMessage: vi.fn(), close: vi.fn() };
+}
+
 function setup(fetchUserToken = vi.fn(() => Promise.resolve('member-access-token'))) {
-  const posted: { data: unknown; targetOrigin: string }[] = [];
-  const contentWindow = {
-    postMessage: (data: unknown, targetOrigin: string) => posted.push({ data, targetOrigin }),
-  } as unknown as Window;
+  const framePosted = vi.fn();
+  const contentWindow = { postMessage: framePosted } as unknown as Window;
   const iframe = { contentWindow } as HTMLIFrameElement;
   const channel = createUserTokenChannel({
     iframe,
@@ -17,11 +19,21 @@ function setup(fetchUserToken = vi.fn(() => Promise.resolve('member-access-token
     session: SESSION,
     fetchUserToken,
   });
-  const ask = async (data: unknown, origin = PLUGIN_ORIGIN, source: Window = contentWindow) => {
-    window.dispatchEvent(new MessageEvent('message', { data, origin, source }));
+  const ask = async (
+    data: unknown,
+    {
+      origin = PLUGIN_ORIGIN,
+      source = contentWindow,
+      ports = [fakePort()],
+    }: { origin?: string; source?: Window; ports?: ReturnType<typeof fakePort>[] } = {}
+  ) => {
+    const event = new MessageEvent('message', { data, origin, source });
+    Object.defineProperty(event, 'ports', { value: ports });
+    window.dispatchEvent(event);
     await flush();
+    return ports;
   };
-  return { channel, posted, fetchUserToken, ask };
+  return { channel, framePosted, fetchUserToken, ask };
 }
 
 describe('user token channel', () => {
@@ -31,26 +43,24 @@ describe('user token channel', () => {
     channel = undefined;
   });
 
-  it('answers the plugin frame with the token, addressed to its origin', async () => {
+  it('answers on the port of the request and nowhere else', async () => {
     const h = setup();
     channel = h.channel;
 
-    await h.ask({ owox: 'user-token-request', id: 'a' });
+    const [port] = await h.ask({ owox: 'user-token-request' });
 
     expect(h.fetchUserToken).toHaveBeenLastCalledWith(false, SESSION);
-    expect(h.posted).toEqual([
-      {
-        data: { owox: 'user-token-response', id: 'a', token: 'member-access-token' },
-        targetOrigin: PLUGIN_ORIGIN,
-      },
-    ]);
+    expect(port.postMessage).toHaveBeenCalledTimes(1);
+    expect(port.postMessage).toHaveBeenCalledWith({ token: 'member-access-token' });
+    expect(port.close).toHaveBeenCalledTimes(1);
+    expect(h.framePosted).not.toHaveBeenCalled();
   });
 
   it('passes a request for a fresh token on', async () => {
     const h = setup();
     channel = h.channel;
 
-    await h.ask({ owox: 'user-token-request', id: 'a', fresh: true });
+    await h.ask({ owox: 'user-token-request', fresh: true });
 
     expect(h.fetchUserToken).toHaveBeenLastCalledWith(true, SESSION);
   });
@@ -59,10 +69,10 @@ describe('user token channel', () => {
     const h = setup();
     channel = h.channel;
 
-    await h.ask({ owox: 'user-token-request', id: 'a' }, PLUGIN_ORIGIN, window);
+    const [port] = await h.ask({ owox: 'user-token-request' }, { source: window });
 
     expect(h.fetchUserToken).not.toHaveBeenCalled();
-    expect(h.posted).toHaveLength(0);
+    expect(port.postMessage).not.toHaveBeenCalled();
   });
 
   it.each(['null', 'https://evil.example.com', window.location.origin])(
@@ -71,52 +81,61 @@ describe('user token channel', () => {
       const h = setup();
       channel = h.channel;
 
-      await h.ask({ owox: 'user-token-request', id: 'a' }, origin);
+      const [port] = await h.ask({ owox: 'user-token-request' }, { origin });
 
       expect(h.fetchUserToken).not.toHaveBeenCalled();
-      expect(h.posted).toHaveLength(0);
+      expect(port.postMessage).not.toHaveBeenCalled();
     }
   );
 
   it.each([
-    ['no id', { owox: 'user-token-request' }],
-    ['an empty id', { owox: 'user-token-request', id: '' }],
-    ['an id that is not a string', { owox: 'user-token-request', id: 1 }],
-    ['an oversized id', { owox: 'user-token-request', id: 'a'.repeat(65) }],
-    ['a malformed fresh flag', { owox: 'user-token-request', id: 'a', fresh: 'true' }],
-    ['another envelope', { owox: 'plugin-ready', id: 'a' }],
+    ['a malformed fresh flag', { owox: 'user-token-request', fresh: 'true' }],
+    ['another envelope', { owox: 'plugin-ready' }],
     ['no envelope', 'user-token-request'],
+    ['nothing', null],
   ])('ignores a request with %s', async (_label, data) => {
     const h = setup();
     channel = h.channel;
 
-    await h.ask(data);
+    const [port] = await h.ask(data);
 
     expect(h.fetchUserToken).not.toHaveBeenCalled();
-    expect(h.posted).toHaveLength(0);
+    expect(port.postMessage).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['no port', []],
+    ['two ports', [fakePort(), fakePort()]],
+  ])('ignores a request with %s', async (_label, ports) => {
+    const h = setup();
+    channel = h.channel;
+
+    await h.ask({ owox: 'user-token-request' }, { ports });
+
+    expect(h.fetchUserToken).not.toHaveBeenCalled();
+    for (const port of ports) expect(port.postMessage).not.toHaveBeenCalled();
   });
 
   it('answers a failure without its reason', async () => {
     const h = setup(vi.fn(() => Promise.reject(new Error('secret detail'))));
     channel = h.channel;
 
-    await h.ask({ owox: 'user-token-request', id: 'a' });
+    const [port] = await h.ask({ owox: 'user-token-request' });
 
-    expect(h.posted).toEqual([
-      { data: { owox: 'user-token-response', id: 'a', error: true }, targetOrigin: PLUGIN_ORIGIN },
-    ]);
+    expect(port.postMessage).toHaveBeenCalledWith({ error: true });
   });
 
   it('is silent once disposed, even for a request already in flight', async () => {
     let release: (token: string) => void = () => undefined;
     const h = setup(vi.fn(() => new Promise<string>(resolve => (release = resolve))));
 
-    await h.ask({ owox: 'user-token-request', id: 'a' });
+    const [inFlight] = await h.ask({ owox: 'user-token-request' });
     h.channel.dispose();
     release('member-access-token');
-    await h.ask({ owox: 'user-token-request', id: 'b' });
+    const [late] = await h.ask({ owox: 'user-token-request' });
 
     expect(h.fetchUserToken).toHaveBeenCalledTimes(1);
-    expect(h.posted).toHaveLength(0);
+    expect(inFlight.postMessage).not.toHaveBeenCalled();
+    expect(late.postMessage).not.toHaveBeenCalled();
   });
 });

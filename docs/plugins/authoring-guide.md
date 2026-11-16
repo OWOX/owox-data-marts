@@ -55,7 +55,7 @@ the application inside a protected frame and connects it to the installing membe
 
 ### Security and trust model
 
-These constraints follow from the plugin sandbox. No OWOX Data Marts setting relaxes them.
+These constraints follow from the plugin sandbox.
 
 **The page runs in an opaque origin.** It has no cookies, `localStorage`, `sessionStorage`,
 `IndexedDB`, or service workers. Keep short-lived state in memory. For state that must persist, use

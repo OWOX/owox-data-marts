@@ -1,8 +1,6 @@
 import type { UserTokenSession } from './fetchUserToken';
 
 const REQUEST = 'user-token-request';
-const RESPONSE = 'user-token-response';
-const MAX_ID_LENGTH = 64;
 
 export interface UserTokenChannelOptions {
   iframe: HTMLIFrameElement;
@@ -16,31 +14,21 @@ export interface UserTokenChannel {
   dispose(): void;
 }
 
-interface UserTokenRequest {
-  owox: typeof REQUEST;
-  id: string;
-  fresh?: true;
-}
-
-function isUserTokenRequest(value: unknown): value is UserTokenRequest {
+function isUserTokenRequest(value: unknown): value is { fresh?: true } {
   if (typeof value !== 'object' || value === null) return false;
   const candidate = value as Record<string, unknown>;
-  return (
-    candidate.owox === REQUEST &&
-    typeof candidate.id === 'string' &&
-    candidate.id.length > 0 &&
-    candidate.id.length <= MAX_ID_LENGTH &&
-    (candidate.fresh === undefined || candidate.fresh === true)
-  );
+  return candidate.owox === REQUEST && (candidate.fresh === undefined || candidate.fresh === true);
 }
 
 /**
  * Hands the member's access token to a privileged plugin, outside the plugin bridge.
  *
  * The caller must create this only for a privileged plugin. A request is served only when
- * it comes from this frame's window and from `pluginOrigin`, and the answer is addressed to
- * that origin alone, so a document the frame navigated to never receives it. Anything else
- * is ignored without an answer, and a failure is answered without its reason.
+ * it comes from this frame's window and from `pluginOrigin`, and it must carry exactly one
+ * port: the answer goes to that port and nowhere else, so it reaches only the document
+ * that asked, never one the frame has navigated to since. Trust is at the level of the
+ * origin: any document served from `pluginOrigin` in this frame may ask. Anything else is
+ * ignored without an answer, and a failure is answered without its reason.
  */
 export function createUserTokenChannel(options: UserTokenChannelOptions): UserTokenChannel {
   let disposed = false;
@@ -48,11 +36,12 @@ export function createUserTokenChannel(options: UserTokenChannelOptions): UserTo
   function onMessage(event: MessageEvent<unknown>): void {
     const frame = options.iframe.contentWindow;
     if (!frame || event.source !== frame || event.origin !== options.pluginOrigin) return;
-    if (!isUserTokenRequest(event.data)) return;
+    if (!isUserTokenRequest(event.data) || event.ports.length !== 1) return;
+    const port = event.ports[0];
 
-    const { id } = event.data;
     const answer = (body: { token: string } | { error: true }) => {
-      if (!disposed) frame.postMessage({ owox: RESPONSE, id, ...body }, options.pluginOrigin);
+      if (!disposed) port.postMessage(body);
+      port.close();
     };
     options.fetchUserToken(event.data.fresh === true, options.session).then(
       token => {
