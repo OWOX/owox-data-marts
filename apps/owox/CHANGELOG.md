@@ -2,7 +2,7 @@
 
 ## 0.44.0
 
-### Minor Changes
+### Minor Changes 0.44.0
 
 - 7eb4159: **New features are easier to discover: each release shows what's new right in the app**
 
@@ -159,7 +159,7 @@
 
   <!-- markdownlint-disable-file MD041 MD036 -->
 
-### Patch Changes
+### Patch Changes 0.44.0
 
 - @owox/internal-helpers@0.44.0
 - @owox/idp-protocol@0.44.0
