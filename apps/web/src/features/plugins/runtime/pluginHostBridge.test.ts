@@ -1419,10 +1419,8 @@ describe('plugin host bridge', () => {
     });
   });
 
-  describe('real-origin plugin and user token', () => {
+  describe('real-origin plugin', () => {
     const REAL_ORIGIN = 'https://plugins.example.com';
-    const grant = (fetchUserToken: PluginHostBridgeOptions['fetchUserToken']) =>
-      ({ pluginOrigin: REAL_ORIGIN, fetchUserToken }) satisfies Partial<PluginHostBridgeOptions>;
 
     it('accepts the announcement of a plugin with a real origin only from that origin', async () => {
       const frame = pluginFrame();
@@ -1485,101 +1483,15 @@ describe('plugin host bridge', () => {
       opaque.bridge.dispose();
     });
 
-    it('hands the user token over the port only', async () => {
-      const fetchUserToken = vi.fn(() => Promise.resolve('member-access-token'));
-      const h = await harness(undefined, true, PLUGIN_PROTOCOL_VERSION, grant(fetchUserToken));
-
-      const response = await h.send({ kind: 'userToken' });
-      expect(response).toEqual({
-        id: expect.any(String),
-        ok: true,
-        status: 200,
-        headers: {},
-        body: { token: 'member-access-token' },
+    it('does not serve the member token over the port', async () => {
+      const h = await harness(undefined, true, PLUGIN_PROTOCOL_VERSION, {
+        pluginOrigin: REAL_ORIGIN,
       });
-      expect(fetchUserToken).toHaveBeenLastCalledWith(false, { projectId: 'j1', userId: 'u1' });
 
-      await h.send({ kind: 'userToken', fresh: true });
-      expect(fetchUserToken).toHaveBeenLastCalledWith(true, { projectId: 'j1', userId: 'u1' });
+      const response = await h.send({ kind: 'userToken' } as unknown as PluginRequestInput);
 
-      expect(JSON.stringify(h.posted.map(entry => entry.data))).not.toContain(
-        'member-access-token'
-      );
-      h.bridge.dispose();
-    });
-
-    it.each([
-      ['neither an origin nor a source', undefined],
-      ['an origin but no source', { pluginOrigin: REAL_ORIGIN }],
-    ])('refuses the user token to a plugin with %s', async (_label, options) => {
-      const h = await harness(undefined, true, PLUGIN_PROTOCOL_VERSION, options);
-
-      const response = await h.send({ kind: 'userToken' });
-
-      expect(response).toMatchObject({ ok: false, error: { code: 'FORBIDDEN' } });
+      expect(response).toMatchObject({ ok: false, error: { code: 'PROTOCOL_ERROR' } });
       expect(response).not.toHaveProperty('body');
-      h.bridge.dispose();
-    });
-
-    it('refuses the user token to a plugin without its own origin, even with a source', async () => {
-      const fetchUserToken = vi.fn(() => Promise.resolve('member-access-token'));
-      const h = await harness(undefined, true, PLUGIN_PROTOCOL_VERSION, { fetchUserToken });
-
-      const response = await h.send({ kind: 'userToken' });
-
-      expect(response).toMatchObject({
-        ok: false,
-        error: { code: 'FORBIDDEN', message: 'This plugin may not request the user token' },
-      });
-      expect(fetchUserToken).not.toHaveBeenCalled();
-      h.bridge.dispose();
-    });
-
-    it('refuses a malformed fresh flag without calling the source', async () => {
-      const fetchUserToken = vi.fn(() => Promise.resolve('member-access-token'));
-      const h = await harness(undefined, true, PLUGIN_PROTOCOL_VERSION, grant(fetchUserToken));
-
-      for (const fresh of [false, 'true', 1, null]) {
-        const response = await h.send({
-          kind: 'userToken',
-          fresh,
-        } as unknown as PluginRequestInput);
-        expect(response).toMatchObject({ ok: false, error: { code: 'PROTOCOL_ERROR' } });
-      }
-      expect(fetchUserToken).not.toHaveBeenCalled();
-      h.bridge.dispose();
-    });
-
-    it('reports a failed user token fetch without the reason', async () => {
-      const fetchUserToken = vi.fn(() => Promise.reject(new Error('secret detail')));
-      const h = await harness(undefined, true, PLUGIN_PROTOCOL_VERSION, grant(fetchUserToken));
-
-      const response = await h.send({ kind: 'userToken' });
-
-      expect(response).toMatchObject({ ok: false, error: { code: 'FORBIDDEN' } });
-      expect(JSON.stringify(response)).not.toContain('secret detail');
-      h.bridge.dispose();
-    });
-
-    it('answers the user token while API requests hold every slot', async () => {
-      const h = await harness(
-        () => new Promise<Response>(() => undefined),
-        true,
-        PLUGIN_PROTOCOL_VERSION,
-        grant(() => Promise.resolve('member-access-token'))
-      );
-
-      for (let index = 0; index < 32; index += 1) {
-        h.tell({ kind: 'api', method: 'GET', path: `/api/data-marts/${String(index)}` });
-      }
-      await vi.waitFor(() => {
-        expect(h.fetchMock).toHaveBeenCalledTimes(32);
-      });
-
-      await expect(h.send({ kind: 'userToken' })).resolves.toMatchObject({
-        ok: true,
-        body: { token: 'member-access-token' },
-      });
       h.bridge.dispose();
     });
   });

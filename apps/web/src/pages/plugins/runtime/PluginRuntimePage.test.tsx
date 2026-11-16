@@ -23,9 +23,8 @@ vi.mock('../../../features/idp', () => ({
   useAuth: () => ({ user: authUser }),
 }));
 interface CapturedBridgeOptions {
-  context?: { route?: string; actions?: true; schedules?: true; userToken?: true };
+  context?: { route?: string; actions?: true; schedules?: true };
   pluginOrigin?: string;
-  fetchUserToken?: (fresh: boolean) => Promise<string>;
   onBroken?: () => void;
   onOpenExternal?: (url: string) => void;
   onNavigate?: (path: string) => void;
@@ -35,6 +34,13 @@ interface CapturedBridgeOptions {
 }
 const bridgeOptions: CapturedBridgeOptions = {};
 let bridgeCreations = 0;
+interface CapturedTokenChannel {
+  pluginOrigin: string;
+  session: { projectId: string; userId: string };
+  fetchUserToken: unknown;
+  dispose: ReturnType<typeof vi.fn>;
+}
+const tokenChannels: CapturedTokenChannel[] = [];
 const copyLink = vi.fn(() => Promise.resolve());
 
 vi.mock('../../../features/plugins', async () => ({
@@ -48,7 +54,6 @@ vi.mock('../../../features/plugins', async () => ({
     bridgeCreations += 1;
     bridgeOptions.context = options.context;
     bridgeOptions.pluginOrigin = options.pluginOrigin;
-    bridgeOptions.fetchUserToken = options.fetchUserToken;
     bridgeOptions.onBroken = options.onBroken;
     bridgeOptions.onOpenExternal = options.onOpenExternal;
     bridgeOptions.onNavigate = options.onNavigate;
@@ -56,6 +61,11 @@ vi.mock('../../../features/plugins', async () => ({
     bridgeOptions.onCopyLink = options.onCopyLink;
     bridgeOptions.onLoadingChange = options.onLoadingChange;
     return { dispose: () => undefined };
+  },
+  createUserTokenChannel: (options: Omit<CapturedTokenChannel, 'dispose'>) => {
+    const dispose = vi.fn();
+    tokenChannels.push({ ...options, dispose });
+    return { dispose };
   },
   fetchUserToken: () => Promise.resolve('user-token'),
   fetchRuntimeToken: () => () => Promise.resolve({ runtimeToken: 't', expiresIn: 900 }),
@@ -106,6 +116,7 @@ describe('PluginRuntimePage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     bridgeCreations = 0;
+    tokenChannels.length = 0;
     authUser = user;
     getEntryPoint.mockResolvedValue(ENTRY);
     window.history.replaceState(null, '', OPEN_BASE);
@@ -147,20 +158,28 @@ describe('PluginRuntimePage', () => {
     expect(frame).toHaveAttribute('referrerpolicy', 'no-referrer');
   });
 
-  it('gives a privileged plugin its origin and the user token source', async () => {
+  it('gives a privileged plugin its origin and a user token channel of its own', async () => {
     getEntryPoint.mockResolvedValue({
       ...ENTRY,
       deliveryUrl: 'https://plugin.example.com/app/index.html',
       privileged: true,
     });
-    renderPage();
+    const { unmount } = renderPage();
     await waitFor(() => {
       expect(bridgeCreations).toBe(1);
     });
 
     expect(bridgeOptions.pluginOrigin).toBe('https://plugin.example.com');
-    expect(bridgeOptions.fetchUserToken).toBe(fetchUserToken);
-    expect(bridgeOptions.context?.userToken).toBe(true);
+    expect(bridgeOptions.context).not.toHaveProperty('userToken');
+    expect(tokenChannels).toHaveLength(1);
+    expect(tokenChannels[0]).toMatchObject({
+      pluginOrigin: 'https://plugin.example.com',
+      session: { projectId: 'project-1', userId: 'u1' },
+      fetchUserToken,
+    });
+
+    unmount();
+    expect(tokenChannels[0].dispose).toHaveBeenCalledTimes(1);
   });
 
   // The backend already refuses the mark for its own origin; the page does not rely on it.
@@ -180,8 +199,7 @@ describe('PluginRuntimePage', () => {
     expect(frame).toHaveAttribute('sandbox', 'allow-scripts allow-downloads');
     expect(frame).toHaveAttribute('allow', '');
     expect(bridgeOptions.pluginOrigin).toBeUndefined();
-    expect(bridgeOptions.fetchUserToken).toBeUndefined();
-    expect(bridgeOptions.context).not.toHaveProperty('userToken');
+    expect(tokenChannels).toHaveLength(0);
   });
 
   it.each([{}, { privileged: false }])(
@@ -198,8 +216,7 @@ describe('PluginRuntimePage', () => {
       expect(frame).toHaveAttribute('sandbox', 'allow-scripts allow-downloads');
       expect(frame).toHaveAttribute('allow', '');
       expect(bridgeOptions.pluginOrigin).toBeUndefined();
-      expect(bridgeOptions.fetchUserToken).toBeUndefined();
-      expect(bridgeOptions.context).not.toHaveProperty('userToken');
+      expect(tokenChannels).toHaveLength(0);
     }
   );
 

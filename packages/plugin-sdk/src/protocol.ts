@@ -12,9 +12,7 @@ export const PLUGIN_PROTOCOL_VERSION = 1 as const;
 /**
  * The plugin's own origin, as the host sees it: a sandboxed frame is opaque, so
  * `event.origin` on a message from the plugin is the literal string "null", and the
- * plugin's outbound postMessage must target '*'. The one exception is a plugin the host
- * runs with a real origin; the host then requires that origin of the announcement instead
- * and addresses its handshake to it.
+ * plugin's outbound postMessage must target '*'.
  *
  * It is a real check in the one direction it applies -- the host requires it of the
  * plugin's announcement. It says nothing in the other direction: the host is served on
@@ -43,10 +41,7 @@ export interface PluginHelloMessage {
   nonce: string;
 }
 
-/**
- * Ambient information the host chooses to reveal. Display only: no tokens, ever. A token
- * a plugin is granted is requested over the port, never carried here.
- */
+/** Ambient information the host chooses to reveal. Display only: no tokens, ever. */
 export interface PluginHostContext {
   readonly pluginId: string;
   readonly installationId: string;
@@ -68,8 +63,6 @@ export interface PluginHostContext {
   readonly actions?: true;
   /** Set by a host that brokers installation schedules; an older host omits it. */
   readonly schedules?: true;
-  /** Set when the host will hand this plugin the member's access token on request. */
-  readonly userToken?: true;
 }
 
 export type PluginCredentialHandleDescriptor =
@@ -180,8 +173,6 @@ export type PluginRequest =
   | { id: string; kind: 'navigate'; path: string }
   | { id: string; kind: 'route'; path: string }
   | { id: string; kind: 'copyLink'; path?: string }
-  /** The member's access token; answered only to a plugin the host granted it to. */
-  | { id: string; kind: 'userToken'; fresh?: true }
   /** The merged state of the plugin's loading work; `progress` is a fraction from 0 to 1. */
   | { id: string; kind: 'loading'; active: boolean; progress?: number };
 

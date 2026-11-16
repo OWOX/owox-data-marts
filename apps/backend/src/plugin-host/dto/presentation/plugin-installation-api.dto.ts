@@ -85,10 +85,7 @@ export class PluginEntryApiDto {
     | { name: string; kind: 'ai'; models: Array<'fast' | 'reasoning' | 'embedding' | 'decision'> }
   >;
 
-  @ApiProperty({
-    description:
-      "Whether the host relaxes the sandbox and may hand this plugin the member's access token",
-  })
+  @ApiProperty()
   privileged: boolean;
 }
 

@@ -38,8 +38,7 @@ export class PluginTransportError extends Error {
 /**
  * Forwards every call to the host over a MessagePort.
  *
- * Through this transport the plugin holds no credential and issues no request to OWOX
- * (the member's token a host may grant travels by `ctx.userToken`, not here). It holds one end of a
+ * The plugin holds no credential and issues no request to OWOX. It holds one end of a
  * channel and can only ask the host to make calls the host has already decided are
  * allowed -- so the worst a compromised plugin can do is ask for something and be
  * refused.

@@ -20,6 +20,7 @@ export { describeVisibility, type GalleryVisibility, type PluginAudience } from 
 export { createPluginHostBridge, type FetchRuntimeToken } from './runtime/pluginHostBridge';
 export { fetchRuntimeToken } from './runtime/fetchRuntimeToken';
 export { fetchUserToken } from './runtime/fetchUserToken';
+export { createUserTokenChannel } from './runtime/userTokenChannel';
 export {
   appendRoute,
   canonicalPluginRoute,
