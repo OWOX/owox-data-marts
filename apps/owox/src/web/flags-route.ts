@@ -17,6 +17,8 @@ const DEFAULT_PUBLIC_ENV_WHITELIST = [
   'LICENSED_APP_EDITION',
   'LICENSE_ISSUANCE_ENABLED',
   'IDP_PROVIDER',
+  'CLOUD_BILLING_ENABLED',
+  'CLOUD_BILLING_API_ORIGIN',
   'MENU_GITHUB_COMMUNITY_VISIBLE',
   'MENU_UPGRADE_OPTIONS_VISIBLE',
   'MENU_FEEDBACK_VISIBLE',
@@ -74,12 +76,12 @@ const ResolvedOptionsSchema = OptionsBaseSchema.transform(data => {
 
 type ResolvedOptions = z.infer<typeof ResolvedOptionsSchema>;
 
-function resolveCloudBillingOrigin(): string | undefined {
+function validateCloudBillingConfig(): void {
   if (
     process.env.IDP_PROVIDER !== 'owox-better-auth' ||
     process.env.CLOUD_BILLING_ENABLED !== 'true'
   ) {
-    return undefined;
+    return;
   }
 
   const value = process.env.CLOUD_BILLING_API_ORIGIN ?? '';
@@ -89,8 +91,6 @@ function resolveCloudBillingOrigin(): string | undefined {
       'CLOUD_BILLING_API_ORIGIN must be an HTTPS origin when Cloud billing is enabled'
     );
   }
-
-  return url.origin;
 }
 
 /**
@@ -107,7 +107,7 @@ function resolveCloudBillingOrigin(): string | undefined {
  */
 export function registerPublicFlagsRoute(app: Express, rawOptions: FlagsRouteOptions = {}): void {
   const options: ResolvedOptions = ResolvedOptionsSchema.parse(rawOptions);
-  const cloudBillingOrigin = resolveCloudBillingOrigin();
+  validateCloudBillingConfig();
 
   app.get(options.path, (_req: Request, res: Response) => {
     const resultEntries = [...options.whiteSet]
@@ -118,7 +118,6 @@ export function registerPublicFlagsRoute(app: Express, rawOptions: FlagsRouteOpt
       resultEntries as Array<readonly [string, unknown]>
     );
     payload.PUBLIC_ORIGIN = resolvePublicOrigin();
-    payload.CLOUD_BILLING_API_ORIGIN = cloudBillingOrigin;
 
     // Do not cache this response; values may change across deploys
     res.setHeader('Cache-Control', 'no-store');

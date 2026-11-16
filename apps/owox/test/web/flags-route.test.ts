@@ -146,11 +146,14 @@ describe('registerPublicFlagsRoute', () => {
       }
     });
 
-    it('publishes the explicit billing origin independently of the IDP URL', () => {
+    it('exposes the billing flag and origin as public environment values', () => {
       process.env.CLOUD_BILLING_API_ORIGIN = 'https://billing.example.test/';
       registerPublicFlagsRoute(app);
       const flags = readFlags();
-      expect(flags).to.include({ CLOUD_BILLING_API_ORIGIN: 'https://billing.example.test' });
+      expect(flags).to.include({
+        CLOUD_BILLING_API_ORIGIN: 'https://billing.example.test/',
+        CLOUD_BILLING_ENABLED: 'true',
+      });
       expect(flags).not.to.have.property('IDP_OWOX_BASE_URL');
     });
 
@@ -175,18 +178,20 @@ describe('registerPublicFlagsRoute', () => {
       });
     }
 
-    it('ignores the origin when the flag is disabled', () => {
-      delete process.env.CLOUD_BILLING_ENABLED;
-      process.env.CLOUD_BILLING_API_ORIGIN = 'invalid';
-      registerPublicFlagsRoute(app);
-      expect(readFlags().CLOUD_BILLING_API_ORIGIN).to.equal(undefined);
-    });
-
-    it('does not expose billing with a self-hosted provider', () => {
-      process.env.IDP_PROVIDER = 'better-auth';
+    it('exposes the configured origin even when billing is disabled', () => {
+      process.env.CLOUD_BILLING_ENABLED = 'false';
       process.env.CLOUD_BILLING_API_ORIGIN = 'https://billing.example.test';
       registerPublicFlagsRoute(app);
-      expect(readFlags().CLOUD_BILLING_API_ORIGIN).to.equal(undefined);
+      expect(readFlags()).to.include({
+        CLOUD_BILLING_API_ORIGIN: 'https://billing.example.test',
+        CLOUD_BILLING_ENABLED: 'false',
+      });
+    });
+
+    it('does not require an origin with a self-hosted provider', () => {
+      process.env.IDP_PROVIDER = 'better-auth';
+      registerPublicFlagsRoute(app);
+      expect(readFlags()).not.to.have.property('CLOUD_BILLING_API_ORIGIN');
     });
   });
 });

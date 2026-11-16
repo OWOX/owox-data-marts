@@ -32,12 +32,20 @@ describe('CloudBillingTab', () => {
   const origin = 'https://ib.example.test';
 
   it('opens native billing in Cloud when the backend enables it', () => {
-    renderTab({ IDP_PROVIDER: 'owox-better-auth', CLOUD_BILLING_API_ORIGIN: origin });
+    renderTab({
+      IDP_PROVIDER: 'owox-better-auth',
+      CLOUD_BILLING_ENABLED: 'true',
+      CLOUD_BILLING_API_ORIGIN: `${origin}/`,
+    });
     expect(screen.getByText(`Credits from ${origin}`)).toBeInTheDocument();
   });
 
-  it('preserves the Cloud fallback when the flag is off', () => {
-    const renderBilling = renderTab({ IDP_PROVIDER: 'owox-better-auth' });
+  it.each([undefined, 'false'])('preserves the Cloud fallback when the flag is %s', enabled => {
+    const renderBilling = renderTab({
+      IDP_PROVIDER: 'owox-better-auth',
+      CLOUD_BILLING_ENABLED: enabled,
+      CLOUD_BILLING_API_ORIGIN: origin,
+    });
     expect(screen.getByText('Legacy billing')).toBeInTheDocument();
     expect(renderBilling).not.toHaveBeenCalled();
   });
@@ -45,6 +53,7 @@ describe('CloudBillingTab', () => {
   it('redirects self-hosted deep links before mounting billing', () => {
     const renderBilling = renderTab({
       IDP_PROVIDER: 'better-auth',
+      CLOUD_BILLING_ENABLED: 'true',
       CLOUD_BILLING_API_ORIGIN: origin,
     });
     expect(screen.getByText('Project overview')).toBeInTheDocument();

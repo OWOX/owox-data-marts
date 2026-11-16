@@ -3,12 +3,16 @@ import apiClient, { type AxiosRequestConfig } from '../../app/api/apiClient';
 import { useUser } from '../idp/hooks/useAuthState';
 
 export function getCloudBillingOrigin(flags: Record<string, unknown> | null): string | null {
-  if (flags?.IDP_PROVIDER !== 'owox-better-auth') return null;
+  if (flags?.IDP_PROVIDER !== 'owox-better-auth' || flags.CLOUD_BILLING_ENABLED !== 'true') {
+    return null;
+  }
   const origin = flags.CLOUD_BILLING_API_ORIGIN;
   if (typeof origin !== 'string') return null;
   try {
     const url = new URL(origin);
-    return url.protocol === 'https:' && url.origin === origin ? origin : null;
+    return url.protocol === 'https:' && (origin === url.origin || origin === `${url.origin}/`)
+      ? url.origin
+      : null;
   } catch {
     return null;
   }
