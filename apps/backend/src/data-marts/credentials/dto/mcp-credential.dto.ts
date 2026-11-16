@@ -8,12 +8,14 @@ export interface McpCredentialAiModelMappings {
   fast?: string;
   reasoning?: string;
   embedding?: string;
+  decision?: string;
 }
 
 export interface McpCredentialAiModelMappingModes {
   fast?: 'recommended' | 'override';
   reasoning?: 'recommended' | 'override';
   embedding?: 'recommended' | 'override';
+  decision?: 'recommended' | 'override';
 }
 
 export interface McpCredentialDefinitionDto {

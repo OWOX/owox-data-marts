@@ -85,7 +85,7 @@ export interface PluginEntryPoint {
   privileged?: boolean;
   credentialHandles: (
     | { name: string; kind: 'exact' }
-    | { name: string; kind: 'ai'; models: ('fast' | 'reasoning' | 'embedding')[] }
+    | { name: string; kind: 'ai'; models: ('fast' | 'reasoning' | 'embedding' | 'decision')[] }
   )[];
 }
 
@@ -96,7 +96,7 @@ export interface PluginRuntimeToken {
 }
 
 export interface OwoxAiStatus {
-  models: ('fast' | 'reasoning' | 'embedding')[];
+  models: ('fast' | 'reasoning' | 'embedding' | 'decision')[];
   /** True when calls use the project's credits. */
   billed: boolean;
 }

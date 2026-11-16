@@ -20,6 +20,7 @@ import {
   CredentialFieldDefinition,
   CredentialAiModelMappings,
   CredentialAiModelMappingModes,
+  CredentialAiModelMappingModesInput,
   CredentialDefinitionContract,
   CredentialDefinitionSource,
   CredentialPublicMetadata,
@@ -252,12 +253,14 @@ export class UpdateCredentialApiDto {
 
   @ApiPropertyOptional({
     type: 'object',
-    additionalProperties: { enum: ['recommended', 'override'] },
+    additionalProperties: { enum: ['recommended', 'override'], nullable: true },
     nullable: true,
+    description:
+      'Mode for each model key. A null value removes that key from the mappings, modes and sources. Only embedding and decision can be removed.',
   })
   @IsOptional()
   @IsObject()
-  aiModelMappingModes?: CredentialAiModelMappingModes | null;
+  aiModelMappingModes?: CredentialAiModelMappingModesInput | null;
 }
 
 export class GoogleOAuthCredentialSettingsApiDto {

@@ -197,4 +197,40 @@ describe('parseExternalCredentialManifest', () => {
 
     expect(parseExternalCredentialManifest(JSON.stringify(source))).toMatchObject({ ok: false });
   });
+
+  describe('decision models', () => {
+    const withAi = (type: string, recommendedDecision = 'decide-1') => {
+      const source = JSON.parse(manifest()) as { credential: Record<string, unknown> };
+      source.credential.ai = {
+        adapter: { type, baseUrl: 'https://api.acme.example/v1' },
+        models: {
+          language: [{ id: 'acme-fast', name: 'Acme Fast' }],
+          decision: [{ id: 'decide-1', name: 'Decide 1' }],
+        },
+        recommended: { fast: 'acme-fast', reasoning: 'acme-fast', decision: recommendedDecision },
+      };
+      return parseExternalCredentialManifest(JSON.stringify(source));
+    };
+
+    it('accepts a decision catalog with a declared recommendation', () => {
+      expect(withAi('openai')).toMatchObject({
+        ok: true,
+        contract: { ai: { recommended: { decision: 'decide-1' } } },
+      });
+    });
+
+    it('rejects a decision recommendation outside the decision catalog', () => {
+      expect(withAi('openai', 'missing')).toMatchObject({
+        ok: false,
+        detail: expect.stringContaining('decision must reference a declared decision model'),
+      });
+    });
+
+    it('rejects a decision catalog for an openai-compatible adapter', () => {
+      expect(withAi('openai-compatible')).toMatchObject({
+        ok: false,
+        detail: expect.stringContaining('do not support decision models'),
+      });
+    });
+  });
 });

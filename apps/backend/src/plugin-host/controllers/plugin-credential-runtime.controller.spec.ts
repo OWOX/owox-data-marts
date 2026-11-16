@@ -1,4 +1,4 @@
-import { ForbiddenException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { EventEmitter } from 'node:events';
 
 jest.mock('../../idp', () => ({
@@ -274,16 +274,22 @@ describe('PluginCredentialRuntimeController with OWOX AI', () => {
   function owoxRuntime(
     owoxAi = true,
     requirements: unknown[] = AI,
-    provided: string[] = ['fast', 'reasoning', 'embedding'],
+    provided: string[] = ['fast', 'reasoning', 'embedding', 'decision'],
     uninstalledAt: Date | null = null
   ) {
     const bindings = { resolveBinding: jest.fn(), markUsed: jest.fn() };
-    const aiService = { generate: jest.fn(), stream: jest.fn(), embed: jest.fn() };
+    const aiService = {
+      generate: jest.fn(),
+      stream: jest.fn(),
+      embed: jest.fn(),
+      decide: jest.fn(),
+    };
     const facade = {
       provides: jest.fn((models: string[]) => models.every(model => provided.includes(model))),
       generate: jest.fn(),
       stream: jest.fn(),
       embed: jest.fn(),
+      decide: jest.fn(),
     };
     const controller = new PluginCredentialRuntimeController(
       { findById: jest.fn().mockResolvedValue({ currentVersionId: 'version-1' }) } as never,
@@ -354,6 +360,73 @@ describe('PluginCredentialRuntimeController with OWOX AI', () => {
     expect(aiService.embed).not.toHaveBeenCalled();
     expect(bindings.resolveBinding).not.toHaveBeenCalled();
     expect(bindings.markUsed).not.toHaveBeenCalled();
+  });
+
+  const DECISION = [{ id: 'ai', optional: false, models: ['decision'] }];
+
+  it('routes decide to OWOX AI when the installation uses it', async () => {
+    const { controller, bindings, aiService, facade } = owoxRuntime(true, DECISION);
+    facade.decide.mockResolvedValue({ ok: true });
+
+    await expect(
+      controller.decide(
+        'ai',
+        { version: 1, model: 'decision', options: {} },
+        context,
+        request() as never
+      )
+    ).resolves.toEqual({ ok: true });
+    expect(facade.decide).toHaveBeenCalledWith(consumption, {}, expect.any(AbortSignal));
+    expect(aiService.decide).not.toHaveBeenCalled();
+    expect(bindings.resolveBinding).not.toHaveBeenCalled();
+    expect(bindings.markUsed).not.toHaveBeenCalled();
+  });
+
+  it('routes decide to the Credential and marks it used', async () => {
+    const { controller, bindings, aiService, facade } = owoxRuntime(false, DECISION);
+    const binding = { credentialId: 'credential-1', requirement: { key: 'ai' } };
+    bindings.resolveBinding.mockResolvedValue(binding);
+    aiService.decide.mockResolvedValue({ ok: 'credential' });
+
+    await expect(
+      controller.decide(
+        'ai',
+        { version: 1, model: 'decision', options: {} },
+        context,
+        request() as never
+      )
+    ).resolves.toEqual({ ok: 'credential' });
+    expect(aiService.decide).toHaveBeenCalledWith(binding, 'decision', {}, expect.any(AbortSignal));
+    expect(bindings.markUsed).toHaveBeenCalled();
+    expect(facade.decide).not.toHaveBeenCalled();
+  });
+
+  it('rejects decide without the decision model with 400', async () => {
+    const { controller, facade } = owoxRuntime(true, DECISION);
+
+    await expect(
+      controller.decide(
+        'ai',
+        { version: 1, model: 'fast', options: {} },
+        context,
+        request() as never
+      )
+    ).rejects.toThrow('The decision model mapping is required');
+    expect(facade.decide).not.toHaveBeenCalled();
+  });
+
+  it('answers 404 when the plugin does not declare decision', async () => {
+    const { controller, facade } = owoxRuntime(true);
+
+    await expect(
+      controller.decide(
+        'ai',
+        { version: 1, model: 'decision', options: {} },
+        context,
+        request() as never
+      )
+    ).rejects.toBeInstanceOf(NotFoundException);
+    expect(facade.decide).not.toHaveBeenCalled();
   });
 
   it('routes stream to OWOX AI as NDJSON when the installation uses it', async () => {
@@ -451,6 +524,23 @@ describe('PluginCredentialRuntimeController with OWOX AI', () => {
     expect(facade.provides).toHaveBeenCalledWith(['embedding', 'fast']);
     expect(facade.generate).not.toHaveBeenCalled();
     expect(bindings.resolveBinding).not.toHaveBeenCalled();
+  });
+
+  it('rejects generate and stream with the decision model', async () => {
+    const { controller, bindings, aiService, facade } = owoxRuntime();
+    const body = { version: 1, model: 'decision', options: {} } as never;
+    const error = new BadRequestException('A language model mapping is required');
+
+    await expect(controller.generate('ai', body, context, request() as never)).rejects.toThrow(
+      error
+    );
+    await expect(
+      controller.stream('ai', body, context, request() as never, streamResponse() as never)
+    ).rejects.toThrow(error);
+    expect(bindings.resolveBinding).not.toHaveBeenCalled();
+    expect(aiService.generate).not.toHaveBeenCalled();
+    expect(facade.generate).not.toHaveBeenCalled();
+    expect(facade.stream).not.toHaveBeenCalled();
   });
 
   it('lets a facade HttpException reach the client unchanged', async () => {

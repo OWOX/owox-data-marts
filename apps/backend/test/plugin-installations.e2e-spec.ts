@@ -45,6 +45,12 @@ const OWOX_AI_ENV = {
   AI_PLUGIN_FAST_MODEL: 'fast-model',
   AI_PLUGIN_REASONING_MODEL: 'reasoning-model',
 };
+const OWOX_AI_DECISION_ENV = {
+  AI_PLUGIN_DECISION_PROVIDER: 'cloudflare-workers-ai',
+  AI_PLUGIN_DECISION_BASE_URL: 'https://api.cloudflare.com/client/v4/accounts/account-1/ai',
+  AI_PLUGIN_DECISION_API_KEY: 'decision-key',
+  AI_PLUGIN_DECISION_MODEL: 'decision-model',
+};
 
 describe('Plugin installations (e2e)', () => {
   let app: INestApplication;
@@ -372,7 +378,9 @@ describe('Plugin installations (e2e)', () => {
     });
 
     afterEach(() => {
-      for (const name of Object.keys(OWOX_AI_ENV)) delete process.env[name];
+      for (const name of Object.keys({ ...OWOX_AI_ENV, ...OWOX_AI_DECISION_ENV })) {
+        delete process.env[name];
+      }
     });
 
     const installWithOwoxAi = () =>
@@ -388,6 +396,29 @@ describe('Plugin installations (e2e)', () => {
 
       expect(res.status).toBe(200);
       expect(res.body).toEqual({ models: ['fast', 'reasoning'], billed: expect.any(Boolean) });
+    });
+
+    it('lists decision in the OWOX AI status when the deployment provides it', async () => {
+      Object.assign(process.env, OWOX_AI_DECISION_ENV);
+
+      const res = await agent.get('/api/plugins/owox-ai').set(VIEWER_HEADER);
+
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({ models: ['decision'], billed: expect.any(Boolean) });
+    });
+
+    it('installs a decision-only plugin with OWOX AI when the deployment provides decision', async () => {
+      Object.assign(process.env, OWOX_AI_DECISION_ENV);
+      await versions.update(versionId, {
+        credentialRequirements: [{ id: 'ai', models: ['decision'] }],
+      });
+
+      const res = await installWithOwoxAi();
+
+      expect(res.status).toBe(200);
+      await expect(
+        installations.findOneByOrFail({ id: res.body.installationId })
+      ).resolves.toMatchObject({ owoxAi: true, userId: VIEWER.userId });
     });
 
     it('lets the OWOX AI selection through request validation', async () => {

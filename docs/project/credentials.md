@@ -54,6 +54,10 @@ you do not get a separate bill from one.
   deployment, the operator connects an AI provider.
 - **What the plugin gets.** The plugin sends its AI requests through OWOX Data Marts. It never
   gets an API key, and it cannot see which AI provider or model answers.
+- **Which models.** OWOX AI can provide `fast`, `reasoning`, `embedding`, and `decision`. A plugin
+  uses `decision` to [choose from a fixed list](../plugins/authoring-guide.md#choose-from-a-fixed-list).
+  The deployment turns on `decision` separately from the other models. Each decision question
+  needs `instructions`, and the state is text or JSON only.
 
 #### Credits
 
@@ -197,12 +201,26 @@ up to an hour after a key is disabled or deleted; disable the service account to
 
 ## AI mappings
 
-An AI-capable Credential maps logical `fast`, `reasoning`, and `embedding` capabilities to provider
-model IDs. A mapping can follow the definition's recommended model or override it with a fixed
+An AI-capable Credential maps logical `fast`, `reasoning`, `embedding`, and `decision` capabilities
+to provider model IDs. A mapping can follow the definition's recommended model or override it with a fixed
 provider model ID. Recommended mappings follow compatible definition updates automatically;
 overrides stay unchanged. If an override selected from the definition catalog later disappears,
-consumers that require it need setup again. An advanced manual model ID remains a deliberate manual
+consumers that require it need setup again.
+
+An advanced manual model ID remains a deliberate manual
 override and does not depend on catalog membership.
+
+Only OpenAI, Gemini, and Anthropic Credentials can map `decision`, the model that a plugin uses
+to [choose from a fixed list](../plugins/authoring-guide.md#choose-from-a-fixed-list). Existing
+Credentials of these three providers have `decision` with the recommended model. A plugin that
+declares `decision` then sends its data to the provider with the key of the Credential. To turn
+it off, set **Decision model** to **Not configured** in the Credential form.
+
+**Not configured** removes the mapping. A plugin installation can use an AI Credential only when
+the Credential maps every model that the plugin declares. If an installed plugin declares a model
+that you set to **Not configured**, the plugin cannot use this Credential for any model, also for
+`fast`. Each call fails with `400` until you map the model again or the member selects another
+Credential on the plugin's **Credentials** tab.
 
 ## External definitions
 

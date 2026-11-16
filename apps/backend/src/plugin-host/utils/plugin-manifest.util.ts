@@ -209,11 +209,15 @@ export const PluginManifestSchema = z
             message: 'logical ai models must be unique',
           });
         }
-        if (requirement.models.some(model => !['fast', 'reasoning', 'embedding'].includes(model))) {
+        if (
+          requirement.models.some(
+            model => !['fast', 'reasoning', 'embedding', 'decision'].includes(model)
+          )
+        ) {
           context.addIssue({
             code: z.ZodIssueCode.custom,
             path: ['credentials', index, 'models'],
-            message: 'ai models must be fast, reasoning, or embedding',
+            message: 'ai models must be fast, reasoning, embedding, or decision',
           });
         }
       }

@@ -140,6 +140,32 @@ describe('McpCredentialMapper', () => {
     }
   });
 
+  it('passes the decision mapping and mode in both directions', () => {
+    const dto = {
+      id: 'credential',
+      definition,
+      aiModelMappings: { fast: 'm', decision: 'decide-1' },
+      aiModelMappingModes: { fast: 'override', decision: 'recommended' },
+      ownerUsers: [],
+      contexts: [],
+      usedBy: [],
+    } as unknown as CredentialDto;
+    expect(mapper.toCredential(dto)).toMatchObject({
+      aiModelMappings: { decision: 'decide-1' },
+      aiModelMappingModes: { decision: 'recommended' },
+    });
+    expect(
+      mapper.toUpdateInput({
+        credentialId: 'credential',
+        aiModelMappings: { decision: 'decide-1' },
+        aiModelMappingModes: { decision: 'recommended' },
+      } as never)
+    ).toMatchObject({
+      aiModelMappings: { decision: 'decide-1' },
+      aiModelMappingModes: { decision: 'recommended' },
+    });
+  });
+
   it('allowlists unavailable definitions instead of returning the source object', () => {
     const input = {
       id: 'missing',

@@ -1,6 +1,9 @@
 import type { IframeRequester } from './iframe-transport.js';
 import { PluginTransportError } from './iframe-transport.js';
 import type {
+  Experimental_DecisionModelV4,
+  Experimental_DecisionModelV4CallOptions,
+  Experimental_DecisionModelV4Result,
   EmbeddingModelV4,
   EmbeddingModelV4CallOptions,
   EmbeddingModelV4Result,
@@ -25,6 +28,8 @@ export interface AiCredentialHandle extends LanguageModelV4 {
   readonly fast?: LanguageModelV4;
   readonly reasoning?: LanguageModelV4;
   readonly embedding?: EmbeddingModelV4;
+  /** Decides typed questions about a state. Pass it to `experimental_decide` from `ai`. */
+  readonly decision?: Experimental_DecisionModelV4;
 }
 
 export type PluginCredentialHandleDescriptor =
@@ -32,7 +37,7 @@ export type PluginCredentialHandleDescriptor =
   | {
       readonly name: string;
       readonly kind: 'ai';
-      readonly models: readonly ('fast' | 'reasoning' | 'embedding')[];
+      readonly models: readonly ('fast' | 'reasoning' | 'embedding' | 'decision')[];
     };
 
 export type PluginCredentials = Readonly<
@@ -167,7 +172,7 @@ function createExactHandle(requester: IframeRequester, handle: string): Credenti
 function createAiHandle(
   requester: IframeRequester,
   handle: string,
-  declaredModels: readonly ('fast' | 'reasoning' | 'embedding')[]
+  declaredModels: readonly ('fast' | 'reasoning' | 'embedding' | 'decision')[]
 ): AiCredentialHandle {
   const models = new Set(declaredModels);
   const directModel = models.has('fast')
@@ -182,6 +187,9 @@ function createAiHandle(
   }
   if (models.has('embedding')) {
     result.embedding = createEmbeddingModel(requester, handle, 'embedding');
+  }
+  if (models.has('decision')) {
+    result.decision = createDecisionModel(requester, handle);
   }
   return Object.freeze(result) as AiCredentialHandle;
 }
@@ -279,8 +287,39 @@ function createEmbeddingModel(
   };
 }
 
+function createDecisionModel(
+  requester: IframeRequester,
+  handle: string
+): Experimental_DecisionModelV4 {
+  return {
+    specificationVersion: 'v4',
+    provider: 'owox.credentials',
+    modelId: `${handle}:decision`,
+    supportedQuestionTypes: ['choice', 'score', 'boolean'],
+    async doDecide(options: Experimental_DecisionModelV4CallOptions) {
+      const response = await requester.send(
+        {
+          kind: 'credentialAi',
+          version: 1,
+          handle,
+          operation: 'decide',
+          model: 'decision',
+          options: encodeAiOptions(options),
+        },
+        options.abortSignal
+      );
+      if (!response.ok) throw new PluginTransportError(response.error);
+      if (!('body' in response)) throw invalidAiResponse();
+      return decodePortable(response.body) as Experimental_DecisionModelV4Result;
+    },
+  };
+}
+
 function encodeAiOptions(
-  options: LanguageModelV4CallOptions | EmbeddingModelV4CallOptions
+  options:
+    | LanguageModelV4CallOptions
+    | EmbeddingModelV4CallOptions
+    | Experimental_DecisionModelV4CallOptions
 ): Record<string, unknown> {
   const {
     abortSignal: _signal,
@@ -291,7 +330,7 @@ function encodeAiOptions(
   void _signal;
   void _headers;
   void _providerOptions;
-  const encoded = encodePortable(stripProviderOptions(rest, 0), 0, new WeakSet<object>());
+  const encoded = encodePortable(stripProviderOptions(rest), 0, new WeakSet<object>());
   if (!isRecord(encoded)) throw new TypeError('AI options must be portable');
   return encoded;
 }
@@ -390,15 +429,42 @@ function decodePortable(value: unknown, depth = 0): unknown {
   );
 }
 
-function stripProviderOptions(value: unknown, depth: number): unknown {
-  assertPortableDepth(depth);
-  if (Array.isArray(value)) return value.map(item => stripProviderOptions(item, depth + 1));
-  if (!isRecord(value)) return value;
-  return Object.fromEntries(
-    Object.entries(value)
-      .filter(([key]) => key !== 'providerOptions')
-      .map(([key, item]) => [key, stripProviderOptions(item, depth + 1)])
-  );
+/**
+ * Removes provider switches only where the AI SDK defines them: the options, each prompt message,
+ * content part, tool-result output and its content items, each tool, and each decision state part.
+ * Plugin data (JSON values, tool input, schemas, question and option IDs) keeps every key.
+ */
+function stripProviderOptions(options: Record<string, unknown>): Record<string, unknown> {
+  const rest = withoutProviderOptions(options);
+  if (Array.isArray(rest.prompt)) rest.prompt = rest.prompt.map(stripMessage);
+  if (Array.isArray(rest.tools)) rest.tools = rest.tools.map(withoutProviderOptions);
+  if (Array.isArray(rest.state)) rest.state = rest.state.map(withoutProviderOptions);
+  return rest;
+}
+
+function stripMessage(message: unknown): unknown {
+  const result = withoutProviderOptions(message);
+  if (Array.isArray(result.content)) result.content = result.content.map(stripPart);
+  return result;
+}
+
+function stripPart(part: unknown): unknown {
+  const result = withoutProviderOptions(part);
+  if (isRecord(result.output)) {
+    const output = withoutProviderOptions(result.output);
+    if (output.type === 'content' && Array.isArray(output.value)) {
+      output.value = output.value.map(withoutProviderOptions);
+    }
+    result.output = output;
+  }
+  return result;
+}
+
+function withoutProviderOptions<T>(value: T): T & Record<string, unknown> {
+  if (!isRecord(value)) return value as T & Record<string, unknown>;
+  const { providerOptions: _providerOptions, ...rest } = value;
+  void _providerOptions;
+  return rest as T & Record<string, unknown>;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

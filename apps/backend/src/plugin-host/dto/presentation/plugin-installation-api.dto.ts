@@ -82,7 +82,7 @@ export class PluginEntryApiDto {
   @ApiProperty({ type: [Object] })
   credentialHandles: Array<
     | { name: string; kind: 'exact' }
-    | { name: string; kind: 'ai'; models: Array<'fast' | 'reasoning' | 'embedding'> }
+    | { name: string; kind: 'ai'; models: Array<'fast' | 'reasoning' | 'embedding' | 'decision'> }
   >;
 
   @ApiProperty({

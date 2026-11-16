@@ -18,7 +18,7 @@ export function decodeCredentialAiOptions(
   }
 
   // Network headers and provider-specific switches stay on the trusted backend side.
-  const sanitized = stripProviderOptions(decoded, 0);
+  const sanitized = stripProviderOptions(decoded);
   delete sanitized.headers;
   delete sanitized.abortSignal;
   delete sanitized.providerOptions;
@@ -52,6 +52,20 @@ export function sanitizeCredentialAiEmbeddingResult(value: {
 }): unknown {
   return encodeCredentialAiValue({
     embeddings: value.embeddings,
+    ...(value.usage === undefined ? {} : { usage: value.usage }),
+    warnings: value.warnings,
+  });
+}
+
+export function sanitizeCredentialAiDecisionResult(value: {
+  answers: unknown;
+  rounding?: unknown;
+  usage?: unknown;
+  warnings: unknown;
+}): unknown {
+  return encodeCredentialAiValue({
+    answers: value.answers,
+    ...(value.rounding === undefined ? {} : { rounding: value.rounding }),
     ...(value.usage === undefined ? {} : { usage: value.usage }),
     warnings: value.warnings,
   });
@@ -130,23 +144,42 @@ function encodePortable(value: unknown, depth: number, seen: WeakSet<object>): u
   }
 }
 
-function stripProviderOptions(
-  value: Record<string, unknown>,
-  depth: number
-): Record<string, unknown> {
-  assertDepth(depth);
-  return Object.fromEntries(
-    Object.entries(value)
-      .filter(([key]) => key !== 'providerOptions')
-      .map(([key, item]) => [key, stripNestedProviderOptions(item, depth + 1)])
-  );
+/**
+ * Removes provider switches only where the AI SDK defines them: the options, each prompt message,
+ * content part, tool-result output and its content items, each tool, and each decision state part.
+ * Plugin data (JSON values, tool input, schemas, question and option IDs) keeps every key.
+ */
+function stripProviderOptions(options: Record<string, unknown>): Record<string, unknown> {
+  const rest = withoutProviderOptions(options);
+  if (Array.isArray(rest.prompt)) rest.prompt = rest.prompt.map(stripMessage);
+  if (Array.isArray(rest.tools)) rest.tools = rest.tools.map(withoutProviderOptions);
+  if (Array.isArray(rest.state)) rest.state = rest.state.map(withoutProviderOptions);
+  return rest;
 }
 
-function stripNestedProviderOptions(value: unknown, depth: number): unknown {
-  assertDepth(depth);
-  if (Array.isArray(value)) return value.map(item => stripNestedProviderOptions(item, depth + 1));
-  if (!isPlainRecord(value)) return value;
-  return stripProviderOptions(value, depth + 1);
+function stripMessage(message: unknown): unknown {
+  const result = withoutProviderOptions(message);
+  if (Array.isArray(result.content)) result.content = result.content.map(stripPart);
+  return result;
+}
+
+function stripPart(part: unknown): unknown {
+  const result = withoutProviderOptions(part);
+  if (isPlainRecord(result.output)) {
+    const output = withoutProviderOptions(result.output);
+    if (output.type === 'content' && Array.isArray(output.value)) {
+      output.value = output.value.map(withoutProviderOptions);
+    }
+    result.output = output;
+  }
+  return result;
+}
+
+function withoutProviderOptions<T>(value: T): T & Record<string, unknown> {
+  if (!isPlainRecord(value)) return value as T & Record<string, unknown>;
+  const { providerOptions: _providerOptions, ...rest } = value;
+  void _providerOptions;
+  return rest as T & Record<string, unknown>;
 }
 
 function stripProviderOutput(value: unknown, depth: number): unknown {

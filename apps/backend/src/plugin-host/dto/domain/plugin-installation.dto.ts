@@ -34,5 +34,5 @@ export type PluginCredentialHandleDto =
   | {
       readonly name: string;
       readonly kind: 'ai';
-      readonly models: readonly ('fast' | 'reasoning' | 'embedding')[];
+      readonly models: readonly ('fast' | 'reasoning' | 'embedding' | 'decision')[];
     };

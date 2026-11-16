@@ -144,7 +144,7 @@ Declare only the provider access the plugin needs in the release's immutable `pl
 {
   "credentials": [
     "github",
-    { "id": "ai", "models": ["fast", "reasoning", "embedding"] },
+    { "id": "ai", "models": ["fast", "reasoning", "embedding", "decision"] },
     { "id": "openai", "optional": true }
   ]
 }
@@ -182,9 +182,33 @@ const result = await generateText({ model, prompt: 'Summarize this report' });
 ```
 
 The common `"ai"` requirement declares `fast`, so the logical handle itself is the fast model and
-`ctx.credentials.ai.fast` is an alias for the same object. `reasoning` and `embedding` are available
-only when declared. Logical AI does not expose `asFetch()`. Provider-specific APIs require an exact
-provider requirement.
+`ctx.credentials.ai.fast` is an alias for the same object. `reasoning`, `embedding` and `decision`
+are available only when declared. Logical AI does not expose `asFetch()`. Provider-specific APIs
+require an exact provider requirement.
+
+The `decision` model answers typed questions about a state. It supports the question types
+`choice`, `score` and `boolean`. Pass it to `experimental_decide` from `ai` 7.x. Give each question
+`instructions`. The call fails when the project has no decision model. OWOX does not answer it with
+a chat model.
+
+```ts
+import { experimental_decide as decide } from 'ai';
+
+const decision = ctx.credentials.ai?.decision;
+if (!decision) throw new Error('Decision AI is not configured');
+
+const { answers } = await decide({
+  model: decision,
+  state: [{ type: 'text', text: 'Revenue by week for the last 12 weeks' }],
+  questions: {
+    component: {
+      type: 'choice',
+      instructions: 'Select the best component to show this data.',
+      criteria: { line_chart: null, bar_chart: null, table: null },
+    },
+  },
+});
+```
 
 The same accessor resolves a dynamic external handle without an SDK provider-name list:
 

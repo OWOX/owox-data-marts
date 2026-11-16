@@ -227,7 +227,9 @@ function compatibleDefinitionIds(
   definitions: readonly {
     id: string;
     supportsAi: boolean;
-    ai: { recommended?: Partial<Record<'fast' | 'reasoning' | 'embedding', string>> } | null;
+    ai: {
+      recommended?: Partial<Record<'fast' | 'reasoning' | 'embedding' | 'decision', string>>;
+    } | null;
   }[]
 ): string[] {
   if (requirement.definitionId !== null) {

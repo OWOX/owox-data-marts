@@ -96,11 +96,13 @@ const credentialFormSchema = z.object({
     fast: z.string(),
     reasoning: z.string(),
     embedding: z.string(),
+    decision: z.string(),
   }),
   aiModelMappingModes: z.object({
     fast: aiMappingModeSchema.optional(),
     reasoning: aiMappingModeSchema.optional(),
     embedding: aiMappingModeSchema.optional(),
+    decision: aiMappingModeSchema.optional(),
   }),
 });
 
@@ -401,7 +403,7 @@ function CredentialFormBody({
       return;
     }
 
-    const { mappings, modes } = serializeAiMappings(values);
+    const { mappings, modes, removed } = serializeAiMappings(values, credential);
     if (credential) {
       const dirty = form.formState.dirtyFields;
       const input: UpdateCredentialRequest = {};
@@ -424,7 +426,10 @@ function CredentialFormBody({
       if (dirty.contextIds) input.contextIds = values.contextIds;
       if (dirty.aiModelMappings || dirty.aiModelMappingModes) {
         input.aiModelMappings = Object.keys(mappings).length > 0 ? mappings : null;
-        input.aiModelMappingModes = Object.keys(modes).length > 0 ? modes : null;
+        const nextModes: Record<string, 'recommended' | 'override' | null> = { ...modes };
+        // The backend merges sent modes over stored ones, so a removed key needs an explicit null.
+        for (const key of removed) nextModes[key] = null;
+        input.aiModelMappingModes = Object.keys(nextModes).length > 0 ? nextModes : null;
       }
       await onSubmit(input);
       return;
@@ -1001,7 +1006,9 @@ function AiMappingField({
                   <SelectItem value='recommended'>Use recommended model</SelectItem>
                 )}
                 <SelectItem value='override'>Override model ID</SelectItem>
-                {mappingKey === 'embedding' && <SelectItem value='off'>Not configured</SelectItem>}
+                {(mappingKey === 'embedding' || mappingKey === 'decision') && (
+                  <SelectItem value='off'>Not configured</SelectItem>
+                )}
               </SelectContent>
             </Select>
           </FormItem>
@@ -1079,25 +1086,36 @@ function initialFieldValues(
   );
 }
 
-function serializeAiMappings(values: CredentialFormValues): {
+function serializeAiMappings(
+  values: CredentialFormValues,
+  credential: Credential | null
+): {
   mappings: Record<string, string>;
   modes: Record<string, 'recommended' | 'override'>;
+  removed: AiMappingKey[];
 } {
   const mappings: Record<string, string> = {};
   const modes: Record<string, 'recommended' | 'override'> = {};
+  const removed: AiMappingKey[] = [];
   for (const key of Object.keys(values.aiModelMappings) as AiMappingKey[]) {
     const value = values.aiModelMappings[key].trim();
     const mode = values.aiModelMappingModes[key];
     if (value && mode && mode !== 'off') {
       mappings[key] = value;
       modes[key] = mode;
+    } else if (
+      credential &&
+      (mode ?? 'off') === 'off' &&
+      (credential.aiModelMappingModes?.[key] || credential.aiModelMappings?.[key])
+    ) {
+      removed.push(key);
     }
   }
-  return { mappings, modes };
+  return { mappings, modes, removed };
 }
 
 function emptyAiMappings(): CredentialFormValues['aiModelMappings'] {
-  return { fast: '', reasoning: '', embedding: '' };
+  return { fast: '', reasoning: '', embedding: '', decision: '' };
 }
 
 function initialAiMappings(
@@ -1109,6 +1127,7 @@ function initialAiMappings(
     fast: mappings.fast ?? '',
     reasoning: mappings.reasoning ?? '',
     embedding: mappings.embedding ?? '',
+    decision: mappings.decision ?? '',
   };
 }
 
@@ -1126,6 +1145,7 @@ function recommendedMappings(
     fast: definition.ai?.recommended?.fast ?? '',
     reasoning: definition.ai?.recommended?.reasoning ?? '',
     embedding: definition.ai?.recommended?.embedding ?? '',
+    decision: definition.ai?.recommended?.decision ?? '',
   };
 }
 
@@ -1143,6 +1163,9 @@ function aiMappingKeys(definition: CredentialDefinition): AiMappingKey[] {
   if (definition.ai.recommended?.embedding || (definition.ai.models?.embedding.length ?? 0) > 0) {
     keys.push('embedding');
   }
+  if (definition.ai.recommended?.decision || (definition.ai.models?.decision?.length ?? 0) > 0) {
+    keys.push('decision');
+  }
   return keys;
 }
 
@@ -1151,12 +1174,15 @@ function aiModelsForKey(
   key: AiMappingKey
 ): { id: string; name: string }[] {
   if (!definition.ai?.models) return [];
-  return key === 'embedding' ? definition.ai.models.embedding : definition.ai.models.language;
+  if (key === 'embedding') return definition.ai.models.embedding;
+  if (key === 'decision') return definition.ai.models.decision ?? [];
+  return definition.ai.models.language;
 }
 
 function aiMappingLabel(key: AiMappingKey): string {
   if (key === 'fast') return 'Fast model';
   if (key === 'reasoning') return 'Reasoning model';
+  if (key === 'decision') return 'Decision model';
   return 'Embedding model';
 }
 

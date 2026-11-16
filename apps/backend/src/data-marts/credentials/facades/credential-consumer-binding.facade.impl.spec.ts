@@ -446,6 +446,77 @@ describe('CredentialConsumerBindingFacadeImpl', () => {
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 
+  describe('decision requirement', () => {
+    const decisionState = (mappings: object, modes: object) => {
+      const state = setup();
+      state.bindings.findOneBy.mockResolvedValue({
+        credentialId: 'credential-1',
+        requirementKey: 'ai',
+        requirementSnapshot: {
+          key: 'ai',
+          definitionId: null,
+          optional: false,
+          models: ['decision'],
+        },
+        active: true,
+      });
+      state.credentials.findOneBy.mockResolvedValue({
+        ...credential,
+        definitionId: 'openai',
+        aiModelMappings: mappings,
+        aiModelMappingModes: modes,
+        aiModelMappingSources: { decision: 'catalog' },
+      });
+      state.definitions.getForCredential.mockResolvedValue({
+        definitionId: 'openai',
+        source: 'builtin',
+        compatibilityLine: null,
+        contract: {
+          id: 'openai',
+          displayName: 'OpenAI',
+          description: '',
+          auth: { type: 'header', label: 'API key', headerName: 'authorization' },
+          origins: ['https://api.openai.com'],
+          ai: {
+            adapter: 'openai',
+            baseUrl: 'https://api.openai.com/v1',
+            models: {
+              language: [{ id: 'current-model', name: 'Current model' }],
+              embedding: [],
+              decision: [{ id: 'decide-1', name: 'Decide 1' }],
+            },
+            recommended: {
+              fast: 'current-model',
+              reasoning: 'current-model',
+              decision: 'decide-1',
+            },
+          },
+        },
+      });
+      return state;
+    };
+    const readyRequest = {
+      projectId: 'project-1',
+      userId: 'member-1',
+      roles: ['viewer'],
+      consumerType: 'plugin-installation' as const,
+      consumerId: 'installation-1',
+      requirements: [{ id: 'ai', optional: false, models: ['decision'] }],
+    };
+
+    it('requires setup when a plugin declares decision and the Credential has no decision mapping', async () => {
+      const state = decisionState({ fast: 'current-model' }, { fast: 'override' });
+      await expect(state.facade.assertConsumerReady(readyRequest)).rejects.toBeInstanceOf(
+        BadRequestException
+      );
+    });
+
+    it('binds when the decision mapping is recommended', async () => {
+      const state = decisionState({}, { decision: 'recommended' });
+      await expect(state.facade.assertConsumerReady(readyRequest)).resolves.not.toThrow();
+    });
+  });
+
   it('keeps an advanced manual AI model usable outside the catalog', async () => {
     const state = setup();
     state.bindings.findOneBy.mockResolvedValue({

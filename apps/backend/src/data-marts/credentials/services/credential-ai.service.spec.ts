@@ -2,9 +2,11 @@ const mockDoGenerate = jest.fn();
 const mockDoStream = jest.fn();
 const mockDoEmbed = jest.fn();
 const mockCreateOpenAI = jest.fn(
-  (_options: { apiKey: string; baseURL?: string; fetch?: typeof fetch }) => ({
+  (options: { apiKey: string; baseURL?: string; fetch?: typeof fetch }) => ({
     chat: jest.fn(() => ({ doGenerate: mockDoGenerate, doStream: mockDoStream })),
     embeddingModel: jest.fn(() => ({ doEmbed: mockDoEmbed })),
+    decisionModel: (id: string) =>
+      jest.requireActual('@ai-sdk/openai').createOpenAI(options).decisionModel(id),
   })
 );
 
@@ -13,14 +15,18 @@ jest.mock('@ai-sdk/openai', () => ({
   createOpenAI: (options: Parameters<typeof mockCreateOpenAI>[0]) => mockCreateOpenAI(options),
 }));
 jest.mock('@ai-sdk/anthropic', () => ({
-  createAnthropic: jest.fn(() => ({
+  createAnthropic: jest.fn((options: unknown) => ({
     chat: jest.fn(() => ({ doGenerate: mockDoGenerate, doStream: mockDoStream })),
+    decisionModel: (id: string) =>
+      jest.requireActual('@ai-sdk/anthropic').createAnthropic(options).decisionModel(id),
   })),
 }));
 jest.mock('@ai-sdk/google', () => ({
-  createGoogle: jest.fn(() => ({
+  createGoogle: jest.fn((options: unknown) => ({
     chat: jest.fn(() => ({ doGenerate: mockDoGenerate, doStream: mockDoStream })),
     embeddingModel: jest.fn(() => ({ doEmbed: mockDoEmbed })),
+    decisionModel: (id: string) =>
+      jest.requireActual('@ai-sdk/google').createGoogle(options).decisionModel(id),
   })),
 }));
 jest.mock('@ai-sdk/openai-compatible', () => ({
@@ -30,8 +36,22 @@ jest.mock('@ai-sdk/openai-compatible', () => ({
   })),
 }));
 
-import { APICallError, JSONParseError, type LanguageModelV4 } from '@ai-sdk/provider';
-import { BadGatewayException, BadRequestException, Logger } from '@nestjs/common';
+import {
+  APICallError,
+  Experimental_DecisionUnsupportedQuestionTypeError,
+  InvalidArgumentError,
+  JSONParseError,
+  UnsupportedFunctionalityError,
+  type Experimental_DecisionModelV4,
+  type LanguageModelV4,
+} from '@ai-sdk/provider';
+import {
+  BadGatewayException,
+  BadRequestException,
+  Logger,
+  PayloadTooLargeException,
+} from '@nestjs/common';
+import { BUILTIN_CREDENTIAL_DEFINITIONS } from './builtin-credential-definitions';
 import type { ResolvedCredentialBinding } from '../facades/credential-consumer-binding.facade';
 import { CredentialAiService } from './credential-ai.service';
 
@@ -44,7 +64,7 @@ const binding = (
     key: 'ai',
     definitionId: null,
     optional: false,
-    models: ['fast', 'reasoning', 'embedding'],
+    models: ['fast', 'reasoning', 'embedding', 'decision'],
     scopes: [],
   },
   secret: { value: 'real-secret-that-must-not-leak' },
@@ -66,6 +86,7 @@ const binding = (
     fast: 'fast-model',
     reasoning: 'reasoning-model',
     embedding: 'embedding-model',
+    decision: 'decision-model',
   },
 });
 
@@ -373,5 +394,336 @@ describe('CredentialAiService', () => {
         new AbortController().signal
       )
     ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  describe('decisions', () => {
+    const signal = () => new AbortController().signal;
+    const question = { type: 'choice', criteria: { a: null, b: null }, instructions: 'pick' };
+    const decisionModel = (supportedQuestionTypes: string[] = ['choice', 'score', 'boolean']) => {
+      const doDecide = jest.fn();
+      const model = {
+        specificationVersion: 'v4',
+        provider: 'p',
+        modelId: 'm',
+        supportedQuestionTypes,
+        doDecide,
+      } as unknown as Experimental_DecisionModelV4;
+      return { model, doDecide };
+    };
+    const failureLog = { subject: 'test', secret: 'x', trustedProvider: true };
+
+    it('decides and returns the sanitized result', async () => {
+      const { model, doDecide } = decisionModel();
+      doDecide.mockResolvedValue({
+        answers: { q: { type: 'choice', choice: 'a' } },
+        usage: { inputTokens: 1, outputTokens: 2 },
+        warnings: [],
+        providerMetadata: { openai: { private: true } },
+        response: { id: 'resp-1', modelId: 'secret-model' },
+      });
+      const abort = new AbortController();
+
+      const result = await service.decideWith(
+        model,
+        { state: [], questions: { q: question }, headers: { a: 'b' }, providerOptions: { x: {} } },
+        abort.signal,
+        failureLog
+      );
+
+      const options = doDecide.mock.calls[0][0];
+      expect(options).not.toHaveProperty('headers');
+      expect(options).not.toHaveProperty('providerOptions');
+      expect(options.abortSignal).toBe(abort.signal);
+      expect(result).toEqual({
+        answers: { q: { type: 'choice', choice: 'a' } },
+        usage: { inputTokens: 1, outputTokens: 2 },
+        warnings: [],
+      });
+    });
+
+    it('rejects an unsupported question type with 400 before the call', async () => {
+      const { model, doDecide } = decisionModel(['choice']);
+      const call = service.decideWith(
+        model,
+        { state: [], questions: { urgent: { type: 'boolean', instructions: 'x' } } },
+        signal(),
+        failureLog
+      );
+      await expect(call).rejects.toBeInstanceOf(BadRequestException);
+      await expect(call).rejects.toThrow(/urgent.*boolean/);
+      expect(doDecide).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ['a missing questions map', { state: [] }],
+      ['a null question entry', { state: [], questions: { q: null } }],
+      ['a state that is not a list', { state: 'text', questions: { q: question } }],
+    ])('rejects %s with 400 before the call', async (_name, options) => {
+      const { model, doDecide } = decisionModel();
+      await expect(service.decideWith(model, options, signal(), failureLog)).rejects.toBeInstanceOf(
+        BadRequestException
+      );
+      expect(doDecide).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ['empty questions', { state: [], questions: {} }],
+      ['a null state part', { state: [null], questions: { q: question } }],
+      ['a text part without text', { state: [{ type: 'text' }], questions: { q: question } }],
+      ['an unknown state part', { state: [{ type: 'image' }], questions: { q: question } }],
+      [
+        'missing instructions',
+        { state: [], questions: { q: { ...question, instructions: undefined } } },
+      ],
+      ['blank instructions', { state: [], questions: { q: { ...question, instructions: '  ' } } }],
+      [
+        'empty object instructions',
+        { state: [], questions: { q: { ...question, instructions: {} } } },
+      ],
+      [
+        'empty list instructions',
+        { state: [], questions: { q: { ...question, instructions: [] } } },
+      ],
+      [
+        'a choice with one option',
+        { state: [], questions: { q: { ...question, criteria: { a: null } } } },
+      ],
+      [
+        'a choice with list criteria',
+        { state: [], questions: { q: { ...question, criteria: ['a', 'b'] } } },
+      ],
+      [
+        'a score with one level',
+        { state: [], questions: { q: { type: 'score', instructions: 'rate', criteria: ['low'] } } },
+      ],
+      [
+        'a score with an empty level',
+        {
+          state: [],
+          questions: { q: { type: 'score', instructions: 'rate', criteria: ['low', ''] } },
+        },
+      ],
+      [
+        '65 questions',
+        {
+          state: [],
+          questions: Object.fromEntries(
+            Array.from({ length: 65 }, (_, index) => [`q${index}`, question])
+          ),
+        },
+      ],
+      ['a question ID with a space', { state: [], questions: { 'my question': question } }],
+      [
+        'an empty option ID',
+        { state: [], questions: { q: { ...question, criteria: { '': null, b: null } } } },
+      ],
+      [
+        'a score with 11 levels',
+        {
+          state: [],
+          questions: {
+            q: {
+              type: 'score',
+              instructions: 'rate',
+              criteria: Array.from({ length: 11 }, (_, index) => `level ${index}`),
+            },
+          },
+        },
+      ],
+      [
+        'a file part without data',
+        { state: [{ type: 'file', mediaType: 'image/png' }], questions: { q: question } },
+      ],
+      [
+        'a file part with untyped data',
+        {
+          state: [{ type: 'file', mediaType: 'image/png', data: { data: 'abc' } }],
+          questions: { q: question },
+        },
+      ],
+      [
+        'boolean criteria that are not an object',
+        { state: [], questions: { q: { type: 'boolean', instructions: 'x', criteria: 'yes' } } },
+      ],
+    ])('rejects %s with 400 for every route, before the call', async (_name, options) => {
+      const { model, doDecide } = decisionModel();
+      const error = await service
+        .decideWith(model, options, signal(), failureLog)
+        .catch((e: unknown) => e);
+      expect(error).toBeInstanceOf(BadRequestException);
+      expect((error as Error).message).not.toMatch(/OWOX|openai|gemini|anthropic/i);
+      expect(doDecide).not.toHaveBeenCalled();
+    });
+
+    it.each(['__proto__', 'constructor', 'toString'])(
+      'rejects the question ID %s with 400 before the call',
+      async id => {
+        const { model, doDecide } = decisionModel();
+        // Parsed JSON keeps `__proto__` as an own key, as a request body does.
+        const options: unknown = JSON.parse(
+          JSON.stringify({ state: [], questions: { q1: question } }).replace(
+            '"q1":',
+            `"${id}":${JSON.stringify(question)},"q1":`
+          )
+        );
+        expect(Object.keys((options as { questions: object }).questions)).toEqual([id, 'q1']);
+
+        await expect(
+          service.decideWith(model, options, signal(), failureLog)
+        ).rejects.toBeInstanceOf(BadRequestException);
+        expect(doDecide).not.toHaveBeenCalled();
+      }
+    );
+
+    it('accepts the limits: 64 questions, 10 score levels, and typed file data', async () => {
+      const { model, doDecide } = decisionModel();
+      doDecide.mockResolvedValue({ answers: {}, usage: {}, warnings: [] });
+      const questions: Record<string, unknown> = Object.fromEntries(
+        Array.from({ length: 63 }, (_, index) => [`q.${index}-a_b`, question])
+      );
+      questions.score = {
+        type: 'score',
+        instructions: 'rate',
+        criteria: Array.from({ length: 10 }, (_, index) => `level ${index}`),
+      };
+      await service.decideWith(
+        model,
+        {
+          state: [
+            { type: 'file', mediaType: 'image/png', data: { type: 'data', data: 'iVBORw0K' } },
+            {
+              type: 'file',
+              mediaType: 'image/png',
+              data: {
+                type: 'url',
+                url: { $owoxCredentialPortableType: 'url', value: 'https://a.test/x.png' },
+              },
+            },
+          ],
+          questions,
+        },
+        signal(),
+        failureLog
+      );
+      expect(doDecide).toHaveBeenCalledTimes(1);
+    });
+
+    it('accepts object instructions, and a string that only looks like JSON', async () => {
+      const { model, doDecide } = decisionModel();
+      doDecide.mockResolvedValue({ answers: {}, usage: {}, warnings: [] });
+      await service.decideWith(
+        model,
+        {
+          state: [{ type: 'json', value: null }],
+          questions: {
+            a: { ...question, instructions: { goal: 'pick' } },
+            b: { ...question, instructions: '{}' },
+            c: { type: 'boolean', instructions: 'x', criteria: null },
+          },
+        },
+        signal(),
+        failureLog
+      );
+      expect(doDecide).toHaveBeenCalledTimes(1);
+    });
+
+    it.each([
+      [
+        'InvalidArgumentError',
+        new InvalidArgumentError({ argument: 'questions', message: 'Google Decisions requires x' }),
+      ],
+      [
+        'UnsupportedFunctionalityError',
+        new UnsupportedFunctionalityError({ functionality: 'OpenAI decision image media type' }),
+      ],
+    ])('maps %s from the provider SDK to a neutral 400', async (_name, sdkError) => {
+      const { model, doDecide } = decisionModel();
+      doDecide.mockRejectedValue(sdkError);
+      const error = await service
+        .decideWith(model, { state: [], questions: { q: question } }, signal(), failureLog)
+        .catch((e: unknown) => e);
+      expect(error).toBeInstanceOf(BadRequestException);
+      expect((error as Error).message).toBe(
+        'The selected AI model cannot run this decision request'
+      );
+    });
+
+    it('maps DecisionUnsupportedQuestionTypeError to 400', async () => {
+      const { model, doDecide } = decisionModel();
+      doDecide.mockRejectedValue(
+        new Experimental_DecisionUnsupportedQuestionTypeError({
+          questionId: 'urgent',
+          questionType: 'boolean',
+          provider: 'p',
+          modelId: 'm',
+        })
+      );
+      const call = service.decideWith(
+        model,
+        { state: [], questions: { urgent: { type: 'boolean', instructions: 'x' } } },
+        signal(),
+        failureLog
+      );
+      await expect(call).rejects.toBeInstanceOf(BadRequestException);
+      await expect(call).rejects.toThrow(/urgent.*boolean/);
+    });
+
+    it('lets a 413 from the model reach the plugin', async () => {
+      const { model, doDecide } = decisionModel();
+      doDecide.mockRejectedValue(new PayloadTooLargeException('too big'));
+      await expect(
+        service.decideWith(model, { state: [], questions: { q: question } }, signal(), failureLog)
+      ).rejects.toMatchObject({ status: 413 });
+    });
+
+    it('sends OpenAI, Gemini and Anthropic decision calls through the trusted fetch', async () => {
+      for (const id of ['openai', 'gemini', 'anthropic']) {
+        const definition = BUILTIN_CREDENTIAL_DEFINITIONS.find(item => item.id === id)!;
+        credentialFetch.runRaw.mockReset();
+        credentialFetch.runRaw.mockRejectedValue(new BadGatewayException('down'));
+        const target = {
+          ...binding(),
+          definition,
+          aiModelMappings: { fast: 'f', reasoning: 'r', decision: 'd' },
+        } as ResolvedCredentialBinding;
+
+        await expect(
+          service.decide(
+            target,
+            'decision',
+            { state: [{ type: 'text', text: 'hi' }], questions: { q: question } },
+            signal()
+          )
+        ).rejects.toMatchObject({ status: 502 });
+
+        expect(credentialFetch.runRaw).toHaveBeenCalledTimes(1);
+        expect(credentialFetch.runRaw.mock.calls[0][1].url.startsWith(definition.ai!.baseUrl)).toBe(
+          true
+        );
+      }
+    });
+
+    it.each(['openrouter', 'openai-compatible'] as const)(
+      'rejects decision for %s Credentials with a neutral 400',
+      async adapter => {
+        const base = binding();
+        const target = {
+          ...base,
+          definition: { ...base.definition, ai: { adapter, baseUrl: 'https://x.example/v1' } },
+        } as ResolvedCredentialBinding;
+        const call = service.decide(target, 'decision', { state: [], questions: {} }, signal());
+        await expect(call).rejects.toThrow(
+          'The selected Credential does not support decision models'
+        );
+        await expect(call).rejects.not.toThrow(/openrouter|openai-compatible/);
+      }
+    );
+
+    it('answers 400 when the decision mapping is not configured', async () => {
+      const target = { ...binding(), aiModelMappings: { fast: 'f' } } as ResolvedCredentialBinding;
+      await expect(
+        service.decide(target, 'decision', { state: [], questions: {} }, signal())
+      ).rejects.toThrow('AI model mapping decision is not configured');
+    });
   });
 });

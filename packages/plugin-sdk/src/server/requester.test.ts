@@ -263,6 +263,26 @@ describe('createServerRequester', () => {
     );
   });
 
+  it('decides through the logical AI Credential', async () => {
+    const answers = { component: { type: 'choice', choice: 'table' } };
+    const { fetchMock, requester } = setup(jsonResponse(200, { answers, warnings: [] }));
+    const ai = createPluginCredentials(requester, [
+      { name: 'ai', kind: 'ai', models: ['decision'] },
+    ]).ai!;
+
+    await expect(
+      ai.decision!.doDecide({
+        state: [{ type: 'text', text: 'Revenue by week' }],
+        questions: {
+          component: { type: 'choice', instructions: 'Pick', criteria: { table: null } },
+        },
+      })
+    ).resolves.toMatchObject({ answers });
+    expect(String(fetchMock.mock.calls[0]![0])).toBe(
+      'https://app.owox.test/api/plugins/runtime/credentials/ai/ai/decide'
+    );
+  });
+
   it('passes an AI refusal through as the frame would see it', async () => {
     const { requester } = setup(
       jsonResponse(403, { code: 'CREDENTIAL_REJECTED', message: 'The provider rejected the key' })

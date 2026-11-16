@@ -12,6 +12,11 @@ import { createOpenAI } from '@ai-sdk/openai';
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
 import {
   APICallError,
+  Experimental_DecisionUnsupportedQuestionTypeError,
+  InvalidArgumentError,
+  UnsupportedFunctionalityError,
+  type Experimental_DecisionModelV4,
+  type Experimental_DecisionModelV4CallOptions,
   type EmbeddingModelV4,
   type EmbeddingModelV4CallOptions,
   type LanguageModelV4,
@@ -20,6 +25,7 @@ import {
 } from '@ai-sdk/provider';
 import type { CredentialFetchRequestApiDto } from '../dto/credential-fetch-api.dto';
 import type {
+  CredentialAiDecisionModelKey,
   CredentialAiEmbeddingModelKey,
   CredentialAiLanguageModelKey,
 } from '../dto/credential-ai-api.dto';
@@ -27,11 +33,13 @@ import type { ResolvedCredentialBinding } from '../facades/credential-consumer-b
 import { BUILTIN_CREDENTIAL_DEFINITION_IDS } from './builtin-credential-definitions';
 import {
   decodeCredentialAiOptions,
+  sanitizeCredentialAiDecisionResult,
   sanitizeCredentialAiEmbeddingResult,
   sanitizeCredentialAiGenerateResult,
   sanitizeCredentialAiStreamPart,
 } from './credential-ai-portable';
 import { CredentialFetchService } from './credential-fetch.service';
+import { assertDecisionRequest, unsupportedQuestionType } from './decision-request';
 
 const PROVIDER_KEY_PLACEHOLDER = 'owox-host-injected';
 export const AI_TIMEOUT_MS = 120_000;
@@ -99,6 +107,20 @@ export class CredentialAiService {
     );
   }
 
+  async decide(
+    binding: ResolvedCredentialBinding,
+    modelKey: CredentialAiDecisionModelKey,
+    portableOptions: unknown,
+    signal: AbortSignal
+  ): Promise<unknown> {
+    return this.decideWith(
+      this.createDecisionModel(binding, modelKey, signal),
+      portableOptions,
+      signal,
+      credentialFailureLog(binding, modelKey)
+    );
+  }
+
   async generateWith(
     model: LanguageModelV4,
     portableOptions: unknown,
@@ -149,6 +171,35 @@ export class CredentialAiService {
       const result = await model.doEmbed(options);
       return sanitizeCredentialAiEmbeddingResult(result);
     } catch (error) {
+      throw this.normalizeError(error, failureLog);
+    }
+  }
+
+  async decideWith(
+    model: Experimental_DecisionModelV4,
+    portableOptions: unknown,
+    signal: AbortSignal,
+    failureLog: AiFailureLog
+  ): Promise<unknown> {
+    try {
+      const options = decodeCredentialAiOptions(
+        portableOptions,
+        signal
+      ) as Experimental_DecisionModelV4CallOptions;
+      assertDecisionRequest(options, model.supportedQuestionTypes);
+      const result = await model.doDecide(options);
+      return sanitizeCredentialAiDecisionResult(result);
+    } catch (error) {
+      if (Experimental_DecisionUnsupportedQuestionTypeError.isInstance(error)) {
+        throw unsupportedQuestionType(error.questionId, error.questionType);
+      }
+      // The SDK checks the request before any network call; its text names the provider.
+      if (
+        InvalidArgumentError.isInstance(error) ||
+        UnsupportedFunctionalityError.isInstance(error)
+      ) {
+        throw new BadRequestException('The selected AI model cannot run this decision request');
+      }
       throw this.normalizeError(error, failureLog);
     }
   }
@@ -238,6 +289,41 @@ export class CredentialAiService {
     }
   }
 
+  private createDecisionModel(
+    binding: ResolvedCredentialBinding,
+    modelKey: CredentialAiDecisionModelKey,
+    signal: AbortSignal
+  ): Experimental_DecisionModelV4 {
+    const ai = binding.definition.ai;
+    if (!ai) throw new BadRequestException('The selected Credential is not an AI Credential');
+    const modelId = requiredModelId(binding, modelKey);
+    const trustedFetch = this.createTrustedFetch(binding, signal);
+
+    switch (ai.adapter) {
+      case 'openai':
+        return createOpenAI({
+          apiKey: PROVIDER_KEY_PLACEHOLDER,
+          baseURL: ai.baseUrl,
+          fetch: trustedFetch,
+        }).decisionModel(modelId);
+      case 'anthropic':
+        return createAnthropic({
+          apiKey: PROVIDER_KEY_PLACEHOLDER,
+          baseURL: ai.baseUrl,
+          fetch: trustedFetch,
+        }).decisionModel(modelId);
+      case 'google':
+        return createGoogle({
+          apiKey: PROVIDER_KEY_PLACEHOLDER,
+          baseURL: ai.baseUrl,
+          fetch: trustedFetch,
+        }).decisionModel(modelId);
+      case 'openrouter':
+      case 'openai-compatible':
+        throw new BadRequestException('The selected Credential does not support decision models');
+    }
+  }
+
   private createTrustedFetch(
     binding: ResolvedCredentialBinding,
     outerSignal: AbortSignal
@@ -289,7 +375,10 @@ function failureDetail(error: unknown, failureLog: AiFailureLog): string {
 
 function credentialFailureLog(
   binding: ResolvedCredentialBinding,
-  modelKey: CredentialAiLanguageModelKey | CredentialAiEmbeddingModelKey
+  modelKey:
+    | CredentialAiLanguageModelKey
+    | CredentialAiEmbeddingModelKey
+    | CredentialAiDecisionModelKey
 ): AiFailureLog {
   return {
     subject: `Credential ${binding.credentialId}, model ${modelKey}`,
@@ -313,7 +402,10 @@ function secretStrings(value: unknown): string[] {
 
 function requiredModelId(
   binding: ResolvedCredentialBinding,
-  modelKey: CredentialAiLanguageModelKey | CredentialAiEmbeddingModelKey
+  modelKey:
+    | CredentialAiLanguageModelKey
+    | CredentialAiEmbeddingModelKey
+    | CredentialAiDecisionModelKey
 ): string {
   const modelId = binding.aiModelMappings?.[modelKey]?.trim();
   if (!modelId) throw new BadRequestException(`AI model mapping ${modelKey} is not configured`);

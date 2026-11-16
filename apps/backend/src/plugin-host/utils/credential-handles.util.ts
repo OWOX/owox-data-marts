@@ -9,7 +9,7 @@ export function toCredentialHandles(
       ? {
           name: requirement.key,
           kind: 'ai' as const,
-          models: requirement.models as Array<'fast' | 'reasoning' | 'embedding'>,
+          models: requirement.models as Array<'fast' | 'reasoning' | 'embedding' | 'decision'>,
         }
       : { name: requirement.key, kind: 'exact' as const }
   );

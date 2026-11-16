@@ -134,6 +134,23 @@ export class OwoxAiFacadeImpl implements OwoxAiFacade {
     return result;
   }
 
+  async decide(
+    context: PluginAiConsumptionContext,
+    portableOptions: unknown,
+    signal: AbortSignal
+  ): Promise<unknown> {
+    await this.authorize(context, 'decision');
+    const result = await this.ai.decideWith(
+      this.owoxAiModels.decisionModel(signal),
+      portableOptions,
+      signal,
+      this.owoxAiModels.failureLog('decision')
+    );
+    const usage = (result as { usage?: { inputTokens?: number; outputTokens?: number } }).usage;
+    this.record(context, (usage?.inputTokens ?? 0) + (usage?.outputTokens ?? 0));
+    return result;
+  }
+
   /** Runs before the provider call, outside the AI error normalization that changes errors to 502. */
   private async authorize(
     context: PluginAiConsumptionContext,

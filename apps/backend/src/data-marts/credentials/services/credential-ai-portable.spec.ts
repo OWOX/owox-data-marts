@@ -2,6 +2,7 @@ import { BadRequestException } from '@nestjs/common';
 import {
   decodeCredentialAiOptions,
   encodeCredentialAiValue,
+  sanitizeCredentialAiDecisionResult,
   sanitizeCredentialAiGenerateResult,
   sanitizeCredentialAiStreamPart,
 } from './credential-ai-portable';
@@ -33,6 +34,67 @@ describe('Credential AI portable contract', () => {
     expect(content[0].data).toEqual(new Uint8Array([1, 2, 3]));
     expect(content[1].data).toEqual(new URL('https://files.example.test/a.pdf'));
     expect(JSON.stringify(decoded)).not.toContain('providerOptions');
+  });
+
+  it('keeps plugin data keys named providerOptions and removes only the defined switches', () => {
+    const switches = { openai: { store: true } };
+    const encoded = encodeCredentialAiValue({
+      state: [
+        { type: 'text', text: 'x', providerOptions: switches },
+        { type: 'json', value: { providerOptions: 'a column name' } },
+        { type: 'file', mediaType: 'image/png', data: { type: 'data', data: new Uint8Array([7]) } },
+      ],
+      questions: {
+        providerOptions: {
+          type: 'choice',
+          instructions: 'Pick',
+          criteria: { providerOptions: null },
+        },
+      },
+      prompt: [
+        {
+          role: 'tool',
+          content: [
+            {
+              type: 'tool-result',
+              toolCallId: 'c1',
+              toolName: 'lookup',
+              output: { type: 'json', value: { providerOptions: 1 }, providerOptions: switches },
+            },
+          ],
+        },
+      ],
+      tools: [{ type: 'function', name: 'lookup', inputSchema: {}, providerOptions: switches }],
+    });
+
+    const decoded = decodeCredentialAiOptions(encoded, new AbortController().signal);
+
+    expect(JSON.stringify(decoded)).not.toContain('"store"');
+    expect(decoded.state).toEqual([
+      { type: 'text', text: 'x' },
+      { type: 'json', value: { providerOptions: 'a column name' } },
+      { type: 'file', mediaType: 'image/png', data: { type: 'data', data: new Uint8Array([7]) } },
+    ]);
+    expect(decoded.questions).toEqual({
+      providerOptions: {
+        type: 'choice',
+        instructions: 'Pick',
+        criteria: { providerOptions: null },
+      },
+    });
+    expect(decoded.prompt).toEqual([
+      {
+        role: 'tool',
+        content: [
+          {
+            type: 'tool-result',
+            toolCallId: 'c1',
+            toolName: 'lookup',
+            output: { type: 'json', value: { providerOptions: 1 } },
+          },
+        ],
+      },
+    ]);
   });
 
   it('strips provider metadata, raw usage and response/request echoes from generate results', () => {
@@ -86,5 +148,23 @@ describe('Credential AI portable contract', () => {
         new AbortController().signal
       )
     ).toThrow(BadRequestException);
+  });
+
+  it('keeps answers, rounding, usage and warnings only', () => {
+    const result = sanitizeCredentialAiDecisionResult({
+      answers: { q: { type: 'choice', choice: 'a' } },
+      rounding: { scoreDecimals: 2 },
+      usage: { inputTokens: 1, outputTokens: 2 },
+      warnings: [],
+      response: { id: 'resp-1', modelId: 'model' },
+      providerMetadata: { openai: {} },
+    } as never);
+
+    expect(result).toEqual({
+      answers: { q: { type: 'choice', choice: 'a' } },
+      rounding: { scoreDecimals: 2 },
+      usage: { inputTokens: 1, outputTokens: 2 },
+      warnings: [],
+    });
   });
 });

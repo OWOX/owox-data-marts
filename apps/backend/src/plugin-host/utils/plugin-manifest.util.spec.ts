@@ -140,6 +140,24 @@ describe('parsePluginManifest', () => {
     });
   });
 
+  it.each([[['decision']], [['fast', 'decision']]])(
+    'accepts decision in logical ai models %j',
+    models => {
+      expect(parsePluginManifest(raw({ credentials: [{ id: 'ai', models }] }))).toMatchObject({
+        ok: true,
+      });
+    }
+  );
+
+  it('names decision in the unknown-model message', () => {
+    expect(
+      parsePluginManifest(raw({ credentials: [{ id: 'ai', models: ['vision'] }] }))
+    ).toMatchObject({
+      ok: false,
+      detail: expect.stringContaining('ai models must be fast, reasoning, embedding, or decision'),
+    });
+  });
+
   it('rejects duplicate Credential requirement handles', () => {
     expect(parsePluginManifest(raw({ credentials: ['github', { id: 'github' }] }))).toMatchObject({
       ok: false,
