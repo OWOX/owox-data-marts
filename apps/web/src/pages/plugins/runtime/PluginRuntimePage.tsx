@@ -156,6 +156,7 @@ export function PluginRuntime({
     privilegedOrigin !== undefined &&
     privilegedOrigin !== OPAQUE_ORIGIN &&
     privilegedOrigin !== window.location.origin;
+  const pluginOrigin = isPrivileged ? privilegedOrigin : undefined;
 
   // One plugin's failed handshake says nothing about the next one, and this component
   // survives the switch between two installations.
@@ -187,7 +188,7 @@ export function PluginRuntime({
         // A rebuilt bridge resumes where the address bar already points.
         route: lastRouteRef.current,
       },
-      pluginOrigin: isPrivileged ? privilegedOrigin : undefined,
+      pluginOrigin,
       fetchRuntimeToken: fetchRuntimeToken(installationId),
       onOpenExternal: openExternal,
       onNavigate: navigateInApp,
@@ -200,10 +201,10 @@ export function PluginRuntime({
     });
 
     const userTokenChannel =
-      isPrivileged && privilegedOrigin
+      pluginOrigin !== undefined
         ? createUserTokenChannel({
             iframe,
-            pluginOrigin: privilegedOrigin,
+            pluginOrigin,
             session: { projectId, userId },
             fetchUserToken,
           })
@@ -227,8 +228,7 @@ export function PluginRuntime({
     onRouteChange,
     onCopyLink,
     broken,
-    isPrivileged,
-    privilegedOrigin,
+    pluginOrigin,
   ]);
 
   if (isLoading) {

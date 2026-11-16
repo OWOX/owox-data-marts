@@ -1,5 +1,10 @@
 import type { UserTokenSession } from './fetchUserToken';
 
+/**
+ * Wire contract with the code of a privileged plugin, which lives outside this repository:
+ * the request is `{ owox: 'user-token-request', fresh?: true }` with one transferred port,
+ * and the answer on that port is `{ token }` or `{ error: true }`. Change both sides together.
+ */
 const REQUEST = 'user-token-request';
 
 export interface UserTokenChannelOptions {
