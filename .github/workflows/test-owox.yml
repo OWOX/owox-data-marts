@@ -57,6 +57,12 @@ jobs:
           - name: 'Overall test @owox/ctl'
             command: 'npm run test -w @owox/ctl'
             timeout: 10
+          # Nothing in this repo imports @owox/plugin-sdk, so no other job type-checks it.
+          # Its prepublishOnly runs the same typecheck and stops the release when it fails.
+          - name: 'Overall test @owox/plugin-sdk'
+            command: 'npm run typecheck -w @owox/plugin-sdk && npm run test -w @owox/plugin-sdk'
+            build: 'npm run build:dep -w @owox/plugin-sdk'
+            timeout: 10
           # Unit + declarative-engine suite for @owox/connectors (vitest plus an
           # explicit `node --test` file list). Needs no credentials and no network:
           # the live ad-connector fixtures live in the separate `test:fixtures`
