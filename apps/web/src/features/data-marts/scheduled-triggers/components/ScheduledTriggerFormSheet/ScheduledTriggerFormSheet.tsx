@@ -5,8 +5,10 @@ import {
   SheetTitle,
   SheetDescription,
 } from '@owox/ui/components/sheet';
+import { CopyLinkButton } from '@owox/ui/components/common/copy-link-button';
 import { ScheduledTriggerForm } from '../ScheduledTriggerForm';
 import { useScheduledTriggerContext } from '../../model';
+import type { ScheduledTrigger } from '../../model/scheduled-trigger.model';
 import type { ScheduledTriggerFormData } from '../../schemas';
 import { ScheduledTriggerType, TRIGGER_CONFIG_TYPES } from '../../enums';
 import type {
@@ -25,6 +27,10 @@ interface ScheduledTriggerFormSheetProps {
   dataMartId: string;
   preSelectedReportId?: string;
   preSelectedType?: ScheduledTriggerType;
+  /** The trigger to edit. Without it, the sheet creates one. */
+  trigger?: ScheduledTrigger | null;
+  /** The page link that opens the trigger in edit mode. */
+  link?: string | null;
 }
 
 export function ScheduledTriggerFormSheet({
@@ -33,11 +39,12 @@ export function ScheduledTriggerFormSheet({
   dataMartId,
   preSelectedReportId,
   preSelectedType,
+  trigger: selectedTrigger,
+  link,
 }: ScheduledTriggerFormSheetProps) {
   useIntercomLauncher(isOpen);
 
-  const { createScheduledTrigger, updateScheduledTrigger, selectedTrigger } =
-    useScheduledTriggerContext();
+  const { createScheduledTrigger, updateScheduledTrigger } = useScheduledTriggerContext();
 
   const {
     showUnsavedDialog,
@@ -132,9 +139,14 @@ export function ScheduledTriggerFormSheet({
       <SheetContent data-testid='triggerEditSheet'>
         <SheetHeader>
           <SheetTitle>{isEditMode ? 'Edit' : 'Create'} Scheduled Trigger</SheetTitle>
-          <SheetDescription>
-            Configure automatic runs for reports, connectors, or Data Quality checks.
-          </SheetDescription>
+          <div className='flex w-full items-center gap-4'>
+            <SheetDescription>
+              Configure automatic runs for reports, connectors, or Data Quality checks.
+            </SheetDescription>
+            {isEditMode && link && (
+              <CopyLinkButton link={link} ariaLabel='Copy link to this trigger' />
+            )}
+          </div>
         </SheetHeader>
         <ScheduledTriggerForm
           preSelectedReportId={preSelectedReportId}

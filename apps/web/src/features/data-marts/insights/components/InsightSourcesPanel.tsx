@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import { CopyLinkButton } from '@owox/ui/components/common/copy-link-button';
 import { Editor, type OnMount } from '@monaco-editor/react';
 import { useTheme } from 'next-themes';
 import { useForm } from 'react-hook-form';
@@ -60,6 +61,7 @@ import {
 import { ConfirmationDialog } from '../../../../shared/components/ConfirmationDialog';
 import { UnsavedChangesConfirmationDialog } from '../../../../shared/components/UnsavedChangesConfirmationDialog';
 import { useUnsavedGuard } from '../../../../hooks/useUnsavedGuard';
+import { useRecordSheet } from '../../../../shared/hooks/useRecordSheet';
 import { useSqlDryRunTrigger } from '../../shared/hooks/useSqlDryRunTrigger';
 import { formatBytes } from '../../../../utils';
 
@@ -91,7 +93,8 @@ export function InsightSourcesPanel({
   isRunning,
   onInsertTemplate,
 }: InsightSourcesPanelProps) {
-  const { data: sources = [], isLoading } = useInsightTemplateSources(dataMartId, insightId);
+  const { data, isLoading } = useInsightTemplateSources(dataMartId, insightId);
+  const sources = data ?? [];
   const { mutateAsync: createSource, isPending: isCreating } = useCreateInsightTemplateSource(
     dataMartId,
     insightId
@@ -102,18 +105,44 @@ export function InsightSourcesPanel({
   );
   const { mutateAsync: deleteSource } = useDeleteInsightTemplateSource(dataMartId, insightId);
 
-  const [editingSource, setEditingSource] = useState<InsightTemplateSourceEntity | null>(null);
-  const [isSheetOpen, setIsSheetOpen] = useState(false);
+  const {
+    record: editingSource,
+    open: openSource,
+    close: closeSource,
+    link,
+  } = useRecordSheet({
+    param: 'source',
+    records: data,
+    getId: source => source.id,
+    notFoundMessage: () => 'This Data Artifact was deleted or is not available.',
+  });
+  // Create mode is local state: it never writes the URL.
+  const [isCreatingSource, setIsCreatingSource] = useState(false);
+  const isSheetOpen = isCreatingSource || editingSource !== null;
+  // The sheet keeps its last source and link while it closes.
+  const [shown, setShown] = useState<{
+    open: boolean;
+    source: InsightTemplateSourceEntity | null;
+    link: string | null;
+  }>({ open: false, source: null, link: null });
+  const liveSource = isCreatingSource ? null : editingSource;
+  if (isSheetOpen ? !shown.open || liveSource?.id !== shown.source?.id : shown.open) {
+    setShown(
+      isSheetOpen
+        ? { open: true, source: liveSource, link: isCreatingSource ? null : link }
+        : { ...shown, open: false }
+    );
+  }
   const [sourceToDelete, setSourceToDelete] = useState<InsightTemplateSourceEntity | null>(null);
 
   const handleEdit = (source: InsightTemplateSourceEntity) => {
-    setEditingSource(source);
-    setIsSheetOpen(true);
+    setIsCreatingSource(false);
+    openSource(source.id);
   };
 
   const handleAdd = () => {
-    setEditingSource(null);
-    setIsSheetOpen(true);
+    closeSource();
+    setIsCreatingSource(true);
   };
 
   const handleDelete = async (source: InsightTemplateSourceEntity) => {
@@ -338,9 +367,11 @@ export function InsightSourcesPanel({
       <SourceEditSheet
         isOpen={isSheetOpen}
         onClose={() => {
-          setIsSheetOpen(false);
+          setIsCreatingSource(false);
+          closeSource();
         }}
-        source={editingSource}
+        source={shown.source}
+        link={shown.link}
         dataMartId={dataMartId}
         onSave={async data => {
           try {
@@ -517,6 +548,8 @@ interface SourceEditSheetProps {
   isOpen: boolean;
   onClose: () => void;
   source: InsightTemplateSourceEntity | null;
+  /** The page link that opens this source. */
+  link?: string | null;
   dataMartId: string;
   onSave: (data: { key: string; title: string; sql: string }) => Promise<void>;
   isSaving: boolean;
@@ -532,6 +565,7 @@ function SourceEditSheet({
   isOpen,
   onClose,
   source,
+  link,
   dataMartId,
   onSave,
   isSaving,
@@ -689,7 +723,10 @@ function SourceEditSheet({
       <SheetContent className='flex flex-col p-0 sm:max-w-xl md:max-w-2xl'>
         <SheetHeader className='px-6 pt-6 pb-4'>
           <SheetTitle>{source ? 'Edit Data Artifact' : 'Add Data Artifact'}</SheetTitle>
-          <SheetDescription>Configure the data artifact for your insight.</SheetDescription>
+          <div className='flex w-full items-center gap-4'>
+            <SheetDescription>Configure the data artifact for your insight.</SheetDescription>
+            {link && <CopyLinkButton link={link} ariaLabel='Copy link to this Data Artifact' />}
+          </div>
         </SheetHeader>
 
         <Form {...form}>

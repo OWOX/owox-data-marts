@@ -98,7 +98,9 @@ import { InsightTemplateEditor } from './InsightTemplateEditor';
 import { InsightSourcesPanel } from './InsightSourcesPanel';
 import { InsightLoader } from './InsightLoader';
 import { InsightReportsSheet } from './InsightReportsSheet';
+import { useRecordSheet } from '../../../../shared/hooks/useRecordSheet';
 import { useReportsByInsightTemplate } from '../../reports/list/model/hooks/useReportsByInsightTemplate';
+import { REPORT_ID_URL_PARAM } from '../../reports/list/model/hooks/useReportSidesheet';
 import type { AiAssistantPanelHandle } from '../model/ai-assistant/types/ai-assistant-panel.types.ts';
 import type { DataMartReport } from '../../reports/shared/model/types/data-mart-report';
 import type { StartInsightTemplateExecutionRequestDto } from '../model/templates/types/insight-templates.dto';
@@ -116,14 +118,35 @@ export default function InsightDetailsView() {
   const [triggerId, setTriggerId] = useState<string | null>(null);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [runErrorMessage, setRunErrorMessage] = useState<string | null>(null);
-  const [isReportSheetOpen, setIsReportSheetOpen] = useState(false);
-  const [reportToEdit, setReportToEdit] = useState<DataMartReport | undefined>(undefined);
-  const [reportFormMode, setReportFormMode] = useState<ReportFormMode>(ReportFormMode.CREATE);
+  // Create mode is local state: it never writes the URL.
+  const [isCreatingReport, setIsCreatingReport] = useState(false);
 
   const [isReportsListOpen, setIsReportsListOpen] = useState(false);
   const [shouldReopenReportsList, setShouldReopenReportsList] = useState(false);
 
-  const { data: reports = [] } = useReportsByInsightTemplate(dataMart?.id ?? '', insightId ?? '');
+  const { data: loadedReports } = useReportsByInsightTemplate(dataMart?.id ?? '', insightId ?? '');
+  const reports = loadedReports ?? [];
+  const {
+    record: editingReport,
+    open: openReport,
+    close: closeReport,
+  } = useRecordSheet({
+    param: REPORT_ID_URL_PARAM,
+    records: loadedReports,
+    getId: report => report.id,
+    notFoundMessage: () => 'This report was deleted or is not available.',
+  });
+  const isReportSheetOpen = isCreatingReport || editingReport !== null;
+  // The sheet keeps its last report while it closes.
+  const [shown, setShown] = useState<{ open: boolean; report: DataMartReport | undefined }>({
+    open: false,
+    report: undefined,
+  });
+  const shownReport = shown.report;
+  const liveReport = isCreatingReport ? undefined : (editingReport ?? undefined);
+  if (isReportSheetOpen ? !shown.open || liveReport?.id !== shownReport?.id : shown.open) {
+    setShown(isReportSheetOpen ? { open: true, report: liveReport } : { ...shown, open: false });
+  }
 
   const getReportsTooltipText = useCallback((reports: DataMartReport[]) => {
     if (reports.length === 0) return null;
@@ -553,10 +576,9 @@ export default function InsightDetailsView() {
 
   const handleAddReport = useCallback(
     (fromList = false) => {
-      setReportToEdit(undefined);
-      setReportFormMode(ReportFormMode.CREATE);
+      closeReport();
       setShouldReopenReportsList(fromList);
-      setIsReportSheetOpen(true);
+      setIsCreatingReport(true);
       trackEvent({
         event: 'report_create_started',
         category: 'Insights',
@@ -565,7 +587,7 @@ export default function InsightDetailsView() {
         context: dataMart?.id ?? '',
       });
     },
-    [insightId, dataMart?.id]
+    [closeReport, insightId, dataMart?.id]
   );
 
   const handleSendAndSchedule = useCallback(() => {
@@ -578,10 +600,9 @@ export default function InsightDetailsView() {
 
   const handleEditReport = useCallback(
     (report: DataMartReport, fromList = false) => {
-      setReportToEdit(report);
-      setReportFormMode(ReportFormMode.EDIT);
+      setIsCreatingReport(false);
       setShouldReopenReportsList(fromList);
-      setIsReportSheetOpen(true);
+      openReport(report.id);
       trackEvent({
         event: 'report_edit_started',
         category: 'Insights',
@@ -590,7 +611,7 @@ export default function InsightDetailsView() {
         context: dataMart?.id ?? '',
       });
     },
-    [dataMart?.id]
+    [openReport, dataMart?.id]
   );
 
   const canRun = !isDraft;
@@ -1057,14 +1078,15 @@ export default function InsightDetailsView() {
         <EmailReportEditSheet
           isOpen={isReportSheetOpen}
           onClose={() => {
-            setIsReportSheetOpen(false);
+            setIsCreatingReport(false);
+            closeReport();
             if (shouldReopenReportsList) {
               setIsReportsListOpen(true);
               setShouldReopenReportsList(false);
             }
           }}
-          mode={reportFormMode}
-          initialReport={reportToEdit}
+          mode={shownReport ? ReportFormMode.EDIT : ReportFormMode.CREATE}
+          initialReport={shownReport}
           preSelectedDestination={null}
           isInsightContext={true}
           prefill={{

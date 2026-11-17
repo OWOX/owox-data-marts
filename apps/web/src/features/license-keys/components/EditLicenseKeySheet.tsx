@@ -23,6 +23,7 @@ import {
 } from '@owox/ui/components/form';
 import { Input } from '@owox/ui/components/input';
 import { Button } from '@owox/ui/components/button';
+import { CopyLinkButton } from '@owox/ui/components/common/copy-link-button';
 import { Copy, Loader2, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { licenseKeysService } from '../services/license-keys.service';
@@ -45,6 +46,8 @@ interface EditLicenseKeySheetProps {
   onClose: () => void;
   onUpdated: () => void;
   onRevoke: (key: LicenseKey) => void;
+  /** The page link that opens this license key. */
+  link?: string | null;
 }
 
 function MetadataItem({
@@ -103,6 +106,7 @@ export function EditLicenseKeySheet({
   onClose,
   onUpdated,
   onRevoke,
+  link,
 }: EditLicenseKeySheetProps) {
   const [submitting, setSubmitting] = useState(false);
   const titleRef = useRef<HTMLHeadingElement>(null);
@@ -152,9 +156,12 @@ export function EditLicenseKeySheet({
           <SheetTitle ref={titleRef} tabIndex={-1} className='focus:outline-none'>
             License Key Details
           </SheetTitle>
-          <SheetDescription>
-            Manage this license key and review the deployment it authorizes.
-          </SheetDescription>
+          <div className='flex w-full items-center gap-4'>
+            <SheetDescription>
+              Manage this license key and review the deployment it authorizes.
+            </SheetDescription>
+            {link && <CopyLinkButton link={link} ariaLabel='Copy link to this license key' />}
+          </div>
         </SheetHeader>
 
         <Form {...form}>

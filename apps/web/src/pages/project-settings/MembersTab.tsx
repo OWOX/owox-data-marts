@@ -1,11 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { toast } from 'react-hot-toast';
-import { useSearchParams } from 'react-router';
 import { MembersTable } from '../../features/project-settings/members/components/MembersTable/MembersTable';
 import { MemberDetailsSheet } from '../../features/project-settings/members/components/MemberDetailsSheet/MemberDetailsSheet';
 import { PendingRequestsSection } from '../../features/project-settings/members/components/PendingRequestsSection/PendingRequestsSection';
 import { UserProvisioningSettings } from '../../features/project-settings/members/components/UserProvisioningSettings/UserProvisioningSettings';
 import { useMembersSettings } from '../../features/project-settings/members/model/members-settings.context';
+import { useRecordSheet } from '../../shared/hooks';
 import { ConfirmationDialog } from '../../shared/components/ConfirmationDialog';
 import { projectMembersService } from '../../features/project-members/services/project-members.service';
 import type { MemberWithScopeDto } from '../../features/contexts/types/context.types';
@@ -19,33 +19,23 @@ export function MembersTab() {
     isAdmin,
     openInviteSheet,
     hasLoadError,
+    hasLoaded,
   } = useMembersSettings();
-  const [selected, setSelected] = useState<MemberWithScopeDto | null>(null);
   const [pendingRemove, setPendingRemove] = useState<MemberWithScopeDto | null>(null);
   const [removing, setRemoving] = useState(false);
-  const [searchParams, setSearchParams] = useSearchParams();
 
-  // `?member=<userId>` (from a Data Mart's access list) opens that member's details once, as soon
-  // as the members have loaded; the parameter is dropped so closing the sheet leaves it closed.
-  const linkedMemberId = searchParams.get('member');
-  useEffect(() => {
-    if (!linkedMemberId || !isAdmin) return;
-    const member = members.find(m => m.userId === linkedMemberId);
-    if (!member) return;
-    setSelected(member);
-    setSearchParams(
-      params => {
-        params.delete('member');
-        return params;
-      },
-      { replace: true }
-    );
-  }, [linkedMemberId, isAdmin, members, setSearchParams]);
-
-  const openMemberSheet = (userId: string) => {
-    const member = members.find(m => m.userId === userId);
-    if (member) setSelected(member);
-  };
+  // `hasLoaded`, not `loading`: a refresh must not close the open sheet.
+  const {
+    record: selected,
+    open: openMemberSheet,
+    close: closeMemberSheet,
+    link: memberLink,
+  } = useRecordSheet({
+    param: 'member',
+    records: isAdmin && hasLoaded && !hasLoadError ? members : undefined,
+    getId: m => m.userId,
+    notFoundMessage: () => 'This member is not in the project.',
+  });
 
   const requestRemove = (userId: string) => {
     const member = members.find(m => m.userId === userId);
@@ -82,7 +72,7 @@ export function MembersTab() {
         contexts={contexts}
         isAdmin={isAdmin}
         onRowClick={member => {
-          if (isAdmin) setSelected(member);
+          if (isAdmin) openMemberSheet(member.userId);
         }}
         onEditMember={openMemberSheet}
         onRemoveMember={requestRemove}
@@ -93,11 +83,10 @@ export function MembersTab() {
         isOpen={!!selected}
         member={selected}
         contexts={contexts}
-        onClose={() => {
-          setSelected(null);
-        }}
+        link={memberLink}
+        onClose={closeMemberSheet}
         onSaved={() => {
-          setSelected(null);
+          closeMemberSheet();
           void refresh();
         }}
       />

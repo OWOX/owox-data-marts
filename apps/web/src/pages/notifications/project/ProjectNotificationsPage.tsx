@@ -1,7 +1,7 @@
-import { useState, useCallback } from 'react';
+import { useCallback } from 'react';
 import { Alert, AlertDescription, AlertTitle } from '@owox/ui/components/alert';
 import { AlertCircle } from 'lucide-react';
-import { useProjectId } from '../../../shared/hooks';
+import { useProjectId, useRecordSheet } from '../../../shared/hooks';
 import {
   useNotificationSettings,
   NotificationSettingsTable,
@@ -15,15 +15,26 @@ import type {
 
 export function ProjectNotificationsPage() {
   const projectId = useProjectId();
-  const { settings, error, updateSetting } = useNotificationSettings(projectId);
+  const { settings, isLoading, error, updateSetting } = useNotificationSettings(projectId);
 
-  const [editingSetting, setEditingSetting] = useState<NotificationSettingsItem | null>(null);
-  const [isSheetOpen, setIsSheetOpen] = useState(false);
+  const {
+    record: editingSetting,
+    open,
+    close,
+    link,
+  } = useRecordSheet({
+    param: 'notification',
+    records: isLoading || error ? undefined : settings,
+    getId: setting => setting.notificationType,
+    notFoundMessage: () => 'This notification is not available.',
+  });
 
-  const handleRowClick = useCallback((setting: NotificationSettingsItem) => {
-    setEditingSetting(setting);
-    setIsSheetOpen(true);
-  }, []);
+  const handleRowClick = useCallback(
+    (setting: NotificationSettingsItem) => {
+      open(setting.notificationType);
+    },
+    [open]
+  );
 
   const handleToggleEnabled = useCallback(
     async (setting: NotificationSettingsItem, enabled: boolean) => {
@@ -38,11 +49,6 @@ export function ProjectNotificationsPage() {
     },
     [updateSetting]
   );
-
-  const handleCloseSheet = useCallback(() => {
-    setIsSheetOpen(false);
-    setEditingSetting(null);
-  }, []);
 
   if (error) {
     return (
@@ -73,9 +79,10 @@ export function ProjectNotificationsPage() {
           onToggleEnabled={handleToggleEnabled}
         />
         <EditNotificationSheet
-          isOpen={isSheetOpen}
-          onClose={handleCloseSheet}
+          isOpen={editingSetting !== null}
+          onClose={close}
           setting={editingSetting}
+          link={link}
           projectId={projectId ?? ''}
           onSave={handleSave}
         />

@@ -10,6 +10,7 @@ import { LicenseKeysTable } from '../../features/license-keys/components/License
 import { CreateLicenseKeySheet } from '../../features/license-keys/components/CreateLicenseKeySheet';
 import { EditLicenseKeySheet } from '../../features/license-keys/components/EditLicenseKeySheet';
 import { LicenseKeyRevealDialog } from '../../features/license-keys/components/LicenseKeyRevealDialog';
+import { useRecordSheet } from '../../shared/hooks';
 import { ConfirmationDialog } from '../../shared/components/ConfirmationDialog/ConfirmationDialog';
 import { useLicenseKeys } from '../../features/license-keys/hooks/useLicenseKeys';
 import type { CreateLicenseKeyResponse, LicenseKey } from '../../features/license-keys/types';
@@ -18,9 +19,19 @@ export function LicenseKeysTab() {
   const { flags } = useFlags();
   const isAdmin = useIsAdmin();
   const enabled = !!flags && checkVisible('LICENSE_ISSUANCE_ENABLED', 'true', flags);
-  const { keys, loading, error, fetchKeys, revokeKey } = useLicenseKeys(enabled);
+  const { keys, loading, hasLoaded, error, fetchKeys, revokeKey } = useLicenseKeys(enabled);
   const [createSheetOpen, setCreateSheetOpen] = useState(false);
-  const [editingKey, setEditingKey] = useState<LicenseKey | null>(null);
+  const {
+    record: editingKey,
+    open: openEditSheet,
+    close: closeEditSheet,
+    link: editingKeyLink,
+  } = useRecordSheet({
+    param: 'licenseKey',
+    records: isAdmin && hasLoaded && !error ? keys : undefined,
+    getId: k => k.licenseKeyId,
+    notFoundMessage: () => 'This license key was deleted or is not available.',
+  });
   const [revokingKey, setRevokingKey] = useState<LicenseKey | null>(null);
   const [createdKeyData, setCreatedKeyData] = useState<CreateLicenseKeyResponse | null>(null);
 
@@ -38,7 +49,7 @@ export function LicenseKeysTab() {
     if (!revokingKey) return;
     const keyToRevoke = revokingKey;
     setRevokingKey(null);
-    setEditingKey(null);
+    closeEditSheet();
     await revokeKey(keyToRevoke.licenseKeyId);
   };
 
@@ -98,7 +109,13 @@ export function LicenseKeysTab() {
                     }
                   : undefined
               }
-              onEdit={isAdmin ? setEditingKey : undefined}
+              onEdit={
+                isAdmin
+                  ? k => {
+                      openEditSheet(k.licenseKeyId);
+                    }
+                  : undefined
+              }
               onRevoke={isAdmin ? setRevokingKey : undefined}
             />
           )}
@@ -122,11 +139,10 @@ export function LicenseKeysTab() {
 
       <EditLicenseKeySheet
         licenseKey={editingKey}
-        onClose={() => {
-          setEditingKey(null);
-        }}
+        link={editingKeyLink}
+        onClose={closeEditSheet}
         onUpdated={() => {
-          setEditingKey(null);
+          closeEditSheet();
           void fetchKeys();
         }}
         onRevoke={setRevokingKey}

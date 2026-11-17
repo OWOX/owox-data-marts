@@ -1,4 +1,4 @@
-import { renderHook, waitFor } from '@testing-library/react';
+import { act, renderHook, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { licenseKeysService } from '../services/license-keys.service';
 import { useLicenseKeys } from './useLicenseKeys';
@@ -32,5 +32,18 @@ describe('useLicenseKeys', () => {
     await waitFor(() => {
       expect(licenseKeysService.getKeys).toHaveBeenCalledTimes(1);
     });
+  });
+
+  it('sets hasLoaded only after a successful load', async () => {
+    vi.mocked(licenseKeysService.getKeys).mockRejectedValueOnce(new Error('down'));
+    const { result } = renderHook(() => useLicenseKeys());
+
+    await waitFor(() => {
+      expect(result.current.error).toBe('Failed to load license keys');
+    });
+    expect(result.current.hasLoaded).toBe(false);
+
+    await act(() => result.current.fetchKeys());
+    expect(result.current.hasLoaded).toBe(true);
   });
 });

@@ -10,6 +10,7 @@ import {
   SheetDescription,
 } from '@owox/ui/components/sheet';
 import { Button } from '@owox/ui/components/button';
+import { CopyLinkButton } from '@owox/ui/components/common/copy-link-button';
 import {
   Select,
   SelectContent,
@@ -69,6 +70,8 @@ interface MemberDetailsSheetProps {
   isOpen: boolean;
   member: MemberWithScopeDto | null;
   contexts: ContextDto[];
+  /** The page link that opens this member. */
+  link?: string | null;
   onClose: () => void;
   onSaved: () => void;
 }
@@ -77,6 +80,7 @@ export function MemberDetailsSheet({
   isOpen,
   member,
   contexts,
+  link,
   onClose,
   onSaved,
 }: MemberDetailsSheetProps) {
@@ -159,7 +163,12 @@ export function MemberDetailsSheet({
         <SheetContent>
           <SheetHeader>
             <SheetTitle>Configure member</SheetTitle>
-            <SheetDescription>Customize role, scope and contexts for this member</SheetDescription>
+            <div className='flex w-full items-center gap-4'>
+              <SheetDescription>
+                Customize role, scope and contexts for this member
+              </SheetDescription>
+              {link && <CopyLinkButton link={link} ariaLabel='Copy link to this member' />}
+            </div>
           </SheetHeader>
 
           <Form {...form}>

@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useCallback } from 'react';
+import { useRecordSheet } from '../../../../../shared/hooks';
 import { useScheduledTrigger } from '../../model';
 import { ScheduledTriggerTable } from '../ScheduledTriggerTable';
 import { ScheduledTriggerFormSheet } from '../ScheduledTriggerFormSheet/ScheduledTriggerFormSheet';
@@ -8,30 +9,19 @@ interface ScheduledTriggerListProps {
 }
 
 export function ScheduledTriggerList({ dataMartId, onRequestCreate }: ScheduledTriggerListProps) {
-  const { triggers, deleteScheduledTrigger, selectScheduledTrigger, selectedTrigger } =
-    useScheduledTrigger(dataMartId);
-  const [isFormSheetOpen, setIsFormSheetOpen] = useState(false);
+  const { triggers, hasLoaded, deleteScheduledTrigger } = useScheduledTrigger(dataMartId);
 
-  useEffect(() => {
-    if (selectedTrigger) {
-      setIsFormSheetOpen(true);
-    }
-  }, [selectedTrigger]);
-
-  const handleEditTrigger = useCallback(
-    (triggerId: string) => {
-      const trigger = triggers.find(t => t.id === triggerId);
-      if (trigger) {
-        selectScheduledTrigger(trigger);
-      }
-    },
-    [triggers, selectScheduledTrigger]
-  );
-
-  const handleCloseFormSheet = useCallback(() => {
-    setIsFormSheetOpen(false);
-    selectScheduledTrigger(null);
-  }, [selectScheduledTrigger]);
+  const {
+    record: editingTrigger,
+    open: handleEditTrigger,
+    close: handleCloseFormSheet,
+    link,
+  } = useRecordSheet({
+    param: 'trigger',
+    records: hasLoaded ? triggers : undefined,
+    getId: trigger => trigger.id,
+    notFoundMessage: () => 'This trigger was deleted or is not available.',
+  });
 
   const handleDeleteTrigger = useCallback(
     async (triggerId: string) => {
@@ -54,9 +44,11 @@ export function ScheduledTriggerList({ dataMartId, onRequestCreate }: ScheduledT
         onRequestCreate={onRequestCreate}
       />
       <ScheduledTriggerFormSheet
-        isOpen={isFormSheetOpen}
+        isOpen={editingTrigger !== null}
         onClose={handleCloseFormSheet}
         dataMartId={dataMartId}
+        trigger={editingTrigger}
+        link={link}
       />
     </>
   );

@@ -106,4 +106,29 @@ describe('CredentialConfigSheet', () => {
       });
     }
   );
+
+  it('shows Copy link only when it gets a link', () => {
+    const { rerender } = render(
+      <CredentialConfigSheet
+        isOpen
+        onClose={vi.fn()}
+        credential={null}
+        definitions={[definition]}
+      />
+    );
+    expect(screen.queryByRole('button', { name: 'Copy link to this Credential' })).toBeNull();
+
+    rerender(
+      <CredentialConfigSheet
+        isOpen
+        onClose={vi.fn()}
+        credential={null}
+        definitions={[definition]}
+        link='https://app.test/ui/p1/credentials?credential=c1'
+      />
+    );
+    expect(
+      screen.getByRole('button', { name: 'Copy link to this Credential' })
+    ).toBeInTheDocument();
+  });
 });

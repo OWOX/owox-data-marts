@@ -6,6 +6,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@owox/ui/components/sheet';
+import { CopyLinkButton } from '@owox/ui/components/common/copy-link-button';
 import { UnsavedChangesConfirmationDialog } from '../../../shared/components/UnsavedChangesConfirmationDialog';
 import { useUnsavedGuard } from '../../../hooks/useUnsavedGuard';
 import { useIntercomLauncher } from '../../../shared/hooks/useIntercomLauncher';
@@ -26,6 +27,8 @@ interface ProjectScheduledTriggerEditSheetProps {
   isOpen: boolean;
   onClose: () => void;
   onSaved?: () => Promise<void> | void;
+  /** The page link that opens this schedule. */
+  link?: string | null;
 }
 
 export function ProjectScheduledTriggerEditSheet({
@@ -33,6 +36,7 @@ export function ProjectScheduledTriggerEditSheet({
   isOpen,
   onClose,
   onSaved,
+  link,
 }: ProjectScheduledTriggerEditSheetProps) {
   useIntercomLauncher(isOpen);
 
@@ -104,9 +108,12 @@ export function ProjectScheduledTriggerEditSheet({
       <SheetContent data-testid='projectTriggerEditSheet'>
         <SheetHeader>
           <SheetTitle>Edit Scheduled Trigger</SheetTitle>
-          <SheetDescription>
-            Configure automatic runs for reports, connectors, or Data Quality checks.
-          </SheetDescription>
+          <div className='flex w-full items-center gap-4'>
+            <SheetDescription>
+              Configure automatic runs for reports, connectors, or Data Quality checks.
+            </SheetDescription>
+            {link && <CopyLinkButton link={link} ariaLabel='Copy link to this schedule' />}
+          </div>
         </SheetHeader>
 
         <DataMartContext.Provider value={dataMartContextValue}>

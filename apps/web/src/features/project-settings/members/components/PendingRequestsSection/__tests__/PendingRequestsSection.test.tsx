@@ -36,6 +36,7 @@ const baseStore = (
   members: [],
   pendingRequests: [],
   loading: false,
+  hasLoaded: true,
   loadingRequests: false,
   hasLoadError: false,
   refresh: vi.fn().mockResolvedValue(undefined),

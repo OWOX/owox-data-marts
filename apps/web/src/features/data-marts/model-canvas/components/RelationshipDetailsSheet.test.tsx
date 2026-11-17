@@ -117,6 +117,7 @@ function renderSheet(
   props: {
     relationshipId?: string;
     focusRequest?: number;
+    link?: string | null;
     onClose?: () => void;
     onRelationshipChange?: () => void;
   } = {}
@@ -139,6 +140,7 @@ function renderSheet(
       relationshipId={relationshipId}
       storageId='storage-1'
       focusRequest={props.focusRequest}
+      link={props.link}
       onRelationshipChange={onRelationshipChange}
       onClose={onClose}
     />
@@ -222,6 +224,23 @@ describe('RelationshipDetailsSheet', () => {
       'noopener,noreferrer'
     );
     open.mockRestore();
+  });
+
+  it('shows Copy link only when it gets a link', async () => {
+    vi.mocked(dataMartRelationshipService.getRelationshipGraph).mockResolvedValue(
+      graphOf(buildRelationship('r-customers', ORDERS, CUSTOMERS))
+    );
+    const option = { id: 'r-customers', source: ORDERS, target: CUSTOMERS };
+
+    renderSheet([option]);
+    await screen.findByTestId('join-settings');
+    expect(screen.queryByRole('button', { name: 'Copy link to this relationship' })).toBeNull();
+
+    cleanup();
+    renderSheet([option], { link: 'https://app.test/ui/p1/data-marts/models?relationship=r1' });
+    expect(
+      await screen.findByRole('button', { name: 'Copy link to this relationship' })
+    ).toBeInTheDocument();
   });
 
   it('takes focus when opened with the keyboard, and leaves it alone otherwise', async () => {

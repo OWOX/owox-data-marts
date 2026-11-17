@@ -5,6 +5,7 @@ import toast from 'react-hot-toast';
 import { wasErrorToastShown } from '../../app/api';
 import { extractApiError } from '../../app/api/extract-api-error.util';
 import { useAuth } from '../idp';
+import { useRecordSheet } from '../../shared/hooks';
 import { ConfirmationDialog } from '../../shared/components/ConfirmationDialog/ConfirmationDialog';
 import { isUnavailableCredential, type Credential, type UnavailableCredential } from './types';
 import { CredentialConfigSheet, CredentialUsedByList } from './components/CredentialConfigSheet';
@@ -19,7 +20,8 @@ import { useCredentialPermissions } from './useCredentialPermissions';
 export function CredentialsManager() {
   const { user } = useAuth();
   const permissions = useCredentialPermissions();
-  const { credentials, unavailableCredentials, isLoading, isError, refetch } = useCredentials();
+  const { credentials, unavailableCredentials, isLoading, isError, isLoadingError, refetch } =
+    useCredentials();
   const {
     definitions,
     isLoading: definitionsLoading,
@@ -27,13 +29,18 @@ export function CredentialsManager() {
     refetch: refetchDefinitions,
   } = useCredentialDefinitions();
   const actions = useCredentialActions();
-  const [editor, setEditor] = useState<{ open: boolean; credential: Credential | null }>({
-    open: false,
-    credential: null,
+  const { record, open, close, link } = useRecordSheet({
+    param: 'credential',
+    // A link opens only what a row click opens; a failed refetch keeps its data and the sheet.
+    records: isLoading || isLoadingError ? undefined : credentials.filter(permissions.canMaintain),
+    getId: credential => credential.id,
+    notFoundMessage: () => 'This Credential was deleted or you cannot change it.',
   });
+  const [creating, setCreating] = useState(false);
   const [rotating, setRotating] = useState<Credential | null>(null);
   const [deleting, setDeleting] = useState<Credential | UnavailableCredential | null>(null);
 
+  const isSheetOpen = creating || record !== null;
   const deletingUsedBy = deleting && !isUnavailableCredential(deleting) ? deleting.usedBy : [];
 
   const fail = (caught: unknown, fallback: string) => {
@@ -110,7 +117,7 @@ export function CredentialsManager() {
           </div>
           <Button
             onClick={() => {
-              setEditor({ open: true, credential: null });
+              setCreating(true);
             }}
             disabled={definitionsLoading || definitions.length === 0}
           >
@@ -126,7 +133,7 @@ export function CredentialsManager() {
           canMaintainCredential={permissions.canMaintain}
           isValidating={actions.isValidating}
           onAddCredential={() => {
-            setEditor({ open: true, credential: null });
+            setCreating(true);
           }}
           onValidate={credential => void validate(credential)}
           onReplaceSecret={credential => {
@@ -136,13 +143,13 @@ export function CredentialsManager() {
               credential.definition.auth?.type === 'custom-connector' ||
               credential.definition.auth?.type === 'oauth'
             ) {
-              setEditor({ open: true, credential });
+              open(credential.id);
             } else {
               setRotating(credential);
             }
           }}
           onEdit={credential => {
-            setEditor({ open: true, credential });
+            open(credential.id);
           }}
           onToggleEnabled={credential => void toggleEnabled(credential)}
           onAcceptDefinition={credential => void acceptDefinitionUpdate(credential)}
@@ -151,14 +158,16 @@ export function CredentialsManager() {
       )}
 
       <CredentialConfigSheet
-        key={`${editor.credential?.id ?? 'create'}:${editor.open}`}
-        isOpen={editor.open}
-        credential={editor.credential}
+        key={`${record?.id ?? 'create'}:${isSheetOpen}`}
+        isOpen={isSheetOpen}
+        credential={record}
+        link={link}
         definitions={definitions}
-        canManageAccess={permissions.canManageAccess(editor.credential)}
+        canManageAccess={permissions.canManageAccess(record)}
         canAddGithubDefinition={Boolean(user?.roles?.includes('admin'))}
         onClose={() => {
-          setEditor({ open: false, credential: null });
+          if (record) close();
+          else setCreating(false);
         }}
         onRequestReplaceSecret={setRotating}
         onCreated={credential => {

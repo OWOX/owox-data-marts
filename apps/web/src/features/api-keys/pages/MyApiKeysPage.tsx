@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useState } from 'react';
 import { KeyRound, Plus } from 'lucide-react';
 import { Button } from '@owox/ui/components/button';
 import { ApiKeysTable } from '../components/ApiKeysTable/ApiKeysTable';
@@ -8,33 +8,27 @@ import { SecretRevealDialog } from '../components/SecretRevealDialog';
 import { ConfirmationDialog } from '../../../shared/components/ConfirmationDialog/ConfirmationDialog';
 import { useApiKeys } from '../hooks/useApiKeys';
 import type { ProjectMemberApiKey, CreateProjectMemberApiKeyResponse } from '../types';
-import { useUrlParam } from '../../../shared/hooks/useUrlParam';
+import { useRecordSheet } from '../../../shared/hooks/useRecordSheet';
 
 const API_KEY_DETAILS_PARAM = 'apiKeyId';
 
 export function MyApiKeysPage() {
   const { keys, loading, fetchKeys, revokeKey } = useApiKeys();
   const {
-    value: selectedApiKeyId,
-    setParam: setSelectedApiKeyId,
-    removeParam: removeSelectedApiKeyId,
-  } = useUrlParam(API_KEY_DETAILS_PARAM);
+    record: selectedApiKey,
+    open: setSelectedApiKeyId,
+    close: removeSelectedApiKeyId,
+  } = useRecordSheet({
+    param: API_KEY_DETAILS_PARAM,
+    records: loading ? undefined : keys,
+    getId: key => key.apiKeyId,
+  });
 
   const [createSheetOpen, setCreateSheetOpen] = useState(false);
   const [revokingKey, setRevokingKey] = useState<ProjectMemberApiKey | null>(null);
   const [createdKeyData, setCreatedKeyData] = useState<CreateProjectMemberApiKeyResponse | null>(
     null
   );
-  const selectedApiKey = useMemo(
-    () => keys.find(key => key.apiKeyId === selectedApiKeyId) ?? null,
-    [keys, selectedApiKeyId]
-  );
-
-  useEffect(() => {
-    if (loading || !selectedApiKeyId || selectedApiKey) return;
-
-    removeSelectedApiKeyId();
-  }, [loading, removeSelectedApiKeyId, selectedApiKey, selectedApiKeyId]);
 
   const handleCreated = (result: CreateProjectMemberApiKeyResponse) => {
     setCreateSheetOpen(false);
@@ -64,7 +58,7 @@ export function MyApiKeysPage() {
     const keyToRevoke = revokingKey;
     setRevokingKey(null);
 
-    if (keyToRevoke.apiKeyId === selectedApiKeyId) {
+    if (keyToRevoke.apiKeyId === selectedApiKey?.apiKeyId) {
       removeSelectedApiKeyId();
     }
 

@@ -3,7 +3,6 @@ import { ScheduledTriggerContext } from './scheduled-trigger-context';
 import { initialState, scheduledTriggerReducer } from './scheduled-trigger-reducer';
 import { scheduledTriggerService } from '../../services';
 import { ScheduledTriggerType } from '../../enums';
-import type { ScheduledTrigger } from '../scheduled-trigger.model';
 import { ScheduledTriggerMapper } from '../mappers';
 import type { ScheduledTriggerConfig } from '../trigger-config.types.ts';
 import { useDataMartContext } from '../../../edit/model';
@@ -75,31 +74,6 @@ export function ScheduledTriggerProvider({ children }: ScheduledTriggerProviderP
           event: 'scheduled_trigger_error',
           category: 'ScheduledTrigger',
           action: 'ListError',
-          label: message,
-        });
-      }
-    },
-    [dataMart]
-  );
-
-  const getScheduledTrigger = useCallback(
-    async (dataMartId: string, id: string) => {
-      dispatch({ type: 'FETCH_TRIGGER_START' });
-      try {
-        const triggerDto = await scheduledTriggerService.getScheduledTrigger(dataMartId, id);
-        const trigger = await ScheduledTriggerMapper.mapFromDtoWithReportData(triggerDto, dataMart);
-        dispatch({ type: 'FETCH_TRIGGER_SUCCESS', payload: trigger });
-      } catch (error) {
-        const message =
-          error instanceof Error ? error.message : 'Failed to fetch scheduled trigger';
-        dispatch({
-          type: 'FETCH_TRIGGER_ERROR',
-          payload: message,
-        });
-        trackEvent({
-          event: 'scheduled_trigger_error',
-          category: 'ScheduledTrigger',
-          action: 'GetError',
           label: message,
         });
       }
@@ -234,10 +208,6 @@ export function ScheduledTriggerProvider({ children }: ScheduledTriggerProviderP
     }
   }, []);
 
-  const selectScheduledTrigger = useCallback((trigger: ScheduledTrigger | null) => {
-    dispatch({ type: 'SELECT_TRIGGER', payload: trigger });
-  }, []);
-
   const reset = useCallback(() => {
     dispatch({ type: 'RESET' });
   }, []);
@@ -248,11 +218,9 @@ export function ScheduledTriggerProvider({ children }: ScheduledTriggerProviderP
         ...state,
         getScheduledTriggers,
         getScheduledTriggersByType,
-        getScheduledTrigger,
         createScheduledTrigger,
         updateScheduledTrigger,
         deleteScheduledTrigger,
-        selectScheduledTrigger,
         reset,
       }}
     >
