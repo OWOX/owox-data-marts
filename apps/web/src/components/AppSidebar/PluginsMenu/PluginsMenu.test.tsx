@@ -196,6 +196,25 @@ describe('PluginsMenu', () => {
     expect(screen.getByRole('link', { name: 'Second Plugin' })).toBeInTheDocument();
   });
 
+  it('lists installed plugins by name, whatever order they arrive in', () => {
+    installations.mockReturnValue({
+      installations: [
+        installation({ installationId: 'i1', pluginId: 'p1', displayName: 'Streaming' }),
+        installation({ installationId: 'i2', pluginId: 'p2', displayName: 'attribution' }),
+        installation({ installationId: 'i3', pluginId: 'p3', displayName: 'Gyroscope' }),
+      ],
+      isLoading: false,
+    });
+
+    renderMenu();
+
+    const names = screen
+      .getAllByRole('link')
+      .map(link => link.textContent)
+      .filter(name => name !== 'Plugins');
+    expect(names).toEqual(['attribution', 'Gyroscope', 'Streaming']);
+  });
+
   describe('highlighting', () => {
     beforeEach(() => {
       installations.mockReturnValue({ installations: [installation()], isLoading: false });

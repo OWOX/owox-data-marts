@@ -61,7 +61,9 @@ export function PluginsMenu() {
     fallbackFocus: () => rootLinkRef.current,
   });
 
-  const active = installations.filter(installation => installation.uninstalledAt === null);
+  const active = installations
+    .filter(installation => installation.uninstalledAt === null)
+    .sort((a, b) => a.displayName.localeCompare(b.displayName));
 
   // Restore re-runs the install, which a suspension or a missing current version refuses.
   const hasRestorableInstallation = installations.some(
