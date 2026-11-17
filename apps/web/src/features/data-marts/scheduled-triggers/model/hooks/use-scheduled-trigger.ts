@@ -16,6 +16,7 @@ export function useScheduledTrigger(dataMartId?: string) {
     deleteScheduledTrigger,
     reset,
     triggers,
+    hasLoaded,
     isLoading,
     error,
   } = useScheduledTriggerContext();
@@ -38,6 +39,7 @@ export function useScheduledTrigger(dataMartId?: string) {
 
   return {
     triggers,
+    hasLoaded,
     isLoading,
     error,
     getScheduledTriggers: (id: string) => getScheduledTriggers(id),

@@ -5,6 +5,7 @@ import type { ScheduledTriggerState, ScheduledTriggerAction } from './scheduled-
  */
 export const initialState: ScheduledTriggerState = {
   triggers: [],
+  hasLoaded: false,
   isLoading: false,
   error: null,
 };
@@ -36,6 +37,7 @@ export function scheduledTriggerReducer(
       return {
         ...state,
         triggers: action.payload,
+        hasLoaded: true,
         isLoading: false,
       };
     case 'CREATE_TRIGGER_SUCCESS':

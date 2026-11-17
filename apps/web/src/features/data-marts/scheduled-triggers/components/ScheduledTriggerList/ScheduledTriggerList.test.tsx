@@ -59,6 +59,7 @@ function ui(path: string) {
 function state(overrides: Record<string, unknown> = {}) {
   mocks.useScheduledTrigger.mockReturnValue({
     triggers,
+    hasLoaded: true,
     isLoading: false,
     error: null,
     deleteScheduledTrigger: vi.fn(),
@@ -74,7 +75,7 @@ describe('ScheduledTriggerList', () => {
   });
 
   it('opens the linked trigger once the first load ends, with a link', async () => {
-    state({ triggers: [], isLoading: true });
+    state({ triggers: [], hasLoaded: false, isLoading: true });
     const { rerender } = render(ui(`${path}t2`));
     expect(screen.queryByTestId('editSheet')).toBeNull();
 
@@ -87,9 +88,9 @@ describe('ScheduledTriggerList', () => {
   });
 
   it('does not judge the link before the load starts or while it runs', () => {
-    state({ triggers: [] });
+    state({ triggers: [], hasLoaded: false });
     const { rerender } = render(ui(`${path}t2`));
-    state({ triggers: [], isLoading: true });
+    state({ triggers: [], hasLoaded: false, isLoading: true });
     rerender(ui(`${path}t2`));
 
     expect(mocks.toastError).not.toHaveBeenCalled();
@@ -97,7 +98,7 @@ describe('ScheduledTriggerList', () => {
   });
 
   it('keeps the sheet open when a save reloads the list', async () => {
-    state({ triggers: [], isLoading: true });
+    state({ triggers: [], hasLoaded: false, isLoading: true });
     const { rerender } = render(ui(`${path}t2`));
     state();
     rerender(ui(`${path}t2`));
@@ -111,7 +112,7 @@ describe('ScheduledTriggerList', () => {
   });
 
   it('shows a toast and drops the parameter for an unknown trigger', async () => {
-    state({ triggers: [], isLoading: true });
+    state({ triggers: [], hasLoaded: false, isLoading: true });
     const { rerender } = render(ui(`${path}gone`));
     state();
     rerender(ui(`${path}gone`));
@@ -130,7 +131,7 @@ describe('ScheduledTriggerList', () => {
   });
 
   it('writes the trigger to the URL on edit and drops it on close', async () => {
-    state({ triggers: [], isLoading: true });
+    state({ triggers: [], hasLoaded: false, isLoading: true });
     const { rerender } = render(ui('/dm'));
     state();
     rerender(ui('/dm'));

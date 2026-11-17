@@ -19,9 +19,8 @@ export function LicenseKeysTab() {
   const { flags } = useFlags();
   const isAdmin = useIsAdmin();
   const enabled = !!flags && checkVisible('LICENSE_ISSUANCE_ENABLED', 'true', flags);
-  const { keys, loading, error, fetchKeys, revokeKey } = useLicenseKeys(enabled);
+  const { keys, loading, hasLoaded, error, fetchKeys, revokeKey } = useLicenseKeys(enabled);
   const [createSheetOpen, setCreateSheetOpen] = useState(false);
-  // `loading` is true only before the first load, so a refetch keeps the sheet open.
   const {
     record: editingKey,
     open: openEditSheet,
@@ -29,7 +28,7 @@ export function LicenseKeysTab() {
     link: editingKeyLink,
   } = useRecordSheet({
     param: 'licenseKey',
-    records: isAdmin && !loading && !error ? keys : undefined,
+    records: isAdmin && hasLoaded && !error ? keys : undefined,
     getId: k => k.licenseKeyId,
     notFoundMessage: () => 'This license key was deleted or is not available.',
   });

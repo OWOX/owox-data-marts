@@ -6,12 +6,14 @@ import type { LicenseKey } from '../types';
 export function useLicenseKeys(enabled = true) {
   const [keys, setKeys] = useState<LicenseKey[]>([]);
   const [loading, setLoading] = useState(true);
+  const [hasLoaded, setHasLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const fetchKeys = useCallback(async () => {
     setError(null);
     try {
       setKeys(await licenseKeysService.getKeys());
+      setHasLoaded(true);
     } catch {
       setError('Failed to load license keys');
     } finally {
@@ -37,5 +39,5 @@ export function useLicenseKeys(enabled = true) {
     [fetchKeys]
   );
 
-  return { keys, loading, error, fetchKeys, revokeKey };
+  return { keys, loading, hasLoaded, error, fetchKeys, revokeKey };
 }

@@ -6,7 +6,10 @@ import { useUrlParam } from './useUrlParam';
 interface UseRecordSheetOptions<T> {
   /** The query parameter that holds the id of the record the sheet shows. */
   param: string;
-  /** The loaded records, or `undefined` before the first load. Pass the unfiltered list. */
+  /**
+   * The records that the member can open from the list, before any table search or filter.
+   * `undefined` until the list loads successfully for the first time; a link waits until then.
+   */
   records: readonly T[] | undefined;
   getId: (record: T) => string;
   /** The toast for a link to a record that never resolved. A record that leaves the list while open closes silently. Without it, the link is dropped silently. */

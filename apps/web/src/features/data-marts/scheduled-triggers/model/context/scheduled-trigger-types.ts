@@ -4,6 +4,8 @@ import type { ScheduledTriggerConfig } from '../trigger-config.types.ts';
 
 export interface ScheduledTriggerState {
   triggers: ScheduledTrigger[];
+  /** True after the list loaded successfully at least once. Create, update and delete do not set it. */
+  hasLoaded: boolean;
   isLoading: boolean;
   error: string | null;
 }

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback } from 'react';
 import { useRecordSheet } from '../../../../../shared/hooks';
 import { useScheduledTrigger } from '../../model';
 import { ScheduledTriggerTable } from '../ScheduledTriggerTable';
@@ -9,15 +9,7 @@ interface ScheduledTriggerListProps {
 }
 
 export function ScheduledTriggerList({ dataMartId, onRequestCreate }: ScheduledTriggerListProps) {
-  const { triggers, isLoading, error, deleteScheduledTrigger } = useScheduledTrigger(dataMartId);
-
-  // The context has no first-load flag and `isLoading` turns true again on save and delete.
-  const [hasLoaded, setHasLoaded] = useState(false);
-  const wasLoading = useRef(false);
-  useEffect(() => {
-    if (isLoading) wasLoading.current = true;
-    else if (wasLoading.current && !error) setHasLoaded(true);
-  }, [isLoading, error]);
+  const { triggers, hasLoaded, deleteScheduledTrigger } = useScheduledTrigger(dataMartId);
 
   const {
     record: editingTrigger,

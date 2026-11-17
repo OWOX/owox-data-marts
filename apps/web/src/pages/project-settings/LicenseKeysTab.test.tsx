@@ -93,6 +93,7 @@ function loaded(overrides: Record<string, unknown> = {}) {
   mocks.useLicenseKeys.mockReturnValue({
     keys,
     loading: false,
+    hasLoaded: true,
     error: null,
     fetchKeys: vi.fn(),
     revokeKey: vi.fn(),
@@ -165,7 +166,16 @@ describe('LicenseKeysTab', () => {
   });
 
   it('waits while the keys load', () => {
-    loaded({ keys: [], loading: true });
+    loaded({ keys: [], loading: true, hasLoaded: false });
+    renderTab('/keys?licenseKey=k1');
+
+    expect(mocks.toastError).not.toHaveBeenCalled();
+    expect(screen.getByTestId('search').textContent).toBe('?licenseKey=k1');
+  });
+
+  it('waits during a retry after a failed first load', () => {
+    // Retry clears the error, but `loading` stays false and no key has loaded yet.
+    loaded({ keys: [], hasLoaded: false });
     renderTab('/keys?licenseKey=k1');
 
     expect(mocks.toastError).not.toHaveBeenCalled();

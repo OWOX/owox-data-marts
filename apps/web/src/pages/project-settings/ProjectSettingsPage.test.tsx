@@ -163,6 +163,34 @@ describe('ProjectSettingsPage membership request sheet', () => {
     expect(mocks.toastError).not.toHaveBeenCalled();
   });
 
+  it('keeps a link without a toast when the requests fetch fails, and opens it after a refresh', async () => {
+    mocks.getMembershipRequests.mockRejectedValueOnce(new Error('down'));
+    const router = renderPage('/settings?request=r1');
+
+    await waitFor(() => {
+      expect(mocks.getMembershipRequests).toHaveBeenCalledTimes(1);
+    });
+    fireEvent.click(await screen.findByText('Refresh'));
+
+    expect(await screen.findByTestId('requestSheet')).toBeInTheDocument();
+    expect(router.state.location.search).toBe('?request=r1');
+    expect(mocks.toastError).not.toHaveBeenCalled();
+  });
+
+  it('keeps the open sheet when a refresh of the requests fails', async () => {
+    renderPage('/settings?request=r1');
+    await screen.findByTestId('requestSheet');
+
+    mocks.getMembershipRequests.mockRejectedValueOnce(new Error('down'));
+    fireEvent.click(screen.getByText('Refresh'));
+    await waitFor(() => {
+      expect(mocks.getMembershipRequests).toHaveBeenCalledTimes(2);
+    });
+
+    expect(screen.getByTestId('requestSheet')).toBeInTheDocument();
+    expect(mocks.toastError).not.toHaveBeenCalled();
+  });
+
   it('keeps the sheet open while a refresh runs', async () => {
     renderPage('/settings?request=r1');
     await screen.findByTestId('requestSheet');

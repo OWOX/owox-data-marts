@@ -47,6 +47,7 @@ export function ProjectSettingsPage() {
   const [inviteOpen, setInviteOpen] = useState(false);
   const [addContextOpen, setAddContextOpen] = useState(false);
   const [pendingRequests, setPendingRequests] = useState<MembershipRequestDto[]>([]);
+  const [requestsLoaded, setRequestsLoaded] = useState(false);
   const [loadingRequests, setLoadingRequests] = useState(false);
   const {
     record: requestSheetTarget,
@@ -55,7 +56,7 @@ export function ProjectSettingsPage() {
     link: requestLink,
   } = useRecordSheet({
     param: 'request',
-    records: isAdmin && hasLoaded && error === null ? pendingRequests : undefined,
+    records: isAdmin && requestsLoaded && error === null ? pendingRequests : undefined,
     getId: r => r.requestId,
     notFoundMessage: () => 'This membership request was already handled or is not available.',
   });
@@ -73,7 +74,7 @@ export function ProjectSettingsPage() {
     const requestsPromise = isAdmin
       ? projectMembersService.getMembershipRequests().catch((err: unknown) => {
           console.warn('Failed to load membership requests', err);
-          return [] as MembershipRequestDto[];
+          return null;
         })
       : Promise.resolve<MembershipRequestDto[]>([]);
     try {
@@ -84,7 +85,12 @@ export function ProjectSettingsPage() {
       ]);
       setContexts(ctxs);
       setMembers(memberTombstones.reconcile(mems));
-      setPendingRequests(requestTombstones.reconcile(reqs));
+      // A failed requests fetch keeps the last list: an empty one would drop a valid link.
+      if (reqs) {
+        setPendingRequests(requestTombstones.reconcile(reqs));
+        setRequestsLoaded(true);
+      }
+      setHasLoaded(true);
     } catch (err) {
       // Without a catch the page renders empty arrays + loading=false, which
       // is indistinguishable from "this project really has no members /
@@ -93,7 +99,6 @@ export function ProjectSettingsPage() {
     } finally {
       setLoading(false);
       setLoadingRequests(false);
-      setHasLoaded(true);
     }
   }, [isAdmin, memberTombstones, requestTombstones]);
 
