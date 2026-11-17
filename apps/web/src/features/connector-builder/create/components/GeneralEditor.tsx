@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { toast } from 'react-hot-toast';
 import { Button } from '@owox/ui/components/button';
 import { Input } from '@owox/ui/components/input';
@@ -21,11 +21,25 @@ import { AdvancedSettingsEditor } from './AdvancedSettingsEditor';
 export function GeneralEditor() {
   const { manifest, setPath, setLogo, state } = useBuilder();
   const logoInput = useRef<HTMLInputElement>(null);
+  const uploadButton = useRef<HTMLButtonElement>(null);
+  // Counts icon picks: a slow read applies only while it is the latest pick and the editor is
+  // still mounted (Discard remounts it).
+  const logoPick = useRef(0);
+  useEffect(() => {
+    const pick = logoPick;
+    return () => {
+      pick.current += 1;
+    };
+  }, []);
   const uploadLogo = async (file: File) => {
+    const current = ++logoPick.current;
     try {
-      setLogo(await readLogoFile(file));
+      const logo = await readLogoFile(file);
+      if (current === logoPick.current) setLogo(logo);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : `Could not read ${file.name}.`);
+      if (current === logoPick.current) {
+        toast.error(e instanceof Error ? e.message : `Could not read ${file.name}.`);
+      }
     }
   };
   // The name is written into the connector's definition row by create() and never again. It
@@ -112,15 +126,17 @@ export function GeneralEditor() {
               <div className='flex items-center gap-2'>
                 <div className='flex size-9 shrink-0 items-center justify-center rounded-md border'>
                   {state.logo ? (
-                    <RawBase64Icon base64={state.logo} size={24} />
+                    <RawBase64Icon key={state.logo} base64={state.logo} size={24} />
                   ) : (
                     <CustomConnectorIcon size={20} />
                   )}
                 </div>
                 <Button
+                  ref={uploadButton}
                   type='button'
                   variant='outline'
                   size='sm'
+                  aria-label={state.logo ? 'Replace icon' : 'Upload icon'}
                   onClick={() => {
                     logoInput.current?.click();
                   }}
@@ -132,8 +148,11 @@ export function GeneralEditor() {
                     type='button'
                     variant='ghost'
                     size='sm'
+                    aria-label='Remove icon'
                     onClick={() => {
+                      logoPick.current += 1;
                       setLogo(null);
+                      uploadButton.current?.focus();
                     }}
                   >
                     Remove

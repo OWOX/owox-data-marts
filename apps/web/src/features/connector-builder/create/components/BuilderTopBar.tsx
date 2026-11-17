@@ -43,7 +43,16 @@ export function BuilderTopBar({
   onDeleted?: () => void;
   onToggleAi?: () => void;
 }) {
-  const { manifest, state, saveDraft, publish, softDelete, reset, flushCodeEdits } = useBuilder();
+  const {
+    manifest,
+    state,
+    saveDraft,
+    publish,
+    softDelete,
+    reset,
+    flushCodeEdits,
+    manifestUnsaved,
+  } = useBuilder();
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [resetOpen, setResetOpen] = useState(false);
 
@@ -64,12 +73,15 @@ export function BuilderTopBar({
   // Publish is guarded too: it saves the draft first, so it destroys the same row.
   const [pendingWrite, setPendingWrite] = useState<'save' | 'publish' | null>(null);
   const atRisk = draftVersionAtRisk(state);
-  // The newest version is already published and nothing changed since: a publish would only be
-  // refused for having no draft.
+  // The newest version is already published and the manifest is unchanged since: a publish
+  // would only be refused for having no draft. The icon is not in a version.
   const nothingToPublish =
-    state.id !== null && !state.dirty && state.versions.at(-1)?.status === 'published';
+    state.id !== null &&
+    state.manifest === state.savedManifest &&
+    state.versions.at(-1)?.status === 'published';
   const write = (kind: 'save' | 'publish') => {
-    if (atRisk !== null) setPendingWrite(kind);
+    // A save of the icon alone writes no version, so it replaces no draft.
+    if (atRisk !== null && (kind === 'publish' || manifestUnsaved())) setPendingWrite(kind);
     else if (kind === 'save') void saveDraft();
     else void publish();
   };

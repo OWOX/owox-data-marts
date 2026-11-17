@@ -122,10 +122,10 @@ A Data Mart that follows the active version runs it with its own credentials. So
 
 ## Edit the connector as JSON
 
-Switch to **Code** to see the whole connector as one JSON manifest. The builder and the code show the same connector, so a change in one appears in the other. Code also covers what the form does not, such as extra request `headers`. While the JSON has an error, the connector cannot be saved or published.
+Switch to **Code** to see the connector as one JSON manifest. The builder and the code show the same connector, so a change in one appears in the other. Code also covers what the form does not, such as extra request `headers`. While the JSON has an error, the connector cannot be saved or published. The icon is not part of the manifest.
 
-- **Import JSON** on the **Code** tab, or **⋮** → **Import JSON…**, replaces the connector with a manifest from a `.json` file. A connector that already exists keeps its name.
-- **⋮** → **Export JSON** downloads the manifest, e.g. to keep a copy or to move the connector to another project.
+- **Import JSON** on the **Code** tab, or **⋮** → **Import JSON…**, replaces the connector with a manifest from a `.json` file. A connector that already exists keeps its name and its icon.
+- **⋮** → **Export JSON** downloads the manifest, e.g. to keep a copy or to move the connector to another project. The file does not include the icon, so upload the icon again in the other project.
 
 To build a connector with an AI assistant, give it the [authoring guide for AI assistants](https://docs.owox.com/docs/connectors/manifest-reference.llms.txt) and the API's documentation. Import the manifest it writes, then test and publish it as above. Never give the assistant your credentials.
 
