@@ -213,16 +213,18 @@ Requests still use the Microsoft Ads developer token from `OAUTH_MICROSOFT_ADS_D
 
 ## Cloud billing pages
 
-- **CLOUD_BILLING_ENABLED**: Enables the native Credit consumption and Subscription pages.
-  Defaults to `false`. Enable it in the managed Cloud runtime.
+- **CLOUD_BILLING_ENABLED**: Enables Credits consumption, Subscription, Pricing, and the
+  Checkout result. Defaults to `false`. Enable it in the managed Cloud runtime.
 - **CLOUD_BILLING_API_ORIGIN**: Public HTTPS origin of the Integrated Backend, for example
   `https://integrated-backend.bi.owox.com`. Use an origin without credentials, a path, a
   query, or a fragment. Setting `CLOUD_BILLING_ENABLED=true` requires a valid origin at
   startup. The server exposes both configured variables through `/api/flags`.
 
-The browser sends billing reads to this origin with the current user's App access token.
-Before enabling the flag, verify that the Integrated Backend accepts the token and allows
-the App origin for the billing read endpoints.
+The browser sends billing requests to this origin using the current user's App access token.
+Before deploying this version of App to an environment with Cloud billing enabled, deploy
+the Integrated Backend version with the Pricing and Checkout APIs. Verify that it accepts
+the token and allows the App origin for catalog reads, checkout creation, and checkout
+status. Stripe returns customers to the App origin after checkout.
 
 ## Reverse proxy
 

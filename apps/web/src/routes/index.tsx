@@ -14,6 +14,7 @@ import { DataStorageListPage } from '../pages/data-storage';
 import { ConnectorsListPage } from '../pages/connectors/ConnectorsListPage';
 import { DataDestinationListPage } from '../pages/data-destination/DataDestinationListPage';
 import { ProjectSettingsPage } from '../pages/project-settings/ProjectSettingsPage';
+import { CheckoutResultPage, PricingPage } from '../pages/project-settings/PricingPages';
 import { ProjectNotificationsPage } from '../pages/notifications/project';
 import { RequestAccessPage } from '../pages/request-access/RequestAccessPage';
 import { LegacyRequestAccessRedirect } from '../pages/request-access/LegacyRequestAccessRedirect';
@@ -132,6 +133,16 @@ const routes: RouteObject[] = [
         element: <ProjectSettingsPage />,
         errorElement: <LayoutErrorBoundary />,
         children: projectSettingsRoutes,
+      },
+      {
+        path: 'pricing',
+        element: <PricingPage />,
+        errorElement: <LayoutErrorBoundary />,
+      },
+      {
+        path: 'checkout/success',
+        element: <CheckoutResultPage />,
+        errorElement: <LayoutErrorBoundary />,
       },
       // Legacy redirects: old /members and /members/contexts bookmarks land on
       // the new Project Settings page. Kept as thin redirects for one release

@@ -1,4 +1,5 @@
 import { BriefcaseBusiness, ExternalLink, Info, TriangleAlert } from 'lucide-react';
+import { Link } from 'react-router';
 import { Alert, AlertDescription } from '@owox/ui/components/alert';
 import { Button } from '@owox/ui/components/button';
 import {
@@ -16,9 +17,8 @@ import { useUser } from '../idp/hooks/useAuthState';
 import { useCanEdit } from '../idp/hooks/useRole';
 import { BillingLoadState } from './BillingLoadState';
 import { useCloudBillingQuery, type SubscriptionDetails } from './cloud-billing';
+import { buildProjectPath } from '../../utils/path';
 
-const platformOrigin =
-  import.meta.env.VITE_OWOX_PLATFORM_URL?.replace(/\/$/, '') ?? 'https://platform.owox.com';
 const portalUrl = 'https://payments.bi.owox.com/p/login/5kA3doeza1Djc9O9AA';
 const billingHelpUrl = 'https://support.owox.com/hc/en-us/sections/12401110143892';
 const number = new Intl.NumberFormat();
@@ -66,9 +66,7 @@ export function Subscription({ origin }: { origin: string }) {
   const status = subscription ? subscriptionStatuses[subscription.status] : null;
   const freePlanNotice = getFreePlanNotice(subscription);
   const canManage = canEdit && !user?.viewOnly;
-  const pricingUrl = user?.projectId
-    ? `${platformOrigin}/ui/p/${encodeURIComponent(user.projectId)}/pricing`
-    : null;
+  const pricingUrl = user?.projectId ? buildProjectPath(user.projectId, '/pricing') : null;
 
   return (
     <div className='dm-page-content'>
@@ -177,9 +175,9 @@ export function Subscription({ origin }: { origin: string }) {
             </Empty>
           )}
         </CardContent>
-        {query.isSuccess && canManage && (
+        {query.isSuccess && (Boolean(pricingUrl) || canManage) && (
           <CardFooter className='flex-col items-start gap-2'>
-            {subscription?.billingAccount && subscription.planType !== 'FREE' ? (
+            {canManage && subscription?.billingAccount && subscription.planType !== 'FREE' ? (
               <>
                 <Button asChild variant='outline' size='sm'>
                   <a href={portalUrl} target='_blank' rel='noopener noreferrer'>
@@ -193,7 +191,7 @@ export function Subscription({ origin }: { origin: string }) {
               </>
             ) : pricingUrl ? (
               <Button asChild variant='outline' size='sm'>
-                <a href={pricingUrl}>View plans</a>
+                <Link to={pricingUrl}>View plans</Link>
               </Button>
             ) : null}
           </CardFooter>

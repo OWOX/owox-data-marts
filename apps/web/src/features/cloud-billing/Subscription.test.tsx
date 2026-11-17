@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen } from '@testing-library/react';
+import { MemoryRouter } from 'react-router';
 import { describe, expect, it, vi } from 'vitest';
 import apiClient from '../../app/api/apiClient';
 import { useUser } from '../idp/hooks/useAuthState';
@@ -38,7 +39,9 @@ function renderSubscription(subscription: SubscriptionDetails, user: Partial<Use
   vi.mocked(apiClient.get).mockResolvedValueOnce({ data: subscription });
   render(
     <QueryClientProvider client={new QueryClient()}>
-      <Subscription origin={origin} />
+      <MemoryRouter>
+        <Subscription origin={origin} />
+      </MemoryRouter>
     </QueryClientProvider>
   );
 }
@@ -139,7 +142,22 @@ describe('Subscription billing portal', () => {
   ])('shows View plans for $name without an eligible billing account', async subscription => {
     renderSubscription(subscription, { roles: ['editor'] });
 
-    expect(await screen.findByRole('link', { name: 'View plans' })).toBeInTheDocument();
+    expect(await screen.findByRole('link', { name: 'View plans' })).toHaveAttribute(
+      'href',
+      '/ui/project-1/pricing'
+    );
+    expect(
+      screen.queryByRole('link', { name: 'Change card & billing info' })
+    ).not.toBeInTheDocument();
+  });
+
+  it('allows viewers to open pricing without exposing the billing portal', async () => {
+    renderSubscription(internalPlan);
+
+    expect(await screen.findByRole('link', { name: 'View plans' })).toHaveAttribute(
+      'href',
+      '/ui/project-1/pricing'
+    );
     expect(
       screen.queryByRole('link', { name: 'Change card & billing info' })
     ).not.toBeInTheDocument();
