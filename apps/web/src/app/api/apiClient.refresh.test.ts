@@ -93,6 +93,22 @@ describe('apiClient — token refresh', () => {
     expect(onLogout).toHaveBeenCalledTimes(1);
   });
 
+  it('keeps the App session when a billing request refuses the fresh token', async () => {
+    refreshToken.mockResolvedValue('fresh-token');
+    const { retry, onRejected } = await load();
+    const rejectedRead = { response: { status: 401 } };
+    retry.mockRejectedValue(rejectedRead);
+    const request = expired();
+
+    await expect(
+      onRejected({ ...request, config: { ...request.config, skipLogoutOnUnauthorizedRetry: true } })
+    ).rejects.toBe(rejectedRead);
+
+    expect(refreshToken).toHaveBeenCalledTimes(1);
+    expect(retry).toHaveBeenCalledTimes(1);
+    expect(onLogout).not.toHaveBeenCalled();
+  });
+
   // A plugin asking for the member token after an idle period must not start a second
   // refreshSession() beside the one a 401 already started.
   it('shares one refresh between the interceptor and refreshMemberAccessToken', async () => {

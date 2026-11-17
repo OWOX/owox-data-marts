@@ -61,12 +61,14 @@ export interface ConsumptionSummary {
   products: ConsumptionProduct[];
 }
 
+type BillingLocalDate = [year: number, month: number, day: number];
+
 export interface SubscriptionDetails {
   billingAccount: string | null;
   name: string;
   status: 'ACTIVE' | 'CANCELED';
-  startDate: string;
-  endDate: string | null;
+  startDate: BillingLocalDate;
+  endDate: BillingLocalDate | null;
   billingCycle:
     | 'MONTHLY'
     | 'QUARTERLY'
@@ -106,6 +108,7 @@ export function useCloudBillingQuery<T>(
         headers: { 'Content-Type': null },
         withCredentials: false,
         skipErrorToast: true,
+        skipLogoutOnUnauthorizedRetry: true,
         expectedSession: { projectId: user.projectId, userId: user.id },
       };
       const { data } = await apiClient.get<T>(endpoint, config);

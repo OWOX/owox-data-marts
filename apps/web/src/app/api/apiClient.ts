@@ -23,6 +23,7 @@ export interface AxiosRequestConfig extends OriginalAxiosRequestConfig {
   skipLoadingIndicator?: boolean;
   skipAuthHeader?: boolean;
   skipErrorToast?: boolean;
+  skipLogoutOnUnauthorizedRetry?: boolean;
   expectedSession?: { projectId: string; userId: string };
 }
 
@@ -32,6 +33,7 @@ interface ExtendedInternalAxiosRequestConfig extends InternalAxiosRequestConfig 
   _retry?: boolean;
   connectProjectTarget?: ConnectProjectTarget | null;
   connectUserId?: string | null;
+  skipLogoutOnUnauthorizedRetry?: AxiosRequestConfig['skipLogoutOnUnauthorizedRetry'];
   expectedSession?: AxiosRequestConfig['expectedSession'];
 }
 
@@ -217,10 +219,11 @@ apiClient.interceptors.response.use(
       try {
         return await apiClient(originalRequest);
       } catch (retryError) {
-        // Only a refused token signs the user out. Any other failure of the retried request is
-        // that request's own answer — a 400 naming the field to fix, a 404 — already reported by
-        // this interceptor on its way through, and passed on to the caller unchanged.
-        if ((retryError as AxiosError | undefined)?.response?.status === 401) {
+        // A secondary service can refuse a fresh token while the App session is still valid.
+        if (
+          (retryError as AxiosError | undefined)?.response?.status === 401 &&
+          !originalRequest.skipLogoutOnUnauthorizedRetry
+        ) {
           return signOut(retryError);
         }
         throw retryError;

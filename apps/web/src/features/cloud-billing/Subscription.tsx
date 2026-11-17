@@ -29,6 +29,10 @@ const subscriptionStatuses = {
   NOT_PAID: { label: 'Unpaid', type: StatusTypeEnum.WARNING },
 };
 
+function formatSubscriptionDate([year, month, day]: SubscriptionDetails['startDate']): string {
+  return date.format(new Date(Date.UTC(year, month - 1, day)));
+}
+
 function getFreePlanNotice(subscription: SubscriptionDetails | null | undefined): string | null {
   if (subscription?.planType !== 'FREE') return null;
 
@@ -113,7 +117,7 @@ export function Subscription({ origin }: { origin: string }) {
                 </div>
                 <div>
                   <dt className='text-muted-foreground'>Start date</dt>
-                  <dd>{date.format(new Date(subscription.startDate))}</dd>
+                  <dd>{formatSubscriptionDate(subscription.startDate)}</dd>
                 </div>
                 {subscription.endDate && (
                   <div>
@@ -123,7 +127,7 @@ export function Subscription({ origin }: { origin: string }) {
                         ? 'End date'
                         : 'Renewal date'}
                     </dt>
-                    <dd>{date.format(new Date(subscription.endDate))}</dd>
+                    <dd>{formatSubscriptionDate(subscription.endDate)}</dd>
                   </div>
                 )}
                 {subscription.billingAccount && (

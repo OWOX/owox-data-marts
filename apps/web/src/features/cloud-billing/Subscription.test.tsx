@@ -15,7 +15,7 @@ const freePlan: SubscriptionDetails = {
   billingAccount: null,
   name: 'Free',
   status: 'ACTIVE',
-  startDate: '2026-11-01',
+  startDate: [2026, 11, 1],
   endDate: null,
   billingCycle: 'NON_RECURRING',
   price: 0,
@@ -61,4 +61,22 @@ describe('Subscription notices', () => {
     expect(await screen.findByRole('heading', { name: subscription.name })).toBeInTheDocument();
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
+});
+
+it('renders the billing dates from the IB calendar date arrays', async () => {
+  renderSubscription({
+    ...freePlan,
+    name: 'Team',
+    planType: 'PAID',
+    billingCycle: 'MONTHLY',
+    endDate: [2026, 12, 1],
+  });
+  const format = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeZone: 'UTC' });
+
+  expect(await screen.findByText(format.format(new Date('2026-11-01')))).toBeInTheDocument();
+  expect(screen.getByText(format.format(new Date('2026-12-01')))).toBeInTheDocument();
+  expect(apiClient.get).toHaveBeenCalledWith(
+    '/api/billing/subscription-details',
+    expect.objectContaining({ baseURL: origin, skipLogoutOnUnauthorizedRetry: true })
+  );
 });
