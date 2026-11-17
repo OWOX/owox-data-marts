@@ -91,9 +91,10 @@ describe('ConnectorDefinitionController OpenAPI', () => {
     return operation?.responses?.[status]?.content?.['application/json']?.schema;
   }
 
-  it('publishes all fourteen custom-connector endpoints with their documented status codes', () => {
+  it('publishes all fifteen custom-connector endpoints with their documented status codes', () => {
     const expected = [
       { path: BASE, method: 'get', handler: 'list', statuses: ['200'] },
+      { path: `${BASE}/summaries`, method: 'get', handler: 'summaries', statuses: ['200'] },
       { path: BASE, method: 'post', handler: 'create', statuses: ['201', '400', '413'] },
       {
         path: `${BASE}/test`,
@@ -221,6 +222,30 @@ describe('ConnectorDefinitionController OpenAPI', () => {
       activeVersionId: { type: 'string', nullable: true },
       activeVersion: { type: 'integer', nullable: true },
     });
+  });
+
+  it('publishes the summaries payload and its optional names query', () => {
+    const operation = document.paths[`${BASE}/summaries`]?.get as Record<string, any>;
+
+    expect(jsonSchemaOf(operation, '200')).toEqual({
+      type: 'array',
+      items: { $ref: '#/components/schemas/CustomConnectorSummaryResponseApiDto' },
+    });
+    const itemSchema = resolveRef('#/components/schemas/CustomConnectorSummaryResponseApiDto');
+    expect(Object.keys(itemSchema.properties).sort()).toEqual([
+      'hosts',
+      'id',
+      'logo',
+      'name',
+      'title',
+    ]);
+    expect(itemSchema.properties.hosts).toMatchObject({ type: 'array', items: { type: 'string' } });
+    expect(itemSchema.properties.logo).toMatchObject({ nullable: true });
+
+    const names = ((operation?.parameters ?? []) as Record<string, any>[]).find(
+      p => p.name === 'names'
+    );
+    expect(names).toMatchObject({ in: 'query', required: false });
   });
 
   it('publishes the detail payload carrying the version list the builder renders', () => {

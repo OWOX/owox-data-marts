@@ -256,3 +256,20 @@ export class CustomConnectorCredentialRequirementResponseApiDto {
   })
   misuse: string[];
 }
+
+export class CustomConnectorSummaryResponseApiDto {
+  @ApiProperty({ example: '9cabc24e-1234-4a5a-8b12-abcdef123456' })
+  id: string;
+
+  @ApiProperty({ example: 'MyCustomApi' })
+  name: string;
+
+  @ApiProperty({ example: 'My Custom API' })
+  title: string;
+
+  @ApiProperty({ type: String, example: 'base64-encoded-logo', nullable: true })
+  logo: string | null;
+
+  @ApiProperty({ type: [String], example: ['api.example.com'] })
+  hosts: string[];
+}

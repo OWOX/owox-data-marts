@@ -143,6 +143,39 @@ The generic does not validate the response at runtime, so validate returned data
 must be root-relative `/api/...` and are limited to 2,048 characters; unsafe or redirecting paths
 are refused.
 
+### Read custom connector logos
+
+Bundled connectors come from `GET /api/connectors`. To draw a card for a custom connector, read
+`GET /api/connectors/custom/summaries` with `getJson`. It needs the viewer role.
+
+```ts
+type ConnectorSummary = {
+  id: string;
+  name: string;
+  title: string;
+  logo: string | null;
+  hosts: string[];
+};
+const names = [...new Set(dataMarts.map(m => m.connectorSourceName).filter(Boolean))];
+const connectors = names.length
+  ? await ctx.owox.getJson<ConnectorSummary[]>('/api/connectors/custom/summaries', {
+      names: names.join(','),
+    })
+  : [];
+```
+
+- Match `name` to `connectorSourceName` without regard to case.
+- Draw `logo` only when it is a `data:image/…;base64` value. Otherwise show initials.
+- Link a card to the connector builder with `id`. See the page table in
+  [Link to OWOX pages](#link-to-owox-pages).
+- `hosts` lists the API hosts of the active published version. Connectors that call one API can
+  share a card. `hosts` is empty when no version is published or the stored manifest cannot be
+  read.
+- When `GET /api/connectors` also lists the name, use that bundled entry, because a run uses the
+  bundled connector.
+- The endpoint never returns a manifest.
+- Without `names`, it returns every custom connector of the project.
+
 ### Handle request errors
 
 A failed `ctx.owox`, collection, or credential call rejects with a `PluginTransportError`. Its
@@ -230,30 +263,33 @@ ctx.ui.navigate(
 
 Each path below starts with `/ui/<project>`.
 
-| Page             | Path                                                                        |
-| ---------------- | --------------------------------------------------------------------------- |
-| Data Marts       | `/data-marts`                                                               |
-| New Data Mart    | `/data-marts/create`                                                        |
-| Data Mart        | `/data-marts/<dataMartId>/<tab>`                                            |
-| Insight          | `/data-marts/<dataMartId>/insights-v2/<insightId>`                          |
-| Runs             | `/data-marts/runs`                                                          |
-| Schedules        | `/data-marts/schedules`                                                     |
-| Reports          | `/data-marts/reports`                                                       |
-| Insights         | `/data-marts/insights`                                                      |
-| Models           | `/data-marts/models`                                                        |
-| Storages         | `/data-storages`                                                            |
-| Destinations     | `/data-destinations`                                                        |
-| Connectors       | `/connectors`                                                               |
-| Credentials      | `/credentials`                                                              |
-| Search           | `/search`                                                                   |
-| Project Settings | `/project-settings/<tab>`                                                   |
-| My API keys      | `/me/api-keys`                                                              |
-| Plugins          | `/plugins`, `/plugins/<pluginId>`, `/plugins/schedules`, `/plugins/history` |
+| Page              | Path                                                                        |
+| ----------------- | --------------------------------------------------------------------------- |
+| Data Marts        | `/data-marts`                                                               |
+| New Data Mart     | `/data-marts/create`                                                        |
+| Data Mart         | `/data-marts/<dataMartId>/<tab>`                                            |
+| Insight           | `/data-marts/<dataMartId>/insights-v2/<insightId>`                          |
+| Runs              | `/data-marts/runs`                                                          |
+| Schedules         | `/data-marts/schedules`                                                     |
+| Reports           | `/data-marts/reports`                                                       |
+| Insights          | `/data-marts/insights`                                                      |
+| Models            | `/data-marts/models`                                                        |
+| Storages          | `/data-storages`                                                            |
+| Destinations      | `/data-destinations`                                                        |
+| Connectors        | `/connectors`                                                               |
+| Connector builder | `/connectors/builder/<connectorId>`                                         |
+| Credentials       | `/credentials`                                                              |
+| Search            | `/search`                                                                   |
+| Project Settings  | `/project-settings/<tab>`                                                   |
+| My API keys       | `/me/api-keys`                                                              |
+| Plugins           | `/plugins`, `/plugins/<pluginId>`, `/plugins/schedules`, `/plugins/history` |
 
 A Data Mart `<tab>` is `overview`, `data-setup`, `quality`, `insights-v2`, `reports` (the
 Destinations tab), `triggers`, or `run-history`. A Project Settings `<tab>` is empty (the Overview
 tab), `members`, `contexts`, `credit`, `subscription`, `license-keys`, or `notifications`. Some
 pages and tabs are not available on every deployment or for every role.
+
+The connector builder opens for editors. A viewer sees a notice.
 
 | Path                                               | Parameter                               | Opens                                                                    |
 | -------------------------------------------------- | --------------------------------------- | ------------------------------------------------------------------------ |

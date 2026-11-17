@@ -12,13 +12,14 @@ import {
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { Auth, AuthorizationContext, AuthContext } from '../../idp';
-import { RejectPluginAuth } from '../../idp/decorators';
+import { AllowPluginAuth, RejectPluginAuth } from '../../idp/decorators';
 import { Role } from '../../idp/types/role-config.types';
 import { ConnectorFieldsResponseApiDto } from '../dto/presentation/connector-fields-response-api.dto';
 import { ConnectorSpecificationResponseApiDto } from '../dto/presentation/connector-specification-response-api.dto';
 import {
   CreateCustomConnectorRequestApiDto,
   FittingCustomConnectorCredentialsRequestApiDto,
+  ListCustomConnectorSummariesQueryApiDto,
   SaveDraftRequestApiDto,
   TestConnectorRequestApiDto,
   UpdateCustomConnectorRequestApiDto,
@@ -30,6 +31,7 @@ import {
   CustomConnectorCredentialRequirementResponseApiDto,
   CustomConnectorDetailResponseApiDto,
   CustomConnectorListItemResponseApiDto,
+  CustomConnectorSummaryResponseApiDto,
   CustomConnectorVersionResponseApiDto,
   CustomConnectorVersionStateResponseApiDto,
   DeleteCustomConnectorResponseApiDto,
@@ -46,6 +48,7 @@ import {
   GetCustomConnectorSpec,
   GetCustomConnectorSpecificationSpec,
   GetCustomConnectorVersionSpec,
+  ListCustomConnectorSummariesSpec,
   ListCustomConnectorsSpec,
   ListFittingCustomConnectorCredentialsSpec,
   PublishCustomConnectorSpec,
@@ -66,6 +69,7 @@ import { DeleteCustomConnectorService } from '../use-cases/custom-connectors/del
 import { GetCustomConnectorSpecificationService } from '../use-cases/custom-connectors/get-custom-connector-specification.service';
 import { GetCustomConnectorFieldsService } from '../use-cases/custom-connectors/get-custom-connector-fields.service';
 import { TestCustomConnectorService } from '../use-cases/custom-connectors/test-custom-connector.service';
+import { ListCustomConnectorSummariesService } from '../use-cases/custom-connectors/list-custom-connector-summaries.service';
 import { ConnectorMapper } from '../mappers/connector.mapper';
 import { ConnectorDefinitionMapper } from '../mappers/connector-definition.mapper';
 
@@ -75,8 +79,9 @@ import { ConnectorDefinitionMapper } from '../mappers/connector-definition.mappe
  * without this refusal an installed third-party page bridging through `ctx.owox` could
  * author, publish and activate that manifest on an editor's behalf.
  *
- * Refused at class level rather than per handler: nothing outside the first-party builder
- * UI calls this API, so the reads have no plugin consumer to keep open either.
+ * Refused at class level, so a new handler stays closed to plugins by default. Only
+ * `summaries` re-admits them with @AllowPluginAuth: it returns display data and never a
+ * manifest.
  *
  * Deliberately NOT paired with @RejectApiKeyAuth: an API key is the programmatic path a
  * project owner legitimately uses here (`owox-ctl`). Should one ever be added, it must sit
@@ -101,7 +106,8 @@ export class ConnectorDefinitionController {
     private readonly testCustomConnector: TestCustomConnectorService,
     private readonly mapper: ConnectorDefinitionMapper,
     private readonly connectorMapper: ConnectorMapper,
-    private readonly listFittingCredentials: ListFittingCustomConnectorCredentialsService
+    private readonly listFittingCredentials: ListFittingCustomConnectorCredentialsService,
+    private readonly listCustomConnectorSummaries: ListCustomConnectorSummariesService
   ) {}
 
   /**
@@ -122,6 +128,20 @@ export class ConnectorDefinitionController {
   ): Promise<CustomConnectorListItemResponseApiDto[]> {
     const result = await this.listCustomConnectors.run(this.mapper.toListCommand(ctx.projectId));
     return this.mapper.toListApiResponse(result);
+  }
+
+  @Auth(Role.viewer())
+  @AllowPluginAuth()
+  @Get('summaries')
+  @ListCustomConnectorSummariesSpec()
+  async summaries(
+    @AuthContext() ctx: AuthorizationContext,
+    @Query() query: ListCustomConnectorSummariesQueryApiDto
+  ): Promise<CustomConnectorSummaryResponseApiDto[]> {
+    const result = await this.listCustomConnectorSummaries.run(
+      this.mapper.toSummariesCommand(ctx.projectId, query.names)
+    );
+    return this.mapper.toSummariesApiResponse(result);
   }
 
   @Auth(Role.editor())

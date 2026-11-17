@@ -17,6 +17,7 @@ import {
   CustomConnectorCredentialRequirementResponseApiDto,
   CustomConnectorDetailResponseApiDto,
   CustomConnectorListItemResponseApiDto,
+  CustomConnectorSummaryResponseApiDto,
   CustomConnectorVersionResponseApiDto,
   CustomConnectorVersionStateResponseApiDto,
   DeleteCustomConnectorResponseApiDto,
@@ -42,6 +43,24 @@ export function ListCustomConnectorsSpec() {
     ApiOkResponse({
       description: 'Custom connectors defined in the project.',
       type: CustomConnectorListItemResponseApiDto,
+      isArray: true,
+    })
+  );
+}
+
+export function ListCustomConnectorSummariesSpec() {
+  return applyDecorators(
+    ApiOperation({
+      summary: 'List custom connector summaries',
+      description:
+        'Returns the id, name, title, logo and hosts of the custom connectors in the current ' +
+        'project, never a manifest. `hosts` holds the hostnames of the active published version ' +
+        'and is empty when no version is active or when the stored manifest cannot be parsed. ' +
+        'Viewer access is required. A plugin may call it.',
+    }),
+    ApiOkResponse({
+      description: 'Custom connector summaries.',
+      type: CustomConnectorSummaryResponseApiDto,
       isArray: true,
     })
   );

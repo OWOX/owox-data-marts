@@ -10,6 +10,7 @@ import {
   ValidateIf,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Transform } from 'class-transformer';
 import { MaxCodePointLength } from '../../../common/validators/max-code-point-length.validator';
 import { MaxByteLength } from '../../../common/validators/max-byte-length.validator';
 import { MaxJsonSize } from '../../../common/validators/max-json-size.validator';
@@ -196,4 +197,20 @@ export class FittingCustomConnectorCredentialsRequestApiDto {
   @IsOptional()
   @IsString()
   selection?: string;
+}
+
+export class ListCustomConnectorSummariesQueryApiDto {
+  @ApiPropertyOptional({
+    type: String,
+    description: 'Comma-separated connector names. Matched case-insensitively.',
+    example: 'MyCustomApi,OtherApi',
+  })
+  @IsOptional()
+  @Transform(({ value }) =>
+    value === undefined
+      ? value
+      : [value].flat().flatMap(v => (typeof v === 'string' ? v.split(',') : [v]))
+  )
+  @IsString({ each: true })
+  names?: string[];
 }

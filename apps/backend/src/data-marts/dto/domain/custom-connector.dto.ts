@@ -74,3 +74,11 @@ export interface FittingCustomConnectorCredentialDto {
   /** Why the Credential is not offered; null when it fits. */
   readonly refusal: { reason: 'unfit' | 'misuse' | 'secret'; message: string } | null;
 }
+
+export interface CustomConnectorSummaryDto {
+  id: string;
+  name: string;
+  title: string;
+  logo: string | null;
+  hosts: string[];
+}

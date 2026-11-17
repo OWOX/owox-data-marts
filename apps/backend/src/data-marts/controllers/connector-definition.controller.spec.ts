@@ -15,9 +15,34 @@ jest.mock('../../idp', () => ({
   ViewOnlySafe: () => () => undefined,
 }));
 
+import { Reflector } from '@nestjs/core';
 import { ConnectorDefinitionController } from './connector-definition.controller';
 import { ConnectorMapper } from '../mappers/connector.mapper';
+import { REJECT_PLUGIN_AUTH_METADATA } from '../../idp/decorators/reject-plugin-auth.decorator';
 import type { AuthorizationContext } from '../../idp';
+
+describe('ConnectorDefinitionController plugin access', () => {
+  it('refuses plugin runtime tokens on every handler except summaries', () => {
+    const prototype = ConnectorDefinitionController.prototype as unknown as Record<
+      string,
+      () => unknown
+    >;
+    const handlers = Object.getOwnPropertyNames(prototype).filter(
+      name => name !== 'constructor' && Reflect.getMetadata('path', prototype[name]) !== undefined
+    );
+
+    expect(handlers).toContain('summaries');
+    for (const name of handlers) {
+      expect([
+        name,
+        new Reflector().getAllAndOverride<boolean>(REJECT_PLUGIN_AUTH_METADATA, [
+          prototype[name],
+          ConnectorDefinitionController,
+        ]),
+      ]).toEqual([name, name !== 'summaries']);
+    }
+  });
+});
 
 /**
  * A custom connector's specification and fields are served to every project member, as a
@@ -76,6 +101,7 @@ describe('ConnectorDefinitionController specification and fields', () => {
       {} as never,
       new ConnectorDefinitionMapper(),
       new ConnectorMapper(),
+      {} as never,
       {} as never
     );
   };
@@ -129,6 +155,7 @@ describe('ConnectorDefinitionController response boundary', () => {
       {} as never,
       new ConnectorDefinitionMapper(),
       new ConnectorMapper(),
+      {} as never,
       {} as never
     );
     const ctx = { projectId: 'proj-1', userId: 'u', roles: ['viewer'] } as AuthorizationContext;

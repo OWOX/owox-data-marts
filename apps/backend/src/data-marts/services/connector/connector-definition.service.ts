@@ -109,6 +109,8 @@ const SAVE_DRAFT_ATTEMPTS = 3;
  */
 const ACTIVE_VERSION_NUMBER_COLUMNS: (keyof ConnectorDefinitionVersion)[] = ['id', 'version'];
 
+const ACTIVE_MANIFEST_COLUMNS: (keyof ConnectorDefinitionVersion)[] = ['id', 'manifest'];
+
 /**
  * The columns listVersions() serves. Same reasoning as ACTIVE_VERSION_NUMBER_COLUMNS, with
  * more at stake: this one returns EVERY version of a connector, so without a `select` a
@@ -851,6 +853,33 @@ export class ConnectorDefinitionService {
       const version = def.activeVersionId ? versionNumberById.get(def.activeVersionId) : undefined;
       if (version !== undefined) {
         byDefId.set(def.id, version);
+      }
+    }
+    return byDefId;
+  }
+
+  async getActiveManifestsByDefId(
+    defs: ConnectorDefinition[]
+  ): Promise<Map<string, Record<string, unknown>>> {
+    const activeVersionIds = defs
+      .map(def => def.activeVersionId)
+      .filter((id): id is string => Boolean(id));
+
+    if (activeVersionIds.length === 0) {
+      return new Map();
+    }
+
+    const rows = await this.versionRepo.find({
+      where: { id: In(activeVersionIds), status: ConnectorDefinitionVersionStatus.PUBLISHED },
+      select: ACTIVE_MANIFEST_COLUMNS,
+    });
+
+    const manifestById = new Map(rows.map(row => [row.id, row.manifest]));
+    const byDefId = new Map<string, Record<string, unknown>>();
+    for (const def of defs) {
+      const manifest = def.activeVersionId ? manifestById.get(def.activeVersionId) : undefined;
+      if (manifest) {
+        byDefId.set(def.id, manifest);
       }
     }
     return byDefId;

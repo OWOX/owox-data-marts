@@ -8,7 +8,7 @@ const SRC = join(__dirname, '..', '..');
  *
  * The guard admits a plugin runtime token anywhere that does not refuse it. That
  * default-allow is deliberate and temporary -- per-action plugin permissions are the next
- * step and will retire both decorators -- but until then nothing except this rule stands
+ * step and will retire these decorators -- but until then nothing except this rule stands
  * between a third-party page and an endpoint that mints or returns a credential. A plugin
  * proxies its request through the host bridge and keeps whatever comes back, long after
  * its runtime token expires or the member uninstalls it.
@@ -133,4 +133,23 @@ describe('plugin runtime token coverage', () => {
       });
     }
   );
+
+  // A new re-admission must be added here on purpose.
+  it('re-admits plugin runtime tokens only on the pinned handlers', () => {
+    const allowed = files.flatMap(file => {
+      const lines = readFileSync(file, 'utf8').split('\n');
+      return lines.flatMap((line, index) => {
+        if (!/@AllowPluginAuth\s*\(/.test(line)) return [];
+        const handler = lines
+          .slice(index + 1)
+          .map(next => /^\s*(?:async\s+)?(\w+)\s*\(/.exec(next)?.[1])
+          .find(Boolean);
+        return [`${file.slice(SRC.length + 1)}:${handler}`];
+      });
+    });
+
+    expect(allowed).toEqual([
+      `${join('data-marts', 'controllers', 'connector-definition.controller.ts')}:summaries`,
+    ]);
+  });
 });

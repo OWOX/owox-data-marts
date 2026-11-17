@@ -23,6 +23,99 @@ import { ConnectorDefinitionMapper } from '../mappers/connector-definition.mappe
 import { ConnectorDefinitionVersionStatus } from '../entities/connector-definition-version.entity';
 import type { AuthorizationContext } from '../../idp';
 
+const PROJECT = 'proj-1';
+
+/**
+ * `size` definitions wired through the REAL service -- a mocked service would hide the
+ * very queries under test. `active: false` leaves them all unpublished.
+ */
+const make = (size: number, { active = true }: { active?: boolean } = {}) => {
+  const defs = Array.from({ length: size }, (_, i) => ({
+    id: `def-${i + 1}`,
+    projectId: PROJECT,
+    name: `Custom${i + 1}`,
+    title: `Custom ${i + 1}`,
+    description: null,
+    logo: `data:image/png;base64,${'A'.repeat(32)}`,
+    docUrl: null,
+    activeVersionId: active ? `ver-${i + 1}` : null,
+  }));
+
+  const versions = defs.map((def, i) => ({
+    id: `ver-${i + 1}`,
+    connectorDefinitionId: def.id,
+    version: i + 1,
+    status: ConnectorDefinitionVersionStatus.PUBLISHED,
+    // The amplifier. A real manifest runs up to MAX_MANIFEST_SIZE_BYTES (120 KiB); a query
+    // with no `select` drags it across the wire once per row in the list.
+    manifest: { blob: 'x'.repeat(1024), defId: def.id },
+  }));
+
+  /** Every option object any version query was handed, in call order. */
+  const versionQueries: Record<string, unknown>[] = [];
+
+  const applySelect = (row: Record<string, unknown>, select: unknown) => {
+    if (!Array.isArray(select)) return row;
+    return Object.fromEntries(
+      Object.entries(row).filter(([column]) => (select as string[]).includes(column))
+    );
+  };
+
+  const idsOf = (id: unknown): string[] => {
+    if (id instanceof FindOperator) return id.value as string[];
+    return typeof id === 'string' ? [id] : [];
+  };
+
+  const definitionRepo = {
+    find: jest.fn(async ({ where }) => defs.filter(d => d.projectId === where.projectId)),
+  };
+
+  const versionRepo = {
+    findOne: jest.fn(async (options: Record<string, any>) => {
+      versionQueries.push(options);
+      const [id] = idsOf(options.where?.id);
+      const row = versions.find(v => v.id === id);
+      return row ? applySelect(row, options.select) : null;
+    }),
+    find: jest.fn(async (options: Record<string, any>) => {
+      versionQueries.push(options);
+      const wanted = idsOf(options.where?.id);
+      return versions.filter(v => wanted.includes(v.id)).map(v => applySelect(v, options.select));
+    }),
+  };
+
+  const service = new ConnectorDefinitionService(
+    definitionRepo as never,
+    versionRepo as never,
+    { findByProjectIdAndDefinitionType: jest.fn().mockResolvedValue([]) } as never,
+    {} as never,
+    {} as never
+  );
+
+  // The real mapper, not a double: it is pure, and a double would stop these cases
+  // exercising the projection the handler actually returns.
+  const controller = new ConnectorDefinitionController(
+    new ListCustomConnectorsService(service, new ConnectorDefinitionMapper()),
+    {} as never,
+    {} as never,
+    {} as never,
+    {} as never,
+    {} as never,
+    {} as never,
+    {} as never,
+    {} as never,
+    {} as never,
+    {} as never,
+    {} as never,
+    new ConnectorDefinitionMapper(),
+    new ConnectorMapper(),
+    {} as never,
+    {} as never
+  );
+
+  return { controller, service, versionQueries };
+};
+
 /**
  * GET /connectors/custom is the builder's index page, and the fallback every Data Mart run
  * page hits to resolve a custom connector by name -- so its cost is paid on ordinary
@@ -37,98 +130,6 @@ import type { AuthorizationContext } from '../../idp';
  * options they were handed, and the assertions are about those.
  */
 describe('ConnectorDefinitionController list() cost', () => {
-  const PROJECT = 'proj-1';
-
-  /**
-   * `size` definitions wired through the REAL service -- a mocked service would hide the
-   * very queries under test. `active: false` leaves them all unpublished.
-   */
-  const make = (size: number, { active = true }: { active?: boolean } = {}) => {
-    const defs = Array.from({ length: size }, (_, i) => ({
-      id: `def-${i + 1}`,
-      projectId: PROJECT,
-      name: `Custom${i + 1}`,
-      title: `Custom ${i + 1}`,
-      description: null,
-      logo: `data:image/png;base64,${'A'.repeat(32)}`,
-      docUrl: null,
-      activeVersionId: active ? `ver-${i + 1}` : null,
-    }));
-
-    const versions = defs.map((def, i) => ({
-      id: `ver-${i + 1}`,
-      connectorDefinitionId: def.id,
-      version: i + 1,
-      status: ConnectorDefinitionVersionStatus.PUBLISHED,
-      // The amplifier. A real manifest runs up to MAX_MANIFEST_SIZE_BYTES (120 KiB); a query
-      // with no `select` drags it across the wire once per row in the list.
-      manifest: { blob: 'x'.repeat(1024) },
-    }));
-
-    /** Every option object any version query was handed, in call order. */
-    const versionQueries: Record<string, unknown>[] = [];
-
-    const applySelect = (row: Record<string, unknown>, select: unknown) => {
-      if (!Array.isArray(select)) return row;
-      return Object.fromEntries(
-        Object.entries(row).filter(([column]) => (select as string[]).includes(column))
-      );
-    };
-
-    const idsOf = (id: unknown): string[] => {
-      if (id instanceof FindOperator) return id.value as string[];
-      return typeof id === 'string' ? [id] : [];
-    };
-
-    const definitionRepo = {
-      find: jest.fn(async ({ where }) => defs.filter(d => d.projectId === where.projectId)),
-    };
-
-    const versionRepo = {
-      findOne: jest.fn(async (options: Record<string, any>) => {
-        versionQueries.push(options);
-        const [id] = idsOf(options.where?.id);
-        const row = versions.find(v => v.id === id);
-        return row ? applySelect(row, options.select) : null;
-      }),
-      find: jest.fn(async (options: Record<string, any>) => {
-        versionQueries.push(options);
-        const wanted = idsOf(options.where?.id);
-        return versions.filter(v => wanted.includes(v.id)).map(v => applySelect(v, options.select));
-      }),
-    };
-
-    const service = new ConnectorDefinitionService(
-      definitionRepo as never,
-      versionRepo as never,
-      { findByProjectIdAndDefinitionType: jest.fn().mockResolvedValue([]) } as never,
-      {} as never,
-      {} as never
-    );
-
-    // The real mapper, not a double: it is pure, and a double would stop these cases
-    // exercising the projection the handler actually returns.
-    const controller = new ConnectorDefinitionController(
-      new ListCustomConnectorsService(service, new ConnectorDefinitionMapper()),
-      {} as never,
-      {} as never,
-      {} as never,
-      {} as never,
-      {} as never,
-      {} as never,
-      {} as never,
-      {} as never,
-      {} as never,
-      {} as never,
-      {} as never,
-      new ConnectorDefinitionMapper(),
-      new ConnectorMapper(),
-      {} as never
-    );
-
-    return { controller, versionQueries };
-  };
-
   const ctx = { projectId: PROJECT } as AuthorizationContext;
 
   it('resolves every active version number in a single query, whatever the list size', async () => {
@@ -181,5 +182,28 @@ describe('ConnectorDefinitionController list() cost', () => {
     const items = await controller.list(ctx);
 
     expect(items.every(item => typeof item.logo === 'string' && item.logo.length > 0)).toBe(true);
+  });
+});
+
+describe('ConnectorDefinitionService getActiveManifestsByDefId', () => {
+  it('reads only id and manifest of published active versions, in one query', async () => {
+    const { service, versionQueries } = make(3);
+    const defs = await service.listByProject(PROJECT);
+
+    const manifests = await service.getActiveManifestsByDefId(defs);
+
+    expect(versionQueries).toHaveLength(1);
+    expect(versionQueries[0].select).toEqual(['id', 'manifest']);
+    expect((versionQueries[0].where as Record<string, unknown>).status).toBe('published');
+    expect([...manifests.keys()]).toEqual(['def-1', 'def-2', 'def-3']);
+    expect(manifests.get('def-2')).toEqual({ blob: 'x'.repeat(1024), defId: 'def-2' });
+  });
+
+  it('issues no query when no definition is active', async () => {
+    const { service, versionQueries } = make(3, { active: false });
+    const defs = await service.listByProject(PROJECT);
+
+    expect((await service.getActiveManifestsByDefId(defs)).size).toBe(0);
+    expect(versionQueries).toHaveLength(0);
   });
 });

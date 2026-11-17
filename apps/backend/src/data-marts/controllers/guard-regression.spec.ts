@@ -281,6 +281,7 @@ describe('ConnectorDefinition controller — the custom connector surface, pinne
     expect(guards).toEqual({
       // Reads that expose only what a connector IS: name, title, config schema, columns.
       list: 'viewer',
+      summaries: 'viewer',
       get: 'viewer',
       specification: 'viewer',
       fields: 'viewer',
@@ -305,8 +306,9 @@ describe('ConnectorDefinition controller — the custom connector surface, pinne
   /**
    * The plugin guard is default-allow, so this refusal is the whole of what stops an
    * installed third-party page bridging through `ctx.owox` from authoring, publishing and
-   * activating a manifest on an editor's behalf. It sits at class level because nothing
-   * outside the first-party builder UI calls this API.
+   * activating a manifest on an editor's behalf. It sits at class level, so a new handler
+   * stays closed to plugins by default. One read, `summaries`, is re-admitted on its
+   * handler: it returns display data and never a manifest.
    *
    * Deliberately NOT paired with @RejectApiKeyAuth: an API key is the programmatic path a
    * project owner legitimately uses here (`owox-ctl`).
