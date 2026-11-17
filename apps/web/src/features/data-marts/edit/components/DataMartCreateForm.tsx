@@ -57,10 +57,19 @@ export function DataMartCreateForm({ initialData, onSuccess }: DataMartFormProps
   } = useDataStorage();
   const [isDataStorageTypeDialogOpen, setIsDataStorageTypeDialogOpen] = useState(false);
   const [isCreatingDataStorage, setIsCreatingDataStorage] = useState(false);
+  const [storagesLoaded, setStoragesLoaded] = useState(false);
   const hasAppliedSingleStorageAutoSelectRef = useRef(false);
 
   useEffect(() => {
-    void fetchDataStorages();
+    let active = true;
+    fetchDataStorages()
+      .then(() => {
+        if (active) setStoragesLoaded(true);
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
   }, [fetchDataStorages]);
 
   const form = useForm<DataMartFormData>({
@@ -126,6 +135,7 @@ export function DataMartCreateForm({ initialData, onSuccess }: DataMartFormProps
       .map(storage => ({
         value: storage.id,
         label: storage.title,
+        keywords: [storage.title],
       }));
 
     return [
@@ -134,6 +144,7 @@ export function DataMartCreateForm({ initialData, onSuccess }: DataMartFormProps
         value: CREATE_NEW_STORAGE_VALUE,
         label: 'Create new storage',
         separator: true,
+        forceMount: true,
       },
     ];
   }, [dataStorages]);
@@ -176,49 +187,69 @@ export function DataMartCreateForm({ initialData, onSuccess }: DataMartFormProps
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Storage</FormLabel>
-                  <FormControl>
-                    <Combobox
-                      options={storageOptions}
-                      value={field.value}
-                      onValueChange={value => {
-                        if (value === CREATE_NEW_STORAGE_VALUE) {
-                          selectDataStorageType();
-                        } else {
-                          field.onChange(value);
+                  {storagesLoaded && dataStorages.length === 0 ? (
+                    <div className='flex flex-col items-center gap-2 text-center'>
+                      <p className='text-muted-foreground text-sm'>
+                        A Data Mart reads its data from a storage, and none is available to you yet.
+                        Create a storage first.
+                      </p>
+                      <Button
+                        type='button'
+                        variant='outline'
+                        size='sm'
+                        disabled={isSubmitting}
+                        onClick={selectDataStorageType}
+                      >
+                        <Plus className='h-4 w-4' />
+                        Create new storage
+                      </Button>
+                    </div>
+                  ) : (
+                    <FormControl>
+                      <Combobox
+                        options={storageOptions}
+                        value={field.value}
+                        onValueChange={value => {
+                          if (value === CREATE_NEW_STORAGE_VALUE) {
+                            selectDataStorageType();
+                          } else {
+                            field.onChange(value);
+                          }
+                        }}
+                        placeholder={loadingStorages ? 'Loading...' : 'Select a storage'}
+                        emptyMessage='No storages found'
+                        disabled={isSubmitting || loadingStorages}
+                        className='w-full'
+                        renderLabel={option =>
+                          option.value === CREATE_NEW_STORAGE_VALUE ? (
+                            <div className='flex min-w-0 flex-1 items-center gap-2'>
+                              <div className='flex h-6 w-6 items-center justify-center'>
+                                <Plus size={16} />
+                              </div>
+                              <span className='min-w-0 truncate'>{option.label}</span>
+                            </div>
+                          ) : (
+                            <div className='flex min-w-0 flex-1 items-center gap-2'>
+                              <div className='shrink-0'>
+                                <DataStorageHealthIndicator
+                                  storageId={option.value}
+                                  storageTitle={option.label}
+                                  credential={
+                                    dataStorages.find(s => s.id === option.value)
+                                      ?.reusableCredential
+                                  }
+                                  hovercardSide='left'
+                                  variant='compact'
+                                />
+                              </div>
+                              <StorageTypeIcon storages={dataStorages} storageId={option.value} />
+                              <span className='min-w-0 truncate'>{option.label}</span>
+                            </div>
+                          )
                         }
-                      }}
-                      placeholder={loadingStorages ? 'Loading...' : 'Select a storage'}
-                      emptyMessage='No storages found'
-                      disabled={isSubmitting || loadingStorages}
-                      className='w-full'
-                      renderLabel={option =>
-                        option.value === CREATE_NEW_STORAGE_VALUE ? (
-                          <div className='flex min-w-0 flex-1 items-center gap-2'>
-                            <div className='flex h-6 w-6 items-center justify-center'>
-                              <Plus size={16} />
-                            </div>
-                            <span className='min-w-0 truncate'>{option.label}</span>
-                          </div>
-                        ) : (
-                          <div className='flex min-w-0 flex-1 items-center gap-2'>
-                            <div className='shrink-0'>
-                              <DataStorageHealthIndicator
-                                storageId={option.value}
-                                storageTitle={option.label}
-                                credential={
-                                  dataStorages.find(s => s.id === option.value)?.reusableCredential
-                                }
-                                hovercardSide='left'
-                                variant='compact'
-                              />
-                            </div>
-                            <StorageTypeIcon storages={dataStorages} storageId={option.value} />
-                            <span className='min-w-0 truncate'>{option.label}</span>
-                          </div>
-                        )
-                      }
-                    />
-                  </FormControl>
+                      />
+                    </FormControl>
+                  )}
                   <FormMessage />
                 </FormItem>
               )}
