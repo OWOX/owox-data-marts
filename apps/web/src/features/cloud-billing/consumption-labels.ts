@@ -1,3 +1,7 @@
+import {
+  getGoogleSheetDocumentUrl,
+  getGoogleSheetTabUrl,
+} from '../data-marts/reports/shared/utils/google-sheets-url.utils';
 import type { ConsumptionBranch, ConsumptionProduct, ConsumptionProjection } from './cloud-billing';
 
 const operationTitles: Readonly<Record<string, string>> = {
@@ -55,13 +59,13 @@ export function consumptionColumnTitle(label: string): string {
 export function googleSheetsConsumptionUrl(label: string, labels: ConsumptionBranch['labels']) {
   if (label !== 'GOOGLE_SHEETS_DOCUMENT' && label !== 'GOOGLE_SHEETS_DOCUMENT_LIST') return null;
   const documentId = labels.GOOGLE_SHEETS_DOCUMENT;
-  if (!documentId || !/^[a-zA-Z0-9_-]+$/.test(documentId)) return null;
+  if (!documentId) return null;
 
-  const documentUrl = `https://docs.google.com/spreadsheets/d/${documentId}`;
-  if (label === 'GOOGLE_SHEETS_DOCUMENT') return documentUrl;
+  const spreadsheetId = encodeURIComponent(documentId);
+  if (label === 'GOOGLE_SHEETS_DOCUMENT') return getGoogleSheetDocumentUrl(spreadsheetId);
 
   const sheetId = labels.GOOGLE_SHEETS_DOCUMENT_LIST;
-  return sheetId && /^\d+$/.test(sheetId) ? `${documentUrl}/edit#gid=${sheetId}` : null;
+  return sheetId ? getGoogleSheetTabUrl(spreadsheetId, encodeURIComponent(sheetId)) : null;
 }
 
 export function resolveConsumptionLabel(
