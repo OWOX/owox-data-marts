@@ -1,8 +1,15 @@
-import { useRef, useState, type SubmitEvent } from 'react';
+import { useRef, useState } from 'react';
 import { isAxiosError } from 'axios';
 import { Link, useSearchParams } from 'react-router';
 import { Alert, AlertDescription, AlertTitle } from '@owox/ui/components/alert';
 import { Badge } from '@owox/ui/components/badge';
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbSeparator,
+} from '@owox/ui/components/breadcrumb';
 import { Button } from '@owox/ui/components/button';
 import {
   Card,
@@ -12,16 +19,6 @@ import {
   CardHeader,
   CardTitle,
 } from '@owox/ui/components/card';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@owox/ui/components/dialog';
-import { Input } from '@owox/ui/components/input';
-import { Label } from '@owox/ui/components/label';
 import { Tabs, TabsList, TabsTrigger } from '@owox/ui/components/tabs';
 import { useProjectRoute } from '../../shared/hooks';
 import { useUser } from '../idp/hooks/useAuthState';
@@ -74,12 +71,6 @@ export function AppPricing({ origin }: { origin: string }) {
   const canEdit = useCanEdit();
   const [params, setParams] = useSearchParams();
   const cycle = params.get('billingCycle') === 'monthly' ? 'monthly' : 'yearly';
-  const [selected, setSelected] = useState<{
-    offer: PricingOffer;
-    name: string;
-    attemptId: string;
-  }>();
-  const [billingAccount, setBillingAccount] = useState('');
   const [checkoutError, setCheckoutError] = useState('');
   const [recovery, setRecovery] = useState<{
     userId: string;
@@ -87,6 +78,7 @@ export function AppPricing({ origin }: { origin: string }) {
     invoiceUrl: string | null;
   }>();
   const submissionInFlight = useRef(false);
+  const lastAttempt = useRef<{ key: string; id: string }>(undefined);
   const plans = useCloudBillingQuery<PricingPlan[]>(origin, '/api/stripe/app-pricing');
   const subscription = useCloudBillingQuery<SubscriptionDetails | null>(
     origin,
@@ -104,50 +96,67 @@ export function AppPricing({ origin }: { origin: string }) {
     subscription.isSuccess &&
     subscription.data?.planType !== 'PAID';
 
-  function selectOffer(offer: PricingOffer, name: string) {
-    setBillingAccount(subscription.data?.billingAccount ?? user?.email ?? '');
-    setCheckoutError('');
-    setSelected({ offer, name, attemptId: crypto.randomUUID() });
-  }
-
-  async function startCheckout(event: SubmitEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!selected || !canBuy || !user?.id || !user.projectId || submissionInFlight.current) return;
+  async function startCheckout(offer: PricingOffer) {
+    if (!canBuy || !user?.id || !user.projectId || submissionInFlight.current) return;
+    const billingAccount = user.email?.trim();
+    if (!billingAccount) {
+      setCheckoutError('Your account needs an email address to start checkout.');
+      return;
+    }
     submissionInFlight.current = true;
     setCheckoutError('');
+    const key = JSON.stringify([user.id, user.projectId, billingAccount, offer.priceId]);
+    if (lastAttempt.current?.key !== key) {
+      lastAttempt.current = { key, id: crypto.randomUUID() };
+    }
     try {
       const result = await checkout.mutateAsync({
-        priceId: selected.offer.priceId,
-        billingAccount: billingAccount.trim(),
-        attemptId: selected.attemptId,
+        priceId: offer.priceId,
+        billingAccount,
+        attemptId: lastAttempt.current.id,
       });
       if (result.kind === 'outstanding-invoice') {
-        submissionInFlight.current = false;
         setRecovery({ userId: user.id, projectId: user.projectId, invoiceUrl: result.invoiceUrl });
-        setSelected(undefined);
         return;
       }
       window.location.assign(result.url);
     } catch (error) {
-      submissionInFlight.current = false;
       if (isAxiosError(error) && error.response?.status === 404) {
-        setCheckoutError('This offer changed. Close checkout and select a plan again.');
+        setCheckoutError('This offer changed. Select an available plan.');
         void plans.refetch();
       } else {
         setCheckoutError('Could not open checkout. Try again or check your current subscription.');
       }
+    } finally {
+      submissionInFlight.current = false;
     }
   }
 
   return (
     <div className='dm-page'>
       <header className='dm-page-header'>
-        <h1 className='dm-page-header-title'>Plans and pricing</h1>
+        <Breadcrumb>
+          <BreadcrumbList className='dm-page-header-title'>
+            <BreadcrumbItem>
+              <BreadcrumbLink asChild>
+                <Link to={project.scope('/project-settings/subscription')}>Subscription</Link>
+              </BreadcrumbLink>
+            </BreadcrumbItem>
+            <BreadcrumbSeparator />
+            <BreadcrumbItem>
+              <h1 aria-current='page' className='text-foreground'>
+                Plans and pricing
+              </h1>
+            </BreadcrumbItem>
+          </BreadcrumbList>
+        </Breadcrumb>
       </header>
       <div className='dm-page-content space-y-4 pb-6'>
-        <Button asChild variant='link' className='px-0'>
-          <Link to={project.scope('/project-settings/subscription')}>Back to subscription</Link>
-        </Button>
+        {checkoutError && canManageBilling && (
+          <Alert variant='destructive'>
+            <AlertTitle>{checkoutError}</AlertTitle>
+          </Alert>
+        )}
         {params.get('checkout') === 'canceled' && (
           <Alert>
             <AlertTitle>Checkout canceled</AlertTitle>
@@ -249,12 +258,16 @@ export function AppPricing({ origin }: { origin: string }) {
                           </p>
                           {canBuy && (
                             <Button
+                              variant={copy?.recommended ? 'default' : 'outline'}
                               onClick={() => {
-                                selectOffer(offer, name);
+                                void startCheckout(offer);
                               }}
+                              disabled={checkout.isPending}
                               aria-label={`Select ${name} ${offer.currency.toUpperCase()}`}
                             >
-                              Select plan
+                              {checkout.isPending && checkout.variables.priceId === offer.priceId
+                                ? 'Opening checkout…'
+                                : 'Select plan'}
                             </Button>
                           )}
                         </div>
@@ -291,61 +304,9 @@ export function AppPricing({ origin }: { origin: string }) {
                 </CardFooter>
               </Card>
             </div>
-            {plans.data.length > 0 && (
-              <p className='text-muted-foreground text-sm'>
-                Credits pay for OWOX work. An AI answer, report refresh, or data export costs 0.1
-                credit. AI answers also have a monthly plan limit.
-              </p>
-            )}
           </>
         )}
       </div>
-      <Dialog
-        open={Boolean(selected)}
-        onOpenChange={open => {
-          if (!open && !submissionInFlight.current) setSelected(undefined);
-        }}
-      >
-        {selected && (
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Continue with {selected.name}</DialogTitle>
-              <DialogDescription>
-                {formatAmount(selected.offer)} per{' '}
-                {selected.offer.billingCycle === 'yearly' ? 'year' : 'month'}. Stripe will show your
-                final total, including any taxes or adjustments.
-              </DialogDescription>
-            </DialogHeader>
-            <form onSubmit={event => void startCheckout(event)} className='space-y-4'>
-              <div className='space-y-2'>
-                <Label htmlFor='billing-email'>Billing email</Label>
-                <Input
-                  id='billing-email'
-                  type='email'
-                  autoComplete='email'
-                  value={billingAccount}
-                  required
-                  onChange={event => {
-                    setBillingAccount(event.target.value);
-                    setSelected({ ...selected, attemptId: crypto.randomUUID() });
-                  }}
-                  disabled={checkout.isPending}
-                />
-              </div>
-              {checkoutError && (
-                <Alert variant='destructive'>
-                  <AlertTitle>{checkoutError}</AlertTitle>
-                </Alert>
-              )}
-              <DialogFooter>
-                <Button type='submit' disabled={!canBuy || checkout.isPending}>
-                  {checkout.isPending ? 'Opening checkout…' : 'Continue to Stripe'}
-                </Button>
-              </DialogFooter>
-            </form>
-          </DialogContent>
-        )}
-      </Dialog>
     </div>
   );
 }

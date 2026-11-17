@@ -52,7 +52,6 @@ async function requestCheckout(recoveryUrl: string | null) {
     </QueryClientProvider>
   );
   fireEvent.click(await screen.findByRole('button', { name: 'Select Individual USD' }));
-  fireEvent.click(screen.getByRole('button', { name: 'Continue to Stripe' }));
   return screen.findByRole('alert');
 }
 
@@ -65,6 +64,15 @@ describe('App Pricing recovery from an unpaid subscription', () => {
       'href',
       invoiceUrl
     );
+    expect(apiClient.post).toHaveBeenCalledWith(
+      '/api/stripe/app-checkout-sessions',
+      expect.objectContaining({
+        priceId: 'price_individual',
+        billingAccount: 'billing@example.test',
+      }),
+      expect.any(Object)
+    );
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Select Individual USD' })).not.toBeInTheDocument();
   });
 
