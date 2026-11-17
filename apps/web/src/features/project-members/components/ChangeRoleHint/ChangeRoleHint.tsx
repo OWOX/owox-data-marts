@@ -13,7 +13,7 @@ export function ChangeRoleHint({ to, relative }: Pick<LinkProps, 'to' | 'relativ
       <Link
         to={to}
         relative={relative}
-        className='hover:text-foreground underline decoration-dotted underline-offset-2'
+        className='hover:text-foreground underline underline-offset-2'
       >
         Project settings → Members
       </Link>

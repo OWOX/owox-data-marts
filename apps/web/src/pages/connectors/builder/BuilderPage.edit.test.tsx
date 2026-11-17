@@ -97,7 +97,7 @@ describe('ConnectorBuilderRoutePage — an existing connector', () => {
         screen.getByRole('heading', { name: 'The connector builder needs the Data Owner role' })
       ).toBeInTheDocument();
       expect(
-        screen.getByText(/only Data Owners and Project Admins can open it/)
+        screen.getByText(/only members with the Data Owner or Project Admin role can open it/)
       ).toBeInTheDocument();
       expect(screen.queryByTestId('builder-topbar')).toBeNull();
       // The manifest endpoint is editor-only; a viewer must not even ask for it.

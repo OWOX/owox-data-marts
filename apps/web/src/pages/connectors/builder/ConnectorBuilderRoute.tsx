@@ -44,8 +44,8 @@ function BuilderNotAuthorised({ onBack }: { onBack: () => void }) {
           </h3>
         </div>
         <p className='text-muted-foreground text-[13px] leading-relaxed'>
-          A connector definition can contain credentials, so only Data Owners and Project Admins can
-          open it. You can still browse the connectors list.{' '}
+          A connector definition can contain credentials, so only members with the Data Owner or
+          Project Admin role can open it. You can still browse the connectors list.{' '}
           <ChangeRoleHint to='../../../project-settings/members' relative='path' />
         </p>
         <Button variant='outline' onClick={onBack} className='h-[34px]'>
