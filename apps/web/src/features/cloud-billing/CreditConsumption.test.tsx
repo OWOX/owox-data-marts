@@ -1,9 +1,15 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen, within } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { MemoryRouter } from 'react-router';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import apiClient from '../../app/api/apiClient';
 import { CreditConsumption } from './CreditConsumption';
-import type { ConsumptionBranch, ConsumptionProjection, ConsumptionUnit } from './cloud-billing';
+import type {
+  ConsumptionBranch,
+  ConsumptionProjection,
+  ConsumptionUnit,
+  CreditBalance,
+} from './cloud-billing';
 
 vi.mock('../../app/api/apiClient', () => ({ default: { get: vi.fn() } }));
 vi.mock('../idp/hooks/useAuthState', () => ({
@@ -44,24 +50,35 @@ function projection(
 
 function renderCredits(
   units: ConsumptionUnit[],
-  entityProjections: Record<string, ConsumptionProjection[]>
+  entityProjections: Record<string, ConsumptionProjection[]>,
+  subscriptionPlanType: CreditBalance['subscriptionPlanType'] = 'PAID',
+  product = 'DATA_MARTS'
 ) {
   const credits = units.reduce((total, operation) => total + operation.credits, 0);
   vi.mocked(apiClient.get).mockImplementation(async url => ({
     data:
       url === '/api/bi-projects/balance'
-        ? { subscriptionPlanType: 'PAID', consumedCredits: credits, availableCredits: 500 }
-        : { credits, products: [{ product: 'DATA_MARTS', credits, units, entityProjections }] },
+        ? {
+            subscriptionPlanType,
+            consumedCredits: credits,
+            availableCredits: 500,
+            creditUsagePercentage: 10,
+          }
+        : { credits, products: [{ product, credits, units, entityProjections }] },
   }));
   render(
     <QueryClientProvider client={new QueryClient()}>
-      <CreditConsumption origin='https://billing.example.test' />
+      <MemoryRouter>
+        <CreditConsumption origin='https://billing.example.test' />
+      </MemoryRouter>
     </QueryClientProvider>
   );
 }
 
+beforeEach(() => vi.clearAllMocks());
+
 describe('Credits consumption by license', () => {
-  it('groups nested rows across operations by license ID and shows the license name and originating project links', async () => {
+  it('groups nested rows by license and links to the originating project', async () => {
     renderCredits(
       [
         unit('DATA_MARTS_SHEETS_REPORT_RUN', 20, [
@@ -94,20 +111,19 @@ describe('Credits consumption by license', () => {
           projection('license-eu', 'Europe deployment', 'https://eu.example.test'),
           projection('license-us', 'US deployment', 'https://us.example.test'),
         ],
-        DATA_MART: [projection('eu-mart', 'Orders')],
+        DATA_MART: [projection('eu-mart', 'Orders'), projection('cloud-mart', 'Cloud orders')],
       }
     );
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Data marts · 22.5 credits' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Google Sheets Report Run' }));
     const europe = within(screen.getByRole('region', { name: 'Europe deployment' }));
     const us = within(screen.getByRole('region', { name: 'US deployment' }));
     const cloud = within(screen.getByRole('region', { name: 'Default consumption' }));
-    expect(us.getByRole('button', { name: /5 units/ })).toBeInTheDocument();
-    expect(cloud.getByRole('button', { name: /3 units/ })).toBeInTheDocument();
-    expect(
-      europe.getByRole('button', { name: /mcp query run.*5 units.*2.5 credits/i })
-    ).toBeInTheDocument();
-    fireEvent.click(europe.getByRole('button', { name: /sheets report run.*12 units/i }));
+    expect(us.getByRole('cell', { name: '5' })).toBeInTheDocument();
+    expect(cloud.getByRole('link', { name: 'Cloud orders' })).toHaveAttribute(
+      'href',
+      '/ui/cloud-project/data-marts/cloud-mart/data-setup'
+    );
     expect(
       europe.getAllByRole('link', { name: 'Orders' }).map(link => link.getAttribute('href'))
     ).toEqual([
@@ -115,6 +131,15 @@ describe('Credits consumption by license', () => {
       'https://eu.example.test/ui/second-project/data-marts/eu-mart/data-setup',
     ]);
     expect(europe.queryByText(/license-eu|first \/ project/)).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('row', { name: /MCP Query Run/ }));
+    expect(screen.getByRole('button', { name: 'Google Sheets Report Run' })).toHaveAttribute(
+      'aria-expanded',
+      'false'
+    );
+    const mcp = within(screen.getByRole('table', { name: /MCP Query Run details/ }));
+    expect(mcp.getByRole('link', { name: 'Orders' })).toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'US deployment' })).not.toBeInTheDocument();
   });
 
   it('keeps partial and unknown attribution visible and does not link to an unsafe origin', async () => {
@@ -140,21 +165,114 @@ describe('Credits consumption by license', () => {
       }
     );
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Data marts · 12 credits' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Google Sheets Report Run' }));
     expect(
       within(screen.getByRole('region', { name: 'Invalid license attribution' })).getByRole(
-        'button',
-        { name: /2 units/ }
+        'cell',
+        { name: '2' }
       )
     ).toBeInTheDocument();
     expect(
-      within(screen.getByRole('region', { name: 'Unknown license' })).getByRole('button', {
-        name: /4 units/,
+      within(screen.getByRole('region', { name: 'Unknown license' })).getByRole('cell', {
+        name: '4',
       })
     ).toBeInTheDocument();
     const unsafe = within(screen.getByRole('region', { name: 'Unsafe origin' }));
-    fireEvent.click(unsafe.getByRole('button', { name: /6 units/ }));
     expect(unsafe.getByText('Support tickets')).toBeInTheDocument();
     expect(unsafe.queryByRole('link')).not.toBeInTheDocument();
   });
+});
+
+it('shows operations immediately and renders paginated Process Run details on row click', async () => {
+  const rows = Array.from({ length: 11 }, (_, index) =>
+    branch(1, { PRODUCT_NAME: 'TRANSFORMATION', PROCESS_RUN_ENTITY_ID: `operation-${index + 1}` })
+  );
+  renderCredits(
+    [unit('PLATFORM_PROCESS_RUN', 11, rows)],
+    {
+      TRANSFORMATION: [
+        {
+          ...projection('transformation', 'Sales'),
+          childEntities: rows.map((row, index) =>
+            projection(row.labels.PROCESS_RUN_ENTITY_ID, `Step ${index + 1}`)
+          ),
+        },
+      ],
+    },
+    'NOT_PAID',
+    'PLATFORM'
+  );
+
+  const operation = await screen.findByRole('button', { name: 'Process Run' });
+  expect(screen.getByText('Credits consumed')).toBeInTheDocument();
+  expect(screen.queryByText('Available credits')).not.toBeInTheDocument();
+  expect(operation).toHaveAttribute('aria-expanded', 'false');
+  expect(screen.getByText('Last calculated Nov 10, 2026, 01:12 PM')).toBeInTheDocument();
+  expect(screen.queryByRole('table', { name: 'Process Run details' })).not.toBeInTheDocument();
+  fireEvent.click(operation);
+  const details = within(screen.getByRole('table', { name: 'Process Run details' }));
+  expect(details.getByText('Sales · Step 1')).toBeInTheDocument();
+  expect(details.queryByText('Sales · Step 11')).not.toBeInTheDocument();
+
+  fireEvent.click(screen.getByRole('button', { name: 'Go to next page' }));
+  expect(details.getByText('Sales · Step 11')).toBeInTheDocument();
+  expect(details.queryByText('Sales · Step 1')).not.toBeInTheDocument();
+
+  fireEvent.change(screen.getByPlaceholderText('Search details'), { target: { value: 'step 2' } });
+  await details.findByText('Sales · Step 2');
+  expect(details.queryByText('Sales · Step 11')).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Clear search' }));
+
+  fireEvent.click(screen.getByRole('button', { name: 'Filters' }));
+  const [field, operator] = await within(await screen.findByRole('dialog')).findAllByRole(
+    'combobox'
+  );
+  fireEvent.pointerDown(field, { button: 0, ctrlKey: false, pointerType: 'mouse' });
+  fireEvent.click(await screen.findByRole('option', { name: 'Title' }));
+  fireEvent.pointerDown(operator, { button: 0, ctrlKey: false, pointerType: 'mouse' });
+  fireEvent.click(await screen.findByRole('option', { name: 'contains' }));
+  fireEvent.change(screen.getByPlaceholderText('Value'), { target: { value: 'Step 11' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Apply filters' }));
+
+  await details.findByText('Sales · Step 11');
+  expect(details.queryByText('Sales · Step 1')).not.toBeInTheDocument();
+  expect(
+    vi.mocked(apiClient.get).mock.calls.filter(([url]) => url.includes('project-summary'))
+  ).toHaveLength(1);
+});
+
+it('links to the Google Sheets document and tab using names from the report projections', async () => {
+  renderCredits(
+    [
+      unit('SMART_DATA_REPORT_RUN_LITE', 5, [
+        branch(5, { GOOGLE_SHEETS_DOCUMENT: 'document-1' }, [
+          branch(5, { GOOGLE_SHEETS_DOCUMENT_LIST: '123' }),
+        ]),
+      ]),
+    ],
+    {
+      GOOGLE_SHEETS_DOCUMENT: [
+        {
+          ...projection('document-1', 'Sales report'),
+          childEntities: [projection('123', 'November data')],
+        },
+      ],
+    },
+    'PAID',
+    'PLATFORM'
+  );
+
+  fireEvent.click(await screen.findByRole('button', { name: 'Report Run' }));
+
+  const details = within(screen.getByRole('table', { name: 'Report Run details' }));
+  expect(details.getByRole('link', { name: 'Sales report' })).toHaveAttribute(
+    'href',
+    'https://docs.google.com/spreadsheets/d/document-1'
+  );
+  const sheet = details.getByRole('link', { name: 'November data' });
+  expect(sheet).toHaveAttribute(
+    'href',
+    'https://docs.google.com/spreadsheets/d/document-1/edit#gid=123'
+  );
+  expect(sheet).toHaveAttribute('target', '_blank');
 });

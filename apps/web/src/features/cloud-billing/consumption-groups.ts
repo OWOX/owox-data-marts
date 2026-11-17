@@ -29,14 +29,14 @@ interface ConsumptionGroup {
 
 const groupOrder: Record<GroupKind, number> = { default: 0, license: 1, invalid: 2 };
 
-function flattenBranches(
+export function flattenConsumptionBranches(
   branches: ConsumptionBranch[],
   parentLabels: ConsumptionBranch['labels'] = {}
 ): ConsumptionBranch[] {
   return branches.flatMap(branch => {
     const labels = { ...parentLabels, ...branch.labels };
     return branch.childBranches?.length
-      ? flattenBranches(branch.childBranches, labels)
+      ? flattenConsumptionBranches(branch.childBranches, labels)
       : [{ ...branch, labels }];
   });
 }
@@ -92,7 +92,7 @@ export function groupConsumption(product: ConsumptionProduct) {
       addOperation(unit, branches, unit.consumption, consumptionGroup({}, false));
       continue;
     }
-    for (const row of flattenBranches(branches)) {
+    for (const row of flattenConsumptionBranches(branches)) {
       addOperation(unit, [row], row.consumption, consumptionGroup(row.labels, true));
     }
   }
@@ -146,15 +146,12 @@ export function parseDeploymentUrl(origin: string | null) {
   return null;
 }
 
-export function consumptionEntityUrl(
-  origin: URL,
+export function consumptionEntityPath(
+  projectId: string,
   labels: ConsumptionBranch['labels'],
   type: string,
   id: string
 ) {
-  const projectId = labels[originatingProjectLabel];
-  if (!projectId) return null;
-
   let path: string[];
   let query: [string, string] | undefined;
   switch (type) {
@@ -183,7 +180,6 @@ export function consumptionEntityUrl(
   }
   const segments = ['ui', projectId, ...path];
   if (segments.some(segment => segment === '.' || segment === '..')) return null;
-  const url = new URL('/' + segments.map(encodeURIComponent).join('/'), origin);
-  if (query) url.searchParams.set(...query);
-  return url.href;
+  const href = '/' + segments.map(encodeURIComponent).join('/');
+  return query ? `${href}?${new URLSearchParams([query]).toString()}` : href;
 }

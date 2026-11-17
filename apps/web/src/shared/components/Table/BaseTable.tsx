@@ -1,3 +1,4 @@
+import { Fragment, type ReactNode } from 'react';
 import { type Table, type Row, flexRender } from '@tanstack/react-table';
 import {
   Table as TableComponent,
@@ -21,6 +22,8 @@ export interface BaseTableProps<TData> {
   table: Table<TData>;
   /** Optional callback for row click events */
   onRowClick?: (row: Row<TData>, event: React.MouseEvent) => void;
+  /** Optional content rendered directly below an expanded row. */
+  renderExpandedRow?: (row: Row<TData>) => ReactNode;
   /** Optional render function for left toolbar content */
   renderToolbarLeft?: (table: Table<TData>) => React.ReactNode;
   /** Optional render function for right toolbar content */
@@ -66,6 +69,7 @@ export function BaseTable<TData>({
   tableId,
   table,
   onRowClick,
+  renderExpandedRow,
   renderToolbarLeft,
   renderToolbarRight,
   renderEmptyState,
@@ -171,40 +175,51 @@ export function BaseTable<TData>({
           </TableHeader>
           <TableBody className='border-b border-gray-200 bg-white dark:border-white/4 dark:bg-white/1'>
             {table.getRowModel().rows.length ? (
-              table.getRowModel().rows.map(row => (
-                <TableRow
-                  key={row.id}
-                  data-state={row.getIsSelected() && 'selected'}
-                  className={cn(
-                    'group transition-colors duration-200 dark:border-white/4 dark:bg-transparent',
-                    onRowClick
-                      ? 'cursor-pointer hover:bg-black/4 dark:hover:bg-white/4'
-                      : 'cursor-default'
-                  )}
-                  onClick={
-                    onRowClick
-                      ? e => {
-                          onRowClick(row, e);
-                        }
-                      : undefined
-                  }
-                >
-                  {row.getVisibleCells().map(cell => (
-                    <TableCell
-                      key={cell.id}
+              table.getRowModel().rows.map(row => {
+                const expanded = renderExpandedRow?.(row);
+                return (
+                  <Fragment key={row.id}>
+                    <TableRow
+                      data-state={row.getIsSelected() && 'selected'}
                       className={cn(
-                        baseCellClass,
-                        isActionsColumn(cell.column.id) && actionsCellClass,
-                        isCreatedAt(cell.column.id) && createdAtClass,
-                        isHealthStatus(cell.column.id) && healthStatusClass
+                        'group transition-colors duration-200 dark:border-white/4 dark:bg-transparent',
+                        onRowClick
+                          ? 'cursor-pointer hover:bg-black/4 dark:hover:bg-white/4'
+                          : 'cursor-default'
                       )}
-                      style={getTableColumnSize(cell.column)}
+                      onClick={
+                        onRowClick
+                          ? e => {
+                              onRowClick(row, e);
+                            }
+                          : undefined
+                      }
                     >
-                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                    </TableCell>
-                  ))}
-                </TableRow>
-              ))
+                      {row.getVisibleCells().map(cell => (
+                        <TableCell
+                          key={cell.id}
+                          className={cn(
+                            baseCellClass,
+                            isActionsColumn(cell.column.id) && actionsCellClass,
+                            isCreatedAt(cell.column.id) && createdAtClass,
+                            isHealthStatus(cell.column.id) && healthStatusClass
+                          )}
+                          style={getTableColumnSize(cell.column)}
+                        >
+                          {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                        </TableCell>
+                      ))}
+                    </TableRow>
+                    {expanded && (
+                      <TableRow className='hover:bg-transparent'>
+                        <TableCell colSpan={row.getVisibleCells().length} className='p-4'>
+                          {expanded}
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </Fragment>
+                );
+              })
             ) : renderEmptyState ? (
               <TableRow className='cursor-default hover:bg-transparent'>
                 <TableCell

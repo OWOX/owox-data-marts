@@ -1,5 +1,6 @@
-import { useId, useState } from 'react';
-import { CalendarDays, Gem } from 'lucide-react';
+import { useId, useMemo, useState } from 'react';
+import { CalendarDays, ChevronDown, Gem } from 'lucide-react';
+import { Button } from '@owox/ui/components/button';
 import { createColumnHelper, getCoreRowModel, useReactTable } from '@tanstack/react-table';
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from '@owox/ui/components/card';
 import {
@@ -24,18 +25,12 @@ import {
 } from '@owox/ui/components/accordion';
 import { BaseTable } from '../../shared/components/Table/BaseTable';
 import { BillingLoadState } from './BillingLoadState';
-import {
-  consumptionEntityUrl,
-  groupConsumption,
-  licenseKeyLabel,
-  originatingProjectLabel,
-  parseDeploymentUrl,
-} from './consumption-groups';
+import { formatDateShort } from '../../utils/date-formatters';
+import { ConsumptionDetails } from './ConsumptionDetails';
+import { consumptionOperationTitle, consumptionProductTitle } from './consumption-labels';
 import {
   useCloudBillingQuery,
-  type ConsumptionBranch,
   type ConsumptionProduct,
-  type ConsumptionProjection,
   type ConsumptionSummary,
   type ConsumptionUnit,
   type CreditBalance,
@@ -56,40 +51,74 @@ function getMonths(now: Date) {
   return result;
 }
 
-function readableName(value: string): string {
-  const words = value.toLowerCase().replace(/_/g, ' ');
-  return words.charAt(0).toUpperCase() + words.slice(1);
-}
-
 const column = createColumnHelper<ConsumptionUnit>();
+const unitPrice = new Intl.NumberFormat(undefined, { maximumFractionDigits: 8 });
 const numericColumns = [
   { key: 'consumption', label: 'Usage' },
   { key: 'roundedConsumption', label: 'Billable units' },
   { key: 'consumptionUnitPrice', label: 'Credits per unit' },
   { key: 'credits', label: 'Credits' },
 ] as const;
-const consumptionColumns = [
-  column.accessor('unit', {
-    header: 'Operation',
-    cell: ({ getValue }) => readableName(getValue()),
-    size: 220,
-  }),
-  ...numericColumns.map(({ key, label }) =>
-    column.accessor(key, {
-      header: () => <div className='pr-4 text-right'>{label}</div>,
-      cell: ({ getValue }) => (
-        <div className='pr-4 text-right tabular-nums'>{number.format(getValue())}</div>
-      ),
-      size: 110,
-    })
-  ),
-];
+const consumptionColumns = numericColumns.map(({ key, label }) =>
+  column.accessor(key, {
+    header: () => <div className='pr-4 text-right'>{label}</div>,
+    cell: ({ getValue }) => (
+      <div className='pr-4 text-right tabular-nums'>
+        {(key === 'consumptionUnitPrice' ? unitPrice : number).format(getValue())}
+      </div>
+    ),
+    size: 110,
+  })
+);
 
-function ConsumptionTable({ product }: { product: ConsumptionProduct }) {
+function ConsumptionTable({
+  product,
+  expandedUnit,
+  onToggle,
+}: {
+  product: ConsumptionProduct;
+  expandedUnit: string | null;
+  onToggle: (unit: string) => void;
+}) {
   const tableId = useId();
+  const units = useMemo(
+    () => [...product.units].sort((a, b) => b.credits - a.credits),
+    [product.units]
+  );
+  const columns = useMemo(
+    () => [
+      column.accessor('unit', {
+        header: 'Operation',
+        cell: ({ getValue, row }) => {
+          const unit = getValue();
+          const title = consumptionOperationTitle(unit);
+          if (!row.original.decomposition?.length) return title;
+          const expanded = expandedUnit === unit;
+          return (
+            <Button
+              variant='ghost'
+              size='sm'
+              aria-expanded={expanded}
+              className='-ml-2 h-auto justify-start gap-2 px-2 py-1 text-left whitespace-normal'
+              onClick={event => {
+                event.stopPropagation();
+                onToggle(unit);
+              }}
+            >
+              <ChevronDown aria-hidden='true' className={expanded ? 'rotate-180' : undefined} />
+              {title}
+            </Button>
+          );
+        },
+        size: 250,
+      }),
+      ...consumptionColumns,
+    ],
+    [expandedUnit, onToggle]
+  );
   const table = useReactTable({
-    columns: consumptionColumns,
-    data: product.units,
+    columns,
+    data: units,
     getRowId: unit => unit.unit,
     getCoreRowModel: getCoreRowModel(),
     enableColumnResizing: false,
@@ -101,169 +130,18 @@ function ConsumptionTable({ product }: { product: ConsumptionProduct }) {
         <BaseTable
           tableId={tableId}
           table={table}
-          ariaLabel={`${readableName(product.product)} consumption`}
+          ariaLabel={`${consumptionProductTitle(product.product)} consumption`}
           showPagination={false}
+          onRowClick={row => {
+            if (row.original.decomposition?.length) onToggle(row.id);
+          }}
+          renderExpandedRow={row =>
+            expandedUnit === row.id ? (
+              <ConsumptionDetails product={product} unit={row.original} />
+            ) : null
+          }
         />
       </div>
-    </div>
-  );
-}
-
-function resolveLabel(
-  name: string,
-  value: string,
-  labels: Record<string, string>,
-  projections: ConsumptionProduct['entityProjections']
-) {
-  const type = name.replace(/_ID$/, '');
-  const candidates =
-    type === 'CONTEXT'
-      ? projections?.[labels.CONTEXT_TYPE]
-      : (projections?.[type] ?? (type === 'DATA_MART' ? projections?.SMART_DATA_DATA_MART : null));
-  const find = (
-    items: ConsumptionProjection[] | null | undefined
-  ): ConsumptionProjection | undefined => {
-    for (const item of items ?? []) {
-      if (item.id === value) return item;
-      const child = find(item.childEntities);
-      if (child) return child;
-    }
-  };
-  if (type === 'GOOGLE_SHEETS_DOCUMENT_LIST') {
-    const doc = projections?.GOOGLE_SHEETS_DOCUMENT?.find(
-      item => item.id === labels.GOOGLE_SHEETS_DOCUMENT
-    );
-    return find(doc?.childEntities);
-  }
-  if (type === 'TRANSFORMATION_OPERATION') {
-    const transformation = projections?.TRANSFORMATION?.find(
-      item => item.id === labels.TRANSFORMATION_ID
-    );
-    return find(transformation?.childEntities);
-  }
-  return find(candidates);
-}
-
-function Breakdown({
-  branches,
-  projections,
-  deployment,
-}: {
-  branches: ConsumptionBranch[];
-  projections: ConsumptionProduct['entityProjections'];
-  deployment?: URL | null;
-}) {
-  return (
-    <ul className='border-border space-y-2 border-l pl-3 text-sm'>
-      {branches.map(branch => (
-        <li key={JSON.stringify(branch.labels)} className='space-y-2'>
-          <div className='flex justify-between gap-4'>
-            <dl className='min-w-0 space-y-1'>
-              {Object.entries(branch.labels)
-                .filter(([label]) => label !== licenseKeyLabel && label !== originatingProjectLabel)
-                .map(([label, id]) => {
-                  const entity = resolveLabel(label, id, branch.labels, projections);
-                  const href =
-                    deployment && consumptionEntityUrl(deployment, branch.labels, label, id);
-                  const title = entity?.title ?? id;
-                  return (
-                    <div key={label} className='flex flex-wrap gap-x-2 break-words'>
-                      <dt className='text-muted-foreground'>{readableName(label)}</dt>
-                      <dd>
-                        {href ? (
-                          <a
-                            href={href}
-                            target='_blank'
-                            rel='noopener noreferrer'
-                            className='text-primary underline underline-offset-4'
-                          >
-                            {title}
-                          </a>
-                        ) : (
-                          title
-                        )}
-                      </dd>
-                    </div>
-                  );
-                })}
-            </dl>
-            <span className='tabular-nums'>{number.format(branch.consumption)}</span>
-          </div>
-          {!!branch.childBranches?.length && (
-            <Breakdown
-              branches={branch.childBranches}
-              projections={projections}
-              deployment={deployment}
-            />
-          )}
-        </li>
-      ))}
-    </ul>
-  );
-}
-
-function ProductBreakdown({ product }: { product: ConsumptionProduct }) {
-  const groups = groupConsumption(product);
-  if (!groups.length) {
-    return (
-      <Accordion type='multiple'>
-        {product.units.map(unit =>
-          unit.decomposition?.length ? (
-            <AccordionItem key={unit.unit} value={unit.unit}>
-              <AccordionTrigger>{readableName(unit.unit)} details</AccordionTrigger>
-              <AccordionContent>
-                <Breakdown branches={unit.decomposition} projections={product.entityProjections} />
-              </AccordionContent>
-            </AccordionItem>
-          ) : null
-        )}
-      </Accordion>
-    );
-  }
-
-  return (
-    <div className='space-y-3'>
-      {groups.map(group => {
-        const deployment = parseDeploymentUrl(group.origin);
-        return (
-          <section key={group.key} aria-label={group.title} className='dm-card'>
-            <div className='flex flex-wrap items-baseline gap-x-3 gap-y-1'>
-              <h4 className='font-medium'>{group.title}</h4>
-              {deployment && (
-                <a
-                  href={deployment.href}
-                  target='_blank'
-                  rel='noopener noreferrer'
-                  className='text-primary break-all underline underline-offset-4'
-                >
-                  {deployment.host}
-                </a>
-              )}
-            </div>
-            <Accordion type='multiple'>
-              {group.operations.map(({ unit, branches, units, credits }) => {
-                const label = `${readableName(unit)} · ${number.format(units)} units · ${number.format(credits)} credits`;
-                return branches.length ? (
-                  <AccordionItem key={unit} value={unit}>
-                    <AccordionTrigger>{label}</AccordionTrigger>
-                    <AccordionContent>
-                      <Breakdown
-                        branches={branches}
-                        projections={product.entityProjections}
-                        deployment={deployment}
-                      />
-                    </AccordionContent>
-                  </AccordionItem>
-                ) : (
-                  <p key={unit} className='py-4'>
-                    {label}
-                  </p>
-                );
-              })}
-            </Accordion>
-          </section>
-        );
-      })}
     </div>
   );
 }
@@ -271,6 +149,7 @@ function ProductBreakdown({ product }: { product: ConsumptionProduct }) {
 export function CreditConsumption({ origin }: { origin: string }) {
   const [months] = useState(() => getMonths(new Date()));
   const [selected, setSelected] = useState('0');
+  const [expandedUnit, setExpandedUnit] = useState<string | null>(null);
   const month = months[Number(selected)];
   const balance = useCloudBillingQuery<CreditBalance | null>(origin, '/api/bi-projects/balance');
   const summary = useCloudBillingQuery<ConsumptionSummary>(
@@ -304,19 +183,21 @@ export function CreditConsumption({ origin }: { origin: string }) {
                   {number.format(balance.data.consumedCredits)}
                 </dd>
               </div>
-              <div>
-                <dt className='text-muted-foreground text-sm'>Available credits</dt>
-                <dd className='text-xl font-semibold tabular-nums'>
-                  {number.format(balance.data.availableCredits)}
-                </dd>
-              </div>
               {balance.data.subscriptionPlanType !== 'NOT_PAID' && (
-                <div>
-                  <dt className='text-muted-foreground text-sm'>Credit usage</dt>
-                  <dd className='text-xl font-semibold tabular-nums'>
-                    {number.format(balance.data.creditUsagePercentage)}%
-                  </dd>
-                </div>
+                <>
+                  <div>
+                    <dt className='text-muted-foreground text-sm'>Available credits</dt>
+                    <dd className='text-xl font-semibold tabular-nums'>
+                      {number.format(balance.data.availableCredits)}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className='text-muted-foreground text-sm'>Credit usage</dt>
+                    <dd className='text-xl font-semibold tabular-nums'>
+                      {number.format(balance.data.creditUsagePercentage)}%
+                    </dd>
+                  </div>
+                </>
               )}
             </dl>
           ) : balance.isSuccess ? (
@@ -343,7 +224,13 @@ export function CreditConsumption({ origin }: { origin: string }) {
             Monthly consumption
           </CardTitle>
           <CardAction>
-            <Select value={selected} onValueChange={setSelected}>
+            <Select
+              value={selected}
+              onValueChange={value => {
+                setExpandedUnit(null);
+                setSelected(value);
+              }}
+            >
               <SelectTrigger aria-label='Consumption month' className='w-44'>
                 <SelectValue />
               </SelectTrigger>
@@ -383,19 +270,29 @@ export function CreditConsumption({ origin }: { origin: string }) {
                 </p>
                 {updated && (
                   <p className='text-muted-foreground text-sm'>
-                    Last calculated {new Date(updated).toLocaleString()}
+                    Last calculated {formatDateShort(updated)}
                   </p>
                 )}
               </div>
-              <Accordion type='multiple'>
+              <Accordion
+                key={selected}
+                type='multiple'
+                defaultValue={summary.data.products.map(product => product.product)}
+              >
                 {summary.data.products.map(product => (
                   <AccordionItem key={product.product} value={product.product}>
                     <AccordionTrigger>
-                      {readableName(product.product)} · {number.format(product.credits)} credits
+                      {consumptionProductTitle(product.product)} · {number.format(product.credits)}{' '}
+                      credits
                     </AccordionTrigger>
                     <AccordionContent className='space-y-3'>
-                      <ConsumptionTable product={product} />
-                      <ProductBreakdown product={product} />
+                      <ConsumptionTable
+                        product={product}
+                        expandedUnit={expandedUnit}
+                        onToggle={unit => {
+                          setExpandedUnit(current => (current === unit ? null : unit));
+                        }}
+                      />
                     </AccordionContent>
                   </AccordionItem>
                 ))}
