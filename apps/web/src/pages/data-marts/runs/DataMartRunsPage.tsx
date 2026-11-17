@@ -5,7 +5,10 @@ import { SkeletonList } from '@owox/ui/components/common/skeleton-list';
 import { extractApiError } from '../../../app/api';
 import { DataMartRunType, dataMartService } from '../../../features/data-marts/shared';
 import { isDataMartRunFinalStatus } from '../../../features/data-marts/shared/utils/status.utils';
-import { RunItem } from '../../../features/data-marts/edit/components/DataMartRunHistoryView';
+import {
+  RefreshRunsButton,
+  RunItem,
+} from '../../../features/data-marts/edit/components/DataMartRunHistoryView';
 import { LogViewType } from '../../../features/data-marts/edit/components/DataMartRunHistoryView/types';
 import { mapProjectDataMartRunListResponseDtoToEntity } from '../../../features/data-marts/edit/model/mappers';
 import type { ProjectDataMartRunItem } from '../../../features/data-marts/edit/model/types';
@@ -17,13 +20,22 @@ import { ProjectDataMartSectionHeader } from '../shared/ProjectDataMartSectionHe
 
 const PROJECT_RUNS_PAGE_SIZE = 50;
 
+// A silent load keeps the list on a failure; `reportErrors` still toasts and rethrows.
+interface LoadRunsOptions {
+  silent?: boolean;
+  reportErrors?: boolean;
+}
+
 export default function DataMartRunsPage() {
   const { scope } = useProjectRoute();
-  const [runs, setRuns] = useState<ProjectDataMartRunItem[]>([]);
+  // One state, so a load decides the list and the Load More flag together.
+  const [{ runs, hasMoreRunsToLoad }, setRunList] = useState<{
+    runs: ProjectDataMartRunItem[];
+    hasMoreRunsToLoad: boolean;
+  }>({ runs: [], hasMoreRunsToLoad: false });
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [hasMoreRunsToLoad, setHasMoreRunsToLoad] = useState(false);
   const [expandedRun, setExpandedRun] = useState<string | null>(null);
   const [logViewType, setLogViewType] = useState<LogViewType>(LogViewType.STRUCTURED);
   const [searchTerm, setSearchTerm] = useState('');
@@ -31,9 +43,10 @@ export default function DataMartRunsPage() {
     Record<string, ConnectorListItem | null>
   >({});
 
-  const loadRuns = useCallback(async (offset = 0, options?: { silent?: boolean }) => {
+  const loadRuns = useCallback(async (offset = 0, options?: LoadRunsOptions) => {
     const isInitialLoad = offset === 0;
     const isSilent = options?.silent === true;
+    const reportErrors = options?.reportErrors === true;
 
     if (isInitialLoad) {
       if (!isSilent) {
@@ -50,29 +63,37 @@ export default function DataMartRunsPage() {
       const response = await dataMartService.getProjectDataMartRuns(
         PROJECT_RUNS_PAGE_SIZE,
         offset,
-        isSilent ? { skipLoadingIndicator: true, skipErrorToast: true } : undefined
+        isSilent ? { skipLoadingIndicator: true, skipErrorToast: !reportErrors } : undefined
       );
       const nextRuns = mapProjectDataMartRunListResponseDtoToEntity(response);
-      setRuns(currentRuns => {
+      const isFullPage = nextRuns.length >= PROJECT_RUNS_PAGE_SIZE;
+      setRunList(current => {
         if (!isInitialLoad) {
-          return [...currentRuns, ...nextRuns];
-        }
-
-        if (!isSilent) {
-          return nextRuns;
+          const loadedRunIds = new Set(current.runs.map(run => run.id));
+          return {
+            runs: [...current.runs, ...nextRuns.filter(run => !loadedRunIds.has(run.id))],
+            hasMoreRunsToLoad: isFullPage,
+          };
         }
 
         const nextRunIds = new Set(nextRuns.map(run => run.id));
-        const loadedOlderRuns = currentRuns.filter(run => !nextRunIds.has(run.id));
-        return [...nextRuns, ...loadedOlderRuns];
-      });
+        const loadedOtherRuns = current.runs.filter(run => !nextRunIds.has(run.id));
+        // No loaded run in the page: more new runs started than one page holds, so a merge
+        // would hide the runs between them. Start the list again instead.
+        if (!isSilent || loadedOtherRuns.length === current.runs.length) {
+          return { runs: nextRuns, hasMoreRunsToLoad: isFullPage };
+        }
 
-      if (!isSilent) {
-        setHasMoreRunsToLoad(nextRuns.length >= PROJECT_RUNS_PAGE_SIZE);
-      }
+        return {
+          runs: [...nextRuns, ...loadedOtherRuns],
+          hasMoreRunsToLoad: current.hasMoreRunsToLoad,
+        };
+      });
     } catch (caught) {
       if (!isSilent) {
         setError(extractApiError(caught).message ?? 'Failed to fetch Data Mart runs');
+      } else if (reportErrors) {
+        throw caught;
       }
     } finally {
       if (isInitialLoad) {
@@ -158,7 +179,15 @@ export default function DataMartRunsPage() {
 
   return (
     <div className='dm-page' data-testid='dataMartRunsPage'>
-      <ProjectDataMartSectionHeader title='Run History' />
+      <ProjectDataMartSectionHeader
+        title='Run History'
+        actions={
+          // A silent load keeps the loaded pages but never clears a load error, so retry loudly then.
+          <RefreshRunsButton
+            onRefresh={() => loadRuns(0, { silent: error === null, reportErrors: true })}
+          />
+        }
+      />
 
       <div className='dm-page-content'>
         {isLoading ? (

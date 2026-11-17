@@ -151,13 +151,15 @@ export function reducer(state: DataMartState, action: DataMartAction): DataMartS
 
       // Add old runs from state that are not in the fresh payload
       const oldRunsNotInPayload = state.runs.filter(run => !payloadRunIds.has(run.id));
-      const mergedRuns = [...action.payload, ...oldRunsNotInPayload];
+      // No loaded run in the payload: more new runs started than one page holds, so a merge
+      // would hide the runs between them. Start the list again instead.
+      const isNewList = oldRunsNotInPayload.length === state.runs.length;
+      const mergedRuns = isNewList ? action.payload : [...action.payload, ...oldRunsNotInPayload];
 
       // Determine if there are more runs to load:
-      // - On initial fetch (empty state): check if we received a full page
+      // - On a new list: check if we received a full page
       // - On polling updates: preserve existing state (Load More already knows if there's more)
-      const isInitialFetch = state.runs.length === 0;
-      const hasMoreRunsToLoad = isInitialFetch
+      const hasMoreRunsToLoad = isNewList
         ? action.payload.length >= DATA_MART_RUNS_PAGE_SIZE
         : state.hasMoreRunsToLoad;
 

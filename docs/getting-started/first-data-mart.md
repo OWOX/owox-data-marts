@@ -37,7 +37,7 @@ Already have data in your warehouse? Create a [SQL](./setup-guide/sql-data-mart.
 ## Step 3: Run it and check the data
 
 1. If you clicked only **Save**, click **Publish & Run Data Mart** in the page header. The first import starts automatically.
-2. Watch the **Run History** tab for logs and results.
+2. Watch the **Run History** tab for logs and results. The tab updates itself. To load new runs at once, click **Refresh** in its header.
 3. To load data again later, click **Manual Run** in the **Input Source** card header.
 
 After the first run, the **Output Schema** appears automatically. Add business-friendly field names there — they become the column aliases business users see.

@@ -12,7 +12,7 @@ interface UseAutoRefreshOptions {
  *
  * @param enabled - Whether auto-refresh is enabled
  * @param intervalMs - Interval in milliseconds (default: 5000)
- * @param onlyWhenVisible - Only refresh when tab is visible (default: true)
+ * @param onlyWhenVisible - Only refresh when tab is visible, and refresh at once when it is shown again (default: true)
  * @param onTick - Callback function to execute on each tick, receives AbortSignal
  *
  * @example
@@ -49,9 +49,15 @@ export function useAutoRefresh({
 
     tick();
     const intervalId = window.setInterval(tick, intervalMs);
+    // Ticks are skipped while the tab is hidden, so catch up as soon as it is shown again.
+    const onVisibilityChange = () => {
+      if (onlyWhenVisible) tick();
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
 
     return () => {
       window.clearInterval(intervalId);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
       abortControllerRef.current?.abort();
     };
   }, [enabled, intervalMs, onlyWhenVisible]);
