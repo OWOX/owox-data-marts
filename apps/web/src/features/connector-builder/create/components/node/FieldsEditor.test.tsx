@@ -1,12 +1,14 @@
 import { describe, it, expect } from 'vitest';
 import { useReducer } from 'react';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, within } from '@testing-library/react';
 import { FieldsEditor, hasUsableSample } from './FieldsEditor';
 import { BuilderContext } from '../../../shared/model/context/context';
 import { builderReducer, initialBuilderState } from '../../../shared/model/context/reducer';
 import type { BuilderState } from '../../../shared/model/context/types';
 import { parseManifestJson } from '../../../shared/model/manifestJson';
 import { addField } from '../../parameters-test-helpers';
+
+const ONE_FIELD = '{"nodes":{"items":{"recordSelector":{},"fields":{"id":{"type":"string"}}}}}';
 
 describe('hasUsableSample', () => {
   it('is false when there is no sample', () => {
@@ -152,8 +154,6 @@ describe('FieldsEditor — whitespace while typing', () => {
   // Both inputs are controlled. Trimming inside their onChange wrote "Total " back as
   // "Total" and re-rendered without the space, so a space could never be typed at all and
   // the value was stuck on its first word.
-  const ONE_FIELD = '{"nodes":{"items":{"recordSelector":{},"fields":{"id":{"type":"string"}}}}}';
-
   it('lets a space be typed into the description', () => {
     renderEditor(ONE_FIELD);
     const input = screen.getByTestId('fielddesc-id');
@@ -194,5 +194,99 @@ describe('FieldsEditor — whitespace while typing', () => {
     fireEvent.change(screen.getByTestId('fielddesc-id'), { target: { value: '   ' } });
 
     expect(storedFields()).toEqual({ id: { type: 'string' } });
+  });
+});
+
+describe('FieldsEditor — field name as you type', () => {
+  it('renames as you type, with no Apply step', () => {
+    renderEditor(
+      '{"nodes":{"items":{"recordSelector":{},"fields":{"id":{"type":"string","dataPath":"x"}},"uniqueKeys":["id"],"defaultFields":["id"]}}}'
+    );
+    fireEvent.change(screen.getByTestId('fieldname-id'), { target: { value: 'user_id' } });
+
+    expect(storedFields()).toEqual({ user_id: { type: 'string', dataPath: 'x' } });
+    expect(latest.state?.manifest.nodes.items.uniqueKeys).toEqual(['user_id']);
+    expect(latest.state?.manifest.nodes.items.defaultFields).toEqual(['user_id']);
+    // The old EditableText trigger has role=button; the inline input has none.
+    expect(within(screen.getByTestId('field-user_id')).queryByRole('button')).toBeNull();
+  });
+
+  it('keeps the same input while the name changes', () => {
+    renderEditor(ONE_FIELD);
+    const input = screen.getByTestId('fieldname-id');
+    input.focus();
+    fireEvent.change(input, { target: { value: 'idx' } });
+
+    expect(screen.getByTestId('fieldname-idx')).toBe(input);
+    expect(screen.getByPlaceholderText('Field name')).toBe(input);
+    expect(document.activeElement).toBe(input);
+  });
+
+  it('shows the name raw while typing and stores it trimmed', () => {
+    renderEditor(ONE_FIELD);
+    const input = screen.getByTestId('fieldname-id');
+    fireEvent.change(input, { target: { value: '  user_id ' } });
+
+    expect(input).toHaveValue('  user_id ');
+    expect(storedFields()).toEqual({ user_id: { type: 'string' } });
+  });
+
+  it('a passing duplicate keeps both rows', () => {
+    renderEditor(
+      '{"nodes":{"items":{"recordSelector":{},"fields":{"id":{"type":"string","dataPath":"a"},"id2":{"type":"integer","dataPath":"b"}},"uniqueKeys":["id"],"defaultFields":["id2"]}}}'
+    );
+    const second = screen.getByTestId('fieldname-id2');
+    fireEvent.change(second, { target: { value: 'id' } });
+    expect(second).toHaveValue('id');
+    expect(screen.getAllByLabelText('Duplicate field name')).toHaveLength(2);
+    expect(storedFields()).toEqual({
+      id: { type: 'string', dataPath: 'a' },
+      id2: { type: 'integer', dataPath: 'b' },
+    });
+    expect(latest.state?.manifest.nodes.items.defaultFields).toEqual(['id2']);
+    fireEvent.change(second, { target: { value: 'id3' } });
+
+    expect(storedFields()).toEqual({
+      id: { type: 'string', dataPath: 'a' },
+      id3: { type: 'integer', dataPath: 'b' },
+    });
+    expect(latest.state?.manifest.nodes.items.uniqueKeys).toEqual(['id']);
+    expect(latest.state?.manifest.nodes.items.defaultFields).toEqual(['id3']);
+  });
+
+  it('keeps the row when the name is cleared and typed again', () => {
+    renderEditor(
+      '{"nodes":{"items":{"recordSelector":{},"fields":{"id":{"type":"integer","dataPath":"x"}},"uniqueKeys":["id"],"defaultFields":["id"]}}}'
+    );
+    const input = screen.getByTestId('fieldname-id');
+    input.focus();
+    fireEvent.change(input, { target: { value: '' } });
+    expect(storedFields()).toEqual({ id: { type: 'integer', dataPath: 'x' } });
+    expect(latest.state?.manifest.nodes.items.uniqueKeys).toEqual(['id']);
+    const required = screen.getByLabelText('Field name is required');
+    expect(input.compareDocumentPosition(required) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(document.activeElement).toBe(input);
+
+    fireEvent.change(input, { target: { value: 'user_id' } });
+    expect(storedFields()).toEqual({ user_id: { type: 'integer', dataPath: 'x' } });
+    expect(latest.state?.manifest.nodes.items.uniqueKeys).toEqual(['user_id']);
+    expect(latest.state?.manifest.nodes.items.defaultFields).toEqual(['user_id']);
+  });
+
+  it('keeps the old name in the manifest when the node remounts mid-rename', () => {
+    const { unmount } = renderEditor(
+      '{"nodes":{"items":{"recordSelector":{},"fields":{"id":{"type":"string","dataPath":"a"},"id2":{"type":"integer","dataPath":"b"}},"uniqueKeys":["id"]}}}'
+    );
+    fireEvent.change(screen.getByTestId('fieldname-id2'), { target: { value: 'id' } });
+    const manifest = JSON.stringify(latest.state!.manifest);
+    unmount();
+    render(<Harness json={manifest} />);
+
+    expect(screen.getByTestId('fieldname-id')).toHaveValue('id');
+    expect(screen.getByTestId('fieldname-id2')).toHaveValue('id2');
+    expect(storedFields()).toEqual({
+      id: { type: 'string', dataPath: 'a' },
+      id2: { type: 'integer', dataPath: 'b' },
+    });
   });
 });

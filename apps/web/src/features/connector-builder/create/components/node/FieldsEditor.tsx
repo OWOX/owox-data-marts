@@ -16,7 +16,6 @@ import {
   TableHeader,
   TableRow,
 } from '@owox/ui/components/table';
-import { EditableText } from '@owox/ui/components/common/editable-text';
 import { SortableTableRow } from '@owox/ui/components/common/sortable-table-row';
 import {
   closestCenter,
@@ -178,7 +177,13 @@ export function FieldsEditor({ nodeName }: { nodeName: string }) {
     commit(rows.map(r => (r.id === id ? { ...r, [key]: checked } : r)));
   };
   const setName = (id: number, name: string) => {
-    commit(rows.map(r => (r.id === id ? { ...r, name } : r)));
+    const next = rows.map(r => (r.id === id ? { ...r, name } : r));
+    // A blank or duplicate name stays on screen only, so the manifest keeps the field under its last valid name.
+    if (name.trim() === '' || rows.some(r => r.id !== id && r.name.trim() === name.trim())) {
+      setRows(next);
+      return;
+    }
+    commit(next);
   };
   const removeRow = (id: number) => {
     commit(rows.filter(r => r.id !== id));
@@ -308,6 +313,16 @@ export function FieldsEditor({ nodeName }: { nodeName: string }) {
                         data-testid={`field-${row.name}`}
                       >
                         <div className='flex items-center gap-2'>
+                          <Input
+                            value={row.name}
+                            onChange={e => {
+                              setName(row.id, e.target.value);
+                            }}
+                            placeholder='Field name'
+                            aria-label='Field name'
+                            data-testid={`fieldname-${row.name}`}
+                            className='h-8 font-mono'
+                          />
                           {row.name.trim() === '' && (
                             <CircleAlert
                               className='h-4 w-4 shrink-0 text-red-500'
@@ -322,15 +337,6 @@ export function FieldsEditor({ nodeName }: { nodeName: string }) {
                               />
                             </span>
                           )}
-                          <EditableText
-                            value={row.name}
-                            onValueChange={v => {
-                              setName(row.id, v);
-                            }}
-                            placeholder='Field name'
-                            isBold
-                            className='font-mono'
-                          />
                         </div>
                       </TableCell>
                       <TableCell>
