@@ -15,6 +15,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import { Link } from 'react-router';
 import { extractApiError } from '../../../../app/api';
+import { usePermissions } from '../../../../app/permissions';
 import { Button } from '../../../../shared/components/Button';
 import {
   CollapsibleCard,
@@ -40,6 +41,7 @@ import type {
   DataQualityRuleConfig,
   EffectiveDataQualityRuleConfig,
 } from '../model/types';
+import { ChangeRoleHint } from '../../../project-members/components/ChangeRoleHint';
 import { useDataQualityWorkspace } from '../model/use-data-quality-workspace';
 import { DataQualityFieldChecks } from './DataQualityFieldChecks';
 import { DataQualityResultCard } from './DataQualityResultCard';
@@ -149,6 +151,7 @@ export function DataQualityWorkspace({
 
   const isDirty = !areDataQualityConfigsEqual(draft, baseline);
   const canEdit = configResponse?.permissions.canEdit ?? false;
+  const isBusinessUser = !usePermissions().canEdit;
   const canRun = configResponse?.permissions.canRun ?? false;
   const isMutationBusy = isSaving || isStarting || isCancelling;
   const activeRunState = activeRun?.summary.state;
@@ -287,12 +290,14 @@ export function DataQualityWorkspace({
     : (latestSummaryRun?.finishedAt ?? latestSummaryRun?.createdAt ?? null);
   const runButtonLabel = isStarting ? 'Queuing' : 'Run';
   const savedRunUnavailableReason = getRunUnavailableReason({
+    isBusinessUser,
     canRun,
     isMutationBusy,
     isRunActive,
     eligibilityCode,
   });
   const draftRunUnavailableReason = getDraftRunUnavailableReason({
+    isBusinessUser,
     canEdit,
     canStartDraftConfig,
     draftApplicableEnabledChecks,
@@ -421,7 +426,14 @@ export function DataQualityWorkspace({
           <AlertTitle>Read-only access</AlertTitle>
           <AlertDescription>
             You have view-only access. You can browse the configuration and reports, but editing and
-            running checks requires edit access to this Data Mart.
+            running checks requires{' '}
+            {isBusinessUser ? 'the Data Owner role.' : 'edit access to this Data Mart.'}
+            {isBusinessUser && (
+              <>
+                {' '}
+                <ChangeRoleHint to={`/ui/${projectId}/project-settings/members`} />
+              </>
+            )}
           </AlertDescription>
         </Alert>
       )}
@@ -628,11 +640,13 @@ const RUN_ELIGIBILITY_MESSAGES: Record<
 };
 
 function getRunUnavailableReason({
+  isBusinessUser,
   canRun,
   isMutationBusy,
   isRunActive,
   eligibilityCode,
 }: {
+  isBusinessUser: boolean;
   canRun: boolean;
   isMutationBusy: boolean;
   isRunActive: boolean;
@@ -641,11 +655,16 @@ function getRunUnavailableReason({
   if (isMutationBusy) return 'Another Data Quality action is in progress';
   if (isRunActive) return RUN_ELIGIBILITY_MESSAGES.ACTIVE_RUN;
   if (eligibilityCode) return RUN_ELIGIBILITY_MESSAGES[eligibilityCode];
-  if (!canRun) return 'You need edit access to this Data Mart to run Data Quality checks';
+  if (!canRun) {
+    return isBusinessUser
+      ? 'You need the Data Owner role to run Data Quality checks'
+      : 'You need edit access to this Data Mart to run Data Quality checks';
+  }
   return null;
 }
 
 function getDraftRunUnavailableReason({
+  isBusinessUser,
   canEdit,
   canStartDraftConfig,
   draftApplicableEnabledChecks,
@@ -653,6 +672,7 @@ function getDraftRunUnavailableReason({
   isRunActive,
   eligibilityCode,
 }: {
+  isBusinessUser: boolean;
   canEdit: boolean;
   canStartDraftConfig: boolean;
   draftApplicableEnabledChecks: number;
@@ -662,7 +682,11 @@ function getDraftRunUnavailableReason({
 }): string | null {
   if (isMutationBusy) return 'Another Data Quality action is in progress';
   if (isRunActive) return RUN_ELIGIBILITY_MESSAGES.ACTIVE_RUN;
-  if (!canEdit) return 'You need edit access to this Data Mart to save and run Data Quality checks';
+  if (!canEdit) {
+    return isBusinessUser
+      ? 'You need the Data Owner role to save and run Data Quality checks'
+      : 'You need edit access to this Data Mart to save and run Data Quality checks';
+  }
   if (draftApplicableEnabledChecks === 0) return RUN_ELIGIBILITY_MESSAGES.NO_APPLICABLE_CHECKS;
   if (!canStartDraftConfig && eligibilityCode) return RUN_ELIGIBILITY_MESSAGES[eligibilityCode];
   return null;
