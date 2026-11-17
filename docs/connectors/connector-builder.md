@@ -26,6 +26,7 @@ In **General**, fill in:
 | **Base URL**    | The address every request starts from, without a trailing slash, e.g. `https://api.npmjs.org`.                                                                                        |
 | **Docs URL**    | A link to the API's documentation, for whoever edits the connector next.                                                                                                              |
 | **Description** | What the connector loads. People see it when they pick the connector.                                                                                                                 |
+| **Icon**        | The image people see next to the title. Upload an SVG, PNG, JPEG or WebP file. The builder scales a PNG, JPEG or WebP image down to 128 × 128 px.                                     |
 
 **Advanced settings** limits how many requests the connector sends per time window, which keeps a run under the API's quota. Leave it empty if the API has no such limit.
 
@@ -106,7 +107,7 @@ Data Marts refer to a field by its name, as they do to a node. Once you publish,
 
 **Save draft** keeps your work without making it available. Data Marts never run a draft, and a connector that has never been published appears in the connector list with a **Publish to use** badge.
 
-**Publish** checks the manifest, saves it as a new version and makes that version active. If a Data Mart's Credential no longer fits the new version, for example because the connector now sends requests to another host or needs another key parameter, a notice lists the Data Marts that will stop (it shows five and counts the rest, and the Data Marts you cannot see). Publishing goes ahead. Those Data Marts fail with `This Data Mart's Credential no longer fits its connector. Select a fitting Credential.` until someone selects a fitting Credential. The version badge in the top bar shows the result, e.g. `v1 · published`. The title, description and docs URL shown in the connector list change when you publish, not when you save a draft.
+**Publish** checks the manifest, saves it as a new version and makes that version active. If a Data Mart's Credential no longer fits the new version, for example because the connector now sends requests to another host or needs another key parameter, a notice lists the Data Marts that will stop (it shows five and counts the rest, and the Data Marts you cannot see). Publishing goes ahead. Those Data Marts fail with `This Data Mart's Credential no longer fits its connector. Select a fitting Credential.` until someone selects a fitting Credential. The version badge in the top bar shows the result, e.g. `v1 · published`. The title, description and docs URL shown in the connector list change when you publish, not when you save a draft. The icon is not part of a version: it changes when you save.
 
 ## Versions
 
@@ -121,10 +122,10 @@ A Data Mart that follows the active version runs it with its own credentials. So
 
 ## Edit the connector as JSON
 
-Switch to **Code** to see the whole connector as one JSON manifest. The builder and the code show the same connector, so a change in one appears in the other. Code also covers what the form does not, such as extra request `headers`. While the JSON has an error, the connector cannot be saved or published.
+Switch to **Code** to see the connector as one JSON manifest. The builder and the code show the same connector, so a change in one appears in the other. Code also covers what the form does not, such as extra request `headers`. While the JSON has an error, the connector cannot be saved or published. The icon is not part of the manifest.
 
-- **Import JSON** on the **Code** tab, or **⋮** → **Import JSON…**, replaces the connector with a manifest from a `.json` file. A connector that already exists keeps its name.
-- **⋮** → **Export JSON** downloads the manifest, e.g. to keep a copy or to move the connector to another project.
+- **Import JSON** on the **Code** tab, or **⋮** → **Import JSON…**, replaces the connector with a manifest from a `.json` file. A connector that already exists keeps its name and its icon.
+- **⋮** → **Export JSON** downloads the manifest, e.g. to keep a copy or to move the connector to another project. The file does not include the icon, so upload the icon again in the other project.
 
 To build a connector with an AI assistant, give it the [authoring guide for AI assistants](https://docs.owox.com/docs/connectors/manifest-reference.llms.txt) and the API's documentation. Import the manifest it writes, then test and publish it as above. Never give the assistant your credentials.
 

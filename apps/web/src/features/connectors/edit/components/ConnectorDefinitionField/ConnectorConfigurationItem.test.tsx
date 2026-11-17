@@ -6,6 +6,7 @@ import { DataStorageType } from '../../../../data-storage';
 import type { DataStorage } from '../../../../data-storage/shared/model/types/data-storage';
 import type { ConnectorDefinitionConfig } from '../../../../data-marts/edit/model';
 import { DataMartStatus } from '../../../../data-marts/shared/enums';
+import { getConnectorInfoByName } from '../../../shared/utils';
 import { ConnectorConfigurationItem } from './ConnectorConfigurationItem';
 
 vi.mock('../../../shared/model/hooks/useConnector', () => ({
@@ -170,6 +171,45 @@ describe('ConnectorConfigurationItem', () => {
     await waitFor(() => {
       expect(followed).toEqual([tabUrl]);
     });
+  });
+
+  const customSource: ConnectorDefinitionConfig = {
+    connector: {
+      source: { name: 'MyApi', node: 'items', configuration: [{}], fields: ['id'] },
+      storage: { fullyQualifiedName: 'raw.items' },
+    },
+  };
+
+  it('shows the title and icon of a custom connector', async () => {
+    const logo = 'data:image/svg+xml;base64,PHN2Zy8+';
+    vi.mocked(getConnectorInfoByName).mockResolvedValueOnce({
+      name: 'MyApi',
+      displayName: 'My API',
+      description: '',
+      logoBase64: logo,
+      docUrl: null,
+      isCustom: true,
+    });
+
+    renderItem({ definition: customSource, configIndex: 0, totalConfigurations: 1 });
+
+    expect(await screen.findByText('My API')).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'icon' })).toHaveAttribute('src', logo);
+  });
+
+  it('shows the custom connector icon for a custom connector without an icon', async () => {
+    vi.mocked(getConnectorInfoByName).mockResolvedValueOnce({
+      name: 'MyApi',
+      displayName: 'My API',
+      description: '',
+      logoBase64: null,
+      docUrl: null,
+      isCustom: true,
+    });
+
+    renderItem({ definition: customSource, configIndex: 0, totalConfigurations: 1 });
+
+    expect(await screen.findByRole('img', { name: 'Custom connector' })).toBeInTheDocument();
   });
 
   it('shows the flow from the source to the storage', () => {

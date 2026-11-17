@@ -1,6 +1,12 @@
+import { useEffect, useRef } from 'react';
+import { toast } from 'react-hot-toast';
+import { Button } from '@owox/ui/components/button';
 import { Input } from '@owox/ui/components/input';
 import { Textarea } from '@owox/ui/components/textarea';
 import { GitCompare } from 'lucide-react';
+import { RawBase64Icon } from '../../../../shared/icons';
+import { CustomConnectorIcon } from '../../../connectors/shared/components/CustomConnectorIcon';
+import { LOGO_ACCEPT, readLogoFile } from '../../shared/model/logoFile';
 import {
   CollapsibleCard,
   CollapsibleCardHeader,
@@ -13,7 +19,29 @@ import { InfoLabel } from './fields';
 import { AdvancedSettingsEditor } from './AdvancedSettingsEditor';
 
 export function GeneralEditor() {
-  const { manifest, setPath, state } = useBuilder();
+  const { manifest, setPath, setLogo, state } = useBuilder();
+  const logoInput = useRef<HTMLInputElement>(null);
+  const uploadButton = useRef<HTMLButtonElement>(null);
+  // Counts icon picks: a slow read applies only while it is the latest pick and the editor is
+  // still mounted (Discard remounts it).
+  const logoPick = useRef(0);
+  useEffect(() => {
+    const pick = logoPick;
+    return () => {
+      pick.current += 1;
+    };
+  }, []);
+  const uploadLogo = async (file: File) => {
+    const current = ++logoPick.current;
+    try {
+      const logo = await readLogoFile(file);
+      if (current === logoPick.current) setLogo(logo);
+    } catch (e) {
+      if (current === logoPick.current) {
+        toast.error(e instanceof Error ? e.message : `Could not read ${file.name}.`);
+      }
+    }
+  };
   // The name is written into the connector's definition row by create() and never again. It
   // is the key data marts resolve this connector by — `connector.source.name`, the same field
   // a bundled connector fills, which is why it is a name and not the row's id: bundled
@@ -91,6 +119,60 @@ export function GeneralEditor() {
                 className='font-mono'
               />
             </label>
+            <div className='flex flex-col sm:col-span-2'>
+              <InfoLabel hint='Shown next to the title in connector lists, pickers and data marts. Use SVG, PNG, JPEG or WebP. Raster images are scaled down to 128 × 128 px. A saved icon shows at once, without a publish.'>
+                Icon
+              </InfoLabel>
+              <div className='flex items-center gap-2'>
+                <div className='flex size-9 shrink-0 items-center justify-center rounded-md border'>
+                  {state.logo ? (
+                    <RawBase64Icon key={state.logo} base64={state.logo} size={24} />
+                  ) : (
+                    <CustomConnectorIcon size={20} />
+                  )}
+                </div>
+                <Button
+                  ref={uploadButton}
+                  type='button'
+                  variant='outline'
+                  size='sm'
+                  aria-label={state.logo ? 'Replace icon' : 'Upload icon'}
+                  onClick={() => {
+                    logoInput.current?.click();
+                  }}
+                >
+                  {state.logo ? 'Replace' : 'Upload'}
+                </Button>
+                {state.logo && (
+                  <Button
+                    type='button'
+                    variant='ghost'
+                    size='sm'
+                    aria-label='Remove icon'
+                    onClick={() => {
+                      logoPick.current += 1;
+                      setLogo(null);
+                      uploadButton.current?.focus();
+                    }}
+                  >
+                    Remove
+                  </Button>
+                )}
+                <input
+                  ref={logoInput}
+                  type='file'
+                  accept={LOGO_ACCEPT}
+                  className='hidden'
+                  aria-label='Icon file'
+                  data-testid='connectorLogoInput'
+                  onChange={e => {
+                    const file = e.target.files?.[0];
+                    e.target.value = '';
+                    if (file) void uploadLogo(file);
+                  }}
+                />
+              </div>
+            </div>
             <label className='flex flex-col sm:col-span-2'>
               <InfoLabel hint='Optional summary of what this connector pulls and from which API. Shown to users when they pick the connector.'>
                 Description

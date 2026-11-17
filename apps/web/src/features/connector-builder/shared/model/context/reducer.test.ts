@@ -132,6 +132,28 @@ describe('builderReducer', () => {
       builderReducer(editedDuringSave, { type: BuilderActionType.MARK_SAVED, payload: saved }).dirty
     ).toBe(true);
   });
+
+  it('MARK_SAVED keeps dirty while the icon differs from the saved icon', () => {
+    const iconSaved = [
+      { type: BuilderActionType.SET_LOGO, payload: 'data:image/png;base64,AAAA' },
+      { type: BuilderActionType.MARK_LOGO_SAVED, payload: 'data:image/png;base64,AAAA' },
+    ] as const;
+    const saved = iconSaved.reduce(builderReducer, initialBuilderState);
+    expect(
+      builderReducer(saved, { type: BuilderActionType.MARK_SAVED, payload: saved.manifest }).dirty
+    ).toBe(false);
+
+    const iconChangedDuringSave = builderReducer(saved, {
+      type: BuilderActionType.SET_LOGO,
+      payload: null,
+    });
+    expect(
+      builderReducer(iconChangedDuringSave, {
+        type: BuilderActionType.MARK_SAVED,
+        payload: saved.manifest,
+      }).dirty
+    ).toBe(true);
+  });
 });
 
 // Where the manifest of a new connector came from: the strongest sign wins, and opening or

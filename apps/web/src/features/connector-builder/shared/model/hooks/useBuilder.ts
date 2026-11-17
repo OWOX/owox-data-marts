@@ -65,6 +65,12 @@ export function useBuilder() {
     [codeEdits]
   );
 
+  /** Whether a save would write the manifest. While Code mode is open, typing may be held back. */
+  const manifestUnsaved = useCallback(
+    (): boolean => state.manifest !== state.savedManifest || codeEdits.current !== null,
+    [state.manifest, state.savedManifest, codeEdits]
+  );
+
   const setPath = useCallback(
     (path: (string | number)[], value: unknown) => {
       dispatch({ type: BuilderActionType.SET_PATH, payload: { path, value } });
@@ -155,8 +161,16 @@ export function useBuilder() {
     [dispatch]
   );
 
+  const setLogo = useCallback(
+    (logo: string | null) => {
+      dispatch({ type: BuilderActionType.SET_LOGO, payload: logo });
+    },
+    [dispatch]
+  );
+
   const initNew = useCallback(() => {
     dispatch({ type: BuilderActionType.SET_MANIFEST, payload: createEmptyManifest() });
+    dispatch({ type: BuilderActionType.MARK_LOADED, payload: null });
     dispatch({ type: BuilderActionType.SET_MANIFEST_ORIGIN, payload: 'form' });
     dispatch({
       type: BuilderActionType.SET_META,
@@ -182,6 +196,7 @@ export function useBuilder() {
         const targetVersion = version ?? latest?.version ?? 1;
         const v = await api.getVersion(id, targetVersion);
         dispatch({ type: BuilderActionType.SET_MANIFEST, payload: v.manifest });
+        dispatch({ type: BuilderActionType.MARK_LOADED, payload: detail.logo });
         dispatch({ type: BuilderActionType.SET_MANIFEST_ORIGIN, payload: 'form' });
         dispatch({
           type: BuilderActionType.SET_META,
@@ -203,8 +218,12 @@ export function useBuilder() {
     [dispatch]
   );
 
+  /**
+   * `replaceNewerDraft` writes the manifest even when it is unchanged, which is what
+   * "Replace & publish" promises for an older version open over a newer draft.
+   */
   const persistDraft = useCallback(
-    async (manifest: BuilderManifest): Promise<string | null> => {
+    async (manifest: BuilderManifest, replaceNewerDraft = false): Promise<string | null> => {
       const api = new ConnectorBuilderApiService();
       dispatch({ type: BuilderActionType.SET_SAVING, payload: true });
       dispatch({ type: BuilderActionType.SET_ERROR, payload: null });
@@ -219,10 +238,12 @@ export function useBuilder() {
             title: firstNonEmpty(manifest.title, manifest.name),
             description: manifest.description,
             docUrl: manifest.docUrl,
+            logo: state.logo ?? undefined,
             manifest,
           });
           id = created.id;
           written = true;
+          dispatch({ type: BuilderActionType.MARK_LOGO_SAVED, payload: state.logo });
           // Commit the id before the read below, which only enriches it with version
           // metadata. create() has already taken the name, so a retry that re-POSTs it
           // 400s on the name check — dropping the id with a transient read failure leaves
@@ -256,23 +277,45 @@ export function useBuilder() {
           toast.success('Connector created');
           return created.id;
         }
-        await api.saveDraft(state.id, manifest);
+        const writeManifest = replaceNewerDraft || manifest !== state.savedManifest;
+        if (writeManifest) await api.saveDraft(state.id, manifest);
         written = true;
+        let logoError: string | null = null;
+        if (state.logo !== state.savedLogo) {
+          try {
+            await api.updateLogo(state.id, state.logo);
+            dispatch({ type: BuilderActionType.MARK_LOGO_SAVED, payload: state.logo });
+          } catch (e) {
+            logoError = apiErrorMessage(e, 'Failed to save the icon');
+            trackCustomConnectorEvent(
+              'custom_connector_error',
+              { id, manifest, version: state.loadedVersion },
+              { action: 'LogoSaveError', ...describeApiFailure(e) }
+            );
+          }
+        }
         // The title, description and docs link reach the connector row, which every list and
         // picker reads, when a version is published: a draft is not theirs to show yet.
-        const detail = await api.getById(state.id);
-        dispatch({
-          type: BuilderActionType.SET_META,
-          payload: {
-            id: state.id,
-            versions: detail.versions,
-            activeVersionId: detail.activeVersionId,
-            activeVersion: detail.activeVersion ?? null,
-            loadedVersion: detail.versions[detail.versions.length - 1]?.version ?? null,
-          },
-        });
+        if (writeManifest) {
+          const detail = await api.getById(state.id);
+          dispatch({
+            type: BuilderActionType.SET_META,
+            payload: {
+              id: state.id,
+              versions: detail.versions,
+              activeVersionId: detail.activeVersionId,
+              activeVersion: detail.activeVersion ?? null,
+              loadedVersion: detail.versions[detail.versions.length - 1]?.version ?? null,
+            },
+          });
+        }
         dispatch({ type: BuilderActionType.MARK_SAVED, payload: manifest });
-        toast.success('Draft saved');
+        if (writeManifest) toast.success('Draft saved');
+        else if (!logoError) toast.success('Icon saved');
+        if (logoError) {
+          dispatch({ type: BuilderActionType.SET_ERROR, payload: logoError });
+          toast.error(`The icon was not saved: ${logoError}`);
+        }
         return state.id;
       } catch (e) {
         const msg = apiErrorMessage(e, 'Failed to save');
@@ -290,7 +333,7 @@ export function useBuilder() {
         dispatch({ type: BuilderActionType.SET_SAVING, payload: false });
       }
     },
-    [dispatch, state.id, state.loadedVersion]
+    [dispatch, state.id, state.loadedVersion, state.logo, state.savedLogo, state.savedManifest]
   );
 
   const saveDraft = useCallback(
@@ -317,9 +360,10 @@ export function useBuilder() {
       // An older version open over a newer draft is saved over that draft first, edited or
       // not: that is what the "Replace & publish" confirmation said, and without the save the
       // publish releases the draft instead of the version on screen.
+      const replaceNewerDraft = draftVersionAtRisk(state) !== null;
       id =
-        !state.id || state.dirty || typed !== null || draftVersionAtRisk(state) !== null
-          ? await persistDraft(sent)
+        !state.id || state.dirty || typed !== null || replaceNewerDraft
+          ? await persistDraft(sent, replaceNewerDraft)
           : state.id;
       if (!id) return false;
       const { version, warnings, ...stopping } = await api.publish(id);
@@ -456,6 +500,7 @@ export function useBuilder() {
     manifest: state.manifest,
     setPath,
     setManifest,
+    setLogo,
     setCodeInvalid,
     setSample,
     removeParameter,
@@ -467,6 +512,7 @@ export function useBuilder() {
     loadConnector,
     setManifestOrigin,
     flushCodeEdits,
+    manifestUnsaved,
     loadVersion,
     activateVersion,
     saveDraft,
