@@ -52,6 +52,13 @@ const MIN_CONFIRMED_BACKFILL_SEGMENTS = 2;
 const DATELESS_NODE_SUMMARY =
   'This node has no date filter: the backfill loads the whole catalog in one run, whatever period you pick.';
 
+/** A backfill with no date field cannot filter a period, so it reloads the node like an incremental run. */
+const NO_DATE_FIELDS_SUMMARY =
+  'This node has no date filter: a backfill loads all its data in one run, the same as an incremental load.';
+
+const CUSTOM_CONNECTOR_PERIOD_HINT =
+  "If the API filters by date, set the node's Incremental strategy and date parameters in the Connector Builder.";
+
 type BackfillPeriod =
   | { status: 'incomplete' }
   | { status: 'reversed' }
@@ -73,9 +80,13 @@ function readBackfillPeriod(startDate: unknown, endDate: unknown, today: string)
   return { status: 'ok', days, parts: countBackfillSegments(startDate, endDate) };
 }
 
-function getBackfillSummary(period: BackfillPeriod, isDatelessNode: boolean): string {
+function getBackfillSummary(
+  period: BackfillPeriod,
+  isDatelessNode: boolean,
+  periodHint: string
+): string {
   if (isDatelessNode && (period.status === 'incomplete' || period.status === 'ok')) {
-    return DATELESS_NODE_SUMMARY;
+    return `${DATELESS_NODE_SUMMARY}${periodHint}`;
   }
   switch (period.status) {
     case 'incomplete':
@@ -243,14 +254,16 @@ export function ConnectorRunForm({ configuration, onClose, onSubmit }: Connector
   const backfillFields = connectorSpecification.filter(field =>
     field.attributes?.includes(ConnectorSpecificationAttribute.MANUAL_BACKFILL)
   );
-  // A connector with no date fields treats a backfill as a full refresh, so a period notice
-  // would describe a period it never reads.
+  // Without date fields a period notice would describe a period the connector never reads.
   const hasBackfillPeriod = backfillFields.some(field => field.name === 'StartDate');
   // Known only once the node list has loaded; until then the period is described as dated,
   // which is what the backend assumes for a node it cannot classify.
-  const isDatelessNode =
-    connectorFields?.find(field => field.name === configuration?.connector.source.node)
-      ?.isFetchedByDate === false;
+  const nodeFetchedByDate = connectorFields?.find(
+    field => field.name === configuration?.connector.source.node
+  )?.isFetchedByDate;
+  const isDatelessNode = nodeFetchedByDate === false;
+  const periodHint =
+    configuration?.connector.info?.isCustom === true ? ` ${CUSTOM_CONNECTOR_PERIOD_HINT}` : '';
   const backfillDays = backfillPeriod.status === 'ok' ? backfillPeriod.days : 0;
   const backfillSegments = backfillPeriod.status === 'ok' ? backfillPeriod.parts : 0;
 
@@ -358,7 +371,8 @@ export function ConnectorRunForm({ configuration, onClose, onSubmit }: Connector
                     )}
                   />
                 ))}
-                {hasBackfillPeriod && (
+                {(hasBackfillPeriod ||
+                  (backfillFields.length === 0 && nodeFetchedByDate !== true)) && (
                   <Alert
                     role='status'
                     variant={
@@ -369,7 +383,9 @@ export function ConnectorRunForm({ configuration, onClose, onSubmit }: Connector
                     data-testid='backfill-limit-notice'
                   >
                     <AlertDescription>
-                      {getBackfillSummary(backfillPeriod, isDatelessNode)}
+                      {hasBackfillPeriod
+                        ? getBackfillSummary(backfillPeriod, isDatelessNode, periodHint)
+                        : `${NO_DATE_FIELDS_SUMMARY}${periodHint}`}
                     </AlertDescription>
                   </Alert>
                 )}
