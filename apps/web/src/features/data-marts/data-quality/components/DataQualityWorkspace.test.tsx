@@ -611,6 +611,7 @@ describe('DataQualityWorkspace', () => {
       configResponse: {
         ...configResponse,
         permissions: { canEdit: false, canRun: false },
+        runEligibility: { eligible: false, code: 'NOT_PUBLISHED', activeRunId: null },
       },
     });
 
@@ -637,6 +638,7 @@ describe('DataQualityWorkspace', () => {
       configResponse: {
         ...configResponse,
         permissions: { canEdit: false, canRun: false },
+        runEligibility: { eligible: false, code: 'NOT_PUBLISHED', activeRunId: null },
       },
     });
 

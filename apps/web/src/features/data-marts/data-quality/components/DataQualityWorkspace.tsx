@@ -291,7 +291,7 @@ export function DataQualityWorkspace({
   const runButtonLabel = isStarting ? 'Queuing' : 'Run';
   const savedRunUnavailableReason = getRunUnavailableReason({
     isBusinessUser,
-    canRun,
+    canEdit,
     isMutationBusy,
     isRunActive,
     eligibilityCode,
@@ -643,25 +643,25 @@ const RUN_ELIGIBILITY_MESSAGES: Record<
 
 function getRunUnavailableReason({
   isBusinessUser,
-  canRun,
+  canEdit,
   isMutationBusy,
   isRunActive,
   eligibilityCode,
 }: {
   isBusinessUser: boolean;
-  canRun: boolean;
+  canEdit: boolean;
   isMutationBusy: boolean;
   isRunActive: boolean;
   eligibilityCode: DataQualityConfigResponse['runEligibility']['code'];
 }): string | null {
   if (isMutationBusy) return 'Another Data Quality action is in progress';
   if (isRunActive) return RUN_ELIGIBILITY_MESSAGES.ACTIVE_RUN;
-  if (eligibilityCode) return RUN_ELIGIBILITY_MESSAGES[eligibilityCode];
-  if (!canRun) {
+  if (!canEdit) {
     return isBusinessUser
       ? 'You need the Data Owner role to run Data Quality checks'
       : 'You need edit access to this Data Mart to run Data Quality checks';
   }
+  if (eligibilityCode) return RUN_ELIGIBILITY_MESSAGES[eligibilityCode];
   return null;
 }
 
