@@ -605,7 +605,9 @@ describe('DataQualityWorkspace', () => {
     expect(screen.getByRole('button', { name: 'Add checks' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Run' })).toBeDisabled();
     expect(
-      screen.getByLabelText('Run unavailable: Editor access is required to run Data Quality checks')
+      screen.getByLabelText(
+        'Run unavailable: You need edit access to this Data Mart to run Data Quality checks'
+      )
     ).toBeInTheDocument();
     expect(
       screen.getByText(

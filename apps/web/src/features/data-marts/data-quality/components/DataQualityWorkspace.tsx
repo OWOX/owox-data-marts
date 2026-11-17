@@ -641,7 +641,7 @@ function getRunUnavailableReason({
   if (isMutationBusy) return 'Another Data Quality action is in progress';
   if (isRunActive) return RUN_ELIGIBILITY_MESSAGES.ACTIVE_RUN;
   if (eligibilityCode) return RUN_ELIGIBILITY_MESSAGES[eligibilityCode];
-  if (!canRun) return 'Editor access is required to run Data Quality checks';
+  if (!canRun) return 'You need edit access to this Data Mart to run Data Quality checks';
   return null;
 }
 
@@ -662,7 +662,7 @@ function getDraftRunUnavailableReason({
 }): string | null {
   if (isMutationBusy) return 'Another Data Quality action is in progress';
   if (isRunActive) return RUN_ELIGIBILITY_MESSAGES.ACTIVE_RUN;
-  if (!canEdit) return 'Editor access is required to save and run Data Quality checks';
+  if (!canEdit) return 'You need edit access to this Data Mart to save and run Data Quality checks';
   if (draftApplicableEnabledChecks === 0) return RUN_ELIGIBILITY_MESSAGES.NO_APPLICABLE_CHECKS;
   if (!canStartDraftConfig && eligibilityCode) return RUN_ELIGIBILITY_MESSAGES[eligibilityCode];
   return null;

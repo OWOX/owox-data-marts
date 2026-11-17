@@ -1,5 +1,5 @@
 import { useCallback, useRef } from 'react';
-import { useNavigate } from 'react-router';
+import { Link, useNavigate } from 'react-router';
 import { ShieldAlert } from 'lucide-react';
 import { Button } from '@owox/ui/components/button';
 import { usePermissions } from '../../../app/permissions';
@@ -39,13 +39,20 @@ function BuilderNotAuthorised({ onBack }: { onBack: () => void }) {
         <div className='flex items-center gap-2.5'>
           <ShieldAlert className='h-[18px] w-[18px] text-amber-500' strokeWidth={1.7} />
           <h3 className='text-foreground text-base font-medium'>
-            The connector builder needs editor access
+            The connector builder needs the Data Owner role
           </h3>
         </div>
         <p className='text-muted-foreground text-[13px] leading-relaxed'>
-          A connector definition can contain credentials, so only editors and admins can open it.
-          You can still browse the connectors list, and configure a connector on a Data Mart that
-          already uses one.
+          A connector definition can contain credentials, so only Data Owners and Project Admins can
+          open it. You can still browse the connectors list. A Project Admin can change your role in{' '}
+          <Link
+            to='../../../project-settings/members'
+            relative='path'
+            className='hover:text-foreground underline decoration-dotted underline-offset-2'
+          >
+            Project settings → Members
+          </Link>
+          .
         </p>
         <Button variant='outline' onClick={onBack} className='h-[34px]'>
           Back to connectors
