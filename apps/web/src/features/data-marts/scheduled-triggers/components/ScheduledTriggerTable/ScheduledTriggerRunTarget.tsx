@@ -69,12 +69,13 @@ function renderConnectorRunTarget(trigger: ScheduledTrigger, connectors: Connect
   }
 
   const { connector } = triggerConfig.connector;
-  const connectorInfo = connectors.find(item => item.name === connector.source.name);
-  const connectorLogo = connector.info?.logoBase64 ?? connectorInfo?.logoBase64;
+  const connectorInfo =
+    connectors.find(item => item.name === connector.source.name) ?? connector.info;
+  const connectorLogo = connectorInfo?.logoBase64;
   let connectorIcon = <Database className='h-4 w-4' size={16} />;
   if (connectorLogo) {
     connectorIcon = <RawBase64Icon base64={connectorLogo} className='h-4 w-4 shrink-0' size={16} />;
-  } else if (connector.info?.isCustom) {
+  } else if (connectorInfo?.isCustom) {
     connectorIcon = <CustomConnectorIcon size={16} />;
   }
   return (

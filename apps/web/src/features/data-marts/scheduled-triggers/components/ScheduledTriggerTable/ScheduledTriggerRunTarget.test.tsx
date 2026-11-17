@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ConnectorContextProvider } from '../../../../connectors/shared/model/context';
+import type { ConnectorListItem } from '../../../../connectors/shared/model/types/connector';
 import { DataDestinationType } from '../../../../data-destination';
 import { DestinationTypeConfigEnum } from '../../../reports/shared';
 import type { DataMartReport } from '../../../reports/shared/model/types/data-mart-report';
@@ -9,6 +10,21 @@ import { TRIGGER_CONFIG_TYPES } from '../../enums/trigger-config-types.enum';
 import { ScheduledTriggerType } from '../../enums';
 import type { ScheduledTrigger } from '../../model/scheduled-trigger.model';
 import { ScheduledTriggerRunTarget } from './ScheduledTriggerRunTarget';
+
+const mocks = vi.hoisted(() => ({ bundledConnectors: [] as ConnectorListItem[] }));
+
+vi.mock('../../../../connectors/shared/model/hooks/useConnector', async importOriginal => {
+  const actual =
+    await importOriginal<typeof import('../../../../connectors/shared/model/hooks/useConnector')>();
+  return {
+    ...actual,
+    useConnector: () => ({ ...actual.useConnector(), connectors: mocks.bundledConnectors }),
+  };
+});
+
+beforeEach(() => {
+  mocks.bundledConnectors = [];
+});
 
 function renderRunTarget(trigger: ScheduledTrigger) {
   return render(
@@ -91,6 +107,25 @@ describe('ScheduledTriggerRunTarget', () => {
 
     expect(document.querySelector('.lucide-plug')).not.toBeNull();
     expect(document.querySelector('.lucide-database')).toBeNull();
+  });
+
+  it('shows the bundled connector name and logo when a custom connector has the same name', () => {
+    const bundledLogo = 'data:image/png;base64,BBBB';
+    mocks.bundledConnectors = [
+      {
+        name: 'fibery_api',
+        displayName: 'Fibery bundled',
+        description: '',
+        logoBase64: bundledLogo,
+        docUrl: null,
+      } as ConnectorListItem,
+    ];
+
+    renderRunTarget(makeCustomConnectorRunTrigger(FIBERY_LOGO));
+
+    expect(screen.getByText('Fibery bundled')).toBeInTheDocument();
+    expect(document.querySelector(`img[src="${bundledLogo}"]`)).not.toBeNull();
+    expect(document.querySelector(`img[src="${FIBERY_LOGO}"]`)).toBeNull();
   });
 
   it('shows the custom connector in the hover card header', () => {

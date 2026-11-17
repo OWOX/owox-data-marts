@@ -624,7 +624,8 @@ describe('DataMartSchedulesPage', () => {
 
     renderPage();
 
-    expect(await screen.findByText('fibery_api')).toBeInTheDocument();
+    const row = (await screen.findByText('fibery_api')).closest('tr');
+    expect(row?.querySelector('.lucide-database')).not.toBeNull();
     expect(loadCustomConnectors).toHaveBeenCalled();
     expect(toastError).not.toHaveBeenCalled();
     toastError.mockRestore();
