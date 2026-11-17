@@ -34,6 +34,7 @@ export interface ConsumptionBranch {
 export interface ConsumptionProjection {
   id: string;
   title: string;
+  isEntityDeleted?: boolean;
   origin: string | null;
   childEntities: ConsumptionProjection[] | null;
 }

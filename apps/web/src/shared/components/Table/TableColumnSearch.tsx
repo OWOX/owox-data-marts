@@ -39,6 +39,7 @@ export function TableColumnSearch<TData>({
       <Search className='text-muted-foreground absolute top-2.5 left-2 h-4 w-4' />
       <Input
         ref={inputRef}
+        aria-label={placeholder}
         placeholder={placeholder}
         value={value}
         onChange={event => {

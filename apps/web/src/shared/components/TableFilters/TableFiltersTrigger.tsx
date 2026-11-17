@@ -21,7 +21,12 @@ export function TableFiltersTrigger({
 
   return (
     <PopoverTrigger asChild>
-      <Button variant='outline' size='sm' className='h-9'>
+      <Button
+        variant='outline'
+        size='sm'
+        className='h-9'
+        aria-label={isActive ? `${label} (${badgeCount} applied)` : label}
+      >
         <Icon className='size-4' />
         <span className='hidden lg:block'>{label}</span>
         {isActive && (
