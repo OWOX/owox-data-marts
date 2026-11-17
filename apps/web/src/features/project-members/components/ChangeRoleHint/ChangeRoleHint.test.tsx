@@ -47,9 +47,13 @@ describe('ChangeRoleHint', () => {
     expect(screen.queryByText('Oleh Owner')).toBeNull();
   });
 
-  it('can be focused from the keyboard', () => {
+  it('can be focused from the keyboard', async () => {
     renderHint();
 
     expect(screen.getByText('A Project Admin').getAttribute('tabindex')).toBe('0');
+
+    fireEvent.focus(screen.getByText('A Project Admin'));
+
+    expect(await screen.findByText('Anna Admin')).toBeInTheDocument();
   });
 });

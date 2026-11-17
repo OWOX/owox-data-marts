@@ -652,9 +652,6 @@ describe('DataQualityWorkspace', () => {
     ).toHaveTextContent(
       'You have view-only access. You can browse the configuration and reports, but editing and running checks requires the Data Owner role. A Project Admin can change your role in Project settings → Members.'
     );
-    expect(screen.getByText(/can change your role in/)).toHaveTextContent(
-      'A Project Admin can change your role in Project settings → Members.'
-    );
     expect(screen.getByRole('link', { name: 'Project settings → Members' })).toHaveAttribute(
       'href',
       '/ui/project-1/project-settings/members'
