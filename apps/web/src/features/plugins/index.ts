@@ -14,6 +14,7 @@ export type { CredentialsSaveOutcome } from './components';
 export { findReleaseIssues, type ReleaseIssues, type ReleaseRejection } from './rejections';
 export { pluginsService } from './services/plugins.service';
 export { repositoryPath } from './repository';
+export { comparePluginsByName } from './comparePluginsByName';
 export { safeHttpsUrl } from './safeHttpsUrl';
 export { describeCron } from './describeCron';
 export { describeVisibility, type GalleryVisibility, type PluginAudience } from './visibility';

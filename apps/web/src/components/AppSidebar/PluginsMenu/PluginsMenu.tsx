@@ -20,6 +20,7 @@ import { Blocks, MoreHorizontal, Puzzle } from 'lucide-react';
 import { useRef } from 'react';
 import { Link, useLocation } from 'react-router';
 import {
+  comparePluginsByName,
   usePluginActions,
   usePluginGallery,
   usePluginInstallations,
@@ -63,7 +64,7 @@ export function PluginsMenu() {
 
   const active = installations
     .filter(installation => installation.uninstalledAt === null)
-    .sort((a, b) => a.displayName.localeCompare(b.displayName));
+    .sort(comparePluginsByName);
 
   // Restore re-runs the install, which a suspension or a missing current version refuses.
   const hasRestorableInstallation = installations.some(

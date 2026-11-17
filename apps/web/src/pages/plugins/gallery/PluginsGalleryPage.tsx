@@ -17,6 +17,7 @@ import { EllipsisVertical, History, Plus, Puzzle } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router';
 import {
+  comparePluginsByName,
   describeVisibility,
   InstallPluginDialog,
   PluginCard,
@@ -107,7 +108,7 @@ export default function PluginsGalleryPage() {
     // Copied before sorting: the query cache hands back the same array on every render,
     // and sorting it in place would quietly reorder what every other consumer sees.
     if (view.sort === 'alphabetical') {
-      return [...matches].sort((a, b) => a.displayName.localeCompare(b.displayName));
+      return [...matches].sort(comparePluginsByName);
     }
     if (view.sort === 'newest') {
       // Missing dates compare equal, so an older backend that omits addedAt leaves the
