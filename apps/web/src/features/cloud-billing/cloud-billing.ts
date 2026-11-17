@@ -3,7 +3,7 @@ import apiClient, { type AxiosRequestConfig } from '../../app/api/apiClient';
 import { useUser } from '../idp/hooks/useAuthState';
 
 export function getCloudBillingOrigin(flags: Record<string, unknown> | null): string | null {
-  if (flags?.IDP_PROVIDER !== 'owox-better-auth' || flags.CLOUD_BILLING_ENABLED !== 'true') {
+  if (flags?.CLOUD_BILLING_ENABLED !== 'true') {
     return null;
   }
   const origin = flags.CLOUD_BILLING_API_ORIGIN;

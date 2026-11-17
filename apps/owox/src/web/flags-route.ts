@@ -77,10 +77,7 @@ const ResolvedOptionsSchema = OptionsBaseSchema.transform(data => {
 type ResolvedOptions = z.infer<typeof ResolvedOptionsSchema>;
 
 function validateCloudBillingConfig(): void {
-  if (
-    process.env.IDP_PROVIDER !== 'owox-better-auth' ||
-    process.env.CLOUD_BILLING_ENABLED !== 'true'
-  ) {
+  if (process.env.CLOUD_BILLING_ENABLED !== 'true') {
     return;
   }
 
@@ -88,7 +85,7 @@ function validateCloudBillingConfig(): void {
   const url = URL.parse(value);
   if (url?.protocol !== 'https:' || (value !== url.origin && value !== `${url.origin}/`)) {
     throw new Error(
-      'CLOUD_BILLING_API_ORIGIN must be an HTTPS origin when Cloud billing is enabled'
+      'CLOUD_BILLING_API_ORIGIN must be an HTTPS origin when CLOUD_BILLING_ENABLED=true'
     );
   }
 }

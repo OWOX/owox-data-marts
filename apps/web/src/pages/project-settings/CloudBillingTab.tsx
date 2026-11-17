@@ -16,9 +16,8 @@ export function CloudBillingTab({
   if (callState === RequestStatus.IDLE || callState === RequestStatus.LOADING) {
     return <Skeleton className='h-20 w-full' aria-label='Loading' />;
   }
-  if (flags?.IDP_PROVIDER !== 'owox-better-auth') {
-    return <Navigate to='..' replace />;
-  }
   const origin = getCloudBillingOrigin(flags);
-  return origin ? children(origin) : fallback;
+  if (origin) return children(origin);
+
+  return flags?.IDP_PROVIDER === 'owox-better-auth' ? fallback : <Navigate to='..' replace />;
 }

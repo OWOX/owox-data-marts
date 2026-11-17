@@ -31,14 +31,17 @@ function renderTab(flags: Record<string, unknown>) {
 describe('CloudBillingTab', () => {
   const origin = 'https://ib.example.test';
 
-  it('opens native billing in Cloud when the backend enables it', () => {
-    renderTab({
-      IDP_PROVIDER: 'owox-better-auth',
-      CLOUD_BILLING_ENABLED: 'true',
-      CLOUD_BILLING_API_ORIGIN: `${origin}/`,
-    });
-    expect(screen.getByText(`Credits from ${origin}`)).toBeInTheDocument();
-  });
+  it.each(['owox-better-auth', 'better-auth', undefined])(
+    'opens native billing when enabled with IDP provider %s',
+    provider => {
+      renderTab({
+        IDP_PROVIDER: provider,
+        CLOUD_BILLING_ENABLED: 'true',
+        CLOUD_BILLING_API_ORIGIN: `${origin}/`,
+      });
+      expect(screen.getByText(`Credits from ${origin}`)).toBeInTheDocument();
+    }
+  );
 
   it.each([undefined, 'false'])('preserves the Cloud fallback when the flag is %s', enabled => {
     const renderBilling = renderTab({
@@ -50,10 +53,10 @@ describe('CloudBillingTab', () => {
     expect(renderBilling).not.toHaveBeenCalled();
   });
 
-  it('redirects self-hosted deep links before mounting billing', () => {
+  it('redirects self-hosted deep links when the flag is off', () => {
     const renderBilling = renderTab({
       IDP_PROVIDER: 'better-auth',
-      CLOUD_BILLING_ENABLED: 'true',
+      CLOUD_BILLING_ENABLED: 'false',
       CLOUD_BILLING_API_ORIGIN: origin,
     });
     expect(screen.getByText('Project overview')).toBeInTheDocument();

@@ -213,17 +213,16 @@ Requests still use the Microsoft Ads developer token from `OAUTH_MICROSOFT_ADS_D
 
 ## Cloud billing pages
 
-- **CLOUD_BILLING_ENABLED**: Enables the native Credit consumption and Subscription pages
-  for the managed Cloud runtime with `IDP_PROVIDER=owox-better-auth`. Defaults to `false`.
+- **CLOUD_BILLING_ENABLED**: Enables the native Credit consumption and Subscription pages.
+  Defaults to `false`. Enable it in the managed Cloud runtime.
 - **CLOUD_BILLING_API_ORIGIN**: Public HTTPS origin of the Integrated Backend, for example
   `https://integrated-backend.bi.owox.com`. Use an origin without credentials, a path, a
-  query, or a fragment. The Cloud server requires a valid origin at startup when the flag is
-  enabled. The server exposes both configured variables through `/api/flags`.
+  query, or a fragment. Setting `CLOUD_BILLING_ENABLED=true` requires a valid origin at
+  startup. The server exposes both configured variables through `/api/flags`.
 
 The browser sends billing reads to this origin with the current user's App access token.
 Before enabling the flag, verify that the Integrated Backend accepts the token and allows
-the App origin for the billing read endpoints. Self-hosted identity providers do not expose
-these pages.
+the App origin for the billing read endpoints.
 
 ## Reverse proxy
 

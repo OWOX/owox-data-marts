@@ -188,10 +188,10 @@ describe('registerPublicFlagsRoute', () => {
       });
     });
 
-    it('does not require an origin with a self-hosted provider', () => {
+    it('requires an origin when billing is enabled regardless of the IDP provider', () => {
       process.env.IDP_PROVIDER = 'better-auth';
-      registerPublicFlagsRoute(app);
-      expect(readFlags()).not.to.have.property('CLOUD_BILLING_API_ORIGIN');
+      expect(() => registerPublicFlagsRoute(app)).to.throw('CLOUD_BILLING_API_ORIGIN');
+      expect(routes).to.be.empty;
     });
   });
 });

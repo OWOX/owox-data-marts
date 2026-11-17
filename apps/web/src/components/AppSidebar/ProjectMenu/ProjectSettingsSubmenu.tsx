@@ -32,7 +32,7 @@ type SettingsSubItem =
       /** Path relative to /project-settings, '' = index. For absolute paths starting with '/' — used as-is. */
       path: string;
       icon: LucideIcon;
-      isVisible?: (isOwoxIdpProvider: boolean, flags: Record<string, unknown> | null) => boolean;
+      isVisible?: (flags: Record<string, unknown> | null) => boolean;
     }
   | {
       kind: 'external';
@@ -41,7 +41,6 @@ type SettingsSubItem =
       /** Builds full external URL given the current projectId. */
       buildHref: (projectId: string) => string;
       icon: LucideIcon;
-      isVisible?: (isOwoxIdpProvider: boolean, flags: Record<string, unknown> | null) => boolean;
     }
   | {
       kind: 'separator';
@@ -60,7 +59,6 @@ const settingsItems: SettingsSubItem[] = [
     nativePath: 'credit',
     buildHref: id => `${PLATFORM_BASE_URL}/ui/p/${id}/settings/consumption`,
     icon: Gem,
-    isVisible: isOwoxIdpProvider => isOwoxIdpProvider,
   },
   {
     kind: 'external',
@@ -68,15 +66,13 @@ const settingsItems: SettingsSubItem[] = [
     nativePath: 'subscription',
     buildHref: id => `${PLATFORM_BASE_URL}/ui/p/${id}/settings/subscription`,
     icon: BriefcaseBusiness,
-    isVisible: isOwoxIdpProvider => isOwoxIdpProvider,
   },
   {
     kind: 'internal',
     title: 'License keys',
     path: 'license-keys',
     icon: ShieldCheck,
-    isVisible: (_isOwoxIdpProvider, flags) =>
-      checkVisible('LICENSE_ISSUANCE_ENABLED', 'true', flags),
+    isVisible: flags => checkVisible('LICENSE_ISSUANCE_ENABLED', 'true', flags),
   },
   { kind: 'internal', title: 'Notifications', path: 'notifications', icon: Bell },
   { kind: 'separator' },
@@ -108,7 +104,8 @@ export function ProjectSettingsSubmenu({ onClose }: ProjectSettingsSubmenuProps)
 
   const visible = settingsItems.filter(item => {
     if (item.kind === 'separator') return true;
-    return item.isVisible?.(isOwoxIdpProvider, flags) ?? true;
+    if (item.kind === 'external') return cloudBillingOrigin !== null || isOwoxIdpProvider;
+    return item.isVisible?.(flags) ?? true;
   });
 
   const handleTriggerClick = (event: MouseEvent) => {
