@@ -9,6 +9,8 @@ vi.mock('../../shared/hooks', async importOriginal => ({
   useProjectRoute: () => ({ scope: (path: string) => `/ui/project-1${path}` }),
 }));
 
+const FIBERY_LOGO = 'data:image/png;base64,AAAA';
+
 const storage = new Map<string, string>();
 const localStorageMock: Storage = {
   get length() {
@@ -82,6 +84,25 @@ describe('CredentialsTable', () => {
     expect(snowflake).toHaveAttribute('width', '16');
     expect(snowflake?.getAttribute('class') ?? '').not.toContain('lucide-key-round');
     expect(screen.getByText('GitHub').querySelector('svg')).toHaveClass('lucide-key-round');
+  });
+
+  it('shows the logo given for a Custom connector Credential', () => {
+    renderCredentials([customConnectorCredential], '/ui/project-1/credentials', {
+      customConnectorLogos: new Map([['cc-1', FIBERY_LOGO]]),
+    });
+
+    expect(screen.getByText('Custom connector').querySelector('img')).toHaveAttribute(
+      'src',
+      FIBERY_LOGO
+    );
+  });
+
+  it('shows the Plug icon for a Custom connector Credential without a logo', () => {
+    renderCredentials([customConnectorCredential]);
+
+    const cell = screen.getByText('Custom connector');
+    expect(cell.querySelector('.lucide-plug')).not.toBeNull();
+    expect(cell.querySelector('.lucide-key-round')).toBeNull();
   });
 
   it('lists the consumers in a hover card instead of a raw title', async () => {
@@ -368,3 +389,14 @@ function buildDefinition(overrides: Partial<CredentialDefinition> = {}): Credent
     ...overrides,
   };
 }
+
+const customConnectorCredential = buildCredential({
+  id: 'cc-1',
+  title: 'Fibery key',
+  definition: buildDefinition({
+    id: 'custom-connector',
+    displayName: 'Custom connector',
+    category: 'custom-connectors',
+    auth: { type: 'custom-connector' },
+  }),
+});

@@ -22,6 +22,7 @@ import { ExternalLink } from 'lucide-react';
 import RelativeTime from '@owox/ui/components/common/relative-time';
 import { StatusLabel } from '../../../../../shared/components/StatusLabel';
 import { ConnectorNameDisplay } from '../ConnectorNameDisplay';
+import { CustomConnectorIcon } from '../CustomConnectorIcon';
 import {
   mapRunStatusToStatusType,
   getRunStatusText,
@@ -43,7 +44,8 @@ const useConnectorData = (connectorName: string) => {
 
 export const ConnectorHoverCard = React.memo(
   function ConnectorHoverCard({ connector, className }: ConnectorHoverCardProps) {
-    const connectorInfo = useConnectorData(connector.source.name);
+    const bundledInfo = useConnectorData(connector.source.name);
+    const connectorInfo = bundledInfo ?? connector.info;
 
     // Controlled so the context-dependent content only renders while the card is open
     const [isOpen, setIsOpen] = useState(false);
@@ -55,8 +57,8 @@ export const ConnectorHoverCard = React.memo(
       if (connectorInfo?.logoBase64) {
         return <RawBase64Icon base64={connectorInfo.logoBase64} size={20} />;
       }
-      return null;
-    }, [connectorInfo?.logoBase64]);
+      return connectorInfo?.isCustom ? <CustomConnectorIcon size={20} /> : null;
+    }, [connectorInfo?.logoBase64, connectorInfo?.isCustom]);
 
     const descriptionText = useMemo(() => {
       const fieldsCount = connector.source.fields.length.toString();
@@ -186,6 +188,7 @@ export const ConnectorHoverCard = React.memo(
     // Custom comparison function to prevent unnecessary re-renders
     // Compare all relevant connector properties to ensure we only re-render when connector actually changes
     const connectorChanged =
+      prevProps.connector.info !== nextProps.connector.info ||
       prevProps.connector.source.name !== nextProps.connector.source.name ||
       prevProps.connector.storage.fullyQualifiedName !==
         nextProps.connector.storage.fullyQualifiedName ||

@@ -11,6 +11,8 @@ import { TriggerMapperFactory } from './trigger-mapper.factory';
 import { ScheduledTriggerType, TRIGGER_CONFIG_TYPES } from '../../enums';
 import { ReportRunTriggerMapper } from './report-run-trigger.mapper';
 import type { ConnectorDefinitionConfig, DataMart } from '../../../edit';
+import type { ConnectorListItem } from '../../../../connectors/shared/model/types/connector';
+import type { ScheduledConnectorRunConfig } from '../trigger-config.types';
 
 /**
  * General mapper for scheduled triggers
@@ -50,6 +52,30 @@ export const ScheduledTriggerMapper = {
     dtoList: ProjectScheduledTriggerListResponseApiDto
   ): ProjectScheduledTrigger[] {
     return dtoList.triggers.map(dto => this.mapProjectFromDto(dto));
+  },
+
+  withCustomConnectorInfo<T extends ScheduledTrigger>(
+    triggers: T[],
+    customConnectors: readonly ConnectorListItem[]
+  ): T[] {
+    return triggers.map(trigger => {
+      if (trigger.type !== ScheduledTriggerType.CONNECTOR_RUN) return trigger;
+      const config = trigger.triggerConfig as ScheduledConnectorRunConfig | undefined;
+      if (!config?.connector) return trigger;
+      const sourceName = config.connector.connector.source.name;
+      const info = customConnectors.find(item => item.name === sourceName);
+      if (!info) return trigger;
+      return {
+        ...trigger,
+        triggerConfig: {
+          ...config,
+          connector: {
+            ...config.connector,
+            connector: { ...config.connector.connector, info },
+          },
+        },
+      };
+    });
   },
 
   /**

@@ -72,6 +72,7 @@ interface CredentialsTableProps {
   onToggleEnabled: (credential: Credential) => void;
   onAcceptDefinition: (credential: Credential) => void;
   onDelete: (credential: TableRow) => void;
+  customConnectorLogos?: ReadonlyMap<string, string | null>;
 }
 
 export function CredentialsTable({
@@ -88,6 +89,7 @@ export function CredentialsTable({
   onToggleEnabled,
   onAcceptDefinition,
   onDelete,
+  customConnectorLogos,
 }: CredentialsTableProps) {
   const { projectId = '' } = useParams<{ projectId: string }>();
   const [searchQuery, setSearchQuery] = useState('');
@@ -122,6 +124,7 @@ export function CredentialsTable({
         onToggleEnabled,
         onAcceptDefinition,
         onDelete,
+        customConnectorLogos,
       }),
     [
       isValidating,
@@ -133,6 +136,7 @@ export function CredentialsTable({
       onReplaceSecret,
       onToggleEnabled,
       onValidate,
+      customConnectorLogos,
     ]
   );
   const { table } = useBaseTable({
@@ -217,6 +221,7 @@ interface CredentialColumnActions {
   onToggleEnabled: (credential: Credential) => void;
   onAcceptDefinition: (credential: Credential) => void;
   onDelete: (credential: TableRow) => void;
+  customConnectorLogos?: ReadonlyMap<string, string | null>;
 }
 
 function getCredentialColumns(actions: CredentialColumnActions): ColumnDef<TableRow>[] {
@@ -245,6 +250,8 @@ function getCredentialColumns(actions: CredentialColumnActions): ColumnDef<Table
             <ProviderIcon
               icon={row.original.definition.icon}
               connector={servedConnector(row.original.definition)}
+              category={row.original.definition.category}
+              logo={actions.customConnectorLogos?.get(row.original.id)}
             />
             {row.original.definition.displayName}
           </div>

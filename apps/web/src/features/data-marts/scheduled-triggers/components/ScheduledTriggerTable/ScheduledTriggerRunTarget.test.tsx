@@ -52,7 +52,65 @@ function makeReportRunTrigger(report?: DataMartReport): ScheduledTrigger {
   } as unknown as ScheduledTrigger;
 }
 
+const FIBERY_LOGO = 'data:image/png;base64,AAAA';
+
+function makeCustomConnectorRunTrigger(logoBase64: string | null): ScheduledTrigger {
+  return {
+    id: 'trigger-3',
+    type: ScheduledTriggerType.CONNECTOR_RUN,
+    triggerConfig: {
+      type: TRIGGER_CONFIG_TYPES.SCHEDULED_CONNECTOR_RUN,
+      connector: {
+        connector: {
+          source: { name: 'fibery_api', configuration: [], node: 'entities', fields: ['id'] },
+          storage: { fullyQualifiedName: 'dataset.table' },
+          info: {
+            name: 'fibery_api',
+            displayName: 'Fibery (owox.fibery.io)',
+            description: '',
+            logoBase64,
+            docUrl: null,
+            isCustom: true,
+          },
+        },
+      },
+    },
+  } as unknown as ScheduledTrigger;
+}
+
 describe('ScheduledTriggerRunTarget', () => {
+  it('shows the display name and logo of a custom connector', () => {
+    renderRunTarget(makeCustomConnectorRunTrigger(FIBERY_LOGO));
+
+    expect(screen.getByText('Fibery (owox.fibery.io)')).toBeInTheDocument();
+    expect(document.querySelector(`img[src="${FIBERY_LOGO}"]`)).not.toBeNull();
+  });
+
+  it('shows the Plug icon for a custom connector without a logo', () => {
+    renderRunTarget(makeCustomConnectorRunTrigger(null));
+
+    expect(document.querySelector('.lucide-plug')).not.toBeNull();
+    expect(document.querySelector('.lucide-database')).toBeNull();
+  });
+
+  it('shows the custom connector in the hover card header', () => {
+    renderRunTarget(makeCustomConnectorRunTrigger(FIBERY_LOGO));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Connector details' }));
+
+    const dialog = screen.getByRole('dialog');
+    expect(dialog).toHaveTextContent('Fibery (owox.fibery.io)');
+    expect(dialog.querySelector(`img[src="${FIBERY_LOGO}"]`)).not.toBeNull();
+  });
+
+  it('shows the Plug icon in the hover card header for a custom connector without a logo', () => {
+    renderRunTarget(makeCustomConnectorRunTrigger(null));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Connector details' }));
+
+    expect(screen.getByRole('dialog').querySelector('.lucide-plug')).not.toBeNull();
+  });
+
   it('shows the report title as plain text, not a link', () => {
     renderRunTarget(makeReportRunTrigger(makeReport()));
 

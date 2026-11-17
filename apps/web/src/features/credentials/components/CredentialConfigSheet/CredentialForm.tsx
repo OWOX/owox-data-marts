@@ -129,6 +129,7 @@ export interface CredentialFormProps {
   defaultSharing?: 'not-shared';
   /** Hosts and field list a new custom connector Credential takes from the manifest. */
   customConnectorPrefill?: { hosts: string[]; fieldList: CustomConnectorFieldSpec[] };
+  providerLogo?: string | null;
 }
 
 export function CredentialForm(props: CredentialFormProps) {
@@ -170,6 +171,7 @@ function CredentialFormBody({
   canManageAccess = false,
   defaultSharing,
   customConnectorPrefill,
+  providerLogo,
   oauthAvailable,
 }: CredentialFormProps & { oauthAvailable: { storage: boolean; destination: boolean } }) {
   const isEditMode = credential !== null;
@@ -552,6 +554,8 @@ function CredentialFormBody({
                         <ProviderIcon
                           icon={credential.definition.icon}
                           connector={servedConnector(credential.definition)}
+                          category={credential.definition.category}
+                          logo={providerLogo}
                         />
                       </InputGroupAddon>
                       <InputGroupInput

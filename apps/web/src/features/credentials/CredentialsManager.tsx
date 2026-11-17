@@ -16,6 +16,7 @@ import { servedConnector } from './served-connector';
 import { trackCredentialCreated } from './track-credential-created';
 import { useCredentialActions, useCredentialDefinitions, useCredentials } from './useCredentials';
 import { useCredentialPermissions } from './useCredentialPermissions';
+import { useCustomConnectorLogos } from './useCustomConnectorLogos';
 
 export function CredentialsManager() {
   const { user } = useAuth();
@@ -29,6 +30,7 @@ export function CredentialsManager() {
     refetch: refetchDefinitions,
   } = useCredentialDefinitions();
   const actions = useCredentialActions();
+  const customConnectorLogos = useCustomConnectorLogos(credentials);
   const { record, open, close, link } = useRecordSheet({
     param: 'credential',
     // A link opens only what a row click opens; a failed refetch keeps its data and the sheet.
@@ -154,6 +156,7 @@ export function CredentialsManager() {
           onToggleEnabled={credential => void toggleEnabled(credential)}
           onAcceptDefinition={credential => void acceptDefinitionUpdate(credential)}
           onDelete={setDeleting}
+          customConnectorLogos={customConnectorLogos}
         />
       )}
 
@@ -162,6 +165,7 @@ export function CredentialsManager() {
         isOpen={isSheetOpen}
         credential={record}
         link={link}
+        providerLogo={record ? customConnectorLogos.get(record.id) : undefined}
         definitions={definitions}
         canManageAccess={permissions.canManageAccess(record)}
         canAddGithubDefinition={Boolean(user?.roles?.includes('admin'))}

@@ -764,6 +764,7 @@ export function ConfigurationStep({
     field: seeded && (
       <ConnectorCredentialField
         connectorName={connector.name}
+        connectorLogo={connector.logoBase64}
         variants={
           connectorSpecification.find(spec => spec.name === AUTH_TYPE)?.oneOf?.map(o => o.value) ??
           []

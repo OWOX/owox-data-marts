@@ -3,6 +3,8 @@ import { Button } from '@owox/ui/components/button';
 import { Combobox, type ComboboxOption } from '../../../shared/components/Combobox/combobox';
 import type {
   Credential,
+  CredentialCategory,
+  CredentialDefinition,
   CredentialIcon,
   CredentialSummary,
   CustomConnectorFieldSpec,
@@ -21,6 +23,7 @@ interface CredentialItem {
   providerName: string;
   icon?: CredentialIcon | null;
   connector?: string;
+  category?: CredentialCategory;
 }
 
 export interface CredentialSelectFieldProps {
@@ -30,6 +33,8 @@ export interface CredentialSelectFieldProps {
   allowedCredentialIds?: readonly string[];
   /** Hosts and field list a new custom connector Credential takes from the manifest. */
   customConnectorPrefill?: { hosts: string[]; fieldList: CustomConnectorFieldSpec[] };
+  /** Logo of the custom connector; its Credentials show it in place of the Plug icon. */
+  connectorLogo?: string | null;
   isNew: boolean;
   value: string | null;
   summary: CredentialSummary | null | undefined;
@@ -44,19 +49,25 @@ export interface CredentialSelectFieldProps {
   'aria-describedby'?: string;
 }
 
+const definitionFields = (definition: CredentialDefinition) => ({
+  icon: definition.icon,
+  connector: servedConnector(definition),
+  category: definition.category,
+});
+
 const toItem = (credential: Credential): CredentialItem => ({
   id: credential.id,
   title: credential.title,
   identity: credential.identity ?? null,
   providerName: credential.definition.displayName,
-  icon: credential.definition.icon,
-  connector: servedConnector(credential.definition),
+  ...definitionFields(credential.definition),
 });
 
 export function CredentialSelectField({
   allowedDefinitionIds: allowedIds,
   allowedCredentialIds,
   customConnectorPrefill,
+  connectorLogo,
   isNew,
   value,
   summary: summaryProp,
@@ -101,11 +112,7 @@ export function CredentialSelectField({
   // The bound Credential stays shown even when it is no longer offered (e.g. disabled).
   if (summary?.access === 'visible' && !items.some(item => item.id === summary.id)) {
     const definition = definitions.find(({ id }) => id === summary.definitionId);
-    items.unshift({
-      ...summary,
-      icon: definition?.icon,
-      connector: definition && servedConnector(definition),
-    });
+    items.unshift({ ...summary, ...(definition && definitionFields(definition)) });
   }
   const itemsById = new Map(items.map(item => [item.id, item]));
 
@@ -165,16 +172,24 @@ export function CredentialSelectField({
           const item = itemsById.get(option.value);
           if (!item) return <span className='min-w-0 flex-1 truncate'>{option.label}</span>;
           const details = [item.identity, item.providerName].filter(Boolean).join(' · ');
+          const icon = (
+            <ProviderIcon
+              icon={item.icon}
+              connector={item.connector}
+              category={item.category}
+              logo={connectorLogo}
+            />
+          );
           return context === 'trigger' ? (
             <span className='flex min-w-0 items-center gap-2'>
-              <ProviderIcon icon={item.icon} connector={item.connector} />
+              {icon}
               <span className='truncate'>
                 {item.title} <span className='text-muted-foreground'>· {details}</span>
               </span>
             </span>
           ) : (
             <span className='flex min-w-0 flex-1 items-center gap-2'>
-              <ProviderIcon icon={item.icon} connector={item.connector} />
+              {icon}
               <span className='flex min-w-0 flex-col'>
                 <span className='truncate'>{item.title}</span>
                 <span className='text-muted-foreground truncate text-xs'>{details}</span>

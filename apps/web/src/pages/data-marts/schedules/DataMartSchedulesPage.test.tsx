@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, useLocation } from 'react-router';
 import toast from 'react-hot-toast';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -14,6 +14,7 @@ import { ReportConditionEnum } from '../../../features/data-marts/reports/shared
 import { TemplateSourceTypeEnum } from '../../../features/data-marts/reports/shared/enums/template-source-type.enum';
 import type { ReportResponseDto } from '../../../features/data-marts/reports/shared/services';
 import { DataMartStatus, DataMartDefinitionType } from '../../../features/data-marts/shared';
+import { loadCustomConnectors } from '../../../features/connectors/shared/utils';
 import DataMartSchedulesPage from './DataMartSchedulesPage';
 
 const scheduledTriggerServiceMock = vi.hoisted(() => ({
@@ -27,6 +28,11 @@ const connectorApiServiceMock = vi.hoisted(() => ({
 
 vi.mock('../../../features/data-marts/scheduled-triggers/services', () => ({
   scheduledTriggerService: scheduledTriggerServiceMock,
+}));
+
+vi.mock('../../../features/connectors/shared/utils', async importOriginal => ({
+  ...(await importOriginal<typeof import('../../../features/connectors/shared/utils')>()),
+  loadCustomConnectors: vi.fn(),
 }));
 
 vi.mock('../../../features/connectors/shared/api', () => ({
@@ -71,6 +77,7 @@ describe('DataMartSchedulesPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     localStorage.clear();
+    vi.mocked(loadCustomConnectors).mockResolvedValue([]);
     connectorApiServiceMock.getAvailableConnectors.mockResolvedValue([
       {
         name: 'FacebookMarketing',
@@ -520,6 +527,109 @@ describe('DataMartSchedulesPage', () => {
     expect(connectorIcon).toHaveAttribute('src', 'data:image/png;base64,facebook-logo');
   });
 
+  it('shows the display name of a custom connector trigger', async () => {
+    vi.mocked(loadCustomConnectors).mockResolvedValue([fiberyConnector()]);
+    vi.mocked(scheduledTriggerService.getProjectScheduledTriggers).mockResolvedValueOnce({
+      triggers: [
+        buildProjectConnectorTrigger('fibery_api'),
+        buildProjectReportTrigger({ id: 'trigger-2', reportTitle: 'Inventory Audit' }),
+      ],
+    });
+
+    renderPage();
+
+    const row = (await screen.findByText('Fibery (owox.fibery.io)')).closest('tr');
+    expect(row?.querySelector('.lucide-plug')).not.toBeNull();
+    expect(row?.querySelector('.lucide-database')).toBeNull();
+    expect(loadCustomConnectors).toHaveBeenCalledWith(
+      expect.objectContaining({ skipErrorToast: true, skipLoadingIndicator: true })
+    );
+
+    fireEvent.change(screen.getByPlaceholderText('Search'), {
+      target: { value: 'owox.fibery.io' },
+    });
+
+    expect(screen.getByText('Fibery (owox.fibery.io)')).toBeInTheDocument();
+    expect(screen.queryByText('Inventory Audit')).not.toBeInTheDocument();
+  });
+
+  it('shows the logo of a custom connector trigger', async () => {
+    vi.mocked(loadCustomConnectors).mockResolvedValue([fiberyConnector(FIBERY_LOGO)]);
+    vi.mocked(scheduledTriggerService.getProjectScheduledTriggers).mockResolvedValueOnce({
+      triggers: [buildProjectConnectorTrigger('fibery_api')],
+    });
+
+    renderPage();
+
+    const row = (await screen.findByText('Fibery (owox.fibery.io)')).closest('tr');
+    expect(row?.querySelector(`img[src="${FIBERY_LOGO}"]`)).not.toBeNull();
+  });
+
+  it('filters by the display name of a custom connector', async () => {
+    vi.mocked(loadCustomConnectors).mockResolvedValue([fiberyConnector()]);
+    vi.mocked(scheduledTriggerService.getProjectScheduledTriggers).mockResolvedValueOnce({
+      triggers: [
+        buildProjectConnectorTrigger('fibery_api'),
+        buildProjectReportTrigger({ id: 'trigger-2', reportTitle: 'Inventory Audit' }),
+      ],
+    });
+
+    renderPage();
+
+    expect(await screen.findByText('Fibery (owox.fibery.io)')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Filters/ }));
+    const filters = within(await screen.findByRole('dialog'));
+    const [fieldTrigger] = filters.getAllByRole('combobox');
+    await pickOption(fieldTrigger, 'Run Target');
+    const valueInput = filters.getAllByRole('combobox').at(-1);
+    if (!valueInput) throw new Error('No value field');
+    fireEvent.mouseDown(valueInput, { button: 0 });
+    fireEvent.click(
+      await within(document.body).findByRole('option', { name: 'Fibery (owox.fibery.io)' })
+    );
+    fireEvent.click(filters.getByRole('button', { name: 'Apply filters', hidden: true }));
+
+    await waitFor(() => {
+      expect(screen.queryByText('Inventory Audit')).not.toBeInTheDocument();
+    });
+    expect(screen.getByText('Fibery (owox.fibery.io)')).toBeInTheDocument();
+  });
+
+  it('searches a custom connector trigger by the connector name', async () => {
+    vi.mocked(loadCustomConnectors).mockResolvedValue([fiberyConnector()]);
+    vi.mocked(scheduledTriggerService.getProjectScheduledTriggers).mockResolvedValueOnce({
+      triggers: [
+        buildProjectConnectorTrigger('fibery_api'),
+        buildProjectReportTrigger({ id: 'trigger-2', reportTitle: 'Inventory Audit' }),
+      ],
+    });
+
+    renderPage();
+
+    expect(await screen.findByText('Fibery (owox.fibery.io)')).toBeInTheDocument();
+    fireEvent.change(screen.getByPlaceholderText('Search'), {
+      target: { value: 'fibery_api' },
+    });
+
+    expect(screen.getByText('Fibery (owox.fibery.io)')).toBeInTheDocument();
+    expect(screen.queryByText('Inventory Audit')).not.toBeInTheDocument();
+  });
+
+  it('still lists triggers when custom connectors fail to load', async () => {
+    const toastError = vi.spyOn(toast, 'error').mockReturnValue('t');
+    vi.mocked(loadCustomConnectors).mockRejectedValue(new Error('boom'));
+    vi.mocked(scheduledTriggerService.getProjectScheduledTriggers).mockResolvedValueOnce({
+      triggers: [buildProjectConnectorTrigger('fibery_api')],
+    });
+
+    renderPage();
+
+    expect(await screen.findByText('fibery_api')).toBeInTheDocument();
+    expect(loadCustomConnectors).toHaveBeenCalled();
+    expect(toastError).not.toHaveBeenCalled();
+    toastError.mockRestore();
+  });
+
   it('searches across the full loaded triggers list without fetching another page', async () => {
     vi.mocked(scheduledTriggerService.getProjectScheduledTriggers).mockResolvedValueOnce({
       triggers: [
@@ -553,6 +663,24 @@ describe('DataMartSchedulesPage', () => {
 
 function Search() {
   return <div data-testid='search'>{useLocation().search}</div>;
+}
+
+const FIBERY_LOGO = 'data:image/png;base64,AAAA';
+
+function fiberyConnector(logoBase64: string | null = null) {
+  return {
+    name: 'fibery_api',
+    displayName: 'Fibery (owox.fibery.io)',
+    description: '',
+    logoBase64,
+    docUrl: null,
+    isCustom: true,
+  };
+}
+
+async function pickOption(trigger: HTMLElement, name: string) {
+  fireEvent.pointerDown(trigger, { button: 0, ctrlKey: false, pointerType: 'mouse' });
+  fireEvent.click(await within(document.body).findByRole('option', { name }));
 }
 
 function renderPage(path = '/ui/project-1/data-marts/schedules') {
@@ -729,7 +857,9 @@ function buildProjectConnectorTriggerWithoutConfig(): ProjectScheduledTriggerRes
   };
 }
 
-function buildProjectConnectorTrigger(): ProjectScheduledTriggerResponseApiDto {
+function buildProjectConnectorTrigger(
+  sourceName = 'FacebookMarketing'
+): ProjectScheduledTriggerResponseApiDto {
   return {
     ...buildProjectConnectorTriggerWithoutConfig(),
     triggerConfig: {
@@ -737,7 +867,7 @@ function buildProjectConnectorTrigger(): ProjectScheduledTriggerResponseApiDto {
       connector: {
         connector: {
           source: {
-            name: 'FacebookMarketing',
+            name: sourceName,
             configuration: [],
             node: 'ads',
             fields: ['campaign'],

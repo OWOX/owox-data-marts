@@ -13,7 +13,7 @@ import {
   OpenRouterIcon,
 } from '../../../shared';
 import type { CredentialIcon } from '../types';
-import { ProviderCombobox, type ProviderOption } from './ProviderCombobox';
+import { ProviderCombobox, ProviderIcon, type ProviderOption } from './ProviderCombobox';
 
 const SHOPIFY_LOGO = 'data:image/svg+xml;base64,PHN2Zy8+';
 vi.mock('../../connectors/shared/utils', () => ({
@@ -455,5 +455,42 @@ describe('ProviderCombobox', () => {
 
       expect(spy).not.toHaveBeenCalled();
     });
+  });
+});
+
+describe('ProviderIcon', () => {
+  it('shows the Plug icon for the custom connector type without a logo', () => {
+    const { container } = render(<ProviderIcon category='custom-connectors' />);
+    expect(container.querySelector('.lucide-plug')).not.toBeNull();
+    expect(container.querySelector('.lucide-key-round')).toBeNull();
+  });
+
+  it('shows the given logo for the custom connector type', () => {
+    const { container } = render(<ProviderIcon category='custom-connectors' logo={SHOPIFY_LOGO} />);
+    expect(container.querySelector('img')).toHaveAttribute('src', SHOPIFY_LOGO);
+  });
+
+  it('keeps the key icon for a type with no icon outside custom connectors', () => {
+    const { container } = render(<ProviderIcon category='other' />);
+    expect(container.querySelector('.lucide-key-round')).not.toBeNull();
+  });
+
+  it('shows the Plug icon in the list item of the custom connector type', async () => {
+    render(
+      <ProviderCombobox
+        definitions={[
+          {
+            id: 'custom-connector',
+            displayName: 'Custom connector',
+            category: 'custom-connectors',
+          },
+        ]}
+        value=''
+        onChange={vi.fn()}
+      />
+    );
+    fireEvent.mouseDown(screen.getByRole('combobox', { name: 'Provider' }), { button: 0 });
+    const option = await screen.findByRole('option', { name: /Custom connector/ });
+    expect(option.querySelector('.lucide-plug')).not.toBeNull();
   });
 });

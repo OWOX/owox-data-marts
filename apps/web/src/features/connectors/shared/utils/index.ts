@@ -1,3 +1,4 @@
+import type { AxiosRequestConfig } from '../../../../app/api';
 import type { ConnectorConfig } from '../../../data-marts/edit';
 import { ConnectorBuilderApiService } from '../../../connector-builder/shared/api/connector-builder-api.service';
 import type { CustomConnectorListItemDto } from '../../../connector-builder/shared/api/types';
@@ -37,8 +38,10 @@ async function loadConnectors(): Promise<ConnectorDefinitionDto[]> {
   return await connectorApiService.getAvailableConnectors();
 }
 
-export async function loadCustomConnectors(): Promise<ConnectorListItem[]> {
-  const customs: CustomConnectorListItemDto[] = await new ConnectorBuilderApiService().list();
+export async function loadCustomConnectors(
+  config?: AxiosRequestConfig
+): Promise<ConnectorListItem[]> {
+  const customs: CustomConnectorListItemDto[] = await new ConnectorBuilderApiService().list(config);
   return customs.map(c => ({
     name: c.name,
     displayName: c.title || c.name,
@@ -86,5 +89,5 @@ export function getConnectorDisplayName(
   connectorsList: ConnectorListItem[]
 ): string {
   const connectorInfo = connectorsList.find(c => c.name === connector.source.name);
-  return connectorInfo?.displayName ?? connector.source.name;
+  return connectorInfo?.displayName ?? connector.info?.displayName ?? connector.source.name;
 }

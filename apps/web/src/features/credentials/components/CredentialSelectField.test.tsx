@@ -30,11 +30,18 @@ vi.mock('./CredentialConfigSheet', () => ({
   },
 }));
 
-function credential(id: string, title: string, definitionId: string): Credential {
+const FIBERY_LOGO = 'data:image/png;base64,AAAA';
+
+function credential(
+  id: string,
+  title: string,
+  definitionId: string,
+  definition: Record<string, unknown> = {}
+): Credential {
   return {
     id,
     title,
-    definition: { id: definitionId, displayName: 'Provider' },
+    definition: { id: definitionId, displayName: 'Provider', ...definition },
     enabled: true,
     canUse: true,
     identity: null,
@@ -133,5 +140,56 @@ describe('CredentialSelectField', () => {
 
     expect(onCreated).toHaveBeenCalledWith(created);
     expect(onChange).toHaveBeenCalledWith('new', 'created');
+  });
+
+  describe('custom connector Credentials', () => {
+    const custom = () =>
+      credential('cc', 'Fibery key', 'custom-connector', {
+        auth: { type: 'custom-connector' },
+        category: 'custom-connectors',
+      });
+
+    it('shows the connector logo on Custom connector Credentials', () => {
+      credentialsState.credentials = [custom()];
+      renderField({
+        allowedDefinitionIds: ['custom-connector'],
+        value: 'cc',
+        connectorLogo: FIBERY_LOGO,
+      });
+
+      const trigger = screen.getByRole('combobox', { name: 'Credential' });
+      expect(trigger.querySelector(`img[src="${FIBERY_LOGO}"]`)).not.toBeNull();
+      fireEvent.click(trigger);
+      const option = within(document.body).getByRole('option', { name: /Fibery key/ });
+      expect(option.querySelector(`img[src="${FIBERY_LOGO}"]`)).not.toBeNull();
+    });
+
+    it('does not show the connector logo on a built-in Credential in the same list', () => {
+      credentialsState.credentials = [
+        custom(),
+        credential('b', 'GitHub key', 'github', { icon: 'github', category: 'other' }),
+      ];
+      renderField({
+        allowedDefinitionIds: ['custom-connector', 'github'],
+        connectorLogo: FIBERY_LOGO,
+      });
+
+      fireEvent.click(screen.getByRole('combobox', { name: 'Credential' }));
+      const builtIn = within(document.body).getByRole('option', { name: /GitHub key/ });
+      expect(builtIn.querySelector(`img[src="${FIBERY_LOGO}"]`)).toBeNull();
+      const option = within(document.body).getByRole('option', { name: /Fibery key/ });
+      expect(option.querySelector(`img[src="${FIBERY_LOGO}"]`)).not.toBeNull();
+    });
+
+    it('shows the Plug icon on Custom connector Credentials without a connector logo', () => {
+      credentialsState.credentials = [custom()];
+      renderField({ allowedDefinitionIds: ['custom-connector'], value: 'cc' });
+
+      const trigger = screen.getByRole('combobox', { name: 'Credential' });
+      expect(trigger.querySelector('.lucide-plug')).not.toBeNull();
+      fireEvent.click(trigger);
+      const option = within(document.body).getByRole('option', { name: /Fibery key/ });
+      expect(option.querySelector('.lucide-plug')).not.toBeNull();
+    });
   });
 });

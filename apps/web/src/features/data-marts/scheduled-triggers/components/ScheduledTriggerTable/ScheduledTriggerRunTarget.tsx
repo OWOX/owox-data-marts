@@ -2,6 +2,7 @@ import React from 'react';
 import { Database, FileText, ShieldCheck } from 'lucide-react';
 import { RawBase64Icon } from '../../../../../shared';
 import { ConnectorHoverCard, ConnectorNameDisplay } from '../../../../connectors/shared/components';
+import { CustomConnectorIcon } from '../../../../connectors/shared/components/CustomConnectorIcon';
 import { useConnector } from '../../../../connectors/shared/model/hooks/useConnector';
 import { DataDestinationTypeModel } from '../../../../data-destination';
 import {
@@ -70,11 +71,12 @@ function renderConnectorRunTarget(trigger: ScheduledTrigger, connectors: Connect
   const { connector } = triggerConfig.connector;
   const connectorInfo = connectors.find(item => item.name === connector.source.name);
   const connectorLogo = connector.info?.logoBase64 ?? connectorInfo?.logoBase64;
-  const connectorIcon = connectorLogo ? (
-    <RawBase64Icon base64={connectorLogo} className='h-4 w-4 shrink-0' size={16} />
-  ) : (
-    <Database className='h-4 w-4' size={16} />
-  );
+  let connectorIcon = <Database className='h-4 w-4' size={16} />;
+  if (connectorLogo) {
+    connectorIcon = <RawBase64Icon base64={connectorLogo} className='h-4 w-4 shrink-0' size={16} />;
+  } else if (connector.info?.isCustom) {
+    connectorIcon = <CustomConnectorIcon size={16} />;
+  }
   return (
     <div className='inline-flex max-w-full min-w-0 items-center gap-2 overflow-hidden whitespace-nowrap'>
       {connectorIcon}
