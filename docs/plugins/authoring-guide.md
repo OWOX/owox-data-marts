@@ -215,6 +215,48 @@ whenever the member moves to another page, and `ctx.ui.copyLink()` from your own
 - A member without the plugin who opens such a link is offered the install: automatically if a
   publication lists the plugin for them, otherwise via a banner on the page.
 
+### Link to OWOX pages
+
+Use `ctx.ui.navigate(path)` to send the member to a page of OWOX Data Marts. Build the path from
+`ctx.projectId` and the IDs that you read through `ctx.owox`. A query parameter on some pages opens
+the side sheet of one record:
+
+```ts
+// Opens the Context sheet, where the member can edit the description.
+ctx.ui.navigate(
+  `/ui/${ctx.projectId}/project-settings/contexts?context=${encodeURIComponent(contextId)}`
+);
+```
+
+Each path below starts with `/ui/<project>`:
+
+| Page                       | Path                                               | Parameter                               | Opens                                                                    |
+| -------------------------- | -------------------------------------------------- | --------------------------------------- | ------------------------------------------------------------------------ |
+| Data Mart                  | `/data-marts/<dataMartId>/overview`                | —                                       | The Overview tab                                                         |
+| Data Mart Destinations tab | `/data-marts/<dataMartId>/reports`                 | `reportId=<reportId>`                   | The report sheet                                                         |
+| Data Mart Triggers tab     | `/data-marts/<dataMartId>/triggers`                | `trigger=<triggerId>`                   | The trigger sheet                                                        |
+| Insight                    | `/data-marts/<dataMartId>/insights-v2/<insightId>` | `source=<artifactId>`                   | The Data Artifact sheet                                                  |
+| Insight                    | `/data-marts/<dataMartId>/insights-v2/<insightId>` | `reportId=<reportId>`                   | The report sheet                                                         |
+| Reports                    | `/data-marts/reports`                              | `reportId=<reportId>`                   | The report sheet                                                         |
+| Schedules                  | `/data-marts/schedules`                            | `trigger=<triggerId>`                   | The schedule sheet                                                       |
+| Models                     | `/data-marts/models`                               | `storage=<storageId>&relationship=<id>` | The relationship sheet on the canvas of that storage                     |
+| Storages                   | `/data-storages`                                   | `id=<storageId>`                        | The storage sheet                                                        |
+| Destinations               | `/data-destinations`                               | `id=<destinationId>`                    | The destination sheet                                                    |
+| Credentials                | `/credentials`                                     | `credential=<credentialId>`             | The Credential sheet                                                     |
+| Members                    | `/project-settings/members`                        | `member=<userId>`                       | The member sheet                                                         |
+| Members                    | `/project-settings/members`                        | `request=<requestId>`                   | The membership request sheet                                             |
+| Contexts                   | `/project-settings/contexts`                       | `context=<contextId>`                   | The Context sheet                                                        |
+| License keys               | `/project-settings/license-keys`                   | `licenseKey=<licenseKeyId>`             | The license key sheet                                                    |
+| Notifications              | `/project-settings/notifications`                  | `notification=<type>`                   | The notification sheet: `FAILED_RUNS_ALL_DM` or `SUCCESSFUL_RUNS_ALL_DM` |
+
+The other Data Mart tabs are `data-setup`, `quality`, `insights-v2`, and `run-history`.
+
+- A link only opens a page or a sheet. The member makes every change in the sheet.
+- The sheet opens only for a member who can open the record from the list on that page. In other
+  cases, and when the record does not exist, the page shows the list. It can also show a short
+  message.
+- Encode each ID with `encodeURIComponent`.
+
 ### Show the loading bar
 
 Use the host's loading bar instead of your own. It is the bar that OWOX Data Marts shows at the top
