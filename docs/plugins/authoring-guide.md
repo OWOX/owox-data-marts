@@ -215,6 +215,74 @@ whenever the member moves to another page, and `ctx.ui.copyLink()` from your own
 - A member without the plugin who opens such a link is offered the install: automatically if a
   publication lists the plugin for them, otherwise via a banner on the page.
 
+### Link to OWOX pages
+
+Use `ctx.ui.navigate(path)` to send the member to a page of OWOX Data Marts. Build the path from
+`ctx.projectId` and the IDs that you read through `ctx.owox`. A query parameter can also open one
+record on the page, for example in a side sheet:
+
+```ts
+// Opens the Context sheet, where the member can edit the description.
+ctx.ui.navigate(
+  `/ui/${ctx.projectId}/project-settings/contexts?context=${encodeURIComponent(contextId)}`
+);
+```
+
+Each path below starts with `/ui/<project>`.
+
+| Page             | Path                                                                        |
+| ---------------- | --------------------------------------------------------------------------- |
+| Data Marts       | `/data-marts`                                                               |
+| New Data Mart    | `/data-marts/create`                                                        |
+| Data Mart        | `/data-marts/<dataMartId>/<tab>`                                            |
+| Insight          | `/data-marts/<dataMartId>/insights-v2/<insightId>`                          |
+| Runs             | `/data-marts/runs`                                                          |
+| Schedules        | `/data-marts/schedules`                                                     |
+| Reports          | `/data-marts/reports`                                                       |
+| Insights         | `/data-marts/insights`                                                      |
+| Models           | `/data-marts/models`                                                        |
+| Storages         | `/data-storages`                                                            |
+| Destinations     | `/data-destinations`                                                        |
+| Connectors       | `/connectors`                                                               |
+| Credentials      | `/credentials`                                                              |
+| Search           | `/search`                                                                   |
+| Project Settings | `/project-settings/<tab>`                                                   |
+| My API keys      | `/me/api-keys`                                                              |
+| Plugins          | `/plugins`, `/plugins/<pluginId>`, `/plugins/schedules`, `/plugins/history` |
+
+A Data Mart `<tab>` is `overview`, `data-setup`, `quality`, `insights-v2`, `reports` (the
+Destinations tab), `triggers`, or `run-history`. A Project Settings `<tab>` is empty (the Overview
+tab), `members`, `contexts`, `credit`, `subscription`, `license-keys`, or `notifications`. Some
+pages and tabs are not available on every deployment or for every role.
+
+| Path                                               | Parameter                               | Opens                                                                    |
+| -------------------------------------------------- | --------------------------------------- | ------------------------------------------------------------------------ |
+| `/data-marts/<dataMartId>/data-setup`              | `field=<fieldName>`                     | The Output Schema with that field, by its technical name                 |
+| `/data-marts/<dataMartId>/reports`                 | `reportId=<reportId>`                   | The report sheet                                                         |
+| `/data-marts/<dataMartId>/triggers`                | `trigger=<triggerId>`                   | The trigger sheet                                                        |
+| `/data-marts/<dataMartId>/insights-v2/<insightId>` | `source=<artifactId>`                   | The Data Artifact sheet                                                  |
+| `/data-marts/<dataMartId>/insights-v2/<insightId>` | `reportId=<reportId>`                   | The report sheet                                                         |
+| `/data-marts/reports`                              | `reportId=<reportId>`                   | The report sheet                                                         |
+| `/data-marts/schedules`                            | `trigger=<triggerId>`                   | The schedule sheet                                                       |
+| `/data-marts/models`                               | `storage=<storageId>&relationship=<id>` | The relationship sheet on the canvas of that storage                     |
+| `/data-storages`                                   | `id=<storageId>`                        | The storage sheet                                                        |
+| `/data-destinations`                               | `id=<destinationId>`                    | The destination sheet                                                    |
+| `/credentials`                                     | `credential=<credentialId>`             | The Credential sheet                                                     |
+| `/search`                                          | `q=<text>`                              | The search results for that text                                         |
+| `/project-settings/members`                        | `member=<userId>`                       | The member sheet                                                         |
+| `/project-settings/members`                        | `request=<requestId>`                   | The membership request sheet                                             |
+| `/project-settings/contexts`                       | `context=<contextId>`                   | The Context sheet                                                        |
+| `/project-settings/license-keys`                   | `licenseKey=<licenseKeyId>`             | The license key sheet                                                    |
+| `/project-settings/notifications`                  | `notification=<type>`                   | The notification sheet: `FAILED_RUNS_ALL_DM` or `SUCCESSFUL_RUNS_ALL_DM` |
+| `/plugins/schedules`                               | `plugin=<pluginId>`                     | The schedules of that plugin                                             |
+| `/plugins/schedules`                               | `plugin=<pluginId>&schedule=<id>`       | The schedule panel                                                       |
+| `/plugins/schedules`                               | `tab=runs&run=<runId>`                  | The run, expanded in the run history                                     |
+
+- A link only opens a page or a record. The member makes every change.
+- A record opens only for a member who can open it from the list on that page. In other cases,
+  and when the record does not exist, the page shows the list. It can also show a short message.
+- Encode each ID and each value with `encodeURIComponent`.
+
 ### Show the loading bar
 
 Use the host's loading bar instead of your own. It is the bar that OWOX Data Marts shows at the top
