@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { RefreshCw } from 'lucide-react';
 import { Button } from '@owox/ui/components/button';
 import { cn } from '@owox/ui/lib/utils';
+import { wasErrorToastShown } from '../../../../../app/api';
+import { showApiErrorToast } from '../../../../../shared/utils/showApiErrorToast';
 
 interface RefreshRunsButtonProps {
   onRefresh: () => Promise<unknown>;
@@ -15,8 +17,11 @@ export function RefreshRunsButton({ onRefresh }: RefreshRunsButtonProps) {
     setIsRefreshing(true);
     try {
       await onRefresh();
-    } catch {
-      // The API client toasts HTTP errors.
+    } catch (error) {
+      // The API client toasts only failures with a response, so report a network error here.
+      if (!wasErrorToastShown(error)) {
+        showApiErrorToast(error, 'Failed to refresh runs');
+      }
     } finally {
       setIsRefreshing(false);
     }

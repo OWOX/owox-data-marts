@@ -20,6 +20,11 @@ const dataMartServiceMock = vi.hoisted(() => ({
 }));
 
 const getConnectorInfoByNameMock = vi.hoisted(() => vi.fn());
+const showApiErrorToastMock = vi.hoisted(() => vi.fn());
+
+vi.mock('../../../shared/utils/showApiErrorToast', () => ({
+  showApiErrorToast: showApiErrorToastMock,
+}));
 
 vi.mock('../../../features/data-marts/shared', async importOriginal => {
   const actual = await importOriginal<typeof import('../../../features/data-marts/shared')>();
@@ -244,31 +249,65 @@ describe('DataMartRunsPage', () => {
     expect(dataMartService.getProjectDataMartRuns).toHaveBeenLastCalledWith(50, 50, undefined);
   });
 
-  it('Refresh loads the newest runs silently and keeps the loaded ones', async () => {
+  it('Refresh loads the newest runs silently and keeps the runs loaded by Load More', async () => {
+    const firstPage = buildPage('run', 'Marketing Mart');
     vi.mocked(dataMartService.getProjectDataMartRuns)
+      .mockResolvedValueOnce({ runs: firstPage })
+      .mockResolvedValueOnce({ runs: [buildMartRun('run-51', 'Older Mart')] })
       .mockResolvedValueOnce({
-        runs: [buildProjectRun({ id: 'run-old', status: DataMartRunStatus.SUCCESS })],
-      })
-      .mockResolvedValueOnce({
-        runs: [
-          {
-            ...buildProjectRun({ id: 'run-new', status: DataMartRunStatus.SUCCESS }),
-            dataMart: { id: 'dm-2', title: 'Fresh Mart' },
-          },
-        ],
+        runs: [buildMartRun('run-new', 'Fresh Mart'), ...firstPage.slice(0, 49)],
       });
+
+    renderPage();
+    fireEvent.click(await screen.findByRole('button', { name: 'Load More' }));
+    expect(await screen.findByRole('link', { name: 'Older Mart' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh' }));
+
+    expect(await screen.findByRole('link', { name: 'Fresh Mart' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Older Mart' })).toBeInTheDocument();
+    expect(screen.getAllByRole('link', { name: 'Marketing Mart' })).toHaveLength(50);
+    expect(dataMartService.getProjectDataMartRuns).toHaveBeenLastCalledWith(50, 0, {
+      skipLoadingIndicator: true,
+      skipErrorToast: false,
+    });
+  });
+
+  it('Refresh starts the list again when more new runs started than one page holds', async () => {
+    vi.mocked(dataMartService.getProjectDataMartRuns)
+      .mockResolvedValueOnce({ runs: buildPage('run', 'Marketing Mart') })
+      .mockResolvedValueOnce({ runs: buildPage('new', 'Fresh Mart') })
+      .mockResolvedValueOnce({ runs: [] });
+
+    renderPage();
+    expect(await screen.findAllByRole('link', { name: 'Marketing Mart' })).toHaveLength(50);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh' }));
+
+    expect(await screen.findAllByRole('link', { name: 'Fresh Mart' })).toHaveLength(50);
+    expect(screen.queryByRole('link', { name: 'Marketing Mart' })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Load More' }));
+    await waitFor(() => {
+      expect(dataMartService.getProjectDataMartRuns).toHaveBeenLastCalledWith(50, 50, undefined);
+    });
+  });
+
+  it('Refresh reports a failed load and keeps the list', async () => {
+    const networkError = new Error('Network Error');
+    vi.mocked(dataMartService.getProjectDataMartRuns)
+      .mockResolvedValueOnce({ runs: [buildProjectRun({ status: DataMartRunStatus.SUCCESS })] })
+      .mockRejectedValueOnce(networkError);
 
     renderPage();
     expect(await screen.findByRole('link', { name: 'Marketing Mart' })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Refresh' }));
 
-    expect(await screen.findByRole('link', { name: 'Fresh Mart' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Marketing Mart' })).toBeInTheDocument();
-    expect(dataMartService.getProjectDataMartRuns).toHaveBeenLastCalledWith(50, 0, {
-      skipLoadingIndicator: true,
-      skipErrorToast: true,
+    await waitFor(() => {
+      expect(showApiErrorToastMock).toHaveBeenCalledWith(networkError, 'Failed to refresh runs');
     });
+    expect(screen.getByRole('link', { name: 'Marketing Mart' })).toBeInTheDocument();
   });
 
   it('Refresh after a failed load clears the error and shows the runs', async () => {
@@ -298,6 +337,17 @@ function renderPage() {
       </MemoryRouter>
     </QueryClientProvider>
   );
+}
+
+function buildMartRun(id: string, title: string): ProjectDataMartRunResponseDto {
+  return {
+    ...buildProjectRun({ id, status: DataMartRunStatus.SUCCESS }),
+    dataMart: { id: `dm-${title}`, title },
+  };
+}
+
+function buildPage(prefix: string, title: string): ProjectDataMartRunResponseDto[] {
+  return Array.from({ length: 50 }, (_, index) => buildMartRun(`${prefix}-${index + 1}`, title));
 }
 
 function buildQualitySummary(dataMartRunId: string): DataQualityCompactSummary {

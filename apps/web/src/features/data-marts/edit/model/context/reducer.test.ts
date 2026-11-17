@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { DataMartRunStatus, DataMartRunType } from '../../../shared';
 import type { ApiError } from '../../../../../app/api';
+import { DATA_MART_RUNS_PAGE_SIZE } from '../../constants';
 import type { DataMartRunItem } from '../types';
 import { initialState, reducer } from './reducer';
 
@@ -27,6 +28,41 @@ describe('data mart run state', () => {
     });
 
     expect(state.hasActiveRuns).toBe(false);
+  });
+
+  it('starts the list again when the newest page shares no run with the loaded list', () => {
+    const page = (prefix: string) =>
+      Array.from({ length: DATA_MART_RUNS_PAGE_SIZE }, (_, index) => ({
+        ...run(DataMartRunType.CONNECTOR, DataMartRunStatus.SUCCESS),
+        id: `${prefix}-${index}`,
+      }));
+    const loaded = reducer(initialState, {
+      type: 'FETCH_DATA_MART_RUNS_SUCCESS',
+      payload: page('old'),
+    });
+    const refreshed = reducer(
+      { ...loaded, hasMoreRunsToLoad: false },
+      { type: 'FETCH_DATA_MART_RUNS_SUCCESS', payload: page('new') }
+    );
+
+    expect(refreshed.runs.map(item => item.id)).toEqual(page('new').map(item => item.id));
+    expect(refreshed.hasMoreRunsToLoad).toBe(true);
+  });
+
+  it('keeps the loaded runs when the newest page overlaps them', () => {
+    const older = { ...run(DataMartRunType.CONNECTOR, DataMartRunStatus.SUCCESS), id: 'older' };
+    const latest = { ...run(DataMartRunType.CONNECTOR, DataMartRunStatus.SUCCESS), id: 'latest' };
+    const fresh = { ...run(DataMartRunType.CONNECTOR, DataMartRunStatus.SUCCESS), id: 'fresh' };
+    const loaded = reducer(initialState, {
+      type: 'FETCH_DATA_MART_RUNS_SUCCESS',
+      payload: [latest, older],
+    });
+    const merged = reducer(loaded, {
+      type: 'FETCH_DATA_MART_RUNS_SUCCESS',
+      payload: [fresh, latest],
+    });
+
+    expect(merged.runs.map(item => item.id)).toEqual(['fresh', 'latest', 'older']);
   });
 });
 
