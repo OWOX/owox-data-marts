@@ -124,7 +124,9 @@ describe('ScheduledTriggerList', () => {
         }
       );
     });
-    expect(screen.getByTestId('search').textContent).toBe('');
+    await waitFor(() => {
+      expect(screen.getByTestId('search').textContent).toBe('');
+    });
   });
 
   it('writes the trigger to the URL on edit and drops it on close', async () => {

@@ -322,7 +322,9 @@ describe('DataMartSchedulesPage', () => {
         { id: 'trigger-not-found' }
       );
     });
-    expect(screen.getByTestId('search').textContent).toBe('');
+    await waitFor(() => {
+      expect(screen.getByTestId('search').textContent).toBe('');
+    });
     expect(screen.queryByTestId('projectTriggerEditSheet')).not.toBeInTheDocument();
     toastError.mockRestore();
   });

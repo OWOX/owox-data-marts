@@ -151,7 +151,9 @@ describe('LicenseKeysTab', () => {
         { id: 'licenseKey-not-found' }
       );
     });
-    expect(screen.getByTestId('search').textContent).toBe('');
+    await waitFor(() => {
+      expect(screen.getByTestId('search').textContent).toBe('');
+    });
   });
 
   it('opens no sheet and shows no toast for a non-admin with a link', () => {

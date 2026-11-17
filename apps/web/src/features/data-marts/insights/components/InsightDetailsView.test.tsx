@@ -125,7 +125,9 @@ describe('InsightDetailsView report sheet link', () => {
         { id: 'reportId-not-found' }
       );
     });
-    expect(screen.getByTestId('search')).toHaveTextContent('');
+    await waitFor(() => {
+      expect(screen.getByTestId('search')).toHaveTextContent('');
+    });
     expect(mocks.sheetProps?.isOpen).toBe(false);
   });
 

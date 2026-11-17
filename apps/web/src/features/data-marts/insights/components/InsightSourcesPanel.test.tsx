@@ -90,7 +90,9 @@ describe('InsightSourcesPanel sheet link', () => {
     await waitFor(() => {
       expect(screen.queryByText('Edit Data Artifact')).not.toBeInTheDocument();
     });
-    expect(screen.getByTestId('search')).toHaveTextContent('');
+    await waitFor(() => {
+      expect(screen.getByTestId('search')).toHaveTextContent('');
+    });
   });
 
   it('shows the refreshed source when it opens again after a close', async () => {
@@ -119,7 +121,9 @@ describe('InsightSourcesPanel sheet link', () => {
         { id: 'source-not-found' }
       );
     });
-    expect(screen.getByTestId('search')).toHaveTextContent('');
+    await waitFor(() => {
+      expect(screen.getByTestId('search')).toHaveTextContent('');
+    });
     expect(screen.queryByText('Edit Data Artifact')).not.toBeInTheDocument();
   });
 

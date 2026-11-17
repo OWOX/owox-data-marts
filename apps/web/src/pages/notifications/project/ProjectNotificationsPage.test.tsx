@@ -114,7 +114,9 @@ describe('ProjectNotificationsPage', () => {
         id: 'notification-not-found',
       });
     });
-    expect(screen.getByTestId('search').textContent).toBe('');
+    await waitFor(() => {
+      expect(screen.getByTestId('search').textContent).toBe('');
+    });
   });
 
   it('keeps the parameter without a toast when the settings fail to load', () => {

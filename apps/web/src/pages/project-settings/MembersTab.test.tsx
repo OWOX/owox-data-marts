@@ -130,7 +130,9 @@ describe('MembersTab', () => {
         id: 'member-not-found',
       });
     });
-    expect(screen.getByTestId('search').textContent).toBe('');
+    await waitFor(() => {
+      expect(screen.getByTestId('search').textContent).toBe('');
+    });
     expect(screen.queryByTestId('memberSheet')).toBeNull();
   });
 
