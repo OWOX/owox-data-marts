@@ -425,15 +425,17 @@ export function DataQualityWorkspace({
           <AlertCircle />
           <AlertTitle>Read-only access</AlertTitle>
           <AlertDescription>
-            You have view-only access. You can browse the configuration and reports, but editing and
-            running checks requires{' '}
-            {isBusinessUser ? 'the Data Owner role.' : 'edit access to this Data Mart.'}
-            {isBusinessUser && (
-              <>
-                {' '}
-                <ChangeRoleHint to={`/ui/${projectId}/project-settings/members`} />
-              </>
-            )}
+            <p>
+              You have view-only access. You can browse the configuration and reports, but editing
+              and running checks requires{' '}
+              {isBusinessUser ? 'the Data Owner role.' : 'edit access to this Data Mart.'}
+              {isBusinessUser && (
+                <>
+                  {' '}
+                  <ChangeRoleHint to={`/ui/${projectId}/project-settings/members`} />
+                </>
+              )}
+            </p>
           </AlertDescription>
         </Alert>
       )}
