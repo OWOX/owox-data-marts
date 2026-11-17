@@ -1,5 +1,6 @@
 import { useCallback, useRef } from 'react';
-import { Link, useNavigate } from 'react-router';
+import { useNavigate } from 'react-router';
+import { ChangeRoleHint } from '../../../features/project-members/components/ChangeRoleHint';
 import { ShieldAlert } from 'lucide-react';
 import { Button } from '@owox/ui/components/button';
 import { usePermissions } from '../../../app/permissions';
@@ -44,15 +45,8 @@ function BuilderNotAuthorised({ onBack }: { onBack: () => void }) {
         </div>
         <p className='text-muted-foreground text-[13px] leading-relaxed'>
           A connector definition can contain credentials, so only Data Owners and Project Admins can
-          open it. You can still browse the connectors list. A Project Admin can change your role in{' '}
-          <Link
-            to='../../../project-settings/members'
-            relative='path'
-            className='hover:text-foreground underline decoration-dotted underline-offset-2'
-          >
-            Project settings → Members
-          </Link>
-          .
+          open it. You can still browse the connectors list.{' '}
+          <ChangeRoleHint to='../../../project-settings/members' relative='path' />
         </p>
         <Button variant='outline' onClick={onBack} className='h-[34px]'>
           Back to connectors
