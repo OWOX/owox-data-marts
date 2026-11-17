@@ -17,6 +17,8 @@ const DEFAULT_PUBLIC_ENV_WHITELIST = [
   'LICENSED_APP_EDITION',
   'LICENSE_ISSUANCE_ENABLED',
   'IDP_PROVIDER',
+  'CLOUD_BILLING_ENABLED',
+  'CLOUD_BILLING_API_ORIGIN',
   'MENU_GITHUB_COMMUNITY_VISIBLE',
   'MENU_UPGRADE_OPTIONS_VISIBLE',
   'MENU_FEEDBACK_VISIBLE',
@@ -74,6 +76,20 @@ const ResolvedOptionsSchema = OptionsBaseSchema.transform(data => {
 
 type ResolvedOptions = z.infer<typeof ResolvedOptionsSchema>;
 
+function validateCloudBillingConfig(): void {
+  if (process.env.CLOUD_BILLING_ENABLED !== 'true') {
+    return;
+  }
+
+  const value = process.env.CLOUD_BILLING_API_ORIGIN ?? '';
+  const url = URL.parse(value);
+  if (url?.protocol !== 'https:' || (value !== url.origin && value !== `${url.origin}/`)) {
+    throw new Error(
+      'CLOUD_BILLING_API_ORIGIN must be an HTTPS origin when CLOUD_BILLING_ENABLED=true'
+    );
+  }
+}
+
 /**
  * Register an Express route that exposes selected environment variables as JSON.
  *
@@ -88,6 +104,7 @@ type ResolvedOptions = z.infer<typeof ResolvedOptionsSchema>;
  */
 export function registerPublicFlagsRoute(app: Express, rawOptions: FlagsRouteOptions = {}): void {
   const options: ResolvedOptions = ResolvedOptionsSchema.parse(rawOptions);
+  validateCloudBillingConfig();
 
   app.get(options.path, (_req: Request, res: Response) => {
     const resultEntries = [...options.whiteSet]

@@ -5,6 +5,7 @@ import { Alert, AlertDescription, AlertTitle } from '@owox/ui/components/alert';
 import { AlertCircle } from 'lucide-react';
 import { useIsAdmin } from '../../features/idp/hooks/useRole';
 import { useFlags } from '../../app/store/hooks';
+import { getCloudBillingOrigin } from '../../features/cloud-billing/cloud-billing';
 import { checkVisible } from '../../utils/check-visible';
 import { contextService } from '../../features/contexts/services/context.service';
 import { projectMembersService } from '../../features/project-members/services/project-members.service';
@@ -36,7 +37,9 @@ interface TabLink {
 export function ProjectSettingsPage() {
   const isAdmin = useIsAdmin();
   const { flags } = useFlags();
-  const isOwoxIdpProvider = checkVisible('IDP_PROVIDER', ['owox-better-auth'], flags);
+  const showBillingTabs =
+    getCloudBillingOrigin(flags) !== null ||
+    checkVisible('IDP_PROVIDER', 'owox-better-auth', flags);
   const licenseKeysEnabled = checkVisible('LICENSE_ISSUANCE_ENABLED', 'true', flags);
   const [contexts, setContexts] = useState<ContextDto[]>([]);
   const [members, setMembers] = useState<MemberWithScopeDto[]>([]);
@@ -118,7 +121,7 @@ export function ProjectSettingsPage() {
     { name: 'Overview', path: '.', end: true },
     { name: 'Members', path: 'members', end: false },
     { name: 'Contexts', path: 'contexts', end: false },
-    ...(isOwoxIdpProvider
+    ...(showBillingTabs
       ? [
           { name: 'Credit consumption', path: 'credit', end: false },
           { name: 'Subscription', path: 'subscription', end: false },

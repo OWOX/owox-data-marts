@@ -23,6 +23,8 @@ export interface AxiosRequestConfig extends OriginalAxiosRequestConfig {
   skipLoadingIndicator?: boolean;
   skipAuthHeader?: boolean;
   skipErrorToast?: boolean;
+  skipLogoutOnUnauthorizedRetry?: boolean;
+  expectedSession?: { projectId: string; userId: string };
 }
 
 // Extend InternalAxiosRequestConfig to include our custom properties
@@ -31,6 +33,8 @@ interface ExtendedInternalAxiosRequestConfig extends InternalAxiosRequestConfig 
   _retry?: boolean;
   connectProjectTarget?: ConnectProjectTarget | null;
   connectUserId?: string | null;
+  skipLogoutOnUnauthorizedRetry?: AxiosRequestConfig['skipLogoutOnUnauthorizedRetry'];
+  expectedSession?: AxiosRequestConfig['expectedSession'];
 }
 
 // Default config for the axios instance
@@ -75,6 +79,19 @@ export function refreshMemberAccessToken(): Promise<string> {
   return authStateManager.refreshToken(() => tokenProvider.refreshToken());
 }
 
+function assertExpectedSession(request: ExtendedInternalAxiosRequestConfig, token?: string | null) {
+  if (!request.expectedSession) return;
+  const provider = getTokenProvider();
+  if (
+    provider?.getProjectId?.() !== request.expectedSession.projectId ||
+    provider.getUserId?.() !== request.expectedSession.userId ||
+    !provider.getAccessToken() ||
+    (token !== undefined && token !== provider.getAccessToken())
+  ) {
+    throw new Error('The active project or account changed');
+  }
+}
+
 function assertConnectSession(request: ExtendedInternalAxiosRequestConfig, token: string | null) {
   const target = request.connectProjectTarget;
   if (!target) return;
@@ -107,6 +124,7 @@ apiClient.interceptors.request.use(
     if (config.skipAuthHeader) {
       return config;
     }
+    assertExpectedSession(config);
 
     // Keep the original target when a request is retried after navigation or token refresh.
     if (config.connectProjectTarget === undefined) {
@@ -121,10 +139,10 @@ apiClient.interceptors.request.use(
     const headers = new AxiosHeaders(config.headers);
     if (headers.has('X-OWOX-Authorization')) {
       const authorization = headers.get('X-OWOX-Authorization');
-      assertConnectSession(
-        config,
-        typeof authorization === 'string' ? authorization.replace(/^Bearer /, '') : null
-      );
+      const token =
+        typeof authorization === 'string' ? authorization.replace(/^Bearer /, '') : null;
+      assertExpectedSession(config, token);
+      assertConnectSession(config, token);
       return config;
     }
 
@@ -150,6 +168,7 @@ apiClient.interceptors.response.use(
     const originalRequest = error.config as ExtendedInternalAxiosRequestConfig;
 
     if (error.response?.status === 401 && !originalRequest._retry) {
+      assertExpectedSession(originalRequest);
       originalRequest._retry = true;
 
       const signOut = (cause: unknown) => {
@@ -200,10 +219,11 @@ apiClient.interceptors.response.use(
       try {
         return await apiClient(originalRequest);
       } catch (retryError) {
-        // Only a refused token signs the user out. Any other failure of the retried request is
-        // that request's own answer — a 400 naming the field to fix, a 404 — already reported by
-        // this interceptor on its way through, and passed on to the caller unchanged.
-        if ((retryError as AxiosError | undefined)?.response?.status === 401) {
+        // A secondary service can refuse a fresh token while the App session is still valid.
+        if (
+          (retryError as AxiosError | undefined)?.response?.status === 401 &&
+          !originalRequest.skipLogoutOnUnauthorizedRetry
+        ) {
           return signOut(retryError);
         }
         throw retryError;

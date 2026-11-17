@@ -75,10 +75,13 @@ existing pattern and responsibilities remain unambiguous.
 
 ## Authentication and Cross-Repository Contracts
 
-- Browser UI calls the ODM backend; it does not bypass ODM to call IB or legacy
-  Analytics directly.
-- App authorization remains in ODM. Legacy membership/project rules remain in
-  the system that owns that data.
+- The browser calls ODM APIs and can call public IB endpoints that support
+  project-scoped App access tokens. Access to legacy Analytics goes through
+  backend adapters.
+- ODM enforces authorization for its APIs. For direct App calls, IB validates
+  the App access token, enforces project access and operation permissions, and
+  allows the supported App origins through CORS.
+- Legacy membership and project rules belong to the system that owns that data.
 - Server-to-server calls to trusted IB operations use the OWOX identity client
   and internal/C2C endpoint family.
 - Route names, methods, parameters, schemas, nullability, errors, and role
@@ -88,8 +91,8 @@ existing pattern and responsibilities remain unambiguous.
 - Never log or return access tokens, refresh tokens, authorization codes, client
   secrets, or raw identity payloads.
 
-Client applications and add-ins authenticating for ODM must use the ODM Better
-Auth boundary rather than call IB or Analytics directly.
+Client applications and add-ins use ODM Better Auth to sign in and obtain App
+access tokens.
 
 ## Deployment and Runtime Configuration
 
