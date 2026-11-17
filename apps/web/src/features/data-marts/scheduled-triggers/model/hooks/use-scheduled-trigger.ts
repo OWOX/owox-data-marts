@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useScheduledTriggerContext } from '../context';
 import { ScheduledTriggerType } from '../../enums';
 import type { ScheduledTriggerConfig } from '../trigger-config.types.ts';
@@ -11,21 +11,22 @@ export function useScheduledTrigger(dataMartId?: string) {
   const {
     getScheduledTriggers,
     getScheduledTriggersByType,
-    getScheduledTrigger,
     createScheduledTrigger,
     updateScheduledTrigger,
     deleteScheduledTrigger,
-    selectScheduledTrigger,
     reset,
     triggers,
-    selectedTrigger,
     isLoading,
     error,
   } = useScheduledTriggerContext();
 
+  // A Data Mart refresh gives `getScheduledTriggers` a new identity; it must not empty the list.
+  const getScheduledTriggersRef = useRef(getScheduledTriggers);
+  getScheduledTriggersRef.current = getScheduledTriggers;
+
   useEffect(() => {
     if (dataMartId) {
-      void getScheduledTriggers(dataMartId);
+      void getScheduledTriggersRef.current(dataMartId);
     } else {
       reset();
     }
@@ -33,17 +34,15 @@ export function useScheduledTrigger(dataMartId?: string) {
     return () => {
       reset();
     };
-  }, [dataMartId, getScheduledTriggers, reset]);
+  }, [dataMartId, reset]);
 
   return {
     triggers,
-    selectedTrigger,
     isLoading,
     error,
     getScheduledTriggers: (id: string) => getScheduledTriggers(id),
     getScheduledTriggersByType: (id: string, type: ScheduledTriggerType) =>
       getScheduledTriggersByType(id, type),
-    getScheduledTrigger: (id: string, triggerId: string) => getScheduledTrigger(id, triggerId),
     createScheduledTrigger: (
       id: string,
       type: ScheduledTriggerType,
@@ -61,6 +60,5 @@ export function useScheduledTrigger(dataMartId?: string) {
     ) => updateScheduledTrigger(id, triggerId, cronExpression, timeZone, isActive),
     deleteScheduledTrigger: (id: string, triggerId: string) =>
       deleteScheduledTrigger(id, triggerId),
-    selectScheduledTrigger,
   };
 }

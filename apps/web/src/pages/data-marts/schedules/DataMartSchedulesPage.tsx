@@ -32,7 +32,12 @@ import {
 } from '../../../shared/components/TableFilters';
 import { collectOptionsFromData } from '../../../shared/components/TableFilters/collectOptions.utils';
 import { UserReference } from '../../../shared/components/UserReference';
-import { useBaseTable, usePersistentFilters, useProjectRoute } from '../../../shared/hooks';
+import {
+  useBaseTable,
+  usePersistentFilters,
+  useProjectRoute,
+  useRecordSheet,
+} from '../../../shared/hooks';
 import { ProjectDataMartSectionHeader } from '../shared/ProjectDataMartSectionHeader';
 import { ProjectDataMartTableFilters } from '../shared/ProjectDataMartTableFilters';
 import { ProjectDataMartTableSearch } from '../shared/ProjectDataMartTableSearch';
@@ -152,7 +157,19 @@ function DataMartSchedulesPageContent() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [editingTrigger, setEditingTrigger] = useState<ProjectScheduledTrigger | null>(null);
+  // `isLoading` turns true again on every reload; the open sheet must stay open then.
+  const [hasLoaded, setHasLoaded] = useState(false);
+  const {
+    record: editingTrigger,
+    open: openTrigger,
+    close: handleCloseTriggerEditSheet,
+    link: editingTriggerLink,
+  } = useRecordSheet({
+    param: 'trigger',
+    records: hasLoaded ? triggers.filter(trigger => trigger.canEdit) : undefined,
+    getId: trigger => trigger.id,
+    notFoundMessage: () => 'This schedule was deleted or is not available to you.',
+  });
 
   const loadTriggers = useCallback(async () => {
     setIsLoading(true);
@@ -161,6 +178,7 @@ function DataMartSchedulesPageContent() {
     try {
       const response = await scheduledTriggerService.getProjectScheduledTriggers();
       setTriggers(ScheduledTriggerMapper.mapProjectFromDtoList(response));
+      setHasLoaded(true);
     } catch (caught) {
       setError(extractApiError(caught).message ?? 'Failed to fetch Data Mart triggers');
     } finally {
@@ -175,10 +193,6 @@ function DataMartSchedulesPageContent() {
   useEffect(() => {
     void fetchAvailableConnectors();
   }, [fetchAvailableConnectors]);
-
-  const handleCloseTriggerEditSheet = useCallback(() => {
-    setEditingTrigger(null);
-  }, []);
 
   const handleTriggerSaved = useCallback(async () => {
     await loadTriggers();
@@ -374,7 +388,7 @@ function DataMartSchedulesPageContent() {
             canEdit={row.original.canEdit}
             canDelete={row.original.canDelete}
             onEditTrigger={() => {
-              setEditingTrigger(row.original);
+              openTrigger(row.original.id);
             }}
             onDeleteTrigger={() => {
               void handleDeleteTrigger(row.original);
@@ -383,7 +397,7 @@ function DataMartSchedulesPageContent() {
         ),
       },
     ],
-    [handleDeleteTrigger, scope]
+    [handleDeleteTrigger, openTrigger, scope]
   );
 
   const { table } = useBaseTable<ProjectScheduledTrigger>({
@@ -437,7 +451,7 @@ function DataMartSchedulesPageContent() {
               )}
               onRowClick={row => {
                 if (row.original.canEdit) {
-                  setEditingTrigger(row.original);
+                  openTrigger(row.original.id);
                 }
               }}
             />
@@ -447,6 +461,7 @@ function DataMartSchedulesPageContent() {
 
       <ProjectScheduledTriggerEditSheet
         trigger={editingTrigger}
+        link={editingTriggerLink}
         isOpen={editingTrigger !== null}
         onClose={handleCloseTriggerEditSheet}
         onSaved={handleTriggerSaved}

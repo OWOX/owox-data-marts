@@ -9,6 +9,7 @@ import {
   SheetTitle,
 } from '@owox/ui/components/sheet';
 import { Button } from '@owox/ui/components/button';
+import { CopyLinkButton } from '@owox/ui/components/common/copy-link-button';
 import {
   AppForm,
   Form,
@@ -37,6 +38,8 @@ interface MembershipRequestSheetProps {
   isOpen: boolean;
   request: MembershipRequestDto | null;
   contexts: ContextDto[];
+  /** The page link that opens this request. */
+  link?: string | null;
   onClose: () => void;
   /** `true` when a mutation (approve or decline) actually completed, `false`
    *  when the sheet was simply dismissed. The parent uses this to decide
@@ -52,6 +55,7 @@ export function MembershipRequestSheet({
   isOpen,
   request,
   contexts,
+  link,
   onClose,
   onResolved,
 }: MembershipRequestSheetProps) {
@@ -155,9 +159,12 @@ export function MembershipRequestSheet({
         <SheetContent data-testid='membershipRequestSheet'>
           <SheetHeader>
             <SheetTitle>Membership request</SheetTitle>
-            <SheetDescription>
-              Choose the final role, scope and contexts, then approve or decline.
-            </SheetDescription>
+            <div className='flex w-full items-center gap-4'>
+              <SheetDescription>
+                Choose the final role, scope and contexts, then approve or decline.
+              </SheetDescription>
+              {link && <CopyLinkButton link={link} ariaLabel='Copy link to this request' />}
+            </div>
           </SheetHeader>
 
           <Form {...form}>

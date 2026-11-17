@@ -1,5 +1,6 @@
-import { StrictMode } from 'react';
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { StrictMode, type ReactElement } from 'react';
+import { act, fireEvent, render as renderPlain, screen, waitFor } from '@testing-library/react';
+import { MemoryRouter, useLocation } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DataMartStatus } from '../../shared/enums';
 
@@ -227,16 +228,19 @@ vi.mock('./RelationshipDetailsSheet', () => ({
     options,
     relationshipId,
     focusRequest,
+    link,
     onClose,
   }: {
     options: { id: string; source: { title: string }; target: { title: string } }[];
     relationshipId: string;
     focusRequest?: number;
+    link?: string | null;
     onClose: () => void;
   }) => (
     <div role='dialog' aria-label='Relationship'>
       <span data-testid='sheet-relationship'>{relationshipId}</span>
       <span data-testid='sheet-focus-request'>{focusRequest ?? 0}</span>
+      <span data-testid='sheet-link'>{link ?? ''}</span>
       <span data-testid='sheet-options'>
         {options
           .map(option => `${option.id}:${option.source.title}->${option.target.title}`)
@@ -252,6 +256,27 @@ vi.mock('./RelationshipDetailsSheet', () => ({
 vi.mock('@owox/ui/components/common/skeleton-list', () => ({
   SkeletonList: () => <div>Loading canvas</div>,
 }));
+
+function SearchProbe() {
+  return <span data-testid='search'>{useLocation().search}</span>;
+}
+
+// The sheet lives in the URL, so every render sits in a router.
+function render(ui: ReactElement, initialEntry = '/ui/p1/data-marts/models') {
+  const wrap = (element: ReactElement) => (
+    <MemoryRouter initialEntries={[initialEntry]}>
+      {element}
+      <SearchProbe />
+    </MemoryRouter>
+  );
+  const result = renderPlain(wrap(ui));
+  return {
+    ...result,
+    rerender: (next: ReactElement) => {
+      result.rerender(wrap(next));
+    },
+  };
+}
 
 function deferred<T>() {
   let resolve!: (value: T | PromiseLike<T>) => void;
@@ -435,6 +460,126 @@ describe('ModelCanvasView', () => {
     expect(await screen.findByTestId('sheet-options')).toHaveTextContent(
       'rel-draft:Orders->Refunds draft'
     );
+  });
+
+  describe('relationship link', () => {
+    beforeEach(() => {
+      viewState.canvasHook.data = buildCanvasData();
+    });
+
+    it('opens the sheet for the relationship in the URL and offers its link', async () => {
+      render(<ModelCanvasView />, '/ui/p1/data-marts/models?relationship=edge-1');
+
+      expect(await screen.findByTestId('sheet-relationship')).toHaveTextContent('edge-1');
+      expect(screen.getByTestId('canvas-selected-relationship')).toHaveTextContent('edge-1');
+      expect(screen.getByTestId('sheet-link')).toHaveTextContent(
+        '/ui/p1/data-marts/models?relationship=edge-1&storage=storage-1'
+      );
+    });
+
+    it('writes the id to the URL on a pick and removes it on close', async () => {
+      render(<ModelCanvasView />);
+
+      fireEvent.click(await screen.findByRole('button', { name: 'Click arrow edge-1' }));
+      expect(screen.getByTestId('search')).toHaveTextContent('?relationship=edge-1');
+
+      fireEvent.click(screen.getByRole('button', { name: 'Close sheet' }));
+      expect(screen.getByTestId('search')).toHaveTextContent('');
+      expect(screen.queryByRole('dialog', { name: 'Relationship' })).not.toBeInTheDocument();
+    });
+
+    it('toasts and removes the parameter for an unknown id', async () => {
+      render(<ModelCanvasView />, '/ui/p1/data-marts/models?relationship=zz');
+
+      await waitFor(() => {
+        expect(exportMocks.toast.error).toHaveBeenCalledWith(
+          'This relationship was deleted or is not available.',
+          { id: 'relationship-not-found' }
+        );
+      });
+      expect(screen.getByTestId('search')).toHaveTextContent('');
+      expect(screen.queryByRole('dialog', { name: 'Relationship' })).not.toBeInTheDocument();
+    });
+
+    it('waits for the model before it judges the id', async () => {
+      viewState.canvasHook.data = undefined;
+      viewState.canvasHook.isLoading = true;
+      const { rerender } = render(
+        <ModelCanvasView />,
+        '/ui/p1/data-marts/models?relationship=edge-1'
+      );
+      expect(exportMocks.toast.error).not.toHaveBeenCalled();
+      expect(screen.getByTestId('search')).toHaveTextContent('?relationship=edge-1');
+
+      viewState.canvasHook.data = buildCanvasData();
+      viewState.canvasHook.isLoading = false;
+      rerender(<ModelCanvasView />);
+      expect(await screen.findByTestId('sheet-relationship')).toHaveTextContent('edge-1');
+      expect(exportMocks.toast.error).not.toHaveBeenCalled();
+    });
+
+    it('closes without a toast once the open relationship leaves the model', async () => {
+      const { rerender } = render(
+        <ModelCanvasView />,
+        '/ui/p1/data-marts/models?relationship=edge-1'
+      );
+      await screen.findByTestId('sheet-relationship');
+
+      viewState.canvasHook.data = { ...buildCanvasData(), edges: [] };
+      rerender(<ModelCanvasView />);
+
+      await waitFor(() => {
+        expect(screen.queryByRole('dialog', { name: 'Relationship' })).not.toBeInTheDocument();
+      });
+      expect(screen.getByTestId('search')).toHaveTextContent('');
+      expect(exportMocks.toast.error).not.toHaveBeenCalled();
+    });
+
+    it('removes the parameter when another storage unloads the model', async () => {
+      const { rerender } = render(
+        <ModelCanvasView />,
+        '/ui/p1/data-marts/models?relationship=edge-1'
+      );
+      await screen.findByTestId('sheet-relationship');
+
+      viewState.canvasHook.data = undefined;
+      rerender(<ModelCanvasView />);
+
+      await waitFor(() => {
+        expect(screen.getByTestId('search')).toHaveTextContent('');
+      });
+      expect(exportMocks.toast.error).not.toHaveBeenCalled();
+    });
+
+    it('opens a relationship that the canvas filters hide, with no toast', async () => {
+      viewState.canvasHook.data = {
+        ...buildCanvasData(),
+        nodes: [
+          ...buildCanvasData().nodes,
+          {
+            id: 'mart-3',
+            title: 'Refunds draft',
+            status: DataMartStatus.DRAFT,
+            description: null,
+            fieldCount: 1,
+            dataLastUpdated: null,
+          },
+        ],
+        edges: [
+          ...buildCanvasData().edges,
+          {
+            id: 'rel-draft',
+            sourceDataMartId: 'mart-1',
+            targetDataMartId: 'mart-3',
+            joinConditions: [{ sourceFieldName: 'id', targetFieldName: 'order_id' }],
+          },
+        ],
+      };
+      render(<ModelCanvasView />, '/ui/p1/data-marts/models?relationship=rel-draft');
+
+      expect(await screen.findByTestId('sheet-relationship')).toHaveTextContent('rel-draft');
+      expect(exportMocks.toast.error).not.toHaveBeenCalled();
+    });
   });
 
   it('keeps the canvas clear of the open sheet', async () => {
@@ -784,9 +929,11 @@ describe('ModelCanvasView', () => {
       .mockReturnValueOnce(older.promise)
       .mockReturnValueOnce(newer.promise);
 
-    render(
+    renderPlain(
       <StrictMode>
-        <ModelCanvasView />
+        <MemoryRouter>
+          <ModelCanvasView />
+        </MemoryRouter>
       </StrictMode>
     );
 

@@ -1,3 +1,4 @@
+import { CopyLinkButton } from '@owox/ui/components/common/copy-link-button';
 import {
   SheetHeaderAction,
   SheetHeaderActionButton,
@@ -56,6 +57,8 @@ interface RelationshipDetailsSheetProps {
    * Zero for a pick with the pointer, which leaves focus where it is.
    */
   focusRequest?: number;
+  /** The page link that opens this relationship. */
+  link?: string | null;
   onRelationshipChange: (relationshipId: string) => void;
   onClose: () => void;
 }
@@ -88,6 +91,7 @@ export default function RelationshipDetailsSheet({
   relationshipId,
   storageId,
   focusRequest = 0,
+  link,
   onRelationshipChange,
   onClose,
 }: RelationshipDetailsSheetProps) {
@@ -151,6 +155,11 @@ export default function RelationshipDetailsSheet({
                 Open in Data Setup
               </SheetHeaderActionButton>
             </SheetHeaderAction>
+            {link && (
+              <div className='shrink-0'>
+                <CopyLinkButton link={link} ariaLabel='Copy link to this relationship' />
+              </div>
+            )}
           </div>
           {options.length > 1 && (
             <Tabs value={active.id} onValueChange={onRelationshipChange} className='mt-2'>

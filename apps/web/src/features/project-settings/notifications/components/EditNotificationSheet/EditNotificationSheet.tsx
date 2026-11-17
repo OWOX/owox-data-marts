@@ -7,6 +7,7 @@ import {
   SheetDescription,
 } from '@owox/ui/components/sheet';
 import { Button } from '@owox/ui/components/button';
+import { CopyLinkButton } from '@owox/ui/components/common/copy-link-button';
 import { Loader2 } from 'lucide-react';
 import { AppForm, FormLayout, FormActions } from '@owox/ui/components/form';
 import { toast } from 'sonner';
@@ -31,6 +32,8 @@ interface EditNotificationSheetProps {
     notificationType: NotificationType,
     data: UpdateNotificationSettingsRequest
   ) => Promise<void>;
+  /** The page link that opens this notification. */
+  link?: string | null;
 }
 
 export function EditNotificationSheet({
@@ -39,6 +42,7 @@ export function EditNotificationSheet({
   setting,
   projectId,
   onSave,
+  link,
 }: EditNotificationSheetProps) {
   const { members, isLoading: isLoadingMembers } = useProjectMembers(projectId);
   const { testWebhook, isTesting } = useTestWebhook(projectId);
@@ -121,7 +125,10 @@ export function EditNotificationSheet({
       <SheetContent data-testid='notifEditSheet'>
         <SheetHeader>
           <SheetTitle>Edit notification</SheetTitle>
-          <SheetDescription>Update the notification settings</SheetDescription>
+          <div className='flex w-full items-center gap-4'>
+            <SheetDescription>Update the notification settings</SheetDescription>
+            {link && <CopyLinkButton link={link} ariaLabel='Copy link to this notification' />}
+          </div>
         </SheetHeader>
 
         <AppForm

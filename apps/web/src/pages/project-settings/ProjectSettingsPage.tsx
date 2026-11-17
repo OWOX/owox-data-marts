@@ -14,6 +14,7 @@ import { InviteMemberSheet } from '../../features/project-settings/members/compo
 import { AddContextSheet } from '../../features/contexts/components/AddContextSheet/AddContextSheet';
 import { MembersSettingsProvider } from '../../features/project-settings/members/model/MembersSettingsProvider';
 import { MembershipRequestSheet } from '../../features/project-settings/members/components/MembershipRequestSheet/MembershipRequestSheet';
+import { useRecordSheet } from '../../shared/hooks';
 import { useTombstonedCollection } from '../../features/project-settings/members/model/useTombstonedCollection';
 
 interface TabLink {
@@ -41,12 +42,23 @@ export function ProjectSettingsPage() {
   const [contexts, setContexts] = useState<ContextDto[]>([]);
   const [members, setMembers] = useState<MemberWithScopeDto[]>([]);
   const [loading, setLoading] = useState(true);
+  const [hasLoaded, setHasLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [inviteOpen, setInviteOpen] = useState(false);
   const [addContextOpen, setAddContextOpen] = useState(false);
   const [pendingRequests, setPendingRequests] = useState<MembershipRequestDto[]>([]);
   const [loadingRequests, setLoadingRequests] = useState(false);
-  const [requestSheetTarget, setRequestSheetTarget] = useState<MembershipRequestDto | null>(null);
+  const {
+    record: requestSheetTarget,
+    open: openRequestSheet,
+    close: closeRequestSheet,
+    link: requestLink,
+  } = useRecordSheet({
+    param: 'request',
+    records: isAdmin && hasLoaded && error === null ? pendingRequests : undefined,
+    getId: r => r.requestId,
+    notFoundMessage: () => 'This membership request was already handled or is not available.',
+  });
 
   const memberIdOf = useCallback((m: MemberWithScopeDto) => m.userId, []);
   const requestIdOf = useCallback((r: MembershipRequestDto) => r.requestId, []);
@@ -81,6 +93,7 @@ export function ProjectSettingsPage() {
     } finally {
       setLoading(false);
       setLoadingRequests(false);
+      setHasLoaded(true);
     }
   }, [isAdmin, memberTombstones, requestTombstones]);
 
@@ -110,9 +123,12 @@ export function ProjectSettingsPage() {
     [requestTombstones]
   );
 
-  const openMembershipRequestSheet = useCallback((request: MembershipRequestDto) => {
-    setRequestSheetTarget(request);
-  }, []);
+  const openMembershipRequestSheet = useCallback(
+    (request: MembershipRequestDto) => {
+      openRequestSheet(request.requestId);
+    },
+    [openRequestSheet]
+  );
 
   const navigation: TabLink[] = [
     { name: 'Overview', path: '.', end: true },
@@ -137,6 +153,7 @@ export function ProjectSettingsPage() {
       members,
       pendingRequests,
       loading,
+      hasLoaded,
       loadingRequests,
       hasLoadError: error !== null,
       refresh: loadData,
@@ -152,6 +169,7 @@ export function ProjectSettingsPage() {
       members,
       pendingRequests,
       loading,
+      hasLoaded,
       loadingRequests,
       error,
       loadData,
@@ -234,12 +252,11 @@ export function ProjectSettingsPage() {
         <MembershipRequestSheet
           isOpen={requestSheetTarget !== null}
           request={requestSheetTarget}
+          link={requestLink}
           contexts={contexts}
-          onClose={() => {
-            setRequestSheetTarget(null);
-          }}
+          onClose={closeRequestSheet}
           onResolved={resolved => {
-            setRequestSheetTarget(null);
+            closeRequestSheet();
             if (resolved) void loadData();
           }}
         />

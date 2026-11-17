@@ -5,7 +5,6 @@ import type { ScheduledTriggerState, ScheduledTriggerAction } from './scheduled-
  */
 export const initialState: ScheduledTriggerState = {
   triggers: [],
-  selectedTrigger: null,
   isLoading: false,
   error: null,
 };
@@ -23,7 +22,6 @@ export function scheduledTriggerReducer(
   switch (action.type) {
     // All START actions
     case 'FETCH_TRIGGERS_START':
-    case 'FETCH_TRIGGER_START':
     case 'CREATE_TRIGGER_START':
     case 'UPDATE_TRIGGER_START':
     case 'DELETE_TRIGGER_START':
@@ -40,12 +38,6 @@ export function scheduledTriggerReducer(
         triggers: action.payload,
         isLoading: false,
       };
-    case 'FETCH_TRIGGER_SUCCESS':
-      return {
-        ...state,
-        selectedTrigger: action.payload,
-        isLoading: false,
-      };
     case 'CREATE_TRIGGER_SUCCESS':
       return {
         ...state,
@@ -58,22 +50,17 @@ export function scheduledTriggerReducer(
         triggers: state.triggers.map(trigger =>
           trigger.id === action.payload.id ? action.payload : trigger
         ),
-        selectedTrigger:
-          state.selectedTrigger?.id === action.payload.id ? action.payload : state.selectedTrigger,
         isLoading: false,
       };
     case 'DELETE_TRIGGER_SUCCESS':
       return {
         ...state,
         triggers: state.triggers.filter(trigger => trigger.id !== action.payload),
-        selectedTrigger:
-          state.selectedTrigger?.id === action.payload ? null : state.selectedTrigger,
         isLoading: false,
       };
 
     // All ERROR actions
     case 'FETCH_TRIGGERS_ERROR':
-    case 'FETCH_TRIGGER_ERROR':
     case 'CREATE_TRIGGER_ERROR':
     case 'UPDATE_TRIGGER_ERROR':
     case 'DELETE_TRIGGER_ERROR':
@@ -84,11 +71,6 @@ export function scheduledTriggerReducer(
       };
 
     // Other actions
-    case 'SELECT_TRIGGER':
-      return {
-        ...state,
-        selectedTrigger: action.payload,
-      };
     case 'RESET':
       return initialState;
     default:

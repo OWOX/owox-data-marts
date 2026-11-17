@@ -10,6 +10,8 @@ export interface MembersSettingsStoreValue {
   members: MemberWithScopeDto[];
   pendingRequests: MembershipRequestDto[];
   loading: boolean;
+  /** `false` only until the first load ends; unlike `loading`, a refresh does not reset it. */
+  hasLoaded: boolean;
   loadingRequests: boolean;
   hasLoadError: boolean;
   refresh: () => Promise<void>;

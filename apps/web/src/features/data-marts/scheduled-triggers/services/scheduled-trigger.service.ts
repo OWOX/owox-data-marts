@@ -65,21 +65,6 @@ export class ScheduledTriggerService extends ApiService {
   }
 
   /**
-   * Get a scheduled trigger by ID in the context of a data mart
-   * @param dataMartId Data mart ID
-   * @param triggerId Trigger ID
-   * @returns Promise with scheduled trigger response
-   */
-  async getScheduledTrigger(
-    dataMartId: string,
-    triggerId: string
-  ): Promise<ScheduledTriggerResponseApiDto> {
-    return this.get<ScheduledTriggerResponseApiDto>(
-      `/${dataMartId}/scheduled-triggers/${triggerId}`
-    );
-  }
-
-  /**
    * Create a new scheduled trigger for a specific data mart
    * @param dataMartId Data mart ID
    * @param data Scheduled trigger creation data

@@ -151,6 +151,7 @@ const store = (overrides: Partial<MembersSettingsStoreValue> = {}): MembersSetti
   members: [],
   pendingRequests: [request],
   loading: false,
+  hasLoaded: true,
   loadingRequests: false,
   hasLoadError: false,
   refresh: vi.fn().mockResolvedValue(undefined),
@@ -187,6 +188,25 @@ beforeEach(() => {
 });
 
 describe('MembershipRequestSheet', () => {
+  it('shows Copy link only when it gets a link', () => {
+    const { rerender } = renderSheet();
+    expect(screen.queryByRole('button', { name: 'Copy link to this request' })).toBeNull();
+
+    rerender(
+      <MembersSettingsReactContext.Provider value={store()}>
+        <MembershipRequestSheet
+          isOpen={true}
+          request={request}
+          contexts={[]}
+          link='https://app.test/ui/p1/project-settings/members?request=req-1'
+          onClose={vi.fn()}
+          onResolved={vi.fn()}
+        />
+      </MembersSettingsReactContext.Provider>
+    );
+    expect(screen.getByRole('button', { name: 'Copy link to this request' })).toBeInTheDocument();
+  });
+
   it('renders the requester identity block with name, email, and requested date', () => {
     renderSheet();
     // Generic, identity-free title (no email/role in the header).

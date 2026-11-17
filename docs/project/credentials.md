@@ -9,6 +9,11 @@ name and secret, set owners and contexts, and decide whether other project membe
 maintain the Credential. The secret is write-only: it can be replaced, but it is never displayed
 after saving.
 
+To share a Credential with a colleague, open it and click **Copy link**. The page address holds the
+open Credential too, so you can also copy it from the browser. The link opens the same Credential
+for a member who can maintain it. It does not grant access: for other members, it opens only the
+list.
+
 ## Ownership and access
 
 A Credential belongs to the project, not to the member who created it. The creator is recorded for

@@ -5,6 +5,7 @@ import { extractApiError } from '../../../../app/api';
 import { Button } from '../../../../shared/components/Button';
 import { useDataStorage } from '../../../data-storage/shared/model/hooks/useDataStorage';
 import { useProjectRoute } from '../../../../shared/hooks';
+import { useRecordSheet } from '../../../../shared/hooks/useRecordSheet';
 import { filterCanvasData } from '../model/graph/filter-canvas-data';
 import { mergeBidirectionalEdges } from '../model/graph/merge-bidirectional-edges';
 import { useModelCanvas } from '../model/use-model-canvas';
@@ -155,19 +156,34 @@ export function ModelCanvasView({ onActiveQualityRunChange }: ModelCanvasViewPro
   // The relationship open in the details sheet, picked by a click on its arrow or on a row of a
   // card's relationships list. That list covers the storage's whole model, filters aside, so the
   // sheet looks the relationship up there: one hidden by a filter opens too, with no arrow lit.
-  const [selectedRelationshipId, setSelectedRelationshipId] = useState<string | null>(null);
+  // The URL holds it, so a link opens the sheet. The topology is the whole model, filters aside.
+  const {
+    record: selectedRelationship,
+    open: setSelectedRelationshipId,
+    close: closeRelationship,
+    link: relationshipLink,
+  } = useRecordSheet({
+    param: 'relationship',
+    records: topology?.edges,
+    getId: edge => edge.id,
+    notFoundMessage: () => 'This relationship was deleted or is not available.',
+  });
+  const selectedRelationshipId = selectedRelationship?.id ?? null;
   // Picked with the keyboard: focus goes into the sheet, and back to where it came from when the
   // sheet closes.
   const [sheetFocusRequest, setSheetFocusRequest] = useState(0);
   const returnFocusRef = useRef<HTMLElement | null>(null);
+  const restoreFocus = useCallback(() => {
+    const returnTo = returnFocusRef.current;
+    returnFocusRef.current = null;
+    setSheetFocusRequest(0);
+    if (returnTo?.isConnected) returnTo.focus();
+  }, []);
   const selectRelationship = useCallback(
     (relationshipId: string | null, options?: RelationshipSelectOptions) => {
       if (relationshipId === null) {
-        const returnTo = returnFocusRef.current;
-        returnFocusRef.current = null;
-        setSheetFocusRequest(0);
-        setSelectedRelationshipId(null);
-        if (returnTo?.isConnected) returnTo.focus();
+        closeRelationship();
+        restoreFocus();
         return;
       }
       if (options?.viaKeyboard) {
@@ -177,7 +193,7 @@ export function ModelCanvasView({ onActiveQualityRunChange }: ModelCanvasViewPro
       }
       setSelectedRelationshipId(relationshipId);
     },
-    []
+    [closeRelationship, restoreFocus, setSelectedRelationshipId]
   );
   const modelEdges = useMemo(
     () => (topology ? mergeBidirectionalEdges(topology.edges) : []),
@@ -190,11 +206,17 @@ export function ModelCanvasView({ onActiveQualityRunChange }: ModelCanvasViewPro
         : null,
     [modelEdges, selectedRelationshipId]
   );
-  // A relationship that leaves the model — deleted, or another storage picked — closes its sheet
-  // for good, instead of reopening it should the relationship come back.
+  // A gone model also drops the link, so a cached storage does not open the sheet again.
+  const wasOpenRef = useRef(false);
   useEffect(() => {
-    if (selectedRelationshipId && topology && !selectedModelEdge) selectRelationship(null);
-  }, [selectedRelationshipId, topology, selectedModelEdge, selectRelationship]);
+    if (selectedRelationship) {
+      wasOpenRef.current = true;
+    } else if (wasOpenRef.current) {
+      wasOpenRef.current = false;
+      if (!topology) closeRelationship();
+      restoreFocus();
+    }
+  }, [selectedRelationship, topology, closeRelationship, restoreFocus]);
   const relationshipOptions = useMemo((): RelationshipSheetOption[] => {
     if (!selectedModelEdge || !topology) return [];
     const edgesById = new Map(topology.edges.map(edge => [edge.id, edge]));
@@ -455,6 +477,11 @@ export function ModelCanvasView({ onActiveQualityRunChange }: ModelCanvasViewPro
             relationshipId={selectedRelationshipId}
             storageId={filters.storageId}
             focusRequest={sheetFocusRequest}
+            link={
+              // The topology is per storage, so the link must name it; a saved storage may differ.
+              relationshipLink &&
+              `${relationshipLink}&storage=${encodeURIComponent(filters.storageId)}`
+            }
             onRelationshipChange={setSelectedRelationshipId}
             onClose={() => {
               selectRelationship(null);

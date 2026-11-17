@@ -5,6 +5,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@owox/ui/components/sheet';
+import { CopyLinkButton } from '@owox/ui/components/common/copy-link-button';
 import toast from 'react-hot-toast';
 import { wasErrorToastShown } from '../../../../app/api';
 import { extractApiError } from '../../../../app/api/extract-api-error.util';
@@ -37,6 +38,8 @@ export interface CredentialConfigSheetProps {
   defaultSharing?: 'not-shared';
   /** Hosts and field list a new custom connector Credential takes from the manifest. */
   customConnectorPrefill?: { hosts: string[]; fieldList: CustomConnectorFieldSpec[] };
+  /** The page link that opens this Credential. */
+  link?: string | null;
 }
 
 export function CredentialConfigSheet({
@@ -54,6 +57,7 @@ export function CredentialConfigSheet({
   canAddGithubDefinition = false,
   defaultSharing,
   customConnectorPrefill,
+  link,
 }: CredentialConfigSheetProps) {
   const actions = useCredentialActions();
   const {
@@ -102,11 +106,14 @@ export function CredentialConfigSheet({
       <SheetContent data-testid='credentialConfigSheet'>
         <SheetHeader>
           <SheetTitle>{credential ? 'Edit Credential' : 'Add Credential'}</SheetTitle>
-          <SheetDescription>
-            {credential
-              ? 'Customize access and sharing settings for this Credential.'
-              : 'Add provider access that can be reused without exposing the secret.'}
-          </SheetDescription>
+          <div className='flex w-full items-center gap-4'>
+            <SheetDescription>
+              {credential
+                ? 'Customize access and sharing settings for this Credential.'
+                : 'Add provider access that can be reused without exposing the secret.'}
+            </SheetDescription>
+            {link && <CopyLinkButton link={link} ariaLabel='Copy link to this Credential' />}
+          </div>
         </SheetHeader>
         <CredentialForm
           key={`${credential?.id ?? 'create'}:${isOpen}`}

@@ -1,5 +1,6 @@
-import { fireEvent, render, screen } from '@testing-library/react';
-import { MemoryRouter } from 'react-router';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { MemoryRouter, useLocation } from 'react-router';
+import toast from 'react-hot-toast';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { DataDestinationType } from '../../../features/data-destination';
 import { DataDestinationCredentialsType } from '../../../features/data-destination/shared/enums/data-destination-credentials-type.enum';
@@ -17,6 +18,7 @@ import DataMartSchedulesPage from './DataMartSchedulesPage';
 
 const scheduledTriggerServiceMock = vi.hoisted(() => ({
   getProjectScheduledTriggers: vi.fn(),
+  updateScheduledTrigger: vi.fn(),
 }));
 
 const connectorApiServiceMock = vi.hoisted(() => ({
@@ -34,8 +36,23 @@ vi.mock('../../../features/connectors/shared/api', () => ({
 }));
 
 vi.mock('../../../features/data-marts/scheduled-triggers/components/ScheduledTriggerForm', () => ({
-  ScheduledTriggerForm: ({ initialData }: { initialData?: { cronExpression: string } }) => (
-    <div>Trigger form {initialData?.cronExpression}</div>
+  ScheduledTriggerForm: ({
+    initialData,
+    onSubmit,
+  }: {
+    initialData?: { cronExpression: string };
+    onSubmit: (data: unknown) => Promise<void>;
+  }) => (
+    <div>
+      Trigger form {initialData?.cronExpression}
+      <button
+        onClick={() => {
+          void onSubmit({ cronExpression: '0 9 * * *', timeZone: 'UTC', isActive: true });
+        }}
+      >
+        Save form
+      </button>
+    </div>
   ),
 }));
 
@@ -229,6 +246,98 @@ describe('DataMartSchedulesPage', () => {
 
     expect(await screen.findByTestId('projectTriggerEditSheet')).toBeInTheDocument();
     expect(screen.getByText('Trigger form 0 9 * * *')).toBeInTheDocument();
+  });
+
+  it('opens the linked trigger with a copy link and drops the parameter on close', async () => {
+    vi.mocked(scheduledTriggerService.getProjectScheduledTriggers).mockResolvedValueOnce({
+      triggers: [buildProjectReportTrigger(), buildProjectReportTrigger({ id: 'trigger-2' })],
+    });
+
+    renderPage('/ui/project-1/data-marts/schedules?trigger=trigger-2');
+
+    expect(await screen.findByTestId('projectTriggerEditSheet')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Copy link to this schedule' })).toBeInTheDocument();
+    expect(screen.getByTestId('search').textContent).toBe('?trigger=trigger-2');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+    await waitFor(() => {
+      expect(screen.getByTestId('search').textContent).toBe('');
+    });
+  });
+
+  it('keeps the sheet open while a save reloads the list', async () => {
+    let finishReload: (value: { triggers: ProjectScheduledTriggerResponseApiDto[] }) => void = () =>
+      undefined;
+    vi.mocked(scheduledTriggerService.getProjectScheduledTriggers)
+      .mockResolvedValueOnce({ triggers: [buildProjectReportTrigger()] })
+      .mockReturnValueOnce(
+        new Promise(resolve => {
+          finishReload = resolve;
+        })
+      );
+    scheduledTriggerServiceMock.updateScheduledTrigger.mockResolvedValue(undefined);
+
+    renderPage('/ui/project-1/data-marts/schedules?trigger=trigger-1');
+    fireEvent.click(await screen.findByRole('button', { name: 'Save form' }));
+
+    await waitFor(() => {
+      expect(scheduledTriggerService.getProjectScheduledTriggers).toHaveBeenCalledTimes(2);
+    });
+    expect(screen.getByTestId('projectTriggerEditSheet')).toBeInTheDocument();
+    expect(screen.getByTestId('search').textContent).toBe('?trigger=trigger-1');
+
+    finishReload({ triggers: [buildProjectReportTrigger()] });
+    await waitFor(() => {
+      expect(screen.getByTestId('search').textContent).toBe('');
+    });
+  });
+
+  it('writes the trigger to the URL when a row opens the sheet', async () => {
+    vi.mocked(scheduledTriggerService.getProjectScheduledTriggers).mockResolvedValueOnce({
+      triggers: [buildProjectReportTrigger()],
+    });
+
+    renderPage();
+
+    fireEvent.click(await screen.findByText('Daily Sales Report'));
+
+    expect(await screen.findByTestId('projectTriggerEditSheet')).toBeInTheDocument();
+    expect(screen.getByTestId('search').textContent).toBe('?trigger=trigger-1');
+  });
+
+  it.each([
+    ['an unknown trigger', 'trigger-gone', true],
+    ['a trigger the member cannot edit', 'trigger-1', false],
+  ])('shows a toast and drops the parameter for %s', async (_name, id, canEdit) => {
+    const toastError = vi.spyOn(toast, 'error').mockReturnValue('t');
+    vi.mocked(scheduledTriggerService.getProjectScheduledTriggers).mockResolvedValueOnce({
+      triggers: [buildProjectReportTrigger({ canEdit })],
+    });
+
+    renderPage(`/ui/project-1/data-marts/schedules?trigger=${id}`);
+
+    await waitFor(() => {
+      expect(toastError).toHaveBeenCalledWith(
+        'This schedule was deleted or is not available to you.',
+        { id: 'trigger-not-found' }
+      );
+    });
+    expect(screen.getByTestId('search').textContent).toBe('');
+    expect(screen.queryByTestId('projectTriggerEditSheet')).not.toBeInTheDocument();
+    toastError.mockRestore();
+  });
+
+  it('waits while the triggers load before judging the linked trigger', async () => {
+    const toastError = vi.spyOn(toast, 'error').mockReturnValue('t');
+    vi.mocked(scheduledTriggerService.getProjectScheduledTriggers).mockReturnValueOnce(
+      new Promise(() => undefined)
+    );
+
+    renderPage('/ui/project-1/data-marts/schedules?trigger=trigger-1');
+
+    expect(toastError).not.toHaveBeenCalled();
+    expect(screen.getByTestId('search').textContent).toBe('?trigger=trigger-1');
+    toastError.mockRestore();
   });
 
   it('opens the Google Sheets document from its own action without opening the edit sheet', async () => {
@@ -440,10 +549,15 @@ describe('DataMartSchedulesPage', () => {
   });
 });
 
+function Search() {
+  return <div data-testid='search'>{useLocation().search}</div>;
+}
+
 function renderPage(path = '/ui/project-1/data-marts/schedules') {
   return render(
     <MemoryRouter initialEntries={[path]}>
       <DataMartSchedulesPage />
+      <Search />
     </MemoryRouter>
   );
 }
