@@ -69,6 +69,38 @@ describe('processCsvTextInChunks', () => {
     const chunks = await collectChunks('Id,Keyword\n', 2000);
     expect(chunks).toEqual([]);
   });
+
+  it('keeps commas, quotes and line breaks inside quoted fields in their column', async () => {
+    const csvText = [
+      '"AccountName","CampaignName","Impressions","Clicks","Spend"',
+      '"Acme Energy, a.s.","Brand ""CZ""","1200","45","30.50"',
+      '"Acme","Two\nlines","7","1","0.10"',
+      '',
+    ].join('\r\n');
+    const expected = [
+      {
+        AccountName: 'Acme Energy, a.s.',
+        CampaignName: 'Brand "CZ"',
+        Impressions: '1200',
+        Clicks: '45',
+        Spend: '30.50',
+      },
+      {
+        AccountName: 'Acme',
+        CampaignName: 'Two\nlines',
+        Impressions: '7',
+        Clicks: '1',
+        Spend: '0.10',
+      },
+    ];
+
+    const chunks = await collectChunks(csvText, 2000);
+
+    expect(chunks.flat()).toEqual(expected);
+    expect(MicrosoftAdsHelper.csvRowsToObjects(globalThis.FileUtils.parseCsv(csvText))).toEqual(
+      expected
+    );
+  });
 });
 
 describe('_fetchEntityByCampaigns streaming', () => {

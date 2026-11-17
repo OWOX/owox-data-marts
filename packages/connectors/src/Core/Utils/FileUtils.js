@@ -29,18 +29,57 @@ var FileUtils = class FileUtils {
      * @returns {Array<Array<string>>} Parsed CSV data
      */
     static parseCsv(csvString, delimiter = ',') {
-        return csvString
-            .split('\n')
-            .filter(line => line.trim() !== '')
-            .map(line => line.split(delimiter)
-            .map(cell => {
-                const trimmed = cell.trim();
-                // Remove outer quotes if present
-                if (trimmed.startsWith('"') && trimmed.endsWith('"')) {
-                    return trimmed.slice(1, -1).replace(/""/g, '"');
+        return Array.from(FileUtils.csvRows(csvString, delimiter));
+    }
+
+    /**
+     * Yield the rows of a CSV string one at a time, so a large file is never held as one
+     * array of cells. A quoted field keeps its delimiters, line breaks and spaces, and `""`
+     * inside it is one quote; an unquoted field is trimmed. Blank lines are skipped.
+     * `Core/Declarative/decoders.js` parses CSV the same way; this file is a bundle script
+     * and cannot import it.
+     *
+     * @param {string} csvString - The CSV string to parse
+     * @param {string} [delimiter=','] - The delimiter to use for parsing CSV
+     * @yields {Array<string>} The cells of one row
+     */
+    static *csvRows(csvString, delimiter = ',') {
+        let row = [];
+        let field = '';
+        let isQuoted = false;
+        let isInQuotes = false;
+        const endField = () => {
+            row.push(isQuoted ? field : field.trim());
+            field = '';
+        };
+
+        for (let i = 0; i <= csvString.length; i++) {
+            const c = csvString[i];
+            if (isInQuotes && c !== undefined) {
+                if (c !== '"') {
+                    field += c;
+                } else if (csvString[i + 1] === '"') {
+                    field += '"';
+                    i++;
+                } else {
+                    isInQuotes = false;
                 }
-                return trimmed;
-            }));
+            } else if (c === '"') {
+                isInQuotes = true;
+                isQuoted = true;
+            } else if (c === delimiter) {
+                endField();
+                isQuoted = false;
+            } else if (c === '\n' || c === undefined) {
+                const isBlank = row.length === 0 && !isQuoted && field.trim() === '';
+                endField();
+                if (!isBlank) yield row;
+                row = [];
+                isQuoted = false;
+            } else if (c !== '\r') {
+                field += c;
+            }
+        }
     }
 
     /**
