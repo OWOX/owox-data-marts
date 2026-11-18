@@ -12,7 +12,6 @@ import {
 } from '@owox/ui/components/breadcrumb';
 import { Button } from '@owox/ui/components/button';
 import {
-  Card,
   CardContent,
   CardDescription,
   CardFooter,
@@ -65,7 +64,8 @@ const scaleFeatures = [
   'We set it up and stay with you',
 ];
 
-const pricingCardClass = 'min-w-0 py-8 lg:row-span-4 lg:grid lg:grid-rows-subgrid lg:py-9';
+const pricingCardClass =
+  'dm-card flex min-w-0 flex-col gap-6 px-0! py-8! lg:row-span-4 lg:grid lg:grid-rows-subgrid lg:py-9!';
 const priceClass = 'text-3xl leading-tight font-semibold tabular-nums';
 const supportUrl = 'https://support.owox.com/hc/en-us/requests/new';
 
@@ -88,9 +88,9 @@ function OfferSummary({ offer }: { offer: PricingOffer }) {
         <span className={priceClass}>{formatAmount(offer, offer.billingPeriodMonths)}</span>
         <span className='text-muted-foreground text-sm'>/ month</span>
       </p>
-      {offer.billingCycle === 'yearly' && (
-        <p className='text-muted-foreground text-sm'>{formatAmount(offer)} billed yearly</p>
-      )}
+      <div className='text-muted-foreground min-h-lh text-sm'>
+        {offer.billingCycle === 'yearly' && `${formatAmount(offer)} billed yearly`}
+      </div>
       <p className='text-sm'>
         {offer.creditsPerMonth.toLocaleString()} credits per month · Up to {offer.seats}{' '}
         {offer.seats === 1 ? 'account' : 'accounts'}
@@ -315,7 +315,7 @@ export function AppPricing({ origin }: { origin: string }) {
                 const showCheckout =
                   firstOffer && !showRecoveryOnCard && (canBuy || outstandingInvoice !== undefined);
                 return (
-                  <Card key={plan.productId} className={pricingCardClass}>
+                  <div key={plan.productId} data-slot='card' className={pricingCardClass}>
                     <CardHeader>
                       <CardTitle className='flex flex-wrap items-center gap-2'>
                         {name}
@@ -370,10 +370,10 @@ export function AppPricing({ origin }: { origin: string }) {
                         )}
                       </CardContent>
                     )}
-                  </Card>
+                  </div>
                 );
               })}
-              <Card className={pricingCardClass}>
+              <div data-slot='card' className={pricingCardClass}>
                 <CardHeader>
                   <CardTitle>Scale</CardTitle>
                   <CardDescription>Your analyst for the whole company.</CardDescription>
@@ -395,7 +395,7 @@ export function AppPricing({ origin }: { origin: string }) {
                     ))}
                   </ul>
                 </CardContent>
-              </Card>
+              </div>
             </div>
           </>
         )}
