@@ -90,6 +90,12 @@ export interface SetupGroup {
   title: string;
   description: string;
   stepIds: SetupStepId[];
+  /**
+   * Project-relative route the checklist item opens directly, instead of the
+   * popover with the group's steps. Once the group is done, the item opens the
+   * popover again, so it shows the completion date like the other groups.
+   */
+  href?: string;
   isConditional?: boolean;
   showCondition?: (user: User | null) => boolean;
 }

@@ -1,6 +1,9 @@
 import { X } from 'lucide-react';
 import { cn } from '@owox/ui/lib/utils';
 import { SetupGroupPopover } from './SetupGroupPopover';
+import { SetupChecklistGroup } from './SetupChecklistGroup';
+import { GroupStatusType } from './types';
+import { useProjectRoute } from '../../../shared/hooks';
 import type { SetupProgressResult } from './useSetupProgress';
 import type { SetupChecklistVisibility } from './useSetupChecklistVisibility';
 import { SetupChecklistCompleted } from './SetupChecklistCompleted';
@@ -14,6 +17,7 @@ interface SetupChecklistProps {
 export function SetupChecklist({ progressResult, visibility }: SetupChecklistProps) {
   const { percentage, progress, groupProgresses } = progressResult;
   const { hide } = visibility;
+  const { scope } = useProjectRoute();
 
   const handleDismiss = useCallback(() => {
     hide();
@@ -70,13 +74,21 @@ export function SetupChecklist({ progressResult, visibility }: SetupChecklistPro
         <SetupChecklistCompleted />
       ) : (
         <div className='flex flex-col px-2 pt-2 pb-4'>
-          {groupProgresses.map(groupProgress => (
-            <SetupGroupPopover
-              key={groupProgress.group.id}
-              groupProgress={groupProgress}
-              progress={progress}
-            />
-          ))}
+          {groupProgresses.map(groupProgress =>
+            groupProgress.group.href && groupProgress.status !== GroupStatusType.DONE ? (
+              <SetupChecklistGroup
+                key={groupProgress.group.id}
+                groupProgress={groupProgress}
+                to={scope(groupProgress.group.href)}
+              />
+            ) : (
+              <SetupGroupPopover
+                key={groupProgress.group.id}
+                groupProgress={groupProgress}
+                progress={progress}
+              />
+            )
+          )}
         </div>
       )}
 

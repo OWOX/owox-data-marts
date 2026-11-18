@@ -1,12 +1,12 @@
 import { ArrowRight, CircleCheckBig, CircleArrowRight } from 'lucide-react';
+import { Link } from 'react-router';
 import type { GroupProgress } from './types';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
 import { GroupStatusType } from './types';
 
-interface SetupChecklistGroupProps {
-  groupProgress: GroupProgress;
-  onClick: () => void;
-}
+type SetupChecklistGroupProps =
+  | { groupProgress: GroupProgress; onClick: () => void; to?: never }
+  | { groupProgress: GroupProgress; to: string; onClick?: never };
 
 interface GroupStatusConfig {
   icon: React.ReactNode;
@@ -28,33 +28,46 @@ const GROUP_STATUS_CONFIG: Record<GroupStatusType, GroupStatusConfig> = {
   },
 };
 
-export function SetupChecklistGroup({ groupProgress, onClick }: SetupChecklistGroupProps) {
+export function SetupChecklistGroup({ groupProgress, onClick, to }: SetupChecklistGroupProps) {
   const { group, status } = groupProgress;
   const isDone = status === GroupStatusType.DONE;
   const { icon, label } = GROUP_STATUS_CONFIG[status];
 
+  const className = `hover:bg-sidebar-accent flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left text-sm transition-colors ${
+    isDone ? 'text-muted-foreground/50' : ''
+  }`;
+  const content = (
+    <>
+      {icon}
+      <span
+        className={`transition-all duration-300 ${
+          isDone ? 'line-through' : 'text-sidebar-foreground'
+        }`}
+      >
+        {group.title}
+      </span>
+    </>
+  );
+
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <button
-          type='button'
-          onClick={e => {
-            e.stopPropagation();
-            onClick();
-          }}
-          className={`hover:bg-sidebar-accent flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left text-sm transition-colors ${
-            isDone ? 'text-muted-foreground/50' : ''
-          }`}
-        >
-          {icon}
-          <span
-            className={`transition-all duration-300 ${
-              isDone ? 'line-through' : 'text-sidebar-foreground'
-            }`}
+        {to !== undefined ? (
+          <Link to={to} className={className}>
+            {content}
+          </Link>
+        ) : (
+          <button
+            type='button'
+            onClick={e => {
+              e.stopPropagation();
+              onClick();
+            }}
+            className={className}
           >
-            {group.title}
-          </span>
-        </button>
+            {content}
+          </button>
+        )}
       </TooltipTrigger>
       <TooltipContent>{label}</TooltipContent>
     </Tooltip>
