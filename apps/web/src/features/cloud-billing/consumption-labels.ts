@@ -34,7 +34,7 @@ const columnTitles: Readonly<Record<string, string>> = {
   PROCESS_RUN_ENTITY_ID: 'Title',
   TRANSFORMATION_ID: 'Transformation',
   TRANSFORMATION_OPERATION_ID: 'Operation',
-  STREAMING_ID: 'Streaming ID',
+  STREAMING_ID: 'Stream',
   GOOGLE_SHEETS_DOCUMENT: 'Google Sheets document',
   GOOGLE_SHEETS_DOCUMENT_LIST: 'Sheet',
 };
@@ -73,7 +73,7 @@ export function resolveConsumptionLabel(
   value: string,
   labels: ConsumptionBranch['labels'],
   projections: ConsumptionProduct['entityProjections']
-): { title: string; isDeleted?: boolean } {
+): { title: string; isDeleted?: boolean; parentTransformationId?: string } {
   const type = label.replace(/_ID$/, '');
   let entity: ConsumptionProjection | undefined;
   switch (type) {
@@ -99,6 +99,7 @@ export function resolveConsumptionLabel(
           const operation = transformation.childEntities?.find(item => item.id === value);
           if (operation) {
             return {
+              parentTransformationId: transformation.id,
               title: [transformation.title, operation.title].filter(Boolean).join(' · ') || value,
               isDeleted:
                 transformation.isEntityDeleted === true || operation.isEntityDeleted === true,

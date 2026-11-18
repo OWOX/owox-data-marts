@@ -142,7 +142,9 @@ function DetailTable({
             const destination = licensed
               ? deployment && labels[originatingProjectLabel]
               : projectId;
-            const path = destination ? consumptionEntityPath(destination, labels, label, id) : null;
+            const path = destination
+              ? consumptionEntityPath(destination, labels, label, id, entity.parentTransformationId)
+              : null;
             if (!path) return title;
             if (licensed && deployment) {
               return (

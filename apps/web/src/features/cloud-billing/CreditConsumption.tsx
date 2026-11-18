@@ -2,7 +2,7 @@ import { useId, useMemo, useState } from 'react';
 import { CalendarDays, ChevronDown, Gem } from 'lucide-react';
 import { Button } from '@owox/ui/components/button';
 import { createColumnHelper, getCoreRowModel, useReactTable } from '@tanstack/react-table';
-import { Card, CardAction, CardContent, CardHeader, CardTitle } from '@owox/ui/components/card';
+import { CardAction, CardContent, CardHeader, CardTitle } from '@owox/ui/components/card';
 import {
   Empty,
   EmptyDescription,
@@ -168,13 +168,13 @@ export function CreditConsumption({ origin }: { origin: string }) {
 
   return (
     <div className='dm-page-content flex flex-col gap-4'>
-      <Card>
-        <CardHeader>
+      <div className='dm-card flex flex-col gap-4'>
+        <CardHeader className='px-0'>
           <CardTitle role='heading' aria-level={2}>
             Credit balance
           </CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className='px-0'>
           {balance.data ? (
             <dl className='grid gap-4 sm:grid-cols-3'>
               <div>
@@ -217,9 +217,9 @@ export function CreditConsumption({ origin }: { origin: string }) {
             />
           )}
         </CardContent>
-      </Card>
-      <Card>
-        <CardHeader>
+      </div>
+      <div className='dm-card flex flex-col gap-4'>
+        <CardHeader className='px-0'>
           <CardTitle role='heading' aria-level={2} className='self-center'>
             Monthly consumption
           </CardTitle>
@@ -244,7 +244,7 @@ export function CreditConsumption({ origin }: { origin: string }) {
             </Select>
           </CardAction>
         </CardHeader>
-        <CardContent className='space-y-4'>
+        <CardContent className='space-y-4 px-0'>
           {!summary.data ? (
             <BillingLoadState
               isPending={summary.isPending}
@@ -300,7 +300,7 @@ export function CreditConsumption({ origin }: { origin: string }) {
             </>
           )}
         </CardContent>
-      </Card>
+      </div>
     </div>
   );
 }
