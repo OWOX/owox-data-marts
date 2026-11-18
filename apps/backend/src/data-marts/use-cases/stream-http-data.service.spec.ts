@@ -146,6 +146,9 @@ function mockResponse(): MockResponse {
     get _destroyed() {
       return destroyed;
     },
+    get destroyed() {
+      return destroyed;
+    },
     get closed() {
       return closed;
     },
@@ -289,6 +292,7 @@ describe('StreamHttpDataService', () => {
 
     sqlComposer = {
       compose: jest.fn(async () => ({ sql: 'SELECT * FROM t LIMIT 3' })),
+      composeStatic: jest.fn(async () => ({ sql: 'SELECT date, revenue FROM t' })),
     } as unknown as jest.Mocked<ReportSqlComposerService>;
 
     sqlComposer.inlineStaticSql = jest.fn(
@@ -420,8 +424,8 @@ describe('StreamHttpDataService', () => {
       '{"date":"2026-05-01","revenue":42}\n',
       '{"date":"2026-05-02","revenue":51}\n',
     ]);
-    expect(dataMartRunService.recordHttpDataRun).toHaveBeenCalledTimes(1);
-    expect(dataMartRunService.recordHttpDataRun).toHaveBeenCalledWith(
+    expect(dataMartRunService.recordHttpDataRun).toHaveBeenCalledTimes(3);
+    expect(dataMartRunService.recordHttpDataRun).toHaveBeenLastCalledWith(
       expect.objectContaining({
         status: DataMartRunStatus.SUCCESS,
         createdById: 'user-1',
@@ -698,8 +702,8 @@ describe('StreamHttpDataService', () => {
       status: HttpStatus.FAILED_DEPENDENCY,
     });
     expect(res._writes).toHaveLength(0);
-    expect(dataMartRunService.recordHttpDataRun).toHaveBeenCalledTimes(1);
-    expect(dataMartRunService.recordHttpDataRun).toHaveBeenCalledWith(
+    expect(dataMartRunService.recordHttpDataRun).toHaveBeenCalledTimes(2);
+    expect(dataMartRunService.recordHttpDataRun).toHaveBeenLastCalledWith(
       expect.objectContaining({
         status: DataMartRunStatus.FAILED,
         metadata: expect.objectContaining({ completed: false }),
@@ -794,12 +798,14 @@ describe('StreamHttpDataService', () => {
   });
 
   it('skips consumption and does not record a FAILED run when the SUCCESS write fails', async () => {
-    dataMartRunService.recordHttpDataRun.mockRejectedValueOnce(new Error('db down'));
+    dataMartRunService.recordHttpDataRun.mockImplementation(async ({ status }) => {
+      if (status === DataMartRunStatus.SUCCESS) throw new Error('db down');
+    });
     const res = mockResponse();
 
     await expect(service.stream(fakeCommand(), res)).resolves.toBeUndefined();
-    expect(dataMartRunService.recordHttpDataRun).toHaveBeenCalledTimes(1);
-    expect(dataMartRunService.recordHttpDataRun).toHaveBeenCalledWith(
+    expect(dataMartRunService.recordHttpDataRun).toHaveBeenCalledTimes(3);
+    expect(dataMartRunService.recordHttpDataRun).toHaveBeenLastCalledWith(
       expect.objectContaining({ status: DataMartRunStatus.SUCCESS })
     );
     expect(projectBilling.registerHttpDataRunConsumption).not.toHaveBeenCalled();
@@ -810,10 +816,208 @@ describe('StreamHttpDataService', () => {
     const res = mockResponse();
 
     await expect(service.stream(fakeCommand(), res)).resolves.toBeUndefined();
-    expect(dataMartRunService.recordHttpDataRun).toHaveBeenCalledTimes(1);
-    expect(dataMartRunService.recordHttpDataRun).toHaveBeenCalledWith(
+    expect(dataMartRunService.recordHttpDataRun).toHaveBeenCalledTimes(3);
+    expect(dataMartRunService.recordHttpDataRun).toHaveBeenLastCalledWith(
       expect.objectContaining({ status: DataMartRunStatus.SUCCESS })
     );
+  });
+
+  describe('run record while the read streams', () => {
+    const runWrites = () => dataMartRunService.recordHttpDataRun.mock.calls.map(([run]) => run);
+    const runWriteOrder = (index: number) =>
+      dataMartRunService.recordHttpDataRun.mock.invocationCallOrder[index];
+    let warn: jest.SpyInstance;
+    const expectOneWarn = (text: string) => {
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining(text));
+    };
+
+    beforeEach(() => {
+      warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+    });
+
+    afterEach(() => jest.restoreAllMocks());
+
+    it('records the composed SQL for a read without output controls', async () => {
+      const decision = { needsBlending: false };
+      blended.resolveBlendingDecision.mockResolvedValueOnce(decision);
+      sqlComposer.composeStatic.mockResolvedValueOnce({ sql: 'SELECT date, revenue FROM t' });
+
+      await service.stream(fakeCommand(), mockResponse());
+
+      const [readPlan, accessor] = blended.resolveBlendingDecision.mock.calls[0];
+      expect(sqlComposer.composeStatic).toHaveBeenCalledWith(readPlan, accessor, decision);
+      const writes = runWrites();
+      expect(writes[0].metadata.executionSqlQuery).toBe('SELECT date, revenue FROM t');
+      expect(writes.at(-1)!.metadata.executionSqlQuery).toBe('SELECT date, revenue FROM t');
+      // The SQL is only for the record: the reader still reads without an override.
+      expect(reader.prepareReportData.mock.calls[0][1]?.sqlOverride).toBeUndefined();
+    });
+
+    it('streams the rows when the SQL for the record cannot be composed', async () => {
+      sqlComposer.composeStatic.mockRejectedValueOnce(new Error('composer failed'));
+      const res = mockResponse();
+
+      await service.stream(fakeCommand(), res);
+
+      expect(res._writes).toHaveLength(2);
+      const terminal = runWrites().at(-1)!;
+      expect(terminal.status).toBe(DataMartRunStatus.SUCCESS);
+      expect(terminal.metadata).not.toHaveProperty('executionSqlQuery');
+      expectOneWarn('Failed to compose SQL for HTTP Data run: composer failed');
+    });
+
+    it('start write holds neither totals nor row counts', async () => {
+      reportTotals.computeTotals.mockResolvedValueOnce({ 'revenue | SUM': 93 });
+
+      await service.stream(fakeCommand(), mockResponse());
+
+      const start = runWrites()[0].metadata;
+      expect(start).not.toHaveProperty('totals');
+      expect(start).not.toHaveProperty('rowCount');
+      expect(start).not.toHaveProperty('completed');
+    });
+
+    it('writes a RUNNING run before the reader prepares the data', async () => {
+      const res = mockResponse();
+
+      await service.stream(fakeCommand(), res);
+
+      const runIdHeader = (res.setHeader as jest.Mock).mock.calls.find(
+        ([name]) => name === 'x-owox-run-id'
+      )?.[1];
+      const start = runWrites()[0];
+      expect(start.status).toBe(DataMartRunStatus.RUNNING);
+      expect(start.runId).toBe(runIdHeader);
+      expect(start.metadata.executionSqlQuery).toBe('SELECT date, revenue FROM t');
+      expect(runWriteOrder(0)).toBeLessThan(reader.prepareReportData.mock.invocationCallOrder[0]);
+    });
+
+    it('puts the totals on the RUNNING run before the first row', async () => {
+      const totals = { 'revenue | SUM': 93 };
+      reportTotals.computeTotals.mockResolvedValueOnce(totals);
+
+      await service.stream(fakeCommand(), mockResponse());
+
+      const writes = runWrites();
+      expect(writes).toHaveLength(3);
+      expect(writes[1].status).toBe(DataMartRunStatus.RUNNING);
+      expect(writes[1].metadata).toMatchObject({
+        totals,
+        dataLastUpdated: expect.objectContaining({ coverage: 'unavailable' }),
+      });
+      expect(runWriteOrder(1)).toBeLessThan(reader.readReportDataBatch.mock.invocationCallOrder[0]);
+      expect(writes[2].status).toBe(DataMartRunStatus.SUCCESS);
+    });
+
+    it.each([
+      ['start', 0],
+      ['totals', 1],
+    ])('streams the rows when the RUNNING %s write fails', async (_write, failingIndex) => {
+      for (let i = 0; i < failingIndex; i++) {
+        dataMartRunService.recordHttpDataRun.mockResolvedValueOnce(undefined);
+      }
+      dataMartRunService.recordHttpDataRun.mockRejectedValueOnce(new Error('db down'));
+      const res = mockResponse();
+
+      await expect(service.stream(fakeCommand(), res)).resolves.toBeUndefined();
+
+      expect(res._writes).toHaveLength(2);
+      expect(runWrites().at(-1)!.status).toBe(DataMartRunStatus.SUCCESS);
+      expectOneWarn('Failed to persist RUNNING HTTP Data run');
+    });
+
+    it('puts totalsError on the RUNNING totals write when the totals fail', async () => {
+      jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
+      reportTotals.computeTotals.mockRejectedValueOnce(new Error('totals query failed'));
+      const res = mockResponse();
+
+      await service.stream(fakeCommand(), res);
+
+      const totalsWrite = runWrites()[1];
+      expect(totalsWrite.status).toBe(DataMartRunStatus.RUNNING);
+      expect(totalsWrite.metadata.totalsError).toEqual(expect.any(String));
+      expect(totalsWrite.metadata).not.toHaveProperty('totals');
+      expect(res._writes).toHaveLength(2);
+    });
+
+    it('keeps the totals when the read fails after the totals write', async () => {
+      const totals = { 'revenue | SUM': 93 };
+      reportTotals.computeTotals.mockResolvedValueOnce(totals);
+      reader.readReportDataBatch
+        .mockResolvedValueOnce(new ReportDataBatch([['2026-05-01', 1]], 'batch-2'))
+        .mockRejectedValueOnce(new Error('storage exploded'));
+
+      await service.stream(fakeCommand(), mockResponse());
+
+      const terminal = runWrites().at(-1)!;
+      expect(terminal.status).toBe(DataMartRunStatus.FAILED);
+      expect(terminal.metadata.totals).toEqual(totals);
+    });
+
+    it('ends the run as FAILED when the storage fails after the start', async () => {
+      reader.prepareReportData.mockRejectedValueOnce(new Error('schema mismatch'));
+
+      await expect(service.stream(fakeCommand(), mockResponse())).rejects.toMatchObject({
+        status: HttpStatus.FAILED_DEPENDENCY,
+      });
+
+      const writes = runWrites();
+      expect(writes.map(write => write.status)).toEqual([
+        DataMartRunStatus.RUNNING,
+        DataMartRunStatus.FAILED,
+      ]);
+      expect(writes[1].runId).toBe(writes[0].runId);
+    });
+
+    it('ends the run as FAILED when the client left before the first row', async () => {
+      const res = mockResponse();
+      reportTotals.computeTotals.mockImplementationOnce(async () => {
+        res.destroy();
+        return null;
+      });
+
+      await service.stream(fakeCommand(), res);
+
+      expect(res._writes).toHaveLength(0);
+      expect(reader.readReportDataBatch).not.toHaveBeenCalled();
+      expect(runWrites().at(-1)!.status).toBe(DataMartRunStatus.FAILED);
+    });
+
+    it('logs a warning and does not throw when the client is gone', async () => {
+      const res = mockResponse();
+      reportTotals.computeTotals.mockImplementationOnce(async () => {
+        res.destroy();
+        return null;
+      });
+
+      await expect(service.stream(fakeCommand(), res)).resolves.toBeUndefined();
+
+      expectOneWarn('Client disconnected before stream completion');
+    });
+
+    it('does not query the warehouse when the client left before the read', async () => {
+      const res = mockResponse();
+      dataMartRunService.recordHttpDataRun.mockImplementationOnce(async () => {
+        res.destroy();
+      });
+
+      await expect(service.stream(fakeCommand(), res)).resolves.toBeUndefined();
+
+      expect(reader.prepareReportData).not.toHaveBeenCalled();
+      expect(runWrites().map(write => write.status)).toEqual([
+        DataMartRunStatus.RUNNING,
+        DataMartRunStatus.FAILED,
+      ]);
+    });
+
+    it('throws a shutdown cancel while the client is connected', async () => {
+      gracefulShutdown.isInShutdownMode.mockReturnValueOnce(false).mockReturnValue(true);
+
+      await expect(service.stream(fakeCommand(), mockResponse())).rejects.toThrow('shutdown mode');
+
+      expect(runWrites().at(-1)!.status).toBe(DataMartRunStatus.FAILED);
+    });
   });
 
   it('persists dataDescription headers in the SUCCESS run metadata', async () => {
@@ -2096,6 +2300,25 @@ describe('StreamHttpDataService', () => {
         );
       });
 
+      it('writes RUNNING runs of an Excel pull with type EXCEL, the report and its id', async () => {
+        reportService.getByIdAndProjectId.mockResolvedValueOnce(excelReport());
+
+        await service.streamReport(fakeReportCommand(), mockResponse());
+
+        const running = dataMartRunService.recordHttpDataRun.mock.calls
+          .slice(0, 2)
+          .map(([run]) => run);
+        expect(running).toHaveLength(2);
+        for (const run of running) {
+          expect(run).toMatchObject({
+            status: DataMartRunStatus.RUNNING,
+            type: DataMartRunType.EXCEL,
+            reportId: 'report-1',
+            report: expect.objectContaining({ id: 'report-1' }),
+          });
+        }
+      });
+
       it('records the run as Excel, marks the report succeeded, and charges one Excel unit', async () => {
         reportService.getByIdAndProjectId.mockResolvedValueOnce(excelReport());
 
@@ -2145,7 +2368,9 @@ describe('StreamHttpDataService', () => {
         // it is why a throw introduced *after* the row is saved is expensive, and why this is
         // pinned rather than left to be rediscovered.
         reportService.getByIdAndProjectId.mockResolvedValueOnce(excelReport());
-        dataMartRunService.recordHttpDataRun.mockRejectedValueOnce(new Error('write failed'));
+        dataMartRunService.recordHttpDataRun.mockImplementation(async ({ status }) => {
+          if (status === DataMartRunStatus.SUCCESS) throw new Error('write failed');
+        });
 
         await service.streamReport(fakeReportCommand(), mockResponse());
 

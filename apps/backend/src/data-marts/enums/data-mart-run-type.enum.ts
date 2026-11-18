@@ -15,6 +15,8 @@ export enum DataMartRunType {
   DATA_QUALITY = 'DATA_QUALITY',
 }
 
+export const HTTP_DATA_RUN_SHAPE_TYPES = [DataMartRunType.HTTP_DATA, DataMartRunType.EXCEL];
+
 /**
  * Run types persisted by DataMartRunService.recordHttpDataRun.
  *
@@ -24,5 +26,5 @@ export enum DataMartRunType {
  * is recorded by the same method as a plain HTTP read.
  */
 export function usesHttpDataRunShape(type: DataMartRunType): boolean {
-  return type === DataMartRunType.HTTP_DATA || type === DataMartRunType.EXCEL;
+  return HTTP_DATA_RUN_SHAPE_TYPES.includes(type);
 }

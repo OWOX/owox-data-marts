@@ -449,6 +449,10 @@ for await (const rows of data.rowChunks()) {
 }
 ```
 
+The run exists when `traverseData()` returns, if OWOX can record it. Its status is `RUNNING` until
+the stream ends. Read it with `client.runs.forDataMart('dm_123').get(data.runId)`. It holds
+`totals` and the SQL in `additionalParams.httpData.executionSqlQuery` when OWOX can produce them.
+
 Call `await data.cancel()` if you open a traversal and decide not to iterate `rowChunks()`.
 The client rejects a successful response whose media type is not `application/x-ndjson` instead of
 attempting to interpret it as row data.

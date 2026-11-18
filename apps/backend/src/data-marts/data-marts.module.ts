@@ -286,6 +286,7 @@ import { CreateInsightTemplateSourceService } from './use-cases/create-insight-t
 import { UpdateInsightTemplateSourceService } from './use-cases/update-insight-template-source.service';
 import { DeleteInsightTemplateSourceService } from './use-cases/delete-insight-template-source.service';
 import { DeleteInsightTemplateService } from './use-cases/delete-insight-template.service';
+import { HttpDataRunStaleSweepProcessor } from './system-triggers/processors/http-data-run-stale-sweep-processor';
 import { RetryInterruptedConnectorRunsProcessor } from './system-triggers/processors/retry-interrupted-connector-runs-processor';
 import { RepairBackfillChainsProcessor } from './system-triggers/processors/repair-backfill-chains-processor';
 import { LegacyStorageCredentialReader } from './services/storage-credential-conversion/legacy-storage-credential-reader.service';
@@ -929,6 +930,7 @@ import { McpCredentialsFacadeImpl } from './credentials/facades/mcp-credentials.
     AiHelperTriggerService,
     AiHelperTriggerHandlerService,
     RetryInterruptedConnectorRunsProcessor,
+    HttpDataRunStaleSweepProcessor,
     RepairBackfillChainsProcessor,
     LegacyStorageCredentialReader,
     ScheduledTriggerService,

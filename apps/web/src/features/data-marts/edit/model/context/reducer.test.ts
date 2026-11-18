@@ -30,6 +30,24 @@ describe('data mart run state', () => {
     expect(state.hasActiveRuns).toBe(false);
   });
 
+  it('does not count a running read as an active run', () => {
+    const reads = [
+      run(DataMartRunType.HTTP_DATA, DataMartRunStatus.RUNNING),
+      run(DataMartRunType.EXCEL, DataMartRunStatus.RUNNING),
+    ];
+    const state = reducer(initialState, {
+      type: 'FETCH_DATA_MART_RUNS_SUCCESS',
+      payload: reads,
+    });
+    const withConnector = reducer(initialState, {
+      type: 'FETCH_DATA_MART_RUNS_SUCCESS',
+      payload: [...reads, run(DataMartRunType.CONNECTOR, DataMartRunStatus.RUNNING)],
+    });
+
+    expect(state.hasActiveRuns).toBe(false);
+    expect(withConnector.hasActiveRuns).toBe(true);
+  });
+
   it('starts the list again when the newest page shares no run with the loaded list', () => {
     const page = (prefix: string) =>
       Array.from({ length: DATA_MART_RUNS_PAGE_SIZE }, (_, index) => ({
