@@ -47,6 +47,22 @@ const HANDSHAKE_TIMEOUT_MS = 10_000;
 /** The host may not be listening yet when we first announce, so keep announcing. */
 const READY_RETRY_MS = 250;
 
+/** The parts of a click that `PluginLink.onClick` reads; a DOM or React mouse event fits. */
+export interface PluginLinkClickEvent {
+  readonly button: number;
+  readonly metaKey: boolean;
+  readonly ctrlKey: boolean;
+  readonly shiftKey: boolean;
+  readonly defaultPrevented: boolean;
+  preventDefault(): void;
+}
+
+/** Props for an `<a>` to an OWOX page: spread them, `<a {...link}>`. */
+export interface PluginLink {
+  readonly href: string;
+  readonly onClick: (event: PluginLinkClickEvent) => void;
+}
+
 /** Host-mediated actions. Each is a request; the host validates and decides. */
 export interface PluginUi {
   /** Opens an external URL in a new tab, because the sandbox denies you popups. */
@@ -60,6 +76,14 @@ export interface PluginUi {
    * out of the app -- and your frame is unmounted when it does navigate.
    */
   navigate(path: string): void;
+
+  /**
+   * Gives `href` and `onClick` for an `<a>` to an OWOX page, e.g. `/ui/${ctx.projectId}/data-marts/${id}`.
+   * A plain click opens the page in place; the browser handles its own new-tab click (Cmd on Apple
+   * platforms, Ctrl elsewhere), Shift-click and other buttons. Throws a `TypeError` for a path that
+   * does not start with a single `/` or has a tab or line break. `undefined` when the host origin is unknown.
+   */
+  link(path: string): PluginLink | undefined;
 
   /** Tells the host which of your pages is showing, e.g. `/dashboards/42`, for its address bar. */
   setRoute(path: string): void;
@@ -88,6 +112,12 @@ export interface PluginUi {
 export interface PluginContext extends Omit<PluginHostContext, 'actions' | 'schedules'> {
   /** The route the host opened this plugin at; undefined on a host without page links. */
   readonly route: string | undefined;
+
+  /**
+   * The origin of the page that runs this plugin, e.g. `https://app.owox.com`; `undefined` when it
+   * is opaque. Use it to build links, not as proof that the host is OWOX Data Marts.
+   */
+  readonly appOrigin: string | undefined;
 
   /**
    * A real OWOX API client whose transport is owned by this SDK.
@@ -202,7 +232,7 @@ function performHandshake(): Promise<PluginContext> {
       }
 
       stop();
-      resolve(bind(event.data, port, teardown));
+      resolve(bind(event.data, port, teardown, event.origin));
     }
 
     window.addEventListener('message', onMessage);
@@ -219,7 +249,8 @@ function performHandshake(): Promise<PluginContext> {
 function bind(
   init: PluginHostInitMessage,
   port: MessagePort,
-  teardown: AbortController
+  teardown: AbortController,
+  hostOrigin: string
 ): PluginContext {
   boundPort = port;
   port.start();
@@ -238,8 +269,15 @@ function bind(
   const requester = createIframeRequester(port);
   const owox = new OWOXApiClient({ transport: createIframeTransport(requester) });
 
+  const appOrigin =
+    hostOrigin.startsWith('https://') || hostOrigin.startsWith('http://') ? hostOrigin : undefined;
+  const navigate = (path: string) => {
+    port.postMessage({ id: crypto.randomUUID(), kind: 'navigate', path });
+  };
+
   return {
     ...init.context,
+    appOrigin,
     route: init.context.route,
     owox,
     credentials: createPluginCredentials(requester, init.context.credentialHandles ?? []),
@@ -251,8 +289,35 @@ function bind(
         port.postMessage({ id: crypto.randomUUID(), kind: 'openExternal', url });
         return Promise.resolve();
       },
-      navigate: (path: string) => {
-        port.postMessage({ id: crypto.randomUUID(), kind: 'navigate', path });
+      navigate,
+      link: (path: string) => {
+        if (
+          !path.startsWith('/') ||
+          path.startsWith('//') ||
+          path.startsWith('/\\') ||
+          /[\t\n\r]/.test(path)
+        ) {
+          throw new TypeError(
+            'A link path must start with a single "/" and have no tabs or line breaks'
+          );
+        }
+        if (appOrigin === undefined) return undefined;
+        return {
+          href: appOrigin + path,
+          onClick: event => {
+            const apple = /Mac|iPhone|iPad|iPod/.test(navigator.platform);
+            if (
+              event.defaultPrevented ||
+              event.button !== 0 ||
+              event.shiftKey ||
+              (apple ? event.metaKey : event.ctrlKey)
+            ) {
+              return;
+            }
+            event.preventDefault();
+            navigate(path);
+          },
+        };
       },
       setRoute: (path: string) => {
         port.postMessage({ id: crypto.randomUUID(), kind: 'route', path });

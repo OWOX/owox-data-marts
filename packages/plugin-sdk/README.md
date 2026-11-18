@@ -46,22 +46,24 @@ redirecting paths are refused.
 
 ## Context
 
-|                                            |                                                                                                                           |
-| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------- |
-| `ctx.owox`                                 | OWOX API client. The SDK owns its transport; you cannot replace it.                                                       |
-| `ctx.credentials`                          | Declared, installation-bound Credential handles. No raw secrets.                                                          |
-| `ctx.collections(name)`                    | Host-stored JSON documents declared by the plugin.                                                                        |
-| `ctx.actions`                              | Runs your backend's actions through OWOX; `undefined` on a host without backend actions.                                  |
-| `ctx.schedules`                            | Creates cron schedules for your backend's actions; `undefined` on a host without schedules.                               |
-| `ctx.ui.openExternal(url)`                 | Ask the host to open an external https URL in a new tab.                                                                  |
-| `ctx.ui.navigate(path)`                    | Ask the host to go to a page inside OWOX, in place of your frame.                                                         |
-| `ctx.route`                                | The plugin's own route, e.g. `/dashboards/42`; `undefined` on a host without page links.                                  |
-| `ctx.ui.setRoute(path)`                    | Tells the host which of your pages is showing, so the address in the browser is a link to it.                             |
-| `ctx.ui.copyLink(path?)`                   | Asks the host to copy a link to one of your pages (the current one by default) and confirm it.                            |
-| `ctx.ui.startLoading()`                    | Shows the host's loading bar until you call `stop()` on the result; see [loading bar](#loading-bar).                      |
-| `ctx.ui.setUnsaved(dirty, message?)`       | Asks the host to confirm before the member leaves a screen with unsaved changes; see [unsaved changes](#unsaved-changes). |
-| `ctx.signal`                               | Aborts when the host tears your plugin down.                                                                              |
-| `ctx.userId`, `ctx.projectId`, `ctx.theme` | Display context. No tokens.                                                                                               |
+|                                            |                                                                                                                                        |
+| ------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `ctx.owox`                                 | OWOX API client. The SDK owns its transport; you cannot replace it.                                                                    |
+| `ctx.credentials`                          | Declared, installation-bound Credential handles. No raw secrets.                                                                       |
+| `ctx.collections(name)`                    | Host-stored JSON documents declared by the plugin.                                                                                     |
+| `ctx.actions`                              | Runs your backend's actions through OWOX; `undefined` on a host without backend actions.                                               |
+| `ctx.schedules`                            | Creates cron schedules for your backend's actions; `undefined` on a host without schedules.                                            |
+| `ctx.ui.openExternal(url)`                 | Ask the host to open an external https URL in a new tab.                                                                               |
+| `ctx.ui.navigate(path)`                    | Ask the host to go to a page inside OWOX, in place of your frame.                                                                      |
+| `ctx.ui.link(path)`                        | `href` and `onClick` for an `<a>` to an OWOX page; see [links to OWOX pages](#links-to-owox-pages).                                    |
+| `ctx.appOrigin`                            | The origin of the page that runs your plugin, e.g. `https://app.owox.com`; `undefined` when it is unknown. Use it only to build links. |
+| `ctx.route`                                | The plugin's own route, e.g. `/dashboards/42`; `undefined` on a host without page links.                                               |
+| `ctx.ui.setRoute(path)`                    | Tells the host which of your pages is showing, so the address in the browser is a link to it.                                          |
+| `ctx.ui.copyLink(path?)`                   | Asks the host to copy a link to one of your pages (the current one by default) and confirm it.                                         |
+| `ctx.ui.startLoading()`                    | Shows the host's loading bar until you call `stop()` on the result; see [loading bar](#loading-bar).                                   |
+| `ctx.ui.setUnsaved(dirty, message?)`       | Asks the host to confirm before the member leaves a screen with unsaved changes; see [unsaved changes](#unsaved-changes).              |
+| `ctx.signal`                               | Aborts when the host tears your plugin down.                                                                                           |
+| `ctx.userId`, `ctx.projectId`, `ctx.theme` | Display context. No tokens.                                                                                                            |
 
 Requests time out after 30 seconds; streamed reads do not. At most 32 may be in flight.
 
@@ -90,6 +92,33 @@ percent-encoded sequences (e.g. `%2F`); decode deliberately.
   interaction, one link at a time.
 - The host replaces the address rather than adding history entries, so the browser's Back button
   leaves the plugin instead of stepping through its pages.
+
+## Links to OWOX pages
+
+```tsx
+const path = `/ui/${ctx.projectId}/data-marts/${encodeURIComponent(dataMartId)}/overview`;
+const link = ctx.ui.link(path);
+
+return link ? (
+  <a {...link}>{title}</a>
+) : (
+  <button onClick={() => ctx.ui.navigate(path)}>{title}</button>
+);
+```
+
+- A click opens the page in place of your frame, as `ctx.ui.navigate` does.
+- Cmd-click on macOS, Ctrl-click on Windows and Linux, and a middle click open the page in a new
+  tab.
+- The context menu can open the link in a new tab or window, or copy its address.
+- Use `link.onClick` on every link to an OWOX page. Without it, a plain click loads OWOX in your
+  frame. The browser refuses that page, and your plugin stops until the member reloads the page.
+- To add your own click handler, call `link.onClick(event)` from it. Without React, set
+  `a.href = link.href` and call `a.addEventListener('click', link.onClick)`.
+- `ctx.ui.link` throws for a path that does not start with a single `/` or that has a tab or a
+  line break.
+- `ctx.ui.link` returns `undefined` only when the host origin is unknown. Show a `navigate` button
+  then.
+- Do not set `target="_blank"`. The default plugin sandbox blocks it.
 
 ## Loading bar
 
