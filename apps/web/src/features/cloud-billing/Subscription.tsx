@@ -1,24 +1,23 @@
-import { BriefcaseBusiness, ExternalLink, Info, TriangleAlert } from 'lucide-react';
-import { Alert, AlertDescription } from '@owox/ui/components/alert';
+import { BriefcaseBusiness, ExternalLink, Info } from 'lucide-react';
+import { Link } from 'react-router';
 import { Button } from '@owox/ui/components/button';
-import {
-  Card,
-  CardAction,
-  CardContent,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from '@owox/ui/components/card';
+import { ButtonGroup } from '@owox/ui/components/button-group';
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@owox/ui/components/card';
 import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from '@owox/ui/components/empty';
+import {
+  Popover,
+  PopoverContent,
+  PopoverDescription,
+  PopoverTrigger,
+} from '@owox/ui/components/popover';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
 import { StatusLabel, StatusTypeEnum } from '../../shared/components/StatusLabel';
 import { useUser } from '../idp/hooks/useAuthState';
 import { useCanEdit } from '../idp/hooks/useRole';
 import { BillingLoadState } from './BillingLoadState';
 import { useCloudBillingQuery, type SubscriptionDetails } from './cloud-billing';
+import { buildProjectPath } from '../../utils/path';
 
-const platformOrigin =
-  import.meta.env.VITE_OWOX_PLATFORM_URL?.replace(/\/$/, '') ?? 'https://platform.owox.com';
 const portalUrl = 'https://payments.bi.owox.com/p/login/5kA3doeza1Djc9O9AA';
 const billingHelpUrl = 'https://support.owox.com/hc/en-us/sections/12401110143892';
 const number = new Intl.NumberFormat();
@@ -66,34 +65,40 @@ export function Subscription({ origin }: { origin: string }) {
   const status = subscription ? subscriptionStatuses[subscription.status] : null;
   const freePlanNotice = getFreePlanNotice(subscription);
   const canManage = canEdit && !user?.viewOnly;
-  const pricingUrl = user?.projectId
-    ? `${platformOrigin}/ui/p/${encodeURIComponent(user.projectId)}/pricing`
-    : null;
+  const pricingUrl = user?.projectId ? buildProjectPath(user.projectId, '/pricing') : null;
+  const viewPlansLink = pricingUrl && (
+    <Button asChild variant='link' className='h-auto p-0'>
+      <Link to={pricingUrl}>View plans</Link>
+    </Button>
+  );
+  const showBillingPortal =
+    query.isSuccess &&
+    canManage &&
+    Boolean(subscription?.billingAccount) &&
+    subscription?.planType !== 'FREE';
 
   return (
     <div className='dm-page-content'>
       <Card>
-        <CardHeader className='items-center'>
+        <CardHeader className='flex items-center gap-1'>
           <CardTitle role='heading' aria-level={2}>
             Subscription details
           </CardTitle>
-          <CardAction>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button asChild variant='ghost' size='icon-sm' className='text-muted-foreground'>
-                  <a
-                    href={billingHelpUrl}
-                    target='_blank'
-                    rel='noopener noreferrer'
-                    aria-label='Billing help'
-                  >
-                    <Info aria-hidden='true' />
-                  </a>
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Billing help</TooltipContent>
-            </Tooltip>
-          </CardAction>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button asChild variant='ghost' size='icon-sm' className='text-muted-foreground'>
+                <a
+                  href={billingHelpUrl}
+                  target='_blank'
+                  rel='noopener noreferrer'
+                  aria-label='Billing help'
+                >
+                  <Info aria-hidden='true' />
+                </a>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Billing help</TooltipContent>
+          </Tooltip>
         </CardHeader>
         <CardContent className='space-y-4'>
           {!query.isSuccess ? (
@@ -106,16 +111,31 @@ export function Subscription({ origin }: { origin: string }) {
             <>
               <div className='flex flex-wrap items-center gap-3'>
                 <h3 className='text-lg font-semibold'>{subscription.name}</h3>
-                <StatusLabel type={status.type} variant='subtle'>
-                  {status.label}
-                </StatusLabel>
+                <span className='inline-flex items-center gap-1'>
+                  <StatusLabel type={status.type} variant='subtle'>
+                    {status.label}
+                  </StatusLabel>
+                  {freePlanNotice && (
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          type='button'
+                          variant='ghost'
+                          size='icon-sm'
+                          className='text-warning hover:text-warning'
+                          aria-label='Why this project is on the Free plan'
+                        >
+                          <Info aria-hidden='true' />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent aria-label='Free plan details' align='start' className='p-3'>
+                        <PopoverDescription>{freePlanNotice}</PopoverDescription>
+                      </PopoverContent>
+                    </Popover>
+                  )}
+                </span>
+                {viewPlansLink}
               </div>
-              {freePlanNotice && (
-                <Alert className='bg-warning-bg text-warning'>
-                  <TriangleAlert aria-hidden='true' />
-                  <AlertDescription className='text-foreground'>{freePlanNotice}</AlertDescription>
-                </Alert>
-              )}
               <dl className='grid gap-4 text-sm sm:grid-cols-2 lg:grid-cols-3'>
                 <div>
                   <dt className='text-muted-foreground'>Billing cycle</dt>
@@ -176,26 +196,37 @@ export function Subscription({ origin }: { origin: string }) {
               </EmptyHeader>
             </Empty>
           )}
+          {(!query.isSuccess || !status) && viewPlansLink}
         </CardContent>
-        {query.isSuccess && canManage && (
-          <CardFooter className='flex-col items-start gap-2'>
-            {subscription?.billingAccount && subscription.planType !== 'FREE' ? (
-              <>
-                <Button asChild variant='outline' size='sm'>
-                  <a href={portalUrl} target='_blank' rel='noopener noreferrer'>
-                    Change card &amp; billing info
-                    <ExternalLink className='h-4 w-4' aria-hidden='true' />
-                  </a>
-                </Button>
-                <p className='text-muted-foreground text-sm'>
-                  Use the billing account email above to receive a sign-in link from Stripe.
-                </p>
-              </>
-            ) : pricingUrl ? (
+        {showBillingPortal && (
+          <CardFooter>
+            <ButtonGroup
+              aria-label='Stripe billing'
+              className='[&>button:last-child]:border-border [&>button:last-child]:border-l-0'
+            >
               <Button asChild variant='outline' size='sm'>
-                <a href={pricingUrl}>View plans</a>
+                <a href={portalUrl} target='_blank' rel='noopener noreferrer'>
+                  Change card &amp; billing info
+                  <ExternalLink className='h-4 w-4' aria-hidden='true' />
+                </a>
               </Button>
-            ) : null}
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type='button'
+                    variant='outline'
+                    size='icon-sm'
+                    className='text-muted-foreground'
+                    aria-label='About signing in to Stripe'
+                  >
+                    <Info aria-hidden='true' />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent className='max-w-xs' sideOffset={4}>
+                  Use the billing account email above to receive a sign-in link from Stripe.
+                </TooltipContent>
+              </Tooltip>
+            </ButtonGroup>
           </CardFooter>
         )}
       </Card>

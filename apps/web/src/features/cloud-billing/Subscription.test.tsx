@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
+import { MemoryRouter } from 'react-router';
 import { describe, expect, it, vi } from 'vitest';
 import apiClient from '../../app/api/apiClient';
 import { useUser } from '../idp/hooks/useAuthState';
@@ -38,7 +39,9 @@ function renderSubscription(subscription: SubscriptionDetails, user: Partial<Use
   vi.mocked(apiClient.get).mockResolvedValueOnce({ data: subscription });
   render(
     <QueryClientProvider client={new QueryClient()}>
-      <Subscription origin={origin} />
+      <MemoryRouter>
+        <Subscription origin={origin} />
+      </MemoryRouter>
     </QueryClientProvider>
   );
 }
@@ -64,7 +67,12 @@ describe('Subscription notices', () => {
   ])('explains a move to Free with reason %s', async (subscribeReason, message) => {
     renderSubscription({ ...freePlan, subscribeReason });
 
-    expect(await screen.findByRole('alert')).toHaveTextContent(message);
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Why this project is on the Free plan' })
+    );
+    expect(await screen.findByRole('dialog', { name: 'Free plan details' })).toHaveTextContent(
+      message
+    );
     expect(screen.getByRole('heading', { name: 'Free' })).toBeInTheDocument();
     expect(screen.getByText('Active')).toBeInTheDocument();
   });
@@ -81,7 +89,9 @@ describe('Subscription notices', () => {
     renderSubscription(subscription);
 
     expect(await screen.findByRole('heading', { name: subscription.name })).toBeInTheDocument();
-    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: 'Why this project is on the Free plan' })
+    ).not.toBeInTheDocument();
   });
 });
 
@@ -121,8 +131,11 @@ describe('Subscription billing portal', () => {
     billingAccount: 'billing@example.test',
   };
 
-  it('links to Stripe when an Internal plan has a billing account', async () => {
-    renderSubscription(internalPlan, { roles: ['editor'] });
+  it.each([
+    internalPlan,
+    { ...internalPlan, name: 'Team', planType: 'PAID' as const, billingCycle: 'MONTHLY' as const },
+  ])('offers pricing and the Stripe portal for $name with a billing account', async plan => {
+    renderSubscription(plan, { roles: ['editor'] });
 
     const link = await screen.findByRole('link', { name: 'Change card & billing info' });
     expect(link).toHaveAttribute(
@@ -130,7 +143,15 @@ describe('Subscription billing portal', () => {
       expect.stringMatching(/^https:\/\/payments\.bi\.owox\.com\/p\/login\//)
     );
     expect(link).toHaveAttribute('target', '_blank');
-    expect(screen.getByText(/use the billing account email above/i)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'View plans' })).toHaveAttribute(
+      'href',
+      '/ui/project-1/pricing'
+    );
+    expect(screen.queryByRole('tooltip')).not.toBeInTheDocument();
+    fireEvent.focus(screen.getByRole('button', { name: 'About signing in to Stripe' }));
+    expect(await screen.findByRole('tooltip')).toHaveTextContent(
+      'Use the billing account email above to receive a sign-in link from Stripe.'
+    );
   });
 
   it.each([
@@ -139,7 +160,22 @@ describe('Subscription billing portal', () => {
   ])('shows View plans for $name without an eligible billing account', async subscription => {
     renderSubscription(subscription, { roles: ['editor'] });
 
-    expect(await screen.findByRole('link', { name: 'View plans' })).toBeInTheDocument();
+    expect(await screen.findByRole('link', { name: 'View plans' })).toHaveAttribute(
+      'href',
+      '/ui/project-1/pricing'
+    );
+    expect(
+      screen.queryByRole('link', { name: 'Change card & billing info' })
+    ).not.toBeInTheDocument();
+  });
+
+  it('allows viewers to open pricing without exposing the billing portal', async () => {
+    renderSubscription(internalPlan);
+
+    expect(await screen.findByRole('link', { name: 'View plans' })).toHaveAttribute(
+      'href',
+      '/ui/project-1/pricing'
+    );
     expect(
       screen.queryByRole('link', { name: 'Change card & billing info' })
     ).not.toBeInTheDocument();

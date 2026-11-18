@@ -88,17 +88,20 @@ export interface SubscriptionDetails {
 type BillingEndpoint =
   | '/api/bi-projects/balance'
   | '/api/consumption/project-summary'
-  | '/api/billing/subscription-details';
+  | '/api/billing/subscription-details'
+  | '/api/stripe/app-pricing'
+  | `/api/stripe/app-checkout-sessions/${string}`;
 
 export function useCloudBillingQuery<T>(
   origin: string,
   endpoint: BillingEndpoint,
-  period?: { year: number; month: number }
+  period?: { year: number; month: number },
+  active = true
 ) {
   const user = useUser();
   return useQuery({
     queryKey: ['cloud-billing', origin, user?.id, user?.projectId, endpoint, period],
-    enabled: Boolean(user?.id && user.projectId),
+    enabled: active && Boolean(user?.id && user.projectId),
     retry: false,
     queryFn: async ({ signal }) => {
       if (!user?.id || !user.projectId) throw new Error('Project session required');
