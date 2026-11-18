@@ -2,7 +2,7 @@ import { BriefcaseBusiness, ExternalLink, Info } from 'lucide-react';
 import { Link } from 'react-router';
 import { Button } from '@owox/ui/components/button';
 import { ButtonGroup } from '@owox/ui/components/button-group';
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@owox/ui/components/card';
+import { CardContent, CardFooter, CardHeader, CardTitle } from '@owox/ui/components/card';
 import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from '@owox/ui/components/empty';
 import {
   Popover,
@@ -79,8 +79,8 @@ export function Subscription({ origin }: { origin: string }) {
 
   return (
     <div className='dm-page-content'>
-      <Card>
-        <CardHeader className='flex items-center gap-1'>
+      <div className='dm-card flex flex-col gap-4'>
+        <CardHeader className='flex items-center gap-1 px-0'>
           <CardTitle role='heading' aria-level={2}>
             Subscription details
           </CardTitle>
@@ -100,7 +100,7 @@ export function Subscription({ origin }: { origin: string }) {
             <TooltipContent>Billing help</TooltipContent>
           </Tooltip>
         </CardHeader>
-        <CardContent className='space-y-4'>
+        <CardContent className='space-y-4 px-0'>
           {!query.isSuccess ? (
             <BillingLoadState
               isPending={query.isPending}
@@ -199,7 +199,7 @@ export function Subscription({ origin }: { origin: string }) {
           {(!query.isSuccess || !status) && viewPlansLink}
         </CardContent>
         {showBillingPortal && (
-          <CardFooter>
+          <CardFooter className='px-0'>
             <ButtonGroup
               aria-label='Stripe billing'
               className='[&>button:last-child]:border-border [&>button:last-child]:border-l-0'
@@ -229,7 +229,7 @@ export function Subscription({ origin }: { origin: string }) {
             </ButtonGroup>
           </CardFooter>
         )}
-      </Card>
+      </div>
     </div>
   );
 }

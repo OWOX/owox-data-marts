@@ -211,7 +211,10 @@ it('shows operations immediately and renders paginated Process Run details on ro
   expect(screen.queryByRole('table', { name: 'Process Run details' })).not.toBeInTheDocument();
   fireEvent.click(operation);
   const details = within(screen.getByRole('table', { name: 'Process Run details' }));
-  expect(details.getByText('Sales · Step 1')).toBeInTheDocument();
+  expect(details.getByRole('link', { name: 'Sales · Step 1' })).toHaveAttribute(
+    'href',
+    '/ui/cloud-project/plugins/github/OWOX/transformations-plugin/open/transformations/transformation'
+  );
   expect(details.queryByText('Sales · Step 11')).not.toBeInTheDocument();
 
   fireEvent.click(screen.getByRole('button', { name: 'Go to next page' }));
@@ -275,4 +278,33 @@ it('links to the Google Sheets document and tab using names from the report proj
     'https://docs.google.com/spreadsheets/d/document-1/edit#gid=123'
   );
   expect(sheet).toHaveAttribute('target', '_blank');
+});
+
+it('opens the named stream in its plugin and leaves deleted streams as text', async () => {
+  renderCredits(
+    [
+      unit('STREAMING_CLIENT_SIDE_USERS', 5, [
+        branch(3, { STREAMING_ID: 'stream-1' }),
+        branch(2, { STREAMING_ID: 'stream-deleted' }),
+      ]),
+    ],
+    {
+      STREAMING: [
+        projection('stream-1', 'Web events'),
+        { ...projection('stream-deleted', 'Archived events'), isEntityDeleted: true },
+      ],
+    },
+    'PAID',
+    'STREAMING'
+  );
+
+  fireEvent.click(await screen.findByRole('button', { name: 'Client-Side User' }));
+
+  const details = within(screen.getByRole('table', { name: 'Client-Side User details' }));
+  expect(details.getByRole('link', { name: 'Web events' })).toHaveAttribute(
+    'href',
+    '/ui/cloud-project/plugins/github/OWOX/streaming-plugin/open/streaming/ga4/stream-1'
+  );
+  expect(details.getByText('Archived events')).toBeInTheDocument();
+  expect(details.queryByRole('link', { name: 'Archived events' })).not.toBeInTheDocument();
 });

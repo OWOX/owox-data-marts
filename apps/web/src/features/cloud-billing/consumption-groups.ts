@@ -146,15 +146,34 @@ export function parseDeploymentUrl(origin: string | null) {
   return null;
 }
 
+function transformationPluginPath(id: string) {
+  return ['plugins', 'github', 'OWOX', 'transformations-plugin', 'open', 'transformations', id];
+}
+
 export function consumptionEntityPath(
   projectId: string,
   labels: ConsumptionBranch['labels'],
   type: string,
-  id: string
+  id: string,
+  parentTransformationId?: string
 ) {
   let path: string[];
   let query: [string, string] | undefined;
   switch (type) {
+    case 'STREAMING_ID':
+      path = ['plugins', 'github', 'OWOX', 'streaming-plugin', 'open', 'streaming', 'ga4', id];
+      break;
+    case 'TRANSFORMATION_ID':
+      path = transformationPluginPath(id);
+      break;
+    case 'TRANSFORMATION_OPERATION_ID':
+      if (!labels.TRANSFORMATION_ID) return null;
+      path = transformationPluginPath(labels.TRANSFORMATION_ID);
+      break;
+    case 'PROCESS_RUN_ENTITY_ID':
+      if (!parentTransformationId) return null;
+      path = transformationPluginPath(parentTransformationId);
+      break;
     case 'DATA_MART':
       path = ['data-marts', id, 'data-setup'];
       break;
