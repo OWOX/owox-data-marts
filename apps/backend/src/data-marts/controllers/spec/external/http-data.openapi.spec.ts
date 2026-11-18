@@ -114,6 +114,20 @@ describe('HttpDataController OpenAPI', () => {
     });
   });
 
+  it('publishes includeTotalRowCount as an optional true/false query parameter', () => {
+    const parameter = queryParam('includeTotalRowCount');
+
+    expect(parameter).toMatchObject({
+      in: 'query',
+      required: false,
+      schema: { type: 'string', enum: ['true', 'false'] },
+    });
+    expect(parameter?.description).toMatch(/60 s/);
+    expect(parametersFor('http-data/reports').some(p => p.name === 'includeTotalRowCount')).toBe(
+      false
+    );
+  });
+
   it.each(['filter', 'sort', 'aggregation', 'dateTrunc'])(
     'publishes %s as an optional bounded base64url string',
     name => {
@@ -139,6 +153,9 @@ describe('HttpDataController OpenAPI', () => {
       headers: {
         'x-owox-run-id': {
           schema: { type: 'string' },
+        },
+        'x-owox-total-row-count': {
+          schema: { type: 'string', pattern: '^[0-9]+$' },
         },
       },
       content: {

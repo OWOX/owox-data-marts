@@ -3,10 +3,12 @@ import { TypeResolver } from '../../common/resolver/type-resolver';
 import { DATA_STORAGE_REPORT_READER_RESOLVER } from '../data-storage-types/data-storage-providers';
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
 import { DataStorageReportReader } from '../data-storage-types/interfaces/data-storage-report-reader.interface';
-import { ReportLike } from '../dto/domain/report-like-read-plan';
+import { ReportLike, ReportLikeReadPlan } from '../dto/domain/report-like-read-plan';
 import { BlendableSchemaAccessor } from './blendable-schema.service';
 import { ReportSqlComposerService } from './report-sql-composer.service';
 import { columnFilterWithoutCalculatedFields } from '../calculated-fields/calculated-field.utils';
+import { castError } from '@owox/internal-helpers';
+import { TableReferenceMemo } from './data-mart-table-reference.service';
 
 export type ReportTotals = Record<string, number | string | boolean | null>;
 
@@ -84,4 +86,57 @@ export class ReportTotalsService {
       await reader.finalize();
     }
   }
+
+  /**
+   * Counts the rows of the full result of a read, ignoring its LIMIT. Unlike totals, a missing
+   * or malformed count throws: the caller must never take a wrong number for zero.
+   */
+  async computeRowCount(
+    plan: ReportLikeReadPlan,
+    accessor: BlendableSchemaAccessor,
+    storageType: DataStorageType,
+    queryTimeoutMs?: number,
+    signal?: AbortSignal,
+    tableReferences?: TableReferenceMemo
+  ): Promise<number> {
+    const count = await this.reportSqlComposerService.composeRowCount(
+      plan,
+      accessor,
+      tableReferences
+    );
+    // Some readers ignore the signal, so a count that timed out must not start its query.
+    signal?.throwIfAborted();
+
+    const reader = await this.reportReaderResolver.resolve(storageType);
+    try {
+      await reader.prepareReportData(plan, {
+        sqlOverride: count.sql,
+        sqlOverrideParams: count.params,
+        columnFilter: [count.alias],
+        ...(queryTimeoutMs !== undefined ? { queryTimeoutMs } : {}),
+        ...(signal !== undefined ? { signal } : {}),
+      });
+      signal?.throwIfAborted();
+
+      const batch = await reader.readReportDataBatch(undefined, 1);
+      return parseRowCount(batch.dataRows[0]?.[0]);
+    } finally {
+      // The count is good at this point. A close failure must not lose it.
+      try {
+        await reader.finalize();
+      } catch (err) {
+        this.logger.warn(`Failed to finalize the row count reader: ${castError(err).message}`);
+      }
+    }
+  }
+}
+
+// Drivers return a count as a number, a bigint or a digit string. Anything else is an error.
+function parseRowCount(value: unknown): number {
+  let n: number | undefined;
+  if (typeof value === 'number') n = value;
+  else if (typeof value === 'bigint' && value >= 0n) n = Number(value);
+  else if (typeof value === 'string' && /^\d+$/.test(value)) n = Number(value);
+  if (n !== undefined && Number.isSafeInteger(n) && n >= 0) return n;
+  throw new Error('The row count query returned no valid count');
 }

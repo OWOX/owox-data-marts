@@ -2065,6 +2065,160 @@ describe('ReportSqlComposerService', () => {
   // join, so the pair can invert COUNT DISTINCT <= COUNT.
 });
 
+describe('ReportSqlComposerService — composeRowCount', () => {
+  const accessor = { userId: 'user-1', roles: ['admin'] };
+
+  const build = (columnFilter: string[]) => {
+    const realBuilder = new BigQueryQueryBuilder(new BigQueryClauseRenderer());
+    const facade = {
+      buildQuery: (
+        _type: unknown,
+        definition: Parameters<BigQueryQueryBuilder['buildQuery']>[0],
+        options: Parameters<BigQueryQueryBuilder['buildQuery']>[1]
+      ) => realBuilder.buildQuery(definition, options),
+    };
+    const tableReferenceService = {
+      resolveTableName: jest.fn().mockResolvedValue('`proj`.`ds`.`view_x`'),
+    };
+    const service = new ReportSqlComposerService(
+      {
+        resolveBlendingDecision: jest
+          .fn()
+          .mockResolvedValue({ needsBlending: false, columnFilter }),
+      } as never,
+      facade as never,
+      tableReferenceService as never,
+      { isSupported: jest.fn().mockReturnValue(true) } as never,
+      { computeBlendableSchema: jest.fn() } as never,
+      { validateForReport: jest.fn().mockResolvedValue(undefined) } as never,
+      passThroughSqlReferenceResolver as never
+    );
+    return { service, tableReferenceService };
+  };
+
+  const dataMart = {
+    id: 'dm-1',
+    projectId: 'p',
+    storage: { type: 'GOOGLE_BIGQUERY' },
+    definition: { type: 'table', fullyQualifiedName: 'proj.ds.tbl' },
+    schema: {
+      fields: [
+        { name: 'country', type: 'STRING', status: 'CONNECTED' },
+        { name: 'revenue', type: 'FLOAT', status: 'CONNECTED' },
+      ],
+    },
+  };
+
+  it('drops LIMIT and ORDER BY from the read', async () => {
+    const { service } = build(['country', 'revenue']);
+    const plan = {
+      dataMart,
+      columnConfig: ['country', 'revenue'],
+      filterConfig: [{ column: 'country', operator: 'eq', value: 'UA' }],
+      sortConfig: [{ column: 'revenue', direction: 'desc' }],
+      limitConfig: 50,
+    } as never;
+
+    const read = await service.compose(plan, accessor);
+    const count = await service.composeRowCount(plan, accessor);
+
+    expect(read.sql).toContain('ORDER BY');
+    expect(read.sql).toContain('LIMIT 50');
+    expect(count.sql).not.toContain('LIMIT');
+    expect(count.sql).not.toContain('ORDER BY');
+    expect(count.sql).toContain('WHERE src.`country` = @p0');
+    expect(count.sql.startsWith('SELECT COUNT(*) AS total_row_count FROM (')).toBe(true);
+    expect(count.sql.endsWith(') AS total_row_count_source')).toBe(true);
+    expect(count.params).toEqual([{ name: 'p0', value: 'UA' }]);
+  });
+
+  it('keeps the grouping and the metric filter of the read', async () => {
+    const { service } = build(['country', 'revenue']);
+    const plan = {
+      dataMart,
+      columnConfig: ['country', 'revenue'],
+      aggregationConfig: [{ column: 'revenue', function: 'SUM' }],
+      filterConfig: [{ column: 'revenue', function: 'SUM', operator: 'gt', value: 10 }],
+      limitConfig: 5,
+    } as never;
+
+    const count = await service.composeRowCount(plan, accessor);
+
+    expect(count.sql).toContain('GROUP BY');
+    expect(count.sql).toContain('HAVING');
+    expect(count.sql).not.toContain('LIMIT');
+  });
+
+  it('returns the alias it uses', async () => {
+    const { service } = build(['country']);
+
+    const count = await service.composeRowCount(
+      { dataMart, columnConfig: ['country'] } as never,
+      accessor
+    );
+
+    expect(count.alias).toBe('total_row_count');
+    expect(count.sql).toContain('COUNT(*) AS total_row_count');
+  });
+
+  it('counts the blended SQL of a read without its limit and sort', async () => {
+    const resolveBlendingDecision = jest.fn().mockResolvedValue({
+      needsBlending: true,
+      blendedSql: 'WITH blended AS (SELECT 1) SELECT * FROM blended',
+      params: [{ name: 'p0', value: 1 }],
+    });
+    const service = new ReportSqlComposerService(
+      { resolveBlendingDecision } as never,
+      {} as never,
+      {} as never,
+      { isSupported: jest.fn() } as never,
+      { computeBlendableSchema: jest.fn() } as never,
+      { validateForReport: jest.fn().mockResolvedValue(undefined) } as never,
+      passThroughSqlReferenceResolver as never
+    );
+
+    const count = await service.composeRowCount(
+      {
+        dataMart,
+        columnConfig: ['country'],
+        sortConfig: [{ column: 'country', direction: 'asc' }],
+        limitConfig: 10,
+      } as never,
+      accessor
+    );
+
+    expect(resolveBlendingDecision.mock.calls[0][0]).toEqual(
+      expect.objectContaining({ limitConfig: null, sortConfig: null })
+    );
+    expect(count.sql).toBe(
+      'SELECT COUNT(*) AS total_row_count FROM (WITH blended AS (SELECT 1) SELECT * FROM blended) AS total_row_count_source'
+    );
+    expect(count.params).toEqual([{ name: 'p0', value: 1 }]);
+  });
+
+  it('passes the table reference memo to the table reference resolution', async () => {
+    const { service, tableReferenceService } = build(['country']);
+    const memo = new Map<string, Promise<string>>();
+
+    await service.composeRowCount(
+      {
+        dataMart,
+        columnConfig: ['country'],
+        filterConfig: [{ column: 'country', operator: 'eq', value: 'UA' }],
+      } as never,
+      accessor,
+      memo
+    );
+
+    expect(tableReferenceService.resolveTableName).toHaveBeenCalledWith(
+      'dm-1',
+      'p',
+      memo,
+      expect.anything()
+    );
+  });
+});
+
 describe('ReportSqlComposerService — Data Mart references in SQL', () => {
   const accessor = { userId: 'user-1', roles: ['editor'] };
   const resolvedDefinition = { sqlQuery: 'SELECT * FROM (\n-- Data Mart: Orders\nSELECT 1\n) o' };

@@ -1,6 +1,6 @@
 import type { Response } from 'express';
 import { HttpDataStreamWriter } from './http-data-stream-writer.service';
-import { HTTP_DATA_RUN_ID_HEADER } from './http-data.constants';
+import { HTTP_DATA_RUN_ID_HEADER, HTTP_DATA_TOTAL_ROW_COUNT_HEADER } from './http-data.constants';
 
 type Mock = {
   res: Response;
@@ -82,6 +82,24 @@ describe('HttpDataStreamWriter', () => {
     expect(mock.headers['X-Accel-Buffering']).toBe('no');
     expect(mock.headers[HTTP_DATA_RUN_ID_HEADER]).toBe('run-1');
     expect(mock.flushHeadersCalls).toBe(1);
+  });
+
+  it('initHeaders sets the total row count header when the count is known', () => {
+    const mock = createMockResponse();
+    writer.initHeaders(mock.res, { runId: 'run-1', totalRowCount: 12 });
+    expect(mock.headers[HTTP_DATA_TOTAL_ROW_COUNT_HEADER]).toBe('12');
+  });
+
+  it('initHeaders sets the total row count header for a count of zero', () => {
+    const mock = createMockResponse();
+    writer.initHeaders(mock.res, { runId: 'run-1', totalRowCount: 0 });
+    expect(mock.headers[HTTP_DATA_TOTAL_ROW_COUNT_HEADER]).toBe('0');
+  });
+
+  it('initHeaders leaves the total row count header out when the count is unknown', () => {
+    const mock = createMockResponse();
+    writer.initHeaders(mock.res, { runId: 'run-1' });
+    expect(mock.headers).not.toHaveProperty(HTTP_DATA_TOTAL_ROW_COUNT_HEADER);
   });
 
   it('serializeRow serializes JSON + newline as a buffer with the correct byte length', () => {

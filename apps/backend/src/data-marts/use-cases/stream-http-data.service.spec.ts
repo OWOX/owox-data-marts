@@ -43,7 +43,11 @@ import { HttpDataColumnResolver } from '../services/http-data/http-data-column-r
 import { HttpDataColumnValidator } from '../services/http-data/http-data-column-validator.service';
 import { HttpDataRequestValidator } from '../services/http-data/http-data-request-validator.service';
 import { HttpDataStreamWriter } from '../services/http-data/http-data-stream-writer.service';
-import { HTTP_DATA_SCHEMA_EXPIRES_AFTER_MS } from '../services/http-data/http-data.constants';
+import {
+  HTTP_DATA_SCHEMA_EXPIRES_AFTER_MS,
+  HTTP_DATA_TOTAL_ROW_COUNT_HEADER,
+  HTTP_DATA_TOTAL_ROW_COUNT_TIMEOUT_MS,
+} from '../services/http-data/http-data.constants';
 import { StreamHttpReportDataCommand } from '../dto/domain/stream-http-report-data.command';
 import {
   deriveStreamPlanContext,
@@ -344,6 +348,7 @@ describe('StreamHttpDataService', () => {
     reportTotals = {
       // Default: not aggregated -> no totals.
       computeTotals: jest.fn(async () => null),
+      computeRowCount: jest.fn(async () => 0),
     } as unknown as jest.Mocked<ReportTotalsService>;
 
     reportService = {
@@ -836,7 +841,20 @@ describe('StreamHttpDataService', () => {
       warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
     });
 
-    afterEach(() => jest.restoreAllMocks());
+    afterEach(() => {
+      jest.useRealTimers();
+      jest.restoreAllMocks();
+    });
+
+    const askForTotalRowCount = (overrides: Record<string, unknown> = {}) =>
+      requestValidator.validate.mockReturnValueOnce({
+        columnSelector: { mode: 'explicit', explicit: ['date', 'revenue'] },
+        filter: undefined,
+        sort: undefined,
+        limit: undefined,
+        includeTotalRowCount: true,
+        ...overrides,
+      } as never);
 
     it('records the composed SQL for a read without output controls', async () => {
       const decision = { needsBlending: false };
@@ -846,7 +864,13 @@ describe('StreamHttpDataService', () => {
       await service.stream(fakeCommand(), mockResponse());
 
       const [readPlan, accessor] = blended.resolveBlendingDecision.mock.calls[0];
-      expect(sqlComposer.composeStatic).toHaveBeenCalledWith(readPlan, accessor, decision);
+      expect(sqlComposer.composeStatic).toHaveBeenCalledWith(
+        readPlan,
+        accessor,
+        decision,
+        undefined,
+        expect.any(Map)
+      );
       const writes = runWrites();
       expect(writes[0].metadata.executionSqlQuery).toBe('SELECT date FROM composed');
       expect(writes.at(-1)!.metadata.executionSqlQuery).toBe('SELECT date FROM composed');
@@ -1013,6 +1037,7 @@ describe('StreamHttpDataService', () => {
 
     it('does not query the totals when the client left during the read preparation', async () => {
       const res = mockResponse();
+      askForTotalRowCount();
       reader.prepareReportData.mockImplementationOnce(async () => {
         res.destroy();
         return new ReportDataDescription([new ReportDataHeader('date')]);
@@ -1021,10 +1046,171 @@ describe('StreamHttpDataService', () => {
       await expect(service.stream(fakeCommand(), res)).resolves.toBeUndefined();
 
       expect(reportTotals.computeTotals).not.toHaveBeenCalled();
+      expect(reportTotals.computeRowCount).not.toHaveBeenCalled();
       expect(runWrites().map(write => write.status)).toEqual([
         DataMartRunStatus.RUNNING,
         DataMartRunStatus.FAILED,
       ]);
+    });
+
+    describe('total row count', () => {
+      it('counts the rows of the full result when the read asks for it', async () => {
+        jest.useFakeTimers({ doNotFake: ['setImmediate', 'nextTick'] });
+        askForTotalRowCount();
+        reportTotals.computeRowCount.mockResolvedValueOnce(1234);
+        const res = mockResponse();
+
+        await service.stream(fakeCommand(), res);
+
+        expect(reportTotals.computeRowCount).toHaveBeenCalledTimes(1);
+        const [readPlan, accessor] = blended.resolveBlendingDecision.mock.calls[0];
+        expect(reportTotals.computeRowCount).toHaveBeenCalledWith(
+          readPlan,
+          accessor,
+          DataStorageType.SNOWFLAKE,
+          HTTP_DATA_TOTAL_ROW_COUNT_TIMEOUT_MS,
+          expect.any(AbortSignal),
+          expect.any(Map)
+        );
+        expect(reportTotals.computeTotals.mock.invocationCallOrder[0]).toBeLessThan(
+          reportTotals.computeRowCount.mock.invocationCallOrder[0]
+        );
+        expect(reportTotals.computeRowCount.mock.invocationCallOrder[0]).toBeLessThan(
+          runWriteOrder(1)
+        );
+        expect(res.setHeader).toHaveBeenCalledWith(HTTP_DATA_TOTAL_ROW_COUNT_HEADER, '1234');
+        expect(jest.getTimerCount()).toBe(0);
+        const writes = runWrites();
+        expect(writes[1].metadata.totalRowCount).toBe(1234);
+        expect(writes.at(-1)!.status).toBe(DataMartRunStatus.SUCCESS);
+        expect(writes.at(-1)!.metadata.totalRowCount).toBe(1234);
+      });
+
+      it('does not count the rows when the read does not ask', async () => {
+        const res = mockResponse();
+
+        await service.stream(fakeCommand(), res);
+
+        expect(reportTotals.computeRowCount).not.toHaveBeenCalled();
+        expect(res.setHeader).not.toHaveBeenCalledWith(
+          HTTP_DATA_TOTAL_ROW_COUNT_HEADER,
+          expect.anything()
+        );
+        for (const write of runWrites()) {
+          expect(write.metadata).not.toHaveProperty('totalRowCount');
+          expect(write.metadata).not.toHaveProperty('totalRowCountError');
+        }
+      });
+
+      it('streams the rows and records the reason when the count fails', async () => {
+        askForTotalRowCount();
+        reportTotals.computeRowCount.mockRejectedValueOnce(new Error('count failed'));
+        const res = mockResponse();
+
+        await service.stream(fakeCommand(), res);
+
+        expect(res._writes).toHaveLength(2);
+        expect(res.setHeader).not.toHaveBeenCalledWith(
+          HTTP_DATA_TOTAL_ROW_COUNT_HEADER,
+          expect.anything()
+        );
+        const terminal = runWrites().at(-1)!;
+        expect(terminal.status).toBe(DataMartRunStatus.SUCCESS);
+        expect(terminal.metadata.totalRowCountError).toBe('count failed');
+        expect(terminal.metadata).not.toHaveProperty('totalRowCount');
+        expectOneWarn('count failed');
+      });
+
+      it('stops waiting for a slow count and streams the rows', async () => {
+        jest.useFakeTimers({ doNotFake: ['setImmediate', 'nextTick'] });
+        askForTotalRowCount();
+        let countSignal: AbortSignal | undefined;
+        reportTotals.computeRowCount.mockImplementationOnce(
+          (_plan, _accessor, _storage, _timeout, signal) => {
+            countSignal = signal;
+            return new Promise<number>(() => undefined);
+          }
+        );
+        const res = mockResponse();
+
+        const done = service.stream(fakeCommand(), res);
+        // The clock runs only after the count started, so the timer exists.
+        while (reportTotals.computeRowCount.mock.calls.length === 0) {
+          await new Promise(resolve => setImmediate(resolve));
+        }
+        await jest.advanceTimersByTimeAsync(HTTP_DATA_TOTAL_ROW_COUNT_TIMEOUT_MS);
+        await done;
+
+        expect(res._writes).toHaveLength(2);
+        expect(res.setHeader).not.toHaveBeenCalledWith(
+          HTTP_DATA_TOTAL_ROW_COUNT_HEADER,
+          expect.anything()
+        );
+        const terminal = runWrites().at(-1)!;
+        expect(terminal.status).toBe(DataMartRunStatus.SUCCESS);
+        expect(terminal.metadata.totalRowCountError).toContain(
+          String(HTTP_DATA_TOTAL_ROW_COUNT_TIMEOUT_MS)
+        );
+        expect(countSignal?.aborted).toBe(true);
+        expectOneWarn(String(HTTP_DATA_TOTAL_ROW_COUNT_TIMEOUT_MS));
+      });
+
+      it('keeps the count when the read fails after it', async () => {
+        askForTotalRowCount();
+        reportTotals.computeRowCount.mockResolvedValueOnce(5);
+        reader.readReportDataBatch
+          .mockResolvedValueOnce(new ReportDataBatch([['2026-05-01', 1]], 'batch-2'))
+          .mockRejectedValueOnce(new Error('storage exploded'));
+
+        await service.stream(fakeCommand(), mockResponse());
+
+        const terminal = runWrites().at(-1)!;
+        expect(terminal.status).toBe(DataMartRunStatus.FAILED);
+        expect(terminal.metadata.totalRowCount).toBe(5);
+      });
+
+      it('does not count the rows when the client left during the totals', async () => {
+        askForTotalRowCount();
+        const res = mockResponse();
+        reportTotals.computeTotals.mockImplementationOnce(async () => {
+          res.destroy();
+          return null;
+        });
+
+        await service.stream(fakeCommand(), res);
+
+        expect(reportTotals.computeRowCount).not.toHaveBeenCalled();
+        expect(runWrites().at(-1)!.status).toBe(DataMartRunStatus.FAILED);
+      });
+
+      it('shares one table reference memo across the read', async () => {
+        askForTotalRowCount();
+
+        await service.stream(fakeCommand(), mockResponse());
+
+        const memo = blended.resolveBlendingDecision.mock.calls[0][3];
+        expect(memo).toBeInstanceOf(Map);
+        expect(sqlComposer.composeStatic.mock.calls[0][4]).toBe(memo);
+        expect(reportTotals.computeRowCount.mock.calls[0][5]).toBe(memo);
+        expect(sqlComposer.compose).not.toHaveBeenCalled();
+      });
+
+      it('shares the memo with the read composition when the read has output controls', async () => {
+        askForTotalRowCount({ sort: [{ column: 'date', direction: 'asc' }] });
+
+        await service.stream(fakeCommand(), mockResponse());
+
+        const memo = blended.resolveBlendingDecision.mock.calls[0][3];
+        expect(memo).toBeInstanceOf(Map);
+        expect(sqlComposer.compose.mock.calls[0][4]).toBe(memo);
+        expect(reportTotals.computeRowCount.mock.calls[0][5]).toBe(memo);
+      });
+
+      it('never counts the rows of a report read', async () => {
+        await service.streamReport(fakeReportCommand(), mockResponse());
+
+        expect(reportTotals.computeRowCount).not.toHaveBeenCalled();
+      });
     });
 
     it('throws a shutdown cancel while the client is connected', async () => {
@@ -1163,13 +1349,16 @@ describe('StreamHttpDataService', () => {
       dateTrunc: undefined,
       uniqueCount: undefined,
       limit: 5,
+      includeTotalRowCount: false,
     });
     await service.stream(fakeCommand(), mockResponse());
 
     expect(sqlComposer.compose).toHaveBeenCalledWith(
       expect.objectContaining({ limitConfig: 5 }),
       expect.anything(),
-      expect.anything()
+      expect.anything(),
+      undefined,
+      expect.any(Map)
     );
   });
 
@@ -1267,7 +1456,9 @@ describe('StreamHttpDataService', () => {
     expect(sqlComposer.compose).toHaveBeenCalledWith(
       expect.objectContaining({ aggregationConfig: aggregation }),
       expect.anything(),
-      expect.anything()
+      expect.anything(),
+      undefined,
+      expect.any(Map)
     );
   });
 
@@ -1287,7 +1478,9 @@ describe('StreamHttpDataService', () => {
     expect(sqlComposer.compose).toHaveBeenCalledWith(
       expect.objectContaining({ dateTruncConfig: dateTrunc }),
       expect.anything(),
-      expect.anything()
+      expect.anything(),
+      undefined,
+      expect.any(Map)
     );
   });
 
@@ -1384,7 +1577,9 @@ describe('StreamHttpDataService', () => {
     expect(sqlComposer.compose).toHaveBeenCalledWith(
       expect.objectContaining({ columnConfig: [], uniqueCountConfig: [''] }),
       expect.anything(),
-      expect.anything()
+      expect.anything(),
+      undefined,
+      expect.any(Map)
     );
     expect(reader.prepareReportData).toHaveBeenCalledWith(
       expect.anything(),
@@ -1609,6 +1804,7 @@ describe('StreamHttpDataService', () => {
       dateTrunc: undefined,
       uniqueCount: undefined,
       limit: undefined,
+      includeTotalRowCount: false,
     });
     columnResolver.resolve.mockReturnValueOnce(['date', 'revenue', 'orders__cost']);
     reader.prepareReportData.mockResolvedValueOnce(
@@ -1643,6 +1839,7 @@ describe('StreamHttpDataService', () => {
       dateTrunc: undefined,
       uniqueCount: undefined,
       limit: undefined,
+      includeTotalRowCount: false,
     });
     blendableSchema.computeBlendableSchema.mockResolvedValueOnce({
       nativeFields: [{ name: 'date' }],
@@ -1688,7 +1885,7 @@ describe('StreamHttpDataService', () => {
       expect.objectContaining({ columnConfig: ['date', 'orders__cost'] }),
       { userId: 'user-1', roles: ['viewer'] },
       undefined,
-      undefined,
+      expect.any(Map),
       { rejectUnavailableUniqueCountSources: true }
     );
   });
@@ -2088,7 +2285,9 @@ describe('StreamHttpDataService', () => {
       expect(sqlComposer.compose).toHaveBeenCalledWith(
         expect.objectContaining({ limitConfig: 7 }),
         expect.anything(),
-        expect.anything()
+        expect.anything(),
+        undefined,
+        expect.any(Map)
       );
     });
 
@@ -2111,7 +2310,9 @@ describe('StreamHttpDataService', () => {
       expect(sqlComposer.compose).toHaveBeenCalledWith(
         expect.objectContaining({ limitConfig: 50 }),
         expect.anything(),
-        expect.anything()
+        expect.anything(),
+        undefined,
+        expect.any(Map)
       );
     });
 
@@ -2134,7 +2335,9 @@ describe('StreamHttpDataService', () => {
       expect(sqlComposer.compose).toHaveBeenCalledWith(
         expect.objectContaining({ limitConfig: null }),
         expect.anything(),
-        expect.anything()
+        expect.anything(),
+        undefined,
+        expect.any(Map)
       );
     });
 

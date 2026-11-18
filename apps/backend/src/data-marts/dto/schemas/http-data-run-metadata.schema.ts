@@ -60,6 +60,8 @@ export const HttpDataRunMetadataSchema = z.object({
   // indistinguishable from a report that has no totals — and this is the only record of the run
   // anyone can inspect afterwards.
   totalsError: z.string().optional(),
+  totalRowCount: z.number().int().nonnegative().optional(),
+  totalRowCountError: z.string().optional(),
   // Executed SQL with runtime parameter values inlined, shown in Run History.
   // HTTP reads record it here when OWOX can build the SQL. A read without an override records
   // the composed SQL that returns the same rows.

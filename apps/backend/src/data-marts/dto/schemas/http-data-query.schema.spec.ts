@@ -228,6 +228,30 @@ describe('HttpDataQuerySchema — uniqueCount', () => {
   });
 });
 
+describe('HttpDataQuerySchema — includeTotalRowCount', () => {
+  it.each([
+    ['true', true],
+    ['false', false],
+    [undefined, false],
+  ])('reads %s as %s', (raw, expected) => {
+    const result = parse({ column: 'date', includeTotalRowCount: raw });
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.includeTotalRowCount).toBe(expected);
+    }
+  });
+
+  it('rejects a value that is not true or false', () => {
+    const result = parse({ column: 'date', includeTotalRowCount: 'yes' });
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues[0].path).toEqual(['includeTotalRowCount']);
+    }
+  });
+});
+
 describe('HttpReportDataQuerySchema', () => {
   it('coerces a numeric limit', () => {
     expect(HttpReportDataQuerySchema.parse({ limit: '5' })).toEqual({ limit: 5 });

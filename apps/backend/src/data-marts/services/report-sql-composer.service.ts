@@ -355,6 +355,32 @@ export class ReportSqlComposerService {
   }
 
   /**
+   * Counts the rows of the full result of a read: the read plan without LIMIT and ORDER BY,
+   * wrapped in COUNT(*). The inner SQL keeps the GROUP BY and HAVING, so a grouped read counts
+   * its groups. Correct only for a plan with an explicit projection (the Data Mart endpoint
+   * always resolves its columns).
+   */
+  async composeRowCount(
+    plan: ReportLikeReadPlan,
+    accessor: BlendableSchemaAccessor,
+    tableReferences?: TableReferenceMemo
+  ): Promise<{ sql: string; params?: SqlParameter[]; alias: string }> {
+    const inner = await this.compose(
+      { ...plan, limitConfig: null, sortConfig: null },
+      accessor,
+      undefined,
+      undefined,
+      tableReferences
+    );
+    const alias = 'total_row_count';
+    return {
+      sql: `SELECT COUNT(*) AS ${alias} FROM (${inner.sql}) AS ${alias}_source`,
+      params: inner.params,
+      alias,
+    };
+  }
+
+  /**
    * Composes the report's "Totals" query: a per-column summary computed as a SEPARATE query with NO
    * grouping. Returns `null` when no selected column qualifies.
    *

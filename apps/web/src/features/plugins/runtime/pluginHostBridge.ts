@@ -72,7 +72,7 @@ const MAX_CREDENTIAL_AI_BODY_LENGTH = 2 * 1024 * 1024;
 /** Re-mint before the token lapses, so a long session never trips over an expiry. */
 const REFRESH_MARGIN_MS = 60_000;
 /** Everything else the backend returns is host detail the plugin has no use for. */
-const FORWARDED_RESPONSE_HEADERS = ['content-type', 'x-owox-run-id'];
+const FORWARDED_RESPONSE_HEADERS = ['content-type', 'x-owox-run-id', 'x-owox-total-row-count'];
 
 const HOST_ONLY_KINDS = new Set(['openExternal', 'navigate', 'route', 'copyLink', 'loading']);
 const EXECUTION_START_PATH = /^\/api\/plugins\/runtime\/actions\/[^/?#]+\/executions$/;

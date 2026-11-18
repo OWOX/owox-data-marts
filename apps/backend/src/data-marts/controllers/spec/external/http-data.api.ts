@@ -161,6 +161,19 @@ export function StreamHttpDataSpec() {
         minimum: 1,
       },
     }),
+    ApiQuery({
+      name: 'includeTotalRowCount',
+      description:
+        'Optional. Pass `true` to get the row count of the full result, without `limit`, in ' +
+        'the `x-owox-total-row-count` response header. The count costs one more warehouse ' +
+        'query. OWOX waits up to 60 s for it before the first row. BigQuery and Snowflake ' +
+        'stop the query at that limit. On other storages the query runs to its end. The ' +
+        'default is `false`. The run records the count as `additionalParams.httpData.totalRowCount`, or the reason ' +
+        'the count is missing as `additionalParams.httpData.totalRowCountError`.',
+      required: false,
+      enum: ['true', 'false'],
+      example: 'true',
+    }),
     ApiProduces('application/x-ndjson'),
     ApiOkResponse({
       description:
@@ -174,6 +187,13 @@ export function StreamHttpDataSpec() {
           description:
             'ID of the DataMartRun (HTTP_DATA). The run exists when the headers arrive, if OWOX can record it. Its status is RUNNING until the stream ends.',
           schema: { type: 'string' },
+        },
+        'x-owox-total-row-count': {
+          description:
+            'Row count of the full result, without `limit`, as digits. Set only when the read ' +
+            'passes `includeTotalRowCount=true` and the count finishes. It is absent when the ' +
+            'read does not ask, the count fails, or it takes longer than 60 s.',
+          schema: { type: 'string', pattern: '^[0-9]+$' },
         },
       },
       content: {
@@ -191,7 +211,7 @@ export function StreamHttpDataSpec() {
       description:
         'Invalid request: unknown column (including in an aggregation or dateTrunc rule), ' +
         'forbidden pagination parameter (`pageToken`/`offset`), malformed ' +
-        'filter/sort/aggregation/dateTrunc/uniqueCount/limit, aggregation or dateTrunc without an ' +
+        'filter/sort/aggregation/dateTrunc/uniqueCount/limit, an `includeTotalRowCount` value other than `true` or `false`, aggregation or dateTrunc without an ' +
         'explicit `column` projection, an empty uniqueCount, uniqueCount with ' +
         '`columns=*`/`columns=**`, a Unique Count source without a primary key or not available ' +
         'for reporting, a Unique Count key in `column`/filter/aggregation/dateTrunc, ' +

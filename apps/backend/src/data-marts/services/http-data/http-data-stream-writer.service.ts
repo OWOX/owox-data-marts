@@ -1,14 +1,17 @@
 import { Injectable } from '@nestjs/common';
 import type { Response } from 'express';
-import { HTTP_DATA_RUN_ID_HEADER } from './http-data.constants';
+import { HTTP_DATA_RUN_ID_HEADER, HTTP_DATA_TOTAL_ROW_COUNT_HEADER } from './http-data.constants';
 
 @Injectable()
 export class HttpDataStreamWriter {
-  initHeaders(res: Response, meta: { runId: string }): void {
+  initHeaders(res: Response, meta: { runId: string; totalRowCount?: number }): void {
     res.setHeader('Content-Type', 'application/x-ndjson; charset=utf-8');
     res.setHeader('Cache-Control', 'no-store');
     res.setHeader('X-Accel-Buffering', 'no');
     res.setHeader(HTTP_DATA_RUN_ID_HEADER, meta.runId);
+    if (meta.totalRowCount !== undefined) {
+      res.setHeader(HTTP_DATA_TOTAL_ROW_COUNT_HEADER, String(meta.totalRowCount));
+    }
     res.flushHeaders();
   }
 

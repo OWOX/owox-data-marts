@@ -256,6 +256,65 @@ describe('DataMartsApi.traverseData', () => {
     ).toEqual(sort);
   });
 
+  it('traverseData sends includeTotalRowCount only when it is true', async () => {
+    const fetchMock = createFetchMock(request => {
+      if (request.method === 'POST' && request.url === '/api/auth/api-keys/exchange') {
+        return createJsonResponse(200, { accessToken: 'access-token-1' });
+      }
+      return createNdjsonResponse(['{"date":"2026-05-01"}\n']);
+    });
+    const client = new OWOXApiClient({ apiKey, fetchImpl: fetchMock.fetchImpl });
+
+    const sent: Array<string | null> = [];
+    for (const options of [{ includeTotalRowCount: true }, { includeTotalRowCount: false }, {}]) {
+      fetchMock.requests.length = 0;
+      await client.dataMarts.traverseData('dm-1', options);
+      const request = fetchMock.requests.find(({ method }) => method === 'GET');
+      sent.push(new URL(`${apiOrigin}${request?.url}`).searchParams.get('includeTotalRowCount'));
+    }
+
+    expect(sent).toEqual(['true', null, null]);
+  });
+
+  it('traverseData exposes the total row count from the header', async () => {
+    const counts: Array<number | undefined> = [];
+    for (const header of ['1234', undefined, '', 'abc', '-1', '1.5', '9007199254740993']) {
+      const fetchMock = createFetchMock(request => {
+        if (request.method === 'POST' && request.url === '/api/auth/api-keys/exchange') {
+          return createJsonResponse(200, { accessToken: 'access-token-1' });
+        }
+        return createNdjsonResponse(
+          ['{"date":"2026-05-01"}\n'],
+          header === undefined ? {} : { 'x-owox-total-row-count': header }
+        );
+      });
+      const client = new OWOXApiClient({ apiKey, fetchImpl: fetchMock.fetchImpl });
+      counts.push((await client.dataMarts.traverseData('dm-1')).totalRowCount);
+    }
+
+    expect(counts).toEqual([
+      1234,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+    ]);
+  });
+
+  it('a report traversal has no total row count', async () => {
+    const fetchMock = createFetchMock(request => {
+      if (request.method === 'POST' && request.url === '/api/auth/api-keys/exchange') {
+        return createJsonResponse(200, { accessToken: 'access-token-1' });
+      }
+      return createNdjsonResponse(['{"date":"2026-05-01"}\n']);
+    });
+    const client = new OWOXApiClient({ apiKey, fetchImpl: fetchMock.fetchImpl });
+
+    expect((await client.reports.traverseData('report-1')).totalRowCount).toBeUndefined();
+  });
+
   it('encodes aggregation, dateTrunc and uniqueCount as base64url query params', async () => {
     const aggregation = [
       { column: 'revenue', function: 'SUM' },
