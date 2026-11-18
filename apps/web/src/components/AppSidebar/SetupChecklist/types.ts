@@ -90,6 +90,11 @@ export interface SetupGroup {
   title: string;
   description: string;
   stepIds: SetupStepId[];
+  /**
+   * Project-relative route the checklist item opens directly, instead of the
+   * popover with the group's steps.
+   */
+  href?: string;
   isConditional?: boolean;
   showCondition?: (user: User | null) => boolean;
 }

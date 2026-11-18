@@ -1,4 +1,3 @@
-import { InviteTeammatesCard } from '../../../shared/components/InviteTeammatesCard';
 import { ConnectAiAssistantAction } from './ConnectAiAssistantAction';
 import type { User } from '../../../features/idp/types';
 import {
@@ -43,6 +42,7 @@ const ROUTES = {
   CREATE_DATA_MART: '/data-marts/create',
   DATA_STORAGES: '/data-storages',
   DESTINATIONS: '/data-destinations',
+  MEMBERS: '/project-settings/members',
 } as const;
 
 export const SETUP_STEPS: SetupStep[] = [
@@ -127,8 +127,9 @@ export const SETUP_STEPS: SetupStep[] = [
     stepDescription: 'Invite your teammates to collaborate in OWOX.',
     successMessage: 'Teammates invited',
     action: {
-      type: StepActionType.COMPONENT,
-      render: ({ onClick }) => <InviteTeammatesCard variant='button' onClick={onClick} />,
+      type: StepActionType.LINK,
+      href: ROUTES.MEMBERS,
+      label: 'Invite teammates',
     },
     progressKey: ProgressKey.HAS_TEAMMATES_INVITED,
   },
@@ -232,5 +233,6 @@ export const SETUP_GROUPS: SetupGroup[] = [
     title: 'Invite teammates',
     description: 'Invite your teammates to collaborate in OWOX.',
     stepIds: [SetupStepId.INVITE_TEAMMATES],
+    href: ROUTES.MEMBERS,
   },
 ];

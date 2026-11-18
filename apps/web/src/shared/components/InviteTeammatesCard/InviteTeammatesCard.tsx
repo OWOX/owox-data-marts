@@ -10,7 +10,7 @@ interface InviteTeammatesCardProps {
   docsHref?: string;
   docsLabel?: string;
   className?: string;
-  variant?: 'card' | 'inline' | 'button';
+  variant?: 'card' | 'inline';
   onClick?: () => void;
 }
 
@@ -26,14 +26,10 @@ export function InviteTeammatesCard({
   const { scope } = useProjectRoute();
   const membersHref = '/project-settings/members';
 
-  const baseClasses = cn(
-    'flex items-center gap-4 text-sm',
-    variant !== 'button' && 'justify-between'
-  );
+  const baseClasses = 'flex items-center justify-between gap-4 text-sm';
   const variantClasses = {
     card: 'bg-muted/50 rounded-md border-b border-gray-200 px-4 py-3 text-muted-foreground dark:border-white/2 dark:bg-white/2 dark:text-muted-foreground/75',
     inline: 'mt-4 border-t border-b border-border/50 py-4 text-muted-foreground/75',
-    button: '',
   };
   const baseLink =
     'hover:text-foreground flex min-w-0 items-center gap-1.5 text-sm font-medium transition-colors hover:underline';
@@ -41,18 +37,11 @@ export function InviteTeammatesCard({
   const linkClasses = {
     card: baseLink,
     inline: baseLink,
-    button:
-      'inline-flex w-full items-center justify-center gap-2 rounded-md border border-input bg-background px-3 py-2 text-sm font-medium transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50',
   };
 
   return (
     <div className={cn(baseClasses, variantClasses[variant], className)}>
-      <div
-        className={cn(
-          'flex min-w-0 items-center gap-2',
-          variant === 'button' && 'w-full justify-center'
-        )}
-      >
+      <div className='flex min-w-0 items-center gap-2'>
         <Link
           to={scope(membersHref)}
           className={cn(linkClasses[variant])}
@@ -63,7 +52,7 @@ export function InviteTeammatesCard({
           <span className='truncate underline'>{inviteLabel}</span>
         </Link>
 
-        {hint && variant !== 'button' && (
+        {hint && (
           <span className='text-muted-foreground/75 dark:text-muted-foreground/50 hidden truncate lg:inline'>
             {hint}
           </span>
