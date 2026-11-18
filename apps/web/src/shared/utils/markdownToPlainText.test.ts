@@ -125,10 +125,29 @@ describe('markdownToPlainText', () => {
   it('treats a lone carriage return as a line break', () => {
     expect(markdownToPlainText('## Goals\r- one\r- two')).toBe('Goals: one two');
   });
-  it('removes a colon at the very end', () => {
+  it('removes the colon of a heading at the very end', () => {
     expect(markdownToPlainText('## Notes')).toBe('Notes');
+    expect(markdownToPlainText('Contacts:')).toBe('Contacts:');
     expect(markdownToPlainText('# Done.\nA')).toBe('Done. A');
     expect(markdownToPlainText('# Wow!\nA')).toBe('Wow! A');
     expect(markdownToPlainText('# Note:\nA')).toBe('Note: A');
+  });
+  it('removes a link and emphasis that span lines', () => {
+    expect(
+      markdownToPlainText('[Fact. Product\nARR](https://x.test/a) and **Owner:\nFinance**')
+    ).toBe('Fact. Product ARR and Owner: Finance');
+  });
+  it('keeps the text of inline code as it is', () => {
+    expect(markdownToPlainText('Read `dataset.__TABLES__` and `2**10`')).toBe(
+      'Read dataset.__TABLES__ and 2**10'
+    );
+  });
+  it('removes a setext heading underline', () => {
+    expect(markdownToPlainText('Mission\n===\nCollect cash.')).toBe('Mission Collect cash.');
+  });
+  it('reads a line of blanks around a rule fast', () => {
+    const start = performance.now();
+    expect(markdownToPlainText(`${' '.repeat(665)}---${' '.repeat(1331)}x`)).toBe('--- x');
+    expect(performance.now() - start).toBeLessThan(500);
   });
 });

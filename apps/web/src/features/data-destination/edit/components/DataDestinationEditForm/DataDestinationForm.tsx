@@ -367,7 +367,7 @@ export function DataDestinationForm({
           {isEditMode && destinationId && (
             <FormSection title='Contexts' defaultOpen={false} name='destination-contexts'>
               <FormItem>
-                <FormLabel tooltip='Business domains assigned to this Destination. A "Selected contexts only" member sees it only if it has one of their contexts or they own it.'>
+                <FormLabel tooltip='Business domains assigned to this Destination. A "Selected contexts only" member sees it only if they own it, or it is shared and has one of their contexts.'>
                   Assigned
                 </FormLabel>
                 <ContextPicker

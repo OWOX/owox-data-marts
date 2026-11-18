@@ -44,7 +44,18 @@ describe('ContextsCheckboxList', () => {
     expect(screen.getByText('Retain and grow revenue')).toHaveClass(
       'min-w-0',
       'flex-1',
-      'truncate'
+      'truncate',
+      'py-1',
+      '-my-1'
+    );
+  });
+
+  it('shows the full name and description on hover', () => {
+    renderList('Customer Success', '## Mission\nRetain revenue');
+    expect(screen.getByText('Customer Success')).toHaveAttribute('title', 'Customer Success');
+    expect(screen.getByText('Mission: Retain revenue')).toHaveAttribute(
+      'title',
+      'Mission: Retain revenue'
     );
   });
 });

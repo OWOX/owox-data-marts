@@ -394,7 +394,7 @@ export function DataStorageForm({
           {storageId && (
             <FormSection title='Contexts' defaultOpen={false} name='storage-contexts'>
               <FormItem>
-                <FormLabel tooltip='Business domains assigned to this Storage. A "Selected contexts only" member sees it only if it has one of their contexts or they own it.'>
+                <FormLabel tooltip='Business domains assigned to this Storage. A "Selected contexts only" editor sees it only if they own it, or it is shared and has one of their contexts.'>
                   Assigned
                 </FormLabel>
                 <ContextPicker

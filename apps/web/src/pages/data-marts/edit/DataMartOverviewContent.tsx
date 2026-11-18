@@ -439,7 +439,7 @@ export default function DataMartOverviewContent() {
         <CollapsibleCardHeader>
           <CollapsibleCardHeaderTitle
             icon={Tags}
-            tooltip='Business domains assigned to this Data Mart. A "Selected contexts only" member sees it only if it has one of their contexts or they own it.'
+            tooltip='Business domains assigned to this Data Mart. A "Selected contexts only" member sees it only if they own it, or it is shared and has one of their contexts.'
           >
             Contexts
           </CollapsibleCardHeaderTitle>

@@ -76,9 +76,14 @@ export function ContextsCheckboxList({
                   className='text-muted-foreground size-4 shrink-0'
                   aria-hidden='true'
                 />
-                <span className='-my-1 truncate py-1 font-medium'>{ctx.name}</span>
+                <span className='-my-1 truncate py-1 font-medium' title={ctx.name}>
+                  {ctx.name}
+                </span>
                 {description && (
-                  <span className='text-muted-foreground min-w-0 flex-1 truncate text-xs'>
+                  <span
+                    className='text-muted-foreground -my-1 min-w-0 flex-1 truncate py-1 text-xs'
+                    title={description}
+                  >
                     {description}
                   </span>
                 )}
