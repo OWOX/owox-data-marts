@@ -1,7 +1,8 @@
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { act, render, screen, waitFor } from '@testing-library/react';
-import type { ReactNode } from 'react';
-import { MemoryRouter } from 'react-router';
+import { onlineManager, QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { createContext, useContext, type ReactNode } from 'react';
+import { createMemoryRouter } from 'react-router';
+import { RouterProvider } from 'react-router/dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { PluginPageMessage as ActualPluginPageMessage } from '../../../features/plugins/components/PluginPageMessage';
 
@@ -13,7 +14,10 @@ vi.mock('react-router', async () => {
     useNavigate: () => navigate,
   };
 });
-vi.mock('../../../shared/hooks', () => ({
+vi.mock('../../../shared/hooks', async () => ({
+  ...(await vi.importActual<typeof import('../../../shared/hooks/useUnsavedChangesGuard')>(
+    '../../../shared/hooks/useUnsavedChangesGuard'
+  )),
   useProjectId: () => 'project-1',
   useProjectRoute: () => ({ scope: (path: string) => `/ui/project-1${path}` }),
 }));
@@ -31,6 +35,7 @@ interface CapturedBridgeOptions {
   onRouteChange?: (route: string) => void;
   onCopyLink?: (route: string | undefined) => Promise<void> | void;
   onLoadingChange?: (state: { active: boolean; progress?: number }) => void;
+  onUnsavedChange?: (state: { dirty: boolean; message?: string }) => void;
 }
 const bridgeOptions: CapturedBridgeOptions = {};
 let bridgeCreations = 0;
@@ -47,6 +52,9 @@ vi.mock('../../../features/plugins', async () => ({
   ...(await vi.importActual<typeof import('../../../features/plugins/runtime/pluginRoute')>(
     '../../../features/plugins/runtime/pluginRoute'
   )),
+  ...(await vi.importActual<typeof import('../../../features/plugins/runtime/pluginMessage')>(
+    '../../../features/plugins/runtime/pluginMessage'
+  )),
   pluginsService: { getEntryPoint: vi.fn() },
   // The bridge has its own suite; here it only needs to not explode, so the page's
   // sandbox attributes stay the thing under test.
@@ -60,6 +68,7 @@ vi.mock('../../../features/plugins', async () => ({
     bridgeOptions.onRouteChange = options.onRouteChange;
     bridgeOptions.onCopyLink = options.onCopyLink;
     bridgeOptions.onLoadingChange = options.onLoadingChange;
+    bridgeOptions.onUnsavedChange = options.onUnsavedChange;
     return { dispose: () => undefined };
   },
   createUserTokenChannel: (options: Omit<CapturedTokenChannel, 'dispose'>) => {
@@ -87,11 +96,21 @@ const ENTRY = {
   credentialHandles: [],
 };
 const OPEN_BASE = '/ui/project-1/plugins/p1/open';
-function renderPage(initialRoute = '/') {
+// One router per render; its route shows the wrapper's children, so `rerender` still works.
+const RenderedChildrenContext = createContext<ReactNode>(null);
+function RenderedChildren() {
+  return useContext(RenderedChildrenContext);
+}
+function renderPage(initialRoute = '/', initialEntries = [OPEN_BASE]) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const router = createMemoryRouter([{ path: '*', element: <RenderedChildren /> }], {
+    initialEntries,
+  });
   const wrapper = ({ children }: { children: ReactNode }) => (
     <QueryClientProvider client={client}>
-      <MemoryRouter>{children}</MemoryRouter>
+      <RenderedChildrenContext.Provider value={children}>
+        <RouterProvider router={router} />
+      </RenderedChildrenContext.Provider>
     </QueryClientProvider>
   );
   const view = render(
@@ -100,7 +119,7 @@ function renderPage(initialRoute = '/') {
       wrapper,
     }
   );
-  return Object.assign(view, { client });
+  return Object.assign(view, { client, router });
 }
 
 async function mountWithBridge(initialRoute = '/') {
@@ -115,6 +134,7 @@ async function mountWithBridge(initialRoute = '/') {
 describe('PluginRuntimePage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    navigate.mockReset();
     bridgeCreations = 0;
     tokenChannels.length = 0;
     authUser = user;
@@ -667,6 +687,26 @@ describe('PluginRuntimePage', () => {
     expect(bridgeOptions.context?.route).toBe('/d/7');
   });
 
+  it('does not reload the frame when the browser reconnects', async () => {
+    renderPage();
+    await waitFor(() => {
+      expect(bridgeCreations).toBe(1);
+    });
+
+    try {
+      await act(async () => {
+        onlineManager.setOnline(false);
+        onlineManager.setOnline(true);
+        await Promise.resolve();
+      });
+
+      expect(getEntryPoint).toHaveBeenCalledTimes(1);
+      expect(bridgeCreations).toBe(1);
+    } finally {
+      onlineManager.setOnline(true);
+    }
+  });
+
   it('starts another installation at its own route, not the last one reported', async () => {
     const view = renderPage('/');
     await waitFor(() => {
@@ -680,5 +720,296 @@ describe('PluginRuntimePage', () => {
       expect(bridgeCreations).toBe(2);
     });
     expect(bridgeOptions.context?.route).toBe('/x');
+  });
+
+  describe('unsaved changes', () => {
+    const HOST_PAGE = '/ui/project-1/data-marts';
+
+    async function mountPage(initialRoute = '/', initialEntries?: string[]) {
+      const view = renderPage(initialRoute, initialEntries);
+      await waitFor(() => {
+        expect(bridgeCreations).toBe(1);
+      });
+      return view;
+    }
+
+    function reportUnsaved(state: { dirty: boolean; message?: string } = { dirty: true }) {
+      act(() => {
+        bridgeOptions.onUnsavedChange?.(state);
+      });
+    }
+
+    async function goTo(router: ReturnType<typeof renderPage>['router'], path = HOST_PAGE) {
+      await act(async () => {
+        await router.navigate(path);
+      });
+    }
+
+    function forwardNavigation(router: ReturnType<typeof renderPage>['router']) {
+      navigate.mockImplementation((to: string, options?: { replace?: boolean }) =>
+        router.navigate(to, options)
+      );
+    }
+
+    it('asks before leaving the plugin page while unsaved', async () => {
+      const { router } = await mountPage();
+      reportUnsaved();
+
+      await goTo(router);
+
+      expect(screen.getByText('Unsaved Changes')).toBeInTheDocument();
+      expect(router.state.location.pathname).toBe(OPEN_BASE);
+    });
+
+    it('leaves after the member confirms', async () => {
+      const { router } = await mountPage();
+      reportUnsaved();
+      await goTo(router);
+
+      fireEvent.click(screen.getByRole('button', { name: 'Yes, leave now' }));
+
+      await waitFor(() => {
+        expect(router.state.location.pathname).toBe(HOST_PAGE);
+      });
+    });
+
+    it('stays after the member cancels', async () => {
+      const { router } = await mountPage();
+      reportUnsaved();
+      await goTo(router);
+
+      fireEvent.click(screen.getByRole('button', { name: 'No, stay here' }));
+
+      await waitFor(() => {
+        expect(screen.queryByText('Unsaved Changes')).not.toBeInTheDocument();
+      });
+      expect(router.state.location.pathname).toBe(OPEN_BASE);
+    });
+
+    it('asks before a browser Back while unsaved', async () => {
+      const { router } = await mountPage('/', [HOST_PAGE, OPEN_BASE]);
+      reportUnsaved();
+
+      await act(async () => {
+        await router.navigate(-1);
+      });
+      expect(screen.getByText('Unsaved Changes')).toBeInTheDocument();
+      expect(router.state.location.pathname).toBe(OPEN_BASE);
+
+      fireEvent.click(screen.getByRole('button', { name: 'Yes, leave now' }));
+
+      await waitFor(() => {
+        expect(router.state.location.pathname).toBe(HOST_PAGE);
+      });
+    });
+
+    it('shows the plugin message in the dialog', async () => {
+      const { router } = await mountPage();
+      reportUnsaved({ dirty: true, message: 'Two choices are not saved.' });
+
+      await goTo(router);
+
+      expect(screen.getByText('Two choices are not saved.')).toBeInTheDocument();
+    });
+
+    it('shows the plugin message as plain text', async () => {
+      const { router } = await mountPage();
+      reportUnsaved({ dirty: true, message: '<b>bold</b>' });
+
+      await goTo(router);
+
+      expect(screen.getByText('<b>bold</b>')).toBeInTheDocument();
+    });
+
+    it('drops an earlier message when the plugin sets none', async () => {
+      const { router } = await mountPage();
+      reportUnsaved({ dirty: true, message: 'Old' });
+      reportUnsaved({ dirty: true });
+
+      await goTo(router);
+
+      expect(screen.queryByText('Old')).not.toBeInTheDocument();
+      expect(
+        screen.getByText('You have unsaved changes. Exit without saving?')
+      ).toBeInTheDocument();
+    });
+
+    it('does not ask while clean', async () => {
+      const { router } = await mountPage();
+
+      await goTo(router);
+
+      expect(screen.queryByText('Unsaved Changes')).not.toBeInTheDocument();
+      expect(router.state.location.pathname).toBe(HOST_PAGE);
+    });
+
+    it('does not ask for a navigation inside the plugin address', async () => {
+      const { router } = await mountPage();
+      reportUnsaved();
+
+      await goTo(router, `${OPEN_BASE}/d/2`);
+
+      expect(screen.queryByText('Unsaved Changes')).not.toBeInTheDocument();
+      expect(router.state.location.pathname).toBe(`${OPEN_BASE}/d/2`);
+    });
+
+    it('does not ask after the plugin clears the flag in the same tick', async () => {
+      const { router } = await mountPage();
+      reportUnsaved();
+
+      await act(async () => {
+        bridgeOptions.onUnsavedChange?.({ dirty: false });
+        await router.navigate(HOST_PAGE);
+      });
+
+      expect(screen.queryByText('Unsaved Changes')).not.toBeInTheDocument();
+      expect(router.state.location.pathname).toBe(HOST_PAGE);
+    });
+
+    it('asks before a plugin navigation to a host page', async () => {
+      const { router } = await mountPage();
+      forwardNavigation(router);
+      reportUnsaved();
+
+      await act(async () => {
+        bridgeOptions.onNavigate?.(HOST_PAGE);
+      });
+
+      expect(await screen.findByText('Unsaved Changes')).toBeInTheDocument();
+      expect(router.state.location.pathname).toBe(OPEN_BASE);
+    });
+
+    it('clears the flag when the plugin reports another path', async () => {
+      const { router } = await mountPage();
+      reportUnsaved();
+
+      act(() => bridgeOptions.onRouteChange?.('/d/9'));
+      await goTo(router);
+
+      expect(screen.queryByText('Unsaved Changes')).not.toBeInTheDocument();
+      expect(router.state.location.pathname).toBe(HOST_PAGE);
+    });
+
+    it.each(['/d/9?tab=2', '/d/9#top'])(
+      'keeps the flag when only the query or hash changes: %s',
+      async route => {
+        const { router } = await mountPage('/d/9');
+        reportUnsaved();
+
+        act(() => bridgeOptions.onRouteChange?.(route));
+        await goTo(router);
+
+        expect(screen.getByText('Unsaved Changes')).toBeInTheDocument();
+      }
+    );
+
+    it('keeps the flag when the plugin reports an invalid route', async () => {
+      const { router } = await mountPage();
+      reportUnsaved();
+
+      act(() => bridgeOptions.onRouteChange?.('/../settings'));
+      await goTo(router);
+
+      expect(screen.getByText('Unsaved Changes')).toBeInTheDocument();
+    });
+
+    it('keeps the dialog open through an address sync', async () => {
+      const { router } = await mountWithBridge('/d/9');
+      forwardNavigation(router);
+      reportUnsaved();
+      await goTo(router);
+      expect(screen.getByText('Unsaved Changes')).toBeInTheDocument();
+
+      act(() => bridgeOptions.onRouteChange?.('/d/9'));
+      await act(async () => {
+        vi.advanceTimersByTime(400);
+      });
+
+      expect(screen.getByText('Unsaved Changes')).toBeInTheDocument();
+      expect(router.state.location.pathname).toBe(OPEN_BASE);
+    });
+
+    it('applies the held address sync after the member cancels', async () => {
+      const { router } = await mountWithBridge('/d/9');
+      forwardNavigation(router);
+      reportUnsaved();
+      await goTo(router);
+      act(() => bridgeOptions.onRouteChange?.('/d/9'));
+      await act(async () => {
+        vi.advanceTimersByTime(350);
+      });
+      expect(router.state.location.pathname).toBe(OPEN_BASE);
+
+      fireEvent.click(screen.getByRole('button', { name: 'No, stay here' }));
+      await act(async () => {
+        vi.advanceTimersByTime(350);
+      });
+
+      expect(router.state.location.pathname).toBe(`${OPEN_BASE}/d/9`);
+    });
+
+    it('drops a plugin navigation while the member decides', async () => {
+      const { router } = await mountPage();
+      reportUnsaved();
+      await goTo(router);
+      expect(screen.getByText('Unsaved Changes')).toBeInTheDocument();
+      forwardNavigation(router);
+
+      await act(async () => {
+        bridgeOptions.onNavigate?.(`${OPEN_BASE}/d/3`);
+      });
+
+      expect(screen.getByText('Unsaved Changes')).toBeInTheDocument();
+      expect(navigate).not.toHaveBeenCalledWith(`${OPEN_BASE}/d/3`);
+    });
+
+    it('cancels beforeunload while unsaved', async () => {
+      await mountPage();
+      reportUnsaved();
+
+      const whileUnsaved = new Event('beforeunload', { cancelable: true });
+      window.dispatchEvent(whileUnsaved);
+      expect(whileUnsaved.defaultPrevented).toBe(true);
+
+      reportUnsaved({ dirty: false });
+      const whileClean = new Event('beforeunload', { cancelable: true });
+      window.dispatchEvent(whileClean);
+      expect(whileClean.defaultPrevented).toBe(false);
+    });
+
+    it('clears the flag when the frame closes', async () => {
+      const view = await mountPage();
+      reportUnsaved();
+
+      act(() => bridgeOptions.onBroken?.());
+      // A new frame must not inherit the flag of the closed one.
+      view.rerender(<PluginRuntime installationId='i2' initialRoute='/' openBase={OPEN_BASE} />);
+      await screen.findByTitle('Example Plugin');
+      await goTo(view.router);
+
+      expect(screen.queryByText('Unsaved Changes')).not.toBeInTheDocument();
+      expect(view.router.state.location.pathname).toBe(HOST_PAGE);
+    });
+
+    it('does not ask when the frame is gone', async () => {
+      const view = await mountPage();
+      reportUnsaved();
+
+      getEntryPoint.mockRejectedValueOnce(new Error('gone'));
+      await act(() => view.client.invalidateQueries({ queryKey: ['plugin-entry'] }));
+      await screen.findByText('This plugin could not be opened');
+      await goTo(view.router);
+
+      expect(screen.queryByText('Unsaved Changes')).not.toBeInTheDocument();
+      expect(view.router.state.location.pathname).toBe(HOST_PAGE);
+    });
+
+    it('does not rebuild the bridge for the unsaved state', async () => {
+      await mountPage();
+
+      reportUnsaved({ dirty: true, message: 'x' });
+
+      expect(bridgeCreations).toBe(1);
+    });
   });
 });

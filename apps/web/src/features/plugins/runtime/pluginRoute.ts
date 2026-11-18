@@ -1,9 +1,10 @@
 export const MAX_PLUGIN_ROUTE_LENGTH = 2048;
 
 // eslint-disable-next-line no-control-regex
-const CONTROL_CHARACTER = /[\u0000-\u001f\u007f-\u009f]/;
+export const CONTROL_CHARACTER = /[\u0000-\u001f\u007f-\u009f]/;
 /** Bidi controls, zero-width and other invisible formatting characters. */
-const FORMAT_CHARACTER = /[\u061c\u180e\u200b-\u200f\u202a-\u202e\u2060-\u2064\u2066-\u2069\ufeff]/;
+export const FORMAT_CHARACTER =
+  /[\u061c\u180e\u200b-\u200f\u202a-\u202e\u2060-\u2064\u2066-\u2069\ufeff]/;
 const CAMPAIGN_TAG = /^utm_/i;
 /** `.` and `..`, literal or percent-encoded in any case: the URL parser collapses all of them. */
 const DOT_SEGMENT = /^(?:\.|%2e){1,2}$/i;

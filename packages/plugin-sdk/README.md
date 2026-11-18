@@ -46,21 +46,22 @@ redirecting paths are refused.
 
 ## Context
 
-|                                            |                                                                                                      |
-| ------------------------------------------ | ---------------------------------------------------------------------------------------------------- |
-| `ctx.owox`                                 | OWOX API client. The SDK owns its transport; you cannot replace it.                                  |
-| `ctx.credentials`                          | Declared, installation-bound Credential handles. No raw secrets.                                     |
-| `ctx.collections(name)`                    | Host-stored JSON documents declared by the plugin.                                                   |
-| `ctx.actions`                              | Runs your backend's actions through OWOX; `undefined` on a host without backend actions.             |
-| `ctx.schedules`                            | Creates cron schedules for your backend's actions; `undefined` on a host without schedules.          |
-| `ctx.ui.openExternal(url)`                 | Ask the host to open an external https URL in a new tab.                                             |
-| `ctx.ui.navigate(path)`                    | Ask the host to go to a page inside OWOX, in place of your frame.                                    |
-| `ctx.route`                                | The plugin's own route, e.g. `/dashboards/42`; `undefined` on a host without page links.             |
-| `ctx.ui.setRoute(path)`                    | Tells the host which of your pages is showing, so the address in the browser is a link to it.        |
-| `ctx.ui.copyLink(path?)`                   | Asks the host to copy a link to one of your pages (the current one by default) and confirm it.       |
-| `ctx.ui.startLoading()`                    | Shows the host's loading bar until you call `stop()` on the result; see [loading bar](#loading-bar). |
-| `ctx.signal`                               | Aborts when the host tears your plugin down.                                                         |
-| `ctx.userId`, `ctx.projectId`, `ctx.theme` | Display context. No tokens.                                                                          |
+|                                            |                                                                                                                           |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------- |
+| `ctx.owox`                                 | OWOX API client. The SDK owns its transport; you cannot replace it.                                                       |
+| `ctx.credentials`                          | Declared, installation-bound Credential handles. No raw secrets.                                                          |
+| `ctx.collections(name)`                    | Host-stored JSON documents declared by the plugin.                                                                        |
+| `ctx.actions`                              | Runs your backend's actions through OWOX; `undefined` on a host without backend actions.                                  |
+| `ctx.schedules`                            | Creates cron schedules for your backend's actions; `undefined` on a host without schedules.                               |
+| `ctx.ui.openExternal(url)`                 | Ask the host to open an external https URL in a new tab.                                                                  |
+| `ctx.ui.navigate(path)`                    | Ask the host to go to a page inside OWOX, in place of your frame.                                                         |
+| `ctx.route`                                | The plugin's own route, e.g. `/dashboards/42`; `undefined` on a host without page links.                                  |
+| `ctx.ui.setRoute(path)`                    | Tells the host which of your pages is showing, so the address in the browser is a link to it.                             |
+| `ctx.ui.copyLink(path?)`                   | Asks the host to copy a link to one of your pages (the current one by default) and confirm it.                            |
+| `ctx.ui.startLoading()`                    | Shows the host's loading bar until you call `stop()` on the result; see [loading bar](#loading-bar).                      |
+| `ctx.ui.setUnsaved(dirty, message?)`       | Asks the host to confirm before the member leaves a screen with unsaved changes; see [unsaved changes](#unsaved-changes). |
+| `ctx.signal`                               | Aborts when the host tears your plugin down.                                                                              |
+| `ctx.userId`, `ctx.projectId`, `ctx.theme` | Display context. No tokens.                                                                                               |
 
 Requests time out after 30 seconds; streamed reads do not. At most 32 may be in flight.
 
@@ -133,6 +134,30 @@ try {
 - Call `stop()` in a `finally` block. The host clears the bar when your plugin closes or its page
   reloads.
 - An older host shows no bar, and the calls do not fail.
+
+## Unsaved changes
+
+Tell the host when your screen has changes that the member has not saved. The host then asks before
+the member leaves.
+
+```ts
+function onChange(next: Settings) {
+  setDraft(next);
+  ctx.ui.setUnsaved(!isEqual(next, saved), 'Your Setup choices are not saved.');
+}
+
+async function onSave() {
+  await save(draft);
+  ctx.ui.setUnsaved(false);
+  ctx.ui.navigate(`/ui/${ctx.projectId}/data-marts`);
+}
+```
+
+- The host asks before the member leaves your plugin page, reloads, or closes the tab.
+- `setRoute` to another path clears the flag. Call `setUnsaved(true)` again after it.
+- `message` is plain text, up to 200 characters.
+- Call `setUnsaved(false)` before `ctx.ui.navigate` after a save.
+- An older host ignores the call.
 
 ## Credentials
 

@@ -125,6 +125,7 @@ Marts frame or if no host answers within 10 seconds.
 | `ctx.ui.setRoute(path)`                    | Tells the host which of your pages is showing, so the address in the browser is a link to it.                                                                                                                                                                                                                                                                   |
 | `ctx.ui.copyLink(path?)`                   | Asks the host to copy a link to one of your pages (the current one by default) and confirm it.                                                                                                                                                                                                                                                                  |
 | `ctx.ui.startLoading()`                    | Shows the host's loading bar until you call `stop()` on the result; see [loading bar](#show-the-loading-bar).                                                                                                                                                                                                                                                   |
+| `ctx.ui.setUnsaved(dirty, message?)`       | Asks the host to confirm before the member leaves a screen with unsaved changes; see [unsaved changes](#warn-about-unsaved-changes).                                                                                                                                                                                                                            |
 | `ctx.signal`                               | Aborts when the host tears the plugin down.                                                                                                                                                                                                                                                                                                                     |
 | `ctx.userId`, `ctx.projectId`, `ctx.theme` | Provides display context without exposing tokens. The member's name and avatar are available through `ctx.owox.auth` when needed.                                                                                                                                                                                                                               |
 
@@ -362,6 +363,39 @@ try {
 - Call `stop()` in a `finally` block. The host clears the bar when your plugin closes or its page
   reloads.
 - An older host shows no bar, and the calls do not fail.
+
+### Warn about unsaved changes
+
+Tell the host when your screen has changes that the member has not saved. Call
+`ctx.ui.setUnsaved(true, message)` when the first change appears. Call `ctx.ui.setUnsaved(false)`
+when the member saves or discards the changes.
+
+```ts
+function onChange(next: Settings) {
+  setDraft(next);
+  ctx.ui.setUnsaved(!isEqual(next, saved), 'Your Setup choices are not saved.');
+}
+
+async function onSave() {
+  await save(draft);
+  ctx.ui.setUnsaved(false);
+  ctx.ui.navigate(`/ui/${ctx.projectId}/data-marts`);
+}
+```
+
+- While the flag is set, the host asks before the member leaves. It guards the sidebar, the header,
+  the breadcrumbs, the browser Back and Forward buttons, `ctx.ui.navigate`, a reload, and a tab
+  close.
+- The host does not guard exits that your plugin draws itself. Ask the member in your own code.
+- `ctx.ui.setRoute` to another path clears the flag. Call `setUnsaved(true)` again after it on a
+  screen that still has changes. A change of only the query or the hash keeps the flag.
+- `message` is plain text, up to 200 characters. The host removes control and invisible characters.
+  The prompt for a reload or a tab close shows the browser's own text, not yours.
+- While the dialog is open, the host does not follow `ctx.ui.navigate`. It updates the address only
+  after the member decides.
+- After a save, call `setUnsaved(false)` before `ctx.ui.navigate`. Then the dialog does not open.
+- The host clears the flag when your plugin closes or its page reloads.
+- An older host ignores the call, and the call does not fail.
 
 ### Use project Credentials
 

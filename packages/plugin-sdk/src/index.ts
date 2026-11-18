@@ -74,6 +74,15 @@ export interface PluginUi {
    * `setProgress(fraction)` to show an amount. An older host shows nothing.
    */
   startLoading(): PluginLoading;
+
+  /**
+   * Tells the host that your screen has unsaved changes, so it asks before the member leaves.
+   *
+   * The host asks before the member leaves the plugin page, reloads or closes the tab. A
+   * `setRoute` to another path clears the flag, so call this again after `setRoute`.
+   * `message` is plain text, up to 200 characters. An older host ignores the call.
+   */
+  setUnsaved(dirty: boolean, message?: string): void;
 }
 
 export interface PluginContext extends Omit<PluginHostContext, 'actions' | 'schedules'> {
@@ -220,6 +229,7 @@ function bind(
     teardown.abort();
     // A reloaded frame gets no new channel, so the host would otherwise wait for this page.
     port.postMessage({ id: crypto.randomUUID(), kind: 'loading', active: false });
+    port.postMessage({ id: crypto.randomUUID(), kind: 'unsaved', dirty: false });
   });
 
   const requester = createIframeRequester(port);
@@ -253,6 +263,14 @@ function bind(
       startLoading: createPluginLoading(state => {
         port.postMessage({ id: crypto.randomUUID(), kind: 'loading', ...state });
       }),
+      setUnsaved: (dirty: boolean, message?: string) => {
+        port.postMessage({
+          id: crypto.randomUUID(),
+          kind: 'unsaved',
+          dirty: Boolean(dirty),
+          ...(typeof message === 'string' ? { message } : {}),
+        });
+      },
     },
     signal: teardown.signal,
   };

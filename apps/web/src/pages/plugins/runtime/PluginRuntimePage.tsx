@@ -8,6 +8,7 @@ import {
   createUserTokenChannel,
   fetchRuntimeToken,
   fetchUserToken,
+  normalizeUnsavedMessage,
   PluginPageMessage,
   pluginsService,
   routeFromLocation,
@@ -15,7 +16,9 @@ import {
 } from '../../../features/plugins';
 import { setPluginLoading } from '../../../app/api/api-loading';
 import { useAuth } from '../../../features/idp';
-import { useProjectId, useProjectRoute } from '../../../shared/hooks';
+import { useProjectId, useProjectRoute, useUnsavedChangesGuard } from '../../../shared/hooks';
+import { UnsavedChangesConfirmationDialog } from '../../../shared/components/UnsavedChangesConfirmationDialog';
+import { isSameOrNestedPath } from '../../../components/AppSidebar/menu-item-active';
 
 /**
  * Exactly two sandbox tokens for a plugin without the privileged mark, and never a third.
@@ -64,6 +67,20 @@ export function PluginRuntime({
   /** Set when the bridge closes the channel itself, e.g. a failed handshake. */
   const [broken, setBroken] = useState(false);
 
+  const unsavedRef = useRef(false);
+  const [unsavedMessage, setUnsavedMessage] = useState<string | undefined>();
+  const markUnsaved = useCallback((dirty: boolean, message?: string) => {
+    unsavedRef.current = dirty;
+    setUnsavedMessage(dirty ? normalizeUnsavedMessage(message) : undefined);
+  }, []);
+  const guard = useUnsavedChangesGuard(
+    () => unsavedRef.current && frameRef.current !== null,
+    pathname => !isSameOrNestedPath(pathname, openBase)
+  );
+  // Any completed navigation resets the blocker, so the plugin's navigations wait while the member decides.
+  const guardRef = useRef(guard);
+  guardRef.current = guard;
+
   const lastRouteRef = useRef(initialRoute);
   const routeInstallationRef = useRef(installationId);
   if (routeInstallationRef.current !== installationId) {
@@ -86,16 +103,24 @@ export function PluginRuntime({
       if (route === null) {
         return;
       }
+      if (routePath(route) !== routePath(lastRouteRef.current)) {
+        markUnsaved(false);
+      }
       lastRouteRef.current = route;
       if (addressTimerRef.current !== undefined) {
         return;
       }
-      addressTimerRef.current = setTimeout(() => {
+      const sync = () => {
+        if (guardRef.current.isLeavePending()) {
+          addressTimerRef.current = setTimeout(sync, ADDRESS_SYNC_DELAY_MS);
+          return;
+        }
         addressTimerRef.current = undefined;
         void syncAddress(navigateRef.current, openBase, lastRouteRef.current);
-      }, ADDRESS_SYNC_DELAY_MS);
+      };
+      addressTimerRef.current = setTimeout(sync, ADDRESS_SYNC_DELAY_MS);
     },
-    [openBase]
+    [openBase, markUnsaved]
   );
 
   const onCopyLink = useCallback(
@@ -115,6 +140,7 @@ export function PluginRuntime({
     enabled: Boolean(projectId) && installationId.length > 0,
     retry: false,
     refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
   });
 
   const openExternal = useCallback((url: string) => {
@@ -126,6 +152,9 @@ export function PluginRuntime({
   }, []);
 
   const navigateInApp = useCallback((path: string) => {
+    if (guardRef.current.isLeavePending()) {
+      return;
+    }
     // The leading slash is the only shape check worth making: a relative path resolves
     // against this origin and would pass the comparison below. Everything that reaches
     // for another host -- "//evil.example/x", "/\evil.example/x" -- resolves to that
@@ -195,6 +224,9 @@ export function PluginRuntime({
       onRouteChange,
       onCopyLink,
       onLoadingChange: setPluginLoading,
+      onUnsavedChange: ({ dirty, message }) => {
+        markUnsaved(dirty, message);
+      },
       onBroken: () => {
         setBroken(true);
       },
@@ -215,6 +247,7 @@ export function PluginRuntime({
       bridge.dispose();
       // A closed plugin cannot stop its own loading, so the bar must not wait for it.
       setPluginLoading({ active: false });
+      markUnsaved(false);
     };
     // `broken` is a dependency because it unmounts the frame: without it, clearing the
     // flag for the next installation would leave the remounted frame with no bridge.
@@ -227,6 +260,7 @@ export function PluginRuntime({
     navigateInApp,
     onRouteChange,
     onCopyLink,
+    markUnsaved,
     broken,
     pluginOrigin,
   ]);
@@ -272,6 +306,14 @@ export function PluginRuntime({
         className='h-full w-full border-0'
       />
       {fallbackDialog}
+      <UnsavedChangesConfirmationDialog
+        open={guard.blocked}
+        onOpenChange={open => {
+          if (!open) guard.cancelLeave();
+        }}
+        onConfirm={guard.confirmLeave}
+        description={unsavedMessage}
+      />
     </>
   );
 }
@@ -284,9 +326,12 @@ function deliveryOrigin(deliveryUrl: string): string | undefined {
   }
 }
 
+function routePath(route: string): string {
+  return route.split(/[?#]/, 1)[0];
+}
+
 async function syncAddress(navigate: NavigateFunction, openBase: string, route: string) {
-  const { pathname } = window.location;
-  if (pathname !== openBase && !pathname.startsWith(`${openBase}/`)) {
+  if (!isSameOrNestedPath(window.location.pathname, openBase)) {
     return;
   }
   if (routeFromLocation(window.location, openBase) === route) {

@@ -79,6 +79,7 @@ interface Harness {
   onRouteChange: ReturnType<typeof vi.fn>;
   onCopyLink: ReturnType<typeof vi.fn>;
   onLoadingChange: ReturnType<typeof vi.fn>;
+  onUnsavedChange: ReturnType<typeof vi.fn>;
   onBroken: ReturnType<typeof vi.fn>;
 }
 
@@ -99,6 +100,7 @@ async function harness(
   const onRouteChange = vi.fn();
   const onCopyLink = vi.fn(() => Promise.resolve());
   const onLoadingChange = vi.fn();
+  const onUnsavedChange = vi.fn();
   const onBroken = vi.fn();
   const fetchRuntimeToken = vi.fn(() =>
     Promise.resolve({ runtimeToken: RUNTIME_TOKEN, expiresIn: 900 })
@@ -115,6 +117,7 @@ async function harness(
     onRouteChange,
     onCopyLink,
     onLoadingChange,
+    onUnsavedChange,
     onBroken,
     ...extra,
   });
@@ -170,6 +173,7 @@ async function harness(
     onRouteChange,
     onCopyLink,
     onLoadingChange,
+    onUnsavedChange,
     onBroken,
   };
 }
@@ -1896,6 +1900,54 @@ describe('plugin host bridge', () => {
         error: { code: 'PROTOCOL_ERROR', message: 'The loading state is invalid' },
       });
       expect(h.onLoadingChange).not.toHaveBeenCalled();
+    });
+
+    it('passes the unsaved state to the page and answers nothing', async () => {
+      const h = await harness();
+
+      const reply = await Promise.race([
+        h.send({ kind: 'unsaved', dirty: true, message: 'x' }),
+        flush().then(() => 'no reply'),
+      ]);
+
+      expect(reply).toBe('no reply');
+      expect(h.onUnsavedChange).toHaveBeenCalledWith({ dirty: true, message: 'x' });
+      expect(h.fetchMock).not.toHaveBeenCalled();
+    });
+
+    it.each([{ dirty: 'yes' }, { dirty: true, message: 7 }])(
+      'refuses the unsaved state %j',
+      async state => {
+        const h = await harness();
+
+        const response = await h.send({
+          kind: 'unsaved',
+          ...state,
+        } as unknown as PluginRequestInput);
+
+        expect(response).toMatchObject({
+          ok: false,
+          error: { code: 'PROTOCOL_ERROR', message: 'The unsaved state is invalid' },
+        });
+        expect(h.onUnsavedChange).not.toHaveBeenCalled();
+      }
+    );
+
+    it('accepts the unsaved state while API requests hold every slot', async () => {
+      const h = await harness(() => new Promise<Response>(() => undefined));
+
+      for (let index = 0; index < 32; index += 1) {
+        h.tell({ kind: 'api', method: 'GET', path: `/api/data-marts/${String(index)}` });
+      }
+      await vi.waitFor(() => {
+        expect(h.fetchMock).toHaveBeenCalledTimes(32);
+      });
+
+      h.tell({ kind: 'unsaved', dirty: true });
+      await flush();
+
+      expect(h.onUnsavedChange).toHaveBeenCalledWith({ dirty: true, message: undefined });
+      h.bridge.dispose();
     });
   });
 
