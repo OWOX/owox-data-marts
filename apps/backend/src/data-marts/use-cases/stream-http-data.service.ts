@@ -556,6 +556,10 @@ export class StreamHttpDataService {
         calculatedFields,
       });
 
+      if (res.destroyed) {
+        throw new StreamCancelledError('Client disconnected before stream completion');
+      }
+
       // Grand totals are a SEPARATE DWH query bridged to the client via x-owox-run-id. Computed
       // BEFORE streamRows: NDJSON headers cannot change once the first chunk is flushed. BEST-EFFORT.
       const { totals, totalsError } = await this.computeTotalsBestEffort(

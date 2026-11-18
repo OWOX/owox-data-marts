@@ -92,7 +92,8 @@ create a `RESTRICTED` run.
 
 Both HTTP Data endpoints save the SQL in `additionalParams.httpData.executionSqlQuery`, with
 parameter values inlined. The web UI shows this query in the run's **Executed SQL** block, where it
-can be copied. The field is absent when OWOX cannot build the SQL.
+can be copied. The field is absent when OWOX cannot build the SQL. For a read without output
+controls, the reader runs its own query or reads the table directly. This SQL returns the same rows.
 
 ## Compatibility
 

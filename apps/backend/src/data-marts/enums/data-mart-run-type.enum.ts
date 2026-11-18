@@ -15,7 +15,10 @@ export enum DataMartRunType {
   DATA_QUALITY = 'DATA_QUALITY',
 }
 
-export const HTTP_DATA_RUN_SHAPE_TYPES = [DataMartRunType.HTTP_DATA, DataMartRunType.EXCEL];
+export const HTTP_DATA_RUN_SHAPE_TYPES: readonly DataMartRunType[] = [
+  DataMartRunType.HTTP_DATA,
+  DataMartRunType.EXCEL,
+];
 
 /**
  * Run types persisted by DataMartRunService.recordHttpDataRun.

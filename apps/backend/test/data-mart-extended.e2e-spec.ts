@@ -1,4 +1,6 @@
 import { INestApplication } from '@nestjs/common';
+import { getRepositoryToken } from '@nestjs/typeorm';
+import type { Repository } from 'typeorm';
 import * as supertest from 'supertest';
 import {
   createTestApp,
@@ -9,6 +11,10 @@ import {
   StorageBuilder,
   DataMartBuilder,
 } from '@owox/test-utils';
+import { RunType } from '../src/common/scheduler/shared/types';
+import { DataMartRun } from '../src/data-marts/entities/data-mart-run.entity';
+import { DataMartRunStatus } from '../src/data-marts/enums/data-mart-run-status.enum';
+import { DataMartRunType } from '../src/data-marts/enums/data-mart-run-type.enum';
 
 describe('DataMart Extended Operations (e2e)', () => {
   let app: INestApplication;
@@ -80,6 +86,35 @@ describe('DataMart Extended Operations (e2e)', () => {
 
     expect(res.status).toBe(200);
     expect(res.body.items).toHaveLength(0);
+  });
+
+  it('POST /api/data-marts/health-status - keeps the last finished API read while a read streams', async () => {
+    const { dataMartId: readDataMartId } = await setupPublishedDataMart(agent);
+    const runs = app.get<Repository<DataMartRun>>(getRepositoryToken(DataMartRun));
+    const now = Date.now();
+    const httpDataRun = (status: DataMartRunStatus, createdAt: Date) =>
+      runs.save(
+        runs.create({
+          dataMartId: readDataMartId,
+          type: DataMartRunType.HTTP_DATA,
+          status,
+          runType: RunType.manual,
+          createdAt,
+        })
+      );
+    const finished = await httpDataRun(DataMartRunStatus.SUCCESS, new Date(now - 60_000));
+    await httpDataRun(DataMartRunStatus.RUNNING, new Date(now));
+
+    const res = await agent
+      .post('/api/data-marts/health-status')
+      .set(AUTH_HEADER)
+      .send({ ids: [readDataMartId] });
+
+    expect(res.status).toBe(200);
+    expect(res.body.items[0].report).toMatchObject({
+      id: finished.id,
+      status: DataMartRunStatus.SUCCESS,
+    });
   });
 
   // DMART-05: Batch health status exceeding 200 limit -- @ArrayMaxSize(200) validation

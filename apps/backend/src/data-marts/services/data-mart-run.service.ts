@@ -267,6 +267,8 @@ export class DataMartRunService {
             .from(DataMartRun, 'r')
             .where('r.dataMartId IN (:...ids)')
             .andWhere('r.createdAt >= :fromDate')
+            // An API read that still streams changes no data: health keeps the last finished read.
+            .andWhere('(r.status != :running OR r.type NOT IN (:...readTypes))')
             .groupBy('r.dataMartId, r.type'),
         'latest',
         'run.dataMartId = latest.dataMartId AND run.type = latest.type AND run.createdAt = latest.maxCreatedAt'
@@ -274,6 +276,10 @@ export class DataMartRunService {
       .innerJoin(DataMart, 'dm', 'dm.id = run.dataMartId')
       .where('run.dataMartId IN (:...ids)', { ids: dataMartIds })
       .andWhere('run.createdAt >= :fromDate', { fromDate })
+      .andWhere('(run.status != :running OR run.type NOT IN (:...readTypes))', {
+        running: DataMartRunStatus.RUNNING,
+        readTypes: HTTP_DATA_RUN_SHAPE_TYPES,
+      })
       .andWhere('dm.projectId = :projectId', { projectId })
       .getMany();
   }

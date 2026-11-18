@@ -841,15 +841,15 @@ describe('StreamHttpDataService', () => {
     it('records the composed SQL for a read without output controls', async () => {
       const decision = { needsBlending: false };
       blended.resolveBlendingDecision.mockResolvedValueOnce(decision);
-      sqlComposer.composeStatic.mockResolvedValueOnce({ sql: 'SELECT date, revenue FROM t' });
+      sqlComposer.composeStatic.mockResolvedValueOnce({ sql: 'SELECT date FROM composed' });
 
       await service.stream(fakeCommand(), mockResponse());
 
       const [readPlan, accessor] = blended.resolveBlendingDecision.mock.calls[0];
       expect(sqlComposer.composeStatic).toHaveBeenCalledWith(readPlan, accessor, decision);
       const writes = runWrites();
-      expect(writes[0].metadata.executionSqlQuery).toBe('SELECT date, revenue FROM t');
-      expect(writes.at(-1)!.metadata.executionSqlQuery).toBe('SELECT date, revenue FROM t');
+      expect(writes[0].metadata.executionSqlQuery).toBe('SELECT date FROM composed');
+      expect(writes.at(-1)!.metadata.executionSqlQuery).toBe('SELECT date FROM composed');
       // The SQL is only for the record: the reader still reads without an override.
       expect(reader.prepareReportData.mock.calls[0][1]?.sqlOverride).toBeUndefined();
     });
@@ -1005,6 +1005,22 @@ describe('StreamHttpDataService', () => {
       await expect(service.stream(fakeCommand(), res)).resolves.toBeUndefined();
 
       expect(reader.prepareReportData).not.toHaveBeenCalled();
+      expect(runWrites().map(write => write.status)).toEqual([
+        DataMartRunStatus.RUNNING,
+        DataMartRunStatus.FAILED,
+      ]);
+    });
+
+    it('does not query the totals when the client left during the read preparation', async () => {
+      const res = mockResponse();
+      reader.prepareReportData.mockImplementationOnce(async () => {
+        res.destroy();
+        return new ReportDataDescription([new ReportDataHeader('date')]);
+      });
+
+      await expect(service.stream(fakeCommand(), res)).resolves.toBeUndefined();
+
+      expect(reportTotals.computeTotals).not.toHaveBeenCalled();
       expect(runWrites().map(write => write.status)).toEqual([
         DataMartRunStatus.RUNNING,
         DataMartRunStatus.FAILED,
