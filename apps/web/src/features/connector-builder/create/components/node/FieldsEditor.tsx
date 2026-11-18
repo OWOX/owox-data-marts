@@ -38,16 +38,34 @@ import { FieldInfo } from '../fields';
 const FIELD_TYPES = ['string', 'integer', 'number', 'boolean', 'date', 'datetime', 'object'];
 
 const DUPLICATE_HINT =
-  'Another field already uses this name — only the last one will be saved. Rename or remove one of them.';
+  'Another field already uses this name. Change one of the names. Until then, the new name is not saved.';
 
 /** One output field with a stable client id so rows keep focus/order while dragging. `pk`/`default`
  * mirror membership in the node's uniqueKeys / defaultFields lists. */
 interface Row {
   id: number;
+  /** The name as typed. */
   name: string;
+  /** The name the field had in the manifest when its name input was last left ('' for a new row). */
+  saved: string;
   field: ManifestField;
   pk: boolean;
   default: boolean;
+}
+
+/**
+ * The name each row is written under ('' = not written). A typed name counts only when it is
+ * not blank and no other row shows or keeps it; otherwise the row keeps its saved name, so a
+ * half-typed rename never drops or overwrites a field.
+ */
+function savedNames(rows: Row[]): string[] {
+  return rows.map((row, i) => {
+    const typed = row.name.trim();
+    const free =
+      typed !== '' &&
+      rows.every((other, j) => j === i || (other.name.trim() !== typed && other.saved !== typed));
+    return free ? typed : row.saved;
+  });
 }
 
 /**
@@ -113,6 +131,7 @@ export function FieldsEditor({ nodeName }: { nodeName: string }) {
     Object.entries(fields).map(([name, field]) => ({
       id: ++idSeq.current,
       name,
+      saved: name,
       field,
       pk: (node.uniqueKeys ?? []).includes(name),
       default: (node.defaultFields ?? []).includes(name),
@@ -136,23 +155,21 @@ export function FieldsEditor({ nodeName }: { nodeName: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [node.fields, node.uniqueKeys, node.defaultFields]);
 
-  // Rebuild fields + uniqueKeys + defaultFields from the working rows. Blank names are
-  // skipped. Two rows can carry the same name (flagged in the table, see `duplicateNames`);
-  // `fieldsRec` collapses those to one entry by construction, so uniqueKeys/defaultFields
-  // must not list the shared name once per row — the manifest would then declare the same
-  // column twice in a list that is meant to be a set.
+  // Rebuild fields + uniqueKeys + defaultFields from the working rows, each under its name
+  // from `savedNames`. Those names are unique, so no list names a column twice.
   const commit = (next: Row[]) => {
     setRows(next);
+    const names = savedNames(next);
     const fieldsRec: Record<string, ManifestField> = {};
     const uk: string[] = [];
     const df: string[] = [];
-    for (const r of next) {
-      const name = r.name.trim();
-      if (!name) continue;
+    next.forEach((r, i) => {
+      const name = names[i];
+      if (!name) return;
       fieldsRec[name] = trimmedField(r.field);
-      if (r.pk && !uk.includes(name)) uk.push(name);
-      if (r.default && !df.includes(name)) df.push(name);
-    }
+      if (r.pk) uk.push(name);
+      if (r.default) df.push(name);
+    });
     lastCommitted.current = JSON.stringify({ f: fieldsRec, u: uk, d: df });
     setPath([...base, 'fields'], fieldsRec);
     setPath([...base, 'uniqueKeys'], uk.length ? uk : undefined);
@@ -177,13 +194,15 @@ export function FieldsEditor({ nodeName }: { nodeName: string }) {
     commit(rows.map(r => (r.id === id ? { ...r, [key]: checked } : r)));
   };
   const setName = (id: number, name: string) => {
-    const next = rows.map(r => (r.id === id ? { ...r, name } : r));
-    // A blank or duplicate name stays on screen only, so the manifest keeps the field under its last valid name.
-    if (name.trim() === '' || rows.some(r => r.id !== id && r.name.trim() === name.trim())) {
-      setRows(next);
-      return;
-    }
-    commit(next);
+    commit(rows.map(r => (r.id === id ? { ...r, name } : r)));
+  };
+  // The name a row is written under when you leave its input becomes its fallback.
+  const settleName = (id: number) => {
+    const names = savedNames(rows);
+    const next = rows.map((r, i) => (r.id === id ? { ...r, saved: names[i] } : r));
+    // Settling can free a name that another row waits for; only then the manifest changes.
+    if (savedNames(next).some((name, i) => name !== names[i])) commit(next);
+    else setRows(next);
   };
   const removeRow = (id: number) => {
     commit(rows.filter(r => r.id !== id));
@@ -192,7 +211,14 @@ export function FieldsEditor({ nodeName }: { nodeName: string }) {
   const addRow = () => {
     commit([
       ...rows,
-      { id: ++idSeq.current, name: '', field: { type: 'string' }, pk: false, default: false },
+      {
+        id: ++idSeq.current,
+        name: '',
+        saved: '',
+        field: { type: 'string' },
+        pk: false,
+        default: false,
+      },
     ]);
   };
   const discoverFields = () => {
@@ -217,12 +243,13 @@ export function FieldsEditor({ nodeName }: { nodeName: string }) {
     commit(arrayMove(rows, oldIndex, newIndex));
   };
 
-  // Names claimed by more than one row. `commit` keys `fields` by name, so only the last
-  // such row reaches the manifest while every one of them stays on screen — the collision is
-  // invisible until a reload unless the table says so.
+  // A clash: the typed name is shown on another row too, or it is not the name the row is saved under.
   const trimmedNames = rows.map(r => r.name.trim());
-  const duplicateNames = new Set(
-    trimmedNames.filter((name, i) => name !== '' && trimmedNames.indexOf(name) !== i)
+  const writtenNames = savedNames(rows);
+  const nameClashes = trimmedNames.map(
+    (name, i) =>
+      name !== '' &&
+      (name !== writtenNames[i] || trimmedNames.indexOf(name) !== trimmedNames.lastIndexOf(name))
   );
 
   const head = (label: string, hint: string, center = false) => (
@@ -304,7 +331,7 @@ export function FieldsEditor({ nodeName }: { nodeName: string }) {
                 </TableRow>
               ) : (
                 <SortableContext items={rows.map(r => r.id)} strategy={verticalListSortingStrategy}>
-                  {rows.map(row => (
+                  {rows.map((row, index) => (
                     <SortableTableRow key={row.id} id={row.id}>
                       {/* first cell is replaced by the drag handle */}
                       <TableCell />
@@ -318,6 +345,9 @@ export function FieldsEditor({ nodeName }: { nodeName: string }) {
                             onChange={e => {
                               setName(row.id, e.target.value);
                             }}
+                            onBlur={() => {
+                              settleName(row.id);
+                            }}
                             placeholder='Field name'
                             aria-label='Field name'
                             data-testid={`fieldname-${row.name}`}
@@ -329,7 +359,7 @@ export function FieldsEditor({ nodeName }: { nodeName: string }) {
                               aria-label='Field name is required'
                             />
                           )}
-                          {duplicateNames.has(row.name.trim()) && (
+                          {nameClashes[index] && (
                             <span title={DUPLICATE_HINT} className='flex shrink-0'>
                               <CircleAlert
                                 className='h-4 w-4 shrink-0 text-red-500'

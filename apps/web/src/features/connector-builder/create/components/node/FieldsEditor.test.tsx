@@ -107,9 +107,8 @@ describe('FieldsEditor', () => {
 });
 
 describe('FieldsEditor — duplicate names', () => {
-  // `commit` keys `fields` by name, so two rows called the same thing collapse to one entry
-  // and the first row's type/data path/description are gone — while both rows stay on
-  // screen until a reload. Flag them the same way a blank name is flagged.
+  // Two rows can show the same name, but only the row that had it first is saved under it.
+  // Flag both, the same way a blank name is flagged.
   it('flags every row in a duplicate-name group', () => {
     renderEditor('{"nodes":{"items":{"recordSelector":{}}}}');
     addField('id');
@@ -288,5 +287,100 @@ describe('FieldsEditor — field name as you type', () => {
       id: { type: 'string', dataPath: 'a' },
       id2: { type: 'integer', dataPath: 'b' },
     });
+  });
+
+  const TWO_FIELDS =
+    '{"nodes":{"items":{"recordSelector":{},"fields":{"id":{"type":"string","dataPath":"a"},"id2":{"type":"integer","dataPath":"b"}},"uniqueKeys":["id"]}}}';
+
+  it('keeps a cleared field when another cell in the table changes', () => {
+    renderEditor(TWO_FIELDS);
+    const second = screen.getByTestId('fieldname-id2');
+    fireEvent.change(second, { target: { value: '' } });
+    fireEvent.blur(second);
+    fireEvent.click(screen.getByLabelText('Default field: id'));
+
+    expect(storedFields()).toEqual({
+      id: { type: 'string', dataPath: 'a' },
+      id2: { type: 'integer', dataPath: 'b' },
+    });
+    expect(latest.state?.manifest.nodes.items.defaultFields).toEqual(['id']);
+  });
+
+  it('keeps both fields when another cell changes while a name is a duplicate', () => {
+    renderEditor(TWO_FIELDS);
+    const second = screen.getByTestId('fieldname-id2');
+    fireEvent.change(second, { target: { value: 'id' } });
+    fireEvent.blur(second);
+    fireEvent.click(screen.getAllByLabelText('Default field: id')[0]);
+
+    expect(storedFields()).toEqual({
+      id: { type: 'string', dataPath: 'a' },
+      id2: { type: 'integer', dataPath: 'b' },
+    });
+    expect(latest.state?.manifest.nodes.items.defaultFields).toEqual(['id']);
+    expect(screen.getAllByLabelText('Duplicate field name')).toHaveLength(2);
+  });
+
+  it('falls back to the name before the edit, not to the last valid keystroke', () => {
+    renderEditor(
+      '{"nodes":{"items":{"recordSelector":{},"fields":{"downloads":{"type":"integer"}},"uniqueKeys":["downloads"]}}}'
+    );
+    const input = screen.getByTestId('fieldname-downloads');
+    for (const value of ['download', 'd', '']) {
+      fireEvent.change(input, { target: { value } });
+    }
+
+    expect(storedFields()).toEqual({ downloads: { type: 'integer' } });
+    expect(latest.state?.manifest.nodes.items.uniqueKeys).toEqual(['downloads']);
+  });
+
+  it('does not take a name that another row still keeps', () => {
+    renderEditor(
+      '{"nodes":{"items":{"recordSelector":{},"fields":{"start":{"type":"string","dataPath":"s"},"end":{"type":"integer","dataPath":"e"}}}}}'
+    );
+    const end = screen.getByTestId('fieldname-end');
+    fireEvent.change(end, { target: { value: '' } });
+    fireEvent.blur(end);
+    fireEvent.change(screen.getByTestId('fieldname-start'), { target: { value: 'end' } });
+
+    expect(storedFields()).toEqual({
+      start: { type: 'string', dataPath: 's' },
+      end: { type: 'integer', dataPath: 'e' },
+    });
+    expect(
+      within(screen.getByTestId('field-end')).getByLabelText('Duplicate field name')
+    ).toBeInTheDocument();
+  });
+
+  it('falls back to the name settled when you last left the input', () => {
+    renderEditor(ONE_FIELD);
+    const input = screen.getByTestId('fieldname-id');
+    fireEvent.change(input, { target: { value: 'user_id' } });
+    fireEvent.blur(input);
+    fireEvent.change(input, { target: { value: '' } });
+
+    expect(storedFields()).toEqual({ user_id: { type: 'string' } });
+  });
+
+  it('writes a waiting name when leaving another input frees it', () => {
+    renderEditor('{"nodes":{"items":{"recordSelector":{},"fields":{"a":{"type":"string"}}}}}');
+    addField('a');
+    const first = screen.getAllByRole('textbox', { name: 'Field name' })[0];
+    fireEvent.change(first, { target: { value: 'z' } });
+    expect(storedFields()).toEqual({ z: { type: 'string' } });
+
+    fireEvent.blur(first);
+    expect(storedFields()).toEqual({ z: { type: 'string' }, a: { type: 'string' } });
+    expect(screen.queryByLabelText('Duplicate field name')).toBeNull();
+  });
+
+  it('adds no field for a new row that is typed and then cleared', () => {
+    renderEditor('{"nodes":{"items":{"recordSelector":{}}}}');
+    fireEvent.click(screen.getByRole('button', { name: 'Add field' }));
+    const input = screen.getByRole('textbox', { name: 'Field name' });
+    fireEvent.change(input, { target: { value: 'foo' } });
+    fireEvent.change(input, { target: { value: '' } });
+
+    expect(storedFields()).toEqual({});
   });
 });

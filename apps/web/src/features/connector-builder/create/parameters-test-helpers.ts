@@ -27,4 +27,5 @@ export function addField(name: string) {
     .filter(i => (i as HTMLInputElement).value === '');
   if (blank.length !== 1) throw new Error(`Expected one blank field row, found ${blank.length}`);
   fireEvent.change(blank[0], { target: { value: name } });
+  fireEvent.blur(blank[0]);
 }
