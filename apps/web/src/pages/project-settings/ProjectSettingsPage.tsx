@@ -17,6 +17,7 @@ import { MembersSettingsProvider } from '../../features/project-settings/members
 import { MembershipRequestSheet } from '../../features/project-settings/members/components/MembershipRequestSheet/MembershipRequestSheet';
 import { useRecordSheet } from '../../shared/hooks';
 import { useTombstonedCollection } from '../../features/project-settings/members/model/useTombstonedCollection';
+import { useRefreshSetupProgress } from '../../components/AppSidebar/SetupChecklist/useSetupProgress';
 
 interface TabLink {
   name: string;
@@ -48,6 +49,7 @@ export function ProjectSettingsPage() {
   const [hasLoaded, setHasLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [inviteOpen, setInviteOpen] = useState(false);
+  const refreshSetupProgress = useRefreshSetupProgress();
   const [addContextOpen, setAddContextOpen] = useState(false);
   const [pendingRequests, setPendingRequests] = useState<MembershipRequestDto[]>([]);
   const [requestsLoaded, setRequestsLoaded] = useState(false);
@@ -242,6 +244,7 @@ export function ProjectSettingsPage() {
           onInvited={() => {
             setInviteOpen(false);
             void loadData();
+            refreshSetupProgress();
           }}
         />
 

@@ -2,6 +2,7 @@ import { X } from 'lucide-react';
 import { cn } from '@owox/ui/lib/utils';
 import { SetupGroupPopover } from './SetupGroupPopover';
 import { SetupChecklistGroup } from './SetupChecklistGroup';
+import { GroupStatusType } from './types';
 import { useProjectRoute } from '../../../shared/hooks';
 import type { SetupProgressResult } from './useSetupProgress';
 import type { SetupChecklistVisibility } from './useSetupChecklistVisibility';
@@ -74,7 +75,7 @@ export function SetupChecklist({ progressResult, visibility }: SetupChecklistPro
       ) : (
         <div className='flex flex-col px-2 pt-2 pb-4'>
           {groupProgresses.map(groupProgress =>
-            groupProgress.group.href ? (
+            groupProgress.group.href && groupProgress.status !== GroupStatusType.DONE ? (
               <SetupChecklistGroup
                 key={groupProgress.group.id}
                 groupProgress={groupProgress}

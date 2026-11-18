@@ -15,28 +15,32 @@ const progress = Object.fromEntries(
   Object.values(ProgressKey).map(key => [key, notDone])
 ) as ProjectSetupProgress;
 
-function groupProgress(id: GroupId) {
+function groupProgress(id: GroupId, status = GroupStatusType.NOT_STARTED) {
   const group = SETUP_GROUPS.find(g => g.id === id);
   if (!group) throw new Error(`Unknown group ${id}`);
+  const isDone = status === GroupStatusType.DONE;
   return {
     group,
-    status: GroupStatusType.NOT_STARTED,
-    completedCount: 0,
+    status,
+    completedCount: isDone ? group.stepIds.length : 0,
     totalCount: group.stepIds.length,
-    completedAt: null,
+    completedAt: isDone ? '2026-11-18T10:00:00.000Z' : null,
   };
 }
 
-function renderChecklist() {
+function renderChecklist(inviteStatus = GroupStatusType.NOT_STARTED) {
   const progressResult: SetupProgressResult = {
     progress,
     completedStepIds: [],
     completedCount: 0,
     totalCount: 2,
-    percentage: 50,
+    percentage: 10,
     isLoading: false,
     isAllComplete: false,
-    groupProgresses: [groupProgress(GroupId.STORAGE), groupProgress(GroupId.INVITE_TEAMMATES)],
+    groupProgresses: [
+      groupProgress(GroupId.STORAGE),
+      groupProgress(GroupId.INVITE_TEAMMATES, inviteStatus),
+    ],
     refetch: vi.fn(),
   };
   render(
@@ -56,6 +60,13 @@ describe('SetupChecklist', () => {
     const link = screen.getByRole('link', { name: 'Invite teammates' });
     expect(link.getAttribute('href')).toBe('/ui/p1/project-settings/members');
     expect(screen.queryByRole('button', { name: 'Invite teammates' })).toBeNull();
+  });
+
+  it('opens the popover with the completion date once teammates are invited', () => {
+    renderChecklist(GroupStatusType.DONE);
+
+    expect(screen.getByRole('button', { name: 'Invite teammates' })).toBeTruthy();
+    expect(screen.queryByRole('link', { name: 'Invite teammates' })).toBeNull();
   });
 
   it('keeps the steps popover for groups without a direct link', () => {

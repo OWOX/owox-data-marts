@@ -11,7 +11,6 @@ interface InviteTeammatesCardProps {
   docsLabel?: string;
   className?: string;
   variant?: 'card' | 'inline';
-  onClick?: () => void;
 }
 
 export function InviteTeammatesCard({
@@ -21,7 +20,6 @@ export function InviteTeammatesCard({
   docsLabel = 'View documentation',
   className,
   variant = 'card',
-  onClick,
 }: InviteTeammatesCardProps) {
   const { scope } = useProjectRoute();
   const membersHref = '/project-settings/members';
@@ -42,12 +40,7 @@ export function InviteTeammatesCard({
   return (
     <div className={cn(baseClasses, variantClasses[variant], className)}>
       <div className='flex min-w-0 items-center gap-2'>
-        <Link
-          to={scope(membersHref)}
-          className={cn(linkClasses[variant])}
-          aria-label={inviteLabel}
-          onClick={onClick}
-        >
+        <Link to={scope(membersHref)} className={cn(linkClasses[variant])} aria-label={inviteLabel}>
           <UserPlus className='h-4 w-4 shrink-0' />
           <span className='truncate underline'>{inviteLabel}</span>
         </Link>

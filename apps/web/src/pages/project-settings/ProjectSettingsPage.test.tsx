@@ -17,6 +17,9 @@ vi.mock('react-hot-toast', () => ({
 }));
 vi.mock('../../app/store/hooks', () => ({ useFlags: () => ({ flags: {} }) }));
 vi.mock('../../features/idp/hooks/useRole', () => ({ useIsAdmin: () => true }));
+vi.mock('../../components/AppSidebar/SetupChecklist/useSetupProgress', () => ({
+  useRefreshSetupProgress: () => vi.fn(),
+}));
 vi.mock('../../features/contexts/services/context.service', () => ({
   contextService: { getContexts: () => Promise.resolve([]) },
 }));
