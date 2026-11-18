@@ -134,17 +134,22 @@ describe('plugin runtime token coverage', () => {
     }
   );
 
-  // A new re-admission must be added here on purpose.
+  // A new re-admission must be added here on purpose. Every form counts: the decorator, a
+  // composite that wraps it, and the metadata set to false by hand.
   it('re-admits plugin runtime tokens only on the pinned handlers', () => {
-    const allowed = files.flatMap(file => {
-      const lines = readFileSync(file, 'utf8').split('\n');
+    const definition = join('idp', 'decorators', 'reject-plugin-auth.decorator.ts');
+    const sources = readdirSync(SRC, { recursive: true, encoding: 'utf8' }).filter(
+      entry => entry.endsWith('.ts') && !entry.endsWith('.spec.ts') && entry !== definition
+    );
+    const allowed = sources.flatMap(entry => {
+      const lines = readFileSync(join(SRC, entry), 'utf8').split('\n');
       return lines.flatMap((line, index) => {
-        if (!/@AllowPluginAuth\s*\(/.test(line)) return [];
+        if (!/AllowPluginAuth\s*\(|REJECT_PLUGIN_AUTH_METADATA\s*,\s*false/.test(line)) return [];
         const handler = lines
           .slice(index + 1)
           .map(next => /^\s*(?:async\s+)?(\w+)\s*\(/.exec(next)?.[1])
           .find(Boolean);
-        return [`${file.slice(SRC.length + 1)}:${handler}`];
+        return [`${entry}:${handler}`];
       });
     });
 

@@ -313,7 +313,7 @@ describe('ConnectorDefinition controller — the custom connector surface, pinne
    * Deliberately NOT paired with @RejectApiKeyAuth: an API key is the programmatic path a
    * project owner legitimately uses here (`owox-ctl`).
    */
-  it('refuses plugin runtime tokens for the whole controller', () => {
+  it('refuses plugin runtime tokens at class level', () => {
     expect(source).toMatch(/@RejectPluginAuth\(\)\s*\nexport class ConnectorDefinitionController/);
   });
 });

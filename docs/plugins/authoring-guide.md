@@ -171,8 +171,8 @@ const connectors = names.length
 - `hosts` lists the API hosts of the active published version. Connectors that call one API can
   share a card. `hosts` is empty when no version is published or the stored manifest cannot be
   read.
-- When `GET /api/connectors` also lists the name, use that bundled entry, because a run uses the
-  bundled connector.
+- When `GET /api/connectors` also lists the exact name, with the same case, use that bundled
+  entry, because a run uses the bundled connector.
 - The endpoint never returns a manifest.
 - Without `names`, it returns every custom connector of the project.
 
