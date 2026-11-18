@@ -32,7 +32,7 @@ const MANIFEST = {
  * Driven as real HTTP against the real guard rather than asserted off the source: the
  * decorator is only worth anything if the guard actually refuses the request.
  */
-describe('Custom Connectors reject a plugin runtime token (e2e)', () => {
+describe('Custom Connectors refuse a plugin runtime token on every route except the summaries read (e2e)', () => {
   let app: INestApplication;
   let agent: supertest.Agent;
   let definitionId: string;
@@ -120,8 +120,8 @@ describe('Custom Connectors reject a plugin runtime token (e2e)', () => {
     );
   });
 
-  // The decorator sits on the class, so the reads decline plugin authority too. Nothing
-  // outside the first-party builder UI calls this API, so there is no plugin page to break.
+  // The decorator sits on the class, so the list and the detail still refuse a plugin. Only
+  // `/summaries` is open to it.
   it('refuses a plugin runtime token on the reads as well', async () => {
     const list = await agent
       .get('/api/connectors/custom')
@@ -132,6 +132,63 @@ describe('Custom Connectors reject a plugin runtime token (e2e)', () => {
       .get(`/api/connectors/custom/${definitionId}`)
       .set('x-owox-authorization', PLUGIN_TOKEN);
     expect(one.status).toBe(403);
+  });
+
+  it('serves custom connector summaries to a plugin runtime token', async () => {
+    const name = `SummaryProbe${Date.now()}`;
+    const manifest = { ...MANIFEST, name, baseUrl: 'https://api.example.com' };
+    const created = await agent
+      .post('/api/connectors/custom')
+      .set('x-owox-authorization', MEMBER_TOKEN)
+      .send({ name, title: 'Summary probe', manifest });
+    expect(created.status).toBe(201);
+    const id = created.body.id as string;
+    expect(
+      (
+        await agent
+          .put(`/api/connectors/custom/${id}/draft`)
+          .set('x-owox-authorization', MEMBER_TOKEN)
+          .send({ manifest })
+      ).status
+    ).toBe(200);
+    expect(
+      (
+        await agent
+          .post(`/api/connectors/custom/${id}/publish`)
+          .set('x-owox-authorization', MEMBER_TOKEN)
+      ).status
+    ).toBe(201);
+
+    const filtered = await agent
+      .get(`/api/connectors/custom/summaries?names=${name.toLowerCase()},%20,Nope`)
+      .set('x-owox-authorization', PLUGIN_TOKEN);
+    expect(filtered.status).toBe(200);
+    expect(filtered.body).toEqual([
+      { id, name, title: 'Summary probe', logo: null, hosts: ['api.example.com'] },
+    ]);
+    expect(Object.keys(filtered.body[0]).sort()).toEqual(['hosts', 'id', 'logo', 'name', 'title']);
+
+    const repeated = await agent
+      .get(`/api/connectors/custom/summaries?names=Nope&names=${name.toLowerCase()}`)
+      .set('x-owox-authorization', PLUGIN_TOKEN);
+    expect(repeated.status).toBe(200);
+    expect(repeated.body).toEqual([expect.objectContaining({ id, name })]);
+
+    const blank = await agent
+      .get('/api/connectors/custom/summaries?names=,%20,')
+      .set('x-owox-authorization', PLUGIN_TOKEN);
+    expect(blank.status).toBe(200);
+    expect(blank.body).toContainEqual(expect.objectContaining({ id, name }));
+    expect(blank.body).toContainEqual(
+      expect.objectContaining({ id: definitionId, name: 'PluginAuthProbe', hosts: [] })
+    );
+
+    // A 404 here would mean `:id` caught the route.
+    const member = await agent
+      .get('/api/connectors/custom/summaries')
+      .set('x-owox-authorization', MEMBER_TOKEN);
+    expect(member.status).toBe(200);
+    expect(member.body).toContainEqual(expect.objectContaining({ id, name }));
   });
 
   // The counterpart that keeps the refusal honest: the same routes still work for the

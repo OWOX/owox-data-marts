@@ -459,6 +459,7 @@ import { ApproveMembershipRequestService } from './use-cases/project-members/app
 import { DeclineMembershipRequestService } from './use-cases/project-members/decline-membership-request.service';
 import { SetContextMembersService } from './use-cases/contexts/set-context-members.service';
 import { ListCustomConnectorsService } from './use-cases/custom-connectors/list-custom-connectors.service';
+import { ListCustomConnectorSummariesService } from './use-cases/custom-connectors/list-custom-connector-summaries.service';
 import { GetCustomConnectorService } from './use-cases/custom-connectors/get-custom-connector.service';
 import { CreateCustomConnectorService } from './use-cases/custom-connectors/create-custom-connector.service';
 import { UpdateCustomConnectorMetadataService } from './use-cases/custom-connectors/update-custom-connector-metadata.service';
@@ -1085,6 +1086,7 @@ import { McpCredentialsFacadeImpl } from './credentials/facades/mcp-credentials.
     DeclineMembershipRequestService,
     SetContextMembersService,
     ListCustomConnectorsService,
+    ListCustomConnectorSummariesService,
     GetCustomConnectorService,
     CreateCustomConnectorService,
     UpdateCustomConnectorMetadataService,

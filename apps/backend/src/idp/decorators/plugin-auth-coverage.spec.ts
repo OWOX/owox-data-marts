@@ -8,7 +8,7 @@ const SRC = join(__dirname, '..', '..');
  *
  * The guard admits a plugin runtime token anywhere that does not refuse it. That
  * default-allow is deliberate and temporary -- per-action plugin permissions are the next
- * step and will retire both decorators -- but until then nothing except this rule stands
+ * step and will retire these decorators -- but until then nothing except this rule stands
  * between a third-party page and an endpoint that mints or returns a credential. A plugin
  * proxies its request through the host bridge and keeps whatever comes back, long after
  * its runtime token expires or the member uninstalls it.
@@ -133,4 +133,28 @@ describe('plugin runtime token coverage', () => {
       });
     }
   );
+
+  // A new re-admission must be added here on purpose. Every form counts: the decorator, a
+  // composite that wraps it, and the metadata set to false by hand.
+  it('re-admits plugin runtime tokens only on the pinned handlers', () => {
+    const definition = join('idp', 'decorators', 'reject-plugin-auth.decorator.ts');
+    const sources = readdirSync(SRC, { recursive: true, encoding: 'utf8' }).filter(
+      entry => entry.endsWith('.ts') && !entry.endsWith('.spec.ts') && entry !== definition
+    );
+    const allowed = sources.flatMap(entry => {
+      const lines = readFileSync(join(SRC, entry), 'utf8').split('\n');
+      return lines.flatMap((line, index) => {
+        if (!/AllowPluginAuth\s*\(|REJECT_PLUGIN_AUTH_METADATA\s*,\s*false/.test(line)) return [];
+        const handler = lines
+          .slice(index + 1)
+          .map(next => /^\s*(?:async\s+)?(\w+)\s*\(/.exec(next)?.[1])
+          .find(Boolean);
+        return [`${entry}:${handler}`];
+      });
+    });
+
+    expect(allowed).toEqual([
+      `${join('data-marts', 'controllers', 'connector-definition.controller.ts')}:summaries`,
+    ]);
+  });
 });

@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import type { AuthorizationContext } from '../../idp';
 import { ListCustomConnectorsCommand } from '../dto/domain/list-custom-connectors.command';
+import { ListCustomConnectorSummariesCommand } from '../dto/domain/list-custom-connector-summaries.command';
 import { GetCustomConnectorCommand } from '../dto/domain/get-custom-connector.command';
 import { CreateCustomConnectorCommand } from '../dto/domain/create-custom-connector.command';
 import { UpdateCustomConnectorMetadataCommand } from '../dto/domain/update-custom-connector-metadata.command';
@@ -26,6 +27,7 @@ import type {
   CustomConnectorCreatedDto,
   CustomConnectorDetailDto,
   CustomConnectorDto,
+  CustomConnectorSummaryDto,
   CustomConnectorVersionDto,
   CustomConnectorVersionStateDto,
   FittingCustomConnectorCredentialDto,
@@ -33,6 +35,7 @@ import type {
 } from '../dto/domain/custom-connector.dto';
 import type {
   CustomConnectorListItemResponseApiDto,
+  CustomConnectorSummaryResponseApiDto,
   CustomConnectorDetailResponseApiDto,
   CreateCustomConnectorResponseApiDto,
   CustomConnectorVersionResponseApiDto,
@@ -55,6 +58,10 @@ import {
 export class ConnectorDefinitionMapper {
   toListCommand(projectId: string): ListCustomConnectorsCommand {
     return new ListCustomConnectorsCommand(projectId);
+  }
+
+  toSummariesCommand(projectId: string, names?: string[]): ListCustomConnectorSummariesCommand {
+    return new ListCustomConnectorSummariesCommand(projectId, names);
   }
 
   toGetCommand(projectId: string, connectorId: string): GetCustomConnectorCommand {
@@ -179,6 +186,10 @@ export class ConnectorDefinitionMapper {
     };
   }
 
+  toSummaryDto(def: ConnectorDefinition, hosts: string[]): CustomConnectorSummaryDto {
+    return { id: def.id, name: def.name, title: def.title, logo: def.logo ?? null, hosts };
+  }
+
   toListDto(
     defs: ConnectorDefinition[],
     activeVersionByDefId: Map<string, number>
@@ -250,6 +261,18 @@ export class ConnectorDefinitionMapper {
 
   toListApiResponse(dtos: CustomConnectorDto[]): CustomConnectorListItemResponseApiDto[] {
     return dtos.map(dto => this.toListItemApiResponse(dto));
+  }
+
+  toSummariesApiResponse(
+    dtos: CustomConnectorSummaryDto[]
+  ): CustomConnectorSummaryResponseApiDto[] {
+    return dtos.map(dto => ({
+      id: dto.id,
+      name: dto.name,
+      title: dto.title,
+      logo: dto.logo,
+      hosts: dto.hosts,
+    }));
   }
 
   toDetailApiResponse(dto: CustomConnectorDetailDto): CustomConnectorDetailResponseApiDto {
