@@ -16,7 +16,6 @@ import {
   TableHeader,
   TableRow,
 } from '@owox/ui/components/table';
-import { EditableText } from '@owox/ui/components/common/editable-text';
 import { SortableTableRow } from '@owox/ui/components/common/sortable-table-row';
 import {
   closestCenter,
@@ -39,16 +38,50 @@ import { FieldInfo } from '../fields';
 const FIELD_TYPES = ['string', 'integer', 'number', 'boolean', 'date', 'datetime', 'object'];
 
 const DUPLICATE_HINT =
-  'Another field already uses this name — only the last one will be saved. Rename or remove one of them.';
+  'Another field already uses this name. Change one of the names. Until then, the new name is not saved.';
 
 /** One output field with a stable client id so rows keep focus/order while dragging. `pk`/`default`
  * mirror membership in the node's uniqueKeys / defaultFields lists. */
 interface Row {
   id: number;
+  /** The name as typed. */
   name: string;
+  /** The name the field had in the manifest when a name input was last left or a row removed
+   * ('' for a new row). */
+  saved: string;
   field: ManifestField;
   pk: boolean;
   default: boolean;
+}
+
+/**
+ * The name each row is written under ('' = not written). A typed name counts only when it is
+ * not blank and no other row shows or keeps it; otherwise the row keeps its saved name, so a
+ * half-typed rename never drops or overwrites a field.
+ */
+function savedNames(rows: Row[]): string[] {
+  return rows.map((row, i) => {
+    const typed = row.name.trim();
+    const free =
+      typed !== '' &&
+      rows.every((other, j) => j === i || (other.name.trim() !== typed && other.saved !== typed));
+    return free ? typed : row.saved;
+  });
+}
+
+/**
+ * Each row that is written under its typed name keeps that name as its saved name. Call it when
+ * no row is mid-edit: when a name input is left or a row is removed.
+ */
+function settled(rows: Row[]): Row[] {
+  const names = savedNames(rows);
+  const next = rows.map((row, i) =>
+    names[i] !== '' && names[i] === row.name.trim() && names[i] !== row.saved
+      ? { ...row, saved: names[i] }
+      : row
+  );
+  // The old saved name is now free, and another row can wait for it.
+  return next.some((row, i) => row !== rows[i]) ? settled(next) : rows;
 }
 
 /**
@@ -114,6 +147,7 @@ export function FieldsEditor({ nodeName }: { nodeName: string }) {
     Object.entries(fields).map(([name, field]) => ({
       id: ++idSeq.current,
       name,
+      saved: name,
       field,
       pk: (node.uniqueKeys ?? []).includes(name),
       default: (node.defaultFields ?? []).includes(name),
@@ -137,23 +171,21 @@ export function FieldsEditor({ nodeName }: { nodeName: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [node.fields, node.uniqueKeys, node.defaultFields]);
 
-  // Rebuild fields + uniqueKeys + defaultFields from the working rows. Blank names are
-  // skipped. Two rows can carry the same name (flagged in the table, see `duplicateNames`);
-  // `fieldsRec` collapses those to one entry by construction, so uniqueKeys/defaultFields
-  // must not list the shared name once per row — the manifest would then declare the same
-  // column twice in a list that is meant to be a set.
+  // Rebuild fields + uniqueKeys + defaultFields from the working rows, each under its name
+  // from `savedNames`. Those names are unique, so no list names a column twice.
   const commit = (next: Row[]) => {
     setRows(next);
+    const names = savedNames(next);
     const fieldsRec: Record<string, ManifestField> = {};
     const uk: string[] = [];
     const df: string[] = [];
-    for (const r of next) {
-      const name = r.name.trim();
-      if (!name) continue;
+    next.forEach((r, i) => {
+      const name = names[i];
+      if (!name) return;
       fieldsRec[name] = trimmedField(r.field);
-      if (r.pk && !uk.includes(name)) uk.push(name);
-      if (r.default && !df.includes(name)) df.push(name);
-    }
+      if (r.pk) uk.push(name);
+      if (r.default) df.push(name);
+    });
     lastCommitted.current = JSON.stringify({ f: fieldsRec, u: uk, d: df });
     setPath([...base, 'fields'], fieldsRec);
     setPath([...base, 'uniqueKeys'], uk.length ? uk : undefined);
@@ -180,14 +212,29 @@ export function FieldsEditor({ nodeName }: { nodeName: string }) {
   const setName = (id: number, name: string) => {
     commit(rows.map(r => (r.id === id ? { ...r, name } : r)));
   };
+  // When you leave a name input, the name each row is written under becomes its fallback.
+  const settleNames = () => {
+    const names = savedNames(rows);
+    const next = settled(rows);
+    // Settling can free a name that another row waits for; only then the manifest changes.
+    if (savedNames(next).some((name, i) => name !== names[i])) commit(next);
+    else setRows(next);
+  };
   const removeRow = (id: number) => {
-    commit(rows.filter(r => r.id !== id));
+    commit(settled(rows.filter(r => r.id !== id)));
   };
 
   const addRow = () => {
     commit([
       ...rows,
-      { id: ++idSeq.current, name: '', field: { type: 'string' }, pk: false, default: false },
+      {
+        id: ++idSeq.current,
+        name: '',
+        saved: '',
+        field: { type: 'string' },
+        pk: false,
+        default: false,
+      },
     ]);
   };
   const discoverFields = () => {
@@ -212,12 +259,13 @@ export function FieldsEditor({ nodeName }: { nodeName: string }) {
     commit(arrayMove(rows, oldIndex, newIndex));
   };
 
-  // Names claimed by more than one row. `commit` keys `fields` by name, so only the last
-  // such row reaches the manifest while every one of them stays on screen — the collision is
-  // invisible until a reload unless the table says so.
+  // A clash: the typed name is shown on another row too, or it is not the name the row is saved under.
   const trimmedNames = rows.map(r => r.name.trim());
-  const duplicateNames = new Set(
-    trimmedNames.filter((name, i) => name !== '' && trimmedNames.indexOf(name) !== i)
+  const writtenNames = savedNames(rows);
+  const nameClashes = trimmedNames.map(
+    (name, i) =>
+      name !== '' &&
+      (name !== writtenNames[i] || trimmedNames.indexOf(name) !== trimmedNames.lastIndexOf(name))
   );
 
   const head = (label: string, hint: string, center = false) => (
@@ -299,7 +347,7 @@ export function FieldsEditor({ nodeName }: { nodeName: string }) {
                 </TableRow>
               ) : (
                 <SortableContext items={rows.map(r => r.id)} strategy={verticalListSortingStrategy}>
-                  {rows.map(row => (
+                  {rows.map((row, index) => (
                     <SortableTableRow key={row.id} id={row.id}>
                       {/* first cell is replaced by the drag handle */}
                       <TableCell />
@@ -308,13 +356,24 @@ export function FieldsEditor({ nodeName }: { nodeName: string }) {
                         data-testid={`field-${row.name}`}
                       >
                         <div className='flex items-center gap-2'>
+                          <Input
+                            value={row.name}
+                            onChange={e => {
+                              setName(row.id, e.target.value);
+                            }}
+                            onBlur={settleNames}
+                            placeholder='Field name'
+                            aria-label='Field name'
+                            data-testid={`fieldname-${row.name}`}
+                            className='h-8 font-mono'
+                          />
                           {row.name.trim() === '' && (
                             <CircleAlert
                               className='h-4 w-4 shrink-0 text-red-500'
                               aria-label='Field name is required'
                             />
                           )}
-                          {duplicateNames.has(row.name.trim()) && (
+                          {nameClashes[index] && (
                             <span title={DUPLICATE_HINT} className='flex shrink-0'>
                               <CircleAlert
                                 className='h-4 w-4 shrink-0 text-red-500'
@@ -322,15 +381,6 @@ export function FieldsEditor({ nodeName }: { nodeName: string }) {
                               />
                             </span>
                           )}
-                          <EditableText
-                            value={row.name}
-                            onValueChange={v => {
-                              setName(row.id, v);
-                            }}
-                            placeholder='Field name'
-                            isBold
-                            className='font-mono'
-                          />
                         </div>
                       </TableCell>
                       <TableCell>

@@ -19,8 +19,13 @@ export function addParameter(name: string) {
   editCell('Parameter name', name);
 }
 
-/** Adds a field row (the Fields "+ Add" button) and names it inline via the EditableText cell. */
+/** Adds a field row (the "Add field" button) and types its name into the new row's name input. */
 export function addField(name: string) {
   fireEvent.click(screen.getByRole('button', { name: /add field/i }));
-  editCell('Field name', name);
+  const blank = screen
+    .getAllByRole('textbox', { name: 'Field name' })
+    .filter(i => (i as HTMLInputElement).value === '');
+  if (blank.length !== 1) throw new Error(`Expected one blank field row, found ${blank.length}`);
+  fireEvent.change(blank[0], { target: { value: name } });
+  fireEvent.blur(blank[0]);
 }
