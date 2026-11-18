@@ -1695,5 +1695,23 @@ describe('CredentialForm', () => {
         expect(onEdit).toHaveBeenCalledWith({ fields: { apiKey: 'k-2' } });
       });
     });
+
+    it('shows the logo it is given in the Provider field of a saved custom connector Credential', () => {
+      const logo = 'data:image/png;base64,AAAA';
+      renderForm({
+        credential: {
+          ...githubCredential,
+          definition: customDefinition,
+          publicMetadata: { hosts: ['api.example.com'], fieldList: [], fields: {} },
+        },
+        definitions: [customDefinition],
+        providerLogo: logo,
+      });
+
+      const provider = screen.getByRole('textbox', { name: 'Provider' });
+      expect(
+        provider.closest('[data-slot="input-group"]')?.querySelector(`img[src="${logo}"]`)
+      ).not.toBeNull();
+    });
   });
 });

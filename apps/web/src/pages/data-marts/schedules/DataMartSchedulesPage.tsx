@@ -7,6 +7,7 @@ import { SkeletonList } from '@owox/ui/components/common/skeleton-list';
 import { extractApiError } from '../../../app/api';
 import { ConnectorContextProvider } from '../../../features/connectors/shared/model/context';
 import { useConnector } from '../../../features/connectors/shared/model/hooks/useConnector';
+import { loadCustomConnectors } from '../../../features/connectors/shared/utils';
 import type { ConnectorListItem } from '../../../features/connectors/shared/model/types/connector';
 import { ScheduledTriggerType } from '../../../features/data-marts/scheduled-triggers/enums';
 import { ScheduleDisplay } from '../../../features/data-marts/scheduled-triggers/components/ScheduleDisplay/ScheduleDisplay';
@@ -176,8 +177,18 @@ function DataMartSchedulesPageContent() {
     setError(null);
 
     try {
-      const response = await scheduledTriggerService.getProjectScheduledTriggers();
-      setTriggers(ScheduledTriggerMapper.mapProjectFromDtoList(response));
+      const [response, customConnectors] = await Promise.all([
+        scheduledTriggerService.getProjectScheduledTriggers(),
+        loadCustomConnectors({ skipErrorToast: true, skipLoadingIndicator: true }).catch(
+          () => [] as ConnectorListItem[]
+        ),
+      ]);
+      setTriggers(
+        ScheduledTriggerMapper.withCustomConnectorInfo(
+          ScheduledTriggerMapper.mapProjectFromDtoList(response),
+          customConnectors
+        )
+      );
       setHasLoaded(true);
     } catch (caught) {
       setError(extractApiError(caught).message ?? 'Failed to fetch Data Mart triggers');
@@ -240,6 +251,10 @@ function DataMartSchedulesPageContent() {
           trigger.dataMart.title,
           getScheduledTriggerTypeLabel(trigger.type),
           getScheduledTriggerRunTargetTitle(trigger, connectors),
+          trigger.type === ScheduledTriggerType.CONNECTOR_RUN
+            ? (trigger.triggerConfig as ScheduledConnectorRunConfig | undefined)?.connector
+                ?.connector.source.name
+            : undefined,
           trigger.cronExpression,
           trigger.isActive ? 'Enabled' : 'Disabled',
           trigger.createdByUser?.fullName,

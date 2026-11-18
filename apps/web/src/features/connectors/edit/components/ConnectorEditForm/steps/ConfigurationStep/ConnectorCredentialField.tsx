@@ -26,6 +26,7 @@ const NO_LONGER_FITS =
 
 interface ConnectorCredentialFieldProps {
   connectorName: string;
+  connectorLogo?: string | null;
   /** The connector's AuthType variants; a Credential picks one. */
   variants: readonly string[];
   /** For a custom connector: the version the Data Mart runs, to fit Credentials and prefill a new one. */
@@ -65,6 +66,7 @@ export function CredentialsLoadError({ onRetry }: { onRetry: () => void }) {
 /** The Credential of a connector configuration, in place of its auth fields. */
 export function ConnectorCredentialField({
   connectorName,
+  connectorLogo,
   variants,
   fitting,
   requirement,
@@ -147,6 +149,7 @@ export function ConnectorCredentialField({
             id={FIELD_ID}
             consumer='connector-config'
             consumerType={connectorName}
+            connectorLogo={connectorLogo}
             createdFrom='data-mart'
             isNew={isNew}
             value={value}

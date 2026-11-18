@@ -13,6 +13,7 @@ import { InputGroupAddon } from '@owox/ui/components/input-group';
 import { cn } from '@owox/ui/lib/utils';
 import { KeyRound } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { CustomConnectorIcon } from '../../connectors/shared/components/CustomConnectorIcon';
 import { getBundledConnectorLogo } from '../../connectors/shared/utils';
 import {
   AwsAthenaIcon,
@@ -92,24 +93,32 @@ function useConnectorLogo(connector: string | null | undefined): string | null {
 
 /**
  * The icon of a provider's icon key, else the logo of the connector it serves; a generic key
- * when it has neither or this build does not know the key.
+ * when it has neither or this build does not know the key. The custom connector type shows the
+ * logo it is given, else the Plug icon.
  */
 export function ProviderIcon({
   icon,
   connector,
+  category,
+  logo: givenLogo,
   className,
 }: {
   icon?: CredentialIcon | null;
   connector?: string | null;
+  category?: CredentialCategory;
+  logo?: string | null;
   className?: string;
 }) {
+  const isCustom = category === 'custom-connectors';
   const known = icon ? ICONS[icon] : undefined;
-  const logo = useConnectorLogo(known ? null : connector);
+  const logo = useConnectorLogo(known || isCustom ? null : connector);
   const Icon: AppIcon = known ?? KeyRound;
+  const shownLogo = isCustom ? givenLogo : !known && logo;
+  const fallback = isCustom ? <CustomConnectorIcon size={16} /> : <Icon size={16} />;
   // Brand icons take no aria props, so the wrapper hides them.
   return (
     <span aria-hidden='true' className={cn('inline-flex shrink-0', className)}>
-      {!known && logo ? <RawBase64Icon base64={logo} size={16} /> : <Icon size={16} />}
+      {shownLogo ? <RawBase64Icon base64={shownLogo} size={16} /> : fallback}
     </span>
   );
 }
@@ -173,7 +182,11 @@ export function ProviderCombobox({
       >
         {selected && (
           <InputGroupAddon align='inline-start'>
-            <ProviderIcon icon={selected.icon} connector={servedConnector(selected)} />
+            <ProviderIcon
+              icon={selected.icon}
+              connector={servedConnector(selected)}
+              category={selected.category}
+            />
           </InputGroupAddon>
         )}
       </ComboboxInput>
@@ -189,6 +202,7 @@ export function ProviderCombobox({
                     <ProviderIcon
                       icon={option.icon}
                       connector={servedConnector(option)}
+                      category={option.category}
                       className='mr-2 align-text-bottom'
                     />
                     {option.displayName}

@@ -40,6 +40,7 @@ export interface CredentialConfigSheetProps {
   customConnectorPrefill?: { hosts: string[]; fieldList: CustomConnectorFieldSpec[] };
   /** The page link that opens this Credential. */
   link?: string | null;
+  providerLogo?: string | null;
 }
 
 export function CredentialConfigSheet({
@@ -58,6 +59,7 @@ export function CredentialConfigSheet({
   defaultSharing,
   customConnectorPrefill,
   link,
+  providerLogo,
 }: CredentialConfigSheetProps) {
   const actions = useCredentialActions();
   const {
@@ -129,6 +131,7 @@ export function CredentialConfigSheet({
           canManageAccess={canManageAccess}
           defaultSharing={defaultSharing}
           customConnectorPrefill={customConnectorPrefill}
+          providerLogo={providerLogo}
           onOAuthConnected={saved => {
             finishSave(saved, Boolean(credential));
           }}

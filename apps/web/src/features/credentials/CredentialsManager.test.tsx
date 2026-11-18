@@ -12,7 +12,10 @@ const mocks = vi.hoisted(() => ({
     credential?: { id: string } | null;
     link?: string | null;
     onClose?: () => void;
+    providerLogo?: string | null;
   },
+  tableProps: null as null | { customConnectorLogos?: ReadonlyMap<string, string | null> },
+  logos: new Map<string, string | null>(),
   validate: vi.fn(),
   wasErrorToastShown: vi.fn(),
   toastError: vi.fn(),
@@ -33,6 +36,7 @@ vi.mock('react-hot-toast', () => ({
 }));
 
 vi.mock('../idp', () => ({ useAuth: () => ({ user: mocks.user }) }));
+vi.mock('./useCustomConnectorLogos', () => ({ useCustomConnectorLogos: () => mocks.logos }));
 vi.mock('./components/CredentialConfigSheet', () => ({
   CredentialConfigSheet: (props: NonNullable<typeof mocks.sheetProps>) => {
     mocks.sheetProps = props;
@@ -41,33 +45,34 @@ vi.mock('./components/CredentialConfigSheet', () => ({
   CredentialUsedByList: () => null,
 }));
 vi.mock('./CredentialsTable', () => ({
-  CredentialsTable: ({
-    onValidate,
-    onEdit,
-    onAddCredential,
-  }: {
+  CredentialsTable: (props: {
     onValidate: (credential: unknown) => void;
     onEdit: (credential: unknown) => void;
     onAddCredential: () => void;
-  }) => (
-    <>
-      <button
-        onClick={() => {
-          onValidate({ id: 'c1' });
-        }}
-      >
-        Validate Credential
-      </button>
-      <button
-        onClick={() => {
-          onEdit({ id: 'c1' });
-        }}
-      >
-        Edit Credential
-      </button>
-      <button onClick={onAddCredential}>Add from table</button>
-    </>
-  ),
+    customConnectorLogos?: ReadonlyMap<string, string | null>;
+  }) => {
+    mocks.tableProps = props;
+    const { onValidate, onEdit, onAddCredential } = props;
+    return (
+      <>
+        <button
+          onClick={() => {
+            onValidate({ id: 'c1' });
+          }}
+        >
+          Validate Credential
+        </button>
+        <button
+          onClick={() => {
+            onEdit({ id: 'c1' });
+          }}
+        >
+          Edit Credential
+        </button>
+        <button onClick={onAddCredential}>Add from table</button>
+      </>
+    );
+  },
 }));
 vi.mock('./useCredentials', () => ({
   useCredentialActions: () => ({ validate: mocks.validate }),
@@ -86,6 +91,8 @@ vi.mock('./useCredentials', () => ({
     refetch: mocks.refetchDefinitions,
   }),
 }));
+
+const LOGO = 'data:image/png;base64,AAAA';
 
 function Search() {
   return <span data-testid='search'>{useLocation().search}</span>;
@@ -113,6 +120,17 @@ describe('CredentialsManager', () => {
     mocks.trackEvent.mockReset();
     mocks.toastError.mockReset();
     mocks.sheetProps = null;
+    mocks.tableProps = null;
+    mocks.logos = new Map();
+  });
+
+  it('passes the logo map to the table', () => {
+    mocks.state.isError = false;
+    mocks.state.credentials = [{ id: 'c1' }];
+    mocks.logos = new Map([['c1', LOGO]]);
+    renderManager();
+
+    expect(mocks.tableProps?.customConnectorLogos).toBe(mocks.logos);
   });
 
   it('tracks a Source Credential created on the page as coming from the Credentials page', () => {
@@ -279,6 +297,22 @@ describe('CredentialsManager', () => {
       expect(mocks.sheetProps?.credential).toMatchObject({ id: 'c1' });
       expect(screen.getByTestId('search')).toHaveTextContent('?credential=c1');
       expect(mocks.toastError).not.toHaveBeenCalled();
+    });
+
+    it("passes the open Credential's logo to the sheet", () => {
+      mocks.logos = new Map([['c1', LOGO]]);
+      renderManager();
+
+      fireEvent.click(screen.getByRole('button', { name: 'Add from table' }));
+      expect(mocks.sheetProps?.credential).toBeNull();
+      expect(mocks.sheetProps?.providerLogo).toBeUndefined();
+      act(() => {
+        mocks.sheetProps?.onClose?.();
+      });
+
+      fireEvent.click(screen.getByRole('button', { name: 'Edit Credential' }));
+      expect(mocks.sheetProps?.credential).toMatchObject({ id: 'c1' });
+      expect(mocks.sheetProps?.providerLogo).toBe(LOGO);
     });
 
     it('opens the create sheet without writing the URL', () => {

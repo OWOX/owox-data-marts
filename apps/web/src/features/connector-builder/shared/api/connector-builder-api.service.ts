@@ -27,8 +27,8 @@ export class ConnectorBuilderApiService extends ApiService {
     super('/connectors/custom');
   }
 
-  async list(): Promise<CustomConnectorListItemDto[]> {
-    return this.get<CustomConnectorListItemDto[]>('/');
+  async list(config?: AxiosRequestConfig): Promise<CustomConnectorListItemDto[]> {
+    return this.get<CustomConnectorListItemDto[]>('/', undefined, config);
   }
 
   async getById(id: string, config?: AxiosRequestConfig): Promise<CustomConnectorDetailDto> {
