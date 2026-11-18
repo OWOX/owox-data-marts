@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 import { ListCustomConnectorSummariesCommand } from '../../dto/domain/list-custom-connector-summaries.command';
 import { ConnectorDefinitionMapper } from '../../mappers/connector-definition.mapper';
 import { ListCustomConnectorSummariesService } from './list-custom-connector-summaries.service';
@@ -128,5 +129,22 @@ describe('ListCustomConnectorSummariesService', () => {
     const result = await service.run(command());
 
     expect(result.map(item => item.hosts)).toEqual([[], ['beta.example.com']]);
+  });
+
+  it('warns once per refused version, with the reason and without manifest values', async () => {
+    const warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+    const { service } = make([{ ...def('Alpha'), activeVersionId: 'v-1' }], {
+      'id-Alpha': manifest('Alpha', 'api.example.com/v1?token=s3cret'),
+    });
+
+    await service.run(command());
+    await service.run(command());
+
+    expect(warn).toHaveBeenCalledTimes(1);
+    const [message] = warn.mock.calls[0] as [string];
+    expect(message).toContain('id-Alpha');
+    expect(message).toContain('invalid URL');
+    expect(message).not.toContain('s3cret');
+    warn.mockRestore();
   });
 });
