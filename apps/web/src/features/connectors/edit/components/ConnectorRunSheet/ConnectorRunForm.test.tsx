@@ -53,10 +53,26 @@ const configuration = {
   connector: { source: { name: 'FacebookMarketing', node: 'ad_insights' } },
 } as unknown as ConnectorDefinitionConfig;
 
+const customConfiguration = {
+  connector: {
+    source: { name: 'Fibery', node: 'ad_insights' },
+    info: { name: 'Fibery', isCustom: true, id: 'custom-1' },
+  },
+} as unknown as ConnectorDefinitionConfig;
+
+const NO_DATES =
+  'This node has no date filter: a backfill loads all its data in one run, the same as an incremental load.';
+const HINT =
+  "If the API filters by date, set the node's Incremental strategy and date parameters in the Connector Builder.";
+
+const BACKFILL_DESCRIPTION = 'Reloads all data for a specific time range from the source';
+const NO_DATES_DESCRIPTION =
+  'Reloads all data from the source. Use when you need to correct or update data that is already loaded.';
+
 const todayIso = new Date().toISOString().slice(0, 10);
 
-async function openBackfill(onSubmit = vi.fn()) {
-  render(<ConnectorRunForm configuration={configuration} onSubmit={onSubmit} />);
+async function openBackfill(onSubmit = vi.fn(), config = configuration) {
+  render(<ConnectorRunForm configuration={config} onSubmit={onSubmit} />);
   await act(async () => {
     fireEvent.click(screen.getByLabelText('Backfill (custom period)'));
   });
@@ -78,6 +94,7 @@ describe('ConnectorRunForm backfill period', () => {
     const onSubmit = await openBackfill();
 
     expect(notice()).toHaveTextContent('loads in parts, one month per run');
+    expect(screen.getByText(BACKFILL_DESCRIPTION, { exact: false })).toBeInTheDocument();
     // The untouched state is a hint, not a validation failure.
     expect(notice().className).not.toContain('destructive');
     // Validation runs on submit, so the empty required dates block the run there.
@@ -87,13 +104,87 @@ describe('ConnectorRunForm backfill period', () => {
     expect(onSubmit).not.toHaveBeenCalled();
   });
 
-  it('shows no period notice for a connector that declares no backfill date fields', async () => {
+  it('explains that a dateless node with no backfill fields loads all its data in one run', async () => {
     specification.current = [];
+    fields.current = [{ name: 'ad_insights', isFetchedByDate: false }];
+    const onSubmit = vi.fn();
+    render(<ConnectorRunForm configuration={configuration} onSubmit={onSubmit} />);
+    expect(screen.queryByTestId('backfill-limit-notice')).not.toBeInTheDocument();
+    await act(async () => {
+      fireEvent.click(screen.getByLabelText('Backfill (custom period)'));
+    });
 
+    expect(notice()).toHaveTextContent(NO_DATES);
+    expect(notice()).not.toHaveTextContent('Incremental strategy');
+    expect(screen.getByText(NO_DATES_DESCRIPTION)).toBeInTheDocument();
+    expect(notice().className).not.toContain('destructive');
+    expect(runButton()).toBeEnabled();
+    await act(async () => {
+      fireEvent.click(runButton());
+    });
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+    expect(onSubmit).toHaveBeenCalledWith({ runType: 'MANUAL_BACKFILL' });
+  });
+
+  it('tells a custom connector with no backfill fields how to load a period', async () => {
+    specification.current = [];
+    fields.current = [{ name: 'ad_insights', isFetchedByDate: false }];
+    await openBackfill(vi.fn(), customConfiguration);
+
+    expect(notice()).toHaveTextContent(`${NO_DATES} ${HINT}`);
+  });
+
+  it('shows no notice for a node fetched by date when the connector has no backfill fields', async () => {
+    specification.current = [];
     await openBackfill();
 
-    expect(screen.queryByTestId('backfill-limit-notice')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('backfill-limit-notice')).toBeNull();
+    expect(screen.getByText(BACKFILL_DESCRIPTION, { exact: false })).toBeInTheDocument();
     expect(runButton()).toBeEnabled();
+  });
+
+  it('keeps the period notice and no hint for a custom connector with a dated node', async () => {
+    await openBackfill(vi.fn(), customConfiguration);
+
+    expect(notice()).toHaveTextContent('loads in parts, one month per run');
+    expect(notice()).not.toHaveTextContent('Incremental strategy');
+  });
+
+  it('shows a period error with no hint for a custom connector', async () => {
+    fields.current = [{ name: 'ad_insights', isFetchedByDate: false }];
+    await openBackfill(vi.fn(), customConfiguration);
+
+    setPeriod('2026-03-31', '2026-01-01');
+
+    await waitFor(() => {
+      expect(notice()).toHaveTextContent('The end date must be on or after the start date.');
+      expect(notice()).not.toHaveTextContent('Incremental strategy');
+    });
+  });
+
+  it('adds the hint to the dateless text of a custom connector that has dates', async () => {
+    fields.current = [{ name: 'ad_insights', isFetchedByDate: false }];
+    await openBackfill(vi.fn(), customConfiguration);
+
+    expect(notice()).toHaveTextContent(
+      'loads the whole catalog in one run, whatever period you pick. ' + HINT
+    );
+  });
+
+  it('shows backfill parameters and no notice when there are no dates', async () => {
+    specification.current = [
+      {
+        name: 'Mode',
+        title: 'Mode',
+        attributes: [ConnectorSpecificationAttribute.MANUAL_BACKFILL],
+      },
+    ];
+    fields.current = [{ name: 'ad_insights', isFetchedByDate: false }];
+    await openBackfill();
+
+    expect(screen.getByLabelText('Mode', { selector: 'input' })).toBeInTheDocument();
+    expect(screen.queryByTestId('backfill-limit-notice')).not.toBeInTheDocument();
   });
 
   it('reports a full calendar month as a valid period and enables Run', async () => {
@@ -138,6 +229,7 @@ describe('ConnectorRunForm backfill period', () => {
     await openBackfill();
 
     expect(notice()).toHaveTextContent('loads the whole catalog in one run');
+    expect(notice()).not.toHaveTextContent('Incremental strategy');
 
     setPeriod('2026-01-01', '2026-03-31');
 

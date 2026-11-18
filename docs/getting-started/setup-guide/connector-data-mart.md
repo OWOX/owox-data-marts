@@ -147,6 +147,13 @@ OWOX does not start other runs of the same Data Mart, including scheduled runs, 
 A node that has no date filter, such as a list of ads or campaigns, ignores the period and loads the whole catalog.
 Its backfill is always one run, whatever period you pick; the form says so and asks for no confirmation.
 
+A connector with no date fields has no period to pick.
+Examples are Google Sheets and a custom connector with no **Time-series node** and no **Incremental** strategy.
+Its backfill loads all data in one run, the same as an incremental load.
+If the API of a custom connector filters by date, set the node's **Incremental** strategy and date parameters in the [Connector Builder](../../connectors/connector-builder.md), and publish the connector.
+Then a backfill loads the period you pick, and incremental runs of that node also load by date.
+A Data Mart pinned to an older [version](../../connectors/connector-builder.md#versions) keeps it until you change the version on its **Input Source** card.
+
 If a deploy or restart interrupts a backfill, the automatic retry resumes it.
 That retry starts from the day after the last one it fully loaded.
 It does not reload the days it already imported.
