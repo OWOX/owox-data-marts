@@ -251,8 +251,14 @@ export function reducer(state: DataMartState, action: DataMartAction): DataMartS
   }
 }
 
+const NON_UPDATING_RUN_TYPES = new Set([
+  DataMartRunType.DATA_QUALITY,
+  DataMartRunType.HTTP_DATA,
+  DataMartRunType.EXCEL,
+]);
+
 /**
- * Calculate if there are any active (non-final) runs
+ * Calculate if there are any active (non-final) runs; reads and data quality checks do not change data
  * @param isManualRunTriggered - Whether a manual run was triggered
  * @param runs - Array of data mart runs
  * @returns true if there are active runs or manual run was triggered
@@ -260,8 +266,6 @@ export function reducer(state: DataMartState, action: DataMartAction): DataMartS
 function calculateHasActiveRuns(isManualRunTriggered: boolean, runs: DataMartRunItem[]): boolean {
   return (
     isManualRunTriggered ||
-    runs.some(
-      run => run.type !== DataMartRunType.DATA_QUALITY && !isDataMartRunFinalStatus(run.status)
-    )
+    runs.some(run => !NON_UPDATING_RUN_TYPES.has(run.type) && !isDataMartRunFinalStatus(run.status))
   );
 }

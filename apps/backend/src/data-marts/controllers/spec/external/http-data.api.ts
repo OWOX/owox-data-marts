@@ -166,10 +166,13 @@ export function StreamHttpDataSpec() {
       description:
         'NDJSON stream of row objects. Each line is a complete JSON object whose ' +
         'keys match the requested columns, in the requested order. The response ' +
-        'includes the `x-owox-run-id` header with the created DataMartRun ID.',
+        'includes the `x-owox-run-id` header with the DataMartRun ID. The run exists when ' +
+        'the headers arrive, if OWOX can record it. Its status is `RUNNING` until the stream ' +
+        'ends. It holds the SQL and the totals when OWOX can produce them.',
       headers: {
         'x-owox-run-id': {
-          description: 'ID of the created DataMartRun (HTTP_DATA) for traceability',
+          description:
+            'ID of the DataMartRun (HTTP_DATA). The run exists when the headers arrive, if OWOX can record it. Its status is RUNNING until the stream ends.',
           schema: { type: 'string' },
         },
       },
@@ -232,8 +235,8 @@ export function StreamHttpReportDataSpec() {
         'token via `x-owox-authorization`. Successful executions and execution failures, including ' +
         'invalid saved output controls, create a DataMartRun tagged with the reportId. ' +
         'Invalid request query parameters create no run. ' +
-        'When the report applies output controls or blends fields, the run also records the ' +
-        'executed SQL under `additionalParams.httpData.executionSqlQuery`.',
+        'The run also records the executed SQL under ' +
+        '`additionalParams.httpData.executionSqlQuery` when OWOX can build it.',
     }),
     ApiHeader({ name: 'x-owox-authorization', description: 'ODM member token', required: true }),
     ApiParam({ name: 'reportId', description: 'Report identifier (UUID)' }),
@@ -247,10 +250,13 @@ export function StreamHttpReportDataSpec() {
     ApiOkResponse({
       description:
         'NDJSON stream of the report’s row objects. The response includes the `x-owox-run-id` ' +
-        'header with the created DataMartRun ID.',
+        'header with the DataMartRun ID. The run exists when the headers arrive, if OWOX can ' +
+        'record it. Its status is `RUNNING` until the stream ends. It holds the SQL and the ' +
+        'totals when OWOX can produce them.',
       headers: {
         'x-owox-run-id': {
-          description: 'ID of the created DataMartRun for traceability',
+          description:
+            'ID of the DataMartRun. The run exists when the headers arrive, if OWOX can record it. Its status is RUNNING until the stream ends.',
           schema: { type: 'string' },
         },
       },

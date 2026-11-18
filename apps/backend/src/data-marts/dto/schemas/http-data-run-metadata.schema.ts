@@ -61,7 +61,8 @@ export const HttpDataRunMetadataSchema = z.object({
   // anyone can inspect afterwards.
   totalsError: z.string().optional(),
   // Executed SQL with runtime parameter values inlined, shown in Run History.
-  // HTTP reads record it here when output controls / blending produce a SQL override.
+  // HTTP reads record it here when OWOX can build the SQL. A read without an override records
+  // the composed SQL that returns the same rows.
   // Report and MCP query runs store it in reportDefinition and additionalParams.mcpQuery.
   executionSqlQuery: z.string().optional(),
   /**

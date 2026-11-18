@@ -1,4 +1,4 @@
-import { In, Repository } from 'typeorm';
+import { In, LessThan, Repository } from 'typeorm';
 import { RunType } from '../../common/scheduler/shared/types';
 import { SystemTimeService } from '../../common/scheduler/services/system-time.service';
 import { EventEmitter2 } from '@nestjs/event-emitter';
@@ -19,6 +19,7 @@ import {
   McpQueryRunRecord,
   ReportRunContext,
 } from './data-mart-run.service';
+import { HTTP_DATA_RUN_INTERRUPTED_MESSAGE } from './http-data/http-data.constants';
 
 function fakeDataMart(overrides: Partial<DataMart> = {}): DataMart {
   return {
@@ -528,6 +529,58 @@ describe('DataMartRunService', () => {
       );
 
       expect(eventDispatcher.publishLocal).not.toHaveBeenCalled();
+    });
+
+    it('writes a RUNNING row with no finish time, no errors and no event', async () => {
+      const { service, dataMartRunRepository, eventDispatcher } = createService();
+
+      await service.recordHttpDataRun(
+        httpRecord({
+          status: DataMartRunStatus.RUNNING,
+          report: fakeReport(),
+          errors: ['x'],
+        })
+      );
+
+      const saved = (dataMartRunRepository.save as jest.Mock).mock.calls[0][0];
+      expect(saved).toMatchObject({
+        id: 'run-http-1',
+        status: DataMartRunStatus.RUNNING,
+        finishedAt: null,
+        errors: null,
+      });
+      expect(eventDispatcher.publishLocal).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('interruptStaleHttpDataRuns', () => {
+    it('closes only old RUNNING HTTP and Excel runs', async () => {
+      const { service, dataMartRunRepository, systemClock } = createService();
+      const cutoff = new Date('2026-05-28T00:00:00.000Z');
+      (dataMartRunRepository.update as jest.Mock).mockResolvedValueOnce({ affected: 3 });
+
+      await expect(service.interruptStaleHttpDataRuns(cutoff)).resolves.toBe(3);
+
+      expect(dataMartRunRepository.update).toHaveBeenCalledTimes(1);
+      expect(dataMartRunRepository.update).toHaveBeenCalledWith(
+        {
+          type: In([DataMartRunType.HTTP_DATA, DataMartRunType.EXCEL]),
+          status: DataMartRunStatus.RUNNING,
+          startedAt: LessThan(cutoff),
+        },
+        {
+          status: DataMartRunStatus.INTERRUPTED,
+          finishedAt: systemClock.now(),
+          errors: [HTTP_DATA_RUN_INTERRUPTED_MESSAGE],
+        }
+      );
+    });
+
+    it('returns 0 when the driver reports no affected count', async () => {
+      const { service, dataMartRunRepository } = createService();
+      (dataMartRunRepository.update as jest.Mock).mockResolvedValueOnce({});
+
+      await expect(service.interruptStaleHttpDataRuns(new Date())).resolves.toBe(0);
     });
   });
 

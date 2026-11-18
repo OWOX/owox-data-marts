@@ -9,6 +9,7 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import type { Response } from 'express';
+import { castError } from '@owox/internal-helpers';
 import { GracefulShutdownService } from '../../common/scheduler/services/graceful-shutdown.service';
 import { ProjectOperationBlockedException } from '../../common/exceptions/project-operation-blocked.exception';
 import { TypeResolver } from '../../common/resolver/type-resolver';
@@ -33,6 +34,7 @@ import {
   type AutoAppliedOutputConfig,
 } from '../services/auto-collapse.resolver';
 import { hasMainUniqueCount } from '../dto/schemas/unique-count-sources';
+import { BlendingDecision } from '../dto/domain/blending-decision.dto';
 import { ReportDataHeader } from '../dto/domain/report-data-header.dto';
 import { StreamHttpDataCommand } from '../dto/domain/stream-http-data.command';
 import { StreamHttpReportDataCommand } from '../dto/domain/stream-http-report-data.command';
@@ -517,10 +519,28 @@ export class StreamHttpDataService {
         calculatedFields
       );
 
-      const executionSqlQuery = this.tryInlineExecutedSql(dataMart, sqlOverride, sqlOverrideParams);
+      // Without an override, this SQL is only for the record: the reader does not run it.
+      const executionSqlQuery = sqlOverride
+        ? this.tryInlineExecutedSql(dataMart, sqlOverride, sqlOverrideParams)
+        : await this.tryComposeExecutedSql(readPlan, accessor, decision);
 
       if (executionSqlQuery) {
         baseMetadata.executionSqlQuery = executionSqlQuery;
+      }
+
+      await this.recordRunningRun(
+        dataMart,
+        userId,
+        runId,
+        startedAt,
+        { ...baseMetadata },
+        reportId,
+        excelReportRun,
+        autoApplied
+      );
+
+      if (res.destroyed) {
+        throw new StreamCancelledError('Client disconnected before stream completion');
       }
 
       reader = await this.readerResolver.resolve(dataMart.storage.type);
@@ -536,6 +556,10 @@ export class StreamHttpDataService {
         calculatedFields,
       });
 
+      if (res.destroyed) {
+        throw new StreamCancelledError('Client disconnected before stream completion');
+      }
+
       // Grand totals are a SEPARATE DWH query bridged to the client via x-owox-run-id. Computed
       // BEFORE streamRows: NDJSON headers cannot change once the first chunk is flushed. BEST-EFFORT.
       const { totals, totalsError } = await this.computeTotalsBestEffort(
@@ -543,6 +567,12 @@ export class StreamHttpDataService {
         accessor,
         dataMart
       );
+      // In the base metadata, so a read that fails later keeps the totals the client saw.
+      baseMetadata = {
+        ...baseMetadata,
+        ...(totals ? { totals } : {}),
+        ...(totalsError ? { totalsError } : {}),
+      };
 
       // Journalled into the run metadata regardless of outcome; persisted as the Data Mart's
       // last-known value only when the stream reads exactly this Data Mart's own sources (a
@@ -564,6 +594,18 @@ export class StreamHttpDataService {
           );
         }
       }
+
+      // Before the headers go out, so a client with the run id finds the totals.
+      await this.recordRunningRun(
+        dataMart,
+        userId,
+        runId,
+        startedAt,
+        { ...baseMetadata },
+        reportId,
+        excelReportRun,
+        autoApplied
+      );
 
       // Aggregated reports rename headers to "<column> | <FN>", so project by
       // the resolved header names. A report always projects by resolved headers — correct for both
@@ -615,8 +657,6 @@ export class StreamHttpDataService {
           rowCount,
           bytesWritten,
           completed: true,
-          ...(totals ? { totals } : {}),
-          ...(totalsError ? { totalsError } : {}),
         },
         reportId,
         excelReportRun,
@@ -670,12 +710,9 @@ export class StreamHttpDataService {
 
   private tryInlineExecutedSql(
     dataMart: DataMart,
-    sqlOverride: string | undefined,
+    sqlOverride: string,
     sqlOverrideParams: SqlParameter[] | undefined
   ): string | undefined {
-    if (!sqlOverride) {
-      return undefined;
-    }
     try {
       return this.reportSqlComposerService.inlineStaticSql(
         dataMart.storage.type,
@@ -686,6 +723,19 @@ export class StreamHttpDataService {
       this.logger.warn(
         `Failed to inline executed SQL for HTTP Data run: ${err instanceof Error ? err.message : String(err)}`
       );
+      return undefined;
+    }
+  }
+
+  private async tryComposeExecutedSql(
+    readPlan: ReportLikeReadPlan,
+    accessor: BlendableSchemaAccessor,
+    decision: BlendingDecision
+  ): Promise<string | undefined> {
+    try {
+      return (await this.reportSqlComposerService.composeStatic(readPlan, accessor, decision)).sql;
+    } catch (err) {
+      this.logger.warn(`Failed to compose SQL for HTTP Data run: ${castError(err).message}`);
       return undefined;
     }
   }
@@ -729,6 +779,37 @@ export class StreamHttpDataService {
       const reason = err instanceof Error ? err.message : String(err);
       this.logger.error(`Failed to compute totals for Data Mart ${dataMart.id}: ${reason}`);
       return { totals: null, totalsError: reason };
+    }
+  }
+
+  // A failed write must not fail the read: the terminal write saves the same run id again.
+  private async recordRunningRun(
+    dataMart: DataMart,
+    createdById: string,
+    runId: string,
+    startedAt: Date,
+    metadata: HttpDataRunMetadata,
+    reportId?: string,
+    excelReportRun?: Report,
+    autoApplied?: AutoAppliedOutputConfig
+  ): Promise<void> {
+    try {
+      await this.dataMartRunService.recordHttpDataRun({
+        runId,
+        dataMart,
+        createdById,
+        startedAt,
+        status: DataMartRunStatus.RUNNING,
+        metadata,
+        reportId,
+        type: excelReportRun ? DataMartRunType.EXCEL : DataMartRunType.HTTP_DATA,
+        report: excelReportRun,
+        autoApplied,
+      });
+    } catch (err) {
+      this.logger.warn(
+        `Failed to persist RUNNING HTTP Data run ${runId}: ${castError(err).message}`
+      );
     }
   }
 
@@ -919,6 +1000,8 @@ export class StreamHttpDataService {
       );
     res.once('close', onClose);
     res.once('error', onError);
+    // The socket can close during the warehouse query, before the close listener exists.
+    if (res.destroyed) onClose();
 
     try {
       let rowCount = 0;
@@ -1009,6 +1092,12 @@ export class StreamHttpDataService {
   }
 
   private handleStreamFailure(res: Response, error: unknown): void {
+    // Nobody reads an error response on a closed socket.
+    if (error instanceof StreamCancelledError && res.destroyed) {
+      this.logger.warn(`HTTP Data stream stopped: ${error.message}`);
+      return;
+    }
+
     if (!res.headersSent) {
       throw error;
     }

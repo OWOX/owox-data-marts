@@ -426,6 +426,9 @@ describe('HTTP Data API (e2e)', () => {
     });
 
     it('returns the provider message instead of an opaque 500 for storage read failures', async () => {
+      const runs = app.get<Repository<DataMartRun>>(getRepositoryToken(DataMartRun));
+      const before = await runs.countBy({ dataMartId });
+      const failedBefore = await runs.countBy({ dataMartId, status: DataMartRunStatus.FAILED });
       jest
         .mocked(mockReader.prepareReportData)
         .mockRejectedValueOnce(new Error('Invalid cast from ARRAY<STRING> to STRING at [57:23]'));
@@ -439,6 +442,17 @@ describe('HTTP Data API (e2e)', () => {
         code: 'STORAGE_READ_FAILED',
         message: expect.stringContaining('Invalid cast from ARRAY<STRING> to STRING'),
       });
+
+      expect(await runs.countBy({ dataMartId })).toBe(before + 1);
+      expect(await runs.countBy({ dataMartId, status: DataMartRunStatus.FAILED })).toBe(
+        failedBefore + 1
+      );
+      const [failed] = await runs.find({
+        where: { dataMartId, status: DataMartRunStatus.FAILED },
+        order: { createdAt: 'DESC' },
+        take: 1,
+      });
+      expect(failed.finishedAt).not.toBeNull();
     });
   });
 
@@ -616,6 +630,63 @@ describe('HTTP Data API (e2e)', () => {
       const httpRuns = (after.body?.runs ?? []).filter((r: HttpRunView) => r.type === 'HTTP_DATA');
       const token = AUTH_HEADER['x-owox-authorization'];
       expect(JSON.stringify(httpRuns)).not.toContain(token);
+    });
+
+    it('records the SQL of a columns-only read', async () => {
+      const res = await agent
+        .get(`/api/external/http-data/data-marts/${dataMartId}.ndjson?column=date&column=revenue`)
+        .set(AUTH_HEADER);
+      expect(res.status).toBe(200);
+
+      const run = await agent
+        .get(`/api/data-marts/${dataMartId}/runs/${res.headers['x-owox-run-id']}`)
+        .set(AUTH_HEADER);
+      expect(run.status).toBe(200);
+      expect(run.body.status).toBe('SUCCESS');
+      expect(run.body.additionalParams?.httpData?.executionSqlQuery).toEqual(
+        expect.stringMatching(/\S/)
+      );
+    });
+
+    it('adds one finished run per read', async () => {
+      const runs = app.get<Repository<DataMartRun>>(getRepositoryToken(DataMartRun));
+      const before = await runs.countBy({ dataMartId });
+
+      const res = await agent
+        .get(`/api/external/http-data/data-marts/${dataMartId}.ndjson?column=date`)
+        .set(AUTH_HEADER);
+      expect(res.status).toBe(200);
+
+      expect(await runs.countBy({ dataMartId })).toBe(before + 1);
+      const row = await runs.findOneByOrFail({ id: res.headers['x-owox-run-id'] });
+      expect(row.status).toBe(DataMartRunStatus.SUCCESS);
+      expect(row.finishedAt).not.toBeNull();
+    });
+
+    it('shows the RUNNING run with its SQL while the rows stream', async () => {
+      const runs = app.get<Repository<DataMartRun>>(getRepositoryToken(DataMartRun));
+      const readBatch = jest.mocked(mockReader.readReportDataBatch);
+      const readRows = readBatch.getMockImplementation()!;
+      const seen: { run?: DataMartRun | null } = {};
+      readBatch.mockImplementationOnce(async (...args) => {
+        seen.run = await runs.findOneBy({ dataMartId, status: DataMartRunStatus.RUNNING });
+        return readRows(...args);
+      });
+
+      const res = await agent
+        .get(`/api/external/http-data/data-marts/${dataMartId}.ndjson?column=date`)
+        .set(AUTH_HEADER);
+      expect(res.status).toBe(200);
+
+      expect(seen.run).toMatchObject({
+        id: res.headers['x-owox-run-id'],
+        status: DataMartRunStatus.RUNNING,
+        finishedAt: null,
+      });
+      const httpData = seen.run!.additionalParams?.httpData as { executionSqlQuery?: string };
+      expect(httpData.executionSqlQuery).toEqual(expect.stringMatching(/\S/));
+      const finished = await runs.findOneByOrFail({ id: seen.run!.id });
+      expect(finished.status).toBe(DataMartRunStatus.SUCCESS);
     });
   });
 
@@ -1475,5 +1546,10 @@ describe('HTTP Data API (e2e)', () => {
       });
       expect(await runs.countBy({ dataMartId: dataMartWithCtrId })).toBe(before);
     });
+  });
+
+  it('leaves no run RUNNING', async () => {
+    const runs = app.get<Repository<DataMartRun>>(getRepositoryToken(DataMartRun));
+    expect(await runs.countBy({ status: DataMartRunStatus.RUNNING })).toBe(0);
   });
 });

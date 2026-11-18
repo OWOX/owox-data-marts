@@ -551,7 +551,7 @@ the declared scopes, the request fails with `CREDENTIAL_SCOPE_INVALID` (400); fi
 
 `ctx.owox.dataMarts.traverseData()` streams a Data Mart's rows. Its columns, filters, sorting,
 aggregation, date buckets, and Unique Count (`uniqueCount`) are documented in the
-[API client reference](../api/api-client.md#stream-data-mart-rows). Three things are not visible
+[API client reference](../api/api-client.md#stream-data-mart-rows). Four things are not visible
 from the rows:
 
 - **Schema.** `dataMarts.list()` returns no schema. Read a Data Mart's fields, with their types and
@@ -560,10 +560,16 @@ from the rows:
   `blendedFields[].name` is the column name to request, and `availableSources[].aliasPath`
   identifies a joined source. A `pre-join` filter may reference only a joined source's columns.
 - **Grand totals.** Rows do not carry them. OWOX computes totals for the read's metrics in a
-  separate query and records them on the run. Read every row first, then call
-  `ctx.owox.runs.forDataMart(id).get(data.runId)`; its `totals` is `null` when there was nothing to
-  total or the totals query failed. They never include a Unique Count, and per-group counts do not
-  add up to it: for the overall count, read again without `column`.
+  separate query and records them on the run. The run exists when `traverseData` returns,
+  if OWOX can record it. Read
+  `ctx.owox.runs.forDataMart(id).get(data.runId)` before or after the rows. Its `totals` is `null`
+  when there was nothing to total or the totals query failed.
+  `additionalParams.httpData.totalsError` gives the reason when the totals query failed. The
+  `status` and the row count come when the stream ends. Totals never include a Unique Count. Per-group
+  counts do not add up to it. For the overall count, read again without `column`.
+- **Executed SQL.** `additionalParams.httpData.executionSqlQuery` of the same run holds the SQL with
+  values inlined. The SQL returns the same rows as the read. A read without output controls can read
+  the table directly. The field is absent when OWOX cannot build the SQL.
 - **Errors.** A failure while opening the stream arrives wrapped, as described in
   [Handle request errors](#handle-request-errors).
 

@@ -1068,9 +1068,8 @@ describe('Output controls API (e2e)', () => {
     }, 60_000);
 
     it('leaves an ad-hoc HTTP Data stream of the same report shape uncollapsed', async () => {
-      // Report-level HTTP Data records `executionSqlQuery` only when the composer actually ran,
-      // and the ad-hoc endpoint never records it at all. The `limitConfig` is what makes the
-      // composer run here without auto-collapse's help.
+      // Report-level HTTP Data records `executionSqlQuery` for every read. The `limitConfig`
+      // makes the composed SQL here come from the composer without auto-collapse's help.
       const reportId = await createAutoCollapseReport({ limitConfig: 1000 });
 
       const res = await agent

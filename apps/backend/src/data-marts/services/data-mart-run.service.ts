@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm';
+import { In, LessThan, Repository } from 'typeorm';
 import { castError } from '@owox/internal-helpers';
 import { OwoxEventDispatcher } from '../../common/event-dispatcher/owox-event-dispatcher';
 import { SystemTimeService } from '../../common/scheduler/services/system-time.service';
@@ -15,7 +15,7 @@ import { Report } from '../entities/report.entity';
 import { hasOutputControls } from '../dto/domain/report-like-read-plan';
 import type { AutoAppliedOutputConfig } from './auto-collapse.resolver';
 import { DataMartRunStatus } from '../enums/data-mart-run-status.enum';
-import { DataMartRunType } from '../enums/data-mart-run-type.enum';
+import { DataMartRunType, HTTP_DATA_RUN_SHAPE_TYPES } from '../enums/data-mart-run-type.enum';
 import { RoleScope } from '../enums/role-scope.enum';
 import { ReportRunCompletedSuccessfullyEvent } from '../events/report-run-completed-successfully.event';
 import { McpQueryCompletedSuccessfullyEvent } from '../events/mcp-query-completed-successfully.event';
@@ -26,7 +26,10 @@ import {
 } from '../dto/schemas/mcp-query-run-metadata.schema';
 import { applyDataMartVisibilityFilter } from '../utils/apply-data-mart-visibility-filter';
 import { toReportRunType } from '../utils/report-run-type';
-import { HTTP_DATA_PARAMS_KEY } from './http-data/http-data.constants';
+import {
+  HTTP_DATA_PARAMS_KEY,
+  HTTP_DATA_RUN_INTERRUPTED_MESSAGE,
+} from './http-data/http-data.constants';
 
 import { CANCELLABLE_DATA_MART_RUN_STATUSES } from '../utils/data-mart-run-cancellation';
 
@@ -82,13 +85,17 @@ export interface AiSourceRunContext {
   turnId?: string | null;
 }
 
-// Terminal-only HTTP Data run: written once at the end, no RUNNING phase, no orphan recovery.
+// The stream writes the same row at the start, after the totals and at the end.
 export interface HttpDataRunRecord {
   runId: string;
   dataMart: DataMart;
   createdById: string;
   startedAt: Date;
-  status: DataMartRunStatus.SUCCESS | DataMartRunStatus.FAILED | DataMartRunStatus.RESTRICTED;
+  status:
+    | DataMartRunStatus.RUNNING
+    | DataMartRunStatus.SUCCESS
+    | DataMartRunStatus.FAILED
+    | DataMartRunStatus.RESTRICTED;
   metadata: HttpDataRunMetadata;
   errors?: string[];
   reportId?: string;
@@ -260,6 +267,8 @@ export class DataMartRunService {
             .from(DataMartRun, 'r')
             .where('r.dataMartId IN (:...ids)')
             .andWhere('r.createdAt >= :fromDate')
+            // An API read that still streams changes no data: health keeps the last finished read.
+            .andWhere('(r.status != :running OR r.type NOT IN (:...readTypes))')
             .groupBy('r.dataMartId, r.type'),
         'latest',
         'run.dataMartId = latest.dataMartId AND run.type = latest.type AND run.createdAt = latest.maxCreatedAt'
@@ -267,6 +276,10 @@ export class DataMartRunService {
       .innerJoin(DataMart, 'dm', 'dm.id = run.dataMartId')
       .where('run.dataMartId IN (:...ids)', { ids: dataMartIds })
       .andWhere('run.createdAt >= :fromDate', { fromDate })
+      .andWhere('(run.status != :running OR run.type NOT IN (:...readTypes))', {
+        running: DataMartRunStatus.RUNNING,
+        readTypes: HTTP_DATA_RUN_SHAPE_TYPES,
+      })
       .andWhere('dm.projectId = :projectId', { projectId })
       .getMany();
   }
@@ -615,8 +628,10 @@ export class DataMartRunService {
     await this.dataMartRunRepository.save(dataMartRun);
   }
 
-  // Terminal-only: persisted once at the end; id is caller-provided to match x-owox-run-id.
+  // The stream writes the same row at the start, after the totals and at the end.
+  // The id matches x-owox-run-id.
   public async recordHttpDataRun(record: HttpDataRunRecord): Promise<void> {
+    const running = record.status === DataMartRunStatus.RUNNING;
     const run = this.dataMartRunRepository.create({
       id: record.runId,
       dataMartId: record.dataMart.id,
@@ -631,8 +646,8 @@ export class DataMartRunService {
       definitionRun: record.dataMart.definition,
       additionalParams: { [HTTP_DATA_PARAMS_KEY]: record.metadata },
       startedAt: record.startedAt,
-      finishedAt: this.systemClock.now(),
-      errors: record.errors?.length ? record.errors : null,
+      finishedAt: running ? null : this.systemClock.now(),
+      errors: !running && record.errors?.length ? record.errors : null,
     });
 
     await this.dataMartRunRepository.save(run);
@@ -642,9 +657,10 @@ export class DataMartRunService {
     // would not heal later either. Gated on `report`, not on `reportId`: a plain HTTP read of
     // someone's report carries the id but is not that report's run.
     //
-    // Emitted immediately, not on commit: this method is terminal and runs outside any
-    // transaction, and `publishLocalOnCommit` throws outright when there is none to hook into —
-    // after the row is already saved. The save above is the commit this announces.
+    // Emitted immediately, not on commit: this method runs outside any transaction, and
+    // `publishLocalOnCommit` throws outright when there is none to hook into — after the row is
+    // already saved. The save above is the commit this announces. Only the final SUCCESS write
+    // emits the event. The RUNNING writes of the same row do not.
     //
     // Contained anyway: today's listener is registered with `{ async: true }`, and Nest's
     // default `suppressErrors` means a throw inside it never comes back out of `emit()`. That is
@@ -667,6 +683,23 @@ export class DataMartRunService {
         );
       }
     }
+  }
+
+  // A hard process stop leaves the row RUNNING; this closes rows older than the cutoff.
+  public async interruptStaleHttpDataRuns(startedBefore: Date): Promise<number> {
+    const result = await this.dataMartRunRepository.update(
+      {
+        type: In(HTTP_DATA_RUN_SHAPE_TYPES),
+        status: DataMartRunStatus.RUNNING,
+        startedAt: LessThan(startedBefore),
+      },
+      {
+        status: DataMartRunStatus.INTERRUPTED,
+        finishedAt: this.systemClock.now(),
+        errors: [HTTP_DATA_RUN_INTERRUPTED_MESSAGE],
+      }
+    );
+    return result.affected ?? 0;
   }
 
   // Terminal-only: persisted once at the end; id is caller-provided to match the run UUID.
