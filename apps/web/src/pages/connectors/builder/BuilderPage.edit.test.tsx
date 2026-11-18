@@ -88,14 +88,43 @@ describe('ConnectorBuilderRoutePage — an existing connector', () => {
       });
     });
 
-    it('tells a viewer the builder needs editor access instead of failing to load', () => {
+    it('tells a Business User the builder needs the Data Owner role instead of failing to load', () => {
       authUser.value = user(['viewer']);
       renderRoute();
 
       expect(screen.getByTestId('builder-not-authorised')).toBeInTheDocument();
+      expect(
+        screen.getByRole('heading', { name: 'The connector builder needs the Data Owner role' })
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText(/only members with the Data Owner or Project Admin role can open it/)
+      ).toBeInTheDocument();
       expect(screen.queryByTestId('builder-topbar')).toBeNull();
       // The manifest endpoint is editor-only; a viewer must not even ask for it.
       expect(getVersion).not.toHaveBeenCalled();
+    });
+
+    it('links a Business User to Project settings → Members', () => {
+      authUser.value = user(['viewer']);
+      const router = createMemoryRouter(
+        [
+          {
+            path: '/ui/:projectId',
+            children: [
+              { path: 'connectors/builder/:id', element: <ConnectorBuilderRoutePage /> },
+              { path: 'project-settings/members', element: <div data-testid='members-page' /> },
+            ],
+          },
+        ],
+        { initialEntries: ['/ui/p-1/connectors/builder/new'] }
+      );
+      render(<RouterProvider router={router} />);
+
+      expect(screen.getByTestId('builder-not-authorised')).toHaveTextContent(
+        'change your role in Project settings → Members.'
+      );
+      fireEvent.click(screen.getByRole('link', { name: 'Project settings → Members' }));
+      expect(router.state.location.pathname).toBe('/ui/p-1/project-settings/members');
     });
 
     it('offers a viewer the way back to the connectors list', () => {

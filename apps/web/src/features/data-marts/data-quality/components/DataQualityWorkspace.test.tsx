@@ -7,6 +7,20 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DataQualityWorkspace } from './DataQualityWorkspace';
 import type { DataQualityConfig, DataQualityConfigResponse } from '../model/types';
 import { useDataQualityWorkspace } from '../model/use-data-quality-workspace';
+import type { Role, User } from '../../../idp/types';
+
+const authUser = vi.hoisted(() => ({ value: null as User | null }));
+
+vi.mock('../../../idp/hooks/useAuthState', () => ({
+  useAuthState: () => ({ isLoading: false }),
+  useUser: () => authUser.value,
+  useIsAuthenticated: () => authUser.value !== null,
+  useAuthActions: () => ({}),
+}));
+
+function user(roles: Role[]): User {
+  return { id: 'u-1', projectId: 'project-1', roles };
+}
 
 vi.mock('../model/use-data-quality-workspace', () => ({
   useDataQualityWorkspace: vi.fn(),
@@ -97,6 +111,7 @@ describe('DataQualityWorkspace', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     localStorage.clear();
+    authUser.value = user(['editor']);
     saveConfig.mockImplementation(async (config: DataQualityConfig) => responseForConfig(config));
     startRun.mockResolvedValue(null);
     cancelRun.mockResolvedValue(undefined);
@@ -596,6 +611,7 @@ describe('DataQualityWorkspace', () => {
       configResponse: {
         ...configResponse,
         permissions: { canEdit: false, canRun: false },
+        runEligibility: { eligible: false, code: 'NOT_PUBLISHED', activeRunId: null },
       },
     });
 
@@ -605,13 +621,43 @@ describe('DataQualityWorkspace', () => {
     expect(screen.getByRole('button', { name: 'Add checks' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Run' })).toBeDisabled();
     expect(
-      screen.getByLabelText('Run unavailable: Editor access is required to run Data Quality checks')
+      screen.getByLabelText(
+        'Run unavailable: You need edit access to this Data Mart to run Data Quality checks'
+      )
     ).toBeInTheDocument();
     expect(
       screen.getByText(
         'You have view-only access. You can browse the configuration and reports, but editing and running checks requires edit access to this Data Mart.'
       )
     ).toBeInTheDocument();
+  });
+
+  it('tells a Business User that editing and running checks needs the Data Owner role', () => {
+    authUser.value = user(['viewer']);
+    mockWorkspace({
+      configResponse: {
+        ...configResponse,
+        permissions: { canEdit: false, canRun: false },
+        runEligibility: { eligible: false, code: 'NOT_PUBLISHED', activeRunId: null },
+      },
+    });
+
+    renderWorkspace();
+
+    expect(
+      screen.getByLabelText(
+        'Run unavailable: You need the Data Owner role to run Data Quality checks'
+      )
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/editing and running checks requires the Data Owner role\./).closest('p')
+    ).toHaveTextContent(
+      'You have view-only access. You can browse the configuration and reports, but editing and running checks requires the Data Owner role. A Project Admin can change your role in Project settings → Members.'
+    );
+    expect(screen.getByRole('link', { name: 'Project settings → Members' })).toHaveAttribute(
+      'href',
+      '/ui/project-1/project-settings/members'
+    );
   });
 
   it('derives all-disabled before the first run from the effective config', () => {
