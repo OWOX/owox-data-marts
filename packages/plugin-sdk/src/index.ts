@@ -225,11 +225,14 @@ function bind(
   port.start();
   port.postMessage({ owox: 'plugin-hello', v: PLUGIN_PROTOCOL_VERSION, nonce: init.nonce });
 
-  window.addEventListener('pagehide', () => {
+  window.addEventListener('pagehide', event => {
     teardown.abort();
     // A reloaded frame gets no new channel, so the host would otherwise wait for this page.
     port.postMessage({ id: crypto.randomUUID(), kind: 'loading', active: false });
-    port.postMessage({ id: crypto.randomUUID(), kind: 'unsaved', dirty: false });
+    // A page in the back/forward cache comes back with its edits, so the flag stays.
+    if (!event.persisted) {
+      port.postMessage({ id: crypto.randomUUID(), kind: 'unsaved', dirty: false });
+    }
   });
 
   const requester = createIframeRequester(port);

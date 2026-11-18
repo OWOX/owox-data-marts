@@ -68,15 +68,23 @@ export function PluginRuntime({
   const [broken, setBroken] = useState(false);
 
   const unsavedRef = useRef(false);
-  const [unsavedMessage, setUnsavedMessage] = useState<string | undefined>();
+  const [unsaved, setUnsaved] = useState<{ dirty: boolean; message?: string }>({ dirty: false });
   const markUnsaved = useCallback((dirty: boolean, message?: string) => {
     unsavedRef.current = dirty;
-    setUnsavedMessage(dirty ? normalizeUnsavedMessage(message) : undefined);
+    const shown = dirty ? normalizeUnsavedMessage(message) : undefined;
+    setUnsaved(prev =>
+      prev.dirty === dirty && prev.message === shown ? prev : { dirty, message: shown }
+    );
   }, []);
   const guard = useUnsavedChangesGuard(
     () => unsavedRef.current && frameRef.current !== null,
     pathname => !isSameOrNestedPath(pathname, openBase)
   );
+  const { blocked, confirmLeave } = guard;
+  // A save, a route change or a closed frame leaves nothing to lose, so finish the member's leave.
+  useEffect(() => {
+    if (blocked && !unsaved.dirty) confirmLeave();
+  }, [blocked, unsaved.dirty, confirmLeave]);
   // Any completed navigation resets the blocker, so the plugin's navigations wait while the member decides.
   const guardRef = useRef(guard);
   guardRef.current = guard;
@@ -307,12 +315,12 @@ export function PluginRuntime({
       />
       {fallbackDialog}
       <UnsavedChangesConfirmationDialog
-        open={guard.blocked}
+        open={blocked}
         onOpenChange={open => {
           if (!open) guard.cancelLeave();
         }}
-        onConfirm={guard.confirmLeave}
-        description={unsavedMessage}
+        onConfirm={confirmLeave}
+        description={unsaved.message}
       />
     </>
   );

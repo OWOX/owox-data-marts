@@ -786,6 +786,33 @@ describe('PluginRuntimePage', () => {
       expect(router.state.location.pathname).toBe(OPEN_BASE);
     });
 
+    it('finishes the leave when the plugin clears the flag while the dialog is open', async () => {
+      const { router } = await mountPage();
+      reportUnsaved();
+      await goTo(router);
+      expect(screen.getByText('Unsaved Changes')).toBeInTheDocument();
+
+      reportUnsaved({ dirty: false });
+
+      await waitFor(() => {
+        expect(router.state.location.pathname).toBe(HOST_PAGE);
+      });
+      expect(screen.queryByText('Unsaved Changes')).not.toBeInTheDocument();
+    });
+
+    it('finishes the leave when the frame closes while the dialog is open', async () => {
+      const { router } = await mountPage();
+      reportUnsaved();
+      await goTo(router);
+      expect(screen.getByText('Unsaved Changes')).toBeInTheDocument();
+
+      act(() => bridgeOptions.onBroken?.());
+
+      await waitFor(() => {
+        expect(router.state.location.pathname).toBe(HOST_PAGE);
+      });
+    });
+
     it('asks before a browser Back while unsaved', async () => {
       const { router } = await mountPage('/', [HOST_PAGE, OPEN_BASE]);
       reportUnsaved();

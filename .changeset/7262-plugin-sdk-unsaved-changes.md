@@ -13,9 +13,9 @@ member before the plugin page closes.
 ![The Unsaved Changes dialog over the Setup tab of a plugin's Settings page, with the plugin's text "Your Setup choices are not saved." and the buttons "No, stay here" and "Yes, leave now"](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/eeb21807-dc7a-40b4-571f-c01c483f4100/public)
 
 - `ctx.ui.setUnsaved(dirty, message?)` marks the current screen as unsaved. While the flag is set,
-  the Unsaved Changes dialog opens before the member leaves through the sidebar, the header, the
-  breadcrumbs, the browser Back and Forward buttons, or the plugin's own `ctx.ui.navigate`. A
-  reload or a tab close shows the browser's own prompt.
+  the Unsaved Changes dialog opens before the member leaves through the sidebar, the browser Back
+  and Forward buttons, or the plugin's own `ctx.ui.navigate`. A reload or a tab close shows the
+  browser's own prompt.
 - `message` is plain text, up to 200 characters. It replaces the text of the dialog.
 - `ctx.ui.setRoute` to another path clears the flag.
 

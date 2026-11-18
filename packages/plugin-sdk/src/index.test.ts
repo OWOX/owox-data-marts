@@ -625,4 +625,15 @@ describe('ctx.ui.setUnsaved', () => {
 
     expect(raw).toContainEqual({ id: expect.any(String), kind: 'unsaved', dirty: false });
   });
+
+  it('keeps the flag when the page goes into the back/forward cache', async () => {
+    const { ui, flush, raw } = await connectedUnsaved();
+    ui.setUnsaved(true);
+    await flush();
+
+    window.dispatchEvent(Object.assign(new Event('pagehide'), { persisted: true }));
+    await flush();
+
+    expect(raw).not.toContainEqual({ id: expect.any(String), kind: 'unsaved', dirty: false });
+  });
 });

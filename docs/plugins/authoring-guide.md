@@ -383,12 +383,17 @@ async function onSave() {
 }
 ```
 
-- While the flag is set, the host asks before the member leaves. It guards the sidebar, the header,
-  the breadcrumbs, the browser Back and Forward buttons, `ctx.ui.navigate`, a reload, and a tab
-  close.
-- The host does not guard exits that your plugin draws itself. Ask the member in your own code.
-- `ctx.ui.setRoute` to another path clears the flag. Call `setUnsaved(true)` again after it on a
-  screen that still has changes. A change of only the query or the hash keeps the flag.
+- While the flag is set, the host asks before the member leaves the plugin page. It guards the
+  sidebar, the browser Back and Forward buttons, `ctx.ui.navigate`, a reload, and a tab close.
+- A link in your plugin that calls `ctx.ui.navigate` is guarded. Do not ask the member a second
+  time. The host does not guard a change of screen inside your frame. Ask the member in your own
+  code.
+- `ctx.ui.setRoute` to another path clears the flag. If the changes stay after the route change,
+  call `setUnsaved(true)` again after `setRoute`. A React effect that depends only on `dirty` does
+  not do this, because `dirty` does not change. A change of only the query or the hash keeps the
+  flag.
+- If your plugin saves the changes while the dialog is open, call `setUnsaved(false)`. The host
+  then closes the dialog and completes the member's leave.
 - `message` is plain text, up to 200 characters. The host removes control and invisible characters.
   The prompt for a reload or a tab close shows the browser's own text, not yours.
 - While the dialog is open, the host does not follow `ctx.ui.navigate`. It updates the address only
