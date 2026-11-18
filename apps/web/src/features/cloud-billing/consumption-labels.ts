@@ -34,7 +34,7 @@ const columnTitles: Readonly<Record<string, string>> = {
   PROCESS_RUN_ENTITY_ID: 'Title',
   TRANSFORMATION_ID: 'Transformation',
   TRANSFORMATION_OPERATION_ID: 'Operation',
-  STREAMING_ID: 'Stream',
+  STREAMING_ID: 'Streamings',
   GOOGLE_SHEETS_DOCUMENT: 'Google Sheets document',
   GOOGLE_SHEETS_DOCUMENT_LIST: 'Sheet',
 };
