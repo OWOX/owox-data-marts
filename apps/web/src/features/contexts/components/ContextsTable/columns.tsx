@@ -6,6 +6,7 @@ import type { UserProjection } from '../../../../shared/types';
 import type { ContextDto } from '../../types/context.types';
 import { ContextsActionsCell } from './ContextsActionsCell';
 import { ContextIconGlyph } from '../ContextIcon';
+import { markdownToPlainText } from '../../../../shared/utils';
 
 export interface ContextsTableItem extends ContextDto {
   memberCount: number;
@@ -79,7 +80,7 @@ export const getContextsColumns = ({
     meta: { title: contextsColumnLabels[ContextsColumnKey.DESCRIPTION] },
     header: contextsColumnLabels[ContextsColumnKey.DESCRIPTION],
     cell: ({ row }) => {
-      const desc = row.original.description;
+      const desc = row.original.description ? markdownToPlainText(row.original.description) : '';
       if (!desc) return <span className='text-muted-foreground'>—</span>;
       return <div className='text-muted-foreground truncate'>{desc}</div>;
     },

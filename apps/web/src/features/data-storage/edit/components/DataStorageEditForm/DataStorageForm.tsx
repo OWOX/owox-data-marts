@@ -394,7 +394,7 @@ export function DataStorageForm({
           {storageId && (
             <FormSection title='Contexts' defaultOpen={false} name='storage-contexts'>
               <FormItem>
-                <FormLabel tooltip='Business domain contexts assigned to this storage'>
+                <FormLabel tooltip='Business domains assigned to this Storage. A "Selected contexts only" member sees it only if it has one of their contexts or they own it.'>
                   Assigned
                 </FormLabel>
                 <ContextPicker
@@ -403,22 +403,6 @@ export function DataStorageForm({
                   idPrefix='storage-ctx'
                   {...inlineContext.pickerProps}
                 />
-                <FormDescription>
-                  <Accordion variant='common' type='single' collapsible>
-                    <AccordionItem value='storage-contexts-help'>
-                      <AccordionTrigger>What are Contexts?</AccordionTrigger>
-                      <AccordionContent>
-                        <p>
-                          Contexts are business domains (e.g. Marketing, Finance, Sales) used to
-                          group Storages, Destinations and Data Marts. They also control access: a
-                          member whose role scope is limited to specific contexts will only see
-                          resources assigned to those contexts. Assign one or more contexts to make
-                          this Storage discoverable to the right people.
-                        </p>
-                      </AccordionContent>
-                    </AccordionItem>
-                  </Accordion>
-                </FormDescription>
               </FormItem>
             </FormSection>
           )}

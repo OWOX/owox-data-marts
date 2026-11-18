@@ -367,7 +367,7 @@ export function DataDestinationForm({
           {isEditMode && destinationId && (
             <FormSection title='Contexts' defaultOpen={false} name='destination-contexts'>
               <FormItem>
-                <FormLabel tooltip='Business domain contexts assigned to this destination'>
+                <FormLabel tooltip='Business domains assigned to this Destination. A "Selected contexts only" member sees it only if it has one of their contexts or they own it.'>
                   Assigned
                 </FormLabel>
                 <ContextPicker
@@ -376,22 +376,6 @@ export function DataDestinationForm({
                   idPrefix='destination-ctx'
                   {...inlineContext.pickerProps}
                 />
-                <FormDescription>
-                  <Accordion variant='common' type='single' collapsible>
-                    <AccordionItem value='destination-contexts-help'>
-                      <AccordionTrigger>What are Contexts?</AccordionTrigger>
-                      <AccordionContent>
-                        <p>
-                          Contexts are business domains (e.g. Marketing, Finance, Sales) used to
-                          group Storages, Destinations and Data Marts. They also control access: a
-                          member whose role scope is limited to specific contexts will only see
-                          resources assigned to those contexts. Assign one or more contexts to make
-                          this Destination discoverable to the right people.
-                        </p>
-                      </AccordionContent>
-                    </AccordionItem>
-                  </Accordion>
-                </FormDescription>
               </FormItem>
             </FormSection>
           )}
