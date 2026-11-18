@@ -322,7 +322,7 @@ export function MemberDetailsSheet({
                     {roleScope === 'selected_contexts' && (
                       <FormSection title='Contexts' name='member-details-contexts'>
                         <FormItem>
-                          <FormLabel tooltip='Contexts assigned to this member — controls visibility when scope is "Selected contexts"'>
+                          <FormLabel tooltip='Contexts assigned to this member. The member sees a shared resource only if it has one of these contexts or the member owns it.'>
                             Assigned contexts
                           </FormLabel>
                           <ContextsCheckboxList
@@ -339,25 +339,6 @@ export function MemberDetailsSheet({
                                 : undefined
                             }
                           />
-                          <FormDescription>
-                            <Accordion variant='common' type='single' collapsible>
-                              <AccordionItem value='member-contexts-help'>
-                                <AccordionTrigger>What are Contexts?</AccordionTrigger>
-                                <AccordionContent>
-                                  <p>
-                                    Contexts are business domains (e.g. Marketing, Finance, Sales)
-                                    used to group Storages, Destinations and Data Marts. When this
-                                    member&apos;s role scope is set to{' '}
-                                    <strong>Selected contexts only</strong>, they will see a
-                                    resource only if it is assigned to at least one of the contexts
-                                    checked here (ownership still overrides visibility). With scope{' '}
-                                    <strong>Entire project</strong>, these assignments have no
-                                    effect.
-                                  </p>
-                                </AccordionContent>
-                              </AccordionItem>
-                            </Accordion>
-                          </FormDescription>
                         </FormItem>
                       </FormSection>
                     )}

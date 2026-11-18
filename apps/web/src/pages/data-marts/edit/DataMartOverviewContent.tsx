@@ -439,7 +439,7 @@ export default function DataMartOverviewContent() {
         <CollapsibleCardHeader>
           <CollapsibleCardHeaderTitle
             icon={Tags}
-            tooltip='Business domain contexts assigned to this Data Mart'
+            tooltip='Business domains assigned to this Data Mart. A "Selected contexts only" member sees it only if they own it, or it is shared and has one of their contexts.'
           >
             Contexts
           </CollapsibleCardHeaderTitle>
@@ -474,25 +474,6 @@ export default function DataMartOverviewContent() {
                 contexts to make it visible to them — the list below shows which.
               </MemberAccessWarning>
             )}
-            <Accordion variant='common' type='single' collapsible>
-              <AccordionItem value='contexts-help'>
-                <AccordionTrigger>What are Contexts?</AccordionTrigger>
-                <AccordionContent>
-                  <p>
-                    Contexts are business domains (e.g. Marketing, Finance, Sales) used to group
-                    Data Marts, Storages and Destinations.
-                  </p>
-                  <p>
-                    They also control access: a member with the role scope limited to specific
-                    contexts will only see resources assigned to those contexts.
-                  </p>
-                  <p>
-                    Assign one or more contexts to make this Data Mart discoverable to the right
-                    people.
-                  </p>
-                </AccordionContent>
-              </AccordionItem>
-            </Accordion>
           </div>
         </CollapsibleCardContent>
         <CollapsibleCardFooter></CollapsibleCardFooter>
