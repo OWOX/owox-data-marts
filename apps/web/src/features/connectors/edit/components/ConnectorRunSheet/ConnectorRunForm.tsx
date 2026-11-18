@@ -256,12 +256,14 @@ export function ConnectorRunForm({ configuration, onClose, onSubmit }: Connector
   );
   // Without date fields a period notice would describe a period the connector never reads.
   const hasBackfillPeriod = backfillFields.some(field => field.name === 'StartDate');
-  // Known only once the node list has loaded; until then the period is described as dated,
-  // which is what the backend assumes for a node it cannot classify.
+  // Undefined when the node list failed or does not have the node. A period is then described
+  // as dated, as the backend does; with no backfill fields the node counts as dateless, because
+  // a connector with no date fields (Google Sheets) must not show an empty section.
   const nodeFetchedByDate = connectorFields?.find(
     field => field.name === configuration?.connector.source.node
   )?.isFetchedByDate;
   const isDatelessNode = nodeFetchedByDate === false;
+  const hasNoDateFields = backfillFields.length === 0 && nodeFetchedByDate !== true;
   const periodHint =
     configuration?.connector.info?.isCustom === true ? ` ${CUSTOM_CONNECTOR_PERIOD_HINT}` : '';
   const backfillDays = backfillPeriod.status === 'ok' ? backfillPeriod.days : 0;
@@ -314,7 +316,9 @@ export function ConnectorRunForm({ configuration, onClose, onSubmit }: Connector
                         />
                         <FormDescription>
                           {runType === RunType.MANUAL_BACKFILL
-                            ? 'Reloads all data for a specific time range from the source, replacing existing records for that period. Use when you need to correct or update historical data.'
+                            ? hasNoDateFields
+                              ? 'Reloads all data from the source. Use when you need to correct or update data that is already loaded.'
+                              : 'Reloads all data for a specific time range from the source, replacing existing records for that period. Use when you need to correct or update historical data.'
                             : 'Adds only new or updated records since the last run, using the current state of your Data Mart as a reference. Ideal for keeping data fresh without reloading what`s already there.'}
                         </FormDescription>
                       </>
@@ -371,8 +375,7 @@ export function ConnectorRunForm({ configuration, onClose, onSubmit }: Connector
                     )}
                   />
                 ))}
-                {(hasBackfillPeriod ||
-                  (backfillFields.length === 0 && nodeFetchedByDate !== true)) && (
+                {(hasBackfillPeriod || hasNoDateFields) && (
                   <Alert
                     role='status'
                     variant={

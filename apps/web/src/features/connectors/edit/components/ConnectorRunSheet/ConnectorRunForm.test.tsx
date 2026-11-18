@@ -65,6 +65,10 @@ const NO_DATES =
 const HINT =
   "If the API filters by date, set the node's Incremental strategy and date parameters in the Connector Builder.";
 
+const BACKFILL_DESCRIPTION = 'Reloads all data for a specific time range from the source';
+const NO_DATES_DESCRIPTION =
+  'Reloads all data from the source. Use when you need to correct or update data that is already loaded.';
+
 const todayIso = new Date().toISOString().slice(0, 10);
 
 async function openBackfill(onSubmit = vi.fn(), config = configuration) {
@@ -90,6 +94,7 @@ describe('ConnectorRunForm backfill period', () => {
     const onSubmit = await openBackfill();
 
     expect(notice()).toHaveTextContent('loads in parts, one month per run');
+    expect(screen.getByText(BACKFILL_DESCRIPTION, { exact: false })).toBeInTheDocument();
     // The untouched state is a hint, not a validation failure.
     expect(notice().className).not.toContain('destructive');
     // Validation runs on submit, so the empty required dates block the run there.
@@ -99,7 +104,7 @@ describe('ConnectorRunForm backfill period', () => {
     expect(onSubmit).not.toHaveBeenCalled();
   });
 
-  it('explains that a connector with no backfill fields loads all its data in one run', async () => {
+  it('explains that a dateless node with no backfill fields loads all its data in one run', async () => {
     specification.current = [];
     fields.current = [{ name: 'ad_insights', isFetchedByDate: false }];
     const onSubmit = vi.fn();
@@ -111,6 +116,7 @@ describe('ConnectorRunForm backfill period', () => {
 
     expect(notice()).toHaveTextContent(NO_DATES);
     expect(notice()).not.toHaveTextContent('Incremental strategy');
+    expect(screen.getByText(NO_DATES_DESCRIPTION)).toBeInTheDocument();
     expect(notice().className).not.toContain('destructive');
     expect(runButton()).toBeEnabled();
     await act(async () => {
@@ -118,7 +124,7 @@ describe('ConnectorRunForm backfill period', () => {
     });
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(onSubmit).toHaveBeenCalledTimes(1);
-    expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ runType: 'MANUAL_BACKFILL' }));
+    expect(onSubmit).toHaveBeenCalledWith({ runType: 'MANUAL_BACKFILL' });
   });
 
   it('tells a custom connector with no backfill fields how to load a period', async () => {
@@ -134,6 +140,8 @@ describe('ConnectorRunForm backfill period', () => {
     await openBackfill();
 
     expect(screen.queryByTestId('backfill-limit-notice')).toBeNull();
+    expect(screen.getByText(BACKFILL_DESCRIPTION, { exact: false })).toBeInTheDocument();
+    expect(runButton()).toBeEnabled();
   });
 
   it('keeps the period notice and no hint for a custom connector with a dated node', async () => {
