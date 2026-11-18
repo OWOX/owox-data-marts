@@ -95,6 +95,20 @@ async function requestCheckout(
   fireEvent.click(await screen.findByRole('button', { name: `Select ${selection} USD` }));
 }
 
+it('lets users reload the catalog after a failed request', async () => {
+  vi.mocked(apiClient.get).mockImplementationOnce((url: string) => {
+    expect(url).toBe('/api/stripe/app-pricing');
+    return Promise.reject(new Error('Catalog unavailable'));
+  });
+  renderPricing();
+
+  expect(await screen.findByRole('alert')).toHaveTextContent('Plans could not be loaded.');
+  fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+
+  expect(await screen.findByText('Individual')).toBeInTheDocument();
+  expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+});
+
 describe('App Pricing billing periods', () => {
   it('shows the yearly savings and rounds the monthly equivalent while keeping the exact total', async () => {
     renderPricing();

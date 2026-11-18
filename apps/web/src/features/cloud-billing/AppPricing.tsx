@@ -19,6 +19,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@owox/ui/components/card';
+import { Skeleton } from '@owox/ui/components/skeleton';
 import { Tabs, TabsList, TabsTrigger } from '@owox/ui/components/tabs';
 import { useProjectRoute } from '../../shared/hooks';
 import { useUser } from '../idp/hooks/useAuthState';
@@ -250,12 +251,21 @@ export function AppPricing({ origin }: { origin: string }) {
             </AlertDescription>
           </Alert>
         )}
-        {!plans.isSuccess ? (
-          <BillingLoadState
-            isPending={plans.isPending}
-            errorTitle='Could not load plans'
-            onRetry={() => void plans.refetch()}
-          />
+        {plans.isPending ? (
+          <Skeleton className='h-20 w-full' aria-label='Loading plans' />
+        ) : plans.isError ? (
+          <div role='alert' className='flex flex-col items-start gap-2'>
+            <p className='text-muted-foreground text-sm'>Plans could not be loaded.</p>
+            <Button
+              variant='outline'
+              disabled={plans.isFetching}
+              onClick={() => {
+                void plans.refetch();
+              }}
+            >
+              Try again
+            </Button>
+          </div>
         ) : (
           <>
             {plans.data.length > 0 && (
