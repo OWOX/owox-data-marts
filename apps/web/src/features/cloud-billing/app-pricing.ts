@@ -29,6 +29,27 @@ export interface PricingPlan {
   offers: PricingOffer[];
 }
 
+export function getMaxYearlySavings(plans: PricingPlan[]): number {
+  let maxSavings = 0;
+  for (const { offers } of plans) {
+    for (const yearly of offers.filter(offer => offer.billingCycle === 'yearly')) {
+      const monthly = offers.find(
+        offer =>
+          offer.billingCycle === 'monthly' &&
+          offer.currency === yearly.currency &&
+          offer.creditsPerMonth === yearly.creditsPerMonth &&
+          offer.seats === yearly.seats
+      );
+      if (!monthly || monthly.amountMinor <= 0) continue;
+
+      const monthlyTotal = monthly.amountMinor * yearly.billingPeriodMonths;
+      const savings = Math.floor(((monthlyTotal - yearly.amountMinor) * 100) / monthlyTotal);
+      maxSavings = Math.max(maxSavings, savings);
+    }
+  }
+  return maxSavings;
+}
+
 export interface CheckoutSession {
   id: string;
   checkoutUrl: string | null;
@@ -45,6 +66,7 @@ interface StartCheckout {
 interface CheckoutConflict {
   code: string;
   invoiceUrl: string | null;
+  previousProductId?: string | null;
 }
 
 function trustedStripeUrl(value: string | null, origins: ReadonlySet<string>): string | null {
@@ -86,6 +108,7 @@ export function useStartCheckout(origin: string) {
         return {
           kind: 'outstanding-invoice' as const,
           invoiceUrl: trustedStripeUrl(data.invoiceUrl, stripeInvoiceOrigins),
+          previousProductId: data.previousProductId ?? null,
         };
       }
       const url = trustedStripeUrl(

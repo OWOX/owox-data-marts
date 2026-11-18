@@ -23,7 +23,12 @@ import { Tabs, TabsList, TabsTrigger } from '@owox/ui/components/tabs';
 import { useProjectRoute } from '../../shared/hooks';
 import { useUser } from '../idp/hooks/useAuthState';
 import { useCanEdit } from '../idp/hooks/useRole';
-import { useStartCheckout, type PricingOffer, type PricingPlan } from './app-pricing';
+import {
+  getMaxYearlySavings,
+  useStartCheckout,
+  type PricingOffer,
+  type PricingPlan,
+} from './app-pricing';
 import { BillingLoadState } from './BillingLoadState';
 import { useCloudBillingQuery, type SubscriptionDetails } from './cloud-billing';
 
@@ -59,14 +64,43 @@ const scaleFeatures = [
   'We set it up and stay with you',
 ];
 
+const pricingCardClass = 'min-w-0 py-8 lg:row-span-4 lg:grid lg:grid-rows-subgrid lg:py-9';
+const priceClass = 'text-3xl leading-tight font-semibold tabular-nums';
+const supportUrl = 'https://support.owox.com/hc/en-us/requests/new';
+
 function formatAmount(offer: PricingOffer, dividedBy = 1): string {
-  const format = new Intl.NumberFormat(undefined, { style: 'currency', currency: offer.currency });
-  const minorDigits = format.resolvedOptions().maximumFractionDigits ?? 2;
+  const currencyFormat: Intl.NumberFormatOptions = { style: 'currency', currency: offer.currency };
+  const minorDigits =
+    new Intl.NumberFormat(undefined, currencyFormat).resolvedOptions().maximumFractionDigits ?? 2;
+  const format = new Intl.NumberFormat(undefined, {
+    ...currencyFormat,
+    minimumFractionDigits: 0,
+    maximumFractionDigits: dividedBy > 1 ? 0 : minorDigits,
+  });
   return format.format(offer.amountMinor / 10 ** minorDigits / dividedBy);
+}
+
+function OfferSummary({ offer }: { offer: PricingOffer }) {
+  return (
+    <div className='space-y-4 pb-3'>
+      <p className='flex flex-wrap items-baseline gap-x-1'>
+        <span className={priceClass}>{formatAmount(offer, offer.billingPeriodMonths)}</span>
+        <span className='text-muted-foreground text-sm'>/ month</span>
+      </p>
+      {offer.billingCycle === 'yearly' && (
+        <p className='text-muted-foreground text-sm'>{formatAmount(offer)} billed yearly</p>
+      )}
+      <p className='text-sm'>
+        {offer.creditsPerMonth.toLocaleString()} credits per month · Up to {offer.seats}{' '}
+        {offer.seats === 1 ? 'account' : 'accounts'}
+      </p>
+    </div>
+  );
 }
 
 export function AppPricing({ origin }: { origin: string }) {
   const project = useProjectRoute();
+  const subscriptionUrl = project.scope('/project-settings/subscription');
   const user = useUser();
   const canEdit = useCanEdit();
   const [params, setParams] = useSearchParams();
@@ -75,26 +109,38 @@ export function AppPricing({ origin }: { origin: string }) {
   const [recovery, setRecovery] = useState<{
     userId: string;
     projectId: string;
+    previousProductId: string | null;
     invoiceUrl: string | null;
   }>();
   const submissionInFlight = useRef(false);
   const lastAttempt = useRef<{ key: string; id: string }>(undefined);
   const plans = useCloudBillingQuery<PricingPlan[]>(origin, '/api/stripe/app-pricing');
+  const yearlySavings = plans.isSuccess ? getMaxYearlySavings(plans.data) : 0;
   const subscription = useCloudBillingQuery<SubscriptionDetails | null>(
     origin,
     '/api/billing/subscription-details'
   );
   const checkout = useStartCheckout(origin);
   const canManageBilling = canEdit && !user?.viewOnly;
+  const paidSubscription = subscription.data?.planType === 'PAID' ? subscription.data : null;
   const outstandingInvoice =
-    canManageBilling && recovery?.userId === user?.id && recovery?.projectId === user?.projectId
+    paidSubscription === null &&
+    canManageBilling &&
+    recovery?.userId === user?.id &&
+    recovery?.projectId === user?.projectId
       ? recovery
       : undefined;
+  const hasRecoveryCard =
+    outstandingInvoice !== undefined &&
+    plans.isSuccess &&
+    plans.data.some(plan => plan.productId === outstandingInvoice.previousProductId);
+  const recoverPlanLink = outstandingInvoice && (
+    <a href={outstandingInvoice.invoiceUrl ?? supportUrl} target='_blank' rel='noopener noreferrer'>
+      {outstandingInvoice.invoiceUrl ? 'Pay outstanding invoice' : 'Contact support'}
+    </a>
+  );
   const canBuy =
-    canManageBilling &&
-    !outstandingInvoice &&
-    subscription.isSuccess &&
-    subscription.data?.planType !== 'PAID';
+    canManageBilling && !outstandingInvoice && subscription.isSuccess && paidSubscription === null;
 
   async function startCheckout(offer: PricingOffer) {
     if (!canBuy || !user?.id || !user.projectId || submissionInFlight.current) return;
@@ -116,7 +162,12 @@ export function AppPricing({ origin }: { origin: string }) {
         attemptId: lastAttempt.current.id,
       });
       if (result.kind === 'outstanding-invoice') {
-        setRecovery({ userId: user.id, projectId: user.projectId, invoiceUrl: result.invoiceUrl });
+        setRecovery({
+          userId: user.id,
+          projectId: user.projectId,
+          previousProductId: result.previousProductId,
+          invoiceUrl: result.invoiceUrl,
+        });
         return;
       }
       window.location.assign(result.url);
@@ -132,6 +183,25 @@ export function AppPricing({ origin }: { origin: string }) {
     }
   }
 
+  function checkoutButton(offer: PricingOffer, name: string, recommended?: boolean) {
+    return (
+      <Button
+        variant={recommended ? 'default' : 'outline'}
+        size='lg'
+        className='w-full'
+        onClick={() => {
+          void startCheckout(offer);
+        }}
+        disabled={checkout.isPending || outstandingInvoice !== undefined}
+        aria-label={`Select ${name} ${offer.currency.toUpperCase()}`}
+      >
+        {checkout.isPending && checkout.variables.priceId === offer.priceId
+          ? 'Opening checkout…'
+          : 'Select plan'}
+      </Button>
+    );
+  }
+
   return (
     <div className='dm-page'>
       <header className='dm-page-header'>
@@ -139,7 +209,7 @@ export function AppPricing({ origin }: { origin: string }) {
           <BreadcrumbList className='dm-page-header-title'>
             <BreadcrumbItem>
               <BreadcrumbLink asChild>
-                <Link to={project.scope('/project-settings/subscription')}>Subscription</Link>
+                <Link to={subscriptionUrl}>Subscription</Link>
               </BreadcrumbLink>
             </BreadcrumbItem>
             <BreadcrumbSeparator />
@@ -163,20 +233,18 @@ export function AppPricing({ origin }: { origin: string }) {
             <AlertDescription>You can select a plan when you’re ready.</AlertDescription>
           </Alert>
         )}
-        {outstandingInvoice && subscription.data?.planType !== 'PAID' && (
+        {outstandingInvoice && (!hasRecoveryCard || !outstandingInvoice.invoiceUrl) && (
           <Alert>
             <AlertTitle>Your previous subscription is unpaid</AlertTitle>
             <AlertDescription>
               <p>
                 {outstandingInvoice.invoiceUrl
-                  ? 'Pay the outstanding Stripe invoice to restore your subscription.'
+                  ? 'Pay the outstanding Stripe invoice to restore your previous subscription.'
                   : 'The invoice is currently unavailable. Contact support for help restoring your subscription.'}
               </p>
-              {outstandingInvoice.invoiceUrl && (
+              {!hasRecoveryCard && recoverPlanLink && (
                 <Button asChild variant='outline' size='sm' className='mt-2'>
-                  <a href={outstandingInvoice.invoiceUrl} target='_blank' rel='noopener noreferrer'>
-                    Pay outstanding invoice
-                  </a>
+                  {recoverPlanLink}
                 </Button>
               )}
             </AlertDescription>
@@ -201,7 +269,12 @@ export function AppPricing({ origin }: { origin: string }) {
               >
                 <TabsList aria-label='Billing period'>
                   <TabsTrigger value='monthly'>Monthly</TabsTrigger>
-                  <TabsTrigger value='yearly'>Yearly</TabsTrigger>
+                  <TabsTrigger value='yearly'>
+                    Yearly
+                    {yearlySavings > 0 && (
+                      <Badge variant='secondary'>Save up to {yearlySavings}%</Badge>
+                    )}
+                  </TabsTrigger>
                 </TabsList>
               </Tabs>
             )}
@@ -223,9 +296,16 @@ export function AppPricing({ origin }: { origin: string }) {
                   ? planCopy[plan.internalName]
                   : undefined;
                 const name = copy?.name ?? plan.name;
+                const isCurrentPlan =
+                  paidSubscription?.name === name || paidSubscription?.name === plan.name;
                 const offers = plan.offers.filter(offer => offer.billingCycle === cycle);
+                const firstOffer = offers.at(0);
+                const otherOffers = offers.slice(1);
+                const showRecoveryOnCard = outstandingInvoice?.previousProductId === plan.productId;
+                const showCheckout =
+                  firstOffer && !showRecoveryOnCard && (canBuy || outstandingInvoice !== undefined);
                 return (
-                  <Card key={plan.productId}>
+                  <Card key={plan.productId} className={pricingCardClass}>
                     <CardHeader>
                       <CardTitle className='flex flex-wrap items-center gap-2'>
                         {name}
@@ -233,75 +313,78 @@ export function AppPricing({ origin }: { origin: string }) {
                       </CardTitle>
                       {copy?.description && <CardDescription>{copy.description}</CardDescription>}
                     </CardHeader>
-                    <CardContent className='flex-1 space-y-4'>
-                      {offers.length === 0 && (
+                    <CardContent className='lg:row-start-2'>
+                      {firstOffer ? (
+                        <OfferSummary offer={firstOffer} />
+                      ) : (
                         <p className='text-muted-foreground text-sm'>
                           Unavailable for this billing period
                         </p>
                       )}
-                      {offers.map(offer => (
-                        <div key={offer.priceId} className='space-y-2'>
-                          <p>
-                            <span className='text-2xl font-semibold'>
-                              {formatAmount(offer, offer.billingPeriodMonths)}
-                            </span>{' '}
-                            <span className='text-muted-foreground text-sm'>/ month</span>
-                          </p>
-                          {cycle === 'yearly' && (
-                            <p className='text-muted-foreground text-sm'>
-                              {formatAmount(offer)} billed yearly
-                            </p>
-                          )}
-                          <p className='text-sm'>
-                            {offer.creditsPerMonth.toLocaleString()} credits per month · Up to{' '}
-                            {offer.seats} {offer.seats === 1 ? 'account' : 'accounts'}
-                          </p>
-                          {canBuy && (
-                            <Button
-                              variant={copy?.recommended ? 'default' : 'outline'}
-                              onClick={() => {
-                                void startCheckout(offer);
-                              }}
-                              disabled={checkout.isPending}
-                              aria-label={`Select ${name} ${offer.currency.toUpperCase()}`}
-                            >
-                              {checkout.isPending && checkout.variables.priceId === offer.priceId
-                                ? 'Opening checkout…'
-                                : 'Select plan'}
-                            </Button>
-                          )}
-                        </div>
-                      ))}
-                      {copy && (
-                        <ul className='text-muted-foreground list-disc space-y-1 pl-4 text-sm'>
-                          {copy.features.map(feature => (
-                            <li key={feature}>{feature}</li>
-                          ))}
-                        </ul>
-                      )}
                     </CardContent>
+                    {(showRecoveryOnCard || paidSubscription !== null || showCheckout) && (
+                      <CardFooter className='lg:row-start-3 lg:self-start'>
+                        {showRecoveryOnCard && recoverPlanLink && (
+                          <Button asChild variant='outline' size='lg' className='w-full'>
+                            {recoverPlanLink}
+                          </Button>
+                        )}
+                        {showCheckout && checkoutButton(firstOffer, name, copy?.recommended)}
+                        {paidSubscription && (
+                          <Button asChild variant='outline' size='lg' className='w-full'>
+                            {isCurrentPlan ? (
+                              <Link to={subscriptionUrl}>View current plan</Link>
+                            ) : (
+                              <a href={supportUrl} target='_blank' rel='noopener noreferrer'>
+                                Contact support
+                              </a>
+                            )}
+                          </Button>
+                        )}
+                      </CardFooter>
+                    )}
+                    {(otherOffers.length > 0 || copy) && (
+                      <CardContent className='space-y-6 lg:row-start-4'>
+                        {otherOffers.map(offer => (
+                          <div key={offer.priceId} className='space-y-4'>
+                            <OfferSummary offer={offer} />
+                            {canBuy && checkoutButton(offer, name, copy?.recommended)}
+                          </div>
+                        ))}
+                        {copy && (
+                          <ul className='text-muted-foreground list-disc space-y-4 pl-4 text-sm'>
+                            {copy.features.map(feature => (
+                              <li key={feature}>{feature}</li>
+                            ))}
+                          </ul>
+                        )}
+                      </CardContent>
+                    )}
                   </Card>
                 );
               })}
-              <Card>
+              <Card className={pricingCardClass}>
                 <CardHeader>
                   <CardTitle>Scale</CardTitle>
                   <CardDescription>Your analyst for the whole company.</CardDescription>
                 </CardHeader>
-                <CardContent className='flex-1'>
-                  <ul className='text-muted-foreground list-disc space-y-1 pl-4 text-sm'>
-                    {scaleFeatures.map(feature => (
-                      <li key={feature}>{feature}</li>
-                    ))}
-                  </ul>
+                <CardContent className='lg:row-start-2'>
+                  <p className={priceClass}>Let’s talk</p>
                 </CardContent>
-                <CardFooter>
-                  <Button asChild variant='outline'>
+                <CardFooter className='lg:row-start-3 lg:self-start'>
+                  <Button asChild variant='outline' size='lg' className='w-full'>
                     <a href='https://www.owox.com/book-a-call' target='_blank' rel='noreferrer'>
                       Book a demo
                     </a>
                   </Button>
                 </CardFooter>
+                <CardContent className='lg:row-start-4'>
+                  <ul className='text-muted-foreground list-disc space-y-4 pl-4 text-sm'>
+                    {scaleFeatures.map(feature => (
+                      <li key={feature}>{feature}</li>
+                    ))}
+                  </ul>
+                </CardContent>
               </Card>
             </div>
           </>
