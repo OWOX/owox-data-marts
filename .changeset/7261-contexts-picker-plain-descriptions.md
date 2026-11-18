@@ -10,6 +10,6 @@ Now each context is one line: its name, then its description as plain text. Text
 
 ![The Contexts card of a Data Mart: each context on one line, with its name and a plain-text description cut with an ellipsis](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/4b6668b6-73a9-4fdd-395d-e406893f2b00/public)
 
-The help text about contexts is now only in the (i) tooltip of the Contexts block. On a Data Mart and a Destination, the tooltip also tells who can see the item: a member with the **Selected contexts only** scope sees it only if they own it, or it is shared and has one of their contexts. On a Storage, the same rule applies to editors.
+The help text about contexts is now only in the (i) tooltip of the Contexts block. On a Data Mart and a Destination, the tooltip also tells who can see the item: a member with the **Selected contexts only** scope sees it only if they own it, or it is shared and has one of their contexts. On a Storage, the same rule applies to members with the Data Owner role.
 
 <!-- markdownlint-disable-file MD041 MD036 -->

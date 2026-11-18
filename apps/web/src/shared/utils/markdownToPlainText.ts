@@ -67,6 +67,7 @@ export function markdownToPlainText(markdown: string): string {
       .replace(/`/g, '')
       .replace(RESTORE, char => String.fromCharCode(char.charCodeAt(0) - ESCAPE_BASE))
       .replace(/\s+/g, ' ')
+      .trim()
       .replace(LAST_HEADING_END, '')
       .replace(HEADING_ENDS, (_, end: string) => (!end || /[.:!?]/.test(end) ? end : `${end}:`))
       .trim()

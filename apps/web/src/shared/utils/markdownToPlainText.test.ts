@@ -127,6 +127,9 @@ describe('markdownToPlainText', () => {
   });
   it('removes the colon of a heading at the very end', () => {
     expect(markdownToPlainText('## Notes')).toBe('Notes');
+    expect(markdownToPlainText('## Notes\n')).toBe('Notes');
+    expect(markdownToPlainText('## Mission\n---')).toBe('Mission');
+    expect(markdownToPlainText('Text\n\n## Links\n')).toBe('Text Links');
     expect(markdownToPlainText('Contacts:')).toBe('Contacts:');
     expect(markdownToPlainText('# Done.\nA')).toBe('Done. A');
     expect(markdownToPlainText('# Wow!\nA')).toBe('Wow! A');
