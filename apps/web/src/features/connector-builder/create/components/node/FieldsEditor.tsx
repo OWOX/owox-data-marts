@@ -46,7 +46,8 @@ interface Row {
   id: number;
   /** The name as typed. */
   name: string;
-  /** The name the field had in the manifest when its name input was last left ('' for a new row). */
+  /** The name the field had in the manifest when a name input was last left or a row removed
+   * ('' for a new row). */
   saved: string;
   field: ManifestField;
   pk: boolean;
@@ -66,6 +67,21 @@ function savedNames(rows: Row[]): string[] {
       rows.every((other, j) => j === i || (other.name.trim() !== typed && other.saved !== typed));
     return free ? typed : row.saved;
   });
+}
+
+/**
+ * Each row that is written under its typed name keeps that name as its saved name. Call it when
+ * no row is mid-edit: when a name input is left or a row is removed.
+ */
+function settled(rows: Row[]): Row[] {
+  const names = savedNames(rows);
+  const next = rows.map((row, i) =>
+    names[i] !== '' && names[i] === row.name.trim() && names[i] !== row.saved
+      ? { ...row, saved: names[i] }
+      : row
+  );
+  // The old saved name is now free, and another row can wait for it.
+  return next.some((row, i) => row !== rows[i]) ? settled(next) : rows;
 }
 
 /**
@@ -196,16 +212,16 @@ export function FieldsEditor({ nodeName }: { nodeName: string }) {
   const setName = (id: number, name: string) => {
     commit(rows.map(r => (r.id === id ? { ...r, name } : r)));
   };
-  // The name a row is written under when you leave its input becomes its fallback.
-  const settleName = (id: number) => {
+  // When you leave a name input, the name each row is written under becomes its fallback.
+  const settleNames = () => {
     const names = savedNames(rows);
-    const next = rows.map((r, i) => (r.id === id ? { ...r, saved: names[i] } : r));
+    const next = settled(rows);
     // Settling can free a name that another row waits for; only then the manifest changes.
     if (savedNames(next).some((name, i) => name !== names[i])) commit(next);
     else setRows(next);
   };
   const removeRow = (id: number) => {
-    commit(rows.filter(r => r.id !== id));
+    commit(settled(rows.filter(r => r.id !== id)));
   };
 
   const addRow = () => {
@@ -345,9 +361,7 @@ export function FieldsEditor({ nodeName }: { nodeName: string }) {
                             onChange={e => {
                               setName(row.id, e.target.value);
                             }}
-                            onBlur={() => {
-                              settleName(row.id);
-                            }}
+                            onBlur={settleNames}
                             placeholder='Field name'
                             aria-label='Field name'
                             data-testid={`fieldname-${row.name}`}

@@ -362,16 +362,38 @@ describe('FieldsEditor — field name as you type', () => {
     expect(storedFields()).toEqual({ user_id: { type: 'string' } });
   });
 
-  it('writes a waiting name when leaving another input frees it', () => {
+  it('writes a waiting name when leaving another input frees it, and falls back to it', () => {
     renderEditor('{"nodes":{"items":{"recordSelector":{},"fields":{"a":{"type":"string"}}}}}');
     addField('a');
-    const first = screen.getAllByRole('textbox', { name: 'Field name' })[0];
+    const [first, second] = screen.getAllByRole('textbox', { name: 'Field name' });
     fireEvent.change(first, { target: { value: 'z' } });
     expect(storedFields()).toEqual({ z: { type: 'string' } });
 
     fireEvent.blur(first);
     expect(storedFields()).toEqual({ z: { type: 'string' }, a: { type: 'string' } });
     expect(screen.queryByLabelText('Duplicate field name')).toBeNull();
+
+    fireEvent.change(second, { target: { value: '' } });
+    expect(storedFields()).toEqual({ z: { type: 'string' }, a: { type: 'string' } });
+  });
+
+  it('writes each waiting name that removing a row frees, and falls back to it', () => {
+    renderEditor(
+      '{"nodes":{"items":{"recordSelector":{},"fields":{"a":{"type":"string"},"b":{"type":"integer"},"c":{"type":"boolean"}}}}}'
+    );
+    const b = screen.getByTestId('fieldname-b');
+    const c = screen.getByTestId('fieldname-c');
+    fireEvent.change(b, { target: { value: 'a' } });
+    fireEvent.blur(b);
+    fireEvent.change(c, { target: { value: 'b' } });
+    fireEvent.blur(c);
+    fireEvent.click(screen.getAllByRole('button', { name: 'Remove field a' })[0]);
+
+    expect(storedFields()).toEqual({ a: { type: 'integer' }, b: { type: 'boolean' } });
+    expect(screen.queryByLabelText('Duplicate field name')).toBeNull();
+
+    fireEvent.change(c, { target: { value: '' } });
+    expect(storedFields()).toEqual({ a: { type: 'integer' }, b: { type: 'boolean' } });
   });
 
   it('adds no field for a new row that is typed and then cleared', () => {
