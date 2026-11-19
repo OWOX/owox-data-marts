@@ -4,6 +4,7 @@ import toast from 'react-hot-toast';
 import { ConfirmationDialog } from '../../../../../shared/components/ConfirmationDialog';
 import { useUrlParam, useProjectRoute } from '../../../../../shared/hooks';
 import { DataDestinationConfigSheet } from '../../../edit';
+import { McpPromoCard, buildMcpPrompt, useIsMcpSetupPromoAvailable } from '../../../../mcp-promo';
 import {
   dataDestinationService,
   generateLookerStudioJsonConfig,
@@ -46,6 +47,9 @@ export const DataDestinationList = ({
   } = useDataDestination();
 
   const [isEditSheetOpen, setIsEditSheetOpen] = useState(false);
+  // The sheet animates out after close, so the promo cannot key on the cleared destination.
+  const [openedForCreate, setOpenedForCreate] = useState(false);
+  const [openedDestinationId, setOpenedDestinationId] = useState<string>();
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [isRotateSecretKeyDialogOpen, setRotateSecretKeyDialogOpen] = useState(false);
   const [destinationToDelete, setDestinationToDelete] = useState<string | null>(null);
@@ -56,14 +60,21 @@ export const DataDestinationList = ({
     destinationId: string;
     impact: DataDestinationImpactResponseDto;
   } | null>(null);
-  const { scope } = useProjectRoute();
+  const { scope, projectId } = useProjectRoute();
+  const isMcpAvailable = useIsMcpSetupPromoAvailable();
+  const promoPlacement = openedForCreate ? 'destination_sheet' : 'destination_sheet_maintain';
 
   const { value: deepLinkId, setParam: setIdParam, removeParam: removeIdParam } = useUrlParam('id');
   const hasAttemptedDeepLink = useRef(false);
 
   const handleEdit = useCallback(
     async (id: string) => {
+      // The `?id=` set below is this open's own link: without the latch the deep-link effect
+      // opened the same Destination again and fetched it a second time.
+      hasAttemptedDeepLink.current = true;
       await getDataDestinationById(id);
+      setOpenedForCreate(false);
+      setOpenedDestinationId(id);
       setIsEditSheetOpen(true);
       setIdParam(id);
     },
@@ -72,6 +83,8 @@ export const DataDestinationList = ({
 
   const handleOpenCreateForm = useCallback(() => {
     clearCurrentDataDestination();
+    setOpenedForCreate(true);
+    setOpenedDestinationId(undefined);
     setIsEditSheetOpen(true);
     onCreateSheetClose?.();
     removeIdParam();
@@ -214,6 +227,25 @@ export const DataDestinationList = ({
         onClose={handleCloseSheet}
         dataDestination={currentDataDestination}
         onSaveSuccess={() => void handleSave()}
+        promo={
+          isMcpAvailable && projectId && (openedForCreate || openedDestinationId) ? (
+            <McpPromoCard
+              key={promoPlacement}
+              variant='section'
+              placement={promoPlacement}
+              mcpPart='setup'
+              title={
+                openedForCreate
+                  ? 'Set it up with your AI assistant'
+                  : 'Maintain it with your AI assistant'
+              }
+              prompt={buildMcpPrompt(promoPlacement, {
+                projectId,
+                destinationId: openedDestinationId,
+              })}
+            />
+          ) : undefined
+        }
       />
 
       <ConfirmationDialog

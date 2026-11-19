@@ -1,4 +1,4 @@
-import { forwardRef, useEffect, useState, useRef } from 'react';
+import { forwardRef, useEffect, useState, useRef, type ReactNode } from 'react';
 import { useOwnerState } from '../../../../../../shared/hooks';
 import { focusFirstInvalidField } from '../../../../../../utils';
 import { UserReference } from '../../../../../../shared/components/UserReference';
@@ -79,6 +79,7 @@ interface ReportEditFormProps {
   onSubmit?: () => void;
   onCancel?: () => void;
   preSelectedDestination?: DataDestination | null;
+  promo?: ReactNode;
 }
 
 export const ReportEditForm = forwardRef<HTMLFormElement, ReportEditFormProps>(
@@ -92,6 +93,7 @@ export const ReportEditForm = forwardRef<HTMLFormElement, ReportEditFormProps>(
       onSubmit,
       onCancel,
       preSelectedDestination,
+      promo,
     },
     ref
   ) => {
@@ -523,6 +525,7 @@ export const ReportEditForm = forwardRef<HTMLFormElement, ReportEditFormProps>(
             onSubmit={() => void form.handleSubmit(handleFormSubmit, focusFirstInvalidField)()}
             onCancel={onCancel}
           />
+          {promo}
         </AppForm>
       </Form>
     );

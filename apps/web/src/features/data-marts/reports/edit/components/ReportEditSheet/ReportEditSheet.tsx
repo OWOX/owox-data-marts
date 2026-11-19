@@ -9,6 +9,8 @@ import type { DataDestination } from '../../../../../data-destination';
 import { useUnsavedGuard } from '../../../../../../hooks/useUnsavedGuard';
 import { useIntercomLauncher } from '../../../../../../shared/hooks/useIntercomLauncher';
 import { ReportSheetDescription } from '../ReportSheetDescription';
+import { focusFirstFormField } from '../../../../../../shared/utils';
+import { useReportSheetMcpPromo } from '../../hooks/useReportSheetMcpPromo';
 
 interface ReportEditSheetProps {
   isOpen: boolean;
@@ -38,6 +40,7 @@ export function ReportEditSheet({
   const [hasUnsavedSqlChanges, setHasUnsavedSqlChanges] = useState(false);
 
   useIntercomLauncher(isOpen);
+  const promo = useReportSheetMcpPromo(mode, preSelectedDestination?.id, initialReport?.id);
 
   // The sheet serves every destination whose report is configured the same way, so it names the
   // one in hand rather than assuming Google Sheets. The trailing space belongs to the name, not
@@ -56,7 +59,7 @@ export function ReportEditSheet({
         }
       }}
     >
-      <SheetContent>
+      <SheetContent onOpenAutoFocus={promo ? focusFirstFormField : undefined}>
         <SheetHeader>
           <SheetTitle>
             {mode === ReportFormMode.CREATE ? 'Create new report' : 'Edit report'}
@@ -84,6 +87,7 @@ export function ReportEditSheet({
             }}
             onCancel={handleClose}
             preSelectedDestination={preSelectedDestination}
+            promo={promo}
           />
         </DataDestinationProvider>
         <UnsavedChangesConfirmationDialog

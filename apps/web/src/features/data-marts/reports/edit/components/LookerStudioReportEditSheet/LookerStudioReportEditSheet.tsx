@@ -9,6 +9,8 @@ import type { DataDestination } from '../../../../../data-destination';
 import { useUnsavedGuard } from '../../../../../../hooks/useUnsavedGuard';
 import { useIntercomLauncher } from '../../../../../../shared/hooks/useIntercomLauncher';
 import { ReportSheetDescription } from '../ReportSheetDescription';
+import { focusFirstFormField } from '../../../../../../shared/utils';
+import { useReportSheetMcpPromo } from '../../hooks/useReportSheetMcpPromo';
 
 interface LookerStudioReportEditSheetProps {
   isOpen: boolean;
@@ -38,6 +40,7 @@ export function LookerStudioReportEditSheet({
   const [hasUnsavedSqlChanges, setHasUnsavedSqlChanges] = useState(false);
 
   useIntercomLauncher(isOpen);
+  const promo = useReportSheetMcpPromo(mode, preSelectedDestination?.id, initialReport?.id);
 
   return (
     <Sheet
@@ -48,7 +51,10 @@ export function LookerStudioReportEditSheet({
         }
       }}
     >
-      <SheetContent data-testid='reportEditSheet'>
+      <SheetContent
+        data-testid='reportEditSheet'
+        onOpenAutoFocus={promo ? focusFirstFormField : undefined}
+      >
         <SheetHeader>
           <SheetTitle>{preSelectedDestination?.title ?? 'Data Studio'}</SheetTitle>
           <ReportSheetDescription
@@ -74,6 +80,7 @@ export function LookerStudioReportEditSheet({
             }}
             onCancel={handleClose}
             preSelectedDestination={preSelectedDestination}
+            promo={promo}
           />
         </DataDestinationProvider>
         <UnsavedChangesConfirmationDialog

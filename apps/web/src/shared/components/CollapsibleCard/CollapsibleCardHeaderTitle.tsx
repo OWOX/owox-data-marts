@@ -24,7 +24,7 @@ export function CollapsibleCardHeaderTitle({
   subtitle,
   children,
 }: CollapsibleCardHeaderTitleProps) {
-  const { isCollapsed } = useContext(CollapsibleCardContext);
+  const { isCollapsed, titleId } = useContext(CollapsibleCardContext);
 
   return (
     <div className='flex items-center gap-2 self-center'>
@@ -33,7 +33,7 @@ export function CollapsibleCardHeaderTitle({
         <div className='text-foreground flex h-7 w-7 items-center justify-center rounded-sm bg-gray-200/50 transition-colors duration-200 group-hover:bg-gray-200/75 dark:bg-white/8 dark:group-hover:bg-white/10'>
           <Icon size={18} />
         </div>
-        <CardTitle className='text-md text-foreground leading-none font-medium'>
+        <CardTitle id={titleId} className='text-md text-foreground leading-none font-medium'>
           {children}
         </CardTitle>
       </div>

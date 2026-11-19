@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef, type ReactNode } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -87,6 +87,7 @@ interface ContextDetailsSheetProps {
     onConfirm: () => void;
     onCancel: () => void;
   };
+  promo?: ReactNode;
 }
 
 export function ContextDetailsSheet({
@@ -98,6 +99,7 @@ export function ContextDetailsSheet({
   readOnly = false,
   onDirtyChange,
   navigationGuard,
+  promo,
 }: ContextDetailsSheetProps) {
   const user = useUser();
   const titleRef = useRef<HTMLHeadingElement>(null);
@@ -368,6 +370,7 @@ export function ContextDetailsSheet({
                     Cancel
                   </Button>
                 </FormActions>
+                {promo}
               </AppForm>
             </Form>
           )}

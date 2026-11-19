@@ -1,7 +1,8 @@
 import { type DataDestination, type DataDestinationType } from '../../../shared';
+import { focusFirstFormField } from '../../../../../shared/utils';
 import { DataDestinationForm } from '../DataDestinationEditForm';
 import type { DataDestinationFormData } from '../../../shared';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
 import { UnsavedChangesConfirmationDialog } from '../../../../../shared/components/UnsavedChangesConfirmationDialog';
 import {
   Sheet,
@@ -25,6 +26,7 @@ interface DataDestinationEditSheetProps {
   onSaveSuccess: (dataDestination: DataDestination) => void;
   initialFormData?: DataDestinationFormData;
   allowedDestinationTypes?: DataDestinationType[];
+  promo?: ReactNode;
 }
 
 export function DataDestinationConfigSheet({
@@ -34,6 +36,7 @@ export function DataDestinationConfigSheet({
   onSaveSuccess,
   initialFormData,
   allowedDestinationTypes,
+  promo,
 }: DataDestinationEditSheetProps) {
   const { updateDataDestination, createDataDestination } = useDataDestination();
 
@@ -166,6 +169,7 @@ export function DataDestinationConfigSheet({
     >
       <SheetContent
         data-testid='destEditSheet'
+        onOpenAutoFocus={promo ? focusFirstFormField : undefined}
         onPointerDownOutside={event => {
           if (shouldKeepOpenForPicker(event.detail.originalEvent.target)) {
             event.preventDefault();
@@ -199,6 +203,7 @@ export function DataDestinationConfigSheet({
           isEditMode={!!dataDestination}
           allowedDestinationTypes={allowedDestinationTypes}
           destinationId={dataDestination?.id}
+          promo={promo}
         />
         <UnsavedChangesConfirmationDialog
           open={showUnsavedDialog}

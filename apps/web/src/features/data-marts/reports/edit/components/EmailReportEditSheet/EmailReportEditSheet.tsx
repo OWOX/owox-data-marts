@@ -12,6 +12,8 @@ import { Link, useLocation, useParams } from 'react-router';
 import { useUnsavedGuard } from '../../../../../../hooks/useUnsavedGuard';
 import { useIntercomLauncher } from '../../../../../../shared/hooks/useIntercomLauncher';
 import { ReportSheetDescription } from '../ReportSheetDescription';
+import { focusFirstFormField } from '../../../../../../shared/utils';
+import { useReportSheetMcpPromo } from '../../hooks/useReportSheetMcpPromo';
 
 interface EmailReportEditSheetProps {
   isOpen: boolean;
@@ -79,6 +81,9 @@ export function EmailReportEditSheet({
   }, [baseHandleFormSubmitSuccess, dataMartId, onSubmitSuccess, pathname, projectId]);
 
   useIntercomLauncher(isOpen);
+  const sheetPromo = useReportSheetMcpPromo(mode, preSelectedDestination?.id, initialReport?.id);
+  // The report placements do not cover the sheet that an Insight opens.
+  const promo = isInsightContext ? undefined : sheetPromo;
 
   return (
     <Sheet
@@ -89,7 +94,7 @@ export function EmailReportEditSheet({
         }
       }}
     >
-      <SheetContent>
+      <SheetContent onOpenAutoFocus={promo ? focusFirstFormField : undefined}>
         <SheetHeader>
           <SheetTitle>
             {preSelectedDestination?.title ??
@@ -119,6 +124,7 @@ export function EmailReportEditSheet({
             allowedDestinationTypes={allowedDestinationTypes}
             isInsightContext={isInsightContext}
             isReadOnly={isReadOnly}
+            promo={promo}
           />
         </DataDestinationProvider>
         <UnsavedChangesConfirmationDialog

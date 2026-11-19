@@ -1,4 +1,4 @@
-import { useCallback, useRef } from 'react';
+import { type RefObject, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router';
 import { ChangeRoleHint } from '../../../features/project-members/components/ChangeRoleHint';
 import { ShieldAlert } from 'lucide-react';
@@ -10,6 +10,9 @@ import {
 } from '../../../features/connector-builder/create/ConnectorBuilderPage';
 import type { BuilderTestPrefill } from '../../../features/connector-builder/shared/model/testLink';
 import { useUnsavedChangesGuard } from '../../../features/connector-builder/shared/model/hooks/useUnsavedChangesGuard';
+import { useBuilder } from '../../../features/connector-builder/shared/model/hooks/useBuilder';
+import { McpPromoCard, buildMcpPrompt, useIsMcpPromoAvailable } from '../../../features/mcp-promo';
+import { useProjectId } from '../../../shared/hooks/useProjectId';
 import { UnsavedChangesConfirmationDialog } from '../../../shared/components/UnsavedChangesConfirmationDialog';
 
 interface ConnectorBuilderRouteProps {
@@ -56,6 +59,42 @@ function BuilderNotAuthorised({ onBack }: { onBack: () => void }) {
   );
 }
 
+type BuilderPromoPlacement = 'connector_builder' | 'connector_builder_maintain';
+
+function BuilderMcpPromo({
+  connectorId,
+  shownRefs,
+}: {
+  connectorId?: string;
+  shownRefs: Record<BuilderPromoPlacement, RefObject<boolean>>;
+}) {
+  const projectId = useProjectId();
+  const isAvailable = useIsMcpPromoAvailable();
+  const { state } = useBuilder();
+  if (!projectId || !isAvailable) return null;
+
+  const placement: BuilderPromoPlacement =
+    connectorId && state.activeVersionId !== null
+      ? 'connector_builder_maintain'
+      : 'connector_builder';
+  return (
+    <div className='-mb-0.5 px-6 pt-6 empty:hidden'>
+      <McpPromoCard
+        key={placement}
+        placement={placement}
+        mcpPart='setup'
+        title={
+          placement === 'connector_builder'
+            ? 'Build it with your AI assistant'
+            : 'Maintain it with your AI assistant'
+        }
+        prompt={buildMcpPrompt(placement, { projectId, connectorId })}
+        shownRef={shownRefs[placement]}
+      />
+    </div>
+  );
+}
+
 /** The builder plus the guard that holds back navigation while it has unsaved edits. */
 function GuardedBuilder({
   id,
@@ -73,6 +112,11 @@ function GuardedBuilder({
     dirtyRef.current = dirty;
   }, []);
   const guard = useUnsavedChangesGuard(hasUnsavedChanges);
+  // A Builder/Code switch remounts the promo; these keep shown to one event per visit.
+  const promoShownRefs = useRef({
+    connector_builder: { current: false },
+    connector_builder_maintain: { current: false },
+  });
   // Cleared here, not left to the builder's report of it: that arrives a render later, after
   // the navigation it would have to let through.
   const handleDeleted = useCallback(() => {
@@ -90,6 +134,11 @@ function GuardedBuilder({
         onDeleted={handleDeleted}
         onCreated={onCreated}
         onDirtyChange={handleDirtyChange}
+        promo={
+          testPrefill ? undefined : (
+            <BuilderMcpPromo connectorId={id} shownRefs={promoShownRefs.current} />
+          )
+        }
       />
       <UnsavedChangesConfirmationDialog
         open={guard.blocked}

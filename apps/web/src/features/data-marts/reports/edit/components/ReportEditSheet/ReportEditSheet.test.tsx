@@ -7,6 +7,8 @@ import type { DataMartReport } from '../../../shared/model/types/data-mart-repor
 import { ReportEditSheet } from './ReportEditSheet';
 import { DataMartDefinitionType } from '../../../../shared';
 import { DataStorageType } from '../../../../../data-storage/shared/model/types/data-storage-type.enum';
+import { DataMartContext } from '../../../../edit/model';
+import type { DataMartContextType } from '../../../../edit/model/context/types';
 
 const authMock = vi.hoisted(() => ({
   value: {
@@ -18,6 +20,7 @@ const authMock = vi.hoisted(() => ({
 
 vi.mock('../../../../../idp', () => ({
   useAuth: () => authMock.value,
+  useRole: () => ({ canEdit: true }),
 }));
 
 vi.mock('../ReportEditForm', () => ({
@@ -67,12 +70,14 @@ function renderSheet(
 ) {
   return render(
     <MemoryRouter initialEntries={['/ui/project-1/data-marts/mart-1/reports']}>
-      <ReportEditSheet
-        isOpen
-        onClose={vi.fn()}
-        mode={mode}
-        initialReport={mode === ReportFormMode.EDIT ? report : undefined}
-      />
+      <DataMartContext.Provider value={{ dataMart: report.dataMart } as DataMartContextType}>
+        <ReportEditSheet
+          isOpen
+          onClose={vi.fn()}
+          mode={mode}
+          initialReport={mode === ReportFormMode.EDIT ? report : undefined}
+        />
+      </DataMartContext.Provider>
     </MemoryRouter>
   );
 }

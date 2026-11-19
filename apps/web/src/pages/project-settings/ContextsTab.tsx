@@ -8,6 +8,7 @@ import { ContextDetailsSheet } from '../../features/contexts/components/ContextD
 import { useMembersSettings } from '../../features/project-settings/members/model/members-settings.context';
 import { contextService } from '../../features/contexts/services/context.service';
 import { useProjectRoute } from '../../shared/hooks';
+import { McpPromoCard, buildMcpPrompt, useIsMcpPromoAvailable } from '../../features/mcp-promo';
 import { ConfirmationDialog } from '../../shared/components/ConfirmationDialog';
 import type { ContextDto, ContextImpactDto } from '../../features/contexts/types/context.types';
 
@@ -20,7 +21,8 @@ function buildContextsFilterUrl(basePath: string, contextId: string): string {
 export function ContextsTab() {
   const { contexts, members, refresh, isAdmin, openAddContextSheet, loading, hasLoadError } =
     useMembersSettings();
-  const { scope } = useProjectRoute();
+  const { scope, projectId } = useProjectRoute();
+  const isMcpAvailable = useIsMcpPromoAvailable();
   const [searchParams, setSearchParams] = useSearchParams();
   const location = useLocation();
   const navigate = useNavigate();
@@ -199,6 +201,20 @@ export function ContextsTab() {
         context={selected}
         members={members}
         readOnly={!isAdmin}
+        promo={
+          isAdmin && isMcpAvailable && projectId && selected ? (
+            <McpPromoCard
+              variant='section'
+              placement='context_sheet_maintain'
+              mcpPart='setup'
+              title='Maintain it with your AI assistant'
+              prompt={buildMcpPrompt('context_sheet_maintain', {
+                projectId,
+                contextId: selected.id,
+              })}
+            />
+          ) : undefined
+        }
         onDirtyChange={onDirtyChange}
         navigationGuard={{
           blocked: blocker.state === 'blocked',

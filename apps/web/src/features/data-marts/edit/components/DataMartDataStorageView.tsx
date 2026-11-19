@@ -8,7 +8,7 @@ import {
 } from '../../../data-storage';
 import { ListItemCard } from '../../../../shared/components/ListItemCard';
 import { DataStorageTypeModel } from '../../../data-storage/shared/types/data-storage-type.model.ts';
-import { DataStorageConfigSheet } from '../../../data-storage/edit';
+import { DataStorageConfigSheet, useStorageSheetMcpPromo } from '../../../data-storage/edit';
 import { DataStorageProvider } from '../../../data-storage/shared/model/context';
 import { AlertTriangle } from 'lucide-react';
 import { ExternalAnchor } from '@owox/ui/components/common/external-anchor';
@@ -16,6 +16,8 @@ import { trackEvent } from '../../../../utils';
 import { useDataStorageHealthStatus } from '../../../data-storage/shared/model/hooks/useDataStorageHealthStatus.ts';
 import { DataStorageHealthStatus } from '../../../data-storage/shared/services/data-storage-health-status.service.ts';
 import { DataStorageHealthStatusView } from '../../../data-storage/shared/components/DataStorageHealthIndicator/DataStorageHealthStatusView.tsx';
+import { McpPromoCard, buildMcpPrompt } from '../../../mcp-promo';
+import { useProjectRoute } from '../../../../shared/hooks';
 
 interface DataMartDataStorageViewProps {
   dataStorage: DataStorage;
@@ -25,16 +27,22 @@ interface DataMartDataStorageViewProps {
 
 interface DataStorageHealthErrorProps {
   storageId: string;
+  hint: ReactNode;
 }
 
-function DataStorageHealthError({ storageId }: DataStorageHealthErrorProps) {
+function DataStorageHealthError({ storageId, hint }: DataStorageHealthErrorProps) {
   const { status, errorMessage, isFetched } = useDataStorageHealthStatus(storageId);
 
   if (!isFetched || status === DataStorageHealthStatus.VALID) {
     return null;
   }
 
-  return <DataStorageHealthStatusView status={status} errorMessage={errorMessage} />;
+  return (
+    <>
+      <DataStorageHealthStatusView status={status} errorMessage={errorMessage} />
+      {hint}
+    </>
+  );
 }
 
 export const DataMartDataStorageView = ({
@@ -43,6 +51,17 @@ export const DataMartDataStorageView = ({
   onEditSheetClose,
 }: DataMartDataStorageViewProps) => {
   const [isEditSheetOpen, setIsEditSheetOpen] = useState(false);
+  const promo = useStorageSheetMcpPromo(dataStorage, isEditSheetOpen);
+  const { projectId } = useProjectRoute();
+  const hint = projectId && (
+    <McpPromoCard
+      variant='hint'
+      placement='data_setup_storage_hint'
+      mcpPart='setup'
+      title='Set it up with your AI assistant'
+      prompt={buildMcpPrompt('data_setup_storage_hint', { projectId, storageId: dataStorage.id })}
+    />
+  );
   const hasChangesRef = useRef(false);
   const dataStorageInfo = DataStorageTypeModel.getInfo(dataStorage.type);
   const handleCardClick = () => {
@@ -75,6 +94,7 @@ export const DataMartDataStorageView = ({
             <AlertTriangle className='h-4 w-4 shrink-0' />
             <span>Storage configuration is incomplete</span>
           </div>
+          {hint}
         </div>
       );
     }
@@ -82,7 +102,7 @@ export const DataMartDataStorageView = ({
     const withHealthError = (details: ReactNode) => (
       <div className='flex flex-col gap-2'>
         {details}
-        <DataStorageHealthError storageId={dataStorage.id} />
+        <DataStorageHealthError storageId={dataStorage.id} hint={hint} />
       </div>
     );
 
@@ -203,6 +223,7 @@ export const DataMartDataStorageView = ({
           isOpen={isEditSheetOpen}
           onClose={handleClose}
           dataStorage={dataStorage}
+          promo={promo}
           onSaveSuccess={updatedStorage => {
             hasChangesRef.current = true;
 

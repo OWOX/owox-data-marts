@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 export interface UseClipboardResult {
   copiedSection: string | null;
@@ -15,18 +15,34 @@ export interface UseClipboardResult {
 
 export function useClipboard(): UseClipboardResult {
   const [copiedSection, setCopiedSection] = useState<string | null>(null);
+  const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+
+  const mountedRef = useRef(false);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      clearTimeout(timerRef.current);
+    };
+  }, []);
 
   const copyToClipboard = async (text: string, section: string): Promise<boolean> => {
     if (!text) return false;
     try {
       await navigator.clipboard.writeText(text);
+      if (!mountedRef.current) return true;
       setCopiedSection(section);
-      setTimeout(() => {
+      clearTimeout(timerRef.current);
+      timerRef.current = setTimeout(() => {
         setCopiedSection(null);
       }, 2000);
       return true;
     } catch (err) {
       console.error('Failed to copy text: ', err);
+      // An earlier copy must not still read "Copied" next to this failure.
+      clearTimeout(timerRef.current);
+      if (mountedRef.current) setCopiedSection(null);
       return false;
     }
   };

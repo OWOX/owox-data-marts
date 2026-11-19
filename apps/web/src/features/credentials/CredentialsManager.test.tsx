@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, useLocation } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -13,13 +14,19 @@ const mocks = vi.hoisted(() => ({
     link?: string | null;
     onClose?: () => void;
     providerLogo?: string | null;
+    promo?: ReactNode;
   },
   tableProps: null as null | { customConnectorLogos?: ReadonlyMap<string, string | null> },
   logos: new Map<string, string | null>(),
   validate: vi.fn(),
   wasErrorToastShown: vi.fn(),
   toastError: vi.fn(),
-  user: { id: 'u1', roles: ['admin'] as string[] },
+  user: { id: 'u1', projectId: 'project-1', roles: ['admin'] } as {
+    id: string;
+    projectId?: string;
+    roles: string[];
+  },
+  mcp: true,
   state: {
     definitions: [] as unknown[],
     credentials: [] as unknown[],
@@ -36,11 +43,21 @@ vi.mock('react-hot-toast', () => ({
 }));
 
 vi.mock('../idp', () => ({ useAuth: () => ({ user: mocks.user }) }));
+vi.mock('../mcp-promo', () => ({
+  useIsMcpSetupPromoAvailable: () => mocks.mcp,
+  McpPromoCard: (props: { placement: string; prompt: string; variant?: string }) => (
+    <div data-testid='promo' data-variant={props.variant}>
+      {`${props.placement}|${props.prompt}`}
+    </div>
+  ),
+  buildMcpPrompt: (placement: string, ids: { projectId: string }) =>
+    `${placement}:${ids.projectId}`,
+}));
 vi.mock('./useCustomConnectorLogos', () => ({ useCustomConnectorLogos: () => mocks.logos }));
 vi.mock('./components/CredentialConfigSheet', () => ({
   CredentialConfigSheet: (props: NonNullable<typeof mocks.sheetProps>) => {
     mocks.sheetProps = props;
-    return null;
+    return props.isOpen ? <>{props.promo}</> : null;
   },
   CredentialUsedByList: () => null,
 }));
@@ -116,7 +133,8 @@ describe('CredentialsManager', () => {
       listError: false,
       refetchError: false,
     };
-    mocks.user = { id: 'u1', roles: ['admin'] };
+    mocks.user = { id: 'u1', projectId: 'project-1', roles: ['admin'] };
+    mocks.mcp = true;
     mocks.trackEvent.mockReset();
     mocks.toastError.mockReset();
     mocks.sheetProps = null;
@@ -327,6 +345,46 @@ describe('CredentialsManager', () => {
         mocks.sheetProps?.onClose?.();
       });
       expect(mocks.sheetProps?.isOpen).toBe(false);
+    });
+  });
+
+  describe('AI assistant promo', () => {
+    beforeEach(() => {
+      mocks.state.isError = false;
+      mocks.state.credentials = [{ id: 'c1' }];
+    });
+
+    it('shows the promo when adding a Credential, not when editing one', () => {
+      renderManager();
+
+      fireEvent.click(screen.getByRole('button', { name: 'Edit Credential' }));
+      expect(mocks.sheetProps?.isOpen).toBe(true);
+      expect(screen.queryByTestId('promo')).toBeNull();
+      act(() => {
+        mocks.sheetProps?.onClose?.();
+      });
+
+      fireEvent.click(screen.getByRole('button', { name: 'Add from table' }));
+      expect(screen.getByTestId('promo').textContent).toBe(
+        'credential_sheet|credential_sheet:project-1'
+      );
+      expect(screen.getByTestId('promo')).toHaveAttribute('data-variant', 'section');
+    });
+
+    it('does not give the add sheet the promo without an MCP server', () => {
+      mocks.mcp = false;
+      renderManager();
+
+      fireEvent.click(screen.getByRole('button', { name: 'Add from table' }));
+      expect(mocks.sheetProps?.isOpen).toBe(true);
+      expect(mocks.sheetProps).toHaveProperty('promo', undefined);
+    });
+
+    it('does not give a sheet opened from a link the promo', () => {
+      renderManager('/ui/p1/credentials?credential=c1');
+
+      expect(mocks.sheetProps?.isOpen).toBe(true);
+      expect(mocks.sheetProps).toHaveProperty('promo', undefined);
     });
   });
 });

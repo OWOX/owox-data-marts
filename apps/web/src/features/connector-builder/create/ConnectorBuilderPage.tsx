@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Upload } from 'lucide-react';
 import { Button } from '@owox/ui/components/button';
 import { BuilderProvider } from '../shared/model/context/BuilderProvider';
@@ -89,6 +89,7 @@ function BuilderShell({
   onDeleted,
   onCreated,
   onDirtyChange,
+  promo,
 }: {
   id?: string;
   entryPoint?: BuilderEntryPoint;
@@ -97,6 +98,8 @@ function BuilderShell({
   onDeleted?: () => void;
   onCreated?: (id: string) => void;
   onDirtyChange?: (dirty: boolean) => void;
+  /** Shown above the form in Builder mode, once the loaded connector matches `id`. */
+  promo?: ReactNode;
 }) {
   const { state, manifest, addNode, cloneNode, initNew, loadConnector, setCodeInvalid } =
     useBuilder();
@@ -274,7 +277,8 @@ function BuilderShell({
 
         <div className='flex min-h-0 min-w-0 flex-1 flex-col'>
           {mode === 'builder' ? (
-            <div className='min-h-0 flex-1 overflow-y-auto'>
+            <div className='min-h-0 flex-1 overflow-y-auto' data-testid='builder-scroll-pane'>
+              {(!id || state.id === id) && promo}
               <BuilderCenter
                 // Remounted when the whole manifest is replaced: inputs that read it only on
                 // mount would otherwise keep, and on the next keystroke write back, what was
@@ -357,6 +361,7 @@ export function ConnectorBuilderPage({
   onDeleted,
   onCreated,
   onDirtyChange,
+  promo,
 }: {
   id?: string;
   entryPoint?: BuilderEntryPoint;
@@ -365,6 +370,7 @@ export function ConnectorBuilderPage({
   onDeleted?: () => void;
   onCreated?: (id: string) => void;
   onDirtyChange?: (dirty: boolean) => void;
+  promo?: ReactNode;
 }) {
   return (
     <BuilderProvider>
@@ -376,6 +382,7 @@ export function ConnectorBuilderPage({
         onDeleted={onDeleted}
         onCreated={onCreated}
         onDirtyChange={onDirtyChange}
+        promo={promo}
       />
     </BuilderProvider>
   );

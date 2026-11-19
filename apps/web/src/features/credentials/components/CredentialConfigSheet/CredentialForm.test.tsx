@@ -1714,4 +1714,14 @@ describe('CredentialForm', () => {
       ).not.toBeNull();
     });
   });
+
+  it('renders the promo right under the form actions when creating', async () => {
+    renderForm({ promo: <div data-testid='promo' /> });
+    const promo = await screen.findByTestId('promo');
+    expect(promo.closest('form')).toBe(screen.getByTestId('credentialConfigForm'));
+    expect(promo.nextElementSibling).toBeNull();
+    expect(
+      within(promo.previousElementSibling as HTMLElement).getByRole('button', { name: 'Cancel' })
+    ).toBeInTheDocument();
+  });
 });

@@ -1,16 +1,27 @@
 import { ClaudeIcon, ChatGPTIcon } from '../../../shared/icons';
 import { Button } from '@owox/ui/components/button';
 
-const CLAUDE_DIRECTORY_URL = 'https://claude.ai/directory/owox-data-marts';
-const CHATGPT_PLUGIN_URL =
-  'https://chatgpt.com/plugins/plugin_asdk_app_6a3e81be8f8481918e1e2cd1d7ea09c4';
-const SETUP_GUIDE_URL = 'https://docs.owox.com/docs/getting-started/setup-guide/mcp/';
+import {
+  CHATGPT_PLUGIN_URL,
+  CLAUDE_DIRECTORY_URL,
+  type McpPromoAction,
+  setupGuideUrl,
+  trackMcpPromoClicked,
+  useMcpPromoShown,
+} from '../../../features/mcp-promo';
+
+const PROMO_CTX = { placement: 'setup_checklist', mcpPart: 'both', mode: 'connector' } as const;
 
 interface ConnectAiAssistantActionProps {
   onClick?: () => void;
 }
 
 export function ConnectAiAssistantAction({ onClick }: ConnectAiAssistantActionProps) {
+  useMcpPromoShown(PROMO_CTX, true);
+  const handleClick = (action: McpPromoAction) => () => {
+    trackMcpPromoClicked({ ...PROMO_CTX, action });
+    if (action !== 'docs') onClick?.();
+  };
   return (
     <div className='mt-1 flex flex-col gap-2 text-center'>
       <div className='flex gap-2'>
@@ -19,23 +30,29 @@ export function ConnectAiAssistantAction({ onClick }: ConnectAiAssistantActionPr
             href={CLAUDE_DIRECTORY_URL}
             target='_blank'
             rel='noopener noreferrer'
-            onClick={onClick}
+            onClick={handleClick('claude')}
           >
             <ClaudeIcon size={16} />
             Claude
           </a>
         </Button>
         <Button size='sm' variant='outline' className='flex-1' asChild>
-          <a href={CHATGPT_PLUGIN_URL} target='_blank' rel='noopener noreferrer' onClick={onClick}>
+          <a
+            href={CHATGPT_PLUGIN_URL}
+            target='_blank'
+            rel='noopener noreferrer'
+            onClick={handleClick('chatgpt')}
+          >
             <ChatGPTIcon size={16} />
             ChatGPT
           </a>
         </Button>
       </div>
       <a
-        href={SETUP_GUIDE_URL}
+        href={setupGuideUrl(PROMO_CTX.placement)}
         target='_blank'
         rel='noopener noreferrer'
+        onClick={handleClick('docs')}
         className='text-muted-foreground hover:text-foreground text-xs underline underline-offset-2'
       >
         How to set up the MCP connection

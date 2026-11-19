@@ -5,6 +5,7 @@ import toast from 'react-hot-toast';
 import { wasErrorToastShown } from '../../app/api';
 import { extractApiError } from '../../app/api/extract-api-error.util';
 import { useAuth } from '../idp';
+import { McpPromoCard, buildMcpPrompt, useIsMcpSetupPromoAvailable } from '../mcp-promo';
 import { useRecordSheet } from '../../shared/hooks';
 import { ConfirmationDialog } from '../../shared/components/ConfirmationDialog/ConfirmationDialog';
 import { isUnavailableCredential, type Credential, type UnavailableCredential } from './types';
@@ -30,6 +31,7 @@ export function CredentialsManager() {
     refetch: refetchDefinitions,
   } = useCredentialDefinitions();
   const actions = useCredentialActions();
+  const isMcpAvailable = useIsMcpSetupPromoAvailable();
   const customConnectorLogos = useCustomConnectorLogos(credentials);
   const { record, open, close, link } = useRecordSheet({
     param: 'credential',
@@ -169,6 +171,17 @@ export function CredentialsManager() {
         definitions={definitions}
         canManageAccess={permissions.canManageAccess(record)}
         canAddGithubDefinition={Boolean(user?.roles?.includes('admin'))}
+        promo={
+          isMcpAvailable && creating && !record && user?.projectId ? (
+            <McpPromoCard
+              variant='section'
+              placement='credential_sheet'
+              mcpPart='setup'
+              title='Set it up with your AI assistant'
+              prompt={buildMcpPrompt('credential_sheet', { projectId: user.projectId })}
+            />
+          ) : undefined
+        }
         onClose={() => {
           if (record) close();
           else setCreating(false);

@@ -11,6 +11,7 @@ interface InviteTeammatesCardProps {
   docsLabel?: string;
   className?: string;
   variant?: 'card' | 'inline';
+  onDocsClick?: () => void;
 }
 
 export function InviteTeammatesCard({
@@ -20,6 +21,7 @@ export function InviteTeammatesCard({
   docsLabel = 'View documentation',
   className,
   variant = 'card',
+  onDocsClick,
 }: InviteTeammatesCardProps) {
   const { scope } = useProjectRoute();
   const membersHref = '/project-settings/members';
@@ -58,6 +60,7 @@ export function InviteTeammatesCard({
               href={docsHref}
               target='_blank'
               rel='noopener noreferrer'
+              onClick={onDocsClick}
               className='text-muted-foreground/75 dark:text-muted-foreground/50 hover:text-foreground'
             >
               <HelpCircle className='h-4 w-4 shrink-0' />

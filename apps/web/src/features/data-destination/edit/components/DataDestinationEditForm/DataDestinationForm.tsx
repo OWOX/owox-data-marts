@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import type { UserProjection } from '../../../../../shared/types';
@@ -83,6 +83,7 @@ interface DataDestinationFormProps {
   isEditMode?: boolean;
   allowedDestinationTypes?: DataDestinationType[];
   destinationId?: string;
+  promo?: ReactNode;
 }
 
 export function DataDestinationForm({
@@ -93,6 +94,7 @@ export function DataDestinationForm({
   isEditMode,
   allowedDestinationTypes,
   destinationId,
+  promo,
 }: DataDestinationFormProps) {
   const {
     form,
@@ -496,6 +498,7 @@ export function DataDestinationForm({
             Cancel
           </Button>
         </FormActions>
+        {promo}
       </AppForm>
       {/*
        * Sheet-in-sheet: the outer Destination sheet stays mounted beneath,

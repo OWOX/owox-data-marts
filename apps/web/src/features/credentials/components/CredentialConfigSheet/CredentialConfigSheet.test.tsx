@@ -1,4 +1,5 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import type { ReactNode } from 'react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import type { Credential, CredentialDefinition } from '../../types';
 import { CredentialConfigSheet } from './CredentialConfigSheet';
@@ -21,10 +22,20 @@ vi.mock('../../useCredentials', () => ({
 
 // The form has its own spec; here it only submits.
 vi.mock('./CredentialForm', () => ({
-  CredentialForm: ({ onSubmit }: { onSubmit: (input: unknown) => Promise<void> }) => (
-    <button type='button' onClick={() => void onSubmit({ title: 'Key' })}>
-      Submit Credential
-    </button>
+  CredentialForm: ({
+    onSubmit,
+    promo,
+  }: {
+    onSubmit: (input: unknown) => Promise<void>;
+    promo?: ReactNode;
+  }) => (
+    <form data-testid='credentialConfigForm'>
+      {promo}
+      <input data-testid='form-field' />
+      <button type='button' onClick={() => void onSubmit({ title: 'Key' })}>
+        Submit Credential
+      </button>
+    </form>
   ),
 }));
 
@@ -130,5 +141,47 @@ describe('CredentialConfigSheet', () => {
     expect(
       screen.getByRole('button', { name: 'Copy link to this Credential' })
     ).toBeInTheDocument();
+  });
+
+  it('renders the promo it is given inside the form, and nothing without one', () => {
+    const { unmount } = render(
+      <CredentialConfigSheet
+        isOpen
+        onClose={vi.fn()}
+        credential={null}
+        definitions={[definition]}
+        promo={<div data-testid='promo' />}
+      />
+    );
+    expect(
+      within(screen.getByTestId('credentialConfigForm')).getByTestId('promo')
+    ).toBeInTheDocument();
+    expect(screen.getAllByTestId('promo')).toHaveLength(1);
+    unmount();
+
+    render(
+      <CredentialConfigSheet
+        isOpen
+        onClose={vi.fn()}
+        credential={null}
+        definitions={[definition]}
+      />
+    );
+    expect(screen.queryByTestId('promo')).toBeNull();
+  });
+
+  it('focuses the form, not the promo, when a promo is shown', async () => {
+    render(
+      <CredentialConfigSheet
+        isOpen
+        onClose={vi.fn()}
+        credential={null}
+        definitions={[definition]}
+        promo={<button type='button'>Copy prompt</button>}
+      />
+    );
+    await waitFor(() => {
+      expect(document.activeElement).toBe(screen.getByTestId('form-field'));
+    });
   });
 });

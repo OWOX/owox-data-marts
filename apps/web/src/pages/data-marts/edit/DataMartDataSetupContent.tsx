@@ -20,6 +20,8 @@ import { DatabaseIcon, CodeIcon, Columns3 } from 'lucide-react';
 import { DataMartRelationshipsContent } from '../../../features/data-marts/edit/components/DataMartRelationships/DataMartRelationshipsContent';
 import type { DataMartDefinitionType } from '../../../features/data-marts/shared';
 import { DataQualityCompactStatusLink } from '../../../features/data-marts/data-quality';
+import { DataMartStatus } from '../../../features/data-marts/shared/enums/data-mart-status.enum';
+import { McpPromoCard, buildMcpPrompt } from '../../../features/mcp-promo';
 import { OUTPUT_SCHEMA_SECTION } from '../../../features/data-marts/shared/utils/output-schema-link';
 
 export default function DataMartDataSetupContent() {
@@ -32,9 +34,26 @@ export default function DataMartDataSetupContent() {
     initialDefinitionType
   );
   const [sqlRevalidateVersion, setSqlRevalidateVersion] = useState(0);
+  const promoPlacement =
+    dataMart?.status.code === DataMartStatus.PUBLISHED
+      ? 'data_setup_card_maintain'
+      : 'data_setup_card';
 
   return (
     <div className={'flex flex-col gap-4'} data-testid='datamartTabDataSetup'>
+      {dataMart && projectId && (
+        <McpPromoCard
+          key={promoPlacement}
+          placement={promoPlacement}
+          mcpPart='setup'
+          title={
+            promoPlacement === 'data_setup_card'
+              ? 'Set it up with your AI assistant'
+              : 'Maintain it with your AI assistant'
+          }
+          prompt={buildMcpPrompt(promoPlacement, { projectId, dataMartId: dataMart.id })}
+        />
+      )}
       <CollapsibleCard collapsible name={'data-storage'}>
         <CollapsibleCardHeader>
           <CollapsibleCardHeaderTitle

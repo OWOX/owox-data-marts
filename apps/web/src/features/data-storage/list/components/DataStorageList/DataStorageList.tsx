@@ -3,7 +3,7 @@ import { Link } from 'react-router';
 import toast from 'react-hot-toast';
 import { ConfirmationDialog } from '../../../../../shared/components/ConfirmationDialog';
 import { useUrlParam, useProjectRoute } from '../../../../../shared/hooks';
-import { DataStorageConfigSheet } from '../../../edit';
+import { DataStorageConfigSheet, useStorageSheetMcpPromo } from '../../../edit';
 import { DataStorageType } from '../../../shared';
 import { DataStorageTypeDialog } from '../../../shared/components/DataStorageTypeDialog.tsx';
 import { useDataStorage } from '../../../shared/model/hooks/useDataStorage.ts';
@@ -48,6 +48,7 @@ export const DataStorageList = ({
     draftDataMartsCount: number;
   } | null>(null);
   const { scope } = useProjectRoute();
+  const [createdStorageId, setCreatedStorageId] = useState<string | null>(null);
   const [publishDialogOpen, setPublishDialogOpen] = useState(false);
   const [storageToPublish, setStorageToPublish] = useState<{
     id: string;
@@ -58,6 +59,12 @@ export const DataStorageList = ({
 
   const { value: deepLinkId, setParam: setIdParam, removeParam: removeIdParam } = useUrlParam('id');
   const hasAttemptedDeepLink = useRef(false);
+
+  const promo = useStorageSheetMcpPromo(
+    currentDataStorage,
+    isEditDrawerOpen,
+    !!currentDataStorage && currentDataStorage.id === createdStorageId
+  );
 
   useEffect(() => {
     void fetchDataStorages();
@@ -105,10 +112,12 @@ export const DataStorageList = ({
       const newStorage = await createDataStorage(type);
       handleTypeDialogClose();
       if (newStorage?.id) {
+        setCreatedStorageId(newStorage.id);
         await handleEdit(newStorage.id);
         setIsCreatingDataStorage(false);
       }
     } catch (error) {
+      setCreatedStorageId(null);
       console.error('Failed to create storage:', error);
     }
   };
@@ -202,6 +211,7 @@ export const DataStorageList = ({
   const handleSave = async (savedStorageId: string) => {
     try {
       setIsEditDrawerOpen(false);
+      setCreatedStorageId(null);
       await fetchDataStorages();
       removeIdParam();
       const storage = dataStorages.find(item => item.id === savedStorageId);
@@ -215,6 +225,7 @@ export const DataStorageList = ({
 
   const handleCloseDrawer = () => {
     setIsEditDrawerOpen(false);
+    setCreatedStorageId(null);
     clearCurrentDataStorage();
     removeIdParam();
   };
@@ -271,6 +282,7 @@ export const DataStorageList = ({
         onClose={handleCloseDrawer}
         dataStorage={currentDataStorage}
         onSaveSuccess={dataStorage => void handleSave(dataStorage.id)}
+        promo={promo}
       />
 
       <ConfirmationDialog

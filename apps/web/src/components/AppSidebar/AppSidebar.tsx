@@ -14,6 +14,7 @@ import { SearchButton } from './SearchButton';
 import { PluginsMenu } from './PluginsMenu/PluginsMenu';
 import { MainMenu } from './MainMenu';
 import { HelpMenu } from './HelpMenu';
+import { SidebarConnectAiAssistant } from '../../features/mcp-promo';
 import { Separator } from '@owox/ui/components/separator';
 import { SetupChecklistBlock } from './SetupChecklist';
 import { useSetupChecklistVisibility } from './SetupChecklist/useSetupChecklistVisibility';
@@ -54,6 +55,7 @@ export function AppSidebar({ variant = 'inset', collapsible = 'icon' }: AppSideb
       </SidebarContent>
 
       <SidebarFooter>
+        <SidebarConnectAiAssistant />
         <HelpMenu openSetupChecklist={setupChecklistVisibility.show} />
         <Separator />
         <UserMenu />

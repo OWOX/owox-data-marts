@@ -51,6 +51,7 @@ import {
   useDataMartMemberAccess,
 } from '../../../features/data-marts/edit/components/DataMartMemberAccess';
 import type { DataMartStatusInfo } from '../../../features/data-marts/shared/types/data-mart-status.model';
+import { McpPromoCard, buildMcpPrompt } from '../../../features/mcp-promo';
 import { DataMartStatus } from '../../../features/data-marts/shared/enums/data-mart-status.enum';
 
 interface OutletContextType {
@@ -195,6 +196,14 @@ export default function DataMartOverviewContent() {
 
   return (
     <div data-testid='datamartTabOverview' className='flex flex-col gap-4'>
+      {dataMart.status?.code === DataMartStatus.PUBLISHED && (
+        <McpPromoCard
+          placement='overview_card'
+          mcpPart='consumption'
+          title='Ask this Data Mart in your AI assistant'
+          prompt={buildMcpPrompt('overview_card', { projectId, dataMartId: dataMart.id })}
+        />
+      )}
       <CollapsibleCard collapsible name='dm-description'>
         <CollapsibleCardHeader>
           <CollapsibleCardHeaderTitle icon={BookOpenIcon} tooltip='Description of this Data Mart'>
