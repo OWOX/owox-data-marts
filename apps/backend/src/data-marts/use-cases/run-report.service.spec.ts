@@ -11,6 +11,10 @@ jest.mock('../report-run-logging/log-blended-sql', () => ({
   logBlendedSqlIfNeeded: jest.fn(),
 }));
 
+import * as fs from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
+import { spawnSync } from 'node:child_process';
 import { Logger } from '@nestjs/common';
 import { logBlendedSqlIfNeeded } from '../report-run-logging/log-blended-sql';
 import { DataDestinationType } from '../data-destination-types/enums/data-destination-type.enum';
@@ -33,6 +37,15 @@ import { RunType } from '../../common/scheduler/shared/types';
 import { ReportRun } from '../models/report-run.model';
 import { serializeFormulaReference } from '../calculated-fields/formula-reference';
 import { passThroughSqlReferenceResolver } from '../sql-references/__fixtures__/pass-through-sql-reference-resolver';
+import { DataMartSchemaFieldStatus } from '../data-storage-types/enums/data-mart-schema-field-status.enum';
+import { createProductionDuckDbInstance } from '../data-storage-types/duckdb/__fixtures__/production-duckdb-instance';
+import { DuckDbApiAdapterFactory } from '../data-storage-types/duckdb/adapters/duckdb-api-adapter.factory';
+import { DuckdbFieldType } from '../data-storage-types/duckdb/enums/duckdb-field-type.enum';
+import { DuckDbDataMartSchemaType } from '../data-storage-types/duckdb/schemas/duckdb-data-mart-schema.schema';
+import { DuckDbClauseRenderer } from '../data-storage-types/duckdb/services/duckdb-clause-renderer';
+import { DuckDbQueryBuilder } from '../data-storage-types/duckdb/services/duckdb-query.builder';
+import { DuckDbReportHeadersGenerator } from '../data-storage-types/duckdb/services/duckdb-report-headers-generator.service';
+import { DuckDbReportReader } from '../data-storage-types/duckdb/services/duckdb-report-reader.service';
 
 jest.mock('../data-destination-types/data-destination-providers', () => ({
   DATA_DESTINATION_REPORT_WRITER_RESOLVER: 'DATA_DESTINATION_REPORT_WRITER_RESOLVER',
@@ -1455,6 +1468,31 @@ describe('RunReportService', () => {
     );
   });
 
+  it('passes the run signal to prepareReportData so a cancel stops the warehouse query', async () => {
+    const { service, reportReaderResolver, reportWriterResolver } = createService();
+    const report = createReport(DataDestinationType.GOOGLE_SHEETS);
+    const reader = createReader();
+    reader.readReportDataBatch.mockResolvedValue(new ReportDataBatch([], undefined));
+    reportReaderResolver.resolve.mockResolvedValue(reader);
+    reportWriterResolver.resolve.mockResolvedValue(createWriter(DataDestinationType.GOOGLE_SHEETS));
+    const signal = new AbortController().signal;
+
+    await (
+      service as unknown as {
+        executeReport: (
+          report: Report,
+          accessor: { userId: string; roles: string[] },
+          signal: AbortSignal
+        ) => Promise<void>;
+      }
+    ).executeReport(report, { userId: 'user-1', roles: ['admin'] }, signal);
+
+    expect(reader.prepareReportData).toHaveBeenCalledWith(
+      report,
+      expect.objectContaining({ signal })
+    );
+  });
+
   // Finding B: when uniqueCountConfig is null/absent, uniqueCount must NOT be true.
   it('does NOT pass uniqueCount: true to prepareReportData when report.uniqueCountConfig is null', async () => {
     const { service, reportReaderResolver, reportWriterResolver } = createService();
@@ -1529,4 +1567,93 @@ describe('RunReportService', () => {
       })
     );
   });
+
+  describe('cancel with a real DuckDB reader', () => {
+    let dir: string;
+
+    beforeEach(() => {
+      dir = fs.mkdtempSync(path.join(os.tmpdir(), 'run-report-duckdb-'));
+    });
+
+    afterEach(() => {
+      fs.rmSync(dir, { recursive: true, force: true });
+    });
+
+    it('interrupts the running query and frees the file for a writer', async () => {
+      const dbPath = path.join(dir, 'st.duckdb');
+      const instance = await createProductionDuckDbInstance(dbPath);
+      const connection = await instance.connect();
+      // Cannot finish in test time on any host: only an interrupt ends it.
+      await connection.run(
+        'CREATE VIEW main.slow AS SELECT sum(a.range * b.range) AS n FROM range(1000000) a, range(1000000) b'
+      );
+      connection.closeSync();
+      instance.closeSync();
+
+      const { service, reportReaderResolver, reportWriterResolver } = createService();
+      reportReaderResolver.resolve.mockResolvedValue(
+        new DuckDbReportReader(
+          new DuckDbApiAdapterFactory(),
+          new DuckDbQueryBuilder(new DuckDbClauseRenderer()),
+          new DuckDbReportHeadersGenerator(),
+          { resolve: async () => ({ databasePath: dbPath }) } as never
+        )
+      );
+      reportWriterResolver.resolve.mockResolvedValue(
+        createWriter(DataDestinationType.GOOGLE_SHEETS)
+      );
+      const report = createReport(DataDestinationType.GOOGLE_SHEETS);
+      report.dataMart = {
+        id: 'data-mart-1',
+        projectId: 'project-1',
+        storage: { id: 'st', type: DataStorageType.DUCKDB },
+        definition: {
+          definitionType: 'CONNECTOR',
+          connector: {
+            storage: { fullyQualifiedName: 'main.slow' },
+            source: { name: 'src', configuration: [{}], node: 'n', fields: ['n'] },
+          },
+        },
+        schema: {
+          type: DuckDbDataMartSchemaType,
+          fields: [
+            {
+              name: 'n',
+              type: DuckdbFieldType.DOUBLE,
+              status: DataMartSchemaFieldStatus.CONNECTED,
+            },
+          ],
+        },
+      } as never;
+
+      const controller = new AbortController();
+      setTimeout(() => controller.abort(), 300);
+      await expect(
+        (
+          service as unknown as {
+            executeReport: (
+              report: Report,
+              accessor: { userId: string; roles: string[] },
+              signal: AbortSignal
+            ) => Promise<void>;
+          }
+        ).executeReport(report, { userId: 'user-1', roles: ['admin'] }, controller.signal)
+      ).rejects.toThrow(/interrupt/i);
+
+      expect(openReadWriteFromAnotherProcess(dbPath)).toBe('OPENED');
+    }, 20000);
+  });
 });
+
+function openReadWriteFromAnotherProcess(dbPath: string): string {
+  const source = `
+    require(${JSON.stringify(require.resolve('@duckdb/node-api'))})
+      .DuckDBInstance.create(process.env.DUCKDB_TEST_DB_PATH, { access_mode: 'READ_WRITE' })
+      .then(i => { i.closeSync(); console.log('OPENED'); }, e => console.log(e.message));
+  `;
+  const { stdout } = spawnSync(process.execPath, ['-e', source], {
+    env: { ...process.env, DUCKDB_TEST_DB_PATH: dbPath },
+    encoding: 'utf8',
+  });
+  return stdout.trim();
+}

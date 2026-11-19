@@ -415,6 +415,7 @@ export class RunReportService {
         primaryKeyColumns: blendingDecision.primaryKeyColumns,
         uniqueCountSources: blendingDecision.uniqueCountSources,
         calculatedFields,
+        signal,
       });
       this.logger.debug(`Report data prepared for ${report.id}:`, reportDataDescription);
 
