@@ -85,6 +85,15 @@ describe('DuckDbQueryBuilder — additional coverage', () => {
     expect(qb().buildQuery(sqlDef)).toBe('SELECT a, b FROM t');
   });
 
+  it('refuses a SQL definition with an unresolved Data Mart reference on every path', () => {
+    const sqlDef = {
+      sqlQuery: `SELECT * FROM t WHERE p LIKE '%\\_x' ESCAPE '\\' UNION ALL SELECT * FROM [Archive](dm:0b5d4c3a-9e1f-4a6b-8c9d-0e1f2a3b4c5d)`,
+    } as never;
+    expect(() => qb().buildQuery(sqlDef)).toThrow();
+    expect(() => qb().buildQuery(sqlDef, { columns: ['a'] })).toThrow();
+    expect(() => qb().buildQuery(sqlDef, { limit: 5 })).toThrow();
+  });
+
   it('a dateTrunc timeZone is threaded through to the renderer as a double AT TIME ZONE shift', () => {
     const withoutTz = qb().buildQuery(tableDef, {
       columns: ['date', 'revenue'],

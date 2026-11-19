@@ -13,6 +13,7 @@ import {
   isTablePatternDefinition,
   isViewDefinition,
 } from '../../../dto/schemas/data-mart-table-definitions/data-mart-definition.guards';
+import { resolvedSqlQueryOf } from '../../../sql-references/data-mart-sql-reference';
 import { escapeDuckDbIdentifier } from '../utils/duckdb-identifier.utils';
 import { DuckDbClauseRenderer } from './duckdb-clause-renderer';
 import {
@@ -140,10 +141,10 @@ export class DuckDbQueryBuilder implements DataMartQueryBuilder {
     }
     if (isSqlDefinition(definition)) {
       if (queryOptions?.columns?.length) {
-        const cleanQuery = definition.sqlQuery.trim().replace(/;\s*$/, '');
+        const cleanQuery = resolvedSqlQueryOf(definition, this.type).trim().replace(/;\s*$/, '');
         return composeSelectFromClause(selectList, `(${cleanQuery})`);
       }
-      return definition.sqlQuery.trim();
+      return resolvedSqlQueryOf(definition, this.type).trim();
     }
     if (isTablePatternDefinition(definition)) {
       throw new Error('Table pattern queries are not supported in DuckDB');
@@ -168,7 +169,7 @@ export class DuckDbQueryBuilder implements DataMartQueryBuilder {
       if (options?.mainTableReference) {
         return options.mainTableReference;
       }
-      const cleanQuery = definition.sqlQuery.trim().replace(/;\s*$/, '');
+      const cleanQuery = resolvedSqlQueryOf(definition, this.type).trim().replace(/;\s*$/, '');
       return `(${cleanQuery})`;
     }
     throw new Error('Invalid data mart definition');
