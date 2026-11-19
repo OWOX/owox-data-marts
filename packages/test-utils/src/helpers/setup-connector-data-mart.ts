@@ -30,6 +30,7 @@ export const OPEN_HOLIDAYS_FIXTURE_ROWS: ReadonlyArray<{ id: string; date: strin
   }));
 
 let openHolidaysFixture: Promise<http.Server> | undefined;
+const OPEN_HOLIDAYS_PRELOAD = `--require ${JSON.stringify(path.join(OPEN_HOLIDAYS_FIXTURE_DIR, 'fetch-to-fixture.cjs'))}`;
 
 /** Connector runs inherit NODE_OPTIONS, whose preload sends OpenHolidays requests here. */
 async function serveOpenHolidaysFixture(): Promise<void> {
@@ -47,16 +48,21 @@ async function serveOpenHolidaysFixture(): Promise<void> {
   });
   const { port } = (await openHolidaysFixture).address() as AddressInfo;
   process.env.OW_TEST_OPEN_HOLIDAYS_URL = `http://127.0.0.1:${port}`;
-  const preload = `--require ${JSON.stringify(path.join(OPEN_HOLIDAYS_FIXTURE_DIR, 'fetch-to-fixture.cjs'))}`;
-  if (!process.env.NODE_OPTIONS?.includes(preload)) {
-    process.env.NODE_OPTIONS = [process.env.NODE_OPTIONS, preload].filter(Boolean).join(' ');
+  if (!process.env.NODE_OPTIONS?.includes(OPEN_HOLIDAYS_PRELOAD)) {
+    process.env.NODE_OPTIONS = [process.env.NODE_OPTIONS, OPEN_HOLIDAYS_PRELOAD]
+      .filter(Boolean)
+      .join(' ');
   }
 }
 
-/** Stops the test file's OpenHolidays fixture server, if it started one. */
+/** Stops the test file's OpenHolidays fixture server, if it started one, and undoes its env. */
 export async function closeOpenHolidaysFixture(): Promise<void> {
   const server = await openHolidaysFixture?.catch(() => undefined);
   openHolidaysFixture = undefined;
+  delete process.env.OW_TEST_OPEN_HOLIDAYS_URL;
+  const nodeOptions = process.env.NODE_OPTIONS?.replace(OPEN_HOLIDAYS_PRELOAD, '').trim();
+  if (nodeOptions) process.env.NODE_OPTIONS = nodeOptions;
+  else delete process.env.NODE_OPTIONS;
   if (!server) return;
   server.closeAllConnections();
   await new Promise(resolve => server.close(resolve));
