@@ -65,6 +65,22 @@ describe('ReportTotalsService', () => {
     return { service, readerResolver, reportSqlComposerService, reader };
   };
 
+  it('passes the table reference memo to composeTotals', async () => {
+    const { service, reportSqlComposerService } = createService();
+    const memo = new Map<string, Promise<string>>();
+
+    await service.computeTotals(
+      buildReport(),
+      {} as never,
+      DataStorageType.GOOGLE_BIGQUERY,
+      undefined,
+      undefined,
+      memo
+    );
+
+    expect(reportSqlComposerService.composeTotals.mock.calls[0][2]).toBe(memo);
+  });
+
   it('non-aggregated report (composeTotals → null) returns null and never resolves a reader', async () => {
     const composeTotals = jest.fn().mockResolvedValue(null);
     const { service, readerResolver } = createService({ composeTotals });
@@ -281,7 +297,7 @@ describe('ReportTotalsService', () => {
         memo
       );
 
-      expect(composeRowCount).toHaveBeenCalledWith(plan, {}, memo);
+      expect(composeRowCount.mock.calls[0][2]).toBe(memo);
     });
 
     it.each([

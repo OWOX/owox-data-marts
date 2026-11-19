@@ -26,6 +26,8 @@ export type ReportTotals = Record<string, number | string | boolean | null>;
  * Returns `null` when the report has no totals metric with a summarizable function (composeTotals
  * returns null) or when the dataset is empty (the DWH produced no row). Callers treat totals as
  * BEST-EFFORT: this service never participates in the primary run/stream success path.
+ *
+ * It also counts the rows of the full result with a separate `COUNT(*)` query.
  */
 @Injectable()
 export class ReportTotalsService {
@@ -42,9 +44,14 @@ export class ReportTotalsService {
     accessor: BlendableSchemaAccessor,
     storageType: DataStorageType,
     queryTimeoutMs?: number,
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    tableReferences?: TableReferenceMemo
   ): Promise<ReportTotals | null> {
-    const totals = await this.reportSqlComposerService.composeTotals(report, accessor);
+    const totals = await this.reportSqlComposerService.composeTotals(
+      report,
+      accessor,
+      tableReferences
+    );
     if (!totals) {
       return null;
     }
@@ -121,7 +128,7 @@ export class ReportTotalsService {
       const batch = await reader.readReportDataBatch(undefined, 1);
       return parseRowCount(batch.dataRows[0]?.[0]);
     } finally {
-      // The count is good at this point. A close failure must not lose it.
+      // Runs on success and on failure. A close failure must not hide the count or the first error.
       try {
         await reader.finalize();
       } catch (err) {

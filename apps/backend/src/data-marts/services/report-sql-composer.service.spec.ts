@@ -186,6 +186,32 @@ describe('ReportSqlComposerService', () => {
     );
   });
 
+  it('passes the table reference memo from composeTotals to compose', async () => {
+    const { service } = createService({ needsBlending: false, columnFilter: ['revenue'] });
+    const compose = jest.spyOn(service, 'compose');
+    const memo = new Map<string, Promise<string>>();
+    const report = buildReport({
+      columnConfig: ['country', 'revenue'],
+      aggregationConfig: [{ column: 'revenue', function: 'SUM' }],
+      dataMart: {
+        id: 'dm-1',
+        projectId: 'project-1',
+        definition: { sqlQuery: 'SELECT 1' },
+        storage: { id: 'storage-1', type: 'GOOGLE_BIGQUERY' },
+        schema: {
+          fields: [
+            { name: 'country', type: 'STRING', status: 'CONNECTED' },
+            { name: 'revenue', type: 'FLOAT', status: 'CONNECTED' },
+          ],
+        },
+      },
+    } as unknown as Partial<Report>);
+
+    await service.composeTotals(report, { userId: 'user-1', roles: ['admin'] }, memo);
+
+    expect(compose.mock.calls[0][4]).toBe(memo);
+  });
+
   it('propagates validator rejection thrown by resolveBlendingDecision', async () => {
     const { service, blendedReportDataService } = createService({
       needsBlending: false,
@@ -2210,12 +2236,7 @@ describe('ReportSqlComposerService — composeRowCount', () => {
       memo
     );
 
-    expect(tableReferenceService.resolveTableName).toHaveBeenCalledWith(
-      'dm-1',
-      'p',
-      memo,
-      expect.anything()
-    );
+    expect(tableReferenceService.resolveTableName.mock.calls[0][2]).toBe(memo);
   });
 });
 

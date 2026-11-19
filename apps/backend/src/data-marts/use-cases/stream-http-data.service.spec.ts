@@ -1073,7 +1073,7 @@ describe('StreamHttpDataService', () => {
           expect.any(Map)
         );
         expect(reportTotals.computeTotals.mock.invocationCallOrder[0]).toBeLessThan(
-          reportTotals.computeRowCount.mock.invocationCallOrder[0]
+          runWriteOrder(1)
         );
         expect(reportTotals.computeRowCount.mock.invocationCallOrder[0]).toBeLessThan(
           runWriteOrder(1)
@@ -1169,18 +1169,53 @@ describe('StreamHttpDataService', () => {
         expect(terminal.metadata.totalRowCount).toBe(5);
       });
 
-      it('does not count the rows when the client left during the totals', async () => {
+      it('stops the count when the client leaves during it', async () => {
         askForTotalRowCount();
+        let countSignal: AbortSignal | undefined;
+        reportTotals.computeRowCount.mockImplementationOnce(
+          (_plan, _accessor, _storage, _timeout, signal) => {
+            countSignal = signal;
+            return new Promise<number>(() => undefined);
+          }
+        );
+        const res = mockResponse();
+
+        const done = service.stream(fakeCommand(), res);
+        while (reportTotals.computeRowCount.mock.calls.length === 0) {
+          await new Promise(resolve => setImmediate(resolve));
+        }
+        res.destroy();
+        res._emit('close');
+        await done;
+
+        expect(countSignal?.aborted).toBe(true);
+        const writes = runWrites();
+        expect(writes.at(-1)!.status).toBe(DataMartRunStatus.FAILED);
+        expect(writes.filter(w => w.status === DataMartRunStatus.RUNNING)).toHaveLength(1);
+      });
+
+      it('stops the count when the client left during the totals', async () => {
+        askForTotalRowCount();
+        let countSignal: AbortSignal | undefined;
+        reportTotals.computeRowCount.mockImplementationOnce(
+          (_plan, _accessor, _storage, _timeout, signal) => {
+            countSignal = signal;
+            return new Promise<number>(() => undefined);
+          }
+        );
         const res = mockResponse();
         reportTotals.computeTotals.mockImplementationOnce(async () => {
           res.destroy();
+          res._emit('close');
           return null;
         });
 
         await service.stream(fakeCommand(), res);
 
-        expect(reportTotals.computeRowCount).not.toHaveBeenCalled();
-        expect(runWrites().at(-1)!.status).toBe(DataMartRunStatus.FAILED);
+        expect(countSignal?.aborted).toBe(true);
+        const writes = runWrites();
+        expect(writes.at(-1)!.status).toBe(DataMartRunStatus.FAILED);
+        expect(writes.filter(w => w.status === DataMartRunStatus.RUNNING)).toHaveLength(1);
       });
 
       it('shares one table reference memo across the read', async () => {
@@ -1192,6 +1227,7 @@ describe('StreamHttpDataService', () => {
         expect(memo).toBeInstanceOf(Map);
         expect(sqlComposer.composeStatic.mock.calls[0][4]).toBe(memo);
         expect(reportTotals.computeRowCount.mock.calls[0][5]).toBe(memo);
+        expect(reportTotals.computeTotals.mock.calls[0].at(-1)).toBe(memo);
         expect(sqlComposer.compose).not.toHaveBeenCalled();
       });
 

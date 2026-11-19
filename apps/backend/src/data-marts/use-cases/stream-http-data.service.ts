@@ -576,31 +576,24 @@ export class StreamHttpDataService {
 
       // Grand totals are a SEPARATE DWH query bridged to the client via x-owox-run-id. Computed
       // BEFORE streamRows: NDJSON headers cannot change once the first chunk is flushed. BEST-EFFORT.
-      const { totals, totalsError } = await this.computeTotalsBestEffort(
-        readPlan,
-        accessor,
-        dataMart
-      );
+      // The count runs with the totals, so the two waits do not add up before the first byte.
+      const [{ totals, totalsError }, count] = await Promise.all([
+        this.computeTotalsBestEffort(readPlan, accessor, dataMart, tableReferences),
+        includeTotalRowCount
+          ? this.computeRowCountBestEffort(readPlan, accessor, dataMart, tableReferences, res)
+          : undefined,
+      ]);
       // In the base metadata, so a read that fails later keeps the totals the client saw.
       baseMetadata = {
         ...baseMetadata,
         ...(totals ? { totals } : {}),
         ...(totalsError ? { totalsError } : {}),
+        ...count,
       };
+      const totalRowCount = count?.totalRowCount;
 
-      let totalRowCount: number | undefined;
-      if (includeTotalRowCount) {
-        if (res.destroyed) {
-          throw new StreamCancelledError('Client disconnected before stream completion');
-        }
-        const count = await this.computeRowCountBestEffort(
-          readPlan,
-          accessor,
-          dataMart,
-          tableReferences
-        );
-        totalRowCount = count.totalRowCount;
-        baseMetadata = { ...baseMetadata, ...count };
+      if (res.destroyed) {
+        throw new StreamCancelledError('Client disconnected before stream completion');
       }
 
       // Journalled into the run metadata regardless of outcome; persisted as the Data Mart's
@@ -804,14 +797,18 @@ export class StreamHttpDataService {
   private async computeTotalsBestEffort(
     readPlan: ReportLikeReadPlan,
     accessor: BlendableSchemaAccessor,
-    dataMart: DataMart
+    dataMart: DataMart,
+    tableReferences: TableReferenceMemo
   ): Promise<{ totals: ReportTotals | null; totalsError?: string }> {
     try {
       return {
         totals: await this.reportTotalsService.computeTotals(
           readPlan,
           accessor,
-          dataMart.storage.type
+          dataMart.storage.type,
+          undefined,
+          undefined,
+          tableReferences
         ),
       };
     } catch (err) {
@@ -829,10 +826,12 @@ export class StreamHttpDataService {
     readPlan: ReportLikeReadPlan,
     accessor: BlendableSchemaAccessor,
     dataMart: DataMart,
-    tableReferences: TableReferenceMemo
+    tableReferences: TableReferenceMemo,
+    res: Response
   ): Promise<{ totalRowCount?: number; totalRowCountError?: string }> {
     const controller = new AbortController();
     let timer: NodeJS.Timeout | undefined;
+    let onClose: (() => void) | undefined;
     try {
       const count = this.reportTotalsService.computeRowCount(
         readPlan,
@@ -853,13 +852,25 @@ export class StreamHttpDataService {
           reject(error);
         }, HTTP_DATA_TOTAL_ROW_COUNT_TIMEOUT_MS);
       });
-      return { totalRowCount: await Promise.race([count, timeout]) };
+      // A client that leaves must not keep the count query running.
+      const left = new Promise<never>((_, reject) => {
+        onClose = () => {
+          const error = new Error('The client disconnected during the total row count');
+          controller.abort(error);
+          reject(error);
+        };
+        res.once('close', onClose);
+        // The client may leave before this listener exists, for example during the totals.
+        if (res.destroyed) onClose();
+      });
+      return { totalRowCount: await Promise.race([count, timeout, left]) };
     } catch (err) {
       const reason = castError(err).message;
       this.logger.warn(`Failed to count the rows for Data Mart ${dataMart.id}: ${reason}`);
       return { totalRowCountError: reason };
     } finally {
       clearTimeout(timer);
+      if (onClose) res.off('close', onClose);
     }
   }
 
