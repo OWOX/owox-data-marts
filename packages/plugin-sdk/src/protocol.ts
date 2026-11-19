@@ -174,7 +174,9 @@ export type PluginRequest =
   | { id: string; kind: 'route'; path: string }
   | { id: string; kind: 'copyLink'; path?: string }
   /** The merged state of the plugin's loading work; `progress` is a fraction from 0 to 1. */
-  | { id: string; kind: 'loading'; active: boolean; progress?: number };
+  | { id: string; kind: 'loading'; active: boolean; progress?: number }
+  /** Whether the plugin screen has unsaved changes; `message` is plain text for the host's leave dialog. */
+  | { id: string; kind: 'unsaved'; dirty: boolean; message?: string };
 
 /**
  * A request before the transport stamps its correlation id.

@@ -36,6 +36,8 @@ export interface PluginHostBridgeOptions {
   onCopyLink: (route: string | undefined) => Promise<void> | void;
   /** The plugin's loading bar state; `progress` is a fraction from 0 to 1, or undefined for no amount. */
   onLoadingChange?: (state: { active: boolean; progress?: number }) => void;
+  /** Whether the plugin's screen holds unsaved changes; `message` is the plugin's raw text. */
+  onUnsavedChange?: (state: { dirty: boolean; message?: string }) => void;
   /**
    * The real origin a plugin is served from, when it is not sandboxed to the opaque one.
    * The announcement must come from it and host-init is addressed to it.
@@ -74,7 +76,14 @@ const REFRESH_MARGIN_MS = 60_000;
 /** Everything else the backend returns is host detail the plugin has no use for. */
 const FORWARDED_RESPONSE_HEADERS = ['content-type', 'x-owox-run-id'];
 
-const HOST_ONLY_KINDS = new Set(['openExternal', 'navigate', 'route', 'copyLink', 'loading']);
+const HOST_ONLY_KINDS = new Set([
+  'openExternal',
+  'navigate',
+  'route',
+  'copyLink',
+  'loading',
+  'unsaved',
+]);
 const EXECUTION_START_PATH = /^\/api\/plugins\/runtime\/actions\/[^/?#]+\/executions$/;
 const EXECUTION_PATH = /^\/api\/plugins\/runtime\/executions\/([^/?#]+)$/;
 /** Locked to OWOX and the SDK by `test/contracts/plugin-action-contract.mjs`. */
@@ -450,6 +459,8 @@ export function createPluginHostBridge(options: PluginHostBridgeOptions): Plugin
           options.onRouteChange(request.path);
         } else if (request.kind === 'loading') {
           options.onLoadingChange?.({ active: request.active, progress: request.progress });
+        } else if (request.kind === 'unsaved') {
+          options.onUnsavedChange?.({ dirty: request.dirty, message: request.message });
         } else if (request.kind === 'copyLink') {
           try {
             await options.onCopyLink(request.path);
@@ -706,6 +717,14 @@ function validateRequest(candidate: unknown): ValidatedPluginRequest {
       (progress !== undefined && !(typeof progress === 'number' && progress >= 0 && progress <= 1))
     ) {
       throw protocolError('The loading state is invalid');
+    }
+    return candidate as unknown as ValidatedPluginRequest;
+  }
+
+  if (candidate.kind === 'unsaved') {
+    const { dirty, message } = candidate;
+    if (typeof dirty !== 'boolean' || (message !== undefined && typeof message !== 'string')) {
+      throw protocolError('The unsaved state is invalid');
     }
     return candidate as unknown as ValidatedPluginRequest;
   }

@@ -18,4 +18,33 @@ describe('UnsavedChangesConfirmationDialog', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Yes, leave now' }));
     expect(onConfirm).toHaveBeenCalledTimes(1);
   });
+
+  it('shows a custom description', () => {
+    render(
+      <UnsavedChangesConfirmationDialog
+        open
+        onOpenChange={vi.fn()}
+        onConfirm={vi.fn()}
+        description='Setup choices are not saved.'
+      />
+    );
+    expect(screen.getByText('Setup choices are not saved.')).toBeInTheDocument();
+    expect(
+      screen.queryByText('You have unsaved changes. Exit without saving?')
+    ).not.toBeInTheDocument();
+  });
+
+  it('wraps a custom description so it can break', () => {
+    render(
+      <UnsavedChangesConfirmationDialog
+        open
+        onOpenChange={vi.fn()}
+        onConfirm={vi.fn()}
+        description='Setup choices are not saved.'
+      />
+    );
+    expect(screen.getByText('Setup choices are not saved.')).toHaveClass(
+      '[overflow-wrap:anywhere]'
+    );
+  });
 });

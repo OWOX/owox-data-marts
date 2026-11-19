@@ -20,6 +20,7 @@ export { describeCron } from './describeCron';
 export { describeVisibility, type GalleryVisibility, type PluginAudience } from './visibility';
 export { createPluginHostBridge, type FetchRuntimeToken } from './runtime/pluginHostBridge';
 export { fetchRuntimeToken } from './runtime/fetchRuntimeToken';
+export { normalizeUnsavedMessage } from './runtime/pluginMessage';
 export { fetchUserToken } from './runtime/fetchUserToken';
 export { createUserTokenChannel } from './runtime/userTokenChannel';
 export {

@@ -552,3 +552,88 @@ describe('ctx.ui.startLoading', () => {
     expect(await flush()).toContainEqual({ active: false, progress: undefined });
   });
 });
+
+describe('ctx.ui.setUnsaved', () => {
+  beforeEach(() => {
+    __resetForTests();
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    unframe();
+  });
+
+  async function connectedUnsaved() {
+    const parent = pretendToBeFramed();
+    const channel = new MessageChannel();
+    const raw: unknown[] = [];
+    channel.port1.onmessage = event => {
+      if ((event.data as { kind?: string }).kind === 'unsaved') raw.push(event.data);
+    };
+    channel.port1.start();
+
+    const pending = connect();
+    await vi.advanceTimersByTimeAsync(0);
+    deliverFromParent(parent, hostInit(), [channel.port2]);
+    const context = await pending;
+    const flush = () => vi.advanceTimersByTimeAsync(0);
+    return { ui: context.ui, flush, raw };
+  }
+
+  it('posts the flag and the message', async () => {
+    const { ui, flush, raw } = await connectedUnsaved();
+
+    ui.setUnsaved(true, 'Two choices are not saved');
+    await flush();
+
+    expect(raw).toEqual([
+      {
+        id: expect.any(String),
+        kind: 'unsaved',
+        dirty: true,
+        message: 'Two choices are not saved',
+      },
+    ]);
+  });
+
+  it('posts no message key without a message', async () => {
+    const { ui, flush, raw } = await connectedUnsaved();
+
+    ui.setUnsaved(false);
+    await flush();
+
+    expect(raw).toEqual([{ id: expect.any(String), kind: 'unsaved', dirty: false }]);
+  });
+
+  it('drops a message that is not a string', async () => {
+    const { ui, flush, raw } = await connectedUnsaved();
+
+    ui.setUnsaved(true, 42 as unknown as string);
+    await flush();
+
+    expect(raw).toEqual([{ id: expect.any(String), kind: 'unsaved', dirty: true }]);
+  });
+
+  it('clears the flag when the plugin page goes away', async () => {
+    const { ui, flush, raw } = await connectedUnsaved();
+    ui.setUnsaved(true);
+    await flush();
+
+    window.dispatchEvent(new Event('pagehide'));
+    await flush();
+
+    expect(raw).toContainEqual({ id: expect.any(String), kind: 'unsaved', dirty: false });
+  });
+
+  it('keeps the flag when the page goes into the back/forward cache', async () => {
+    const { ui, flush, raw } = await connectedUnsaved();
+    ui.setUnsaved(true);
+    await flush();
+
+    window.dispatchEvent(Object.assign(new Event('pagehide'), { persisted: true }));
+    await flush();
+
+    expect(raw).not.toContainEqual({ id: expect.any(String), kind: 'unsaved', dirty: false });
+  });
+});

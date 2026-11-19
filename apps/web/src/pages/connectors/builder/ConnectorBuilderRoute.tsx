@@ -9,7 +9,7 @@ import {
   type BuilderEntryPoint,
 } from '../../../features/connector-builder/create/ConnectorBuilderPage';
 import type { BuilderTestPrefill } from '../../../features/connector-builder/shared/model/testLink';
-import { useUnsavedChangesGuard } from '../../../features/connector-builder/shared/model/hooks/useUnsavedChangesGuard';
+import { useUnsavedChangesGuard } from '../../../shared/hooks';
 import { useBuilder } from '../../../features/connector-builder/shared/model/hooks/useBuilder';
 import { McpPromoCard, buildMcpPrompt, useIsMcpPromoAvailable } from '../../../features/mcp-promo';
 import { useProjectId } from '../../../shared/hooks/useProjectId';
