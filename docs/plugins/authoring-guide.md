@@ -391,7 +391,7 @@ async function onSave() {
 - `ctx.ui.setRoute` to another path clears the flag. If the changes stay after the route change,
   call `setUnsaved(true)` again after `setRoute`. A React effect that depends only on `dirty` does
   not do this, because `dirty` does not change. A change of only the query or the hash keeps the
-  flag.
+  flag. While the dialog is open, a route change does not clear the flag.
 - If your plugin saves the changes while the dialog is open, call `setUnsaved(false)`. The host
   then closes the dialog and completes the member's leave.
 - `message` is plain text, up to 200 characters. The host removes control and invisible characters.

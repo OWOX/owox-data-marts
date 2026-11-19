@@ -112,6 +112,32 @@ describe('useUnsavedChangesGuard', () => {
     expect(router.state.location.pathname).toBe('/');
   });
 
+  it('clears a pending leave when a later navigation goes through before the block renders', async () => {
+    const { state, router } = setup();
+
+    await act(async () => {
+      void router.navigate('/other');
+      await router.navigate('/?tab=2');
+    });
+
+    expect(state.guard.blocked).toBe(false);
+    expect(state.guard.isLeavePending()).toBe(false);
+  });
+
+  it('takes one answer for a block, even from a render that is out of date', async () => {
+    const { state, router } = setup();
+    await act(() => router.navigate('/other'));
+
+    const answeredBlock = state.guard;
+    act(() => {
+      answeredBlock.cancelLeave();
+      answeredBlock.confirmLeave();
+    });
+
+    expect(state.guard.blocked).toBe(false);
+    expect(router.state.location.pathname).toBe('/');
+  });
+
   it('cancels beforeunload only while dirty', () => {
     const { state } = setup();
 

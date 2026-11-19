@@ -917,6 +917,35 @@ describe('PluginRuntimePage', () => {
       expect(router.state.location.pathname).toBe(HOST_PAGE);
     });
 
+    it('keeps the flag through a path change while the dialog is open', async () => {
+      const { router } = await mountPage();
+      reportUnsaved();
+      await goTo(router);
+
+      act(() => bridgeOptions.onRouteChange?.('/d/2'));
+      reportUnsaved();
+
+      expect(screen.getByText('Unsaved Changes')).toBeInTheDocument();
+      expect(router.state.location.pathname).toBe(OPEN_BASE);
+    });
+
+    it('stays when the member cancels as the plugin clears the flag', async () => {
+      const { router } = await mountPage();
+      reportUnsaved();
+      await goTo(router);
+
+      act(() => {
+        fireEvent.click(screen.getByRole('button', { name: 'No, stay here' }));
+        bridgeOptions.onUnsavedChange?.({ dirty: false });
+      });
+
+      await waitFor(() => {
+        expect(screen.queryByText('Unsaved Changes')).not.toBeInTheDocument();
+      });
+      expect(router.state.location.pathname).toBe(OPEN_BASE);
+      expect(screen.getByTitle('Example Plugin')).toBeInTheDocument();
+    });
+
     it.each(['/d/9?tab=2', '/d/9#top'])(
       'keeps the flag when only the query or hash changes: %s',
       async route => {

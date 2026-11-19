@@ -111,7 +111,11 @@ export function PluginRuntime({
       if (route === null) {
         return;
       }
-      if (routePath(route) !== routePath(lastRouteRef.current)) {
+      // While the member decides, a cleared flag would finish the leave and lose the draft.
+      if (
+        routePath(route) !== routePath(lastRouteRef.current) &&
+        !guardRef.current.isLeavePending()
+      ) {
         markUnsaved(false);
       }
       lastRouteRef.current = route;

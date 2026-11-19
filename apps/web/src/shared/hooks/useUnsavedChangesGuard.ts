@@ -45,6 +45,8 @@ export function useUnsavedChangesGuard(
 
   // `blocked` comes a render late and in a transition, so sync this only from committed state.
   const leavePendingRef = useRef(false);
+  // One answer per block: a render that is out of date still holds the old proceed and reset.
+  const answeredRef = useRef(false);
 
   const blocker = useBlocker(({ currentLocation, nextLocation }) => {
     const blocks =
@@ -52,7 +54,9 @@ export function useUnsavedChangesGuard(
       (leavesRef.current
         ? leavesRef.current(nextLocation.pathname)
         : currentLocation.pathname !== nextLocation.pathname);
-    if (blocks) leavePendingRef.current = true;
+    // The router does not ask while a leave is proceeding, so this cannot clear one.
+    leavePendingRef.current = blocks;
+    if (blocks) answeredRef.current = false;
     return blocks;
   });
   useLayoutEffect(() => {
@@ -77,10 +81,14 @@ export function useUnsavedChangesGuard(
   }, []);
 
   const confirmLeave = useCallback(() => {
+    if (answeredRef.current) return;
+    answeredRef.current = true;
     blocker.proceed?.();
   }, [blocker]);
 
   const cancelLeave = useCallback(() => {
+    if (answeredRef.current) return;
+    answeredRef.current = true;
     leavePendingRef.current = false;
     blocker.reset?.();
   }, [blocker]);
