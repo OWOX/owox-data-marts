@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { DateTime } from 'luxon';
 import { AthenaFieldType } from '../../../../data-storage-types/athena/enums/athena-field-type.enum';
 import { BigQueryFieldType } from '../../../../data-storage-types/bigquery/enums/bigquery-field-type.enum';
+import { DuckdbFieldType } from '../../../../data-storage-types/duckdb/enums/duckdb-field-type.enum';
 import { SnowflakeFieldType } from '../../../../data-storage-types/snowflake/enums/snowflake-field-type.enum';
 import { ReportDataHeader } from '../../../../dto/domain/report-data-header.dto';
 import { StorageFieldType } from '../../../../dto/domain/storage-field-type';
@@ -19,6 +20,7 @@ export class SheetValuesFormatter {
     [AthenaFieldType.TIMESTAMP, this.formatTimestamp],
     [AthenaFieldType.TIMESTAMP_WITH_TIME_ZONE, this.formatTimestamp],
     [SnowflakeFieldType.TIMESTAMP, this.formatTimestamp],
+    [DuckdbFieldType.TIMESTAMPTZ, this.formatTimestamp],
   ]);
 
   /**
@@ -90,9 +92,11 @@ export class SheetValuesFormatter {
   private formatTimestamp(value: unknown, sheetTimeZone: string): unknown {
     if (typeof value !== 'string' || !value) return value;
 
-    const dateTime = DateTime.fromISO(value).isValid
-      ? DateTime.fromISO(value)
-      : DateTime.fromSQL(value);
+    // A value without an offset is UTC, not the server's local time.
+    const zone = { zone: 'utc' };
+    const dateTime = DateTime.fromISO(value, zone).isValid
+      ? DateTime.fromISO(value, zone)
+      : DateTime.fromSQL(value, zone);
 
     return dateTime.isValid
       ? dateTime.setZone(sheetTimeZone).toFormat('yyyy-MM-dd HH:mm:ss')
