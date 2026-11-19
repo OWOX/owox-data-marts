@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import toast from 'react-hot-toast';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -20,6 +20,10 @@ vi.mock('../../../../../app/api', async importOriginal => ({
 const trackEvent = vi.hoisted(() => vi.fn());
 vi.mock('../../../../../utils/data-layer', () => ({
   trackEvent: (...args: unknown[]) => trackEvent(...args) as unknown,
+}));
+
+vi.mock('../../../shared/components/OwoxStorageUsage', () => ({
+  OwoxStorageUsage: ({ storageId }: { storageId: string }) => <div>Usage of {storageId}</div>,
 }));
 
 vi.mock('../../../../idp/hooks/useAuthState', () => ({
@@ -548,5 +552,60 @@ describe('DataStorageForm — a rejected save', () => {
     for (const [payload] of onSubmit.mock.calls as [Record<string, unknown>][]) {
       expect(payload.ownerIds).toEqual(['user-2']);
     }
+  });
+});
+
+describe('DataStorageForm — OWOX Storage', () => {
+  const owoxStorage = () =>
+    ({
+      ...storage(null),
+      config: { projectId: 'owox-managed-project', location: 'EU' },
+      owoxStorage: { location: 'EU', datasetId: 'owox_0123456789ab' },
+    }) as DataStorage;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    localStorage.clear();
+  });
+
+  it('shows location and dataset read-only and no Credential for an OWOX Storage', async () => {
+    renderForm(vi.fn(), owoxStorage());
+
+    expect(await screen.findByDisplayValue('OWOX Storage')).toBeDisabled();
+    expect(screen.getByLabelText('Location')).toHaveValue('EU');
+    expect(screen.getByLabelText('Location')).toBeDisabled();
+    expect(screen.getByLabelText('Dataset')).toHaveValue('owox_0123456789ab');
+    expect(screen.getByLabelText('Dataset')).toBeDisabled();
+    expect(screen.queryByLabelText('Project ID')).toBeNull();
+    expect(screen.queryByText('Authentication')).toBeNull();
+    expect(screen.queryByText('Credential')).toBeNull();
+  });
+
+  it('shows the usage section for an OWOX Storage and not for a regular storage', async () => {
+    renderForm(vi.fn(), owoxStorage());
+    expect(await screen.findByText('Usage and Tables')).toBeInTheDocument();
+    expect(screen.getByText('Usage of storage-1')).toBeInTheDocument();
+    cleanup();
+
+    renderForm(vi.fn(), storage(null));
+    await screen.findByDisplayValue('BigQuery');
+    expect(screen.queryByText('Usage and Tables')).toBeNull();
+  });
+
+  it('saves an OWOX Storage without a Credential', async () => {
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+    renderForm(onSubmit, owoxStorage());
+
+    await changeOwners();
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => {
+      expect(onSubmit).toHaveBeenCalled();
+    });
+    expect(submitted(onSubmit)).not.toHaveProperty('reusableCredentialId');
+    expect(submitted(onSubmit).config).toEqual({
+      projectId: 'owox-managed-project',
+      location: 'EU',
+    });
   });
 });

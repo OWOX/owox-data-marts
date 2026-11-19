@@ -32,6 +32,7 @@ import { useRunAfterSave } from '../useRunAfterSave';
 interface ConnectorDefinitionFieldProps {
   control: Control<DataMartDefinitionFormData>;
   storageType: DataStorageType;
+  fixedDatasetName?: string;
   preset?: string;
   connectorName?: string | null;
   autoOpen?: boolean;
@@ -44,6 +45,7 @@ interface ConnectorDefinitionFieldProps {
 export function ConnectorDefinitionField({
   control,
   storageType,
+  fixedDatasetName,
   preset,
   connectorName,
   autoOpen = false,
@@ -282,6 +284,7 @@ export function ConnectorDefinitionField({
                 datamartStatus === DataMartStatus.DRAFT ? (
                   <ConnectorSetupButton
                     storageType={storageType}
+                    fixedDatasetName={fixedDatasetName}
                     onSetupConnector={(connector: ConnectorConfig, runAfterSave: boolean) => {
                       void setupConnector(connector, runAfterSave);
                       setIsSetupSheetOpen(false);
@@ -301,6 +304,7 @@ export function ConnectorDefinitionField({
                           GOOGLE_SHEETS_CONNECTOR_NAME && (
                           <AddConfigurationButton
                             storageType={storageType}
+                            fixedDatasetName={fixedDatasetName}
                             onAddConfiguration={(newConfig, runAfterSave) =>
                               void addConfiguration(newConfig, runAfterSave)
                             }
@@ -386,6 +390,7 @@ export function ConnectorDefinitionField({
             void updateConnectorFields(connector, runAfterSave)
           }
           dataStorageType={storageType}
+          fixedDatasetName={fixedDatasetName}
           existingConnector={
             isConnectorConfigured(getValues().definition as ConnectorDefinitionConfig)
               ? {

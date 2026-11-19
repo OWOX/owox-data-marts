@@ -25,11 +25,13 @@ function TargetSetupStepHarness({
   stepKey = 1,
   conflict,
   replacesTable,
+  fixedDatasetName,
 }: {
   conflict?: ConnectorTargetConflictResponseDto | null;
   dataStorageType: DataStorageType;
   replacesTable?: boolean;
   stepKey?: number;
+  fixedDatasetName?: string;
 }) {
   const [target, setTarget] = useState<Target>(null);
 
@@ -38,6 +40,7 @@ function TargetSetupStepHarness({
       <TargetSetupStep
         key={stepKey}
         dataStorageType={dataStorageType}
+        fixedDatasetName={fixedDatasetName}
         destinationName='ad_insights'
         connectorName='TikTok Ads'
         target={target}
@@ -174,5 +177,70 @@ describe('TargetSetupStep', () => {
       </MemoryRouter>
     );
     expect(onTargetChange).toHaveBeenLastCalledWith(expect.objectContaining({ isValid: true }));
+  });
+
+  it('fixes the dataset of an OWOX Storage', () => {
+    render(
+      <TargetSetupStepHarness
+        dataStorageType={DataStorageType.GOOGLE_BIGQUERY}
+        fixedDatasetName='owox_abc'
+      />
+    );
+
+    const datasetInput = screen.getByLabelText(/dataset name/i, { selector: 'input' });
+    expect(datasetInput).toHaveValue('owox_abc');
+    expect(datasetInput).toHaveAttribute('readonly');
+    expect(screen.queryByText(/dataset is auto-created/i)).toBeNull();
+    expect(screen.getByLabelText(/table name/i, { selector: 'input' })).toHaveValue('ad_insights');
+  });
+
+  it('writes the target of an OWOX Storage into its dataset', () => {
+    const onTargetChange = vi.fn();
+    render(
+      <MemoryRouter>
+        <TargetSetupStep
+          dataStorageType={DataStorageType.GOOGLE_BIGQUERY}
+          fixedDatasetName='owox_abc'
+          destinationName='ad_insights'
+          connectorName='TikTok Ads'
+          target={null}
+          onTargetChange={onTargetChange}
+        />
+      </MemoryRouter>
+    );
+
+    expect(onTargetChange).toHaveBeenCalledWith({
+      fullyQualifiedName: 'owox_abc.ad_insights',
+      isValid: true,
+    });
+  });
+
+  it('keeps the editable dataset for other storages', () => {
+    render(<TargetSetupStepHarness dataStorageType={DataStorageType.GOOGLE_BIGQUERY} />);
+
+    const datasetInput = screen.getByLabelText(/dataset name/i, { selector: 'input' });
+    expect(datasetInput).not.toHaveAttribute('readonly');
+    expect(screen.getByText(/dataset is auto-created/i)).toBeInTheDocument();
+  });
+
+  it('replaces the dataset of an existing target with the fixed one', () => {
+    const onTargetChange = vi.fn();
+    render(
+      <MemoryRouter>
+        <TargetSetupStep
+          dataStorageType={DataStorageType.GOOGLE_BIGQUERY}
+          fixedDatasetName='owox_abc'
+          destinationName='ad_insights'
+          connectorName='TikTok Ads'
+          target={{ fullyQualifiedName: 'old_ds.ad_insights', isValid: true }}
+          onTargetChange={onTargetChange}
+        />
+      </MemoryRouter>
+    );
+
+    expect(onTargetChange).toHaveBeenCalledWith({
+      fullyQualifiedName: 'owox_abc.ad_insights',
+      isValid: true,
+    });
   });
 });

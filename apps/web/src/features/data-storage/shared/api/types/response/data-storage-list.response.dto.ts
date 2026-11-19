@@ -15,5 +15,6 @@ export type DataStorageListItemResponseDto = Pick<
   | 'availableForUse'
   | 'availableForMaintenance'
   | 'reusableCredential'
+  | 'owoxStorage'
 >;
 export type DataStorageListResponseDto = DataStorageListItemResponseDto[];

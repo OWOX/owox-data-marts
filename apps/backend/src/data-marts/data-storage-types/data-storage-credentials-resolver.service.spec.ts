@@ -62,7 +62,10 @@ describe('DataStorageCredentialsResolver', () => {
     resolver = new DataStorageCredentialsResolver(
       storageRepo as unknown as Repository<DataStorage>,
       facade as unknown as StorageCredentialBindingService,
-      legacy
+      legacy,
+      { findByStorageId: jest.fn().mockResolvedValue(null) } as never,
+      {} as never,
+      {} as never
     );
   });
 
@@ -89,6 +92,23 @@ describe('DataStorageCredentialsResolver', () => {
   }
 
   describe('resolve()', () => {
+    it('refuses a deleted storage before impersonating', async () => {
+      const impersonate = jest.fn();
+      const deletedResolver = new DataStorageCredentialsResolver(
+        storageRepo as unknown as Repository<DataStorage>,
+        facade as unknown as StorageCredentialBindingService,
+        legacy,
+        { findByStorageId: jest.fn().mockResolvedValue({ deprovisionedAt: new Date() }) } as never,
+        { impersonate } as never,
+        {} as never
+      );
+
+      await expect(deletedResolver.resolve(makeStorage())).rejects.toThrow(
+        'This OWOX Storage and its data were deleted. Restore the storage on its page to continue.'
+      );
+      expect(impersonate).not.toHaveBeenCalled();
+    });
+
     it('returns credentials from eager-loaded storage.credential without touching the service', async () => {
       const credential = makeServiceAccountCredential();
       const storage = makeStorage({ credential });

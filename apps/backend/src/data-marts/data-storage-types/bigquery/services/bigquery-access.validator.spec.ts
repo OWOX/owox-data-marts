@@ -98,3 +98,23 @@ describe('BigQueryAccessValidator (OAuth)', () => {
     expect(result.code).toBeUndefined();
   });
 });
+
+describe('BigQueryAccessValidator (managed)', () => {
+  it('validates access with managed credentials', async () => {
+    const checkAccess = jest.fn().mockResolvedValue(undefined);
+    MockedAdapter.mockReset();
+    MockedAdapter.mockImplementation(() => ({ checkAccess }) as unknown as BigQueryApiAdapter);
+    const credentials = {
+      type: 'bigquery_managed',
+      authClient: {},
+    } as unknown as DataStorageCredentials;
+
+    const result = await new BigQueryAccessValidator().validate(
+      { projectId: 'proj-abc' } as unknown as DataStorageConfig,
+      credentials
+    );
+
+    expect(result.valid).toBe(true);
+    expect(checkAccess).toHaveBeenCalledTimes(1);
+  });
+});

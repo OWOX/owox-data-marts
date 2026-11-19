@@ -6,6 +6,8 @@ import { useUrlParam, useProjectRoute } from '../../../../../shared/hooks';
 import { DataStorageConfigSheet } from '../../../edit';
 import { DataStorageType } from '../../../shared';
 import { DataStorageTypeDialog } from '../../../shared/components/DataStorageTypeDialog.tsx';
+import { OwoxStorageCreateDialog } from '../../../shared/components/OwoxStorageCreateDialog.tsx';
+import type { DataStorage } from '../../../shared/model/types/data-storage.ts';
 import { useDataStorage } from '../../../shared/model/hooks/useDataStorage.ts';
 import { usePublishDraftsTrigger } from '../../../shared/hooks/usePublishDraftsTrigger.ts';
 import { DataStorageDetailsDialog } from '../DataStorageDetailsDialog';
@@ -25,6 +27,7 @@ export const DataStorageList = ({
   onTypeDialogClose,
 }: DataStorageListProps) => {
   const [isTypeDialogOpen, setIsTypeDialogOpen] = useState(initialTypeDialogOpen);
+  const [isOwoxCreateOpen, setIsOwoxCreateOpen] = useState(false);
   const [isCreatingDataStorage, setIsCreatingDataStorage] = useState(false);
 
   const {
@@ -111,6 +114,10 @@ export const DataStorageList = ({
     } catch (error) {
       console.error('Failed to create storage:', error);
     }
+  };
+
+  const handleOwoxStorageCreated = async (storage: DataStorage) => {
+    await handleEdit(storage.id);
   };
 
   const handleViewDetails = (id: string) => {
@@ -233,6 +240,7 @@ export const DataStorageList = ({
     availableForMaintenance: storage.availableForMaintenance,
     contexts: storage.contexts ?? [],
     reusableCredential: storage.reusableCredential,
+    owoxStorage: storage.owoxStorage,
   }));
 
   const columns = getDataStorageColumns({
@@ -264,6 +272,18 @@ export const DataStorageList = ({
         onClose={handleTypeDialogClose}
         onSelect={handleCreateNewStorage}
         isCreatingDataStorage={isCreatingDataStorage}
+        onSelectOwoxStorage={() => {
+          handleTypeDialogClose();
+          setIsOwoxCreateOpen(true);
+        }}
+      />
+
+      <OwoxStorageCreateDialog
+        isOpen={isOwoxCreateOpen}
+        onClose={() => {
+          setIsOwoxCreateOpen(false);
+        }}
+        onCreated={handleOwoxStorageCreated}
       />
 
       <DataStorageConfigSheet
@@ -324,7 +344,11 @@ export const DataStorageList = ({
         open={deleteDialogOpen}
         onOpenChange={setDeleteDialogOpen}
         title='Delete Storage'
-        description='Are you sure you want to delete this storage? This action cannot be undone.'
+        description={
+          dataStorages.find(s => s.id === storageToDelete)?.owoxStorage
+            ? 'This deletes the OWOX Storage and all its tables. The data cannot be restored.'
+            : 'Are you sure you want to delete this storage? This action cannot be undone.'
+        }
         confirmLabel='Delete'
         cancelLabel='Cancel'
         onConfirm={() => {

@@ -8,3 +8,4 @@ export { GracefulShutdownService } from './common/scheduler/services/graceful-sh
 export { McpHttpEntryService } from './ee/mcp/transport/mcp-http-entry.service';
 export { registerPluginCollectionsBodyParser } from './config/plugin-collections-body-parser.config';
 export { configureTrustProxy } from './config/trust-proxy.config';
+export { isOwoxStorageEnabled } from './data-marts/owox-storage/owox-storage-settings';

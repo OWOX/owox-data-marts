@@ -38,8 +38,13 @@ function clsWith(authFlow?: string) {
   } as never;
 }
 
+const noManaged = {
+  findByStorageId: jest.fn().mockResolvedValue(null),
+  findByStorageIds: jest.fn().mockResolvedValue(new Map()),
+} as never;
+
 describe('DataStorageMapper', () => {
-  const mapper = new DataStorageMapper(clsWith());
+  const mapper = new DataStorageMapper(clsWith(), noManaged);
 
   describe('toApiResponse', () => {
     it('carries the Credential summary and no key data', async () => {
@@ -84,8 +89,8 @@ describe('DataStorageMapper', () => {
     });
   });
 
-  it('lists Storages with their Credential summaries', () => {
-    const [item] = mapper.toResponseList([
+  it('lists Storages with their Credential summaries', async () => {
+    const [item] = await mapper.toResponseList([
       mapper.toDomainDto(storage, 0, 0, null, [], undefined, visible),
     ]);
 
@@ -93,14 +98,14 @@ describe('DataStorageMapper', () => {
   });
 
   it('hides which Credential a Storage uses from a plugin request', async () => {
-    const pluginMapper = new DataStorageMapper(clsWith('plugin'));
+    const pluginMapper = new DataStorageMapper(clsWith('plugin'), noManaged);
     const dto = pluginMapper.toDomainDto(storage, 0, 0, null, [], undefined, visible);
 
     expect((await pluginMapper.toApiResponse(dto)).reusableCredential).toEqual({
       access: 'restricted',
       state: 'ready',
     });
-    expect(pluginMapper.toResponseList([dto])[0].reusableCredential).toEqual({
+    expect((await pluginMapper.toResponseList([dto]))[0].reusableCredential).toEqual({
       access: 'restricted',
       state: 'ready',
     });
@@ -109,20 +114,75 @@ describe('DataStorageMapper', () => {
   it('says a Storage still runs on its own key, to members and plugins alike', async () => {
     const pending: StorageCredentialSummary = { access: 'pending', state: 'ready' };
     for (const authFlow of [undefined, 'plugin']) {
-      const flowMapper = new DataStorageMapper(clsWith(authFlow));
+      const flowMapper = new DataStorageMapper(clsWith(authFlow), noManaged);
       const dto = flowMapper.toDomainDto(storage, 0, 0, null, [], undefined, pending);
 
       expect((await flowMapper.toApiResponse(dto)).reusableCredential).toEqual(pending);
-      expect(flowMapper.toResponseList([dto])[0].reusableCredential).toEqual(pending);
+      expect((await flowMapper.toResponseList([dto]))[0].reusableCredential).toEqual(pending);
     }
   });
 
   it('shows the Credential to a member request, whatever its auth flow', async () => {
-    const apiKeyMapper = new DataStorageMapper(clsWith('api_key'));
+    const apiKeyMapper = new DataStorageMapper(clsWith('api_key'), noManaged);
     const dto = apiKeyMapper.toDomainDto(storage, 0, 0, null, [], undefined, visible);
 
     expect((await apiKeyMapper.toApiResponse(dto)).reusableCredential).toEqual(visible);
-    expect(apiKeyMapper.toResponseList([dto])[0].reusableCredential).toEqual(visible);
+    expect((await apiKeyMapper.toResponseList([dto]))[0].reusableCredential).toEqual(visible);
+  });
+
+  describe('OWOX Storage marker', () => {
+    const managed = { location: 'EU', datasetId: 'owox_0123456789ab', storageId: 'storage-1' };
+
+    it('adds owoxStorage for a managed storage', async () => {
+      const m = new DataStorageMapper(clsWith(), {
+        findByStorageId: jest.fn().mockResolvedValue(managed),
+      } as never);
+
+      const response = await m.toApiResponse(m.toDomainDto(storage));
+
+      expect(response.owoxStorage).toEqual({ location: 'EU', datasetId: 'owox_0123456789ab' });
+    });
+
+    it('looks the record up unless the caller passes it, and null means none', async () => {
+      const findByStorageId = jest.fn().mockResolvedValue(managed);
+      const m = new DataStorageMapper(clsWith(), { findByStorageId } as never);
+
+      expect(await m.toApiResponse(m.toDomainDto(storage), null)).not.toHaveProperty('owoxStorage');
+      expect(findByStorageId).not.toHaveBeenCalled();
+      expect((await m.toApiResponse(m.toDomainDto(storage), managed as never)).owoxStorage).toEqual(
+        {
+          location: 'EU',
+          datasetId: 'owox_0123456789ab',
+        }
+      );
+      expect(findByStorageId).not.toHaveBeenCalled();
+      await m.toApiResponse(m.toDomainDto(storage));
+      expect(findByStorageId).toHaveBeenCalledTimes(1);
+    });
+
+    it('omits it otherwise', async () => {
+      const response = await mapper.toApiResponse(mapper.toDomainDto(storage));
+      const [item] = await mapper.toResponseList([mapper.toDomainDto(storage)]);
+
+      expect(response).not.toHaveProperty('owoxStorage');
+      expect(item).not.toHaveProperty('owoxStorage');
+    });
+
+    it('toResponseList looks managed storages up in one call', async () => {
+      const findByStorageIds = jest.fn().mockResolvedValue(new Map([['storage-1', managed]]));
+      const m = new DataStorageMapper(clsWith(), { findByStorageIds } as never);
+      const other = { ...storage, id: 'storage-2' } as unknown as DataStorage;
+
+      const [first, second] = await m.toResponseList([
+        m.toDomainDto(storage),
+        m.toDomainDto(other),
+      ]);
+
+      expect(findByStorageIds).toHaveBeenCalledTimes(1);
+      expect(findByStorageIds).toHaveBeenCalledWith(['storage-1', 'storage-2']);
+      expect(first.owoxStorage).toEqual({ location: 'EU', datasetId: 'owox_0123456789ab' });
+      expect(second).not.toHaveProperty('owoxStorage');
+    });
   });
 
   describe('toUpdateCommand', () => {
@@ -159,6 +219,61 @@ describe('DataStorageMapper', () => {
     });
   });
 
+  describe('toDeleteCommand', () => {
+    const context = { projectId: 'proj-1', userId: 'user-1', roles: ['editor'] };
+
+    it.each([
+      ['a member', undefined, false],
+      ['a plugin', 'plugin', true],
+    ])('marks whether %s calls', (_who, authFlow, fromPlugin) => {
+      const command = new DataStorageMapper(clsWith(), noManaged).toDeleteCommand('storage-1', {
+        ...context,
+        authFlow,
+      } as AuthorizationContext);
+
+      expect(command.fromPlugin).toBe(fromPlugin);
+    });
+  });
+
+  describe('toDeleteOwoxStorageTableCommand', () => {
+    const context = { projectId: 'proj-1', userId: 'user-1', roles: ['editor'] };
+
+    it.each([
+      ['a member', undefined, false],
+      ['a plugin', 'plugin', true],
+    ])('marks whether %s calls', (_who, authFlow, fromPlugin) => {
+      const command = new DataStorageMapper(clsWith(), noManaged).toDeleteOwoxStorageTableCommand(
+        'storage-1',
+        'events',
+        { ...context, authFlow } as AuthorizationContext
+      );
+
+      expect(command.fromPlugin).toBe(fromPlugin);
+    });
+  });
+
+  describe('toRestoreOwoxStorageCommand', () => {
+    const context = { projectId: 'proj-1', userId: 'user-1', roles: ['editor'] };
+
+    it.each([
+      ['a member', undefined, false],
+      ['a plugin', 'plugin', true],
+    ])('marks whether %s calls', (_who, authFlow, fromPlugin) => {
+      const command = new DataStorageMapper(clsWith(), noManaged).toRestoreOwoxStorageCommand(
+        'storage-1',
+        { ...context, authFlow } as AuthorizationContext
+      );
+
+      expect(command).toEqual({
+        storageId: 'storage-1',
+        projectId: 'proj-1',
+        userId: 'user-1',
+        roles: ['editor'],
+        fromPlugin,
+      });
+    });
+  });
+
   describe('toByTypeCommand', () => {
     const context = { projectId: 'proj-1', userId: 'user-1', roles: ['editor'] };
 
@@ -166,7 +281,7 @@ describe('DataStorageMapper', () => {
       ['a member', undefined, false],
       ['a plugin', 'plugin', true],
     ])('carries the member and whether %s calls', (_who, authFlow, isPluginCall) => {
-      const command = new DataStorageMapper(clsWith(authFlow)).toByTypeCommand(
+      const command = new DataStorageMapper(clsWith(authFlow), noManaged).toByTypeCommand(
         context as AuthorizationContext,
         DataStorageType.SNOWFLAKE
       );

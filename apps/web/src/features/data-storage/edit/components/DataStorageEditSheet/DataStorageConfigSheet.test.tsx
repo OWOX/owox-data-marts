@@ -92,6 +92,7 @@ describe('DataStorageConfigSheet', () => {
       fetchDataStorages: vi.fn(),
       getDataStorageById: vi.fn(),
       createDataStorage: vi.fn(),
+      createOwoxStorage: vi.fn(),
       updateDataStorage: vi.fn(),
       deleteDataStorage: vi.fn(),
       clearCurrentDataStorage: vi.fn(),

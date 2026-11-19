@@ -87,4 +87,30 @@ describe('createDataStorageFormResolver', () => {
     expect(result.errors).toHaveProperty('title');
     expect(result.errors).not.toHaveProperty('reusableCredentialId');
   });
+
+  describe('for an OWOX Storage', () => {
+    it('accepts an OWOX Storage without a Credential', async () => {
+      const resolver = createDataStorageFormResolver(false, true);
+
+      const result = await resolver(
+        buildValues(DataStorageType.GOOGLE_BIGQUERY),
+        undefined,
+        resolverOptions
+      );
+
+      expect(result.errors).toEqual({});
+    });
+
+    it('still requires one for a regular BigQuery storage', async () => {
+      const resolver = createDataStorageFormResolver(false, false);
+
+      const result = await resolver(
+        buildValues(DataStorageType.GOOGLE_BIGQUERY),
+        undefined,
+        resolverOptions
+      );
+
+      expect(result.errors.reusableCredentialId?.message).toBe('Select a Credential');
+    });
+  });
 });

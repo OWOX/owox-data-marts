@@ -90,3 +90,11 @@ describe('mapDataStorageFromDto', () => {
     expect(mapDataStorageFromDto(dto)).not.toHaveProperty('reusableCredential');
   });
 });
+
+describe('mapDataStorageFromDto: OWOX Storage', () => {
+  it('maps owoxStorage from the DTO', () => {
+    const owoxStorage = { location: 'EU' as const, datasetId: 'owox_0123456789ab' };
+    expect(mapDataStorageFromDto({ ...dto, owoxStorage }).owoxStorage).toEqual(owoxStorage);
+    expect(mapDataStorageFromDto(dto).owoxStorage).toBeUndefined();
+  });
+});

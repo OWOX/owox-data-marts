@@ -9,6 +9,7 @@ import {
   ApiResponse,
 } from '@nestjs/swagger';
 import { CreateDataStorageApiDto } from '../../dto/presentation/create-data-storage-api.dto';
+import { CreateOwoxStorageApiDto } from '../../dto/presentation/create-owox-storage-api.dto';
 import { DataStorageAccessValidationResponseApiDto } from '../../dto/presentation/data-storage-access-validation-response-api.dto';
 import { DataStorageListResponseApiDto } from '../../dto/presentation/data-storage-list-response-api.dto';
 import { DataStorageResponseApiDto } from '../../dto/presentation/data-storage-response-api.dto';
@@ -18,6 +19,7 @@ import { UpdateStorageAvailabilityApiDto } from '../../dto/presentation/update-a
 import { DataStorageType } from '../../data-storage-types/enums/data-storage-type.enum';
 import { OwnerFilter } from '../../enums/owner-filter.enum';
 import { ListStorageResourcesResponseDto } from '../../dto/presentation/storage-resources/list-storage-resources-response.dto';
+import { OwoxStorageUsageResponseApiDto } from '../../dto/presentation/owox-storage-usage-response-api.dto';
 import { StorageResourceLevel } from '../../dto/domain/list-storage-resources.command';
 
 export function ListDataStoragesByTypeSpec() {
@@ -33,6 +35,20 @@ export function CreateDataStorageSpec() {
     ApiOperation({ summary: 'Create a new Data Storage' }),
     ApiBody({ type: CreateDataStorageApiDto }),
     ApiResponse({ status: 201, type: DataStorageResponseApiDto })
+  );
+}
+
+export function CreateOwoxStorageSpec() {
+  return applyDecorators(
+    ApiOperation({ summary: 'Create an OWOX Storage (OWOX-hosted BigQuery)' }),
+    ApiBody({ type: CreateOwoxStorageApiDto }),
+    ApiResponse({ status: 201, type: DataStorageResponseApiDto }),
+    ApiResponse({
+      status: 400,
+      description:
+        'OWOX Storage is not available, the subscription is unpaid, or the project already has one',
+    }),
+    ApiResponse({ status: 403, description: 'A plugin-authenticated request' })
   );
 }
 
@@ -83,6 +99,33 @@ export function DeleteDataStorageSpec() {
     ApiOperation({ summary: 'Delete Data Storage by ID' }),
     ApiParam({ name: 'id', description: 'Data Storage ID' }),
     ApiOkResponse({ description: 'Data Storage successfully deleted' })
+  );
+}
+
+export function GetOwoxStorageUsageSpec() {
+  return applyDecorators(
+    ApiOperation({ summary: 'Get OWOX Storage usage and its tables' }),
+    ApiParam({ name: 'id', description: 'Data Storage ID' }),
+    ApiOkResponse({ type: OwoxStorageUsageResponseApiDto })
+  );
+}
+
+export function DeleteOwoxStorageTableSpec() {
+  return applyDecorators(
+    ApiOperation({ summary: 'Delete a table of an OWOX Storage' }),
+    ApiParam({ name: 'id', description: 'Data Storage ID' }),
+    ApiParam({ name: 'tableName', description: 'Table name as listed in the OWOX Storage' }),
+    ApiNoContentResponse({ description: 'Table successfully deleted' })
+  );
+}
+
+export function RestoreOwoxStorageSpec() {
+  return applyDecorators(
+    ApiOperation({
+      summary: 'Restore a deleted OWOX Storage under its old names, without its data',
+    }),
+    ApiParam({ name: 'id', description: 'Data Storage ID' }),
+    ApiNoContentResponse({ description: 'OWOX Storage restored, or it was not deleted' })
   );
 }
 

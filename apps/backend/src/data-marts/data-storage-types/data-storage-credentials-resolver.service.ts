@@ -1,9 +1,12 @@
-import { Injectable } from '@nestjs/common';
+import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
+import { Inject, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { DataStorageCredentials } from './data-storage-credentials.type';
 import {
+  BIGQUERY_MANAGED_TYPE,
   BIGQUERY_OAUTH_TYPE,
+  BigQueryManagedCredentials,
   BigQueryOAuthCredentials,
 } from './bigquery/schemas/bigquery-credentials.schema';
 import { DataStorage } from '../entities/data-storage.entity';
@@ -19,6 +22,12 @@ import {
 } from '../exceptions/google-oauth.exceptions';
 import { StorageCredentialUnavailableException } from '../exceptions/storage-credential-unavailable.exception';
 import { toAdapterCredentials } from './storage-credential-definitions';
+import { ManagedStorageService } from '../owox-storage/managed-storage.service';
+import { OwoxStorageIdentity } from '../owox-storage/owox-storage-identity.service';
+import {
+  OWOX_STORAGE_SCAN_BUDGET,
+  type OwoxStorageScanBudgetFactory,
+} from '../owox-storage/owox-storage-scan-budget.token';
 
 @Injectable()
 export class DataStorageCredentialsResolver {
@@ -26,11 +35,16 @@ export class DataStorageCredentialsResolver {
     @InjectRepository(DataStorage)
     private readonly dataStorageRepository: Repository<DataStorage>,
     private readonly storageCredentials: StorageCredentialBindingService,
-    private readonly legacy: LegacyStorageCredentialReader
+    private readonly legacy: LegacyStorageCredentialReader,
+    private readonly managedStorages: ManagedStorageService,
+    private readonly identity: OwoxStorageIdentity,
+    @Inject(OWOX_STORAGE_SCAN_BUDGET)
+    private readonly scanBudgets: OwoxStorageScanBudgetFactory
   ) {}
 
   /** True when the Storage has a bound Credential or an old credentials row. */
   async hasCredentials(storage: DataStorage): Promise<boolean> {
+    if (await this.managedStorages.findByStorageId(storage.id)) return true;
     if (this.legacy.hasOldKey(storage)) return true;
     const bound = await this.storageCredentials.findBoundStorageIds(storage.projectId, [
       storage.id,
@@ -69,6 +83,27 @@ export class DataStorageCredentialsResolver {
   }
 
   async resolve(storage: DataStorage): Promise<DataStorageCredentials> {
+    // A managed storage never reaches the Credential binding or the old key.
+    const managed = await this.managedStorages.findByStorageId(storage.id);
+    if (managed) {
+      if (managed.deprovisionedAt) {
+        throw new BusinessViolationException(
+          'This OWOX Storage and its data were deleted. Restore the storage on its page to continue.'
+        );
+      }
+      return {
+        type: BIGQUERY_MANAGED_TYPE,
+        // A restore changes the record, so a recreated account gets a new client on every pod.
+        authClient: await this.identity.impersonate(
+          managed.serviceAccountEmail,
+          managed.modifiedAt.getTime().toString()
+        ),
+        serviceAccountEmail: managed.serviceAccountEmail,
+        datasetId: managed.datasetId,
+        internalDatasetId: managed.internalDatasetId,
+        scanBudget: this.scanBudgets.forStorage(managed),
+      } satisfies BigQueryManagedCredentials;
+    }
     const bound = await this.storageCredentials.resolveForStorage(storage);
     // A bound Storage never falls back to the old row, whatever happened to its Credential.
     if (!bound) return this.legacy.resolve(storage);

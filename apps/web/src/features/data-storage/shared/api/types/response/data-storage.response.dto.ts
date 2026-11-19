@@ -37,6 +37,13 @@ export type DataStorageConfigDto =
   | RedshiftConfigDto
   | DatabricksConfigDto;
 
+export type OwoxStorageLocation = 'US' | 'EU';
+
+export interface OwoxStorageDto {
+  location: OwoxStorageLocation;
+  datasetId: string;
+}
+
 export interface DataStorageResponseDto {
   id: string;
   title: string;
@@ -53,4 +60,6 @@ export interface DataStorageResponseDto {
   availableForUse?: boolean;
   availableForMaintenance?: boolean;
   contexts?: ContextSummary[];
+  /** Present only for an OWOX Storage. */
+  owoxStorage?: OwoxStorageDto;
 }
