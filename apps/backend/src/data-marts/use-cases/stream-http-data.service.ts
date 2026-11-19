@@ -860,7 +860,7 @@ export class StreamHttpDataService {
           reject(error);
         };
         res.once('close', onClose);
-        // The client may leave before this listener exists, for example during the totals.
+        // The client can already be gone when the count starts.
         if (res.destroyed) onClose();
       });
       return { totalRowCount: await Promise.race([count, timeout, left]) };

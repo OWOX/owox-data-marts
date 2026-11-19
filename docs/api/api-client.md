@@ -459,7 +459,7 @@ Set `includeTotalRowCount: true` to read the row count of the full result, witho
 first row. BigQuery and Snowflake stop the query at that limit. On other storages the query runs to
 its end. `data.totalRowCount` is `undefined` when the read did not ask, when the count failed or
 took longer than 60 s, when an older server ignored the option, or when a plugin runs in an older
-OWOX web app whose host bridge drops the header. The run records the count in
+OWOX web app that does not pass the header to the plugin. The run records the count in
 `additionalParams.httpData.totalRowCount`, or the reason in `additionalParams.httpData.totalRowCountError`.
 `reports.traverseData()` returns the same class. Its `totalRowCount` is always `undefined`.
 

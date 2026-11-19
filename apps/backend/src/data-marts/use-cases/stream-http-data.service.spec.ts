@@ -1191,7 +1191,36 @@ describe('StreamHttpDataService', () => {
         expect(countSignal?.aborted).toBe(true);
         const writes = runWrites();
         expect(writes.at(-1)!.status).toBe(DataMartRunStatus.FAILED);
+        expect(writes.at(-1)!.metadata.totalRowCountError).toContain('disconnected');
         expect(writes.filter(w => w.status === DataMartRunStatus.RUNNING)).toHaveLength(1);
+      });
+
+      it('starts the count while the totals are still running', async () => {
+        askForTotalRowCount();
+        let finishTotals: (totals: null) => void = () => undefined;
+        reportTotals.computeTotals.mockImplementationOnce(
+          () => new Promise(resolve => (finishTotals = resolve))
+        );
+        reportTotals.computeRowCount.mockResolvedValueOnce(7);
+        const res = mockResponse();
+
+        const done = service.stream(fakeCommand(), res);
+        for (
+          let tick = 0;
+          tick < 50 && reportTotals.computeRowCount.mock.calls.length === 0;
+          tick++
+        ) {
+          await new Promise(resolve => setImmediate(resolve));
+        }
+        const countCallsBeforeTotals = reportTotals.computeRowCount.mock.calls.length;
+        const writesBeforeTotals = runWrites().length;
+        finishTotals(null);
+        await done;
+
+        expect(countCallsBeforeTotals).toBe(1);
+        expect(writesBeforeTotals).toBe(1);
+        expect(res.setHeader).toHaveBeenCalledWith(HTTP_DATA_TOTAL_ROW_COUNT_HEADER, '7');
+        expect(runWrites().at(-1)!.status).toBe(DataMartRunStatus.SUCCESS);
       });
 
       it('stops the count when the client left during the totals', async () => {
@@ -1215,6 +1244,7 @@ describe('StreamHttpDataService', () => {
         expect(countSignal?.aborted).toBe(true);
         const writes = runWrites();
         expect(writes.at(-1)!.status).toBe(DataMartRunStatus.FAILED);
+        expect(writes.at(-1)!.metadata.totalRowCountError).toContain('disconnected');
         expect(writes.filter(w => w.status === DataMartRunStatus.RUNNING)).toHaveLength(1);
       });
 
