@@ -55,7 +55,7 @@ describe('SnowflakeQueryBuilder', () => {
     const sql = build().buildQuery(sqlDef, {
       filters: [{ column: 'id', operator: 'gt', value: 0 }],
     });
-    expect(sql).toContain('FROM (SELECT id, created_at FROM raw)');
+    expect(sql).toContain('FROM (\nSELECT id, created_at FROM raw\n)');
   });
 
   it('still throws for table-pattern definitions', () => {

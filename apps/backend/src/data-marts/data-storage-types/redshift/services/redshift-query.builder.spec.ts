@@ -43,7 +43,7 @@ describe('RedshiftQueryBuilder', () => {
     const sql = builder.buildQuery(sqlDef, {
       filters: [{ column: 'a', operator: 'eq', value: 1 }],
     });
-    expect(sql).toBe(`SELECT *\nFROM (SELECT a FROM t) AS subq\nWHERE "a" = 1`);
+    expect(sql).toBe(`SELECT *\nFROM (\nSELECT a FROM t\n) AS subq\nWHERE "a" = 1`);
   });
 
   it('uses mainTableReference for a SQL-def with output controls', () => {

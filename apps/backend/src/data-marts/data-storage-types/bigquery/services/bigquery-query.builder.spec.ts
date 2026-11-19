@@ -101,7 +101,14 @@ describe('BigQueryQueryBuilder', () => {
       const sql = await builder.buildQuery(sqlDefinition('SELECT a, b, c FROM t;'), {
         columns: ['a', 'c'],
       });
-      expect(sql).toBe('SELECT\n  `a`,\n  `c`\nFROM (SELECT a, b, c FROM t) AS src');
+      expect(sql).toBe('SELECT\n  `a`,\n  `c`\nFROM (\nSELECT a, b, c FROM t\n) AS src');
+    });
+
+    it('puts the closing parenthesis on its own line when the SQL ends with a comment', async () => {
+      const sql = await builder.buildQuery(sqlDefinition('SELECT a FROM t -- note'), {
+        columns: ['a'],
+      });
+      expect(sql).toBe('SELECT\n  `a`\nFROM (\nSELECT a FROM t -- note\n) AS src');
     });
 
     it('ignores empty columns list and falls back to SELECT *', async () => {

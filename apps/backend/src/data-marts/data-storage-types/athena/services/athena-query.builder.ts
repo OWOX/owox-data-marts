@@ -157,7 +157,7 @@ export class AthenaQueryBuilder implements DataMartQueryBuilder {
     if (isSqlDefinition(definition)) {
       if (queryOptions?.columns?.length) {
         const cleanQuery = resolvedSqlQueryOf(definition, this.type).trim().replace(/;\s*$/, '');
-        return composeSelectFromClause(selectList, `(${cleanQuery})`);
+        return composeSelectFromClause(selectList, `(\n${cleanQuery}\n)`);
       }
       return resolvedSqlQueryOf(definition, this.type).trim();
     }
@@ -185,7 +185,7 @@ export class AthenaQueryBuilder implements DataMartQueryBuilder {
         return options.mainTableReference;
       }
       const cleanQuery = resolvedSqlQueryOf(definition, this.type).trim().replace(/;\s*$/, '');
-      return `(${cleanQuery})`;
+      return `(\n${cleanQuery}\n)`;
     }
     throw new Error('Invalid data mart definition');
   }

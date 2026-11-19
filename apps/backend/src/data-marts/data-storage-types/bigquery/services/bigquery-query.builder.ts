@@ -186,7 +186,7 @@ export class BigQueryQueryBuilder implements DataMartQueryBuilderAsync {
     if (isSqlDefinition(definition)) {
       // Reached when columns are provided without output controls — wrap user SQL.
       const cleanQuery = resolvedSqlQueryOf(definition, this.type).trim().replace(/;\s*$/, '');
-      return `(${cleanQuery})`;
+      return `(\n${cleanQuery}\n)`;
     }
     throw new Error('Invalid data mart definition');
   }

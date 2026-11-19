@@ -169,7 +169,7 @@ export class RedshiftQueryBuilder implements DataMartQueryBuilder {
     if (isSqlDefinition(definition)) {
       if (queryOptions?.columns?.length) {
         const cleanQuery = resolvedSqlQueryOf(definition, this.type).trim().replace(/;\s*$/, '');
-        return composeSelectFromClause(selectList, `(${cleanQuery}) AS subq`);
+        return composeSelectFromClause(selectList, `(\n${cleanQuery}\n) AS subq`);
       }
       return resolvedSqlQueryOf(definition, this.type).trim();
     }
@@ -197,7 +197,7 @@ export class RedshiftQueryBuilder implements DataMartQueryBuilder {
         return options.mainTableReference;
       }
       const cleanQuery = resolvedSqlQueryOf(definition, this.type).trim().replace(/;\s*$/, '');
-      return `(${cleanQuery}) AS subq`;
+      return `(\n${cleanQuery}\n) AS subq`;
     }
     throw new Error('Invalid data mart definition');
   }
