@@ -39,12 +39,14 @@ export function sqlLexingOptionsFor(storageType: DataStorageType): SqlLexingOpti
     storageType === DataStorageType.GOOGLE_BIGQUERY ||
     storageType === DataStorageType.LEGACY_GOOGLE_BIGQUERY;
   const snowflake = storageType === DataStorageType.SNOWFLAKE;
+  const duckDb = storageType === DataStorageType.DUCKDB;
   return {
     hashLineComments: bigQuery,
     tripleQuotedStrings: bigQuery,
     slashLineComments: snowflake,
-    dollarQuotedStrings: snowflake,
-    backslashIsLiteral: storageType === DataStorageType.AWS_ATHENA,
+    // ponytail: DuckDB also has `$tag$…$tag$`; the scanner reads only `$$…$$`.
+    dollarQuotedStrings: snowflake || duckDb,
+    backslashIsLiteral: storageType === DataStorageType.AWS_ATHENA || duckDb,
   };
 }
 

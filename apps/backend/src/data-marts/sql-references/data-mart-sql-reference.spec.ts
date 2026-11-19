@@ -97,6 +97,16 @@ describe('parseDataMartReferences', () => {
       DataStorageType.SNOWFLAKE,
       `SELECT $$it's [Old](dm:${ORDERS})$$ AS s FROM [New](dm:${COSTS}) n WHERE n.x = 'y'`,
     ],
+    [
+      'a backslash on DuckDB, where it ends no literal',
+      DataStorageType.DUCKDB,
+      String.raw`SELECT * FROM p WHERE path LIKE '%\_x' ESCAPE '\' UNION ALL SELECT * FROM [New](dm:${COSTS})`,
+    ],
+    [
+      'a dollar-quoted string on DuckDB',
+      DataStorageType.DUCKDB,
+      `SELECT $$it's [Old](dm:${ORDERS})$$ AS s FROM [New](dm:${COSTS}) n WHERE n.x = 'y'`,
+    ],
   ])('reads %s as one literal', (_case, storageType, sql) => {
     expect(
       parseDataMartReferences(sql, sqlLexingOptionsFor(storageType)).map(r => r.title)
