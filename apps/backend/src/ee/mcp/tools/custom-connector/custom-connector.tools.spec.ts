@@ -509,6 +509,64 @@ describe('custom connector tools through the MCP SDK', () => {
     expect(facade.saveDraft).toHaveBeenCalledWith('project-1', 'connector', manifest);
   });
 
+  describe('with a substream node', () => {
+    const parent = { request: { path: '/pages' }, recordPath: ['d'], key: 'Query' };
+    const substreamManifest = (substreamParent: unknown) => ({
+      ...manifest,
+      nodes: {
+        pages: { request: { path: '/pages' } },
+        page_queries: {
+          request: { path: '/queries' },
+          partitionRouter: { type: 'substream', parent: substreamParent, partitionField: 'page' },
+        },
+      },
+    });
+
+    it.each([
+      ['create_custom_connector', { name: 'CustomApi', title: 'Custom API' }],
+      ['save_custom_connector_draft', { connector_id: 'connector' }],
+    ] as const)(
+      '%s saves it and get_custom_connector_version reads its parent key',
+      async (name, args) => {
+        const client = await open();
+        const stored = substreamManifest(parent);
+        const saved = await client.callTool({ name, arguments: { ...args, manifest: stored } });
+        expect(saved.isError).not.toBe(true);
+        expect(
+          name === 'create_custom_connector'
+            ? facade.create.mock.calls[0][1].manifest
+            : facade.saveDraft.mock.calls[0][2]
+        ).toEqual(stored);
+
+        facade.getVersion.mockResolvedValue({ ...state, manifest: stored });
+        const read = await client.callTool({
+          name: 'get_custom_connector_version',
+          arguments: { connector_id: 'connector', version: 1 },
+        });
+        expect(read.structuredContent).toEqual({ ...state, manifest: stored });
+      }
+    );
+
+    it('save_custom_connector_draft still refuses a literal key under parent.request.headers', async () => {
+      const client = await open();
+      const result = await client.callTool({
+        name: 'save_custom_connector_draft',
+        arguments: {
+          connector_id: 'connector',
+          manifest: substreamManifest({
+            ...parent,
+            request: { path: '/pages', headers: { 'X-API-Key': 'abc123' } },
+          }),
+        },
+      });
+      expect(result.isError).toBe(true);
+      expect(JSON.stringify(result.content)).toContain(
+        'nodes.page_queries.partitionRouter.parent.request.headers.X-API-Key'
+      );
+      expect(facade.saveDraft).not.toHaveBeenCalled();
+    });
+  });
+
   it.each(['create_custom_connector', 'get_custom_connector', 'publish_custom_connector'])(
     'returns an encoded Builder link from %s using the configured public origin',
     async name => {

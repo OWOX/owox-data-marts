@@ -30,6 +30,8 @@ const ZONELESS_DATETIME = /^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}(:\d{2}(\.\d+)?)?$/;
 // JavaScript already reads a bare YYYY-MM-DD as UTC.
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const NAMES_A_ZONE = /Z$|[+-]\d{2}:?\d{2}\b|\bGMT\b|\bUTC\b/i;
+// The milliseconds are UTC; the offset only names the zone of the sender.
+const MICROSOFT_JSON_DATE = /^\/Date\((-?\d+)([+-]\d{4})?\)\/$/;
 
 function toDate(value) {
   if (typeof value !== 'string') {
@@ -37,6 +39,8 @@ function toDate(value) {
     return Number.isNaN(d.getTime()) ? null : d;
   }
   const text = value.trim();
+  const microsoft = MICROSOFT_JSON_DATE.exec(text);
+  if (microsoft) return toDate(Number(microsoft[1]));
   const d = new Date(ZONELESS_DATETIME.test(text) ? `${text.replace(' ', 'T')}Z` : text);
   if (Number.isNaN(d.getTime())) return null;
   if (ZONELESS_DATETIME.test(text) || ISO_DATE.test(text) || NAMES_A_ZONE.test(text)) return d;

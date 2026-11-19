@@ -1,9 +1,39 @@
 import {
+  createMcpInputSecretRedactor,
   maskMcpManifestKeys,
   mcpManifestKeyPaths,
   mcpSecretParameterNames,
   redactMcpTelemetry,
 } from './mcp-telemetry-redaction';
+
+const parentList = {
+  key: 'Query',
+  request: {
+    method: 'GET',
+    path: '/GetPageStats',
+    queryParameters: { siteUrl: '{{ parameters.SiteUrl }}' },
+  },
+  recordPath: ['d'],
+};
+const substream = (parent: unknown, router: Record<string, unknown> = {}) => ({
+  nodes: {
+    page_query_stats: {
+      request: {
+        method: 'GET',
+        path: '/GetPageQueryStats',
+        queryParameters: { page: '{{ stream_slice.page }}' },
+      },
+      partitionRouter: { type: 'substream', parent, partitionField: 'page', ...router },
+    },
+  },
+});
+const keyParameterAuth = {
+  parameters: { key: { attributes: ['SECRET'] } },
+  authentication: {
+    type: 'apiKey',
+    inject: { into: 'query', name: 'apikey', format: '{{ parameters.key }}' },
+  },
+};
 
 describe('redactMcpTelemetry for custom connectors', () => {
   it('preserves Credential IDs without masking their copies as secret values', () => {
@@ -981,6 +1011,18 @@ describe('redactMcpTelemetry for custom connectors', () => {
     expect(input).toEqual(original);
   });
 
+  it('keeps the parent key of a substream as a path, not a secret value', () => {
+    const input = { manifest: { ...substream(parentList), ...keyParameterAuth } };
+
+    expect(redactMcpTelemetry(input)).toMatchObject({
+      manifest: { nodes: { page_query_stats: { partitionRouter: { parent: { key: 'Query' } } } } },
+    });
+    expect(redactMcpTelemetry({ text: 'GetPageQueryStats' }, input)).toEqual({
+      text: 'GetPageQueryStats',
+    });
+    expect(createMcpInputSecretRedactor(input)('GetPageQueryStats')).toBe('GetPageQueryStats');
+  });
+
   it('protects flagged values even when parameter definitions are unfinished', () => {
     const input = {
       manifest: {
@@ -1096,8 +1138,110 @@ describe('mcpManifestKeyPaths', () => {
       node({ body: { api_tokens: ['sk_live_123456'], tokens: 'sk_live_999' } }),
       ['nodes.items.request.body.api_tokens.0', 'nodes.items.request.body.tokens'],
     ],
+    [
+      'a literal key in a substream parent request',
+      substream({
+        ...parentList,
+        request: { ...parentList.request, headers: { 'X-API-Key': 'abc123' } },
+      }),
+      ['nodes.page_query_stats.partitionRouter.parent.request.headers.X-API-Key'],
+    ],
+    [
+      'a literal key inside a parent key that is not a path',
+      substream({ ...parentList, key: { api_key: 'sk_live_123456' } }),
+      ['nodes.page_query_stats.partitionRouter.parent.key.api_key'],
+    ],
+    [
+      'a key under a body property named parent',
+      node({ body: { parent: { key: 'sk_live_123456' } } }),
+      ['nodes.items.request.body.parent.key'],
+    ],
+    [
+      'a key at a partition router path inside a request body',
+      node({ body: { partitionRouter: { parent: { key: 'sk_live_123456' } } } }),
+      ['nodes.items.request.body.partitionRouter.parent.key'],
+    ],
+    [
+      'a key at a partition router path inside a parameter default',
+      {
+        parameters: {
+          P: {
+            requiredType: 'object',
+            default: { partitionRouter: { parent: { key: 'sk_live_123456' } } },
+          },
+        },
+      },
+      ['parameters.P.default.partitionRouter.parent.key'],
+    ],
+    [
+      'a key at a partition router path under an unknown top-level key',
+      { foo: { bar: { partitionRouter: { parent: { key: 'sk_live_123456' } } } } },
+      ['foo.bar.partitionRouter.parent.key'],
+    ],
+    [
+      'a key under a parent directly in a node request',
+      node({ parent: { key: 'sk_live_123456' } }),
+      ['nodes.items.request.parent.key'],
+    ],
+    [
+      'a key under a partition router property other than parent',
+      substream(parentList, { other: { key: 'sk_live_123456' } }),
+      ['nodes.page_query_stats.partitionRouter.other.key'],
+    ],
+    [
+      'a parent key masked by an earlier read',
+      substream({ ...parentList, key: '[REDACTED]' }),
+      ['nodes.page_query_stats.partitionRouter.parent.key'],
+    ],
+    [
+      'a URL with credentials in a parent key',
+      substream({ ...parentList, key: 'https://u:s3cretpass@h/x' }),
+      ['nodes.page_query_stats.partitionRouter.parent.key'],
+    ],
   ])('finds %s', (_label, manifest, paths) => {
     expect(mcpManifestKeyPaths(manifest)).toEqual(paths);
+  });
+
+  it('accepts the parent key of a substream', () => {
+    const manifest = substream(parentList);
+    const masked = maskMcpManifestKeys(manifest) as ReturnType<typeof substream>;
+
+    expect(mcpManifestKeyPaths(manifest)).toEqual([]);
+    expect(masked).toEqual(manifest);
+    expect(
+      Object.keys(masked.nodes.page_query_stats.partitionRouter.parent as Record<string, unknown>)
+    ).toEqual(['key', 'request', 'recordPath']);
+  });
+
+  it('accepts the parent key when authentication uses a parameter named key', () => {
+    expect(mcpManifestKeyPaths({ ...substream(parentList), ...keyParameterAuth })).toEqual([]);
+  });
+
+  it('keeps the parent key and masks a parent header key when authentication uses key', () => {
+    const masked = maskMcpManifestKeys({
+      ...substream({
+        ...parentList,
+        request: { ...parentList.request, headers: { 'X-API-Key': 'abc123' } },
+      }),
+      ...keyParameterAuth,
+    }) as ReturnType<typeof substream>;
+    const parent = masked.nodes.page_query_stats.partitionRouter.parent as {
+      key: string;
+      request: { headers: Record<string, string> };
+    };
+
+    expect(parent.key).toBe('Query');
+    expect(Object.keys(parent)).toEqual(['key', 'request', 'recordPath']);
+    expect(parent.request.headers['X-API-Key']).toBe('[REDACTED]');
+  });
+
+  it('accepts a parent with an own __proto__ key', () => {
+    const manifest = substream(JSON.parse('{"__proto__": "x", "key": "Query"}'));
+    const masked = maskMcpManifestKeys(manifest) as ReturnType<typeof substream>;
+    const parent = masked.nodes.page_query_stats.partitionRouter.parent as object;
+
+    expect(mcpManifestKeyPaths(manifest)).toEqual([]);
+    expect(Object.getOwnPropertyDescriptor(parent, '__proto__')?.value).toBe('x');
   });
 
   it('accepts parameter references and public settings', () => {

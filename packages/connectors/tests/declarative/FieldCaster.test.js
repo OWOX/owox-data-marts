@@ -113,6 +113,20 @@ describe('FieldCaster booleans and datetimes', () => {
     );
     assert.strictEqual(castOne('datetime', 'not a date'), null);
   });
+
+  it('reads a Microsoft JSON date as the UTC instant of its milliseconds', () => {
+    const iso = (type, value) => castOne(type, value).toISOString();
+    assert.strictEqual(iso('date', '/Date(1752883200000)/'), '2025-07-19T00:00:00.000Z');
+    assert.strictEqual(iso('datetime', '/Date(1752883200000+0300)/'), '2025-07-19T00:00:00.000Z');
+    assert.strictEqual(iso('datetime', '/Date(1752883200000-0700)/'), '2025-07-19T00:00:00.000Z');
+    assert.strictEqual(iso('date', '/Date(1316156400000-0700)/'), '2011-09-16T07:00:00.000Z');
+    assert.strictEqual(iso('date', ' /Date(-86400000)/ '), '1969-12-31T00:00:00.000Z');
+    assert.strictEqual(castOne('date', '/Date(99999999999999999)/'), null);
+    assert.strictEqual(castOne('date', '/Date(abc)/'), null);
+    assert.strictEqual(iso('date', '/Date(0)/'), '1970-01-01T00:00:00.000Z');
+    assert.strictEqual(castOne('date', 'x /Date(1752883200000)/'), null);
+    assert.strictEqual(castOne('string', '/Date(1752883200000)/'), '/Date(1752883200000)/');
+  });
 });
 
 // A date with no zone was read in the host's zone and written as UTC, so a self-hosted install
