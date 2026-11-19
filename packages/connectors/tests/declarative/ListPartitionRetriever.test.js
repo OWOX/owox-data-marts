@@ -2,6 +2,7 @@ import assert from 'node:assert';
 import { describe, it } from 'node:test';
 import { ListPartitionRetriever } from '../../src/Core/Declarative/ListPartitionRetriever.js';
 import { RecordSelector } from '../../src/Core/Declarative/RecordSelector.js';
+import { sliceOf } from '../../src/Core/Declarative/partitionChild.js';
 
 const childRequestSpec = { method: 'GET', path: '/stats/{{ stream_slice.country }}' };
 const childRecordSelector = new RecordSelector({ recordPath: ['rows'] });
@@ -194,5 +195,61 @@ describe('ListPartitionRetriever children and the page budget', () => {
     await r.run({ parameters: {} });
 
     assert.strictEqual(traces.length, 2);
+  });
+
+  it('links each record to the slice of its child request', async () => {
+    const pr = { type: 'list', values: ['US', 'UK'], partitionField: 'country' };
+    const r = new ListPartitionRetriever({
+      requester: {
+        async send(spec, scope) {
+          return { rows: [{ who: scope.stream_slice.country }, { who: 'x' }] };
+        },
+      },
+      partitionRouter: pr,
+      childRequestSpec,
+      childRecordSelector,
+    });
+    const out = await r.run({ parameters: {} });
+    assert.deepStrictEqual(out.map(sliceOf), [
+      { country: 'US' },
+      { country: 'US' },
+      { country: 'UK' },
+      { country: 'UK' },
+    ]);
+    assert.deepStrictEqual(Object.keys(out[0]), ['who']);
+  });
+
+  it('links an array record to the slice of its child request', async () => {
+    const pr = { type: 'list', values: ['US'], partitionField: 'country' };
+    const r = new ListPartitionRetriever({
+      requester: {
+        async send() {
+          return { rows: [[1, 2]] };
+        },
+      },
+      partitionRouter: pr,
+      childRequestSpec,
+      childRecordSelector,
+    });
+    const out = await r.run({ parameters: {} });
+    assert.deepStrictEqual(out, [[1, 2]]);
+    assert.deepStrictEqual(sliceOf(out[0]), { country: 'US' });
+  });
+
+  it('a child that returns strings runs without error and gets no slice', async () => {
+    const pr = { type: 'list', values: ['US'], partitionField: 'country' };
+    const r = new ListPartitionRetriever({
+      requester: {
+        async send() {
+          return { rows: ['x', 5, null] };
+        },
+      },
+      partitionRouter: pr,
+      childRequestSpec,
+      childRecordSelector,
+    });
+    const out = await r.run({ parameters: {} });
+    assert.deepStrictEqual(out, ['x', 5, null]);
+    assert.deepStrictEqual(out.map(sliceOf), [undefined, undefined, undefined]);
   });
 });

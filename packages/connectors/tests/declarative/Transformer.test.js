@@ -2,6 +2,8 @@ import assert from 'node:assert';
 import { describe, it } from 'node:test';
 import { Transformer } from '../../src/Core/Declarative/Transformer.js';
 import { TemplateEngine } from '../../src/Core/Declarative/TemplateEngine.js';
+import { runChildSlices } from '../../src/Core/Declarative/partitionChild.js';
+import { RecordSelector } from '../../src/Core/Declarative/RecordSelector.js';
 
 const engine = new TemplateEngine();
 
@@ -121,5 +123,70 @@ describe('Transformer', () => {
       () => new Transformer([{ type: 'magic' }], engine).transform([{}], {}),
       /unknown transformation type "magic"/
     );
+  });
+
+  describe('stream_slice in add', () => {
+    // Fresh rows on every call: one shared object would link to the last slice only.
+    const sliced = async () =>
+      runChildSlices(
+        {
+          requester: { send: async () => ({ rows: [{ Meta: { id: 1 } }] }) },
+          sliceValues: ['a', 'b'],
+          partitionField: 'page',
+          childRequestSpec: { method: 'GET', path: '/x' },
+          childRecordSelector: new RecordSelector({ recordPath: ['rows'] }),
+          maxPages: 1,
+        },
+        {}
+      );
+    const add = { type: 'add', field: 'page', value: '{{ stream_slice.page }}' };
+
+    it('renders the slice of each record', async () => {
+      const recs = await sliced();
+      const out = new Transformer([add], engine).transform(recs, {});
+      assert.deepStrictEqual(
+        out.map(r => r.page),
+        ['a', 'b']
+      );
+      assert.deepStrictEqual(Object.keys(out[0]), ['Meta', 'page']);
+      assert.deepStrictEqual(recs[0], { Meta: { id: 1 } });
+    });
+
+    it('still renders after flatten and keysToLower', async () => {
+      const out = new Transformer(
+        [{ type: 'flatten' }, { type: 'keysToLower' }, add],
+        engine
+      ).transform(await sliced(), {});
+      assert.deepStrictEqual(out, [
+        { meta_id: 1, page: 'a' },
+        { meta_id: 1, page: 'b' },
+      ]);
+    });
+
+    it('renders empty for a record with no slice and never adds a stream_slice key', async () => {
+      const out = new Transformer([add], engine).transform([...(await sliced()), { id: 2 }], {});
+      assert.ok(out.every(r => !('stream_slice' in r)));
+      assert.deepStrictEqual(
+        out.map(r => r.page),
+        ['a', 'b', '']
+      );
+    });
+
+    it('renders empty for a slice path other than the partition field', async () => {
+      const other = { type: 'add', field: 'x', value: '{{ stream_slice.other }}' };
+      const out = new Transformer([other], engine).transform(await sliced(), {});
+      assert.deepStrictEqual(
+        out.map(r => r.x),
+        ['', '']
+      );
+    });
+
+    it('still renders after remove', async () => {
+      const out = new Transformer([{ type: 'remove', field: 'Meta' }, add], engine).transform(
+        await sliced(),
+        {}
+      );
+      assert.deepStrictEqual(out, [{ page: 'a' }, { page: 'b' }]);
+    });
   });
 });

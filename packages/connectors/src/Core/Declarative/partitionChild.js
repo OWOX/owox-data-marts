@@ -8,6 +8,11 @@
 import { SyncRetriever } from './SyncRetriever.js';
 import { Paginator } from './Paginator.js';
 
+// Each child record keeps the slice it came from, for transformations.add; never a key of the record.
+const recordSlices = new WeakMap();
+const isLinkable = record => record !== null && typeof record === 'object';
+export const sliceOf = record => (isLinkable(record) ? recordSlices.get(record) : undefined);
+
 /**
  * Runs the child request once per slice value with the value exposed as
  * scope.stream_slice[partitionField], concatenating all child records. A fresh
@@ -37,7 +42,8 @@ export async function runChildSlices(
   let total = 0;
   for (const value of sliceValues) {
     if (total >= maxRows) break;
-    const childScope = { ...scope, stream_slice: { [partitionField]: value } };
+    const slice = { [partitionField]: value };
+    const childScope = { ...scope, stream_slice: slice };
     const child = new SyncRetriever({
       requester,
       recordSelector: childRecordSelector,
@@ -48,6 +54,7 @@ export async function runChildSlices(
       context,
     });
     const records = await child.run(childScope);
+    for (const record of records) if (isLinkable(record)) recordSlices.set(record, slice);
     if (records.length > 0) {
       batches.push(records);
       total += records.length;
