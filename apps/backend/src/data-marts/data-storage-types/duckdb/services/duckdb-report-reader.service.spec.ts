@@ -149,7 +149,12 @@ describe('DuckDbReportReader', () => {
 
     it('reads from the first row again when no batch id is given, as after the cache probe', async () => {
       const reader = buildReader();
+      const factorySpy = jest.spyOn(DuckDbApiAdapterFactory.prototype, 'createForDatabasePath');
       await reader.prepareReportData(buildReport(storageId, 'main.orders', fields));
+      const streamQuerySpy = jest.spyOn(
+        factorySpy.mock.results[0].value as DuckDbApiAdapter,
+        'streamQuery'
+      );
 
       const probe = await reader.readReportDataBatch(undefined, 1);
       const all = await reader.readReportDataBatch(undefined, 10);
@@ -160,6 +165,26 @@ describe('DuckDbReportReader', () => {
       expect(all.dataRows.map(row => row[0])).toEqual([1, 2, 3]);
       expect(all.nextDataBatchId).toBeNull();
       expect(afterEnd.dataRows.map(row => row[0])).toEqual([1, 2, 3]);
+      // The probe's rows are replayed, so the query runs once.
+      expect(streamQuerySpy).toHaveBeenCalledTimes(1);
+    });
+
+    it('runs the query again for a read from the start after a later batch', async () => {
+      const reader = buildReader();
+      const factorySpy = jest.spyOn(DuckDbApiAdapterFactory.prototype, 'createForDatabasePath');
+      await reader.prepareReportData(buildReport(storageId, 'main.orders', fields));
+      const streamQuerySpy = jest.spyOn(
+        factorySpy.mock.results[0].value as DuckDbApiAdapter,
+        'streamQuery'
+      );
+
+      const first = await reader.readReportDataBatch(undefined, 1);
+      await reader.readReportDataBatch(first.nextDataBatchId ?? undefined, 1);
+      const again = await reader.readReportDataBatch(undefined, 10);
+      await reader.finalize();
+
+      expect(again.dataRows.map(row => row[0])).toEqual([1, 2, 3]);
+      expect(streamQuerySpy).toHaveBeenCalledTimes(2);
     });
 
     it('releases the file on finalize', async () => {

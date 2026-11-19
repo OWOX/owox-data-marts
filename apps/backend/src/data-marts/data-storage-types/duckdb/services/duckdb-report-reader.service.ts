@@ -34,8 +34,9 @@ import {
  * out-of-process result cache — so this reader reads the query result via a STREAMING
  * cursor (`DuckDbApiAdapter.streamQuery`) and never materializes the whole result set in
  * memory. `readReportDataBatch` pulls chunk-sized pages from the stream and buffers only the
- * (small) leftover past `maxDataRows` in `this.leftover`. A read without a batch id runs the
- * query again from its first row, as BigQuery's first page does.
+ * (small) leftover past `maxDataRows` in `this.leftover`. A read without a batch id starts
+ * again from the first row, as BigQuery's first page does. After only the first batch, it
+ * replays that batch from memory; after a later batch, it runs the query again.
  */
 @Injectable({ scope: Scope.TRANSIENT })
 export class DuckDbReportReader implements DataStorageReportReader {
@@ -53,6 +54,8 @@ export class DuckDbReportReader implements DataStorageReportReader {
   private leftover: Record<string, unknown>[] = [];
   private exhausted = false;
   private batchCounter = 0;
+  // Rows of the first batch while no later batch was read: a read from the start replays them.
+  private firstBatch?: Record<string, unknown>[];
 
   constructor(
     private readonly adapterFactory: DuckDbApiAdapterFactory,
@@ -107,6 +110,7 @@ export class DuckDbReportReader implements DataStorageReportReader {
     this.leftover = [];
     this.exhausted = false;
     this.batchCounter = 0;
+    this.firstBatch = undefined;
 
     return new ReportDataDescription(this.reportDataHeaders);
   }
@@ -116,8 +120,16 @@ export class DuckDbReportReader implements DataStorageReportReader {
       throw new Error('Report data must be prepared before read');
     }
 
-    // The Looker Studio cache reads a row before its request reads from the first one.
-    if (!batchId) await this.restart();
+    if (!batchId) {
+      // The Looker Studio cache reads a row before its request reads from the first one.
+      // Continue the open query from that row instead of running it again.
+      if (this.firstBatch) {
+        this.leftover = [...this.firstBatch, ...this.leftover];
+        this.batchCounter = 0;
+      } else {
+        await this.restart();
+      }
+    }
     if (!this.exhausted) await this.ensureStream();
 
     const out = this.leftover;
@@ -133,6 +145,7 @@ export class DuckDbReportReader implements DataStorageReportReader {
     if (out.length > maxDataRows) {
       this.leftover = out.splice(maxDataRows);
     }
+    this.firstBatch = batchId ? undefined : out;
 
     const mappedRows = this.mapRowsToHeaders(out);
 
@@ -184,6 +197,7 @@ export class DuckDbReportReader implements DataStorageReportReader {
     this.leftover = [];
     this.exhausted = false;
     this.batchCounter = 0;
+    this.firstBatch = undefined;
     await stream?.close();
   }
 
