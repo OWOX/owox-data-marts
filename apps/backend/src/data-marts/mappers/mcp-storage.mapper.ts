@@ -26,13 +26,19 @@ import type {
   StorageResourceNode,
 } from '../data-storage-types/interfaces/storage-resource-browser.interface';
 
-const configSchemas = {
+// Typed by every storage type, so a new type fails the build until it is listed here.
+const configSchemas: Record<
+  DataStorageType,
+  { safeParse(config: unknown): { success: boolean; data?: DataStorageConfig } } | null
+> = {
   [DataStorageType.GOOGLE_BIGQUERY]: BigQueryConfigSchema,
   [DataStorageType.LEGACY_GOOGLE_BIGQUERY]: BigQueryConfigSchema,
   [DataStorageType.AWS_ATHENA]: AthenaConfigSchema,
   [DataStorageType.SNOWFLAKE]: SnowflakeConfigSchema,
   [DataStorageType.AWS_REDSHIFT]: RedshiftConfigSchema,
   [DataStorageType.DATABRICKS]: DatabricksWorkspaceConfigSchema,
+  // DuckDB has no settings: its file path comes from the Storage id.
+  [DataStorageType.DUCKDB]: null,
 };
 
 @Injectable()
@@ -105,8 +111,8 @@ export class McpStorageMapper {
   }
 
   toConfiguration(type: DataStorageType, config: unknown): DataStorageConfig | null {
-    const parsed = configSchemas[type].safeParse(config);
-    return parsed.success ? parsed.data : null;
+    const parsed = configSchemas[type]?.safeParse(config);
+    return parsed?.success ? (parsed.data ?? null) : null;
   }
 
   toCredential(
