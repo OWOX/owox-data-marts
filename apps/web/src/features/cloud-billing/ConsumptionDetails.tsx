@@ -21,6 +21,8 @@ import {
 import { collectOptionsFromData } from '../../shared/components/TableFilters/collectOptions.utils';
 import { DEFAULT_FILTERS_STATE } from '../../shared/components/TableFilters/types';
 import { useUser } from '../idp/hooks/useAuthState';
+import { usePluginGallery } from '../plugins/hooks/usePlugins';
+import { repositoryPath } from '../plugins/repository';
 import {
   consumptionEntityPath,
   flattenConsumptionBranches,
@@ -28,6 +30,7 @@ import {
   licenseKeyLabel,
   originatingProjectLabel,
   parseDeploymentUrl,
+  type ConsumptionPluginIds,
 } from './consumption-groups';
 import {
   consumptionColumnTitle,
@@ -50,12 +53,14 @@ function DetailTable({
   branches,
   projections,
   projectId,
+  pluginIds,
   deployment,
   title,
 }: {
   branches: ConsumptionBranch[];
   projections: ConsumptionProduct['entityProjections'];
   projectId: string | undefined;
+  pluginIds: ConsumptionPluginIds;
   deployment: URL | null;
   title: string;
 }) {
@@ -143,7 +148,14 @@ function DetailTable({
               ? deployment && labels[originatingProjectLabel]
               : projectId;
             const path = destination
-              ? consumptionEntityPath(destination, labels, label, id, entity.parentTransformationId)
+              ? consumptionEntityPath(
+                  destination,
+                  labels,
+                  label,
+                  id,
+                  licensed ? {} : pluginIds,
+                  entity.parentTransformationId
+                )
               : null;
             if (!path) return title;
             if (licensed && deployment) {
@@ -169,7 +181,7 @@ function DetailTable({
         size: 100,
       }),
     ];
-  }, [deployment, projectId, labels]);
+  }, [deployment, projectId, pluginIds, labels]);
   const table = useReactTable({
     data: filteredRows,
     columns,
@@ -235,6 +247,21 @@ export function ConsumptionDetails({
   unit: ConsumptionUnit;
 }) {
   const projectId = useUser()?.projectId;
+  const { plugins } = usePluginGallery();
+  // Repository redirects resolve deployment publications only. The gallery also includes
+  // project/member publications and installed plugins, so link to their actual IDs.
+  const pluginIds = useMemo<ConsumptionPluginIds>(() => {
+    const findPluginId = (repository: string) =>
+      plugins.find(
+        plugin =>
+          plugin.source.repositoryUrl &&
+          repositoryPath(plugin.source.repositoryUrl).toLowerCase() === repository
+      )?.pluginId;
+    return {
+      streaming: findPluginId('owox/streaming-plugin'),
+      transformations: findPluginId('owox/transformations-plugin'),
+    };
+  }, [plugins]);
   const title = `${consumptionOperationTitle(unit.unit)} details`;
   const groups = groupConsumption({ ...product, units: [unit] });
 
@@ -246,6 +273,7 @@ export function ConsumptionDetails({
         branches={unit.decomposition}
         projections={product.entityProjections}
         projectId={projectId}
+        pluginIds={pluginIds}
         deployment={null}
         title={title}
       />
@@ -272,6 +300,7 @@ export function ConsumptionDetails({
               branches={operation.branches}
               projections={product.entityProjections}
               projectId={projectId}
+              pluginIds={pluginIds}
               deployment={deployment}
               title={`${title} — ${group.title}`}
             />

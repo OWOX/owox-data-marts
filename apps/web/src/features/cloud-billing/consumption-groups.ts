@@ -146,8 +146,13 @@ export function parseDeploymentUrl(origin: string | null) {
   return null;
 }
 
-function transformationPluginPath(id: string) {
-  return ['plugins', 'github', 'OWOX', 'transformations-plugin', 'open', 'transformations', id];
+export interface ConsumptionPluginIds {
+  streaming?: string;
+  transformations?: string;
+}
+
+function transformationPluginPath(id: string, pluginId: string | undefined) {
+  return pluginId ? ['plugins', pluginId, 'open', 'transformations', id] : null;
 }
 
 export function consumptionEntityPath(
@@ -155,24 +160,27 @@ export function consumptionEntityPath(
   labels: ConsumptionBranch['labels'],
   type: string,
   id: string,
+  pluginIds: ConsumptionPluginIds,
   parentTransformationId?: string
 ) {
-  let path: string[];
+  let path: string[] | null;
   let query: [string, string] | undefined;
   switch (type) {
     case 'STREAMING_ID':
-      path = ['plugins', 'github', 'OWOX', 'streaming-plugin', 'open', 'streaming', 'ga4', id];
+      path = pluginIds.streaming
+        ? ['plugins', pluginIds.streaming, 'open', 'streaming', 'ga4', id]
+        : null;
       break;
     case 'TRANSFORMATION_ID':
-      path = transformationPluginPath(id);
+      path = transformationPluginPath(id, pluginIds.transformations);
       break;
     case 'TRANSFORMATION_OPERATION_ID':
       if (!labels.TRANSFORMATION_ID) return null;
-      path = transformationPluginPath(labels.TRANSFORMATION_ID);
+      path = transformationPluginPath(labels.TRANSFORMATION_ID, pluginIds.transformations);
       break;
     case 'PROCESS_RUN_ENTITY_ID':
       if (!parentTransformationId) return null;
-      path = transformationPluginPath(parentTransformationId);
+      path = transformationPluginPath(parentTransformationId, pluginIds.transformations);
       break;
     case 'DATA_MART':
       path = ['data-marts', id, 'data-setup'];
@@ -197,6 +205,7 @@ export function consumptionEntityPath(
     default:
       return null;
   }
+  if (!path) return null;
   const segments = ['ui', projectId, ...path];
   if (segments.some(segment => segment === '.' || segment === '..')) return null;
   const href = '/' + segments.map(encodeURIComponent).join('/');

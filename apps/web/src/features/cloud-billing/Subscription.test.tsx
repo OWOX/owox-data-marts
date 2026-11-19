@@ -143,10 +143,9 @@ describe('Subscription billing portal', () => {
       expect.stringMatching(/^https:\/\/payments\.bi\.owox\.com\/p\/login\//)
     );
     expect(link).toHaveAttribute('target', '_blank');
-    expect(screen.getByRole('link', { name: 'View plans' })).toHaveAttribute(
-      'href',
-      '/ui/project-1/pricing'
-    );
+    expect(
+      screen.getByRole('link', { name: plan.planType === 'PAID' ? 'Manage' : 'View plans' })
+    ).toHaveAttribute('href', '/ui/project-1/pricing');
     expect(screen.queryByRole('tooltip')).not.toBeInTheDocument();
     fireEvent.focus(screen.getByRole('button', { name: 'About signing in to Stripe' }));
     expect(await screen.findByRole('tooltip')).toHaveTextContent(
@@ -157,17 +156,21 @@ describe('Subscription billing portal', () => {
   it.each([
     { ...freePlan, billingAccount: 'billing@example.test' },
     { ...internalPlan, billingAccount: null },
-  ])('shows View plans for $name without an eligible billing account', async subscription => {
-    renderSubscription(subscription, { roles: ['editor'] });
+  ])(
+    'keeps pricing available for $name without an eligible billing account',
+    async subscription => {
+      renderSubscription(subscription, { roles: ['editor'] });
 
-    expect(await screen.findByRole('link', { name: 'View plans' })).toHaveAttribute(
-      'href',
-      '/ui/project-1/pricing'
-    );
-    expect(
-      screen.queryByRole('link', { name: 'Change card & billing info' })
-    ).not.toBeInTheDocument();
-  });
+      expect(
+        await screen.findByRole('link', {
+          name: subscription.planType === 'FREE' ? 'Upgrade' : 'View plans',
+        })
+      ).toHaveAttribute('href', '/ui/project-1/pricing');
+      expect(
+        screen.queryByRole('link', { name: 'Change card & billing info' })
+      ).not.toBeInTheDocument();
+    }
+  );
 
   it('allows viewers to open pricing without exposing the billing portal', async () => {
     renderSubscription(internalPlan);
@@ -179,5 +182,30 @@ describe('Subscription billing portal', () => {
     expect(
       screen.queryByRole('link', { name: 'Change card & billing info' })
     ).not.toBeInTheDocument();
+  });
+});
+
+describe('Subscription pricing action', () => {
+  it.each(['FIRST_INTERACTION', 'PREVIOUS_SUBSCRIPTION_UNPAID', 'PREVIOUS_SUBSCRIPTION_CANCELED'])(
+    'offers a primary Upgrade action on Free with reason %s',
+    async subscribeReason => {
+      renderSubscription({ ...freePlan, subscribeReason });
+
+      await screen.findByRole('heading', { name: 'Free' });
+      const action = screen.getByRole('link', { name: 'Upgrade' });
+      expect(action).toHaveAttribute('href', '/ui/project-1/pricing');
+      expect(action).toHaveClass('bg-primary');
+      expect(screen.queryByRole('link', { name: 'View plans' })).not.toBeInTheDocument();
+    }
+  );
+
+  it('offers Manage with the existing link style on a paid plan', async () => {
+    renderSubscription({ ...freePlan, name: 'Individual', planType: 'PAID' });
+
+    const action = await screen.findByRole('link', { name: 'Manage' });
+    expect(action).toHaveAttribute('href', '/ui/project-1/pricing');
+    expect(action).toHaveClass('text-primary');
+    expect(action).not.toHaveClass('bg-primary');
+    expect(screen.queryByRole('link', { name: 'Upgrade' })).not.toBeInTheDocument();
   });
 });
