@@ -19,7 +19,7 @@ export function parseDuckDbFieldType(raw: string): DuckdbFieldType {
   // Composite values reach reports as text, whatever their element type.
   if (/\]$|^(LIST|STRUCT|MAP|UNION|ARRAY)\b/.test(t)) return DuckdbFieldType.VARCHAR;
   if (
-    /^(BIGINT|INT8|LONG|HUGEINT|INTEGER|INT4|INT(?!ERVAL)|SMALLINT|INT2|TINYINT|INT1|UBIGINT|UINTEGER|USMALLINT|UTINYINT)/.test(
+    /^(BIGINT|INT8|LONG|HUGEINT|UHUGEINT|INTEGER|INT4|INT(?!ERVAL)|SMALLINT|INT2|TINYINT|INT1|UBIGINT|UINTEGER|USMALLINT|UTINYINT)/.test(
       t
     )
   )

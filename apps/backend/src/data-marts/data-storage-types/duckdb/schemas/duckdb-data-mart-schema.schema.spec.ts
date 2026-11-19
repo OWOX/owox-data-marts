@@ -21,6 +21,7 @@ describe('DuckDb data-mart schema', () => {
     expect(parseDuckDbFieldType('TIMESTAMP')).toBe(DuckdbFieldType.TIMESTAMP);
     expect(parseDuckDbFieldType('DECIMAL(18,3)')).toBe(DuckdbFieldType.DOUBLE); // numeric family
     expect(parseDuckDbFieldType('HUGEINT')).toBe(DuckdbFieldType.BIGINT);
+    expect(parseDuckDbFieldType('UHUGEINT')).toBe(DuckdbFieldType.BIGINT);
     expect(parseDuckDbFieldType('SOMETHING_WEIRD')).toBe(DuckdbFieldType.VARCHAR);
     expect(parseDuckDbFieldType('INTERVAL')).toBe(DuckdbFieldType.VARCHAR);
     expect(parseDuckDbFieldType('INTEGER')).toBe(DuckdbFieldType.BIGINT);
