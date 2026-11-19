@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import toast from 'react-hot-toast';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -548,5 +548,23 @@ describe('DataStorageForm — a rejected save', () => {
     for (const [payload] of onSubmit.mock.calls as [Record<string, unknown>][]) {
       expect(payload.ownerIds).toEqual(['user-2']);
     }
+  });
+});
+
+describe('DataStorageForm — promo', () => {
+  it('renders the promo right under the form actions', () => {
+    render(
+      <DataStorageForm
+        initialData={storage()}
+        onSubmit={vi.fn()}
+        onCancel={vi.fn()}
+        promo={<div data-testid='promo' />}
+      />
+    );
+    const promo = within(screen.getByTestId('storageEditForm')).getByTestId('promo');
+    expect(promo.nextElementSibling).toBeNull();
+    expect(
+      within(promo.previousElementSibling as HTMLElement).getByRole('button', { name: 'Cancel' })
+    ).toBeInTheDocument();
   });
 });

@@ -1,3 +1,5 @@
+import type { ReactNode } from 'react';
+import { focusFirstFormField } from '../../../../shared/utils';
 import {
   Sheet,
   SheetContent,
@@ -41,6 +43,7 @@ export interface CredentialConfigSheetProps {
   /** The page link that opens this Credential. */
   link?: string | null;
   providerLogo?: string | null;
+  promo?: ReactNode;
 }
 
 export function CredentialConfigSheet({
@@ -60,6 +63,7 @@ export function CredentialConfigSheet({
   customConnectorPrefill,
   link,
   providerLogo,
+  promo,
 }: CredentialConfigSheetProps) {
   const actions = useCredentialActions();
   const {
@@ -105,7 +109,10 @@ export function CredentialConfigSheet({
         if (!open) handleClose();
       }}
     >
-      <SheetContent data-testid='credentialConfigSheet'>
+      <SheetContent
+        data-testid='credentialConfigSheet'
+        onOpenAutoFocus={promo ? focusFirstFormField : undefined}
+      >
         <SheetHeader>
           <SheetTitle>{credential ? 'Edit Credential' : 'Add Credential'}</SheetTitle>
           <div className='flex w-full items-center gap-4'>
@@ -132,6 +139,7 @@ export function CredentialConfigSheet({
           defaultSharing={defaultSharing}
           customConnectorPrefill={customConnectorPrefill}
           providerLogo={providerLogo}
+          promo={promo}
           onOAuthConnected={saved => {
             finishSave(saved, Boolean(credential));
           }}

@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { focusFirstFormField } from '../../../../../shared/utils';
 import { UnsavedChangesConfirmationDialog } from '../../../../../shared/components/UnsavedChangesConfirmationDialog';
 import {
   Sheet,
@@ -25,6 +26,7 @@ interface DataStorageEditSheetProps {
   onClose: () => void;
   dataStorage: DataStorage | null;
   onSaveSuccess: (dataStorage: DataStorage) => void;
+  promo?: ReactNode;
 }
 
 export function DataStorageConfigSheet({
@@ -32,6 +34,7 @@ export function DataStorageConfigSheet({
   onClose,
   dataStorage,
   onSaveSuccess,
+  promo,
 }: DataStorageEditSheetProps) {
   const { updateDataStorage, getDataStorageById, currentDataStorage, clearCurrentDataStorage } =
     useDataStorage();
@@ -134,7 +137,10 @@ export function DataStorageConfigSheet({
         }
       }}
     >
-      <SheetContent data-testid='storageConfigSheet'>
+      <SheetContent
+        data-testid='storageConfigSheet'
+        onOpenAutoFocus={promo ? focusFirstFormField : undefined}
+      >
         <SheetHeader>
           <SheetTitle>Configure Storage Provider</SheetTitle>
           <div className='flex w-full items-center gap-4'>
@@ -171,6 +177,7 @@ export function DataStorageConfigSheet({
             onSubmit={onSave}
             onCancel={handleClose}
             onDirtyChange={handleFormDirtyChange}
+            promo={promo}
           />
         )}
         <UnsavedChangesConfirmationDialog

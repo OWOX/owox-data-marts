@@ -6,12 +6,21 @@ import { MicrosoftExcelIcon, GoogleSheetsIcon } from '../../../../../../shared/i
 import { Button } from '@owox/ui/components/button';
 import { ArchiveRestore, ChevronRight, Bot } from 'lucide-react';
 import { InviteTeammatesCard } from '../../../../../../shared/components/InviteTeammatesCard';
-import { ConnectAiAssistantPromoActions } from '../../../../../../shared/components/ConnectAiAssistantPromoActions';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@owox/ui/components/tabs';
 import { cn } from '@owox/ui/lib/utils';
+import {
+  ConnectAiAssistantPromoActions,
+  trackMcpPromoClicked,
+  useMcpPromoShown,
+} from '../../../../../mcp-promo';
 
 const DESTINATION_PROMO_TABS = ['sheets', 'excel', 'mcp'];
 const TAB_CONTENT_FADE_MS = 300;
+const PROMO_CTX = {
+  placement: 'destinations_empty_tab',
+  mcpPart: 'consumption',
+  mode: 'connector',
+} as const;
 
 interface Props {
   variant?: 'default' | 'promo';
@@ -62,6 +71,8 @@ export function EmptyDataMartDestinationsState({
       clearTimeout(timeoutId);
     };
   }, [value, displayedValue]);
+
+  useMcpPromoShown(PROMO_CTX, variant === 'promo' && displayedValue === 'mcp');
 
   // Promo variant (show after data mart is published)
   if (variant === 'promo') {
@@ -170,6 +181,7 @@ export function EmptyDataMartDestinationsState({
                 description='Ask in plain language and get answers pulled straight from your Data Marts, not guesses. Connect via Claude or ChatGPT — whichever your team already uses.'
                 actions={
                   <ConnectAiAssistantPromoActions
+                    ctx={PROMO_CTX}
                     utmMedium='dm_page_destinations_tab'
                     utmCampaign='empty_state'
                   />
@@ -178,6 +190,9 @@ export function EmptyDataMartDestinationsState({
               <InviteTeammatesCard
                 hint='— Ask colleagues to configure MCP connection'
                 docsLabel='Learn more about MCP connection'
+                onDocsClick={() => {
+                  trackMcpPromoClicked({ ...PROMO_CTX, action: 'docs' });
+                }}
                 docsHref='https://docs.owox.com/docs/getting-started/setup-guide/mcp/?utm_source=owox_data_marts&utm_medium=dm_page_destinations_tab&utm_campaign=empty_state'
               />
             </TabsContent>

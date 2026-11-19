@@ -1,4 +1,4 @@
-import { forwardRef, useEffect, useMemo, useState, useRef } from 'react';
+import { forwardRef, useEffect, useMemo, useState, useRef, type ReactNode } from 'react';
 import { useOwnerState } from '../../../../../../shared/hooks/useOwnerState';
 import { focusFirstInvalidField } from '../../../../../../utils';
 import { UserReference } from '../../../../../../shared/components/UserReference/UserReference';
@@ -106,6 +106,7 @@ export interface EmailReportEditFormProps {
   allowedDestinationTypes?: DataDestinationType[];
   isInsightContext?: boolean;
   isReadOnly?: boolean;
+  promo?: ReactNode;
 }
 
 const MESSAGE_DESTINATION_TYPES: DataDestinationType[] = [
@@ -139,6 +140,7 @@ export const EmailReportEditForm = forwardRef<HTMLFormElement, EmailReportEditFo
       allowedDestinationTypes,
       isInsightContext = false,
       isReadOnly = false,
+      promo,
     },
     ref
   ) => {
@@ -1046,6 +1048,7 @@ export const EmailReportEditForm = forwardRef<HTMLFormElement, EmailReportEditFo
               onSubmit={() => void form.handleSubmit(handleFormSubmit, focusFirstInvalidField)()}
               onCancel={onCancel}
             />
+            {promo}
           </AppForm>
         </Form>
 

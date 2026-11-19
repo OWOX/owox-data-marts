@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { createMemoryRouter, RouterProvider } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -10,6 +11,8 @@ const requests = [{ requestId: 'r1', email: 'ada@example.com' }] as MembershipRe
 const mocks = vi.hoisted(() => ({
   toastError: vi.fn(),
   getMembershipRequests: vi.fn(),
+  mcp: true,
+  sheetProps: null as null | { promo?: ReactNode },
 }));
 
 vi.mock('react-hot-toast', () => ({
@@ -33,8 +36,25 @@ vi.mock(
   '../../features/project-settings/members/components/InviteMemberSheet/InviteMemberSheet',
   () => ({ InviteMemberSheet: () => null })
 );
+vi.mock('../../shared/hooks', async importOriginal => ({
+  ...(await importOriginal<typeof import('../../shared/hooks')>()),
+  useProjectId: () => 'project-1',
+}));
 vi.mock('../../features/contexts/components/AddContextSheet/AddContextSheet', () => ({
-  AddContextSheet: () => null,
+  AddContextSheet: (props: { isOpen: boolean; promo?: ReactNode }) => {
+    mocks.sheetProps = props;
+    return props.isOpen ? <div data-testid='sheet'>{props.promo}</div> : null;
+  },
+}));
+vi.mock('../../features/mcp-promo', () => ({
+  useIsMcpPromoAvailable: () => mocks.mcp,
+  McpPromoCard: (props: { placement: string; prompt: string; variant?: string }) => (
+    <div data-testid='promo' data-variant={props.variant}>
+      {`${props.placement}|${props.prompt}`}
+    </div>
+  ),
+  buildMcpPrompt: (placement: string, ids: { projectId: string }) =>
+    `${placement}:${ids.projectId}`,
 }));
 vi.mock(
   '../../features/project-settings/members/components/MembershipRequestSheet/MembershipRequestSheet',
@@ -72,9 +92,10 @@ vi.mock(
 );
 
 function Row() {
-  const { openMembershipRequestSheet, refresh } = useMembersSettings();
+  const { openMembershipRequestSheet, openAddContextSheet, refresh } = useMembersSettings();
   return (
     <>
+      <button onClick={openAddContextSheet}>Add context</button>
       <button
         onClick={() => {
           openMembershipRequestSheet(requests[0]);
@@ -206,5 +227,32 @@ describe('ProjectSettingsPage membership request sheet', () => {
     });
 
     expect(screen.getByTestId('requestSheet')).toBeInTheDocument();
+  });
+});
+
+describe('ProjectSettingsPage Add context sheet', () => {
+  beforeEach(() => {
+    mocks.mcp = true;
+    mocks.sheetProps = null;
+    mocks.getMembershipRequests.mockResolvedValue([]);
+  });
+
+  it('shows the AI assistant promo in the Add context sheet', async () => {
+    renderPage('/settings');
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Add context' }));
+
+    expect(screen.getByTestId('promo').textContent).toBe('context_sheet|context_sheet:project-1');
+    expect(screen.getByTestId('promo')).toHaveAttribute('data-variant', 'section');
+  });
+
+  it('does not give the Add context sheet the promo without an MCP server', async () => {
+    mocks.mcp = false;
+    renderPage('/settings');
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Add context' }));
+
+    expect(screen.getByTestId('sheet')).toBeInTheDocument();
+    expect(mocks.sheetProps).toHaveProperty('promo', undefined);
   });
 });

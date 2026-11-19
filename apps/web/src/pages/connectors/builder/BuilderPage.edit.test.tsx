@@ -16,6 +16,14 @@ vi.mock('../../../features/idp/hooks/useAuthState', () => ({
   useAuthActions: () => ({}),
 }));
 
+const mcp = vi.hoisted(() => ({ url: undefined as string | undefined }));
+vi.mock('../../../features/idp/hooks/useAuth', () => ({
+  useAuth: () => ({
+    status: 'authenticated',
+    user: authUser.value && { ...authUser.value, mcpServerUrl: mcp.url },
+  }),
+}));
+
 vi.mock('../../../features/connector-builder/shared/api/connector-builder-api.service', () => ({
   ConnectorBuilderApiService: class {
     create = vi.fn();
@@ -39,13 +47,13 @@ function user(roles: Role[]): User {
 }
 
 /** The builder route inside a data router, with somewhere else to navigate to. */
-function renderRoute() {
+function renderRoute(entry = '/connectors/builder/def-1') {
   const router = createMemoryRouter(
     [
       { path: '/connectors/builder/:id', element: <ConnectorBuilderRoutePage /> },
       { path: '/connectors', element: <div data-testid='connectors-list' /> },
     ],
-    { initialEntries: ['/connectors/builder/def-1'] }
+    { initialEntries: [entry] }
   );
   render(<RouterProvider router={router} />);
   return router;
@@ -247,5 +255,88 @@ describe('ConnectorBuilderRoutePage — an existing connector', () => {
     await waitFor(() => {
       expect(router.state.location.pathname).toBe('/connectors');
     });
+  });
+});
+
+describe('ConnectorBuilderRoutePage — AI assistant promo on a saved connector', () => {
+  const PROMO_TITLE = 'Build it with your AI assistant';
+  const detail = (activeVersionId: string | null) => ({
+    id: 'def-1',
+    name: 'MyApi',
+    title: 'My API',
+    description: null,
+    logo: null,
+    docUrl: null,
+    activeVersionId,
+    versions: [{ version: 1, status: activeVersionId ? 'published' : 'draft', publishedAt: null }],
+  });
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    localStorage.clear();
+    authUser.value = user(['editor']);
+    mcp.url = 'https://mcp.owox.com/mcp';
+    getVersion.mockResolvedValue({
+      version: 1,
+      status: 'draft',
+      manifest: { version: '1.0', name: 'MyApi', baseUrl: '', parameters: {}, nodes: {} },
+    });
+  });
+
+  it('shows the card, naming the connector, on a draft that was never published', async () => {
+    getById.mockResolvedValue(detail(null));
+    renderRoute();
+
+    fireEvent.click(await screen.findByRole('button', { name: new RegExp(PROMO_TITLE) }));
+    const href = screen.getByRole('link', { name: /open in claude/i }).getAttribute('href') ?? '';
+    expect(new URL(href).searchParams.get('q')).toContain('finish the custom connector def-1');
+  });
+
+  it('offers to maintain a published connector, naming it', async () => {
+    getById.mockResolvedValue(detail('v-1'));
+    renderRoute();
+
+    fireEvent.click(
+      await screen.findByRole('button', { name: /Maintain it with your AI assistant/ })
+    );
+    expect(screen.queryByText(PROMO_TITLE)).toBeNull();
+    const href = screen.getByRole('link', { name: /open in claude/i }).getAttribute('href') ?? '';
+    expect(new URL(href).searchParams.get('q')).toContain('maintain the custom connector def-1');
+  });
+
+  it('shows no card in Code mode', async () => {
+    getById.mockResolvedValue(detail(null));
+    renderRoute();
+    await screen.findByText(PROMO_TITLE);
+    fireEvent.click(screen.getByTestId('mode-code'));
+
+    expect(screen.queryByText(PROMO_TITLE)).toBeNull();
+  });
+
+  it('shows no card for a test link from an AI assistant', async () => {
+    getById.mockResolvedValue(detail(null));
+    renderRoute('/connectors/builder/def-1?test=items');
+
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText('MyCustomApi')).toHaveValue('MyApi');
+    });
+    expect(screen.getByTestId('builder-scroll-pane').firstElementChild).toContainElement(
+      screen.getByPlaceholderText('MyCustomApi')
+    );
+    expect(screen.queryByText(PROMO_TITLE)).toBeNull();
+  });
+
+  it('shows nothing without an MCP server url', async () => {
+    mcp.url = undefined;
+    getById.mockResolvedValue(detail(null));
+    renderRoute();
+
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText('MyCustomApi')).toHaveValue('MyApi');
+    });
+    expect(screen.getByTestId('builder-scroll-pane').firstElementChild).toContainElement(
+      screen.getByPlaceholderText('MyCustomApi')
+    );
+    expect(screen.queryByText(PROMO_TITLE)).toBeNull();
   });
 });

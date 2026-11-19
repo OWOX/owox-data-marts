@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ContextDto } from '../../types/context.types';
 import { ContextDetailsSheet } from './ContextDetailsSheet';
@@ -180,5 +180,49 @@ describe('Context read-only sharing', () => {
     await waitFor(() => {
       expect(screen.getByRole('heading', { name: 'Revenue' })).toHaveFocus();
     });
+  });
+});
+
+describe('ContextDetailsSheet promo', () => {
+  it('renders the promo it is given right under the form actions and still focuses Name', async () => {
+    render(
+      <ContextDetailsSheet
+        isOpen
+        context={makeContext(null)}
+        members={[]}
+        onClose={vi.fn()}
+        onSaved={vi.fn()}
+        promo={
+          <div data-testid='promo'>
+            <button type='button'>Copy prompt</button>
+          </div>
+        }
+      />
+    );
+    const promo = screen.getByTestId('promo');
+    expect(promo.closest('form')).not.toBeNull();
+    expect(promo.nextElementSibling).toBeNull();
+    expect(
+      within(promo.previousElementSibling as HTMLElement).getByRole('button', { name: 'Cancel' })
+    ).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByRole('textbox', { name: /^Name/ })).toHaveFocus();
+    });
+  });
+
+  it('does not render the promo in a read-only sheet', () => {
+    render(
+      <ContextDetailsSheet
+        isOpen
+        readOnly
+        context={makeContext(null)}
+        members={[]}
+        onClose={vi.fn()}
+        onSaved={vi.fn()}
+        promo={<div data-testid='promo' />}
+      />
+    );
+    expect(screen.getByRole('dialog', { name: 'Marketing' })).toBeInTheDocument();
+    expect(screen.queryByTestId('promo')).toBeNull();
   });
 });

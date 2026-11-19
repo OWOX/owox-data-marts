@@ -20,6 +20,14 @@ vi.mock('../../../features/idp/hooks/useAuthState', () => ({
   useAuthActions: () => ({}),
 }));
 
+const mcp = vi.hoisted(() => ({ url: undefined as string | undefined }));
+vi.mock('../../../features/idp/hooks/useAuth', () => ({
+  useAuth: () => ({
+    status: 'authenticated',
+    user: authUser.value && { ...authUser.value, mcpServerUrl: mcp.url },
+  }),
+}));
+
 vi.mock('../../../features/connector-builder/shared/api/connector-builder-api.service', () => ({
   ConnectorBuilderApiService: class {
     create = create;
@@ -175,5 +183,108 @@ describe('ConnectorBuilderRoutePage — a new connector', () => {
 
     expect(screen.getByTestId('builder-not-authorised')).toBeInTheDocument();
     expect(screen.queryByTestId('builder-topbar')).toBeNull();
+  });
+});
+
+describe('ConnectorBuilderRoutePage — AI assistant promo', () => {
+  const PROMO_TITLE = 'Build it with your AI assistant';
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    localStorage.clear();
+    authUser.value = user(['editor']);
+    mcp.url = 'https://mcp.owox.com/mcp';
+    create.mockResolvedValue({ id: 'def-1', name: 'MyApi', title: 'My API' });
+    getById.mockResolvedValue({
+      id: 'def-1',
+      name: 'MyApi',
+      title: 'My API',
+      description: null,
+      logo: null,
+      docUrl: null,
+      activeVersionId: null,
+      versions: [{ version: 1, status: 'draft', publishedAt: null }],
+    });
+    getVersion.mockResolvedValue({
+      version: 1,
+      status: 'draft',
+      manifest: { version: '1.0', name: 'MyApi', baseUrl: '', parameters: {}, nodes: {} },
+    });
+  });
+
+  it('shows the card on a new connector', () => {
+    renderRoute();
+
+    expect(screen.getByText(PROMO_TITLE)).toBeInTheDocument();
+  });
+
+  it('shows nothing without an MCP server url', () => {
+    mcp.url = undefined;
+    renderRoute();
+
+    expect(screen.queryByText(PROMO_TITLE)).toBeNull();
+  });
+
+  it('leaves nothing above the builder form without an MCP server url', () => {
+    mcp.url = undefined;
+    renderRoute();
+
+    const pane = screen.getByTestId('builder-scroll-pane');
+    const firstChild = pane.firstElementChild;
+    expect(firstChild).toContainElement(screen.getByPlaceholderText('MyCustomApi'));
+  });
+
+  it('sends one shown event for the connector builder placement', () => {
+    renderRoute();
+
+    const shown = vi
+      .mocked(trackEvent)
+      .mock.calls.map(([payload]) => payload)
+      .filter(payload => payload.event === 'mcp_promo_shown');
+    expect(shown).toEqual([
+      expect.objectContaining({ label: 'connector_builder', context: 'setup' }),
+    ]);
+  });
+
+  it('hides the card in Code mode', () => {
+    renderRoute();
+    fireEvent.click(screen.getByTestId('mode-code'));
+
+    expect(screen.queryByText(PROMO_TITLE)).toBeNull();
+  });
+
+  it('sends no second shown event after a switch to Code mode and back', () => {
+    renderRoute();
+    fireEvent.click(screen.getByTestId('mode-code'));
+    fireEvent.click(screen.getByTestId('mode-builder'));
+
+    expect(screen.getByText(PROMO_TITLE)).toBeInTheDocument();
+    const shown = vi
+      .mocked(trackEvent)
+      .mock.calls.filter(([payload]) => payload.event === 'mcp_promo_shown');
+    expect(shown).toHaveLength(1);
+  });
+
+  it('keeps the old prompt on a new connector', () => {
+    renderRoute();
+    fireEvent.click(screen.getByRole('button', { name: new RegExp(PROMO_TITLE) }));
+
+    const href = screen.getByRole('link', { name: /open in claude/i }).getAttribute('href') ?? '';
+    expect(new URL(href).searchParams.get('q')).toContain('help me build a custom connector');
+  });
+
+  it('keeps the card, now naming the connector, once the first save gives it an id', async () => {
+    const router = renderRoute();
+    fireEvent.change(screen.getByPlaceholderText('MyCustomApi'), { target: { value: 'MyApi' } });
+    fireEvent.click(screen.getByRole('button', { name: /save draft/i }));
+
+    await waitFor(() => {
+      expect(router.state.location.pathname).toBe('/connectors/builder/def-1');
+    });
+    fireEvent.click(await screen.findByRole('button', { name: new RegExp(PROMO_TITLE) }));
+    const href = screen.getByRole('link', { name: /open in claude/i }).getAttribute('href');
+    expect(new URL(href ?? '').searchParams.get('q')).toContain(
+      'finish the custom connector def-1'
+    );
   });
 });

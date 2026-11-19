@@ -2,7 +2,7 @@ import type { DataMartListState, DataMartListAction } from './types.ts';
 
 export const initialState: DataMartListState = {
   items: [],
-  loading: false,
+  loading: true,
   error: null,
 };
 

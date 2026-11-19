@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, Children, isValidElement } from 'react';
+import { useState, useEffect, useCallback, useId, Children, isValidElement } from 'react';
 import { cn } from '@owox/ui/lib/utils';
 import { storageService } from '../../../services/localstorage.service';
 import { Card } from '@owox/ui/components/card';
@@ -29,6 +29,7 @@ export function CollapsibleCard({
   onCollapsedChange,
   name,
 }: CollapsibleCardProps) {
+  const titleId = useId();
   const initialCollapsed = name
     ? (storageService.get(`${STORAGE_KEY_PREFIX}${name}`, 'boolean') ?? defaultCollapsed)
     : defaultCollapsed;
@@ -84,7 +85,7 @@ export function CollapsibleCard({
 
   return (
     <CollapsibleCardContext.Provider
-      value={{ isCollapsed, collapsible, handleCollapse, revealTemporarily }}
+      value={{ isCollapsed, collapsible, handleCollapse, revealTemporarily, titleId }}
     >
       <Card className={cn(cardVariants[variant], className)}>
         {header}
@@ -94,7 +95,7 @@ export function CollapsibleCard({
             isCollapsed ? 'grid-rows-[0fr]' : 'grid-rows-[1fr]'
           )}
         >
-          <div className='overflow-hidden'>
+          <div className='overflow-hidden' inert={isCollapsed}>
             {content}
             {footer}
           </div>

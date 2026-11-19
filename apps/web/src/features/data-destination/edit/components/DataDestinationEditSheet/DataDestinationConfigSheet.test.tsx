@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { DataDestinationType, useDataDestination } from '../../../shared';
@@ -32,16 +32,40 @@ const formProps = vi.hoisted(() => ({
 }));
 
 vi.mock('../DataDestinationEditForm', () => ({
-  DataDestinationForm: (props: { onSubmit: (data: unknown) => Promise<void> }) => {
+  DataDestinationForm: (props: {
+    onSubmit: (data: unknown) => Promise<void>;
+    promo?: ReactNode;
+  }) => {
     formProps.current = props;
-    return null;
+    return (
+      <form data-testid='destinationForm'>
+        {props.promo}
+        <input data-testid='form-field' />
+      </form>
+    );
   },
 }));
 
 vi.mock('@owox/ui/components/sheet', () => ({
   Sheet: ({ open, children }: { open: boolean; children: ReactNode }) =>
     open ? <div>{children}</div> : null,
-  SheetContent: ({ children }: { children: ReactNode }) => <aside role='dialog'>{children}</aside>,
+  SheetContent: ({
+    children,
+    onOpenAutoFocus,
+  }: {
+    children: ReactNode;
+    onOpenAutoFocus?: (event: unknown) => void;
+  }) => (
+    <aside
+      role='dialog'
+      tabIndex={-1}
+      ref={el => {
+        if (el) onOpenAutoFocus?.({ preventDefault: vi.fn(), currentTarget: el });
+      }}
+    >
+      {children}
+    </aside>
+  ),
   SheetHeader: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   SheetTitle: ({ children }: { children: ReactNode }) => <h2>{children}</h2>,
   SheetDescription: ({ children }: { children: ReactNode }) => <p>{children}</p>,
@@ -248,5 +272,40 @@ describe('DataDestinationConfigSheet', () => {
 
     expect(onClose).toHaveBeenCalled();
     consoleError.mockRestore();
+  });
+
+  it('renders the promo it is given inside the form, and nothing without one', () => {
+    const { unmount } = render(
+      <MemoryRouter>
+        <DataDestinationConfigSheet
+          isOpen
+          onClose={vi.fn()}
+          dataDestination={null}
+          onSaveSuccess={vi.fn()}
+          promo={<div data-testid='promo' />}
+        />
+      </MemoryRouter>
+    );
+    expect(within(screen.getByTestId('destinationForm')).getByTestId('promo')).toBeInTheDocument();
+    expect(screen.getAllByTestId('promo')).toHaveLength(1);
+    unmount();
+
+    renderSheet({ destination: null });
+    expect(screen.queryByTestId('promo')).toBeNull();
+  });
+
+  it('focuses the form, not the promo, when a promo is shown', () => {
+    render(
+      <MemoryRouter>
+        <DataDestinationConfigSheet
+          isOpen
+          onClose={vi.fn()}
+          dataDestination={null}
+          onSaveSuccess={vi.fn()}
+          promo={<button type='button'>Copy prompt</button>}
+        />
+      </MemoryRouter>
+    );
+    expect(document.activeElement).toBe(screen.getByTestId('form-field'));
   });
 });

@@ -18,6 +18,9 @@ import { mapReportDtoToEntity } from '../../../features/data-marts/reports/share
 import DataMartReportsPage from './DataMartReportsPage';
 import { mergeReportPagePreservingRows } from './DataMartReportsPage.utils';
 
+const trackEvent = vi.hoisted(() => vi.fn());
+vi.mock('../../../utils/data-layer', () => ({ trackEvent }));
+
 const mockToastCustom = vi.hoisted(() => vi.fn().mockReturnValue('mock-toast-id'));
 vi.mock('react-hot-toast', () => ({
   default: { custom: mockToastCustom, dismiss: vi.fn(), success: vi.fn(), error: vi.fn() },
@@ -109,6 +112,12 @@ vi.mock('../../../features/idp', () => ({
     },
   }),
 }));
+
+const shownLabels = () =>
+  trackEvent.mock.calls
+    .map(([payload]) => payload)
+    .filter(payload => payload.event === 'mcp_promo_shown')
+    .map(payload => payload.label);
 
 describe('DataMartReportsPage', () => {
   beforeEach(() => {
@@ -232,6 +241,24 @@ describe('DataMartReportsPage', () => {
       '/ui/project-1/data-marts'
     );
     expect(screen.queryByRole('button', { name: 'Toggle columns' })).not.toBeInTheDocument();
+  });
+
+  it('reports reports_promo when reports exist and no hint', async () => {
+    vi.mocked(reportService.getReportsByProject).mockResolvedValueOnce([buildReportResponse()]);
+
+    renderPage();
+    await screen.findByText('Daily Sales Report');
+
+    expect(shownLabels()).toEqual(['reports_promo']);
+  });
+
+  it('reports reports_hint and no reports_promo when there are no reports', async () => {
+    vi.mocked(reportService.getReportsByProject).mockResolvedValueOnce([]);
+
+    renderPage();
+    await screen.findByRole('heading', { name: 'No reports yet' });
+
+    expect(shownLabels()).toEqual(['reports_hint']);
   });
 
   it('shows a muted dash when a report has no title', async () => {

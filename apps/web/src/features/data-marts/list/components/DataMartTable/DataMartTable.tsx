@@ -39,6 +39,7 @@ interface DataTableProps<TData, TValue> {
   refetchDataMarts: () => Promise<void>;
   onVisibleDataMartIdsChange?: (dataMartIds: string[]) => void;
   isLoading?: boolean;
+  loadError?: string | null;
 }
 
 export function DataMartTable<TData, TValue>({
@@ -50,6 +51,7 @@ export function DataMartTable<TData, TValue>({
   refetchDataMarts,
   onVisibleDataMartIdsChange,
   isLoading,
+  loadError,
 }: DataTableProps<TData, TValue>) {
   const { navigate, scope } = useProjectRoute();
   const { projectId = '' } = useParams<{ projectId: string }>();
@@ -80,7 +82,7 @@ export function DataMartTable<TData, TValue>({
   const [showBulkCreateFromStorage, setShowBulkCreateFromStorage] = useState(false);
 
   // Show onboarding video if the user has not seen it yet
-  const shouldShowOnboarding = !isLoading && data.length === 0;
+  const shouldShowOnboarding = !isLoading && !loadError && data.length === 0;
   useOnboardingVideo({
     storageKey: 'data-mart-empty-state-onboarding-video-shown',
     popoverId: 'video-3-getting-started-with-data-marts',
@@ -193,7 +195,22 @@ export function DataMartTable<TData, TValue>({
 
   // Show empty state
   if (!data.length) {
-    return <EmptyDataMartsState />;
+    if (!loadError) return <EmptyDataMartsState />;
+    return (
+      <div role='alert' className='dm-card flex flex-col items-start gap-3 text-sm'>
+        <p className='text-muted-foreground'>Data Marts could not be loaded.</p>
+        <Button
+          type='button'
+          variant='outline'
+          size='sm'
+          onClick={() => {
+            void refetchDataMarts();
+          }}
+        >
+          Retry
+        </Button>
+      </div>
+    );
   }
 
   const isPromoImportFromBigQuery =

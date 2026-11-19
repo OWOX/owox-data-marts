@@ -1,7 +1,7 @@
 import { CardHeader } from '@owox/ui/components/card';
 import { ChevronDown } from 'lucide-react';
 import { cn } from '@owox/ui/lib/utils';
-import { useContext, Children, isValidElement } from 'react';
+import { useContext, Children, isValidElement, type ReactElement } from 'react';
 import { CollapsibleCardContext } from './CollapsibleCardContext';
 import { CollapsibleCardHeaderTitle } from './CollapsibleCardHeaderTitle';
 import { CollapsibleCardHeaderActions } from './CollapsibleCardHeaderActions';
@@ -11,9 +11,9 @@ export interface CollapsibleCardHeaderProps {
 }
 
 export function CollapsibleCardHeader({ children }: CollapsibleCardHeaderProps) {
-  const { collapsible, isCollapsed, handleCollapse } = useContext(CollapsibleCardContext);
+  const { collapsible, isCollapsed, handleCollapse, titleId } = useContext(CollapsibleCardContext);
 
-  let title, actions;
+  let title: ReactElement | undefined, actions;
 
   Children.forEach(children, child => {
     if (!isValidElement(child)) return;
@@ -45,10 +45,12 @@ export function CollapsibleCardHeader({ children }: CollapsibleCardHeaderProps) 
         {actions}
         {/* Collapse chevron icon */}
         {collapsible && (
-          <div
-            className={cn(
-              'flex h-7 w-7 items-center justify-center rounded-full transition-colors duration-200 hover:bg-gray-200/50 dark:hover:bg-white/4'
-            )}
+          <button
+            type='button'
+            aria-expanded={!isCollapsed}
+            aria-labelledby={title ? titleId : undefined}
+            aria-label={title ? undefined : 'Show or hide'}
+            className='focus-visible:ring-ring flex h-7 w-7 items-center justify-center rounded-full transition-colors duration-200 outline-none hover:bg-gray-200/50 focus-visible:ring-2 dark:hover:bg-white/4'
           >
             <div
               className={cn(
@@ -58,7 +60,7 @@ export function CollapsibleCardHeader({ children }: CollapsibleCardHeaderProps) 
             >
               <ChevronDown className='text-muted-foreground/75 dark:text-muted-foreground/50 h-4 w-4' />
             </div>
-          </div>
+          </button>
         )}
       </div>
     </CardHeader>

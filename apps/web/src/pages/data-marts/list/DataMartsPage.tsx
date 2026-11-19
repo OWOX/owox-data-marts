@@ -17,7 +17,7 @@ import { useProjectRoute } from '../../../shared/hooks';
 import { useDataQualitySummaries } from '../../../features/data-marts/data-quality';
 
 const DataMartsPageContent = () => {
-  const { items, loadDataMarts, deleteDataMart, publishDataMart, refreshList, loading } =
+  const { items, loadDataMarts, deleteDataMart, publishDataMart, refreshList, loading, error } =
     useDataMartList();
   const { connectors, fetchAvailableConnectors } = useConnector();
   const { navigate, projectId } = useProjectRoute();
@@ -77,6 +77,7 @@ const DataMartsPageContent = () => {
           refetchDataMarts={refreshList}
           onVisibleDataMartIdsChange={setVisibleDataMartIds}
           isLoading={loading}
+          loadError={error}
         />
       </div>
     </div>

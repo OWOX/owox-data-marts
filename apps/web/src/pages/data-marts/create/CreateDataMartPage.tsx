@@ -3,11 +3,17 @@ import { DataStorageProvider } from '../../../features/data-storage/shared/model
 import { useProjectRoute } from '../../../shared/hooks';
 import { useDataMartPreset } from '../../../features/data-marts/shared/utils/useDataMartPreset';
 import { useConnectorNameParam } from '../../../features/data-marts/shared/utils/useConnectorNameParam';
+import {
+  McpPromoCard,
+  buildMcpPrompt,
+  useIsMcpSetupPromoAvailable,
+} from '../../../features/mcp-promo';
 
 export default function CreateDataMartPage() {
   const preset = useDataMartPreset();
   const connectorName = useConnectorNameParam();
-  const { navigate } = useProjectRoute();
+  const { navigate, projectId } = useProjectRoute();
+  const isMcpPromoAvailable = useIsMcpSetupPromoAvailable();
 
   const handleSuccess = (response: { id: string }) => {
     // connectorName takes priority over preset when both are present (see the
@@ -17,7 +23,7 @@ export default function CreateDataMartPage() {
       : preset
         ? `/data-marts/${response.id}/data-setup?preset=${preset.key}`
         : `/data-marts/${response.id}/data-setup`;
-    navigate(redirectUrl);
+    navigate(redirectUrl, { state: { createdDataMartId: response.id } });
   };
 
   return (
@@ -38,6 +44,17 @@ export default function CreateDataMartPage() {
               />
             </DataMartProvider>
           </DataStorageProvider>
+          {projectId && isMcpPromoAvailable && (
+            <div className='mt-3 empty:hidden'>
+              <McpPromoCard
+                variant='section'
+                placement='create_data_mart'
+                mcpPart='setup'
+                title='Set it up with your AI assistant'
+                prompt={buildMcpPrompt('create_data_mart', { projectId })}
+              />
+            </div>
+          )}
         </div>
       </div>
     </div>

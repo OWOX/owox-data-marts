@@ -1,13 +1,13 @@
 import { Button } from '@owox/ui/components/button';
-import { ChatGPTIcon, ClaudeIcon } from '../../icons';
+import { ChatGPTIcon, ClaudeIcon } from '../../../shared/icons';
 import { cn } from '@owox/ui/lib/utils';
 
-const CLAUDE_DIRECTORY_URL = 'https://claude.ai/directory/owox-data-marts';
-const CHATGPT_PLUGIN_URL =
-  'https://chatgpt.com/plugins/plugin_asdk_app_6a3e81be8f8481918e1e2cd1d7ea09c4';
-const MCP_SETUP_GUIDE_URL = 'https://docs.owox.com/docs/getting-started/setup-guide/mcp/';
+import { CHATGPT_PLUGIN_URL, CLAUDE_DIRECTORY_URL, MCP_SETUP_GUIDE_URL } from '../constants';
+import { type McpPromoAction, type McpPromoEventContext, trackMcpPromoClicked } from '../analytics';
+import { setupGuideUrl } from '../prompts';
 
 interface ConnectAiAssistantPromoActionsProps {
+  ctx: McpPromoEventContext;
   /**
    * Horizontal alignment of the buttons/link once they sit on one row (xl+).
    * 'start' (default) matches the two-column promo layout (Reports page,
@@ -30,10 +30,10 @@ interface ConnectAiAssistantPromoActionsProps {
  * Actions for the "Get answers in Claude or ChatGPT" promo block: outline
  * buttons (icon + label) linking to the OWOX Data Marts connector in Claude
  * and ChatGPT, wrapping onto a second line on narrow viewports, plus a link
- * to the MCP setup guide. Every link opens in a new tab. Purely
- * presentational, no side effects.
+ * to the MCP setup guide. Every link opens in a new tab.
  */
 export function ConnectAiAssistantPromoActions({
+  ctx,
   align = 'start',
   utmMedium,
   utmCampaign,
@@ -41,8 +41,12 @@ export function ConnectAiAssistantPromoActions({
   const xlJustifyClass = align === 'center' ? 'xl:justify-center' : 'xl:justify-start';
   const mcpSetupGuideUrl =
     utmMedium && utmCampaign
-      ? `${MCP_SETUP_GUIDE_URL}?utm_source=owox_data_marts&utm_medium=${utmMedium}&utm_campaign=${utmCampaign}`
+      ? setupGuideUrl(ctx.placement, { medium: utmMedium, campaign: utmCampaign })
       : MCP_SETUP_GUIDE_URL;
+
+  const track = (action: McpPromoAction) => {
+    trackMcpPromoClicked({ ...ctx, action });
+  };
 
   return (
     <div className='flex flex-col items-start gap-3'>
@@ -53,13 +57,27 @@ export function ConnectAiAssistantPromoActions({
         )}
       >
         <Button size='sm' variant='outline' asChild className='xl:min-w-[140px]'>
-          <a href={CLAUDE_DIRECTORY_URL} target='_blank' rel='noopener noreferrer'>
+          <a
+            href={CLAUDE_DIRECTORY_URL}
+            target='_blank'
+            rel='noopener noreferrer'
+            onClick={() => {
+              track('claude');
+            }}
+          >
             <ClaudeIcon size={16} />
             Claude
           </a>
         </Button>
         <Button size='sm' variant='outline' asChild className='xl:min-w-[140px]'>
-          <a href={CHATGPT_PLUGIN_URL} target='_blank' rel='noopener noreferrer'>
+          <a
+            href={CHATGPT_PLUGIN_URL}
+            target='_blank'
+            rel='noopener noreferrer'
+            onClick={() => {
+              track('chatgpt');
+            }}
+          >
             <ChatGPTIcon size={16} />
             ChatGPT
           </a>
@@ -70,6 +88,9 @@ export function ConnectAiAssistantPromoActions({
           href={mcpSetupGuideUrl}
           target='_blank'
           rel='noopener noreferrer'
+          onClick={() => {
+            track('docs');
+          }}
           className='text-muted-foreground hover:text-foreground text-xs underline underline-offset-2'
         >
           How to set up the MCP connection

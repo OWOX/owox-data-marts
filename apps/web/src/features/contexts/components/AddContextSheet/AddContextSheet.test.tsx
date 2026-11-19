@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ContextDto } from '../../types/context.types';
 import { AddContextSheet } from './AddContextSheet';
@@ -108,5 +108,27 @@ describe('AddContextSheet icon', () => {
       expect(onCreated).toHaveBeenCalled();
     });
     expect(contextServiceMock.createContext).toHaveBeenCalledWith({ name: 'Finance' });
+  });
+
+  it('renders the promo it is given right under the form actions, and nothing without one', () => {
+    const { unmount } = render(
+      <AddContextSheet
+        isOpen
+        members={[]}
+        onClose={vi.fn()}
+        onCreated={vi.fn()}
+        promo={<div data-testid='promo' />}
+      />
+    );
+    const promo = screen.getByTestId('promo');
+    expect(promo.closest('form')).not.toBeNull();
+    expect(promo.nextElementSibling).toBeNull();
+    expect(
+      within(promo.previousElementSibling as HTMLElement).getByRole('button', { name: 'Cancel' })
+    ).toBeInTheDocument();
+    unmount();
+
+    renderSheet();
+    expect(screen.queryByTestId('promo')).toBeNull();
   });
 });

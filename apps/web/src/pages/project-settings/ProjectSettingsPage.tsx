@@ -4,6 +4,8 @@ import { cn } from '@owox/ui/lib/utils';
 import { Alert, AlertDescription, AlertTitle } from '@owox/ui/components/alert';
 import { AlertCircle } from 'lucide-react';
 import { useIsAdmin } from '../../features/idp/hooks/useRole';
+import { useProjectId, useRecordSheet } from '../../shared/hooks';
+import { McpPromoCard, buildMcpPrompt, useIsMcpPromoAvailable } from '../../features/mcp-promo';
 import { useFlags } from '../../app/store/hooks';
 import { getCloudBillingOrigin } from '../../features/cloud-billing/cloud-billing';
 import { checkVisible } from '../../utils/check-visible';
@@ -15,7 +17,6 @@ import { InviteMemberSheet } from '../../features/project-settings/members/compo
 import { AddContextSheet } from '../../features/contexts/components/AddContextSheet/AddContextSheet';
 import { MembersSettingsProvider } from '../../features/project-settings/members/model/MembersSettingsProvider';
 import { MembershipRequestSheet } from '../../features/project-settings/members/components/MembershipRequestSheet/MembershipRequestSheet';
-import { useRecordSheet } from '../../shared/hooks';
 import { useTombstonedCollection } from '../../features/project-settings/members/model/useTombstonedCollection';
 import { useRefreshSetupProgress } from '../../components/AppSidebar/SetupChecklist/useSetupProgress';
 
@@ -38,6 +39,8 @@ interface TabLink {
  */
 export function ProjectSettingsPage() {
   const isAdmin = useIsAdmin();
+  const projectId = useProjectId();
+  const isMcpAvailable = useIsMcpPromoAvailable();
   const { flags } = useFlags();
   const showBillingTabs =
     getCloudBillingOrigin(flags) !== null ||
@@ -258,6 +261,17 @@ export function ProjectSettingsPage() {
             setAddContextOpen(false);
             void loadData();
           }}
+          promo={
+            isMcpAvailable && projectId ? (
+              <McpPromoCard
+                variant='section'
+                placement='context_sheet'
+                mcpPart='setup'
+                title='Set it up with your AI assistant'
+                prompt={buildMcpPrompt('context_sheet', { projectId })}
+              />
+            ) : undefined
+          }
         />
 
         <MembershipRequestSheet

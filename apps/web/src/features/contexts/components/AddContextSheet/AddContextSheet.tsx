@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, type ReactNode } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -62,9 +62,16 @@ interface AddContextSheetProps {
   members: MemberWithScopeDto[];
   onClose: () => void;
   onCreated: (created: ContextDto) => void;
+  promo?: ReactNode;
 }
 
-export function AddContextSheet({ isOpen, members, onClose, onCreated }: AddContextSheetProps) {
+export function AddContextSheet({
+  isOpen,
+  members,
+  onClose,
+  onCreated,
+  promo,
+}: AddContextSheetProps) {
   const user = useUser();
   const form = useForm<AddContextFormValues>({
     resolver: zodResolver(addContextSchema),
@@ -269,6 +276,7 @@ export function AddContextSheet({ isOpen, members, onClose, onCreated }: AddCont
                 Cancel
               </Button>
             </FormActions>
+            {promo}
           </AppForm>
         </Form>
       </SheetContent>

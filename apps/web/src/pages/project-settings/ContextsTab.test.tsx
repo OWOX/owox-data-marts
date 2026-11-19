@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { createMemoryRouter, RouterProvider, useLocation, useNavigate } from 'react-router';
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { UnsavedChangesConfirmationDialog } from '../../shared/components/UnsavedChangesConfirmationDialog';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ContextDto } from '../../features/contexts/types/context.types';
@@ -24,12 +24,34 @@ const state = vi.hoisted(() => ({
   hasLoadError: false,
   refresh: vi.fn(),
   openAddContextSheet: vi.fn(),
+  mcp: true,
 }));
 vi.mock('../../features/project-settings/members/model/members-settings.context', () => ({
   useMembersSettings: () => state,
 }));
 vi.mock('../../shared/hooks', () => ({
-  useProjectRoute: () => ({ scope: (path: string) => `/ui/project${path}` }),
+  useProjectRoute: () => ({
+    scope: (path: string) => `/ui/project${path}`,
+    projectId: 'project-1',
+  }),
+}));
+vi.mock('../../features/mcp-promo', async () => ({
+  useIsMcpPromoAvailable: () => state.mcp,
+  McpPromoCard: (props: { placement: string; prompt: string; title: string; variant?: string }) => (
+    <div
+      data-testid='promo'
+      data-placement={props.placement}
+      data-title={props.title}
+      data-variant={props.variant}
+    >
+      {props.prompt}
+    </div>
+  ),
+  buildMcpPrompt: (
+    await vi.importActual<typeof import('../../features/mcp-promo/prompts')>(
+      '../../features/mcp-promo/prompts'
+    )
+  ).buildMcpPrompt,
 }));
 vi.mock('../../features/contexts/components/ContextsTable/ContextsTable', () => ({
   ContextsTable: ({ onRowClick }: { onRowClick: (value: ContextDto) => void }) => (
@@ -50,9 +72,11 @@ vi.mock('../../features/contexts/components/ContextDetailsSheet/ContextDetailsSh
     onSaved,
     onDirtyChange,
     navigationGuard,
+    promo,
   }: {
     context: ContextDto | null;
     readOnly: boolean;
+    promo?: ReactNode;
     onClose: () => void;
     onSaved: () => void;
     onDirtyChange: (dirty: boolean) => void;
@@ -60,7 +84,8 @@ vi.mock('../../features/contexts/components/ContextDetailsSheet/ContextDetailsSh
   }) {
     const [draft, setDraft] = useState('');
     return selected ? (
-      <div role='dialog' aria-label={selected.name}>
+      <div role='dialog' aria-label={selected.name} data-has-promo={String(promo !== undefined)}>
+        {promo}
         <span>{readOnly ? 'Read only' : 'Editable'}</span>
         <input
           aria-label='Draft'
@@ -126,6 +151,7 @@ describe('Context permanent links', () => {
     state.isAdmin = true;
     state.loading = false;
     state.hasLoadError = false;
+    state.mcp = true;
     vi.clearAllMocks();
   });
 
@@ -239,5 +265,32 @@ describe('Context permanent links', () => {
       expect(screen.getByLabelText('Current URL')).not.toHaveTextContent('context=');
     });
     expect(screen.queryByRole('dialog', { name: 'Unsaved Changes' })).not.toBeInTheDocument();
+  });
+
+  it('passes an admin the maintain block for the opened context', () => {
+    renderAt('?context=context-1');
+    const promo = screen.getByTestId('promo');
+    expect(promo).toHaveAttribute('data-placement', 'context_sheet_maintain');
+    expect(promo).toHaveAttribute('data-title', 'Maintain it with your AI assistant');
+    expect(promo).toHaveAttribute('data-variant', 'section');
+    expect(promo).toHaveTextContent('maintain Context context-1 in project project-1.');
+  });
+
+  it('passes no promo to a read-only member', () => {
+    state.isAdmin = false;
+    renderAt('?context=context-1');
+    expect(screen.getByRole('dialog', { name: 'Revenue' })).toHaveAttribute(
+      'data-has-promo',
+      'false'
+    );
+  });
+
+  it('passes no promo without MCP', () => {
+    state.mcp = false;
+    renderAt('?context=context-1');
+    expect(screen.getByRole('dialog', { name: 'Revenue' })).toHaveAttribute(
+      'data-has-promo',
+      'false'
+    );
   });
 });

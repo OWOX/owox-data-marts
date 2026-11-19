@@ -1,4 +1,4 @@
-import { forwardRef, useEffect, useState } from 'react';
+import { forwardRef, useEffect, useState, type ReactNode } from 'react';
 import { useOwnerState } from '../../../../../../shared/hooks';
 import { focusFirstInvalidField } from '../../../../../../utils';
 import { UserReference } from '../../../../../../shared/components/UserReference';
@@ -58,6 +58,7 @@ interface LookerStudioReportEditFormProps {
   onSubmit?: () => void;
   onCancel?: () => void;
   preSelectedDestination?: DataDestination | null;
+  promo?: ReactNode;
 }
 
 // Cache time options in seconds
@@ -89,6 +90,7 @@ export const LookerStudioReportEditForm = forwardRef<
       onSubmit,
       onCancel,
       preSelectedDestination,
+      promo,
     },
     ref
   ) => {
@@ -352,6 +354,7 @@ export const LookerStudioReportEditForm = forwardRef<
               </Button>
             )}
           </FormActions>
+          {promo}
         </AppForm>
       </Form>
     );

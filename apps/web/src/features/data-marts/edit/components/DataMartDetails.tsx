@@ -11,7 +11,7 @@ import { cn } from '@owox/ui/lib/utils';
 import { ArrowLeft, CircleCheckBig, MoreVertical, Play, Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'react-hot-toast';
-import { NavLink, Outlet } from 'react-router';
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router';
 import { useFlags } from '../../../../app/store/hooks';
 import { Button } from '../../../../shared/components/Button';
 import { ConfirmationDialog } from '../../../../shared/components/ConfirmationDialog';
@@ -22,6 +22,7 @@ import { checkVisible } from '../../../../utils';
 import { ConnectorRunView } from '../../../connectors/edit/components/ConnectorRunSheet/ConnectorRunView.tsx';
 import { DataStorageType } from '../../../data-storage';
 import { useAuth } from '../../../idp';
+import { useIsMcpSetupPromoAvailable } from '../../../mcp-promo';
 import {
   DataMartDefinitionType,
   DataMartRunStatus,
@@ -31,6 +32,7 @@ import {
   getRequiredSetupActions,
 } from '../../shared';
 import { useSchemaActualizeTrigger } from '../../shared/hooks/useSchemaActualizeTrigger';
+import { getDataMartPreset } from '../../shared/utils/data-mart-presets';
 import { PromoStep, useDataMartNextStepPromo } from '../hooks/useDataMartNextStepPromo';
 import { useRefreshDataMartAfterConnectorRun, useSchemaUnsavedGuard } from '../model';
 import {
@@ -67,6 +69,8 @@ interface DataMartDetailsProps {
 
 export function DataMartDetails({ id }: DataMartDetailsProps) {
   const { navigate } = useProjectRoute();
+  const routerNavigate = useNavigate();
+  const location = useLocation();
   const { user } = useAuth();
   const { flags } = useFlags();
   const projectId = user?.projectId ?? '';
@@ -164,6 +168,31 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
   const shouldShowInsights = checkVisible('INSIGHTS_ENABLED', 'true', flags);
 
   const { showPromo, dismissAllPromos } = useDataMartNextStepPromo();
+  const hasMcpServer = useIsMcpSetupPromoAvailable();
+
+  // Router state is set once by the create page; clear it so a reload does not repeat the toast.
+  useEffect(() => {
+    const state = location.state as Record<string, unknown> | null;
+    if (!dataMartId || !projectId || state?.createdDataMartId !== dataMartId) return;
+
+    const remainingState = { ...state };
+    delete remainingState.createdDataMartId;
+    void routerNavigate(
+      { pathname: location.pathname, search: location.search, hash: location.hash },
+      { replace: true, state: remainingState }
+    );
+
+    // A connector or table preset opens a modal over the toast; the Data Setup card has the prompt.
+    const params = new URLSearchParams(location.search);
+    const presetType = getDataMartPreset(params.get('preset')?.toLowerCase())?.definitionType;
+    const opensModal =
+      params.has('connectorName') ||
+      presetType === DataMartDefinitionType.CONNECTOR ||
+      presetType === DataMartDefinitionType.TABLE;
+    if (isDraft && hasMcpServer && !opensModal) {
+      showPromo({ step: PromoStep.SETUP_DATA, projectId, dataMartId });
+    }
+  }, [dataMartId, projectId, isDraft, hasMcpServer, location, routerNavigate, showPromo]);
 
   // Show promo once a published data mart page is opened.
   // For CONNECTOR type — show SCHEDULE_DATA promo, for others — USE_DATA promo.
@@ -186,7 +215,7 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
     return () => {
       dismissAllPromos();
     };
-  }, [dismissAllPromos]);
+  }, [dataMartId, dismissAllPromos]);
 
   const navigation = [
     { name: 'Overview', path: 'overview' },

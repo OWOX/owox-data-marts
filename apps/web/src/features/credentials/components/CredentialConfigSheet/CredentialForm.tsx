@@ -27,7 +27,7 @@ import {
 } from '@owox/ui/components/select';
 import { Switch } from '@owox/ui/components/switch';
 import { Loader2 } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';
 import { z } from 'zod';
@@ -130,6 +130,7 @@ export interface CredentialFormProps {
   /** Hosts and field list a new custom connector Credential takes from the manifest. */
   customConnectorPrefill?: { hosts: string[]; fieldList: CustomConnectorFieldSpec[] };
   providerLogo?: string | null;
+  promo?: ReactNode;
 }
 
 export function CredentialForm(props: CredentialFormProps) {
@@ -173,6 +174,7 @@ function CredentialFormBody({
   customConnectorPrefill,
   providerLogo,
   oauthAvailable,
+  promo,
 }: CredentialFormProps & { oauthAvailable: { storage: boolean; destination: boolean } }) {
   const isEditMode = credential !== null;
   const titleEdited = useRef(Boolean(initialTitle));
@@ -960,6 +962,7 @@ function CredentialFormBody({
             Cancel
           </Button>
         </FormActions>
+        {promo}
       </AppForm>
     </Form>
   );

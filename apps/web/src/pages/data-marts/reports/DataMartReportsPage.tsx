@@ -43,7 +43,7 @@ import { ProjectDataMartEmptyState } from '../shared/ProjectDataMartEmptyState';
 import { ProjectDataMartSectionHeader } from '../shared/ProjectDataMartSectionHeader';
 import { ProjectDataMartTitleLink } from '../shared/ProjectDataMartTitleLink';
 import { AiAssistantHintCard } from './AiAssistantHintCard';
-import { ConnectAiAssistantPromoActions } from '../../../shared/components/ConnectAiAssistantPromoActions';
+import { ConnectAiAssistantPromoActions, useMcpPromoShown } from '../../../features/mcp-promo';
 import { mergeReportPagePreservingRows } from './DataMartReportsPage.utils';
 import {
   ReportGeneratedSqlAction,
@@ -54,6 +54,12 @@ import {
 
 const PROJECT_REPORTS_TABLE_PAGE_SIZE = 15;
 const PROJECT_REPORTS_TABLE_ID = 'project-reports-table';
+
+const REPORTS_PROMO_CTX = {
+  placement: 'reports_promo',
+  mcpPart: 'consumption',
+  mode: 'connector',
+} as const;
 
 // A rejected poll keeps the row RUNNING, so the interval never stops retrying it.
 const POLL_REQUEST_OPTIONS = {
@@ -485,6 +491,8 @@ export default function DataMartReportsPage() {
     };
   }, [refreshReportsByIds, visibleRunningReportIdsKey]);
 
+  useMcpPromoShown(REPORTS_PROMO_CTX, !isLoading && !error && reports.length > 0);
+
   return (
     <ReportsProvider>
       <div className='dm-page' data-testid='dataMartReportsPage'>
@@ -544,6 +552,7 @@ export default function DataMartReportsPage() {
                 description='Ask in plain language and get answers pulled straight from your Data Marts, not guesses. Connect via Claude or ChatGPT — whichever your team already uses.'
                 actions={
                   <ConnectAiAssistantPromoActions
+                    ctx={REPORTS_PROMO_CTX}
                     utmMedium='project_reports_page'
                     utmCampaign='reports_list'
                   />

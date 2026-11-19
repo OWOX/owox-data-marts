@@ -432,4 +432,21 @@ describe('DataDestinationForm', () => {
       expect(payload).not.toHaveProperty('reusableCredentialId');
     }
   );
+
+  it('renders the promo right under the form actions when creating', () => {
+    render(
+      <DataDestinationForm
+        initialData={null}
+        onSubmit={vi.fn()}
+        onCancel={vi.fn()}
+        promo={<div data-testid='promo' />}
+      />
+    );
+    const promo = screen.getByTestId('promo');
+    expect(promo.closest('form')).not.toBeNull();
+    expect(promo.nextElementSibling).toBeNull();
+    expect(
+      within(promo.previousElementSibling as HTMLElement).getByRole('button', { name: 'Cancel' })
+    ).toBeInTheDocument();
+  });
 });

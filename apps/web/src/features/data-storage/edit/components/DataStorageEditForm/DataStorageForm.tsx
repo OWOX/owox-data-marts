@@ -28,7 +28,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@owox/ui/components/select';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { OwnersSection } from '../../../../../shared/components/OwnersSection/OwnersSection';
 import { ContextPicker } from '../../../../../features/contexts/components/ContextPicker/ContextPicker';
 import { AddContextSheet } from '../../../../../features/contexts/components/AddContextSheet/AddContextSheet';
@@ -80,6 +80,7 @@ interface DataStorageFormProps {
   onSubmit: (data: DataStorageFormData) => Promise<void>;
   onCancel: () => void;
   onDirtyChange?: (isDirty: boolean) => void;
+  promo?: ReactNode;
 }
 
 export function DataStorageForm({
@@ -87,6 +88,7 @@ export function DataStorageForm({
   onSubmit,
   onCancel,
   onDirtyChange,
+  promo,
 }: DataStorageFormProps) {
   const {
     form,
@@ -517,6 +519,7 @@ export function DataStorageForm({
             Cancel
           </Button>
         </FormActions>
+        {promo}
       </AppForm>
       {/*
        * Sheet-in-sheet: nested Radix Dialogs stack via portals, so the outer
