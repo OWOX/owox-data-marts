@@ -51,9 +51,19 @@ export class DuckDbDataMartSchemaProvider implements DataMartSchemaProvider {
     const adapter = this.adapterFactory.createForDatabasePath(credentials.databasePath);
 
     try {
-      const columns = tableRef
+      let columns = tableRef
         ? await adapter.introspectColumns(tableRef.schema, tableRef.table)
         : await adapter.describeQuery(sqlQuery ?? '');
+      if (tableRef && columns.length === 0) {
+        // A connector creates its table on the first load.
+        if (!isConnectorDefinition(dataMartDefinition)) {
+          throw new BusinessViolationException(`Table ${target} is not found`);
+        }
+        columns = dataMartDefinition.connector.source.fields.map(name => ({
+          name,
+          type: 'VARCHAR',
+        }));
+      }
       return {
         type: DuckDbDataMartSchemaType,
         fields: columns.map(column => this.createField(column)),

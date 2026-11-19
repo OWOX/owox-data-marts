@@ -368,7 +368,7 @@ export class DuckDbApiAdapter {
    * Introspects column names/types for a schema-qualified table via
    * `information_schema.columns`. Schema/table values are single-quote-escaped
    * before interpolation (they are literals in a `WHERE ... = '...'` clause,
-   * not identifiers).
+   * not identifiers). DuckDB matches identifiers case-insensitively, so the match ignores case.
    *
    * @param schema - schema name (e.g. `main`)
    * @param table - table name
@@ -381,7 +381,8 @@ export class DuckDbApiAdapter {
     const esc = (s: string) => String(s).replace(/'/g, "''");
     const sql =
       `SELECT column_name, data_type FROM information_schema.columns ` +
-      `WHERE table_schema = '${esc(schema)}' AND table_name = '${esc(table)}' ORDER BY ordinal_position`;
+      `WHERE lower(table_schema) = lower('${esc(schema)}') AND lower(table_name) = lower('${esc(table)}') ` +
+      `ORDER BY ordinal_position`;
     const reader = await connection.runAndReadAll(sql);
     return (
       reader

@@ -56,3 +56,59 @@ it('derives a SQL data mart schema from the query result columns', async () => {
   ]);
   fs.rmSync(dir, { recursive: true, force: true });
 });
+
+describe('a table reference', () => {
+  let dir: string;
+  let dbPath: string;
+  const provider = new DuckDbDataMartSchemaProvider(new DuckDbApiAdapterFactory());
+
+  beforeEach(async () => {
+    dir = fs.mkdtempSync(path.join(os.tmpdir(), 'duck-sp-'));
+    dbPath = path.join(dir, 'st.duckdb');
+    const inst = await createProductionDuckDbInstance(dbPath);
+    const conn = await inst.connect();
+    await conn.run('CREATE TABLE main.holidays(id BIGINT)');
+    conn.closeSync();
+    inst.closeSync();
+  });
+
+  afterEach(() => fs.rmSync(dir, { recursive: true, force: true }));
+
+  it('finds the table when the reference uses other letter case, as DuckDB does', async () => {
+    const schema = await provider.getActualDataMartSchema(
+      { fullyQualifiedName: '"MAIN"."HOLIDAYS"' } as never,
+      {} as never,
+      { databasePath: dbPath }
+    );
+    expect(schema.fields.map(f => [f.name, f.type])).toEqual([['id', DuckdbFieldType.BIGINT]]);
+  });
+
+  it('fails when the table of a Table Data Mart is not in the file', async () => {
+    await expect(
+      provider.getActualDataMartSchema(
+        { fullyQualifiedName: 'main.missing' } as never,
+        {} as never,
+        {
+          databasePath: dbPath,
+        }
+      )
+    ).rejects.toThrow('Table main.missing is not found');
+  });
+
+  it('takes the connector source fields before the first load creates the table', async () => {
+    const schema = await provider.getActualDataMartSchema(
+      {
+        connector: {
+          storage: { fullyQualifiedName: 'main.missing' },
+          source: { name: 'src', configuration: [{}], node: 'n', fields: ['date', 'name'] },
+        },
+      } as never,
+      {} as never,
+      { databasePath: dbPath }
+    );
+    expect(schema.fields.map(f => [f.name, f.type])).toEqual([
+      ['date', DuckdbFieldType.VARCHAR],
+      ['name', DuckdbFieldType.VARCHAR],
+    ]);
+  });
+});

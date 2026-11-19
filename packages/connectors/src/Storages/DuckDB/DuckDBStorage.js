@@ -98,8 +98,9 @@ var DuckDBStorage = class DuckDBStorage extends AbstractStorage {
   }
 
   async _loadExistingColumns(schema, table) {
+    // DuckDB matches identifiers case-insensitively, even quoted ones.
     const esc = s => String(s).replace(/'/g, "''");
-    const sql = `SELECT column_name FROM information_schema.columns WHERE table_schema = '${esc(schema)}' AND table_name = '${esc(table)}'`;
+    const sql = `SELECT column_name FROM information_schema.columns WHERE lower(table_schema) = lower('${esc(schema)}') AND lower(table_name) = lower('${esc(table)}')`;
     const reader = await this._conn.runAndReadAll(sql);
     const cols = {};
     for (const row of reader.getRowObjects()) cols[String(row.column_name)] = true;

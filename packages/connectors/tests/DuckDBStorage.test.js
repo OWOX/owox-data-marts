@@ -275,6 +275,19 @@ test("a run with different unique keys than the table's first run still upserts"
   }
 });
 
+test('a run finds the table when its name uses other letter case, as DuckDB does', async () => {
+  const dbPath = path.join(os.tmpdir(), `duck-${process.pid}-${Date.now()}-case.duckdb`);
+  try {
+    await loadRun(dbPath, 't_case', ['id'], [{ id: 1, name: 'a' }], { columns: ['id', 'name'] });
+    await loadRun(dbPath, 'T_CASE', ['id'], [{ id: 1, name: 'a2', amount: 10 }]);
+
+    const rows = await query(dbPath, 'SELECT * FROM "main"."t_case" ORDER BY id');
+    assert.deepEqual(idNameAmount(rows), [[1, 'a2', 10]]);
+  } finally {
+    for (const file of [dbPath, `${dbPath}.wal`]) fs.rmSync(file, { force: true });
+  }
+});
+
 test('a column added to the node between two runs is written by the MERGE', async () => {
   const dbPath = path.join(os.tmpdir(), `duck-${process.pid}-${Date.now()}-addcol.duckdb`);
   try {
