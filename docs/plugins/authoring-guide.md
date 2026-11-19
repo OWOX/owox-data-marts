@@ -121,6 +121,8 @@ Marts frame or if no host answers within 10 seconds.
 | `ctx.actions`                              | Runs the actions your backend declares in `plugin.json`; see [backend actions](#run-code-on-your-backend-with-actions). `undefined` on a host without them.                                                                                                                                                                                                     |
 | `ctx.ui.openExternal(url)`                 | Asks the host to open an external HTTPS address in a new tab.                                                                                                                                                                                                                                                                                                   |
 | `ctx.ui.navigate(path)`                    | Asks the host to navigate to a page inside OWOX Data Marts—for example, `/ui/${ctx.projectId}/data-marts/${id}`—in place of the plugin frame. Resolutions off the app's origin are refused.                                                                                                                                                                     |
+| `ctx.ui.link(path)`                        | Gives `href` and `onClick` for an `<a>` to an OWOX page, so a member can open it in a new tab; see [link to OWOX pages](#link-to-owox-pages).                                                                                                                                                                                                                   |
+| `ctx.appOrigin`                            | The origin of the page that runs your plugin, for example `https://app.owox.com`; `undefined` when it is unknown. Use it to build links, not as proof that the page is OWOX Data Marts.                                                                                                                                                                         |
 | `ctx.route`                                | The plugin's own route the member opened, e.g. `/dashboards/42`; `undefined` on a host without page links.                                                                                                                                                                                                                                                      |
 | `ctx.ui.setRoute(path)`                    | Tells the host which of your pages is showing, so the address in the browser is a link to it.                                                                                                                                                                                                                                                                   |
 | `ctx.ui.copyLink(path?)`                   | Asks the host to copy a link to one of your pages (the current one by default) and confirm it.                                                                                                                                                                                                                                                                  |
@@ -251,9 +253,39 @@ whenever the member moves to another page, and `ctx.ui.copyLink()` from your own
 
 ### Link to OWOX pages
 
-Use `ctx.ui.navigate(path)` to send the member to a page of OWOX Data Marts. Build the path from
-`ctx.projectId` and the IDs that you read through `ctx.owox`. A query parameter can also open one
-record on the page, for example in a side sheet:
+Use `ctx.ui.link(path)` to show a link to a page of OWOX Data Marts. Build the path from
+`ctx.projectId` and the IDs that you read through `ctx.owox`.
+
+```tsx
+const path = `/ui/${ctx.projectId}/data-marts/${encodeURIComponent(dataMartId)}/overview`;
+const link = ctx.ui.link(path);
+
+return link ? (
+  <a {...link}>{title}</a>
+) : (
+  <button onClick={() => ctx.ui.navigate(path)}>{title}</button>
+);
+```
+
+- A click opens the page in place of your frame, as `ctx.ui.navigate` does.
+- Cmd-click on macOS, Ctrl-click on Windows and Linux, and a middle click open the page in a new
+  tab.
+- The context menu can open the link in a new tab or window, or copy its address.
+- Use `link.onClick` on every link to an OWOX page. Without it, a plain click loads OWOX in your
+  frame. The browser refuses that page, and your plugin stops until the member reloads the page.
+- To add your own click handler, call `link.onClick(event)` from it, before any `await`. Do not
+  call `preventDefault()` before it, and do not stop propagation in elements inside the link.
+  Without React, set `a.href = link.href` and call `a.addEventListener('click', link.onClick)`.
+- `ctx.ui.link` throws for a path that does not start with a single `/` (for example `//host` or
+  `/\host`) or that has a tab or a line break.
+- `ctx.ui.link` is for app pages under `/ui/`. For your own plugin pages, use `ctx.route` and
+  `ctx.ui.setRoute`.
+- `ctx.ui.link` returns `undefined` only when the host origin is unknown. Show a `navigate` button
+  then.
+- Do not set `target="_blank"`. The default plugin sandbox blocks it.
+
+To open a page without a link, for example after a save, call `ctx.ui.navigate(path)`. A query
+parameter can also open one record on the page, for example in a side sheet:
 
 ```ts
 // Opens the Context sheet, where the member can edit the description.

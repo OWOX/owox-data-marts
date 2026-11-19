@@ -418,6 +418,176 @@ describe('connect', () => {
     await vi.advanceTimersByTimeAsync(0);
     await refused;
   });
+
+  async function connectFrom(origin = 'https://app.owox.test') {
+    const parent = pretendToBeFramed();
+    const channel = new MessageChannel();
+    const hostSide: { kind?: string; path?: string }[] = [];
+    channel.port1.onmessage = event =>
+      hostSide.push(event.data as { kind?: string; path?: string });
+    channel.port1.start();
+    const pending = connect();
+    await vi.advanceTimersByTimeAsync(0);
+    deliverFromParent(parent, hostInit(), [channel.port2], origin);
+    return { context: await pending, hostSide };
+  }
+
+  it.each(['https://app.owox.test', 'https://owox.customer.example:8443', 'http://localhost:3000'])(
+    'exposes the origin %s the host is served on',
+    async origin => {
+      const { context } = await connectFrom(origin);
+
+      expect(context.appOrigin).toBe(origin);
+    }
+  );
+
+  it('offers no link when the host origin is opaque', async () => {
+    const { context } = await connectFrom('null');
+
+    expect(context.appOrigin).toBeUndefined();
+    expect(context.ui.link('/ui/j1/data-marts/dm-1')).toBeUndefined();
+  });
+
+  it.each([
+    ['/ui/j1/data-marts/dm-1/overview', 'https://app.owox.test/ui/j1/data-marts/dm-1/overview'],
+    [
+      '/ui/j1/project-settings/contexts?context=c%201#top',
+      'https://app.owox.test/ui/j1/project-settings/contexts?context=c%201#top',
+    ],
+  ])('links %s to its full address', async (path, href) => {
+    const { context } = await connectFrom();
+
+    expect(context.ui.link(path)?.href).toBe(href);
+  });
+
+  const refusal =
+    'A link path must start with a single "/", not "//" or "/\\", and have no tabs or line breaks';
+
+  it.each([
+    'ui/j1/data-marts',
+    '//evil.example/x',
+    '/\\evil.example/x',
+    '/\t/evil.example/x',
+    '/ui\n/x',
+  ])('refuses the path %s', async path => {
+    const { context } = await connectFrom();
+
+    expect(() => context.ui.link(path)).toThrow(new TypeError(refusal));
+  });
+
+  it('refuses a bad path on a host with an opaque origin', async () => {
+    const { context } = await connectFrom('null');
+
+    expect(() => context.ui.link('ui/j1')).toThrow(new TypeError(refusal));
+  });
+
+  it.each(['ftp://files.example', 'file://', 'chrome-extension://abc', 'httpx://app.owox.test'])(
+    'has no app origin and no link for the non-web origin %s',
+    async origin => {
+      const { context } = await connectFrom(origin);
+
+      expect(context.appOrigin).toBeUndefined();
+      expect(context.ui.link('/x')).toBeUndefined();
+    }
+  );
+
+  it('builds the address by concatenation and keeps dot segments', async () => {
+    const { context } = await connectFrom();
+
+    expect(context.ui.link('/ui/../x')?.href).toBe('https://app.owox.test/ui/../x');
+  });
+
+  describe('link clicks', () => {
+    const path = '/ui/j1/data-marts/dm-1';
+
+    beforeEach(() => {
+      vi.spyOn(navigator, 'platform', 'get').mockReturnValue('MacIntel');
+    });
+
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    async function expectOnlySentinel(
+      context: Awaited<ReturnType<typeof connectFrom>>['context'],
+      hostSide: unknown[]
+    ) {
+      context.ui.navigate('/sentinel');
+      await vi.advanceTimersByTimeAsync(0);
+
+      expect(hostSide.filter(m => (m as { kind?: string }).kind === 'navigate')).toEqual([
+        expect.objectContaining({ kind: 'navigate', path: '/sentinel' }),
+      ]);
+    }
+
+    it.each([
+      ['MacIntel', { metaKey: true }],
+      ['iPad', { metaKey: true }],
+      ['Win32', { ctrlKey: true }],
+      ['Linux x86_64', { ctrlKey: true }],
+      ['MacIntel', { shiftKey: true }],
+      ['Win32', { shiftKey: true }],
+      ['MacIntel', { button: 1 }],
+    ])('leaves a click on %s with %j to the browser', async (platform, init) => {
+      vi.spyOn(navigator, 'platform', 'get').mockReturnValue(platform);
+      const { context, hostSide } = await connectFrom();
+      const event = new MouseEvent('click', { cancelable: true, ...init });
+
+      context.ui.link(path)!.onClick(event);
+
+      expect(event.defaultPrevented).toBe(false);
+      await expectOnlySentinel(context, hostSide);
+    });
+
+    it.each([
+      ['MacIntel', {}],
+      ['Win32', {}],
+      ['MacIntel', { altKey: true }],
+      ['MacIntel', { ctrlKey: true }],
+      ['Win32', { metaKey: true }],
+      ['Linux x86_64', { metaKey: true }],
+    ])('opens the page in place on %s with %j', async (platform, init) => {
+      vi.spyOn(navigator, 'platform', 'get').mockReturnValue(platform);
+      const { context, hostSide } = await connectFrom();
+      const event = new MouseEvent('click', { cancelable: true, ...init });
+
+      context.ui.link(path)!.onClick(event);
+      await vi.advanceTimersByTimeAsync(0);
+
+      expect(event.defaultPrevented).toBe(true);
+      expect(hostSide).toContainEqual(expect.objectContaining({ kind: 'navigate', path }));
+    });
+
+    it('sends nothing for a click another handler already prevented', async () => {
+      const { context, hostSide } = await connectFrom();
+      const event = new MouseEvent('click', { cancelable: true });
+      event.preventDefault();
+
+      context.ui.link(path)!.onClick(event);
+
+      await expectOnlySentinel(context, hostSide);
+    });
+
+    it('works as a DOM click listener on a real anchor', async () => {
+      const { context, hostSide } = await connectFrom();
+      const link = context.ui.link(path)!;
+      const a = document.createElement('a');
+      a.href = link.href;
+      a.addEventListener('click', link.onClick);
+      document.body.append(a);
+
+      try {
+        expect(a.dispatchEvent(new MouseEvent('click', { cancelable: true, bubbles: true }))).toBe(
+          false
+        );
+        await vi.advanceTimersByTimeAsync(0);
+
+        expect(hostSide).toContainEqual(expect.objectContaining({ kind: 'navigate', path }));
+      } finally {
+        a.remove();
+      }
+    });
+  });
 });
 
 describe('ctx.ui.startLoading', () => {
