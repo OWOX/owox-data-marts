@@ -47,8 +47,16 @@ Use **Project Settings → Overview → Description** to tell AI assistants your
 
 Open the user menu and select **My profile** to see your name, sign-in email, work email, phone, company name, and company website in OWOX Cloud. The user menu is also available on the **Request access** screen, so you can check which account is signed in while you wait for project access.
 
+![My profile Overview with personal details and account deletion controls](../res/screens/my-profile-overview.png)
+
 On **Overview**, select **Edit profile** to update your contact and company details. Your sign-in email is read-only. The editor includes links to profile settings help and Google's instructions for changing your account email. Under **Account deletion**, you can submit a request to delete your account and personal data. You can cancel a pending request before it is confirmed.
+
+![Edit profile with five editable fields, a read-only sign-in email and help links](../res/screens/my-profile-edit.png)
 
 Under **Projects**, you can see which projects you belong to and your role in each one. Search by project name or filter by role or project status.
 
+![Projects table with Project, Status and Role columns, filters and search](../res/screens/my-profile-projects.png)
+
 Under **Email preferences**, turn your personal email topics on or off. Changes apply to your OWOX Cloud account across projects.
+
+![Email preferences with separate switches for service notifications, tips and offers](../res/screens/my-profile-email-preferences.png)

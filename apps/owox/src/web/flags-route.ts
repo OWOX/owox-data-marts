@@ -116,6 +116,7 @@ export function registerPublicFlagsRoute(app: Express, rawOptions: FlagsRouteOpt
   ) {
     throw new Error('CLOUD_ACCOUNT_API_ORIGIN must be an HTTPS origin');
   }
+
   const options: ResolvedOptions = ResolvedOptionsSchema.parse(rawOptions);
   validateCloudBillingConfig();
 
@@ -134,6 +135,7 @@ export function registerPublicFlagsRoute(app: Express, rawOptions: FlagsRouteOpt
     if (accountApiUrl) {
       payload.CLOUD_ACCOUNT_API_ORIGIN = accountApiUrl.origin;
     }
+
     res.json(payload);
   });
 }
