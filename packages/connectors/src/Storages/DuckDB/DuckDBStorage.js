@@ -17,11 +17,15 @@ var DuckDBStorage = class DuckDBStorage extends AbstractStorage {
     MaxBufferSize: { isRequired: true, default: 1000 },
   };
 
+  // Resolved file path -> { opening: Promise<DuckDBInstance>, users: number }.
+  static _sharedInstances = new Map();
+
   constructor(context, uniqueKeyColumns, schema = null, description = null) {
     super(context, uniqueKeyColumns, schema, description);
     this.updatedRecordsBuffer = new Map();
     this.totalRecordsProcessed = 0;
     this._db = null;
+    this._dbKey = null;
     this._conn = null;
     this._duck = null;
     this.existingColumns = {};
@@ -45,10 +49,50 @@ var DuckDBStorage = class DuckDBStorage extends AbstractStorage {
    */
   async _openDatabase() {
     if (this._conn) return;
+    const dbPath = this.context.getParameter('DatabasePath')?.value;
+    const key = require('node:path').resolve(dbPath);
+    // A run writes each node through its own storage. They share one instance of the file:
+    // two instances of one file in one process keep separate buffer pools.
+    let shared = DuckDBStorage._sharedInstances.get(key);
+    if (!shared) {
+      shared = { users: 0, opening: this._createInstance(dbPath) };
+      DuckDBStorage._sharedInstances.set(key, shared);
+      const opened = shared;
+      opened.opening.catch(() => {
+        if (DuckDBStorage._sharedInstances.get(key) === opened) {
+          DuckDBStorage._sharedInstances.delete(key);
+        }
+      });
+    }
+    shared.users++;
+    this._dbKey = key;
+    try {
+      this._db = await shared.opening;
+      this._conn = await this._db.connect();
+    } catch (error) {
+      this.close();
+      throw error;
+    }
+    await this._conn.run(`CREATE SCHEMA IF NOT EXISTS ${quoteIdent(this._schemaName())}`);
+  }
+
+  /** Closes this storage's connection, and the file's instance when no other storage uses it. */
+  close() {
+    this._conn?.closeSync();
+    this._conn = null;
+    const shared = DuckDBStorage._sharedInstances.get(this._dbKey);
+    if (shared && --shared.users === 0) {
+      DuckDBStorage._sharedInstances.delete(this._dbKey);
+      this._db?.closeSync();
+    }
+    this._db = null;
+    this._dbKey = null;
+  }
+
+  async _createInstance(dbPath) {
     // Lazy require — external to the Vite bundle, resolved at runtime.
     this._duck = this._duck || require('@duckdb/node-api');
     const sleep = this._sleep || (ms => new Promise(resolve => setTimeout(resolve, ms)));
-    const dbPath = this.context.getParameter('DatabasePath')?.value;
     const os = require('node:os');
     const memory = Math.min(os.totalmem(), process.constrainedMemory() || Infinity);
     const limits = duckdbResourceLimits(memory, os.availableParallelism());
@@ -76,9 +120,8 @@ var DuckDBStorage = class DuckDBStorage extends AbstractStorage {
       db.closeSync();
       throw error;
     }
-    this._db = db;
-    this._conn = conn;
-    await this._conn.run(`CREATE SCHEMA IF NOT EXISTS ${quoteIdent(this._schemaName())}`);
+    conn.closeSync();
+    return db;
   }
 
   async init() {

@@ -143,8 +143,7 @@ async function loadRun(
     await storage.init();
     await storage.saveData(rows);
   } finally {
-    storage._conn?.closeSync();
-    storage._db?.closeSync();
+    storage.close();
   }
 }
 
@@ -841,8 +840,7 @@ test('opens the file within a quarter of the memory, half of the cores and 10GB 
     assert.equal(Number(settings.threads), Math.max(1, Math.floor(os.availableParallelism() / 2)));
     assert.equal(settings.temp, '9.3 GiB');
   } finally {
-    storage._conn?.closeSync();
-    storage._db?.closeSync();
+    storage.close();
     fs.rmSync(dbPath, { force: true });
   }
 });
@@ -863,8 +861,7 @@ test('takes the quarter of the memory from a lower container memory limit', asyn
     );
     assert.deepEqual(reader.getRowObjects(), [{ memory: '476.8 MiB' }]);
   } finally {
-    storage._conn?.closeSync();
-    storage._db?.closeSync();
+    storage.close();
     fs.rmSync(dbPath, { force: true });
   }
 });
@@ -882,8 +879,7 @@ test('creates a missing data directory before the first open', async () => {
     await storage.init();
     assert.equal(fs.existsSync(dbPath), true);
   } finally {
-    storage._conn?.closeSync();
-    storage._db?.closeSync();
+    storage.close();
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
@@ -914,8 +910,57 @@ test('a failed COMMIT surfaces its own error, not the ROLLBACK that follows it',
     await assert.rejects(storage.saveData([{ id: 1, name: 'a', amount: 1 }]), /commit failed/);
     await assert.rejects(storage.replaceData([]), /commit failed/);
   } finally {
-    (conn ?? storage._conn)?.closeSync();
-    storage._db?.closeSync();
+    if (conn) storage._conn = conn;
+    storage.close();
+    for (const file of [dbPath, `${dbPath}.wal`]) fs.rmSync(file, { force: true });
+  }
+});
+
+test('the storages of two nodes in one run share one instance of the file', async () => {
+  const dbPath = path.join(os.tmpdir(), `duck-${process.pid}-${Date.now()}-shared.duckdb`);
+  const { DuckDBStorage } = OWOX.Storages.DuckDB;
+  let creates = 0;
+  const duck = {
+    DuckDBInstance: {
+      create: (...args) => {
+        creates++;
+        return duckdb.DuckDBInstance.create(...args);
+      },
+    },
+  };
+  const storages = ['t_node_a', 't_node_b'].map(table => {
+    const storage = new DuckDBStorage(
+      makeContextFor(dbPath, table, 10, ['id', 'name']),
+      ['id'],
+      RUN_SCHEMA,
+      null
+    );
+    storage._duck = duck;
+    return storage;
+  });
+  const key = path.resolve(dbPath);
+  try {
+    for (const storage of storages) {
+      await storage.init();
+      await storage.saveData([{ id: 1, name: storage._tableName() }]);
+    }
+    assert.equal(creates, 1);
+
+    storages[0].close();
+    assert.equal(DuckDBStorage._sharedInstances.has(key), true);
+    storages[1].close();
+    assert.equal(DuckDBStorage._sharedInstances.has(key), false);
+
+    const rows = await query(
+      dbPath,
+      'SELECT name FROM main.t_node_a UNION ALL SELECT name FROM main.t_node_b ORDER BY name'
+    );
+    assert.deepEqual(
+      rows.map(r => String(r.name)),
+      ['t_node_a', 't_node_b']
+    );
+  } finally {
+    for (const storage of storages) storage.close();
     for (const file of [dbPath, `${dbPath}.wal`]) fs.rmSync(file, { force: true });
   }
 });
@@ -937,8 +982,7 @@ test('opens the file in UTC with the configuration locked', async () => {
       /configuration has been locked/
     );
   } finally {
-    storage._conn?.closeSync();
-    storage._db?.closeSync();
+    storage.close();
     for (const file of [dbPath, `${dbPath}.wal`]) fs.rmSync(file, { force: true });
   }
 });
@@ -1021,8 +1065,13 @@ test('loads the same values whatever the host time zone, zone-less strings as UT
   ]);
 });
 
+let lockTestFiles = 0;
 function makeLockTestStorage(create) {
-  const dbPath = path.join(os.tmpdir(), `duckdb-lock-${process.pid}-${Date.now()}.duckdb`);
+  // A distinct file per test: storages of one file share its instance.
+  const dbPath = path.join(
+    os.tmpdir(),
+    `duckdb-lock-${process.pid}-${Date.now()}-${++lockTestFiles}.duckdb`
+  );
   const ctx = makeContext(dbPath, 't_lock', 10);
   const schema = { id: { type: 'INTEGER' } };
   const storage = new OWOX.Storages.DuckDB.DuckDBStorage(ctx, ['id'], schema, null);
@@ -1039,7 +1088,7 @@ test('retries a lock-conflict open', async () => {
   const create = async () => {
     calls++;
     if (calls <= 2) throw new Error('Conflicting lock is held');
-    return { connect: async () => ({ run: async () => {} }) };
+    return { connect: async () => ({ run: async () => {}, closeSync: () => {} }) };
   };
   const { storage, sleeps } = makeLockTestStorage(create);
   await storage._openDatabase();
