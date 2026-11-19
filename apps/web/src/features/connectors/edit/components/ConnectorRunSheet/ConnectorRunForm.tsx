@@ -414,7 +414,7 @@ export function ConnectorRunForm({ configuration, onClose, onSubmit }: Connector
         description={`${String(backfillDays)} days, loaded in ${String(backfillSegments)} parts, one per calendar month. It counts as ${String(backfillSegments)} runs: a part counts once any of its accounts loads data.`}
         confirmLabel='Start backfill'
         cancelLabel='Keep editing'
-        variant='brand'
+        variant='default'
         onConfirm={handleConfirmRun}
       />
     </>

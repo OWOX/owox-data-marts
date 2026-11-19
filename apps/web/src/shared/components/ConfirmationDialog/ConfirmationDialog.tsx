@@ -24,7 +24,7 @@ interface ConfirmationDialogProps {
   showCloseButton?: boolean;
   /** Where focus goes on close; Radix has no trigger to return it to when the dialog opens from a menu. */
   onCloseAutoFocus?: (event: Event) => void;
-  variant?: 'destructive' | 'default' | 'brand' | 'outline' | 'secondary' | 'ghost' | 'link';
+  variant?: 'destructive' | 'default' | 'outline' | 'secondary' | 'ghost' | 'link';
   children?: ReactNode;
 }
 
