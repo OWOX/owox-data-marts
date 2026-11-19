@@ -66,9 +66,17 @@ export function Subscription({ origin }: { origin: string }) {
   const freePlanNotice = getFreePlanNotice(subscription);
   const canManage = canEdit && !user?.viewOnly;
   const pricingUrl = user?.projectId ? buildProjectPath(user.projectId, '/pricing') : null;
-  const viewPlansLink = pricingUrl && (
-    <Button asChild variant='link' className='h-auto p-0'>
-      <Link to={pricingUrl}>View plans</Link>
+  const isFree = query.isSuccess && subscription?.planType === 'FREE';
+  const pricingAction = pricingUrl && (
+    <Button
+      asChild
+      variant={isFree ? 'default' : 'link'}
+      size='sm'
+      className={isFree ? undefined : 'h-auto p-0'}
+    >
+      <Link to={pricingUrl}>
+        {isFree ? 'Upgrade' : subscription?.planType === 'PAID' ? 'Manage' : 'View plans'}
+      </Link>
     </Button>
   );
   const showBillingPortal =
@@ -133,7 +141,7 @@ export function Subscription({ origin }: { origin: string }) {
                   </Popover>
                 )}
               </span>
-              {viewPlansLink}
+              {pricingAction}
             </div>
             <dl className='grid gap-4 text-sm sm:grid-cols-2 lg:grid-cols-3'>
               <div>
@@ -191,7 +199,7 @@ export function Subscription({ origin }: { origin: string }) {
             </EmptyHeader>
           </Empty>
         )}
-        {(!query.isSuccess || !status) && viewPlansLink}
+        {(!query.isSuccess || !status) && pricingAction}
       </CardContent>
       {showBillingPortal && (
         <CardFooter className='px-0'>

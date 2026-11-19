@@ -4,6 +4,7 @@ import { MemoryRouter } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import apiClient from '../../app/api/apiClient';
 import { CreditConsumption } from './CreditConsumption';
+import type { PluginGalleryEntry } from '../plugins/types';
 import type {
   ConsumptionBranch,
   ConsumptionProjection,
@@ -14,6 +15,31 @@ import type {
 vi.mock('../../app/api/apiClient', () => ({ default: { get: vi.fn() } }));
 vi.mock('../idp/hooks/useAuthState', () => ({
   useUser: () => ({ id: 'user-1', projectId: 'cloud-project', roles: ['viewer'] }),
+}));
+
+vi.mock('../../shared/hooks/useProjectId', () => ({
+  useProjectId: () => 'cloud-project',
+}));
+
+const streamingPluginId = '8b2d31f7-50d4-4418-91c8-78019c7f10f7';
+const transformationPluginId = 'fc7769eb-5013-4201-8430-34708fe774b7';
+const projectPlugins: PluginGalleryEntry[] = [
+  ['streaming-plugin', streamingPluginId],
+  ['transformations-plugin', transformationPluginId],
+].map(([repository, pluginId]) => ({
+  pluginId,
+  displayName: repository,
+  description: '',
+  currentSemver: '1.0.0',
+  currentVersionId: 'version-1',
+  visibleViaScopes: ['project'],
+  suspended: false,
+  installationState: 'not_installed',
+  source: {
+    ownerName: 'OWOX',
+    ownerUrl: 'https://github.com/OWOX',
+    repositoryUrl: `https://github.com/OWOX/${repository}`,
+  },
 }));
 
 function branch(
@@ -52,20 +78,25 @@ function renderCredits(
   units: ConsumptionUnit[],
   entityProjections: Record<string, ConsumptionProjection[]>,
   subscriptionPlanType: CreditBalance['subscriptionPlanType'] = 'PAID',
-  product = 'DATA_MARTS'
+  product = 'DATA_MARTS',
+  plugins = projectPlugins
 ) {
   const credits = units.reduce((total, operation) => total + operation.credits, 0);
-  vi.mocked(apiClient.get).mockImplementation(async url => ({
-    data:
-      url === '/api/bi-projects/balance'
-        ? {
-            subscriptionPlanType,
-            consumedCredits: credits,
-            availableCredits: 500,
-            creditUsagePercentage: 10,
-          }
-        : { credits, products: [{ product, credits, units, entityProjections }] },
-  }));
+  vi.mocked(apiClient.get).mockImplementation(async url =>
+    url === '/plugins/gallery'
+      ? { data: plugins }
+      : {
+          data:
+            url === '/api/bi-projects/balance'
+              ? {
+                  subscriptionPlanType,
+                  consumedCredits: credits,
+                  availableCredits: 500,
+                  creditUsagePercentage: 10,
+                }
+              : { credits, products: [{ product, credits, units, entityProjections }] },
+        }
+  );
   render(
     <QueryClientProvider client={new QueryClient()}>
       <MemoryRouter>
@@ -211,9 +242,9 @@ it('shows operations immediately and renders paginated Process Run details on ro
   expect(screen.queryByRole('table', { name: 'Process Run details' })).not.toBeInTheDocument();
   fireEvent.click(operation);
   const details = within(screen.getByRole('table', { name: 'Process Run details' }));
-  expect(details.getByRole('link', { name: 'Sales · Step 1' })).toHaveAttribute(
+  expect(await details.findByRole('link', { name: 'Sales · Step 1' })).toHaveAttribute(
     'href',
-    '/ui/cloud-project/plugins/github/OWOX/transformations-plugin/open/transformations/transformation'
+    `/ui/cloud-project/plugins/${transformationPluginId}/open/transformations/transformation`
   );
   expect(details.queryByText('Sales · Step 11')).not.toBeInTheDocument();
 
@@ -301,10 +332,57 @@ it('opens the named stream in its plugin and leaves deleted streams as text', as
   fireEvent.click(await screen.findByRole('button', { name: 'Client-Side User' }));
 
   const details = within(screen.getByRole('table', { name: 'Client-Side User details' }));
-  expect(details.getByRole('link', { name: 'Web events' })).toHaveAttribute(
+  expect(await details.findByRole('link', { name: 'Web events' })).toHaveAttribute(
     'href',
-    '/ui/cloud-project/plugins/github/OWOX/streaming-plugin/open/streaming/ga4/stream-1'
+    `/ui/cloud-project/plugins/${streamingPluginId}/open/streaming/ga4/stream-1`
   );
   expect(details.getByText('Archived events')).toBeInTheDocument();
   expect(details.queryByRole('link', { name: 'Archived events' })).not.toBeInTheDocument();
+});
+
+it('uses the project catalog plugin ID for transformation and operation links', async () => {
+  renderCredits(
+    [
+      unit('TRANSFORMATION_OPERATION_RUN', 3, [
+        branch(3, {
+          TRANSFORMATION_ID: '04b85c112ee94ea496b9b6547a5bedb0',
+          TRANSFORMATION_OPERATION_ID: 'op-1',
+        }),
+      ]),
+    ],
+    {
+      TRANSFORMATION: [
+        {
+          ...projection('04b85c112ee94ea496b9b6547a5bedb0', 'Sales'),
+          childEntities: [projection('op-1', 'Aggregate orders')],
+        },
+      ],
+    },
+    'PAID',
+    'PLATFORM'
+  );
+
+  fireEvent.click(await screen.findByRole('button', { name: 'Transformation Operation Run' }));
+  const details = within(
+    screen.getByRole('table', { name: 'Transformation Operation Run details' })
+  );
+  const href = `/ui/cloud-project/plugins/${transformationPluginId}/open/transformations/04b85c112ee94ea496b9b6547a5bedb0`;
+  expect(await details.findByRole('link', { name: 'Sales' })).toHaveAttribute('href', href);
+  expect(details.getByRole('link', { name: 'Aggregate orders' })).toHaveAttribute('href', href);
+  expect(vi.mocked(apiClient.get).mock.calls.some(([url]) => url.includes('/lookup'))).toBe(false);
+});
+
+it('keeps stream names as text when the plugin is not in the accessible catalog', async () => {
+  renderCredits(
+    [unit('STREAMING_CLIENT_SIDE_USERS', 3, [branch(3, { STREAMING_ID: 'stream-1' })])],
+    { STREAMING: [projection('stream-1', 'Web events')] },
+    'PAID',
+    'STREAMING',
+    []
+  );
+
+  fireEvent.click(await screen.findByRole('button', { name: 'Client-Side User' }));
+  const details = within(screen.getByRole('table', { name: 'Client-Side User details' }));
+  expect(await details.findByText('Web events')).toBeInTheDocument();
+  expect(details.queryByRole('link', { name: 'Web events' })).not.toBeInTheDocument();
 });
