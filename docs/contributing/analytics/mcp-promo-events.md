@@ -11,13 +11,13 @@ MCP promo elements point users to Claude and ChatGPT. Each element sends two eve
 
 ### Properties
 
-| Property    | Values                                         | Meaning                                                                               |
-| ----------- | ---------------------------------------------- | ------------------------------------------------------------------------------------- |
-| `surface`   | See the surface values below.                  | The product surface that sent the event. Required.                                    |
-| `placement` | One of the placement ids below.                | The screen element that sent the event.                                               |
-| `mcp_part`  | `consumption`, `setup`, `both`                 | The part of MCP that the element promotes.                                            |
-| `mode`      | `prompt`, `connector`                          | The element offers a ready prompt or the connector.                                   |
-| `action`    | `claude`, `chatgpt`, `copy`, `docs`, `details` | The clicked action. Only on `mcp_promo_clicked`. `details` opens the dialog of a row. |
+| Property    | Values                                                    | Meaning                                                                                                                                       |
+| ----------- | --------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `surface`   | See the surface values below.                             | The product surface that sent the event. Required.                                                                                            |
+| `placement` | One of the placement ids below.                           | The screen element that sent the event.                                                                                                       |
+| `mcp_part`  | `consumption`, `setup`, `both`                            | The part of MCP that the element promotes.                                                                                                    |
+| `mode`      | `prompt`, `connector`, `publish`                          | The element offers a ready prompt, the connector, or a link to publish a Data Mart in OWOX Data Marts.                                        |
+| `action`    | `claude`, `chatgpt`, `copy`, `docs`, `details`, `publish` | The clicked action. Only on `mcp_promo_clicked`. `details` opens the dialog of a row. `publish` opens OWOX Data Marts to publish a Data Mart. |
 
 ### Surfaces
 
@@ -98,3 +98,25 @@ How each `prompt` placement looks, and its `action` values:
 A change from a setup placement to its maintain placement while the element is visible mounts the element again and sends `mcp_promo_shown` for the new placement.
 
 The Claude and ChatGPT links of a prompt put the project id and the object ids into the `?q=` parameter of claude.ai and chatgpt.com on purpose. An id gives no access by itself. Names and titles never go into a prompt.
+
+## Legacy Google Sheets add-on (`sheets_addon_legacy`)
+
+The add-on sends the same dataLayer fields as the web app (see [Web app transport](#web-app-transport-gtm-datalayer)) to the GTM container of the add-on. It does not send `eventType` and `timestamp`.
+
+Legacy Data Marts sync to OWOX Data Marts as drafts, and MCP sees only published Data Marts. For this reason the Connect, Refresh and editor lines open OWOX Data Marts to publish the Data Mart (`mode` `publish`), not a chat.
+
+### Add-on placements
+
+| Placement id           | `mcp_part`    | `mode`      | `action`                            | Screen                                                                                                                                                             |
+| ---------------------- | ------------- | ----------- | ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `addon_menu_connect`   | `consumption` | `connector` | `claude`, `chatgpt`, `docs`, `copy` | Menu item "Connect to Claude / ChatGPT". A dialog with Add to Claude, Add to ChatGPT, the MCP setup guide link and the MCP URL with Copy.                          |
+| `addon_menu_connect`   | `setup`       | `publish`   | `publish`                           | The same dialog. A line under the buttons with the "Open OWOX Data Marts" link. It shows only when the active sheet has a report and the project lookup succeeds.  |
+| `refresh_dialog`       | `setup`       | `publish`   | `publish`                           | "Refresh current report" and "Refresh all reports" dialogs. A line above OK. It opens the Data Mart of the current report, or the Data Marts list for all reports. |
+| `query_editor`         | `setup`       | `publish`   | `publish`                           | Data Mart editor of a published query. A line in the header, in place of "Try new". It opens the Data Mart.                                                        |
+| `query_editor_publish` | `setup`       | `connector` | `docs`                              | Data Mart editor of a new or unpublished query. The same line. It opens the MCP setup guide.                                                                       |
+| `upload_dialog`        | `setup`       | `prompt`    | `claude`, `chatgpt`                 | "Upload Sheet to BigQuery" dialog. A line under Start Upload: "Or finish this in Claude · ChatGPT".                                                                |
+| `schedule_dialog`      | `setup`       | `prompt`    | `claude`, `chatgpt`                 | "Scheduled refresh" dialog. A line in the footer, in place of "Try new": "Or finish this in Claude · ChatGPT".                                                     |
+
+Each line sends `mcp_promo_shown` once per open of its dialog, when the line renders. The two lines of `addon_menu_connect` send one event each. The `refresh_dialog` and `query_editor*` lines and the `setup` line of `addon_menu_connect` render only when the lookup of the OWOX project succeeds.
+
+The prompts of `upload_dialog` and `schedule_dialog` contain no project id and no object id: the add-on does not know the OWOX project in these dialogs.
