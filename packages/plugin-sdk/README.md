@@ -112,10 +112,13 @@ return link ? (
 - The context menu can open the link in a new tab or window, or copy its address.
 - Use `link.onClick` on every link to an OWOX page. Without it, a plain click loads OWOX in your
   frame. The browser refuses that page, and your plugin stops until the member reloads the page.
-- To add your own click handler, call `link.onClick(event)` from it. Without React, set
-  `a.href = link.href` and call `a.addEventListener('click', link.onClick)`.
-- `ctx.ui.link` throws for a path that does not start with a single `/` or that has a tab or a
-  line break.
+- To add your own click handler, call `link.onClick(event)` from it, before any `await`. Do not
+  call `preventDefault()` before it, and do not stop propagation in elements inside the link.
+  Without React, set `a.href = link.href` and call `a.addEventListener('click', link.onClick)`.
+- `ctx.ui.link` throws for a path that does not start with a single `/` (for example `//host` or
+  `/\host`) or that has a tab or a line break.
+- `ctx.ui.link` is for app pages under `/ui/`. For your own plugin pages, use `ctx.route` and
+  `ctx.ui.setRoute`.
 - `ctx.ui.link` returns `undefined` only when the host origin is unknown. Show a `navigate` button
   then.
 - Do not set `target="_blank"`. The default plugin sandbox blocks it.

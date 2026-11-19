@@ -460,7 +460,8 @@ describe('connect', () => {
     expect(context.ui.link(path)?.href).toBe(href);
   });
 
-  const refusal = 'A link path must start with a single "/" and have no tabs or line breaks';
+  const refusal =
+    'A link path must start with a single "/", not "//" or "/\\", and have no tabs or line breaks';
 
   it.each([
     'ui/j1/data-marts',

@@ -81,7 +81,8 @@ export interface PluginUi {
    * Gives `href` and `onClick` for an `<a>` to an OWOX page, e.g. `/ui/${ctx.projectId}/data-marts/${id}`.
    * A plain click opens the page in place; the browser handles its own new-tab click (Cmd on Apple
    * platforms, Ctrl elsewhere), Shift-click and other buttons. Throws a `TypeError` for a path that
-   * does not start with a single `/` or has a tab or line break. `undefined` when the host origin is unknown.
+   * does not start with a single `/` (`//host` and `/\host` fail) or has a tab or line break.
+   * `undefined` when the host origin is unknown. For the plugin's own pages, use `setRoute`.
    */
   link(path: string): PluginLink | undefined;
 
@@ -115,7 +116,7 @@ export interface PluginContext extends Omit<PluginHostContext, 'actions' | 'sche
 
   /**
    * The origin of the page that runs this plugin, e.g. `https://app.owox.com`; `undefined` when it
-   * is opaque. Use it to build links, not as proof that the host is OWOX Data Marts.
+   * is not an http or https origin. Use it to build links, not as proof that the host is OWOX Data Marts.
    */
   readonly appOrigin: string | undefined;
 
@@ -298,7 +299,7 @@ function bind(
           /[\t\n\r]/.test(path)
         ) {
           throw new TypeError(
-            'A link path must start with a single "/" and have no tabs or line breaks'
+            'A link path must start with a single "/", not "//" or "/\\", and have no tabs or line breaks'
           );
         }
         if (appOrigin === undefined) return undefined;
