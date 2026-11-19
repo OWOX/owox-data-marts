@@ -38,6 +38,7 @@ export const DATA_MART_ERROR_MESSAGES = {
   SNOWFLAKE_IDENTIFIER_INVALID: 'Invalid identifier format. Expected: database.schema.table',
   REDSHIFT_IDENTIFIER_INVALID:
     'Invalid identifier format. Expected: schema.table or database.schema.table',
+  DUCKDB_IDENTIFIER_INVALID: 'Invalid identifier format. Expected: schema.table',
 } as const;
 
 export const DATA_MART_RUN_ERROR_MESSAGES = {

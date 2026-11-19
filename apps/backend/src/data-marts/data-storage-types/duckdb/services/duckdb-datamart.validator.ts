@@ -10,6 +10,7 @@ import { isConnectorDefinition } from '../../../dto/schemas/data-mart-table-defi
 import { DataStorageConfig } from '../../data-storage-config.type';
 import { DataStorageCredentials } from '../../data-storage-credentials.type';
 import { isValidDuckDbFullyQualifiedName } from '../utils/duckdb-validation.utils';
+import { DATA_MART_ERROR_MESSAGES } from '../../../errors/data-mart-error-messages';
 
 @Injectable()
 export class DuckDbDataMartValidator implements DataMartValidator {
@@ -28,7 +29,7 @@ export class DuckDbDataMartValidator implements DataMartValidator {
     if (fqn && !isValidDuckDbFullyQualifiedName(fqn)) {
       return ValidationResult.authoredFailure(
         DataMartValidationCode.INVALID_IDENTIFIER_FORMAT,
-        'Invalid identifier format. Expected: schema.table'
+        DATA_MART_ERROR_MESSAGES.DUCKDB_IDENTIFIER_INVALID
       );
     }
 
