@@ -167,7 +167,7 @@ export function CreditConsumption({ origin }: { origin: string }) {
     >((latest, value) => (!latest || value > latest ? value : latest), undefined);
 
   return (
-    <div className='dm-page-content flex flex-col gap-4'>
+    <div className='flex flex-col gap-4'>
       <div className='dm-card flex flex-col gap-4'>
         <CardHeader className='px-0'>
           <CardTitle role='heading' aria-level={2}>
