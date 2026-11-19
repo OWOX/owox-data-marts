@@ -42,3 +42,13 @@ Use **Project Settings → Overview → Description** to tell AI assistants your
 | Connect a self-managed deployment to Cloud | [License Keys](./license-keys.md) |
 | Alert the team about run results | [Notification Settings](../notifications/notification-settings.md) |
 | Give AI assistants your project's business context | [MCP Server](../getting-started/setup-guide/mcp.md#add-project-context-for-your-assistant) |
+
+## My profile in OWOX Cloud
+
+Open the user menu and select **My profile** to see your name, sign-in email, work email, phone, company name, and company website in OWOX Cloud. The user menu is also available on the **Request access** screen, so you can check which account is signed in while you wait for project access.
+
+On **Overview**, select **Edit profile** to update your contact and company details. Your sign-in email is read-only. The editor includes links to profile settings help and Google's instructions for changing your account email. Under **Account deletion**, you can submit a request to delete your account and personal data. You can cancel a pending request before it is confirmed.
+
+Under **Projects**, you can see which projects you belong to and your role in each one. Search by project name or filter by role or project status.
+
+Under **Email preferences**, turn your personal email topics on or off. Changes apply to your OWOX Cloud account across projects.

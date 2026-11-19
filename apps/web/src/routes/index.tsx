@@ -33,6 +33,13 @@ import { pluginsRoutes } from './plugins/routes';
 import { CredentialsPage } from '../pages/credentials/CredentialsPage';
 import ConnectorBuilderRoutePage from '../pages/connectors/builder/BuilderPage';
 import { InviteTeammatesPage } from '../pages/onboarding/InviteTeammatesPage';
+import { MyAccountPage } from '../features/my-account/MyAccountPage';
+import {
+  MY_ACCOUNT_EMAIL_PATH,
+  MY_ACCOUNT_PATH,
+  MY_ACCOUNT_PREFIX,
+  MY_ACCOUNT_PROJECTS_PATH,
+} from '../features/idp/utils/my-account-path';
 
 const routes: RouteObject[] = [
   {
@@ -217,6 +224,32 @@ const routes: RouteObject[] = [
   {
     ...oauthRoutes,
     errorElement: <RootErrorBoundary />,
+  },
+  {
+    path: MY_ACCOUNT_PREFIX,
+    element: <MainLayout accountOnly />,
+    errorElement: <RootErrorBoundary />,
+    children: [
+      {
+        index: true,
+        element: <Navigate to={MY_ACCOUNT_PATH} replace />,
+      },
+      {
+        path: MY_ACCOUNT_PATH,
+        element: <MyAccountPage />,
+        errorElement: <LayoutErrorBoundary />,
+      },
+      {
+        path: MY_ACCOUNT_PROJECTS_PATH,
+        element: <MyAccountPage section='projects' />,
+        errorElement: <LayoutErrorBoundary />,
+      },
+      {
+        path: MY_ACCOUNT_EMAIL_PATH,
+        element: <MyAccountPage section='email-preferences' />,
+        errorElement: <LayoutErrorBoundary />,
+      },
+    ],
   },
   {
     path: '/request-access',

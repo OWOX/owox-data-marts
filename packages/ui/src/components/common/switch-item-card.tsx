@@ -81,7 +81,10 @@ export function SwitchItemCardDescription({
 //
 // Toggle (Switch + Tooltip + Loader)
 //
-export interface SwitchItemCardToggleProps {
+export interface SwitchItemCardToggleProps extends Pick<
+  React.ComponentProps<typeof Switch>,
+  'id' | 'aria-describedby'
+> {
   checked: boolean;
   disabled?: boolean;
   loading?: boolean;
@@ -109,6 +112,8 @@ export function SwitchItemCardToggle({
   tooltipTextSwitchOn,
   tooltipTextSwitchOff,
   tooltipTextSwitchDisabled,
+  id,
+  'aria-describedby': describedBy,
 }: SwitchItemCardToggleProps) {
   const tooltipText = disabled
     ? (tooltipTextSwitchDisabled ?? 'Disabled')
@@ -126,7 +131,13 @@ export function SwitchItemCardToggle({
           {loading ? (
             <Loader2 className='text-muted-foreground h-5 w-5 animate-spin' />
           ) : (
-            <Switch checked={checked} disabled={disabled} onCheckedChange={onCheckedChange} />
+            <Switch
+              id={id}
+              aria-describedby={describedBy}
+              checked={checked}
+              disabled={disabled}
+              onCheckedChange={onCheckedChange}
+            />
           )}
         </div>
       </TooltipTrigger>

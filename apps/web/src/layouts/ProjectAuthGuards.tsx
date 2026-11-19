@@ -4,6 +4,14 @@ import { ProjectIdGuard } from '../features/idp/components/ProjectIdGuard';
 import { ProjectRoleGuard } from '../features/idp/components/ProjectRoleGuard';
 import { ProjectsProvider } from '../features/idp/context/ProjectsContext';
 
+export function AccountAuthGuards({ children }: { children: ReactNode }) {
+  return (
+    <AuthGuard>
+      <ProjectsProvider>{children}</ProjectsProvider>
+    </AuthGuard>
+  );
+}
+
 /**
  * The auth/project guard chain shared by every authenticated `/ui/:projectId/...` layout:
  * sign-in required, active project re-synced to the URL's :projectId (with a transparent

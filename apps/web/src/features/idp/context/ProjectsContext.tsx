@@ -1,4 +1,4 @@
-import React, { useCallback, useReducer } from 'react';
+import React, { useCallback, useReducer, useRef } from 'react';
 import { getProjectsApi } from '../services';
 import type { Projects } from '../types';
 import { getTokenProvider } from '../../../app/api/token-provider';
@@ -37,8 +37,11 @@ function reducer(state: ProjectsState, action: Action): ProjectsState {
 
 export function ProjectsProvider({ children }: { children: React.ReactNode }) {
   const [state, dispatch] = useReducer(reducer, initialState);
+  const isRequestInFlight = useRef(false);
 
   const loadProjects = useCallback(async () => {
+    if (isRequestInFlight.current) return;
+    isRequestInFlight.current = true;
     dispatch({ type: 'LOADING' });
     try {
       const provider = getTokenProvider();
@@ -60,6 +63,8 @@ export function ProjectsProvider({ children }: { children: React.ReactNode }) {
       dispatch({ type: 'SUCCESS', payload: projects });
     } catch (e) {
       dispatch({ type: 'ERROR', payload: extractApiError(e) });
+    } finally {
+      isRequestInFlight.current = false;
     }
   }, []);
 

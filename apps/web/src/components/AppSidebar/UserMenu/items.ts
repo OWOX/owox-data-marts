@@ -1,15 +1,27 @@
-import { LogOut, Monitor, Moon, Sun } from 'lucide-react';
+import { CircleUserRound, LogOut, Monitor, Moon, Sun } from 'lucide-react';
 import type { UserMenuItem } from './types';
 
 export const UserMenuItems = ({
   theme,
   setTheme,
   signOut,
+  openMyAccount,
 }: {
   theme: string | undefined;
   setTheme: (theme: string) => void;
   signOut: () => void;
+  openMyAccount?: () => void;
 }): UserMenuItem[] => [
+  ...(openMyAccount
+    ? [
+        {
+          type: 'item' as const,
+          title: 'My profile',
+          icon: CircleUserRound,
+          onClick: openMyAccount,
+        },
+      ]
+    : []),
   {
     type: 'submenu',
     title: 'Appearance',

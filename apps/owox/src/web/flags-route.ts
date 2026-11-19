@@ -103,6 +103,19 @@ function validateCloudBillingConfig(): void {
  * GET /flags -> { "APP_VERSION": "1.2.3" }
  */
 export function registerPublicFlagsRoute(app: Express, rawOptions: FlagsRouteOptions = {}): void {
+  const accountApiOrigin =
+    process.env.IDP_PROVIDER === 'owox-better-auth'
+      ? process.env.CLOUD_ACCOUNT_API_ORIGIN?.trim()
+      : undefined;
+  const accountApiUrl = accountApiOrigin ? URL.parse(accountApiOrigin) : null;
+  if (
+    accountApiOrigin &&
+    (accountApiUrl?.protocol !== 'https:' ||
+      (accountApiOrigin !== accountApiUrl.origin &&
+        accountApiOrigin !== `${accountApiUrl.origin}/`))
+  ) {
+    throw new Error('CLOUD_ACCOUNT_API_ORIGIN must be an HTTPS origin');
+  }
   const options: ResolvedOptions = ResolvedOptionsSchema.parse(rawOptions);
   validateCloudBillingConfig();
 
@@ -118,6 +131,9 @@ export function registerPublicFlagsRoute(app: Express, rawOptions: FlagsRouteOpt
 
     // Do not cache this response; values may change across deploys
     res.setHeader('Cache-Control', 'no-store');
+    if (accountApiUrl) {
+      payload.CLOUD_ACCOUNT_API_ORIGIN = accountApiUrl.origin;
+    }
     res.json(payload);
   });
 }
