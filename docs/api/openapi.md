@@ -85,6 +85,16 @@ Use it to look up the run and its executed query through the run history endpoin
 The run exists when the headers arrive, if OWOX can record it. Its status is `RUNNING` until the
 stream ends. It holds the SQL and the totals when OWOX can produce them.
 
+The Data Mart endpoint accepts `includeTotalRowCount=true`. The response then includes an
+`x-owox-total-row-count` header with the row count of the full result, without `limit`, as digits.
+The count is one more warehouse query. OWOX waits up to 60 s for it before the first row. BigQuery
+and Snowflake stop the query at that limit. On other storages the query runs to its end. The header
+is absent when the read does not ask, the count fails, or it takes longer than 60 s. The run records the count
+in `additionalParams.httpData.totalRowCount`, or the reason in
+`additionalParams.httpData.totalRowCountError`. An `includeTotalRowCount` value other than `true` or `false` returns
+`400 Bad Request`.
+The report endpoint rejects the parameter.
+
 Invalid query parameters, including output controls supplied to the Data Mart endpoint, return
 `400 Bad Request` without a Run History entry. Errors in saved Data Mart or report configuration
 create a `FAILED` run. Project restrictions, such as an inactive project or an exceeded credit limit,

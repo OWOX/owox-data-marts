@@ -440,9 +440,10 @@ const data = await client.dataMarts.traverseData('dm_123', {
   aggregation: [{ column: 'Revenue: net = USD', function: 'SUM' }],
   dateTrunc: [{ column: 'Event Date (local)', unit: 'MONTH' }],
   limit: 1000,
+  includeTotalRowCount: true,
 });
 
-console.log(data.runId);
+console.log(data.runId, data.totalRowCount);
 
 for await (const rows of data.rowChunks()) {
   await cache.appendRows(rows);
@@ -452,6 +453,15 @@ for await (const rows of data.rowChunks()) {
 The run exists when `traverseData()` returns, if OWOX can record it. Its status is `RUNNING` until
 the stream ends. Read it with `client.runs.forDataMart('dm_123').get(data.runId)`. It holds
 `totals` and the SQL in `additionalParams.httpData.executionSqlQuery` when OWOX can produce them.
+
+Set `includeTotalRowCount: true` to read the row count of the full result, without `limit`, from
+`data.totalRowCount`. The count is one more warehouse query. OWOX waits up to 60 s for it before the
+first row. BigQuery and Snowflake stop the query at that limit. On other storages the query runs to
+its end. `data.totalRowCount` is `undefined` when the read did not ask, when the count failed or
+took longer than 60 s, when an older server ignored the option, or when a plugin runs in an older
+OWOX web app that does not pass the header to the plugin. The run records the count in
+`additionalParams.httpData.totalRowCount`, or the reason in `additionalParams.httpData.totalRowCountError`.
+`reports.traverseData()` returns the same class. Its `totalRowCount` is always `undefined`.
 
 Call `await data.cancel()` if you open a traversal and decide not to iterate `rowChunks()`.
 The client rejects a successful response whose media type is not `application/x-ndjson` instead of

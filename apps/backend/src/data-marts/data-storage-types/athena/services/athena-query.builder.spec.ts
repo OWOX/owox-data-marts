@@ -84,7 +84,7 @@ describe('AthenaQueryBuilder output controls', () => {
     const out = builder.buildQuery(sqlDefinition('SELECT a, b FROM t;'), {
       columns: ['a'],
     });
-    expect(out).toBe('SELECT\n  "a"\nFROM (SELECT a, b FROM t)');
+    expect(out).toBe('SELECT\n  "a"\nFROM (\nSELECT a, b FROM t\n)');
   });
 
   it('composes WHERE + ORDER BY + LIMIT in correct order', () => {
@@ -118,7 +118,7 @@ describe('AthenaQueryBuilder output controls', () => {
       filters: [{ column: 'x', operator: 'is_empty' }],
     });
     if (typeof out === 'string') throw new Error('expected QueryBuildResult');
-    expect(out.sql).toContain('FROM (SELECT 1)');
+    expect(out.sql).toContain('FROM (\nSELECT 1\n)');
     expect(out.sql).toContain('("x" IS NULL OR "x" = \'\')');
   });
 
@@ -126,7 +126,7 @@ describe('AthenaQueryBuilder output controls', () => {
     const sqlDef = { sqlQuery: 'SELECT a, b FROM t' } as unknown as DataMartDefinition;
     const out = builder.buildQuery(sqlDef, { limit: 0 });
     if (typeof out === 'string') throw new Error('expected QueryBuildResult');
-    expect(out.sql).toBe('SELECT *\nFROM (SELECT a, b FROM t)\nLIMIT 0');
+    expect(out.sql).toBe('SELECT *\nFROM (\nSELECT a, b FROM t\n)\nLIMIT 0');
     expect(out.params).toEqual([]);
   });
 

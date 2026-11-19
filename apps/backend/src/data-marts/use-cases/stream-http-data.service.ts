@@ -55,6 +55,7 @@ import {
   RunKind,
 } from '../services/project-billing/project-billing.service';
 import { ReportSqlComposerService } from '../services/report-sql-composer.service';
+import type { TableReferenceMemo } from '../services/data-mart-table-reference.service';
 import { ReportAccessService } from '../services/report-access.service';
 import { ReportService } from '../services/report.service';
 import { ReportTotals, ReportTotalsService } from '../services/report-totals.service';
@@ -79,6 +80,7 @@ import { DataMartRunService } from '../services/data-mart-run.service';
 import { DataMartRunStatus } from '../enums/data-mart-run-status.enum';
 import {
   HTTP_DATA_SCHEMA_EXPIRES_AFTER_MS,
+  HTTP_DATA_TOTAL_ROW_COUNT_TIMEOUT_MS,
   STREAM_BATCH_SIZE,
 } from '../services/http-data/http-data.constants';
 import {
@@ -263,6 +265,7 @@ export class StreamHttpDataService {
         uniqueCount: query.uniqueCount,
         limit,
       },
+      includeTotalRowCount: query.includeTotalRowCount,
       buildPlan: async currentDataMart => {
         const blendableSchema = await this.blendableSchemaService.computeBlendableSchema(
           currentDataMart.id,
@@ -410,6 +413,7 @@ export class StreamHttpDataService {
     reportId?: string;
     /** See asExcelReportRun. Execution failures belong to this run even before planning. */
     excelReportRun?: Report;
+    includeTotalRowCount?: boolean;
     buildPlan: (dataMart: DataMart) => Promise<ExecuteStreamPlan>;
   }): Promise<void> {
     const {
@@ -422,7 +426,11 @@ export class StreamHttpDataService {
       initialMetadata,
       buildPlan,
       excelReportRun,
+      includeTotalRowCount,
     } = params;
+    // One memo for the decision, the read, its recorded SQL and the count: each table reference
+    // resolves once.
+    const tableReferences: TableReferenceMemo = new Map();
 
     let reader: DataStorageReportReader | null = null;
     let baseMetadata = initialMetadata;
@@ -475,7 +483,7 @@ export class StreamHttpDataService {
         readPlan,
         accessor,
         undefined,
-        undefined,
+        tableReferences,
         // See StreamPlanContext.degradesStaleSort: on for a stored report's read only. The ad-hoc
         // read named its Unique Count sources itself, so an unusable one is its own mistake (400),
         // not a column to drop silently.
@@ -509,7 +517,13 @@ export class StreamHttpDataService {
       let sqlOverrideParams = decision.params;
       let calculatedFields: CalculatedFieldPlan[] | undefined = decision.calculatedFields;
       if (!decision.needsBlending && hasOutputControls(readPlan)) {
-        const composed = await this.reportSqlComposerService.compose(readPlan, accessor, decision);
+        const composed = await this.reportSqlComposerService.compose(
+          readPlan,
+          accessor,
+          decision,
+          undefined,
+          tableReferences
+        );
         sqlOverride = composed.sql;
         sqlOverrideParams = composed.params;
         calculatedFields = composed.calculatedFields;
@@ -522,7 +536,7 @@ export class StreamHttpDataService {
       // Without an override, this SQL is only for the record: the reader does not run it.
       const executionSqlQuery = sqlOverride
         ? this.tryInlineExecutedSql(dataMart, sqlOverride, sqlOverrideParams)
-        : await this.tryComposeExecutedSql(readPlan, accessor, decision);
+        : await this.tryComposeExecutedSql(readPlan, accessor, decision, tableReferences);
 
       if (executionSqlQuery) {
         baseMetadata.executionSqlQuery = executionSqlQuery;
@@ -562,17 +576,25 @@ export class StreamHttpDataService {
 
       // Grand totals are a SEPARATE DWH query bridged to the client via x-owox-run-id. Computed
       // BEFORE streamRows: NDJSON headers cannot change once the first chunk is flushed. BEST-EFFORT.
-      const { totals, totalsError } = await this.computeTotalsBestEffort(
-        readPlan,
-        accessor,
-        dataMart
-      );
+      // The count runs with the totals, so the two waits do not add up before the first byte.
+      const [{ totals, totalsError }, count] = await Promise.all([
+        this.computeTotalsBestEffort(readPlan, accessor, dataMart, tableReferences),
+        includeTotalRowCount
+          ? this.computeRowCountBestEffort(readPlan, accessor, dataMart, tableReferences, res)
+          : undefined,
+      ]);
       // In the base metadata, so a read that fails later keeps the totals the client saw.
       baseMetadata = {
         ...baseMetadata,
         ...(totals ? { totals } : {}),
         ...(totalsError ? { totalsError } : {}),
+        ...count,
       };
+      const totalRowCount = count?.totalRowCount;
+
+      if (res.destroyed) {
+        throw new StreamCancelledError('Client disconnected before stream completion');
+      }
 
       // Journalled into the run metadata regardless of outcome; persisted as the Data Mart's
       // last-known value only when the stream reads exactly this Data Mart's own sources (a
@@ -633,7 +655,8 @@ export class StreamHttpDataService {
         reader,
         description.dataHeaders,
         outputColumns,
-        runId
+        runId,
+        totalRowCount
       );
 
       // F2: an all-columns report has no explicit columnConfig, so the plan's metadata columns are
@@ -730,10 +753,19 @@ export class StreamHttpDataService {
   private async tryComposeExecutedSql(
     readPlan: ReportLikeReadPlan,
     accessor: BlendableSchemaAccessor,
-    decision: BlendingDecision
+    decision: BlendingDecision,
+    tableReferences: TableReferenceMemo
   ): Promise<string | undefined> {
     try {
-      return (await this.reportSqlComposerService.composeStatic(readPlan, accessor, decision)).sql;
+      return (
+        await this.reportSqlComposerService.composeStatic(
+          readPlan,
+          accessor,
+          decision,
+          undefined,
+          tableReferences
+        )
+      ).sql;
     } catch (err) {
       this.logger.warn(`Failed to compose SQL for HTTP Data run: ${castError(err).message}`);
       return undefined;
@@ -765,20 +797,80 @@ export class StreamHttpDataService {
   private async computeTotalsBestEffort(
     readPlan: ReportLikeReadPlan,
     accessor: BlendableSchemaAccessor,
-    dataMart: DataMart
+    dataMart: DataMart,
+    tableReferences: TableReferenceMemo
   ): Promise<{ totals: ReportTotals | null; totalsError?: string }> {
     try {
       return {
         totals: await this.reportTotalsService.computeTotals(
           readPlan,
           accessor,
-          dataMart.storage.type
+          dataMart.storage.type,
+          undefined,
+          undefined,
+          tableReferences
         ),
       };
     } catch (err) {
       const reason = err instanceof Error ? err.message : String(err);
       this.logger.error(`Failed to compute totals for Data Mart ${dataMart.id}: ${reason}`);
       return { totals: null, totalsError: reason };
+    }
+  }
+
+  /**
+   * The count never costs the run its rows. A failure or a slow count degrades to no header, and
+   * the run record keeps the reason. The wait is capped here, so the cap holds for any storage.
+   */
+  private async computeRowCountBestEffort(
+    readPlan: ReportLikeReadPlan,
+    accessor: BlendableSchemaAccessor,
+    dataMart: DataMart,
+    tableReferences: TableReferenceMemo,
+    res: Response
+  ): Promise<{ totalRowCount?: number; totalRowCountError?: string }> {
+    const controller = new AbortController();
+    let timer: NodeJS.Timeout | undefined;
+    let onClose: (() => void) | undefined;
+    try {
+      const count = this.reportTotalsService.computeRowCount(
+        readPlan,
+        accessor,
+        dataMart.storage.type,
+        HTTP_DATA_TOTAL_ROW_COUNT_TIMEOUT_MS,
+        controller.signal,
+        tableReferences
+      );
+      // A guard only: Promise.race already handles a late rejection.
+      count.catch(() => undefined);
+      const timeout = new Promise<never>((_, reject) => {
+        timer = setTimeout(() => {
+          const error = new Error(
+            `The total row count did not finish in ${String(HTTP_DATA_TOTAL_ROW_COUNT_TIMEOUT_MS)} ms`
+          );
+          controller.abort(error);
+          reject(error);
+        }, HTTP_DATA_TOTAL_ROW_COUNT_TIMEOUT_MS);
+      });
+      // A client that leaves must not keep the count query running.
+      const left = new Promise<never>((_, reject) => {
+        onClose = () => {
+          const error = new Error('The client disconnected during the total row count');
+          controller.abort(error);
+          reject(error);
+        };
+        res.once('close', onClose);
+        // The client can already be gone when the count starts.
+        if (res.destroyed) onClose();
+      });
+      return { totalRowCount: await Promise.race([count, timeout, left]) };
+    } catch (err) {
+      const reason = castError(err).message;
+      this.logger.warn(`Failed to count the rows for Data Mart ${dataMart.id}: ${reason}`);
+      return { totalRowCountError: reason };
+    } finally {
+      clearTimeout(timer);
+      if (onClose) res.off('close', onClose);
     }
   }
 
@@ -986,7 +1078,8 @@ export class StreamHttpDataService {
     reader: DataStorageReportReader,
     dataHeaders: ReportDataHeader[],
     requestedColumns: string[],
-    runId: string
+    runId: string,
+    totalRowCount?: number
   ): Promise<{ rowCount: number; bytesWritten: number }> {
     const fieldIndexMap = this.buildFieldIndexMap(dataHeaders, requestedColumns);
     const abortController = new AbortController();
@@ -1017,7 +1110,7 @@ export class StreamHttpDataService {
         const batch = await this.readBatchOrAbort(reader, nextBatchId, abortController.signal);
 
         if (!headersSent) {
-          this.streamWriter.initHeaders(res, { runId });
+          this.streamWriter.initHeaders(res, { runId, totalRowCount });
           headersSent = true;
         }
 

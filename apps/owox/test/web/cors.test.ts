@@ -119,6 +119,7 @@ describe('CORS configuration', () => {
           'x-owox-run-context',
         ],
         credentials: true,
+        exposedHeaders: ['x-owox-run-id', 'x-owox-total-row-count'],
         maxAge: 86_400,
         methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
         optionsSuccessStatus: 204,

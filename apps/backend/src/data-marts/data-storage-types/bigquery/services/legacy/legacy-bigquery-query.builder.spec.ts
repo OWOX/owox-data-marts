@@ -134,7 +134,7 @@ describe('LegacyBigQueryQueryBuilder', () => {
     const { builder, preprocessor } = makeBuilder();
     const result = await builder.buildQuery(sqlDefinition, { columns: ['id', 'created_at'] });
     expect(result).toBe(
-      'SELECT\n  `id`,\n  `created_at`\nFROM (SELECT id, created_at FROM parsed_table)'
+      'SELECT\n  `id`,\n  `created_at`\nFROM (\nSELECT id, created_at FROM parsed_table\n)'
     );
     expect(preprocessor.prepare).toHaveBeenCalledWith('SELECT id, created_at FROM source_table');
   });

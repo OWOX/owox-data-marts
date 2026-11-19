@@ -72,6 +72,9 @@ const MOCK_AGGREGATED_ROWS: unknown[][] = [['2026-05-01', 999]];
 // assert it is a NUMBER (streamed correctly) rather than `null` (the outputColumns-gate bug).
 const MOCK_CALCULATED_FIELD_VALUE = 0.42;
 
+// Value the mock reader returns for the total row count query.
+const MOCK_TOTAL_ROW_COUNT = 42;
+
 function buildMockReader(headers: ReportDataHeader[], rows: unknown[][]): DataStorageReportReader {
   // Simulate the real reader's aggregated-header resolution: an aggregation renames each aggregated
   // column to "<column> | <FN>" (see resolveReportDataHeaders; no automatic Row Count), so the
@@ -80,6 +83,7 @@ function buildMockReader(headers: ReportDataHeader[], rows: unknown[][]): DataSt
   // header + value (resolveReportDataHeaders synthesizes it last, on every branch), regardless of
   // whether the request also carries an aggregation.
   let currentRows: unknown[][] = rows;
+  const readReportDataBatch = jest.fn(async () => new ReportDataBatch(currentRows, null));
   return {
     type: DataStorageType.GOOGLE_BIGQUERY,
     prepareReportData: jest.fn(async (_plan: unknown, options: unknown) => {
@@ -87,7 +91,15 @@ function buildMockReader(headers: ReportDataHeader[], rows: unknown[][]): DataSt
       const opts = options as {
         aggregationConfig?: Array<{ column: string; function: string }>;
         calculatedFields?: Array<{ outputName: string }>;
+        sqlOverride?: string;
       };
+      // The count query gets its own one-row result and leaves the shared row buffer alone.
+      if (opts?.sqlOverride?.startsWith('SELECT COUNT(*)')) {
+        readReportDataBatch.mockResolvedValueOnce(
+          new ReportDataBatch([[MOCK_TOTAL_ROW_COUNT]], null)
+        );
+        return new ReportDataDescription([new ReportDataHeader('total_row_count')], 1);
+      }
       const aggregations = opts?.aggregationConfig ?? [];
       const calculatedFields = opts?.calculatedFields ?? [];
       const aggregated = aggregations.length > 0;
@@ -117,7 +129,7 @@ function buildMockReader(headers: ReportDataHeader[], rows: unknown[][]): DataSt
 
       return new ReportDataDescription(resultHeaders, currentRows.length);
     }),
-    readReportDataBatch: jest.fn(async () => new ReportDataBatch(currentRows, null)),
+    readReportDataBatch,
     finalize: jest.fn(async () => undefined),
     getState: jest.fn(() => null),
     initFromState: jest.fn(async () => undefined),
@@ -483,6 +495,7 @@ describe('HTTP Data API (e2e)', () => {
         'invalid date bucket type',
         { column: 'revenue', dateTrunc: b64([{ column: 'revenue', unit: 'MONTH' }]) },
       ],
+      ['invalid total row count flag', { column: 'date', includeTotalRowCount: 'yes' }],
     ])('returns 400 without a run or run-id header for %s', async (_name, query) => {
       const runs = app.get<Repository<DataMartRun>>(getRepositoryToken(DataMartRun));
       const countBefore = await runs.countBy({ dataMartId });
@@ -648,6 +661,38 @@ describe('HTTP Data API (e2e)', () => {
       );
     });
 
+    it('sends the total row count when the read asks for it', async () => {
+      const res = await agent
+        .get(`/api/external/http-data/data-marts/${dataMartId}.ndjson`)
+        .query({ column: 'date', includeTotalRowCount: 'true' })
+        .set(AUTH_HEADER);
+
+      expect(res.status).toBe(200);
+      expect(res.headers['x-owox-total-row-count']).toBe(String(MOCK_TOTAL_ROW_COUNT));
+      expect(parseNdjson(res.text)).toEqual(MOCK_ROWS.map(([date]) => ({ date })));
+
+      const run = await agent
+        .get(`/api/data-marts/${dataMartId}/runs/${res.headers['x-owox-run-id']}`)
+        .set(AUTH_HEADER);
+      const httpData = run.body.additionalParams?.httpData;
+      expect(httpData?.rowCount).toBe(MOCK_ROWS.length);
+      expect(httpData?.totalRowCount).toBe(MOCK_TOTAL_ROW_COUNT);
+    });
+
+    it('sends no total row count when the read does not ask', async () => {
+      const res = await agent
+        .get(`/api/external/http-data/data-marts/${dataMartId}.ndjson?column=date`)
+        .set(AUTH_HEADER);
+
+      expect(res.status).toBe(200);
+      expect(res.headers['x-owox-total-row-count']).toBeUndefined();
+
+      const run = await agent
+        .get(`/api/data-marts/${dataMartId}/runs/${res.headers['x-owox-run-id']}`)
+        .set(AUTH_HEADER);
+      expect(run.body.additionalParams?.httpData?.totalRowCount).toBeUndefined();
+    });
+
     it('adds one finished run per read', async () => {
       const runs = app.get<Repository<DataMartRun>>(getRepositoryToken(DataMartRun));
       const before = await runs.countBy({ dataMartId });
@@ -771,7 +816,7 @@ describe('HTTP Data API (e2e)', () => {
       expect(run.body.additionalParams?.httpData?.limit).toBe(1);
     });
 
-    it.each([{ filter: 'abc' }, { limit: '0' }])(
+    it.each([{ filter: 'abc' }, { limit: '0' }, { includeTotalRowCount: 'true' }])(
       'rejects invalid request parameters without creating a run: %j',
       async query => {
         const runRepo = app.get<Repository<DataMartRun>>(getRepositoryToken(DataMartRun));

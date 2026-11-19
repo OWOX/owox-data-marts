@@ -35,6 +35,8 @@ export type TraversalSource = {
 
 export class HttpNdjsonTraversal {
   readonly runId: string | undefined;
+  /** Row count of the full result. It is `undefined` when the read did not ask or the server sent no count. */
+  readonly totalRowCount: number | undefined;
   private consumed = false;
   private cancelled = false;
 
@@ -44,6 +46,10 @@ export class HttpNdjsonTraversal {
     private readonly source: TraversalSource
   ) {
     this.runId = response.headers.get('x-owox-run-id') ?? undefined;
+    const totalRowCount = response.headers.get('x-owox-total-row-count');
+    const parsed =
+      totalRowCount !== null && /^\d+$/.test(totalRowCount) ? Number(totalRowCount) : NaN;
+    this.totalRowCount = Number.isSafeInteger(parsed) ? parsed : undefined;
   }
 
   async cancel(): Promise<void> {

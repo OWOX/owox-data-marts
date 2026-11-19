@@ -150,6 +150,7 @@ export const HttpDataQuerySchema = z
     dateTrunc: DateTruncParamSchema.optional(),
     uniqueCount: UniqueCountParamSchema.optional(),
     limit: LimitParamSchema.optional(),
+    includeTotalRowCount: z.enum(['true', 'false']).optional(),
   })
   .passthrough()
   .superRefine((value, ctx) => {
@@ -208,6 +209,7 @@ export const HttpDataQuerySchema = z
     dateTrunc: value.dateTrunc,
     uniqueCount: value.uniqueCount,
     limit: value.limit,
+    includeTotalRowCount: value.includeTotalRowCount === 'true',
   }));
 
 export type HttpDataQuery = z.infer<typeof HttpDataQuerySchema>;

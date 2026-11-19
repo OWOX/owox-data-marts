@@ -73,6 +73,6 @@ export class LegacyBigQueryQueryBuilder extends BigQueryQueryBuilder {
     }
     const cleanQuery = preparedSql.trim().replace(/;\s*$/, '');
     const selectList = queryOptions.columns.map(col => escapeBigQueryIdentifier(col)).join(',\n  ');
-    return composeSelectFromClause(selectList, `(${cleanQuery})`);
+    return composeSelectFromClause(selectList, `(\n${cleanQuery}\n)`);
   }
 }

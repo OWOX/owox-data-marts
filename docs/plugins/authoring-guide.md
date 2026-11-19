@@ -622,7 +622,7 @@ the declared scopes, the request fails with `CREDENTIAL_SCOPE_INVALID` (400); fi
 
 `ctx.owox.dataMarts.traverseData()` streams a Data Mart's rows. Its columns, filters, sorting,
 aggregation, date buckets, and Unique Count (`uniqueCount`) are documented in the
-[API client reference](../api/api-client.md#stream-data-mart-rows). Four things are not visible
+[API client reference](../api/api-client.md#stream-data-mart-rows). Five things are not visible
 from the rows:
 
 - **Schema.** `dataMarts.list()` returns no schema. Read a Data Mart's fields, with their types and
@@ -638,6 +638,12 @@ from the rows:
   `additionalParams.httpData.totalsError` gives the reason when the totals query failed. The
   `status` and the row count come when the stream ends. Totals never include a Unique Count. Per-group
   counts do not add up to it. For the overall count, read again without `column`.
+- **Total row count.** Pass `includeTotalRowCount: true` to read `data.totalRowCount`, the row
+  count of the full result, without `limit`. `rowCount` of the run is the number of rows sent. The
+  count is a second query, so it can differ from the rows when the data changes between the two.
+  The [API client reference](../api/api-client.md#stream-data-mart-rows) lists when
+  `data.totalRowCount` is `undefined`. The run holds the reason in
+  `additionalParams.httpData.totalRowCountError`.
 - **Executed SQL.** `additionalParams.httpData.executionSqlQuery` of the same run holds the SQL with
   values inlined. The SQL returns the same rows as the read. A read without output controls can read
   the table directly. The field is absent when OWOX cannot build the SQL.

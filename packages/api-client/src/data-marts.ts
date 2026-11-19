@@ -200,6 +200,8 @@ export type TraverseDataOptions = {
    */
   uniqueCount?: string[] | null;
   limit?: number;
+  /** Asks the server to count the full result. Sets `totalRowCount` on the traversal when the count succeeds. */
+  includeTotalRowCount?: boolean;
 };
 
 type DataMartsPage = {
@@ -324,6 +326,9 @@ function buildTraverseDataQuery(options: TraverseDataOptions): URLSearchParams |
   }
   if (options.limit !== undefined) {
     query.append('limit', String(options.limit));
+  }
+  if (options.includeTotalRowCount === true) {
+    query.append('includeTotalRowCount', 'true');
   }
 
   return query.size === 0 ? undefined : query;

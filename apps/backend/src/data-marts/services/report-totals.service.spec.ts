@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 import { ReportTotalsService } from './report-totals.service';
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
 import { ReportDataBatch } from '../dto/domain/report-data-batch.dto';
@@ -63,6 +64,22 @@ describe('ReportTotalsService', () => {
     );
     return { service, readerResolver, reportSqlComposerService, reader };
   };
+
+  it('passes the table reference memo to composeTotals', async () => {
+    const { service, reportSqlComposerService } = createService();
+    const memo = new Map<string, Promise<string>>();
+
+    await service.computeTotals(
+      buildReport(),
+      {} as never,
+      DataStorageType.GOOGLE_BIGQUERY,
+      undefined,
+      undefined,
+      memo
+    );
+
+    expect(reportSqlComposerService.composeTotals.mock.calls[0][2]).toBe(memo);
+  });
 
   it('non-aggregated report (composeTotals → null) returns null and never resolves a reader', async () => {
     const composeTotals = jest.fn().mockResolvedValue(null);
@@ -223,5 +240,188 @@ describe('ReportTotalsService', () => {
       service.computeTotals(buildReport(), {} as never, DataStorageType.GOOGLE_BIGQUERY)
     ).rejects.toThrow('boom');
     expect(reader.finalize).toHaveBeenCalled();
+  });
+  describe('computeRowCount', () => {
+    const plan = { dataMart: { id: 'dm-1' } } as never;
+
+    const setup = (cell: unknown, readerOverrides: Record<string, jest.Mock> = {}) => {
+      const reader = {
+        prepareReportData: jest.fn().mockResolvedValue(new ReportDataDescription([])),
+        readReportDataBatch: jest
+          .fn()
+          .mockResolvedValue(new ReportDataBatch(cell === undefined ? [] : [[cell]], null)),
+        finalize: jest.fn().mockResolvedValue(undefined),
+        ...readerOverrides,
+      };
+      const composeRowCount = jest.fn().mockResolvedValue({
+        sql: 'SELECT COUNT(*) AS total_row_count FROM (x) AS total_row_count_source',
+        params: [{ name: 'p0', value: 1 }],
+        alias: 'total_row_count',
+      });
+      const service = new ReportTotalsService(
+        { resolve: jest.fn().mockResolvedValue(reader) } as never,
+        { composeRowCount } as never
+      );
+      return { service, reader, composeRowCount };
+    };
+
+    it('returns the count from the first cell', async () => {
+      const { service, reader, composeRowCount } = setup(12);
+      const accessor = { userId: 'u', roles: ['admin'] } as never;
+
+      const result = await service.computeRowCount(plan, accessor, DataStorageType.GOOGLE_BIGQUERY);
+
+      expect(result).toBe(12);
+      expect(composeRowCount).toHaveBeenCalledWith(plan, accessor, undefined);
+      expect(reader.prepareReportData).toHaveBeenCalledWith(
+        plan,
+        expect.objectContaining({
+          sqlOverride: 'SELECT COUNT(*) AS total_row_count FROM (x) AS total_row_count_source',
+          sqlOverrideParams: [{ name: 'p0', value: 1 }],
+          columnFilter: ['total_row_count'],
+        })
+      );
+      expect(reader.readReportDataBatch).toHaveBeenCalledWith(undefined, 1);
+    });
+
+    it('passes the table reference memo to the composer', async () => {
+      const { service, composeRowCount } = setup(1);
+      const memo = new Map<string, Promise<string>>();
+
+      await service.computeRowCount(
+        plan,
+        {} as never,
+        DataStorageType.GOOGLE_BIGQUERY,
+        undefined,
+        undefined,
+        memo
+      );
+
+      expect(composeRowCount.mock.calls[0][2]).toBe(memo);
+    });
+
+    it.each([
+      ['a digit string', '12', 12],
+      ['a bigint', 12n, 12],
+      ['zero', 0, 0],
+    ])('converts %s', async (_name, cell, expected) => {
+      const { service } = setup(cell);
+
+      await expect(
+        service.computeRowCount(plan, {} as never, DataStorageType.GOOGLE_BIGQUERY)
+      ).resolves.toBe(expected);
+    });
+
+    it('throws when the count query returns no row', async () => {
+      const { service } = setup(undefined);
+
+      await expect(
+        service.computeRowCount(plan, {} as never, DataStorageType.GOOGLE_BIGQUERY)
+      ).rejects.toThrow();
+    });
+
+    it.each([
+      [null],
+      [''],
+      ['abc'],
+      [-1],
+      [1.5],
+      [-1n],
+      [true],
+      ['9007199254740993'],
+      [9007199254740993n],
+    ])('throws on %p, which is not a count', async cell => {
+      const { service } = setup(cell);
+
+      await expect(
+        service.computeRowCount(plan, {} as never, DataStorageType.GOOGLE_BIGQUERY)
+      ).rejects.toThrow();
+    });
+
+    it('passes the time limit and the signal only when given', async () => {
+      const given = setup(1);
+      const signal = new AbortController().signal;
+      await given.service.computeRowCount(
+        plan,
+        {} as never,
+        DataStorageType.GOOGLE_BIGQUERY,
+        5000,
+        signal
+      );
+      expect(given.reader.prepareReportData.mock.calls[0][1]).toEqual(
+        expect.objectContaining({ queryTimeoutMs: 5000, signal })
+      );
+
+      const omitted = setup(1);
+      await omitted.service.computeRowCount(plan, {} as never, DataStorageType.GOOGLE_BIGQUERY);
+      const options = omitted.reader.prepareReportData.mock.calls[0][1];
+      expect(options).not.toHaveProperty('queryTimeoutMs');
+      expect(options).not.toHaveProperty('signal');
+    });
+
+    it('finalizes the reader on success and on a read failure', async () => {
+      const ok = setup(1);
+      await ok.service.computeRowCount(plan, {} as never, DataStorageType.GOOGLE_BIGQUERY);
+      expect(ok.reader.finalize).toHaveBeenCalledTimes(1);
+
+      const failing = setup(1, {
+        readReportDataBatch: jest.fn().mockRejectedValue(new Error('boom')),
+      });
+      await expect(
+        failing.service.computeRowCount(plan, {} as never, DataStorageType.GOOGLE_BIGQUERY)
+      ).rejects.toThrow('boom');
+      expect(failing.reader.finalize).toHaveBeenCalledTimes(1);
+    });
+
+    it('keeps the count when the reader fails to finalize', async () => {
+      const { service } = setup(7, {
+        finalize: jest.fn().mockRejectedValue(new Error('close failed')),
+      });
+      const warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation();
+
+      await expect(
+        service.computeRowCount(plan, {} as never, DataStorageType.GOOGLE_BIGQUERY)
+      ).resolves.toBe(7);
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('close failed'));
+      warn.mockRestore();
+    });
+
+    it('does not prepare the read when the signal is already aborted', async () => {
+      const { service, reader } = setup(1);
+      const controller = new AbortController();
+      controller.abort(new Error('late'));
+
+      await expect(
+        service.computeRowCount(
+          plan,
+          {} as never,
+          DataStorageType.GOOGLE_BIGQUERY,
+          undefined,
+          controller.signal
+        )
+      ).rejects.toThrow('late');
+      expect(reader.prepareReportData).not.toHaveBeenCalled();
+    });
+
+    it('does not read when the signal aborts while the read prepares', async () => {
+      const controller = new AbortController();
+      const { service, reader } = setup(1, {
+        prepareReportData: jest.fn().mockImplementation(() => {
+          controller.abort(new Error('late'));
+          return Promise.resolve(new ReportDataDescription([]));
+        }),
+      });
+
+      await expect(
+        service.computeRowCount(
+          plan,
+          {} as never,
+          DataStorageType.GOOGLE_BIGQUERY,
+          undefined,
+          controller.signal
+        )
+      ).rejects.toThrow('late');
+      expect(reader.readReportDataBatch).not.toHaveBeenCalled();
+    });
   });
 });

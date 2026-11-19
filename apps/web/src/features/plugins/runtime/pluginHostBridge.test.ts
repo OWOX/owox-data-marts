@@ -673,6 +673,7 @@ describe('plugin host bridge', () => {
             headers: {
               'content-type': 'application/json',
               'x-owox-run-id': 'run-7',
+              'x-owox-total-row-count': '1234',
               'set-cookie': 'session=secret',
               'x-internal-backend': 'db-primary',
             },
@@ -683,7 +684,11 @@ describe('plugin host bridge', () => {
 
       expect(response).toMatchObject({
         ok: true,
-        headers: { 'content-type': 'application/json', 'x-owox-run-id': 'run-7' },
+        headers: {
+          'content-type': 'application/json',
+          'x-owox-run-id': 'run-7',
+          'x-owox-total-row-count': '1234',
+        },
       });
       expect(JSON.stringify(response)).not.toContain('secret');
       expect(JSON.stringify(response)).not.toContain('db-primary');
