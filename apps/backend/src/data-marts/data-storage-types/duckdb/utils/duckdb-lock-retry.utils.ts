@@ -17,10 +17,22 @@ export interface DuckDbLockRetryOptions {
   attempts?: number; // default 13
   baseDelayMs?: number; // default 100, doubling
   maxDelayMs?: number; // default 4000 → about 30 s of waiting in total
-  sleepFn?: (ms: number) => Promise<void>; // injectable for tests
+  sleepFn?: (ms: number, signal?: AbortSignal) => Promise<void>; // injectable for tests
+  signal?: AbortSignal; // stops the wait between attempts
 }
 
-const defaultSleep = (ms: number): Promise<void> => new Promise(resolve => setTimeout(resolve, ms));
+const defaultSleep = (ms: number, signal?: AbortSignal): Promise<void> =>
+  new Promise((resolve, reject) => {
+    const onAbort = () => {
+      clearTimeout(timer);
+      reject(signal!.reason);
+    };
+    const timer = setTimeout(() => {
+      signal?.removeEventListener('abort', onAbort);
+      resolve();
+    }, ms);
+    signal?.addEventListener('abort', onAbort, { once: true });
+  });
 
 /**
  * Runs `fn`, retrying with exponential backoff when the failure looks like a
@@ -43,13 +55,17 @@ export async function withDuckDbLockRetry<T>(
   const baseDelayMs = options.baseDelayMs ?? 100;
   const maxDelayMs = options.maxDelayMs ?? 4000;
   const sleep = options.sleepFn ?? defaultSleep;
+  const { signal } = options;
   for (let attempt = 0; attempt < attempts; attempt++) {
+    signal?.throwIfAborted();
     try {
       return await fn();
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       if (!(error instanceof DuckDbFileBusyError) && !LOCK_CONFLICT.test(message)) throw error;
-      if (attempt < attempts - 1) await sleep(Math.min(baseDelayMs * 2 ** attempt, maxDelayMs));
+      if (attempt < attempts - 1) {
+        await sleep(Math.min(baseDelayMs * 2 ** attempt, maxDelayMs), signal);
+      }
     }
   }
   throw new DuckDbStorageBusyException(

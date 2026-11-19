@@ -295,11 +295,11 @@ export class DuckDbApiAdapter {
    * gets a fresh attempt and `close()` stays a clean no-op. An open that finishes after
    * `close()` closes what it opened and rejects.
    */
-  private async conn(): Promise<OpenFile> {
+  private async conn(signal?: AbortSignal): Promise<OpenFile> {
     if (this.closed) throw new Error(ADAPTER_CLOSED);
     if (!this.opened) {
       const filePath = path.resolve(this.databasePath);
-      const opening = this.lease(filePath).then(async lease => {
+      const opening = this.lease(filePath, signal).then(async lease => {
         try {
           if (this.closed) throw new Error(ADAPTER_CLOSED);
           const connection = await lease.instance.connect();
@@ -327,9 +327,12 @@ export class DuckDbApiAdapter {
   }
 
   // A waiting writer turns new readers away, so a steady stream of reads cannot starve it.
-  private async lease(filePath: string): Promise<FileLease> {
+  private async lease(filePath: string, signal?: AbortSignal): Promise<FileLease> {
     const lease = () =>
-      withDuckDbLockRetry(() => leaseFile(filePath, this.accessMode), this.lockRetryOptions);
+      withDuckDbLockRetry(() => leaseFile(filePath, this.accessMode), {
+        ...this.lockRetryOptions,
+        signal,
+      });
     if (this.accessMode === 'READ_ONLY') return lease();
     const use = fileUse(filePath);
     use.writersWaiting++;
@@ -341,8 +344,8 @@ export class DuckDbApiAdapter {
     }
   }
 
-  private async connFor(sql: string): Promise<OpenFile> {
-    const file = await this.conn();
+  private async connFor(sql: string, signal?: AbortSignal): Promise<OpenFile> {
+    const file = await this.conn(signal);
     const parsing = file.connection.extractStatements(sql);
     // close() waits for the parse rather than closing the connection under it.
     file.settle = () =>
@@ -418,7 +421,7 @@ export class DuckDbApiAdapter {
    */
   async streamQuery(sql: string, limits: DuckDbQueryLimits = {}): Promise<DuckDbQueryStream> {
     limits.signal?.throwIfAborted();
-    const file = await this.connFor(sql);
+    const file = await this.connFor(sql, limits.signal);
     // The lock wait can outlast the caller; an abort listener added now would never fire.
     limits.signal?.throwIfAborted();
     const { connection } = file;

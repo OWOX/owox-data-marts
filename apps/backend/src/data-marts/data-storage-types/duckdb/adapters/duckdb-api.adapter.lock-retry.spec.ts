@@ -169,4 +169,26 @@ describe('DuckDbApiAdapter conn() lock-conflict retry (REAL cross-process lock)'
       fs.rmSync(dbPath, { force: true });
     }
   }, 20000);
+
+  it('stops waiting for the lock when the read is aborted, and close() does not wait either', async () => {
+    const dbPath = path.join(os.tmpdir(), `duckadp-lockabort-${process.pid}-${Date.now()}.duckdb`);
+    const { release } = await spawnDuckDbLockHolder(dbPath);
+    try {
+      const reader = new DuckDbApiAdapter(dbPath);
+      const controller = new AbortController();
+      setTimeout(() => controller.abort(), 300);
+      const started = Date.now();
+
+      await expect(
+        reader.streamQuery('SELECT id FROM main.t', { signal: controller.signal })
+      ).rejects.toThrow(/abort/i);
+      await reader.close();
+
+      // The default retry budget is about 30 s.
+      expect(Date.now() - started).toBeLessThan(3000);
+    } finally {
+      await release();
+      fs.rmSync(dbPath, { force: true });
+    }
+  }, 20000);
 });

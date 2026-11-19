@@ -77,6 +77,22 @@ describe('withDuckDbLockRetry', () => {
     expect(calls).toBe(2);
   });
 
+  it('stops retrying when its signal aborts during a wait', async () => {
+    const controller = new AbortController();
+    let calls = 0;
+    const retrying = withDuckDbLockRetry(
+      async () => {
+        calls++;
+        throw new Error('Conflicting lock is held');
+      },
+      { baseDelayMs: 10000, signal: controller.signal }
+    );
+    controller.abort();
+
+    await expect(retrying).rejects.toThrow(/abort/i);
+    expect(calls).toBe(1);
+  });
+
   it('default schedule waits about 30 s before giving up', async () => {
     const delays: number[] = [];
     await expect(
