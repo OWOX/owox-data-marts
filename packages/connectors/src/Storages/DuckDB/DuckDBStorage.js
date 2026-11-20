@@ -49,6 +49,9 @@ var DuckDBStorage = class DuckDBStorage extends AbstractStorage {
    */
   async _openDatabase() {
     if (this._conn) return;
+    // Lazy require — external to the Vite bundle, resolved at runtime. Every storage needs it
+    // for its value types, also one that reuses an instance another storage opened.
+    this._duck = this._duck || require('@duckdb/node-api');
     const dbPath = this.context.getParameter('DatabasePath')?.value;
     const key = require('node:path').resolve(dbPath);
     // A run writes each node through its own storage. They share one instance of the file:
@@ -90,8 +93,6 @@ var DuckDBStorage = class DuckDBStorage extends AbstractStorage {
   }
 
   async _createInstance(dbPath) {
-    // Lazy require — external to the Vite bundle, resolved at runtime.
-    this._duck = this._duck || require('@duckdb/node-api');
     const sleep = this._sleep || (ms => new Promise(resolve => setTimeout(resolve, ms)));
     const os = require('node:os');
     const memory = Math.min(os.totalmem(), process.constrainedMemory() || Infinity);

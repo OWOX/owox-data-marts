@@ -921,6 +921,7 @@ test('the storages of two nodes in one run share one instance of the file', asyn
   const { DuckDBStorage } = OWOX.Storages.DuckDB;
   let creates = 0;
   const duck = {
+    ...duckdb,
     DuckDBInstance: {
       create: (...args) => {
         creates++;
@@ -928,16 +929,12 @@ test('the storages of two nodes in one run share one instance of the file', asyn
       },
     },
   };
-  const storages = ['t_node_a', 't_node_b'].map(table => {
-    const storage = new DuckDBStorage(
-      makeContextFor(dbPath, table, 10, ['id', 'name']),
-      ['id'],
-      RUN_SCHEMA,
-      null
-    );
-    storage._duck = duck;
-    return storage;
-  });
+  const storages = ['t_node_a', 't_node_b'].map(
+    table =>
+      new DuckDBStorage(makeContextFor(dbPath, table, 10, ['id', 'name']), ['id'], RUN_SCHEMA, null)
+  );
+  // Only the first storage opens the instance; the second must load its own value types.
+  storages[0]._duck = duck;
   const key = path.resolve(dbPath);
   try {
     for (const storage of storages) {
