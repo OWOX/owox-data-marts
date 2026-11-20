@@ -63,6 +63,8 @@ export async function withDuckDbLockRetry<T>(
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       if (!(error instanceof DuckDbFileBusyError) && !LOCK_CONFLICT.test(message)) throw error;
+      // An abort during the attempt: the sleep's listener never fires for it.
+      signal?.throwIfAborted();
       if (attempt < attempts - 1) {
         await sleep(Math.min(baseDelayMs * 2 ** attempt, maxDelayMs), signal);
       }

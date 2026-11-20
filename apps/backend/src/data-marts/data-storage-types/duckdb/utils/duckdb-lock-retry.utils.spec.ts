@@ -77,20 +77,50 @@ describe('withDuckDbLockRetry', () => {
     expect(calls).toBe(2);
   });
 
-  it('stops retrying when its signal aborts during a wait', async () => {
+  it('stops at once when its signal aborts during an attempt, without the back-off wait', async () => {
     const controller = new AbortController();
     let calls = 0;
+    const started = Date.now();
     const retrying = withDuckDbLockRetry(
       async () => {
         calls++;
         throw new Error('Conflicting lock is held');
       },
-      { baseDelayMs: 10000, signal: controller.signal }
+      { baseDelayMs: 4000, signal: controller.signal }
     );
     controller.abort();
 
     await expect(retrying).rejects.toThrow(/abort/i);
     expect(calls).toBe(1);
+    expect(Date.now() - started).toBeLessThan(1000);
+  });
+
+  it('stops retrying when its signal aborts during a wait', async () => {
+    const controller = new AbortController();
+    const retrying = withDuckDbLockRetry(
+      async () => {
+        throw new Error('Conflicting lock is held');
+      },
+      { baseDelayMs: 4000, signal: controller.signal }
+    );
+    setTimeout(() => controller.abort(), 50);
+    const started = Date.now();
+
+    await expect(retrying).rejects.toThrow(/abort/i);
+    expect(Date.now() - started).toBeLessThan(1000);
+  });
+
+  it('reports an abort during the last attempt as the abort, not as a busy storage', async () => {
+    const controller = new AbortController();
+    const retrying = withDuckDbLockRetry(
+      async () => {
+        controller.abort();
+        throw new Error('Conflicting lock is held');
+      },
+      { attempts: 1, signal: controller.signal }
+    );
+
+    await expect(retrying).rejects.toThrow(/abort/i);
   });
 
   it('default schedule waits about 30 s before giving up', async () => {
