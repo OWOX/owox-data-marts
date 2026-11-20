@@ -102,8 +102,8 @@ IDP_OWOX_SENDGRID_VERIFIED_SENDER_NAME=OWOX Data Marts
 | `IDP_OWOX_SERVER_EVENTS_COLLECT_URL`      |    No    |                      –                      | GA4-compatible `g/collect` URL for server-side auth page events. Unset disables them.                         |
 | `IDP_OWOX_SERVER_EVENTS_MEASUREMENT_ID`   | With URL |                      –                      | Measurement id sent as `tid`                                                                                  |
 | `IDP_OWOX_SERVER_EVENTS_VISITOR_COOKIE`   | With URL |                      –                      | Name of the first-party cookie that identifies the visitor; events are sent only with it                      |
-| `IDP_OWOX_PRODUCT_INTENT_COOKIE_PREFIX`   |    No    |                      –                      | Cookie name prefix for product intent signals. Unset disables them.                                           |
-| `IDP_OWOX_PRODUCT_INTENT_COOKIE_DOMAIN`   |  Paired  |                      –                      | Bare domain on which those cookies are cleared; required together with the prefix                             |
+| `IDP_OWOX_PRODUCT_INTENT_COOKIE_PREFIX`   |    No    |                      –                      | Name prefix of the three product intent cookies. Unset disables them.                                         |
+| `IDP_OWOX_PRODUCT_INTENT_COOKIE_DOMAIN`   |  Paired  |                      –                      | Bare domain on which those cookies are cleared; set with the prefix                                           |
 
 ## Project membership emails
 
@@ -139,9 +139,20 @@ fails a page or a sign-in; a failed send is logged as a warning.
 
 Disabled unless both `IDP_OWOX_PRODUCT_INTENT_COOKIE_PREFIX` and
 `IDP_OWOX_PRODUCT_INTENT_COOKIE_DOMAIN` are set; setting only one is a
-configuration error. After a completed sign-in the provider reads the request
-cookies whose names start with the prefix and stores their values for the user.
-The cookies are then cleared on the configured domain.
+configuration error. Nothing is read, stored or returned while it is disabled.
+
+Exactly three cookies are read: `<prefix>source`, `<prefix>storage` and
+`<prefix>destination`. They are read on the sign-in callback, on a silent
+sign-in and on every current-user request (`/auth/api/user`). View-only
+sessions are skipped.
+
+Each value may contain lowercase letters, digits and hyphens, up to 64
+characters, and at least one of the three must be present. The valid values are
+stored as one signal of the user, and at most 50 signals are kept per user. The
+cookies that were present are then cleared on the configured domain with path
+`/`, also when a value is invalid, in which case nothing is stored. If storing
+fails, the cookies are kept. Stored signals are returned as `signals` in the
+current-user response.
 
 ## Troubleshooting
 
